@@ -1,14 +1,14 @@
 # Yuki architecture
 
-This document records every architecture decision for yuki and the reason for each one. [product.md](product.md) says what the product is. The research behind the facts is in [docs/research/](research/), one file per topic, with file and line pointers or source URLs.
+This document records every architecture decision for yuki and the reason for each one. [product.md](product.md) says what the product is.
 
 ## 1. How to read this document
 
 Each section states a decision, then the reasoning, then what was rejected. Three labels mark the weak points.
 
 - **ASSUMPTION** marks a choice made where the spec was silent or ambiguous. The simplest option was taken.
-- **UNVERIFIED** marks a fact that could not be confirmed from `refs/` or official docs. Section 21 lists the experiments that settle each one.
-- **DEVIATION** marks a place where the plan departs from the spec on purpose. Section 22 lists all of them for review.
+- **UNVERIFIED** marks a fact that could not be confirmed from the official docs. Section 21 lists the experiments that settle each one.
+- **DEVIATION** marks a place where yuki departs from the spec on purpose. Section 22 lists all of them for review.
 
 The spec uses paths that differ from the repository. This document uses the real ones.
 
@@ -16,13 +16,10 @@ The spec uses paths that differ from the repository. This document uses the real
 | --- | --- |
 | `solid-web/` | `apps/web-solid/` |
 | `yuki/ui/` | `packages/ui/` (`@yuki/ui`) |
-| `tweb/`, `refs/tweb` | `solid-refs/tweb/` |
-| `solid-refs/astryx` | not present. The upstream `ChatSystemMessage.tsx` was fetched and read instead |
-| `refs/confect` | present, unused. The spec forbids Convex and Confect |
 
 ## 2. What pi provides and what yuki builds
 
-The spec says "Pi already handles BYOK, login, auth, the model catalog and the agent loop." The source in `refs/pi` supports a narrower statement. Details are in [research/pi-durable.md](research/pi-durable.md) and [research/pi-packages.md](research/pi-packages.md).
+The spec says "Pi already handles BYOK, login, auth, the model catalog and the agent loop." The published `pi-durable` and `pi-ai` packages support a narrower statement.
 
 | Concern | What pi provides | What yuki must build |
 | --- | --- | --- |
@@ -593,7 +590,7 @@ record    = AES-256-GCM(data key, iv = 12 random bytes, aad = userId || provider
 - The code is `core/durable/src/crypto.ts` and `apps/server/src/user/credentials.ts`. `UserDO` takes its user id from `ctx.id.name`.
 - Rotation: move the old secret to `CREDENTIALS_KEK_PREVIOUS`, set the new `CREDENTIALS_KEK`, and add 1 to `CREDENTIALS_KEK_VERSION` (default 1). A row sealed with the old secret is re-sealed on its next read.
 - ASSUMPTION: the additional data is `userId:providerId`. A user id cannot contain ":", so no two pairs share bytes.
-- DEVIATION: the RPC methods are `connectProvider`, `disconnectProvider`, and `listProviders`. `connect` is the `DurableObject` handler for TCP sockets, so the plan's name cannot be used.
+- DEVIATION: the RPC methods are `connectProvider`, `disconnectProvider`, and `listProviders`. `connect` is the `DurableObject` handler for TCP sockets, so that name cannot be used.
 - HTTP: `GET /api/credentials`, `PUT /api/credentials/<provider>` with `{ apiKey }`, and `DELETE /api/credentials/<provider>`. None returns a key.
 
 ### 11.3 Use during a run
@@ -602,7 +599,7 @@ At the start of a run, `AgentDO` calls `UserDO.turnContext(provider, slug)` once
 
 Disconnecting a provider deletes its rows in `UserDO` at once. A run already in flight finishes its current model request with the auth it holds. The next request fails with a clear error and the chat shows the connect prompt.
 
-How yuki does it (P4-02):
+How yuki does it:
 
 - `UserDO.turnContext(provider)` (`apps/server/src/user/turn-context.ts`) resolves the auth with pi-ai's `Models.getAuth` over the vault, so an OAuth token is refreshed and written back inside `UserDO`. It also returns the timezone (setting `timezone`, ASSUMPTION: default UTC) and the limits (setting `limits` over the section 7.7 defaults). Memory joins the same call later.
 - The host calls the setup's `beginRun` before a batch starts a new run, never for a batch that steers or queues into a live one. No auth means no submit: the batch is dropped and `RoomDO.noProvider` stores one `no_provider` room event per agent and input. The human's messages stay in the log.
@@ -617,24 +614,24 @@ How yuki does it (P4-02):
 | Flow in pi-ai | Mechanism | On Workers |
 | --- | --- | --- |
 | API key (every provider, including `opencode` and `opencode-go`) | paste | works |
-| GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | enabled. The GitHub Copilot flow ran under `wrangler dev` up to the device code from github.com (P4-04). No flow has been completed against a real account. |
+| GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | enabled. The GitHub Copilot flow ran under `wrangler dev` up to the device code from github.com. No flow has been completed against a real account. |
 | Anthropic | loopback server, with a copy-code fallback | enabled, copy-code path only. The server answers the method question itself. |
 | OpenRouter | loopback server always, with a manual paste fallback | not enabled. The flow starts its loopback server before it offers the paste path, and a Worker cannot listen. |
 | OpenAI ChatGPT | imports `node:http` and `node:crypto` at the top of the module | not enabled. Loopback server only. |
 
-How yuki runs them (P4-04, `apps/server/src/user/provider-login.ts`):
+How yuki runs them (`apps/server/src/user/provider-login.ts`):
 
 - The client sends `login.start`, gets `login.notify` and `login.prompt` frames, answers with `login.answer`, and ends with `login.done` or `login.error`. A sign-in opens its own user socket.
 - A login lives in `UserDO` memory, tied to its socket. It ends when the credential is stored, the flow fails, the user cancels, the socket closes, or a 10-minute wakeup fires. Each ending removes all of its state. A login does not survive an eviction; the client hears `unknown` and starts again.
-- pi-ai loads flow modules with a computed `import()` that a Worker bundle cannot follow. `registerBunOAuthFlows()` from `@earendil-works/pi-ai/bun-oauth` fills pi-ai's loader table with the bundled flows instead. ASSUMPTION: the helper is named for Bun binaries but does only that. P4-02's token refresh depends on it too.
+- pi-ai loads flow modules with a computed `import()` that a Worker bundle cannot follow. `registerBunOAuthFlows()` from `@earendil-works/pi-ai/bun-oauth` fills pi-ai's loader table with the bundled flows instead. ASSUMPTION: the helper is named for Bun binaries but does only that. The token refresh depends on it too.
 - Every enabled flow is a subscription flow, so all of them need `PROVIDER_OAUTH=on`. A development bundle also offers the `yuki-fake` provider for `bun yuki verify provider-login --fake`.
 - UNVERIFIED: pi-ai's device-code polling waits with `setTimeout` between `fetch` calls. Whether a deployed Durable Object stays awake through a long poll has not been measured.
 
 Two cautions for the owner to decide on.
 
 - The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. A hosted multi-user service that signs users in with that client id may break the provider's terms. The plan ships API keys first and puts subscription sign-in behind a flag that is off by default.
-- pi-ai's generated model catalog is gitignored in `refs/pi`, but the published npm package does contain it, as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5, [results](research/experiment-5-bundle-and-catalog.md)).
-- pi-ai's generated model catalog is gitignored in `refs/pi`. The published npm package 1.0.0 contains it, one JSON file per provider under `dist/providers/data/` (experiment 1).
+- pi-ai's published npm package contains the generated model catalog as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5).
+- pi-ai's published npm package 1.0.0 contains the generated model catalog, one JSON file per provider under `dist/providers/data/` (experiment 1).
 
 ### 11.5 Model catalog for the client
 
@@ -645,7 +642,7 @@ Providers and models are one settings page, `/settings/models`. Connected provid
 ### 11.6 Test provider
 
 Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The catalog id for "deepseek v4.1 flash" is `deepseek-v4.1-flash` under `opencode-go`. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
-Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 does not pass the `sessionId` that would add it. The host sets it through `settings.stream.headers` (see [research/experiment-1-durable-in-do.md](research/experiment-1-durable-in-do.md)). Since P4-02 the Worker never reads the key: a verify suite that calls the model runs `connectTestModel(s)`, which saves `OPENCODE_API_KEY` from the CLI's shell through `PUT /api/credentials/opencode-go` like any user.
+Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 does not pass the `sessionId` that would add it. The host sets it through `settings.stream.headers`. The Worker never reads the key: a verify suite that calls the model runs `connectTestModel(s)`, which saves `OPENCODE_API_KEY` from the CLI's shell through `PUT /api/credentials/opencode-go` like any user.
 
 ## 12. Composio integration
 
@@ -653,7 +650,7 @@ Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The k
 
 DEVIATION from the first version, which took a consumer key (`ck_...`) for Composio's hosted MCP server at `https://connect.composio.dev/mcp`, plus an optional developer key (`ak_...`) for catalog lookups. On 2026-10-11 the owner said there is only one key: the project key from the Composio dashboard. The hosted server refuses that key, and a session made with it serves the same meta tools. So the consumer key, the developer key, the `setComposioDeveloperKey` frame, and the second settings field are gone. A store from before holds a key with no session, so `ComposioStore` drops it on start and the user pastes the one key again.
 
-Executor Cloud was the integration until phase 14 and was removed on 2026-10-10: Composio's workbench covers code over the user's apps, and one integration path is simpler than two. Its research stays in [research/executor-v2.md](research/executor-v2.md) as history.
+Executor Cloud was an earlier integration and was removed on 2026-10-10: Composio's workbench covers code over the user's apps, and one integration path is simpler than two.
 
 **Reasons.**
 
@@ -742,7 +739,7 @@ DEVIATION from OptMem, in four places. A room page is 16 turns (a life page 8 li
 - **Lines.** An agent's `note` (`@ada: ...`), a room's rollup (`chat trip: ...`), a fact captured from the human's own messages, or a line the human adds (both `you: ...`). One line, at most 280 bytes. Summaries of the life log follow the room's rules above. The same words twice are stored once, and a correction replaces what it corrects (13.6).
 - **The human.** The memory screen lists every line, newest first. The human pins up to 10 lines, which head every view, and redacts any line: its text is gone for good and the summaries above it are rebuilt. Agents can do neither.
 - **The model.** Summaries use the model the human picks on the memory screen, else the default model, with the human's own credential. Yuki picks no cheaper model on its own. At most four summaries run at once per user, across every room, so a dozen busy chats cannot spend the human's rate limit; the rest are told when to try again.
-- **Migration.** The records store of phase 5 is read once into the log, oldest first, then dropped.
+- **Migration.** The earlier records store is read once into the log, oldest first, then dropped.
 
 ### 13.4 Reading and writing
 
@@ -829,7 +826,7 @@ DEVIATION: pi-ai 1.0.0 also lists classifier models for OpenCode, OpenRouter, Ve
 - `bun yuki verify memory-edge` passed three runs in a row on the final code, 13 cases each: a private chat, capture off, an edit, a correction through `note replaces` without a judge, two chats at once, a repeated fact, a key added while capture is queued, deleting a correction, a long message, eight similar friends, a Spanish fact, and a group chat with two agents. Its rerank case only prints a note when rerank does not fire.
 - `bun yuki verify memory-isolation`: two users, and user B never saw user A's facts, in the list, the view, or an answer.
 - `bun yuki verify memory-eval` scored 10 of 10 in every run, and `memory-hard` 14 of 15 over 640 turns (its harness first ran on 2026-10-10, so there is no older score on this model).
-- `bun yuki verify token-cost`, two runs on the final code: agent 41,251 and 40,631 plus background 1,939 and 1,733, against 45,027 plus 1,179 before phase 15, so 6.5 and 8 percent less in all. Agents no longer spend a `note` call on what the human said when capture is on, and capture costs nothing without a judge.
+- `bun yuki verify token-cost`, two runs on the final code: agent 41,251 and 40,631 plus background 1,939 and 1,733, against 45,027 plus 1,179 before this work, so 6.5 and 8 percent less in all. Agents no longer spend a `note` call on what the human said when capture is on, and capture costs nothing without a judge.
 - A failure found this way: with known facts in the classifier `state`, Jev rated each new friend lower the more friends it already knew (worth 0.61, then 0.47, then 0.35). Known facts now appear only in their own same and replaces questions, which also cut Jev input by 10 percent.
 - UNVERIFIED: rerank has never fired in a live run. In every run the agent answered from its memory block without calling `recall`. The rerank code has unit tests only.
 - A Jev capture request takes 300 to 500 ms.
@@ -854,7 +851,7 @@ The code is `apps/server/src/user/reminders.ts` and `apps/server/src/room/delive
 - `UserDO` RPC: `createReminder(owner, input)`, `listReminders()`, `cancelReminder(id)`, `snoozeReminder(id, time)`, and `rewindReminder(id)` for development. The writes return `{ ok, reminder }` or `{ ok: false, error }`. `owner` is the session's user id from the Worker. The object stores it and uses it to reach the room.
 - `RoomDO` RPC: `deliverReminder(id, { text, target })`. It returns false for an id it has seen.
 - HTTP: `GET` and `POST /api/reminders`, `POST /api/reminders/<id>/cancel`, `/snooze`, and `/rewind` (development only). It replays the last occurrence, as after a crash between the post and the row update.
-- A time must carry an offset or `Z`. It is rounded up to a whole second because `rrule` works in seconds. ASSUMPTION: a recurring row that missed occurrences while the object was down skips them. ASSUMPTION: until P5-06, an agent-target reminder is a room message addressed to the agent, not an envelope.
+- A time must carry an offset or `Z`. It is rounded up to a whole second because `rrule` works in seconds. ASSUMPTION: a recurring row that missed occurrences while the object was down skips them. ASSUMPTION: an agent-target reminder is a room message addressed to the agent, not an envelope.
 
 Agents schedule their own work with the same tool by naming themselves as the target. There is one scheduling mechanism in the product. Routines (section 25) grow this table and keep its alarm.
 
@@ -889,7 +886,7 @@ The owner removed approvals and prompt-injection gating on 2026-10-11. Agents wo
 
 ## 17. Scale and cost
 
-Limits are from Cloudflare docs fetched on 2026-10-02 ([research/cloudflare.md](research/cloudflare.md)). The agent side of a turn was measured on 2026-10-02 ([research/experiment-2-turn-cost.md](research/experiment-2-turn-cost.md)). The rest is labeled. The method is what to trust here. The numbers will move as the room and user objects are built.
+Limits are from Cloudflare docs fetched on 2026-10-02. The agent side of a turn was measured on 2026-10-02. The rest is labeled. The method is what to trust here. The numbers will move as the room and user objects are built.
 
 ### 17.1 The user in the model
 
@@ -897,14 +894,14 @@ A "24/7 user" keeps a socket open all day and has 30 turns a day in a one-agent 
 
 ### 17.2 Cost of one turn
 
-Measured on a deployed Worker, mean of 5 runs, with the model answering for about 16 seconds ([research/experiment-2-turn-cost.md](research/experiment-2-turn-cost.md)).
+Measured on a deployed Worker, mean of 5 runs, with the model answering for about 16 seconds.
 
 | Resource | Count | Where it comes from |
 | --- | --- | --- |
 | Rows written by `AgentDO`, as shipped | 717 | measured. `pi-durable` commits partial output every 100 ms (`PARTIAL_THROTTLE_MS` in `src/harness/generation.ts`), about 40 rows a second with index rows counted |
 | Rows written by `RoomDO` and `UserDO` | 25 | ASSUMPTION, carried from the first estimate. Those objects are not built yet |
 | Rows written, as shipped | 742 | the two lines above |
-| Rows written, coalesced | 135 | ASSUMPTION, derived. Partial commits at 2 s instead of 100 ms leave about 8 commits at 4 rows, plus the 77 rows that are not partials (measured 717 minus 640). P0-07 replaces it with a measurement |
+| Rows written, coalesced | 135 | ASSUMPTION, derived. Partial commits at 2 s instead of 100 ms leave about 8 commits at 4 rows, plus the 77 rows that are not partials (measured 717 minus 640) |
 | Rows read by `AgentDO` | 996 | measured. Not a limit on any plan |
 | Wall time of `AgentDO` | 16.2 s | measured |
 | CPU of `AgentDO` | 1.5 s | measured, in one RPC invocation. See section 17.3 |
@@ -966,7 +963,7 @@ Model cost is the user's own and is not in these numbers. A team turn that wakes
 
 Rows written is the limit that binds first, and partial commits cause most of it. `PARTIAL_THROTTLE_MS` is a constant, not a setting.
 
-**Decision, verified by experiment 3.** Yuki wraps `SqliteStorage` in `createCoalescingStorage` (`core/agent/src/coalescing-storage.ts`). It holds partial-output commits in memory and writes each window of them as one commit. A window is written when a partial arrives 2 seconds or more after the window opened, and before any other write, any document read, and `close()`. `Storage` is a documented `pi-durable` interface with a conformance suite, so this uses an extension point and edits nothing. The agent host (P1-06) opens its harness on this wrapper. Details are in [research/experiment-3-coalescing.md](research/experiment-3-coalescing.md).
+**Decision, verified by experiment 3.** Yuki wraps `SqliteStorage` in `createCoalescingStorage` (`core/agent/src/coalescing-storage.ts`). It holds partial-output commits in memory and writes each window of them as one commit. A window is written when a partial arrives 2 seconds or more after the window opened, and before any other write, any document read, and `close()`. `Storage` is a documented `pi-durable` interface with a conformance suite, so this uses an extension point and edits nothing. The agent host opens its harness on this wrapper.
 
 **How a partial is told apart.** A partial commit is exactly one `document.change` delta to the conversation's `pi.live` document, and every op in it changes `generation`. One other commit has that shape, the marker that sets `generation` to `{ attempt }` before a request. Holding it is safe, because after a crash the task sends the request again from its checkpoint. The other commits in `src/harness/generation.ts` that change `generation` also write a task checkpoint, so they have more than one write. The wrapper also holds only a delta to a document without history, at the version stored, so the inner storage would accept it and no read can ask for a point inside a window.
 
@@ -1076,7 +1073,7 @@ A command is a transaction.
 
 Each file space is atomic on its own. A command that changes both the chat's files and the drive saves the chat's part first; if the drive then refuses, the chat's part stands, and the output says which space was not saved. `/me/soul.md` is saved last, on its own.
 
-`/tmp` is the command's own scratch space and is never saved, and `/dev/null` discards. A command saves nothing when it times out (30 seconds by default, 120 at most), is aborted, or hits just-bash's execution limits (100,000 commands, 100,000 loop iterations, and the like; it exits 126). Pure computation does not advance the Workers clock, so those limits, not the timeout, are what stop a runaway loop; every loop tried stopped within 2 seconds. One command reads at most 400 stored files, because a Free invocation may make 1,000 calls to Cloudflare services ([research/cloudflare.md](research/cloudflare.md)); past that the command is stopped with a line that says to narrow it. One command holds at most 16 MB of changed files.
+`/tmp` is the command's own scratch space and is never saved, and `/dev/null` discards. A command saves nothing when it times out (30 seconds by default, 120 at most), is aborted, or hits just-bash's execution limits (100,000 commands, 100,000 loop iterations, and the like; it exits 126). Pure computation does not advance the Workers clock, so those limits, not the timeout, are what stop a runaway loop; every loop tried stopped within 2 seconds. One command reads at most 400 stored files, because a Free invocation may make 1,000 calls to Cloudflare services; past that the command is stopped with a line that says to narrow it. One command holds at most 16 MB of changed files.
 
 **Reasoning.** just-bash calls a redirect "open empty, then append each chunk". Sent to the room one call at a time, `echo x > f` would be two R2 writes, and a teammate could read the empty file between them. A loop of `>>` would be a room call per line. Working in memory makes a command as fast as its reads and lets teammates see only finished commands. The conditional commit is what makes parallel work safe. pi runs the tool calls of one turn at the same time, each agent has its own object, and a worker shares its agent's object. Each command checks against its own snapshot, never against a hash another command read, so two commands that read the same file cannot both write it unseen. First writer wins and the other is told. This is the same guarantee as the hash on a single write (section 18.1), stretched over a command.
 
@@ -1093,8 +1090,6 @@ UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare
 The same fetcher backs a `web_fetch(url)` tool, which returns page text. Web search has no free provider, so it comes from the user's Composio apps or from a model's own search feature.
 
 ## 19. Frontend
-
-Facts about the current code are in [research/frontend-current.md](research/frontend-current.md). Reference patterns are in [research/frontend-refs.md](research/frontend-refs.md). The kat measurements are in [research/kat-ui.md](research/kat-ui.md).
 
 ### 19.1 Starting point
 
@@ -1139,7 +1134,7 @@ Each stored value carries a schema version. A version mismatch drops the warm ti
 
 Routing uses `@solidjs/router` with lazy routes. Intent means pointer hover for 80 ms, pointer down, or keyboard focus on a link or a chat row. Intent preloads the route chunk and warms the chat from IndexedDB. solid-primitives has no intent-prefetch package, so yuki composes one from `@solid-primitives/event-listener` and `@solid-primitives/scheduled`.
 
-The build stays on Vite, now Vite 8 (8.3.2, Rolldown-based) with `@tailwindcss/vite` 4.3.3 and `vite-plugin-solid` 2.11.14. Measured in P0-14: JS 621.9 KB raw and 206.6 KB gzip before, 620.9 KB raw and 201.8 KB gzip after. CSS 121.0 KB raw and 21.2 KB gzip before, 122.9 KB raw and 21.7 KB gzip after. Total gzip fell by 4.3 KB, so the upgrade stays. The dev harness page leaves the production build.
+The build stays on Vite, now Vite 8 (8.3.2, Rolldown-based) with `@tailwindcss/vite` 4.3.3 and `vite-plugin-solid` 2.11.14. Measured: JS 621.9 KB raw and 206.6 KB gzip before, 620.9 KB raw and 201.8 KB gzip after. CSS 121.0 KB raw and 21.2 KB gzip before, 122.9 KB raw and 21.7 KB gzip after. Total gzip fell by 4.3 KB, so the upgrade stays. The dev harness page leaves the production build.
 
 Menus, tooltips, hover cards, dialogs and the dismissable layer are Kobalte, and they load after first paint in one chunk (`@yuki/ui/v2/overlays`). Until it lands, each part renders what it renders while closed: a root renders its children, a trigger renders its element, and a portal renders nothing. The toaster, `motion`, and icon glyphs not shown at rest load the same way. Tier 2 was 231.9 KB gzip before this and 142.5 KB after.
 
@@ -1217,9 +1212,9 @@ The chat info panel gives each thing one way in: the header (avatar, name, start
 
 Kobalte provides dialog, menus, popover, tooltip, tabs, toast, select, combobox, and switch. Corvu provides drawer, resizable, calendar, and OTP field. The 24 `v2` components that commit 95c2d4b deleted can be restored from git where a screen needs them.
 
-tweb is licensed GPL-3.0 (`solid-refs/tweb/LICENSE`). The app already contains code described as ports of tweb, `src/lib/album.ts` (removed with the media system on 2026-10-09) and the entity parser. Code derived from tweb may carry that license into the client that yuki ships to browsers. This is a decision for the owner, not an engineering one. The plan treats tweb as a reference for behavior and asks every task to write its own code.
+tweb is licensed GPL-3.0. The app already contains code described as ports of tweb, `src/lib/album.ts` (removed with the media system on 2026-10-09) and the entity parser. Code derived from tweb may carry that license into the client that yuki ships to browsers. This is a decision for the owner, not an engineering one. The plan treats tweb as a reference for behavior and asks every task to write its own code.
 
-`@headless-tree/core` 1.7.0 has a React adapter only. Yuki writes a small Solid binding over the core. The core works without React. `docs/research/experiment-9-headless-tree.md` records the run and the 6.0 kB gzip cost.
+`@headless-tree/core` 1.7.0 has a React adapter only. Yuki writes a small Solid binding over the core. The core works without React, and the run measured a 6.0 kB gzip cost.
 
 ## 20. Repository layout and tooling
 
@@ -1235,8 +1230,7 @@ packages/
   agent/            @yuki/agent: the pi-durable host
   memory/           @yuki/memory: the log memory (section 13)
   sandbox/          @yuki/sandbox: user extensions (section 24)
-docs/
-refs/, solid-refs/  read-only references
+docs/             overview, product, architecture, and reference material
 ```
 
 **Effect v4.** `effect` 4.0.0 is the current release. Yuki uses it in `apps/server` and `apps/cli` for services, typed errors, and `Schema` validation at the edges (WebSocket frames, HTTP bodies, tool arguments from yuki's own tools). `core/protocol` exports plain TypeScript types that the client imports as types only. The client trusts frames from its own server and validates nothing at runtime, so Effect stays out of the client bundle. `pi-durable` uses its own `Context` from `chord` and TypeBox for tool schemas. Effect wraps those at the edge of `apps/server/src/agent/` and does not replace them.
@@ -1253,8 +1247,8 @@ These experiments come before any feature work. Each one settles an UNVERIFIED i
 
 | # | Question | Experiment | If it fails |
 | --- | --- | --- | --- |
-| 1 | Does `pi-durable` run in a Durable Object? | write the `SqliteDatabase` facade over `ctx.storage.sql` and `ctx.storage.transaction()`, run the storage conformance suite and one full turn under `wrangler dev` | stop. The foundation is wrong and the plan needs a new one |
-| 2 | What does a turn cost? Settled for the agent side, see [research/experiment-2-turn-cost.md](research/experiment-2-turn-cost.md) | measure rows written, rows read, requests, CPU ms, and wall time for one turn on the test model | redo the math in section 17 |
+| 1 | Does `pi-durable` run in a Durable Object? | write the `SqliteDatabase` facade over `ctx.storage.sql` and `ctx.storage.transaction()`, run the storage conformance suite and one full turn under `wrangler dev` | stop. The foundation is wrong |
+| 2 | What does a turn cost? Settled for the agent side | measure rows written, rows read, requests, CPU ms, and wall time for one turn on the test model | redo the math in section 17 |
 | 3 | Can partial writes be coalesced? | build the `Storage` wrapper and run the conformance suite | ship as-is and treat the Free plan as a demo tier |
 | 4 | Does the Free plan's 10 ms CPU limit apply inside a Durable Object? Settled on 2026-10-04: no. A Durable Object call ran 9.9 s of CPU on a Free account; a plain Worker request is stopped at random from about 0.15 s (section 17.3) | spin CPU in a Worker and in a Durable Object on a Free account and read `cpuTime` and `outcome` in `wrangler tail` | the Paid plan becomes the minimum |
 | 5 | How large is the Worker bundle with `pi-ai`, `pi-durable`, TypeBox, and the catalog? | build and read the size. The limit is 64 MiB and startup must stay under 1 second | load the catalog from an asset |
@@ -1308,14 +1302,14 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 
 Rivet (rivetkit 2.3.20, Apache-2.0) was read on 2026-10-02 at the owner's request. Its Cloudflare driver does not use Durable Objects. It runs Rivet's Rust core as wasm inside a Worker and tunnels to a separate Rivet Engine (`rivetkit-typescript/packages/cloudflare-workers/src/mod.ts`), which holds actor state, alarms, and sleep. Adopting it would add a service and a vendor outside Cloudflare and give up DO WebSocket hibernation and Worker-built names. Yuki stays on hand-rolled Durable Objects.
 
-Yuki copies four patterns, built in P1-13:
+Yuki copies four patterns:
 
 - Wakeups are claimed in one transaction, capped per object, and keep a short history (Rivet `actor/schedule.rs`).
 - An inbox entry is marked in flight when a run takes it and is reclaimed after a timeout, completing it twice is a no-op, and the inbox has a size cap (Rivet `actor/queue.rs`).
 - Schema migration runs inside `blockConcurrencyWhile` on every start, before any other work.
 - The Worker's socket upgrade and the first `hello` frame have a hard timeout.
 
-How P1-13 built them:
+How they are built:
 
 - `core/durable/src/alarm.ts` refuses a new key past 1,000 with `WakeupLimitError`. Moving an existing key always works. `history()` returns the last 100 fired keys with their due and fired times.
 - `core/agent/src/inbox.ts` marks a claimed batch with `in_flight_at` and the id of the process that took it. A batch held by another process is reclaimed at once, because a Durable Object has one live process and the other one is dead. A batch held by this process is reclaimed after 5 minutes. A failed drain releases what it took. `submitted()` returns false the second time. `receive()` returns `{ admitted: [], refused: "full" | "too_large" }` instead of throwing.
@@ -1430,7 +1424,7 @@ A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to t
 
 ## 25. Routines and proactivity
 
-Work that starts without a human message: routines on a schedule or an event, reminders, task wakes, and the initiative pass of section 26.6, which replaced the daily check-in and the stall sweep. The behavior follows Grok Bot and OpenAI dots, read from their own pages in [research/routines-and-proactivity.md](research/routines-and-proactivity.md). The owner asked for this on 2026-10-05 and left out push notifications, voice, Slack and Teams, a computer per agent, and a reviewer model.
+Work that starts without a human message: routines on a schedule or an event, reminders, task wakes, and the initiative pass of section 26.6, which replaced the daily check-in and the stall sweep. The behavior follows Grok Bot and OpenAI dots, read from their own pages. The owner asked for this on 2026-10-05 and left out push notifications, voice, Slack and Teams, a computer per agent, and a reviewer model.
 
 ### 25.1 Decision
 
@@ -1559,7 +1553,7 @@ The third line was measured: before it named reports, the real model skipped a d
 
 ### 25.9 What the human sees
 
-Yuki sends no notifications. A routine's run answers in its chat as bubbles; an agent that wants a routine on its own asks in chat; the budget, the away pause, and a paused routine each post one line. The client's schedule section (P5-07, P12-11) is not built yet; until then the human manages routines by asking any agent and through `/api/routines`.
+Yuki sends no notifications. A routine's run answers in its chat as bubbles; an agent that wants a routine on its own asks in chat; the budget, the away pause, and a paused routine each post one line. The client's schedule section is not built yet; until then the human manages routines by asking any agent and through `/api/routines`.
 
 ### 25.10 Effect v4 at the edges
 
@@ -1706,7 +1700,7 @@ Routes, all from the session's user:
 
 ## 27. Browser
 
-Agents get a real browser for pages that need JavaScript, a login, or clicks. Kernel runs it, on the user's own Kernel key. The whole phase is in [phases/17-browser.md](phases/17-browser.md). This section holds what P17-01 built: the key, the user's one browser, and its lifecycle. The CDP client, the tools, the workers, and watch and take over are P17-02 to P17-05. This section is 27 and not 26 because the initiative work took 26 first.
+Agents get a real browser for pages that need JavaScript, a login, or clicks. Kernel runs it, on the user's own Kernel key. This section holds the built work: the key, the user's one browser, and its lifecycle. The CDP client, the tools, the workers, and watch and take over are separate. This section is 27 and not 26 because the initiative work took 26 first.
 
 ### 27.1 One browser per user
 

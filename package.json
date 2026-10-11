@@ -9,8 +9,7 @@
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun run --filter '*' test",
     "lint": "biome check",
-    "yuki": "bun apps/cli/src/index.ts",
-    "plan": "bun scripts/plan.ts"
+    "yuki": "bun apps/cli/src/index.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

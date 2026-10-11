@@ -27,13 +27,11 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Envelope.** A message as delivered to an agent, with sender, hop count, and root id.
 - **Brief.** The workspace summary the room attaches to each delivery.
 - **Tier.** A group of client code by load time. Tier 1 is the HTML shell.
-- **Wave.** A set of tasks that can run at the same time.
 - **Extension.** A user's manifest and script that adds tools, instructions, hooks, or schedules to agents at run time. It runs in QuickJS inside `AgentDO`. Only the human installs one. Architecture section 24.
 
 ## Ways to hurt yourself
 
-- **Do not edit `refs/` or `solid-refs/`.** They are read-only references and git ignores them. `pi-durable` is an npm dependency. Extend it through its extension points only.
-- **Do not copy code from `solid-refs/tweb`.** It is GPL-3.0. Learn the behavior and write your own.
+- **`pi-durable` is an npm dependency.** Extend it through its extension points only.
 - **Do not wait on another Durable Object inside `receive()`.** Store, set an alarm, return. Two agents that wait on each other deadlock.
 - **Do not do CPU-heavy work in a Worker handler or the queue consumer.** On the Free plan they are stopped at random from about 0.15 s of CPU. Put it in a Durable Object, which has 30 s per request. Architecture section 17.3.
 - **Do not fetch the outside from an agent's run except through `egress`.** A run's work belongs to one invocation, and Free allows 50 subrequests per invocation. Model requests and `web_fetch` already go through `AgentDO.egress`.
@@ -58,7 +56,7 @@ bun dev:server        # the Worker and Durable Objects on localhost:8787 (wrangl
 bun dev:web           # the client on localhost:5173, proxying /api to the server
 ```
 
-Wrangler is already signed in on this machine. Do not run a login step. Use `localhost`, not `127.0.0.1`, for the client.
+Wrangler signs in and stores the session with `wrangler login`. Use `localhost`, not `127.0.0.1`, for the client.
 
 Several sessions run dev servers at once. Never `pkill` or `killall` wrangler, workerd, or vite: it stops other sessions' servers mid-run. Start yours on a free port (`bun run --cwd apps/server dev --port <n>`, then `bun yuki verify <suite> --url http://localhost:<n>`) and stop only its PID.
 
@@ -66,7 +64,7 @@ Dev keys live in `~/.config/yuki/dev.vars`. Every worktree's `apps/server/.dev.v
 
 ## Verifying
 
-A task is not done until its `Verify` line passes and you have shown the output. Tests alone are not enough.
+A change is not done until it is verified and you have shown the output. Tests alone are not enough.
 
 ```bash
 bun run typecheck
@@ -76,7 +74,6 @@ bun yuki verify --list            # backend suites
 bun yuki verify <suite>           # one suite against the dev server
 bun yuki verify --no-model        # everything that needs no model key
 bun scripts/bundle-budget.ts      # client tier sizes
-bun scripts/plan.ts --check       # the plan files are in sync
 bun scripts/check-imports.ts      # packages import only the packages below them
 ```
 
@@ -90,21 +87,22 @@ bun scripts/check-imports.ts      # packages import only the packages below them
 
 Pick the model with [`docs/subagents.md`](docs/subagents.md). Run every subagent at `medium` effort.
 
-## Tasks and pull requests
+## Pull requests
 
-- The plan is in `docs/phases/`. `tasks.tsv` and `issues/` are generated from it by `bun scripts/plan.ts`. Edit the phase file, then regenerate.
-- One task is one session and one pull request. Use the branch name from `tasks.tsv`.
-- Start a session with `/task <id>`, or attach the issue file and paste `docs/task-prompt.md`.
-- A pull request title starts with the task id. The dependency check greps `main` for it.
-- Start a task only when everything it depends on is merged. Work in your own worktree when the task says so.
-- Stay inside the files your task names. If you need a file another open task owns, stop and say so.
+- One change is one pull request.
 - If `bun.lock` conflicts, take the base version and run `bun install`.
 - Commit messages and pull request descriptions say what changed and why, in plain sentences.
+- When your branch is merged into `main`, clean up before you finish:
+  - Confirm it is merged. `git branch --merged main` must list the branch. If it does not, stop.
+  - Check the worktree with `git -C <path> status --short`. If anything is listed, stop and ask. Do not discard it.
+  - Stop only the dev server PIDs this session started. Never `pkill` or `killall`.
+  - Run `git worktree remove <path>`, then `git branch -d <branch>`. Use `-d`, never `-D`.
+  - Never remove `main`, or a worktree or branch this session did not create.
 
 ## Documentation rules
 
 - Label a choice the spec did not make as ASSUMPTION, a fact you could not confirm as UNVERIFIED, and a departure from the spec as DEVIATION.
-- Never invent an API, a package feature, or a limit. Check `refs/` or the official docs.
+- Never invent an API, a package feature, or a limit. Check the official docs.
 - When a task settles an UNVERIFIED item, remove the label in `docs/architecture.md` in the same pull request.
 - Write short sentences. No em dashes. Sentence-case headings.
 
@@ -119,10 +117,10 @@ apps/
     src/composer/       the message input
     src/sidebar/        chat list and pinned tiles
     src/lib/            store, types, helpers
-    src/sync/           sockets, stores, optimistic patches   (planned, P2-06)
-    src/warm/           IndexedDB                              (planned, P2-05)
-    src/app/            shell, routes, rail, tab strip         (planned, P2-02)
-  server/               the Worker                             (planned, P0-01)
+    src/sync/           sockets, stores, optimistic patches
+    src/warm/           IndexedDB
+    src/app/            shell, routes, rail, tab strip
+  server/               the Worker
     src/user/           UserDO: credentials, memory, reminders
     src/room/           RoomDO: log, burst, delivery, workspace
     src/room/wake.ts    the wake path a routine or a nudge uses to start one agent run
@@ -131,11 +129,11 @@ apps/
     src/agent/          AgentDO: factory, outbox, yuki's extensions
     catalog/            extensions reviewed upstream, bundled by scripts/gen-catalog.ts
     src/lib/            names, dev stats
-  cli/                  the yuki verification CLI              (planned, P0-04)
+  cli/                  the yuki verification CLI
 packages/
   ui/                   @yuki/ui: Kobalte and Corvu wrappers, kat.css
 core/
-  protocol/             @yuki/protocol: wire types shared by all three apps   (planned, P0-03)
+  protocol/             @yuki/protocol: wire types shared by all three apps
   durable/              @yuki/durable: alarm, safe-fetch, crypto, wipe
   agent/                @yuki/agent: pi-durable host, inbox, effects
   memory/               @yuki/memory: OptMem tree, life log, memory tools, open loops (loops.ts, loop-tool.ts)
@@ -143,13 +141,7 @@ core/
   browser/              @yuki/browser: browser session and tools
 docs/
   overview.md  product.md  architecture.md  subagents.md
-  phases/               the plan, one file per phase
-  research/             facts with sources
   reference/            code to port, kept unchanged
-issues/                 one issue per task, by wave (generated)
-scripts/plan.ts         generates tasks.tsv and issues/
-tasks.tsv               the machine-readable plan (generated)
-refs/, solid-refs/      read-only references, not in git
 .cursor/skills/         verification skills
 ```
 
@@ -159,4 +151,4 @@ refs/, solid-refs/      read-only references, not in git
 - Use Kobalte, Corvu, `@yuki/ui`, and solid-primitives before writing a component.
 - Put validation at the edge: the socket, the HTTP route, the tool arguments. Trust types inside.
 - Model state as data. A pure function with a table of cases beats scattered conditions.
-- Match the kat screenshots in `~/kat-images` exactly. When the replica and the screenshots disagree, the screenshots win.
+- Match the kat screenshots in `docs/reference/` exactly. When the replica and the screenshots disagree, the screenshots win.

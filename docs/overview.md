@@ -2,7 +2,7 @@
 
 Yuki is a general-purpose AI chat web app on Cloudflare Workers and Durable Objects. It feels like Telegram. You text one agent or a team of agents, and they remember you, set reminders, use your connected apps, and keep working after you close the tab. Every user brings their own model keys.
 
-This page is the short version. [product.md](product.md) covers the product, [architecture.md](architecture.md) covers every decision and its reason, and [phases/](phases/) holds the plan.
+This page is the short version. [product.md](product.md) covers the product, and [architecture.md](architecture.md) covers every decision and its reason.
 
 ## The system in one picture
 
@@ -40,29 +40,7 @@ AgentDO  one per agent in a chat pi-durable harness, inbox
 
 No coding agent, no containers, no terminal, no browser panel, no notifications, no share links, no yuki-paid models, no self-hosted integration layer.
 
-## The plan
+## Limits
 
-The plan has 104 tasks in 10 phases and 11 waves. One task is one agent session. Tasks in a wave run at the same time in separate worktrees.
+The Free plan is small: about 4 daily users as shipped and about 24 with coalesced writes, derived from the measured turn cost. Architecture section 17 has the numbers.
 
-| Phase | What it delivers |
-| --- | --- |
-| 0 | the empty server, the CLI, CI, and ten experiments that settle every unverified fact |
-| 1 | one message through the whole backend and back |
-| 2 | routes, a 20 KB shell, local storage, and a live connection in the client |
-| 3 | Telegram-grade chat features |
-| 4 | each user's own providers and models |
-| 5 | memory, reminders, and skills |
-| 6 | agent teams and the board |
-| 7 | prompt injection defense and integrations (Composio since phase 14) |
-| 8 | files (media and link previews removed on 2026-10-09) |
-| 9 | limits, CI gates, measured cost, and the deploy |
-
-- [tasks.tsv](../tasks.tsv) is the machine-readable plan.
-- [issues/](../issues/README.md) has one issue body per task, grouped by wave.
-- Both are generated from `docs/phases/` by `bun scripts/plan.ts`.
-
-## What could change the plan
-
-P0-05 proves that `pi-durable` runs inside a Durable Object. If it fails, the foundation is wrong and the plan stops there. The other nine experiments each have a fallback, listed in architecture section 21.
-
-The Free plan is small. P0-06 measured about 4 daily users as shipped and about 24 with coalesced writes (derived). P0-07 measures the coalesced number.

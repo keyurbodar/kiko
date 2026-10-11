@@ -7,8 +7,8 @@ This document says what yuki is, who uses it, what it does, and what it does not
 Three labels appear in both documents.
 
 - **ASSUMPTION** marks a choice made where the spec was silent or ambiguous. The simplest option was taken.
-- **UNVERIFIED** marks a fact that could not be confirmed from `refs/` or official docs.
-- **DEVIATION** marks a place where the plan departs from the spec on purpose, with the reason.
+- **UNVERIFIED** marks a fact that could not be confirmed from the official docs.
+- **DEVIATION** marks a place where yuki departs from the spec on purpose, with the reason.
 
 ## Who uses yuki
 
@@ -121,11 +121,11 @@ Yuki keeps what already works in `apps/web-solid` and adds or fixes the followin
 | Toasts | never render | mount the toast region |
 | Virtual lists | chat feed only | chat feed, sidebar chat list, search results, all on `virtua/solid` |
 
-**Note on the typing indicator.** The React reference from spec section 6.6 is saved unchanged at [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx). The Solid port keeps its label rules and its shape: a one-line agent bubble of three dots. The dots say what the agent is doing by how they move: kat's wave while it writes, a scan while it reads, a hop while it edits, an orbit while a tool runs. A slow act adds a muted caption. Each working agent gets its own bubble, and in a group each carries the agent's bird. The rapid-fire example that spec section 4.5 calls "img #1" is `~/kat-images/screenshot 8.png`.
+**Note on the typing indicator.** The React reference from spec section 6.6 is saved unchanged at [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx). The Solid port keeps its label rules and its shape: a one-line agent bubble of three dots. The dots say what the agent is doing by how they move: kat's wave while it writes, a scan while it reads, a hop while it edits, an orbit while a tool runs. A slow act adds a muted caption. Each working agent gets its own bubble, and in a group each carries the agent's bird.
 
 ### Suggested additions
 
-The spec asks for other interface features worth having. These are in the plan.
+The spec asks for other interface features worth having. These are listed below.
 
 - Stop button and "regenerate" on the last agent answer.
 - Edit your last message, which reruns the answer.
@@ -144,13 +144,13 @@ Later, not in the first plan: voice input, vector search for memory, a light the
 
 ## Screens and routes
 
-The layout follows the kat screenshots in `~/kat-images`. A 60 px icon rail, a 280 px sidebar, and the main panel with a 50 px top bar.
+The layout follows the kat screenshots in `docs/reference/`. A 60 px icon rail, a 280 px sidebar, and the main panel with a 50 px top bar.
 
 | Route | Rail icon | Sidebar | Main panel |
 | --- | --- | --- | --- |
 | `/`, `/chat`, `/chat/:id` | chat | pinned tiles and chat list | tab strip, transcript, composer |
 | `/files`, `/files/:chatId/*path` | files | file tree | viewer and editor |
-| `/memory`, `/memory/:id` | none | none | redirects to the active chat with the info panel open on memory (P2-19) |
+| `/memory`, `/memory/:id` | none | none | redirects to the active chat with the info panel open on memory |
 | `/settings/*` | settings (bottom) | sections | providers, models, integrations, skills, account |
 
 Overlays: command palette, calendar jump, context menus, onboarding, and the image dialog, which zooms and pans as t3code's does. The media viewer is gone (DEVIATION, 2026-10-09): the files tab draws a picture inline.
@@ -165,7 +165,7 @@ Kat has four rail items: chat, terminal, code, browser. Yuki has no terminal and
 | B | activity (live agent log) | integrations | rejected. Activity alone is thin, and integrations are visited once |
 | C | schedule (calendar of reminders) | memory | rejected. A schedule tab inside the board covers it |
 
-Option A was chosen at first. On 2026-10-02 the owner made group chats of agents, laid out like Telegram groups, the center of team work. A separate board then duplicates the chat, so it was dropped. The same day the owner asked to fold memory into a per-chat info panel opened from the chat's name, as Telegram and kat do (P2-19). DEVIATION from option A: the rail has chat, files, and settings. A group's tasks and notes live in the group's info sheet (P6-09), and reminders live in every chat's info sheet (P5-07). Kat's code slot becomes files.
+Option A was chosen at first. On 2026-10-02 the owner made group chats of agents, laid out like Telegram groups, the center of team work. A separate board then duplicates the chat, so it was dropped. The same day the owner asked to fold memory into a per-chat info panel opened from the chat's name, as Telegram and kat do. DEVIATION from option A: the rail has chat, files, and settings. A group's tasks and notes live in the group's info sheet, and reminders live in every chat's info sheet. Kat's code slot becomes files.
 
 ## Non-goals
 
