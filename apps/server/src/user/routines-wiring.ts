@@ -51,10 +51,17 @@ export class RoutineWiring {
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> {
     return routineResult(async () => {
       const before = this.d.reminders.get(id)
+      const row = this.d.reminders.rowOf(id)
       const out = await this.d.reminders.updateRoutine(id, patch)
       if (!out) return null
       if (before?.trigger?.on === "webhook" && out.routine.trigger?.on !== "webhook") await this.dropHook(id)
-      await this.routineChanged(out.routine, out.token, before)
+      try {
+        await this.routineChanged(out.routine, out.token, before)
+      } catch (e) {
+        // Only a new token writes the row this update changed; without its lookup row the routine could never be reached.
+        if (out.token && row) await this.d.reminders.putRow(row)
+        throw e
+      }
       return out
     })
   }
@@ -83,6 +90,8 @@ export class RoutineWiring {
     if (routine.status === "cancelled") return this.dropHook(routine.id)
     if (!token) return
     try {
+      // Replacing the routine's row, not adding one, keeps a token from an earlier attempt from answering too.
+      await this.dropHook(routine.id)
       await this.d.env.AUTH_DB.prepare('insert into "hooks" ("token_hash", "user_id", "routine_id", "created_at") values (?, ?, ?, ?)')
         .bind(await sha256Hex(token), owner, routine.id, Date.now())
         .run()
