@@ -1,10 +1,7 @@
 import { CliError, type Context } from "../main"
 import { sessionCookie } from "./login"
 
-// yuki measure turn --runs N [--tail <file>]
-// Runs the experiment turn route on a fresh Durable Object per run and prints what each turn cost.
-// Row counts come from the Worker, which needs YUKI_DEBUG_ROWS=1. CPU and wall time come from a
-// `wrangler tail --format json` capture, passed with --tail. Local `wrangler dev` has no tail.
+// Local `wrangler dev` has no tail, so CPU and wall time need a `wrangler tail --format json` capture.
 
 interface TurnReply {
   status: string
@@ -24,16 +21,11 @@ export interface TailEvent {
   wallMs: number
 }
 
-/**
- * Reads a `wrangler tail --format json` capture and sums the invocations of one run: every event of
- * the Durable Object with that id (RPC calls and alarms, cancelled alarms included), plus the Worker
- * request whose url holds the run name. Wall time is the Worker request's, which spans the whole turn.
- */
+// `wrangler tail --format json` prints one pretty-printed object per event.
 export function readTail(text: string, objectId: string, name: string): TailEvent {
   let requests = 0
   let cpuMs = 0
   let wallMs = 0
-  // `wrangler tail --format json` prints one pretty-printed object per event.
   for (const chunk of text.split(/\n(?=\{)/)) {
     if (!chunk.trim()) continue
     const event = JSON.parse(chunk) as { cpuTime?: number; wallTime?: number; durableObjectId?: string; event?: { request?: { url?: string } } }
@@ -55,9 +47,7 @@ export async function measure(ctx: Context): Promise<void> {
   if (!Number.isInteger(runs) || runs < 1) throw new CliError(`bad --runs: ${ctx.runs}`)
   const base = ctx.url.endsWith("/") ? ctx.url : `${ctx.url}/`
   const batch = Date.now().toString(36)
-  const rows: Record<string, number | string>[] = []
-  const objectIds: Record<string, string> = {}
-  // The turn uses the signed-in user's own `opencode-go` credential. Run `yuki login` and connect it first.
+  const measured: { row: Record<string, number | string>; objectId: string }[] = []
   const cookie = await sessionCookie(ctx.url)
   if (!cookie) throw new CliError("not signed in. run yuki login first")
   for (let i = 1; i <= runs; i++) {
@@ -67,27 +57,29 @@ export async function measure(ctx: Context): Promise<void> {
     const reply = (await res.json()) as TurnReply
     if (reply.status !== "done") throw new CliError(`run ${i} did not answer: ${reply.status}`)
     if (!reply.rows) throw new CliError("the Worker did not report rows. Start it with YUKI_DEBUG_ROWS=1")
-    objectIds[name] = reply.objectId
-    rows.push({ run: i, name, rowsWritten: reply.rows.turn.rowsWritten, rowsRead: reply.rows.turn.rowsRead, statements: reply.rows.turn.statements, openRowsWritten: reply.rows.open.rowsWritten, openMs: reply.openMs, wallMs: reply.wallMs })
+    measured.push({
+      objectId: reply.objectId,
+      row: { run: i, name, rowsWritten: reply.rows.turn.rowsWritten, rowsRead: reply.rows.turn.rowsRead, statements: reply.rows.turn.statements, openRowsWritten: reply.rows.open.rowsWritten, openMs: reply.openMs, wallMs: reply.wallMs },
+    })
   }
   if (ctx.tail) {
-    // Give the tail a moment to flush, then match each run's events by its name.
     await new Promise((resolve) => setTimeout(resolve, 6000))
     const text = await Bun.file(ctx.tail).text()
-    for (const row of rows) {
-      const tail = readTail(text, objectIds[String(row.name)]!, String(row.name))
+    for (const { row, objectId } of measured) {
+      const tail = readTail(text, objectId, String(row.name))
       row.requests = tail.requests
       row.cpuMs = Math.round(tail.cpuMs * 10) / 10
       row.tailWallMs = Math.round(tail.wallMs)
     }
   }
+  const rows = measured.map((m) => m.row)
   const summary: Record<string, number> = {}
   for (const key of ["rowsWritten", "rowsRead", "statements", "requests", "cpuMs", "wallMs"]) {
     const values = rows.flatMap((row) => (typeof row[key] === "number" ? [row[key] as number] : []))
     if (values.length) summary[key] = Math.round(mean(values) * 10) / 10
   }
   if (ctx.json) return console.log(JSON.stringify({ rows, mean: summary }))
-  const columns = Object.keys(rows[0]!).filter((key) => key !== "name")
+  const columns = Object.keys(rows[0] ?? {}).filter((key) => key !== "name")
   console.log(columns.join("\t"))
   for (const row of rows) console.log(columns.map((key) => row[key] ?? "").join("\t"))
   console.log(`mean\t${Object.entries(summary).map(([k, v]) => `${k}=${v}`).join(" ")}`)

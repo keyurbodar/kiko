@@ -20,7 +20,7 @@
 
 **Goal.** Facts come from the human's own messages, whether or not the agent calls `note`. A correction replaces the old fact. Deleting or editing a message removes what was learned from it.
 
-**Files.** `packages/memory/src/`, `apps/server/src/user/`, `apps/server/src/room/`, `apps/server/src/agent/agent-do.ts`, `apps/server/src/lib/dev-route.ts`, `apps/cli/src/verify/suites/memory-jev.ts`, `apps/web-solid/src/settings/models.tsx`.
+**Files.** `core/memory/src/`, `apps/server/src/user/`, `apps/server/src/room/`, `apps/server/src/agent/agent-do.ts`, `apps/server/src/lib/dev-route.ts`, `apps/cli/src/verify/suites/memory-jev.ts`, `apps/web-solid/src/settings/models.tsx`.
 
 **Build.**
 

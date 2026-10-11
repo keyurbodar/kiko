@@ -1,13 +1,10 @@
-import type { AgentSlug, RoomToClient, UserToClient } from "@yuki/protocol"
-import { type RoomHandle, VerifyError } from "../client"
+import type { AgentSlug, UserToClient } from "@yuki/protocol"
+import { VerifyError } from "../client"
 import { agentTexts, dev, eventually, inSeconds, messages, ok, type Routine, routines, systemTexts, toolLine, waitRuns } from "../routine-kit"
+import { must } from "../must"
 import type { Suite } from "../runner"
 import { fake, newRoom, send } from "./mid-run"
 
-// Architecture sections 25.3, 25.5, and 26.6, with the scripted fake agent: no tokens. A task left
-// two days wakes its owner once through the initiative pass; a human away for a week holds every run
-// nobody asked for and hears why once; no check-in routine exists, and yuki's overview reads every chat.
-// Needs NODE_ENV=development.
 
 const suite: Suite = {
   name: "proactive",
@@ -16,7 +13,6 @@ const suite: Suite = {
     const s = await v.as(`proactive-${run}`)
     const url = v.url
 
-    // 1. A stalled task: the initiative pass wakes its owner once, and the answer carries the reason.
     {
       const { roomId, room } = await newRoom(s, "proactive: stalls")
       await fake(v, s, roomId)
@@ -28,16 +24,14 @@ const suite: Suite = {
       const before = agentTexts(room).length
       await dev(url, s, "attention", { action: "rhythm", mode: "now" })
       await dev(url, s, "age", { roomId, ms: 2 * 86_400_000 })
-      // The human wrote a moment ago: the pass waits for them to leave the room.
       await dev(url, s, "attention", { action: "age", ms: 10 * 60_000 })
       const pass = await dev(url, s, "attention", { action: "pass" })
       await eventually("the woken owner's answer", () => agentTexts(room).length > before, 30_000).catch((e: Error) => {
         throw new VerifyError(`${e.message}: ${JSON.stringify(pass)}`)
       })
-      const answer = messages(room).filter((m) => m.from.kind === "agent").at(-1)!
+      const answer = must(messages(room).filter((m) => m.from.kind === "agent").at(-1), "the woken owner's answer")
       if (!answer.text.includes("write the launch post")) throw new VerifyError(`the wake did not reach the owner: ${JSON.stringify(answer.text)}`)
       if (!answer.initiative?.reason) throw new VerifyError(`the answer to a wake has no initiative reason: ${JSON.stringify(answer)}`)
-      // A second pass with the task untouched: the same stretch of staleness rests.
       await Bun.sleep(2_000)
       await dev(url, s, "attention", { action: "pass" })
       await Bun.sleep(4_000)
@@ -46,7 +40,6 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 1b. Two ignored nudges close the appetite: no third, and the loop rests longer each time.
     {
       const a = await v.as(`proactive-ignore-${run}`)
       const { roomId, room } = await newRoom(a, "proactive: ignored")
@@ -61,7 +54,7 @@ const suite: Suite = {
         const p = (await dev(url, a, "attention", { action: "pass" })) as P
         if (p.woke.some((w) => w.result === "delivered")) await eventually("the nudge", () => agentTexts(room).length > before, 20_000)
         await Bun.sleep(2_000)
-        const v0 = p.verdicts[0]!
+        const v0 = must(p.verdicts[0], "a verdict")
         return { woke: p.woke.filter((w) => w.result === "delivered").length, verdict: `${v0.verdict}${v0.reason ? `:${v0.reason}` : ""}${v0.until ? ` ${((v0.until - p.at) / 86_400_000).toFixed(1)}d` : ""}` }
       }
       const got = [await step(1), await step(2), await step(2), await step(2), await step(4)]
@@ -71,7 +64,6 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 2. Away for 8 days: runs are held, the yuki chat says so once, and opening yuki resumes them.
     {
       const a = await v.as(`proactive-away-${run}`)
       await ok(url, a, "me")
@@ -83,7 +75,11 @@ const suite: Suite = {
             const f = e.frame as UserToClient
             if (e.dir === "in" && f.t === "reset") {
               const k = f.snapshot.chats.find((c) => c.yuki)
-              if (k) return (clearTimeout(t), resolve(k.roomId))
+              if (k) {
+                clearTimeout(t)
+                resolve(k.roomId)
+                return
+              }
             }
           }
           setTimeout(look, 100)
@@ -97,21 +93,19 @@ const suite: Suite = {
       await dev(url, a, "seen", { ago: 8 * 86_400_000 })
       const { routine } = await ok<{ routine: Routine }>(url, a, "routines", { roomId, name: "while away", instructions: "[reply] ran", trigger: { on: "time", at: inSeconds(3) } })
       const held = await waitRuns(url, a, routine.id, "a held run", (rs) => rs.length > 0, 40_000)
-      if (held[0]!.status !== "held") throw new VerifyError(`a run started while the human was away: ${JSON.stringify(held)}`)
+      if (held[0]?.status !== "held") throw new VerifyError(`a run started while the human was away: ${JSON.stringify(held)}`)
       await eventually("the away line", () => systemTexts(kroom).some((t) => t.includes("while you were away")), 10_000)
       if (agentTexts(room).length) throw new VerifyError("an agent answered while the human was away")
-      // Opening yuki again (a socket hello) resumes.
       await dev(url, a, "seen", { ago: 2 * 3_600_000 })
       ;(await a.user()).send({ t: "hello", lastSeq: 0 })
       const { routine: next } = await ok<{ routine: Routine }>(url, a, "routines", { roomId, name: "after return", instructions: "[reply] back", trigger: { on: "time", at: inSeconds(3) } })
       const back = await waitRuns(url, a, next.id, "a run after return", (rs) => rs.some((x) => x.status !== "running"), 40_000)
-      if (back[0]!.status !== "ok") throw new VerifyError(`a run after the human came back did not run: ${JSON.stringify(back)}`)
+      if (back[0]?.status !== "ok") throw new VerifyError(`a run after the human came back did not run: ${JSON.stringify(back)}`)
       console.log("  ok away 8 days: the run was held and the yuki chat said why once; after a hello the next run ran")
       room.raw.close()
       kroom.raw.close()
     }
 
-    // 3. No daily check-in routine is made any more, and yuki's overview still reads across chats.
     {
       await ok(url, s, "me")
       await ok(url, s, "me")
@@ -123,7 +117,7 @@ const suite: Suite = {
       await Bun.sleep(1_500)
       await send(room, toolLine("overview", {}))
       await eventually("the overview result", () => agentTexts(room).some((t) => t.includes("chats, newest first")), 20_000)
-      const text = agentTexts(room).find((t) => t.includes("chats, newest first"))!
+      const text = must(agentTexts(room).find((t) => t.includes("chats, newest first")), "the overview result")
       if (!text.includes("proactive: overview") || !text.includes("open task")) throw new VerifyError(`the overview missed something: ${text.slice(0, 600)}`)
       console.log(`  ok no check-in routine; overview lists chats and open tasks (${text.length} chars)`)
       room.raw.close()

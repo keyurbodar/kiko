@@ -7,16 +7,6 @@ import { userStub } from "../lib/names"
 import { originAllowed } from "../router"
 import type { RoutineResult } from "./routines"
 
-// Architecture section 25. The human's routine routes. The Worker checks the session and reaches only
-// the session user's `UserDO`. A routine made here is active at once.
-//
-//   GET  /api/routines                  routines and their recent runs
-//   POST /api/routines                  create { roomId, name, instructions, trigger, agent? }
-//   POST /api/routines/<id>             change { name?, instructions?, trigger?, status? }
-//   POST /api/routines/<id>/run         run now
-//
-// Cancel with `POST /api/reminders/<id>/cancel`, as any reminder.
-
 const ACTION = /^\/api\/routines\/([0-9a-f-]{36})(\/run)?$/
 const decodeTrigger = Schema.decodeUnknownSync(Trigger)
 
@@ -64,7 +54,8 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   }
 
   if (request.method !== "POST") return error(405, "method not allowed")
-  const id = action[1]!
+  const id = action[1]
+  if (id === undefined) return error(400, "need a routine id")
   if (action[2]) return Response.json({ delivery: await stub.runRoutine(id, true) })
   const b = await json(request)
   if (!b) return error(400, "expected an object")

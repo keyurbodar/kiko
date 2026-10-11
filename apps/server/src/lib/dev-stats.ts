@@ -1,16 +1,9 @@
-// DEVELOPMENT ONLY. Counts what one turn costs, for `bun yuki verify latency`: SQL statements and
-// rows written per object kind, key-value and alarm calls, and RPC calls between objects. Every
-// object of one Worker runs in one isolate under `wrangler dev`, so one module-level table sees
-// them all. A production bundle never calls `instrument`, and `rpc` returns the stub unchanged.
-//
-//   GET  /api/dev/stats         -> { counters }
-//   POST /api/dev/stats/reset   -> { ok: true }
+// Under `wrangler dev` every object of one Worker shares one isolate, so this module-level table sees them all.
 
 declare const process: { env: { NODE_ENV?: string } }
 
 const dev = () => process.env.NODE_ENV === "development"
 const counters = new Map<string, number>()
-/** Cursors of statements not yet read back. `rowsRead` and `rowsWritten` are final once a cursor is consumed or done. */
 const open: { kind: string; write: boolean; cursor: SqlStorageCursor<Record<string, SqlStorageValue>> }[] = []
 
 function bump(key: string, n = 1): void {
@@ -19,7 +12,6 @@ function bump(key: string, n = 1): void {
 
 function settle(): void {
   for (const { kind, write, cursor } of open.splice(0)) {
-    // Rows SQLite visited, so a scan where an index would do shows up even when it writes nothing.
     bump(`${kind}.rowsRead`, cursor.rowsRead)
     if (write) bump(`${kind}.rowsWritten`, cursor.rowsWritten)
   }
@@ -27,7 +19,6 @@ function settle(): void {
 
 const KV = ["get", "put", "delete", "list", "setAlarm", "getAlarm", "deleteAlarm", "transaction"] as const
 
-/** Wraps `ctx.storage` of one object in place. Call first in the constructor. A no-op outside development. */
 export function instrument(ctx: DurableObjectState, kind: string): void {
   if (!dev()) return
   const storage = ctx.storage as unknown as Record<string, unknown>
@@ -56,11 +47,9 @@ export function instrument(ctx: DurableObjectState, kind: string): void {
       })
     }
   } catch {
-    // The runtime refused the patch. The stats then show no storage counts for this kind.
   }
 }
 
-/** Counts each RPC call made through a stub. Returns the stub itself outside development. */
 export function rpc<T extends object>(stub: T, target: string): T {
   if (!dev()) return stub
   return new Proxy(stub, {
@@ -75,7 +64,6 @@ export function rpc<T extends object>(stub: T, target: string): T {
   })
 }
 
-/** Counts something else, such as a socket frame. */
 export function count(key: string, n = 1): void {
   if (dev()) bump(key, n)
 }

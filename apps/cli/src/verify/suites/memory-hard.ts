@@ -1,12 +1,5 @@
 import { type Eval, type Fact, memorySuite } from "./memory-eval"
 
-// Architecture section 13. A harder memory eval than `memory-eval`, made to tell two memory designs
-// apart: 640 turns of a busy group chat, with facts that only survive a summary that understands the
-// chat. A "yes do it" that only means something next to the question before it, a fact buried in a
-// long paste, a correction with its reason, a fact from a failed attempt, and an old value replaced
-// by a new one, which the answer must not carry. Fillers are long and full of decoy numbers.
-//
-// Needs a development server and a model key. Costs a few hundred small summary calls and one answer.
 
 const meetingNotes = [
   "notes from the vendor sync, pasting so we have them:",
@@ -76,7 +69,6 @@ const FILLER_AGENT = [
   "thursday: 10:00 standup, 13:30 lunch with jo at the usual place, 16:00 call with the architect about the bluebird drawings.",
 ]
 
-/** Measured on 2026-10-06 with deepseek-v4.1-flash: 12 to 14 of 15 before this phase, 13 to 15 after; the misses are facts the answer did not recall. */
 export const hard: Eval = { name: "memory-hard", turns: 640, facts: FACTS, pass: 12, fillerHuman: FILLER_HUMAN, fillerAgent: FILLER_AGENT }
 
 export default memorySuite(hard)

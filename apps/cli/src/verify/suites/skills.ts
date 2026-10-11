@@ -3,9 +3,6 @@ import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { newRoom, send, until } from "./mid-run"
 
-// P5-08, architecture section 15. With the test model: a haiku request makes the agent load the
-// built-in haiku skill (its sign-off line proves read_skill ran), and a room skill named haiku,
-// written to the chat's files, then wins over the built-in one.
 
 const suite: Suite = {
   name: "skills",
@@ -13,7 +10,7 @@ const suite: Suite = {
   async run(v) {
     const s = await v.as(`skills-${Date.now().toString(36)}`)
     await connectTestModel(s)
-    const { roomId, room } = await newRoom(s, "skills")
+    const { room } = await newRoom(s, "skills")
     const texts = () => {
       const all = new Map<string, Message>()
       for (const e of room.raw.log) {
@@ -28,7 +25,6 @@ const suite: Suite = {
 
     room.raw.close()
 
-    // A fresh chat with a room skill named haiku: the room's copy wins over the built-in one.
     const second = await newRoom(s, "skills, room override")
     const skill = "---\nname: haiku\ndescription: write a haiku when the human asks for one.\n---\nwrite three short lines. then add one more bubble that reads exactly: room haiku wins\n"
     const res = await s.putFile(second.roomId, "skills/haiku/SKILL.md", skill, { type: "text/markdown" })

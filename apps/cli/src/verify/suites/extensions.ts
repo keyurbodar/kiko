@@ -1,21 +1,9 @@
 import type { ExtensionOp, ExtensionResult, UserEvent } from "@yuki/protocol"
 import { expectEqual, type Session, VerifyError } from "../client"
+import { must } from "../must"
 import type { Suite } from "../runner"
 import { fake, newRoom, seen, send, statuses, until } from "./mid-run"
 
-// Architecture section 24. Extensions end to end on the dev server, with the scripted fake agent so
-// no token is spent. The human's side goes over the user socket the way settings does; the agent's
-// side is the fake model calling the extension's tools (`[ws <tool> {json}]`).
-//
-// What it proves:
-// - an install waits for the human, and only the socket's `install` makes it live
-// - the extension's tool runs in the sandbox and its state survives between runs
-// - its beforeTool hook blocks a built-in tool's call
-// - switching it off removes its tool from the next run, without a deploy
-// - an update replaces the running code at the next run
-// - a bundle with problems is refused with every problem named
-// - uninstall removes it and its state
-// - a trigger runs as a routine, and its outside tool runs
 
 const MANIFEST = (version: string) => ({
   yuki: 1,
@@ -66,75 +54,63 @@ const suite: Suite = {
     const op = await extensionOps(s)
     const user = await s.user()
 
-    // A broken bundle is refused, with each problem on its own line.
     const broken = await op({ op: "propose", bundle: { manifest: { ...MANIFEST("x"), name: "Bad Name" }, files: {} } })
     if (broken.ok) throw new VerifyError("a bundle with a bad name and version was accepted")
     if (!broken.problems?.some((p) => p.startsWith('"name"')) || !broken.problems?.some((p) => p.startsWith('"version"'))) throw new VerifyError(`the problems do not name the bad fields: ${JSON.stringify(broken.problems)}`)
 
-    // Proposed, it waits; nothing is installed until the socket says install.
     const proposed = ok(await op({ op: "propose", bundle: { manifest: MANIFEST("1.0.0"), files: { "main.js": SOURCE("count") } } }), "propose")
-    const id = proposed.proposal!.id
+    const id = must(proposed.proposal, "proposal").id
     await user.expect((f) => f.t === "events" && f.events.some((e: UserEvent) => e.t === "extension_proposal" && e.proposal.id === id))
 
     const { roomId, room } = await newRoom(s, "extensions")
     await fake(v, s, roomId)
     await send(room, "[ws verify_bump {}]")
     await until("the agent's answer before the install", () => seen(room).live.length >= 1, 20_000)
-    const before = seen(room).live.at(-1)!.text
+    const before = must(seen(room).live.at(-1), "agent answer").text
     if (!/not available|not found|unknown/i.test(before)) throw new VerifyError(`the tool ran before the human installed it: ${before}`)
 
     ok(await op({ op: "install", id }), "install")
     await user.expect((f) => f.t === "events" && f.events.some((e: UserEvent) => e.t === "extension" && e.extension.name === "verify-counter"))
 
-    // Live at the next run: the tool runs in the sandbox and keeps its count between runs.
     const answer = async (text: string, n: number) => {
       await send(room, text)
       await until(`answer ${n}`, () => seen(room).live.length >= n, 20_000)
-      return seen(room).live[n - 1]!.text
+      return must(seen(room).live[n - 1], `answer ${n}`).text
     }
     const first = await answer("[ws verify_bump {}]", 2)
     if (!first.includes("tool: count 1")) throw new VerifyError(`the first bump answered ${first}`)
     const second = await answer("[ws verify_bump {}]", 3)
     if (!second.includes("tool: count 2")) throw new VerifyError(`the count did not survive between runs: ${second}`)
 
-    // Its beforeTool hook blocks a built-in tool. (The fake model words a fake tool's result as `ran` or `blocked`.)
     const blocked = await answer("[ws fake_note {}]", 4)
     if (!blocked.includes("fake_note blocked")) throw new VerifyError(`the hook did not block fake_note: ${blocked}`)
 
-    // Off: the next run has no such tool. No deploy.
     ok(await op({ op: "enable", name: "verify-counter", enabled: false }), "switch off")
     const off = await answer("[ws verify_bump {}]", 5)
     if (off.includes("tool: count")) throw new VerifyError(`the tool still ran while switched off: ${off}`)
 
-    // An update replaces the running code at the next run and keeps the state.
     ok(await op({ op: "enable", name: "verify-counter", enabled: true }), "switch on")
     const update = ok(await op({ op: "propose", bundle: { manifest: MANIFEST("1.1.0"), files: { "main.js": SOURCE("tally") } } }), "propose the update")
-    expectEqual(Boolean(update.proposal!.replaces), true, "the update names the version it replaces")
-    ok(await op({ op: "install", id: update.proposal!.id }), "install the update")
+    expectEqual(Boolean(update.proposal?.replaces), true, "the update names the version it replaces")
+    ok(await op({ op: "install", id: must(update.proposal, "update proposal").id }), "install the update")
     const updated = await answer("[ws verify_bump {}]", 6)
     if (!updated.includes("tool: tally 3")) throw new VerifyError(`the update did not take over at the next run: ${updated}`)
 
-    // The same version twice is refused.
     const again = await op({ op: "propose", bundle: { manifest: MANIFEST("1.1.0"), files: { "main.js": SOURCE("tally") } } })
     if (again.ok) throw new VerifyError("proposing the installed version again was accepted")
 
-    // The catalog is served and installs through the same review.
     const catalog = ok(await op({ op: "catalog" }), "catalog").catalog ?? []
     if (!catalog.some((e) => e.name === "tally")) throw new VerifyError(`the catalog has no tally: ${catalog.map((e) => e.name).join(", ")}`)
     const fromCatalog = ok(await op({ op: "propose_catalog", name: "tally" }), "propose from the catalog")
-    expectEqual(fromCatalog.proposal!.source, "catalog", "a catalog install says where it came from")
-    ok(await op({ op: "decline", id: fromCatalog.proposal!.id }), "decline")
+    expectEqual(fromCatalog.proposal?.source, "catalog", "a catalog install says where it came from")
+    ok(await op({ op: "decline", id: must(fromCatalog.proposal, "catalog proposal").id }), "decline")
 
-    // Uninstall removes it, and a fresh install starts from a clean count.
     ok(await op({ op: "uninstall", name: "verify-counter" }), "uninstall")
     const reinstall = ok(await op({ op: "propose", bundle: { manifest: MANIFEST("1.1.0"), files: { "main.js": SOURCE("tally") } } }), "propose after uninstall")
-    ok(await op({ op: "install", id: reinstall.proposal!.id }), "reinstall")
+    ok(await op({ op: "install", id: must(reinstall.proposal, "reinstall proposal").id }), "reinstall")
     const fresh = await answer("[ws verify_bump {}]", 7)
     if (!fresh.includes("tool: tally 1")) throw new VerifyError(`uninstall kept the old state: ${fresh}`)
 
-    // A switch made while a run works reaches the human's next message, even when that message
-    // joins the run instead of starting one. Off before a slow tool, on during it, then a message
-    // that steers into the run and calls the tool.
     ok(await op({ op: "enable", name: "verify-counter", enabled: false }), "switch off before the slow run")
     const busy = await newRoom(s, "extensions mid-run")
     await fake(v, s, busy.roomId)
@@ -143,18 +119,16 @@ const suite: Suite = {
     ok(await op({ op: "enable", name: "verify-counter", enabled: true }), "switch on during the run")
     await send(busy.room, "[ws verify_bump {}]")
     await until("the joined answer", () => seen(busy.room).live.length >= 1, 20_000)
-    const joined = seen(busy.room).live.at(-1)!.text
+    const joined = must(seen(busy.room).live.at(-1), "joined answer").text
     if (!joined.includes("tally 1")) throw new VerifyError(`a message that joined a run did not see the extension switched on during it: ${joined}`)
     console.log(`  ok a message that joined a run saw the extension switched on during it: ${JSON.stringify(joined.slice(0, 80))}`)
     busy.room.raw.close()
     ok(await op({ op: "uninstall", name: "verify-counter" }), "clean up")
 
-    // A trigger runs as a routine, and its outside tool runs.
     const sender = { yuki: 1, name: "verify-sender", version: "1.0.0", description: "sends, for yuki verify", tools: { verify_send: { description: "sends a ping outside yuki", effect: "external" } }, triggers: [{ id: "ping", rrule: "FREQ=DAILY", send: "[ws verify_send {}]" }], tests: [{ tool: "verify_send", expect: "sent" }] }
-    // Triggers post in the yuki chat, which the first visit makes.
     await fetch(new URL("api/me", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
     const sent = ok(await op({ op: "propose", bundle: { manifest: sender as never, files: { "main.js": 'export const tools = { async verify_send() { return "sent" } }' } } }), "propose the sender")
-    ok(await op({ op: "install", id: sent.proposal!.id }), "install the sender")
+    ok(await op({ op: "install", id: must(sent.proposal, "sender proposal").id }), "install the sender")
     const reminders = await fetch(new URL("api/reminders", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
     const trigger = ((await reminders.json()) as { id: string; roomId: string; createdBy: string; status: string }[]).find((r) => r.createdBy === "ext:verify-sender" && r.status === "active")
     if (!trigger) throw new VerifyError("installing an extension with a trigger scheduled nothing")
@@ -163,7 +137,7 @@ const suite: Suite = {
     const due = await fetch(new URL("api/dev/agent/due", v.url.endsWith("/") ? v.url : `${v.url}/`), { method: "POST", headers: { "content-type": "application/json", cookie: s.cookie }, body: JSON.stringify({ id: trigger.id }) })
     if (!due.ok) throw new VerifyError(`the due route answered ${due.status}`)
     await until("the trigger's run", () => seen(home).live.some((m) => m.text.includes("tool: ")), 30_000)
-    const said = seen(home).live.find((m) => m.text.includes("tool: "))!.text
+    const said = must(seen(home).live.find((m) => m.text.includes("tool: ")), "trigger run").text
     if (!said.includes("tool: sent")) throw new VerifyError(`the trigger's run could not use its extension's outside tool: ${said}`)
     console.log(`  ok an extension's trigger ran its own outside tool: ${JSON.stringify(said.slice(0, 80))}`)
     ok(await op({ op: "uninstall", name: "verify-sender" }), "clean up the sender")

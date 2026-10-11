@@ -7,14 +7,11 @@ import type { RoomFs } from "../../files/room-fs"
 // saved whole in the chat's files, as lines a model can search, and the agent gets its start and
 // the path.
 
-/** Results up to this size come back whole. pi-durable's own limit is 50 KB. */
 export const SPILL_BYTES = 40 * 1024
-/** How much of a saved result the agent sees at once. */
 const HEAD_BYTES = 8 * 1024
 
 const encoder = new TextEncoder()
 
-/** `value` parsed when it is a string holding a JSON object or array, else unchanged. */
 function parsed(value: string): unknown {
   const t = value.trim()
   if (!(t.startsWith("{") || t.startsWith("["))) return value
@@ -25,17 +22,14 @@ function parsed(value: string): unknown {
   }
 }
 
-/** Strings that hold JSON, opened in place: a tool may return a program's value as a JSON string. */
 const opened = (value: unknown): unknown =>
   typeof value === "string" ? (parsed(value) === value ? value : opened(parsed(value))) : Array.isArray(value) ? value.map(opened) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, opened(v)])) : value
 
-/** JSON pretty-printed, with JSON inside its strings opened too, so grep and read find lines in it. */
 export function readable(text: string): string {
   const value = parsed(text)
   return value === text ? text : JSON.stringify(opened(value), null, 2)
 }
 
-/** The first whole lines of `text` within `bytes`, or its first `bytes` when one line is longer. */
 function head(text: string, bytes: number): string {
   let out = ""
   for (const line of text.split("\n")) {
@@ -49,7 +43,6 @@ async function sha8(text: string): Promise<string> {
   return (await sha256Hex(text)).slice(0, 8)
 }
 
-/** A file name from `label`: lowercase letters, digits, dots and dashes. */
 const slug = (label: string) =>
   label
     .toLowerCase()
@@ -58,12 +51,6 @@ const slug = (label: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "result"
 
-/**
- * `text` as a tool returns it. Small text comes back unchanged. Big text is saved at
- * `/downloads/<label>-<hash>.<ext>` and comes back as its start and a pointer. The same content
- * always lands at the same path, so a repeated call writes nothing new. Without files, the start
- * and how much was left out.
- */
 export async function spill(fs: RoomFs | undefined, label: string, text: string): Promise<string> {
   if (encoder.encode(text).length <= SPILL_BYTES) return text
   const body = readable(text)

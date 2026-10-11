@@ -20,7 +20,7 @@
 
 **Goal.** A user pastes a Kernel key, and `UserDO` can lease the user's one browser to any of their agents, headless by default and headful on demand, with logins kept in the user's profile.
 
-**Files.** `apps/server/src/integrations/kernel/`, `user/user-do.ts`, `packages/protocol/src/user.ts`, `schema.ts`, `apps/web-solid/src/settings/integrations.tsx`, `integrations-client.ts`, `apps/cli/src/commands/kernel.ts`, `apps/cli/src/verify/suites/kernel.ts`, `apps/server/test/kernel-lease.test.ts`, `docs/architecture.md`.
+**Files.** `apps/server/src/integrations/kernel/`, `user/user-do.ts`, `core/protocol/src/user.ts`, `schema.ts`, `apps/web-solid/src/settings/integrations.tsx`, `integrations-client.ts`, `apps/cli/src/commands/kernel.ts`, `apps/cli/src/verify/suites/kernel.ts`, `apps/server/test/kernel-lease.test.ts`, `docs/architecture.md`.
 
 **Build.**
 

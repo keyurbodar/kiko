@@ -2,8 +2,6 @@ import type { Agent, AgentSlug, RoomId, UserEvent, UserToClient } from "@yuki/pr
 import { expectEqual } from "../client"
 import type { Suite } from "../runner"
 
-// A user's agent list. One device creates an agent and a second device sees it live.
-// A chat made with agent ids keeps them. A repeat of the same agent changes nothing.
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
@@ -33,7 +31,7 @@ const suite: Suite = {
     const id = crypto.randomUUID()
     const agent: Agent = { id, name: "ada", slug: `ada-${id.slice(0, 8)}` as AgentSlug, prompt: "reads code", model: "opencode-go/deepseek-v4.1-flash" }
     a.send({ t: "agent", op: { op: "create", agent } })
-    a.send({ t: "agent", op: { op: "create", agent } }) // a resend changes nothing
+    a.send({ t: "agent", op: { op: "create", agent } })
     const seen = agentEvents(await b.expect((f) => agentEvents(f, id).length > 0), id)
     expectEqual(seen.map((e) => e.agent), [agent], "agent on the second device")
     await b.expectNone((f) => agentEvents(f, id).length > 0, 400)

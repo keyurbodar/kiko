@@ -1,12 +1,5 @@
 import type { Actor, FileRef } from "@yuki/protocol"
 
-// The index of one file space (architecture section 18.1): a chat's files in RoomDO, or the
-// user's drive (/home) in UserDO. R2 holds the bytes; two tables hold what the space knows about
-// them, a row per file and a row per folder. The rules are a Linux shell's: folders are real and
-// persist when emptied, mkdir makes parents, rmdir removes an empty folder, mv into a folder keeps
-// the name, rm of a folder needs recursive, and a refused change changes nothing. Every change is
-// one event, through `append`, stored in the same transaction as the rows.
-
 export type FileRow = {
   id: string
   path: string
@@ -18,7 +11,6 @@ export type FileRow = {
   at?: number
 }
 
-/** What the Worker stored in R2 and asks the index to record. */
 export type NewFile = {
   id: string
   path: string
@@ -27,45 +19,28 @@ export type NewFile = {
   type: string
   sha256: string
   author: Actor
-  /**
-   * What the writer saw at the path: a SHA-256 means the path must hold exactly those bytes, and
-   * "none" means it must be empty. Anything else is a conflict and nothing is written, so no writer
-   * ever replaces bytes it did not see.
-   */
   expectSha256: string
 }
 
-/** One entry of a file space. */
 export type FsEntry =
   | { kind: "file"; path: string; id: string; size: number; type: string; sha256: string; r2Key: string; at: number }
   | { kind: "directory"; path: string; files: number; size: number }
 
-/** Why an operation changed nothing. The codes are `pi-durable`'s `FileErrorCode`s. */
 export type FsFail = { ok: false; code: "not_found" | "is_directory" | "not_directory" | "invalid"; message: string }
-/** `changed` counts files; `folders` counts folders made or removed. */
 export type FsChange<E = unknown> = { ok: true; events: E[]; drop: string[]; changed: number; folders?: number }
 
-/** The events a file space stores. A move keeps the id and changes `name`. */
 export type FileBody = { t: "file"; file: FileRef } | { t: "file_removed"; ids: readonly string[] } | { t: "folders"; folders: readonly string[] }
 
 export type PutResult<E = unknown> = {
-  /** Null only for a conflict or a refusal on a path that holds no file. */
   file: FileRef | null
-  /** An R2 key nothing points to any more. The caller deletes it. */
   drop: string | null
   events: E[]
-  /** True when `expectSha256` did not match. `file` is then what the path holds now, and nothing was written. */
   conflict?: boolean
-  /** The path is a folder, or a parent of it is a file. Nothing was written. */
   refused?: FsFail
 }
 
 export const fail = (code: FsFail["code"], message: string): FsFail => ({ ok: false, code, message })
 
-/**
- * One change of a batch (`FileIndex.commit`), with the state it expects. A put carries its
- * `expectSha256`; a move, a remove, and an rmdir name the bytes they saw, an rmdir every file below.
- */
 export type IndexChange =
   | { op: "put"; file: NewFile }
   | { op: "move"; from: string; to: string; sha256: string }
@@ -73,10 +48,8 @@ export type IndexChange =
   | { op: "rmdir"; path: string; files: Readonly<Record<string, string>> }
   | { op: "mkdir"; path: string }
 
-/** A batch applied whole, or refused whole: `conflict` when a path no longer held what the batch saw. */
 export type CommitResult<E = unknown> = { ok: true; events: E[]; drop: string[] } | { ok: false; path: string; message: string; conflict: boolean }
 
-/** The paths a change touches, for leases. */
 export const changePaths = (c: IndexChange): string[] => (c.op === "put" ? [c.file.path] : c.op === "move" ? [c.from, c.to] : [c.path])
 
 class Refused {
@@ -87,25 +60,18 @@ class Refused {
   ) {}
 }
 
-/** The name after the last slash. */
 export const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
-/** Every folder above `path`, outermost first: `a/b/c.md` gives `a`, `a/b`. */
 export function parents(path: string): string[] {
   const out: string[] = []
   for (let i = path.indexOf("/"); i !== -1; i = path.indexOf("/", i + 1)) out.push(path.slice(0, i))
   return out
 }
 
-/**
- * Bounds of every path under `dir` (empty for the root), for a scan on the unique index. "/" is
- * 0x2f and "0" is 0x30, so `dir0` sorts after every `dir/...` whatever bytes follow.
- */
 function under(dir: string): [string, string | null] {
   return dir ? [`${dir}/`, `${dir}0`] : ["", null]
 }
 
-/** ASSUMPTION: a FileRef's `name` is the full path in its space. The protocol has no separate path field. */
 export function toRef(r: FileRow): FileRef {
   return { id: r.id, name: r.path, size: r.size, type: r.type }
 }
@@ -115,7 +81,6 @@ export type Tables = { files: string; dirs: string }
 export const ROOM_TABLES: Tables = { files: "ws_files", dirs: "ws_dirs" }
 export const HOME_TABLES: Tables = { files: "home_files", dirs: "home_dirs" }
 
-/** Every file and folder of a space, for a snapshot, without building an index. */
 export function listSpace(storage: DurableObjectStorage, t: Tables): { files: FileRef[]; folders: string[] } {
   const has = (name: string) => storage.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", name).toArray().length > 0
   return {
@@ -132,8 +97,6 @@ export class FileIndex<E> {
     private readonly actorKey: (actor: Actor) => string,
   ) {
     const sql = storage.sql
-    // width, height, and thumbhash are no longer written or read. They stay, empty, because dropping
-    // a column from a live table buys nothing.
     sql.exec(`CREATE TABLE IF NOT EXISTS ${t.files} (
       id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, r2_key TEXT NOT NULL, size INTEGER NOT NULL, type TEXT NOT NULL,
       sha256 TEXT NOT NULL, width INTEGER, height INTEGER, thumbhash TEXT, author TEXT NOT NULL, at INTEGER NOT NULL)`)
@@ -148,12 +111,10 @@ export class FileIndex<E> {
     return this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE ${column} = ?`, value).toArray()[0] ?? null
   }
 
-  /** Every file, by path. A snapshot carries it. */
   all(): FileRef[] {
     return this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} ORDER BY path`).toArray().map(toRef)
   }
 
-  /** Every folder, by path. A snapshot carries it. */
   folders(): string[] {
     return this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} ORDER BY path`).toArray().map((r) => r.path)
   }
@@ -169,7 +130,6 @@ export class FileIndex<E> {
       .map((r) => r.path)
   }
 
-  /** The file rows under `dir`, by path. */
   private files(dir: string, limit = -1): FileRow[] {
     const [lo, hi] = under(dir)
     return hi === null
@@ -184,14 +144,12 @@ export class FileIndex<E> {
     return this.files(path, 1).length > 0
   }
 
-  /** Records folders. Returns how many were new. */
   private insertDirs(paths: readonly string[]): number {
     let added = 0
     for (const p of paths) if (p) added += this.sql.exec(`INSERT OR IGNORE INTO ${this.t.dirs} (path) VALUES (?)`, p).rowsWritten
     return added
   }
 
-  /** Records folders, and returns the `folders` event when any is new. */
   private addDirs(paths: readonly string[], author: string): E[] {
     return this.insertDirs(paths) ? [this.foldersEvent(author)] : []
   }
@@ -200,7 +158,6 @@ export class FileIndex<E> {
     return this.append(author, { t: "folders", folders: this.folders() })
   }
 
-  /** Why a new file or folder cannot go at `path`: a folder or a file is there, or a parent is a file. */
   private clash(path: string, as: "file" | "folder"): FsFail | null {
     if (as === "file" && this.isDir(path)) return fail("is_directory", `${path} is a folder`)
     if (as === "folder" && this.row("path", path)) return fail("not_directory", `${path} is a file`)
@@ -208,11 +165,6 @@ export class FileIndex<E> {
     return null
   }
 
-  /**
-   * Records an object the Worker stored. Safe to call twice with the same id. The same bytes at
-   * the same path keep the first row, and the new object is returned as `drop`. Other bytes at an
-   * existing path replace the row, and the old object is returned as `drop`.
-   */
   put(input: NewFile): PutResult<E> {
     return this.storage.transactionSync(() => {
       const same = this.row("id", input.id)
@@ -260,7 +212,6 @@ export class FileIndex<E> {
     return { kind: "file", path: r.path, id: r.id, size: r.size, type: r.type, sha256: r.sha256, r2Key: r.r2_key, at: r.at ?? 0 }
   }
 
-  /** A file, a folder, or null. The empty path is the root, which always exists. */
   stat(path: string): FsEntry | null {
     const file = this.row("path", path)
     if (file) return this.entry(file)
@@ -276,7 +227,6 @@ export class FileIndex<E> {
     return { files: row.n, size: row.size ?? 0 }
   }
 
-  /** What `dir` holds: its folders and files. Every file and folder below it with `recursive`. */
   list(dir: string, recursive = false): FsEntry[] | FsFail {
     const self = this.stat(dir)
     if (!self) return fail("not_found", `no such folder: ${dir}`)
@@ -284,19 +234,18 @@ export class FileIndex<E> {
     const prefix = dir ? `${dir}/` : ""
     const files = this.files(dir)
     const names = new Set<string>()
-    for (const p of this.dirRows(dir)) names.add(recursive ? p : prefix + p.slice(prefix.length).split("/")[0]!)
+    for (const p of this.dirRows(dir)) names.add(recursive ? p : prefix + (p.slice(prefix.length).split("/")[0] ?? ""))
     for (const r of files) {
       const rest = r.path.slice(prefix.length)
       if (!rest.includes("/")) continue
       if (recursive) for (const p of parents(rest)) names.add(prefix + p)
-      else names.add(prefix + rest.split("/")[0]!)
+      else names.add(prefix + (rest.split("/")[0] ?? ""))
     }
     const dirs: FsEntry[] = [...names].sort().map((path) => ({ kind: "directory", path, ...this.tally(path) }))
     const shown = recursive ? files : files.filter((r) => !r.path.slice(prefix.length).includes("/"))
     return [...dirs, ...shown.map((r) => this.entry(r))]
   }
 
-  /** `mkdir -p`: the folder and every parent. A folder that exists is fine; a file in the way is not. */
   mkdir(path: string, by: Actor): FsChange<E> | FsFail {
     return this.storage.transactionSync(() => {
       if (path === "") return { ok: true, events: [], drop: [], changed: 0 }
@@ -307,11 +256,6 @@ export class FileIndex<E> {
     })
   }
 
-  /**
-   * `mv from to`, as on Linux. Into an existing folder, the name is kept. A file onto a file replaces
-   * it. A folder moves with everything in it, and never onto a file or a folder that exists. Only
-   * paths change: ids and R2 objects stay, so a move costs one row update per file.
-   */
   move(from: string, to: string, by: Actor): FsChange<E> | FsFail {
     return this.storage.transactionSync(() => {
       const src = this.stat(from)
@@ -336,7 +280,9 @@ export class FileIndex<E> {
           events.push(this.append(author, { t: "file_removed", ids: [there.id] }))
         }
         events.push(...this.addDirs(parents(target), author))
-        events.push(this.rename(this.row("id", src.id)!, target, author))
+        const srcRow = this.row("id", src.id)
+        if (!srcRow) throw new Error(`no file row for ${src.id}`)
+        events.push(this.rename(srcRow, target, author))
         return { ok: true, events, drop, changed: 1 }
       }
       if (there) return fail(there.kind === "file" ? "not_directory" : "is_directory", `${target} already exists`)
@@ -357,10 +303,6 @@ export class FileIndex<E> {
     return this.append(author, { t: "file", file: toRef({ ...r, path }) })
   }
 
-  /**
-   * `rm`, as on Linux: a folder that holds anything needs `recursive`; an empty one goes like
-   * `rmdir`. Every path is checked first, so a refusal deletes nothing.
-   */
   remove(paths: readonly string[], recursive: boolean, by: Actor): FsChange<E> | FsFail {
     return this.storage.transactionSync(() => {
       const rows = new Map<string, FileRow>()
@@ -369,7 +311,9 @@ export class FileIndex<E> {
         const entry = this.stat(path)
         if (!entry || path === "") return fail("not_found", `no such file or folder: ${path || "/"}`)
         if (entry.kind === "file") {
-          rows.set(entry.id, this.row("id", entry.id)!)
+          const row = this.row("id", entry.id)
+          if (!row) throw new Error(`no file row for ${entry.id}`)
+          rows.set(entry.id, row)
           continue
         }
         const inside = this.files(path)
@@ -388,10 +332,6 @@ export class FileIndex<E> {
     })
   }
 
-  /**
-   * Applies a batch in one transaction: every change, or none. Each change is checked against the
-   * state it expects first, so a batch built from an old snapshot never overwrites a newer write.
-   */
   commit(changes: readonly IndexChange[], by: Actor): CommitResult<E> {
     const changed = (path: string) => new Refused(path, "changed", true)
     try {
@@ -410,7 +350,7 @@ export class FileIndex<E> {
               if (out.conflict) throw changed(c.file.path)
               if (out.refused) throw new Refused(c.file.path, out.refused.message, false)
               events.push(...out.events)
-              if (out.drop && out.drop !== c.file.r2Key) drop.push(out.drop)
+              if (out.drop) drop.push(out.drop)
               break
             }
             case "move": {

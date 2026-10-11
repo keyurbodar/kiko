@@ -3,17 +3,12 @@ import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
 import { newRoom, seen, send, until } from "./mid-run"
 
-// Architecture section 8 with the real test model. `workers` proves each rule with the fake agent.
-// The browser check that set the rule: asked to read six pages, the talker fetched them itself, and a
-// human question sent after its first bubble waited behind the run. Now the talker has no web_fetch,
-// so the pages go to a worker, the question is answered at once, and a steer reaches the worker.
 
 type Work = { id: string; status: string; delivered: boolean }
 
 const PAGES = ["Rust_(programming_language)", "Go_(programming_language)", "Python_(programming_language)", "Zig_(programming_language)", "Bun_(software)", "Deno_(software)"].map(
   (p) => `https://en.wikipedia.org/wiki/${p}`,
 )
-/** About 10 s from the question to its answer, with room for one slow model turn. */
 const ANSWER_MS = 12_000
 
 const suite: Suite = {
@@ -60,7 +55,6 @@ const suite: Suite = {
       const stats = await readStats(v, s)
       const calls = (who: string) => Object.entries(stats).filter(([k]) => k.startsWith(`tool.${who}.`)).map(([k, n]) => `${k.split(".")[2]}=${n}`)
       console.log(`  talker tools ${calls("talker").join(" ")}; worker tools ${calls("worker").join(" ")}`)
-      // A worker may read the web with web_fetch or with a Composio search; the talker must do neither.
       const web = (who: string) => Object.entries(stats).filter(([k, n]) => n && (k === `tool.${who}.web_fetch` || k.startsWith(`tool.${who}.composio_`))).map(([k]) => k.split(".")[2])
       if (web("talker").length) throw new VerifyError(`the talker read the web itself: ${web("talker").join(", ")}`)
       if (!web("worker").length) throw new VerifyError("no worker read the web")

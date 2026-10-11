@@ -1,32 +1,16 @@
 import { type MessageId, type Sender, type SearchHit, SNIPPET_CLOSE, SNIPPET_OPEN } from "@yuki/protocol"
 
-// Message search for one room. Architecture section 9.2. The FTS5 index
-// `messages_fts` is kept by triggers (schema.ts), so this file only reads it.
-//
-// Speed. The index is read in rowid order, newest first, so a page stops after `limit` rows and
-// `snippet()` runs for those rows only. Ordering by `messages.seq` instead made SQLite sort every
-// match, and build a snippet for each, before the limit applied: a one-letter prefix in a room of
-// 10,000 messages paid for 10,000 snippets. A message's rowid grows with its seq, because rows are
-// only ever inserted in seq order and a deleted message keeps its row.
-
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 50
 
 export type SearchPage = { results: SearchHit[]; next: number | null }
 
 export type SearchOptions = {
-	/** A seq: only older messages are returned. The `next` of the previous page. */
 	before?: number
-	/** A time in epoch ms: only older messages are returned. For the search across chats. */
 	beforeAt?: number
 	limit?: number
 }
 
-/**
- * Turns what the human typed into an FTS5 query. Every word is quoted so FTS syntax
- * in the text cannot break the query, and the last word matches as a prefix so
- * search works while typing. Returns null when no word is left.
- */
 export function toMatch(query: string): string | null {
 	const words = query
 		.split(/\s+/)
@@ -37,12 +21,10 @@ export function toMatch(query: string): string | null {
 	return words.map((w, i) => `"${w}"${i === words.length - 1 ? "*" : ""}`).join(" ")
 }
 
-/** Live messages that match, newest first. */
 export function searchMessages(sql: SqlStorage, query: string, options: SearchOptions = {}): SearchPage {
 	const match = toMatch(query)
 	if (!match) return { results: [], next: null }
 	const size = Math.min(Math.max(options.limit || DEFAULT_LIMIT, 1), MAX_LIMIT)
-	// The seq cursor becomes a rowid bound, which the index applies itself.
 	const below =
 		options.before === undefined
 			? Number.MAX_SAFE_INTEGER

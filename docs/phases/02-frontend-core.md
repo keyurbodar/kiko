@@ -277,7 +277,7 @@ Measurements for layout and color are in `docs/research/kat-ui.md`. When that fi
 
 **Read first.** `packages/ui/src/styles/tokens.md` and `kat.css`. t3code's approach, which yuki extends: `refs/t3code/apps/web/src/themePalette.ts` (`ThemeFile` at line 47, `parseThemeFile` at line 1352, `applyThemePalette` at line 1516) and `components/settings/ThemeImportDialog.tsx`. t3code themes colors only; yuki themes every token.
 
-**Files.** Create `apps/web-solid/src/theme/` (`schema.ts`, `apply.ts`, `presets/`, `editor.tsx`, tests) and `docs/theming.md`. Edit `apps/server/src/user/` for one theme record, `packages/protocol` for one user event, and the HTML shell for the pre-paint script.
+**Files.** Create `apps/web-solid/src/theme/` (`schema.ts`, `apply.ts`, `presets/`, `editor.tsx`, tests) and `docs/theming.md`. Edit `apps/server/src/user/` for one theme record, `core/protocol` for one user event, and the HTML shell for the pre-paint script.
 
 **Build.**
 

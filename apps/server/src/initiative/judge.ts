@@ -1,19 +1,15 @@
 import { boolOf, type Judge, type Question } from "@yuki/memory/judge"
 import { type BurstCheck, type LoopOp, loopOps, loopQuestions } from "@yuki/memory/loops"
 
-// The initiative judge (architecture section 26.3): Jev through the user's judge from `UserDO.judge`,
-// which reads the key where it always did. Null means no answer, and the caller does what it does
-// without a judge.
-
 async function ask(judge: Judge, state: Parameters<Judge>[0], questions: Record<string, Question>) {
   try {
     return await judge(state, questions)
-  } catch {
+  } catch (error) {
+    console.error(`judge: ${error instanceof Error ? error.message : String(error)}`)
     return null
   }
 }
 
-/** What a human burst opens or closes. */
 export async function classifyBurst(judge: Judge, check: BurstCheck): Promise<LoopOp[] | null> {
   if (!check.sentences.length) return []
   const { state, questions } = loopQuestions(check)
@@ -21,7 +17,6 @@ export async function classifyBurst(judge: Judge, check: BurstCheck): Promise<Lo
   return answers ? loopOps(check, answers) : null
 }
 
-/** One candidate as Jev reads it, in plain words: times are relative and the history is counted. */
 export type WorthItem = {
   id: string
   what: string
@@ -39,11 +34,6 @@ const WORTH = {
   false: "bringing it up now would nag or interrupt for nothing: not due yet, only an idea, said very recently, already raised and left unanswered, or declined by the agent before",
 }
 
-/**
- * For the attention pass: the chance each candidate is worth one unasked message now. `state` says
- * what the agent would be told and how the human answered nudges before, so Jev decides as the agent
- * would and the agent rarely has to decline a wake.
- */
 export async function worthNow(judge: Judge, items: readonly WorthItem[], state: Record<string, string | number>): Promise<Record<string, number> | null> {
   if (!items.length) return {}
   const questions: Record<string, Question> = {}

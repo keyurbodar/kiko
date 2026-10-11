@@ -4,10 +4,6 @@ import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 import type { Received } from "./fake-agent"
 
-// Architecture section 25.5. Every wake nobody's message started goes through `RoomDO.wake`, here
-// with the real UserDO and RoomDO and a recording fake agent. Each test fails on a wake that a
-// held budget or a refusal used to lose.
-
 setDefaultTimeout(30_000)
 let mf: Miniflare
 
@@ -65,7 +61,6 @@ async function userWithChat(): Promise<string> {
   return user
 }
 
-/** A human message the agent has received, so the room has its members and the human is here. */
 async function humanSays(user: string, text: string): Promise<void> {
   await say(user, text)
   await until(`the burst "${text}"`, async () => (await received(user)).some((e) => e.body.includes(text)))
@@ -139,7 +134,6 @@ async function tickRoutine(user: string): Promise<string> {
   return made.routine.id
 }
 
-/** One run of the agent's own object: it starts, maybe posts one bubble, and ends. */
 async function run(user: string, id: string, say?: string): Promise<void> {
   await room(user, "setStatus", "yuki", "working")
   if (say) expect(await room(user, "post", "yuki", id, 0, 0, say)).toBe(true)

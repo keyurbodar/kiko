@@ -4,15 +4,6 @@ import { userStub } from "../lib/names"
 import { originAllowed, type SessionLookup } from "../router"
 import { checkApiKey, CredentialError, isProviderId } from "./credentials"
 
-// The HTTP edge for provider credentials. Architecture section 11.2.
-//
-//   GET    /api/credentials             -> { providers: ProviderInfo[] }
-//   PUT    /api/credentials/<provider>  { apiKey } -> { provider: ProviderInfo }
-//   DELETE /api/credentials/<provider>  -> { removed: boolean }
-//
-// A key goes in and never comes back out. Every answer holds only the provider id, the
-// kind, and the last four characters. A request body is never logged or echoed.
-
 const PREFIX = "/api/credentials"
 const MAX_BODY = 16_384
 
@@ -33,7 +24,6 @@ async function readApiKey(request: Request): Promise<string> {
   return checkApiKey((body as { apiKey?: unknown } | null)?.apiKey)
 }
 
-/** Answers `/api/credentials` and below. Returns null for every other path. */
 export async function credentialsRoute(
   request: Request,
   env: Env,

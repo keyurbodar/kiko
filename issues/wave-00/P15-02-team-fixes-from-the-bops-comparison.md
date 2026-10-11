@@ -20,7 +20,7 @@
 
 **Goal.** Stop clears only agent mail. Refused mail tells the sender.
 
-**Files.** `packages/agent/src/inbox.ts`, `apps/server/src/room/mail.ts`, `apps/server/src/room/room-do.ts`, `apps/server/test/`.
+**Files.** `core/agent/src/inbox.ts`, `apps/server/src/room/mail.ts`, `apps/server/src/room/room-do.ts`, `apps/server/test/`.
 
 **Build.**
 

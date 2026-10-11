@@ -3,14 +3,8 @@ import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { until } from "./mid-run"
+import { must } from "../must"
 
-// Architecture section 7.11, with the real model. The human never fills in a form:
-//
-//   1. temp      the new chat button's temporary chat with yuki
-//   2. agent     yuki makes the agent in the same run: it exists with yuki's soul, its chat opens, and
-//                it says hi first
-//   3. group     another temporary chat: yuki makes the group, the chat becomes the group with new
-//                agents and yuki's /chat.md, and joins the chat list
 
 function messages(room: RoomHandle): Message[] {
   const out = new Map<string, Message>()
@@ -49,32 +43,29 @@ const suite: Suite = {
       return seen
     }
 
-    // 1. A temporary chat with yuki.
     const draftId = newRoomId()
     let t0 = Date.now()
     user.send({ t: "chat", op: { op: "create", roomId: draftId, title: "new chat", agents: ["yuki"], temp: true } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === draftId))
     const draft = await s.room(draftId)
 
-    // 2. The agent, its chat, its hello.
     let from = last(draft)
     t0 = Date.now()
     draft.send("make me an agent to help me plan my weekly meals and grocery list")
     await until("the made line", () => messages(draft).some((m) => m.seq > from && m.goto), 90_000).catch((e) => {
       throw new VerifyError(`${e instanceof Error ? e.message : e}. yuki said: ${JSON.stringify(yuki(draft, from).map((m) => m.text))}`)
     })
-    const made = messages(draft).find((m) => m.seq > from && m.goto)!
+    const made = must(messages(draft).find((m) => m.seq > from && m.goto), "made message")
     const agent = agents()[0]
     if (!agent) throw new VerifyError("no agent was made")
     console.log(`  made @${agent.slug} (${Date.now() - t0} ms): ${JSON.stringify(made.text)}`)
     const soul = (await (await fetch(new URL(`api/souls/${agent.slug}`, v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })).json()) as { body: string }
     console.log(`  its soul: ${JSON.stringify(soul.body.slice(0, 240))}`)
     if (soul.body.length < 80) throw new VerifyError("the soul yuki wrote is too thin")
-    const dm = await s.room(made.goto!)
+    const dm = await s.room(must(made.goto, "goto"))
     await until(`@${agent.slug} says hi`, () => messages(dm).some((m) => m.from.kind === "agent" && m.from.slug === agent.slug), 90_000)
-    console.log(`  hello (${Date.now() - t0} ms): ${JSON.stringify(messages(dm).find((m) => m.from.kind === "agent")!.text)}`)
+    console.log(`  hello (${Date.now() - t0} ms): ${JSON.stringify(messages(dm).find((m) => m.from.kind === "agent")?.text)}`)
 
-    // 3. A group.
     const groupId = newRoomId()
     t0 = Date.now()
     user.send({ t: "chat", op: { op: "create", roomId: groupId, title: "new chat", agents: ["yuki"], temp: true } })
@@ -94,7 +85,7 @@ const suite: Suite = {
       const f = entry.frame as RoomToClient
       return entry.dir === "in" && f.t === "events" && f.events.some((e) => e.t === "file" && e.file.name === "chat.md")
     })
-    console.log(`  group "${chats().get(groupId)!.title}" (${Date.now() - t0} ms): ${[...members].map((m) => `@${m}`).join(", ")}; /chat.md ${chatMd ? "written" : "missing"}`)
+    console.log(`  group "${chats().get(groupId)?.title}" (${Date.now() - t0} ms): ${[...members].map((m) => `@${m}`).join(", ")}; /chat.md ${chatMd ? "written" : "missing"}`)
     if (!members.has(agent.slug)) throw new VerifyError(`@${agent.slug} is not in the group`)
     if (members.size < 3) throw new VerifyError("the group has no new agent")
     if (!chatMd) throw new VerifyError("yuki wrote no /chat.md")

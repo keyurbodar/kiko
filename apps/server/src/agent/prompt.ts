@@ -1,26 +1,15 @@
 import { type PromptSection, section } from "@earendil-works/pi-durable"
 
-// The system prompt (architecture sections 6.5, 7.4, 7.10, 13, and 15). Stable sections come
-// first so the provider's prompt cache keeps hitting: the core every agent shares, then the
-// agent's soul and the chat's file, which change rarely. What changes per run (memory, the brief)
-// goes into the user entry instead.
-//
-// The core is short on purpose. Who an agent is lives in its soul; what a chat is for lives in
-// /chat.md. Both are files the agent keeps current itself, so it fits the human over time.
+// Stable sections come first so the provider's prompt cache keeps hitting.
 
-/** Section keys in their fixed order. A test asserts this order. */
 export const SECTION_ORDER = ["intro", "voice", "judgment", "work", "team", "autonomy", "files", "reactions", "soul", "role", "chat", "skills"] as const
 export type SectionKey = (typeof SECTION_ORDER)[number]
 
 export type RoleInput = {
-  /** What this agent does in this room, when the lead gave it a job. Who it is lives in its soul. */
   role: string
-  /** The lead gets untagged messages and may add agents (architecture section 7.2). */
   lead: boolean
 }
 
-// The core every agent shares, one tagged section per concern, as pi does it. Sentence case on
-// purpose: the model copies the register it reads.
 const INTRO =
   "You are an agent in Yuki, a chat app. You share a chat with one human and sometimes other agents. Your soul says who you are."
 
@@ -57,7 +46,6 @@ const FILES = `- The chat's files are at /, shared with everyone here, the human
 - /me/soul.md is you in every chat. When they correct how you work or talk, fix it there in one line, without announcing it.
 - /chat.md is what this chat is for: the goal, decisions, and who does what. Update it only when one of those changes.`
 
-/** Architecture section 6.5: the tag is documented in one line. `split-bubbles.ts` parses it. */
 const REACTION_LINE =
   "When a message needs no answer (ok, thanks, got it), reply only [react:👍] (or ❤️ 🙏 👀 🎉). [react:<emoji>:<messageId>] targets an older message. Put a reaction tag first, before any text. To answer one older message, start the bubble with [reply:<messageId>]."
 
@@ -69,21 +57,14 @@ function roleText({ role, lead }: RoleInput): string {
   return job ? `${rank}\nYour job here: ${job}` : rank
 }
 
-/** Renders nothing. A later extension fills it with `wrapSection(key, ...)`, so the order holds. */
 const slot = (key: SectionKey): PromptSection => section(key, () => undefined)
 
-/** How the talker uses its workers (section 8). The work extension fills the `work` slot, so a worker never reads it. */
 export const WORK_LINES = `- Web pages, the browser, the human's connected apps, and extension tools run only in a worker. For those, and for anything slow (research, several steps, long drafting), call start_work with one clear task that has everything the worker needs. Give a job with many parts to one worker whole; it runs them at once. Do not split it into batches.
 - First write one short line that you are on it, then call start_work in the same message. After its result, reply only [skip], never a second line. Do not narrate steps.
 - Answer small questions yourself, at once, even while workers run.
 - Your workers are listed in <context>. When the human changes the request, steer_work the right worker, or stop_work it if they no longer want it.
 - A <work> input is a worker's report. Tell the human the outcome in your own words, once the work is done. No progress lines.`
 
-/**
- * The base sections in `SECTION_ORDER`. `work` (section 8), `soul` and `chat` (section 7.10), and `skills` (section 15)
- * are empty slots. The extension that owns one fills it with
- * `wrapSection` and is selected after `Base` in `factory.ts`.
- */
 export function baseSections(input: RoleInput): PromptSection[] {
   return [
     section("intro", () => INTRO),

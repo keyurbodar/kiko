@@ -10,13 +10,11 @@ const spin = (ms: number) => {
   return n
 }
 
-// Experiment 4 probe. Burns CPU in a Durable Object to see whether a CPU limit applies there.
 export class SpinDO extends DurableObject {
   async quickjs(calls: number) {
     return quickjsProbe(calls)
   }
 
-  /** Experiment 5: n outside fetches, in this request or after it returned. */
   async fetchMany(n: number, background: boolean, viaSelf = false) {
     const self = (this.env as { SPIN: DurableObjectNamespace<SpinDO> }).SPIN.get(this.ctx.id)
     const run = async () => {
@@ -58,7 +56,6 @@ export class SpinDO extends DurableObject {
     return 1
   }
 
-  /** Experiment 5b: n RPCs to another object (or to itself), each optionally making one outside fetch there. */
   async viaRpc(n: number, target: "other" | "self", withFetch: boolean) {
     const env = this.env as { SPIN: DurableObjectNamespace<SpinDO> }
     const stub = target === "self" ? env.SPIN.get(this.ctx.id) : env.SPIN.get(env.SPIN.idFromName(`peer-${this.ctx.id.toString()}`))

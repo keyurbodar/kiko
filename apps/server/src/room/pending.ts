@@ -2,15 +2,8 @@ import { attachmentMessages, attachmentsError, type FileRef, type PendingAttachm
 import { cleanPath } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
 
-// Pending attachments (architecture section 18.1), as t3code keeps them. The composer uploads a
-// file the moment the human picks it, and the bytes land in R2 at the key the file will keep. This
-// table says they are not the chat's yet: the Files tab and the agents see nothing. A send claims
-// its rows into the file index in the same transaction as the message, and a sweep deletes a row,
-// and its object, that nobody sent within a day.
 
-/** A pending upload nobody sent is deleted after this long. t3code's number. */
 export const PENDING_TTL_MS = 24 * 3_600_000
-/** The wakeup key of the sweep. */
 export const PENDING_WAKEUP = "pending_sweep"
 
 export type PendingRow = {
@@ -26,17 +19,11 @@ export type PendingRow = {
 
 export type NewPending = { id: string; name: string; type: string; size: number; r2Key: string; uploadId?: string }
 
-/** Why the claim failed. Thrown inside the send's transaction, so nothing it wrote stays. */
 export class ClaimRefused extends Error {}
 
 export class PendingUploads {
 	constructor(private readonly sql: SqlStorage) {}
 
-	/**
-	 * Records an upload before its bytes go to R2. Null when it may go on. The same id with the same
-	 * size is a retry and goes on; an id the chat's files already use is refused, so an upload never
-	 * writes over a sent file's bytes.
-	 */
 	open(input: NewPending, now: number): string | null {
 		if (this.sql.exec("SELECT 1 FROM ws_files WHERE id = ?", input.id).toArray().length) return "that id is taken"
 		const row = this.get(input.id)
@@ -62,7 +49,6 @@ export class PendingUploads {
 		return this.sql.exec<PendingRow>("SELECT * FROM pending_uploads WHERE id = ?", id).toArray()[0] ?? null
 	}
 
-	/** The bytes landed. "gone" when the row was removed meanwhile, so the caller deletes the object. */
 	ready(id: string, sha256: string, size: number): "ok" | "gone" | "size" {
 		const row = this.get(id)
 		if (!row) return "gone"
@@ -71,24 +57,20 @@ export class PendingUploads {
 		return "ok"
 	}
 
-	/** Removes one pending row and returns it. Null for an id that is not pending, a sent file's included. */
 	remove(id: string): PendingRow | null {
 		const row = this.get(id)
 		if (row) this.sql.exec("DELETE FROM pending_uploads WHERE id = ?", id)
 		return row
 	}
 
-	/** Rows created before `before`, oldest first. */
 	expired(before: number, limit = 500): PendingRow[] {
 		return this.sql.exec<PendingRow>("SELECT * FROM pending_uploads WHERE created_at < ? ORDER BY created_at LIMIT ?", before, limit).toArray()
 	}
 
-	/** Deletes rows by id. The list is one JSON value, as a query binds at most 100. */
 	drop(ids: readonly string[]): void {
 		if (ids.length) this.sql.exec("DELETE FROM pending_uploads WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(ids))
 	}
 
-	/** When the oldest row expires, or null when there is none. */
 	nextExpiry(): number | null {
 		const at = this.sql.exec<{ at: number | null }>("SELECT min(created_at) AS at FROM pending_uploads").one().at
 		return at === null ? null : at + PENDING_TTL_MS
@@ -102,15 +84,18 @@ export class PendingUploads {
 		return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM pending_uploads").one().n
 	}
 
-	/** Development only: moves every row `ms` into the past. */
 	age(ms: number): void {
 		this.sql.exec("UPDATE pending_uploads SET created_at = created_at - ?", ms)
 	}
 }
 
-/** A name that is one path segment: no slashes, no control characters, at most 120 characters. */
+function isControl(c: string): boolean {
+	const n = c.charCodeAt(0)
+	return n <= 0x1f || n === 0x7f
+}
+
 export function safeName(name: string): string {
-	return name.replace(/[/\\\u0000-\u001f\u007f]/g, "_").slice(-120) || "file"
+	return name.split("").map((c) => (c === "/" || c === "\\" || isControl(c) ? "_" : c)).join("").slice(-120) || "file"
 }
 
 /**

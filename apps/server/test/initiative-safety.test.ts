@@ -6,8 +6,6 @@ import { Initiative } from "../src/initiative/initiative"
 import type { Level } from "../src/initiative/attention/types"
 import { sqlStorage } from "./sql-shim"
 
-// Section 26: whose loops an agent may touch, and what a private chat keeps.
-
 const base = { kind: "intention" as const, owner: "human", source: "tool" as const }
 
 function world(opts: { level?: Level; titles?: Record<string, string | null> } = {}) {

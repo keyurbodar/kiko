@@ -5,8 +5,6 @@ import type { Suite } from "../runner"
 import { ulid } from "./mid-run"
 import { dev } from "./team-loops"
 
-// Architecture section 26. Open loops with the real model, once without a judge and once with Jev
-// (TYPESAFE_API_KEY). INITIATIVE_MODE=nojev or jev runs one. Never prints a key.
 
 const TYPESAFE = "typesafe"
 const T0 = Date.now()
@@ -69,8 +67,6 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   const usage = async (roomId: string) => (await dev(v.url, s.cookie, "usage", { roomId })) as { agent: Record<string, number>; memory: Record<string, number> }
   const show = (l: Loop) => `L${l.id} ${l.status} ${l.kind}/${l.certainty} owner=${l.owner} via ${l.source}${l.due ? ` due ${l.due}` : ""}: ${l.text}`
 
-  // Loops open in the background, never in the run (section 26.2): Jev about 15 s after the burst, or,
-  // with no judge, the summary pass. The dev route rolls the chat up now, as six quiet hours would.
   const work = await openChat(user, s, "work")
   for (const text of [
     "Ugh, I have to submit the grant report to the foundation by Friday 5pm.",
@@ -111,7 +107,6 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   if (!/^related: .*run/im.test(later)) throw new VerifyError("the later chat's brief has no related line about running")
   if (/grant/i.test(later)) throw new VerifyError("a closed loop showed up as related")
 
-  // The summary pass: the call that summarizes a page of turns also lists its loops. No extra call.
   const trip = await openChat(user, s, "trip")
   const chatter = ["what a week", "it was long, yes", "the weather turned cold", "time for soup then", "ha, maybe", "tomato is good", "we saw a film", "which one?", "an old western", "nice"]
   const turns = [
@@ -120,7 +115,6 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
     ...chatter.flatMap((t, i) => [{ from: i % 2 ? "yuki" : "human", text: t }]),
     { from: "human", text: "I am waiting to hear back from the landlord about the lease." },
     { from: "yuki", text: "Okay." },
-    // A page is summarized once 48 turns sit after it (ROOM_SHAPE), so the chat goes on.
     ...Array.from({ length: 36 }, (_, i) => ({ from: i % 2 ? "yuki" : "human", text: `${chatter[i % chatter.length]} (${i})` })),
   ]
   const callsBefore = (await usage(trip.id)).memory.calls ?? 0

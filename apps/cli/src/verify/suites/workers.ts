@@ -2,16 +2,8 @@ import type { RoomHandle, Session } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { fake, newRoom, seen, send, statuses, until } from "./mid-run"
+import { must } from "../must"
 
-// Architecture section 8. The agent hands slow work to a background worker and keeps talking.
-// Each case runs in its own room against the scripted fake agent of `apps/server/src/agent/dev-fake.ts`,
-// so it is deterministic and spends no tokens. The fake worker takes `[steps N]` slow steps of 3 s,
-// then reports `work done: heard=<every turn it was given>`; the fake agent posts a report as
-// `report <id> <status>: <text>`. Needs a development server (`NODE_ENV=development`).
-//
-//   talk    a human message is answered while the worker still runs
-//   steer   a change sent with steer_work reaches the worker, and its report reflects it
-//   stop    stop_work ends the worker, and the agent says it stopped
 
 type Work = { id: string; status: string; step: string | null }
 
@@ -24,7 +16,6 @@ async function workers(url: string, s: Session, roomId: string): Promise<Work[]>
 const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
 const start = (task: string) => `[tool start_work ${JSON.stringify({ task })}]`
 
-/** Starts worker w1 and waits for the agent to say so. */
 async function started(room: RoomHandle, task: string): Promise<void> {
   await send(room, start(task))
   await until("the agent to start w1", () => texts(room).some((t) => t.includes("started w1")), 30_000)
@@ -54,7 +45,7 @@ const cases: Case[] = [
       await started(room, "[steps 2] find flights")
       await send(room, `[tool steer_work ${JSON.stringify({ id: "w1", text: "only morning flights" })}]`)
       await until("the worker's report", () => texts(room).some((t) => t.startsWith("report w1 done")), 30_000)
-      const report = texts(room).find((t) => t.startsWith("report w1 done"))!
+      const report = must(texts(room).find((t) => t.startsWith("report w1 done")), "report w1 done")
       expectEqual(report, "report w1 done: work done: heard=[steps 2] find flights | only morning flights", "the report")
       expectEqual((await list())[0]?.status, "done", "w1")
     },

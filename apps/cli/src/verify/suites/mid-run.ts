@@ -3,16 +3,6 @@ import type { RoomHandle, Session } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// P1-12, architecture section 6.2. What the agent does with a human message that arrives while it
-// works. Each case runs in its own room against the scripted fake agent of
-// `apps/server/src/agent/dev-fake.ts`, so it is deterministic and spends no tokens. The fake
-// answers `heard: <the user turns since its last answer>`, so a bubble's text shows which turns
-// one run answered. Needs a development server (`NODE_ENV=development`).
-//
-//   restart  a message before the first bubble aborts the run; one answer covers both turns
-//   steer    a message during a tool joins the run after the tool; one answer covers both
-//   steer after a bubble   a message after a bubble steers; with no tool round left, it is placed when the run answers
-//   stop     stop aborts the run and discards the message that waited
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 export function ulid(): string {
@@ -25,7 +15,6 @@ export function ulid(): string {
   return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
 }
 
-/** Creates a chat in the user's list and opens its room socket. A room not in the list wakes no agent. */
 export async function newRoom(s: Session, title: string): Promise<{ roomId: string; room: RoomHandle }> {
   const roomId = ulid()
   const user = await s.user()
@@ -36,7 +25,6 @@ export async function newRoom(s: Session, title: string): Promise<{ roomId: stri
   return { roomId, room }
 }
 
-/** Every agent message the socket saw, deleted ones included, and the ids deleted. */
 export function seen(room: RoomHandle): { all: Message[]; live: Message[]; deleted: number } {
   const all: Message[] = []
   const gone = new Set<string>()
@@ -53,7 +41,6 @@ export function seen(room: RoomHandle): { all: Message[]; live: Message[]; delet
   return { all, live, deleted: all.filter((m) => gone.has(m.id)).length }
 }
 
-/** The agent's status frames, in order. */
 export function statuses(room: RoomHandle): string[] {
   return room.raw.log.flatMap((e) => (e.dir === "in" && (e.frame as RoomToClient).t === "status" ? [(e.frame as Extract<RoomToClient, { t: "status" }>).state] : []))
 }
@@ -73,7 +60,6 @@ export async function send(room: RoomHandle, text: string): Promise<void> {
 
 const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
 
-/** Asks the dev server for the fake agent in this room. It must happen before the first message. */
 export async function fake(v: { url: string }, s: Session, roomId: string): Promise<void> {
   const res = await fetch(new URL("api/dev/agent/fake", v.url.endsWith("/") ? v.url : `${v.url}/`), {
     method: "POST",
@@ -130,10 +116,10 @@ const cases: Case[] = [
       await Bun.sleep(2_000)
       const { live, deleted } = seen(room)
       expectEqual(live.length, 3, "bubbles")
-      expectEqual(live[0]!.text, "part one.", "the first bubble")
-      if (!live[1]!.text.endsWith("heard: [two-part] first")) throw new VerifyError(`the first run did not finish its answer: ${live[1]!.text}`)
-      expectEqual(live[2]!.text, "heard: next", "the answer to the steered message")
-      expectEqual(live[0]!.run?.runId === live[1]!.run?.runId, true, "the first two bubbles share a run")
+      expectEqual(live[0]?.text, "part one.", "the first bubble")
+      if (!live[1]?.text.endsWith("heard: [two-part] first")) throw new VerifyError(`the first run did not finish its answer: ${live[1]?.text}`)
+      expectEqual(live[2]?.text, "heard: next", "the answer to the steered message")
+      expectEqual(live[0]?.run?.runId === live[1]?.run?.runId, true, "the first two bubbles share a run")
       expectEqual(deleted, 0, "deleted bubbles")
     },
   },
@@ -143,7 +129,6 @@ const cases: Case[] = [
       await send(room, "[two-part] a")
       await until("the first bubble", () => texts(room).includes("part one."), 10_000)
       await send(room, "b")
-      // Long enough for the burst to reach the agent and wait in its queue.
       await Bun.sleep(2_500)
       const stoppedAt = room.raw.log.length
       room.raw.send({ t: "stop" })
@@ -152,7 +137,6 @@ const cases: Case[] = [
         () => room.raw.log.slice(stoppedAt).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as { state: string }).state === "idle"),
         5_000,
       )
-      // The rest of the run would have landed by now.
       await Bun.sleep(6_000)
       expectEqual(texts(room), ["part one."], "the bubbles after stop")
       await send(room, "c")

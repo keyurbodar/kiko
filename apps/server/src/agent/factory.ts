@@ -28,18 +28,15 @@ import { count } from "../lib/dev-stats"
 
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
-  /** `fs` reads the chat's files outside a tool call, for the prompt and for saved results. Tools use `filesOf(api)`. */
   files?: FilesOptions & { fs: RoomFs }
   soul?: SoulPort
   runStamp?: () => number
   chief?: ChiefPort
   presence?: (doing: string) => Promise<unknown>
   memory?: MemoryPort
-  /** The human's open loops (initiative). */
   loops?: () => LoopPort | null
   workspace?: WorkspacePort
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
-  /** Only when the user has a Kernel key (phase 17). */
   browser?: BrowserToolDeps
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
@@ -47,7 +44,6 @@ export type BuildAgentInput = RoleInput & {
   scripts?: ScriptPorts
   builder?: BuilderPorts
   egress?: Fetcher
-  /** The agent's background workers (architecture section 8). Without it the agent has no work tools. */
   work?: Workers
 }
 
@@ -59,18 +55,10 @@ export type BuiltAgent = {
 
 export const BASE = "base"
 
-/** A user extension's tools live in their own extension, named `ext:<name>/tools`, so the talker can leave them out. */
 export const TOOLS_SUFFIX = "/tools"
 
-/**
- * Architecture section 8. What only a worker gets: tools that leave the object or can take long. The
- * talker gets every other extension, so slow work cannot block the human's messages. Keyed by
- * extension name: the web, the human's connected apps, the browser, and the tools of every user extension. A
- * user extension's sections and hooks stay with the talker.
- */
 export const WORKER_ONLY: readonly string[] = [WEB, COMPOSIO, BROWSER_EXT]
 export const workerOnly = (name: string): boolean => WORKER_ONLY.includes(name) || (name.startsWith("ext:") && name.endsWith(TOOLS_SUFFIX))
-/** The talker's extensions: all of them minus `WORKER_ONLY`, in the same order, so the prompt cache holds. */
 export const forTalker = (extensions: readonly Extension[]): Extension[] => extensions.filter((e) => !workerOnly(e.name))
 
 function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]): Extension[] {
@@ -98,7 +86,6 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
   let extensions: UserExtensions | undefined
   const builtins = extensionsFor(input, () => extensions?.selection() ?? builtins)
-  // Throws when a tool declares no effect. An extension script reads the effect to decide what it may call.
   effectTable(builtins)
   const registry = createRegistry()
   for (const extension of builtins) registry.install(extension)
@@ -109,11 +96,6 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: forTalker(builtins) }, extensions }
 }
 
-/**
- * A compiled user extension as two: its sections, hooks, and wraps for every conversation, and its tools for workers only.
- * An extension whose tools call a talker-only tool (send_message, a reminder, the board) stays whole with the talker,
- * since a worker does not have what it calls.
- */
 function split(extension: Extension, calls: readonly string[], talkerOnly: ReadonlySet<string>): Extension[] {
   if (!extension.tools?.length || calls.some((c) => talkerOnly.has(c))) return [extension]
   return [{ ...extension, tools: [] }, defineExtension({ name: `${extension.name}${TOOLS_SUFFIX}`, tools: extension.tools })]
@@ -137,13 +119,11 @@ export class UserExtensions {
     this.talkerOnly = new Set(builtins.filter((e) => NOT_FOR_WORKERS.includes(e.name)).flatMap((e) => (e.tools ?? []).map((t) => t.name)))
   }
 
-  /** Every extension, the worker's tools included. A worker takes this minus `NOT_FOR_WORKERS`. */
   selection(): Extension[] {
     const users = [...this.installed.entries()].sort(([a], [b]) => a.localeCompare(b)).flatMap(([, v]) => v.parts)
     return [...this.builtins, ...users]
   }
 
-  /** The talker's extensions (section 8). */
   talker(): Extension[] {
     return forTalker(this.selection())
   }
@@ -158,7 +138,8 @@ export class UserExtensions {
       const clash = tools.find((t) => this.reserved.has(t)) ?? null
       const shared = tools.find((t) => taken.has(t)) ?? null
       if (clash || shared) {
-        const error = clash ? `tool ${clash} is a built-in tool; rename it` : `tool ${shared} is also in extension ${taken.get(shared!)}; rename one`
+        const owner = shared ? taken.get(shared) : undefined
+        const error = clash ? `tool ${clash} is a built-in tool; rename it` : `tool ${shared} is also in extension ${owner}; rename one`
         problems.push({ name: item.name, hash: item.hash, error })
         continue
       }
@@ -182,13 +163,11 @@ export class UserExtensions {
   }
 }
 
-/** Muse Spark at minimal reasoning answered a connected-app task in 9.3 s where DeepSeek V4.1 Flash took 16.6 s (2026-10-09). */
 export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse-spark-1.3-contributor" }
 
 /** pi-ai APIs whose adapter throws on a custom fetch (`api/google-generative-ai.js`, `api/google-vertex.js`). */
 const NO_CUSTOM_FETCH = new Set(["google-generative-ai", "google-vertex"])
 
-/** Counts a model turn and its time for the dev stats. Returns the stream itself. */
 function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream: S): S {
   const t = performance.now()
   count("model.turns")

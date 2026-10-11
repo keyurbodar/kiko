@@ -2,29 +2,17 @@ import { type ChatLast, messageLast, mentionsHuman, oneLine } from "@yuki/protoc
 import type { FileRef, Sender } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 
-/** The `UserDO.touchChat` argument. */
 export type Touch = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions: number; group: boolean }
 
-/** Meta key of the newest member change (`RoomDO.memberOp`), as `MemberActivity` JSON. */
 export const MEMBER_ACTIVITY = "member_activity"
-/** Meta key of the human's handle (`humanHandle`), set from the session on every socket. */
 export const HUMAN_HANDLE = "human_handle"
 export type MemberActivity = { seq: number; at: number; kind: "joined" | "left"; name: string }
 
-/** How many unread agent messages the mention count reads, newest first. */
 const MENTION_SCAN = 500
-/** A quoted message in `reacted ❤️ to "..."` is short. */
 const QUOTE = 40
 
 type Candidate = { seq: number; last: ChatLast }
 
-/**
- * The chat list row of a room (section 9.2): its newest activity, its unread messages, and the
- * unread messages that mention the human. The newest activity is the newest of: a live message, an
- * agent's reaction to a human message that still stands, and a member joining
- * or leaving. A deleted newest message falls back to the one before it. Reads only; the room calls
- * it after each change and sends the result to `UserDO.touchChat`.
- */
 export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 	const names = new Map(sql.exec<{ slug: string; name: string; removed_at: number | null }>("SELECT slug, name, removed_at FROM members").toArray().map((r) => [r.slug, r]))
 	const nameOf = (slug: string) => names.get(slug)?.name ?? slug
@@ -45,7 +33,6 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 		})
 	}
 
-	// Only the newest agent reaction counts, and only while it still stands on a live human message.
 	const react = sql
 		.exec<{ seq: number; at: number; actor: string; payload: string }>("SELECT seq, at, actor, payload FROM events WHERE kind = 'react' AND actor LIKE 'agent:%' ORDER BY seq DESC LIMIT 1")
 		.toArray()[0]
@@ -84,7 +71,6 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 			readSeq,
 		)
 		.one()
-	// A handle an agent also holds would make every tag of that agent a mention, so it counts as none.
 	const stored = log.meta(HUMAN_HANDLE)
 	const handle = stored && !names.has(stored) ? stored : null
 	const mentions = sql

@@ -120,19 +120,6 @@ export class RoomWorkspace implements Workspace {
 			.map((r) => r.id)
 	}
 
-	private reaches(from: string, to: string): boolean {
-		const seen = new Set<string>()
-		const stack = [from]
-		while (stack.length) {
-			const at = stack.pop()!
-			if (at === to) return true
-			if (seen.has(at)) continue
-			seen.add(at)
-			stack.push(...this.deps(at))
-		}
-		return false
-	}
-
 	private emit(by: Actor, task: Task): RoomEvent {
 		return this.log.append(actorKey(by), { t: "task", task })
 	}
@@ -151,8 +138,6 @@ export class RoomWorkspace implements Workspace {
 			if (deps.includes(input.id)) return fail(`task ${input.id} cannot depend on itself`)
 			const missing = deps.filter((d) => !this.task(d))
 			if (missing.length) return fail(`no task ${missing.join(", ")}`)
-			const cycle = deps.find((d) => this.reaches(d, input.id))
-			if (cycle) return fail(`depending on ${cycle} would make a cycle`)
 			const seq = this.log.lastSeq() + 1
 			const made = chain ?? (by.kind === "human" ? { rootId: `task:${input.id}`, hop: 0, origin: "human" as const } : null)
 			this.sql.exec(
@@ -166,7 +151,8 @@ export class RoomWorkspace implements Workspace {
 				made ? JSON.stringify(made) : null,
 			)
 			for (const d of deps) this.sql.exec("INSERT INTO ws_task_deps (task_id, depends_on) VALUES (?, ?)", input.id, d)
-			const task = this.task(input.id)!
+			const task = this.task(input.id)
+			if (!task) throw new Error(`task ${input.id} missing after insert`)
 			return { ok: true as const, value: task, events: [this.emit(by, task)] }
 		})
 	}
@@ -199,8 +185,9 @@ export class RoomWorkspace implements Workspace {
 			if (!note) delete (next as { note?: string }).note
 			if (JSON.stringify(next) === JSON.stringify(current)) return { ok: true as const, value: current, events: [] }
 			this.sql.exec("UPDATE ws_tasks SET title = ?, status = ?, owner = ?, note = ?, updated_at = ? WHERE id = ?", title, status, owner, note, this.now(), id)
-			const events = [this.emit(by, next)]
-			if (status === "done" && current.status !== "done") this.markUnblocked(id, events[0]!.seq)
+			const emitted = this.emit(by, next)
+			const events = [emitted]
+			if (status === "done" && current.status !== "done") this.markUnblocked(id, emitted.seq)
 			return { ok: true as const, value: next, events }
 		})
 	}

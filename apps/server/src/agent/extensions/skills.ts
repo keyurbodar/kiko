@@ -14,7 +14,11 @@ let parsed: Skill[] | undefined
 const builtin = (): Skill[] =>
   (parsed ??= BUILTIN_SKILLS.flatMap(([dir, content]) => {
     const s = parseSkill(content, dir, "builtin")
-    return "warning" in s ? (console.warn(s.warning), []) : [s]
+    if ("warning" in s) {
+      console.warn(s.warning)
+      return []
+    }
+    return [s]
   }))
 
 async function roomSkills(fs: RoomFs | undefined): Promise<Skill[]> {
@@ -27,7 +31,7 @@ async function roomSkills(fs: RoomFs | undefined): Promise<Skill[]> {
     if (!m || f.kind !== "file") continue
     const bytes = await fs.bytesOf(f, MAX_SKILL_BYTES).catch(() => null)
     if (!bytes) continue
-    const s = parseSkill(new TextDecoder().decode(bytes), m[1]!, "room")
+    const s = parseSkill(new TextDecoder().decode(bytes), m[1] ?? "", "room")
     if ("warning" in s) console.warn(s.warning)
     else out.push(s)
   }

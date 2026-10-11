@@ -2,20 +2,12 @@ import type { Message, RoomToClient, UserToClient } from "@yuki/protocol"
 import type { RoomHandle, UserChannel } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
+import { must } from "../must"
 
-// P1-11, architecture sections 6.1, 6.3, and 7.3. Three human messages 400 ms apart are one
-// burst: the room delivers them together, the agent answers in one run, the bubbles reach the
-// room socket, and the user's chat list is touched once when the run ends.
-//
-// Restart check: set YUKI_TURN_RESTART to a shell command that stops the dev server and starts it
-// again, returning once it is healthy. The suite runs it as soon as the agent's run starts, or after
-// the first bubble with YUKI_TURN_RESTART_AT=bubble, and reconnects both sockets. It must then
-// still see one run and one touch, with the bubbles of only one attempt left.
 
 const RESTART = process.env.YUKI_TURN_RESTART
 const RESTART_AT = process.env.YUKI_TURN_RESTART_AT ?? "start"
 const TIMEOUT_MS = RESTART ? 120_000 : 60_000
-/** After the touch, how long nothing more may arrive. */
 const QUIET_MS = 3_000
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -31,7 +23,6 @@ function ulid(): string {
 
 type Seen = { live: Map<string, Message>; runIds: Set<string>; started: boolean; deleted: number }
 
-/** Folds every frame the room socket received, across reconnects, into the room's agent bubbles. */
 function roomState(room: RoomHandle): Seen {
   const live = new Map<string, Message>()
   const runIds = new Set<string>()
@@ -58,7 +49,6 @@ function roomState(room: RoomHandle): Seen {
   return { live, runIds, started, deleted: deleted.size }
 }
 
-/** Distinct touches of one chat: chat events with a room sequence, deduped by user event seq. */
 function touches(user: UserChannel, roomId: string): number[] {
   const seqs = new Map<number, number>()
   for (const entry of user.log) {
@@ -101,7 +91,6 @@ const suite: Suite = {
     const room = await s.room(roomId)
     await room.expect((f) => f.t === "events")
 
-    // A burst: three messages 400 ms apart, well inside the 1.5 s pause.
     const texts = ["hi", "what is two plus two?", "answer in two short paragraphs, under twenty words in all."]
     for (const [i, text] of texts.entries()) {
       if (i) await Bun.sleep(400)
@@ -124,12 +113,11 @@ const suite: Suite = {
       if (!restarted && (RESTART_AT === "bubble" ? now.live.size > 0 : now.started)) {
         restarted = true
         console.log("  restarting the dev server during the run")
-        await restart(RESTART!)
+        await restart(must(RESTART, "RESTART"))
         await reconnect(room)
         await reconnect(user)
         reconnectedAt = Date.now()
       }
-      // The human's own messages touch the chat list too, so the wait starts at the run's touch: after a bubble.
       const n = touches(user, roomId).length
       if (n > 0 && now.live.size > 0 && !touchedAt) touchedAt = Date.now()
       if (touchedAt && Date.now() - touchedAt > QUIET_MS) break
@@ -153,14 +141,13 @@ const suite: Suite = {
       live.map((_, i) => i),
       "the bubble indexes",
     )
-    // The chat list is touched by every message now, the human's included; the run's own touch covers its last bubble.
-    expectEqual(Math.max(...touches(user, roomId)) >= live.at(-1)!.seq, true, "the chat list was touched after the last bubble")
+    expectEqual(Math.max(...touches(user, roomId)) >= (live.at(-1)?.seq ?? 0), true, "the chat list was touched after the last bubble")
     const chat = user.log
       .flatMap((e) => (e.dir === "in" && (e.frame as UserToClient).t === "events" ? (e.frame as Extract<UserToClient, { t: "events" }>).events : []))
       .filter((e) => e.t === "chat" && e.chat.roomId === roomId)
       .at(-1)
     if (chat?.t !== "chat" || chat.chat.lastPreview === "") throw new VerifyError("the touch carries no preview")
-    console.log(`  ${live.length} bubble(s) in run ${live[0]!.run!.runId} attempt ${live[0]!.run!.attempt}, ${state.deleted} deleted: ${JSON.stringify(live.map((m) => m.text))}`)
+    console.log(`  ${live.length} bubble(s) in run ${live[0]?.run?.runId} attempt ${live[0]?.run?.attempt}, ${state.deleted} deleted: ${JSON.stringify(live.map((m) => m.text))}`)
     user.send({ t: "chat", op: { op: "delete", roomId: roomId as never } })
   },
 }

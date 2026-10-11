@@ -123,7 +123,6 @@ test("a crash after a finished turn keeps its bubble and resumes with the next t
   expect(crashed).toBe("crashed")
   const calls = await until(a.calls, ended)
   const all = posts(calls)
-  // Each model turn is one bubble, so a crash never lands between two bubbles of one turn.
   expect(all.map((p) => [p.attempt, p.index, p.block])).toEqual([[0, 0, BEFORE[0]], ...blocksOf(AFTER).map((b, i) => [0, i + 1, b])])
   expect(all.every((p) => p.runId === all[0]!.runId)).toBe(true)
   expect(calls.filter((c) => c.t === "end")).toHaveLength(1)
@@ -173,7 +172,6 @@ test("a restarted run keeps the bubbles it writes again unchanged, in place", as
   await call("post", { attempt: 0, index: 0, block: "first" })
   await call("post", { attempt: 0, index: 1, block: "second" })
   await call("post", { attempt: 0, index: 2, block: "third" })
-  // The restart writes the first block again, then different text.
   expect(await call("post", { attempt: 1, index: 0, block: "first" })).toBe(false)
   expect(await snapshot(roomId)).toEqual([
     [1, 0, "first", 1],
@@ -185,9 +183,7 @@ test("a restarted run keeps the bubbles it writes again unchanged, in place", as
     [1, 0, "first", 1],
     [1, 1, "changed", 1],
   ])
-  // A restart that writes fewer blocks leaves none of the earlier attempt behind once the run ends.
   await call("post", { attempt: 2, index: 0, block: "first" })
-  // This test room has no user object, so the rest of `endRun` fails after the bubbles are settled.
   await fetch(`${origin}/room/${roomId}/end`, { method: "POST", body: JSON.stringify({ slug: "yuki", runId: "yuki:1" }) })
   expect(await snapshot(roomId)).toEqual([[2, 0, "first", 1]])
 }, 30_000)

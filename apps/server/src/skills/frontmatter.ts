@@ -1,8 +1,5 @@
 import { parse } from "yaml"
 
-// The same frontmatter rules as pi's coding agent (refs/pi/packages/coding-agent/src/utils/frontmatter.ts):
-// a leading `---` block of YAML, then the body. A file with no block has empty frontmatter.
-
 export type Frontmatter = { frontmatter: Record<string, unknown>; body: string }
 
 export function parseFrontmatter(content: string): Frontmatter {

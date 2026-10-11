@@ -42,9 +42,9 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Do not write a handler that is unsafe to run twice.** Alarms and queues deliver at least once. Give every delivery and post a stable id.
 - **Do not add a tool without an effect.** Every tool declares `read`, `write`, `message`, or `external`.
 - **Do not build an agent outside `factory.ts`.** It is the one place that selects extensions.
-- **Do not give an extension script a way out except the bridge in `packages/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `yuki.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
+- **Do not give an extension script a way out except the bridge in `core/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `yuki.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
 - **Do not let anything but the human's socket install an extension.** Agents and the catalog only propose.
-- **Do not import `apps/` or `@yuki/protocol` from `packages/durable`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass yuki's behavior in as an option. `scripts/check-imports.ts` fails the build.
+- **Do not import `apps/` or `@yuki/protocol` from `core/durable`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass yuki's behavior in as an option. `scripts/check-imports.ts` fails the build.
 - **Do not import Effect, CodeMirror, or a markdown parser into client tiers 1 to 3.** The budget script fails the build.
 - **Do not add a model list, a provider adapter, or a Composio tool name.** Those come from `pi-ai` and from Composio at run time.
 - **Do not commit a secret.** Keys live in `.dev.vars` and in CI secrets. `OPENCODE_API_KEY` is read from the environment.
@@ -106,7 +106,7 @@ bun scripts/check-imports.ts      # packages import only the packages below them
 
 ## Where code lives
 
-Directories marked "planned" do not exist until the task in parentheses creates them.
+Reusable backend packages live in `core/` (`@yuki/*`, importable by apps and by each other by layer), `packages/` holds frontend-only packages (`@yuki/ui`), and `apps/` holds the deployables.
 
 ```text
 apps/
@@ -130,11 +130,13 @@ apps/
   cli/                  the yuki verification CLI              (planned, P0-04)
 packages/
   ui/                   @yuki/ui: Kobalte and Corvu wrappers, kat.css
-  protocol/             wire types shared by all three apps   (planned, P0-03)
+core/
+  protocol/             @yuki/protocol: wire types shared by all three apps   (planned, P0-03)
   durable/              @yuki/durable: alarm, safe-fetch, crypto, wipe
   agent/                @yuki/agent: pi-durable host, inbox, effects
   memory/               @yuki/memory: OptMem tree, life log, memory tools, open loops (loops.ts, loop-tool.ts)
   sandbox/              @yuki/sandbox: QuickJS VM, manifest, compiler, checker
+  browser/              @yuki/browser: browser session and tools
 docs/
   overview.md  product.md  architecture.md
   phases/               the plan, one file per phase

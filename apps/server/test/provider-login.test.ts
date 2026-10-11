@@ -3,9 +3,6 @@ import { InMemoryCredentialStore } from "@earendil-works/pi-ai"
 import type { UserToClient } from "@yuki/protocol"
 import { FAKE_CODE, FAKE_PROVIDER, LOGIN_TIMEOUT_MS, ProviderLogins } from "../src/user/provider-login"
 
-// The login bridge with a fake socket, an in-memory credential store, and a recorded
-// wakeup table. Each test ends by checking that no login state is left behind.
-
 const NOW = 1_800_000_000_000
 
 function setup(options: { subscriptions?: boolean; fake?: boolean } = {}) {

@@ -46,8 +46,6 @@ let tmp: string
 
 beforeAll(async () => {
   const script = await bundleWorker(new URL("./naming-worker.ts", import.meta.url), { "process.env.NODE_ENV": '"production"' })
-  // The router imports Better Auth, which imports modules by computed names, so the bundle
-  // is listed as the only module instead of letting Miniflare walk its imports.
   tmp = await mkdtemp(join(tmpdir(), "yuki-naming-"))
   const path = join(tmp, "worker.js")
   await Bun.write(path, script)
@@ -82,7 +80,6 @@ async function open(path: string, user: string | null, headers: Record<string, s
   return JSON.parse(frame) as Echo
 }
 
-// A plain fetch, because Miniflare's own fetch fails on an upgrade that is answered without a socket.
 async function status(path: string, init: { user?: string; headers?: Record<string, string>; method?: string; body?: string } = {}) {
   const res = await fetch(`${origin}${path}`, {
     method: init.method ?? "GET",

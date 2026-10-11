@@ -114,7 +114,6 @@ export default {
         files._gets = 0
         files.get = ((...a: Parameters<R2Bucket["get"]>) => (files._gets!++, get(...a))) as R2Bucket["get"]
       }
-      // A stub per call: a stub made in one request cannot be used from another, as in AgentDO.
       const users = (env as unknown as { USER: DurableObjectNamespace<UserDO> }).USER
       const user = () => users.get(users.idFromName("user:alice"))
       const soul = { get: () => user().soul(slug!), set: (body: string, expect: string) => user().setSoul(slug!, body, expect) }

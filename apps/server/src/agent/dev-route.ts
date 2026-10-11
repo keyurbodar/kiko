@@ -5,37 +5,6 @@ import { agentStub, roomStub, userStub } from "../lib/names"
 import { DEFAULT_AGENT } from "../room/room-do"
 import { MAX_MEMBERS } from "../room/members"
 
-// DEVELOPMENT ONLY. The verify suites `mid-run` (P1-12) and `team-routing` (P6-01) ask for the
-// scripted fake agent of `dev-fake.ts` in one of the session user's rooms, so they spend no tokens.
-//
-//   POST /api/dev/agent/fake    { roomId, slugs? }  -> { ok: true }   slugs default to [DEFAULT_AGENT]
-//   POST /api/dev/agent/status  { roomId, slug }    -> the agent's `status()`: inbox counts and submissions
-//   POST /api/dev/agent/limits  { limits }  -> { limits }   the session user's plan record (P9-01)
-//   GET  /api/dev/agent/workers?roomId=         -> { workers: [Work] }   the agent's background workers (section 8, `verify workers`)
-//   POST /api/dev/agent/seed    { roomId, turns: [{ from, text }] }  -> { turns }   (section 13, `verify memory-eval`)
-//   POST /api/dev/agent/memory  { roomId }  -> { turns, pending, view }
-//   POST /api/dev/agent/classic { roomId }  -> { ok: true }   the room's agent keeps the old transcript (`verify token-cost`)
-//   POST /api/dev/agent/usage   { roomId, slug? }  -> { agent, memory }   tokens the agent and memory summaries spent
-//   POST /api/dev/agent/budget  { roomId, slug?, ms }  -> the agent's budget for runs nobody asked for (section 25.2)
-//   POST /api/dev/agent/age     { roomId, ms }  -> { open }   ages open tasks and reports them to UserDO (section 26.6)
-//   POST /api/dev/agent/seen    { ago }  -> the human was last seen `ago` ms back (section 25.5)
-//   POST /api/dev/agent/composio {}  -> { session }   the id of the user's stored Composio session, never the key or url (`verify composio`)
-//   POST /api/dev/agent/due     { id }   -> routine `id` is due now (section 25)
-//   POST /api/dev/agent/policy  { policy }  -> { ok: true }   sets the user's `memory_policy` setting (`verify memory-jev`)
-//   POST /api/dev/agent/loops   { open?: { roomId, text, due? } }  -> { loops }   every loop, done or not; `open` adds a human loop first (section 26)
-//   POST /api/dev/agent/quiet   { roomId }  -> { ok }   rolls the chat up now, as six quiet hours would (`verify initiative-loops`)
-//   POST /api/dev/agent/initiative { roomId, slug? }  -> { text }   the initiative lines the agent's last run started with
-//   POST /api/dev/agent/attention { action: "age", ms } | { action: "rhythm", mode: "now" | "clear" } | { action: "pass" } | { action: "state" }
-//        the initiative engine (section 26.8): age its clock state, set a known rhythm, run a pass now (returns its
-//        verdicts and wakes), or read the rhythm, appetite, marks, and wakes
-//   POST /api/dev/agent/browser { action, agentId?, mode?, ms? }  -> the user's Kernel lease: lease, touch, dead, age, reap, switch, state (section 27, `verify kernel`)
-//   POST /api/dev/agent/pending { roomId, ms }  -> { pending }   ages the room's pending uploads and sweeps them (section 18.1)
-//
-// `seed` writes messages straight into the room's log, with no burst and no run, so a long chat costs
-// no tokens to set up. `from` is "human" or an agent slug. `memory` reports the room's log memory.
-//
-// A production build answers 404, and so does any host but localhost.
-
 declare const process: { env: { NODE_ENV?: string } }
 
 const PREFIX = "/api/dev/agent/"
@@ -46,7 +15,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
   if (!["fake", "status", "workers", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention", "composio", "browser"].includes(action ?? "")) return null
   if (process.env.NODE_ENV !== "development" || !LOCAL_HOSTS.has(url.hostname)) return Response.json({ error: "not found" }, { status: 404 })
-  // P9-01: set the session user's plan record, so `verify limits` can lower and raise it.
   if (action === "limits") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -66,7 +34,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     return Response.json({ session: await userStub(env.USER, user.id).devComposioSession() })
   }
-  // Section 25: make a routine due now.
   if (action === "due") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -74,7 +41,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     await userStub(env.USER, user.id).devDue(String(body?.id ?? ""))
     return Response.json({ ok: true })
   }
-  // Section 25: move the human's last visit back `ago` ms.
   if (action === "seen") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -112,7 +78,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   if (action === "loops") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
-    // `open` puts a human loop in a chat, as the background pass would, for the fake-agent suites.
     const body = (await request.json().catch(() => null)) as { open?: { roomId?: unknown; text?: unknown; due?: unknown } } | null
     const open = body?.open
     if (open && typeof open.roomId === "string" && isRoomId(open.roomId) && typeof open.text === "string") {
@@ -170,7 +135,8 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     return Response.json({ error: "bad slugs" }, { status: 400 })
   }
   const agents = (slugs as string[]).map((slug) => agentStub(env.AGENT, user.id, roomId, slug))
-  if (action === "status") return Response.json(await agents[0]!.status())
+  const [first] = agents
+  if (action === "status" && first) return Response.json(await first.status())
   for (const agent of agents) await agent.devFake()
   return Response.json({ ok: true })
 }

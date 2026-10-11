@@ -4,7 +4,6 @@ import { Miniflare } from "miniflare"
 import { toMatch } from "../src/room/search"
 import { bundleWorker } from "./bundle"
 
-// Search in the real RoomDO in workerd: the index follows insert, edit, and delete.
 let mf: Miniflare
 let origin: string
 
@@ -99,7 +98,6 @@ test("history returns the window around a seq, and pages at both ends", async ()
 	expect(await history(seqs[1]!, 5, 0)).toEqual(["message 0"])
 	expect(await history(seqs[9]! + 1, 0, 5)).toEqual([])
 	expect(await history(seqs[8]!, 0, 5)).toEqual(["message 8", "message 9"])
-	// a deleted message is left out
 	const ids = await (async () => {
 		c.send({ t: "search", query: "message" , limit: 50 })
 		const f = (await c.take((x) => x.t === "search")) as Extract<RoomToClient, { t: "search" }>
@@ -115,7 +113,6 @@ test("a prefix that matches every message in 10,000 still answers one page fast"
 	const c = await open("01JZ8Q4T6MSEARCH00000000003")
 	const total = 10_000
 	for (let i = 0; i < total; i++) c.send({ t: "send", clientId: `f${i}`, text: `filler ${i} about nothing` })
-	// Drop the echo frames as they come, and stop at the last ack.
 	let done = false
 	for (let i = 0; i < 3000 && !done; i++) {
 		await Bun.sleep(100)
@@ -133,7 +130,6 @@ test("a prefix that matches every message in 10,000 still answers one page fast"
 	expect(page!.results[0]!.seq).toBe(total)
 	expect(page!.results[0]!.snippet).toContain("\u0002filler\u0003")
 	console.log(`one-letter prefix over ${total} messages: ${best.toFixed(1)} ms`)
-	// Reading the index newest first stops after one page: about 1 ms here, against 20 ms when SQLite sorted every match.
 	expect(best).toBeLessThan(12)
 	c.ws.close()
 }, 300_000)

@@ -12,10 +12,8 @@ export class VerifyError extends Error {}
 type Entry = { at: number; dir: "in" | "out" | "bad"; frame: unknown }
 type Match<In> = ((f: In) => boolean) | Record<string, unknown>
 
-/** One socket with a frame log. Every received frame is validated against its schema. */
 export class Channel<In, Out> {
   readonly log: Entry[] = []
-  /** Every received frame as it came off the wire. The decoded log drops fields the schema does not name. */
   readonly texts: string[] = []
   private socket!: WebSocket
   private cursor = 0
@@ -75,16 +73,11 @@ export class Channel<In, Out> {
     this.socket.send(JSON.stringify(wire))
   }
 
-  /** Sends text as is, so a suite can test how the server treats a bad frame. */
   sendRaw(text: string): void {
     this.log.push({ at: this.now(), dir: "out", frame: text })
     this.socket.send(text)
   }
 
-  /**
-   * Waits for the next unread frame that matches. Frames are read in order, and a
-   * frame that does not match is skipped. `match` is a predicate or a subset object.
-   */
   async expect(match: Match<In>, timeout = 5000): Promise<In> {
     const test = typeof match === "function" ? match : (f: In) => subset(match, f)
     const deadline = Date.now() + timeout
@@ -108,7 +101,6 @@ export class Channel<In, Out> {
     }
   }
 
-  /** Passes when no matching frame arrives within `ms`. */
   async expectNone(match: Match<In>, ms = 300): Promise<void> {
     let frame: In
     try {
@@ -120,7 +112,6 @@ export class Channel<In, Out> {
     throw new VerifyError(`${this.label}: got a frame that should not arrive\n${JSON.stringify(frame, null, 2)}`)
   }
 
-  /** Closes the socket, opens a new one, and sends hello again. */
   async reconnect(): Promise<void> {
     this.close()
     await this.connect()
@@ -152,7 +143,6 @@ function subset(want: unknown, got: unknown): boolean {
   return Object.is(want, got)
 }
 
-/** A readable line diff of two values, for expectations on plain data. */
 export function diff(expected: unknown, actual: unknown): string {
   const a = JSON.stringify(expected, null, 2).split("\n")
   const b = JSON.stringify(actual, null, 2).split("\n")
@@ -177,7 +167,6 @@ export type UserChannel = Channel<UserIn, UserOut>
 export type RoomChannel = Channel<RoomIn, RoomOut>
 
 export interface RoomHandle {
-  /** Sends a human message and returns its clientId. */
   send(text: string): string
   expect: RoomChannel["expect"]
   expectNone: RoomChannel["expectNone"]
@@ -189,28 +178,15 @@ export interface Session {
   name: string
   userId: string
   cookie: string
-  /** Opens the signed-in user's socket, `/api/ws/user`. Use `(await s.user()).expect(...)`. */
   user(): Promise<UserChannel>
-  /** Opens the socket for one room, `/api/ws/room/:id`. */
   room(roomId: string): Promise<RoomHandle>
-  /** Saves an API key for `provider` through `PUT /api/credentials/<provider>`, like any user. */
   connectProvider(provider: string, apiKey: string): Promise<void>
-  /** `DELETE /api/credentials/<provider>`. */
   disconnectProvider(provider: string): Promise<void>
-  /**
-   * `PUT /api/files/<roomId>?path=`, as the human's file editor writes. `expect` is what the writer saw
-   * at the path: the sha256 of its bytes, or "none" for a new file. Any other bytes there answer 409.
-   */
   putFile(roomId: string, path: string, body: BodyInit, options?: { expect?: string; type?: string }): Promise<Response>
 }
 
-/** The test provider of architecture section 11.6. */
 export const TEST_PROVIDER = "opencode-go"
 
-/**
- * Connects the test provider for `s` with `OPENCODE_API_KEY` from the CLI's environment. A suite
- * that calls the model runs this first: the server holds no key of its own (P4-02).
- */
 export async function connectTestModel(s: Session): Promise<void> {
   const key = process.env.OPENCODE_API_KEY
   if (!key) throw new VerifyError("OPENCODE_API_KEY is not set in this shell. source the dev vars first")
@@ -219,9 +195,7 @@ export async function connectTestModel(s: Session): Promise<void> {
 
 export interface Verifier {
   url: string
-  /** `verify --fake`: the server is a development build and its fake provider may be used. */
   fake: boolean
-  /** Signs in as a dev user. The same name is the same user. Sockets open when asked for. */
   as(name: string): Promise<Session>
   closeAll(): void
 }
@@ -230,7 +204,6 @@ function withSlash(url: string) {
   return url.endsWith("/") ? url : `${url}/`
 }
 
-/** Signs in through the dev-only route, the same one `yuki login --dev` uses. */
 export async function devSession(url: string, name: string): Promise<{ cookie: string; userId: string }> {
   const res = await fetch(new URL("api/auth/dev/session", withSlash(url)), {
     method: "POST",
@@ -251,7 +224,6 @@ export async function devSession(url: string, name: string): Promise<{ cookie: s
 
 export function createVerifier(url: string, options: { fake?: boolean } = {}): Verifier {
   const open: { close(): void }[] = []
-  /** The answer is only the provider row; the key is never echoed or printed. */
   async function credentials(cookie: string, method: "PUT" | "DELETE", provider: string, body?: unknown): Promise<void> {
     const res = await fetch(new URL(`api/credentials/${provider}`, withSlash(url)), {
       method,

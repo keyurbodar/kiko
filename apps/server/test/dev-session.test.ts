@@ -4,10 +4,6 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { Miniflare } from "miniflare"
 
-// Builds the Worker twice with the real `wrangler deploy --dry-run`, once as production
-// and once as development, then runs each bundle in workerd with a migrated D1.
-// The production bundle must not contain the dev sign-in route at all.
-
 const serverDir = new URL("..", import.meta.url).pathname
 const cliEntry = new URL("../../cli/src/index.ts", import.meta.url).pathname
 const MARKER = "yuki-dev-session"
@@ -16,7 +12,6 @@ let tmp: string
 const workers: Miniflare[] = []
 
 async function build(nodeEnv: "production" | "development"): Promise<string> {
-  // Returns the path of the bundled Worker.
   const outdir = join(tmp, nodeEnv)
   const env = { ...process.env, NODE_ENV: nodeEnv }
   const p = Bun.spawn(
@@ -29,8 +24,6 @@ async function build(nodeEnv: "production" | "development"): Promise<string> {
 }
 
 async function start(path: string): Promise<string> {
-  // The bundle imports modules by computed names, so list it and the wasm wrangler emits beside it
-  // (QuickJS for extensions, architecture section 24.3) as the modules.
   const wasm = (await readdir(dirname(path))).filter((f) => f.endsWith(".wasm")).map((f) => ({ type: "CompiledWasm" as const, path: join(dirname(path), f) }))
   const mf = new Miniflare({
     modules: [{ type: "ESModule", path }, ...wasm],

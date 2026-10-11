@@ -2,10 +2,6 @@ import type { PendingAttachment, RoomEvent, RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// Architecture section 18.1. Composer attachments the way t3code sends them: each file uploads as
-// pending when it is picked, and the send claims it. Covers the upload, a lying Content-Length, a
-// limit, delete, the claim (the message carries the file and the room's index holds it), a resend
-// that claims once, a claim of an upload that is gone, a big file in parts, and the day-old sweep.
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 function ulid(): string {
@@ -40,7 +36,6 @@ const suite: Suite = {
 		const answer = (clientId: string) => room.expect((f) => (f.t === "ack" || f.t === "send_refused") && f.clientId === clientId, 10_000)
 		const hasFile = (id: string) => (f: RoomToClient) => f.t === "events" && f.events.some((e) => e.t === "file" && e.file.id === id)
 
-		// an upload at pick time is pending: no file event, nobody else can read it
 		const pdf = new TextEncoder().encode("%PDF-1.4 a small plan")
 		const pdfId = crypto.randomUUID()
 		const put = await upload(pdfId, pdf, "plan.pdf", "application/pdf")
@@ -50,17 +45,14 @@ const suite: Suite = {
 		expectEqual(stranger.status, 404, "another user's delete")
 		await stranger.body?.cancel()
 
-		// a Content-Length that is not the declared size is refused
 		const lie = await upload(crypto.randomUUID(), pdf, "plan.pdf", "application/pdf", pdf.length + 5)
 		expectEqual(lie.status, 400, "a lying length's status")
 		expectEqual(await errorOf(lie), "Content-Length must match the upload size.", "a lying length's reason")
 
-		// a picture over 10 MB is refused by the server too
 		const big = await upload(crypto.randomUUID(), new Uint8Array(10 * MiB + 1), "huge.png", "image/png")
 		expectEqual(big.status, 413, "an oversized picture's status")
 		expectEqual(await errorOf(big), "'huge.png' exceeds the 10 MB attachment limit.", "an oversized picture's reason")
 
-		// delete removes a pending upload, and a claim of it is refused afterwards
 		const goneId = crypto.randomUUID()
 		expectEqual((await upload(goneId, new TextEncoder().encode("bye"), "gone.txt", "text/plain")).status, 204, "the doomed upload")
 		expectEqual((await call(`pending/${goneId}`, { method: "DELETE" })).status, 204, "the delete")
@@ -69,7 +61,6 @@ const suite: Suite = {
 		if (refused.t !== "send_refused") throw new VerifyError("a send naming a deleted upload was stored")
 		expectEqual(refused.reason, "Attachment 'gone.txt' cannot be sent: attachment not found (removed or expired).", "the refusal")
 
-		// the claim: the message carries the file, the index holds it, the bytes serve
 		const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])
 		const pngId = crypto.randomUUID()
 		expectEqual((await upload(pngId, png, "shot.png", "image/png")).status, 204, "the picture upload")
@@ -89,19 +80,16 @@ const suite: Suite = {
 		const download = await call(pdfId)
 		expectEqual(new TextDecoder().decode(await download.arrayBuffer()), "%PDF-1.4 a small plan", "the claimed file's bytes")
 
-		// a fresh socket's snapshot lists both in the room's files
 		const other = await alice.room(roomId)
 		const hello = await other.expect((f) => f.t === "events" || f.t === "reset")
 		const indexed = hello.t === "reset" ? hello.snapshot.files.map((f) => f.id) : hello.t === "events" ? hello.events.flatMap((e) => (e.t === "file" ? [e.file.id] : [])) : []
 		if (!indexed.includes(pngId) || !indexed.includes(pdfId)) throw new VerifyError(`the room's files do not hold the claimed attachments: ${JSON.stringify(indexed)}`)
 
-		// the same client id again claims nothing and gets the first ack
 		send("claim", attachments, "here they are")
 		const again = await answer("claim")
 		expectEqual(again, ack, "the resent send's answer")
 		await room.expectNone((f) => f.t === "events" && f.events.some((e) => e.t === "message" || e.t === "file"), 500)
 
-		// a 40 MB file goes in parts and is claimed like any other
 		const huge = new Uint8Array(40 * MiB)
 		crypto.getRandomValues(huge.subarray(0, 65_536))
 		const hugeId = crypto.randomUUID()
@@ -128,7 +116,6 @@ const suite: Suite = {
 		expectEqual((await answer("parts")).t, "ack", "the big file's send")
 		await room.expect(hasFile(hugeId), 10_000)
 
-		// the sweep deletes a pending upload nobody sent within a day, and only that
 		const staleId = crypto.randomUUID()
 		expectEqual((await upload(staleId, new TextEncoder().encode("old"), "old.txt", "text/plain")).status, 204, "the stale upload")
 		const aged = await fetch(new URL("api/dev/agent/pending", v.url.endsWith("/") ? v.url : `${v.url}/`), {

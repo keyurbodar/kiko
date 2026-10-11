@@ -20,7 +20,7 @@
 
 **Goal.** A user with a Composio key gets Composio tools in every agent. A user without one has no integration tools. Composio is the only integration.
 
-**Files.** `apps/server/src/integrations/composio/`, `user/user-do.ts`, `agent/agent-do.ts`, `agent/factory.ts`, `packages/protocol/src/user.ts`, `schema.ts`, `apps/web-solid/src/settings/` (integrations), `apps/cli/src/commands/composio.ts`, `apps/cli/src/verify/suites/composio.ts`.
+**Files.** `apps/server/src/integrations/composio/`, `user/user-do.ts`, `agent/agent-do.ts`, `agent/factory.ts`, `core/protocol/src/user.ts`, `schema.ts`, `apps/web-solid/src/settings/` (integrations), `apps/cli/src/commands/composio.ts`, `apps/cli/src/verify/suites/composio.ts`.
 
 **Build.**
 

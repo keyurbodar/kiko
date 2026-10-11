@@ -51,7 +51,6 @@ const DEV_FAKE_KEY = "dev-fake"
 const DEV_CLASSIC_KEY = "dev-classic"
 const DEV_BUDGET_KEY = "dev:auto-budget-ms"
 const DEV_INITIATIVE_KEY = "dev:initiative"
-// ASSUMPTION: a run waits this long for its initiative lines. They are asked for while it sets up.
 const INITIATIVE_WAIT_MS = 1_500
 const MEMORY_POS_KEY = "memory:pos"
 const MAX_DELTA_TURNS = 32
@@ -183,7 +182,6 @@ export class AgentDO extends DurableObject<Env> {
     return {
       create: async (input) => {
         const out = await user().createReminder(home.userId, { ...input, tz: input.tz ?? "UTC", roomId: home.roomId as RoomId, createdBy: home.slug, chain: await room().chainOf(home.slug) })
-        // A reminder an agent sets for itself is its promise to come back: it is owed until kept (section 26).
         if (out.ok && out.reminder.target === home.slug && !out.reminder.rrule) {
           await user()
             .loopOpen(home.slug, home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", { kind: "commitment", certainty: "explicit", text: input.text, due: out.reminder.dueUtc ? new Date(out.reminder.dueUtc).toISOString() : null, reminderId: out.reminder.id })
@@ -299,7 +297,6 @@ export class AgentDO extends DurableObject<Env> {
     const messaging = () => this.messagingPort()
     if (process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const browserOn = await this.browserOn()
-      // The fake agent has real browser tools but no model, so its decider says so if browser_run is called.
       const noModel = async (): Promise<DeciderChoice> => { throw new Error("the fake agent has no model for browser_run") }
       const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.scriptPorts(), {
         ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), decider: noModel, acceptsImages: () => false } } : {}),
@@ -367,8 +364,6 @@ export class AgentDO extends DurableObject<Env> {
         const initiative = await this.takeInitiative()
         return [clock, down, learned, quiet, extensions, initiative].filter(Boolean).join("\n\n")
       },
-      // A tool another agent learned since this one opened shows up at its next run.
-      // Connecting or removing a Kernel key adds or drops the browser tools at the next run.
       ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
       ...(process.env.NODE_ENV === "development" && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
       beforeCompact: (harness) => this.carryUsage(harness),
@@ -416,12 +411,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   #initiative?: Promise<string>
-  /** The run answers an initiative wake and nothing else (section 26.6). */
 
-  /**
-   * Section 26. Asks UserDO for what this agent owes and what bears on the human's burst, while the
-   * run sets up. The run waits at most `INITIATIVE_WAIT_MS` for it; late or failed means no lines.
-   */
   private prefetchInitiative(batch: Batch): void {
     this.#initiative = undefined
     const home = this.home()
@@ -504,7 +494,6 @@ export class AgentDO extends DurableObject<Env> {
         .filter((i) => !broken.has(i.name))
         .map((i) => `${i.name} ${i.bundle.manifest.version}${Object.keys(i.bundle.manifest.tools ?? {}).length ? ` (tools: ${Object.keys(i.bundle.manifest.tools ?? {}).join(", ")})` : ""}`)
         .join("; ")
-      // The talker and every worker change together, so a worker started or steered later sees the same extensions.
       const want = extensions.talker()
       const have = (await root.agent(BACKGROUND_CONTEXT)).extensions.map((e) => e.name)
       if (want.map((e) => e.name).join("\n") !== have.join("\n")) {
@@ -631,7 +620,6 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  /** Only the root conversation holds the <memory> block; a worker's context starts without it. */
   private async isRootConversation(conversationId: ConversationId): Promise<boolean> {
     return conversationId === (await this.host.rootId())
   }
@@ -727,7 +715,6 @@ export class AgentDO extends DurableObject<Env> {
     return this.#browser
   }
 
-  /** The decider for one browser call: Jev with a TypeSafe key, else this agent's own model. The key is looked up each call, the way UserDO's judge does. */
   private async browserDecider(models: Models, egress: typeof fetch): Promise<DeciderChoice> {
     const home = this.home()
     const own = modelPort(models, await this.model(), this.ctx.id.toString())

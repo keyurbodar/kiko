@@ -3,13 +3,8 @@ import type { Env } from "./index"
 import { humanHandle } from "@yuki/protocol"
 import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, roomStub, USER_ID_HEADER, userStub } from "./lib/names"
 
-// Architecture sections 4.2 and 9.1. The Worker checks the session, builds the object
-// name from the session's user id, and forwards the socket upgrade. A client never names
-// an object and never sends a user id.
-
 declare const process: { env: { NODE_ENV?: string } }
 
-/** Finds the signed-in user. Tests pass their own. */
 export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string; name?: string } | null>
 
 type Target = { kind: "user" } | { kind: "room"; roomId: string }
@@ -21,7 +16,8 @@ const MAX_SCANNED_BODY = 1_000_000
 function match(pathname: string): Target | null {
   if (pathname === "/api/ws/user") return { kind: "user" }
   const room = ROOM_PATH.exec(pathname)
-  return room ? { kind: "room", roomId: room[1]! } : null
+  const roomId = room?.[1]
+  return roomId === undefined ? null : { kind: "room", roomId }
 }
 
 function error(status: number, message: string): Response {
@@ -34,7 +30,6 @@ function hasUserIdKey(value: unknown): boolean {
   return Object.entries(value).some(([key, inner]) => USER_ID_KEY.test(key) || hasUserIdKey(inner))
 }
 
-/** True when the query or a JSON body names a user id. The session is the only source of one. */
 async function carriesUserId(request: Request, url: URL): Promise<boolean> {
   for (const key of url.searchParams.keys()) if (USER_ID_KEY.test(key)) return true
   if (!request.body || !request.headers.get("content-type")?.includes("json")) return false
@@ -57,10 +52,6 @@ export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean
   return process.env.NODE_ENV === "development" && /^http:\/\/localhost(:\d+)?$/.test(origin)
 }
 
-/**
- * Answers the socket routes and refuses any `/api/` request that carries a user id.
- * Returns null for every other path. `/api/auth/*` belongs to Better Auth and is skipped.
- */
 export async function route(
   request: Request,
   env: Env,
@@ -76,13 +67,9 @@ export async function route(
   return within(timeoutMs, upgrade(request, env, url, target, lookup))
 }
 
-/** Architecture section 23. The session check and the object's upgrade together get this long. */
 export const UPGRADE_TIMEOUT_MS = 5_000
 
-/**
- * Answers 504 when `work` takes longer than `ms`. A socket the object accepts after that is closed
- * with a reason; if this Worker invocation ends first, the object's own hello deadline closes it.
- */
+// If this Worker invocation ends first, the object's own hello deadline closes the socket.
 async function within(ms: number, work: Promise<Response>): Promise<Response> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const late = new Promise<null>((resolve) => {
@@ -111,7 +98,6 @@ async function upgrade(request: Request, env: Env, url: URL, target: Target, loo
   if (!user) return error(401, "unauthorized")
   if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return error(426, "expected a websocket upgrade")
 
-  // `set` replaces whatever the client sent under the same names.
   const headers = new Headers(request.headers)
   headers.set(USER_ID_HEADER, user.id)
   try {
@@ -119,7 +105,6 @@ async function upgrade(request: Request, env: Env, url: URL, target: Target, loo
       headers.delete(ROOM_ID_HEADER)
       return await userStub(env.USER, user.id).fetch(new Request(request, { headers }))
     }
-    // The room records itself in UserDO on its first socket (RoomDO.fetch), so this is one hop, not two.
     const stub = roomStub(env.ROOM, user.id, target.roomId)
     headers.set(ROOM_ID_HEADER, target.roomId)
     headers.set(HANDLE_HEADER, humanHandle(user.name))

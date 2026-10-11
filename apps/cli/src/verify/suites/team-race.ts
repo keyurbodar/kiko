@@ -1,12 +1,10 @@
 import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
+import { must } from "../must"
 import type { Suite } from "../runner"
 import { until } from "./mid-run"
 
-// Architecture section 7.12, with the real model. Two agents asked at once to change the same file
-// used to race: the second write dropped the first. Now the first holds the file until its run
-// ends, the second is told who holds it, and both changes survive.
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 const ulid = () => {
@@ -63,7 +61,7 @@ const suite: Suite = {
     room.send("@all both of you, right now: add one line to /notes.md saying your own name and one food you like. create the file if it's not there. keep the other's line.")
     await until("a write to /notes.md", () => seen(room).files.has("notes.md"), 120_000)
     await quiet(room, 10_000, 180_000)
-    const file = seen(room).files.get("notes.md")!
+    const file = must(seen(room).files.get("notes.md"), "the notes.md file")
     const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
     const text = (await (await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })).text()).toLowerCase()
     console.log(`  /notes.md after ${Date.now() - t0} ms: ${JSON.stringify(text)}`)

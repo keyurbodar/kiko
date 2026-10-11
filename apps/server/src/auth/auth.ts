@@ -1,17 +1,13 @@
 import { betterAuth } from "better-auth"
 import { devSession } from "./dev-session"
 
-// Wrangler replaces process.env.NODE_ENV when it bundles: "production" for deploy and
-// "development" for dev, unless NODE_ENV is set in the shell. Each comparison below is a
-// constant, so the bundler drops the dev plugin from a production bundle.
+// Each NODE_ENV comparison is a constant after bundling, so a production build drops the dev plugin.
 declare const process: { env: { NODE_ENV?: string } }
 
 export interface AuthEnv {
   AUTH_DB: D1Database
   BETTER_AUTH_SECRET: string
-  /** The public origin. Defaults to the origin of the request. */
   BETTER_AUTH_URL?: string
-  /** Extra origins allowed to call the auth routes, separated by commas. */
   TRUSTED_ORIGINS?: string
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
@@ -28,8 +24,6 @@ export interface SessionUser {
 
 const AUTH_PATH = "/api/auth"
 
-// A provider is on only when both of its values are set, so a machine without
-// OAuth clients still runs.
 function socialProviders(env: AuthEnv) {
   const pairs = {
     google: [env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET],
@@ -42,7 +36,6 @@ function socialProviders(env: AuthEnv) {
   return providers
 }
 
-/** Builds the auth instance for one request. Never keep it in module scope. */
 export function createAuth(env: AuthEnv, request: Request) {
   return betterAuth({
     database: env.AUTH_DB,
@@ -57,28 +50,21 @@ export function createAuth(env: AuthEnv, request: Request) {
     session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
     advanced: {
       ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
-      // The D1 migrations own the schema. Left on, each new instance (one per request) reads the
-      // whole schema from D1 before it answers: about eight queries on every request and socket.
+      // Schema is owned by D1 migrations; validating per instance reads it on every request.
       database: { validateSchema: false },
     },
     plugins: process.env.NODE_ENV === "development" ? [devSession()] : [],
   })
 }
 
-/** True when the account with this id was deleted. */
 export async function isDeletedUser(db: D1Database, userId: string): Promise<boolean> {
   return (await db.prepare(`SELECT 1 AS hit FROM "deleted_user" WHERE "id" = ?`).bind(userId).first("hit")) !== null
 }
 
-/**
- * How long this isolate trusts that an account was not deleted. ASSUMPTION: the number. A D1 read
- * on every request and socket upgrade costs a round trip to the database. A deleted account stays
- * out regardless: `UserDO` refuses its sockets and rooms once deletion begins.
- */
+// Trusting "not deleted" for 30s avoids a D1 round trip per request; deletion also blocks sockets and rooms in UserDO.
 export const LIVE_USER_TTL_MS = 30_000
 const liveUsers = new Map<string, number>()
 
-/** `isDeletedUser`, with a "not deleted" answer kept for `LIVE_USER_TTL_MS` in this isolate. */
 async function deleted(db: D1Database, userId: string, now = Date.now()): Promise<boolean> {
   if ((liveUsers.get(userId) ?? 0) > now) return false
   if (await isDeletedUser(db, userId)) return true
@@ -87,10 +73,6 @@ async function deleted(db: D1Database, userId: string, now = Date.now()): Promis
   return false
 }
 
-/**
- * Ends an account's access before any of its data is touched: writes the tombstone and
- * revokes every session in one batch. Safe to run twice.
- */
 export async function revokeUser(db: D1Database, userId: string): Promise<void> {
   await db.batch([
     db.prepare(`INSERT OR IGNORE INTO "deleted_user" ("id", "deletedAt") VALUES (?, ?)`).bind(userId, Date.now()),
@@ -99,11 +81,7 @@ export async function revokeUser(db: D1Database, userId: string): Promise<void> 
   liveUsers.delete(userId)
 }
 
-/**
- * The signed-in user of a request, or null. The only source of a user id in the Worker.
- * The cookie cache vouches for the session without D1, so it can still vouch for a deleted
- * user's session: the tombstone wins.
- */
+// The cookie cache can vouch for a deleted user's session without D1, so the tombstone check here is authoritative.
 export async function getSessionUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
   const session = await createAuth(env, request).api.getSession({ headers: request.headers })
   if (!session || (await deleted(env.AUTH_DB, session.user.id))) return null
@@ -111,12 +89,10 @@ export async function getSessionUser(request: Request, env: AuthEnv): Promise<Se
   return { id, name, email, image: image ?? null }
 }
 
-/** Answers `/api/auth/*` and `/api/providers`. Returns null for every other path. `/api/me` is in `index.ts`. */
 export async function authRoute(request: Request, env: AuthEnv): Promise<Response | null> {
   const { pathname } = new URL(request.url)
   if (pathname.startsWith(`${AUTH_PATH}/`)) return createAuth(env, request).handler(request)
   if (pathname === "/api/providers") {
-    // Which sign-in buttons the client shows. `dev` is true only in a development bundle.
     const on = socialProviders(env)
     return Response.json({ google: "google" in on, github: "github" in on, dev: process.env.NODE_ENV === "development" })
   }

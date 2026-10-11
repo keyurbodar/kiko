@@ -12,7 +12,7 @@ The owner asked for this on 2026-10-10. Yuki should keep the human's open loops 
 
 **Goal.** Keep the human's goals, plans, deadlines, waits, and agents' promises as open loops, found by model judgment.
 
-**Files.** `packages/memory/src/loops.ts`, `packages/memory/src/loop-tool.ts`, `apps/server/src/user/`, `apps/server/src/initiative/judge.ts`, `apps/server/src/agent/factory.ts`.
+**Files.** `core/memory/src/loops.ts`, `core/memory/src/loop-tool.ts`, `apps/server/src/user/`, `apps/server/src/initiative/judge.ts`, `apps/server/src/agent/factory.ts`.
 
 **Build.**
 
@@ -45,7 +45,7 @@ The owner asked for this on 2026-10-10. Yuki should keep the human's open loops 
 
 **Goal.** Show open loops in the details panel and set the initiative level in Settings.
 
-**Files.** `apps/web-solid/src/chat/info/loops.tsx`, `apps/web-solid/src/chat/info/panel.tsx`, `apps/web-solid/src/settings/initiative.tsx`, `packages/protocol/src/loops.ts`.
+**Files.** `apps/web-solid/src/chat/info/loops.tsx`, `apps/web-solid/src/chat/info/panel.tsx`, `apps/web-solid/src/settings/initiative.tsx`, `core/protocol/src/loops.ts`.
 
 **Build.**
 

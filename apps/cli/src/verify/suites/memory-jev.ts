@@ -5,7 +5,6 @@ import type { Suite } from "../runner"
 import { ulid } from "./mid-run"
 import { dev } from "./team-loops"
 
-// Needs OPENCODE_API_KEY; the Jev steps also need TYPESAFE_API_KEY. Never prints a key.
 
 const TYPESAFE = "typesafe"
 const WRONG_KEY = `apikey_${"0".repeat(64)}`
@@ -40,7 +39,6 @@ async function poll<T>(what: string, ms: number, test: () => Promise<T | false |
   }
 }
 
-/** Sends a human message and waits until the agent has answered it. */
 async function say(room: RoomHandle, text: string, ms = 90_000): Promise<string> {
   const before = idles(room)
   const seen = messages(room).length
@@ -74,7 +72,6 @@ const suite: Suite = {
       if (!("lines" in r)) throw new VerifyError(`memory list answered ${JSON.stringify(r)}`)
       return r.lines
     }
-    /** A superseded line may come back from `list` flagged or with the tree's "(replaced" mark. */
     const isLive = (l: LifeLine) => {
       const extra = l as LifeLine & { supersededBy?: number | null; superseded?: unknown }
       return !l.redacted && extra.supersededBy == null && !extra.superseded && !/\(replaced/i.test(l.text)
@@ -134,7 +131,6 @@ const suite: Suite = {
       u = await usage()
       await show("jev added mid-session, auto: the correction replaced bangalore")
       if (!((u.capture_jev ?? 0) >= 1)) throw new VerifyError(`capture_jev is ${u.capture_jev ?? 0} after the key was added mid-session`)
-      // The agent may correct the fact first with note replaces; then Jev sees no live bangalore line to replace.
       if (!((u.facts_replaced ?? 0) >= 1) && !(await lines()).some((l) => /bangalore/i.test(l.text) && l.supersededBy != null)) throw new VerifyError("no bangalore line was replaced, by Jev or by a note")
       if ((u.capture_model ?? 0) !== firstModel) throw new VerifyError(`capture_model moved with Jev ready: ${firstModel} -> ${u.capture_model}`)
     }

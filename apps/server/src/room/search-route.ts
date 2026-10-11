@@ -3,15 +3,6 @@ import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 
-// Search across chats. Architecture section 9.2.
-//   GET /api/search?q=<query>&before=<epoch ms>&limit=<n>  ->  ChatSearchPage
-//
-// Each room indexes its own messages, so the Worker asks the user's most recently active rooms in
-// parallel and merges their pages by time. One request costs one UserDO call plus one call per
-// room: `MAX_ROOMS` keeps that well under the Free plan's 50 subrequests per invocation. A user
-// with more chats gets `partial: true`, and the older chats are not searched.
-// Nothing here waits inside a Durable Object: the fan-out is the Worker's.
-
 const PATH = "/api/search"
 export const MAX_ROOMS = 30
 const DEFAULT_LIMIT = 20
@@ -30,7 +21,6 @@ export async function searchRoute(request: Request, env: Env): Promise<Response 
 
 	const chats = (await userStub(env.USER, user.id).listChats()).sort((a, b) => b.updatedAt - a.updatedAt)
 	const searched = chats.slice(0, MAX_ROOMS)
-	// A room that fails is left out of this page, not the whole answer.
 	const pages = await Promise.all(
 		searched.map((chat) =>
 			roomStub(env.ROOM, user.id, chat.roomId)

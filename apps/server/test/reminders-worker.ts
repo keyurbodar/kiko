@@ -2,12 +2,8 @@ import { RoomDO as BaseRoom } from "../src/room/room-do"
 import { roomName, userStub } from "../src/lib/names"
 import type { UserDO } from "../src/user/user-do"
 
-// The real UserDO and RoomDO, with no session check. `/user/<user>` calls one UserDO
-// RPC by name. `/room/<user>/<roomId>` returns the room's messages.
-
 export { UserDO } from "../src/user/user-do"
 
-/** The room plus one read method, so the test can count what was stored. */
 export class RoomDO extends BaseRoom {
   async messages() {
     return this.log.snapshot().messages

@@ -29,7 +29,7 @@
 - The page script from "How a page is read", as a string constant, and `read(tab)`.
 - `act(tab, step)` for click, type, select, press, scroll, and back. Clicks are real mouse events at the element's center after a fresh guard and geometry check. Typing is select-all, then `Input.insertText`. Then it settles as in the table.
 - Popups and dialogs as in the failures table.
-- `check-imports.ts` puts `packages/cdp` beside `packages/durable`.
+- `check-imports.ts` puts `packages/cdp` beside `core/durable`.
 
 ## Rules for this task
 

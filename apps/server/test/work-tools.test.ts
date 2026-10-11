@@ -17,14 +17,10 @@ import type { ScriptPorts } from "@yuki/sandbox/compile"
 import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
 import type { FsEntry } from "../src/room/files"
 
-// Architecture sections 7.5 and 8. A worker gets the agent's tools minus those that reach the
-// chat or outlive its report, and two workers that race on one file never overwrite each other unseen.
-
 const context = BACKGROUND_CONTEXT
 type Msg = { role: string; toolName?: string; content?: { type: string; text?: string }[] }
 type Request = { messages: readonly unknown[] }
 
-/** A registry over in-memory SQLite. Reports land in `reports`. */
 function registry() {
   const reports: Envelope[] = []
   const workers = new Workers({ sql: sqlStorage() } as unknown as DurableObjectStorage, { deliver: async (e) => void reports.push(e), origin: () => "human" })
@@ -114,7 +110,6 @@ test("the talker has no web, app, or extension tools; a worker has them all, and
   const harness = await Harness.open(new MemoryStorage(), { models, registry: built.registry }, context)
   workers.rearm(harness)
   const root = await harness.root(context, { agent: { ...built.agent, extensions: built.extensions.talker() } })
-  // Switched on after the harness opened, as syncExtensions does before a run: a worker started later sees it.
   expect(built.extensions.sync([{ name: "dice", hash: "h1", bundle: { manifest: dice as never, files: { "main.js": source } } }])).toEqual([])
   await root.configure({ extensions: built.extensions.talker() }, context)
   expect((await (await root.submit({ type: "input", content: "go" }, context)).wait(context)).status).toBe("done")
@@ -190,7 +185,6 @@ test("two asks in one reply, to two teammates, wait together and each gets its o
   expect(results.filter((r) => r.startsWith("@bob answered: ")).length).toBe(1)
 })
 
-/** The chat's files in a map, with the room's rule: a write names the hash it read there, or "none". */
 function strictFiles() {
   const files = new Map<string, string>()
   const entry = (path: string): FsEntry & { kind: "file" } => ({ kind: "file", path, id: path, size: files.get(path)!.length, type: "text/plain", sha256: `sha:${files.get(path)}`, r2Key: `key:${path}`, at: 0 })
@@ -211,11 +205,6 @@ function strictFiles() {
   return { files, backend }
 }
 
-/**
- * The agent starts two workers at once. Each runs `script`: its tool calls, one per turn, then a
- * report. Both reach the turn at `meet` before either goes on, so their calls there race. Returns
- * each worker's tool results.
- */
 async function race(backend: FilesBackend, script: (task: string) => ReturnType<typeof fauxToolCall>[], meet: number) {
   const { workers, reports } = registry()
   const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, work: workers, files: { fs: new RoomFs("t", backend), acceptsImages: () => false } })

@@ -5,9 +5,7 @@ export interface ProviderInfo {
   provider: string
   kind: Credential["type"]
   last4: string
-  /** The provider answered 401 or 403 to this key. Only a judge sets it. */
   refused?: true
-  /** From pi-ai's catalog: the provider runs chat models, classifier models (a judge), or both. */
   chat?: boolean
   judge?: boolean
 }
@@ -31,9 +29,9 @@ export function checkApiKey(value: unknown): string {
 }
 
 export function userIdFromObjectName(name: string | undefined): string {
-  const match = name ? /^user:([A-Za-z0-9_-]{1,64})$/.exec(name) : null
-  if (!match) throw new CredentialError("this object has no user name")
-  return match[1]!
+  const id = name ? /^user:([A-Za-z0-9_-]{1,64})$/.exec(name)?.[1] : undefined
+  if (id === undefined) throw new CredentialError("this object has no user name")
+  return id
 }
 
 function last4(credential: Credential): string {
@@ -55,11 +53,6 @@ function migrate(sql: SqlStorage): void {
 
 type Row = { kind: string; kek_version: number; iv: ArrayBuffer; ciphertext: ArrayBuffer }
 
-/**
- * pi-ai's `CredentialStore` over the `UserDO` SQLite, plus the connect, disconnect, and
- * list operations the RPC methods use. Writes for one provider run one at a time,
- * because `modify` may await a token refresh between its read and its write.
- */
 export class CredentialVault implements CredentialStore {
   private readonly chains = new Map<string, Promise<unknown>>()
 
@@ -111,7 +104,9 @@ export class CredentialVault implements CredentialStore {
     if (!isProviderId(provider)) throw new CredentialError("bad provider id")
     const key = checkApiKey(apiKey)
     await this.modify(provider, async () => ({ type: "api_key", key }))
-    return this.info(provider)!
+    const info = this.info(provider)
+    if (!info) throw new CredentialError("provider is missing right after connect")
+    return info
   }
 
   async disconnect(provider: string): Promise<boolean> {

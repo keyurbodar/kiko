@@ -3,24 +3,20 @@ import type { Env } from "../index"
 import type { SessionLookup } from "../router"
 import { error, fileKey, filesPath, isFileId, isSpace } from "./upload"
 
-// Architecture section 18.1. GET /api/files/<roomId>/<fileId>. The key is built from
-// the session's user id, so another user's request finds nothing and gets 404.
-// A file id names one content: new bytes get a new id, so the response is immutable.
-
 type Span = { start: number; end: number }
 
-/** One `bytes=` range against `size`. Null for no range or one this route ignores, "bad" when unsatisfiable. */
 export function parseRange(header: string | null, size: number): Span | null | "bad" {
 	const m = header ? /^bytes=(\d*)-(\d*)$/.exec(header.trim()) : null
 	if (!m || (m[1] === "" && m[2] === "")) return null
 	if (m[1] === "") {
 		const suffix = Number(m[2])
-		if (suffix === 0) return "bad"
+		if (suffix === 0 || size === 0) return "bad"
 		return { start: Math.max(0, size - suffix), end: size - 1 }
 	}
 	const start = Number(m[1])
+	if (m[2] !== "" && Number(m[2]) < start) return null
+	if (start >= size) return "bad"
 	const end = m[2] === "" ? size - 1 : Math.min(Number(m[2]), size - 1)
-	if (start >= size || end < start) return "bad"
 	return { start, end }
 }
 
@@ -36,7 +32,6 @@ function headersFor(object: R2Object): Headers {
 	return headers
 }
 
-/** Answers GET and HEAD on a file. Null for any other request. */
 export async function downloadRoute(
 	request: Request,
 	env: Env,

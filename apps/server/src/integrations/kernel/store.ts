@@ -8,7 +8,6 @@ import type { Mode } from "./client"
  * are plain and never leave the object. Disconnect deletes every row.
  */
 
-/** Agent id, then tab id, then the tab's last URL. */
 export type Tabs = Record<string, Record<string, string>>
 
 export type LeaseRow = {
@@ -17,11 +16,8 @@ export type LeaseRow = {
   createdAt: number
   lastUse: number
   tabs: Tabs
-  /** The human is driving. No agent acts and the reaper keeps the browser. */
   takeover: boolean
-  /** The human is watching until then. The reaper keeps the browser. */
   watchUntil: number
-  /** An agent saw the socket die. The next lease replaces the browser. */
   dead: boolean
 }
 
@@ -90,7 +86,6 @@ export class KernelStore {
     return key
   }
 
-  /** A new key is a working key, so it also clears `broken`. */
   async putKey(key: string, generation = this.generation): Promise<void> {
     const sealed = await seal(this.secrets().keyring, this.secrets().userId, KEY_AAD, key)
     if (generation !== this.generation) return
@@ -105,7 +100,6 @@ export class KernelStore {
     )
   }
 
-  /** Kernel answered 401 to the stored key. */
   broken(): boolean {
     return this.flag("broken")
   }
@@ -114,7 +108,6 @@ export class KernelStore {
     this.setFlag("broken", on)
   }
 
-  /** Whether the user's Kernel profile was created. */
   profileReady(): boolean {
     return this.flag("profile")
   }
@@ -155,7 +148,6 @@ export class KernelStore {
     return JSON.parse(text) as LeaseUrls
   }
 
-  /** Replaces the lease. Dropped when the store was cleared since `generation`. */
   async putLease(row: LeaseRow, urls: LeaseUrls, generation = this.generation): Promise<boolean> {
     const sealed = await seal(this.secrets().keyring, this.secrets().userId, LEASE_AAD, JSON.stringify(urls))
     if (generation !== this.generation) return false
@@ -177,7 +169,6 @@ export class KernelStore {
     return true
   }
 
-  /** Changes fields of the current lease. Does nothing when there is none. */
   patchLease(patch: Partial<Pick<LeaseRow, "lastUse" | "tabs" | "takeover" | "watchUntil" | "dead">>): void {
     const flag = (on: boolean | undefined) => (on === undefined ? undefined : on ? 1 : 0)
     const columns: [string, SqlStorageValue | undefined][] = [
@@ -195,16 +186,9 @@ export class KernelStore {
     this.sql.exec("DELETE FROM kernel_lease")
   }
 
-  count(): number {
-    return this.sql.exec<{ n: number }>("SELECT (SELECT count(*) FROM kernel) + (SELECT count(*) FROM kernel_lease) AS n").one().n
-  }
-
-  /** Deletes every row. Returns how many there were. */
-  clear(): number {
+  clear(): void {
     this.#generation++
-    const removed = this.count()
     this.sql.exec("DELETE FROM kernel")
     this.sql.exec("DELETE FROM kernel_lease")
-    return removed
   }
 }

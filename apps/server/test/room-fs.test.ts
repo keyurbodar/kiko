@@ -2,8 +2,6 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// The chat's files as agents use them: pi-durable's read, write, and edit, and yuki's ls, rm, mv,
-// and cp, against the real RoomDO and real R2 in workerd (room-fs-worker.ts).
 let mf: Miniflare
 let origin: string
 
@@ -39,7 +37,6 @@ function agent(room: string, slug = "ada") {
     ls: async (path = "/", recursive = false) => (await run("ls", { path, recursive })).text,
   }
 }
-/** A root listing without the mounts, /me and /home. */
 const chatOnly = (listing: string) =>
   listing
     .split("\n")
@@ -80,7 +77,6 @@ test("edit replaces exact unique text, as pi core's edit does, and refuses a mis
   expect(twice.ok).toBe(false)
   const missing = await a.run("edit", { path: "app.ts", edits: [{ oldText: "nope", newText: "x" }] })
   expect(missing.ok).toBe(false)
-  // Two edits in one call, each matched against the original.
   const multi = await a.run("edit", { path: "app.ts", edits: [{ oldText: "const a = 10\n", newText: "" }, { oldText: "const b = 2\nconst b = 2", newText: "const b = 3" }] })
   expect(multi.ok).toBe(true)
   expect(await a.read("app.ts")).toBe("const b = 3\n")
@@ -93,20 +89,16 @@ test("a write never overwrites a teammate's change it did not read; an edit appl
   await ada.write("doc.md", "alpha\nbeta\n")
   expect(await bob.read("doc.md")).toBe("alpha\nbeta\n")
   await ada.run("edit", { path: "doc.md", edits: [{ oldText: "alpha", newText: "ALPHA" }] })
-  // While ada's run lasts, the file is hers: bob is told who holds it.
   const held = await bob.write("doc.md", "alpha\nBETA\n")
   expect(held.ok).toBe(false)
   expect(held.text).toContain("@ada is working on /doc.md right now (editing /doc.md)")
   await fetch(`${origin}/idle/${room}/ada`)
-  // Once she is done, bob rewriting the whole file from what he read would lose her change: refused.
   const stale = await bob.write("doc.md", "alpha\nBETA\n")
   expect(stale.ok).toBe(false)
   expect(stale.text).toContain("changed since you last read it")
   expect(await ada.read("doc.md")).toBe("ALPHA\nbeta\n")
-  // An edit reads the file itself, so it lands on top of ada's change.
   expect((await bob.run("edit", { path: "doc.md", edits: [{ oldText: "beta", newText: "BETA" }] })).ok).toBe(true)
   expect(await ada.read("doc.md")).toBe("ALPHA\nBETA\n")
-  // Held by bob now. Once his run ends, an agent that never read the file still may not write over it.
   const cy = agent(room, "cy")
   expect((await cy.write("doc.md", "fresh")).text).toContain("@bob is working on /doc.md")
   await fetch(`${origin}/idle/${room}/bob`)
@@ -128,14 +120,12 @@ test("mv renames, moves into a folder, moves a whole folder, and replaces a file
   expect(await a.read("docs/renamed.md")).toBe("a")
   expect((await a.run("mv", { from: "docs", to: "archive/2026" })).ok).toBe(true)
   expect(chatOnly(await a.ls("/", true))).toBe("/archive/\t3 files, 3 b\n/archive/2026/\t3 files, 3 b\n/archive/2026/sub/\t1 files, 1 b\n/archive/2026/b.md\t1 b\ttext/markdown\n/archive/2026/renamed.md\t1 b\ttext/markdown\n/archive/2026/sub/c.md\t1 b\ttext/markdown")
-  // A file onto a file replaces it, and the replaced bytes leave R2.
   const before = (await keys(room)).length
   await a.write("x.md", "new")
   expect((await a.run("mv", { from: "x.md", to: "archive/2026/b.md" })).ok).toBe(true)
   expect(await a.read("archive/2026/b.md")).toBe("new")
   await Bun.sleep(100)
   expect((await keys(room)).length).toBe(before)
-  // Never into itself, never a folder onto something that exists, never from nothing.
   expect((await a.run("mv", { from: "archive", to: "archive/inner" })).ok).toBe(false)
   await a.write("taken/f.md", "f")
   expect((await a.run("mv", { from: "archive/2026", to: "taken" })).text).toBe("moved archive/2026 to taken/2026")
@@ -233,7 +223,6 @@ test("speed: a read is one room call and one R2 read; an edit after it reads not
   expect(await counts()).toEqual({ stat: 1, get: 0, put: 0 })
   await Bun.sleep(1_100)
   expect((await a.run("edit", { path: "big.md", edits: [{ oldText: "title\n", newText: "head\n" }] })).ok).toBe(true)
-  // The bytes came from the cache: the object at a key never changes.
   expect(await counts()).toEqual({ stat: 1, get: 0, put: 1 })
 })
 
@@ -249,7 +238,6 @@ test("/me/soul.md is the agent's soul: read and edited with pi's tools, never mo
   expect((await ada.run("mv", { from: "/me/soul.md", to: "/soul.md" })).text).toContain("stays where it is")
   expect((await ada.write("/me/other.md", "x")).text).toContain("only /me/soul.md")
   expect((await ada.write("/me/soul.md", "x".repeat(3_001))).text).toContain("tighten it")
-  // yuki's first soul is the chief's.
   expect(await agent(room, "yuki").read("/me/soul.md")).toContain("i'm yuki, their chief")
 })
 
@@ -274,11 +262,9 @@ test("folders are real: mkdir -p, they survive their last file, an empty one goe
   expect((await a.run("read", { path: "done" })).ok).toBe(false)
   await a.write("full/x.md", "x")
   expect((await a.run("rm", { paths: ["full"] })).text).toContain("remove it with recursive")
-  // A folder in the way of a file, and a file in the way of a folder.
   await a.write("doc.md", "d")
   expect((await a.run("mkdir", { path: "doc.md/sub" })).ok).toBe(false)
   expect((await a.write("inbox", "x")).text).toContain("is a folder")
-  // The human makes an empty folder too, and agents see it.
   expect(await human(room, { op: "mkdir", path: "drafts/q3" })).toBeNull()
   expect(await a.ls("/drafts")).toBe("/drafts/q3/\t0 files, 0 b")
 })
@@ -291,15 +277,12 @@ test("/home is the user's drive: one agent saves there in one chat, another read
   expect(await yuki.read("/home/cv.md")).toBe("# cv\nten years of cooking")
   expect(await yuki.ls("/home")).toBe("/home/cv.md\t25 b\ttext/markdown")
   expect((await yuki.ls("/")).split("\n")).toContain("/home/\t1 files, 25 b")
-  // Folders and edits work there too.
   expect((await yuki.run("mkdir", { path: "/home/letters" })).ok).toBe(true)
   expect((await yuki.run("edit", { path: "/home/cv.md", edits: [{ oldText: "ten", newText: "twelve" }] })).ok).toBe(true)
-  // Moving across is a copy, not a move; cp works both ways.
   expect((await yuki.run("mv", { from: "/home/cv.md", to: "/cv.md" })).text).toContain("cp it")
   expect((await yuki.run("cp", { from: "/home/cv.md", to: "/cv.md" })).ok).toBe(true)
   expect(await yuki.read("/cv.md")).toBe("# cv\ntwelve years of cooking")
   expect((await yuki.run("rm", { paths: ["/home"] })).text).toContain("cannot be deleted")
-  // Every change an agent makes to the drive is said in its chat.
   const notices = (await (await fetch(`${origin}/notices/x/x`)).json()) as string[]
   expect(notices).toEqual(["@ada saved /home/cv.md", "@yuki saved /home/cv.md"])
 })
@@ -312,6 +295,5 @@ test("in a private chat the drive is read-only", async () => {
     expect(out.ok).toBe(false)
     expect(out.text).toContain("this chat is private")
   }
-  // The chat's own files are untouched by the flag.
   expect((await quiet.write("/notes.md", "fine")).ok).toBe(true)
 })

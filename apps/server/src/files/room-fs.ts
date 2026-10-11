@@ -23,49 +23,22 @@ import { runCommand } from "./bash"
 import { cleanPath, deleteFiles, fileKey } from "./upload"
 import type { CommitResult, IndexChange, NewFile } from "./file-index"
 
-// The room's files as `pi-durable`'s `ExecutionEnv` (architecture section 18.1). Every agent in a
-// room sees one file space, rooted at `/`. `pi-durable`'s own `read`, `write`, and `edit` run on it
-// unchanged, and yuki's `ls`, `rm`, `mv`, and `cp` use the same object. Its shell is just-bash,
-// an interpreter over these same files (files/bash.ts).
-//
-// Folders are real, as on Linux: mkdir makes one, writing `a/b/c.md` makes `a` and `a/b`, and an
-// emptied folder stays. The R2 key comes from the agent's home, never from the model.
-//
-// One `RoomFs` per conversation. pi-durable builds a conversation's env at each use (`roomViews`), so
-// an agent's run and each of its helpers has its own record of what it read. A write carries the hash
-// this conversation last saw at the path, or "none" when it saw nothing there, so it never overwrites
-// bytes it did not read: a teammate's, a helper's, or the human's. The room refuses it, and the agent
-// reads and tries again.
-//
-// Speed. A stored object never changes (a write makes a new key), so bytes are cached by key with
-// no invalidation: an `edit` right after a `read` fetches nothing from R2.
-
-/** ASSUMPTION: the largest file an agent writes. */
 export const MAX_WRITE_BYTES = 1024 * 1024
-/** The chat's own file (section 7.10): what the chat is for. Read into every agent's prompt, so it stays short. */
 export const CHAT_PATH = "chat.md"
-/** ASSUMPTION: the longest /chat.md, in bytes. */
 export const MAX_CHAT = 3_000
-/** ASSUMPTION: bytes of R2 objects kept in memory per agent process. The object has 128 MB in all. */
 const CACHE_BYTES = 4 * 1024 * 1024
 
-/** What `RoomFs` needs from the room and R2. `roomBackend` binds it; tests use `memoryBackend`. */
 export interface FilesBackend {
   stat(path: string): Promise<FsEntry | null>
   list(dir: string, recursive: boolean): Promise<FsEntry[] | FsFail>
-  /** The object's bytes, or its first `maxBytes`. */
   bytes(r2Key: string, maxBytes?: number): Promise<Uint8Array | null>
-  /** Stores bytes at a path. `expectSha256` is what the writer saw there: a hash, or "none". */
   write(path: string, bytes: Uint8Array, type: string, expectSha256: string): Promise<{ ok: true; entry: FsEntry & { kind: "file" } } | FsFail | { ok: false; code: "conflict"; message: string }>
   move(from: string, to: string): Promise<FsChange | FsFail>
   remove(paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail>
-  /** `mkdir -p`. */
   mkdir(path: string): Promise<FsChange | FsFail>
-  /** A bash command's changes (section 18.4): within one file space, all of them or none. */
   commit(changes: readonly BatchChange[]): Promise<BatchResult>
 }
 
-/** One change of a command's commit, in backend paths, with the state it saw. A write carries its bytes. */
 export type BatchChange =
   | { op: "write"; path: string; bytes: Uint8Array; type: string; expect: string }
   | { op: "move"; from: string; to: string; sha256: string }
@@ -73,14 +46,12 @@ export type BatchChange =
   | { op: "rmdir"; path: string; files: Readonly<Record<string, string>> }
   | { op: "mkdir"; path: string }
 
-/** `conflict` when a path no longer held what the command saw. */
 export type BatchResult = { ok: true } | { ok: false; path: string; message: string; conflict: boolean }
 
-const batchPaths = (c: BatchChange) => (c.op === "move" ? [c.from, c.to] : [c.path])
+const batchPaths = (c: BatchChange): [string, ...string[]] => (c.op === "move" ? [c.from, c.to] : [c.path])
 
 const CODE: Record<string, FileErrorCode> = { not_found: "not_found", is_directory: "is_directory", not_directory: "not_directory", invalid: "invalid" }
 
-/** Resolves `.` and `..` against `/`. Null when the path climbs above the root. */
 export function normalize(path: string, cwd = "/"): string | null {
   const parts: string[] = []
   for (const part of (path.startsWith("/") ? path : `${cwd}/${path}`).split("/")) {
@@ -110,7 +81,6 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   yml: "text/yaml",
 }
 
-/** The type a written text file is stored with, from its extension. */
 export function typeForPath(path: string): string {
   const dot = path.lastIndexOf(".")
   const ext = dot > path.lastIndexOf("/") ? path.slice(dot + 1).toLowerCase() : ""
@@ -119,23 +89,15 @@ export function typeForPath(path: string): string {
 
 export class RoomFs implements ExecutionEnv {
   readonly cwd = "/"
-  /** The hash this conversation last read or wrote at each room path. */
   private readonly seen = new Map<string, string>()
-  /**
-   * Stats reused inside one `within` call, null for a missing path. pi's `read` checks a path exists
-   * and then reads it, after yuki's `read` looked at it: one room call instead of three. Outside a
-   * call every stat is fresh, so an edit always starts from what the room holds now.
-   */
   private readonly stats = new Map<string, FsEntry | null>()
   private depth = 0
 
   constructor(
-    /** pi-durable's file mutation queue keys on it, so every view of one agent shares it. */
     readonly id: string,
     private readonly backend: FilesBackend,
   ) {}
 
-  /** The room path (no leading slash) of a tool path, or a refusal. */
   roomPath(path: string): Result<string, FileError> {
     const abs = normalize(path, this.cwd)
     if (abs === null) return err(new FileError("invalid", `${path} is outside the chat's files`, path))
@@ -152,7 +114,8 @@ export class RoomFs implements ExecutionEnv {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
     const memo = this.depth > 0
-    const entry = memo && this.stats.has(rel.value) ? this.stats.get(rel.value)! : await this.backend.stat(rel.value)
+    const cached = memo ? this.stats.get(rel.value) : undefined
+    const entry = cached !== undefined ? cached : await this.backend.stat(rel.value)
     if (memo) this.stats.set(rel.value, entry)
     return entry ? ok(entry) : err(new FileError("not_found", `no such file or folder: ${path}`, path))
   }
@@ -167,7 +130,6 @@ export class RoomFs implements ExecutionEnv {
     return joined === null ? err(new FileError("invalid", "the path climbs above the chat's files")) : ok(joined)
   }
 
-  /** No links: a path is its own canonical form. Saves a room call on every edit. */
   async canonicalPath(path: string): Promise<Result<string, FileError>> {
     return this.absolutePath(path)
   }
@@ -201,12 +163,15 @@ export class RoomFs implements ExecutionEnv {
     const lines = text.value.split("\n")
     let i = 0
     return ok({
-      readLine: async () => (i < lines.length ? ok({ text: lines[i]!, terminated: i++ < lines.length - 1 }) : ok(undefined)),
+      readLine: async () => {
+        const line = lines[i]
+        if (line === undefined) return ok(undefined)
+        return ok({ text: line, terminated: i++ < lines.length - 1 })
+      },
       close: async () => {},
     })
   }
 
-  /** Bytes at a path. Refused when the path holds bytes this conversation did not read or write. */
   async write(path: string, bytes: Uint8Array, type = typeForPath(path)): Promise<Result<FsEntry & { kind: "file" }, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
@@ -214,7 +179,6 @@ export class RoomFs implements ExecutionEnv {
     if (refused) return err(refused)
     const expect = this.seen.get(rel.value) ?? "none"
     const out = await this.backend.write(rel.value, bytes, type, expect)
-    // A new file changes its folders too.
     this.stats.clear()
     if (!out.ok) {
       if (out.code !== "conflict") return err(this.fail(out, path))
@@ -229,7 +193,6 @@ export class RoomFs implements ExecutionEnv {
     return ok(out.entry)
   }
 
-  /** Why `bytes` bytes cannot go at a room path, or null. */
   private unwritable(rel: string, bytes: number, path: string): FileError | null {
     if (rel === "") return new FileError("is_directory", "/ is a folder", path)
     if (rel === CHAT_PATH && bytes > MAX_CHAT) {
@@ -239,10 +202,6 @@ export class RoomFs implements ExecutionEnv {
     return null
   }
 
-  /**
-   * A bash command's changes, in tool paths (section 18.4). Within each file space, all of them land
-   * or none do. Every path and size is checked before anything is sent.
-   */
   async commit(changes: readonly BatchChange[]): Promise<BatchResult> {
     const rel = (path: string) => {
       const out = this.roomPath(path)
@@ -268,6 +227,7 @@ export class RoomFs implements ExecutionEnv {
       })
       const out = await this.backend.commit(mapped)
       this.stats.clear()
+      if (out.ok) for (const c of mapped) for (const p of c.op === "rmdir" ? [c.path, ...Object.keys(c.files)] : batchPaths(c)) this.seen.delete(p)
       return out.ok ? out : { ...out, path: `/${out.path}` }
     } catch (e) {
       if (e instanceof FileError) return { ok: false, path: e.path ?? "", message: e.message, conflict: false }
@@ -310,6 +270,8 @@ export class RoomFs implements ExecutionEnv {
     if (!b.ok) return b
     const out = await this.backend.move(a.value, b.value)
     this.stats.clear()
+    this.seen.delete(a.value)
+    this.seen.delete(b.value)
     return out.ok ? ok(out) : err(this.fail(out, from))
   }
 
@@ -338,7 +300,6 @@ export class RoomFs implements ExecutionEnv {
     return ok(out)
   }
 
-  /** Runs `fn` with stats reused across it. For one read-only tool call. */
   async within<T>(fn: () => Promise<T>): Promise<T> {
     this.depth++
     try {
@@ -355,7 +316,6 @@ export class RoomFs implements ExecutionEnv {
     return Array.isArray(out) ? ok(out) : err(this.fail(out, path))
   }
 
-  /** The bytes of an entry this agent listed or statted. */
   async bytesOf(entry: FsEntry & { kind: "file" }, maxBytes?: number): Promise<Uint8Array | null> {
     return this.backend.bytes(entry.r2Key, maxBytes)
   }
@@ -381,7 +341,6 @@ export class RoomFs implements ExecutionEnv {
     return found.error.code === "not_found" ? ok(false) : found
   }
 
-  /** `mkdir -p`: the folder and its parents. A folder that exists is fine. */
   async mkdir(path: string): Promise<Result<FsChange, FileError>> {
     const rel = this.roomPath(path)
     if (!rel.ok) return rel
@@ -403,7 +362,6 @@ export class RoomFs implements ExecutionEnv {
     return err(new FileError("not_supported", "the chat's files have no temporary files"))
   }
 
-  /** A bash command over these files, in just-bash (files/bash.ts). */
   async exec(command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<ShellExecResult, ExecutionError>> {
     return runCommand(this, command, options, context)
   }
@@ -411,26 +369,23 @@ export class RoomFs implements ExecutionEnv {
   async cleanup(_context?: Context): Promise<void> {}
 }
 
-/**
- * One view of an agent's files per conversation, for pi-durable's `env` option, which builds a
- * conversation's env at each use.
- */
 export function roomViews(id: string, backend: FilesBackend): (conversationId: ConversationId) => RoomFs {
   const views = new Map<ConversationId, RoomFs>()
   return (conversationId) => {
     let view = views.get(conversationId)
-    if (!view) views.set(conversationId, (view = new RoomFs(id, backend)))
+    if (!view) {
+      view = new RoomFs(id, backend)
+      views.set(conversationId, view)
+    }
     return view
   }
 }
 
-/** The calling conversation's view of the chat's files: the env pi-durable built for this call. */
 export function filesOf(api: Pick<ToolExecutionApi, "env">): RoomFs {
   if (api.env instanceof RoomFs) return api.env
   throw new Error("this agent has no chat files")
 }
 
-/** An LRU of immutable R2 objects by key. */
 export class ObjectCache {
   private readonly items = new Map<string, Uint8Array>()
   private bytes = 0
@@ -456,9 +411,7 @@ export class ObjectCache {
   }
 }
 
-/** What one file space answers: a room's index in RoomDO, or the drive's in UserDO. */
 type SpaceIndex = {
-  /** The R2 key space: the room id, or `home`. */
   space: string
   stat(path: string): Promise<FsEntry | null>
   list(dir: string, recursive: boolean): Promise<FsEntry[] | FsFail>
@@ -469,7 +422,6 @@ type SpaceIndex = {
   commit(changes: readonly IndexChange[]): Promise<CommitResult>
 }
 
-/** A backend over one space's index and R2, with the shared byte cache. */
 function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, cache: ObjectCache): FilesBackend {
   return {
     stat: (path) => index().stat(path),
@@ -492,10 +444,12 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
       await env.FILES.put(r2Key, bytes, { httpMetadata: { contentType: type } })
       const out = await at.put({ id, path, r2Key, size: bytes.length, type, sha256, author: { kind: "agent", slug: h.slug as AgentSlug }, expectSha256 })
       if (out.drop) await deleteFiles(env.FILES, out.drop)
-      if (out.refused) return out.refused
-      if (out.conflict) return { ok: false, code: "conflict", message: `${path} holds other bytes` }
+      if (out.refused || out.conflict) {
+        await deleteFiles(env.FILES, [r2Key])
+        return out.refused ?? { ok: false, code: "conflict", message: `${path} holds other bytes` }
+      }
       const entry = out.entry
-      if (!entry || entry.kind !== "file") return { ok: false, code: "invalid", message: `could not store ${path}` }
+      if (entry?.kind !== "file") return { ok: false, code: "invalid", message: `could not store ${path}` }
       cache.set(entry.r2Key, bytes)
       return { ok: true, entry }
     },
@@ -505,7 +459,6 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
     async commit(changes) {
       const h = home()
       const at = index()
-      // The bytes go to R2 first, under new keys; the index then takes the whole batch or none of it.
       const stored: { key: string; bytes: Uint8Array }[] = []
       const indexed = await Promise.all(
         changes.map(async (c): Promise<IndexChange> => {
@@ -529,14 +482,12 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
   }
 }
 
-/** Throws until the room has told this agent where it lives. */
 const homeOf = (home: () => AgentHome | null) => () => {
   const h = home()
   if (!h) throw new Error("this agent has no room yet")
   return h
 }
 
-/** The backend over the agent's own room and R2. `home` is read on every call: the room sets it. */
 export function roomBackend(env: Env, home: () => AgentHome | null, cache = new ObjectCache()): FilesBackend {
   const h = homeOf(home)
   return spaceBackend(env, h, () => {
@@ -556,16 +507,11 @@ export function roomBackend(env: Env, home: () => AgentHome | null, cache = new 
   }, cache)
 }
 
-/**
- * The backend over the user's drive (section 18.3), in UserDO. Every change an agent makes there
- * is told to the chat through `notice`, so the human sees what landed in their drive.
- */
 export function homeBackend(
   env: Env,
   home: () => AgentHome | null,
   notice: (text: string) => Promise<unknown>,
   cache = new ObjectCache(),
-  /** Why the drive is read-only right now (a private chat), or null. */
   locked: () => string | null = () => null,
 ): FilesBackend {
   const h = homeOf(home)
@@ -622,10 +568,6 @@ export function homeBackend(
 const HOME_SPACE = "home"
 export const HOME_PATH = "home"
 
-/**
- * Mounts `mounted` at /<at>: its paths gain the prefix, and the root lists it as a folder. A move
- * between the mount and the rest is refused, as `mv` across file systems would copy: use `cp`.
- */
 export function withMount(base: FilesBackend, at: string, mounted: FilesBackend): FilesBackend {
   const inside = (p: string) => p === at || p.startsWith(`${at}/`)
   const strip = (p: string) => (p === at ? "" : p.slice(at.length + 1))
@@ -672,12 +614,11 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
       return inside(path) ? (path === at ? { ok: true, events: [], drop: [], changed: 0 } : mounted.mkdir(strip(path))) : base.mkdir(path)
     },
     async commit(changes) {
-      // Each side is its own batch: the chat's files first, then the mount.
       const mine = (c: BatchChange) => batchPaths(c).every(inside)
       const crossing = changes.find((c) => !mine(c) && batchPaths(c).some(inside))
-      if (crossing) return { ok: false, path: batchPaths(crossing)[0]!, message: across.message, conflict: false }
+      if (crossing) return { ok: false, path: batchPaths(crossing)[0], message: across.message, conflict: false }
       const outside = changes.filter((c) => !mine(c))
-      if (changes.some((c) => mine(c) && batchPaths(c).includes(at))) return { ok: false, path: at, message: `/${at} stays where it is`, conflict: false }
+      if (changes.some((c) => c.op !== "mkdir" && mine(c) && batchPaths(c).includes(at))) return { ok: false, path: at, message: `/${at} stays where it is`, conflict: false }
       const there = changes.filter(mine).map((c): BatchChange => {
         if (c.op === "move") return { ...c, from: strip(c.from), to: strip(c.to) }
         if (c.op === "rmdir") return { ...c, path: strip(c.path), files: Object.fromEntries(Object.entries(c.files).map(([p, sha]) => [strip(p), sha])) }
@@ -691,10 +632,8 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
   }
 }
 
-/** The agent's own soul, as the mount at /me/soul.md reads and writes it (section 7.10). */
 export interface SoulPort {
   get(): Promise<{ body: string; sha: string; at: number }>
-  /** The soul for the system prompt, which may come from the run's start. Default `get`. */
   forPrompt?(): Promise<{ body: string }>
   set(body: string, expectSha: string): Promise<{ ok: true; soul: { body: string; sha: string; at: number } } | { ok: false; code: "conflict" | "invalid"; message: string }>
 }
@@ -702,11 +641,6 @@ export interface SoulPort {
 const ME = "me"
 export const SOUL_PATH = "me/soul.md"
 
-/**
- * The room's files with the agent's own folder mounted at /me. /me/soul.md is the agent's soul,
- * kept in UserDO and the same in every chat. pi's read, edit, and write work on it as on any file;
- * nothing else lives in /me, and it cannot be moved or deleted.
- */
 export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
   const enc = new TextEncoder()
   const entry = async (): Promise<FsEntry & { kind: "file" }> => {
@@ -730,7 +664,8 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
       const out = await base.list(dir, recursive)
       if (dir !== "" || !Array.isArray(out)) return out
       const e = await entry()
-      return recursive ? [e, ...out] : [{ kind: "directory", path: ME, files: 1, size: e.size }, ...out]
+      const folder: FsEntry = { kind: "directory", path: ME, files: 1, size: e.size }
+      return recursive ? [folder, e, ...out] : [folder, ...out]
     },
     async bytes(r2Key, maxBytes) {
       if (!r2Key.startsWith("soul:")) return base.bytes(r2Key, maxBytes)
@@ -739,7 +674,6 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
     },
     async write(path, bytes, type, expectSha256) {
       if (path !== SOUL_PATH) return mine(path) ? refuse("only /me/soul.md lives in /me") : base.write(path, bytes, type, expectSha256)
-      // The soul always exists, so a write that read nothing there is a write over it.
       if (expectSha256 === "none") return { ok: false, code: "conflict", message: `${SOUL_PATH} holds other bytes` }
       const out = await soul.set(new TextDecoder().decode(bytes), expectSha256)
       if (!out.ok) return out.code === "conflict" ? { ok: false, code: "conflict", message: out.message } : refuse(out.message)
@@ -755,8 +689,11 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
       return mine(path) ? refuse("only /me/soul.md lives in /me") : base.mkdir(path)
     },
     async commit(changes) {
-      const other = changes.find((c) => batchPaths(c).some(mine) && !(c.op === "write" && c.path === SOUL_PATH))
-      if (other) return { ok: false, path: batchPaths(other).find(mine)!, message: "/me/soul.md stays where it is, and only it lives in /me. edit it instead", conflict: false }
+      for (const c of changes) {
+        if (c.op === "write" && c.path === SOUL_PATH) continue
+        const hit = batchPaths(c).find(mine)
+        if (hit !== undefined) return { ok: false, path: hit, message: "/me/soul.md stays where it is, and only it lives in /me. edit it instead", conflict: false }
+      }
       const rest = changes.filter((c) => !batchPaths(c).some(mine))
       const first = rest.length ? await base.commit(rest) : ({ ok: true } as const)
       const write = changes.find((c) => c.op === "write" && c.path === SOUL_PATH)

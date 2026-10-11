@@ -1,11 +1,9 @@
 import { type Session, VerifyError } from "../client"
+import { must } from "../must"
 import { ok, type Routine, runsOf } from "../routine-kit"
 import type { Suite } from "../runner"
 import { fake, newRoom } from "./mid-run"
 
-// Architecture section 25 under load, with the scripted fake agent: no tokens. `ROUTINES_SCALE_N`
-// users (default 300) each get a routine due at the same second. Every one must run exactly once and
-// answer; none twice, none lost. Prints how long the last one took. Needs NODE_ENV=development.
 
 const N = Number(process.env.ROUTINES_SCALE_N ?? 300)
 const CONCURRENCY = 25
@@ -17,7 +15,7 @@ async function pool<T, R>(items: readonly T[], size: number, work: (item: T, i: 
     Array.from({ length: Math.min(size, items.length) }, async () => {
       while (next < items.length) {
         const i = next++
-        out[i] = await work(items[i]!, i)
+        out[i] = await work(must(items[i], "a scale item"), i)
       }
     }),
   )
@@ -56,7 +54,7 @@ const suite: Suite = {
     const lastDone = Date.now() - dueAt
     const statuses = new Map<string, number>()
     for (const runs of results) {
-      const key = runs.length === 0 ? "lost" : runs.length > 1 ? "twice" : runs[0]!.status
+      const key = runs.length === 0 ? "lost" : runs.length > 1 ? "twice" : runs[0]?.status
       statuses.set(key, (statuses.get(key) ?? 0) + 1)
     }
     const summary = JSON.stringify(Object.fromEntries(statuses))

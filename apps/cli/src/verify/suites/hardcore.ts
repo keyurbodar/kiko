@@ -4,18 +4,6 @@ import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { until } from "./mid-run"
 
-// The whole product at once, with the real test model. One group (yuki the lead and ada), then:
-//
-//   1. rapid fire   five short human messages 350 ms apart are one burst, answered by the lead
-//                   in one run; ada, untagged, is not woken
-//   2. tagged       "@ada ..." wakes only ada
-//   3. spawn        the lead adds a new agent on request, and the new agent speaks
-//   4. a2a          the lead asks ada with ask, ada answers in the room, and the lead's reply in the
-//                   same run carries her answer
-//   5. reminder     "remind me in 20 seconds" posts a reminder line in time
-//   6. interrupt    a message sent while the lead is still typing is folded into the reply
-//
-// Each step prints what happened, with timings, so a human can read the conversation.
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 const ulid = () => {
@@ -98,7 +86,6 @@ const suite: Suite = {
     const step = (t: string) => console.log(`  ok ${t}`)
     const fail: string[] = []
 
-    // 1. Rapid fire.
     let from = lastSeq(room)
     let t0 = Date.now()
     for (const text of ["hey", "so", "i'm planning a dinner party", "for 6 people", "on saturday, any ideas?"]) {
@@ -114,18 +101,15 @@ const suite: Suite = {
     if (agentSays(room, from, "ada").length) fail.push("rapid fire: ada spoke on a message that tagged nobody")
     step(`rapid fire: 5 messages, the lead answered once (first bubble ${firstLead} ms), ada was not woken`)
 
-    // 2. Tagged.
     from = lastSeq(room)
     room.send("@ada what wine goes with a mushroom risotto?")
     await until("ada's answer", () => agentSays(room, from, "ada").length > 0, 60_000)
     await quiet(room, 5_000, 60_000)
     print(room, from)
-    // yuki may speak here only if ada messaged it (an agent message wakes its addressee).
     const adaToYuki = agentSays(room, from, "ada").some((m) => /@yuki\b/.test(m.text))
     if (agentSays(room, from, "yuki").length && !adaToYuki) fail.push("tagged: yuki spoke on a message tagged only for ada")
     step(`tagged: ada answered${adaToYuki ? " (and messaged yuki, who answered her)" : ", yuki stayed quiet"}`)
 
-    // 3. Spawn.
     from = lastSeq(room)
     room.send("@yuki please add a new agent to this chat, a designer called nova, and ask nova to suggest 3 colors for the invite card")
     await until("nova to join", () => seen(room).members.includes("nova"), 90_000)
@@ -134,7 +118,6 @@ const suite: Suite = {
     print(room, from)
     step("spawn: the lead added @nova and nova answered")
 
-    // 4. Agent to agent.
     from = lastSeq(room)
     room.send("@yuki ask ada for one dessert idea, then tell me what she said")
     await until("an agent-to-agent message", () => after(room, from).some((m) => m.from.kind === "agent" && /@ada\b/.test(m.text) && m.from.slug === "yuki"), 90_000)
@@ -142,11 +125,10 @@ const suite: Suite = {
     await quiet(room, 8_000, 120_000)
     print(room, from)
     const yukiRuns = seen(room).runs.get("yuki") ?? 0
-    const answerAt = agentSays(room, from, "ada")[0]!.seq
+    const answerAt = agentSays(room, from, "ada")[0]?.seq
     if (!agentSays(room, from, "yuki").some((m) => m.seq > answerAt)) fail.push("a2a: yuki never told the human what ada said")
     step(`a2a: yuki asked ada, ada answered, and yuki passed it on (yuki runs so far: ${yukiRuns})`)
 
-    // 5. Reminder.
     from = lastSeq(room)
     t0 = Date.now()
     room.send("@yuki remind me in 20 seconds to buy candles")
@@ -157,7 +139,6 @@ const suite: Suite = {
     step(`reminder: posted after ${fired.toFixed(0)} s`)
     await quiet(room, 4_000, 30_000)
 
-    // 6. Interrupt while the lead is typing.
     from = lastSeq(room)
     room.send("@yuki what should the main course be")
     await until("yuki typing", () => room.raw.log.slice(-40).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).state !== "idle"), 30_000)

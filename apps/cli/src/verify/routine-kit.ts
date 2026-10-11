@@ -1,8 +1,6 @@
 import type { Message, RoomToClient } from "@yuki/protocol"
 import { type RoomHandle, type Session, VerifyError } from "./client"
 
-// Shared by the routine suites (architecture section 25): the human's HTTP calls, the dev routes, and
-// what the room's socket saw.
 
 export type Routine = { id: string; name: string | null; status: string; createdBy: string; target: string; fails: number; dueUtc: number; trigger: { on: string } | null; roomId: string }
 export type Run = { routineId: string; occurrence: string; status: string; seq: number | null; startedAt: number }
@@ -41,7 +39,6 @@ export async function runsOf(url: string, s: Session, id: string): Promise<Run[]
   return (await routines(url, s)).runs.filter((r) => r.routineId === id)
 }
 
-/** Polls until `test` holds for the routine's runs. Returns them. */
 export async function waitRuns(url: string, s: Session, id: string, what: string, test: (runs: Run[]) => boolean, ms = 30_000): Promise<Run[]> {
   const end = Date.now() + ms
   for (;;) {
@@ -62,7 +59,6 @@ export async function waitRoutine(url: string, s: Session, test: (r: Routine[]) 
   }
 }
 
-/** Every message the room socket saw, any sender, oldest first. */
 export function messages(room: RoomHandle): Message[] {
   const out = new Map<string, Message>()
   for (const entry of room.raw.log) {
@@ -87,5 +83,4 @@ export async function eventually(what: string, test: () => boolean | Promise<boo
 
 export const inSeconds = (n: number) => new Date(Date.now() + n * 1000).toISOString()
 
-/** A tool call the fake agent makes when it reads this line (dev-fake.ts `[tool name {json}]`). */
 export const toolLine = (name: string, args: unknown) => `[tool ${name} ${JSON.stringify(args)}]`

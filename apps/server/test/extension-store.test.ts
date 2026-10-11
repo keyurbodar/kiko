@@ -2,9 +2,6 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// Architecture section 24.7. The parts of the extension store that keep secrets and users apart,
-// inside workerd. The fetcher is an echo server, so each test sees exactly what would have left yuki.
-
 let mf: Miniflare
 let output = ""
 const SECRET = `tok-${crypto.randomUUID()}`
@@ -80,7 +77,6 @@ test("a secret is filled in only for its own host, and an echo never hands it ba
   expect(sent.url).toBe(`https://api.example.com/v1?key=${SECRET}`)
   expect(sent.headers.authorization).toBe(`Bearer ${SECRET}`)
   expect(sent.method).toBe("POST")
-  // The echo carried the secret back three times. The script sees the placeholder, never the value.
   expect(out.value.text).not.toContain(SECRET)
   expect(out.value.text).toContain("{{secret.TOKEN}}")
   expect(out.value.headers["set-cookie"]).toBeUndefined()

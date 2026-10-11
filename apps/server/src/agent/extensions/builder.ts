@@ -19,7 +19,6 @@ export type BuilderPorts = {
 }
 
 const text = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError: true } : {}) })
-/** One installed extension as the agent reads it. An off one is still installed, so the agent must not offer to install it. */
 export function extensionLine(x: ExtensionInfo): string {
   const tools = Object.keys(x.manifest.tools ?? {})
   const unset = x.secrets.filter((s) => !s.set).map((s) => s.name)
@@ -94,7 +93,8 @@ export function builderExtension(ports: BuilderPorts): Extension {
             if (!report.ok) return text(`not proposed: fix these first.\n${report.lines.join("\n")}`, true)
             const out = await ports.propose(read.bundle)
             if (!out.ok) return text(`not proposed: ${out.error}${out.problems?.length ? `\n${out.problems.join("\n")}` : ""}`, true)
-            const p = out.proposal!
+            if (!out.proposal) return text("not proposed: the proposal did not come back.", true)
+            const p = out.proposal
             return text(`proposed ${p.name} ${p.version}${p.replaces ? " (an update)" : ""}. it waits for the human in Settings → extensions; it does nothing until they install it.`)
           },
         }),

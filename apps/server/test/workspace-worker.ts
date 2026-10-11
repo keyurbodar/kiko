@@ -4,9 +4,6 @@ import { RoomLog } from "../src/room/log"
 import { migrate } from "../src/room/schema"
 import { RoomWorkspace, runCall, type WorkspaceCall } from "../src/room/workspace"
 
-// The real workspace tables in workerd. `/call/<room>` posts `{ slug, lead, call }` and answers with
-// the tool answer, the stored events, and the pending wakes. `/human/<room>` posts a TaskOp.
-
 const MEMBERS = ["bob", "ada", "cy"] as AgentSlug[]
 
 export class WorkspaceDO extends DurableObject {
@@ -17,7 +14,6 @@ export class WorkspaceDO extends DurableObject {
 		this.ws = new RoomWorkspace(ctx.storage, new RoomLog(ctx.storage))
 	}
 	async call(slug: AgentSlug, lead: boolean, call: WorkspaceCall) {
-		// Every agent works on the chain of a human message "m-<slug>", one hop in.
 		const { answer, events } = runCall(this.ws, slug, lead, call, MEMBERS, { rootId: `m-${slug}`, hop: 1, origin: "human" })
 		return { answer, events, wakes: this.ws.pendingWakes() }
 	}

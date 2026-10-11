@@ -2,7 +2,6 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// The real UserDO and RoomDO in workerd, with real alarms. Each test uses its own user.
 let mf: Miniflare
 
 beforeAll(async () => {
@@ -71,7 +70,6 @@ test("an alarm repeated after a crash between delivery and the row update posts 
   const user = await userWithChat()
   const { reminder } = await rpc(user, "createReminder", user, { text: "once", time: soon(800), tz: "UTC", roomId: ROOM })
   await until(async () => ((await rpc(user, "listReminders"))[0].status === "done" ? true : undefined))
-  // Put the row back as it was before the update. The alarm fires again for the same occurrence.
   const rewound = await rpc(user, "rewindReminder", reminder.id)
   expect(rewound.reminder).toMatchObject({ status: "active", dueUtc: reminder.dueUtc })
   await until(async () => ((await rpc(user, "listReminders"))[0].status === "done" ? true : undefined))
@@ -92,7 +90,6 @@ test("a daily reminder moves forward one day in its zone and stays active", asyn
     return r.lastFired !== null ? r : undefined
   })
   expect(moved).toMatchObject({ status: "active", lastFired: reminder.dueUtc })
-  // ASSUMPTION in the test: no daylight change in New York within the next day.
   expect(moved.dueUtc).toBe(reminder.dueUtc + DAY)
   expect((await messages(user)).length).toBe(1)
 }, 20_000)

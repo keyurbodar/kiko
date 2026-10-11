@@ -9,10 +9,8 @@ import { sqlStorage } from "./sql-shim"
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 const NY = "America/New_York"
-// Monday 2026-09-07 00:00 in New York (UTC-4).
 const MON = Date.UTC(2026, 8, 7, 4)
 
-/** Messages at the given local hours on the given weekdays (0 = Monday), for `weeks` weeks. */
 function habit(days: number[], hours: number[], weeks: number, start = MON): Rhythm {
   let r = emptyRhythm()
   for (let w = 0; w < weeks; w++) for (const d of days) for (const h of hours) r = record(r, start + w * 7 * DAY + d * DAY + h * HOUR + 10 * 60_000, NY)
@@ -26,12 +24,10 @@ describe("rhythm", () => {
   const after = MON + 21 * DAY
 
   test("the moment is the start of the usual window on the next active day", () => {
-    // Tuesday 20:00: the next window opens Wednesday morning, just before 09:00.
     const m = nextMoment(weekdays, after + DAY + 20 * HOUR, NY)!
     expect(local(m).day).toBe(2)
     expect(local(m).hour).toBeGreaterThanOrEqual(8)
     expect(local(m).hour).toBeLessThanOrEqual(9)
-    // Friday evening skips the weekend.
     expect(local(nextMoment(weekdays, after + 4 * DAY + 20 * HOUR, NY)!).day).toBe(0)
   })
 
@@ -55,7 +51,6 @@ describe("rhythm", () => {
     const sent = after + 12 * HOUR // Monday noon
     expect(ignoreDeadline(daily, sent, NY) - sent).toBeLessThan(2 * DAY)
     const weekend = habit([5, 6], [10, 11, 12, 13, 14], 3)
-    // Someone who writes only on weekends is not "ignoring" a Monday nudge on Tuesday.
     expect(local(ignoreDeadline(weekend, sent, NY)).day).toBeGreaterThanOrEqual(5)
     expect(ignoreDeadline(emptyRhythm(), sent, NY)).toBe(sent + DAY)
   })
@@ -98,7 +93,6 @@ describe("appetite", () => {
     const here = settle(noted.appetite, [], 2 * DAY)
     expect(here.outcomes.map((o) => `${o.result}@${o.at}`)).toEqual([`engaged@${HOUR}`])
     expect(here.appetite.pending).toEqual([])
-    // Three engagements earn a second nudge per pass.
     let keen = emptyAppetite()
     for (let i = 0; i < 3; i++) keen = settle(nudged(keen, pending(`k${i}`, i * DAY)), [{ kind: "burst", id: `kb${i}`, room: "r1", at: i * DAY + HOUR }], i * DAY + DAY).appetite
     expect(allowance(keen, 3 * DAY)).toBe(2)
@@ -109,7 +103,6 @@ describe("appetite", () => {
     const reply: Signal = { kind: "burst", id: "b", room: "r1", at: HOUR }
     const drop: Signal = { kind: "dismiss", id: "d", room: "r1", at: HOUR + 60_000, loop: "loop-a" }
     const together = settle(app, [reply, drop], 2 * HOUR)
-    // The reply reached the pass first; the loop was dropped a minute later.
     const first = settle(app, [reply], HOUR + 1)
     const later = settle(first.appetite, [drop], 2 * HOUR)
     for (const { appetite, outcomes } of [together, { appetite: later.appetite, outcomes: [...first.outcomes, ...later.outcomes] }]) {

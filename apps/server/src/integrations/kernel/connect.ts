@@ -19,8 +19,7 @@ export function checkAgentId(value: unknown): string {
   return value
 }
 
-/** The tabs an agent reports: at most `MAX_TABS`, tab id to last URL. */
-export function checkTabs(value: unknown): Record<string, string> | undefined {
+function checkTabs(value: unknown): Record<string, string> | undefined {
   if (value === undefined) return undefined
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new KernelError("failed", "bad tabs")
   const entries = Object.entries(value)
@@ -32,7 +31,7 @@ export function checkTabs(value: unknown): Record<string, string> | undefined {
 }
 
 /** How long Watch keeps the browser open, so the reaper does not delete it under the human's eyes. */
-export const WATCH_MS = 10 * 60_000
+const WATCH_MS = 10 * 60_000
 
 /** The site a tab shows, as a hostname only: the client never sees a page URL. */
 export function hostOf(url: string): string {
@@ -43,7 +42,6 @@ export function hostOf(url: string): string {
   }
 }
 
-/** What the client may know of the browser. `resolve` turns an agent id into a slug and a display name. */
 export function browserState(row: LeaseRow | undefined, switching: boolean, resolve: (agentId: string) => { slug: string; name: string }): BrowserState {
   if (!row || row.dead) return null
   const tabs = Object.entries(row.tabs).flatMap(([agentId, t]) => {
@@ -57,17 +55,15 @@ export type KernelDeps = {
   store: KernelStore
   userId: () => string
   wake: { set(at: number): Promise<void>; clear(): Promise<void> }
-  /** Replaces the Kernel client, for tests and for the development fixture. */
   clientFor?: (key: string) => KernelClient
 }
 
-/** One user's Kernel connection. `UserDO` owns the one instance for its user. */
 export class KernelConnection {
   readonly lease: KernelLease
   private readonly clientFor: (key: string) => KernelClient
 
   constructor(private readonly deps: KernelDeps) {
-    this.clientFor = deps.clientFor ?? ((key) => sdkClient(key))
+    this.clientFor = deps.clientFor ?? sdkClient
     this.lease = new KernelLease({
       store: deps.store,
       client: () => this.client(),
@@ -81,7 +77,6 @@ export class KernelConnection {
     return { connected, broken: connected && this.deps.store.broken(), browser: connected ? this.lease.status() : null }
   }
 
-  /** Checks the key with one list of active browsers, then replaces any stored key. A rejected key stores nothing. */
   async connect(apiKey: unknown): Promise<KernelStatus> {
     const key = checkApiKey(apiKey)
     try {
@@ -104,7 +99,6 @@ export class KernelConnection {
     await this.deps.wake.clear()
   }
 
-  /** Account deletion: the browser and the profile. Nothing to do without a key. */
   async wipe(): Promise<void> {
     if (!this.deps.store.connected()) return
     await this.lease.wipe()
@@ -122,13 +116,11 @@ export class KernelConnection {
     this.lease.release(checkAgentId(agentId))
   }
 
-  /** What an agent checks before each browser call: a key, the human's takeover, and every agent's open tabs. */
   check(): { connected: boolean; takeover: boolean; tabs: Record<string, number> } {
     const row = this.deps.store.lease()
     return { connected: this.deps.store.connected(), takeover: row?.takeover ?? false, tabs: this.lease.status()?.tabs ?? {} }
   }
 
-  /** The agent saw its socket die. */
   markDead(agentId: unknown, sessionId: unknown): Promise<boolean> {
     checkAgentId(agentId)
     if (typeof sessionId !== "string" || !sessionId) return Promise.resolve(false)
@@ -139,7 +131,6 @@ export class KernelConnection {
     return browserState(this.deps.store.connected() ? this.deps.store.lease() : undefined, switching, resolve)
   }
 
-  /** Whether the human is driving. Agents read it before each action. */
   takeover(): boolean {
     return this.deps.store.lease()?.takeover === true
   }
@@ -176,7 +167,6 @@ export class KernelConnection {
     if (this.deps.store.lease()) this.lease.setTakeover(false)
   }
 
-  /** The human ended the browser. The profile is saved when it is deleted. */
   closeNow(): Promise<void> {
     return this.lease.close()
   }

@@ -1,17 +1,10 @@
 import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
+import { must } from "../must"
 import type { Suite } from "../runner"
 import { until } from "./mid-run"
 
-// Architecture section 8.4, with the real model. One group (yuki the chief and ada):
-//
-//   1. voice      a plain question gets a short, lowercase answer with no filler
-//   2. soul       a correction of how yuki talks lands in its soul, quietly: /api/souls/yuki changes,
-//                 and yuki does not announce that it remembered
-//   3. chat file  a decision lands in /chat.md, which the room seeded for the group
-//
-// Each step prints what happened, so a human can read the voice.
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 const ulid = () => {
@@ -73,7 +66,6 @@ const suite: Suite = {
     const soulBefore = await soulNow()
     const fail: string[] = []
 
-    // 1. Voice.
     let from = lastSeq(room)
     let t0 = Date.now()
     room.send("what's a good neighborhood to stay in lisbon?")
@@ -86,7 +78,6 @@ const suite: Suite = {
     if (voice.join(" ") !== voice.join(" ").toLowerCase()) console.log("  note: some capitals in the voice")
     if (words > 90) fail.push(`voice: ${words} words for a quick question`)
 
-    // 2. Soul: a correction of how yuki talks.
     from = lastSeq(room)
     t0 = Date.now()
     room.send("@yuki from now on, never use emojis with me, and always give me exactly one recommendation, not a list.")
@@ -100,7 +91,6 @@ const suite: Suite = {
     if (!/emoji/i.test(soulAfter)) fail.push("soul: nothing about emojis in the soul")
     if (ANNOUNCED.test(reply.join(" "))) fail.push(`soul: yuki announced it: ${JSON.stringify(reply.join(" "))}`)
 
-    // 3. The chat file.
     from = lastSeq(room)
     t0 = Date.now()
     if (!seen(room).files.has("chat.md")) fail.push("chat file: the room did not seed /chat.md for the group")
@@ -113,7 +103,7 @@ const suite: Suite = {
     const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
     const text = chat ? await (await fetch(new URL(chat.id, base), { headers: { cookie: s.cookie } })).text() : ""
     console.log(`  /chat.md: ${JSON.stringify(text)}`)
-    if (!text.includes(budget.split(" ")[0]!)) fail.push("chat file: the budget is not in /chat.md")
+    if (!text.includes(must(budget.split(" ")[0], "the budget's first word"))) fail.push("chat file: the budget is not in /chat.md")
 
     room.raw.close()
     if (fail.length) throw new VerifyError(fail.join("\n  "))

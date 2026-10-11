@@ -211,7 +211,7 @@ A replay cache, as in Stagehand, would remember a site's step by host, goal, and
 
 **Goal.** A user pastes a Kernel key, and `UserDO` can lease the user's one browser to any of their agents, headless by default and headful on demand, with logins kept in the user's profile.
 
-**Files.** `apps/server/src/integrations/kernel/`, `user/user-do.ts`, `packages/protocol/src/user.ts`, `schema.ts`, `apps/web-solid/src/settings/integrations.tsx`, `integrations-client.ts`, `apps/cli/src/commands/kernel.ts`, `apps/cli/src/verify/suites/kernel.ts`, `apps/server/test/kernel-lease.test.ts`, `docs/architecture.md`.
+**Files.** `apps/server/src/integrations/kernel/`, `user/user-do.ts`, `core/protocol/src/user.ts`, `schema.ts`, `apps/web-solid/src/settings/integrations.tsx`, `integrations-client.ts`, `apps/cli/src/commands/kernel.ts`, `apps/cli/src/verify/suites/kernel.ts`, `apps/server/test/kernel-lease.test.ts`, `docs/architecture.md`.
 
 **Build.**
 
@@ -240,7 +240,7 @@ A replay cache, as in Stagehand, would remember a site's step by host, goal, and
 - The page script from "How a page is read", as a string constant, and `read(tab)`.
 - `act(tab, step)` for click, type, select, press, scroll, and back. Clicks are real mouse events at the element's center after a fresh guard and geometry check. Typing is select-all, then `Input.insertText`. Then it settles as in the table.
 - Popups and dialogs as in the failures table.
-- `check-imports.ts` puts `packages/cdp` beside `packages/durable`.
+- `check-imports.ts` puts `packages/cdp` beside `core/durable`.
 
 ### P17-03 Browser tools for agents
 
@@ -291,7 +291,7 @@ A replay cache, as in Stagehand, would remember a site's step by host, goal, and
 
 **Goal.** The human can see any browser and take it over at any time, and can sign in for every agent at once.
 
-**Files.** `apps/web-solid/src/chat/BrowserChip.tsx`, `app/routes/chat.tsx`, `apps/web-solid/src/settings/integrations.tsx`, `packages/protocol/src/user.ts`, `room.ts`, `schema.ts`, `apps/server/src/user/user-do.ts`, `room/room-do.ts`, `apps/cli/src/verify/suites/browser-takeover.ts`.
+**Files.** `apps/web-solid/src/chat/BrowserChip.tsx`, `app/routes/chat.tsx`, `apps/web-solid/src/settings/integrations.tsx`, `core/protocol/src/user.ts`, `room.ts`, `schema.ts`, `apps/server/src/user/user-do.ts`, `room/room-do.ts`, `apps/cli/src/verify/suites/browser-takeover.ts`.
 
 **Build.**
 

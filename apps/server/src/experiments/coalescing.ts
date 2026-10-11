@@ -6,6 +6,7 @@ import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import { type CoalescingStorage, createCoalescingStorage } from "@yuki/agent/coalescing-storage"
 import { openDurableObjectSqlite } from "@yuki/agent/sqlite"
 import type { Env } from "../index"
+import { countRows } from "./count-rows"
 
 const context = BACKGROUND_CONTEXT
 export const FAUX_MODEL = { provider: "faux", modelId: "faux-1" }
@@ -14,20 +15,6 @@ export const TOKENS_PER_SECOND = 50
 export const streamedText = (ms: number) => {
   const chars = Math.round((ms / 1000) * TOKENS_PER_SECOND * 4)
   return "lorem ipsum dolor sit amet ".repeat(Math.ceil(chars / 27)).slice(0, chars)
-}
-
-export function countRowsWritten(storage: DurableObjectStorage) {
-  let rows = 0
-  const sql = {
-    exec: (query: string, ...bindings: unknown[]) => {
-      const cursor = storage.sql.exec(query, ...bindings)
-      const result = cursor.toArray()
-      rows += cursor.rowsWritten
-      return { toArray: () => result }
-    },
-  }
-  const counted = { sql, transaction: storage.transaction.bind(storage) } as unknown as DurableObjectStorage
-  return { storage: counted, rows: () => rows }
 }
 
 export async function openDurable(storage: DurableObjectStorage, coalesce: boolean) {
@@ -69,12 +56,17 @@ export type TurnMeasurement = {
 }
 
 export async function measureTurn(storage: DurableObjectStorage, coalesce: boolean, streamMs = 15_000): Promise<TurnMeasurement> {
-  const counted = countRowsWritten(storage)
+  const counted = countRows(storage)
   const { durable, coalescing } = await openDurable(counted.storage, coalesce)
   let commits = 0
   const counting = new Proxy(durable, {
     get(target, key: keyof Storage) {
-      if (key === "commit") return (...args: Parameters<Storage["commit"]>) => (commits++, target.commit(...args))
+      if (key === "commit") {
+        return (...args: Parameters<Storage["commit"]>) => {
+          commits++
+          return target.commit(...args)
+        }
+      }
       const member = target[key] as unknown
       return typeof member === "function" ? member.bind(target) : member
     },
@@ -82,14 +74,14 @@ export async function measureTurn(storage: DurableObjectStorage, coalesce: boole
   const answer = streamedText(streamMs)
   const harness = await Harness.open(counting, { models: fauxModels([answer]), registry: createRegistry() }, context)
   const root = await harness.root(context, { agent: { model: FAUX_MODEL } })
-  const rowsBefore = counted.rows()
+  const rowsBefore = counted.snapshot().rowsWritten
   const commitsBefore = commits
   const started = Date.now()
   const submission = await root.submit({ type: "input", content: "count", requestId: "measure" }, context)
   const settled = await submission.wait(context)
   await harness.waitForIdle(context)
   const elapsed = Date.now() - started
-  const rowsWritten = counted.rows() - rowsBefore
+  const rowsWritten = counted.snapshot().rowsWritten - rowsBefore
   const turnCommits = commits - commitsBefore
   const held = coalescing?.stats().held ?? 0
   const last = (await assistantMessages(harness)).at(-1)

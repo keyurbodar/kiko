@@ -2,12 +2,6 @@ import { type Agent, type AgentSlug, isAgentSlug, tagline } from "@yuki/protocol
 import { MAX_CHAT } from "../files/room-fs"
 import { MAX_SOUL } from "../user/souls"
 
-// Architecture section 7.11. yuki, the chief, makes the human's agents and groups. The human never
-// fills in a form: yuki asks what they want, proposes a name and a soul (or a group and its
-// /chat.md), and makes it. This file holds the shapes and the checks;
-// RoomDO stores the proposal and does the making.
-
-/** The built-in agent. Only it may propose and create. */
 export const CHIEF = "yuki" as AgentSlug
 
 export type NewAgentSpec = { name: string; handle: string; description: string; soul: string }
@@ -16,17 +10,13 @@ export type ProposalInput =
   | { kind: "agent"; agent: NewAgentSpec }
   | { kind: "group"; title: string; members: readonly string[]; agents: readonly NewAgentSpec[]; chat: string }
 
-/** A stored proposal. `seq` is the log's sequence when yuki made it, so the newest one is known. */
 export type Proposal = ProposalInput & { id: string; seq: number }
 
-/** ASSUMPTION: the most agents one group proposal makes. */
 const MAX_NEW_AGENTS = 4
-/** ASSUMPTION: a group's members, counting yuki, stay within a room's limit of 8. */
 const MAX_MEMBERS = 7
 
 const clean = (s: string, max: number) => s.trim().slice(0, max)
 
-/** The proposal ready to store, or why it is refused. `agents` are the human's agents. */
 export function checkProposal(input: ProposalInput, agents: readonly Agent[]): ProposalInput | { error: string } {
   const taken = new Set([CHIEF, ...agents.map((a) => a.slug as string)])
   const checkAgent = (a: NewAgentSpec): NewAgentSpec | string => {
@@ -63,7 +53,6 @@ export function checkProposal(input: ProposalInput, agents: readonly Agent[]): P
   return { kind: "group", title, members, agents: made, chat: `${input.chat.trim()}\n` }
 }
 
-/** What the new agent hears first, so it says hi in its own chat. */
 export function introduction(spec: NewAgentSpec): string {
   return `yuki just made you for the human: ${spec.description}. this is your own chat with them. say hi in a line, in your voice, and ask what to start with.`
 }

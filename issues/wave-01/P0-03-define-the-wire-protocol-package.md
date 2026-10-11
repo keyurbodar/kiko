@@ -14,7 +14,7 @@
 
 ## Verification
 
-`bun run typecheck` passes in `packages/protocol`, and `bun test packages/protocol` passes the fixture round-trip test.
+`bun run typecheck` passes in `core/protocol`, and `bun test core/protocol` passes the fixture round-trip test.
 
 ## Task
 
@@ -22,7 +22,7 @@
 
 **Read first.** Architecture sections 6.4, 7.1, and 9.2.
 
-**Files.** Create `packages/protocol/` (`src/room.ts`, `src/user.ts`, `src/envelope.ts`, `src/rich-text.ts`, `src/ids.ts`, `src/fixtures.ts`).
+**Files.** Create `core/protocol/` (`src/room.ts`, `src/user.ts`, `src/envelope.ts`, `src/rich-text.ts`, `src/ids.ts`, `src/fixtures.ts`).
 
 **Build.**
 

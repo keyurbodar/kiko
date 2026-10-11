@@ -2,7 +2,6 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// Upload, download, and the room index against real R2 and a real RoomDO in workerd.
 let mf: Miniflare
 let origin: string
 
@@ -28,7 +27,6 @@ const as = (user: string) => ({ "x-test-user": user })
 
 type FileBody = { file: { id: string; name: string; size: number; type: string } }
 
-/** A PUT that says what the writer saw at the path: the sha256 of its bytes, or "none". */
 async function put(room: string, path: string, body: string, expect = "none") {
 	const res = await fetch(`${origin}/api/files/${room}?path=${encodeURIComponent(path)}`, {
 		method: "PUT",
@@ -106,7 +104,6 @@ test("an edit with a stale sha is refused and never overwrites the other writer"
 	const stale = await put(room, "a.txt", "mine", await sha("one"))
 	expect(stale.status).toBe(409)
 	expect(stale.body.file.id).toBe(theirs.body.file.id)
-	// Only the winner's object is left in R2, and the refused bytes are gone.
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${theirs.body.file.id}`])
 	const fresher = await put(room, "a.txt", "mine", await sha("agent wrote this"))
 	expect(fresher.status).toBe(200)

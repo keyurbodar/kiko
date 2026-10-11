@@ -6,62 +6,31 @@ import type { SessionLookup } from "../router"
 import type { NewFile } from "../room/files"
 import { pendingRoute } from "./pending"
 
-// Architecture section 18.1. Bytes go from the client through the Worker to R2 as a
-// stream. The Worker computes SHA-256, then asks the room to index the object. The
-// R2 key is built from the session's user id, so no request can reach another user's bytes.
-// `<roomId>` may be `home`, the user's drive (section 18.3): its index is in UserDO.
-//
-//   PUT    /api/files/<roomId>?path=<path>                     one request, up to MAX_SINGLE_PUT_BYTES
-//          x-yuki-if-sha256: <sha256 | none> is required: what the writer saw at the path. 409 { error, file } when it holds other bytes
-//   POST   /api/files/<roomId>/uploads                         { path, type, size, expect } -> { fileId, uploadId }. `expect` as the header above
-//   PUT    /api/files/<roomId>/uploads/<fileId>/<part>?uploadId=  -> { partNumber, etag }
-//   POST   /api/files/<roomId>/uploads/<fileId>?uploadId=      { parts } -> { file }
-//   DELETE /api/files/<roomId>/uploads/<fileId>?uploadId=      aborts
-//   *      /api/files/<roomId>/pending/...                     a composer attachment before it is sent (pending.ts)
-//
-// R2 multipart rules apply to the parts: every part but the last is at least 5 MiB and
-// all of them are the same size. R2 refuses the completion otherwise.
-
-/** ASSUMPTION: the per-file cap. */
 export const MAX_FILE_BYTES = 512 * 1024 * 1024
-/**
- * ASSUMPTION: the largest single request body, for a one-request upload or one part.
- * UNVERIFIED: the Workers request body limit per plan. This stays far under 100 MB.
- */
 export const MAX_SINGLE_PUT_BYTES = 32 * 1024 * 1024
-/**
- * ASSUMPTION: every user's storage limit. The limits record does not exist yet. P9-01
- * creates it in `user/limits.ts` and replaces this constant with the user's record.
- */
 export const STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024
 
 const MAX_PATH = 512
 const FILE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const FILES_PATH = /^\/api\/files\/([^/]+)(?:\/(.*))?$/
 const HUMAN: Actor = { kind: "human" }
+const R2_DELETE_LIMIT = 1000
 
-/** What a writer saw at the path: a SHA-256, or "none" for a path that must be empty. Null when malformed. */
 const expectOf = (value: unknown): string | null => (typeof value === "string" && /^(none|[0-9a-f]{64})$/.test(value) ? value : null)
 const EXPECT_ERROR = "say what you saw at the path: the sha256 of its bytes, or none for a new file"
 
-export const userPrefix = (userId: string) => `u/${userId}/`
+function userPrefix(userId: string): string {
+	return `u/${userId}/`
+}
 
-/** The id of the user's drive in a files route. No room id has this shape. */
 export const HOME = "home"
-/** A file space a route may name: a room, or the user's drive. */
 export const isSpace = (id: string) => id === HOME || isRoomId(id)
+export const isFileId = (id: string) => FILE_ID.test(id)
 
-/** The R2 key. The user id comes from the session only. */
 export function fileKey(userId: string, roomId: string, fileId: string): string {
 	return `${userPrefix(userId)}r/${roomId}/${fileId}`
 }
 
-export const isFileId = (id: string) => FILE_ID.test(id)
-
-/** R2 deletes at most 1,000 keys per call. */
-const R2_DELETE_LIMIT = 1000
-
-/** Deletes dropped files, in calls R2 accepts however many there are. */
 export async function deleteFiles(bucket: R2Bucket, keys: string | readonly string[]): Promise<void> {
 	const all = typeof keys === "string" ? [keys] : keys
 	for (let i = 0; i < all.length; i += R2_DELETE_LIMIT) await bucket.delete(all.slice(i, i + R2_DELETE_LIMIT))
@@ -71,40 +40,47 @@ export function error(status: number, message: string): Response {
 	return Response.json({ error: message }, { status })
 }
 
-/** Splits `/api/files/<roomId>/<rest>`. Null when the path is not a files route. */
 export function filesPath(pathname: string): { roomId: string; rest: string[] } | null {
 	const m = FILES_PATH.exec(pathname)
 	if (!m) return null
-	return { roomId: m[1]!, rest: m[2] ? m[2].split("/") : [] }
+	const roomId = m[1]
+	if (roomId === undefined) return null
+	return { roomId, rest: m[2] ? m[2].split("/") : [] }
 }
 
-/** A path in the room's file space: relative, no empty, `.`, or `..` segments, no control characters. */
+function isControl(c: string): boolean {
+	const n = c.charCodeAt(0)
+	return n <= 0x1f || n === 0x7f
+}
+
 export function cleanPath(raw: unknown): string | null {
 	if (typeof raw !== "string" || !raw || raw.length > MAX_PATH) return null
-	if (/[\u0000-\u001f\u007f\\]/.test(raw)) return null
+	if ([...raw].some((c) => c === "\\" || isControl(c))) return null
 	const parts = raw.split("/")
 	if (parts.some((p) => p === "" || p === "." || p === "..")) return null
 	return raw
 }
 
-function mime(raw: unknown): string {
-	const type = typeof raw === "string" ? raw.split(";", 1)[0]!.trim().toLowerCase() : ""
-	return /^[a-z0-9][\w.+-]*\/[\w.+-]+$/.test(type) ? type : "application/octet-stream"
-}
-
-function contentLength(request: Request): number | null {
-	const raw = request.headers.get("content-length")
-	const n = raw === null ? Number.NaN : Number(raw)
+export function declaredSize(raw: string | null | undefined): number | null {
+	const n = raw === null || raw === undefined || raw === "" ? Number.NaN : Number(raw)
 	return Number.isSafeInteger(n) && n >= 0 ? n : null
 }
 
-/** The request body as a stream R2 accepts, which needs a known length. */
-function sized(request: Request, length: number): ReadableStream {
-	const body = request.body ?? new Blob([]).stream()
-	return body.pipeThrough(new FixedLengthStream(length))
+export function mime(raw: unknown): string {
+	const type = typeof raw === "string" ? (raw.split(";", 1)[0] ?? "").trim().toLowerCase() : ""
+	return /^[a-z0-9][\w.+-]*\/[\w.+-]+$/.test(type) ? type : "application/octet-stream"
 }
 
-/** Bytes the user stores in R2 today, across every room. */
+export async function json(request: Request): Promise<Record<string, unknown> | null> {
+	if (!request.headers.get("content-type")?.includes("application/json")) return null
+	try {
+		const body = await request.json()
+		return body && typeof body === "object" ? (body as Record<string, unknown>) : null
+	} catch {
+		return null
+	}
+}
+
 async function usedBytes(bucket: R2Bucket, userId: string): Promise<number> {
 	let total = 0
 	let cursor: string | undefined
@@ -116,14 +92,12 @@ async function usedBytes(bucket: R2Bucket, userId: string): Promise<number> {
 	return total
 }
 
-/** Null when `size` more bytes fit, or the refusal. */
 export async function refuse(bucket: R2Bucket, userId: string, size: number): Promise<Response | null> {
 	if (size > MAX_FILE_BYTES) return error(413, "file too large")
 	if ((await usedBytes(bucket, userId)) + size > STORAGE_LIMIT_BYTES) return error(413, "storage limit reached")
 	return null
 }
 
-/** Indexes a stored object in its space and deletes whatever the space no longer points to. */
 async function index(env: Env, userId: string, roomId: string, input: NewFile): Promise<Response> {
 	const room = roomId === HOME ? null : await addressRoom(env, userId, roomId)
 	if (roomId !== HOME && !room) {
@@ -133,26 +107,14 @@ async function index(env: Env, userId: string, roomId: string, input: NewFile): 
 	const { file, drop, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
 	if (drop) await deleteFiles(env.FILES, drop)
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })
-	// A stale edit writes nothing. The answer names what the path holds now, so the editor can offer it.
 	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })
 	return Response.json({ file })
-}
-
-async function json(request: Request): Promise<Record<string, unknown> | null> {
-	// A JSON content type makes a cross-site form post impossible without a CORS preflight.
-	if (!request.headers.get("content-type")?.includes("application/json")) return null
-	try {
-		const body = await request.json()
-		return body && typeof body === "object" ? (body as Record<string, unknown>) : null
-	} catch {
-		return null
-	}
 }
 
 async function putOne(request: Request, env: Env, userId: string, roomId: string, url: URL): Promise<Response> {
 	const path = cleanPath(url.searchParams.get("path"))
 	if (!path) return error(400, "bad path")
-	const length = contentLength(request)
+	const length = declaredSize(request.headers.get("content-length"))
 	if (length === null) return error(411, "content-length required")
 	if (length > MAX_SINGLE_PUT_BYTES) return error(413, "too large for one request, use a multipart upload")
 	const expectSha256 = expectOf(request.headers.get("x-yuki-if-sha256"))
@@ -192,42 +154,30 @@ async function create(request: Request, env: Env, userId: string, roomId: string
 	return Response.json({ fileId, uploadId: upload.uploadId })
 }
 
-async function part(request: Request, env: Env, key: string, uploadId: string, n: number): Promise<Response> {
-	const length = contentLength(request)
+export async function part(request: Request, env: Env, key: string, uploadId: string, n: number): Promise<Response> {
+	const length = declaredSize(request.headers.get("content-length"))
 	if (length === null) return error(411, "content-length required")
 	if (length > MAX_SINGLE_PUT_BYTES) return error(413, "part too large")
 	try {
-		const uploaded = await env.FILES.resumeMultipartUpload(key, uploadId).uploadPart(n, sized(request, length))
+		const body = (request.body ?? new Blob([]).stream()).pipeThrough(new FixedLengthStream(length))
+		const uploaded = await env.FILES.resumeMultipartUpload(key, uploadId).uploadPart(n, body)
 		return Response.json({ partNumber: uploaded.partNumber, etag: uploaded.etag })
 	} catch {
 		return error(404, "no such upload")
 	}
 }
 
-async function complete(
-	request: Request,
-	env: Env,
-	userId: string,
-	roomId: string,
-	fileId: string,
-	uploadId: string,
-): Promise<Response> {
+async function complete(request: Request, env: Env, userId: string, roomId: string, fileId: string, uploadId: string): Promise<Response> {
 	const body = await json(request)
 	const parts = body?.parts
-	if (
-		!Array.isArray(parts) ||
-		!parts.every((p) => p && Number.isSafeInteger(p.partNumber) && typeof p.etag === "string")
-	) {
+	if (!Array.isArray(parts) || !parts.every((p) => p && Number.isSafeInteger(p.partNumber) && typeof p.etag === "string")) {
 		return error(400, "bad parts")
 	}
 	const key = fileKey(userId, roomId, fileId)
 	let fresh = true
 	try {
-		await env.FILES.resumeMultipartUpload(key, uploadId).complete(
-			parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })),
-		)
+		await env.FILES.resumeMultipartUpload(key, uploadId).complete(parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })))
 	} catch {
-		// A retried completion finds the object already there.
 		fresh = false
 	}
 	const object = await env.FILES.get(key)
@@ -242,7 +192,6 @@ async function complete(
 		await env.FILES.delete(key)
 		return error(413, object.size > MAX_FILE_BYTES ? "file too large" : "storage limit reached")
 	}
-	// R2 cannot hash across parts for us, so the Worker reads the object once.
 	const sha256 = await sha256Stream(object.body)
 	const type = mime(object.httpMetadata?.contentType)
 	const expectSha256 = expectOf(object.customMetadata?.expect)
@@ -250,12 +199,7 @@ async function complete(
 	return index(env, userId, roomId, { id: fileId, path, r2Key: key, size: object.size, type, sha256, author: HUMAN, expectSha256 })
 }
 
-/** Answers the upload routes. Null for any other request. */
-export async function uploadRoute(
-	request: Request,
-	env: Env,
-	lookup: SessionLookup,
-): Promise<Response | null> {
+export async function uploadRoute(request: Request, env: Env, lookup: SessionLookup): Promise<Response | null> {
 	const url = new URL(request.url)
 	const route = filesPath(url.pathname)
 	if (!route || request.method === "GET" || request.method === "HEAD") return null

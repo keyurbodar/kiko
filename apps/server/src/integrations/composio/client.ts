@@ -29,9 +29,15 @@ export class ComposioError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    readonly retryAfter?: number,
   ) {
     super(message)
   }
+}
+
+function retryAfterSeconds(res: Response): number | undefined {
+  const seconds = Number(res.headers.get("retry-after"))
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined
 }
 
 /**
@@ -88,7 +94,7 @@ export async function composioRpc(target: Target, method: string, params: Record
   }
   if (!res.ok) {
     await res.body?.cancel()
-    throw new ComposioError(`Composio answered ${res.status}`, res.status)
+    throw new ComposioError(`Composio answered ${res.status}`, res.status, retryAfterSeconds(res))
   }
   return parseRpcResponse(await res.text(), res.headers.get("content-type") ?? "", id)
 }
@@ -127,7 +133,7 @@ async function api(key: string, path: string, fetchImpl: typeof fetch, init: { m
   })
   if (res.ok) return res
   await res.body?.cancel()
-  throw new ComposioError(res.status === 401 || res.status === 403 ? REJECTED : `Composio answered ${res.status}`, res.status)
+  throw new ComposioError(res.status === 401 || res.status === 403 ? REJECTED : `Composio answered ${res.status}`, res.status, retryAfterSeconds(res))
 }
 
 /** Throws unless Composio accepts `key`, with the cheapest read it has. */

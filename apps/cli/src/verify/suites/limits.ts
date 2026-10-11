@@ -3,8 +3,6 @@ import { VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { fake, newRoom, send, until } from "./mid-run"
 
-// P9-01, architecture section 17.7. With the turn limit at 2, the third burst gets a limit line and
-// no run; raising the record lets the next burst through. Fake agent, no tokens. Needs a dev server.
 
 const suite: Suite = {
   name: "limits",
@@ -38,7 +36,7 @@ const suite: Suite = {
     await until("the limit line", () => limitLines().length === 1, 20_000)
     await Bun.sleep(3_000)
     if (agentReplies() !== 2) throw new VerifyError(`the third burst got a reply: ${agentReplies()} replies`)
-    console.log(`  ok the third burst got: ${JSON.stringify(limitLines()[0]!.text)} and no run`)
+    console.log(`  ok the third burst got: ${JSON.stringify(limitLines()[0]?.text)} and no run`)
     await setLimits({ turnsPerDay: 10 })
     await send(room, "[reply] four.")
     await until("the reply after raising the limit", () => agentReplies() === 3, 20_000)

@@ -1,13 +1,3 @@
-/*
- * Client tier budget. Reads the Vite manifest and fails when a tier grows past
- * its recorded gzip size plus 5 percent. Architecture 19.3.
- *
- *   cd apps/web-solid && bun run build   (once)
- *   bun scripts/bundle-budget.ts
- *
- * To record a new size on purpose, edit RECORDED below in the same change and
- * say why. Sizes are gzip bytes of the JS and CSS files in that tier.
- */
 import { gzipSync } from "node:zlib";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,41 +6,24 @@ const DIST = join(import.meta.dir, "../apps/web-solid/dist");
 const TOLERANCE = 1.05;
 const HTML_MAX_BYTES = 20 * 1024;
 
-/* Manifest keys. Tier 1 is the entry. Tier 2 is what /chat needs before it paints. */
 const FIRST_PAINT_ROUTE = "src/app/routes/chat.tsx";
 const APP_ENTRY = "src/main.tsx";
 
-/* Tier 3 modules load with lazy() or a dynamic import on idle or intent. */
 const TIER3 = [
   "src/palette/palette.tsx",
   "src/chat/info/panel.tsx",
   "src/chat/ui/DateCalendar.tsx",
-  // Loaded after first paint, on idle or first use: Kobalte overlays, the toaster, motion.
   "../../packages/ui/src/v2/components/overlays-impl.ts",
   "../../packages/ui/src/v2/components/toast-v2-impl.tsx",
   "../../node_modules/.bun/motion@12.34.5/node_modules/motion/dist/es/index.mjs",
-  // Loaded on intent: the composer's attachment strip and popover, the image dialog, the emoji picker, the reaction popover, the masked link warning.
   "src/composer/prompt-input/extras.tsx",
   "src/chat/ui/ImageDialog.tsx",
   "src/chat/ui/EmojiPicker.tsx",
   "src/chat/ui/ReactionPopover.tsx",
   "src/chat/ui/SuspiciousLinkDialog.tsx",
 ];
-/* Tier 4 route chunks load on route intent. */
 const TIER4 = ["src/files/pane.tsx", "src/app/routes/settings.tsx"];
 
-/*
- * Recorded gzip bytes, measured at P2-03. Re-recorded on purpose:
- * - tier 1: the shell html lists more modulepreload links.
- * - tier 3: P3-14 palette and cmdk-solid add 5.6 KB. The budget fix moved the hotkey library
- *   (@tanstack/solid-hotkeys), the corvu day calendar and fuzzysort out of tier 2 into lazy
- *   chunks, which adds about 12 KB here. Tier 2 shrank by the same code.
- * - tier 4: the settings and memory routes have real content. They were placeholders. P2-19 then removed the memory route: memory is a view in the info panel.
- * - The first-paint pass moved motion, solid-sonner, Kobalte (menus, tooltips, hover cards,
- *   dialogs, the dismissable layer, the button), the icon glyphs not shown at rest, and the
- *   composer's attachment strip, popover and link card out of tier 2, and listed those lazy
- *   modules in tier 3. Tier 2 fell from 231871 to 142468. Every number below is the new size.
- */
 const RECORDED: Record<string, number> = {
   "tier 1 shell js": 1892, // t3code attachments (2026-10-09): the entry's list of lazy chunks names the image dialog and a few shared chunks Rolldown split differently (+57 B over main's 1835, which was 2 B under the old limit). Before: 1750. First-paint pass: re-recorded at the measured size. P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.
   "tier 2 first paint of /chat": 175553, // t3code attachments (2026-10-09): the album layouter, link cards, thumbhash, the link preview cache and the media viewer's opener left first paint (-3.3 KB). Before: 178838. Emoji pass: the message hover actions, the shared emoji data and recents, and the composer's emoji button and shortcode list add 1.5 KB, after swipe to reply and Twemoji left. The build before it already measured 177348, past the old limit. Before: 166174. Redesign merged with extensions: the frost, graphite and porcelain looks with the tint (look model and pre-paint cache), the one Claude-style sidebar that replaced the rail, Hugeicons glyphs as named exports in place of the two icon sprites, and the extensions proposals count and waiting dot. The pixel field and moments are lazy, and the presence stage is gone. Before: 158220. Memory pass (~1.7 KB): the capped message window with paging from IndexedDB and disk patches, the split row memos, the shared user socket channel, object URL revocation, and the thumbhash placeholder. The still maker and both thumbhash halves load lazily. main before it: 156553, already past the earlier record. Before: 150260. Agents' files and drafts: the stores now carry folders, the user's drive (/home) and its overlay, drafts with yuki, private chats, and the socket's liveness ping (~7.8 KB with the earlier growth below). The rich tree renderer and sugar-high stay lazy. Before: 142468. First-paint pass: motion, sonner, Kobalte, idle icon glyphs and composer extras moved to tier 3. Before: 231871. P2-08 bubble pacing and drafts, the chat QA pass (group sender names and gutter avatar, bubble-in motion, empty-chat tips, start-chat button), and one chatSeed for every avatar.
@@ -74,10 +47,8 @@ const manifest: Record<string, Entry> = JSON.parse(readFileSync(manifestPath, "u
 
 const gz = (file: string): number => gzipSync(readFileSync(join(DIST, file))).length;
 
-/* Manifest keys a tier names that the build does not have. Reported as failures, never thrown. */
 const missing = new Set<string>();
 
-/* The files of a set of manifest keys and their static imports, minus `exclude`. */
 function closure(keys: string[], exclude = new Set<string>()): Set<string> {
   const files = new Set<string>();
   const seen = new Set<string>();
@@ -114,7 +85,6 @@ const measured: Record<string, number> = {
   "tier 4 route chunks": size(tier4),
 };
 
-/* Libraries that must never reach tiers 1 to 3. Found by text that only the library's own code holds. */
 const BANNED: Record<string, RegExp> = {
   effect: /["'`]effect\/[A-Z]/,
   codemirror: /@codemirror|cm-editor|cm-content/,
@@ -160,7 +130,6 @@ for (const [name, bytes] of Object.entries(measured)) {
   rows.push(`| ${name} | ${bytes} | ${limit} | ${ok ? "ok" : "FAIL"} |`);
 }
 
-/* The job summary on GitHub Actions. */
 const summary = process.env.GITHUB_STEP_SUMMARY;
 if (summary) {
   appendFileSync(summary, `### client bundle budget\n\n| tier | bytes | limit | result |\n| --- | ---: | ---: | --- |\n${rows.join("\n")}\n`);

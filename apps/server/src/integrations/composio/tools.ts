@@ -3,6 +3,7 @@ import { declareEffect } from "@yuki/agent/effects"
 import { spill } from "../../agent/extensions/spill"
 import type { RoomFs } from "../../files/room-fs"
 import { count } from "../../lib/dev-stats"
+import { composioErrorText } from "./connect"
 import type { ComposioCall, ComposioCallResult, ComposioTool } from "./client"
 import { directResult, MULTI_EXECUTE } from "./learn"
 import { COMPOSIO_MAX_CONCURRENT, createLimiter, withRetry } from "./limit"
@@ -15,10 +16,7 @@ const requiredFlags = (schema: unknown): string[] => {
   return s.required.filter((k): k is string => typeof k === "string" && s.properties?.[k]?.type === "boolean")
 }
 
-/**
- * Models often omit a required boolean that Composio's meta tools accept as false, so the schema
- * stops requiring it. Not for learned app tools: their required booleans (send, dry_run) are the model's choice.
- */
+/** Models often omit a required boolean that Composio's meta tools accept as false. Learned tools keep theirs: those are the model's choice. */
 export function relaxSchema<T>(schema: T): T {
   const flags = requiredFlags(schema)
   if (!flags.length) return schema
@@ -35,7 +33,7 @@ export const fillFlags = (schema: unknown, args: Record<string, unknown>): Recor
 /** `COMPOSIO_SEARCH_TOOLS` becomes `composio_search_tools`. */
 export const toolName = (name: string) => `composio_${name.replace(/^COMPOSIO_/, "").toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`.slice(0, 64)
 
-/** Every tool Composio lists, then each learned one whose name no earlier tool already has, by name so the prompt prefix stays the same. Two slugs can differ only in case and map to one tool name; a duplicate name stops the whole agent from opening. */
+/** Learned tools after the listed ones, with the first of any two that map to the same name, so the prompt prefix stays stable. */
 function shown(tools: readonly ComposioTool[]): ComposioTool[] {
   const byName = (a: ComposioTool, b: ComposioTool) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
   const taken = new Set<string>()
@@ -50,10 +48,7 @@ function shown(tools: readonly ComposioTool[]): ComposioTool[] {
 
 const learned = (tools: readonly ComposioTool[]) => shown(tools).flatMap((t) => (t.direct ? [toolName(t.name)] : []))
 
-/**
- * A line for the talker's input, which has no Composio tools (architecture section 8): which learned
- * tools a worker can call, so the talker can name one in the task.
- */
+/** Which learned tools a worker can call, so the talker can name one in its task (architecture section 8). */
 export function learnedNote(tools: readonly ComposioTool[]): string | undefined {
   const names = learned(tools)
   return names.length ? `connected-app tools a worker can call directly: ${names.join(", ")}.` : undefined
@@ -91,7 +86,7 @@ export function composioExtension(tools: readonly ComposioTool[], rawCall: Compo
   })
 }
 
-/** Runs one tool call with dev stats, spills big text, and turns a throw into a tool error. */
+/** Dev stats, spill of big text, and a throw turned into a tool error. */
 async function timed(name: string, fs: RoomFs | undefined, run: () => Promise<ComposioCallResult>) {
   count(`composio.call.${name}`)
   try {
@@ -102,6 +97,6 @@ async function timed(name: string, fs: RoomFs | undefined, run: () => Promise<Co
     const content = await Promise.all(out.content.map(async (b) => (b.type === "text" ? { ...b, text: await spill(fs, `composio-${name}`, b.text) } : b)))
     return { content, isError: out.isError }
   } catch (e) {
-    return { content: [{ type: "text" as const, text: `composio did not answer: ${e instanceof Error ? e.message : String(e)}` }], isError: true }
+    return { content: [{ type: "text" as const, text: composioErrorText(e) }], isError: true }
   }
 }

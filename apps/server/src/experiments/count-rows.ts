@@ -1,8 +1,3 @@
-// Experiment 2. Counts the rows a Durable Object's SQLite reads and writes, from the cursor of every
-// statement. It wraps the storage handed to `openDurableObjectSqlite`, so the facade is not edited.
-// Only `sql.exec(...).toArray()` is counted, which is all the facade calls. Key-value `put` calls are
-// not counted. Switched on by the `YUKI_DEBUG_ROWS` variable.
-
 export interface RowCounts {
   rowsRead: number
   rowsWritten: number

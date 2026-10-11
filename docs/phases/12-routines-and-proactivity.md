@@ -29,7 +29,7 @@ The owner asked for this phase on 2026-10-05, left out push notifications, voice
 
 **Goal.** Know in code where a run's authority comes from, so delegation never widens it.
 
-**Files.** `packages/protocol/src/envelope.ts`, `schema.ts`; `apps/server/src/lib/origin.ts`; `agent/host.ts`, `agent/extensions/trust.ts`, `agent/factory.ts`; `room/deliver.ts`, `room/burst.ts`.
+**Files.** `core/protocol/src/envelope.ts`, `schema.ts`; `apps/server/src/lib/origin.ts`; `agent/host.ts`, `agent/extensions/trust.ts`, `agent/factory.ts`; `room/deliver.ts`, `room/burst.ts`.
 
 **Build.**
 

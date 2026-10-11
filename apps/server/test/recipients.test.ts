@@ -6,9 +6,6 @@ import { replyTag } from "../src/room/bubbles"
 import { route } from "../src/room/deliver"
 import { resolveRecipients, tags } from "../src/room/recipients"
 
-// P6-01. Every row of the table in architecture section 7.2, the burst routing on top of it, and
-// the brief of section 7.4.
-
 const slug = (s: string) => s as AgentSlug
 const team = [
   { slug: slug("bob"), lead: true },

@@ -3,10 +3,6 @@ import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { dev } from "./team-loops"
 
-// Architecture section 13.4, with the real test model. An agent already in a session has the
-// conversation in its context, so it answers from there: a fact told at turn 2 and asked at turn 6
-// costs no recall and no zoom, and small talk in between calls no tool at all. Reads the agent's
-// transcript through the dev trace route, only after its first delivery. About six short model calls.
 
 const TURNS = [
   "hi! one short line.",
@@ -48,7 +44,6 @@ const suite: Suite = {
     }
     const last = answers().at(-1) ?? ""
     if (!last.includes("4417")) throw new VerifyError(`turn 6 did not answer from the conversation: ${JSON.stringify(last)}`)
-    // The transcript, split at each input. Turn i's tools are the tool calls after its input.
     const trace = (await dev(v.url, s.cookie, "trace", { roomId })) as Trace
     const turns: string[][] = []
     for (const e of trace) {
@@ -57,8 +52,8 @@ const suite: Suite = {
     }
     if (turns.length !== TURNS.length) throw new VerifyError(`expected ${TURNS.length} inputs in one transcript, saw ${turns.length}: the session started over`)
     console.log(`  tools per turn: ${JSON.stringify(turns)}`)
-    for (const i of [0, 2, 3, 4]) if (turns[i]!.length) throw new VerifyError(`small talk at turn ${i + 1} called ${turns[i]!.join(", ")}`)
-    const looked = turns[5]!.filter((t) => t === "recall" || t === "zoom")
+    for (const i of [0, 2, 3, 4]) if (turns[i]?.length) throw new VerifyError(`small talk at turn ${i + 1} called ${turns[i]?.join(", ")}`)
+    const looked = turns[5]?.filter((t) => t === "recall" || t === "zoom")
     if (looked.length) throw new VerifyError(`turn 6 called ${looked.join(", ")} for a fact the conversation already had`)
     console.log(`  turn 6 answered ${JSON.stringify(last)} with no recall or zoom`)
     room.raw.close()

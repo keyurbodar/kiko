@@ -2,13 +2,9 @@ import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { until } from "./mid-run"
-import { dev, team } from "./team-loops"
+import { dev, } from "./team-loops"
+import { must } from "../must"
 
-// Architecture sections 7.5 and 13, with the real test model. A three-agent task that needs every
-// member: yuki leads, ada alone knows the pastry stop, and bob alone knows the meeting point. The human
-// asks yuki for one file with both. yuki must get each fact from its owner (ask or send_message), write
-// /walk.md, and tell the human. Scored on the result, and on the runs it cost: nobody may be woken
-// more than twice for one request.
 
 const PASTRY = "casa vidal"
 const MEET = "yellow kiosk"
@@ -52,9 +48,9 @@ const suite: Suite = {
       return out
     }
     await until("/walk.md", () => files().has("walk.md"), 240_000)
-    await until("yuki says it's done", () => messages().some((m) => m.from.kind === "agent" && m.from.slug === "yuki" && m.seq > files().get("walk.md")!.at), 120_000).catch(() => {})
+    await until("yuki says it's done", () => messages().some((m) => m.from.kind === "agent" && m.from.slug === "yuki" && m.seq > (files().get("walk.md")?.at ?? 0)), 120_000).catch(() => {})
     await Bun.sleep(5_000)
-    const file = files().get("walk.md")!
+    const file = must(files().get("walk.md"), "walk.md")
     const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
     const text = (await (await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })).text()).toLowerCase()
     console.log(`  /walk.md after ${Math.round((Date.now() - t0) / 1000)} s: ${JSON.stringify(text)}`)

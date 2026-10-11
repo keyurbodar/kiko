@@ -161,7 +161,6 @@ test("capture questions are pi-ai bool and choice questions that point into the 
   expect(questions.c1_worth!.instructions).toContain("`candidates[1].text`")
   for (const q of Object.values(questions)) {
     expect(typeof q.instructions).toBe("string")
-    // Known facts appear only in their own same and replaces questions, never where worth is judged.
     if (!/_(same|replaces)_/.test(Object.keys(questions).find((k) => questions[k] === q)!)) expect(q.instructions).not.toContain("Bangalore")
     if (q.type === "bool") expect([typeof q.criteria.true, typeof q.criteria.false]).toEqual(["string", "string"])
   }

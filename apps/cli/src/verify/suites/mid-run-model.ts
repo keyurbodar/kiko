@@ -3,9 +3,6 @@ import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { newRoom, seen, send, statuses, until } from "./mid-run"
 
-// P1-12 with the real test model. `mid-run` proves each rule with the fake agent. This one checks
-// that stop really ends a live model run: once the agent reports idle, no more bubbles arrive, and
-// the agent still answers the next message. Short prompts keep the cost small.
 
 const suite: Suite = {
   name: "mid-run-model",
@@ -15,7 +12,6 @@ const suite: Suite = {
     await connectTestModel(s)
     const { room } = await newRoom(s, "mid-run model check")
     await send(room, "count from 1 to 300, one number per paragraph, separated by blank lines. nothing else.")
-    // One turn is one bubble, so stop a few seconds into the stream, before the answer closes.
     await until(
       "the agent to start typing",
       () => room.raw.log.some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as { state: string }).state === "typing"),

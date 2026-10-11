@@ -1,4 +1,4 @@
-import type { RoomId, RoutineRunStatus, Trigger, TriggerKind } from "@yuki/protocol"
+import type { RoomId, RoutineRunStatus, Trigger } from "@yuki/protocol"
 import type { Env } from "../index"
 import type { Alarms } from "@yuki/durable/alarm"
 import { roomStub } from "../lib/names"
@@ -8,7 +8,7 @@ import type { Budget } from "../room/wake"
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@yuki/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
-import { nextOccurrence, ruleProblem } from "./recurrence"
+import { nextOccurrence, ruleProblem, validZone } from "./recurrence"
 
 export const REMINDERS_WAKEUP = "reminders"
 export const MAX_ROUTINES = 50
@@ -65,7 +65,6 @@ export type WatchFetch = (trigger: Extract<Trigger, { on: "watch" }>) => Promise
 
 export type Notice = (roomId: RoomId, id: string, text: string) => Promise<void>
 
-/** `away` only saves a watch its fetch while the human is away; whether a run may start is `RoomDO.wake`'s call. */
 export type RunGate = { away(): boolean }
 
 export type NewReminder = {
@@ -118,21 +117,6 @@ const toReminder = (r: Row): Reminder => ({
 })
 
 export const deliveryId = (r: Pick<Reminder, "id" | "dueUtc">) => `${r.id}:${r.dueUtc}`
-
-function validZone(tz: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz })
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
- * Parses an ISO time that names its offset. A bare wall time is ambiguous, so it is
- * refused. The result is rounded up to a whole second, because `rrule` works in
- * seconds and a recurring row must keep its exact step.
- */
 function parseTime(time: string): number {
   if (!/(z|[+-]\d{2}:?\d{2})$/i.test(time.trim())) throw new ReminderError("time must include an offset or z")
   const at = Date.parse(time)
@@ -216,6 +200,12 @@ export class Reminders {
     return row ? toReminder(row) : null
   }
 
+  private required(id: string): Reminder {
+    const reminder = this.get(id)
+    if (!reminder) throw new ReminderError(`no reminder ${id}`)
+    return reminder
+  }
+
   list(): Reminder[] {
     return this.sql
       .exec<Row>(
@@ -267,7 +257,7 @@ export class Reminders {
       chain ? JSON.stringify(chain) : null,
     )
     await this.rearm()
-    return this.get(id)!
+    return this.required(id)
   }
 
 
@@ -285,6 +275,8 @@ export class Reminders {
   async createRoutine(owner: string, input: NewRoutine): Promise<{ routine: Reminder; token?: string }> {
     this.claim(owner, input.roomId)
     const fields = this.routineFields(input)
+    const token = input.trigger.on === "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
+    const tokenHash = token ? await sha256Hex(token) : null
     const open = this.sql
       .exec<{ n: number }>("SELECT count(*) AS n FROM reminders WHERE room_id = ? AND target = ? AND trigger IS NOT NULL AND status IN ('active', 'paused')", input.roomId, input.target)
       .one().n
@@ -293,7 +285,6 @@ export class Reminders {
       throw new ReminderError(`there are already ${MAX_WATCHES} watches. cancel one first.`)
     }
     const id = crypto.randomUUID()
-    const token = input.trigger.on === "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
     this.sql.exec(
       `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at, name, trigger, fails, hook_hash)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?, ?, 0, ?)`,
@@ -308,10 +299,10 @@ export class Reminders {
       this.now(),
       fields.name,
       JSON.stringify(input.trigger),
-      token ? await sha256Hex(token) : null,
+      tokenHash,
     )
     await this.rearm()
-    return { routine: this.get(id)!, ...(token ? { token } : {}) }
+    return { routine: this.required(id), ...(token ? { token } : {}) }
   }
 
   private routineFields(input: Pick<NewRoutine, "name" | "instructions" | "trigger" | "tz" | "target">): { name: string; text: string; due: number; rrule: string | null } {
@@ -374,7 +365,7 @@ export class Reminders {
       id,
     )
     await this.rearm()
-    return { routine: this.get(id)!, ...(token ? { token } : {}) }
+    return { routine: this.required(id), ...(token ? { token } : {}) }
   }
 
   async byHook(id: string, token: string): Promise<Reminder | null> {
@@ -396,7 +387,6 @@ export class Reminders {
     this.sql.exec("UPDATE routine_runs SET status = 'failed', ended_at = ? WHERE status = 'running' AND started_at < ?", now, now - LOST_RUN_MS)
   }
 
-  /** Recorded as running before the room is asked: its result can come back before `deliverRun` returns, and must find the row. */
   private beginRun(routineId: string, occurrence: string): boolean {
     const added = this.sql.exec(
       "INSERT INTO routine_runs (routine_id, occurrence, started_at, ended_at, status, seq) VALUES (?, ?, ?, NULL, 'running', NULL) ON CONFLICT DO NOTHING",
@@ -439,7 +429,6 @@ export class Reminders {
     await this.ports?.notice(routine.roomId, `paused:${routineId}:${occurrence}`, `routine "${routine.name}" paused itself: its last ${MAX_FAILS} runs failed. ask @${routine.target} to look at it, or resume it.`)
   }
 
-  /** `byHuman`: the human asked for this run just now, so it spends no budget. */
   async runNow(id: string, byHuman = false): Promise<RunDelivery | null> {
     const routine = this.get(id)
     if (!routine?.trigger || routine.status !== "active" || !this.ports) return null
@@ -481,11 +470,6 @@ export class Reminders {
       .map(toReminder)
   }
 
-  /**
-   * Development only (section 26.8): `ms` pass for the reminders agents set for themselves, as the
-   * initiative clock ages. Each moves `ms` earlier, so two days of aging reach one 28 hours out, and
-   * one that reaches now is due now.
-   */
   async devAge(ms: number): Promise<void> {
     this.sql.exec("UPDATE reminders SET due_utc = max(due_utc - ?, ?) WHERE status = 'active' AND trigger IS NULL AND target != 'human' AND due_utc > 0", ms, this.now())
     await this.rearm()
@@ -504,7 +488,7 @@ export class Reminders {
   }
 
   async cancelCreatedBy(createdBy: string): Promise<number> {
-    const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE created_by = ? AND status = 'active'", createdBy)
+    const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE created_by = ? AND status = 'active'", createdBy)
     if (changed.rowsWritten) await this.rearm()
     return changed.rowsWritten
   }
@@ -599,7 +583,6 @@ export class Reminders {
     if (state.fp !== undefined && state.fp !== fp) {
       const excerpt = page.text.length > WATCH_EXCERPT ? `${page.text.slice(0, WATCH_EXCERPT)}\n[cut at ${WATCH_EXCERPT} characters]` : page.text
       this.ports.signal?.({ kind: "watch_change", roomId: routine.roomId, at: this.now(), routineId: routine.id, url: trigger.url })
-      // A held run keeps the old fingerprint, so the next check reports the change once a run can start.
       if ((await this.run(routine, `watch:${routine.dueUtc}`, `${trigger.url} changed`, `the page now:\n${excerpt}`)) === "held") return
     }
     save({ fp })
@@ -636,11 +619,6 @@ function checkRepeat(rrule: string, tz: string, from: number): void {
   if (first && second && second.getTime() - first.getTime() < MIN_REPEAT_MS) throw new ReminderError("a schedule repeats at most every 30 minutes. to notice changes on a page, use a watch trigger instead: it checks every 15 minutes without a model run.")
 }
 
-/**
- * When a scheduled row is next due after `now`, or null when its rule has ended. Never sooner than
- * `MIN_REPEAT_MS` after the time it just had, so a row stored before the floor, or one for the human,
- * cannot post every minute.
- */
 export function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc">, now: number): number | null {
   return r.rrule ? nextAfter(r.rrule, r.tz, r.dueUtc, Math.max(now, r.dueUtc + MIN_REPEAT_MS - 1)) : null
 }
@@ -681,9 +659,11 @@ export function describeTrigger(trigger: Trigger, tz: string, due: number): stri
 }
 
 export function routineBody(routine: Reminder, why: string, last: RoutineRun | null, extra: string): string {
+  const trigger = routine.trigger
+  if (!trigger) throw new ReminderError("routine has no trigger")
   const lines = [
     `routine "${routine.name}" (id ${routine.id}), run because of ${why}.`,
-    `it runs ${describeTrigger(routine.trigger!, routine.tz, routine.dueUtc)}.`,
+    `it runs ${describeTrigger(trigger, routine.tz, routine.dueUtc)}.`,
     last ? `last run: ${last.status}, ${localTime(last.startedAt, routine.tz)}.` : "this is its first run.",
     "instructions:",
     routine.text,

@@ -20,7 +20,6 @@ export interface Context {
   name: string
   list: boolean
   noModel: boolean
-  /** `verify --fake`: suites may use the dev-only fake provider. */
   fake: boolean
   runs: string
   tail?: string

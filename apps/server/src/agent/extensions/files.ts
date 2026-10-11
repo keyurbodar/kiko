@@ -6,7 +6,7 @@ import { createBashTool, createEditTool, createReadTool, createWriteTool } from 
 import type { FsEntry } from "../../room/files"
 import { baseName } from "../../room/files"
 import { DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S } from "../../files/bash"
-import { filesOf, SOUL_PATH } from "../../files/room-fs"
+import { filesOf } from "../../files/room-fs"
 import { declareEffect } from "@yuki/agent/effects"
 
 export const FILES = "files"
@@ -63,7 +63,6 @@ export type FilesOptions = {
   acceptsImages(model: ModelRef | undefined): boolean
 }
 
-/** Every tool works on `filesOf(api)`, the calling conversation's own view of the chat's files. */
 export function filesExtension({ acceptsImages }: FilesOptions): Extension {
   const piRead = createReadTool()
   const read = defineTool({

@@ -1,14 +1,8 @@
 import { defineExtension, type Extension, wrapSection } from "@earendil-works/pi-durable"
 import { CHAT_PATH, MAX_CHAT, type RoomFs, type SoulPort } from "../../files/room-fs"
 
-// Architecture section 7.10. Fills the `soul` and `chat` slots of the system prompt from two files
-// the agent keeps itself: /me/soul.md (who it is, in every chat) and /chat.md (what this chat is
-// for). Both are capped, so neither grows into a token sink. With a run stamp they are read once per
-// run, so an edit lands on the next run and no model request waits on UserDO, RoomDO, or R2.
-
 export const SELF = "self"
 
-/** `read` once per value of `stamp`, and every time without one. A failed read is not kept. */
 export function perRun<T>(read: () => Promise<T>, stamp?: () => number): () => Promise<T> {
   if (!stamp) return read
   let kept: { at: number; value: Promise<T> } | undefined

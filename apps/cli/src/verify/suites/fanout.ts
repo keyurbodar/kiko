@@ -4,10 +4,6 @@ import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
 import { newRoom } from "./mid-run"
 
-// Parallel tool fan-out, end to end with a real model. Needs OPENCODE_API_KEY and COMPOSIO_API_KEY.
-// Connects Composio, warms one chat so a direct web-search tool is learned, then asks for 20 and
-// 30 web searches in ONE response. From the server's dev counters it checks the call count, the
-// wall time, and that the calls overlapped: the sum of per-call ms must exceed wall time by 1/0.6.
 
 const USER = "fanout-alice"
 const MODEL = process.env.YUKI_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
@@ -83,7 +79,6 @@ const suite: Suite = {
     const rows: Row[] = []
     const errors = (c: Record<string, number>) => Object.entries(c).filter(([k, n]) => n > 0 && /error|fail/i.test(k) && (k.startsWith("composio.") || k.startsWith("tool.")))
 
-    // Warm: one chat so a learned direct tool exists.
     const warm = await open("fanout warm")
     rooms.push(warm.roomId)
     const w = await turn(warm.room, "Use Composio to search the web: what is the latest stable Bun version? Answer in one line.")
@@ -96,8 +91,7 @@ const suite: Suite = {
       const { text, total } = await turn(room, prompt(TOPICS.slice(0, count)))
       await Bun.sleep(300)
       const counters = await readStats(v, s)
-      // The talker hands the job to a worker in its own words, so the worker may pick another Composio web search tool.
-      const search = (k: string, re: RegExp) => Object.entries(counters).filter(([key]) => re.test(key) && !key.includes("search_tools")).reduce((n, [, v]) => n + v, 0)
+      const search = (_k: string, re: RegExp) => Object.entries(counters).filter(([key]) => re.test(key) && !key.includes("search_tools")).reduce((n, [, v]) => n + v, 0)
       const calls = search("calls", /^composio\.call\.composio_search_/)
       const sumMs = search("ms", /^composio\.composio_search_\w+\.ms$/)
       const ratio = sumMs > 0 ? total / sumMs : Number.POSITIVE_INFINITY

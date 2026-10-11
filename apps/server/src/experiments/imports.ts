@@ -1,8 +1,3 @@
-// Experiments 5, 6 and 7 (docs/research/experiment-5-bundle-and-catalog.md).
-// Static imports pull pi-ai, pi-durable and TypeBox into the Worker bundle so
-// the bundle size and startup time can be measured. Each OAuth flow module is
-// imported by a literal path in its own dynamic import, so the bundler follows
-// it and a failure shows up per module instead of failing the whole Worker.
 import { createModels } from "@earendil-works/pi-ai/models"
 import { opencodeGoProvider } from "@earendil-works/pi-ai/providers/opencode-go"
 import * as durable from "@earendil-works/pi-durable"

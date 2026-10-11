@@ -1,13 +1,7 @@
 import { sha256Hex } from "@yuki/durable/hash"
-// Architecture section 7.10. Each of the user's agents has a soul: one short markdown file that says
-// who it is and how it works with this person. The agent reads it in its system prompt on every
-// request and keeps it current itself, at /me/soul.md; the human edits it in the app. It lives in
-// UserDO, so an agent is the same agent in every chat. A soul is capped so it stays sharp and cheap.
 
-/** ASSUMPTION: the longest soul. Long enough for a voice and a list of lessons, short enough to stay sharp. */
 export const MAX_SOUL = 3_000
 
-/** The chief: the agent the human texts first. Its soul is the strongest default yuki ships. */
 export const YUKI_SOUL = `# yuki
 
 i'm yuki, their chief: the one they text first about anything. i work out what they actually need, get it done, and keep things moving.
@@ -26,7 +20,6 @@ i'm yuki, their chief: the one they text first about anything. i work out what t
 ## what i've learned about working with them
 `
 
-/** A new agent's first soul: who the human described, and a place for what it learns. */
 export function firstSoul(name: string, description: string): string {
   const who = description.trim() || "a direct, helpful teammate."
   return `# ${name}\n\n${who}\n\n## what i've learned about working with them\n`
@@ -46,10 +39,6 @@ export class Souls {
     return this.sql.exec<Row>("SELECT body, sha, at FROM souls WHERE slug = ?", slug).toArray()[0] ?? null
   }
 
-  /**
-   * The agent's soul. An agent that has none yet gets its first one now: the chief's, or one made
-   * from the agent the human created (its name and description), or from the handle alone.
-   */
   async get(slug: string): Promise<Soul> {
     const found = this.row(slug)
     if (found) return found
@@ -57,7 +46,6 @@ export class Souls {
     return this.seed(slug, slug === "yuki" ? YUKI_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
   }
 
-  /** Stores a first soul unless the agent has one. Returns what the agent has. */
   async seed(slug: string, body: string): Promise<Soul> {
     const found = this.row(slug)
     if (found) return found
@@ -66,7 +54,6 @@ export class Souls {
     return soul
   }
 
-  /** Replaces the soul. `expectSha` is the soul the writer read; any other soul refuses the write. */
   async set(slug: string, body: string, expectSha: string): Promise<SoulWrite> {
     if (!body.trim()) return { ok: false, code: "invalid", message: "a soul cannot be empty" }
     if (body.length > MAX_SOUL) {

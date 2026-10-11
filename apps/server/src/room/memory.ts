@@ -17,7 +17,6 @@ const FORWARDED = "mem_forwarded"
 
 type TurnRow = { pos: number; key: string; first_seq: number | null; last_seq: number | null; at: number; at_last: number; trace: string | null }
 
-/** `page` is set for a page of raw turns, ending at `at`: UserDO then also reads open loops from it (section 26). */
 export type Compress = (prompt: string, page?: { at: number; span: Span }) => Promise<{ text: string } | { retryAt: number } | { error: string }>
 export type Rollup = (text: string, at: number, span: Span) => Promise<void>
 
@@ -61,16 +60,17 @@ export class RoomMemory {
       for (const row of rows) {
         const key = turnKey(JSON.parse(row.sender) as Sender, row.run_id, row.id)
         const joins = last && last.key === key && last.last_seq !== null && (key !== "human" || row.at - last.at_last < HUMAN_GAP_MS)
-        if (joins) {
-          this.sql.exec("UPDATE mem_turns SET last_seq = ?, at_last = ? WHERE pos = ?", row.seq, row.at, last!.pos)
-          last = { ...last!, last_seq: row.seq, at_last: row.at }
+        if (last && joins) {
+          this.sql.exec("UPDATE mem_turns SET last_seq = ?, at_last = ? WHERE pos = ?", row.seq, row.at, last.pos)
+          last = { ...last, last_seq: row.seq, at_last: row.at }
         } else {
           const pos = last ? last.pos + 1 : 0
           this.sql.exec("INSERT INTO mem_turns (pos, key, first_seq, last_seq, at, at_last) VALUES (?, ?, ?, ?, ?, ?)", pos, key, row.seq, row.seq, row.at, row.at)
           last = { pos, key, first_seq: row.seq, last_seq: row.seq, at: row.at, at_last: row.at, trace: null }
         }
       }
-      if (rows.length) this.meta.set(SYNCED, String(rows[rows.length - 1]!.seq))
+      const tail = rows.at(-1)
+      if (tail) this.meta.set(SYNCED, String(tail.seq))
       this.forgetChanged()
       return this.count()
     })
@@ -92,13 +92,14 @@ export class RoomMemory {
     if (newest > from) this.meta.set(EVENTS, String(newest))
   }
 
-  /** Edits and deletes the user's memory has not heard about yet. Its own cursor, so a failed forward is retried. */
   changes(): Changes | null {
+    this.sync()
     const from = Number(this.meta.get(FORWARDED) ?? 0)
     const events = this.sql
       .exec<{ seq: number; kind: string; payload: string }>("SELECT seq, kind, payload FROM events WHERE seq > ? AND kind IN ('edit', 'delete') ORDER BY seq", from)
       .toArray()
-    if (!events.length) return null
+    const tail = events.at(-1)
+    if (!tail) return null
     const deleted = new Set<string>()
     const edited = new Map<string, string>()
     for (const e of events) {
@@ -117,9 +118,12 @@ export class RoomMemory {
       for (const r of this.sql.exec<{ id: string; at: number; sender: string }>("SELECT id, at, sender FROM messages WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify([...edited.keys()])))
         if ((JSON.parse(r.sender) as Sender).kind === "human") humanAt.set(r.id, r.at)
     return {
-      upto: events[events.length - 1]!.seq,
+      upto: tail.seq,
       deleted: [...deleted],
-      edited: [...edited].flatMap(([messageId, text]) => (deleted.has(messageId) || !humanAt.has(messageId) ? [] : [{ messageId, text, at: humanAt.get(messageId)! }])),
+      edited: [...edited].flatMap(([messageId, text]) => {
+        const at = humanAt.get(messageId)
+        return deleted.has(messageId) || at === undefined ? [] : [{ messageId, text, at }]
+      }),
       positions: [...positions].sort((a, b) => a - b),
     }
   }
@@ -157,7 +161,7 @@ export class RoomMemory {
       }
       if (!r.sender || r.text === null || r.deleted_at !== null) continue
       const from = JSON.parse(r.sender) as Sender
-      g.who = who(from)
+      g.who = from.kind === "human" ? "human" : from.kind === "agent" ? `@${from.slug}` : `system (${from.reason})`
       const files = r.files ? ` (files: ${(JSON.parse(r.files) as { name: string }[]).map((f) => `/${f.name}`).join(", ")})` : ""
       g.parts.push(`${r.text}${files}`)
       g.shown.push(from.kind === "human" ? `[${r.id}] ${r.text}${files}` : `${r.text}${files}`)
@@ -235,9 +239,9 @@ export class RoomMemory {
     )
     return hits.map((hit) => {
       const pos = poss.get(hit.id) ?? null
-      const text = oneLine(texts.get(hit.id) ?? hit.snippet.replace(/[\u0002\u0003]/g, ""), RECALL_CUT)
+      const text = oneLine(texts.get(hit.id) ?? hit.snippet.replaceAll("\u0002", "").replaceAll("\u0003", ""), RECALL_CUT)
       const rest = text.endsWith("…") && pos !== null ? ` (cut, zoom chat:${pos})` : ""
-      return `${pos === null ? "" : `#${pos} `}${dayOf(hit.at, now)} ${who(hit.from)}: ${text}${rest}`
+      return `${pos === null ? "" : `#${pos} `}${dayOf(hit.at, now)} ${hit.from.kind === "human" ? "human" : hit.from.kind === "agent" ? `@${hit.from.slug}` : `system (${hit.from.reason})`}: ${text}${rest}`
     })
   }
 
@@ -312,6 +316,3 @@ function whoOfKey(key: string): string {
   return kind === "agent" || kind === "trace" ? `@${slug}` : "system"
 }
 
-function who(from: Sender): string {
-  return from.kind === "human" ? "human" : from.kind === "agent" ? `@${from.slug}` : `system (${from.reason})`
-}

@@ -2,21 +2,28 @@ import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
 
-// DEVELOPMENT ONLY. `POST /api/dev/user/browser-tabs { agentId, tabs }` and `browser-share
-// { agentId, roomId, reason }` call the same RPCs the browser tools use (`browserTouch`,
-// `browserShare`), so `verify browser-takeover` and the client check see the chip and the card
-// without a model. Not found outside development.
+const LOCAL_HOSTS: Record<string, true> = { localhost: true, "127.0.0.1": true, "[::1]": true }
+
 export async function devBrowserRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const share = url.pathname === "/api/dev/user/browser-share"
   if (process.env.NODE_ENV !== "development" || (url.pathname !== "/api/dev/user/browser-tabs" && !share) || request.method !== "POST") return null
+  if (LOCAL_HOSTS[url.hostname] !== true) return Response.json({ error: "not found" }, { status: 404 })
   const user = await getSessionUser(request, env)
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
-  const body = (await request.json().catch(() => null)) as { agentId?: string; tabs?: Record<string, string>; roomId?: string; reason?: string } | null
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
+  const agentId = body?.agentId
+  if (typeof agentId !== "string") return Response.json({ error: "agentId required" }, { status: 400 })
   try {
     const stub = userStub(env.USER, user.id)
-    if (share) return Response.json({ ok: await stub.browserShare(body?.agentId as string, body?.roomId as string, body?.reason as string) })
-    return Response.json({ ok: await stub.browserTouch(body?.agentId as string, body?.tabs) })
+    if (share) {
+      const roomId = body?.roomId
+      const reason = body?.reason
+      if (typeof roomId !== "string" || typeof reason !== "string") return Response.json({ error: "roomId and reason required" }, { status: 400 })
+      return Response.json({ ok: await stub.browserShare(agentId, roomId, reason) })
+    }
+    const tabs = body?.tabs
+    return Response.json({ ok: await stub.browserTouch(agentId, tabs as Record<string, string> | undefined) })
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 })
   }

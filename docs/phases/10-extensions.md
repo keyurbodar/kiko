@@ -23,11 +23,11 @@ The owner asked for this phase on 2026-10-04 and gave full authority over it. It
 
 `deps: P10-01` `difficulty: 2` `area: docs`
 
-**Verify.** `bun test` in `packages/protocol` passes `test/extensions.test.ts`, and a manifest with a bad name, a secret for a host outside `egress`, or a wrap of a safety section is refused with each problem named.
+**Verify.** `bun test` in `core/protocol` passes `test/extensions.test.ts`, and a manifest with a bad name, a secret for a host outside `egress`, or a wrap of a safety section is refused with each problem named.
 
 **Goal.** One manifest format, checked the same way on the server, in the CLI, and in the client.
 
-**Files.** `packages/protocol/src/extensions.ts`, `user.ts`, `schema.ts`.
+**Files.** `core/protocol/src/extensions.ts`, `user.ts`, `schema.ts`.
 
 **Build.**
 

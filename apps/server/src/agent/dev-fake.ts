@@ -37,12 +37,13 @@ const textOf = (m: Message) =>
     .trim()
 const callsTool = (m: Message) => typeof m.content !== "string" && (m.content ?? []).some((p) => p.type === "toolCall")
 
-/**
- * Section 8. A worker has no start_work. A task with a tool directive (`[ws <tool> {json}]` or
- * `[tool <tool> {json}]`) calls that tool once. Otherwise it runs `[steps N]` slow steps (one by
- * default). Then it reports every turn it was given, with its tool results.
- */
 const WORK_STEP_MS = 3_000
+
+function capture(match: readonly string[], index: number): string {
+  const value = match[index]
+  if (value === undefined) throw new Error(`regex group ${index} did not participate in the match`)
+  return value
+}
 
 const directCall = (text: string) => /\[(?:ws|tool) (\w+) (\{.*?\})\]/.exec(text.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
 
@@ -55,30 +56,29 @@ function workerReply(messages: readonly Message[], toolNames: () => string) {
   const last = messages.at(-1)
   if (last?.role === "toolResult" && last.toolName?.startsWith("browse")) return fauxAssistantMessage(browsed(textOf(last)))
   const direct = directCall(users[0] ?? "")
-  if (direct && !results.length) return fauxAssistantMessage(fauxToolCall(direct[1]!, JSON.parse(direct[2]!)), { stopReason: "toolUse" })
+  if (direct && !results.length) return fauxAssistantMessage(fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))), { stopReason: "toolUse" })
   const steps = direct ? 1 : Number(/\[steps (\d+)\]/.exec(users[0] ?? "")?.[1] ?? 1)
   if (results.length < steps) return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: WORK_STEP_MS }), { stopReason: "toolUse" })
   return fauxAssistantMessage(`work done: heard=${users.join(" | ")}${direct ? `; tool: ${results.map(textOf).join(", ")}` : ""}`)
 }
 
-/** The tool names a request offers, read from its system entries. */
-const toolsOf = (transcript: readonly Message[]) => new Set([...JSON.stringify(transcript.filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map((m) => m[1]!))
+const toolsOf = (transcript: readonly Message[]) => new Set([...JSON.stringify(transcript.filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map((m) => capture(m, 1)))
 
 export function fakeReply(transcript: readonly Message[]) {
   const toolNames = () => getCurrentTools(transcript as never).map((t) => t.name).sort().join(",")
   const messages = transcript.filter((m) => m.role !== "system")
   const offered = toolsOf(transcript)
   if (!offered.has("start_work")) return workerReply(messages, toolNames)
-  const report = messages.at(-1)?.role === "user" ? /<work id="(\w+)" status="(\w+)">([\s\S]*?)<\/work>/.exec(textOf(messages.at(-1)!)) : null
-  if (report) return fauxAssistantMessage(`report ${report[1]} ${report[2]}: ${report[3]!.trim()}`)
+  const tail = messages.at(-1)
+  const report = tail?.role === "user" ? /<work id="(\w+)" status="(\w+)">([\s\S]*?)<\/work>/.exec(textOf(tail)) : null
+  if (report) return fauxAssistantMessage(`report ${report[1]} ${report[2]}: ${capture(report, 3).trim()}`)
   const last = messages.at(-1)
-  // The talker has no worker-only tool (web, apps, extension tools), so it hands a call to one the way a model would.
   const handOff = (m: Message | undefined) => {
     if (m?.role !== "user") return null
     const browseAsk = BROWSE_LINE.exec(textOf(m))
     if (browseAsk && !offered.has("browse")) return browseAsk
     const call = directCall(textOf(m))
-    return call && !offered.has(call[1]!) ? call : null
+    return call && !offered.has(capture(call, 1)) ? call : null
   }
   const toWorker = handOff(last)
   if (toWorker) return fauxAssistantMessage(fauxToolCall("start_work", { task: toWorker[0] }), { stopReason: "toolUse" })
@@ -88,24 +88,21 @@ export function fakeReply(transcript: readonly Message[]) {
   const users = since.filter((m) => m.role === "user").map(textOf)
   const results = since.filter((m) => m.role === "toolResult").map(textOf)
   const ws = last?.role === "user" ? /\[ws (\w+) (\{.*?\})\]/.exec(textOf(last)) : null
-  if (ws) return fauxAssistantMessage(fauxToolCall(ws[1]!, JSON.parse(ws[2]!)), { stopReason: "toolUse" })
+  if (ws) return fauxAssistantMessage(fauxToolCall(capture(ws, 1), JSON.parse(capture(ws, 2))), { stopReason: "toolUse" })
   const fetchFirst = last?.role === "user" && /^\[fetch\]/.test(textOf(last))
   const page = last?.role === "toolResult" && last.toolName === "fake_fetch"
-  // `[tools]` alone in a message: say which tools this conversation has (the browser suite asks a helper).
   if (last?.role === "user" && textOf(last) === "[tools]") return fauxAssistantMessage(`tools: ${toolNames()}`)
-  // `[browse <url> click <label>]`: browse the url, then click the control with that label by the id the summary showed.
   const browse = browseScript(messages, users)
   if (browse) return fauxAssistantMessage(browse, { stopReason: "toolUse" })
   if (last?.role === "toolResult" && last.toolName?.startsWith("browse")) return fauxAssistantMessage(browsed(textOf(last)))
-  const any = (last?.role === "user" && !fetchFirst) || page ? anyToolCall(rawOf(last!)) : null
+  const any = last && ((last.role === "user" && !fetchFirst) || page) ? anyToolCall(rawOf(last)) : null
   if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
-  // One model turn is one bubble, so a two-part answer is two turns: a short note with a tool call, then the rest.
   const twoPart = users.at(-1)?.includes("[two-part]")
   if (twoPart && last?.role === "user") return fauxAssistantMessage([fauxText("part one."), fauxToolCall(SLOW_TOOL, { ms: 1 })], { stopReason: "toolUse" })
   if (twoPart && last?.role === "toolResult" && last.toolName === SLOW_TOOL) return fauxAssistantMessage(`${LONG} heard: ${users.join(" | ")}`)
   const later = users.map((u) => /\[later ([a-z0-9-]+)\]\s*([^<]*)/.exec(u)).find(Boolean)
   if (later && last?.role === "user") return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: LATER_MS }), { stopReason: "toolUse" })
-  if (later && last?.role === "toolResult" && last.toolName === SLOW_TOOL) return fauxAssistantMessage(fauxToolCall("send_message", { to: later[1]!, text: later[2]!.trim() }), { stopReason: "toolUse" })
+  if (later && last?.role === "toolResult" && last.toolName === SLOW_TOOL) return fauxAssistantMessage(fauxToolCall("send_message", { to: capture(later, 1), text: capture(later, 2).trim() }), { stopReason: "toolUse" })
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
   }
@@ -120,7 +117,7 @@ export function fakeReply(transcript: readonly Message[]) {
   const heard = `heard: ${users.join(" | ")}${results.length ? `; tool: ${results.join(", ")}` : ""}${missed}`
   const newest = last?.role === "user" ? textOf(last) : ""
   const scripted = /(?:^|\s)\[reply\]\s*([\s\S]*)$/.exec(newest)
-  if (scripted) return fauxAssistantMessage(scripted[1]!)
+  if (scripted) return fauxAssistantMessage(capture(scripted, 1))
   if (newest.includes("[brief]")) {
     const raw = typeof last?.content === "string" ? last.content : (last?.content ?? []).map((p) => p.text ?? "").join("")
     const lines = raw.split("\n").filter((l) => l.startsWith("- ") && l.includes(" reacted "))
@@ -137,14 +134,13 @@ function browseScript(messages: readonly Message[], users: readonly string[]) {
   const last = messages.at(-1)
   const ask = users.map((u) => BROWSE_LINE.exec(u)).findLast(Boolean)
   if (!ask) return null
-  if (last?.role === "user") return BROWSE_LINE.test(textOf(last)) ? fauxToolCall("browse", { urls: [ask[1]!] }) : null
+  if (last?.role === "user") return BROWSE_LINE.test(textOf(last)) ? fauxToolCall("browse", { urls: [capture(ask, 1)] }) : null
   if (last?.role !== "toolResult" || last.toolName !== "browse") return null
-  const label = ask[2]!.trim().toLowerCase()
-  const id = textOf(last).split("\n").map((l) => /^(\d+) \S+ "(.*)"$/.exec(l)).find((m) => m && m[2]!.trim().toLowerCase() === label)?.[1]
+  const label = capture(ask, 2).trim().toLowerCase()
+  const id = textOf(last).split("\n").map((l) => /^(\d+) \S+ "(.*)"$/.exec(l)).find((m) => m && capture(m, 2).trim().toLowerCase() === label)?.[1]
   return id === undefined ? null : fauxToolCall("browser_act", { steps: [{ op: "click", id: Number(id) }] })
 }
 
-/** A page summary is long and the fake streams slowly, so a browser result is answered with its first facts: `browsed: did: <steps> | <title> | <url>`. An error is answered whole. */
 function browsed(result: string): string {
   const lines = result.split("\n").filter((l) => l.trim() && !/^<\/?untrusted/.test(l))
   const did = lines.findIndex((l) => l.startsWith("did:"))
@@ -155,7 +151,7 @@ function browsed(result: string): string {
 function anyToolCall(raw: string) {
   const text = raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&")
   const direct = /\[tool (\w+) (\{.*\})\]\s*$/m.exec(text)
-  return direct ? fauxToolCall(direct[1]!, JSON.parse(direct[2]!)) : null
+  return direct ? fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))) : null
 }
 
 const slowTool = defineTool({
@@ -205,7 +201,7 @@ function fakeCalls(messages: readonly Message[]) {
   if (last?.role === "user") {
     const turn = textOf(last)
     const fetch = /^\[fetch\]\s*([\s\S]*)$/.exec(turn)
-    if (fetch) return [fauxToolCall("fake_fetch", { page: fetch[1]! })]
+    if (fetch) return [fauxToolCall("fake_fetch", { page: capture(fetch, 1) })]
     return directives(turn)
   }
   if (last?.role !== "toolResult") return []
@@ -214,7 +210,10 @@ function fakeCalls(messages: readonly Message[]) {
 }
 
 const directives = (text: string) =>
-  [...text.matchAll(/\[call (\w+)\]/g)].flatMap(([, name]) => (isFakeTool(name!) && name !== "fake_fetch" ? [fauxToolCall(name!, {})] : []))
+  [...text.matchAll(/\[call (\w+)\]/g)].flatMap((m) => {
+    const name = capture(m, 1)
+    return isFakeTool(name) && name !== "fake_fetch" ? [fauxToolCall(name, {})] : []
+  })
 
 function fakeResults(since: readonly Message[]): string | null {
   const results = since.filter((m) => m.role === "toolResult" && isFakeTool(m.toolName ?? ""))
@@ -225,12 +224,12 @@ function fakeResults(since: readonly Message[]): string | null {
 
 function teamCall(turn: string) {
   const agent = [...turn.matchAll(/<agent-message from="([^"]+)"[^>]*>([\s\S]*?)<\/agent-message>/g)].at(-1)
-  if (agent && agent[2]!.includes("[question]")) return fauxToolCall("send_message", { to: agent[1]!, text: "[answer] 42" })
+  if (agent && capture(agent, 2).includes("[question]")) return fauxToolCall("send_message", { to: capture(agent, 1), text: "[answer] 42" })
   const asked = /\[ask ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
-  if (asked) return fauxToolCall("ask", { to: asked[1]!, question: asked[2]! })
-  if (agent && agent[2]!.includes("[echo]")) return fauxToolCall("send_message", { to: agent[1]!, text: "[echo]" })
+  if (asked) return fauxToolCall("ask", { to: capture(asked, 1), question: capture(asked, 2) })
+  if (agent && capture(agent, 2).includes("[echo]")) return fauxToolCall("send_message", { to: capture(agent, 1), text: "[echo]" })
   const send = /\[send ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
-  if (send) return fauxToolCall("send_message", { to: send[1]!, text: send[2]! })
+  if (send) return fauxToolCall("send_message", { to: capture(send, 1), text: capture(send, 2) })
   if (turn.includes("[shout]")) return fauxToolCall("send_message", { to: "all", text: "[shout]" })
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }

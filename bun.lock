@@ -12,7 +12,7 @@
     "apps/cli": {
       "name": "@yuki/cli",
       "bin": {
-        "kiko": "src/index.ts",
+        "yuki": "src/index.ts",
       },
       "dependencies": {
         "@yuki/protocol": "workspace:*",
@@ -94,7 +94,7 @@
         "vite-plugin-solid": "2.11.14",
       },
     },
-    "packages/agent": {
+    "core/agent": {
       "name": "@yuki/agent",
       "version": "0.0.1",
       "dependencies": {
@@ -108,7 +108,7 @@
         "typescript": "^5.9.0",
       },
     },
-    "packages/browser": {
+    "core/browser": {
       "name": "@yuki/browser",
       "version": "0.0.1",
       "dependencies": {
@@ -121,7 +121,7 @@
         "typescript": "^5.9.0",
       },
     },
-    "packages/durable": {
+    "core/durable": {
       "name": "@yuki/durable",
       "version": "0.0.1",
       "devDependencies": {
@@ -129,7 +129,7 @@
         "typescript": "^5.9.0",
       },
     },
-    "packages/memory": {
+    "core/memory": {
       "name": "@yuki/memory",
       "version": "0.0.1",
       "dependencies": {
@@ -142,7 +142,7 @@
         "typescript": "^5.9.0",
       },
     },
-    "packages/protocol": {
+    "core/protocol": {
       "name": "@yuki/protocol",
       "version": "0.0.1",
       "dependencies": {
@@ -156,7 +156,7 @@
         "typescript": "^5.9.0",
       },
     },
-    "packages/sandbox": {
+    "core/sandbox": {
       "name": "@yuki/sandbox",
       "version": "0.0.1",
       "dependencies": {
@@ -705,19 +705,19 @@
 
     "@vitest/utils": ["@vitest/utils@4.1.11", "", { "dependencies": { "@vitest/pretty-format": "4.1.11", "convert-source-map": "^2.0.0", "tinyrainbow": "^3.1.0" } }, "sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ=="],
 
-    "@yuki/agent": ["@yuki/agent@workspace:packages/agent"],
+    "@yuki/agent": ["@yuki/agent@workspace:core/agent"],
 
-    "@yuki/browser": ["@yuki/browser@workspace:packages/browser"],
+    "@yuki/browser": ["@yuki/browser@workspace:core/browser"],
 
     "@yuki/cli": ["@yuki/cli@workspace:apps/cli"],
 
-    "@yuki/durable": ["@yuki/durable@workspace:packages/durable"],
+    "@yuki/durable": ["@yuki/durable@workspace:core/durable"],
 
-    "@yuki/memory": ["@yuki/memory@workspace:packages/memory"],
+    "@yuki/memory": ["@yuki/memory@workspace:core/memory"],
 
-    "@yuki/protocol": ["@yuki/protocol@workspace:packages/protocol"],
+    "@yuki/protocol": ["@yuki/protocol@workspace:core/protocol"],
 
-    "@yuki/sandbox": ["@yuki/sandbox@workspace:packages/sandbox"],
+    "@yuki/sandbox": ["@yuki/sandbox@workspace:core/sandbox"],
 
     "@yuki/server": ["@yuki/server@workspace:apps/server"],
 

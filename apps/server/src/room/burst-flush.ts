@@ -1,0 +1,156 @@
+import type { AgentSlug, Chat, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
+import type { Alarms } from "@yuki/durable/alarm"
+import type { Env } from "../index"
+import { agentStub, userStub } from "../lib/names"
+import { route } from "./deliver"
+import { deliverable, MAX_DELIVERY_ENVELOPES, type Burst } from "./burst"
+import { markReactionsBriefed } from "./reactions"
+import { resolveRecipients } from "./recipients"
+import type { Mail } from "./mail"
+import { HELD_WAKEUP, type HeldWakes } from "./wake"
+import type { RoomLog } from "./log"
+import type { Members, MemberRow } from "./members"
+import { DELIVERY_RETRY_MS } from "./wake-delivery"
+import type { AgentHome } from "./mail-drain"
+type Home = { userId: string; roomId: RoomId }
+
+export type BurstDeps = {
+	env: Env
+	ctx: DurableObjectState
+	log: RoomLog
+	members: Members
+	mail: Mail
+	burst: Burst
+	outbox: HeldWakes
+	alarms: Alarms
+	home: () => Home | null
+	chat: (home: Home) => Promise<Chat | null>
+	seedMembers: (home: Home, chat: Chat) => Promise<void>
+	publish: (events: RoomEvent[]) => void
+	agentHome: (home: Home, slug: AgentSlug, member: MemberRow) => AgentHome
+	delivery: (member: MemberRow, members: readonly MemberRow[], goal: string, raw: Envelope[]) => { member: MemberRow; envelopes: Envelope[]; brief: string; reactionsUpTo: number }
+	drainMail: () => Promise<void>
+	retryHeld: () => Promise<void>
+}
+
+export class BurstFlush {
+	#warned = new Set<AgentSlug>()
+
+	constructor(private readonly d: BurstDeps) {}
+
+	async flush(): Promise<void> {
+		const home = this.d.home()
+		if (!home) return
+		const pending = this.d.burst.envelopes(home.roomId, MAX_DELIVERY_ENVELOPES + 1)
+		const envelopes = deliverable(pending)
+		if (!envelopes.length) return
+		let reached: Set<AgentSlug>
+		try {
+			const out = await this.deliverBurst(home, envelopes)
+			if (out === "full") return await this.d.burst.retry(DELIVERY_RETRY_MS)
+			reached = out
+			if (envelopes.length < pending.length) return await this.d.burst.retry(0)
+		} catch (error) {
+			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
+			return await this.d.burst.retry(DELIVERY_RETRY_MS)
+		}
+		this.closeWarnings(home, reached)
+		await this.d.drainMail()
+		if (this.d.outbox.any()) {
+			await this.d.retryHeld().catch(async (error: unknown) => {
+				console.error(`held wakes failed: ${error instanceof Error ? error.message : String(error)}`)
+				await this.d.alarms.setWakeup(HELD_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
+			})
+		}
+	}
+
+	private async deliverBurst(home: Home, envelopes: Envelope[]): Promise<Set<AgentSlug> | "full"> {
+		const first = envelopes[0]
+		if (!first) throw new Error("deliverBurst: empty burst")
+		const burstId = first.id
+		const takeTurn = () => (this.d.log.meta("turn_taken") === burstId ? Promise.resolve({ ok: true } as const) : userStub(this.d.env.USER, home.userId).takeTurn())
+		const known = this.d.log.meta("title") !== null
+		const [chat, turn] = known ? await Promise.all([this.d.chat(home), takeTurn()]) : await this.d.chat(home).then(async (c) => [c, c ? await takeTurn() : ({ ok: true } as const)] as const)
+		if (!chat) {
+			this.d.burst.clear()
+			return new Set()
+		}
+		if (!turn.ok) {
+			const at = new Date(turn.resetAt).toISOString().slice(11, 16)
+			const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "limit" }, text: `you've used today's ${turn.limit} replies. they come back at ${at} utc.` })
+			if (event) this.d.publish([event])
+			this.d.burst.delivered(envelopes)
+			return new Set()
+		}
+		this.d.log.setMeta("turn_taken", burstId)
+		await this.d.seedMembers(home, chat)
+		const members = this.d.members.list()
+		const replyAuthor = (id: string) => {
+			const from = this.d.log.message(id)?.from
+			return from?.kind === "agent" ? from.slug : undefined
+		}
+		const routes = route(envelopes, members, replyAuthor)
+		const deliveries = [...routes].map(([slug, mine]) => {
+			const member = members.find((m) => m.slug === slug)
+			if (!member) throw new Error(`no member @${slug}`)
+			return this.d.delivery(member, members, chat.title, mine)
+		})
+		const results = await Promise.allSettled(
+			deliveries.map(async ({ member, envelopes: mine, brief, reactionsUpTo }) => {
+				const agent = agentStub(this.d.env.AGENT, home.userId, home.roomId, member.slug)
+				const { refused } = await agent.receive(mine, brief, this.d.agentHome(home, member.slug, member))
+				if (refused === "full") return "full"
+				if (refused) console.error(`burst delivery to ${member.slug} refused: ${refused}`)
+				this.d.mail.delivered(member.slug, mine)
+				markReactionsBriefed(this.d.log, member.slug, reactionsUpTo)
+				return "admitted"
+			}),
+		)
+		const failed = results.find((r) => r.status === "rejected")
+		if (failed) throw failed.reason
+		if (results.some((r) => r.status === "fulfilled" && r.value === "full")) return "full"
+		this.d.burst.delivered(envelopes)
+		if (this.d.log.meta("private") !== "1") await this.captureHuman(home, envelopes)
+		return new Set(routes.keys())
+	}
+
+	private async captureHuman(home: Home, envelopes: Envelope[]): Promise<void> {
+		const items = envelopes.flatMap((e) => {
+			const message = e.from.kind === "human" ? this.d.log.message(e.rootId) : null
+			return message ? [{ messageId: e.rootId, text: e.body, at: message.at }] : []
+		})
+		if (!items.length) return
+		try {
+			await userStub(this.d.env.USER, home.userId).captureHuman(home.roomId, items)
+		} catch (error) {
+			console.error(`capture failed: ${error instanceof Error ? error.message : String(error)}`)
+		}
+	}
+
+	private closeWarnings(home: Home, reached: ReadonlySet<AgentSlug>): void {
+		if (this.d.burst.pending()) return
+		for (const slug of this.#warned) {
+			if (reached.has(slug)) continue
+			this.d.ctx.waitUntil(
+				agentStub(this.d.env.AGENT, home.userId, home.roomId, slug)
+					.humanGone()
+					.catch((e: unknown) => console.error(`human gone failed: ${e instanceof Error ? e.message : String(e)}`)),
+			)
+		}
+		this.#warned.clear()
+	}
+
+	async warnBusyAgents(messages: readonly { text: string; replyTo?: string }[]): Promise<void> {
+		const home = this.d.home()
+		if (!home) return
+		const members = this.d.members.list()
+		const to = new Set<AgentSlug>()
+		for (const m of messages) {
+			const from = m.replyTo ? this.d.log.message(m.replyTo)?.from : undefined
+			for (const slug of resolveRecipients({ text: m.text, ...(from?.kind === "agent" ? { replyToAgent: from.slug } : {}) }, members)) to.add(slug)
+		}
+		const busy = members.filter((m) => to.has(m.slug) && m.status !== "idle")
+		for (const m of busy) this.#warned.add(m.slug)
+		await Promise.allSettled(busy.map((m) => agentStub(this.d.env.AGENT, home.userId, home.roomId, m.slug).humanComing()))
+	}
+}

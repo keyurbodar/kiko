@@ -3,6 +3,7 @@ import { connectTestModel, type RoomHandle, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
 import { newRoom } from "./mid-run"
+import { must } from "../must"
 
 const MODEL = "opencode-go/muse-spark-1.3-contributor"
 type Events = Extract<RoomToClient, { t: "events" }>
@@ -53,10 +54,9 @@ const suite: Suite = {
       return out
     }
     const tools = async () => Object.keys(await readStats(v, s)).filter((k) => /^composio\.[^.]+\.ms$/.test(k)).map((k) => k.split(".")[1])
-    /** Section 8: tool calls by the talker and by workers. The talker has no composio_* or extension tool. */
     const roles = async () => {
       const keys = Object.keys(await readStats(v, s))
-      const by = (who: string) => keys.filter((k) => k.startsWith(`tool.${who}.`)).map((k) => k.split(".")[2]!)
+      const by = (who: string) => keys.filter((k) => k.startsWith(`tool.${who}.`)).map((k) => must(k.split(".")[2], "tool name"))
       return { talker: by("talker"), worker: by("worker") }
     }
     const mustWork = async (what: string, tool: RegExp) => {
@@ -78,7 +78,7 @@ const suite: Suite = {
 
     const p = await op({ op: "propose", bundle: { manifest: { yuki: 1, name: "web-lookup", version: "1.0.0", description: "web lookups through composio", tools: { web_lookup: { description: "search the web through composio and return the raw result", effect: "external", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } } }, calls: ["composio_multi_execute_tool"] }, files: { "main.js": WEB } } })
     if (!p.ok) throw new VerifyError(`propose: ${p.error} ${p.problems?.join("; ")}`)
-    const i = await op({ op: "install", id: p.proposal!.id })
+    const i = await op({ op: "install", id: must(p.proposal, "proposal").id })
     if (!i.ok) throw new VerifyError(`install: ${i.error}`)
     const b = await newRoom(s, "extension calls composio")
     b.room.raw.send({ t: "model", ref: MODEL })

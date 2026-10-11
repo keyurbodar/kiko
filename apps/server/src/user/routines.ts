@@ -1,14 +1,10 @@
 import type { Trigger, WebhookMatch } from "@yuki/protocol"
 import { type Reminder, ReminderError } from "./reminders"
 
-// Architecture section 25. Pure helpers around routines that UserDO and the room share.
-
-/** What a room keeps of one of its event routines, to match events without a call (section 25.4). */
 export type RoomRoutine = { id: string; target: string; trigger: Extract<Trigger, { on: "task" | "message" | "file" }> }
 
 export const roomRoutine = (r: Reminder): RoomRoutine => ({ id: r.id, target: r.target, trigger: r.trigger as RoomRoutine["trigger"] })
 
-/** What an RPC returns, since an error class does not survive the trip. */
 export type RoutineResult = { ok: true; routine: Reminder; token?: string } | { ok: false; error: string }
 
 export async function routineResult(run: () => Promise<{ routine: Reminder; token?: string } | null>): Promise<RoutineResult> {
@@ -21,7 +17,6 @@ export async function routineResult(run: () => Promise<{ routine: Reminder; toke
   }
 }
 
-/** The value at a dot-separated `path` of a JSON value, or undefined. */
 function at(value: unknown, path: string): unknown {
   let cur = value
   for (const key of path.split(".")) {
@@ -31,7 +26,6 @@ function at(value: unknown, path: string): unknown {
   return cur
 }
 
-/** True when the body meets every condition. No conditions: every post matches. */
 export function matchWebhook(match: readonly WebhookMatch[], body: unknown): boolean {
   return match.every((m) => {
     const v = at(body, m.path)

@@ -2,16 +2,8 @@ import type { BrowserState, UserToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import { api } from "../routine-kit"
 import type { Suite } from "../runner"
+import { must } from "../must"
 
-// P17-05, architecture section 27.7. Watch and take over, on a real Kernel key. Needs
-// KERNEL_API_KEY in the shell. No model is called.
-//
-// An agent holds a tab in a headless browser. `browserLink { mode: "watch" }` switches it to
-// headful (Kernel says `headless: false`), pushes the switching state, and answers with a live
-// view URL that carries `readOnly=true`. `browserLink { mode: "control" }` sets the takeover flag,
-// and `handBack` clears it. A cookie set before the switch is in the new browser. `closeBrowser`
-// ends the browser. No frame but the `browserLink` answers holds a URL, and Kernel's active list
-// is empty at the end.
 
 const KERNEL = "https://api.onkernel.com"
 const USER = "takeover-alice"
@@ -84,7 +76,6 @@ const suite: Suite = {
       const good = await ask({ t: "connectKernel", apiKey: key })
       if (!good.ok) throw new VerifyError(`connect failed: ${good.error}`)
 
-      // No browser: a link is refused, and there is nothing to show.
       const none = await link("watch")
       expectEqual(none.result.ok, false, "a link with no browser open")
 
@@ -103,7 +94,6 @@ const suite: Suite = {
       })
       if (set.status !== 200 || !set.json.success) throw new VerifyError(`setting the cookie answered ${set.status}`)
 
-      // Watch: switching is pushed, then the headful state, then the read-only link.
       const started = performance.now()
       user.send({ t: "browserLink", reqId: "watch1", mode: "watch" })
       await state((b) => b.switching, "the switching state")
@@ -119,7 +109,6 @@ const suite: Suite = {
       expectEqual(await headless(watching), false, "Kernel says the watched browser is headful")
       if (!(await hasCookie(watching))) throw new VerifyError("the cookie did not survive the switch to headful")
 
-      // Take over sets the flag, and the link has no readOnly.
       const control = await link("control")
       if (!control.result.ok) throw new VerifyError(`control failed: ${control.result.error}`)
       expectEqual(new URL(control.result.url).searchParams.has("readOnly"), false, "no readOnly on the control link")
@@ -129,15 +118,13 @@ const suite: Suite = {
       user.send({ t: "handBack" })
       await state((b) => !b.takeover, "hand back")
 
-      // Close ends the browser and the state goes to null.
       user.send({ t: "closeBrowser" })
       await user.expect((f) => f.t === "browserState" && f.state === null, 60_000)
       expectEqual(await sessionId(), null, "the lease after close")
       expectEqual((await active()).filter((id) => seen.has(id)), [], "Kernel's active browsers of this run after close")
 
-      // Nothing but the two link answers holds a URL, a key, or a page address.
       const leaks = user.texts.filter((t) => !t.includes('"t":"browserLink"') && (t.includes(key) || /https?:|wss?:|onkernel\.com|cdp|live_view|secret/i.test(t)))
-      if (leaks.length) throw new VerifyError(`${leaks.length} frame(s) hold a URL or a key, for example: ${leaks[0]!.replace(key, "<key>").slice(0, 200)}`)
+      if (leaks.length) throw new VerifyError(`${leaks.length} frame(s) hold a URL or a key, for example: ${must(leaks[0], "leak").replace(key, "<key>").slice(0, 200)}`)
       console.error(`  ${user.texts.length} frames scanned, only the browserLink answers hold a URL`)
     } finally {
       await ask({ t: "disconnectKernel" }).catch(() => undefined)

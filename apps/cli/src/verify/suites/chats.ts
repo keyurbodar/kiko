@@ -2,19 +2,11 @@ import { type Chat, isRoomId, newRoomId, type RoomId, type UserToClient } from "
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// Architecture section 7.11, the chat list's rules, the way the client speaks them:
-//
-//   1. ids        a new room id is a UUIDv7, and the server takes it
-//   2. one dm     a second direct chat with one agent is refused and names the first
-//   3. yuki       the yuki chat cannot be unpinned or deleted
-//   4. temp       a temporary chat is deleted when its tab closes, and kept when it becomes a group
-//   5. resume     the last chat opened comes back in a new device's snapshot
 
 const suite: Suite = {
   name: "chats",
   async run(v) {
     const s = await v.as(`chats-${Date.now().toString(36)}`)
-    // The page asks /api/me on load, which makes sure the yuki chat exists.
     await fetch(new URL("api/me", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
     const user = await s.user()
     const first = await user.expect((f) => f.t === "reset")
@@ -26,7 +18,6 @@ const suite: Suite = {
     const chat = (roomId: string) => (f: UserToClient) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId)
     const gone = (roomId: string) => (f: UserToClient) => f.t === "events" && f.events.some((e) => e.t === "chat_removed" && e.roomId === roomId)
 
-    // 1 and 2. One direct chat per agent, under UUIDv7 ids.
     const agentId = `ada-${Date.now().toString(36)}`
     const dm = newRoomId()
     if (!isRoomId(dm) || !/^[0-9a-f]{8}-[0-9a-f]{4}-7/.test(dm)) throw new VerifyError(`not a UUIDv7: ${dm}`)
@@ -39,13 +30,11 @@ const suite: Suite = {
     await user.expectNone(chat(second), 500)
     console.log(`  one dm: ${second} refused, ${dm} kept`)
 
-    // 3. The yuki chat stays.
     user.send({ t: "chat", op: { op: "pin", roomId: yuki.roomId, pinned: false } })
     user.send({ t: "chat", op: { op: "delete", roomId: yuki.roomId } })
     await user.expectNone((f) => chat(yuki.roomId)(f) || gone(yuki.roomId)(f), 800)
     console.log("  yuki: unpin and delete changed nothing")
 
-    // 4. A temporary chat closed with its tab is gone; one that became a group stays.
     const temp = newRoomId()
     user.send({ t: "chat", op: { op: "create", roomId: temp, title: "new chat", agents: ["yuki"], temp: true } })
     await user.expect(chat(temp))
@@ -60,7 +49,6 @@ const suite: Suite = {
     expectEqual(keptChat?.title, "yuki, ada", "the kept group's title")
     console.log(`  temp: ${temp} deleted on close, ${group} kept as a group`)
 
-    // 5. Resume on a new device, never into a temporary chat.
     const snapshot = async (): Promise<{ lastChat?: RoomId; chats: readonly Chat[] }> => {
       const device = await s.user()
       const f = await device.expect((x) => x.t === "reset")

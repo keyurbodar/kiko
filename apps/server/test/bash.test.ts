@@ -2,8 +2,6 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// The bash tool as agents use it: just-bash over the chat's files, against the real RoomDO and real
-// R2 in workerd (room-fs-worker.ts). Several agents, and several calls of one agent, run at once.
 let mf: Miniflare
 let origin: string
 
@@ -40,7 +38,6 @@ function agent(room: string, slug = "ada") {
   }
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-/** The agent's run ended: the room lets go of the paths it held (section 7.12). */
 const idle = (room: string, slug: string) => fetch(`${origin}/idle/${room}/${slug}`)
 
 test("pipes, redirects, and in-place edits work on the chat's real files", async () => {
@@ -52,12 +49,10 @@ test("pipes, redirects, and in-place edits work on the chat's real files", async
   const grep = await a.bash("grep -rh todo /notes | sort | wc -l")
   expect(grep).toMatchObject({ ok: true, text: "2\n" })
   expect((await a.bash("jq '[.trips[].days] | add' /data.json")).text).toBe("5\n")
-  // Every tool the description names.
   const named = await a.bash("printf 'b\\na\\na\\n' > /tmp/x; sort /tmp/x | uniq | cut -c1 | tr a-z A-Z | head -2 | tail -1; find /notes -type f | xargs cat | wc -l; diff /notes/a.md /notes/a.md && echo same")
   expect(named).toMatchObject({ ok: true, text: "B\n3\nsame\n" })
 
   expect((await a.bash("grep -rh todo /notes > /todos.txt && sed -i 's/todo: //' /todos.txt")).ok).toBe(true)
-  // What bash wrote is an ordinary file: the read tool and the listing see it.
   expect(await a.read("todos.txt")).toBe("book flights\ncall mom\n")
   expect(await a.ls()).toContain("/todos.txt")
 })
@@ -84,14 +79,12 @@ test("a teammate's write between a command's read and its write is never lost", 
   const bo = agent(room, "bo")
   await ada.write("count.txt", "1\n")
   await idle(room, "ada")
-  // ada reads, waits, then writes. bo writes in the middle.
   const slow = ada.bash("v=$(cat /count.txt); sleep 1; echo $((v + 10)) > /count.txt")
   await bo.read("count.txt")
   await sleep(300)
   expect((await bo.write("count.txt", "2\n")).ok).toBe(true)
   const out = await slow
   expect(out.ok).toBe(false)
-  // bo now holds the file (section 7.12), and ada's write is refused before it lands.
   expect(out.text).toContain("@bo is working on /count.txt")
   expect(await ada.read("count.txt")).toBe("2\n")
 })
@@ -118,7 +111,6 @@ test("one agent's parallel commands each check their own view, so neither overwr
   await a.write("n.txt", "0\n")
   const bump = () => a.bash("v=$(cat /n.txt); sleep 0.5; echo $((v + 1)) > /n.txt")
   const [x, y] = await Promise.all([bump(), bump()])
-  // Both read 0. One writes 1; the other is refused instead of writing 1 over it unseen.
   expect([x.ok, y.ok].sort()).toEqual([false, true])
   expect(await a.read("n.txt")).toBe("1\n")
 })
@@ -167,7 +159,6 @@ test("handing work over through files: one agent's output is the next one's inpu
   const ada = agent(room, "ada")
   const bo = agent(room, "bo")
   expect((await ada.bash("mkdir -p /handoff && printf 'rome,3\\noslo,2\\nlima,4\\n' > /handoff/trips.csv")).ok).toBe(true)
-  // While ada's run holds what she made, bo reads it but cannot write there.
   const held = await bo.bash("cat /handoff/trips.csv | wc -l; echo late >> /handoff/trips.csv")
   expect(held.ok).toBe(false)
   expect(held.text).toContain("3\n")
@@ -207,7 +198,6 @@ test("a recursive walk reads every file once", async () => {
   const out = await a.bash("grep -rl hit /many | wc -l")
   expect(out.text).toBe("8\n")
   const counts = (await (await fetch(`${origin}/counts/${room}/ada`)).json()) as { stat: number }
-  // One listing for the snapshot, no stat per file.
   expect(counts.stat).toBe(0)
 })
 
@@ -292,7 +282,6 @@ test("a command's changes save together: one refused file means none of them lan
   await idle(room, "bo")
   const out = await slow
   expect(out.ok).toBe(false)
-  // The conflict is on the delete, applied last: the writes before it in the batch were rolled back.
   expect(out.text).toContain("/b.txt changed after this command started")
   expect(out.text).toContain("nothing this command changed in the chat's files was saved")
   expect(await ada.ls()).not.toMatch(/a\.txt|made|moved/)

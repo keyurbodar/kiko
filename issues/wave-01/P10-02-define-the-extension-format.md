@@ -14,13 +14,13 @@
 
 ## Verification
 
-`bun test` in `packages/protocol` passes `test/extensions.test.ts`, and a manifest with a bad name, a secret for a host outside `egress`, or a wrap of a safety section is refused with each problem named.
+`bun test` in `core/protocol` passes `test/extensions.test.ts`, and a manifest with a bad name, a secret for a host outside `egress`, or a wrap of a safety section is refused with each problem named.
 
 ## Task
 
 **Goal.** One manifest format, checked the same way on the server, in the CLI, and in the client.
 
-**Files.** `packages/protocol/src/extensions.ts`, `user.ts`, `schema.ts`.
+**Files.** `core/protocol/src/extensions.ts`, `user.ts`, `schema.ts`.
 
 **Build.**
 

@@ -8,7 +8,6 @@ import { writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import * as huge from "@hugeicons/core-free-icons"
 
-/** yuki's name for an icon, then the Hugeicons glyph that draws it. */
 const ICONS = {
   search: "Search01Icon",
   plus: "Add01Icon",
@@ -88,7 +87,6 @@ const ICONS = {
   "folder-add": "FolderAddIcon",
 } as const
 
-/* The svg element carries these, so each glyph keeps only its geometry and any exception. */
 const SHARED: Record<string, string> = { stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round" }
 const DROPPED = new Set(["key", "strokeWidth"])
 const kebab = (key: string) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)

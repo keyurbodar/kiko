@@ -20,7 +20,7 @@
 
 **Goal.** What yuki knows about the human, across every chat, as one append-only log with the same tree.
 
-**Files.** `apps/server/src/user/life.ts`, `user/user-do.ts`, `user/turn-context.ts`, `packages/protocol/src/memory.ts`, `schema.ts`.
+**Files.** `apps/server/src/user/life.ts`, `user/user-do.ts`, `user/turn-context.ts`, `core/protocol/src/memory.ts`, `schema.ts`.
 
 **Build.**
 

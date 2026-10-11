@@ -12,7 +12,7 @@ export function importRecords(sql: SqlStorage, life: Life): number {
       if (!line) continue
       const dated = /^(\d{4}-\d{2}-\d{2}):\s*(.*?)(?:\s+\([^)]*\))?$/.exec(line)
       const at = dated ? Date.parse(`${dated[1]}T12:00:00Z`) : r.updated_at
-      const text = dated ? dated[2]! : line
+      const text = dated ? (dated[2] ?? "") : line
       const named = ["profile", "now", "todo"].includes(r.id) ? text : `${r.title}: ${text}`
       lines.push({ at: Number.isFinite(at) ? at : r.updated_at, text: capBytes(oneLine(named, 1_000), LINE_BYTES) })
     }

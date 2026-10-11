@@ -3,7 +3,6 @@ import { type KernelClient, KernelError } from "../src/integrations/kernel/clien
 import { IDLE_MS, KernelLease, type LeaseStore, reapDecision, TAKEOVER_RECHECK_MS } from "../src/integrations/kernel/lease"
 import type { LeaseRow, LeaseUrls } from "../src/integrations/kernel/store"
 
-/** A store in memory with the same behavior the lease relies on. */
 function memoryStore() {
   let row: LeaseRow | undefined
   let urls: LeaseUrls | undefined
@@ -32,7 +31,6 @@ function memoryStore() {
   return { store, state }
 }
 
-/** A Kernel that records every call and holds the browsers that are alive. */
 function fakeKernel(script: { createErrors?: KernelError[]; deleteError?: KernelError } = {}) {
   const calls: string[] = []
   const live = new Set<string>()

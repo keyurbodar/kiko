@@ -3,9 +3,6 @@ import type { RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// Architecture section 18.1. Uploads a 30 MB file in parts, reads a byte range from
-// the middle, sees the file event on the room socket, checks that another user gets
-// 404, and that the same bytes at the same path keep one file.
 
 const SIZE = 30_000_000
 const PART = 10 * 1024 * 1024
@@ -52,7 +49,6 @@ const suite: Suite = {
 		const room = await alice.room(roomId)
 		await room.expect({ t: "events" })
 
-		// a multipart upload of 30 MB
 		const bytes = randomBytes(SIZE)
 		const { fileId, uploadId } = await ok<{ fileId: string; uploadId: string }>(
 			await call("uploads", {
@@ -80,11 +76,9 @@ const suite: Suite = {
 		)
 		expectEqual(file, { id: fileId, name: "media/big.bin", size: SIZE, type: "application/octet-stream" }, "the file")
 
-		// the room socket gets the file event
 		const isFile = (f: RoomToClient) => f.t === "events" && f.events.some((e) => e.t === "file" && e.file.id === fileId)
 		await room.expect(isFile, 10_000)
 
-		// a byte range from the middle
 		const ranged = await call(fileId, { headers: { range: `bytes=${RANGE[0]}-${RANGE[1]}` } })
 		expectEqual(ranged.status, 206, "the range status")
 		expectEqual(ranged.headers.get("content-range"), `bytes ${RANGE[0]}-${RANGE[1]}/${SIZE}`, "the content range")
@@ -94,12 +88,10 @@ const suite: Suite = {
 			throw new VerifyError(`the range bytes differ (got ${got.length} bytes)`)
 		}
 
-		// another user gets 404 for the same url
 		const stranger = await call(fileId, { as: bob })
 		expectEqual(stranger.status, 404, "another user's status")
 		await stranger.body?.cancel()
 
-		// the same bytes at the same path keep the first file and send no event
 		const small = new TextEncoder().encode("same bytes")
 		const first = await ok<{ file: FileRef }>(await alice.putFile(roomId, "notes/a.txt", small), "the first small upload")
 		await room.expect((f) => f.t === "events" && f.events.some((e) => e.t === "file" && e.file.id === first.file.id))

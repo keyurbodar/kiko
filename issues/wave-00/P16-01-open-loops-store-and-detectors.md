@@ -20,7 +20,7 @@
 
 **Goal.** Keep the human's goals, plans, deadlines, waits, and agents' promises as open loops, found by model judgment.
 
-**Files.** `packages/memory/src/loops.ts`, `packages/memory/src/loop-tool.ts`, `apps/server/src/user/`, `apps/server/src/initiative/judge.ts`, `apps/server/src/agent/factory.ts`.
+**Files.** `core/memory/src/loops.ts`, `core/memory/src/loop-tool.ts`, `apps/server/src/user/`, `apps/server/src/initiative/judge.ts`, `apps/server/src/agent/factory.ts`.
 
 **Build.**
 

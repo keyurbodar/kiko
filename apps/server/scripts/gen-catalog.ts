@@ -1,8 +1,3 @@
-// Bundles the extension catalog at build time (architecture section 24.9): every
-// apps/server/catalog/<name>/ becomes one entry of src/user/catalog.gen.ts, with extension.json as the
-// manifest and every other file in the folder as a bundle file. Run `bun scripts/gen-catalog.ts`
-// after editing the catalog; a test fails when the generated file is out of date or an entry does
-// not pass `checkBundle`.
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join, relative } from "node:path"
 

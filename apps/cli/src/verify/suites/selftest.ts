@@ -2,9 +2,6 @@ import { ClientToUser, UserToClient } from "@yuki/protocol/schema"
 import { Channel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// Checks the runner itself. The socket part runs against a loopback server in this
-// process, so it depends on no room or user code. It needs the dev server only for
-// the health route and the dev sign-in.
 const suite: Suite = {
   name: "selftest",
   async run(v) {
@@ -42,7 +39,6 @@ const suite: Suite = {
       await channel.reconnect()
       await channel.expect((f) => f.t === "reset", 2000)
 
-      // a wrong expectation must time out and print the frames it saw
       const timeout = await channel.expect({ t: "events" }, 150).then(
         () => "",
         (e: Error) => e.message,
@@ -51,7 +47,6 @@ const suite: Suite = {
         throw new VerifyError(`a timeout must print the frame log. got:\n${timeout}`)
       }
 
-      // a wrong value must produce a diff with both sides
       let message = ""
       try {
         expectEqual({ a: 1, b: 2 }, { a: 1, b: 3 }, "sample")
@@ -62,7 +57,6 @@ const suite: Suite = {
         throw new VerifyError(`the diff must show both sides. got:\n${message}`)
       }
 
-      // a frame that breaks the schema must fail the expectation
       await bad.connect()
       bad.sendRaw(JSON.stringify({ t: "bogus" }))
       const invalid = await bad.expect({ t: "events" }, 1000).then(

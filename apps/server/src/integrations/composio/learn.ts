@@ -1,10 +1,8 @@
 import type { ComposioCallResult } from "./client"
 
-// A Composio tool the agent ran successfully becomes a direct tool, so the next chat skips the
-// search and its extra model turns. Candidates come from the schemas a search or schema lookup
-// returned; a candidate is learned when a multi-execute of it succeeds.
+// A learned tool skips the search and its extra model turns on the next chat, so it is kept
+// once a multi-execute of it succeeds.
 
-/** `readOnly` is what Composio's catalog said when the tool was learned. Absent means `external`. */
 export type LearnedTool = { slug: string; toolkit: string; description: string; inputSchema: Record<string, unknown>; usedAt: number; readOnly?: boolean }
 export type Candidate = Omit<LearnedTool, "usedAt" | "readOnly">
 
@@ -16,7 +14,6 @@ export const LEARNED_MAX = 24
 type Obj = Record<string, unknown>
 const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v)
 
-/** The JSON body of a call's first text block, or undefined. */
 export function resultJson(out: ComposioCallResult): Obj | undefined {
   const block = out.content[0]
   if (block?.type !== "text") return undefined
@@ -28,7 +25,6 @@ export function resultJson(out: ComposioCallResult): Obj | undefined {
   }
 }
 
-/** Tools with a full input schema in a search or schema lookup result. */
 export function candidates(body: Obj): Candidate[] {
   const schemas = isObj(body.data) ? body.data.tool_schemas : undefined
   const entries = Array.isArray(schemas) ? schemas : isObj(schemas) ? Object.values(schemas) : []
@@ -50,30 +46,22 @@ function slugsOf(args: Obj, body: Obj | undefined, keep: (response: Obj) => bool
   })
 }
 
-/** Slugs that ran successfully in a multi-execute. A result names its slug, else its request entry does. */
 export const succeeded = (args: Obj, body: Obj): string[] => slugsOf(args, body, (r) => r.successful === true)
 
-/** Slugs whose run failed in a multi-execute, or every requested slug when the whole call failed (no body). */
 export function failed(args: Obj, body: Obj | undefined): string[] {
   if (body) return slugsOf(args, body, (r) => r.successful === false)
   const sent = Array.isArray(args.tools) ? args.tools : []
   return sent.flatMap((t) => (isObj(t) && typeof t.tool_slug === "string" ? [t.tool_slug] : []))
 }
 
-/** `learned` without `slugs`, so a tool whose schema went stale is searched and learned again. */
 export const forget = (learned: readonly LearnedTool[], slugs: readonly string[]): LearnedTool[] => learned.filter((t) => !slugs.includes(t.slug))
 
-/** `learned` with `used` upserted at `now`, most recent first, at most `LEARNED_MAX`. A tool keeps its class. */
 export function remember(learned: readonly LearnedTool[], used: readonly Candidate[], now: number): LearnedTool[] {
   const fresh = used.map((c) => ({ ...learned.find((t) => t.slug === c.slug), ...c, usedAt: now }))
   const slugs = new Set(fresh.map((t) => t.slug))
   return [...fresh, ...learned.filter((t) => !slugs.has(t.slug))].sort((a, b) => b.usedAt - a.usedAt).slice(0, LEARNED_MAX)
 }
 
-/**
- * The one result of a direct multi-execute, as the model should see it. A failed tool or a failed
- * call is an error with Composio's text.
- */
 export function directResult(out: ComposioCallResult): { text: string; isError: boolean } {
   const body = resultJson(out)
   const result = isObj(body?.data) && Array.isArray(body.data.results) ? body.data.results[0] : undefined

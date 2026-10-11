@@ -1,5 +1,4 @@
-// Kernel's REST API for one user's key, through the official SDK behind a small interface. The
-// lease logic and its tests only know `KernelClient`. The key is never put in an error or a log.
+// The key is never put in an error or a log.
 // The SDK adds 46 KB gzipped to the server bundle (architecture section 27).
 
 import Kernel, { APIConnectionError, APIError } from "@onkernel/sdk"
@@ -12,7 +11,6 @@ export class KernelError extends Error {
   constructor(
     readonly kind: KernelErrorKind,
     message: string,
-    /** Seconds, from `Retry-After`, for `rate_limited`. */
     readonly retryAfter?: number,
   ) {
     super(message)
@@ -36,11 +34,8 @@ export const CURL_BODY_CAP = 20_000
 
 export interface KernelClient {
   createBrowser(args: { headless: boolean; profile: string; timeoutSeconds: number }): Promise<CreatedBrowser>
-  /** A browser that is already gone is `not_found`. */
   deleteBrowser(sessionId: string): Promise<void>
-  /** Session ids of the key's active browsers. Also the cheapest check that a key works. */
   listActive(): Promise<string[]>
-  /** False only when Kernel says the browser is gone. */
   alive(sessionId: string): Promise<boolean>
   /** HTTP through the browser's own network stack, cookies and proxy included. Body capped at `CURL_BODY_CAP`. */
   curl(sessionId: string, req: CurlRequest): Promise<CurlResponse>
@@ -48,7 +43,6 @@ export interface KernelClient {
   readFile(sessionId: string, path: string): Promise<Uint8Array>
   /** Names of the files, not folders, directly in `path`. A missing folder is `not_found`. */
   listFiles(sessionId: string, path: string): Promise<string[]>
-  /** A profile that already exists is `conflict`. */
   createProfile(name: string): Promise<void>
   deleteProfile(name: string): Promise<void>
 }
@@ -80,9 +74,9 @@ async function call<T>(op: () => Promise<T>): Promise<T> {
   }
 }
 
-export function sdkClient(apiKey: string, fetcher?: typeof fetch): KernelClient {
+export function sdkClient(apiKey: string): KernelClient {
   // Retries are the lease's job: it knows which 429 is worth waiting for.
-  const kernel = new Kernel({ apiKey, maxRetries: 0, timeout: 30_000, ...(fetcher ? { fetch: fetcher } : {}) })
+  const kernel = new Kernel({ apiKey, maxRetries: 0, timeout: 30_000 })
   return {
     createBrowser: ({ headless, profile, timeoutSeconds }) =>
       call(async () => {

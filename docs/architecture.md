@@ -203,7 +203,7 @@ Two guards apply.
 - A burst can restart a run at most twice. The third arrival steers. This stops a fast typist from starving the answer.
 - A run that started a tool is never restarted automatically. `pi-durable` reruns a tool after a crash only if the tool declares `replay: "safe"`, and an abort after a side effect would leave the model without the result.
 
-The table is `decide()` in `packages/agent/src/mid-run.ts`, and `AgentHost.drain()` applies it. Four details the table leaves open:
+The table is `decide()` in `core/agent/src/mid-run.ts`, and `AgentHost.drain()` applies it. Four details the table leaves open:
 
 - ASSUMPTION: only a human message interrupts. An agent or system message is queued.
 - A human message never waits for a run to end. It steers whenever the run cannot restart. DEVIATION: a finished tool round with bubbles used to queue the burst as a follow-up (owner directive 2026-10-11, section 8).
@@ -302,7 +302,7 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 - The receiving agent's open tasks and the tasks that block them.
 - Reactions on the agent's messages since its last delivery.
 
-`AgentDO` prepends the brief to the submitted input as a `<context>` block. The brief becomes part of the stored user entry. Only the newest brief of a batch is shown, and only when it differs from the last one the transcript holds (`briefToShow` in `packages/agent/src/host.ts` keeps a hash of it). A run that starts fresh always shows it. The agent's own line in the member list leaves out what it is doing and holding, since that alone made every brief differ from the last. The long sentence about when to @-mention the human goes only into a fresh run's brief. Before this, each batch carried every distinct brief, and every input repeated an unchanged one. What was said is not in the brief: a run that starts opens with its `<memory>` block (section 13), which holds the whole chat, older turns compressed. The brief used to carry the last 30 messages, each cut to 400 characters, so a teammate that joined late saw nothing older.
+`AgentDO` prepends the brief to the submitted input as a `<context>` block. The brief becomes part of the stored user entry. Only the newest brief of a batch is shown, and only when it differs from the last one the transcript holds (`briefToShow` in `core/agent/src/host.ts` keeps a hash of it). A run that starts fresh always shows it. The agent's own line in the member list leaves out what it is doing and holding, since that alone made every brief differ from the last. The long sentence about when to @-mention the human goes only into a fresh run's brief. Before this, each batch carried every distinct brief, and every input repeated an unchanged one. What was said is not in the brief: a run that starts opens with its `<memory>` block (section 13), which holds the whole chat, older turns compressed. The brief used to carry the last 30 messages, each cut to 400 characters, so a teammate that joined late saw nothing older.
 
 **Reasoning.** The spec asks for the brief to be "injected into its prompt" at the start of each turn. Putting it in the user entry and not in the system prompt keeps the request prefix stable between runs, so provider prompt caches keep hitting. History is immutable in `pi-durable`, which gives the same property for free.
 
@@ -529,7 +529,7 @@ On connect the client sends `hello`. The room answers with the events after `las
 
 The room keeps the user's chat row current. After each change to its newest activity, its read position, or its members, it sends `UserDO.touchChat` one row summary: `last`, `unread`, `mentions`, and `group`. Changes made in one step share one touch. A touch with an older `lastSeq` is ignored.
 
-- `last` is the newest activity as data (`ChatLast` in `packages/protocol/src/activity.ts`): who, a kind (text, photo, video, album, file, voice, audio, link, react, joined, left, renamed, created, notice), and a clipped text. It is the newest of: a live message, an agent's reaction to a human message that still stands, and a member joining or leaving. A deleted newest message falls back to the one before it. A rename of a group is stored by `UserDO` and stays the line until something newer happens.
+- `last` is the newest activity as data (`ChatLast` in `core/protocol/src/activity.ts`): who, a kind (text, photo, video, album, file, voice, audio, link, react, joined, left, renamed, created, notice), and a clipped text. It is the newest of: a live message, an agent's reaction to a human message that still stands, and a member joining or leaving. A deleted newest message falls back to the one before it. A rename of a group is stored by `UserDO` and stays the line until something newer happens.
 - The media kinds (photo, video, album, voice, audio, file) come from the types of a human's attached files (`messageLast`). They are a line in the chat list, not a media system: since 2026-10-09 no thumbnail, album layout, or link card backs them. Agents send no files, so an agent's line is text or link.
 - The client words it in `sidebar/activity.ts`, as Telegram does: `you: text` for your own messages, `ada: text` in a group, `photo, caption`, `ada reacted ❤️ to "hello"`, `ada joined`. A row stored before `last` existed shows `lastPreview`.
 - The row sorts by its newest activity, so reading a chat never moves it.
@@ -543,7 +543,7 @@ Mentions. The Worker passes the human's handle (`humanHandle`, the first word of
 Each room indexes its own live messages with FTS5 (`messages_fts`, kept by triggers in the same transaction as the write). A query quotes every word, so FTS syntax in it is plain text, and its last word matches as a prefix.
 
 - The index is read newest first by rowid, which grows with `seq`, so a page stops after its limit and `snippet()` runs only for the rows returned. Ordering by `messages.seq` made SQLite sort every match and build a snippet for each first: a one-letter prefix in a room of 10,000 messages took 20 ms, and now takes 1 ms (`test/room-search.test.ts`).
-- A hit carries `id`, `seq`, `at`, `from`, and a snippet whose matched words are wrapped in `SNIPPET_OPEN` and `SNIPPET_CLOSE` (`packages/protocol/src/search.ts`), so the client marks exactly what the index matched.
+- A hit carries `id`, `seq`, `at`, `from`, and a snippet whose matched words are wrapped in `SNIPPET_OPEN` and `SNIPPET_CLOSE` (`core/protocol/src/search.ts`), so the client marks exactly what the index matched.
 - One chat: the room socket's `search { query, before?, limit? }`, paged newest first by `seq`.
 - Every chat: `GET /api/search?q=&before=&limit=` (`room/search-route.ts`). The Worker lists the user's chats from `UserDO`, asks the 30 most recently active rooms in parallel over RPC, and merges their pages by time (`mergeHits`). Ranks from different rooms' indexes do not compare, so the order is by time, as Telegram's global search is. The cursor is a time. One request is one `UserDO` call and at most 30 room calls, under the Free plan's 50 subrequests. A user with more chats gets `partial: true`, and the older chats are not searched. No Durable Object waits on another: the fan-out is the Worker's. UNVERIFIED: whether Durable Object calls count toward the 6 simultaneous connections per invocation. If they do, the 30 calls run 6 at a time and the answer is slower, not wrong.
 - The client searches the server only. IndexedDB holds a part of each room, so a local pass would show partial results first and then change them under the reader.
@@ -590,7 +590,7 @@ record    = AES-256-GCM(data key, iv = 12 random bytes, aad = userId || provider
 
 `CREDENTIALS_KEK` is a Worker secret. Each record stores `kek_version`, so the secret can rotate. The plaintext exists only in memory inside `UserDO` and inside the `AgentDO` that is making a model request. Yuki never logs a key and never sends one to the client. The client receives the provider id, the kind of credential, and the last four characters.
 
-- The code is `packages/durable/src/crypto.ts` and `apps/server/src/user/credentials.ts`. `UserDO` takes its user id from `ctx.id.name`.
+- The code is `core/durable/src/crypto.ts` and `apps/server/src/user/credentials.ts`. `UserDO` takes its user id from `ctx.id.name`.
 - Rotation: move the old secret to `CREDENTIALS_KEK_PREVIOUS`, set the new `CREDENTIALS_KEK`, and add 1 to `CREDENTIALS_KEK_VERSION` (default 1). A row sealed with the old secret is re-sealed on its next read.
 - ASSUMPTION: the additional data is `userId:providerId`. A user id cannot contain ":", so no two pairs share bytes.
 - DEVIATION: the RPC methods are `connectProvider`, `disconnectProvider`, and `listProviders`. `connect` is the `DurableObject` handler for TCP sockets, so the plan's name cannot be used.
@@ -707,7 +707,7 @@ User extensions (section 24) do run QuickJS inside the agent's object, through `
 
 ### 13.1 The tree
 
-`packages/memory/src/optmem.ts` is the one implementation, used by both logs.
+`core/memory/src/optmem.ts` is the one implementation, used by both logs.
 
 - **Items.** A log is a list of items that only grows. Position is identity.
 - **Nodes.** A node is an aligned span `[k*size, (k+1)*size)` whose size is a page times a power of two. A page is summarized from its raw items. A bigger node is summarized from its two halves. A summary is one lowercase line of at most 280 bytes, memo's size. OptChat (gist.github.com/VictorTaelin/91837951a5ce5b38f341ec1ba1df6449, read on 2026-10-05) uses 512; yuki keeps 280 so the `<memory>` block every fresh run reads stays the size it was.
@@ -748,7 +748,7 @@ DEVIATION from OptMem, in four places. A room page is 16 turns (a life page 8 li
 
 Yuki follows OptMem's own loop: wake from memory once, then work in an ordinary transcript.
 
-1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `packages/agent/src/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task started over at every step, because the integration's guides alone passed the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06). The budget is measured after the opening `<memory>` block (`measure` in `packages/agent/src/host.ts`): the block is the chat's own bounded view, and counting it made a long chat restart in the middle of a task. The block is the life view from `UserDO.lifeView`, then this chat's view from `RoomDO.memoryView`, read side by side. Only a fresh run reads the life view; `turnContext` no longer builds it on every run.
+1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `core/agent/src/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task started over at every step, because the integration's guides alone passed the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06). The budget is measured after the opening `<memory>` block (`measure` in `core/agent/src/host.ts`): the block is the chat's own bounded view, and counting it made a long chat restart in the middle of a task. The block is the life view from `UserDO.lifeView`, then this chat's view from `RoomDO.memoryView`, read side by side. Only a fresh run reads the life view; `turnContext` no longer builds it on every run.
 2. **Going on.** Every other run keeps the transcript and opens with a small `<memory>` block of only what is new in the chat since its last run (`RoomDO.memorySince`), without its own turns, which the transcript holds, and without the messages the batch delivers on their own. It also leaves out the messages that joined the last run while it was live, as a steer or a queued input: the host keeps their seqs (`memory:joined`) until the next run starts. Before this, they came back in the next delta, so the agent read them twice. A turn there is cut at 300 characters, as before, and now says so and how to zoom for the rest.
 
 **Before the first token.** A run makes one call to `UserDO`: `turnContext(provider, slug)` brings the auth, the agent's extension versions, and its soul. The extension sync does nothing when the versions match what the process synced last. The room computes the delta at the same time (`prefetchDelta` in `agent/agent-do.ts`); a run that turns out fresh drops it. The soul, `/chat.md`, and the skills list in the system prompt are read once per run (`perRun` in `agent/extensions/self.ts`), not before every model request, and `/chat.md` comes through the byte cache. A change to any of them reaches the next run. Built-in skills are parsed once per isolate.
@@ -817,7 +817,7 @@ So the `capture` field of `memory_policy` has three values:
 
 **Recall reads nothing twice.** `recall` leaves out chat lines that are verbatim in the agent's context and lines it already returned since the context last started fresh, and says so in one line. With a judge, more than six hits are reranked and weak ones dropped.
 
-**Policy.** Thresholds, timings, and the `capture` field are one user setting, `memory_policy`, merged over defaults in `packages/memory/src/capture.ts`, so they change without a deploy.
+**Policy.** Thresholds, timings, and the `capture` field are one user setting, `memory_policy`, merged over defaults in `core/memory/src/capture.ts`, so they change without a deploy.
 
 **Jev is dynamic.** Jev comes from pi-ai: the `typesafe` provider's classifier model, called with `models.classify`. Yuki has no adapter of its own. A judge is a connected provider that pi-ai lists classifier models for. The key is sealed like any other and listed in Settings. Every judgment looks the key up when it runs, so adding or removing it mid-session, with agents running, changes the next capture and nothing else. The model is the user setting `judge_model` when set, else the provider's first classifier model. A key the API refuses (pi-ai's error carries 401 or 403) is marked by its last four, Settings says "Key refused", and the mark clears when the key changes. Any other failure returns no answer: `always` takes the base path, and `auto` keeps the messages queued for the judge.
 
@@ -884,7 +884,7 @@ The owner removed approvals and prompt-injection gating on 2026-10-11. Agents wo
 - Every tool runs when the model calls it, in any run: the human's, a routine's, a reminder's, a task wake, or a nudge.
 - A tool result reaches the model as it is. Nothing marks or escapes it.
 - An agent message is wrapped in `<agent-message from="slug" hop="n">` and a wake in `<system-event reason="...">`, both as user-role content, so the agent knows who wrote it.
-- Every tool still declares one effect, `read`, `write`, `message`, or `external`, with `declareEffect` in `packages/agent/src/effects.ts`, and `buildAgent` throws on a tool with none. The effect sets a script tool's powers (section 24.4) and a Composio tool's `replay` (section 12.3). It gates no call.
+- Every tool still declares one effect, `read`, `write`, `message`, or `external`, with `declareEffect` in `core/agent/src/effects.ts`, and `buildAgent` throws on a tool with none. The effect sets a script tool's powers (section 24.4) and a Composio tool's `replay` (section 12.3). It gates no call.
 - What still holds: users never cross (section 4.2), a credential stays on the server and never enters a prompt (section 11), and yuki fetches nothing on its own for a URL in a message (section 18.2).
 
 ## 17. Scale and cost
@@ -936,7 +936,7 @@ Subrequests. A Free invocation may make 50 outside requests, and it is enforced 
 
 Each request through `egress` is one more Durable Object request, about five per turn. Free allows 100,000 a day, and rows written still bind first (the table above), so the user count does not move.
 
-Alarms. The runtime retries a throwing `alarm()` six times, and `dueWakeups` has already claimed the due keys, so a throwing step would lose its wakeup and skip the steps after it. `UserDO` and `RoomDO` run each due step through `runDue` (`packages/durable/src/alarm.ts`), which catches a failure and sets that key again: after 30 seconds, or 2 seconds for the room's message path. `AgentHost` already catches and re-arms.
+Alarms. The runtime retries a throwing `alarm()` six times, and `dueWakeups` has already claimed the due keys, so a throwing step would lose its wakeup and skip the steps after it. `UserDO` and `RoomDO` run each due step through `runDue` (`core/durable/src/alarm.ts`), which catches a failure and sets that key again: after 30 seconds, or 2 seconds for the room's message path. `AgentHost` already catches and re-arms.
 
 SQL. A query binds at most 100 values. A list of ids is passed as one JSON value and read with `json_each(?)`, never as one `?` per id.
 
@@ -966,7 +966,7 @@ Model cost is the user's own and is not in these numbers. A team turn that wakes
 
 Rows written is the limit that binds first, and partial commits cause most of it. `PARTIAL_THROTTLE_MS` is a constant, not a setting.
 
-**Decision, verified by experiment 3.** Yuki wraps `SqliteStorage` in `createCoalescingStorage` (`packages/agent/src/coalescing-storage.ts`). It holds partial-output commits in memory and writes each window of them as one commit. A window is written when a partial arrives 2 seconds or more after the window opened, and before any other write, any document read, and `close()`. `Storage` is a documented `pi-durable` interface with a conformance suite, so this uses an extension point and edits nothing. The agent host (P1-06) opens its harness on this wrapper. Details are in [research/experiment-3-coalescing.md](research/experiment-3-coalescing.md).
+**Decision, verified by experiment 3.** Yuki wraps `SqliteStorage` in `createCoalescingStorage` (`core/agent/src/coalescing-storage.ts`). It holds partial-output commits in memory and writes each window of them as one commit. A window is written when a partial arrives 2 seconds or more after the window opened, and before any other write, any document read, and `close()`. `Storage` is a documented `pi-durable` interface with a conformance suite, so this uses an extension point and edits nothing. The agent host (P1-06) opens its harness on this wrapper. Details are in [research/experiment-3-coalescing.md](research/experiment-3-coalescing.md).
 
 **How a partial is told apart.** A partial commit is exactly one `document.change` delta to the conversation's `pi.live` document, and every op in it changes `generation`. One other commit has that shape, the marker that sets `generation` to `{ attempt }` before a request. Holding it is safe, because after a crash the task sends the request again from its checkpoint. The other commits in `src/harness/generation.ts` that change `generation` also write a task checkpoint, so they have more than one write. The wrapper also holds only a delta to a document without history, at the version stored, so the inner storage would accept it and no read can ask for a point inside a window.
 
@@ -1239,7 +1239,7 @@ docs/
 refs/, solid-refs/  read-only references
 ```
 
-**Effect v4.** `effect` 4.0.0 is the current release. Yuki uses it in `apps/server` and `apps/cli` for services, typed errors, and `Schema` validation at the edges (WebSocket frames, HTTP bodies, tool arguments from yuki's own tools). `packages/protocol` exports plain TypeScript types that the client imports as types only. The client trusts frames from its own server and validates nothing at runtime, so Effect stays out of the client bundle. `pi-durable` uses its own `Context` from `chord` and TypeBox for tool schemas. Effect wraps those at the edge of `apps/server/src/agent/` and does not replace them.
+**Effect v4.** `effect` 4.0.0 is the current release. Yuki uses it in `apps/server` and `apps/cli` for services, typed errors, and `Schema` validation at the edges (WebSocket frames, HTTP bodies, tool arguments from yuki's own tools). `core/protocol` exports plain TypeScript types that the client imports as types only. The client trusts frames from its own server and validates nothing at runtime, so Effect stays out of the client bundle. `pi-durable` uses its own `Context` from `chord` and TypeBox for tool schemas. Effect wraps those at the edge of `apps/server/src/agent/` and does not replace them.
 
 **Verification.** The detail belongs to the phase plan. The shape is fixed here because it constrains the design.
 
@@ -1300,7 +1300,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 ### Spec claims corrected by the source
 
 - Pi does not handle user login or user auth. It handles provider credentials for one local user.
-- `packages/durable` has subagent patterns and no Cloudflare code. Yuki writes the Durable Object host.
+- `core/durable` has subagent patterns and no Cloudflare code. Yuki writes the Durable Object host.
 - `pi-durable` has no skills and no prompt injection defense.
 - DEVIATION: swipe to reply was removed on 2026-10-09 at the owner's request. On a pointer device a message shows react, reply and "…" on hover, as in the owner's macOS screenshots. Touch keeps the long-press menu.
 
@@ -1317,8 +1317,8 @@ Yuki copies four patterns, built in P1-13:
 
 How P1-13 built them:
 
-- `packages/durable/src/alarm.ts` refuses a new key past 1,000 with `WakeupLimitError`. Moving an existing key always works. `history()` returns the last 100 fired keys with their due and fired times.
-- `packages/agent/src/inbox.ts` marks a claimed batch with `in_flight_at` and the id of the process that took it. A batch held by another process is reclaimed at once, because a Durable Object has one live process and the other one is dead. A batch held by this process is reclaimed after 5 minutes. A failed drain releases what it took. `submitted()` returns false the second time. `receive()` returns `{ admitted: [], refused: "full" | "too_large" }` instead of throwing.
+- `core/durable/src/alarm.ts` refuses a new key past 1,000 with `WakeupLimitError`. Moving an existing key always works. `history()` returns the last 100 fired keys with their due and fired times.
+- `core/agent/src/inbox.ts` marks a claimed batch with `in_flight_at` and the id of the process that took it. A batch held by another process is reclaimed at once, because a Durable Object has one live process and the other one is dead. A batch held by this process is reclaimed after 5 minutes. A failed drain releases what it took. `submitted()` returns false the second time. `receive()` returns `{ admitted: [], refused: "full" | "too_large" }` instead of throwing.
 - ASSUMPTION: the caps are 500 open rows (waiting or claimed) and 128 KiB per envelope plus brief. Submitted rows stay for dedupe and do not count. A delivery stores its brief on its first row only, since one delivery always lands in one batch. The room sends a burst past the caps in deliveries of at most 100 envelopes and 64 KiB (`deliverable` in `room/burst.ts`), so a huge burst is never refused forever or dropped.
 - ASSUMPTION: the room treats `full` as backpressure and retries the burst after 2 seconds. It drops a `too_large` burst from the queue. The messages stay in the log either way.
 - `RoomDO`, `UserDO`, and `AgentDO` build their tables inside `blockConcurrencyWhile`. The callback runs after the constructor returns but before any request or alarm.
@@ -1333,7 +1333,7 @@ Users and agents add pi-durable extensions while yuki runs, on the Free plan, wi
 ### 24.1 Decision
 
 - An extension is data: `extension.json` plus files, stored by content hash in the user's `UserDO`. User extensions never live in the repository, so a pull from upstream never conflicts with them.
-- The manifest mirrors pi-durable's extension points one to one: `tools`, `sections`, `hooks`, `wraps`. Yuki adds `calls`, `egress`, `secrets`, `state`, `triggers`, and `tests`. The format is versioned by `"yuki": 1` and checked by `checkManifest` in `packages/sandbox/src/manifest.ts`, which `@yuki/protocol` re-exports: the same function on the server, in the CLI, and in the client.
+- The manifest mirrors pi-durable's extension points one to one: `tools`, `sections`, `hooks`, `wraps`. Yuki adds `calls`, `egress`, `secrets`, `state`, `triggers`, and `tests`. The format is versioned by `"yuki": 1` and checked by `checkManifest` in `core/sandbox/src/manifest.ts`, which `@yuki/protocol` re-exports: the same function on the server, in the CLI, and in the client.
 - The script is JavaScript, run by QuickJS compiled to wasm (`quickjs-wasi` 3.6.2). The wasm is imported with the Worker, so no code is evaluated by V8. The script is data for a bundled interpreter.
 - Only the human installs. Agents, the catalog, and files the human opens can only propose. The install is reachable from the human's socket alone.
 
@@ -1358,7 +1358,7 @@ The client gets extensions and proposals in the user snapshot and as user events
 
 ### 24.3 The sandbox
 
-`packages/sandbox/src/vm.ts` runs one VM per extension version per agent process.
+`core/sandbox/src/vm.ts` runs one VM per extension version per agent process.
 
 - The VM has no `fetch`, timers, `process`, `WebAssembly`, or bindings. The only way out is `__host`, which the prelude hides before the extension's module runs. Each invocation gets its own `yuki` object, and the host decides per call what it may do.
 - Data crosses as JSON text only, so a guest object never becomes a host object.
@@ -1369,7 +1369,7 @@ The client gets extensions and proposals in the user snapshot and as user events
 
 ### 24.4 How an extension becomes a pi-durable extension
 
-`packages/sandbox/src/compile.ts` turns a manifest into an ordinary `Extension` named `ext:<name>`. Each tool, section, hook, and wrap is a host function that calls into the VM. The bridge enforces the manifest on every call:
+`core/sandbox/src/compile.ts` turns a manifest into an ordinary `Extension` named `ext:<name>`. Each tool, section, hook, and wrap is a host function that calls into the VM. The bridge enforces the manifest on every call:
 
 | `yuki.` | Rule |
 | --- | --- |
@@ -1411,7 +1411,7 @@ Before each run, `AgentDO.syncExtensions` asks `UserDO.extensionsFor(slug)` for 
 - The extension must be installed and on. Only `https`. The host must match `egress`, where `*.example.com` covers every subdomain.
 - `{{secret.NAME}}` in the URL, a header value, or the body is filled in here, and only when the host is one of that secret's `hosts`. The script never holds a key.
 - A server that echoes a secret does not hand it back: every set secret is replaced by its placeholder in the response text. `set-cookie` and `authorization` response headers are dropped.
-- `safeRequest` in `packages/durable/src/safe-fetch.ts` makes the request. It has `safeFetch`'s address checks, and it never follows a redirect, so headers chosen for one host never reach another. Bodies are at most 256 KB each way, and the deadline is 10 seconds.
+- `safeRequest` in `core/durable/src/safe-fetch.ts` makes the request. It has `safeFetch`'s address checks, and it never follows a redirect, so headers chosen for one host never reach another. Bodies are at most 256 KB each way, and the deadline is 10 seconds.
 
 ### 24.8 Triggers
 
@@ -1461,7 +1461,7 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 -- status: running | ok | quiet | failed | held | timeout
 ```
 
-`trigger` is the protocol's `Trigger` (`packages/protocol/src/routines.ts`): `time` (`at` plus an RRULE), `task`, `message`, `file`, `webhook`, or `watch`. A `time` or `watch` routine has a due time; an event or webhook routine has `due_utc` 0 and is fired by the room or the hook route.
+`trigger` is the protocol's `Trigger` (`core/protocol/src/routines.ts`): `time` (`at` plus an RRULE), `task`, `message`, `file`, `webhook`, or `watch`. A `time` or `watch` routine has a due time; an event or webhook routine has `due_utc` 0 and is fired by the room or the hook route.
 
 **A run.** `Reminders.run` renders the body, `RoomDO.deliverRoutine` delivers it once per `<id>:<occurrence>`, and the room follows it in `routine_inflight` until the agent's run ends. The body is plain text, since the room escapes system envelopes: the routine's name and id, why it ran, when it runs in words, its last run, its instructions, and what happened (the events, the webhook's post, or the changed page).
 
@@ -1492,7 +1492,7 @@ type Origin = "human" | "routine" | "auto"
 ```
 
 - The room stamps every envelope: `human` on a burst, `routine` on a routine run, `auto` on everything else. `agent_chains` keeps the origin of each member's chain, so a message an agent sends inherits it.
-- The agent host keeps the origin of the run in flight in `run_origin`. A batch that starts a run sets it; a batch that joins combines with it (`joinOrigin` in `packages/agent/src/envelope.ts`): a human anywhere makes it the human's, otherwise `auto` wins over `routine`. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
+- The agent host keeps the origin of the run in flight in `run_origin`. A batch that starts a run sets it; a batch that joins combines with it (`joinOrigin` in `core/agent/src/envelope.ts`): a human anywhere makes it the human's, otherwise `auto` wins over `routine`. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
 - An envelope stored before origins counts as `human` when a human wrote it, else `auto`.
 - The origin only sets the time budget of 25.2. No origin gates a tool (section 16).
 - A reminder keeps the chain of the run that made it, origin included. A task keeps the chain it was made on (section 7.6).
@@ -1517,7 +1517,7 @@ type Origin = "human" | "routine" | "auto"
 - The run gets the post's text after its instructions.
 - The token is returned once, to the agent's tool result or the human's API call. Cancelling the routine deletes the D1 row.
 
-**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`packages/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page. The new fingerprint is saved unless the run was held, so a change found while the budget is out is reported by the first check after it resets. An unchanged page writes nothing. Ten failed checks in a row pause the watch with a line in its chat. Nothing is fetched while the human is away.
+**Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`core/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page. The new fingerprint is save...
 
 DEVIATION from the first plan: watches do not run extension code from an alarm. Fetching in `UserDO` reuses the extension's egress and secrets with no new `yuki.*` power and no VM outside a run.
 
@@ -1563,7 +1563,7 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; an 
 
 ### 25.10 Effect v4 at the edges
 
-`packages/protocol/src/schema.ts` has `Origin`, `Trigger`, and `WebhookMatch`, checked against their types. `create_routine`, `update_routine`, and `/api/routines` decode the trigger with `Schema.decodeUnknownSync(Trigger)`, so a bad trigger is one line the model or the client can fix. pi-durable validates tool arguments with TypeBox, so the tools keep a loose TypeBox shape and decode the trigger themselves. Inside the objects, yuki keeps pure functions over SQL, as before; no Effect runtime runs in an alarm.
+`core/protocol/src/schema.ts` has `Origin`, `Trigger`, and `WebhookMatch`, checked against their types. `create_routine`, `update_routine`, and `/api/routines` decode the trigger with `Schema.decodeUnknownSync(Trigger)`, so a bad trigger is one line the model or the client can fix. pi-durable validates tool arguments with TypeBox, so the tools keep a loose TypeBox shape and decode the trigger themselves. Inside the objects, yuki keeps pure functions over SQL, as before; no Effect runtime runs in an a...
 
 ### 25.11 Verification
 
@@ -1587,7 +1587,7 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; an 
 
 ### 26.1 The store
 
-`packages/memory/src/loops.ts`, table `loops` in `UserDO` beside the life log, with `loops_fts` (FTS5). A row has `kind` (goal, intention, commitment, waiting, project), `certainty` (explicit, tentative), `owner` (`human` or an agent slug), `room`, `ref` (the human message it came from, as life refs), `due`, `status` (open, done, dropped, snoozed), `mentions`, `last_seen`, and `source` (tool for an agent's own reminder, jev, nap). What a nudge did to a loop is the engine's (`initiative_marks`, 26.6), not a column here.
+`core/memory/src/loops.ts`, table `loops` in `UserDO` beside the life log, with `loops_fts` (FTS5). A row has `kind` (goal, intention, commitment, waiting, project), `certainty` (explicit, tentative), `owner` (`human` or an agent slug), `room`, `ref` (the human message it came from, as life refs), `due`, `status` (open, done, dropped, snoozed), `mentions`, `last_seen`, and `source` (tool for an agent's own reminder, jev, nap). What a nudge did to a loop is the engine's (`initiative_marks`, 26.6), not...
 
 - `open` merges a repeat into the same loop: one the caller names (`same`, from Jev) or one with the same words. A merge never crosses owners, keeps the first words, can firm a tentative loop up and add a due time, and never softens an explicit one.
 - Deleting a message forgets the loops learned from it, as it forgets life lines.

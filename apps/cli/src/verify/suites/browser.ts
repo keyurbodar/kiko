@@ -5,10 +5,6 @@ import type { Suite } from "../runner"
 import { api } from "../routine-kit"
 import { readStats, resetStats } from "./latency"
 
-// P17-03 with real keys: KERNEL_API_KEY and OPENCODE_API_KEY. An agent asked for the top story on
-// Hacker News answers with the title the suite reads itself, in under 20 s, with no screenshot. Then
-// its CDP socket closes about 15 s after its last browser call (its tabs leave the lease),
-// and the reaper leaves Kernel's active list empty.
 
 const USER = `browser-${Date.now().toString(36)}`
 const ASK = "Use the browse tool (not web_fetch): what is the title of the top story on Hacker News right now? Answer with just the title."
@@ -28,7 +24,6 @@ const suite: Suite = {
   model: true,
   human: true,
   async run(v) {
-    // `--fake`: the scripted agent drives the real browser tools with no model key (browser-fake.ts).
     if (v.fake) return fakeBrowserRun(v)
     if ((await activeBrowsers()).length) console.log("  note: Kernel already lists active browsers on this key")
     const s = await browserUser(v, USER, false)
@@ -62,7 +57,6 @@ async function check(v: Verifier, s: Session): Promise<void> {
     if (total > LIMIT_MS) throw new VerifyError(`the answer took ${(total / 1000).toFixed(1)} s, over ${LIMIT_MS / 1000} s`)
 
     for (;;) {
-      // An idle close releases the lease, which drops this agent's tabs from the user's browser.
       const state = await api<{ status: { browser: { tabs: Record<string, number> } | null } }>(v.url, s, "dev/agent/browser", { action: "state" })
       const held = Object.keys(state.json.status.browser?.tabs ?? {}).some((k) => k.startsWith(`${roomId}:`))
       if (!held) {

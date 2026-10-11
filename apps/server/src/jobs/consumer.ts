@@ -1,30 +1,20 @@
 import type { Env } from "../index"
 import { type DeleteAccountJob, deletionTargets, isDeleteAccountJob, runDeleteJob } from "./delete-account"
 
-// The one queue consumer. Architecture section 7.9. Every job type is in `Job`, and a
-// handler is safe to run twice, because a queue delivers at least once. A handler that
-// throws is retried with a growing delay. A body that is no known job is dropped.
-
 export type Job = DeleteAccountJob
 
 const MAX_DELAY_SECONDS = 60
 
-/** Seconds to wait after delivery number `attempts` fails: 1, 2, 4, up to a minute. */
 export const retryDelay = (attempts: number) => Math.min(2 ** Math.max(0, attempts - 1), MAX_DELAY_SECONDS)
 
 async function run(body: unknown, env: Env): Promise<void> {
 	if (isDeleteAccountJob(body)) await runDeleteJob(body, deletionTargets(env, body.userId))
 }
 
-/** The dead-letter queue in wrangler.jsonc. A job lands there after 100 failed deliveries. */
 export const DEAD_LETTER_QUEUE = "kiko-jobs-dead"
-/** How long a dead account deletion waits before it goes back to the main queue. */
 const REQUEUE_DELAY_SECONDS = 15 * 60
 
-/**
- * A dead account deletion goes back to the main queue, because deletion must never give
- * up. Any other dead body is dropped.
- */
+// Deletion must never give up, so a dead one goes back to the main queue. Other dead bodies are dropped.
 async function requeueDead(batch: MessageBatch<unknown>, env: Env): Promise<void> {
 	for (const message of batch.messages) {
 		try {

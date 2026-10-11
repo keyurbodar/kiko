@@ -3,8 +3,6 @@ import type { FileRef, RoomEvent, RoomToClient } from "@yuki/protocol"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// Pending attachments (architecture section 18.1) against real R2 and a real RoomDO in workerd:
-// upload at pick time, the checks on the upload, delete, the claim at send, and the sweep.
 let mf: Miniflare
 let origin: string
 
@@ -76,7 +74,6 @@ class Client {
 			})
 		}
 	}
-	/** Every event of the room so far, from a fresh hello. */
 	async replay(): Promise<RoomEvent[]> {
 		this.send({ t: "hello", lastSeq: 0 })
 		const f = await this.next((x) => x.t === "events")
@@ -96,7 +93,6 @@ test("a pending upload is not the chat's until a send claims it, then it is a fi
 	expect(put.status).toBe(204)
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${id}`])
 	const c = await Client.open(room)
-	// Nothing in the room's log names it yet: no file event, no folder.
 	expect((await c.replay()).some((e) => e.t === "file")).toBe(false)
 
 	c.send(sendFrame("c1", [{ pendingId: id, name: "notes.txt", type: "text/plain", size: 11 }], "see this"))
@@ -110,10 +106,8 @@ test("a pending upload is not the chat's until a send claims it, then it is a fi
 	expect(message && message.t === "message" && message.files).toEqual([(file as { file: FileRef }).file])
 	expect(ack.t === "ack" && message?.t === "message" && ack.id).toBe(message?.t === "message" ? message.id : "")
 
-	// The bytes are where they were, served by the id the message names.
 	const got = await fetch(`${origin}/api/files/${room}/${id}`, { headers: as })
 	expect(await got.text()).toBe("hello there")
-	// A sent file is not pending: its delete finds nothing and leaves the bytes.
 	const del = await fetch(`${origin}/api/files/${room}/pending/${id}`, { method: "DELETE", headers: as })
 	expect(del.status).toBe(404)
 	await del.body?.cancel()
@@ -159,11 +153,9 @@ test("a claim of an upload that is gone, a wrong size, or a repeated id stores n
 	expect(await refusal("m3", [a, a])).toBe("Duplicate attachment ids are not allowed.")
 	const many = Array.from({ length: 101 }, () => ({ ...a, pendingId: crypto.randomUUID() }))
 	expect(await refusal("m4", many)).toBe("You can attach up to 100 files per message.")
-	// A good attachment after a missing one: the whole send is refused and the good one stays pending.
 	expect(await refusal("m5", [a, { ...a, pendingId: missing }])).toContain("attachment not found")
 	const replay = await c.replay()
 	expect(replay.some((e) => e.t === "message" || e.t === "file")).toBe(false)
-	// Still pending, so a later send claims it.
 	c.send(sendFrame("m6", [a]))
 	expect((await c.next((x) => x.t === "ack" || x.t === "send_refused")).t).toBe("ack")
 	c.close()
@@ -179,9 +171,7 @@ test("an upload is refused when its length lies, it is empty, or it is over its 
 	const picture = await upload(room, crypto.randomUUID(), new Uint8Array(10 * MiB + 1), { name: "big.png", type: "image/png" })
 	expect(picture.status).toBe(413)
 	expect(((await picture.json()) as { error: string }).error).toBe("'big.png' exceeds the 10 MB attachment limit.")
-	// The same bytes as a file fit the 50 MB file limit.
 	expect((await upload(room, crypto.randomUUID(), new Uint8Array(10 * MiB + 1), { name: "big.bin", type: "application/octet-stream" })).status).toBe(204)
-	// Nothing refused reached R2.
 	expect((await keys(room)).length).toBe(1)
 })
 
@@ -228,7 +218,6 @@ test("the sweep deletes pending uploads older than a day and leaves sent files",
 	expect(await sweep(Date.now() + 3_600_000)).toBe(0)
 	expect(await sweep(Date.now() + 25 * 3_600_000)).toBe(1)
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${sent}`])
-	// A second sweep finds nothing.
 	expect(await sweep(Date.now() + 25 * 3_600_000)).toBe(0)
 	c.close()
 })

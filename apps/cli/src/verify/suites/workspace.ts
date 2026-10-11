@@ -3,17 +3,8 @@ import type { RoomHandle } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send, ulid, until } from "./mid-run"
+import { must } from "../must"
 
-// P6-02, architecture section 7.6. The task board with fake agents (`apps/server/src/agent/dev-fake.ts`),
-// so the suite is deterministic and spends no tokens. yuki leads the group (section 7.11); bob, ada and cy are members. The
-// fake calls a workspace tool for `[ws <tool> <json>]` and answers `heard: ...; tool: <result>`.
-// Needs a development server.
-//
-//   the human creates task A for ada, and the lead's create_task adds B for cy after A
-//   cy taking A fails and names the owner
-//   cy is not woken while A is open
-//   ada marks A done with update_task, and cy gets exactly one task_unblocked envelope
-//   finishing A again wakes nobody
 
 const TEAM = ["bob", "ada", "cy"] as const
 const agentOf = (name: string): Agent => ({ id: `workspace-${name}`, name, slug: name as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
@@ -51,7 +42,6 @@ const suite: Suite = {
 		user.send({ t: "chat", op: { op: "create", roomId, title: "ship it", agents: TEAM.map((n) => agentOf(n).id) } })
 		await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
 		const room = await s.room(roomId)
-		// A group is seeded with yuki first, as its lead, so yuki is a fake too.
 		await dev(v.url, s.cookie, "fake", { roomId, slugs: ["yuki", ...TEAM] })
 		await until("three members", () => events(room).filter((e) => e.t === "member").length >= 3, 5_000)
 		const status = async (slug: string) => (await dev(v.url, s.cookie, "status", { roomId, slug })) as Status
@@ -60,40 +50,35 @@ const suite: Suite = {
 			return st.inbox.waiting + st.inbox.claimed + st.inbox.submitted
 		}
 
-		// 1. The human creates A for ada; the lead's tool adds B for cy, after A.
 		room.raw.send({ t: "task", op: { op: "create", id: "task-a", title: "draft the plan", owner: "ada" as AgentSlug } })
 		await until("task a", () => tasks(room).has("task-a"), 5_000)
 		await send(room, `@yuki [ws create_task {"title":"review the plan","owner":"cy","depends_on":["task-a"]}]`)
 		await until("task b", () => tasks(room).size === 2, 15_000)
-		const b = [...tasks(room).values()].find((t) => t.id !== "task-a")!
+		const b = must([...tasks(room).values()].find((t) => t.id !== "task-a"), "task-a's sibling")
 		expectEqual({ owner: b.owner, status: b.status, dependsOn: b.dependsOn }, { owner: "cy", status: "todo", dependsOn: ["task-a"] }, "task b")
 		await until("yuki's answer", () => bubbles(room, "yuki").length === 1, 15_000)
 		console.log(`  ok board: task-a for ada, ${b.id} for cy after task-a (yuki: ${JSON.stringify(bubbles(room, "yuki")[0])})`)
 
-		// 2. cy taking A fails and names the owner.
 		await send(room, `@cy [ws update_task {"id":"task-a","status":"doing"}]`)
 		await until("cy's answer", () => bubbles(room, "cy").length === 1, 15_000)
-		const refusal = bubbles(room, "cy")[0]!
+		const refusal = must(bubbles(room, "cy")[0], "refusal")
 		if (!refusal.includes("owned by @ada")) throw new VerifyError(`cy's answer does not name the owner: ${refusal}`)
 		expectEqual(tasks(room).get("task-a")?.owner, "ada", "task a's owner after cy tried to take it")
 		console.log(`  ok taking refused: ${JSON.stringify(refusal)}`)
 
-		// 3. cy is not woken while A is open.
 		await Bun.sleep(2_000)
 		const before = await received("cy")
 		expectEqual(before, 1, "envelopes cy received before task a is done (only the @cy message)")
 		console.log(`  ok not woken: cy holds ${before} envelope while task-a is open`)
 
-		// 4. ada finishes A with her tool. cy gets one task_unblocked envelope.
 		await send(room, `@ada [ws update_task {"id":"task-a","status":"done"}]`)
 		await until("task a done", () => tasks(room).get("task-a")?.status === "done", 15_000)
 		await until("cy's second answer", () => bubbles(room, "cy").length === 2, 15_000)
 		expectEqual(await received("cy"), before + 1, "envelopes cy received after task a is done")
-		const woke = bubbles(room, "cy")[1]!
+		const woke = must(bubbles(room, "cy")[1], "woke")
 		if (!woke.includes(`task ${b.id}`) || !woke.includes("unblocked")) throw new VerifyError(`cy's wake answer: ${woke}`)
 		console.log(`  ok unblocked: cy received 1 task_unblocked envelope and answered ${JSON.stringify(woke)}`)
 
-		// 5. Reopening and finishing A again wakes nobody a second time.
 		room.raw.send({ t: "task", op: { op: "update", id: "task-a", status: "review" } })
 		room.raw.send({ t: "task", op: { op: "update", id: "task-a", status: "done" } })
 		await until("task a done again", () => events(room).filter((e) => e.t === "task" && e.task.id === "task-a" && e.task.status === "done").length === 2, 5_000)
@@ -101,7 +86,6 @@ const suite: Suite = {
 		expectEqual(await received("cy"), before + 1, "envelopes cy received after task a was finished twice")
 		console.log(`  ok once: finishing task-a again delivered nothing more`)
 
-		// 6. A reset snapshot carries the board.
 		room.raw.send({ t: "hello", lastSeq: 1_000_000 })
 		const reset = await room.expect((f) => f.t === "reset", 5_000)
 		if (reset.t !== "reset") throw new VerifyError("no reset")

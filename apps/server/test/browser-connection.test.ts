@@ -3,7 +3,6 @@ import type { BrowserSession, PageView, Step, Tab } from "@yuki/browser/page/typ
 import { BrowserConnection, Busy, IDLE_CLOSE_MS, RESTARTED } from "../src/agent/browser/connection"
 import type { BrowserState, Lease, LeasePort } from "../src/agent/browser/lease"
 
-/** A browser whose tabs remember their address. `kill()` drops the socket the way a dead browser does. */
 function fakeBrowser() {
   const opened: string[] = []
   let n = 0

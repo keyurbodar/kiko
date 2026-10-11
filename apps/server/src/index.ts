@@ -51,7 +51,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     if (url.pathname === "/api/health") return Response.json({ ok: true })
-    if (url.pathname === "/api/experiments/imports") return Response.json(await runImports())
+    if (process.env.NODE_ENV === "development" && url.pathname === "/api/experiments/imports") return Response.json(await runImports())
     const routed = await route(request, env)
     if (routed) return routed
     const credentials = await credentialsRoute(request, env)

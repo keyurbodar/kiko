@@ -4,8 +4,6 @@ export { UserDO }
 
 type Env = { USER: DurableObjectNamespace<UserDO> }
 
-// `/ws/<user>` opens the user socket. `/rpc/<user>` calls one RPC method by name, so
-// the test drives the same methods a room calls.
 export default {
   async fetch(request: Request, env: Env) {
     const [, kind, user] = new URL(request.url).pathname.split("/")

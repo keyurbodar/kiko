@@ -2,7 +2,6 @@ import { expect, test } from "bun:test"
 import type { RoomFs } from "../src/files/room-fs"
 import { readable, SPILL_BYTES, spill } from "../src/agent/extensions/spill"
 
-/** A chat file space that keeps files in a map and counts writes. */
 function files() {
   const saved = new Map<string, string>()
   let writes = 0
@@ -17,7 +16,6 @@ function files() {
   return { fs, saved, writes: () => writes }
 }
 
-/** A one-line OpenAPI document bigger than the limit, with the part that matters at the end. */
 const spec = JSON.stringify({
   paths: Object.fromEntries(Array.from({ length: 900 }, (_, i) => [`/gmail/v1/users/{userId}/thing${i}`, { get: { operationId: `gmail.thing${i}` } }])),
   components: { securitySchemes: { Oauth2: { type: "oauth2" } } },
@@ -36,7 +34,6 @@ test("a big one-line JSON result is saved as lines, and the agent gets its start
   expect(path).toMatch(/^\/downloads\/integrations\.sh-specs-google-google-gmail\.json-[0-9a-f]{8}\.json$/)
   expect(out).toContain(path)
   expect(out.length).toBeLessThan(10 * 1024)
-  // The part at the end, which the old cut lost, is one grep away.
   expect(body.split("\n").some((line) => line.includes('"securitySchemes"'))).toBe(true)
 })
 

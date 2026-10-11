@@ -2,13 +2,8 @@ import type { ExtensionOp, ExtensionProposal, ExtensionResult, RoomToClient, Use
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { newRoom, seen, send, until } from "./mid-run"
+import { must as mustPresent } from "../must"
 
-// Architecture section 24 with the real test model, as findings probes (they print and never throw on
-// a NOT VERIFIED result).
-//
-//   P1r  the real path-guard blocks the built-in write under /prod, but an extension tool that calls write gets through?
-//   P4   the agent edits an installed extension: it opens the installed files, proposes a newer version that
-//        replaces the installed one, the human installs it, and the new behavior runs in the same chat
 
 const probe = (id: string, verdict: "VERIFIED" | "NOT VERIFIED" | "INCONCLUSIVE", evidence: string) => console.log(`  PROBE ${id} ${verdict}: ${evidence}`)
 const short = (t: string) => JSON.stringify(t.length > 300 ? `${t.slice(0, 300)}...` : t)
@@ -36,7 +31,6 @@ const suite: Suite = {
       const before = seen(room).live.length
       await send(room, text)
       await until("the agent's reply", () => seen(room).live.length > before, ms)
-      // The reply is done when no new bubble has come for 20 s.
       for (let quiet = Date.now(); Date.now() - quiet < 20_000; await Bun.sleep(1_000)) {
         const count = seen(room).live.length
         await Bun.sleep(1_000)
@@ -47,10 +41,9 @@ const suite: Suite = {
     const fileNames = () =>
       room.raw.log.flatMap((e) => (e.dir === "in" && (e.frame as RoomToClient).t === "events" ? (e.frame as Extract<RoomToClient, { t: "events" }>).events.flatMap((ev) => (ev.t === "file" ? [ev.file.name] : [])) : []))
 
-    // P1r. The real guard, the real write tool, and a second extension that writes through yuki.call.
     try {
       const guard = must(await op({ op: "propose_catalog", name: "path-guard" }), "propose path-guard")
-      must(await op({ op: "install", id: guard.proposal!.id }), "install path-guard")
+      must(await op({ op: "install", id: mustPresent(guard.proposal, "guard proposal").id }), "install path-guard")
       const writer = must(
         await op({
           op: "propose",
@@ -61,7 +54,7 @@ const suite: Suite = {
         }),
         "propose writer",
       )
-      must(await op({ op: "install", id: writer.proposal!.id }), "install writer")
+      must(await op({ op: "install", id: mustPresent(writer.proposal, "writer proposal").id }), "install writer")
       const from = room.raw.log.length
       const said = await replyAfter(
         "do these in order and report each result in one line. 1) guard_paths with add /prod. 2) write /prod/direct.md with the content direct. 3) call write_via. 4) ls /prod. say plainly whether each step worked or was blocked.",
@@ -79,7 +72,6 @@ const suite: Suite = {
       probe("P1r", "INCONCLUSIVE", `harness: ${e.message}`)
     }
 
-    // P4. Build dice, install it, then ask for an edit.
     try {
       const proposed = user.expect((f) => f.t === "events" && f.events.some((e: UserEvent) => e.t === "extension_proposal" && e.proposal.name === "dice"), 300_000)
       await replyAfter("build me an extension named dice with one tool, roll_dice, that rolls one die with a given number of sides (default 6) and returns the number it rolled. check it and propose it.", 300_000)
@@ -88,7 +80,6 @@ const suite: Suite = {
       const second = user.expect((f) => f.t === "events" && f.events.some((e: UserEvent) => e.t === "extension_proposal" && e.proposal.name === "dice" && e.proposal.id !== first.id), 300_000)
       const from = room.raw.log.length
       let edit = await replyAfter("change dice so roll_dice takes a count and rolls that many dice, then propose the update.", 300_000)
-      // Opening the installed files reads outside content, so the run may ask the human to say go first.
       const early = await Promise.race([second.then(() => true, () => false), Bun.sleep(5_000).then(() => false)])
       if (!early && /\bgo\b|reply|ok to/i.test(edit)) {
         console.log(`  the agent asked before saving the update: ${short(edit.split("\n").at(-1) ?? "")}`)

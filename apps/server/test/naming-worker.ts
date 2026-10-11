@@ -2,10 +2,6 @@ import { DurableObject } from "cloudflare:workers"
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../src/lib/names"
 import { route } from "../src/router"
 
-// The real router with a fake session lookup: the cookie `session=<id>` is the user id.
-// Each object answers a socket by sending its own id and the headers the router gave it,
-// so a test can see which object it reached.
-
 function echo(ctx: DurableObjectState, request: Request): Response {
   const [client, server] = Object.values(new WebSocketPair())
   server!.accept()
@@ -24,7 +20,6 @@ export class UserDO extends DurableObject {
     return echo(this.ctx, request)
   }
 
-  // The router records a room here before it opens the room's socket.
   async recordRoom() {
     return true
   }

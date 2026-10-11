@@ -3,9 +3,6 @@ import type { AgentSlug } from "@yuki/protocol"
 import { DEFAULT_MODEL } from "../src/agent/factory"
 import { type MemberRow, toMember } from "../src/room/members"
 
-// The details panel shows a member's model. An agent with none of its own runs on the default, so
-// the wire member must carry that effective model rather than leave the field out.
-
 const row = (model: string): MemberRow => ({ slug: "ada" as AgentSlug, name: "ada", role: "", model, lead: true, status: "idle" })
 
 describe("toMember model", () => {

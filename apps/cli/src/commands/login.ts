@@ -19,7 +19,6 @@ async function readSessions(): Promise<Sessions> {
   }
 }
 
-/** The stored cookie header for a server, or null. Other commands send it to act as the user. */
 export async function sessionCookie(url: string): Promise<string | null> {
   return (await readSessions())[new URL(url).origin] ?? null
 }
@@ -44,7 +43,6 @@ async function request(url: URL, init: RequestInit): Promise<Response> {
   }
 }
 
-/** `yuki login --dev [--name <name>]` signs in as a test user through the dev-only route. */
 export async function login(ctx: Context): Promise<void> {
   if (!ctx.dev) throw new CliError("only `yuki login --dev` exists. sign in with google or github in the browser")
   const url = endpoint(ctx, "api/auth/dev/session")
@@ -65,7 +63,6 @@ export async function login(ctx: Context): Promise<void> {
   console.log(ctx.json ? JSON.stringify({ id: user.id }) : user.id)
 }
 
-/** `yuki whoami` prints the signed-in user id for the server. */
 export async function whoami(ctx: Context): Promise<void> {
   const cookie = await sessionCookie(ctx.url)
   if (!cookie) throw new CliError(`not signed in to ${new URL(ctx.url).origin}. run yuki login --dev`)

@@ -54,13 +54,13 @@ An experiment task ends with a short result file in `docs/research/` and, where 
 
 `deps: P0-01` `difficulty: 3` `area: backend`
 
-**Verify.** `bun run typecheck` passes in `packages/protocol`, and `bun test packages/protocol` passes the fixture round-trip test.
+**Verify.** `bun run typecheck` passes in `core/protocol`, and `bun test core/protocol` passes the fixture round-trip test.
 
 **Goal.** Put every type that crosses the network in one package that the client, the server, and the CLI import.
 
 **Read first.** Architecture sections 6.4, 7.1, and 9.2.
 
-**Files.** Create `packages/protocol/` (`src/room.ts`, `src/user.ts`, `src/envelope.ts`, `src/rich-text.ts`, `src/ids.ts`, `src/fixtures.ts`).
+**Files.** Create `core/protocol/` (`src/room.ts`, `src/user.ts`, `src/envelope.ts`, `src/rich-text.ts`, `src/ids.ts`, `src/fixtures.ts`).
 
 **Build.**
 

@@ -4,9 +4,6 @@ import type { Alarms } from "@yuki/durable/alarm"
 import { type DeliverRun, type Reminder, Reminders, type RunDelivery } from "../src/user/reminders"
 import { sqlStorage } from "./sql-shim"
 
-// `Reminders` over bun:sqlite with fake ports: the rules that decide what a schedule or a watch
-// hands to the room (architecture sections 14 and 25.4).
-
 const ROOM = "01J0000000000000000000000R" as RoomId
 const MIN = 60_000
 
@@ -69,7 +66,6 @@ test("a stored minutely reminder for the human posts at most once in 30 minutes"
 test("aging the initiative clock moves an agent's own reminder with it, a day at a time", async () => {
   const { clock, reminders } = setup()
   const HOUR = 60 * MIN
-  // "Tomorrow morning" set before dawn is more than one day out.
   const own = await reminders.create("u", { text: "bring the checklist", time: new Date(clock.now + 28 * HOUR).toISOString(), tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "yuki" })
   const human = await reminders.create("u", { text: "call mom", time: new Date(clock.now + 28 * HOUR).toISOString(), tz: "UTC", roomId: ROOM })
   await reminders.devAge(24 * HOUR)

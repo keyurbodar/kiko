@@ -36,8 +36,6 @@ const TABLES = [
     queued_at INTEGER NOT NULL,
     PRIMARY KEY (room_id, message_id)
   )`,
-  // Human bursts and agents' answers waiting for one Jev pass over open loops (section 26). `agent` is
-  // the agent's slug for an answer. A row is deleted once read, so each message is classified once.
   `CREATE TABLE IF NOT EXISTS loop_heard (
     room_id TEXT NOT NULL,
     message_id TEXT NOT NULL,
@@ -46,13 +44,11 @@ const TABLES = [
     agent TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (room_id, message_id)
   )`,
-  // Summary pages whose loop lines were applied: a retried page applies them once (section 26).
   `CREATE TABLE IF NOT EXISTS nap_applied (id TEXT PRIMARY KEY, at INTEGER NOT NULL)`,
 ]
 
 export function migrate(sql: SqlStorage): void {
   for (const statement of TABLES) sql.exec(statement)
-  // Executor was removed. Its sealed tokens must not outlive it.
   sql.exec("DROP TABLE IF EXISTS executor_secrets")
   const columns = sql.exec<{ name: string }>("PRAGMA table_info(chats)").toArray()
   if (!columns.some((c) => c.name === "agents")) sql.exec("ALTER TABLE chats ADD COLUMN agents TEXT NOT NULL DEFAULT '[]'")

@@ -1,18 +1,13 @@
 import { KernelError, type KernelClient, type Mode } from "./client"
 import type { KernelStore, LeaseRow, Tabs } from "./store"
 
-/** What the lease needs of the store, so a test can pass a table in memory. */
 export type LeaseStore = Pick<KernelStore, "lease" | "urls" | "putLease" | "patchLease" | "deleteLease" | "profileReady" | "setProfileReady" | "setBroken" | "generation">
 
-/** A browser nobody called for this long is deleted. */
 export const IDLE_MS = 5 * 60_000
 /** While the human drives, the reaper looks again this often. */
 export const TAKEOVER_RECHECK_MS = 60_000
-/** Kernel's own net if our reaper misses. */
-export const KERNEL_TIMEOUT_SECONDS = 600
-/** A 429 with a longer `Retry-After` than this is returned as busy. */
-export const MAX_RETRY_AFTER_S = 5
-/** Tabs one browser holds at most, from the phase file. */
+const KERNEL_TIMEOUT_SECONDS = 600
+const MAX_RETRY_AFTER_S = 5
 export const MAX_TABS = 8
 
 export const REAP_WAKEUP = "kernel_reap"
@@ -32,9 +27,7 @@ export type LeaseInfo = {
   sessionId: string
   cdpUrl: string
   mode: Mode
-  /** The browser was dead and this one replaced it. */
   restarted: boolean
-  /** With `restarted`: the caller's tabs' last URLs, to reopen. */
   reopen: string[]
 }
 
@@ -42,11 +35,8 @@ export type Switched = { cdpUrl: string; mode: Mode; tabs: Record<string, string
 
 export type LeaseDeps = {
   store: LeaseStore
-  /** The client for the stored key. Throws when no key is stored. */
   client: () => Promise<KernelClient>
-  /** The user's profile name, from the user's own id. */
   profile: () => Promise<string>
-  /** Points the one reaper wakeup. */
   wake: { set(at: number): Promise<void>; clear(): Promise<void> }
   now?: () => number
   sleep?: (ms: number) => Promise<void>
@@ -76,7 +66,6 @@ export class KernelLease {
     return run
   }
 
-  /** The browser for `agentId`: the live one, or a new headless one. */
   lease(agentId: string): Promise<LeaseInfo> {
     return this.#serial(async () => {
       const { store } = this.deps
@@ -96,7 +85,6 @@ export class KernelLease {
     })
   }
 
-  /** Stamps last use, and replaces the agent's tabs when it reports them. Reports whether the browser is still the one it knew. */
   touch(agentId: string, tabs?: Record<string, string>): boolean {
     const row = this.deps.store.lease()
     if (!row || row.dead) return false
@@ -104,7 +92,6 @@ export class KernelLease {
     return true
   }
 
-  /** The agent closed its tabs. */
   release(agentId: string): void {
     const row = this.deps.store.lease()
     if (!row) return
@@ -139,15 +126,13 @@ export class KernelLease {
     this.deps.store.patchLease({ takeover: on, lastUse: this.#now() })
   }
 
-  /** The reaper keeps the browser until `until`. */
   watchUntil(until: number): void {
     this.deps.store.patchLease({ watchUntil: until, lastUse: this.#now() })
   }
 
   /**
    * Replaces the browser with one in `mode` on the same profile. The old one is deleted first and
-   * its save finishes before the new one starts, so there is never a second writer. Returns the
-   * tabs' last URLs by agent, to reopen.
+   * its save finishes before the new one starts, so there is never a second writer.
    */
   switchMode(mode: Mode): Promise<Switched> {
     return this.#serial(async () => {
@@ -163,7 +148,6 @@ export class KernelLease {
     })
   }
 
-  /** The reaper's wakeup: delete the browser when its time is up, otherwise look again later. */
   reap(): Promise<void> {
     return this.#serial(async () => {
       const row = this.deps.store.lease()
@@ -174,7 +158,6 @@ export class KernelLease {
     })
   }
 
-  /** Deletes the browser, if any. A browser that is already gone counts as deleted. */
   close(): Promise<void> {
     return this.#serial(async () => {
       const row = this.deps.store.lease()
@@ -182,7 +165,6 @@ export class KernelLease {
     })
   }
 
-  /** Account deletion: the browser, then the profile with its saved logins. */
   wipe(): Promise<void> {
     return this.#serial(async () => {
       const row = this.deps.store.lease()
@@ -227,8 +209,11 @@ export class KernelLease {
       const made = await this.#retrying(() => client.createBrowser({ headless: mode === "headless", profile, timeoutSeconds: KERNEL_TIMEOUT_SECONDS }))
       const now = this.#now()
       const row: LeaseRow = { sessionId: made.sessionId, mode, createdAt: now, lastUse: now, tabs: {}, dead: false, ...keep }
-      if (!(await store.putLease(row, { cdpUrl: made.cdpUrl, ...(made.liveUrl ? { liveUrl: made.liveUrl } : {}) }, generation))) {
-        // Disconnected while the browser was being made.
+      const saved = await store.putLease(row, { cdpUrl: made.cdpUrl, ...(made.liveUrl ? { liveUrl: made.liveUrl } : {}) }, generation).catch(async (e) => {
+        await client.deleteBrowser(made.sessionId).catch(() => undefined)
+        throw e
+      })
+      if (!saved) {
         await client.deleteBrowser(made.sessionId).catch(() => undefined)
         throw new KernelError("failed", "Kernel was disconnected")
       }
@@ -239,7 +224,6 @@ export class KernelLease {
     }
   }
 
-  /** 429 waits once when `Retry-After` is short, 529 retries once. Anything else is the caller's. */
   async #retrying<T>(op: () => Promise<T>): Promise<T> {
     try {
       return await op()

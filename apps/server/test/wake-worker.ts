@@ -3,24 +3,11 @@ import { RoomDO as BaseRoom } from "../src/room/room-do"
 import type { UserDO } from "../src/user/user-do"
 import type { FakeAgent } from "./fake-agent"
 
-// The real UserDO and RoomDO with the recording FakeAgent of fake-agent.ts, so a test sees every
-// wake an agent got, after the real budgets, holds, and retries ran (architecture section 25.5).
-//
-// `POST /user/<user>` { method, args }      one UserDO RPC
-// `GET /adopt/<user>/<room>`              the room learns its owner, as on its first socket
-// `POST /say/<user>/<room>` { text }        the human sends a message in the room
-// `POST /task/<user>/<room>/<slug>` call    an agent calls a workspace tool
-// `GET /calls/<user>/<room>/<slug>`         what the fake agent received
-// `GET /refuse/<user>/<room>/<slug>/<n>`    the agent's next n receives are refused
-// `GET /fail/<user>/<room>/<slug>/<n>`      the agent's next n receives throw
-// `POST /room/<user>/<room>` { method, args } one RoomDO RPC, as an agent's own object makes them
-
 import { UserDO as BaseUser } from "../src/user/user-do"
 import type { SignalBatch } from "../src/room/signals"
 export { FakeAgent } from "./fake-agent"
 
 export class UserDO extends BaseUser {
-  /** The next `n` batches that carry a routine result fail, as a call lost between objects would. */
   async loseResults(n: number) {
     await this.ctx.storage.put("lose_results", n)
   }
@@ -36,7 +23,6 @@ export class UserDO extends BaseUser {
 }
 
 export class RoomDO extends BaseRoom {
-  /** What the first socket does: the room learns whose it is and seeds its members. */
   async adoptFor(userId: string) {
     const room = this as unknown as { adopt(id: string): object; chat(home: object): Promise<object | null>; seedMembers(home: object, chat: object): Promise<void> }
     const home = room.adopt(userId)
@@ -44,7 +30,6 @@ export class RoomDO extends BaseRoom {
     if (chat) await room.seedMembers(home, chat)
   }
 
-  /** The routine runs the room follows, for a test to see what it will report. */
   async followed() {
     return this.ctx.storage.sql.exec("SELECT routine_id AS routineId, occurrence, started FROM routine_inflight ORDER BY routine_id, occurrence").toArray()
   }

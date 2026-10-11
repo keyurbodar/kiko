@@ -3,6 +3,7 @@ import type { RoomHandle, Session, UserChannel, Verifier } from "../client"
 import { VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { ulid } from "./mid-run"
+import { must } from "../must"
 
 const BURST_MS = 1_000
 const RUNS = Number(process.env.YUKI_LATENCY_RUNS ?? 10)
@@ -21,14 +22,14 @@ export class Samples {
     this.rows.set(name, list)
   }
   print(title: string): void {
-    const pct = (sorted: number[], p: number) => sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)]!
+    const pct = (sorted: number[], p: number) => must(sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)], "percentile")
     const width = Math.max(...[...this.rows.keys()].map((k) => k.length))
     console.log(`  ${title}`)
     console.log(`  ${"step".padEnd(width)}  ${"n".padStart(3)}  ${"p50".padStart(8)}  ${"p95".padStart(8)}  ${"max".padStart(8)}`)
     for (const [name, values] of this.rows) {
       const sorted = [...values].sort((a, b) => a - b)
       const f = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1)).padStart(8)
-      console.log(`  ${name.padEnd(width)}  ${String(values.length).padStart(3)}  ${f(pct(sorted, 50))}  ${f(pct(sorted, 95))}  ${f(sorted.at(-1)!)}`)
+      console.log(`  ${name.padEnd(width)}  ${String(values.length).padStart(3)}  ${f(pct(sorted, 50))}  ${f(pct(sorted, 95))}  ${f(must(sorted.at(-1), "max"))}`)
     }
   }
 }

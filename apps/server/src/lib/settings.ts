@@ -1,4 +1,3 @@
-// The `settings` key-value table in UserDO storage.
 
 export function getSetting(sql: SqlStorage, key: string): string | null {
   return sql.exec<{ value: string }>("SELECT value FROM settings WHERE key = ?", key).toArray()[0]?.value ?? null

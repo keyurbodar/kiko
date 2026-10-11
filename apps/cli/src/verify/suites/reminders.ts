@@ -2,10 +2,6 @@ import type { RoomEvent, RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// P5-05, architecture section 14. A reminder due in 3 seconds posts one message to its
-// room. The same occurrence delivered a second time, as after a crash between the post
-// and the row update, posts nothing. A daily reminder moves forward one day of wall
-// clock in the user's zone.
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 function ulid(): string {
@@ -23,7 +19,6 @@ type Reminder = { id: string; dueUtc: number; status: string; lastFired: number 
 const reminderMessages = (f: RoomToClient): RoomEvent[] =>
   f.t === "events" ? f.events.filter((e) => e.t === "message" && e.from.kind === "system" && e.from.reason === "reminder") : []
 
-/** The wall clock in `tz`, as "yyyy-mm-dd hh:mm:ss". */
 function wall(at: number, tz: string): string {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: tz, dateStyle: "short", timeStyle: "medium" }).format(at)
 }
@@ -53,7 +48,6 @@ const suite: Suite = {
       }
     }
 
-    // A reminder needs a chat in the user's list.
     const roomId = ulid()
     const user = await s.user()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "reminders check" } })
@@ -62,7 +56,6 @@ const suite: Suite = {
     await room.expect((f) => f.t === "events")
 
     try {
-      // 1. Due in 3 seconds: one message.
       const once = await api<Reminder>("reminders", {
         text: "stretch",
         time: new Date(Date.now() + 3000).toISOString(),
@@ -78,13 +71,10 @@ const suite: Suite = {
       const done = await until(once.id, (r) => r.status === "done", "the one-off to be done")
       expectEqual(done.lastFired, once.dueUtc, "last_fired")
 
-      // 2. The same occurrence again: the row goes back as if the object died before
-      // updating it, the alarm fires for the same due_utc, and the room stores nothing.
       await api<Reminder>(`reminders/${once.id}/rewind`, {})
       await until(once.id, (r) => r.status === "done", "the replayed alarm")
       await room.expectNone((f) => reminderMessages(f).length > 0, 1500)
 
-      // 3. Daily in New York: due_utc moves one day of wall clock forward.
       const tz = "America/New_York"
       const daily = await api<Reminder>("reminders", {
         text: "water the plants",

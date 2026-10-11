@@ -4,8 +4,8 @@ import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { ulid } from "./mid-run"
 import { dev } from "./team-loops"
+import { must } from "../must"
 
-// Needs OPENCODE_API_KEY; the Jev cases also need TYPESAFE_API_KEY. Never prints a key.
 
 const TYPESAFE = "typesafe"
 const FAST = { batch: 2, idleMs: 3_000, jevDelayMs: 1_000, capture: "always" }
@@ -44,7 +44,6 @@ async function poll<T>(what: string, ms: number, test: () => Promise<T | false |
   }
 }
 
-/** Sends a human message and waits until the chat has gone idle after it. */
 async function say(room: RoomHandle, text: string, ms = 90_000): Promise<string> {
   const before = idles(room)
   const seen = messages(room).length
@@ -91,7 +90,6 @@ const suite: Suite = {
     const usage = async (): Promise<Usage> => ((await dev(v.url, s.cookie, "usage", { roomId: idOf(home) })) as { memory: Usage }).memory
     const policy = (p: Record<string, unknown>) => dev(v.url, s.cookie, "policy", { policy: p })
     const ok = (name: string, evidence: string) => console.log(`  [${stamp()}] ok ${name}: ${evidence}`)
-    /** Waits until the capture counters stop moving for 6 s, then a little longer for an in-flight call. */
     const settle = async () => {
       await poll("capture to settle", 60_000, async () => {
         const before = JSON.stringify(await usage())
@@ -160,7 +158,7 @@ const suite: Suite = {
       for (const o of outcomes) console.log(`  [${stamp()}] note replaces: ${o}`)
       if (!outcomes.some((o) => o.includes(": superseded"))) throw new VerifyError("without Jev, the agent's correction did not supersede the old line in either attempt")
       await policy(FAST)
-      ok("note replaces without Jev", outcomes[outcomes.length - 1]!)
+      ok("note replaces without Jev", must(outcomes.at(-1), "outcome"))
     }
     {
       await policy({ ...FAST, capture: "always" })
@@ -253,7 +251,7 @@ const suite: Suite = {
             missing = names.filter((nm) => !jazz.some((l) => l.text.toLowerCase().includes(nm)))
             return missing.length === 0
           })
-        } catch (error) {
+        } catch (_error) {
           const all = (await lines()).filter((l) => /jazz|friend/i.test(l.text)).map((l) => `${l.pos} ${l.source} ${isLive(l) ? "live" : "gone"} ${l.text}`)
           throw new VerifyError(`friends missing: ${missing.join(", ")}; lines: ${JSON.stringify(all)}; usage ${JSON.stringify(await usage())}`)
         }
@@ -271,7 +269,6 @@ const suite: Suite = {
     }
     if (jevKey) {
       await say(home, "mi hermana se llama Ximena y vive en Valencia")
-      // Ximena is also a friend in the rerank case, so match the sister.
       const sister = /ximena.*(sister|hermana)|(sister|hermana).*ximena/i
       await poll("a live line about the sister ximena", 90_000, async () => (await live(sister)).length > 0)
       await settle()
@@ -288,7 +285,6 @@ const suite: Suite = {
       await say(group, "my brother teo lives in oslo, tell @bo too", 120_000)
       await poll("a line about teo", 60_000, async () => (await live(/\bteo\b|oslo/i)).length > 0)
       await settle()
-      // The human's own words are stored too; two agents noting the same fact is what must not happen.
       const hit = (await live(/\bteo\b|oslo/i)).filter((l) => l.source !== "you")
       if (hit.length !== 1) throw new VerifyError(`expected exactly one live line about teo, found ${hit.length}: ${lineTexts(hit)}`)
       const fresh = await openChat(user, s, "memory edge group recall")

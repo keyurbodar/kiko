@@ -10,14 +10,9 @@ import { WORKSPACE } from "./workspace"
 import { WORK_LINES } from "../prompt"
 import { count } from "../../lib/dev-stats"
 
-// Architecture section 8. The agent talks; workers do slow work in the background. A worker is an
-// ownerless conversation in the agent's own harness, so a tool returns at once and the agent's run
-// ends while the worker goes on. Its report comes back as a `<work>` input (`@yuki/agent/workers`).
-
 export const WORK = "work"
 export const WORK_STEPS = "work-steps"
 
-/** What a worker never gets: more workers, the chat, memory notes, the chief's powers, reminders, the team board. */
 export const NOT_FOR_WORKERS: readonly string[] = [WORK, MESSAGING, MEMORY_NOTE, CHIEF_EXT, REMINDERS, WORKSPACE]
 
 const WORKER_PROMPT =
@@ -25,7 +20,6 @@ const WORKER_PROMPT =
 
 const say = (text: string) => ({ content: [{ type: "text" as const, text }] })
 
-/** A worker's extensions: every extension, the worker-only ones included (section 8), minus `NOT_FOR_WORKERS`. */
 export const forWorker = (all: readonly Extension[]): Extension[] => all.filter((e) => !NOT_FOR_WORKERS.includes(e.name))
 
 function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
@@ -37,10 +31,6 @@ const brief = (args: unknown) => {
   return text === "{}" ? "" : ` ${text.length > 80 ? `${text.slice(0, 79)}…` : text}`
 }
 
-/**
- * The work tools for the talker, and a hook every conversation keeps so a worker's last step shows.
- * `all` is every extension selected now, user extensions and the worker-only tools included.
- */
 export function workExtensions(workers: Workers, all: () => readonly Extension[]): Extension[] {
   const start = defineTool({
     name: "start_work",
@@ -64,7 +54,8 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
         workers.placed(work.id, conversationId)
       }
       if (work.submissionId === null) {
-        const child = (await api.conversation(conversationId, ctx))!
+        const child = await api.conversation(conversationId, ctx)
+        if (!child) throw new Error(`no conversation ${conversationId} for worker ${work.id}`)
         const submission = await child.submit({ type: "input", content: task, requestId: `work:${work.id}` }, ctx)
         workers.follow(work.id, submission.id)
       }

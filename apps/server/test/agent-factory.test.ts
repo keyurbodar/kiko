@@ -12,7 +12,6 @@ import { SECTION_ORDER } from "../src/agent/prompt"
 
 const context = BACKGROUND_CONTEXT
 const FAUX = { provider: "faux", modelId: "faux-1" }
-/** The work tools only keep the registry. Nothing here runs them. */
 const work = {} as Workers
 
 async function firstRequest(input: BuildAgentInput, extra: Parameters<typeof defineExtension>[0][] = []) {
@@ -92,7 +91,6 @@ describe("buildAgent", () => {
     for (const input of inputs) {
       const built = buildAgent(input)
       expect(Array.isArray(built.agent.extensions)).toBe(true)
-      // The registry holds the worker-only web tool too; the talker leaves it out (section 8).
       expect(built.registry.snapshot().installed().map((e) => e.name).filter((n) => n !== WEB)).toEqual(lists[0])
     }
     const { selected } = await firstRequest(inputs[0])

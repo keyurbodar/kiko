@@ -1,10 +1,6 @@
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../src/lib/names"
 import type { RoomDO } from "../src/room/room-do"
 
-// The real RoomDO behind a worker with no session check. `/ws/<roomId>` opens the
-// room socket as the user `alice`. `/typing/<roomId>/<slug>/<0|1>` calls the typing RPC.
-// `POST /post/<roomId>/<slug>` with `{ runId, block }` posts an agent bubble. `/rows/<roomId>` counts stored rows.
-
 export { RoomDO } from "../src/room/room-do"
 
 type Env = { ROOM: DurableObjectNamespace<RoomDO> }

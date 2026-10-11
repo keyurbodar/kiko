@@ -4,6 +4,7 @@ import { declareEffect } from "@yuki/agent/effects"
 import { BROWSER } from "@yuki/browser/config"
 import type { Decider } from "@yuki/browser/decide/types"
 import type { PageView, Step, StepResult, Tab } from "@yuki/browser/page/types"
+import { schemeError } from "@yuki/browser/page/act"
 import { rankPassages, type Ranker } from "@yuki/browser/plan/rank"
 import { summarize } from "@yuki/browser/plan/summary"
 import { runTasks } from "@yuki/browser/worker/run"
@@ -32,7 +33,6 @@ export type DeciderChoice = { name: "model" | "jev"; decider: Decider; ranker: R
 export type BrowserToolDeps = {
   connection: () => BrowserConnection
   lease: () => LeasePort
-  /** Built per call, so a TypeSafe key added mid-chat is used at the next call. */
   decider: () => Promise<DeciderChoice>
   acceptsImages: (model: ModelRef | undefined) => boolean
 }
@@ -70,7 +70,6 @@ export type StepArgs = {
   paths?: string[]
 }
 
-/** The model's flat step, checked at the edge. A string is an error to show the model. */
 export function toStep(s: StepArgs): Step | string {
   const needId = (make: (id: number) => Step) => (typeof s.id === "number" ? make(s.id) : `${s.op} needs a control id`)
   switch (s.op) {
@@ -103,13 +102,19 @@ export function toStep(s: StepArgs): Step | string {
 
 const describe = (step: Step) => ("id" in step ? `${step.op} ${step.id}` : step.op)
 
-/** A dialog that stopped the page is named to the model, so it can answer it with browser_dialog. */
 export async function dialogNote(tab: Tab): Promise<string> {
   const pending = tab.dialog()
   return pending ? `a ${pending.type} dialog is open, blocking the page: "${pending.message}". answer it with browser_dialog.\n\n` : ""
 }
 
-/** One result per task, a few lines each: the stop, where it ended, its last actions, and what it found. */
+function firstBadUrl(urls: (string | undefined)[]): string | undefined {
+  for (const url of urls) {
+    const bad = url === undefined ? undefined : schemeError(url)
+    if (bad) return `${bad}: ${url}`
+  }
+  return undefined
+}
+
 export function taskLine(i: number, task: Task, r: TaskResult, found: string): string {
   const lines = [`${i + 1}. ${r.stop}: ${r.title || "(no title)"} ${r.url}`]
   if (r.actions.length) lines.push(`   did: ${r.actions.slice(-5).join("; ")}`)
@@ -131,10 +136,6 @@ export async function timed<T>(tool: string, run: () => Promise<T>): Promise<T> 
   }
 }
 
-/**
- * Stamps each worker step for the dev stats: from the read a decision starts on to the read after its
- * action, so a step is one decision, one action, and one page read. Samples go in 25 ms buckets for a p50.
- */
 function timedTab(tab: Tab): Tab {
   let since = 0
   let acted = false
@@ -166,7 +167,6 @@ function timedTab(tab: Tab): Tab {
   }
 }
 
-/** Runs a browser call: refuses at once while the human holds the browser, and turns every failure into a line for the model. */
 export function call(deps: BrowserToolDeps, tool: string, run: (signal: AbortSignal) => Promise<string>) {
   return async (signal: AbortSignal | undefined) =>
     timed(tool, async () => {
@@ -194,6 +194,8 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
     execute: (args, _api, ctx) =>
       call(deps, "browse", async (signal) => {
         const urls = (args.urls ?? []).slice(0, BROWSER.urlsPerBrowse)
+        const bad = firstBadUrl(urls)
+        if (bad) throw new Error(bad)
         const conn = deps.connection()
         const { ranker } = args.find ? await deps.decider() : { ranker: null }
         const show = async (page: PageView) => {
@@ -233,11 +235,10 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
         const steps = args.steps.slice(0, BROWSER.stepsPerAct).map((s) => toStep(s as StepArgs))
         const bad = steps.findIndex((s) => typeof s === "string")
         if (bad >= 0) return `step ${bad + 1}: ${steps[bad]}. nothing was done.`
-        const found = await deps.connection().currentTab()
-        if (!found) return "you have no tab open yet. call browse with a url first."
-        const tab = found
+        const tab = await deps.connection().currentTab()
+        if (!tab) return "you have no tab open yet. call browse with a url first."
         const done: string[] = []
-        let failed: { step: Step; result: StepResult } | null = null
+        let failed: { step: Step; result: Extract<StepResult, { ok: false }> } | null = null
         for (const step of steps as Step[]) {
           if (await deps.lease().paused()) return `${done.length ? `did: ${done.join("; ")}. ` : ""}${PAUSED}`
           const result = await tab.act(step)
@@ -248,7 +249,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
           done.push(describe(step))
         }
         const page = summarize(await tab.read())
-        const head = failed && !failed.result.ok
+        const head = failed
           ? `did: ${done.join("; ") || "nothing"}. ${describe(failed.step)} failed: ${failed.result.reason}${failed.result.detail ? ` (${failed.result.detail})` : ""}${failed.result.reason === "stale" ? ". the page changed: use the ids below" : ""}.`
           : `did: ${done.join("; ")}.`
         return `${head}\n\n${await dialogNote(tab)}${page}`
@@ -274,6 +275,8 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
     execute: (args, _api, ctx) =>
       call(deps, "browser_run", async (signal) => {
         const tasks = args.tasks.slice(0, BROWSER.workersPerRun)
+        const bad = firstBadUrl(tasks.map((t) => t.url))
+        if (bad) throw new Error(bad)
         const { name, decider, ranker } = await deps.decider()
         count(`browser.decider.${name}`)
         const lease = deps.lease()

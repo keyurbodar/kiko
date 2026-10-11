@@ -5,11 +5,8 @@ import { ok } from "../routine-kit"
 import type { Suite } from "../runner"
 import { ulid } from "./mid-run"
 import { dev } from "./team-loops"
+import { must } from "../must"
 
-// Architecture section 26.6. The initiative engine with the real model (Muse Spark 1.3), once with no
-// judge and once with Jev (TYPESAFE_API_KEY). Each scenario is a fresh user, since the appetite is per
-// user. Time moves through the `attention` dev route: a known rhythm, aging, and a pass run now.
-// INITIATIVE_MODE=nojev or jev runs one arm. Never prints a key.
 
 const DAY = 86_400_000
 const T0 = Date.now()
@@ -17,10 +14,6 @@ const stamp = () => `${((Date.now() - T0) / 1000).toFixed(0).padStart(4)}s`
 
 export type Loop = { id: number; kind: string; certainty: string; owner: string; status: string; text: string; due: string | null }
 
-/**
- * The human's open loop about `topic`. The agent's answer ("I will remind you to call the dentist") opens
- * its own loop with the same words, newer and listed first, and the checks are about the human's.
- */
 export const humanLoop = (loops: readonly Loop[], topic: RegExp) => loops.find((l) => l.status === "open" && l.owner === "human" && topic.test(l.text))
 type Verdict = { id: string; verdict: string; reason?: string; until?: number; text: string; target?: { slug: string } }
 type Pass = { at: number; jev: boolean; verdicts: Verdict[]; woke: { id: string; to: string; result: string; ids: string[] }[] }
@@ -59,7 +52,6 @@ async function say(room: RoomHandle, text: string): Promise<string> {
     .join(" / ")
 }
 
-/** Waits for the agents in `room` to go quiet: no status change and no new message for `still` ms. */
 async function settle(room: RoomHandle, still = 6_000, max = 150_000): Promise<void> {
   const end = Date.now() + max
   let last = room.raw.log.length
@@ -91,7 +83,6 @@ async function user(v: Parameters<Suite["run"]>[0], arm: Arm, tag: string) {
   return {
     s,
     channel,
-    // With no judge only the summary pass opens a loop from a sentence (proved in initiative-loops), so this puts it there.
     roll: async (roomId: string, text: string, due: string | null = null) => {
       if (!arm.jev) await dev(v.url, s.cookie, "loops", { open: { roomId, text, due } })
     },
@@ -145,7 +136,6 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     return spent(after) - spent(before)
   }
 
-  // (d) A fresh user with no rhythm: nothing interrupts; the loop shows only in the brief.
   if (only("d")) try {
     const u = await user(v, arm, "d")
     const room = await openChat(u.channel, u.s, "trip")
@@ -165,7 +155,6 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     check(false, `(d) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  // (a) A promise the agent made is followed up exactly once, at the next moment.
   if (only("a")) try {
     const u = await user(v, arm, "a")
     const room = await openChat(u.channel, u.s, "work")
@@ -174,7 +163,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const owed = await poll("a commitment the agent owns", 60_000, async () => (await u.loops()).find((l) => l.status === "open" && l.owner !== "human"))
     const before = agentMessages(room)
     await u.rhythm()
-    let first: Pass | null = null
+    let first = null as Pass | null
     const tokens = await cost(u, room.id, async () => {
       await u.age(DAY)
       await Bun.sleep(3_000)
@@ -182,21 +171,19 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
       await settle(room)
     })
     const after = agentMessages(room).slice(before.length)
-    console.log(`       pass 1: ${show(first!)}; follow-up: ${JSON.stringify(after.map((m) => m.text).join(" / ").slice(0, 200))} (${tokens} agent tokens)`)
+    console.log(`       pass 1: ${show(must(first, "pass 1"))}; follow-up: ${JSON.stringify(after.map((m) => m.text).join(" / ").slice(0, 200))} (${tokens} agent tokens)`)
     await u.age(DAY)
     const second = await u.pass()
     await settle(room)
     const total = agentMessages(room).slice(before.length)
-    const loop = (await u.loops()).find((l) => l.id === owed.id)!
+    const loop = must((await u.loops()).find((l) => l.id === owed.id), "owed loop")
     console.log(`       pass 2: ${show(second)}; loop L${loop.id} is ${loop.status}`)
-    // "Tomorrow morning" said before dawn UTC is more than a day out, so the follow-up may land on either day.
     check(runsOf(total) === 1, `(a) the promise was followed up by exactly one run (${runsOf(after)} then ${runsOf(total)} in all)`)
     done(room)
   } catch (e) {
     check(false, `(a) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  // (b) Ignoring a nudge twice: no third nudge, and the rest grows.
   if (only("b")) try {
     const u = await user(v, arm, "b")
     const room = await openChat(u.channel, u.s, "admin")
@@ -209,33 +196,30 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const rests: number[] = []
     const passes: Pass[] = []
     const step = async (ms: number) => {
-      let p: Pass | null = null
+      let p = null as Pass | null
       await cost(u, room.id, async () => {
         await u.age(ms)
         p = await u.pass()
         await settle(room)
       })
-      passes.push(p!)
-      const v0 = p!.verdicts.find((x) => x.id === `loop:${loop.id}`)
-      if (v0?.verdict === "rest" && v0.until) rests.push(Math.round(((v0.until - p!.at) / DAY) * 10) / 10)
-      if (p!.woke.some((w) => w.result === "delivered" && w.ids.includes(`loop:${loop.id}`))) wakes.push(passes.length)
-      console.log(`       age ${ms / DAY}d: ${show(p!)}; spoken so far ${runsOf(tagged(room))}`)
-      return p!
+      passes.push(must(p, "pass"))
+      const v0 = must(p, "pass").verdicts.find((x) => x.id === `loop:${loop.id}`)
+      if (v0?.verdict === "rest" && v0.until) rests.push(Math.round(((v0.until - must(p, "pass").at) / DAY) * 10) / 10)
+      if (p?.woke.some((w) => w.result === "delivered" && w.ids.includes(`loop:${loop.id}`))) wakes.push(passes.length)
+      console.log(`       age ${ms / DAY}d: ${show(must(p, "pass"))}; spoken so far ${runsOf(tagged(room))}`)
+      return must(p, "pass")
     }
-    // The human never answers. Days go by until the lead has spoken twice (it may [skip] a wake), or eight passes.
     await step(DAY / 2)
     while (runsOf(tagged(room)) < 2 && passes.length < 8) await step(2 * DAY)
     const spokenBefore = runsOf(tagged(room))
-    // Past the last ignore deadline, and again a week on.
     const after = [await step(3 * DAY), await step(7 * DAY)]
     const spoke = tagged(room)
     const st = await u.state()
-    console.log(`       wakes at passes ${JSON.stringify(wakes)}; spoken nudges ${runsOf(spoke)}: ${JSON.stringify(spoke.map((m) => `${m.initiative!.reason}: ${m.text.slice(0, 80)}`))}`)
+    console.log(`       wakes at passes ${JSON.stringify(wakes)}; spoken nudges ${runsOf(spoke)}: ${JSON.stringify(spoke.map((m) => `${m.initiative?.reason}: ${m.text.slice(0, 80)}`))}`)
     console.log(`       rest left at each resting pass (days): ${JSON.stringify(rests)}; appetite user ${JSON.stringify(st.appetite.user)}`)
     check(runsOf(spoke) <= 2, `(b) at most two spoken nudges in ${passes.length} passes over four weeks of silence (${runsOf(spoke)}; wakes ${wakes.length}, the rest were [skip])`)
     check(spokenBefore < 2 || after.every((p) => p.woke.length === 0), `(b) after two ignored nudges nothing wakes (${spokenBefore} spoken before: ${after.map(show).join(" / ")})`)
-    // Either the item keeps resting longer, or it never wakes anyone again after its first rest.
-    const settled = rests.length >= 2 ? Math.max(...rests) > rests[0]! : wakes.length <= 1
+    const settled = rests.length >= 2 ? Math.max(...rests) > must(rests[0], "first rest") : wakes.length <= 1
     check(settled, `(b) the rest grows, or nothing wakes after it: rests ${JSON.stringify(rests)} days, wakes ${wakes.length}`)
     if (process.env.INITIATIVE_TRACE) console.log(`       lead trace: ${JSON.stringify(await dev(v.url, u.s.cookie, "trace", { roomId: room.id }))}`)
     done(room)
@@ -243,7 +227,6 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     check(false, `(b) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  // (c) "Stop reminding me about X" drops it, and nothing is raised after.
   if (only("c")) try {
     const u = await user(v, arm, "c")
     const room = await openChat(u.channel, u.s, "health")
@@ -251,13 +234,13 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     await u.roll(room.id, "call the dentist to move my appointment", new Date(Date.now() + DAY).toISOString())
     const loop = await poll("an explicit dentist loop", 60_000, async () => humanLoop(await u.loops(), /dentist/i))
     await u.rhythm()
-    let p: Pass | null = null
+    let p = null as Pass | null
     await cost(u, room.id, async () => {
       await u.age(DAY)
       p = await u.pass()
       await settle(room)
     })
-    console.log(`       pass: ${show(p!)}; said: ${JSON.stringify(tagged(room).map((m) => m.text).join(" / ").slice(0, 200))}`)
+    console.log(`       pass: ${show(must(p, "pass"))}; said: ${JSON.stringify(tagged(room).map((m) => m.text).join(" / ").slice(0, 200))}`)
     const reply = await say(room, "Please stop reminding me about the dentist. I will handle it myself.")
     console.log(`       agent: ${reply.slice(0, 140)}`)
     const dropped = await poll("the dentist loop closed", 60_000, async () => (await u.loops()).find((l) => l.id === loop.id && l.status !== "open")).catch(() => null)
@@ -270,14 +253,12 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const st = await u.state()
     const kind = st.appetite.kinds[loop.kind]
     console.log(`       appetite kinds ${JSON.stringify(st.appetite.kinds)}`)
-    // The "stop" was a reply in the nudge's room too: the drop must win however the two arrived.
     if (runsOf(tagged(room)) > 0) check(kind !== undefined && kind.a === 0 && kind.b >= 5, `(c) the spoken nudge settled as dismissed, not engaged (${JSON.stringify(kind)})`)
     done(room)
   } catch (e) {
     check(false, `(c) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  // (e) A stalled task in a team room wakes its owner, not the human's lead.
   if (only("e")) try {
     const u = await user(v, arm, "e")
     const agent = (name: string): Agent => ({ id: `init-${name}-${Date.now().toString(36)}`, name, slug: name as AgentSlug, prompt: "", model: "opencode-go/muse-spark-1.3-contributor" })
@@ -296,7 +277,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     await u.age(10 * 60_000)
     const before = agentMessages(room).length
     const filesBefore = files(room)
-    let p: Pass | null = null
+    let p: Pass | null = null as Pass | null
     await cost(
       u,
       room.id,
@@ -306,18 +287,16 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
       },
       "ada",
     )
-    const woke = p!.woke.find((w) => w.ids.some((id) => id.includes(":copy:")))
+    const woke = p?.woke.find((w) => w.ids.some((id) => id.includes(":copy:")))
     const said = agentMessages(room).slice(before)
-    console.log(`       pass: ${show(p!)}; said: ${JSON.stringify(said.map((m) => `@${(m.from as { slug: string }).slug}: ${m.text.slice(0, 80)}`))}`)
+    console.log(`       pass: ${show(must(p, "pass"))}; said: ${JSON.stringify(said.map((m) => `@${(m.from as { slug: string }).slug}: ${m.text.slice(0, 80)}`))}`)
     check(woke?.to === "ada" && woke.result === "delivered", `(e) the stalled task woke @${woke?.to ?? "nobody"} (${woke?.result ?? "-"})`)
-    // Acting on a nudge needs no yes since the owner removed ask-first (2026-10-11), so a file is allowed.
     check(said.length <= 1, `(e) the nudge is one message (${said.length} bubbles, ${files(room) - filesBefore} file changes)`)
     done(room)
   } catch (e) {
     check(false, `(e) stopped: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  // (f) Away, or initiative off: nothing.
   if (only("f")) try {
     const u = await user(v, arm, "f")
     const room = await openChat(u.channel, u.s, "errands")

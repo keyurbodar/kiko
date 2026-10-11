@@ -1,6 +1,8 @@
-import { duplicateDm, isAgentSlug, isRoomId, newRoomId } from "@yuki/protocol"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, BrowserLinkResult, BrowserState, KernelResult, MemoryModel, MemoryOp, MemoryResult, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
-import { ClientToUser, INITIATIVE_LEVELS, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
+import { duplicateDm, newRoomId } from "@yuki/protocol"
+import { HomeWiring } from "./home-wiring"
+import { RoutineWiring } from "./routines-wiring"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient, ExtensionOp, ExtensionResult } from "@yuki/protocol"
+import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
@@ -9,12 +11,10 @@ import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, take
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
-import { checkAgentId, KernelConnection, kernelErrorText, profileName } from "../integrations/kernel/connect"
+import { checkAgentId, kernelErrorText } from "../integrations/kernel/connect"
 import { basenameOf, decodeBase64, encodeBase64, FETCH_BODY_CAP, FETCH_METHODS, FILE_CAP, URL_CAP } from "../integrations/kernel/files"
 import { KernelError } from "../integrations/kernel/client"
 import type { FetchRequest, FetchResult } from "../agent/browser/lease"
-import { REAP_WAKEUP } from "../integrations/kernel/lease"
-import { KernelStore } from "../integrations/kernel/store"
 import type { Mode } from "../integrations/kernel/client"
 import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
@@ -24,93 +24,56 @@ import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./cred
 import { createAgent, listAgents } from "./agents"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
-import { cleanPath, deleteFiles } from "../files/upload"
 import { actorKey } from "../room/log"
 import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { Life } from "@yuki/memory/life"
 import { importRecords } from "./import-records"
-import { cleanLine, itemLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@yuki/memory/optmem"
-import { applyOps, CAPTURE_SYSTEM, captureActive, candidates, type CaptureCount, type CapturePolicy, capturePrompt, captureWithJudge, type Heard, knownFor, mergePolicy, parseCapture } from "@yuki/memory/capture"
-import { type Answer, boolOf, type Judge, type Question } from "@yuki/memory/judge"
+import { itemLine, spanOf } from "@yuki/memory/optmem"
 import type { NoteAnswer } from "@yuki/memory/tools"
-import type { JsonObject } from "@earendil-works/pi-ai"
 import { ProviderLogins } from "./provider-login"
-import { asResult, type NewReminder, type NewRoutine, type Reminder, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery } from "./reminders"
-import { sha256Hex } from "@yuki/durable/hash"
+import { asResult, type NewReminder, type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
-import { matchWebhook, type RoomRoutine, roomRoutine, type RoutineResult, routineResult } from "./routines"
-import type { Trigger } from "@yuki/protocol"
-import { safeFetch } from "@yuki/durable/safe-fetch"
-import { defaultFetcher } from "../lib/dev-fixture-fetch"
-import { htmlToText } from "@yuki/durable/html-text"
+import { type RoomRoutine, roomRoutine, type RoutineResult } from "./routines"
 import { migrate } from "./schema"
-import { DEFAULT_TIMEZONE, findProvider, pickJudge, providerUses, resolveTurnContext, type TurnContext } from "./turn-context"
+import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
-import { DEFAULT_MODEL, userModels } from "../agent/factory"
 import { composioUserId, roomStub } from "../lib/names"
-import { type ExtensionEvent, ExtensionError, ExtensionStore } from "./extensions"
+import { type ExtensionEvent, ExtensionStore } from "./extensions"
 import { EXTENSION_CATALOG } from "./catalog.gen"
 import { nextOccurrence } from "./recurrence"
 import { CHIEF } from "../room/chief"
-import type { ExtensionOp, ExtensionResult } from "@yuki/protocol"
 import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
 import { closeSockets, storedRows, wipeStorage } from "@yuki/durable/wipe"
-import { type Certainty, type Loop, Loops, type LoopKind, type OpenResult, parseNapLoops } from "@yuki/memory/loops"
-import { Initiative } from "../initiative/initiative"
-import { INITIATIVE_RUN, INITIATIVE_WAKEUP, InitiativeEngine, REMINDER_RUN } from "../initiative/engine"
-import type { Level } from "../initiative/attention/types"
+import type { Certainty, Loop, LoopKind, OpenResult } from "@yuki/memory/loops"
+import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/engine"
+import { REAP_WAKEUP } from "../integrations/kernel/lease"
+import { type DevBrowserOp, type DevInitiativeOp, devBrowser, devCaptureQueue, devComposioSession, devDue, devInitiative, devSeen, devSetting } from "./dev"
+import { InitiativeLoops, LOOPS_WAKEUP } from "./initiative-loops"
+import { KernelWiring } from "./kernel-wiring"
+import { extensionOp, type ExtensionHost, proposeExtension } from "./extension-wiring"
+import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
+import { type Attachment, send, trySend } from "./sockets"
+import { LAST_SEEN } from "./keys"
 
-// Wrangler replaces this when it bundles: "development" under `wrangler dev`.
 declare const process: { env: { NODE_ENV?: string } }
 
 const REPLAY_LIMIT = 500
 
-type Attachment = { ready: boolean; helloBy?: number }
-
 const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 
-const LIFE_WAKEUP = "life_naps"
-const NAPS_PER_ALARM = 4
-const MAX_NAPS = 4
-const COMPRESS_TIMEOUT_MS = 120_000
-const MEMORY_USAGE = "memory_usage"
-const MEMORY_MODEL = "memory_model"
-const MEMORY_POLICY = "memory_policy"
-const JUDGE_MODEL = "judge_model"
-const refusedKey = (provider: string) => `${provider}_refused`
-// pi-ai's System One error text carries the HTTP status as "(401)".
-const REFUSED = /\((401|403)\)/
-const CAPTURE_WAKEUP = "life_capture"
-const CAPTURE_QUEUE_MAX = 200
-const CAPTURE_PER_ALARM = 24
-const CAPTURE_TEXT_MAX = 8_000
-const CAPTURE_TIMEOUT_MS = 8_000
-const RERANK_TIMEOUT_MS = 1_500
-const RERANK_LINES_MAX = 30
-const LAST_SEEN = "last_seen"
-const HOOK_EXCERPT = 6_000
 const AWAY_NOTICE = "away_notice"
 const PUBLIC_ORIGIN = "public_origin"
-// The daily check-in routine is gone (section 26.6). A user who had one has it cancelled on the next hello.
 const OLD_CHECK_IN = "check_in"
 const OLD_CHECK_IN_SEEN = "check_in_seen"
 
 const LAST_CHAT = "last_chat"
-const LOOPS_WAKEUP = "loops_heard"
-// ASSUMPTION: Jev reads a burst this long after it arrives, so the agent's answer to it is read in the
-// same call.
-const LOOPS_DELAY_MS = 15_000
-const LOOPS_ROOMS_PER_PASS = 8
-/** How long a summary page's id is kept to drop a retry. A page is retried within minutes. */
-const NAP_APPLIED_FOR = 7 * 86_400_000
 
 const DELETING = "deleting"
 
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
-  // Set in the constructor's `blockConcurrencyWhile`, which ends before any request or alarm runs.
   private alarms!: Alarms
   private life!: Life
   private souls!: Souls
@@ -128,12 +91,16 @@ export class UserDO extends DurableObject<Env> {
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
       if (importRecords(this.sql, this.life) > 0) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now())
       this.souls = new Souls(this.sql)
-      this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => this.commit(body)!, actorKey)
+      this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => {
+        const event = this.commit(body)
+        if (!event) throw new Error("file change produced no event")
+        return event
+      }, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()), Date.now, {
         deliverRun: async ({ deliveryId, routine, body, budget }) => {
           return roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, budget })
         },
-        watch: (trigger) => this.watchPage(trigger),
+        watch: (trigger) => this.#routines.watchPage(trigger),
         notice: (roomId, id, text) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).systemNotice(id, text, "routine"),
         gate: {
           away: () => {
@@ -157,7 +124,12 @@ export class UserDO extends DurableObject<Env> {
             if (!first) throw new Error("the rule has no next time")
             await this.reminders.create(userIdFromObjectName(ctx.id.name), { text, time: first.toISOString(), tz, rrule, roomId, target, createdBy })
           },
-          cancelBy: (createdBy) => this.reminders.cancelCreatedBy(createdBy),
+          cancelBy: async (createdBy) => {
+            const webhooks = this.sql.exec<{ id: string }>("SELECT id FROM reminders WHERE created_by = ? AND status = 'active' AND json_extract(trigger, '$.on') = 'webhook'", createdBy).toArray()
+            const cancelled = await this.reminders.cancelCreatedBy(createdBy)
+            for (const { id } of webhooks) await this.#routines.dropHook(id)
+            return cancelled
+          },
           fallback: () => {
             const roomId = yukiChatRoom(this.sql)
             return roomId ? { roomId, target: CHIEF } : null
@@ -203,84 +175,23 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async proposeExtension(input: { bundle: unknown; by: string; room: string }): Promise<ExtensionResult> {
-    return this.extensionResult(async () => ({ proposal: await this.extensions.propose({ bundle: input.bundle, source: "agent", by: input.by, room: input.room }) }))
+    return proposeExtension(this.extensions, input)
   }
 
   private async extensionOp(op: ExtensionOp): Promise<ExtensionResult> {
-    const x = this.extensions
-    return this.extensionResult(async () => {
-      switch (op.op) {
-        case "propose":
-          return { proposal: await x.propose({ bundle: op.bundle, source: "human", ...(op.room ? { room: op.room } : {}) }) }
-        case "catalog":
-          return { catalog: EXTENSION_CATALOG }
-        case "propose_catalog":
-          return { proposal: await x.proposeCatalog(op.name) }
-        case "install": {
-          const extension = await x.install(op.id)
-          if (extension.room && extension.by) {
-            const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), extension.room)
-            this.ctx.waitUntil(Promise.resolve(room.homeNotice(extension.by, `The ${extension.name} extension is installed. Its tools work from the next message.`)).catch(() => {}))
-          }
-          return { extension }
-        }
-        case "decline":
-          x.decline(op.id)
-          return {}
-        case "enable":
-          return { extension: await x.setEnabled(op.name, op.enabled) }
-        case "agents":
-          return { extension: x.setAgents(op.name, op.agents) }
-        case "secret":
-          return { extension: await x.setSecret(op.name, op.secret, op.value) }
-        case "uninstall":
-          await x.uninstall(op.name)
-          return {}
-        case "source":
-          return { bundle: x.source(op.name) }
-      }
-    })
+    return extensionOp(this.extensions, op, this.extensionHost())
   }
 
-  private async extensionResult(run: () => Promise<Omit<Extract<ExtensionResult, { ok: true }>, "ok">>): Promise<ExtensionResult> {
-    try {
-      return { ok: true, ...(await run()) }
-    } catch (e) {
-      if (e instanceof ExtensionError) return { ok: false, error: e.message, ...(e.problems ? { problems: e.problems } : {}) }
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
-    }
+  private extensionHost(): ExtensionHost {
+    return { room: this.env.ROOM, userId: userIdFromObjectName(this.ctx.id.name), waitUntil: (work) => this.ctx.waitUntil(work) }
   }
 
   private reminders!: Reminders
   async createReminder(owner: string, input: NewReminder) { return asResult(() => this.reminders.create(owner, input)) }
   async listReminders() { return this.reminders.list() }
-  async cancelReminder(id: string) {
-    return asResult(async () => {
-      const before = this.reminders.get(id)
-      const out = await this.reminders.cancel(id)
-      if (out?.trigger) await this.routineChanged(out, undefined, before)
-      return out
-    })
-  }
-
-  async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> {
-    return routineResult(async () => {
-      const out = await this.reminders.createRoutine(owner, input)
-      await this.routineChanged(out.routine, out.token)
-      return out
-    })
-  }
-
-  async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> {
-    return routineResult(async () => {
-      const before = this.reminders.get(id)
-      const out = await this.reminders.updateRoutine(id, patch)
-      if (!out) return null
-      if (before?.trigger?.on === "webhook" && out.routine.trigger?.on !== "webhook") await this.dropHook(id)
-      await this.routineChanged(out.routine, out.token, before)
-      return out
-    })
-  }
+  async cancelReminder(id: string) { return this.#routines.cancelReminder(id) }
+  async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> { return this.#routines.createRoutine(owner, input) }
+  async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> { return this.#routines.updateRoutine(id, patch) }
 
   async overview(): Promise<string> {
     const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
@@ -290,32 +201,27 @@ export class UserDO extends DurableObject<Env> {
   async chatTasks(roomId: string, tasks: ChatTasks): Promise<void> {
     if (!tasks.open) this.sql.exec("DELETE FROM chat_tasks WHERE room_id = ?", roomId)
     else this.sql.exec("INSERT INTO chat_tasks (room_id, tasks) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET tasks = excluded.tasks", roomId, JSON.stringify(tasks))
-    await this.#engine.arm()
+    await this.#il.engine.arm()
   }
 
   async devSeen(ago: number): Promise<void> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
-    this.putSetting(LAST_SEEN, String(Date.now() - ago))
+    return devSeen(this.sql, ago)
   }
 
   async devSetting(key: "memory_policy", value: string): Promise<void> {
-    if (process.env.NODE_ENV !== "development" || key !== "memory_policy") throw new Error("not found")
-    this.putSetting(key, value)
+    return devSetting(this.sql, key, value)
   }
 
   async devComposioSession(): Promise<string | null> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
-    return this.#composio.sessionId()
+    return devComposioSession(() => this.#composio)
   }
 
   async devCaptureQueue(): Promise<number> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
-    return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM capture_queue").one().n
+    return devCaptureQueue(this.sql)
   }
 
   async devDue(id: string): Promise<void> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
-    await this.reminders.makeDue(id)
+    return devDue(this.reminders, id)
   }
 
   async timezone(): Promise<string | null> {
@@ -326,7 +232,6 @@ export class UserDO extends DurableObject<Env> {
     return this.setting(PUBLIC_ORIGIN)
   }
 
-  /** `byHuman`: the human pressed run now, so the run spends no budget. */
   async runRoutine(id: string, byHuman = false): Promise<RunDelivery | null> {
     return this.reminders.runNow(id, byHuman)
   }
@@ -335,13 +240,8 @@ export class UserDO extends DurableObject<Env> {
     return this.reminders.runs(id)
   }
 
-  /**
-   * The bus of what happened (room/signals.ts). Event routines start from a room's batch; a routine
-   * run's result closes its record. Reminders firing and watched pages changing come here too, for
-   * whatever starts work on its own next.
-   */
   async signals(batch: SignalBatch): Promise<void> {
-    await this.#engine.signals(batch)
+    await this.#il.engine.signals(batch)
     for (const s of batch.signals) if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN && s.routineId !== REMINDER_RUN) await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
     if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final" || s.kind === "task" || s.kind === "file")) return
     for (const routine of this.reminders.roomRoutines(batch.roomId)) {
@@ -355,64 +255,18 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async routineHook(routineId: string, token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
-    const routine = await this.reminders.byHook(routineId, token)
-    if (routine?.trigger?.on !== "webhook") return "unknown"
-    let json: unknown = null
-    try {
-      json = JSON.parse(body)
-    } catch {
-      json = null
-    }
-    if (!matchWebhook(routine.trigger.match ?? [], json)) return "skipped"
-    const shown = body.length > HOOK_EXCERPT ? `${body.slice(0, HOOK_EXCERPT)}\n[cut at ${HOOK_EXCERPT} characters]` : body
-    const out = await this.reminders.fireEvent(routineId, `hook:${deliveryKey}`, "a post to its webhook", `the post:\n${shown}`)
-    return out === "delivered" || out === "duplicate" ? "ran" : out === "held" ? "held" : "skipped"
+    return this.#routines.routineHook(routineId, token, deliveryKey, body)
   }
 
-  private async routineChanged(routine: Reminder, token?: string, before?: Reminder | null): Promise<void> {
-    const owner = this.reminders.owner()
-    if (!owner) return
-    const event = (r?: Reminder | null) => r?.trigger?.on === "task" || r?.trigger?.on === "message" || r?.trigger?.on === "file"
-    if (event(routine) || event(before)) await roomStub(this.env.ROOM, owner, routine.roomId).setRoutines(this.reminders.roomRoutines(routine.roomId).map(roomRoutine))
-    if (routine.trigger?.on !== "webhook") return
-    if (routine.status === "cancelled") return this.dropHook(routine.id)
-    if (!token) return
-    try {
-      await this.env.AUTH_DB.prepare('insert into "hooks" ("token_hash", "user_id", "routine_id", "created_at") values (?, ?, ?, ?)')
-        .bind(await sha256Hex(token), owner, routine.id, Date.now())
-        .run()
-    } catch (e) {
-      console.error(`webhook row not stored: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
-
-  private async dropHook(routineId: string): Promise<void> {
-    await this.env.AUTH_DB.prepare('delete from "hooks" where "routine_id" = ?').bind(routineId).run()
-  }
-
-  private async watchPage(trigger: Extract<Trigger, { on: "watch" }>): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-    try {
-      if (trigger.extension) {
-        const res = await this.extensions.fetch(trigger.extension, { url: trigger.url, method: "GET", ...(trigger.headers ? { headers: { ...trigger.headers } } : {}) })
-        return res.status >= 400 ? { ok: false, error: `status ${res.status}` } : { ok: true, text: res.text }
-      }
-      const page = await safeFetch(trigger.url, defaultFetcher(), { maxBytes: 256 * 1024 })
-      if (!page.ok) return { ok: false, error: page.reason }
-      if (page.status >= 400) return { ok: false, error: `status ${page.status}` }
-      const raw = new TextDecoder().decode(page.body)
-      const type = (page.headers.get("content-type") ?? "").split(";", 1)[0]!.trim().toLowerCase()
-      return { ok: true, text: type === "text/html" || (!type && /<html\b/i.test(raw)) ? htmlToText(raw) : raw }
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
-    }
-  }
   async snoozeReminder(id: string, time: string) { return asResult(() => this.reminders.snooze(id, time)) }
   async rewindReminder(id: string) { return asResult(() => this.reminders.rewind(id)) }
 
   async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
     const op: ChatOp = { op: "create", roomId, title, ...(agents?.length ? { agents } : {}) }
     this.apply(op)
-    return getChat(this.sql, this.duplicateOf(op) ?? roomId)!
+    const chat = getChat(this.sql, this.duplicateOf(op) ?? roomId)
+    if (!chat) throw new Error(`chat ${roomId} is missing right after create`)
+    return chat
   }
 
   async renameChat(roomId: RoomId, title: string): Promise<Chat | null> {
@@ -472,56 +326,35 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async homePut(input: NewFile): Promise<Omit<PutResult, "events"> & { fresh: boolean; entry: FsEntry | null }> {
-    const { events, ...result } = this.home.put(input)
-    return { ...result, fresh: events.some((e) => e.t === "file"), entry: result.file && !result.conflict ? this.home.stat(input.path) : null }
+    return this.#homeWiring.put(input)
   }
 
   async homeStat(path: string): Promise<FsEntry | null> {
-    return this.home.stat(path)
+    return this.#homeWiring.stat(path)
   }
 
   async homeList(dir: string, recursive = false): Promise<FsEntry[] | FsFail> {
-    return this.home.list(dir, recursive)
+    return this.#homeWiring.list(dir, recursive)
   }
 
   async homeMove(by: Actor, from: string, to: string): Promise<FsChange | FsFail> {
-    return this.dropAfter(this.home.move(from, to, by))
+    return this.#homeWiring.move(by, from, to)
   }
 
   async homeRemove(by: Actor, paths: readonly string[], recursive: boolean): Promise<FsChange | FsFail> {
-    return this.dropAfter(this.home.remove(paths, recursive, by))
+    return this.#homeWiring.remove(by, paths, recursive)
   }
 
   async homeMkdir(by: Actor, path: string): Promise<FsChange | FsFail> {
-    return this.home.mkdir(path, by)
+    return this.#homeWiring.mkdir(by, path)
   }
 
   async homeCommit(by: Actor, changes: readonly IndexChange[]): Promise<CommitResult> {
-    const held: UserEvent[] = []
-    this.holding = held
-    let out: CommitResult<UserEvent>
-    try {
-      out = this.home.commit(changes, by)
-    } finally {
-      this.holding = null
-    }
-    if (!out.ok) return out
-    if (held.length) this.broadcast({ t: "events", events: held })
-    this.dropAfter({ ok: true, events: [], drop: out.drop, changed: changes.length })
-    return { ok: true, events: [], drop: [] }
+    return this.#homeWiring.commit(by, changes)
   }
 
   private homeOp(op: FileOp): string | null {
-    const human = { kind: "human" } as const
-    const paths = op.op === "rm" ? op.paths : op.op === "mv" ? [op.from, op.to] : [op.path]
-    if (paths.some((p) => cleanPath(p) === null)) return "that is not a path in your drive"
-    const out = op.op === "rm" ? this.dropAfter(this.home.remove(op.paths, op.recursive ?? false, human)) : op.op === "mv" ? this.dropAfter(this.home.move(op.from, op.to, human)) : this.home.mkdir(op.path, human)
-    return out.ok ? null : out.message
-  }
-
-  private dropAfter<T extends FsChange | FsFail>(out: T): T {
-    if (out.ok && out.drop.length) this.ctx.waitUntil(deleteFiles(this.env.FILES, out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
-    return out
+    return this.#homeWiring.op(op)
   }
 
   async makeAgent(input: { name: string; slug: string; description: string; soul: string; model: string }): Promise<Agent | null> {
@@ -561,54 +394,12 @@ export class UserDO extends DurableObject<Env> {
     setSetting(this.sql, key, value)
   }
 
-  private async memoryCall(op: MemoryOp): Promise<MemoryResult> {
-    const now = Date.now()
-    switch (op.op) {
-      case "list": {
-        const lines = this.life.list(op.before ?? null, op.limit ?? 50)
-        return { ok: true, lines, next: lines.length ? lines[lines.length - 1]!.pos : null }
-      }
-      case "view":
-        return { ok: true, text: this.life.view(now).split("\n").filter(Boolean) }
-      case "search":
-        return { ok: true, lines: this.life.recall(op.query, 30), next: null }
-      case "zoom": {
-        const span = spanOf(op.id)
-        return span ? { ok: true, text: this.life.zoom(span, now) } : { ok: false, error: "not a summary id" }
-      }
-      case "note": {
-        const out = this.life.append(op.text, "you")
-        if (out.ok) await this.armNaps()
-        return out.ok ? { ok: true } : out
-      }
-      case "pin":
-        return this.life.pin(op.pos, op.pinned)
-      case "redact":
-        if (!this.life.redact(op.pos)) return { ok: false, error: "no such memory" }
-        await this.armNaps()
-        return { ok: true }
-      case "model":
-        return { ok: true, model: this.memoryModel() }
-      case "set_model":
-        if (op.model && !findProvider(op.model.provider)?.getModels().some((m) => m.id === op.model!.modelId)) return { ok: false, error: "no such model" }
-        if (op.model) this.putSetting(MEMORY_MODEL, JSON.stringify(op.model))
-        else deleteSetting(this.sql, MEMORY_MODEL)
-        return { ok: true }
-    }
-  }
-
-  private memoryModel(): MemoryModel {
-    const raw = this.setting(MEMORY_MODEL)
-    return raw ? (JSON.parse(raw) as MemoryModel) : null
-  }
-
-  /** `ref` names the human message the note answers, so deleting that message forgets the note too. */
   async lifeNote(author: string, text: string, ref = "", replaces?: string): Promise<NoteAnswer> {
     const out = this.life.append(text, `@${author}`, Date.now(), { ref })
     if (!out.ok) return out
     const old = replaces === undefined ? null : /^(?:life:)?\s*#?(\d+)$/i.exec(replaces.trim())
     const replaced = old ? this.life.supersede(Number(old[1]), out.pos) : false
-    if (!out.duplicate || replaced) await this.armNaps()
+    if (!out.duplicate || replaced) await this.#mem.armNaps()
     return { ok: true, pos: out.pos, ...(out.duplicate ? { duplicate: true as const } : {}), ...(replaces === undefined ? {} : { replaced }) }
   }
 
@@ -616,7 +407,7 @@ export class UserDO extends DurableObject<Env> {
     const chat = getChat(this.sql, roomId)
     if (!chat || chat.private) return
     const out = this.life.append(text, `chat ${chat.title}`, at, span ? { ref: `room:${roomId}:turns:${span.lo}-${span.hi}` } : {})
-    if (out.ok && !out.duplicate) await this.armNaps()
+    if (out.ok && !out.duplicate) await this.#mem.armNaps()
   }
 
   async lifeRecall(query: string): Promise<string[]> {
@@ -626,26 +417,16 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
-    await this.loopsHear(roomId, items)
-    if (!this.captures() || !this.capturable(roomId)) return
-    const rows = items.flatMap((i) => (i.messageId && candidates(i.text).length ? [{ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }] : []))
-    if (!rows.length) return
-    this.sql.exec(
-      "INSERT OR IGNORE INTO capture_queue (room_id, message_id, text, at, queued_at) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at'), ? FROM json_each(?)",
-      roomId,
-      Date.now(),
-      JSON.stringify(rows),
-    )
-    this.sql.exec("DELETE FROM capture_queue WHERE rowid NOT IN (SELECT rowid FROM capture_queue ORDER BY queued_at DESC LIMIT ?)", CAPTURE_QUEUE_MAX)
-    await this.armCapture()
+    await this.#il.hear(roomId, items)
+    await this.#mem.captureHuman(roomId, items)
   }
 
   async forgetMessages(roomId: RoomId, messageIds: string[], requeue: { messageId: string; text: string; at: number }[]): Promise<void> {
     const ids = [...new Set([...messageIds, ...requeue.map((r) => r.messageId)])]
     const gone = this.life.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
-    this.#loops.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
+    this.#il.loops.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
     this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(ids))
-    if (gone.length) await this.armNaps()
+    if (gone.length) await this.#mem.armNaps()
     await this.captureHuman(roomId, requeue)
   }
 
@@ -655,178 +436,12 @@ export class UserDO extends DurableObject<Env> {
       const m = /^(\d+)-(\d+)$/.exec(ref.slice(prefix.length))
       return m !== null && Number(m[1]) <= pos && pos < Number(m[2])
     })
-    if (this.life.redactRefs(refs).length) await this.armNaps()
-    this.#loops.forgetTurn(roomId, pos)
+    if (this.life.redactRefs(refs).length) await this.#mem.armNaps()
+    this.#il.loops.forgetTurn(roomId, pos)
   }
 
   async rerank(query: string, lines: { id: string; text: string }[]): Promise<string[] | null> {
-    if (!this.judgeKey()) return null
-    const shown = lines.slice(0, RERANK_LINES_MAX)
-    if (!shown.length) return []
-    const questions: Record<string, Question> = {}
-    shown.forEach((_, i) => {
-      questions[`l${i}`] = { type: "bool", instructions: `Does \`lines[${i}]\` help answer \`query\`?`, criteria: { true: "it holds part of the answer", false: "it does not help answer it" } }
-    })
-    const answers = await this.judge(RERANK_TIMEOUT_MS)({ query, lines: shown.map((l) => l.text) }, questions)
-    if (!answers) return null
-    this.count({ rerank_jev: 1 })
-    const policy = this.policy()
-    return shown
-      .map((l, i) => ({ id: l.id, p: boolOf(answers[`l${i}`]) }))
-      .filter((x) => x.p >= policy.rerankMin)
-      .sort((a, b) => b.p - a.p)
-      .slice(0, policy.recallMax)
-      .map((x) => x.id)
-  }
-
-  private policy(): CapturePolicy {
-    return mergePolicy(this.setting(MEMORY_POLICY))
-  }
-
-  private capturable(roomId: RoomId): boolean {
-    const chat = getChat(this.sql, roomId)
-    return chat !== null && !chat.private
-  }
-
-  private captures(): boolean {
-    return captureActive(this.policy(), this.judgeKey() !== null)
-  }
-
-  private refused(p: ProviderInfo): boolean {
-    return this.setting(refusedKey(p.provider)) === p.last4
-  }
-
-  private judgeKey(): { key: ProviderInfo; model: string | null } | null {
-    return pickJudge(this.#credentials.listProviders(), (p) => this.refused(p), this.setting(JUDGE_MODEL))
-  }
-
-  // The key is looked up on every judgment, so adding, replacing, or removing it changes the next one.
-  private judge(timeoutMs: number): Judge {
-    return async <K extends string>(state: JsonObject, questions: Record<K, Question>): Promise<Record<K, Answer> | null> => {
-      const picked = this.judgeKey()
-      if (!picked) return null
-      const { key } = picked
-      try {
-        const auth = (await this.turnContext(key.provider)).auth
-        if (!auth) return null
-        const { models } = userModels(async () => auth, `memory-${this.ctx.id.toString()}`)
-        const model = (picked.model ? models.getModelOfType("classifier", key.provider, picked.model) : undefined) ?? models.getModelsOfType("classifier", key.provider)[0]
-        if (!model) return null
-        const result = await models.classify(model, { state, questions }, { signal: AbortSignal.timeout(timeoutMs) })
-        this.count({ jev_input: result.usage?.input ?? 0, jev_output: result.usage?.output ?? 0 })
-        if (result.stopReason === "stop") return result.answers as Record<K, Answer>
-        if (REFUSED.test(result.errorMessage ?? "")) {
-          this.putSetting(refusedKey(key.provider), key.last4)
-          this.count({ jev_refused: 1 })
-        } else {
-          this.count({ jev_errors: 1 })
-          // Only the status: a provider's error body could echo the key.
-          console.error(`judge ${key.provider} ${result.stopReason} ${/\((\d{3})\)/.exec(result.errorMessage ?? "")?.[1] ?? ""}`)
-        }
-        return null
-      } catch (error) {
-        this.count({ jev_errors: 1 })
-        console.error(`judge ${key.provider} failed: ${error instanceof Error ? error.name : "error"}`)
-        return null
-      }
-    }
-  }
-
-  private count(delta: Record<string, number>): void {
-    const spent = JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
-    for (const [k, n] of Object.entries(delta)) if (n) spent[k] = (spent[k] ?? 0) + n
-    this.putSetting(MEMORY_USAGE, JSON.stringify(spent))
-  }
-
-  private tally(c: CaptureCount): void {
-    this.count({ facts_added: c.added, facts_replaced: c.replaced, facts_same: c.same, facts_private: c.private })
-  }
-
-  private async armCapture(): Promise<void> {
-    const q = this.sql.exec<{ n: number; oldest: number | null; newest: number | null }>("SELECT count(*) AS n, min(queued_at) AS oldest, max(queued_at) AS newest FROM capture_queue").one()
-    if (q.n && !this.captures()) return this.captureNow()
-    if (!q.n) return this.alarms.clearWakeup(CAPTURE_WAKEUP)
-    const p = this.policy()
-    await this.alarms.setWakeup(CAPTURE_WAKEUP, this.judgeKey() ? q.newest! + p.jevDelayMs : q.n >= p.batch ? Date.now() : q.oldest! + p.idleMs)
-  }
-
-  private queued(roomId: string, messageId: string, text: string): boolean {
-    return this.sql.exec("SELECT 1 FROM capture_queue WHERE room_id = ? AND message_id = ? AND text = ?", roomId, messageId, text).toArray().length > 0
-  }
-
-  private dequeue(roomId: string, messageIds: readonly string[]): void {
-    this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(messageIds))
-  }
-
-  private async captureNow(): Promise<void> {
-    const policy = this.policy()
-    if (!this.captures()) {
-      this.sql.exec("DELETE FROM capture_queue")
-      return this.alarms.clearWakeup(CAPTURE_WAKEUP)
-    }
-    type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number; queued_at: number }
-    let rows = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at, queued_at FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_ALARM).toArray()
-    for (const r of rows.filter((r) => !this.capturable(r.room_id))) this.dequeue(r.room_id, [r.message_id])
-    rows = rows.filter((r) => this.capturable(r.room_id))
-    let learned = false
-    if (this.judgeKey()) {
-      const judge = this.judge(CAPTURE_TIMEOUT_MS)
-      const left: QueueRow[] = []
-      for (const r of rows) {
-        if (left.length) {
-          left.push(r)
-          continue
-        }
-        this.count({ capture_jev: 1 })
-        const out = await captureWithJudge(this.life, judge, { messageId: r.message_id, text: r.text, at: r.at }, `room:${r.room_id}:msg:${r.message_id}`, policy, () => this.queued(r.room_id, r.message_id, r.text))
-        if (!out) {
-          left.push(r)
-          continue
-        }
-        this.tally(out)
-        learned ||= out.added + out.replaced > 0
-        if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
-      }
-      rows = left
-      // "auto" never spends the memory model: rows the judge failed on wait for it.
-      if (rows.length && policy.capture === "auto") {
-        if (learned) await this.armNaps()
-        return void (await this.alarms.setWakeup(CAPTURE_WAKEUP, Date.now() + policy.idleMs))
-      }
-    } else {
-      const total = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM capture_queue").one().n
-      if (total < policy.batch && (rows[0]?.queued_at ?? Date.now()) + policy.idleMs > Date.now()) rows = []
-    }
-    const rooms = new Map<RoomId, QueueRow[]>()
-    for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
-    for (const [roomId, batch] of rooms) {
-      const out = await this.captureByModel(roomId, batch.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at })))
-      if (out === "later") {
-        if (learned) await this.armNaps()
-        return void (await this.alarms.setWakeup(CAPTURE_WAKEUP, Date.now() + policy.idleMs))
-      }
-      learned ||= out
-    }
-    if (learned) await this.armNaps()
-    await this.armCapture()
-  }
-
-  private async captureByModel(roomId: RoomId, heard: Heard[]): Promise<boolean | "later"> {
-    const known = knownFor(this.life, heard)
-    let answer: string | null
-    try {
-      answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, CAPTURE_SYSTEM, capturePrompt(heard, known))
-    } catch (error) {
-      console.error(`capture by model failed: ${error instanceof Error ? error.message.slice(0, 200) : "error"}`)
-      return "later"
-    }
-    if (answer === null) return "later"
-    this.count({ capture_model: 1 })
-    if (heard.some((h) => !this.queued(roomId, h.messageId, h.text))) return false
-    const out = applyOps(this.life, parseCapture(answer, new Set(known.map((k) => k.pos)), heard.length), heard.map((h) => ({ ref: `room:${roomId}:msg:${h.messageId}`, at: h.at })))
-    this.tally(out)
-    this.dequeue(roomId, heard.map((h) => h.messageId))
-    return out.added + out.replaced > 0
+    return this.#mem.rerank(query, lines)
   }
 
   async lifeZoom(id: string): Promise<string | null> {
@@ -838,108 +453,27 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async memoryUsage(): Promise<Record<string, number>> {
-    return JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
+    return this.#mem.usage()
   }
 
-  private async armNaps(): Promise<void> {
-    if (this.life.pending(1).length) await this.alarms.setWakeup(LIFE_WAKEUP, Date.now() + 2_000)
-  }
-
-  private async napLife(): Promise<void> {
-    for (const span of this.life.pending(NAPS_PER_ALARM)) {
-      const prompt = this.life.prompt(span)
-      if (!prompt) {
-        this.life.settle(span, null)
-        continue
-      }
-      const out = await this.compress(prompt)
-      if ("retryAt" in out) return void (await this.alarms.setWakeup(LIFE_WAKEUP, out.retryAt))
-      if ("error" in out && this.life.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
-      this.life.settle(span, "text" in out ? out.text : null)
-    }
-    await this.armNaps()
-  }
-
-  #compressing = 0
-
-  /** `page` names a room's page of raw turns: the same call then also lists open loops (section 26). */
   async compress(prompt: string, page?: { roomId: RoomId; at: number; span?: { lo: number; hi: number } }): Promise<{ text: string } | { retryAt: number } | { error: string }> {
-    if (this.#compressing >= MAX_NAPS) return { retryAt: Date.now() + 5_000 + Math.floor(Math.random() * 5_000) }
-    this.#compressing++
-    try {
-      const loops = page ? this.#initiative.napPrompt(page.roomId, prompt, page.at) : null
-      const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, loops?.system ?? NAP_SYSTEM, loops?.prompt ?? prompt)
-      if (answer === null) return { retryAt: Date.now() + 10 * 60_000 }
-      const line = cleanLine(loops && page ? ((await this.napOnce(page, prompt)) ? this.#initiative.napApply(page.roomId, answer, loops.known, page.at, page.span) : parseNapLoops(answer, loops.known).summary) ?? "" : answer)
-      return line ? { text: line } : { error: "the model wrote no line" }
-    } catch (error) {
-      return { error: error instanceof Error ? error.message : String(error) }
-    } finally {
-      this.#compressing--
-    }
+    return this.#mem.compress(prompt, page)
   }
-
-  /** True the first time a page with these exact turns is applied. A retry of the same page, after an error or a lost answer, is not. */
-  private async napOnce(page: { roomId: RoomId; span?: { lo: number; hi: number } }, prompt: string): Promise<boolean> {
-    if (!page.span) return true
-    const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(prompt)))
-    const id = `${page.roomId}:${page.span.lo}-${page.span.hi}:${[...hash.slice(0, 8)].map((b) => b.toString(16).padStart(2, "0")).join("")}`
-    const now = Date.now()
-    this.sql.exec("DELETE FROM nap_applied WHERE at < ?", now - NAP_APPLIED_FOR)
-    return this.sql.exec("INSERT OR IGNORE INTO nap_applied (id, at) VALUES (?, ?)", id, now).rowsWritten > 0
-  }
-
-  private async complete(ref: { provider: string; modelId: string }, system: string, prompt: string): Promise<string | null> {
-    const { provider, modelId } = ref
-    const auth = (await this.turnContext(provider)).auth
-    if (!auth) return null
-    const { models, settings } = userModels(async () => auth, `memory-${this.ctx.id.toString()}`)
-    const model = models.getModel(provider, modelId)
-    if (!model) return null
-    const headers = (settings as { stream?: { headers?: Record<string, string> } }).stream?.headers
-    const reply = await models.completeSimple(
-      model,
-      { systemPrompt: system, messages: [{ role: "user", content: prompt, timestamp: Date.now() }] },
-      { headers, signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS), ...(model.reasoning && model.thinkingLevelMap?.off === null ? { reasoning: "minimal" as const } : {}) },
-    )
-    const spent = JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
-    for (const k of ["input", "output", "cacheRead"] as const) spent[k] = (spent[k] ?? 0) + (reply.usage?.[k] ?? 0)
-    spent.calls = (spent.calls ?? 0) + 1
-    const failed = reply.stopReason === "error" || reply.stopReason === "aborted"
-    if (failed) spent.failed = (spent.failed ?? 0) + 1
-    this.putSetting(MEMORY_USAGE, JSON.stringify(spent))
-    if (failed) throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
-    return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
-  }
-
-  // DEVIATION: the plan names these `connect` and `disconnect`, but `connect` is the
-  // `DurableObject` handler for incoming TCP sockets, so they carry a `Provider` suffix.
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
     const info = await this.#credentials.connect(provider, apiKey)
-    await this.keyChanged(provider)
-    return this.describe(info)
+    await this.#mem.keyChanged(provider)
+    return this.#mem.describe(info)
   }
 
   async disconnectProvider(provider: string): Promise<boolean> {
     const removed = await this.#credentials.disconnect(provider)
-    await this.keyChanged(provider)
+    await this.#mem.keyChanged(provider)
     return removed
   }
 
   async listProviders(): Promise<ProviderInfo[]> {
-    return this.#credentials.listProviders().map((p) => this.describe(p))
-  }
-
-  private describe(p: ProviderInfo): ProviderInfo {
-    const uses = providerUses(p.provider)
-    return { ...p, ...uses, ...(uses.judge && this.refused(p) ? { refused: true as const } : {}) }
-  }
-
-  private async keyChanged(provider: string): Promise<void> {
-    if (!providerUses(provider).judge) return
-    deleteSetting(this.sql, refusedKey(provider))
-    await this.armCapture()
+    return this.#credentials.listProviders().map((p) => this.#mem.describe(p))
   }
 
   limits(): Limits {
@@ -1009,7 +543,7 @@ export class UserDO extends DurableObject<Env> {
       getSetting(this.sql, key)
     const limits = setting("limits")
     const agent = slug ? { extensions: this.extensions.forAgent(slug), soul: await this.souls.get(slug) } : undefined
-    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null, captures: this.captures() }, agent)
+    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null, captures: this.#mem.captures() }, agent)
   }
 
   async lifeView(): Promise<string> {
@@ -1020,6 +554,48 @@ export class UserDO extends DurableObject<Env> {
   get #credentials(): CredentialVault {
     this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name))
     return this.#vault
+  }
+
+  #homeWiringCache?: HomeWiring
+  get #homeWiring(): HomeWiring {
+    this.#homeWiringCache ??= new HomeWiring({ ctx: this.ctx, env: this.env, home: this.home, holding: { set: (held) => { this.holding = held } }, broadcast: (frame) => this.broadcast(frame) })
+    return this.#homeWiringCache
+  }
+
+  #routinesWiring?: RoutineWiring
+  get #routines(): RoutineWiring {
+    this.#routinesWiring ??= new RoutineWiring({ env: this.env, reminders: this.reminders, extensions: this.extensions })
+    return this.#routinesWiring
+  }
+
+  #memory?: MemoryCapture
+  get #mem(): MemoryCapture {
+    this.#memory ??= new MemoryCapture({
+      sql: this.sql,
+      life: this.life,
+      alarms: this.alarms,
+      label: this.ctx.id.toString(),
+      credentials: () => this.#credentials,
+      turn: (provider) => this.turnContext(provider),
+      loops: () => this.#il,
+    })
+    return this.#memory
+  }
+
+  #loopsModule?: InitiativeLoops
+  get #il(): InitiativeLoops {
+    this.#loopsModule ??= new InitiativeLoops({
+      sql: this.sql,
+      transaction: (fn) => this.ctx.storage.transactionSync(fn),
+      alarms: this.alarms,
+      life: this.life,
+      memory: this.#mem,
+      reminders: this.reminders,
+      room: this.env.ROOM,
+      userId: userIdFromObjectName(this.ctx.id.name),
+      limits: () => this.limits(),
+    })
+    return this.#loopsModule
   }
 
   /** Null when no key is stored. A cold object serves the saved listing and refreshes it behind. */
@@ -1072,37 +648,25 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  #kernelConnection?: KernelConnection
-  get #kernel(): KernelConnection {
-    const userId = () => userIdFromObjectName(this.ctx.id.name)
-    this.#kernelConnection ??= new KernelConnection({
-      store: new KernelStore(this.sql, () => ({ keyring: keyringFromEnv(this.env), userId: userId() })),
-      userId,
-      wake: { set: (at) => this.alarms.setWakeup(REAP_WAKEUP, at), clear: () => this.alarms.clearWakeup(REAP_WAKEUP) },
-    })
-    return this.#kernelConnection
+  #kernelWiring?: KernelWiring
+  get #kr(): KernelWiring {
+    this.#kernelWiring ??= new KernelWiring({ ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => userIdFromObjectName(this.ctx.id.name) })
+    return this.#kernelWiring
   }
-
-  // The user's one Kernel browser, leased to their agents (architecture section 27). The CDP URL
-  // goes to the agent that asked and nowhere else. The Kernel key never leaves this object.
 
   /** The user's browser for `agentId`, headless unless the human asked to watch. Creates it when there is none. */
   async browserLease(agentId: string): Promise<{ cdpUrl: string; mode: Mode; restarted: boolean; reopen: string[] }> {
-    const info = await this.#kernel.leaseFor(agentId)
-    this.#pushBrowser()
-    return info
+    return this.#kr.lease(agentId)
   }
 
   /** Stamps last use. `tabs` (tab id to last URL) replaces the agent's tabs. False when the browser it knew is gone. */
   async browserTouch(agentId: string, tabs?: Record<string, string>): Promise<boolean> {
-    const known = this.#kernel.touch(agentId, tabs)
-    this.#pushBrowser()
-    return known
+    return this.#kr.touch(agentId, tabs)
   }
 
   /** Whether the human is driving the browser. A tool returns "The human is using the browser" and waits while it is true. */
   async browserTakeover(): Promise<boolean> {
-    return this.#kernel.takeover()
+    return this.#kr.kernel.takeover()
   }
 
   /**
@@ -1111,19 +675,12 @@ export class UserDO extends DurableObject<Env> {
    * (after the last "/" or ":"). Returns false when the agent is not in that room.
    */
   async browserShare(agentId: string, roomId: string, reason: string): Promise<boolean> {
-    checkAgentId(agentId)
-    const slug = slugOf(agentId)
-    if (!isRoomId(roomId) || !isAgentSlug(slug) || typeof reason !== "string") return false
-    const text = reason.trim().slice(0, 300)
-    if (!text) return false
-    return roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).browserShare(slug, text)
+    return this.#kr.share(agentId, roomId, reason)
   }
 
   /** The agent's socket died: the next lease makes a new browser. */
   async browserDead(agentId: string, sessionId: string): Promise<boolean> {
-    const dead = await this.#kernel.markDead(agentId, sessionId)
-    if (dead) this.#pushBrowser()
-    return dead
+    return this.#kr.dead(agentId, sessionId)
   }
 
   /** HTTP through the browser's stack. The body is capped at 20000 chars; only http and https. */
@@ -1131,7 +688,7 @@ export class UserDO extends DurableObject<Env> {
     checkAgentId(agentId)
     if (typeof req?.url !== "string" || req.url.length > URL_CAP) throw new KernelError("failed", "bad url")
     if (req.method !== undefined && FETCH_METHODS[req.method] !== true) throw new KernelError("failed", "bad method")
-    const res = await this.#kernel.fetchPage(req)
+    const res = await this.#kr.kernel.fetchPage(req)
     const truncated = res.body.length > FETCH_BODY_CAP
     return { status: res.status, headers: res.headers, body: truncated ? res.body.slice(0, FETCH_BODY_CAP) : res.body, truncated }
   }
@@ -1141,13 +698,13 @@ export class UserDO extends DurableObject<Env> {
     checkAgentId(agentId)
     const bytes = decodeBase64(base64)
     const safe = basenameOf(name)
-    return this.#kernel.putFile(safe, bytes)
+    return this.#kr.kernel.putFile(safe, bytes)
   }
 
   /** Reads a file from the browser's VM. The path must be under /tmp or the downloads folder; the file is capped at 10 MB. */
   async browserGetFile(agentId: string, path: string): Promise<{ name: string; base64: string; size: number }> {
     checkAgentId(agentId)
-    const bytes = await this.#kernel.getFile(path)
+    const bytes = await this.#kr.kernel.getFile(path)
     if (bytes.byteLength > FILE_CAP) throw new KernelError("failed", "file is over 10 MB")
     return { name: basenameOf(path), base64: encodeBase64(bytes), size: bytes.byteLength }
   }
@@ -1155,121 +712,21 @@ export class UserDO extends DurableObject<Env> {
   /** Names of the files in a folder on the browser's VM. The folder must be under /tmp or the downloads folder. */
   async browserListFiles(agentId: string, dir: string): Promise<string[]> {
     checkAgentId(agentId)
-    return this.#kernel.listFiles(dir)
+    return this.#kr.kernel.listFiles(dir)
   }
 
   /** The agent closed its tabs. */
   async browserRelease(agentId: string): Promise<void> {
-    this.#kernel.release(agentId)
-    this.#pushBrowser()
-  }
-
-  #browserSwitching = false
-  #browserSent = ""
-
-  #browserState(): BrowserState {
-    return this.#kernel.browserState(this.#browserSwitching, (agentId) => {
-      const slug = slugOf(agentId)
-      const row = this.sql.exec<{ name: string }>("SELECT name FROM agents WHERE slug = ?", slug).toArray()[0]
-      return { slug, name: row?.name ?? slug }
-    })
-  }
-
-  /** Tells every ready socket the browser changed. A touch that changes nothing the client shows sends nothing. */
-  #pushBrowser(): void {
-    const text = JSON.stringify({ t: "browserState", state: this.#browserState() } satisfies UserToClient)
-    if (text === this.#browserSent) return
-    this.#browserSent = text
-    for (const ws of this.ctx.getWebSockets()) {
-      if ((ws.deserializeAttachment() as Attachment | null)?.ready) trySend(ws, text)
-    }
-  }
-
-  private async browserFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "browserLink" | "handBack" | "closeBrowser" }>) {
-    const kernel = this.#kernel
-    if (frame.t === "handBack") kernel.handBack()
-    else if (frame.t === "closeBrowser") {
-      await kernel.closeNow().catch((e) => console.error(`close browser failed: ${kernelErrorText(e)}`))
-    } else {
-      let result: BrowserLinkResult
-      try {
-        const url = await kernel.openLink(frame.mode, (on) => {
-          this.#browserSwitching = on
-          this.#pushBrowser()
-        })
-        result = { ok: true, url }
-      } catch (e) {
-        result = { ok: false, error: kernelErrorText(e) }
-      }
-      // The URL goes to this socket alone and is never stored.
-      send(ws, { t: "browserLink", reqId: frame.reqId, result })
-    }
-    this.#pushBrowser()
+    this.#kr.release(agentId)
   }
 
   /** Read before each browser call. Holds no URL. */
   async browserCheck(): Promise<{ connected: boolean; takeover: boolean; tabs: Record<string, number> }> {
-    return this.#kernel.check()
+    return this.#kr.kernel.check()
   }
 
-  // DEVELOPMENT ONLY: `verify kernel` drives the lease and the reaper without waiting minutes.
-  async devBrowser(op: { action: "lease" | "touch" | "dead" | "age" | "reap" | "switch" | "state"; agentId?: string; mode?: Mode; ms?: number }): Promise<Record<string, unknown>> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
-    const kernel = this.#kernel
-    if (op.action === "lease") {
-      const { cdpUrl: _, ...rest } = await kernel.leaseFor(op.agentId)
-      return { ...rest, sessionId: kernel.sessionId() }
-    }
-    if (op.action === "touch") return { ok: kernel.touch(op.agentId) }
-    if (op.action === "dead") {
-      const gone = await kernel.lease.killForDev()
-      if (gone) await kernel.markDead(op.agentId, gone)
-    }
-    if (op.action === "age") kernel.age(op.ms ?? 0)
-    if (op.action === "reap") await kernel.reap()
-    if (["dead", "age", "reap"].includes(op.action)) return { sessionId: kernel.sessionId() }
-    if (op.action === "switch") {
-      const { cdpUrl: _, ...rest } = await kernel.lease.switchMode(op.mode === "headful" ? "headful" : "headless")
-      return { ...rest, sessionId: kernel.sessionId() }
-    }
-    return { sessionId: kernel.sessionId(), status: kernel.status(), profile: await profileName(userIdFromObjectName(this.ctx.id.name)) }
-  }
-
-  private async kernelFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectKernel" | "disconnectKernel" | "kernelStatus" }>) {
-    const kernel = this.#kernel
-    let result: KernelResult
-    try {
-      if (frame.t === "connectKernel") result = { ok: true, status: await kernel.connect(frame.apiKey) }
-      else if (frame.t === "disconnectKernel") {
-        await kernel.disconnect()
-        result = { ok: true, status: kernel.status() }
-      } else result = { ok: true, status: kernel.status() }
-    } catch (e) {
-      result = { ok: false, error: kernelErrorText(e) }
-    }
-    send(ws, { t: "kernel", reqId: frame.reqId, result })
-    if (frame.t === "kernelStatus") send(ws, { t: "browserState", state: this.#browserState() })
-    this.#pushBrowser()
-    if (result.ok && frame.t !== "kernelStatus") {
-      const text = JSON.stringify({ t: "kernel", result } satisfies UserToClient)
-      for (const other of this.ctx.getWebSockets()) {
-        if (other !== ws && (other.deserializeAttachment() as Attachment | null)?.ready) trySend(other, text)
-      }
-    }
-  }
-
-  #loginState?: ProviderLogins<WebSocket>
-  get #logins(): ProviderLogins<WebSocket> {
-    this.#loginState ??= new ProviderLogins<WebSocket>({
-      store: this.#credentials,
-      info: (provider) => this.#credentials.listProviders().find((p) => p.provider === provider) ?? null,
-      send,
-      setWakeup: (key, at) => this.alarms.setWakeup(key, at),
-      clearWakeup: (key) => this.alarms.clearWakeup(key),
-      subscriptions: this.env.PROVIDER_OAUTH === "on",
-      fake: process.env.NODE_ENV === "development",
-    })
-    return this.#loginState
+  async devBrowser(op: DevBrowserOp): Promise<Record<string, unknown>> {
+    return devBrowser(() => this.#kr.kernel, userIdFromObjectName(this.ctx.id.name), op)
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -1286,6 +743,20 @@ export class UserDO extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client })
   }
 
+  #logins?: ProviderLogins<WebSocket>
+  get #loginState(): ProviderLogins<WebSocket> {
+    this.#logins ??= new ProviderLogins<WebSocket>({
+      store: this.#credentials,
+      info: (provider) => this.#credentials.listProviders().find((p) => p.provider === provider) ?? null,
+      send,
+      setWakeup: (key, at) => this.alarms.setWakeup(key, at),
+      clearWakeup: (key) => this.alarms.clearWakeup(key),
+      subscriptions: this.env.PROVIDER_OAUTH === "on",
+      fake: process.env.NODE_ENV === "development",
+    })
+    return this.#logins
+  }
+
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     let frame: typeof ClientToUser.Type
     try {
@@ -1297,7 +768,7 @@ export class UserDO extends DurableObject<Env> {
       this.seen()
       send(ws, this.resume(frame.lastSeq))
       // The client starts with no browser, so a hello sends a browser only when there is one.
-      const browser = this.#browserState()
+      const browser = this.#kr.browserState()
       if (browser) send(ws, { t: "browserState", state: browser })
       const before = ws.deserializeAttachment() as Attachment | null
       ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
@@ -1308,15 +779,15 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "browserLink" || frame.t === "handBack" || frame.t === "closeBrowser") {
-      await this.browserFrame(ws, frame)
+      await this.#kr.browserFrame(ws, frame)
       return
     }
     if (frame.t === "connectKernel" || frame.t === "disconnectKernel" || frame.t === "kernelStatus") {
-      await this.kernelFrame(ws, frame)
+      await this.#kr.kernelFrame(ws, frame)
       return
     }
     if (frame.t === "memory") {
-      send(ws, { t: "memory_result", reqId: frame.reqId, result: await this.memoryCall(frame.op) })
+      send(ws, { t: "memory_result", reqId: frame.reqId, result: await this.#mem.call(frame.op) })
       return
     }
     if (frame.t === "theme") {
@@ -1344,20 +815,20 @@ export class UserDO extends DurableObject<Env> {
       if (refused) send(ws, { t: "home_refused", op: frame.op, reason: refused })
       return
     }
-    if (frame.t === "login.start") return void this.#logins.start(ws, frame.loginId, frame.provider).catch(() => {})
-    if (frame.t === "login.answer") return this.#logins.answer(ws, frame.loginId, frame.promptId, frame.value)
-    if (frame.t === "login.cancel") return this.#logins.cancel(ws, frame.loginId)
+    if (frame.t === "login.start") return void this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {})
+    if (frame.t === "login.answer") return this.#loginState.answer(ws, frame.loginId, frame.promptId, frame.value)
+    if (frame.t === "login.cancel") return this.#loginState.cancel(ws, frame.loginId)
     const existing = this.duplicateOf(frame.op)
     if (existing) return send(ws, { t: "chat_refused", roomId: frame.op.roomId, existing })
     this.apply(frame.op)
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
-    this.#loginState?.dropOwner(ws)
+    this.#logins?.dropOwner(ws)
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
-    this.#loginState?.dropOwner(ws)
+    this.#logins?.dropOwner(ws)
     try {
       ws.close(code === 1005 || code === 1006 ? 1000 : code)
     } catch {
@@ -1370,16 +841,13 @@ export class UserDO extends DurableObject<Env> {
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
       [REMINDERS_WAKEUP]: () => this.reminders.fire(),
-      [LIFE_WAKEUP]: () => this.napLife(),
-      [CAPTURE_WAKEUP]: () => this.captureNow(),
-      [LOOPS_WAKEUP]: () => this.loopsNow(),
-      [INITIATIVE_WAKEUP]: () => this.#engine.pass(),
-      [REAP_WAKEUP]: async () => {
-        await this.#kernel.reap()
-        this.#pushBrowser()
-      },
+      [LIFE_WAKEUP]: () => this.#mem.napLife(),
+      [CAPTURE_WAKEUP]: () => this.#mem.captureNow(),
+      [LOOPS_WAKEUP]: () => this.#il.now(),
+      [INITIATIVE_WAKEUP]: () => this.#il.engine.pass(),
+      [REAP_WAKEUP]: () => this.#kr.reap(),
     })
-    this.#loginState?.expire(due)
+    this.#logins?.expire(due)
   }
 
   async recordRoom(roomId: RoomId): Promise<boolean> {
@@ -1394,7 +862,7 @@ export class UserDO extends DurableObject<Env> {
     if (this.#wiped) return []
     await this.ctx.storage.put(DELETING, Date.now())
     // The user's Kernel account is theirs, so a failure here must not stop the deletion.
-    await this.#kernel.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
+    await this.#kr.kernel.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
     await this.ctx.storage.deleteAlarm()
     closeSockets(this.ctx)
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
@@ -1422,159 +890,38 @@ export class UserDO extends DurableObject<Env> {
     return this.#wiped ? 0 : storedRows(this.ctx.storage)
   }
 
-  // Initiative (architecture section 26): open loops and the lines a run starts with.
-
-  #loopsStore?: Loops
-  #initiativeInstance?: Initiative
-
-  get #loops(): Loops {
-    this.#loopsStore ??= new Loops(this.sql, (fn) => this.ctx.storage.transactionSync(fn))
-    return this.#loopsStore
-  }
-
-  get #initiative(): Initiative {
-    this.#initiativeInstance ??= new Initiative({
-      loops: this.#loops,
-      life: this.life,
-      judge: () => (this.judgeKey() ? this.judge(CAPTURE_TIMEOUT_MS) : null),
-      title: (roomId) => {
-        const chat = getChat(this.sql, roomId)
-        return chat && !chat.private ? chat.title : null
-      },
-      off: () => this.initiativeLevel() === "off",
-      count: (delta) => this.count(delta),
-      close: (id, status, at) => this.closeLoop(id, status, at),
-      noticed: (roomId, skip) => this.#engine.noticed(roomId, skip),
-    })
-    return this.#initiativeInstance
-  }
-
-  #engineInstance?: InitiativeEngine
-
-  get #engine(): InitiativeEngine {
-    this.#engineInstance ??= new InitiativeEngine({
-      sql: this.sql,
-      loops: this.#loops,
-      tz: () => this.setting("timezone") ?? DEFAULT_TIMEZONE,
-      level: () => this.initiativeLevel(),
-      away: () => {
-        const last = this.setting(LAST_SEEN)
-        return last !== null && Date.now() - Number(last) > this.limits().awayDays * 86_400_000
-      },
-      budget: () => Math.max(0, this.limits().autonomousRunsPerDay - Number(this.setting(`autonomous:${utcDay(Date.now())}`) ?? 0)),
-      title: (roomId) => {
-        const chat = getChat(this.sql, roomId)
-        return chat && !chat.private && !chat.temp ? chat.title : null
-      },
-      home: () => yukiChatRoom(this.sql),
-      routines: () => {
-        const runs = this.reminders.runs()
-        return this.reminders.list().filter((r) => r.trigger).map((routine) => ({ routine, last: runs.find((x) => x.routineId === routine.id && x.status !== "running") ?? null }))
-      },
-      judge: () => (this.judgeKey() ? this.judge(CAPTURE_TIMEOUT_MS) : null),
-      wake: (roomId, input) => roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).initiativeWake(input),
-      count: (delta) => this.count(delta),
-      setWakeup: (at) => this.alarms.setWakeup(INITIATIVE_WAKEUP, at),
-      clearWakeup: () => this.alarms.clearWakeup(INITIATIVE_WAKEUP),
-    })
-    return this.#engineInstance
-  }
-
-  private initiativeLevel(): Level {
-    const level = this.setting("initiative")
-    return (INITIATIVE_LEVELS as readonly string[]).includes(level ?? "") ? (level as Level) : "digest"
-  }
-
-  // Development only (section 26.8): a day of initiative in seconds.
-
-  async devInitiative(op: { action: "age"; ms: number } | { action: "rhythm"; mode: "now" | "clear" } | { action: "pass" } | { action: "state" }): Promise<unknown> {
-    if (process.env.NODE_ENV !== "development") throw new Error("not found")
-    if (op.action === "rhythm") {
-      this.#engine.devRhythm(op.mode)
-      return { at: await this.#engine.arm() }
-    }
-    if (op.action === "pass") return this.#engine.pass()
-    if (op.action === "state") return this.#engine.devState()
-    this.#engine.devAge(op.ms)
-    // A reminder an agent set for itself ages with the clock, and fires once the aging reaches it.
-    await this.reminders.devAge(op.ms)
-    return { at: await this.#engine.arm() }
+  async devInitiative(op: DevInitiativeOp): Promise<unknown> {
+    return devInitiative(() => this.#il.engine, this.reminders, op)
   }
 
   /** A reminder an agent set for itself opens its commitment (section 26.2); a dev route opens a loop for the fake-agent suite. */
   async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; reminderId?: string }): Promise<OpenResult> {
-    if (!this.capturable(roomId)) return { ok: false, error: "this chat is private: nothing here is kept." }
-    const { reminderId, ...loop } = input
-    const out = this.#loops.open({ ...loop, owner, room: roomId, ref, source: "tool" })
-    if (out.ok) {
-      this.count(out.merged ? { loops_merged: 1 } : { loops_opened: 1 })
-      if (reminderId) this.#engine.link(reminderId, out.id)
-      await this.#engine.arm()
-    }
-    return out
+    return this.#il.open(owner, roomId, ref, input)
   }
 
   /** `roomId`: an agent's close, which reaches only the loops of its own chat. */
   async loopClose(id: number, status: "done" | "dropped", roomId?: RoomId): Promise<boolean> {
-    return this.closeLoop(id, status, Date.now(), roomId)
-  }
-
-  /** Every close goes through here: a drop settles a nudge about the loop as dismissed (section 26.6). */
-  private closeLoop(id: number, status: "done" | "dropped", at: number, roomId?: RoomId): boolean {
-    const closed = this.#loops.close(id, status, at, roomId)
-    if (closed) this.count({ loops_closed: 1 })
-    if (closed && status === "dropped") this.#engine.dropped(id, at)
-    return closed
+    return this.#il.close(id, status, roomId)
   }
 
   async loopList(filter: { status?: Loop["status"][]; owner?: string; room?: string; limit?: number } = {}): Promise<Loop[]> {
-    return this.#loops.list(filter)
+    return this.#il.loops.list(filter)
   }
 
   async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string }): Promise<{ owe: string[]; related: string[]; noticed: string[] }> {
-    return this.#initiative.brief(roomId, slug, burst)
+    return this.#il.initiative.brief(roomId, slug, burst)
   }
 
   /** An agent's answer, for the Jev pass to catch a promise to come back (section 26.2). */
   async loopsAnswer(roomId: RoomId, slug: string, items: { messageId: string; text: string; at: number }[]): Promise<void> {
-    await this.loopsHear(roomId, items, slug)
-  }
-
-  /** Queues a human burst, or an agent's answer, for one Jev pass. Without a judge, with capture off, or with initiative off, nothing is queued. */
-  private async loopsHear(roomId: RoomId, items: { messageId: string; text: string; at: number }[], agent = ""): Promise<void> {
-    if (!this.judgeKey() || this.policy().capture === "off" || this.initiativeLevel() === "off" || !this.capturable(roomId)) return
-    const rows = items.filter((i) => i.messageId && i.text.trim()).map((i) => ({ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }))
-    if (!rows.length) return
-    // A wakeup is already set while anything waits: pushing it on each burst would starve Jev in a steady chat.
-    const waiting = this.sql.exec("SELECT 1 FROM loop_heard LIMIT 1").toArray().length > 0
-    this.sql.exec(
-      "INSERT OR IGNORE INTO loop_heard (room_id, message_id, text, at, agent) SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.text'), json_extract(value, '$.at'), ? FROM json_each(?)",
-      roomId,
-      agent,
-      JSON.stringify(rows),
-    )
-    if (!waiting) await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now() + LOOPS_DELAY_MS)
-  }
-
-  private async loopsNow(): Promise<void> {
-    const rows = this.sql.exec<{ room_id: RoomId; message_id: string; text: string; at: number; agent: string }>("SELECT * FROM loop_heard ORDER BY at LIMIT 48").toArray()
-    const rooms = new Map<RoomId, typeof rows>()
-    for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
-    // One Jev call per chat, and an invocation has 50 subrequests: the rest wait for the next alarm.
-    for (const [roomId, burst] of [...rooms].slice(0, LOOPS_ROOMS_PER_PASS)) {
-      const out = await this.#initiative.heard(roomId, burst.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at, ...(r.agent ? { by: r.agent } : {}) })))
-      // Jev failed: the summary pass still sees these words, so nothing waits.
-      if (out === "later") this.count({ loops_jev_failed: 1 })
-      this.sql.exec("DELETE FROM loop_heard WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(burst.map((r) => r.message_id)))
-    }
-    if (this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM loop_heard").one().n) await this.alarms.setWakeup(LOOPS_WAKEUP, Date.now())
+    await this.#il.hear(roomId, items, slug)
   }
 
   private apply(op: ChatOp): UserEvent | null {
     if (movesYukiChat(this.sql, op) || this.duplicateOf(op)) return null
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
     // A private or deleted chat keeps no loops (section 26.1).
-    if (event && ((op.op === "private" && op.private) || op.op === "delete")) this.#loops.forgetRoom(op.roomId)
+    if (event && ((op.op === "private" && op.private) || op.op === "delete")) this.#il.loops.forgetRoom(op.roomId)
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
       this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))
@@ -1660,58 +1007,29 @@ export class UserDO extends DurableObject<Env> {
   // The human's own surfaces for initiative (architecture section 26): the loops list and two settings.
 
   async loopsFor(roomId: string | null): Promise<LoopRow[]> {
-    return this.#loops.list({ owner: "human", status: ["open", "snoozed"], ...(roomId ? { room: roomId } : {}), limit: 200 }).map(loopRow)
+    return this.#il.humanLoops(roomId)
   }
 
   async loopAct(id: number, action: LoopAction): Promise<boolean> {
-    if (this.#loops.get(id)?.owner !== "human") return false
-    if (action.action === "snooze") return this.#loops.snooze(id, action.until, Date.now())
-    return this.loopClose(id, action.action === "done" ? "done" : "dropped")
+    return this.#il.act(id, action)
   }
 
   async userSettings(): Promise<UserSettings> {
     const timezone = this.setting("timezone")
-    return { initiative: this.initiativeLevel(), capture: this.policy().capture, ...(timezone ? { timezone } : {}) }
+    return { initiative: this.#il.level(), capture: this.#mem.policy().capture, ...(timezone ? { timezone } : {}) }
   }
 
   async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
     // The route checked the zone. The rhythm reads hours in it, so the pass is set again.
     if (patch.timezone) {
       this.putSetting("timezone", patch.timezone)
-      await this.#engine.arm()
+      await this.#il.engine.arm()
     }
     if (patch.initiative) {
       this.putSetting("initiative", patch.initiative)
-      await this.#engine.arm()
+      await this.#il.engine.arm()
     }
-    if (patch.capture) {
-      let stored: Record<string, unknown> = {}
-      try {
-        const parsed: unknown = JSON.parse(this.setting(MEMORY_POLICY) ?? "{}")
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed as Record<string, unknown>
-      } catch {}
-      this.putSetting(MEMORY_POLICY, JSON.stringify({ ...stored, capture: patch.capture }))
-    }
+    if (patch.capture) this.#mem.setCapture(patch.capture)
     return this.userSettings()
-  }
-}
-
-function loopRow(l: Loop): LoopRow {
-  return { id: l.id, kind: l.kind, certainty: l.certainty, owner: l.owner, room: l.room, due: l.due, status: l.status, text: l.text, snoozedUntil: l.snoozedUntil }
-}
-
-/** The agent slug at the end of a lease id such as `room/slug`. */
-function slugOf(agentId: string): string {
-  return agentId.split(/[/:]/).pop() ?? agentId
-}
-
-function send(ws: WebSocket, frame: UserToClient): void {
-  trySend(ws, JSON.stringify(frame))
-}
-
-function trySend(ws: WebSocket, text: string): void {
-  try {
-    ws.send(text)
-  } catch {
   }
 }

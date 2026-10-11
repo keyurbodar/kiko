@@ -1,19 +1,12 @@
 import { type Frontmatter, parseFrontmatter } from "./frontmatter"
 
-// Architecture section 15, P5-08. A skill is a SKILL.md: frontmatter with `name`, `description`, and
-// `disable-model-invocation`, then the instructions. The prompt lists name and description; the
-// agent loads the body with read_skill when a task matches. Room skills win over user skills, which
-// win over built-in ones, by name. As in pi, a skill with no description is skipped with a warning.
-
 export type SkillSource = "room" | "user" | "builtin"
 
 export type Skill = { name: string; description: string; body: string; source: SkillSource; disableModelInvocation: boolean }
 
-/** As in pi's skills spec. */
 export const MAX_DESCRIPTION = 1024
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
-/** One SKILL.md, or the warning that skipped it. `fallbackName` is its directory's name. */
 export function parseSkill(content: string, fallbackName: string, source: SkillSource): Skill | { warning: string } {
   let parsed: Frontmatter
   try {
@@ -37,7 +30,6 @@ export function parseSkill(content: string, fallbackName: string, source: SkillS
   }
 }
 
-/** Every skill by name, the first list that has a name winning. Pass room, then user, then built-in. */
 export function resolveSkills(...lists: readonly Skill[][]): Skill[] {
   const out = new Map<string, Skill>()
   for (const list of lists) for (const s of list) if (!out.has(s.name)) out.set(s.name, s)
@@ -46,7 +38,6 @@ export function resolveSkills(...lists: readonly Skill[][]): Skill[] {
 
 const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;")
 
-/** The prompt's skills section, or undefined when no skill is offered to the model. */
 export function formatSkills(skills: readonly Skill[]): string | undefined {
   const visible = skills.filter((s) => !s.disableModelInvocation)
   if (!visible.length) return undefined

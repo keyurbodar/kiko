@@ -4,13 +4,8 @@ import { uploadRoute } from "../src/files/upload"
 import type { Env } from "../src/index"
 import { ROOM_ID_HEADER, roomStub, USER_ID_HEADER } from "../src/lib/names"
 
-// The real upload and download routes and the real RoomDO, with the session taken
-// from an `x-test-user` header. `/keys` lists every R2 key. `/ws/<user>/<roomId>` opens the room
-// socket as that user, and `/sweep/<user>/<roomId>?at=` runs the pending sweep as of `at`.
-
 export { RoomDO } from "../src/room/room-do"
 
-/** The upload route records each room in `UserDO` first. This one accepts every room. */
 export class UserDO extends DurableObject {
 	async recordRoom() {
 		return true

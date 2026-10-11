@@ -2,8 +2,6 @@ import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// Runs the real UserDO inside workerd. The worker is bundled from src so the test
-// cannot drift from the source.
 let mf: Miniflare
 
 beforeAll(async () => {
@@ -58,7 +56,6 @@ async function socket(user: string, lastSeq = 0) {
     if (frames.length < count) throw new Error(`wanted ${count} frames, got ${JSON.stringify(frames)}`)
     return frames
   }
-  /** Waits a little and returns everything received, to prove nothing extra arrived. */
   const settle = async (ms = 200) => {
     await new Promise((r) => setTimeout(r, ms))
     return frames
@@ -80,7 +77,6 @@ test("touchChat twice with the same lastSeq broadcasts once", async () => {
   const got = events((await ws.settle()).slice(1))
   expect(got).toHaveLength(1)
   expect(got[0].chat).toMatchObject({ roomId: ROOM_A, lastSeq: 7, lastPreview: "done", unread: 2 })
-  // an older seq arriving late is ignored too
   expect(await rpc(user, "touchChat", ROOM_A, { ...touch, lastSeq: 5 })).toBe(false)
   ws.close()
 })
@@ -92,7 +88,6 @@ test("a touch carries the row's activity, mentions, and group, and reading never
   const last = { from: "agent", name: "Ada", kind: "text", text: "hi @alice", at: created + 5_000 }
   expect(await rpc(user, "touchChat", ROOM_A, { lastSeq: 3, lastPreview: "hi @alice", unread: 1, last, mentions: 1, group: true })).toBe(true)
   expect(await rpc(user, "getChat", ROOM_A)).toMatchObject({ last, mentions: 1, group: true, unread: 1, updatedAt: created + 5_000 })
-  // The human read it: the counts clear, the line and the order stay.
   expect(await rpc(user, "touchChat", ROOM_A, { lastSeq: 4, lastPreview: "hi @alice", unread: 0, last, mentions: 0, group: true })).toBe(true)
   const read = await rpc(user, "getChat", ROOM_A)
   expect(read).toMatchObject({ last, unread: 0, updatedAt: created + 5_000 })
@@ -106,7 +101,6 @@ test("renaming a group is its row's line until something newer happens", async (
   await rpc(user, "touchChat", ROOM_A, { lastSeq: 2, lastPreview: "yo", unread: 0, last: old, mentions: 0, group: true })
   await rpc(user, "renameChat", ROOM_A, "launch")
   expect((await rpc(user, "getChat", ROOM_A)).last).toMatchObject({ from: "human", kind: "renamed", text: "launch" })
-  // A read touch still names the older message: the rename stays.
   await rpc(user, "touchChat", ROOM_A, { lastSeq: 3, lastPreview: "yo", unread: 0, last: old, mentions: 0, group: true })
   expect((await rpc(user, "getChat", ROOM_A)).last.kind).toBe("renamed")
   const newer = { from: "agent", name: "Ada", kind: "text", text: "ok", at: Date.now() + 1_000 }
@@ -153,7 +147,6 @@ test("hello resumes after lastSeq, and a socket from the future gets a snapshot"
   const ahead = await socket(user, 99)
   expect(ahead.frames[0]!.t).toBe("reset")
   expect(ahead.frames[0]!.snapshot.seq).toBe(3)
-  // pinned first
   expect(ahead.frames[0]!.snapshot.chats.map((c: any) => c.roomId)).toEqual([ROOM_B, ROOM_A])
   resumed.close()
   ahead.close()
@@ -223,7 +216,6 @@ test("a theme saved on one socket reaches the other, survives a snapshot, and re
   expect(got).toHaveLength(1)
   expect(got[0]).toMatchObject({ t: "theme", theme, seq: 1 })
   expect(await rpc(user, "getTheme")).toBe(theme)
-  // a socket that is too far behind gets the theme in its snapshot
   const c = await socket(user, 99)
   expect((c.frames[0] as Frame).snapshot.theme).toBe(theme)
   b.send({ t: "theme", theme: null })
@@ -269,7 +261,6 @@ test("every account has one pinned yuki chat that cannot be deleted or unpinned"
   expect(await rpc(user, "deleteChat", home[0].roomId)).toBe(false)
   expect(await rpc(user, "pinChat", home[0].roomId, false)).toMatchObject({ pinned: true })
   expect((await rpc(user, "listChats")).map((c: { roomId: string }) => c.roomId)).toContain(home[0].roomId)
-  // A socket sees it flagged, so the client never offers to delete it.
   const ws = await socket(user, 1_000_000)
   const snap = ws.frames.find((f) => f.t === "reset")!.snapshot
   expect(snap.chats.find((c: { roomId: string }) => c.roomId === home[0].roomId)).toMatchObject({ yuki: true })
@@ -284,13 +275,11 @@ test("one direct chat per agent: a second create is refused and names the first"
   const ws = await socket(user)
   ws.send({ t: "chat", op: { op: "create", roomId: ROOM_C, title: "ada", agents: ["ada"] } })
   ws.send({ t: "chat", op: { op: "create", roomId: ROOM_D, title: "ada", agents: ["ada"] } })
-  // A temporary chat with ada and a group with ada are not direct chats, so both are made.
   ws.send({ t: "chat", op: { op: "create", roomId: ROOM_A, title: "new chat", agents: ["ada"], temp: true } })
   ws.send({ t: "chat", op: { op: "create", roomId: ROOM_B, title: "team", agents: ["yuki", "ada"] } })
   const frames = await ws.until(5)
   expect(frames.find((f) => f.t === "chat_refused")).toEqual({ t: "chat_refused", roomId: ROOM_D, existing: ROOM_C })
   expect((await rpc(user, "listChats")).map((c: { roomId: string }) => c.roomId).sort()).toEqual([ROOM_A, ROOM_B, ROOM_C].sort())
-  // The RPC gives back the one direct chat instead of making another.
   expect(await rpc(user, "createChat", ROOM_D, "ada again", ["ada"])).toMatchObject({ roomId: ROOM_C })
   expect(await rpc(user, "listChats")).toHaveLength(3)
   ws.close()
@@ -327,10 +316,8 @@ test("the last chat opened comes back in the snapshot, and the yuki chat stands 
   const ws = await socket(user, 0)
   ws.send({ t: "open", roomId: ROOM_C })
   await ws.settle(100)
-  // No event: opening a chat is not a change anyone else needs to see.
   expect(ws.frames).toHaveLength(1)
   expect(await snap()).toBe(ROOM_C)
-  // A temporary chat is never resumed.
   ws.send({ t: "chat", op: { op: "create", roomId: ROOM_D, title: "new chat", agents: ["yuki"], temp: true } })
   ws.send({ t: "open", roomId: ROOM_D })
   await ws.until(2)

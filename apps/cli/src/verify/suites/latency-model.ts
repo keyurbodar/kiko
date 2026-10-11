@@ -3,10 +3,6 @@ import type { Suite } from "../runner"
 import { Samples, timedTurn } from "./latency"
 import { seen, send, ulid, until } from "./mid-run"
 
-// `latency` on the test model (opencode-go/deepseek-v4.1-flash): YUKI_LATENCY_RUNS turns (default
-// 10) in one room, each asking for two tiny paragraphs so there is a gap between two bubbles. The
-// first turn opens the agent's harness. Prints p50 and p95. Short prompts keep the cost to a few
-// hundred tokens a turn.
 
 const RUNS = Number(process.env.YUKI_LATENCY_RUNS ?? 10)
 const WEB_RUNS = Number(process.env.YUKI_LATENCY_WEB_RUNS ?? 3)
@@ -27,7 +23,6 @@ const suite: Suite = {
     for (let i = 0; i < RUNS; i++) {
       await timedTurn(room, `run ${i}: reply with two paragraphs of three words each.`, samples, i === 0 ? "cold agent" : "warm agent", 60_000)
     }
-    // A quick web question. The talker has no web_fetch (architecture section 8), so it costs a worker hop.
     for (let i = 0; i < WEB_RUNS; i++) {
       const before = seen(room).live.length
       const t0 = performance.now()

@@ -13,7 +13,6 @@ function local(d: Date, tz: string) {
   return `${p.weekday} ${p.hour}:${p.minute}`;
 }
 
-/** Walk occurrences from `start` to `end`, each found from the one before. */
 function walk(rule: string, tz: string, start: string, end: string) {
   const out: Date[] = [];
   let at = new Date(start);
@@ -25,7 +24,6 @@ function walk(rule: string, tz: string, start: string, end: string) {
   }
 }
 
-// 2026 changes: US spring Mar 8, fall Nov 1. EU spring Mar 29, fall Oct 25.
 const cases = [
   { tz: "America/New_York", changes: [["2026-03-01T00:00:00Z", "2026-03-20T00:00:00Z"], ["2026-10-25T00:00:00Z", "2026-11-12T00:00:00Z"]] },
   { tz: "Europe/Berlin", changes: [["2026-03-20T00:00:00Z", "2026-04-08T00:00:00Z"], ["2026-10-15T00:00:00Z", "2026-11-05T00:00:00Z"]] },
@@ -36,7 +34,6 @@ describe.each(cases)("$tz", ({ tz, changes }) => {
     const list = walk(DAILY, tz, s, e);
     expect(list.length).toBeGreaterThan(10);
     for (const d of list) expect(local(d, tz)).toMatch(/ 09:00$/);
-    // The change itself shows up as a 23 or 25 hour day, so the zone math ran.
     const hours = list.slice(1).map((d, i) => (d.getTime() - list[i]!.getTime()) / 3_600_000);
     expect(hours.some((h) => h === 23 || h === 25)).toBe(true);
   });
@@ -50,19 +47,15 @@ describe.each(cases)("$tz", ({ tz, changes }) => {
 
 describe("exact instants", () => {
   test("new york daily, spring forward", () => {
-    // Sat 7 Mar 09:00 EST = 14:00Z. Sun 8 Mar 09:00 EDT = 13:00Z.
     expect(nextOccurrence(DAILY, "America/New_York", new Date("2026-03-07T14:00:00Z"))!.toISOString()).toBe("2026-03-08T13:00:00.000Z");
   });
   test("new york daily, fall back", () => {
-    // Sat 31 Oct 09:00 EDT = 13:00Z. Sun 1 Nov 09:00 EST = 14:00Z.
     expect(nextOccurrence(DAILY, "America/New_York", new Date("2026-10-31T13:00:00Z"))!.toISOString()).toBe("2026-11-01T14:00:00.000Z");
   });
   test("berlin monday, spring forward", () => {
-    // Mon 23 Mar 09:00 CET = 08:00Z. Mon 30 Mar 09:00 CEST = 07:00Z.
     expect(nextOccurrence(MONDAY, "Europe/Berlin", new Date("2026-03-23T08:00:00Z"))!.toISOString()).toBe("2026-03-30T07:00:00.000Z");
   });
   test("berlin monday, fall back", () => {
-    // Mon 19 Oct 09:00 CEST = 07:00Z. Mon 26 Oct 09:00 CET = 08:00Z.
     expect(nextOccurrence(MONDAY, "Europe/Berlin", new Date("2026-10-19T07:00:00Z"))!.toISOString()).toBe("2026-10-26T08:00:00.000Z");
   });
   test("result is strictly after the input", () => {
@@ -71,7 +64,6 @@ describe("exact instants", () => {
   });
   test("a time inside the spring gap moves later, never earlier", () => {
     const rule = "FREQ=DAILY;BYHOUR=2;BYMINUTE=30;BYSECOND=0";
-    // 02:30 on 8 Mar does not exist in New York. It runs at 03:30 EDT = 07:30Z.
     expect(nextOccurrence(rule, "America/New_York", new Date("2026-03-07T12:00:00Z"))!.toISOString()).toBe("2026-03-08T07:30:00.000Z");
   });
   test("a finished rule returns null", () => {

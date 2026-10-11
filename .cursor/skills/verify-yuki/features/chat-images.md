@@ -2,7 +2,7 @@
 
 Since 2026-10-09 yuki draws attachments as t3code does. The human attaches pictures and files in the composer; a sent message shows its pictures as a small grid and its other files as rows; a picture opens in an image dialog. There is no album layout, link card, thumbhash, or video poster any more. Agents send no files, so only the human's messages carry attachments, but an old agent message that has files draws the same way.
 
-A file is a picture when its type is GIF, JPEG, PNG, or WebP, or its name says so and the type is empty (`apps/web-solid/src/lib/attachments.ts` over `packages/protocol/src/attachments.ts`). Another picture type, an SVG or a HEIC, is refused in the composer. Every other file is a file row.
+A file is a picture when its type is GIF, JPEG, PNG, or WebP, or its name says so and the type is empty (`apps/web-solid/src/lib/attachments.ts` over `core/protocol/src/attachments.ts`). Another picture type, an SVG or a HEIC, is refused in the composer. Every other file is a file row.
 
 Each file uploads the moment it is picked, as a pending upload (`PUT /api/files/<room>/pending/<id>?name=&size=`, `sync/uploads.ts`), and the send names the uploads; the room claims them into `attachments/` as it stores the message (architecture section 18.1).
 

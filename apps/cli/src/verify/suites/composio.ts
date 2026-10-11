@@ -3,21 +3,9 @@ import { connectTestModel, expectEqual, type RoomHandle, VerifyError } from "../
 import { dev, inSeconds, ok, runsOf } from "../routine-kit"
 import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
+import { must } from "../must"
 import { newRoom } from "./mid-run"
 
-// Composio, end to end with a real model. Needs OPENCODE_API_KEY (the model, opencode-go) and
-// COMPOSIO_API_KEY (the Composio project key, ak_...) in the shell. Part one: a bad key is refused
-// and stores nothing. Part two: connect the real key, which opens a Composio session, ask a fresh
-// chat to search the web through Composio, and prove from the server's dev counters
-// (`composio.<tool>.ms`, bumped on every tool call) that a composio_* tool ran and that a reply
-// bubble arrived. Part three: a second fresh chat asks another web question, and must use the
-// learned tool directly, with no search, and the status must report that tool as a read (the same
-// key reads Composio's catalog, which tags it read-only). Part four: a routine runs in a room whose
-// agent opened before anything was learned and is still open. It must reload and call the learned
-// tool. Part five: the user's live session is deleted at Composio (the id comes from a dev route,
-// never the key), and a fresh chat asks a new question. A composio_* tool must run, a reply must
-// arrive, and the stored session id must change: Composio answers the deleted session with 404 and
-// the server makes a new one. Hard limits: 60 s per socket answer, 150 s per chat turn or routine run.
 
 const USER = "composio-alice"
 const MODEL = process.env.YUKI_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
@@ -49,7 +37,6 @@ const suite: Suite = {
       return (answer as unknown as { result: Result }).result
     }
 
-    // Start clean, then a bad key.
     await ask({ t: "disconnectComposio" })
     const bad = await ask({ t: "connectComposio", apiKey: "ak_not_a_real_key_0000" })
     if (bad.ok) throw new VerifyError("a bad composio key was accepted")
@@ -59,7 +46,6 @@ const suite: Suite = {
     expectEqual(after.status.connected, false, "connected after a bad key")
     expectEqual(after.status.rows, 0, "rows after a bad key")
 
-    // The real key.
     const good = await ask({ t: "connectComposio", apiKey: key })
     if (!good.ok) throw new VerifyError(`connect failed: ${good.error}`)
     expectEqual(good.status.connected, true, "connected")
@@ -73,7 +59,6 @@ const suite: Suite = {
       await Bun.sleep(500)
       return opened
     }
-    /** Sends `question` and waits for the agent's bubbles and then idle. */
     const turn = async (room: RoomHandle, question: string) => {
       const t0 = performance.now()
       const clientId = room.send(question)
@@ -88,17 +73,15 @@ const suite: Suite = {
       }
       return { first, text, total: performance.now() - t0 }
     }
-    const called = (counters: Record<string, number>) => Object.keys(counters).filter((k) => /^composio\.[^.]+\.ms$/.test(k)).map((k) => k.split(".")[1]!)
+    const called = (counters: Record<string, number>) => Object.keys(counters).filter((k) => /^composio\.[^.]+\.ms$/.test(k)).map((k) => must(k.split(".")[1], "composio segment"))
     const toolName = (slug: string) => `composio_${slug.replace(/^COMPOSIO_/, "").toLowerCase()}`
-    /** Section 8: the talker has no composio_* tool, so every call ran in a worker (`tool.<talker|worker>.<name>`). */
     const inWorker = (counters: Record<string, number>, what: string) => {
-      const by = (who: string) => Object.keys(counters).filter((k) => k.startsWith(`tool.${who}.composio_`)).map((k) => k.split(".")[2]!)
+      const by = (who: string) => Object.keys(counters).filter((k) => k.startsWith(`tool.${who}.composio_`)).map((k) => must(k.split(".")[2], "tool segment"))
       if (by("talker").length) throw new VerifyError(`${what}: the talker called ${by("talker").join(" ")}`)
       if (!by("worker").length) throw new VerifyError(`${what}: no worker called a composio_* tool`)
       return by("worker")
     }
 
-    // An agent that opens now, before anything is learned. Part four runs a routine in its room.
     const early = await open("composio routine")
     await turn(early.room, "hi")
     const status = () => dev(v.url, s, "status", { roomId: early.roomId, slug: "yuki" }) as Promise<{ open: boolean }>
@@ -137,13 +120,11 @@ const suite: Suite = {
     if (again.includes("composio_search_tools")) throw new VerifyError("the second chat searched again instead of using a learned tool")
     if (!again.some((t) => direct.some((slug) => t === toolName(slug)))) throw new VerifyError(`the second chat called no learned tool: ${again.join(" ")}`)
 
-    // The catalog lookup runs behind the call that taught the tool, so it has had a whole chat to land.
     const classes = await ask({ t: "composioStatus", tools: true })
     const reads = classes.ok ? direct.filter((slug) => classes.readOnly?.includes(slug)) : []
     console.error(`learned reads: ${reads.join(", ") || "none"}`)
     if (!reads.length) throw new VerifyError("no learned tool is a read")
 
-    // Part four: a routine run, not started by the human, by the agent still open from before the learning.
     clearInterval(keepOpen)
     if (!(await status()).open) throw new VerifyError("the early agent is no longer open, so this run would not test its reload")
     const { routine } = await ok<{ routine: { id: string } }>(v.url, s, "routines", { roomId: early.roomId, name: "deno check", instructions: ROUTINE, trigger: { on: "time", at: inSeconds(3600), rrule: "FREQ=DAILY" } })
@@ -153,7 +134,7 @@ const suite: Suite = {
     for (;;) {
       const runs = await runsOf(v.url, s, routine.id)
       if (runs.some((r) => r.status !== "running")) {
-        console.log(`  routine run: ${runs[0]!.status} in ${((performance.now() - t0) / 1000).toFixed(1)} s`)
+        console.log(`  routine run: ${must(runs[0], "routine run").status} in ${((performance.now() - t0) / 1000).toFixed(1)} s`)
         break
       }
       if (performance.now() - t0 > TURN_MS) throw new VerifyError("the routine run did not finish")
@@ -165,7 +146,6 @@ const suite: Suite = {
     if (!ran.some((t) => direct.some((slug) => t === toolName(slug)))) throw new VerifyError(`the routine run called no learned tool: ${ran.join(" ") || "none"}`)
     user.send({ t: "chat", op: { op: "delete", roomId: early.roomId as never } })
 
-    // Part five: the session is deleted at Composio, and the next chat must renew it.
     const storedSession = async () => ((await dev(v.url, s, "composio", {})) as { session: string | null }).session
     const oldSession = await storedSession()
     if (!oldSession) throw new VerifyError("no stored composio session to delete")

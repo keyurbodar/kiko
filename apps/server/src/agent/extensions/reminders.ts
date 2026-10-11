@@ -23,7 +23,6 @@ export type RemindersPort = {
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
 const SHAPES = "shapes: {on:'time',at:'<iso with offset>',rrule?} | {on:'task',status?:['review']} | {on:'message',from:'human'|'agent'|'any',contains?} | {on:'file',path} | {on:'webhook',match?} | {on:'watch',url,everyMinutes:15 or more}"
 
-/** A model often sends the trigger as a JSON string, a bare status, or null for a field it skips. Accept those; the schema stays strict. */
 function tidyTrigger(value: unknown): unknown {
   let v = value
   if (typeof v === "string") {
@@ -41,7 +40,6 @@ function tidyTrigger(value: unknown): unknown {
   return out
 }
 
-/** The handle of a teammate, or undefined when the model means itself ("you", "me", "self") or sent nothing. */
 function otherAgent(agent: string | undefined): string | undefined {
   const handle = agent?.trim().replace(/^@/, "").toLowerCase()
   return handle && !["you", "me", "self", "myself", "yourself", "default", "none"].includes(handle) ? handle : undefined
@@ -55,8 +53,10 @@ function parseTrigger(value: unknown): Trigger | string {
   }
 }
 
-const routineLine = (r: Reminder, runs: RoutineRun[]) =>
-  `${r.id}: routine "${r.name}" (${r.status}) for @${r.target}, runs ${describeTrigger(r.trigger!, r.tz, r.dueUtc)}${runs[0] ? `; last run ${runs[0].status}` : ""}`
+const routineLine = (r: Reminder, runs: RoutineRun[]) => {
+  if (r.trigger === null) throw new Error(`routine ${r.id} has no trigger`)
+  return `${r.id}: routine "${r.name}" (${r.status}) for @${r.target}, runs ${describeTrigger(r.trigger, r.tz, r.dueUtc)}${runs[0] ? `; last run ${runs[0].status}` : ""}`
+}
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
 
@@ -118,7 +118,8 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
           execute: async (args) => {
             const trigger = parseTrigger(args.trigger)
             if (typeof trigger === "string") return { content: text(trigger), isError: true }
-            const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, ...(otherAgent(args.agent) ? { target: otherAgent(args.agent)! } : {}) })
+            const target = otherAgent(args.agent)
+            const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, ...(target ? { target } : {}) })
             if (!out.ok) return { content: text(`not set: ${out.error}`), isError: true }
             const hook = out.token ? `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.` : ""
             return { content: text(`routine set: ${routineLine(out.routine, [])}${hook}`) }

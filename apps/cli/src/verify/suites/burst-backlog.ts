@@ -2,10 +2,6 @@ import { VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { fake, newRoom, seen, until } from "./mid-run"
 
-// Architecture section 6.1. A burst bigger than one delivery (100 envelopes) reaches the agent in
-// full, in order, chunk after chunk. The room reads only one delivery's worth of the backlog per
-// flush, so a long backlog costs linear row reads, not quadratic. The fake agent answers with
-// `heard: <every turn it read>`, so the suite checks that every message was heard exactly once.
 
 const COUNT = 250
 

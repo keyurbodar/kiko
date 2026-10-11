@@ -124,11 +124,6 @@ describe("composio learned tools", () => {
   const searchBody = { successful: true, data: { tool_schemas: { COMPOSIO_SEARCH_WEB: { toolkit: "composio_search", tool_slug: "COMPOSIO_SEARCH_WEB", description: "Search the web.", input_schema: webSchema }, GMAIL_GET_ATTACHMENT: { toolkit: "gmail", tool_slug: "GMAIL_GET_ATTACHMENT", schemaRef: {} } } } }
   const ran = (slug: string, ok: boolean) => ({ successful: true, data: { results: [{ response: { successful: ok, data: { answer: "1.4.2" }, error: ok ? null : "no connection" }, tool_slug: slug, index: 0 }] } })
 
-  /**
-   * A connection over an in-memory store, answering each MCP call with the next queued body. The
-   * catalog tags every tool `catalog`. `gone` lists sessions Composio no longer knows, and
-   * `sessions` counts the ones it created.
-   */
   function setup(catalog?: string[]) {
     const state = { learned: [] as LearnedTool[], sent: [] as { name: string; arguments: unknown }[], replies: [] as unknown[], tags: catalog, session: "trs_1", sessions: 0, gone: new Set<string>(), deleted: [] as string[], keyStatus: 200, stored: false, users: [] as string[] }
     const url = (id: string) => `https://backend.composio.dev/tool_router/${id}/mcp`

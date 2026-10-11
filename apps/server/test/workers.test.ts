@@ -4,9 +4,6 @@ import { decide } from "@yuki/agent/mid-run"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// Architecture section 8, "Talker and workers". Slow work runs in a background worker while the
-// agent keeps talking. A scripted model and a `hang` tool the test releases make every case exact.
-
 let mf: Miniflare
 
 beforeAll(async () => {
@@ -71,7 +68,6 @@ const human = (body: string): Envelope => ({
   seq: n,
 })
 
-/** The agent started one worker, said so, and the worker waits in `hang`. */
 async function working(a: Awaited<ReturnType<typeof agent>>, task = "find the flights") {
   await a.say(`START ${task}`)
   await until(a.hangs, (h) => h.waiting === 1)
@@ -145,11 +141,9 @@ test("a worker that outlives five restarts reports failed once, and the agent ke
   for (let i = 1; i <= 4; i++) {
     await a.call({ op: "crash" }).catch(() => {})
     await until(a.status, (s) => s.opens >= i + 1)
-    // Three resumes are allowed. The fourth open aborts the worker, so its tool does not run again.
     if (i <= 3) await until(a.hangs, (h) => h.waiting === 1 && h.started === i + 1)
   }
   await until(a.posts, (p) => p.some((t) => t.startsWith("reported w1 failed")), 30_000)
-  // The fifth restart finds an idle agent. It must not report again or lose anything.
   await a.call({ op: "crash" }).catch(() => {})
   const posts = await a.posts()
   expect(posts.filter((t) => t.startsWith("reported w1")).length).toBe(1)

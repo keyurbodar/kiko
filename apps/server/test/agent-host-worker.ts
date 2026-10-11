@@ -87,7 +87,6 @@ export class T extends AgentDO {
       return Response.json({ ok: true })
     }
     if (body.op === "stale-idle") {
-      // An idle check whose snapshot is taken before a human batch is drained, as watchIdle does.
       const host = this.host as unknown as { open(): Promise<{ harness: { inspect(c: unknown): Promise<unknown> } }>; drain(o: unknown): Promise<void>; pulse(h: unknown): Promise<void>; origin(): string; receive(e: Envelope[], b: string): Promise<unknown> }
       const opened = await host.open()
       const inspect = opened.harness.inspect.bind(opened.harness)

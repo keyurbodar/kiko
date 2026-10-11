@@ -2,25 +2,14 @@ import { DEFAULT_MODEL } from "../agent/factory"
 import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 
-/** The built-in agent. It leads every room and cannot be removed. */
-const CHIEF = "yuki"
+import { CHIEF } from "./chief"
 
-// Architecture sections 7.2, 7.4, and 7.7. The agents of one room. A room has exactly one
-// lead while it has any member. A removed member keeps its row with `removed_at` set, so
-// account deletion still reaches its Durable Object and adding the slug again brings it back.
-// `status` is the latest state the agent reported. A room made before the cleanup also has the
-// columns `current_task` and `last_delivered_seq`, which nothing reads or writes any more.
-
-/** Architecture section 7.7. */
 export const MAX_MEMBERS = 8
 const MAX_NAME = 60
-// ASSUMPTION: the limits on a role and a model reference, the same as the user's agent list.
 const MAX_ROLE = 500
 const MAX_MODEL = 200
-/** `@all` addresses everyone (section 7.2), so no agent may hold the slug. */
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set(["all"])
 
-/** One row of the table, as the room uses it. */
 export type MemberRow = {
 	slug: AgentSlug
 	name: string
@@ -50,10 +39,6 @@ const toRow = (r: Row): MemberRow => ({
 	status: r.status as AgentState,
 })
 
-/**
- * The wire form. `role` is left out when empty. An agent with no model of its own runs on the
- * default, so the wire carries that effective model and the client never shows "None".
- */
 export function toMember(m: MemberRow): Member {
 	return { slug: m.slug, name: m.name, lead: m.lead, ...(m.role ? { role: m.role } : {}), model: m.model || `${DEFAULT_MODEL.provider}/${DEFAULT_MODEL.modelId}` }
 }
@@ -77,12 +62,11 @@ export class Members {
 			model TEXT NOT NULL DEFAULT '',
 			lead INTEGER NOT NULL DEFAULT 0,
 			status TEXT NOT NULL DEFAULT 'idle',
-			added_seq INTEGER NOT NULL, -- the seq of the event that added it, for join order
+			added_seq INTEGER NOT NULL,
 			removed_at INTEGER
 		)`)
 	}
 
-	/** The current members, the lead first, then in the order they joined. */
 	list(): MemberRow[] {
 		return this.sql
 			.exec<Row>("SELECT * FROM members WHERE removed_at IS NULL ORDER BY lead DESC, added_seq, slug")
@@ -90,7 +74,6 @@ export class Members {
 			.map(toRow)
 	}
 
-	/** Every slug that was ever a member, removed ones included. Account deletion wipes each one. */
 	everyone(): AgentSlug[] {
 		return this.sql
 			.exec<{ slug: string }>("SELECT slug FROM members ORDER BY added_seq, slug")
@@ -103,16 +86,10 @@ export class Members {
 		return row ? toRow(row) : null
 	}
 
-	/** True once the room has had a member. Seeding happens only before that. */
 	seeded(): boolean {
 		return this.sql.exec("SELECT 1 FROM members LIMIT 1").toArray().length > 0
 	}
 
-	/**
-	 * Fills an empty room with its first agents, the first one as lead. Does nothing when the room
-	 * has had members before, so a repeat after a crash stores nothing twice. Extra agents past the
-	 * limit are dropped.
-	 */
 	seed(agents: readonly NewMember[]): RoomEvent[] {
 		return this.storage.transactionSync(() => {
 			if (this.seeded()) return []
@@ -125,7 +102,6 @@ export class Members {
 		})
 	}
 
-	/** Applies one human change from the socket. */
 	apply(op: MemberOp): MemberResult {
 		return this.storage.transactionSync(() => {
 			switch (op.op) {
@@ -167,21 +143,18 @@ export class Members {
 		return { ok: true, events: [event] }
 	}
 
-	/**
-	 * Removes a member. Removing the lead makes the member who joined first the new lead.
-	 * The yuki agent is the chief of every room and is never removed.
-	 * ASSUMPTION: the last member cannot be removed, because a room keeps exactly one lead.
-	 */
 	private removeInside(slug: AgentSlug): MemberResult {
 		const current = this.get(slug)
 		if (!current) return { ok: false, reason: "unknown" }
 		if (slug === CHIEF) return { ok: false, reason: "chief" }
 		const rest = this.list().filter((m) => m.slug !== slug)
-		if (!rest.length) return { ok: false, reason: "last" }
-		const events: RoomEvent[] = [this.log.append("human", { t: "member_removed", slug })]
-		this.sql.exec("UPDATE members SET removed_at = ?, lead = 0, status = 'idle' WHERE slug = ?", events[0]!.at, slug)
+		const [successor] = rest
+		if (!successor) return { ok: false, reason: "last" }
+		const removed = this.log.append("human", { t: "member_removed", slug })
+		const events: RoomEvent[] = [removed]
+		this.sql.exec("UPDATE members SET removed_at = ?, lead = 0, status = 'idle' WHERE slug = ?", removed.at, slug)
 		if (current.lead) {
-			const next = { ...rest[0]!, lead: true }
+			const next = { ...successor, lead: true }
 			events.push(this.log.append("human", { t: "member", member: toMember(next) }))
 			this.sql.exec("UPDATE members SET lead = 1 WHERE slug = ?", next.slug)
 		}
@@ -192,14 +165,12 @@ export class Members {
 		const current = this.get(slug)
 		if (!current) return { ok: false, reason: "unknown" }
 		const next = clip(name, MAX_NAME)
-		// An empty or unchanged name stores nothing, and the client's patch already matches.
 		if (!next || next === current.name) return { ok: true, events: [] }
 		const event = this.log.append("human", { t: "member", member: toMember({ ...current, name: next }) })
 		this.sql.exec("UPDATE members SET name = ? WHERE slug = ?", next, slug)
 		return { ok: true, events: [event] }
 	}
 
-	/** Stores the latest state an agent reported. Returns false when it did not change or the agent is not a member. */
 	setStatus(slug: AgentSlug, status: AgentState): boolean {
 		return this.sql.exec("UPDATE members SET status = ? WHERE slug = ? AND removed_at IS NULL AND status != ?", status, slug, status)
 			.rowsWritten > 0
@@ -207,7 +178,6 @@ export class Members {
 
 }
 
-/** The current members on the wire, for a `reset` snapshot. Reads nothing before the table exists. */
 export function listMembers(storage: DurableObjectStorage): Member[] {
 	const exists = storage.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'members'").toArray().length > 0
 	if (!exists) return []

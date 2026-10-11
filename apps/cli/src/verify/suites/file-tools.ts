@@ -3,15 +3,8 @@ import type { RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
+import { must } from "../must"
 
-// P8-05, architecture sections 7.5 and 18. Real model turns with the chat's file system (pi's
-// read, write, and edit; yuki's ls, mv, cp, and rm) and `web_fetch`. Turn one: the agent writes
-// `notes/plan.md`. The suite then changes that file and adds another over HTTP, as the human would,
-// so the second turn can only answer right if the agent really read the file, listed the folder,
-// and fetched the fixture page. Turn three asks for an edit, a move, a copy, and a delete in plain
-// words, and checks the files the room ends with. The page sits
-// on a local server; the dev Worker maps `fixture-<port>.preview.test` to it, and every fetch
-// still goes through safeFetch.
 
 const TURN_MS = 90_000
 
@@ -30,7 +23,6 @@ const word = (prefix: string) => `${prefix}${Math.random().toString(36).slice(2,
 
 type FileRef = { id: string; name: string; size: number; type: string }
 
-/** The agent's text since frame `from`, joined, from every bubble the room socket received. */
 function agentText(room: RoomHandle, from: number): string {
   return room.raw.log
     .slice(from)
@@ -42,7 +34,6 @@ function agentText(room: RoomHandle, from: number): string {
     .join("\n")
 }
 
-/** The room's files now, by path, from every `file` and `file_removed` event the socket received. */
 function filesNow(room: RoomHandle): Map<string, FileRef> {
   const byId = new Map<string, FileRef>()
   for (const entry of room.raw.log) {
@@ -61,7 +52,6 @@ function filesNow(room: RoomHandle): Map<string, FileRef> {
   return new Map([...byId.values()].map((f) => [f.name, f]))
 }
 
-/** Waits until the agent's text since `from` holds every word. */
 async function answer(room: RoomHandle, from: number, words: string[]): Promise<string> {
   const end = Date.now() + TURN_MS
   for (;;) {
@@ -102,7 +92,6 @@ const suite: Suite = {
         if (!res.ok) throw new VerifyError(`put ${path} failed with ${res.status}: ${await res.text()}`)
       }
 
-      // Turn one: write.
       const first = word("plan-")
       let from = room.raw.log.length
       let t0 = Date.now()
@@ -111,7 +100,7 @@ const suite: Suite = {
         (f) => f.t === "events" && f.events.some((e) => e.t === "file" && e.file.name === "notes/plan.md"),
         TURN_MS,
       )) as Extract<RoomToClient, { t: "events" }>
-      const file = written.events.find((e) => e.t === "file")!.file as FileRef
+      const file = written.events.find((e) => e.t === "file")?.file as FileRef
       const download = await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })
       expectEqual(download.status, 200, "the download of the agent's file")
       const loaded = new Uint8Array(await download.arrayBuffer())
@@ -120,14 +109,11 @@ const suite: Suite = {
       await answer(room, from, ["saved"])
       console.log(`  turn one: the agent wrote notes/plan.md (${file.size} bytes) in ${Date.now() - t0} ms`)
 
-      // The human changes the plan and adds a file. Only a real read and a real list can see these.
       const second = word("revised-")
       const extra = `notes/${word("extra-")}.txt`
-      // As the human's editor does: it names the bytes it loaded, the agent's plan.
       await put("notes/plan.md", second, createHash("sha256").update(loaded).digest("hex"))
       await put(extra, "an extra file")
 
-      // Turn two: read, list, fetch.
       from = room.raw.log.length
       const url = `http://fixture-${server.port}.preview.test/page`
       room.send(
@@ -139,7 +125,6 @@ const suite: Suite = {
       if (said.includes("not this")) throw new VerifyError("the page's script reached the model as text")
       console.log(`  turn two: ${JSON.stringify(said)}`)
 
-      // Turn three: edit, move, copy, delete, in plain words.
       const third = word("final-")
       from = room.raw.log.length
       t0 = Date.now()
@@ -158,12 +143,11 @@ const suite: Suite = {
       const paths = [...now.keys()].sort()
       expectEqual(JSON.stringify(paths), JSON.stringify(want), "the files after edit, mv, cp, and rm")
       for (const path of want) {
-        const res = await fetch(new URL(now.get(path)!.id, base), { headers: { cookie: s.cookie } })
+        const res = await fetch(new URL(must(now.get(path), "file ref").id, base), { headers: { cookie: s.cookie } })
         expectEqual((await res.text()).trim(), third, `the content of ${path}`)
       }
       console.log(`  turn three: edit, mv, cp, rm in ${Date.now() - t0} ms. files: ${paths.join(", ")}`)
 
-      // Turn four: the user's drive. A copy lands in /home, and the chat says so.
       from = room.raw.log.length
       t0 = Date.now()
       room.send("keep a copy of /final.md in my drive as /home/plan.md so i have it in other chats. reply kept.")

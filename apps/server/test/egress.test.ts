@@ -15,7 +15,6 @@ test("a model request goes out through the egress fetch", async () => {
   const model = provider.getModels()[0]!
   const stream = provider.stream(model, { messages: [{ role: "user", content: "hi", timestamp: Date.now() }] } as never, { apiKey: "test-key" } as never)
   for await (const _ of stream) {
-    // Drain until the error event ends it.
   }
   expect(seen.length).toBeGreaterThan(0)
   expect(seen[0]).toContain("opencode")

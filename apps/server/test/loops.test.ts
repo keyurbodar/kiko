@@ -15,7 +15,6 @@ test("a repeat merges into one loop, firms a tentative one up, and never softens
   const [only] = loops.list()
   expect(loops.list().length).toBe(1)
   expect(only).toMatchObject({ certainty: "explicit", text: "Start running again", due: "2026-10-17", mentions: 4 })
-  // Another owner's same words are another loop, and `same` never crosses owners.
   expect(loops.open({ ...base, owner: "@ada", certainty: "explicit", text: "start running again" })).toMatchObject({ merged: false })
   expect(loops.open({ ...base, owner: "ada", certainty: "explicit", text: "bring a running plan" }, first.id)).toMatchObject({ merged: false })
 })
@@ -31,7 +30,6 @@ test("a closed loop leaves the live list and search, and is not closed twice", (
   expect(loops.similar("the grant report")).toEqual([])
   expect(loops.list().map((l) => l.id)).toEqual([lease.id])
   expect(loops.get(grant.id)?.status).toBe("done")
-  // Its words open a new loop now, not a mention of the closed one.
   expect(loops.open({ ...base, certainty: "explicit", text: "submit the grant report by friday" })).toMatchObject({ merged: false })
   expect(loops.redactRefs(["room:r:msg:m1"])).toBe(1)
   expect(loops.get(grant.id)).toBeNull()
@@ -108,7 +106,6 @@ test("an agent's promise in its answer is its commitment; an offer or a kept pro
     s1_promise: { type: "bool", probability: 0.2 },
     s2_promise: { type: "bool", probability: 0.1 },
     s2_l4: choice("done", 0.9),
-    // A human-only question never decides an agent's sentence.
     s1_kind: choice("intention", 0.9),
   })
   expect(ops).toEqual([
@@ -136,12 +133,9 @@ test("a pass over an agent's message cannot open its promise again after the pro
   const first = loops.open({ ...agent, text: "come back with options tomorrow" })
   if (!first.ok) throw new Error("open failed")
   expect(loops.close(first.id, "done")).toBe(true)
-  // The queued Jev pass runs late and words the same promise differently: still the same message.
   expect(loops.open({ ...agent, text: "I'll bring options tomorrow" })).toEqual({ ok: true, id: first.id, merged: true })
   expect(loops.list()).toEqual([])
-  // The follow-up is a new message with a new promise, so it opens.
   expect(loops.open({ ...agent, ref: "room:r:msg:m10", text: "check prices again friday" })).toMatchObject({ merged: false })
-  // A human message may hold several intentions.
   const h = { ...base, certainty: "explicit" as const, source: "jev" as const, ref: "room:r:msg:h1" }
   expect(loops.open({ ...h, text: "run more" })).toMatchObject({ merged: false })
   expect(loops.open({ ...h, text: "learn guitar" })).toMatchObject({ merged: false })

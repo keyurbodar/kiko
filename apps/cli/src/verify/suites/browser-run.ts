@@ -4,11 +4,6 @@ import type { Suite } from "../runner"
 import { dev } from "../routine-kit"
 import { readStats, resetStats } from "./latency"
 
-// P17-04 with real keys. One turn hands three tasks on three sites to `browser_run`, which runs them
-// at once on three tabs. Runs twice: with the agent's own model as the decider (KERNEL_API_KEY and
-// OPENCODE_API_KEY), then with Jev (TYPESAFE_API_KEY added). Each pass prints and checks the p50
-// worker step (decision, action, read), the decider, Jev's input tokens a decision, and the
-// main-model turns. `YUKI_BROWSER_DECIDER=model` or `jev` runs one pass.
 
 const ASK = [
   "Use one browser_run call with three tasks at once:",

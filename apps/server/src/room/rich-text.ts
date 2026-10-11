@@ -122,9 +122,10 @@ function mentions(text: string): Inline[] {
 	const out: Inline[] = []
 	let last = 0
 	for (const m of text.matchAll(MENTION)) {
-		const slug = m[2]!
-		if (!isAgentSlug(slug)) continue
-		const start = m.index + m[1]!.length
+		const lead = m[1]
+		const slug = m[2]
+		if (lead === undefined || slug === undefined || !isAgentSlug(slug)) continue
+		const start = m.index + lead.length
 		if (start > last) out.push({ t: "text", text: text.slice(last, start) })
 		out.push({ t: "mention", slug })
 		last = start + 1 + slug.length

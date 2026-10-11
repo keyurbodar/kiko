@@ -1,13 +1,10 @@
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// P4-01. Save a provider key over HTTP, read back only its last four characters,
-// disconnect, and see the row gone. The key is made up, so no model is called. No
-// answer may contain it, and a second user never sees the first user's row.
 
 const PROVIDER = "opencode-go"
 
-type Answer = { status: number; text: string; body: any }
+type Answer = { status: number; text: string; body: unknown }
 
 const suite: Suite = {
   name: "credentials",
@@ -33,7 +30,6 @@ const suite: Suite = {
 
     const alice = await v.as("credentials-alice")
     const bob = await v.as("credentials-bob")
-    // A rerun starts clean.
     await call(alice.cookie, "DELETE", `api/credentials/${PROVIDER}`)
 
     const anon = await call(null, "GET", "api/credentials")

@@ -3,9 +3,6 @@ import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
 
-// Architecture section 7.10. The human reads and edits an agent's soul.
-//   GET /api/souls/<slug>   { body, sha }
-//   PUT /api/souls/<slug>   { body, expectSha }  ->  { body, sha } | 409 { error, body, sha } | 400 { error }
 const PREFIX = "/api/souls/"
 
 export async function soulRoute(request: Request, env: Env): Promise<Response | null> {
@@ -21,7 +18,6 @@ export async function soulRoute(request: Request, env: Env): Promise<Response | 
     return Response.json({ body, sha })
   }
   if (request.method !== "PUT") return Response.json({ error: "method not allowed" }, { status: 405 })
-  // A JSON content type needs a CORS preflight, so another site cannot write here with the cookie.
   if (!request.headers.get("content-type")?.includes("application/json")) return Response.json({ error: "expected json" }, { status: 415 })
   const input = (await request.json().catch(() => null)) as { body?: unknown; expectSha?: unknown } | null
   if (typeof input?.body !== "string") return Response.json({ error: "expected a body" }, { status: 400 })

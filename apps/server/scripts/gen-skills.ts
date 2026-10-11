@@ -1,6 +1,3 @@
-// Bundles the built-in skills at build time: every apps/server/skills/*/SKILL.md becomes one entry
-// of src/skills/builtin.gen.ts. Run `bun scripts/gen-skills.ts` after editing a skill; a test fails
-// when the generated file is out of date.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 

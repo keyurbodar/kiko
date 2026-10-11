@@ -3,10 +3,6 @@ import type { RoomHandle } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// Architecture section 18.4. A real model turn with the `bash` tool over the chat's files. The human
-// puts a csv and two notes in the chat over HTTP; the agent is asked to answer with one pipeline
-// and save the result. The suite checks the answer, the saved file's bytes, and that the human's
-// files are unchanged, so it passes only if the agent really ran bash over the room's files.
 
 const TURN_MS = 120_000
 
@@ -52,7 +48,6 @@ const suite: Suite = {
       if (!res.ok) throw new VerifyError(`put ${path} failed with ${res.status}: ${await res.text()}`)
     }
 
-    // Random amounts, so only a real sum over the real file matches.
     const amounts = Array.from({ length: 12 }, () => 10 + Math.floor(Math.random() * 990))
     const total = amounts.reduce((a, b) => a + b, 0)
     const csv = `region,amount\n${amounts.map((a, i) => `r${i},${a}`).join("\n")}\n`

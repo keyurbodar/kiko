@@ -2,14 +2,14 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
-    "includes": ["apps/*/src/**", "packages/*/src/**", "scripts/**", "!**/*.css"]
+    "includes": ["apps/*/src/**", "packages/*/src/**", "core/*/src/**", "scripts/**", "!**/*.css", "!**/*.gen.ts"]
   },
   "formatter": { "enabled": false },
   "assist": { "enabled": false },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "noUnknownProperty": "off"
       },

@@ -3,15 +3,10 @@ import type { RoomHandle, Session } from "../client"
 import { VerifyError } from "../client"
 import { dev, toolLine } from "../routine-kit"
 import type { Suite } from "../runner"
+import { must as mustPresent } from "../must"
 import { fake, newRoom, seen, send, until } from "./mid-run"
 import { messages, team } from "./team-loops"
 
-// Architecture section 24 against the rest of yuki. These are findings probes, not gates: each prints
-// `PROBE <id> VERIFIED|NOT VERIFIED|INCONCLUSIVE: <evidence>` and none throws on a security result.
-// Only a harness error (an install refused, a run that never answers) fails the suite.
-//
-//   P1  a hook blocks a built-in write tool, but does it block an extension tool that calls it?
-//   P3  a message-effect tool reaches a teammate through send_message; a read-effect tool is refused
 
 const probe = (id: string, verdict: "VERIFIED" | "NOT VERIFIED" | "INCONCLUSIVE", evidence: string) => console.log(`  PROBE ${id} ${verdict}: ${evidence}`)
 const short = (t: string) => JSON.stringify(t.length > 220 ? `${t.slice(0, 220)}...` : t)
@@ -34,16 +29,15 @@ async function installer(s: Session) {
   return {
     bundle: async (manifest: Manifest, source: string) => {
       const proposed = must(await op({ op: "propose", bundle: { manifest: { yuki: 1, version: "1.0.0", ...manifest } as never, files: { "main.js": source } } }), `propose ${manifest.name}`)
-      must(await op({ op: "install", id: proposed.proposal!.id }), `install ${manifest.name}`)
+      must(await op({ op: "install", id: mustPresent(proposed.proposal, "proposal").id }), `install ${manifest.name}`)
     },
     catalog: async (name: string) => {
       const proposed = must(await op({ op: "propose_catalog", name }), `propose ${name}`)
-      must(await op({ op: "install", id: proposed.proposal!.id }), `install ${name}`)
+      must(await op({ op: "install", id: mustPresent(proposed.proposal, "proposal").id }), `install ${name}`)
     },
   }
 }
 
-/** Sends a line and returns the agent bubbles that answered it. */
 function asker(room: RoomHandle) {
   return async (text: string) => {
     const before = seen(room).live.length
@@ -57,7 +51,6 @@ function asker(room: RoomHandle) {
 const base = (url: string) => (url.endsWith("/") ? url : `${url}/`)
 
 async function p1(v: { url: string }, s: Session, install: Awaited<ReturnType<typeof installer>>) {
-  // The fake agent has no file tools, so the guard blocks fake_note, its write-effect built-in, the way path-guard blocks write.
   const { roomId, room } = await newRoom(s, "compose: hook bypass")
   await fake(v, s, roomId)
   const ask = asker(room)

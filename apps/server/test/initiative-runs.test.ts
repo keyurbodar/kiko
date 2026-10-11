@@ -5,9 +5,6 @@ import { slotOf } from "../src/initiative/attention/rhythm"
 import type { WakeResult } from "../src/room/wake"
 import { sqlStorage } from "./sql-shim"
 
-// Section 26.6: a wake whose result never came back must not block nudges, and a batch the bus
-// delivers twice must not count twice.
-
 function world(answer: WakeResult = "delivered") {
   const sql = sqlStorage()
   sql.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")

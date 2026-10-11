@@ -3,7 +3,6 @@ import type { RoomEvent, RoomToClient } from "@yuki/protocol"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
-// The real RoomDO in workerd. Each test uses its own room.
 let mf: Miniflare
 let origin: string
 
@@ -55,7 +54,6 @@ class Client {
 	send(frame: unknown) {
 		this.ws.send(typeof frame === "string" ? frame : JSON.stringify(frame))
 	}
-	/** Removes and returns the first frame that matches, waiting up to 2 s. */
 	async next(match: (f: RoomToClient) => boolean = () => true): Promise<RoomToClient> {
 		const deadline = Date.now() + 2000
 		for (;;) {
@@ -88,7 +86,6 @@ test("a send is acked, stored once, and broadcast to every ready socket", async 
 	expect(event).toMatchObject({ t: "message", clientId: "c1", seq: 1, text: "hi", from: { kind: "human" } })
 	await a.events()
 
-	// a resend with the same clientId gets the first ack and stores nothing
 	a.send({ t: "send", clientId: "c1", text: "hi" })
 	expect(await a.next((f) => f.t === "ack")).toEqual(ack)
 	const c = await Client.open(room, null)
@@ -111,10 +108,7 @@ test("a long chat keeps a bounded event log, and replay still has every event of
 	await sendAll(0, 1_100)
 	const before = await rows()
 	await sendAll(1_100, 1_300)
-	// Each send keeps its message, its clientId, and its pending burst row. The event log stays near
-	// KEEP_EVENTS instead of growing one row a send.
 	expect((await rows()) - before).toBeLessThanOrEqual(3 * 200 + 50)
-	// A client 400 events behind still gets every one of them, in order.
 	const late = await Client.open(room, null)
 	late.send({ t: "hello", lastSeq: 900 })
 	const replay = await late.events()
@@ -155,7 +149,6 @@ test("edit, react, delete, and read are events, and hello replays them in order"
 	expect(events[2]).toMatchObject({ emoji: null })
 	expect(events[3]).toMatchObject({ upTo: 4 })
 
-	// a hello at the head gets an empty batch
 	b.send({ t: "hello", lastSeq: 7 })
 	expect(await b.events()).toEqual([])
 	b.close()

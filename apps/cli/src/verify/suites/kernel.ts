@@ -2,18 +2,6 @@ import { expectEqual, VerifyError } from "../client"
 import { api } from "../routine-kit"
 import type { Suite } from "../runner"
 
-// P17-01, architecture section 27. The user's one Kernel browser, on a real Kernel key. Needs
-// KERNEL_API_KEY in the shell. No model is called.
-//
-// A bad key is refused and nothing is stored. A good key connects. Two agents that ask at once get
-// the same headless browser. A cookie set through Kernel's own execute endpoint survives the
-// reaper deleting the browser, a switch to headful and back, and a replacement after the socket
-// died, because every browser attaches the user's profile. Account deletion deletes the browser
-// and the profile. At the end Kernel's active list is empty, and no frame the client received
-// held the key or a CDP or live view URL.
-//
-// The suite calls Kernel directly with the shell's key for the cookie and the final checks. The
-// reaper runs through the development route `POST /api/dev/agent/browser` (age, reap).
 
 const KERNEL = "https://api.onkernel.com"
 const USER = "kernel-alice"
@@ -47,7 +35,6 @@ const suite: Suite = {
       if (out.status !== 200) throw new VerifyError(`Kernel answered ${out.status} to the active list`)
       return out.json.map((b) => b.session_id)
     }
-    // The suite checks that the list is empty, so it waits for browsers from other runs on this key to time out.
     for (const start = Date.now(); (await active()).length; await Bun.sleep(5_000)) {
       if (Date.now() - start > 150_000) throw new VerifyError("Kernel still has active browsers on this key after 150 s. Close them first")
     }
@@ -62,8 +49,6 @@ const suite: Suite = {
       return (answer as unknown as { result: Result }).result
     }
     const dev = async <T>(body: Record<string, unknown>): Promise<{ status: number; json: T }> => api<T>(v.url, s, "dev/agent/browser", body)
-    // Every session this run was handed. Another run on the same key may have browsers of its own, so
-    // "ours" is exactly these.
     const seen = new Set<string>()
     const lease = async (agentId: string): Promise<Lease> => {
       const out = await dev<Lease>({ action: "lease", agentId })
@@ -71,7 +56,6 @@ const suite: Suite = {
       seen.add(out.json.sessionId)
       return out.json
     }
-    /** Kernel runs this suite's current browser and none of its earlier ones. */
     const expectOnly = async (current: string, what: string) => {
       seen.add(current)
       expectEqual((await active()).filter((id) => seen.has(id)), [current], `Kernel's active browsers of this run ${what}`)
@@ -96,7 +80,6 @@ const suite: Suite = {
 
     let profile = ""
     try {
-      // Start clean, then a bad key.
       await ask({ t: "disconnectKernel" })
       const bad = await ask({ t: "connectKernel", apiKey: BAD_KEY })
       if (bad.ok) throw new VerifyError("a bad kernel key was accepted")
@@ -107,16 +90,14 @@ const suite: Suite = {
       const noKey = await dev<{ error: string }>({ action: "lease", agentId: "room-a/ada" })
       expectEqual(noKey.status, 409, "a lease with no key stored")
 
-      // The real key.
       const good = await ask({ t: "connectKernel", apiKey: key })
       if (!good.ok) throw new VerifyError(`connect failed: ${good.error}`)
       expectEqual(good.status, { connected: true, broken: false, browser: null }, "status after connect")
 
-      // Two agents ask at once. One browser, headless.
       const [first, second] = await timed("two concurrent leases", () => Promise.all([lease("room-a/ada"), lease("room-b/bob")]))
-      expectEqual(first!.sessionId, second!.sessionId, "the session two agents got")
-      expectEqual([first!.mode, second!.mode, first!.restarted, second!.restarted], ["headless", "headless", false, false], "mode and restarted")
-      await expectOnly(first!.sessionId, "after two leases")
+      expectEqual(first?.sessionId, second?.sessionId, "the session two agents got")
+      expectEqual([first?.mode, second?.mode, first?.restarted, second?.restarted], ["headless", "headless", false, false], "mode and restarted")
+      await expectOnly(first?.sessionId, "after two leases")
       const state = await dev<{ profile: string }>({ action: "state" })
       profile = state.json.profile
       const listed = await ask({ t: "kernelStatus" })
@@ -124,25 +105,22 @@ const suite: Suite = {
       expectEqual(listed.status.browser?.mode, "headless", "browser mode in the status")
       expectEqual(Object.keys(listed.status.browser?.tabs ?? {}).sort(), ["room-a/ada", "room-b/bob"], "agents in the status")
 
-      // A login, as a cookie in the profile.
-      const set = await kernel<{ success: boolean; error?: string }>("POST", `/browsers/${first!.sessionId}/playwright/execute`, {
+      const set = await kernel<{ success: boolean; error?: string }>("POST", `/browsers/${first?.sessionId}/playwright/execute`, {
         code: `await context.addCookies([{ name: '${COOKIE}', value: '1', domain: 'example.com', path: '/', expires: Math.floor(Date.now() / 1000) + 86400 }]); return true`,
         timeout_sec: 30,
       })
       if (set.status !== 200 || !set.json.success) throw new VerifyError(`setting the cookie answered ${set.status}: ${JSON.stringify(set.json).slice(0, 300)}`)
-      if (!(await hasCookie(first!.sessionId))) throw new VerifyError("the cookie was not set")
+      if (!(await hasCookie(first?.sessionId))) throw new VerifyError("the cookie was not set")
 
-      // The reaper: past the warm window the browser is deleted, and the cookie is in the next one.
       await dev({ action: "age", ms: IDLE_PAST_MS })
       await timed("reap", () => dev({ action: "reap" }))
       expectEqual(await ours(), [], "Kernel's active browsers of this run after the reaper")
       expectEqual((await dev<{ sessionId: string | null }>({ action: "state" })).json.sessionId, null, "the lease after the reaper")
       const afterReap = await timed("lease after the reaper", () => lease("room-a/ada"))
-      if (afterReap.sessionId === first!.sessionId) throw new VerifyError("the reaped browser was handed out again")
+      if (afterReap.sessionId === first?.sessionId) throw new VerifyError("the reaped browser was handed out again")
       if (!(await hasCookie(afterReap.sessionId))) throw new VerifyError("the cookie did not survive the reaper")
       console.error("  cookie survived the reaper")
 
-      // Headful on demand, and back.
       const headful = await timed("switch to headful", () => dev<Lease>({ action: "switch", mode: "headful" }))
       expectEqual([headful.status, headful.json.mode], [200, "headful"], "the switch answer")
       if (headful.json.sessionId === afterReap.sessionId) throw new VerifyError("a switch kept the old browser")
@@ -156,7 +134,6 @@ const suite: Suite = {
       if (!(await hasCookie(back.json.sessionId))) throw new VerifyError("the cookie did not survive the switch back")
       console.error("  cookie survived headful and back")
 
-      // An agent saw the socket die: the next lease replaces the browser.
       await dev({ action: "dead", agentId: "room-a/ada" })
       const replaced = await timed("lease after a dead socket", () => lease("room-a/ada"))
       if (replaced.sessionId === back.json.sessionId) throw new VerifyError("a dead browser was handed out again")
@@ -164,12 +141,10 @@ const suite: Suite = {
       await expectOnly(replaced.sessionId, "after the replacement")
       if (!(await hasCookie(replaced.sessionId))) throw new VerifyError("the cookie did not survive the replacement")
 
-      // Nothing the client received holds the key or a URL to the browser.
       const leaks = user.texts.filter((t) => t.includes(key) || /wss?:\/\/|onkernel\.com|cdp|live_view/i.test(t))
-      if (leaks.length) throw new VerifyError(`${leaks.length} frame(s) hold a key or a browser URL, for example: ${leaks[0]!.replace(key, "<key>").slice(0, 200)}`)
+      if (leaks.length) throw new VerifyError(`${leaks.length} frame(s) hold a key or a browser URL, for example: ${leaks[0]?.replace(key, "<key>").slice(0, 200)}`)
       console.error(`  ${user.texts.length} frames scanned, none holds the key or a browser URL`)
 
-      // Account deletion deletes the browser and the profile.
       const profiles = async () => (await kernel<{ name?: string }[]>("GET", "/profiles")).json.map((p) => p.name)
       if (!(await profiles()).includes(profile)) throw new VerifyError("the profile does not exist on Kernel")
       const deleted = await fetch(new URL("api/account/delete", v.url.endsWith("/") ? v.url : `${v.url}/`), {
@@ -185,7 +160,6 @@ const suite: Suite = {
       }
       console.error("  account deletion removed the browser and the profile")
     } finally {
-      // A failed run must not leave a browser or a profile on the user's account.
       for (const id of await ours().catch(() => [])) await kernel("DELETE", `/browsers/${id}`).catch(() => undefined)
       if (profile) await kernel("DELETE", `/profiles/${profile}`).catch(() => undefined)
     }

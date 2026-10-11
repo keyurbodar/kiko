@@ -52,7 +52,8 @@ function parsePhaseFile(path: string): Task[] {
 		const meta = new Map<string, string>();
 		for (const match of (metaLine ?? "").matchAll(/`(\w+): ([^`]*)`/g)) meta.set(match[1], match[2].trim());
 
-		const deps = (meta.get("deps") ?? "none") === "none" ? [] : meta.get("deps")!.split(/,\s*/);
+		const depsText = meta.get("deps") ?? "none";
+		const deps = depsText === "none" ? [] : depsText.split(/,\s*/);
 		const difficulty = Number(meta.get("difficulty"));
 		const area = meta.get("area") as Area;
 		const parallel = (meta.get("parallel") ?? "yes") === "yes";
@@ -118,8 +119,7 @@ const slug = (title: string) =>
 		.slice(0, 7)
 		.join("-");
 const branch = (task: Task) => `yuki/${task.id.toLowerCase()}-${slug(task.title)}`;
-const waveDir = (wave: number) => `wave-${String(wave).padStart(2, "0")}`;
-const issuePath = (task: Task) => `issues/${waveDir(task.wave)}/${task.id}-${slug(task.title)}.md`;
+const issuePath = (task: Task) => `issues/wave-${String(task.wave).padStart(2, "0")}/${task.id}-${slug(task.title)}.md`;
 const yesNo = (value: boolean) => (value ? "yes" : "no");
 
 function renderIssue(task: Task): string {
@@ -189,7 +189,7 @@ function renderTsv(tasks: Task[]): string {
 			issuePath(task),
 		].join("\t"),
 	);
-	return [header.join("\t"), ...rows].join("\n") + "\n";
+	return `${[header.join("\t"), ...rows].join("\n")}\n`;
 }
 
 function renderIndex(tasks: Task[]): string {

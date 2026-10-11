@@ -2,14 +2,8 @@ import { type Keyring, open, seal } from "@yuki/durable/crypto"
 import type { ComposioTool, Session, Target } from "./client"
 import type { LearnedTool } from "./learn"
 
-/**
- * One user's Composio rows in `UserDO`. `key` is the sealed project key (`ak_...`), with the same
- * keyring as provider credentials and AAD `composio/key`. Its `value` is the session the key
- * created, plain JSON because the url is useless without the key. `listing` is the last tool
- * listing, plain JSON because it holds no secret, kept so a cold object serves it at once.
- * `learned` is the direct tools, plain JSON too. Disconnect deletes every row.
- */
 export type SavedListing = { at: number; tools: ComposioTool[] }
+export type StoredTarget = Target & { session: string }
 
 type KeyRow = { kek_version: number; iv: ArrayBuffer; ciphertext: ArrayBuffer; value: string }
 
@@ -17,7 +11,7 @@ const AAD = "composio/key"
 
 export class ComposioStore {
   #generation = 0
-  /** Bumped by `clear`, so a write that started before a disconnect is dropped. */
+
   get generation(): number {
     return this.#generation
   }
@@ -35,27 +29,23 @@ export class ComposioStore {
       value TEXT,
       updated_at INTEGER NOT NULL
     )`)
-    // Until 2026-10-11 the key was a consumer key (`ck_...`) with no session, and a developer key could
-    // sit beside it. Neither works now, so a store with no session is dropped and the user pastes the one key again.
+    // Until 2026-10-11 the key was a consumer key with no session. A store without a session is
+    // unusable, so it is dropped and the user pastes the key again.
     sql.exec("DELETE FROM composio WHERE NOT EXISTS (SELECT 1 FROM composio WHERE name = 'key' AND value IS NOT NULL)")
   }
 
-  /**
-   * The key and its session, or undefined when not connected. The row is read before the first
-   * await, so a caller that clears the store right after still gets what was stored.
-   */
-  target(): Promise<(Target & { session: string }) | undefined> {
+  /** Read before the first await, so a caller that clears the store right after still gets what was stored. */
+  target(): Promise<StoredTarget | undefined> {
     const row = this.sql.exec<KeyRow>("SELECT kek_version, iv, ciphertext, value FROM composio WHERE name = 'key'").toArray()[0]
     if (!row) return Promise.resolve(undefined)
     const session = JSON.parse(row.value) as Session
     const generation = this.generation
     return open(this.keyring, this.userId, AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) }).then(async (key) => {
-      if (row.kek_version !== this.keyring.current.version) await this.putKey(key, session, generation)
+      if (row.kek_version !== this.keyring.current.version) await this.resealKey(key, row, generation)
       return { key, url: session.url, session: session.id }
     })
   }
 
-  /** Stores the key and its session as one row. */
   async putKey(key: string, session: Session, generation = this.generation): Promise<void> {
     const sealed = await seal(this.keyring, this.userId, AAD, key)
     if (generation !== this.generation) return
@@ -71,7 +61,21 @@ export class ComposioStore {
     )
   }
 
-  /** Replaces the session of the stored key. */
+  /** Re-seals only the key columns, so a session written meanwhile is not overwritten. */
+  private async resealKey(key: string, old: KeyRow, generation: number): Promise<void> {
+    const sealed = await seal(this.keyring, this.userId, AAD, key)
+    if (generation !== this.generation) return
+    this.sql.exec(
+      "UPDATE composio SET kek_version = ?, iv = ?, ciphertext = ?, updated_at = ? WHERE name = 'key' AND kek_version = ? AND ciphertext = ?",
+      sealed.kekVersion,
+      sealed.iv,
+      sealed.ciphertext,
+      Date.now(),
+      old.kek_version,
+      old.ciphertext,
+    )
+  }
+
   putSession(session: Session, generation = this.generation): void {
     if (generation !== this.generation) return
     this.sql.exec("UPDATE composio SET value = ?, updated_at = ? WHERE name = 'key'", JSON.stringify(session), Date.now())
@@ -117,7 +121,6 @@ export class ComposioStore {
     return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM composio").one().n
   }
 
-  /** Deletes every row. Returns how many there were. */
   clear(): number {
     this.#generation++
     const removed = this.count()

@@ -1,9 +1,6 @@
 import { expect, test } from "bun:test"
 import { consume, DEAD_LETTER_QUEUE, retryDelay } from "../src/jobs/consumer"
 
-// The queue consumer (architecture section 7.9). Account deletion is the one job, so a fake
-// account whose wipe fails a set number of times stands in for a flaky handler.
-
 const deletion = { kind: "delete-account", userId: "u1", roomId: null } as const
 
 function fakeEnv(failures = 0) {
@@ -47,7 +44,6 @@ test("a dead account deletion goes back to the main queue, and other dead bodies
 	const t = fakeEnv()
 	const d = batch(deletion, 1, DEAD_LETTER_QUEUE)
 	await consume(d.b, t.env)
-	// An attachment job left on the queue by an older Worker is no longer a job.
 	const other = batch({ type: "attachment", userId: "u1", roomId: "r", fileId: "f" }, 1, DEAD_LETTER_QUEUE)
 	await consume(other.b, t.env)
 	expect(t.seen.sent).toEqual([deletion])

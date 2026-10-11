@@ -8,9 +8,7 @@ const TAG = /^\[react:([^\]\s:]+)(?::([^\]\s]+))?\]$/;
 export type Reaction = { emoji: string; messageId?: string };
 
 export type SplitOutput = {
-	/** Blocks closed by this call, in order, trimmed. */
 	blocks: string[];
-	/** Text of the still-open block when it is past the draft threshold, else null. */
 	draft: string | null;
 	reactions: Reaction[];
 };
@@ -20,7 +18,6 @@ export type Splitter = {
 	end(): SplitOutput;
 };
 
-/** Could `buf` still become a complete reaction tag with more input? */
 function couldBeTag(buf: string): boolean {
 	if (buf.length > MAX_TAG) return false;
 	if (buf.length <= TAG_PREFIX.length) return TAG_PREFIX.startsWith(buf);
@@ -41,7 +38,6 @@ export function createSplitter(): Splitter {
 
 	const close = () => {
 		const text = block.trim();
-		// `[skip]` is how an agent with nothing to add stays quiet. It never posts.
 		if (text && !SKIP.test(text)) blocks.push(text);
 		block = "";
 	};
@@ -51,7 +47,6 @@ export function createSplitter(): Splitter {
 			if (FENCE.test(line)) fence = !fence;
 			const blank = line.trim() === "";
 			line = "";
-			// One model turn is one bubble. A blank line is a paragraph break inside it, never a split.
 			if (blank && !fence && (block === "" || block.endsWith("\n\n"))) return;
 			block += "\n";
 			return;
@@ -73,7 +68,7 @@ export function createSplitter(): Splitter {
 				candidate = next;
 				if (next.endsWith("]")) {
 					const m = TAG.exec(next);
-					if (m) reactions.push(m[2] ? { emoji: m[1]!, messageId: m[2] } : { emoji: m[1]! });
+					if (m) reactions.push(m[2] ? { emoji: m[1] ?? "", messageId: m[2] } : { emoji: m[1] ?? "" });
 					candidate = "";
 				}
 				return;
@@ -101,7 +96,7 @@ export function createSplitter(): Splitter {
 
 	return {
 		push(chunk) {
-			for (let i = 0; i < chunk.length; i++) feed(chunk[i]!);
+			for (let i = 0; i < chunk.length; i++) feed(chunk.charAt(i));
 			return take(true);
 		},
 		end() {

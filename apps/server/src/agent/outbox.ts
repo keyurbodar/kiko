@@ -11,7 +11,6 @@ export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
   status(state: AgentState): Promise<void>
-  /** `working`: a worker still runs, so the agent shows as working and a routine run it serves stays open (section 8). */
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
 }
@@ -56,7 +55,6 @@ type Run = {
   quiet: boolean
 }
 
-/** A run started by a system event (routine, reminder, nudge) and no human message. Its text before a tool call is not posted. */
 const quietInput = (entry: EntryRecord): boolean => {
   const content = (entry.model?.[0] as { content?: string | readonly { text?: string }[] } | undefined)?.content
   const text = typeof content === "string" ? content : (content ?? []).map((p) => p.text ?? "").join("\n")
@@ -107,7 +105,6 @@ export class Outbox {
     })
   }
 
-  /** Section 8: while a worker runs, the agent shows as working between its own runs. */
   async background(running: boolean, pending = false): Promise<void> {
     this.workers = running
     // A worker's report waits in the inbox: the run that tells the human comes next, so do not flash idle first.
@@ -154,7 +151,9 @@ export class Outbox {
           else if (change.type === "block" && change.block.type === "text") generation.texts.set(change.contentIndex, change.block.text)
           else if (change.type === "message") {
             generation.texts.clear()
-            change.message.content.forEach((part, i) => part.type === "text" && generation.texts.set(i, part.text))
+            change.message.content.forEach((part, i) => {
+              if (part.type === "text") generation.texts.set(i, part.text)
+            })
           }
         }
         const text = [...generation.texts.entries()].sort(([a], [b]) => a - b).map(([, t]) => t).filter(Boolean).join("\n\n")
@@ -213,7 +212,8 @@ export class Outbox {
       const last = entries.findLast((e) => e.kind === "pi.user")
       const input = last?.id ?? 0
       await this.start(liveId, input)
-      const run = this.run!
+      const run = this.run
+      if (!run) throw new Error(`no run after starting ${liveId}`)
       run.quiet = last ? quietInput(last) : false
       for (const entry of entries) {
         if (entry.id > input) this.finishGeneration(run, entry)
@@ -296,12 +296,16 @@ export class Outbox {
     const all = [...run.blocks, ...(run.generation?.blocks ?? [])]
     while (run.posted < all.length) {
       run.bubbled = true
-      await room.post(run.id, run.attempt, run.posted, all[run.posted]!)
+      const block = all[run.posted]
+      if (block === undefined) break
+      await room.post(run.id, run.attempt, run.posted, block)
       run.posted++
       this.sql.exec("UPDATE outbox SET posted = ?, attempt = ? WHERE run_id = ?", run.posted, run.attempt, run.id)
     }
     while (run.reactions.length) {
-      const { emoji, messageId } = run.reactions[0]!
+      const reaction = run.reactions[0]
+      if (reaction === undefined) break
+      const { emoji, messageId } = reaction
       await room.react(emoji, messageId)
       run.reactions.shift()
     }
@@ -319,7 +323,6 @@ export class Outbox {
     this.sql.exec("UPDATE outbox SET ended = 1 WHERE run_id = ?", id)
     if (this.run?.id === id) this.run = null
     this.state = working ? "working" : "idle"
-    // A worker may have started or ended while the room ended the run.
     if (!this.run) await this.setStatus(this.workers ? "working" : "idle")
   }
 

@@ -20,7 +20,7 @@ With the `verify-yuki` skill, a room whose agent holds a tab shows the browser c
 
 **Goal.** The human can see any browser and take it over at any time, and can sign in for every agent at once.
 
-**Files.** `apps/web-solid/src/chat/BrowserChip.tsx`, `app/routes/chat.tsx`, `apps/web-solid/src/settings/integrations.tsx`, `packages/protocol/src/user.ts`, `room.ts`, `schema.ts`, `apps/server/src/user/user-do.ts`, `room/room-do.ts`, `apps/cli/src/verify/suites/browser-takeover.ts`.
+**Files.** `apps/web-solid/src/chat/BrowserChip.tsx`, `app/routes/chat.tsx`, `apps/web-solid/src/settings/integrations.tsx`, `core/protocol/src/user.ts`, `room.ts`, `schema.ts`, `apps/server/src/user/user-do.ts`, `room/room-do.ts`, `apps/cli/src/verify/suites/browser-takeover.ts`.
 
 **Build.**
 

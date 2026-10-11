@@ -3,8 +3,6 @@ import { Miniflare } from "miniflare"
 import { pickJudge } from "../src/user/turn-context"
 import { bundleWorker } from "./bundle"
 
-// The real UserDO in workerd: which capture policy fills the queue, what agents are told through
-// turnContext, and how a note corrects a life line.
 let mf: Miniflare
 
 beforeAll(async () => {

@@ -30,10 +30,8 @@ export const MAX_HISTORY = 100
 
 const decode = Schema.decodeUnknownSync(ClientToRoomSchema)
 
-/** Tags the protocol dropped. An older client may still send one, so it is ignored, not a reason to close. */
 const RETIRED = new Set(["catalog"])
 
-/** True for a frame whose tag the protocol no longer has. */
 export function retired(raw: string | ArrayBuffer): boolean {
 	if (typeof raw !== "string" || raw.length > MAX_FRAME) return false
 	try {

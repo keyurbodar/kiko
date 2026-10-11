@@ -3,11 +3,6 @@ import { agentTexts, api, dev, eventually, inSeconds, ok, type Routine, systemTe
 import type { Suite } from "../runner"
 import { fake, newRoom, send } from "./mid-run"
 
-// Architecture section 25.2 and 25.3, with the scripted fake agent: no tokens. A human's ask makes a
-// routine at once; a routine runs once per occurrence, posts its answer, or stays quiet and says so in
-// its run record; a routine run may make a new routine and use an outside tool on its own; runs past
-// the day's budget are held; a run past its time budget is stopped; three failed runs pause the
-// routine. Needs NODE_ENV=development.
 
 const suite: Suite = {
   name: "routines",
@@ -15,7 +10,6 @@ const suite: Suite = {
     const s = await v.as(`routines-${Date.now()}`)
     const url = v.url
 
-    // 1. The human asks; the agent makes the routine in the same run, without asking back. It runs once and answers.
     {
       const { roomId, room } = await newRoom(s, "routines: ask")
       await fake(v, s, roomId)
@@ -24,29 +18,27 @@ const suite: Suite = {
       const r = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "ping"), "the routine")
       if (!["active", "done"].includes(r.status) || r.target !== "yuki" || r.createdBy !== "yuki") throw new VerifyError(`expected an active routine for yuki, got ${JSON.stringify(r)}`)
       const runs = await waitRuns(url, s, r.id, "the run to answer", (rs) => rs.some((x) => x.status === "ok"), 40_000)
-      if (runs.length !== 1 || runs[0]!.seq === null) throw new VerifyError(`expected one ok run with a seq, got ${JSON.stringify(runs)}`)
+      if (runs.length !== 1 || runs[0]?.seq === null) throw new VerifyError(`expected one ok run with a seq, got ${JSON.stringify(runs)}`)
       await eventually("pong", () => agentTexts(room).some((t) => t.includes("pong")), 5_000)
       const after = await waitRoutine(url, s, (all) => all.find((x) => x.id === r.id), "the routine")
       if (after.status !== "done") throw new VerifyError(`a one-off routine should be done after its run, got ${after.status}`)
-      console.log(`  ok a human's ask made routine ${r.id} at once; it ran once (seq ${runs[0]!.seq}) and is done`)
+      console.log(`  ok a human's ask made routine ${r.id} at once; it ran once (seq ${runs[0]?.seq}) and is done`)
       room.raw.close()
     }
 
-    // 2. Quiet: [skip] posts nothing and the run says quiet.
     {
       const { roomId, room } = await newRoom(s, "routines: quiet")
       await fake(v, s, roomId)
       const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "nothing new", instructions: "[quiet]", trigger: { on: "time", at: inSeconds(3) } })
       const before = agentTexts(room).length
       const runs = await waitRuns(url, s, routine.id, "a quiet run", (rs) => rs.some((x) => x.status !== "running"), 40_000)
-      if (runs[0]!.status !== "quiet") throw new VerifyError(`expected quiet, got ${JSON.stringify(runs)}`)
+      if (runs[0]?.status !== "quiet") throw new VerifyError(`expected quiet, got ${JSON.stringify(runs)}`)
       await Bun.sleep(1000)
       if (agentTexts(room).length !== before) throw new VerifyError(`a quiet run posted: ${JSON.stringify(agentTexts(room).slice(before))}`)
       console.log("  ok a run that had nothing to say posted nothing and was recorded quiet")
       room.raw.close()
     }
 
-    // 3. A routine run (no human) that wants a new routine makes it.
     {
       const { roomId, room } = await newRoom(s, "routines: child")
       await fake(v, s, roomId)
@@ -59,7 +51,6 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 4. A routine run uses an outside tool on its own.
     {
       const { roomId, room } = await newRoom(s, "routines: outside")
       await fake(v, s, roomId)
@@ -72,7 +63,6 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 5. The day's budget: the user's runs that nobody asked for stop at the limit, with one line.
     {
       const b = await v.as(`routines-budget-${Date.now()}`)
       const { roomId, room } = await newRoom(b, "routines: budget")
@@ -81,7 +71,7 @@ const suite: Suite = {
       const made: Routine[] = []
       for (const n of [1, 2, 3]) made.push((await ok<{ routine: Routine }>(url, b, "routines", { roomId, name: `tick ${n}`, instructions: `[reply] tick ${n}`, trigger: { on: "time", at: inSeconds(3) } })).routine)
       for (const r of made) await waitRuns(url, b, r.id, `run of ${r.name}`, (rs) => rs.some((x) => x.status !== "running"), 40_000)
-      const statuses = await Promise.all(made.map(async (r) => (await waitRuns(url, b, r.id, "a run", (rs) => rs.length > 0))[0]!.status))
+      const statuses = await Promise.all(made.map(async (r) => (await waitRuns(url, b, r.id, "a run", (rs) => rs.length > 0))[0]?.status))
       if (statuses.filter((x) => x === "held").length !== 1 || statuses.filter((x) => x === "ok").length !== 2) throw new VerifyError(`expected 2 ok and 1 held, got ${JSON.stringify(statuses)}`)
       await eventually("the budget line", () => systemTexts(room).some((t) => t.includes("used its runs")), 5_000)
       if (systemTexts(room).filter((t) => t.includes("used its runs")).length !== 1) throw new VerifyError("the budget line was posted more than once")
@@ -90,8 +80,6 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 6. A run past its time budget is told once to wrap up, then stopped at twice the budget, and
-    // recorded as a timeout. The tool sleeps two minutes, so only the abort can end the run in time.
     {
       const { roomId, room } = await newRoom(s, "routines: timeout")
       await fake(v, s, roomId)
@@ -99,13 +87,12 @@ const suite: Suite = {
       const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "slow", instructions: '[tool slow_tool {"ms":120000}]', trigger: { on: "time", at: inSeconds(2) } })
       const started = Date.now()
       const runs = await waitRuns(url, s, routine.id, "a timeout", (rs) => rs.some((x) => x.status !== "running"), 100_000)
-      if (runs[0]!.status !== "timeout") throw new VerifyError(`expected a timeout, got ${JSON.stringify(runs)}`)
+      if (runs[0]?.status !== "timeout") throw new VerifyError(`expected a timeout, got ${JSON.stringify(runs)}`)
       await dev(url, s, "budget", { roomId, ms: 600_000 })
       console.log(`  ok a run that would take 2 minutes was stopped after ${Math.round((Date.now() - started) / 1000)}s and recorded as a timeout`)
       room.raw.close()
     }
 
-    // 7. Three failed runs pause the routine. The agent here has no fake model and no credential.
     {
       const f = await v.as(`routines-fail-${Date.now()}`)
       const { roomId, room } = await newRoom(f, "routines: breaker")

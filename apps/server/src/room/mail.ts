@@ -10,7 +10,6 @@ export type StoredSend = { messageId: string; seq: number; text: string; hop: nu
 
 export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[]; fresh: boolean } | { ok: false; error: string; events: RoomEvent[] }
 
-/** The run a message belongs to. `origin` says whether the human started it, which decides its time budget. */
 export type Chain = { rootId: string; hop: number; origin: Origin }
 
 export type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend }
@@ -89,7 +88,6 @@ export class Mail {
 		this.sql.exec("DELETE FROM mail_queue WHERE n = ?", n)
 	}
 
-	/** The recipient refused this delivery. Its count goes back to the root once, however often the refusal is seen. */
 	refused(envelopeId: string, rootId: string): void {
 		this.storage.transactionSync(() => {
 			if (this.sql.exec("SELECT 1 FROM mail_refused WHERE id = ?", envelopeId).toArray().length) return

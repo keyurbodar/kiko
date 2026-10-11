@@ -1,6 +1,5 @@
 import { Database } from "bun:sqlite"
 
-/** A Durable Object `SqlStorage` over bun:sqlite, enough for code that reads rows and `rowsWritten`. */
 export function sqlStorage(db = new Database(":memory:")): SqlStorage {
   return {
     exec(query: string, ...args: unknown[]) {

@@ -3,29 +3,23 @@ import { CredentialError, checkApiKey } from "../../user/credentials"
 import { count } from "../../lib/dev-stats"
 import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkKey, createSession, deleteSession, learnedSignature, listTools, sessionGone, type Target } from "./client"
 import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded } from "./learn"
-import type { ComposioStore } from "./store"
+import type { ComposioStore, StoredTarget } from "./store"
 
-/** A listing older than this is still served, and a new one loads behind it. */
 const LISTING_FRESH_MS = 10 * 60_000
-/** Schemas seen in searches, kept until a run uses one. Oldest go first. */
 const CANDIDATES_MAX = 200
 
-/** A message that is safe to show. Composio's errors never carry the key. */
 export function composioErrorText(e: unknown): string {
   if (e instanceof ComposioError || e instanceof CredentialError) return e.message
   return `Composio did not answer: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300)
 }
 
-/** One user's Composio connection. `UserDO` owns the one instance for its user. */
 export class ComposioConnection {
   private listing: { at: number; tools: Promise<ComposioTool[]> } | undefined
   private readonly candidates = new Map<string, Candidate>()
-  /** The one session renewal in flight, keyed by the session it replaces. */
   private renewing: { gone: string; next: Promise<Target> } | undefined
 
   private readonly fetcher: typeof fetch
 
-  /** `userId` is the id Composio sees. `waitUntil` keeps the object alive for work that runs behind an answer. */
   constructor(
     private readonly store: ComposioStore,
     private readonly userId: () => Promise<string>,
@@ -43,7 +37,6 @@ export class ComposioConnection {
     }
   }
 
-  /** The stored session's id (never the key or the url), for the dev route. */
   async sessionId(): Promise<string | null> {
     return (await this.store.target())?.session ?? null
   }
@@ -52,10 +45,7 @@ export class ComposioConnection {
     return { connected: this.store.connected(), rows: this.store.count() }
   }
 
-  /**
-   * Checks the key, creates a session for the user, and lists its tools, then replaces whatever
-   * was stored. A rejected key stores nothing. The old session is deleted behind the answer.
-   */
+  /** A rejected key stores nothing. The previous session is deleted behind the answer. */
   async connect(apiKey: unknown): Promise<{ status: ComposioStatus; tools: string[] }> {
     const key = checkApiKey(apiKey)
     await checkKey(key, this.fetcher)
@@ -75,7 +65,6 @@ export class ComposioConnection {
     return { status: this.status(), tools: tools.map((t) => t.name) }
   }
 
-  /** Deletes every row at once, and the session at Composio behind the answer. */
   disconnect(): number {
     const old = this.store.target()
     this.listing = undefined
@@ -85,18 +74,16 @@ export class ComposioConnection {
     return removed
   }
 
-  private dropSession(stored: ReturnType<ComposioStore["target"]>): void {
+  private dropSession(stored: Promise<StoredTarget | undefined>): void {
     this.waitUntil(stored.then((t) => t && deleteSession(t.key, t.session, this.fetcher)).catch(() => undefined))
   }
 
-  /** The tools agents get, or null when no key is stored: the listing, then the learned direct tools. */
   async tools(now = Date.now()): Promise<ComposioTool[] | null> {
     const listed = await this.listed(now)
     if (!listed) return null
     return [...listed, ...this.learnedTools()]
   }
 
-  /** Cheap: no call to Composio. Null when no key is stored. */
   signature(): string | null {
     return this.store.connected() ? learnedSignature(this.learnedTools()) : null
   }
@@ -105,7 +92,7 @@ export class ComposioConnection {
     return this.store.learned().map((t) => ({ name: t.slug, description: t.description, inputSchema: t.inputSchema, ...(t.readOnly ? { readOnly: true } : {}), direct: { slug: t.slug, toolkit: t.toolkit } }))
   }
 
-  /** A run waits on Composio only when no listing exists yet: an old one is served while a new one loads. */
+  /** An old listing is served while a new one loads behind it. */
   private async listed(now: number): Promise<ComposioTool[] | null> {
     if (!this.store.connected()) return null
     const saved = this.store.listing()
@@ -170,7 +157,7 @@ export class ComposioConnection {
     if (kept.length !== learned.length) this.store.putLearned(kept, generation)
   }
 
-  /** Runs `work` on the stored session. When Composio says the session is gone, makes a new one and runs it once more. */
+  /** When Composio says the session is gone, makes a new one and runs `work` once more. */
   private async session<T>(work: (target: Target) => Promise<T>): Promise<T> {
     const target = await this.store.target()
     if (!target) throw new ComposioError("Composio is not connected")
@@ -188,6 +175,10 @@ export class ComposioConnection {
     const generation = this.store.generation
     const next = (async () => {
       const session = await createSession(key, await this.userId(), this.fetcher)
+      if (generation !== this.store.generation) {
+        this.dropSession(Promise.resolve({ key, url: session.url, session: session.id }))
+        throw new ComposioError("Composio is not connected")
+      }
       this.store.putSession(session, generation)
       return { key, url: session.url }
     })()

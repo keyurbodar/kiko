@@ -1,6 +1,3 @@
-// The room's SQLite tables. Architecture section 9.2. Each entry in MIGRATIONS
-// runs once, in order, and the applied count lives in `meta`. Append a new entry
-// to change a table. `meta` holds small values by key. Never edit an entry that has shipped.
 
 const MIGRATIONS: readonly string[] = [
 	`
@@ -50,9 +47,6 @@ const MIGRATIONS: readonly string[] = [
 		seq INTEGER NOT NULL
 	);
 	`,
-	// Message search. Architecture section 9.2. The index reads text from messages and
-	// triggers keep it in step inside the same transaction as the write. A deleted message
-	// leaves the index. An edit replaces its entry.
 	`
 	CREATE VIRTUAL TABLE messages_fts USING fts5(text, content='messages', content_rowid='rowid');
 	CREATE TRIGGER messages_fts_insert AFTER INSERT ON messages WHEN new.deleted_at IS NULL BEGIN
@@ -193,7 +187,6 @@ const MIGRATIONS: readonly string[] = [
 	`,
 ]
 
-/** Brings the tables up to date in one transaction. Safe to call on every start. */
 export function migrate(storage: DurableObjectStorage): void {
 	const sql = storage.sql
 	storage.transactionSync(() => {

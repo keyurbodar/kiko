@@ -10,10 +10,6 @@ import { AgentDO } from "../src/agent/agent-do"
 import { buildAgent } from "../src/agent/factory"
 import type { RoomPort } from "../src/agent/outbox"
 
-// Runs inside workerd; `workers.test.ts` drives it through Miniflare. The real AgentDO with a
-// scripted model and one tool, `hang`, that waits until the test releases it. Posts to the room
-// are recorded, so a test sees what the human would see.
-
 const context = BACKGROUND_CONTEXT
 
 type Part = { type: string; text?: string; name?: string }
@@ -21,7 +17,6 @@ type Msg = { role: string; toolName?: string; content?: string | Part[] }
 const textOf = (m: Msg | undefined) => (typeof m?.content === "string" ? m.content : (m?.content ?? []).map((p) => p.text ?? "").join(""))
 const bare = (text: string) => text.replace(/<context>[\s\S]*?<\/context>\s*/g, "").trim()
 
-/** Resolvers of every `hang` call that waits now, per object. The DO and its tools share this isolate. */
 const hanging = new Map<string, Set<() => void>>()
 
 type Body =
@@ -155,13 +150,11 @@ export class T extends AgentDO {
     if (body.op === "workers") return Response.json(this.host.workers.list())
     if (body.op === "status") return Response.json({ ...(await this.status()), opens: (await this.ctx.storage.get<number>("opens")) ?? 0 })
     if (body.op === "repeat") {
-      // A crash after the delivery was stored and before it was marked: the watcher runs again.
       this.ctx.storage.sql.exec("UPDATE workers SET delivered = 0")
       this.host.workers.rearm((await this.host.open()).harness)
       return Response.json({ ok: true })
     }
     if (body.op === "crash") {
-      // The isolate may outlive the object, and with it this map: the dead object's calls must not count.
       this.waiters.clear()
       await this.ctx.storage.sync()
       this.ctx.abort("simulated crash")

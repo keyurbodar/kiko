@@ -3,9 +3,6 @@ import type { RoomId } from "@yuki/protocol"
 import { FRESH_SESSION_MS, isFresh } from "../src/auth/account-route"
 import { type DeletionTargets, isDeleteAccountJob, roomPrefix, runDeleteJob, userPrefix } from "../src/jobs/delete-account"
 
-// The fan-out against an in-memory account. Each step can be made to throw once, which
-// stands in for a Durable Object or R2 call that fails halfway through a job.
-
 const USER = "u1"
 const ROOM_A = "01JAAAAAAAAAAAAAAAAAAAAAAA" as RoomId
 const ROOM_B = "01JBBBBBBBBBBBBBBBBBBBBBBB" as RoomId

@@ -1,7 +1,6 @@
 import { CliError, type Context } from "../main"
 import { sessionCookie } from "./login"
 
-/** Opens a WebSocket, sends each stdin line as a frame, prints each received frame as one JSON line. */
 export async function ws(ctx: Context): Promise<void> {
   const path = ctx.args[0]
   if (!path) throw new CliError("ws needs a path, for example: yuki ws /api/ws")
@@ -10,16 +9,14 @@ export async function ws(ctx: Context): Promise<void> {
 
   const cookie = await sessionCookie(ctx.url)
   const headers: Record<string, string> = cookie ? { cookie } : {}
-  // Bun takes headers here. The DOM type that the default lib adds does not know that.
   const options: Bun.WebSocketOptions = { headers }
   const socket = new WebSocket(target, options as unknown as string[])
-  await new Promise<void>((resolve, reject) => {
-    socket.onopen = () => resolve()
-    socket.onerror = () => {
-      // A failed upgrade hides its status, so ask again over plain http to report it.
-      void refusal(target, headers).then((why) => reject(new CliError(`ws failed: cannot connect to ${target}${why}`)))
-    }
-  })
+  const opened = Promise.withResolvers<void>()
+  socket.onopen = () => opened.resolve()
+  socket.onerror = () => {
+    void refusal(target, headers).then((why) => opened.reject(new CliError(`ws failed: cannot connect to ${target}${why}`)))
+  }
+  await opened.promise
 
   let timer: ReturnType<typeof setTimeout> | undefined
   let stdinDone = false
@@ -28,30 +25,30 @@ export async function ws(ctx: Context): Promise<void> {
     timer = setTimeout(() => socket.close(), ctx.idle)
   }
 
-  await new Promise<void>((resolve, reject) => {
-    socket.onmessage = (ev) => {
-      const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer)
-      let frame: unknown = text
-      try {
-        frame = JSON.parse(text)
-      } catch {}
-      console.log(JSON.stringify(frame))
-      if (stdinDone) arm()
+  const closed = Promise.withResolvers<void>()
+  socket.onmessage = (ev) => {
+    const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer)
+    let frame: unknown = text
+    try {
+      frame = JSON.parse(text)
+    } catch {}
+    console.log(JSON.stringify(frame))
+    if (stdinDone) arm()
+  }
+  socket.onerror = () => closed.reject(new CliError(`ws failed: connection to ${target} broke`))
+  socket.onclose = () => {
+    clearTimeout(timer)
+    closed.resolve()
+  }
+  ;(async () => {
+    for await (const line of lines()) {
+      if (socket.readyState !== WebSocket.OPEN) return
+      socket.send(line)
     }
-    socket.onerror = () => reject(new CliError(`ws failed: connection to ${target} broke`))
-    socket.onclose = () => {
-      clearTimeout(timer)
-      resolve()
-    }
-    ;(async () => {
-      for await (const line of lines()) {
-        if (socket.readyState !== WebSocket.OPEN) return
-        socket.send(line)
-      }
-      stdinDone = true
-      arm()
-    })().catch(reject)
-  })
+    stdinDone = true
+    arm()
+  })().catch(closed.reject)
+  await closed.promise
 }
 
 async function refusal(target: URL, headers: Record<string, string>): Promise<string> {
@@ -71,11 +68,12 @@ async function* lines(): AsyncGenerator<string> {
   const decoder = new TextDecoder()
   for await (const chunk of Bun.stdin.stream()) {
     buf += decoder.decode(chunk, { stream: true })
-    let i: number
-    while ((i = buf.indexOf("\n")) >= 0) {
+    let i = buf.indexOf("\n")
+    while (i >= 0) {
       const line = buf.slice(0, i).trim()
       buf = buf.slice(i + 1)
       if (line) yield line
+      i = buf.indexOf("\n")
     }
   }
   if (buf.trim()) yield buf.trim()

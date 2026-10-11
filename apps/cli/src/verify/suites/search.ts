@@ -1,10 +1,8 @@
 import { type ChatSearchPage, newRoomId, type RoomToClient, snippetText } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
+import { must } from "../must"
 import type { Suite } from "../runner"
 
-// Message search as the overlay uses it: the open room's socket search with highlighted snippets,
-// `GET /api/search` across two chats, and the `history` window the client loads to jump to a hit
-// it does not hold.
 
 type Page = Extract<RoomToClient, { t: "search" }>
 type History = Extract<RoomToClient, { t: "history" }>
@@ -33,22 +31,20 @@ const suite: Suite = {
 			return acks
 		}
 
-		const a = await s.room(rooms[0]!)
+		const a = await s.room(must(rooms[0], "the first chat id"))
 		await a.expect({ t: "events" })
 		const fillers = Array.from({ length: 40 }, (_, i) => `line ${i}`)
 		const aAcks = await sendAll(a, [`the ${word} in the first chat`, ...fillers])
-		const b = await s.room(rooms[1]!)
+		const b = await s.room(must(rooms[1], "the second chat id"))
 		await b.expect({ t: "events" })
 		const bAcks = await sendAll(b, ["hello", `a ${word} in the second chat`])
 
-		// current chat: the room's socket finds the message, with the matched word marked
 		a.raw.send({ t: "search", query: word })
 		const page = (await a.expect({ t: "search", query: word })) as Page
-		expectEqual(page.results.map((r) => r.id), [aAcks[0]!.id], "the current chat's hit")
-		expectEqual(page.results[0]!.snippet, `the \u0002${word}\u0003 in the first chat`, "a marked snippet")
-		expectEqual(page.results[0]!.from, { kind: "human" }, "the sender")
+		expectEqual(page.results.map((r) => r.id), [aAcks[0]?.id], "the current chat's hit")
+		expectEqual(page.results[0]?.snippet, `the \u0002${word}\u0003 in the first chat`, "a marked snippet")
+		expectEqual(page.results[0]?.from, { kind: "human" }, "the sender")
 
-		// all chats: one hit in each room, newest first
 		const res = await fetch(new URL(`api/search?q=${encodeURIComponent(word)}`, v.url.endsWith("/") ? v.url : `${v.url}/`), {
 			headers: { cookie: s.cookie },
 			signal: AbortSignal.timeout(10_000),
@@ -58,15 +54,14 @@ const suite: Suite = {
 		expectEqual(
 			all.results.map((r) => [r.roomId, r.id, snippetText(r.snippet)]),
 			[
-				[rooms[1], bAcks[1]!.id, `a ${word} in the second chat`],
-				[rooms[0], aAcks[0]!.id, `the ${word} in the first chat`],
+				[rooms[1], bAcks[1]?.id, `a ${word} in the second chat`],
+				[rooms[0], aAcks[0]?.id, `the ${word} in the first chat`],
 			],
 			"hits in both chats, newest first",
 		)
 		expectEqual([all.next, all.partial], [null, false], "one page, every chat searched")
 
-		// the window around an old message, as a jump loads it
-		const target = aAcks[10]!
+		const target = must(aAcks[10], "the tenth message ack")
 		a.raw.send({ t: "history", seq: target.seq, before: 3, after: 3 })
 		const around = (await a.expect({ t: "history", seq: target.seq })) as History
 		expectEqual(
@@ -74,11 +69,10 @@ const suite: Suite = {
 			["line 6", "line 7", "line 8", "line 9", "line 10", "line 11"],
 			"three before the hit, the hit, and two after",
 		)
-		expectEqual(around.messages[3]!.id, target.id, "the hit is in the window")
-		// paging older from the oldest message reaches the start of the room
-		a.raw.send({ t: "history", seq: aAcks[1]!.seq, before: 50, after: 0 })
-		const start = (await a.expect({ t: "history", seq: aAcks[1]!.seq, after: 0 })) as History
-		expectEqual(start.messages.map((m) => m.id), [aAcks[0]!.id], "only the first message is older")
+		expectEqual(around.messages[3]?.id, target.id, "the hit is in the window")
+		a.raw.send({ t: "history", seq: aAcks[1]?.seq, before: 50, after: 0 })
+		const start = (await a.expect({ t: "history", seq: aAcks[1]?.seq, after: 0 })) as History
+		expectEqual(start.messages.map((m) => m.id), [aAcks[0]?.id], "only the first message is older")
 	},
 }
 

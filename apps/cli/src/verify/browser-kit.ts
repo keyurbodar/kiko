@@ -1,5 +1,3 @@
-// Shared by the browser suites (phase 17): a Kernel key on the user, a chat on the suite's model,
-// one timed turn, and the cleanup that leaves Kernel's active list empty.
 import type { RoomToClient } from "@yuki/protocol"
 import { connectTestModel, type RoomHandle, type Session, type Verifier, VerifyError } from "./client"
 import { api } from "./routine-kit"
@@ -24,7 +22,6 @@ export async function activeBrowsers(): Promise<string[]> {
   return ((await res.json()) as { session_id: string }[]).map((b) => b.session_id)
 }
 
-/** Signs in, connects the model and the Kernel key, and sets the TypeSafe key on or off. */
 export async function browserUser(v: Verifier, name: string, jev: boolean): Promise<Session> {
   const s = await v.as(name)
   await connectTestModel(s)
@@ -39,7 +36,6 @@ export async function browserUser(v: Verifier, name: string, jev: boolean): Prom
   return s
 }
 
-/** Connects the user's Kernel key. */
 export async function connectKernel(s: Session): Promise<void> {
   const user = await s.user()
   user.send({ t: "connectKernel", apiKey: kernelKey(), reqId: "k1" } as never)
@@ -54,7 +50,6 @@ export async function browserRoom(s: Session, title: string): Promise<{ roomId: 
   return opened
 }
 
-/** Sends `question`, collects the agent's bubbles, and waits for idle. */
 export async function turn(room: RoomHandle, question: string, ms = 150_000): Promise<{ text: string; total: number }> {
   const t0 = performance.now()
   const clientId = room.send(question)
@@ -70,10 +65,6 @@ export async function turn(room: RoomHandle, question: string, ms = 150_000): Pr
   return { text, total: performance.now() - t0 }
 }
 
-/**
- * The reaper deletes the user's browser, which must then leave Kernel's active list. Other runs on
- * the same key may hold browsers of their own, so only this user's session must be gone.
- */
 export async function closeBrowser(v: Verifier, s: Session): Promise<void> {
   const mine = (await api<{ sessionId: string | null }>(v.url, s, "dev/agent/browser", { action: "state" })).json.sessionId
   await api(v.url, s, "dev/agent/browser", { action: "age", ms: IDLE_PAST_MS })
@@ -90,7 +81,6 @@ export async function closeBrowser(v: Verifier, s: Session): Promise<void> {
 
 export const p50 = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0
 
-/** Step samples from the `browser.step.sample.<ms>` buckets. */
 export function stepSamples(counters: Record<string, number>): number[] {
   return Object.entries(counters).flatMap(([k, n]) => {
     const m = /^browser\.step\.sample\.(\d+)$/.exec(k)

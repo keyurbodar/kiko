@@ -1,24 +1,10 @@
 import type { RoomId, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
-
-// Architecture section 13. The memory eval: does an agent still know what was said hundreds of turns
-// ago, when only a bounded <memory> block reaches the model? A group chat of 320 turns (the human,
-// yuki, ada, and bob) is seeded straight into the room log, with no runs. Facts are planted from the
-// first turns to the last: from the human and from teammates, one buried in a long reply, and two that
-// are corrected later. The room's summaries are made with the real model, then one human message asks
-// every question. An answer scores when it carries the newest value. It also
-// reports what the block costs: lines and characters.
-//
-// Needs a development server (the seed route) and a model key. Costs about 80 small summary calls
-// and one answer.
+import { must } from "../must"
 
 
-/**
- * Each fact sits on one turn. The human speaks on even turns; on odd turns yuki, ada, and bob take
- * turns. A fact may come from an agent, may be buried in a long reply, or may be corrected later: the
- * answer must carry the newest value and not the old one.
- */
+
 export type Fact = { at: number; from?: "ada" | "bob" | "yuki"; said: string; ask?: string; expect?: RegExp; reject?: RegExp }
 const FACTS: Fact[] = [
   { at: 4, said: "oh and the dog's name is miso, she's a shiba", ask: "what is the dog called?", expect: /miso/i },
@@ -62,8 +48,8 @@ export function script(e: Eval): { from: string; text: string }[] {
   const out: { from: string; text: string }[] = []
   for (let i = 0; i < e.turns; i++) {
     const fact = e.facts.find((f) => f.at === i)
-    if (i % 2 === 0) out.push({ from: "human", text: fact ? fact.said : e.fillerHuman[(i / 2) % e.fillerHuman.length]! })
-    else out.push({ from: fact?.from ?? AGENTS[((i - 1) / 2) % 3]!, text: fact ? fact.said : e.fillerAgent[((i - 1) / 2) % e.fillerAgent.length]! })
+    if (i % 2 === 0) out.push({ from: "human", text: fact ? fact.said : must(e.fillerHuman[(i / 2) % e.fillerHuman.length], "filler human") })
+    else out.push({ from: fact?.from ?? must(AGENTS[((i - 1) / 2) % 3], "agent"), text: fact ? fact.said : must(e.fillerAgent[((i - 1) / 2) % e.fillerAgent.length], "filler agent") })
   }
   return out
 }
@@ -79,17 +65,16 @@ function ulid(): string {
   return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
 }
 
-async function dev(url: string, cookie: string, path: string, body: unknown): Promise<any> {
+async function dev<T = unknown>(url: string, cookie: string, path: string, body: unknown): Promise<T> {
   const res = await fetch(new URL(`api/dev/agent/${path}`, url.endsWith("/") ? url : `${url}/`), {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new VerifyError(`the dev route ${path} answered ${res.status}. start the Worker with NODE_ENV=development`)
-  return res.json()
+  return (await res.json()) as T
 }
 
-/** With lastSeq 0 the room sends a `reset` snapshot when its log is long and `events` otherwise; the client takes both. */
 const opened = (f: RoomToClient) => f.t === "events" || f.t === "reset"
 
 export const memorySuite = (e: Eval): Suite => ({
@@ -107,12 +92,11 @@ export const memorySuite = (e: Eval): Suite => ({
     let room = await s.room(roomId)
     await room.expect(opened)
 
-    const seeded = await dev(v.url, s.cookie, "seed", { roomId, turns: script(e) })
+    const seeded = await dev<{ turns: number }>(v.url, s.cookie, "seed", { roomId, turns: script(e) })
     if (seeded.turns !== TURNS) throw new VerifyError(`seeded ${seeded.turns} turns, wanted ${TURNS}`)
 
-    // The summaries run in the background with the real model. Wait until none is left.
     const started = Date.now()
-    let state: any = { pending: 1 }
+    let state: { pending: number; view?: string } = { pending: 1 }
     let lost = 0
     while (state.pending > 0) {
       if (Date.now() - started > 45 * 60_000) throw new VerifyError(`summaries still pending after 45 minutes: ${state.pending}`)
@@ -120,14 +104,14 @@ export const memorySuite = (e: Eval): Suite => ({
       // A busy machine's wrangler dev sometimes drops a request to the room ("Network connection lost");
       // the next poll reaches it again. Five failures in a row are real.
       try {
-        state = await dev(v.url, s.cookie, "memory", { roomId })
+        state = await dev<{ pending: number; view?: string }>(v.url, s.cookie, "memory", { roomId })
         lost = 0
       } catch (error) {
         if (++lost >= 5) throw error
         console.log(`  poll failed (${lost}), trying again: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
-    const view: string = state.view
+    const view = must(state.view, "the memory view")
     for (const line of view.split("\n").filter((l) => /^#\d+-\d+ /.test(l))) console.log(`  summary ${line}`)
     console.log(`  summaries done in ${Math.round((Date.now() - started) / 1000)} s; the chat block is ${view.split("\n").length} lines, ${view.length} characters, for ${TURNS} turns`)
 
@@ -154,20 +138,17 @@ export const memorySuite = (e: Eval): Suite => ({
       await Bun.sleep(500)
     }
     const text = await answer()
-    // Each answer is its own numbered line, so a replaced value elsewhere in the text cannot count against it.
     const answerLine = (n: number) => text.split("\n").find((l) => new RegExp(`^\\s*${n}[).:]`).test(l)) ?? ""
     const hits = ASKED.map((f, i) => {
       const line = answerLine(i + 1) || text
-      return f.expect!.test(line) && !f.reject?.test(line)
+      return f.expect?.test(line) && !f.reject?.test(line)
     })
     for (const [i, f] of ASKED.entries()) console.log(`  ${hits[i] ? "ok  " : "miss"} turn ${String(f.at).padStart(3)}${f.from ? ` @${f.from}` : ""}: ${f.ask}`)
     const score = hits.filter(Boolean).length
     console.log(`  score ${score}/${ASKED.length}. the answer: ${JSON.stringify(text)}`)
-    // After the quiz: the usage route opens the agent, which must first have its chat (agent-do.ts).
-    console.log(`  summary cost: ${JSON.stringify((await dev(v.url, s.cookie, "usage", { roomId })).memory)}`)
+    console.log(`  summary cost: ${JSON.stringify((await dev<{ memory: unknown }>(v.url, s.cookie, "usage", { roomId })).memory)}`)
     if (score < e.pass) throw new VerifyError(`memory eval scored ${score}/${ASKED.length}, below ${e.pass}`)
   },
 })
 
-/** Measured 10 of 10 on 2026-10-04 with deepseek-v4.1-flash. */
 export default memorySuite({ name: "memory-eval", turns: 320, facts: FACTS, pass: 9, fillerHuman: FILLER_HUMAN, fillerAgent: FILLER_AGENT })

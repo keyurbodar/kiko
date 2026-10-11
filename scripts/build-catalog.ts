@@ -1,4 +1,3 @@
-// Builds the model catalog the settings screen loads. Everything comes from the installed pi-ai package.
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -14,7 +13,6 @@ export interface CatalogModel {
   maxTokens: number;
   reasoning: boolean;
   input: string[];
-  /** Price in dollars per million tokens. */
   pricing: { input: number; output: number; cacheRead: number; cacheWrite: number };
 }
 
@@ -23,7 +21,6 @@ export interface CatalogProvider {
   name: string;
   connect: ConnectMethod[];
   models: CatalogModel[];
-  /** How many classifier models the provider serves. One with classifiers and no chat models only judges memory. */
   classifiers: number;
 }
 
@@ -32,14 +29,32 @@ export interface Catalog {
 }
 
 const root = resolve(import.meta.dirname, "..");
-// ASSUMPTION: the server app owns the pi-ai dependency, so the catalog is read from its install.
 const piAiDist = join(root, "apps/server/node_modules/@earendil-works/pi-ai/dist");
 
-async function loadPiAi(): Promise<{ builtinProviders: () => any[] }> {
+interface CatalogSourceModel {
+  id: string;
+  name: string;
+  api: string;
+  contextWindow: number;
+  maxTokens: number;
+  reasoning?: boolean;
+  input: string[];
+  cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+  type?: string;
+}
+
+interface SourceProvider {
+  id: string;
+  name?: string;
+  auth?: { apiKey?: unknown; oauth?: unknown };
+  getModels(): Iterable<CatalogSourceModel>;
+  getAllModels?(): CatalogSourceModel[];
+}
+
+async function loadPiAi(): Promise<{ builtinProviders: () => SourceProvider[] }> {
   return import(pathToFileURL(join(piAiDist, "providers/all.js")).href);
 }
 
-/** The pi-ai module file that implements a provider's OAuth flow, found from the provider's own source. */
 function oauthSource(providerId: string): string | undefined {
   let provider: string;
   try {
@@ -69,7 +84,7 @@ export async function buildCatalog(): Promise<Catalog> {
     const connect: ConnectMethod[] = [];
     if (provider.auth?.apiKey) connect.push("api_key");
     if (provider.auth?.oauth) connect.push(oauthMethod(provider.id));
-    const models: CatalogModel[] = [...provider.getModels()].map((model: any) => ({
+    const models: CatalogModel[] = [...provider.getModels()].map((model) => ({
       id: model.id,
       name: model.name,
       api: model.api,
@@ -85,7 +100,7 @@ export async function buildCatalog(): Promise<Catalog> {
       },
     }));
     models.sort((a, b) => a.id.localeCompare(b.id));
-    const classifiers = (provider.getAllModels?.() ?? []).filter((model: any) => model.type === "classifier").length;
+    const classifiers = (provider.getAllModels?.() ?? []).filter((model) => model.type === "classifier").length;
     providers.push({ id: provider.id, name: provider.name ?? provider.id, connect, models, classifiers });
   }
   providers.sort((a, b) => a.id.localeCompare(b.id));
@@ -97,7 +112,6 @@ export interface CatalogFile {
   json: string;
 }
 
-/** Serializes the catalog and names it by content hash, so the file can be cached forever. */
 export function catalogFile(catalog: Catalog): CatalogFile {
   const json = JSON.stringify(catalog);
   const hash = createHash("sha256").update(json).digest("hex").slice(0, 10);

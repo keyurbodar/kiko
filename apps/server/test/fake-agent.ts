@@ -3,11 +3,6 @@ import type { Agent, AgentSlug, AgentState, Chat, Envelope } from "@yuki/protoco
 import { agentName, ROOM_ID_HEADER, roomStub, USER_ID_HEADER } from "../src/lib/names"
 import type { AgentHome, RoomDO } from "../src/room/room-do"
 
-// P6-01. Runs inside workerd; `team-routing.test.ts` drives it through Miniflare. The real `RoomDO`
-// with two stand-ins: `FakeAgent` records every `receive()` and `stop()` and runs no model, so a test
-// sees exactly who was woken and with which brief, and `FakeUser` answers the two `UserDO` calls the
-// room makes. The live counterpart for `bun yuki verify team-routing` is `src/agent/dev-fake.ts`.
-
 export { RoomDO } from "../src/room/room-do"
 
 export type Received = { envelopes: Envelope[]; brief: string; home: AgentHome | null }
@@ -25,12 +20,10 @@ export class FakeAgent extends DurableObject {
     }
   }
 
-  /** The next `n` receives throw, as a transient failure between objects would. */
   async failNext(n: number) {
     await this.ctx.storage.put("fail", n)
   }
 
-  /** The next `n` receives are refused as too large, as an oversized inbox entry would be. */
   async refuseNext(n: number) {
     await this.ctx.storage.put("refuse", n)
   }
@@ -62,13 +55,11 @@ export class FakeAgent extends DurableObject {
     this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('answer', ?)", JSON.stringify({ id, answer }))
   }
 
-  /** The room warned that a human message for this agent is on its way (section 7.8). */
   async humanComing() {
     this.log()
     this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('coming', '{}')")
   }
 
-  /** The burst it warned of closed with nothing for this agent. */
   async humanGone() {
     this.log()
     this.ctx.storage.sql.exec("INSERT INTO calls (kind, body) VALUES ('gone', '{}')")
@@ -97,14 +88,12 @@ export class FakeUser extends DurableObject {
   async listAgents() {
     return (await this.state()).agents
   }
-  /** Every burst gets its turn, unless a test said the day's turns are used. */
   async takeTurn() {
     if (await this.ctx.storage.get<boolean>("refuse")) return { ok: false as const, limit: 1, resetAt: Date.now() + 3_600_000 }
     const used = ((await this.ctx.storage.get<number>("turns")) ?? 0) + 1
     await this.ctx.storage.put("turns", used)
     return { ok: true as const, used }
   }
-  /** Runs nobody's message started: the user's budget is not under test here. */
   async takeAutonomous() {
     return { ok: true as const }
   }
@@ -118,7 +107,6 @@ export class FakeUser extends DurableObject {
   async turns() {
     return (await this.ctx.storage.get<number>("turns")) ?? 0
   }
-  /** yuki makes an agent (section 7.11). */
   async makeAgent(input: { name: string; slug: string; description: string; soul: string; model: string }) {
     const state = await this.state()
     if (state.agents.some((a) => a.slug === input.slug)) return null
@@ -128,7 +116,6 @@ export class FakeUser extends DurableObject {
   }
   async openChat(title: string, agents: readonly string[]) {
     const state = await this.state()
-    // Unique across tests: the room objects outlive the state each test sets.
     const roomId = `01JZ8Q4T6P${Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => "0123456789ABCDEFGHJKMNPQRSTVWXYZ"[b % 32]).join("")}`
     await this.set({ ...state, chats: [...state.chats, { roomId, title, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: 0, agents } as Chat] })
     return roomId
@@ -141,22 +128,17 @@ export class FakeUser extends DurableObject {
   async userState() {
     return this.state()
   }
-  /** The room records itself on its first socket. The ledger is not under test here. */
   async recordRoom() {
     return true
   }
-  /** The chat list's row changed. Counted, so a test sees one touch per run. */
   async touchChat() {
     await this.ctx.storage.put("touches", ((await this.ctx.storage.get<number>("touches")) ?? 0) + 1)
   }
-  /** Memory summaries: a fixed line, so tests never call a model. */
   async compress(prompt: string) {
     return { text: `summary of ${/#\d+-\d+/.exec(prompt)?.[0] ?? "?"}` }
   }
   async lifeRollup() {}
-  /** Who is typing, for the chat list. Not under test here. */
   async chatTyping() {}
-  /** The room reads one chat row, not the whole list. */
   async getChat(roomId: string) {
     return (await this.state()).chats.find((c) => c.roomId === roomId) ?? null
   }
@@ -166,23 +148,6 @@ type Env = { ROOM: DurableObjectNamespace<RoomDO>; AGENT: DurableObjectNamespace
 
 const ALICE = "alice"
 
-// `/ws/<roomId>`                    the room socket as alice
-// `POST /user` UserState            what alice's chat list and agent list hold
-// `/calls/<roomId>/<slug>`          what the fake agent received
-// `/status/<roomId>/<slug>/<state>` an agent reports its state
-// `/inventory/<roomId>`             the room's inventory for account deletion
-// `/post/<roomId>/<slug>`           the agent posts one bubble
-// `/end/<roomId>/<slug>/<runId>`    the agent's run ends; POST the ids of the agent envelopes it read
-// `/post/<roomId>/<slug>/<runId>`   the agent posts one bubble, in run `<runId>` (default `<slug>:r1`); POST its text
-// `/noprovider/<roomId>/<slug>`     the agent's batch was dropped for a missing key; POST the agent envelope ids in it
-// `POST /task/<roomId>/<slug>`      the agent calls a workspace tool (WorkspaceCall)
-// `/refuse/<state>`                 alice's day of turns is used ("1") or not ("0"); `/touches` counts chat list touches
-// `/fail/<roomId>/<slug>/<n>`       the agent's next n receives throw
-// `/refusenext/<roomId>/<slug>/<n>` the agent's next n receives are refused as too large
-// `/turns`                          the turns alice has taken
-// `POST /mail/<roomId>/<slug>`      the agent sends an agent message (AgentSend)
-// `POST /memory/<roomId>` seqs      the room's <memory> view, without the messages `seqs`
-// `POST /ask/<roomId>/<slug>`       the agent asks a teammate (AgentSend); `/askstate/<roomId>/<id>`, `/closeask/<roomId>/<id>`
 export default {
   async fetch(request: Request, env: Env) {
     const [, kind, roomId, slug, state] = new URL(request.url).pathname.split("/")
@@ -208,7 +173,6 @@ export default {
       return Response.json({ ok: true })
     }
     if (kind === "index") {
-      // Indexes a file with no bytes behind it: the room keeps only the row.
       const path = new URL(request.url).searchParams.get("path")!
       return Response.json(await room.putFile({ id: crypto.randomUUID(), path, r2Key: `k/${path}`, size: 2048, type: "text/markdown", sha256: path, author: { kind: "human" }, expectSha256: "none" }))
     }

@@ -1,13 +1,8 @@
 import { listChats } from "./chats"
 import { localTime, type Reminder, type RoutineRun } from "./reminders"
 
-// Architecture section 26.7. What yuki reads with its `overview` tool: the open work across every chat, in a
-// few short lines, so one tool call costs a few hundred tokens however many chats there are.
-
-/** A room's open tasks, as the room reports them on every task change. */
 export type ChatTasks = { open: number; oldest: { id?: string; title: string; status: string; owner?: string; updatedAt: number }[] }
 
-/** Every chat's task summary, as stored: room id and the JSON text the room reported. */
 function taskRows(sql: SqlStorage): { room_id: string; tasks: string }[] {
   return sql.exec<{ room_id: string; tasks: string }>("SELECT room_id, tasks FROM chat_tasks").toArray()
 }

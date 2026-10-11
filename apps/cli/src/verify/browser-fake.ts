@@ -1,6 +1,3 @@
-// P17-03 Verify, the part that needs no model key: `yuki verify browser --fake`. It needs a Kernel
-// key (KERNEL_API_KEY) and a development server. The scripted fake agent of `dev-fake.ts` has the
-// real browser tools, so every browser call here is real and no token is spent.
 import { activeBrowsers, closeBrowser, connectKernel } from "./browser-kit"
 import { type RoomHandle, type Session, type Verifier, VerifyError } from "./client"
 import { agentTexts, api, eventually, inSeconds, ok, type Routine, toolLine } from "./routine-kit"
@@ -10,13 +7,11 @@ import { fake, newRoom, seen, send, until } from "./suites/mid-run"
 const HN = "https://news.ycombinator.com"
 const TABS = 8
 const BUSY_MS = 1_000
-// Another run may share the Kernel key and hold a browser of its own. Past this, only this run's ids must be gone.
 const FOREIGN_WAIT_MS = 10_000
 const TOOLS = ["browse", "browser_act", "browser_run", "browser_look", "browser_share"]
 
 const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
 
-/** Sends `text` and returns the next agent bubble. */
 async function ask(room: RoomHandle, text: string, ms = 40_000): Promise<string> {
   const before = texts(room).length
   await send(room, text)
@@ -45,15 +40,11 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
     if (id) mine.add(id)
   }
   try {
-    // Every browse holds one tab until its agent's socket idles out, 15 s after its last call. So the
-    // rooms are made first, and the eight holders (this room, the routine's, and six more) go together.
     const a = await holder(v, s, "browser fake: hn")
     const others = await Promise.all(Array.from({ length: TABS - 2 }, (_, i) => holder(v, s, `browser fake: tab ${i + 3}`)))
     const ninth = await holder(v, s, "browser fake: ninth")
     const r = await holder(v, s, "browser fake: routine")
 
-    // Each fake turn takes seconds, so they go at once: the routine (no human behind it), this room's
-    // browse then one browser_act batch that clicks "new" by the id the summary showed, and six more.
     const first = await ok<{ routine: Routine }>(v.url, s, "routines", { roomId: r.roomId, name: "browse new", instructions: `[browse ${HN} click new]`, trigger: { on: "time", at: inSeconds(3) } })
     const [clicked, ...opened] = await Promise.all([ask(a.room, `[browse ${HN} click new]`), ...others.map((h) => ask(h.room, toolLine("browse", { urls: ["https://example.com"] })))])
     await note()
@@ -61,7 +52,6 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
     if (!clicked.endsWith(`| ${HN}/newest`)) throw new VerifyError(`the fresh summary is not the /newest page: ${JSON.stringify(clicked.slice(0, 300))}`)
     console.log(`  ok browse then one browser_act batch clicked 'new' by its summary id; the fresh summary is ${HN}/newest`)
 
-    // 2. the browser is full (one current tab per agent), so the ninth tab is told who holds them, at once.
     const bad = opened.findIndex((got) => !got.includes("Example Domain"))
     if (bad >= 0) throw new VerifyError(`tab ${bad + 3} did not open example.com: ${JSON.stringify(opened[bad]?.slice(0, 200))}`)
     await eventually("the routine's answer", () => agentTexts(r.room).some((t) => t.includes("/newest")), 40_000)
@@ -78,7 +68,6 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
     if (took > BUSY_MS) throw new VerifyError(`the busy answer took ${took} ms, over ${BUSY_MS} ms`)
     console.log(`  ok the ninth tab was refused in ${took} ms: ${full.slice(full.indexOf("the browser is full")).slice(0, 160)}`)
 
-    // 3. Section 8: the talker has none of the browser tools, so a page cannot block the human; a worker has all of them.
     const talker = (await ask(a.room, "[tools]")).replace(/^tools: /, "").split(",")
     const leaked = TOOLS.filter((t) => talker.includes(t))
     if (leaked.length) throw new VerifyError(`the talker has browser tools: ${leaked.join(", ")}`)
@@ -92,7 +81,6 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
     if (missing.length) throw new VerifyError(`a worker lacks browser tools: ${missing.join(", ")}`)
     console.log(`  ok the talker has none of ${TOOLS.join(", ")}; a worker has all of them`)
 
-    // 4. the routine's browser_act ran and clicked.
     const routineText = agentTexts(r.room).find((t) => t.includes("/newest")) ?? ""
     if (!/did: click \d+\./.test(routineText)) throw new VerifyError(`the routine's browser_act did not click: ${JSON.stringify(routineText.slice(0, 300))}`)
     console.log(`  ok routine ${first.routine.id} ran browser_act (click, /newest)`)
@@ -101,7 +89,6 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
     await closeBrowser(v, s).catch((e) => console.log(`  cleanup: ${e instanceof Error ? e.message : String(e)}`))
   }
 
-  // 5. Kernel lists none of this run's browsers. Another run may share the key, so only these ids count.
   const start = Date.now()
   const end = start + 60_000
   for (;;) {

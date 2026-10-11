@@ -4,8 +4,8 @@ import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { ulid } from "./mid-run"
 import { dev } from "./team-loops"
+import { must } from "../must"
 
-// Needs OPENCODE_API_KEY and TYPESAFE_API_KEY. Never prints a key.
 
 const FAST = { batch: 2, idleMs: 3_000, jevDelayMs: 1_000 }
 const T0 = Date.now()
@@ -13,10 +13,9 @@ const stamp = () => `${((Date.now() - T0) / 1000).toFixed(1).padStart(6)}s`
 
 type Usage = Record<string, number>
 
-/** A made-up word the model cannot guess: a fresh one each run. */
 function unique(): string {
-  const pick = (s: string) => s[crypto.getRandomValues(new Uint8Array(1))[0]! % s.length]!
-  return Array.from({ length: 3 }, () => pick("bdfgklmnprstvz") + pick("aeiou")).join("") + "x"
+  const pick = (s: string) => s.charAt(must(crypto.getRandomValues(new Uint8Array(1))[0], "random byte") % s.length)
+  return `${Array.from({ length: 3 }, () => pick("bdfgklmnprstvz") + pick("aeiou")).join("")}x`
 }
 
 async function openChat(user: UserChannel, s: Session, title: string): Promise<RoomHandle & { id: string }> {
@@ -42,7 +41,6 @@ async function poll<T>(what: string, ms: number, test: () => Promise<T | false |
   }
 }
 
-/** Sends a human message and waits until the chat has gone idle after it. */
 async function say(room: RoomHandle, text: string, ms = 90_000): Promise<string> {
   const before = idles(room)
   const seen = messages(room).length
@@ -64,7 +62,6 @@ const suite: Suite = {
     if (!jevKey) throw new VerifyError("TYPESAFE_API_KEY is not set in this shell. source the dev vars first")
     const stampId = Date.now().toString(36)
 
-    /** One signed-in user with the test model and the judge connected, and the fast capture policy. */
     const person = async (who: string) => {
       const s = await v.as(`memiso${who}${stampId}`)
       await connectTestModel(s)

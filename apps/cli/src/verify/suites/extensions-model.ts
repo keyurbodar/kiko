@@ -2,12 +2,8 @@ import type { ExtensionOp, ExtensionProposal, ExtensionResult, UserEvent } from 
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { newRoom, seen, send, statuses, until } from "./mid-run"
+import { must as mustPresent } from "../must"
 
-// Architecture section 24 with the real test model. Two things the fake agent cannot show:
-// 1. A real agent uses an installed catalog extension that fetches the real network (weather).
-// 2. A real agent writes an extension from a one-line ask: it reads the skill, writes the files,
-//    runs extension_check until it passes, and proposes it. The human installs it, and the agent
-//    then uses the new tool in the same chat. No deploy anywhere.
 
 const suite: Suite = {
   name: "extensions-model",
@@ -27,14 +23,12 @@ const suite: Suite = {
       return r
     }
     const { room } = await newRoom(s, "extensions with the real model")
-    /** True when a room frame after log position `from` says the agent was using `what` (the presence line). */
     const used = (from: number, what: string) => room.raw.log.slice(from).some((e) => e.dir === "in" && JSON.stringify(e.frame).includes(`using ${what}`))
     const replyAfter = async (text: string, ms: number) => {
       const before = seen(room).live.length
       await send(room, text)
       const from = statuses(room).length
       await until("the agent's reply", () => seen(room).live.length > before, ms)
-      // The agent may say a line before its tools run, so wait for the run to end, not the first bubble.
       await until("the run to end", () => statuses(room).slice(from).at(-1) === "idle", ms).catch((e: Error) => {
         throw new VerifyError(`${e.message}. statuses ${statuses(room).slice(from).join(",")}; bubbles ${JSON.stringify(seen(room).live.slice(before).map((m) => m.text.slice(0, 80)))}`)
       })
@@ -42,17 +36,14 @@ const suite: Suite = {
       return seen(room).live.slice(before).map((m) => m.text).join("\n")
     }
 
-    // 1. A catalog extension with a real fetch.
     const weather = must(await op({ op: "propose_catalog", name: "weather" }), "propose weather")
-    must(await op({ op: "install", id: weather.proposal!.id }), "install weather")
-    // Two places in one message: the read tool runs twice in one run.
+    must(await op({ op: "install", id: mustPresent(weather.proposal, "weather proposal").id }), "install weather")
     const wxFrom = room.raw.log.length
     const forecast = await replyAfter("what's the weather in lisbon and in porto right now? use your weather tool for each.", 120_000)
     console.log(`  weather reply: ${JSON.stringify(forecast)}`)
     if (!used(wxFrom, "weather")) throw new VerifyError("the room never saw the agent using weather")
     if (!/°|degrees|\d+\s?c\b/i.test(forecast)) throw new VerifyError(`the reply has no temperature, so the tool did not run: ${forecast}`)
 
-    // 2. The agent writes an extension.
     const proposed = user.expect((f) => f.t === "events" && f.events.some((e: UserEvent) => e.t === "extension_proposal"), 300_000)
     const ask = await replyAfter(
       "build me an extension named dice with one tool, roll_dice, that rolls a die with a given number of sides (default 6) and returns the number it rolled. check it and propose it.",

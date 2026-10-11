@@ -1,8 +1,3 @@
-// The room's event log. Architecture section 9.2. Every change a human can see
-// is one row in `events` with a seq that only increases, plus the current state
-// in `messages` and `reactions`. Each write method stores the event and the state
-// in one transaction and returns the event. It never sends anything: the caller
-// broadcasts what it gets back.
 
 import type {
 	Actor,
@@ -20,16 +15,9 @@ import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
 import { listTasks } from "./workspace"
 
-/** A `hello` further behind than this gets a `reset` instead of events. */
 export const REPLAY_LIMIT = 500
-/**
- * Events kept in the log. Twice the replay window, so a replay never misses one and an agent's
- * reaction brief reaches back as far. The messages table keeps the history; older events only
- * repeated it. Trimmed every `TRIM_EVERY` events, so the delete is amortized.
- */
 export const KEEP_EVENTS = 2 * REPLAY_LIMIT
 const TRIM_EVERY = 100
-/** The newest messages a `reset` snapshot carries. ASSUMPTION: the number. */
 export const SNAPSHOT_MESSAGES = 200
 
 type Body = RoomEvent extends infer E ? (E extends unknown ? Omit<E, "seq" | "at"> : never) : never
@@ -61,19 +49,13 @@ export type NewMessage = {
 	replyTo?: MessageId
 	files?: readonly FileRef[]
 	run?: RunRef
-	/** Set on human sends. A repeated clientId stores nothing. */
 	clientId?: string
-	/** A chat the message points to. */
 	goto?: RoomId
-	/** The words of `replyTo` the sender answers. */
 	quote?: string
-	/** The teammate, or all, an agent's send_message or ask was for. */
 	to?: AgentSlug | "all"
-	/** The agent spoke up unasked (section 26). */
 	initiative?: { reason: string }
 }
 
-/** The stored form of an actor or sender: "human", "agent:<slug>", or "system:<reason>". */
 export function actorKey(who: Sender): string {
 	if (who.kind === "human") return "human"
 	return who.kind === "agent" ? `agent:${who.slug}` : `system:${who.reason}`
@@ -93,7 +75,6 @@ export class RoomLog {
 		return this.storage.sql
 	}
 
-	/** The seq of the newest event, or 0 for an empty room. */
 	lastSeq(): number {
 		return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM events").one().seq ?? 0
 	}
@@ -114,7 +95,6 @@ export class RoomLog {
 		)
 	}
 
-	/** Events after `seq`, oldest first. */
 	since(seq: number): RoomEvent[] {
 		return this.sql
 			.exec<{ seq: number; at: number; payload: string }>(
@@ -125,7 +105,6 @@ export class RoomLog {
 			.map((r) => ({ ...(JSON.parse(r.payload) as Body), seq: r.seq, at: r.at }) as RoomEvent)
 	}
 
-	/** What a `hello` gets: the events after `lastSeq`, or a snapshot when they are too many or the client is ahead. */
 	catchUp(lastSeq: number): { t: "events"; events: RoomEvent[] } | { t: "reset"; snapshot: RoomSnapshot } {
 		const last = this.lastSeq()
 		if (lastSeq > last || last - lastSeq > REPLAY_LIMIT) return { t: "reset", snapshot: this.snapshot() }
@@ -298,7 +277,6 @@ export class RoomLog {
 		})
 	}
 
-	/** Replaces a live message's text. Returns null when the message is gone or the text is the same. */
 	editMessage(id: MessageId, text: string, rich?: RichText): RoomEvent | null {
 		return this.storage.transactionSync(() => {
 			const current = this.message(id)
@@ -320,7 +298,6 @@ export class RoomLog {
 		})
 	}
 
-	/** Deletes the live messages among `ids` as one event. Returns null when none is live. */
 	deleteMessages(ids: readonly MessageId[], by: Actor): RoomEvent | null {
 		return this.storage.transactionSync(() => {
 			const live = ids.filter((id) => this.message(id))

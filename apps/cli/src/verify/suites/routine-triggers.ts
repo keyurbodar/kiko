@@ -1,13 +1,9 @@
-import type { RoomToClient } from "@yuki/protocol"
-import { type RoomHandle, VerifyError } from "../client"
+
+import { VerifyError } from "../client"
 import { agentTexts, dev, eventually, ok, type Routine, runsOf, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
 import { fake, newRoom, send } from "./mid-run"
 
-// Architecture section 25.4, with the scripted fake agent: no tokens. Chat events within a minute
-// make one run, and an agent's own acts never fire its own routine. A webhook runs its routine once
-// per post, only when the body matches, and the run may use an outside tool. A watch wakes nobody
-// until the page changes. Needs NODE_ENV=development.
 
 const base = (url: string) => (url.endsWith("/") ? url : `${url}/`)
 
@@ -17,7 +13,6 @@ const suite: Suite = {
     const s = await v.as(`triggers-${Date.now()}`)
     const url = v.url
 
-    // 1. Task events: three tasks moved to review within seconds make one run that lists all three.
     {
       const { roomId, room } = await newRoom(s, "triggers: tasks")
       await fake(v, s, roomId)
@@ -28,13 +23,11 @@ const suite: Suite = {
       const runs = await waitRuns(url, s, routine.id, "one run for the window", (rs) => rs.some((x) => x.status !== "running"), 100_000)
       await Bun.sleep(3_000)
       const all = await runsOf(url, s, routine.id)
-      if (all.length !== 1 || !all[0]!.occurrence.startsWith("event:")) throw new VerifyError(`expected one event run, got ${JSON.stringify(all)}`)
-      console.log(`  ok three task changes made one run (${runs[0]!.occurrence}, ${runs[0]!.status})`)
+      if (all.length !== 1 || !all[0]?.occurrence.startsWith("event:")) throw new VerifyError(`expected one event run, got ${JSON.stringify(all)}`)
+      console.log(`  ok three task changes made one run (${runs[0]?.occurrence}, ${runs[0]?.status})`)
       room.raw.close()
     }
 
-    // 2. Messages: the human's message fires the routine once; the agent's own reply, which matches
-    //    too, never fires its own routine.
     {
       const { roomId, room } = await newRoom(s, "triggers: messages")
       await fake(v, s, roomId)
@@ -50,7 +43,6 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 3. Files: an upload under the path fires it; one elsewhere does not.
     {
       const { roomId, room } = await newRoom(s, "triggers: files")
       await fake(v, s, roomId)
@@ -66,7 +58,6 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 4. Webhooks.
     {
       const { roomId, room } = await newRoom(s, "triggers: webhook")
       await fake(v, s, roomId)
@@ -103,13 +94,18 @@ const suite: Suite = {
       room.raw.close()
     }
 
-    // 5. Watches: the first check records the page; the same page wakes nobody; a change runs once.
     {
       const { roomId, room } = await newRoom(s, "triggers: watch")
       await fake(v, s, roomId)
       let page = "<html><body><p>price: 100</p></body></html>"
       let hits = 0
-      const server = Bun.serve({ port: 0, fetch: () => (hits++, new Response(page, { headers: { "content-type": "text/html" } })) })
+      const server = Bun.serve({
+        port: 0,
+        fetch: () => {
+          hits++
+          return new Response(page, { headers: { "content-type": "text/html" } })
+        },
+      })
       try {
         const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "price watch", instructions: "[quiet]", trigger: { on: "watch", url: `http://fixture-${server.port}.preview.test/item`, everyMinutes: 15 } })
         await eventually("the first check", () => hits >= 1, 20_000)
@@ -120,8 +116,8 @@ const suite: Suite = {
         page = "<html><body><p>price: 80</p></body></html>"
         await dev(url, s, "due", { id: routine.id })
         const runs = await waitRuns(url, s, routine.id, "the change run", (rs) => rs.some((x) => x.status !== "running"), 40_000)
-        if (runs.length !== 1 || !runs[0]!.occurrence.startsWith("watch:")) throw new VerifyError(`expected one watch run, got ${JSON.stringify(runs)}`)
-        console.log(`  ok ${hits} checks without a model; only the change ran the routine (${runs[0]!.status})`)
+        if (runs.length !== 1 || !runs[0]?.occurrence.startsWith("watch:")) throw new VerifyError(`expected one watch run, got ${JSON.stringify(runs)}`)
+        console.log(`  ok ${hits} checks without a model; only the change ran the routine (${runs[0]?.status})`)
       } finally {
         server.stop(true)
       }

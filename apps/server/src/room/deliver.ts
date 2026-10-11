@@ -50,11 +50,6 @@ export type ReminderDelivery = {
 	recurring?: boolean
 }
 
-/**
- * The chain an agent's reminder wakes into. A one-off continues the chain that made it; a recurring
- * one starts its own root each time, so a chain's limits never count a week of repeats. A reminder the
- * human set starts its own root as the human's.
- */
 export function reminderChain(own: string, r: Pick<ReminderDelivery, "chain" | "createdBy" | "recurring">): Chain | null {
 	const made = r.chain ?? (r.createdBy === "human" ? { rootId: own, hop: 0, origin: "human" as const } : null)
 	return made && r.recurring ? { ...made, rootId: own, hop: 0 } : made

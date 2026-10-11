@@ -20,7 +20,7 @@
 
 **Goal.** Show open loops in the details panel and set the initiative level in Settings.
 
-**Files.** `apps/web-solid/src/chat/info/loops.tsx`, `apps/web-solid/src/chat/info/panel.tsx`, `apps/web-solid/src/settings/initiative.tsx`, `packages/protocol/src/loops.ts`.
+**Files.** `apps/web-solid/src/chat/info/loops.tsx`, `apps/web-solid/src/chat/info/panel.tsx`, `apps/web-solid/src/settings/initiative.tsx`, `core/protocol/src/loops.ts`.
 
 **Build.**
 

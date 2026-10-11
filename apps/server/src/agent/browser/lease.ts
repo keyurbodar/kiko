@@ -1,6 +1,3 @@
-// What an agent asks of UserDO about the user's one Kernel browser (architecture section 27). This
-// file is the only place that names the RPC methods.
-
 export type Lease = { sessionId: string; cdpUrl: string; mode: "headless" | "headful"; restarted: boolean; reopen: string[] }
 
 export type BrowserState = { connected: boolean; takeover: boolean; tabs: Record<string, number> }
@@ -14,8 +11,6 @@ export type FetchRequest = {
 }
 
 export type FetchResult = { status: number; headers: Record<string, string>; body: string; truncated: boolean }
-
-/** The user has no Kernel key. The tools say so instead of failing. */
 export class BrowserNotConnected extends Error {
   constructor() {
     super("no browser: the human has not connected a Kernel key in settings")
@@ -25,16 +20,11 @@ export class BrowserNotConnected extends Error {
 
 export interface LeasePort {
   lease(): Promise<Lease>
-  /** Stamps last use and reports this agent's open tabs, tab id to last URL. */
   touch(tabs: Record<string, string>): Promise<boolean>
-  /** The socket to `sessionId` closed. UserDO marks the browser dead only if Kernel says it is gone. */
   dead(sessionId: string): Promise<boolean>
   release(): Promise<void>
-  /** Whether a key is stored, and each agent's open tab count. */
   state(): Promise<BrowserState>
-  /** The human pressed Take over. Every browser tool and worker step waits for Hand back. */
   paused(): Promise<boolean>
-  /** Asks the human to watch or take over. Returns what to tell the model. */
   share(reason: string): Promise<string>
   /** HTTP through the browser's network stack, with its cookies and proxy. Only http and https. */
   fetchPage(req: FetchRequest): Promise<FetchResult>

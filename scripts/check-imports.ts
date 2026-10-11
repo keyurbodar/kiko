@@ -22,12 +22,12 @@ function files(dir: string): string[] {
 
 const problems: string[] = []
 for (const [pkg, allowed] of Object.entries(ALLOWED)) {
-  const home = join(ROOT, "packages", pkg)
+  const home = join(ROOT, "core", pkg)
   for (const file of files(join(home, "src"))) {
     for (const [, spec = ""] of readFileSync(file, "utf8").matchAll(SPECIFIER)) {
       const at = relative(ROOT, file)
       if (spec.startsWith(".")) {
-        if (relative(home, resolve(dirname(file), spec)).startsWith("..")) problems.push(`${at}: ${spec} leaves packages/${pkg}`)
+        if (relative(home, resolve(dirname(file), spec)).startsWith("..")) problems.push(`${at}: ${spec} leaves core/${pkg}`)
       } else if (spec.startsWith("@yuki/")) {
         const name = spec.split("/").slice(0, 2).join("/")
         if (name !== `@yuki/${pkg}` && !allowed.includes(name)) problems.push(`${at}: ${name} is not allowed in @yuki/${pkg}`)

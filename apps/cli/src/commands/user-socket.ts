@@ -1,10 +1,6 @@
 import { CliError, type Context } from "../main"
 import { sessionCookie } from "./login"
 
-/**
- * Sends one frame on the user socket and returns the `result` of the answer of type `answer` with
- * the same `reqId`. Sign in first with `yuki login --dev`.
- */
 export async function askUser<R>(ctx: Context, frame: Record<string, unknown>, answer: string): Promise<R> {
   const cookie = await sessionCookie(ctx.url)
   if (!cookie) throw new CliError("not signed in. run `yuki login --dev` first")

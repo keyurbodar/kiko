@@ -4,15 +4,6 @@ import type { Env } from "../index"
 import { userStub } from "../lib/names"
 import type { ReminderResult } from "./reminders"
 
-// The reminders HTTP routes. The Worker checks the session and reaches only the
-// session user's `UserDO`. Validation of the fields happens in reminders.ts.
-//
-//   GET  /api/reminders                list
-//   POST /api/reminders                create { text, time, tz, rrule?, roomId, target? }
-//   POST /api/reminders/<id>/cancel
-//   POST /api/reminders/<id>/snooze    { time }
-//   POST /api/reminders/<id>/rewind    development only: replays the last delivery
-
 declare const process: { env: { NODE_ENV?: string } }
 
 const ACTION = /^\/api\/reminders\/([0-9a-f-]{36})\/(cancel|snooze|rewind)$/
@@ -34,14 +25,12 @@ async function body(request: Request): Promise<Record<string, unknown> | null> {
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined)
 
-/** Answers `/api/reminders*`. Returns null for every other path. */
 export async function remindersRoute(request: Request, env: Env): Promise<Response | null> {
   const { pathname } = new URL(request.url)
   const action = ACTION.exec(pathname)
   if (pathname !== "/api/reminders" && !action) return null
   const user = await getSessionUser(request, env)
   if (!user) return error(401, "unauthorized")
-  // A JSON content type needs a CORS preflight, so another site cannot post here with the cookie.
   if (request.method === "POST" && !request.headers.get("content-type")?.includes("application/json")) {
     return error(415, "expected json")
   }

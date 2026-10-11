@@ -263,7 +263,9 @@ export class ExtensionStore {
     this.sql.exec("DELETE FROM extension_proposals WHERE id = ?", id)
     this.commit({ t: "extension_proposal_removed", id })
     await this.scheduleTriggers(p.name)
-    const info = this.info(this.row(p.name)!)
+    const row = this.row(p.name)
+    if (!row) throw new ExtensionError(`extension ${p.name} is missing right after install`)
+    const info = this.info(row)
     this.commit({ t: "extension", extension: info })
     return info
   }
@@ -342,7 +344,9 @@ export class ExtensionStore {
   }
 
   private changed(name: string): ExtensionInfo {
-    const info = this.info(this.row(name)!)
+    const row = this.row(name)
+    if (!row) throw new ExtensionError(`extension ${name} is missing`)
+    const info = this.info(row)
     this.commit({ t: "extension", extension: info })
     return info
   }
@@ -418,7 +422,7 @@ export class ExtensionStore {
 
     const secrets = manifest.secrets ?? {}
     const fill = async (text: string): Promise<string> => {
-      const refs = [...text.matchAll(SECRET_REF)].map((m) => m[1]!)
+      const refs = [...text.matchAll(SECRET_REF)].flatMap((m) => m[1] ?? [])
       let out = text
       for (const ref of new Set(refs)) {
         const declared = secrets[ref]
@@ -438,14 +442,16 @@ export class ExtensionStore {
     const req: SafeRequest = { method: method as SafeRequest["method"], headers, ...(body !== undefined ? { body } : {}) }
     const out = await safeRequest(filledUrl, req, this.fetcher, { maxBytes: MAX_FETCH_BYTES, timeoutMs: FETCH_TIMEOUT_MS, userAgent: `yuki-extension/${name}` })
     if (!out.ok) throw new ExtensionError(`the request failed: ${out.reason}`)
-    let text = new TextDecoder().decode(out.body)
+    const known: [string, string][] = []
     for (const ref of Object.keys(secrets)) {
       const value = await this.secret(name, ref)
-      if (value && value.length >= 6) text = text.replaceAll(value, `{{secret.${ref}}}`)
+      if (value && value.length >= 6) known.push([ref, value])
     }
+    const scrub = (s: string): string => known.reduce((acc, [ref, value]) => acc.replaceAll(value, `{{secret.${ref}}}`), s)
+    const text = scrub(new TextDecoder().decode(out.body))
     const responseHeaders: Record<string, string> = {}
     out.headers.forEach((v, k) => {
-      if (!/^(set-cookie|authorization)$/i.test(k)) responseHeaders[k] = v
+      if (!/^(set-cookie|authorization)$/i.test(k)) responseHeaders[k] = scrub(v)
     })
     let json: unknown
     if (/json/i.test(out.headers.get("content-type") ?? "")) {

@@ -32,7 +32,7 @@ export function webExtension(fetcher?: Fetcher, fs?: RoomFs): Extension {
       const page = await safeFetch(args.url, fetch, { userAgent: USER_AGENT })
       if (!page.ok) return { content: text(`could not fetch ${page.url}: ${page.reason}`), isError: true }
       const details = { source: page.url }
-      const type = (page.headers.get("content-type") ?? "").split(";", 1)[0]!.trim().toLowerCase()
+      const type = (page.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? ""
       if (type && !TEXT_TYPES.test(type)) {
         return { content: text(`${page.url} answered ${page.status} with ${type}, which is not text`), isError: true, details }
       }

@@ -11,6 +11,7 @@ dist/
 
 # Verification artifacts.
 artifacts/
+.verify-evidence/
 
 # Editor and agent tool state. AGENTS.md itself is tracked.
 *.swp

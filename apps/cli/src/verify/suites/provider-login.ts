@@ -2,10 +2,6 @@ import type { UserToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
-// P4-04. Provider sign-in over the user socket. Without `--fake` it checks only the
-// refusals. With `--fake` it runs the development server's fake provider, whose flow
-// sends a device code (`notify`) and asks for it back (`prompt`): a right code stores
-// an OAuth credential, a wrong code fails, and an abandoned login is gone for good.
 
 const FAKE = "yuki-fake"
 const CODE = "YUKI-0000"
@@ -23,7 +19,7 @@ const suite: Suite = {
         headers: { cookie: s.cookie },
         signal: AbortSignal.timeout(5000),
       })
-      return (await res.json()) as any
+      return (await res.json()) as { providers: { provider: string }[] }
     }
     let n = 0
     const id = () => `login-${Date.now()}-${++n}`
@@ -31,7 +27,6 @@ const suite: Suite = {
     const ofLogin = <T extends UserToClient["t"]>(t: T, loginId: string) => (f: UserToClient) =>
       f.t === t && (f as { loginId?: string }).loginId === loginId
 
-    // Refusals. OpenRouter's flow needs a loopback server, so yuki does not run it.
     const refused = id()
     user.send({ t: "login.start", loginId: refused, provider: "openrouter" })
     const unsupported = (await user.expect(ofLogin("login.error", refused))) as Frame<"login.error">
@@ -46,7 +41,6 @@ const suite: Suite = {
     }
     await credentials("DELETE", `/${FAKE}`)
 
-    // 1. The full flow: notify, prompt, answer, stored.
     const good = id()
     user.send({ t: "login.start", loginId: good, provider: FAKE })
     const notify = (await user.expect(ofLogin("login.notify", good))) as Frame<"login.notify">
@@ -58,11 +52,10 @@ const suite: Suite = {
     user.send({ t: "login.answer", loginId: good, promptId: prompt.promptId, value: CODE })
     const done = (await user.expect(ofLogin("login.done", good))) as Frame<"login.done">
     expectEqual(done.provider, { provider: FAKE, kind: "oauth", last4: "" }, "login.done provider")
-    const listed = (await credentials()).providers.find((p: { provider: string }) => p.provider === FAKE)
+    const listed = (await credentials()).providers.find((p) => p.provider === FAKE)
     expectEqual(listed, { provider: FAKE, kind: "oauth", last4: "" }, "the stored row")
     expectEqual(await credentials("DELETE", `/${FAKE}`), { removed: true }, "disconnect")
 
-    // 2. A wrong code fails and stores nothing.
     const wrong = id()
     user.send({ t: "login.start", loginId: wrong, provider: FAKE })
     const wrongPrompt = (await user.expect(ofLogin("login.prompt", wrong))) as Frame<"login.prompt">
@@ -71,7 +64,6 @@ const suite: Suite = {
     expectEqual(failed.reason, "failed", "wrong code")
     expectEqual((await credentials()).providers, [], "providers after a wrong code")
 
-    // 3. Cancel.
     const cancelled = id()
     user.send({ t: "login.start", loginId: cancelled, provider: FAKE })
     const cancelPrompt = (await user.expect(ofLogin("login.prompt", cancelled))) as Frame<"login.prompt">
@@ -80,9 +72,6 @@ const suite: Suite = {
     user.send({ t: "login.answer", loginId: cancelled, promptId: cancelPrompt.promptId, value: CODE })
     expectEqual(((await user.expect(ofLogin("login.error", cancelled))) as Frame<"login.error">).reason, "unknown", "answer after cancel")
 
-    // 4. Abandoned: the socket closes mid-login. The server keeps no state for it: the
-    // same login id starts afresh from a new socket instead of being refused as still
-    // running, and nothing was stored.
     const abandoned = id()
     user.send({ t: "login.start", loginId: abandoned, provider: FAKE })
     await user.expect(ofLogin("login.prompt", abandoned))
