@@ -12,6 +12,8 @@ import type { Mail } from "./mail"
 
 type Home = { userId: string; roomId: RoomId }
 
+const RESULT_TEXT_MAX = 500
+
 export type ReportsDeps = {
 	ctx: DurableObjectState
 	env: Env
@@ -44,9 +46,9 @@ export class Reports {
 			const actor = event.t === "message" && event.from.kind === "human" ? "human" : actorOf(event.seq)
 			const agent = actor?.startsWith("agent:") ? (actor.slice(6) as AgentSlug) : null
 			const by = actor === "human" ? ({ kind: "human" } as const) : agent ? ({ kind: "agent", slug: agent, name: this.d.members.get(agent)?.name ?? agent, eventRun: eventRun(agent) } as const) : null
-			const signal = signalOf(event, { roomId, at: now, by })
-			const human = signal !== null && (signal.kind === "burst" || (signal.kind === "task" && signal.by?.kind === "human"))
-			if (signal && (human || routines.some((r) => matches(r, signal)))) signals.push(signal)
+			const quoted = event.t === "message" && event.replyTo ? this.d.log.message(event.replyTo) : null
+			const signal = signalOf(event, { roomId, at: now, by, ...(quoted?.initiative ? { answers: quoted.seq } : {}) })
+			if (signal && (signal.kind === "burst" || routines.some((r) => matches(r, signal)))) signals.push(signal)
 		}
 		const closes = this.d.signals.add(signals, now)
 		if (closes !== null) this.d.ctx.waitUntil(this.d.alarms.setWakeup(SIGNALS_WAKEUP, closes))
@@ -69,9 +71,9 @@ export class Reports {
 		if (!home || !runs.length) return
 		const now = Date.now()
 		const signals = runs.map((r): Signal => {
-			const posted = status === "ended" ? this.d.log.lastAgentSeq(r.slug, r.seq) : null
+			const posted = status === "ended" ? this.d.log.lastAgentMessage(r.slug, r.seq) : null
 			const outcome = status === "ended" ? (posted !== null ? "ok" : "quiet") : status === "stopped" ? "quiet" : status
-			return { kind: "routine_result", roomId: home.roomId, at: now, routineId: r.routineId, occurrence: r.occurrence, outcome, seq: posted }
+			return { kind: "routine_result", roomId: home.roomId, at: now, routineId: r.routineId, occurrence: r.occurrence, outcome, seq: posted?.seq ?? null, ...(posted ? { text: posted.text.slice(0, RESULT_TEXT_MAX) } : {}) }
 		})
 		this.d.signals.hold(signals)
 		this.d.ctx.waitUntil(

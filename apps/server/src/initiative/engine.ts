@@ -81,19 +81,38 @@ export class InitiativeEngine {
     const heard: Signal[] = []
     const fresh = this.store.unseen(batch.signals.flatMap((s) => (s.kind === "burst" ? [`burst:${s.roomId}:${s.seq}`] : [])))
     for (const s of batch.signals) {
-      if (s.kind === "routine_result" && s.routineId === INITIATIVE_RUN) this.ran(s.occurrence, s.outcome, now)
+      if (s.kind === "routine_result" && s.routineId === INITIATIVE_RUN) this.ran(s, now)
       else if (s.kind === "routine_result" && s.routineId === REMINDER_RUN) this.kept(s.occurrence, s.outcome === "ok", now)
       else if (s.kind === "burst" && s.by.kind === "human") {
         heard.push({ kind: "burst", id: `burst:${s.roomId}:${s.seq}`, room: s.roomId, at: s.at })
+        const quoted = s.answers
+        if (quoted !== undefined) {
+          // A nudge may be two bubbles, and the pending one knows only its last: the quote belongs to the first nudge that ends at or after it.
+          const nudge = this.store.appetite().pending.filter((p) => p.room === s.roomId && (p.seq ?? -1) >= quoted).sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))[0]
+          if (nudge) heard.push(answer(nudge.loop, s.roomId, `${s.seq}`, s.at))
+        }
         this.d.sql.exec("INSERT INTO initiative_rooms (room_id, human_at) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET human_at = max(human_at, excluded.human_at)", s.roomId, s.at)
         if (fresh.has(`burst:${s.roomId}:${s.seq}`) && this.d.title(s.roomId) !== null) {
           const said = new Set(keywords(s.text))
-          for (const l of this.d.loops.similar(s.text, 2)) if (l.room === s.roomId && keywords(l.text).filter((w) => said.has(w)).length >= SHARED_WORDS) this.d.loops.touch(l.id, s.at)
+          for (const l of this.d.loops.similar(s.text, 2)) {
+            if (l.room !== s.roomId || keywords(l.text).filter((w) => said.has(w)).length < SHARED_WORDS) continue
+            this.d.loops.touch(l.id, s.at)
+            heard.push(answer(`loop:${l.id}`, s.roomId, `${s.seq}`, s.at))
+          }
         }
-      } else if (s.kind === "task") heard.push({ kind: "task", id: `task:${s.roomId}:${s.seq}`, room: s.roomId, at: s.at, by: s.by?.kind === "agent" ? s.by.slug : "human" })
+      }
     }
     this.apply(this.store.observe(heard, now, this.d.tz()))
     await this.arm(now)
+  }
+
+  /** The nudges in a chat still waiting for the human, for Jev to judge whether a burst answers one. */
+  nudges(roomId: string): { loop: string; what: string }[] {
+    return this.store.appetite().pending.flatMap((p) => (p.room === roomId && p.what !== undefined ? [{ loop: p.loop, what: p.what }] : []))
+  }
+
+  answered(roomId: string, loop: string, messageId: string, at: number, now = Date.now()): void {
+    this.apply(this.store.observe([answer(loop, roomId, messageId, at)], now, this.d.tz()))
   }
 
   dropped(id: number, now = Date.now()): void {
@@ -102,7 +121,8 @@ export class InitiativeEngine {
     if (pending) this.apply(this.store.observe([{ kind: "dismiss", id: `dismiss:${loop}:${now}`, room: pending.room, at: now, loop }], now, this.d.tz()))
   }
 
-  private ran(wakeId: string, outcome: string, now: number): void {
+  private ran(result: Extract<SignalBatch["signals"][number], { kind: "routine_result" }>, now: number): void {
+    const { occurrence: wakeId, outcome } = result
     const row = this.d.sql.exec<{ room: string; slug: string; kind: string; ids: string; status: string }>("SELECT * FROM initiative_wakes WHERE id = ?", wakeId).toArray()[0]
     if (row?.status !== "pending") return
     const [id] = JSON.parse(row.ids) as string[]
@@ -112,7 +132,7 @@ export class InitiativeEngine {
     this.d.sql.exec("UPDATE initiative_wakes SET status = ? WHERE id = ?", status, wakeId)
     this.mark(id, status === "spoke" ? "surfaced" : status === "skipped" ? "skipped" : null, now)
     if (status === "spoke") {
-      this.store.sent({ id: wakeId, room: row.room, kind, loop: id, at: now }, this.d.tz())
+      this.store.sent({ id: wakeId, room: row.room, kind, loop: id, at: now, ...(result.seq === null ? {} : { seq: result.seq }), ...(result.text === undefined ? {} : { what: result.text }) }, this.d.tz())
       const loop = loopIdOf(id)
       if (loop !== null && row.slug !== LEAD && this.d.loops.get(loop)?.owner === row.slug) this.d.loops.close(loop, "done", now)
     } else if (status === "skipped") this.store.skipped(kind, now)
@@ -398,6 +418,8 @@ function worthItem(i: Item, now: number): WorthItem {
     agent_declined_before: i.skipped,
   }
 }
+
+const answer = (loop: string, room: string, messageId: string, at: number): Signal => ({ kind: "answer", id: `answer:${loop}:${room}:${messageId}`, room, at, loop })
 
 const loopIdOf = (id: string): number | null => (id.startsWith("loop:") ? Number(id.slice(5)) : null)
 

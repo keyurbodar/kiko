@@ -8,11 +8,12 @@ const By = Schema.Union([Schema.Struct({ kind: Schema.Literal("human") }), Schem
 const base = { roomId: Schema.String, at: Schema.Number }
 
 export const Signal = Schema.Union([
-	Schema.Struct({ kind: Schema.Literal("burst"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
+	// answers: the seq of the initiative bubble this human message replies to.
+	Schema.Struct({ kind: Schema.Literal("burst"), ...base, seq: Schema.Number, text: Schema.String, by: By, answers: Schema.optionalKey(Schema.Number) }),
 	Schema.Struct({ kind: Schema.Literal("agent_final"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
 	Schema.Struct({ kind: Schema.Literal("task"), ...base, seq: Schema.Number, title: Schema.String, status: Schema.String, owner: Schema.NullOr(Schema.String), by: Schema.NullOr(By) }),
 	Schema.Struct({ kind: Schema.Literal("file"), ...base, seq: Schema.Number, path: Schema.String, by: Schema.NullOr(By) }),
-	Schema.Struct({ kind: Schema.Literal("routine_result"), ...base, routineId: Schema.String, occurrence: Schema.String, outcome: Schema.Literals(["ok", "quiet", "failed", "timeout"]), seq: Schema.NullOr(Schema.Number) }),
+	Schema.Struct({ kind: Schema.Literal("routine_result"), ...base, routineId: Schema.String, occurrence: Schema.String, outcome: Schema.Literals(["ok", "quiet", "failed", "timeout"]), seq: Schema.NullOr(Schema.Number), text: Schema.optionalKey(Schema.String) }),
 ])
 export type Signal = typeof Signal.Type
 
@@ -26,12 +27,13 @@ const MAX_SIGNALS = 20
 type Act = Extract<Signal, { kind: "burst" | "agent_final" | "task" | "file" }>
 type By = typeof By.Type
 
-export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by: By | null }): Act | null {
+export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by: By | null; answers?: number }): Act | null {
 	const { roomId, at, by } = ctx
 	switch (event.t) {
 		case "message":
 			if (event.from.kind === "system" || !by) return null
-			return { kind: event.from.kind === "human" ? "burst" : "agent_final", roomId, at, seq: event.seq, text: event.text, by }
+			if (event.from.kind === "human") return { kind: "burst", roomId, at, seq: event.seq, text: event.text, by, ...(ctx.answers === undefined ? {} : { answers: ctx.answers }) }
+			return { kind: "agent_final", roomId, at, seq: event.seq, text: event.text, by }
 		case "task":
 			return { kind: "task", roomId, at, seq: event.seq, title: event.task.title, status: event.task.status, owner: event.task.owner ?? null, by }
 		case "file":

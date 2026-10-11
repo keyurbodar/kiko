@@ -2,7 +2,8 @@ import type { Kind, Signal } from "./types"
 
 export type Counts = { a: number; b: number; at: number }
 
-export type Pending = { id: string; room: string; kind: Kind; loop: string; at: number; deadline: number; engaged?: number }
+/** `seq` and `what`: the nudge's last bubble, which a human reply quotes and Jev reads. */
+export type Pending = { id: string; room: string; kind: Kind; loop: string; at: number; deadline: number; seq?: number; what?: string; engaged?: number }
 
 export type Appetite = { user: Counts; kinds: Partial<Record<Kind, Counts>>; pending: Pending[] }
 
@@ -83,7 +84,7 @@ export function settle(app: Appetite, signals: readonly Signal[], now: number): 
   for (const p of app.pending) {
     const inside = signals.filter((s) => s.at >= p.at && s.at <= p.deadline)
     const dismiss = inside.find((s) => s.kind === "dismiss" && s.loop === p.loop)
-    const engaged = p.engaged ?? inside.find((s) => s.room === p.room && (s.kind === "burst" || (s.kind === "task" && s.by === "human")))?.at
+    const engaged = p.engaged ?? inside.find((s) => s.kind === "answer" && s.loop === p.loop)?.at
     if (dismiss) outcomes.push({ nudge: p, result: "dismissed", at: dismiss.at })
     else if (now >= p.deadline) outcomes.push({ nudge: p, result: engaged === undefined ? "ignored" : "engaged", at: engaged ?? p.deadline })
     else pending.push(engaged === undefined ? p : { ...p, engaged })

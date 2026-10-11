@@ -17,6 +17,8 @@ type InitiativeDeps = {
   count: (delta: Record<string, number>) => void
   close: (id: number, status: "done" | "dropped", at: number, room?: string) => boolean
   noticed: (roomId: string, skip: ReadonlySet<number>) => string[]
+  nudges: (roomId: string) => { loop: string; what: string }[]
+  answered: (roomId: string, loop: string, messageId: string, at: number) => void
 }
 
 const NEAR_PER_SENTENCE = 3
@@ -34,16 +36,24 @@ export class Initiative {
     const judge = this.deps.judge()
     if (!judge || this.deps.off() || this.deps.title(roomId) === null) return "done"
     const sentences = sentencesOf(burst)
-    if (!sentences.length) return "done"
+    const said = burst.filter((m) => !m.by)
+    const nudges = said.length ? this.deps.nudges(roomId) : []
+    if (!sentences.length && !nudges.length) return "done"
     const near: BurstCheck["near"] = []
     sentences.forEach((s, i) => {
       const loops = s.by ? this.deps.loops.list({ owner: s.by, room: roomId, status: ["open"], limit: NEAR_PER_SENTENCE }) : this.deps.loops.similar(s.text, NEAR_PER_SENTENCE)
       for (const loop of loops) near.push({ sentence: i, loop })
     })
     const check = { sentences, near }
-    const ops = await classifyBurst(judge, check)
-    if (!ops) return "later"
+    const out = await classifyBurst(judge, check, { nudges: nudges.map((n) => n.what), said: said.map((m) => m.text) })
+    if (!out) return "later"
     this.deps.count({ loops_jev: 1 })
+    const last = said.at(-1)
+    for (const i of out.answered) {
+      const nudge = nudges[i]
+      if (nudge && last) this.deps.answered(roomId, nudge.loop, last.messageId, last.at)
+    }
+    const { ops } = out
     for (const op of ops) {
       const sentence = sentences[op.sentence]
       const from = sentence && burst[sentence.from]

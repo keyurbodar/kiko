@@ -18,6 +18,11 @@ const MIN_GAP = 20 * HOUR
 const BUSY_MS = 120_000
 const JEV_MAX = 10
 const AWARE = process.env.HUMAN === "aware"
+// SIGNAL=room models the engagement rule before U35: any human message in the nudge's chat before the deadline.
+// The default models U35: the human answered the nudged item. RECALL is the share of meant replies the server
+// recognises as answers (ASSUMPTION; see the U35 report), and a passing mention of the item counts too.
+const ROOM_SIGNAL = process.env.SIGNAL === "room"
+const RECALL = Number(process.env.RECALL ?? 1)
 export const TZ = "America/Phoenix" // no DST, so local hours map to fixed UTC offsets (UTC-7)
 export const START = Date.UTC(2026, 8, 7, 7) // Monday 00:00 local
 
@@ -369,10 +374,12 @@ export function run(p: Persona, seed: number, weeks: number, v: Variant, roomCou
         const room = b < queued.length ? queued[b]!.room : pickRoom(rnd(seed, p.name, "room", at, b))
         signals.push({ kind: "burst", id: `b:${bt}:${b}`, room, at: bt })
         lastHuman.set(room, bt)
+        if (ROOM_SIGNAL) for (const n of appetite.pending) if (n.room === room) signals.push({ kind: "answer", id: `a:${bt}:${n.loop}`, room, at: bt, loop: n.loop })
         // mentions of open loops in this room
         for (const l of loops) if (l.open && !l.taskStatus && l.room === room && rnd(seed, p.name, "touch", l.id, bt) < 0.08) {
           l.mentions++
           l.lastSeen = bt
+          if (!ROOM_SIGNAL) signals.push({ kind: "answer", id: `t:${bt}:${l.id}`, room, at: bt, loop: `loop:${l.id}` })
         }
         // a new loop
         if (rnd(seed, p.name, "open", bt) < p.loopRate / nb) {
@@ -398,6 +405,7 @@ export function run(p: Persona, seed: number, weeks: number, v: Variant, roomCou
       }
       for (const q of queued) {
         const l = loopById(q.loop)
+        if (!ROOM_SIGNAL && q.kind === "reply" && rnd(seed, p.name, "recall", q.loop, at) < RECALL) signals.push({ kind: "answer", id: `r:${at}:${q.loop}`, room: q.room, at, loop: q.loop })
         if (q.kind === "dismiss") {
           signals.push({ kind: "dismiss", id: `d:${at}:${q.loop}`, room: q.room, at: at + MIN, loop: q.loop })
           if (l) l.open = false

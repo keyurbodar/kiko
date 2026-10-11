@@ -348,11 +348,11 @@ export class RoomLog {
 
 	/** Stores one event and returns it with its seq. Call inside a transaction with the state change. */
 	/** The newest message `slug` posted after `after`, or null (section 25.2: did a routine run say anything). */
-	lastAgentSeq(slug: string, after: number): number | null {
+	lastAgentMessage(slug: string, after: number): { seq: number; text: string } | null {
 		return (
 			this.sql
-				.exec<{ seq: number }>("SELECT seq FROM messages WHERE seq > ? AND json_extract(sender, '$.kind') = 'agent' AND json_extract(sender, '$.slug') = ? ORDER BY seq DESC LIMIT 1", after, slug)
-				.toArray()[0]?.seq ?? null
+				.exec<{ seq: number; text: string }>("SELECT seq, text FROM messages WHERE seq > ? AND json_extract(sender, '$.kind') = 'agent' AND json_extract(sender, '$.slug') = ? ORDER BY seq DESC LIMIT 1", after, slug)
+				.toArray()[0] ?? null
 		)
 	}
 

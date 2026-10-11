@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test"
 import { Loops } from "@yuki/memory/loops"
-import { InitiativeEngine, REMINDER_RUN, type WakeInput } from "../src/initiative/engine"
+import { INITIATIVE_RUN, InitiativeEngine, REMINDER_RUN, type WakeInput } from "../src/initiative/engine"
 import { slotOf } from "../src/initiative/attention/rhythm"
+import type { SignalBatch } from "../src/room/signals"
 import type { WakeResult } from "../src/room/wake"
 import { sqlStorage } from "./sql-shim"
 
@@ -12,6 +13,7 @@ function world(answer: WakeResult = "delivered") {
   sql.exec("CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, status TEXT NOT NULL, last_fired INTEGER)")
   const loops = new Loops(sql, (fn) => fn())
   const wakes: WakeInput[] = []
+  const counts: Record<string, number> = {}
   const engine = new InitiativeEngine({
     sql,
     loops,
@@ -27,11 +29,13 @@ function world(answer: WakeResult = "delivered") {
       wakes.push(input)
       return answer
     },
-    count: () => {},
+    count: (delta) => {
+      for (const [k, n] of Object.entries(delta)) counts[k] = (counts[k] ?? 0) + n
+    },
     setWakeup: async () => {},
     clearWakeup: async () => {},
   })
-  return { sql, loops, engine, wakes }
+  return { sql, loops, engine, wakes, counts }
 }
 
 test("a wake the room calls a duplicate with no result on its way moves the item on, so the next nudge is a new wake", async () => {
@@ -86,4 +90,25 @@ test("a promise whose reminder just fired is not nudged until that run reports, 
   sql.exec("INSERT INTO reminders (id, status, last_fired) VALUES ('rem2', 'done', ?)", Date.now())
   await engine.signals({ ...result("ok"), signals: [{ ...result("ok").signals[0]!, occurrence: "rem2" }] })
   expect(loops.get(kept.id)!.status).toBe("done")
+})
+
+test("a human who chats about other things after a nudge did not engage with it; a reply quoting it did", async () => {
+  const outcome = async (answers?: number) => {
+    const { sql, engine, wakes, counts } = world()
+    const now = Date.now()
+    sql.exec("INSERT INTO chat_tasks (room_id, tasks) VALUES (?, ?)", "r1", JSON.stringify({ open: 1, oldest: [{ id: "t1", title: "file the tax return", status: "doing", owner: "ada", updatedAt: now - 30 * 86_400_000 }] }))
+    engine.devRhythm("now", now)
+    await engine.pass(now)
+    const wake = wakes[0]
+    if (!wake) throw new Error("no nudge")
+    const batch = (signals: SignalBatch["signals"]) => ({ roomId: "r1", openedAt: now, more: 0, signals })
+    await engine.signals(batch([{ kind: "routine_result", roomId: "r1", at: now, routineId: INITIATIVE_RUN, occurrence: wake.id, outcome: "ok", seq: 10, text: "the tax return task is stuck. want me to push it?" }]), now)
+    const at = now + 3_600_000
+    await engine.signals(batch([{ kind: "burst", roomId: "r1", at, seq: 11, text: "what should I cook tonight", by: { kind: "human" } }]), at)
+    await engine.signals(batch([{ kind: "burst", roomId: "r1", at: at + 60_000, seq: 12, text: "yes please", by: { kind: "human" }, ...(answers === undefined ? {} : { answers }) }]), at + 60_000)
+    await engine.pass(now + 7 * 86_400_000)
+    return { engaged: counts.initiative_engaged ?? 0, ignored: counts.initiative_ignored ?? 0 }
+  }
+  expect(await outcome()).toEqual({ engaged: 0, ignored: 1 })
+  expect(await outcome(10)).toEqual({ engaged: 1, ignored: 0 })
 })

@@ -42,7 +42,7 @@ export class AttentionStore {
     return new Set(ids.filter((id) => !seen.has(id)))
   }
 
-  sent(n: { id: string; room: string; kind: Kind; loop: string; at: number }, tz: string): void {
+  sent(n: { id: string; room: string; kind: Kind; loop: string; at: number; seq?: number; what?: string }, tz: string): void {
     const deadline = ignoreDeadline(this.rhythm(), n.at, tz)
     this.#put("appetite", nudged(this.appetite(), { ...n, deadline }))
   }

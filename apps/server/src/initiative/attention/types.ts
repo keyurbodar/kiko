@@ -19,7 +19,7 @@ export type Candidate = {
 
 export type Signal =
   | { kind: "burst"; id: string; room: string; at: number }
-  | { kind: "task"; id: string; room: string; at: number; by: string }
+  | { kind: "answer"; id: string; room: string; at: number; loop: string }
   | { kind: "dismiss"; id: string; room: string; at: number; loop: string }
 
 export type Level = UserSettings["initiative"]
