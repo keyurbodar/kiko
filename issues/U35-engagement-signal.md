@@ -34,9 +34,11 @@ At recall 0.3, which is about what a reply quote alone would catch, keen users l
 
 **signal.ts, recorded engaged among meant-ignore, before -> after (recall 0.8)** (`out-u35-signal-room.txt` reproduces `out-*` exactly; `out-u35-signal-r08.txt`):
 
-- 1 room: regular-keen 93% -> 15%, regular-ignorer 98% -> 15%, irregular-keen 66% -> 15%, irregular-ignorer 81% -> 5%, kind-split 99% -> 22%, weekday-weekend 99% -> 14%, hoarder 96% -> 31% (r1 run: 27/19/9/4/25/14/31)
+Personas in order: regular-keen, regular-ignorer, irregular-keen, irregular-ignorer, kind-split, weekday-weekend, hoarder.
+
+- 1 room: 93/98/66/81/99/99/96% -> 20/16/12/5/26/13/29%
 - 3 rooms: 72/76/60/57/71/78/72% -> 14/7/2/4/9/11/9%
-- 8 rooms: 49/61/44/48/51/62/59% -> 13/10/5/0/10/10/10% (r1 run)
+- 8 rooms: 49/61/44/48/51/62/59% -> 11/9/2/0/6/12/9%
 - Meant-reply recorded engaged at 3 rooms, recall 0.8: 57 to 82% (bounded above by the deadline passing before an irregular user's next session, as before).
 
 The leftover false engagements are passing mentions of the item (the sim's 8 percent chance per burst), which really are about the item.
