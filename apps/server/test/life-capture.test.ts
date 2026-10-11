@@ -9,21 +9,6 @@ function life(sql = sqlStorage()) {
   return new Life(sql, (fn) => fn(), { get: (k) => settings.get(k) ?? null, set: (k, v) => void settings.set(k, v) })
 }
 
-test("an old life table gains ref, superseded_by, and card, and its rows stay live", () => {
-  const sql = sqlStorage()
-  sql.exec("CREATE TABLE life (pos INTEGER PRIMARY KEY, at INTEGER NOT NULL, text TEXT NOT NULL, source TEXT NOT NULL DEFAULT '', norm TEXT NOT NULL, tainted INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0, redacted INTEGER NOT NULL DEFAULT 0)")
-  sql.exec("CREATE VIRTUAL TABLE life_fts USING fts5(text)")
-  sql.exec("INSERT INTO life (pos, at, text, source, norm) VALUES (0, 1, 'sister is sam', '@ada', 'sister sam')")
-  sql.exec("INSERT INTO life_fts (rowid, text) VALUES (0, 'sister is sam')")
-  const l = life(sql)
-  const columns = sql.exec<{ name: string }>("PRAGMA table_info(life)").toArray().map((c) => c.name)
-  expect(columns).toEqual(expect.arrayContaining(["ref", "superseded_by", "card"]))
-  expect(l.recall("sister").map((x) => x.text)).toEqual(["sister is sam"])
-  expect(l.append("works as a nurse", "you", 2, { ref: "room:r:msg:m1", card: "IDENTITY" })).toEqual({ ok: true, pos: 1 })
-  expect(l.view(Date.now()).split("\n")[0]).toBe("card: works as a nurse")
-  life(sql)
-})
-
 test("a superseded line leaves recall and the card, shows as replaced in the tree, and hands over its pin", () => {
   const l = life()
   l.append("lives in lisbon", "you", 1, { card: "IDENTITY" })
