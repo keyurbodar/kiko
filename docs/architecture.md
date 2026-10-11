@@ -1349,7 +1349,7 @@ Users and agents add pi-durable extensions while yuki runs, on the Free plan, wi
 ### 24.1 Decision
 
 - An extension is data: `extension.json` plus files, stored by content hash in the user's `UserDO`. User extensions never live in the repository, so a pull from upstream never conflicts with them.
-- The manifest mirrors pi-durable's extension points one to one: `tools`, `sections`, `hooks`, `wraps`. Yuki adds `calls`, `egress`, `secrets`, `state`, `triggers`, and `tests`. The format is versioned by `"yuki": 1` and checked by `checkManifest` in `packages/protocol/src/extensions.ts`, the same function on the server, in the CLI, and in the client.
+- The manifest mirrors pi-durable's extension points one to one: `tools`, `sections`, `hooks`, `wraps`. Yuki adds `calls`, `egress`, `secrets`, `state`, `triggers`, and `tests`. The format is versioned by `"yuki": 1` and checked by `checkManifest` in `packages/sandbox/src/manifest.ts`, which `@yuki/protocol` re-exports: the same function on the server, in the CLI, and in the client.
 - The script is JavaScript, run by QuickJS compiled to wasm (`quickjs-wasi` 3.6.2). The wasm is imported with the Worker, so no code is evaluated by V8. The script is data for a bundled interpreter.
 - Only the human installs. Agents, the catalog, and files the human opens can only propose. The install is reachable from the human's socket alone.
 
@@ -1389,8 +1389,8 @@ The client gets extensions and proposals in the user snapshot and as user events
 
 | `yuki.` | Rule |
 | --- | --- |
-| `call(tool)` | Only tools in `calls`, only tools the agent has, never the caller itself, and only with an effect the caller's effect covers. A `read` tool calls only reads; `write` adds writes; `message` adds messages; `external` calls anything. A callee whose result is outside content taints the run |
-| `fetch(url)` | From a tool or tool wrap. Any tool may GET without a body; another method or a body needs an `external` tool. `UserDO` checks the host against `egress` and fetches (24.7). The result taints the run, so trust wraps the tool's result as untrusted and holds the run's next `external` call for the human |
+| `call(tool)` | Only tools in `calls`, only tools the agent has, never the caller itself, and only with an effect the caller's effect covers. A `read` tool calls only reads; `write` adds writes; `message` adds messages; `external` calls anything. The callee meets every selected extension's `beforeTool` and `afterTool` hooks in selection order, as the model's own call would: the first block makes `call` throw with its reason, and trust, last, judges the callee by its own name, its effect, the run's taint, and the run's authority. Calls nest at most 4 deep, so two tools that call each other stop at once. A callee whose result is outside content taints the run |
+| `fetch(url)` | From a tool or tool wrap. Any tool may GET without a body; another method or a body needs an `external` tool. `UserDO` checks the host against `egress` and fetches (24.7). The result taints the run, so trust wraps the tool's result as untrusted, and the run's next `external` call is refused with `ASK_FIRST` until the human says yes in chat (16.3) |
 | `state` | Needs `state` in the manifest. Sections only read. In a private chat (section 7.10) user-wide state only reads |
 | `next(args)` | Only in a tool wrap. Runs the wrapped tool |
 
@@ -1408,7 +1408,7 @@ DEVIATION from the earlier plan: effects are declared in the manifest and enforc
 
 A user extension never shares a tool name with a built-in tool or with another user extension. Such an extension is left out of the agent and the reason is shown on its row in settings.
 
-Before each run, `AgentDO.syncExtensions` asks `UserDO.extensionsFor(slug)` for the versions this agent runs, fetches the bundles it has not stored, syncs, and configures the root conversation when its selection changed. So an install, a switch, or an update reaches the next run. The same compare also brings a new built-in extension to an existing agent, which a conversation created before it would otherwise never select.
+Before each run, `AgentDO.syncExtensions` asks `UserDO.extensionsFor(slug)` for the versions this agent runs, fetches the bundles it has not stored, syncs, and configures the root conversation when its selection changed. Input that joins a working run (section 6.2: a steer, a queue, or a restart) skips `beginRun`, so the host's `joinRun` hook makes the same call before submitting it. pi-durable resolves the agent again at each model request, so the joined input's next request has the new selection. So an install, a switch, or an update reaches the human's next message, even one that arrives while the agent is still finishing. The call happens once per joined input, never per model turn. The same compare also brings a new built-in extension to an existing agent, which a conversation created before it would otherwise never select.
 
 ### 24.6 Writing extensions
 
