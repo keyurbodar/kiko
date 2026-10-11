@@ -9,17 +9,17 @@ The driver is the yuki CLI. It speaks the same protocol as the client. For the f
 
 ## Start the server
 
-From `apps/server`. Pick a free port. Do not leave it running.
+From the repo root. Pick a free port. Do not leave it running.
 
 ```bash
-cp ~/.config/yuki/dev.vars .dev.vars        # once, git ignores it
-bunx wrangler d1 migrations apply kiko-auth --local   # once
-NODE_ENV=development bunx wrangler dev --port 8787 --inspector-port 9229
+NODE_ENV=development bun run --cwd apps/server dev --port 8787 --inspector-port 9229
 ```
 
-If the inspector port 9229 is taken, start wrangler with `--port 8790 --inspector-port 9240` and pass `--url http://localhost:8790` to every command.
+The `dev` script applies the local D1 migrations (`kiko-auth`) before it starts wrangler, so there is no separate migrate step. `apps/server/.dev.vars` is a symlink to `~/.config/yuki/dev.vars`, added by a git hook. If it is missing, link it by hand.
 
-If wrangler complains about the assets directory, run `bun run build` in `apps/web-solid`. To stop a server you started, use its recorded PID (see Cleanup). Never kill whatever holds the port.
+If the inspector port 9229 is taken, pass another `--inspector-port` and `--url http://localhost:<port>` to every command.
+
+If wrangler says the assets directory is missing, run `bun run --cwd apps/web-solid build` once. To stop a server you started, use its recorded PID (see Cleanup). Never kill whatever holds the port.
 
 ## Check it is up
 
@@ -30,7 +30,7 @@ bun yuki health --url http://localhost:8787
 ## Sign in
 
 ```bash
-export YUKI_SESSION_FILE=$PWD/.yuki-session   # keeps sessions apart
+export YUKI_SESSION_FILE=/tmp/yuki-session-$USER.json   # keeps sessions apart, outside the repo
 bun yuki login --dev --name alice --url http://localhost:8787
 bun yuki whoami --url http://localhost:8787
 ```
@@ -49,7 +49,7 @@ Show the output. A passing unit test is not a pass.
 
 ## Where suites live
 
-Suites are in `apps/cli/src/verify/suites/<name>.ts`. Each exports `{ name, model?, run(v) }`. Set `model: true` if it calls a model. In `run`: `const s = await v.as("alice")`, `const room = await s.room(id)`, `room.send(text)`, `room.expect(match, ms)`, `(await s.user()).expect(...)`.
+Suites are in `apps/cli/src/verify/suites/<name>.ts`. Each default-exports `{ name, model?, human?, run(v) }`. Set `model: true` if it calls a model. Set `human: true` if it needs a person; the runner skips it unless it is named. In `run`: `const s = await v.as("alice")`, `const room = await s.room(id)`, `room.send(text)`, `room.expect(match, ms)`, `(await s.user()).expect(...)`.
 
 ## Doctor
 
@@ -57,7 +57,7 @@ Read-only. Run it before any verify. It changes nothing.
 
 ```bash
 # 1. Is the port free, or held by a PID we started?
-lsof -nP -iTCP:8787 -sTCP:LISTEN -t
+lsof -nP -iTCP:8787 -sTCP:LISTEN -t 2>/dev/null || ss -ltnp "sport = :8787"
 # If a PID prints, compare it with the one we recorded in .verify-evidence/<run>/<suite>/wrangler.pid.
 # A match is ours. No match: stop, report it, do not kill it.
 
@@ -70,9 +70,13 @@ bun yuki whoami --url http://localhost:8787
 
 Pass: no port holder, or a holder whose PID matches our record; health exits 0; whoami names the user.
 
-## Parallel run
+## Parallel runs
 
-Run several suites at once, each on its own `wrangler dev` server. `scripts/verify-parallel.sh` (inside this skill folder) does the work:
+Give every run its own server and port, so no run reads or resets another run's state. Other sessions may run servers at the same time.
+
+On your own: start your server on a port nobody else holds (`--port <n>`), run `bun yuki verify <suite> --url http://localhost:<n>`, and stop only the PID you started. Suites that read or reset the dev counters (`latency` reads `/api/dev/stats`) need a server to themselves, so never point two runs at one server.
+
+To run several suites at once, use `scripts/verify-parallel.sh` (inside this skill folder). It does the work:
 
 - suite `i` gets HTTP port `8811+i` and inspector port `9311+i`
 - each server runs from `apps/server` with `NODE_ENV=development`, its own `--persist-to` state, and its own session file in a temp dir
