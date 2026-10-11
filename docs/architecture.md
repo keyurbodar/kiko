@@ -34,7 +34,7 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 | Cloudflare hosting | nothing. No Durable Object class, no alarm code, no transport | the Durable Object classes, a `SqliteDatabase` facade over `ctx.storage.sql`, alarm-driven `resume()`, WebSockets |
 | Client transport | nothing usable in a browser. `pi-protocol` ships a Unix-socket transport only | a WebSocket protocol with resume by sequence number |
 | Skills | in `pi-coding-agent` only, tied to a filesystem | a port backed by Durable Object storage |
-| Subagent tool | the pattern, in `README.md` and two test examples | the tool, about 40 lines |
+| Background workers | ownerless conversations, steering, and abort | the work tools and a durable registry (section 8) |
 | Code mode | `@earendil-works/pi-codemode`, which needs Node `worker_threads` | nothing. See section 12 |
 | User extensions | the registry, `install` that replaces in place, and per-conversation selection | the manifest, the QuickJS sandbox, and the storage and review. See section 24 |
 
@@ -195,22 +195,22 @@ The room gets both things a flush needs from `UserDO` (the chat row and the day'
 | --- | --- | --- |
 | No bubble posted and no tool started | **restart**. Abort, then submit the new burst. The model sees both user turns and answers once | `conversation.abort()`, then `submit()` |
 | A tool round is running or has finished | **steer**. The new burst joins the run after the current tool round | `submit({whenBusy: "steer"})` |
-| Bubbles posted, no tool running | **queue**. The new burst starts the next run when this one answers | `submit()` (follow-up is the default) |
+| Bubbles posted, no tool running | **steer**. The new burst is placed when the run answers, before any queued follow-up | `submit({whenBusy: "steer"})` |
 | The human pressed stop | **abort**. Nothing is submitted | `conversation.abort()` |
 
 Two guards apply.
 
-- A burst can restart a run at most twice. The third arrival steers or queues. This stops a fast typist from starving the answer.
+- A burst can restart a run at most twice. The third arrival steers. This stops a fast typist from starving the answer.
 - A run that started a tool is never restarted automatically. `pi-durable` reruns a tool after a crash only if the tool declares `replay: "safe"`, and an abort after a side effect would leave the model without the result.
 
 The table is `decide()` in `packages/agent/src/mid-run.ts`, and `AgentHost.drain()` applies it. Four details the table leaves open:
 
 - ASSUMPTION: only a human message interrupts. An agent or system message is queued.
-- A tool that is running steers even after a bubble. A finished tool round with bubbles queues.
+- A human message never waits for a run to end. It steers whenever the run cannot restart. DEVIATION: a finished tool round with bubbles used to queue the burst as a follow-up (owner directive 2026-10-11, section 8).
 - When inputs already wait in the conversation's queue, or the cap is reached, a human message steers, because an abort would withdraw the waiting inputs. With no tool round, a steer is placed when the run answers.
 - ASSUMPTION: stop also drops the room's pending burst, so a message sent just before stop starts no run. The messages stay in the log.
 
-**Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). Queueing avoids rewriting bubbles the human has already read.
+**Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). A steer never rewrites bubbles the human has already read: it joins after the current tool round, or when the run answers. Slow work runs in workers (section 8), so a run that holds the human up is short.
 
 Human messages always outrank agent messages. The inbox sorts by priority first, so a human burst is placed before any waiting agent message, and the table above applies even when the current run was started by another agent.
 
@@ -318,7 +318,7 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 | `read`, `write`, `edit` (`pi-durable`'s own), `ls`, `mv`, `cp`, `rm` | every agent | the chat's files, a Linux-like tree rooted at `/` (section 18.1) |
 | `create_task(title, owner, depends_on)` | lead | task board |
 | `spawn_agent(slug, role, task)` | lead | adds a member, creates its first task, delivers the task |
-| `spawn_subagent(task)` | every agent | section 8 |
+| `start_work(task)`, `steer_work(id, text)`, `stop_work(id)` | every agent | background workers (section 8) |
 
 **DEVIATION.** The spec lets an agent reach another agent directly with `idFromName` and RPC. In yuki every agent-to-agent message goes through `RoomDO`.
 
@@ -415,32 +415,49 @@ Resume. The client sends `open { roomId }` two seconds after the user settles in
 
 **Decision.** Agents share one chat and one file space, so without a shared picture they race: two answer the same question, two rewrite the same file. The room is where every visible act passes, so it keeps the picture (`room/team.ts`).
 
-- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "using composio gmail send email", "reading a web page"). File changes and messages come from the room's own record of the act; everything an agent does inside itself (Composio, web pages, subagents, reminders) comes from one `beforeTool` hook (`presence.ts`) that reports each call in a few words without blocking it. Memory calls stay off the board. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
+- **The board.** What each agent is doing now ("editing /hello.html", "messaging @ada", "using composio gmail send email", "reading a web page"). File changes and messages come from the room's own record of the act; everything an agent does inside itself (Composio, web pages, workers, reminders) comes from one `beforeTool` hook (`presence.ts`) that reports each call in a few words without blocking it. Memory calls stay off the board. Every brief lists it with the paths each agent holds, the `team` tool reads it mid-run, and the human sees it beside the typing dots.
 - **Leases.** The paths an agent changes during a run are its own until the run ends. A teammate's write, move, or delete there is refused with who holds it, so it waits or messages them. Reads stay open, the human is never refused, `/chat.md` is shared, and a lease from a run that never ended expires after 10 minutes.
 - **The rule.** Every agent looks before it acts: if a teammate is on it or just did it, it adds only what is missing or leaves it.
 
 **Reasoning.** Coordination belongs where the acts happen. A rule in the prompt alone fails under load; a lock an agent must remember to take fails the first time it forgets. The room sees every act, so the board is always true and a lease cannot be skipped. The hash check on writes (section 18.3) still catches the case a lease cannot: a stale read after the holder finished.
 
-## 8. Subagents
+## 8. Talker and workers
 
-**Decision.** `spawn_subagent(task)` is a tool in the `subagent` extension, written from the pattern in the `pi-durable` README ("Abort and Subagents"). It is about 40 lines.
+**Decision.** An agent's root conversation is the talker. It keeps its tools and answers the human. Anything slow goes to a worker: a background child conversation in the same `AgentDO` that runs while the talker keeps talking. The `work` extension (`apps/server/src/agent/extensions/work.ts`) gives the talker three tools, and `@yuki/agent/workers` keeps the registry.
 
-- The tool creates a child conversation in the same harness with `ownership: {kind: "task", taskId: api.taskId}`, submits the task with `requestId: "subagent:<taskId>"`, waits, and returns the answer as the tool result.
-- The tool declares `replay: "safe"`. After a crash it finds the same child through the ownership index.
-- The child runs with the parent's model. The child has no `Subagent` extension and no messaging tools, so depth is 1.
-- Several calls in one reply run side by side, since `pi-durable` runs a round's tool calls in parallel by default. One agent runs at most 3 helpers at once (`MAX_HELPERS`) and the rest wait for a slot, because every helper uses the human's one key. The slots are per agent, so the designer's helpers never wait on the writer's. A waiting call whose run is aborted leaves the queue. ASSUMPTION: the number 3.
-- Each helper has its own view of the chat's files (section 18.1), so helpers that race on one file never overwrite each other unseen.
-- The child can `recall` and `zoom` the chat's memory, but has no `note`: it cannot judge what is already known (section 13). It starts with no `<memory>` block and finds what it needs with `recall`. OptChat sends a subagent the whole view first. Yuki does not: that costs a block of tokens on every helper, and the read tools cost nothing until used.
-- Aborting the parent aborts the child. `pi-durable` owns that rule.
+- `start_work(task)` creates a worker and returns at once with a short id (`w1`). Effect `write`.
+- `steer_work(id, text)` submits `text` to the worker with `whenBusy: "steer"`, so it joins after the worker's current tool round. A worker that already reported takes it up as a new input, so the talker can pass on the human's answer to a worker's question. Effect `message`.
+- `stop_work(id)` aborts the worker. Effect `write`.
 
-A subagent and a team member differ on purpose.
+How it works:
 
-| | Subagent | Team member |
+- A worker is an ownerless conversation (`tx.createConversation({ownership: {kind: "ownerless"}})`), configured in the same commit with the talker's agent minus `NOT_FOR_WORKERS`: the work tools, messaging, `note`, the chief's tools, reminders, and the team board. It gets a short worker instruction. Task ownership would keep the talker's tool open until the child ends, which is the wait this design removes.
+- The tool submits the task inside the tool call and keeps only the submission id. The talker's run ends; the worker goes on.
+- One agent runs at most 3 workers (`MAX_WORKERS`). A fourth `start_work` returns a refusal that tells the model to wait for a report or stop one. The slot is taken synchronously before any await, so parallel calls in one round cannot overbook. ASSUMPTION: the number 3. Every worker uses the human's one key.
+- The registry is a SQLite table in the `AgentDO`: id, task, conversation id, current submission id, status (`running`, `done`, `failed`, `stopped`), last step, origin, and times. A `beforeTool` hook in the `work-steps` extension, which workers keep, records each worker's last step (tool name and a short argument summary).
+- When a worker's newest input settles, its report goes into the agent's own inbox as a system envelope with id `work:<id>:<submissionId>`, through `AgentHost.receive`: store, set the alarm, return. The inbox ignores an id it has, so a repeated delivery is a no-op. It renders as `<work id="w1" status="done">report</work>` and wakes the talker even when the human said nothing. The talker tells the human the outcome in its own words. A report is cut at 16,000 characters (ASSUMPTION), well under the inbox's 128 KB entry limit.
+- Watching is an in-memory `submission.wait()`. `Workers.rearm` starts one for every worker that has not reported, each time the host opens a harness, so a watch lost to eviction comes back with the next alarm. The heartbeat keeps running while any worker lives.
+- After an input settles, the watcher checks for a newer live input of the same worker, such as a steer, and waits for that one instead of reporting early.
+- `stop_work` marks the worker stopped and aborts its conversation without waiting, since a tool that ignores its signal must not hold up the talker. The aborted submission settles `unanswered` and the report says `stopped`. The human's stop button stops every worker and sends no report.
+- Each run's input lists the workers that have not reported (id, status, task, last step) inside `<context>`. That is how the talker decides, on a human message, to steer or stop one.
+- Workers never post to the chat. The outbox watches only the root conversation. While a worker runs and the talker is idle, the outbox sets the agent's status to `working`, so the client shows activity with no protocol change.
+- Each worker has its own view of the chat's files (section 18.1), so workers that race on one file never overwrite each other unseen.
+- A worker can `recall` and `zoom` the chat's memory, but has no `note`: it cannot judge what is already known (section 13). It starts with no `<memory>` block.
+
+`harness.waitForIdle` waits on every ownerless conversation, workers included. Anything that means "the talker is idle" uses the root conversation instead: the host's idle watch (`root.waitForIdle`), the run state that `decide()` reads, and the check that frees held mail. Only a harness with no live task clears the heartbeat, resets the crash count, or compacts.
+
+**Reasoning.** Owner directive, 2026-10-11: anything the agent runs (browsing, searching, tools) must never block the human's messages, and the agent reads or changes its work based on the human's steering. The old `spawn_subagent` tool waited for its child inside the parent's tool call, so the agent could not answer until the child finished. The prototype on branch `proto-workers` (`apps/server/test/proto-workers.test.ts`, commit fdf31a3c) established the facts this design relies on: an ownerless child keeps running after the parent's run ends and the root takes new input meanwhile; `harness.conversation(id).submit({whenBusy: "steer"})` reaches the child after its current tool; `child.abort` kills it and its submission settles `unanswered`, while `root.abort` leaves it alone; a child survives a harness close and reopen when its tools are replay safe; and `harness.waitForIdle` waits on children while `root.waitForIdle` does not.
+
+A known limit: a worker still live across more than three restarts in a row trips the host's crash-loop guard, and the host drops the harness.
+
+A worker and a team member differ on purpose.
+
+| | Worker | Team member |
 | --- | --- | --- |
-| Lives in | the parent's `AgentDO` | its own `AgentDO` |
-| Lifetime | one task | the life of the room |
-| Visible in the chat | as tool activity on the parent's bubble | as a member with its own bubbles |
-| Returns | a tool result | messages and task updates |
+| Lives in | the agent's own `AgentDO` | its own `AgentDO` |
+| Lifetime | one task, steerable | the life of the room |
+| Visible in the chat | through the agent's status and its words | as a member with its own bubbles |
+| Returns | a `<work>` report to its agent | messages and task updates |
 
 ## 9. Realtime transport
 
@@ -986,13 +1003,13 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 
   | Writer | What it saw |
   | --- | --- |
-  | an agent's run, and each of its helpers | its own record of what it read or wrote. pi-durable builds an env per conversation (`HarnessOptions.env`), and yuki gives each conversation its own `RoomFs` (`roomViews`). A tool reaches it as `api.env` (`filesOf`). A path the conversation never read is `none`, so a blind `write` over an existing file is refused with "already exists, and you have not read it" |
+  | an agent's run, and each of its workers | its own record of what it read or wrote. pi-durable builds an env per conversation (`HarnessOptions.env`), and yuki gives each conversation its own `RoomFs` (`roomViews`). A tool reaches it as `api.env` (`filesOf`). A path the conversation never read is `none`, so a blind `write` over an existing file is refused with "already exists, and you have not read it" |
   | a `bash` command | the snapshot it started from (section 18.4) |
   | the human's file editor | the header `x-yuki-if-sha256`, required on `PUT /api/files/<room>`, and `expect` on a multipart upload. Without it the Worker answers 400 before it stores anything |
   | the human's soul editor | `expectSha`, required on `PUT /api/souls/<slug>` |
   | an attachment claim and the room's own `/chat.md` | `none`. The team's `/chat.md`, once it exists, is never replaced |
 
-  So two helpers of one agent that create the same file, or that read one file and both rewrite it, cannot both win: the second is refused and reads again. `edit` reads the file itself, so it lands on top.
+  So two workers of one agent that create the same file, or that read one file and both rewrite it, cannot both win: the second is refused and reads again. `edit` reads the file itself, so it lands on top.
 - `rm` and `mv` act on the path they name. Between agents, leases (section 7.12) hold them off a teammate's work. ASSUMPTION: a delete or a move by name is what the writer means, so neither checks a hash.
 
 `pi-durable`'s `CodingTools` need an `ExecutionEnv` with a shell. Yuki's `exec` is just-bash (section 18.4), so pi's `bash` tool runs on the same files as the rest.
@@ -1037,7 +1054,7 @@ Each file space is atomic on its own. A command that changes both the chat's fil
 
 `/tmp` is the command's own scratch space and is never saved, and `/dev/null` discards. A command saves nothing when it times out (30 seconds by default, 120 at most), is aborted, or hits just-bash's execution limits (100,000 commands, 100,000 loop iterations, and the like; it exits 126). Pure computation does not advance the Workers clock, so those limits, not the timeout, are what stop a runaway loop; every loop tried stopped within 2 seconds. One command reads at most 400 stored files, because a Free invocation may make 1,000 calls to Cloudflare services ([research/cloudflare.md](research/cloudflare.md)); past that the command is stopped with a line that says to narrow it. One command holds at most 16 MB of changed files.
 
-**Reasoning.** just-bash calls a redirect "open empty, then append each chunk". Sent to the room one call at a time, `echo x > f` would be two R2 writes, and a teammate could read the empty file between them. A loop of `>>` would be a room call per line. Working in memory makes a command as fast as its reads and lets teammates see only finished commands. The conditional commit is what makes parallel work safe. pi runs the tool calls of one turn at the same time, each agent has its own object, and a subagent shares its parent's object. Each command checks against its own snapshot, never against a hash another command read, so two commands that read the same file cannot both write it unseen. First writer wins and the other is told. This is the same guarantee as the hash on a single write (section 18.1), stretched over a command.
+**Reasoning.** just-bash calls a redirect "open empty, then append each chunk". Sent to the room one call at a time, `echo x > f` would be two R2 writes, and a teammate could read the empty file between them. A loop of `>>` would be a room call per line. Working in memory makes a command as fast as its reads and lets teammates see only finished commands. The conditional commit is what makes parallel work safe. pi runs the tool calls of one turn at the same time, each agent has its own object, and a worker shares its agent's object. Each command checks against its own snapshot, never against a hash another command read, so two commands that read the same file cannot both write it unseen. First writer wins and the other is told. This is the same guarantee as the hash on a single write (section 18.1), stretched over a command.
 
 **Limits.** A room folder named `tmp` or `dev` is hidden from the shell. just-bash adds about 2 MB to the uncompressed Worker (11.7 MB to 13.7 MB, 2.37 MB to 2.80 MB gzipped, measured with `wrangler deploy --dry-run`). The limit is 64 MiB uncompressed on both plans, with no compressed limit (Cloudflare's Workers limits page, read 2026-10-05). A bigger bundle can start slower.
 

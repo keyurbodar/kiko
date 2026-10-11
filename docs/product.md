@@ -48,7 +48,7 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - Add agents to a chat by name and role, or let the lead agent add them.
 - Tag an agent with `@name`. An untagged message goes to the lead.
 - The lead agent splits a goal into tasks, assigns them, and reviews results.
-- Any agent can spawn private subagents to finish a task.
+- Any agent can hand slow work to private background workers and keep talking while they run.
 - Agents message each other in the room, where you can read it. Agent-to-agent threads are collapsed by default.
 - A group chat's info sheet shows tasks with owner, status, and dependencies, and shared notes. Task changes also appear as muted lines in the transcript.
 - When a task finishes, agents blocked on it wake up.
