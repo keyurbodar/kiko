@@ -139,6 +139,39 @@ test("(e) the object restarts while a worker hangs; the worker finishes and its 
   expect(posts.filter((t) => t.startsWith("reported w1")).length).toBe(1)
 }, 45_000)
 
+test("a worker that outlives five restarts reports failed once, and the agent keeps its state", async () => {
+  const a = await agent()
+  await working(a)
+  for (let i = 1; i <= 4; i++) {
+    await a.call({ op: "crash" }).catch(() => {})
+    await until(a.status, (s) => s.opens >= i + 1)
+    // Three resumes are allowed. The fourth open aborts the worker, so its tool does not run again.
+    if (i <= 3) await until(a.hangs, (h) => h.waiting === 1 && h.started === i + 1)
+  }
+  await until(a.posts, (p) => p.some((t) => t.startsWith("reported w1 failed")), 30_000)
+  // The fifth restart finds an idle agent. It must not report again or lose anything.
+  await a.call({ op: "crash" }).catch(() => {})
+  const posts = await a.posts()
+  expect(posts.filter((t) => t.startsWith("reported w1")).length).toBe(1)
+  expect(posts.find((t) => t.startsWith("reported w1"))).toBe("reported w1 failed: it stopped after repeated restarts.")
+  await a.say("still there?")
+  await until(a.posts, (p) => p.includes("reply to: still there?"))
+  expect((await a.transcript()).users[0]).toContain("START find the flights")
+}, 120_000)
+
+test("a worker that survives two restarts and is then released reports done once", async () => {
+  const a = await agent()
+  await working(a)
+  for (let i = 1; i <= 2; i++) {
+    await a.call({ op: "crash" }).catch(() => {})
+    await until(a.status, (s) => s.opens >= i + 1)
+    await until(a.hangs, (h) => h.waiting === 1 && h.started === i + 1)
+  }
+  await a.release()
+  const posts = await until(a.posts, (p) => p.some((t) => t.startsWith("reported w1 done")), 30_000)
+  expect(posts.filter((t) => t.startsWith("reported w1")).length).toBe(1)
+}, 60_000)
+
 test("(f) a fourth worker at once is refused", async () => {
   const a = await agent()
   await a.say("START4")

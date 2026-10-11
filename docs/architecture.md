@@ -448,7 +448,7 @@ How it works:
 
 **Reasoning.** Owner directive, 2026-10-11: anything the agent runs (browsing, searching, tools) must never block the human's messages, and the agent reads or changes its work based on the human's steering. The old `spawn_subagent` tool waited for its child inside the parent's tool call, so the agent could not answer until the child finished. The prototype on branch `proto-workers` (`apps/server/test/proto-workers.test.ts`, commit fdf31a3c) established the facts this design relies on: an ownerless child keeps running after the parent's run ends and the root takes new input meanwhile; `harness.conversation(id).submit({whenBusy: "steer"})` reaches the child after its current tool; `child.abort` kills it and its submission settles `unanswered`, while `root.abort` leaves it alone; a child survives a harness close and reopen when its tools are replay safe; and `harness.waitForIdle` waits on children while `root.waitForIdle` does not.
 
-A known limit: a worker still live across more than three restarts in a row trips the host's crash-loop guard, and the host drops the harness.
+The host's crash-loop guard counts only the talker's live tasks, so a slow worker can never drop the agent. Each worker has its own count on its row: a worker still live at more than three opens (`MAX_WORKER_RESUMES`) is aborted and reports `failed` with one line saying it stopped after repeated restarts. The count resets when it reports.
 
 A worker and a team member differ on purpose.
 

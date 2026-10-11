@@ -15,6 +15,9 @@ export const MAX_WORKERS = 3
 /** ASSUMPTION: how much of a worker's report reaches the talker. The inbox refuses an entry over 128 KB. */
 export const REPORT_CHARS = 16_000
 const KEEP_DELIVERED_MS = 7 * 86_400_000
+/** Opens a worker may stay live through before it is stopped as failed. The same number as the talker's guard. */
+export const MAX_WORKER_RESUMES = 3
+const GAVE_UP = "it stopped after repeated restarts."
 
 export type WorkStatus = "running" | "done" | "failed" | "stopped"
 
@@ -93,6 +96,9 @@ export class Workers {
       started_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     ) STRICT`)
+    if (!this.sql.exec<{ name: string }>("PRAGMA table_info(workers)").toArray().some((c) => c.name === "resumes")) {
+      this.sql.exec("ALTER TABLE workers ADD COLUMN resumes INTEGER NOT NULL DEFAULT 0")
+    }
   }
 
   list(): Work[] {
@@ -184,10 +190,26 @@ export class Workers {
     this.watching.clear()
     for (const work of this.list()) {
       if (work.delivered) continue
-      if (work.status === "stopped") this.abort(work)
+      if (work.status === "stopped" || work.status === "failed") this.abort(work)
       this.watch(work.id)
     }
     this.changed()
+  }
+
+  /** Counts each running worker that is live at this open. Past the limit it is aborted and reports failed. */
+  async resumed(harness: Harness): Promise<void> {
+    const running = this.running().filter((w) => w.conversationId !== null)
+    if (!running.length) return
+    const live = new Set((await harness.inspect(context)).tasks.map((t) => t.record.conversationId))
+    for (const work of running) {
+      if (!live.has(work.conversationId!)) continue
+      const resumes = this.sql.exec<{ resumes: number }>("UPDATE workers SET resumes = resumes + 1 WHERE id = ? RETURNING resumes", work.id).one().resumes
+      if (resumes <= MAX_WORKER_RESUMES) continue
+      console.error(`worker ${work.id} stopped after ${MAX_WORKER_RESUMES} resumes that never finished`)
+      this.sql.exec("UPDATE workers SET status = 'failed', updated_at = ? WHERE id = ?", this.now(), work.id)
+      this.changed()
+      this.abort(work)
+    }
   }
 
   /** What the talker sees each run: the work that has not reported yet. */
@@ -239,14 +261,15 @@ export class Workers {
       this.sql.exec("UPDATE workers SET submission_id = ? WHERE id = ? AND submission_id = ?", newer.id, id, submissionId)
       return this.watch(id)
     }
-    const status: WorkStatus = this.get(id)?.status === "stopped" ? "stopped" : settled?.status === "done" ? "done" : "failed"
-    const report = await this.report(harness, work.conversationId, status, settled)
+    const marked = this.get(id)?.status
+    const status: WorkStatus = marked === "stopped" || marked === "failed" ? marked : settled?.status === "done" ? "done" : "failed"
+    const report = marked === "failed" ? GAVE_UP : await this.report(harness, work.conversationId, status, settled)
     const now = this.get(id)
     if (harness !== this.harness || !now || now.delivered || now.submissionId !== submissionId) return
     this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ?", status, this.now(), id)
     if (now.status === "running") this.changed()
     await this.options.deliver(workEnvelope(now, submissionId, status, report))
-    this.sql.exec("UPDATE workers SET delivered = 1 WHERE id = ? AND submission_id = ?", id, submissionId)
+    this.sql.exec("UPDATE workers SET delivered = 1, resumes = 0 WHERE id = ? AND submission_id = ?", id, submissionId)
   }
 
   private async report(harness: Harness, conversationId: ConversationId, status: WorkStatus, settled: SettledSubmissionRecord | undefined): Promise<string> {

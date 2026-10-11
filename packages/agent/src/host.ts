@@ -209,7 +209,7 @@ export class AgentHost {
     const opening = (async () => {
       const setup = await this.options.setup()
       let opened = await this.openHarness(setup)
-      if (await this.crashLooping(opened.harness)) {
+      if (await this.crashLooping(opened)) {
         await opened.harness.close(context).catch(() => {})
         this.reset(false)
         opened = await this.openHarness(setup)
@@ -218,6 +218,7 @@ export class AgentHost {
       await this.options.onOpen?.(opened)
       opened.harness.resume()
       this.workers.rearm(opened.harness)
+      await this.workers.resumed(opened.harness)
       return opened
     })()
     opening.catch(() => {
@@ -244,9 +245,10 @@ export class AgentHost {
     return { harness, root, storage, beginRun: setup.beginRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact, stale: setup.stale }
   }
 
-  private async crashLooping(harness: Harness): Promise<boolean> {
+  /** Counts the talker only. A worker has its own count (`Workers.resumed`), so a slow worker never drops the agent. */
+  private async crashLooping({ harness, root }: Opened): Promise<boolean> {
     const live = await harness.inspect(context)
-    if (live.tasks.length === 0) {
+    if (!live.tasks.some((t) => t.record.conversationId === root.id)) {
       await this.ctx.storage.delete(RESUMES_KEY)
       return false
     }
