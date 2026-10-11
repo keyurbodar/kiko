@@ -67,16 +67,18 @@ Dev keys live in `~/.config/yuki/dev.vars`. Every worktree's `apps/server/.dev.v
 A change is not done until it is verified and you have shown the output. Tests alone are not enough.
 
 ```bash
+bun run check                     # the one gate: typecheck, backend lint, imports, rules, exports, every package's tests
 bun run typecheck
 bun run test                      # every package: client, cli, protocol, server (a bare `bun test` at the root fails)
 bun run --cwd apps/server test    # server: one process per file, each boots its own workerd
 bun yuki verify --list            # backend suites
-bun yuki verify <suite>           # one suite against the dev server
-bun yuki verify --no-model        # everything that needs no model key
+bun yuki verify <suite> --url http://localhost:<n>   # one suite; or set YUKI_URL (the default port 8787 belongs to other sessions)
+bun yuki verify --no-model --url http://localhost:<n> # everything that needs no model key
 bun scripts/bundle-budget.ts      # client tier sizes
 bun scripts/check-imports.ts      # packages import only the packages below them
 ```
 
+- `bun run check` is the gate a change must pass before it lands. `scripts/check-rules.ts` enforces the rules under "Ways to hurt yourself" (`no-timer-in-do`, `egress`, `dev-guard`, `do-names`, `sql-list-binds`). A reasoned exception goes on the line above the code as `// check-rules: allow <rule> <reason>`.
 - Backend work is verified through the yuki CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
 - Frontend work is verified with the `verify-yuki` skill, which drives a real browser. Use it for checks that matter, not for every change.
 - Team and loop behavior is tested with fake agents first, so tests are deterministic and cost no tokens.
@@ -127,7 +129,7 @@ apps/
     src/room/signals.ts the signal window: human messages and task changes for routines and the engine
     src/initiative/     open loops wiring: attention (learned moment and appetite), engine, judge
     src/agent/          AgentDO: factory, outbox, yuki's extensions
-    catalog/            extensions reviewed upstream, bundled by scripts/gen-catalog.ts
+    catalog/            extensions reviewed upstream, bundled by apps/server/scripts/gen-catalog.ts
     src/lib/            names, dev stats
   cli/                  the yuki verification CLI
 packages/

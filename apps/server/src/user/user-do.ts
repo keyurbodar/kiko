@@ -476,13 +476,13 @@ export class UserDO extends DurableObject<Env> {
     const day = utcDay(now)
     const key = `autonomous:${day}`
     const used = Number(this.setting(key) ?? 0)
-    if (this.sql.exec("SELECT 1 FROM autonomous_taken WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
+    if (this.sql.exec("SELECT 1 FROM charged_today WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
     const lastSeen = this.setting(LAST_SEEN)
     const answer = takeAutonomous(used, lastSeen === null ? null : Number(lastSeen), this.limits(), now)
     if (answer.ok) {
       this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM autonomous_taken WHERE day != ?", day)
-      this.sql.exec("INSERT OR IGNORE INTO autonomous_taken (id, day) VALUES (?, ?)", id, day)
+      this.sql.exec("DELETE FROM charged_today WHERE day != ?", day)
+      this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
     } else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
     return answer
   }
@@ -490,7 +490,7 @@ export class UserDO extends DurableObject<Env> {
   /** The agent refused the wake `id`: the run it paid for goes back to today's count. */
   refundAutonomous(id: string): void {
     const day = utcDay(Date.now())
-    if (!this.sql.exec("DELETE FROM autonomous_taken WHERE id = ? AND day = ?", id, day).rowsWritten) return
+    if (!this.sql.exec("DELETE FROM charged_today WHERE id = ? AND day = ?", id, day).rowsWritten) return
     const key = `autonomous:${day}`
     this.putSetting(key, String(Math.max(0, Number(this.setting(key) ?? 0) - 1)))
   }
@@ -518,12 +518,12 @@ export class UserDO extends DurableObject<Env> {
     const day = utcDay(now)
     const key = `turns:${day}`
     const used = Number(this.setting(key) ?? 0)
-    if (this.sql.exec("SELECT 1 FROM autonomous_taken WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
+    if (this.sql.exec("SELECT 1 FROM charged_today WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
     const answer = takeTurn(used, this.limits(), now)
     if (answer.ok) {
       this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM autonomous_taken WHERE day != ?", day)
-      this.sql.exec("INSERT OR IGNORE INTO autonomous_taken (id, day) VALUES (?, ?)", id, day)
+      this.sql.exec("DELETE FROM charged_today WHERE day != ?", day)
+      this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
     }
     return answer
   }

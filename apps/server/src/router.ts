@@ -105,6 +105,7 @@ export const UPGRADE_TIMEOUT_MS = 5_000
 async function within(ms: number, work: Promise<Response>): Promise<Response> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const late = new Promise<null>((resolve) => {
+    // check-rules: allow no-timer-in-do the Worker's own per-request timeout; it ends this request and holds no state
     timer = setTimeout(() => resolve(null), ms)
   })
   try {

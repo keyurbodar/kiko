@@ -1651,7 +1651,7 @@
         "sqlite_autoindex_agents_2"
       ]
     },
-    "autonomous_taken": {
+    "charged_today": {
       "columns": [
         {
           "cid": 0,
@@ -1671,7 +1671,7 @@
         }
       ],
       "indexes": [
-        "sqlite_autoindex_autonomous_taken_1"
+        "sqlite_autoindex_charged_today_1"
       ]
     },
     "capture_queue": {

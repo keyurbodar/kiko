@@ -82,7 +82,7 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   await Bun.sleep(3_000)
   console.log(`  [${stamp()}] loops so far:\n${(await loops()).map((l) => `      ${show(l)}`).join("\n")}`)
   console.log(`  [${stamp()}] memory ${JSON.stringify((await usage(work.id)).memory)}`)
-  const run =await poll("a tentative loop about running", 30_000, async () => (await loops()).find((l) => l.status === "open" && l.owner === "human" && /run/i.test(l.text)))
+  const run =await poll("a tentative loop about running", 30_000, async () => (await loops()).find((l) => l.status === "open" && l.owner === "human" && /start running/i.test(l.text)))
   console.log(`  [${stamp()}] maybe -> ${show(run)}`)
   if (run.certainty !== "tentative") throw new VerifyError(`"maybe" became ${run.certainty}`)
   const owed = await poll("a commitment loop the agent owns", 30_000, async () => (await loops()).find((l) => l.status === "open" && l.owner !== "human"))

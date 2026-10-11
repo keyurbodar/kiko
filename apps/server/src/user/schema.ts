@@ -31,7 +31,7 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     `CREATE TABLE IF NOT EXISTS rooms (room_id TEXT PRIMARY KEY)`,
     `CREATE TABLE IF NOT EXISTS chat_tasks (room_id TEXT PRIMARY KEY, tasks TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS user_events (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, body TEXT NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS autonomous_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS charged_today (id TEXT PRIMARY KEY, day TEXT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS capture_queue (
     room_id TEXT NOT NULL,
     message_id TEXT NOT NULL,
