@@ -26,7 +26,6 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Run.** The model turns from one input to its final answer.
 - **Envelope.** A message as delivered to an agent, with sender, hop count, and root id.
 - **Brief.** The workspace summary the room attaches to each delivery.
-- **Tainted run.** A run that has read outside content. It needs the human's yes in chat to act outside yuki.
 - **Tier.** A group of client code by load time. Tier 1 is the HTML shell.
 - **Wave.** A set of tasks that can run at the same time.
 - **Extension.** A user's manifest and script that adds tools, instructions, hooks, or schedules to agents at run time. It runs in QuickJS inside `AgentDO`. Only the human installs one. Architecture section 24.
@@ -42,7 +41,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Do not use `setTimeout` to schedule work in a Durable Object.** It does not survive eviction and it blocks hibernation. Use `alarm.ts`.
 - **Do not write a handler that is unsafe to run twice.** Alarms and queues deliver at least once. Give every delivery and post a stable id.
 - **Do not add a tool without an effect.** Every tool declares `read`, `write`, `message`, or `external`.
-- **Do not build an agent outside `factory.ts`.** It is the one place that selects extensions, and the trust extension must always be selected.
+- **Do not build an agent outside `factory.ts`.** It is the one place that selects extensions.
 - **Do not give an extension script a way out except the bridge in `packages/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `yuki.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
 - **Do not let anything but the human's socket install an extension.** Agents and the catalog only propose.
 - **Do not import `apps/` or `@yuki/protocol` from `packages/durable`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass yuki's behavior in as an option. `scripts/check-imports.ts` fails the build.
@@ -128,7 +127,7 @@ packages/
   ui/                   @yuki/ui: Kobalte and Corvu wrappers, kat.css
   protocol/             wire types shared by all three apps   (planned, P0-03)
   durable/              @yuki/durable: alarm, safe-fetch, crypto, wipe
-  agent/                @yuki/agent: pi-durable host, inbox, trust, effects
+  agent/                @yuki/agent: pi-durable host, inbox, effects
   memory/               @yuki/memory: OptMem tree, life log, memory tools, open loops (loops.ts, loop-tool.ts)
   sandbox/              @yuki/sandbox: QuickJS VM, manifest, compiler, checker
 docs/
