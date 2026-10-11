@@ -33,5 +33,5 @@ if ! git merge --no-ff -q -m "Land $unit from $branch" "$branch" >>"$logs/$unit-
   echo "land: $unit merged green in the lane but not in main; see $logs/$unit-merge.log"; exit 5
 fi
 sha="$(git rev-parse --short HEAD)"
-"$root/issues/bin/ledger.sh" "$unit" state=landed head="$(git rev-parse --short "$branch")" evidence="main_$sha"
+"$root/issues/bin/ledger.sh" "$unit" state=landed verdict=gate-green head="$(git rev-parse --short "$branch")" evidence="main_$sha"
 echo "land: $unit landed as $sha"; tail -8 "$logs/$unit-check.log"
