@@ -16,7 +16,7 @@ U07	One schema per object	2	haiku	landed	s/u07-squash	6d95bc82	full-gate-green 3
 U29	One dev guard	2	haiku	landed	s/u29-dev-guard	968c7199	full-gate-green 5-suites	main 01744e63	2026-10-11T17:15:20Z
 U23	One sealed-key store	2	deepseek	landed	s/u23-sealed-keys	015bd031	no-change measured +11-lines	issues/U23-sealed-keys.md	2026-10-11T17:55:06Z
 U26	Routines and UserDO edges	3	haiku	running	s/u26-userdo	-	-	-	2026-10-11T17:48:24Z
-U27	One delivery path in RoomDO	3	sonnet	running	s/u27-roomdo	-	-	-	2026-10-11T17:48:24Z
+U27	One delivery path in RoomDO	3	sonnet	landed	s/u27-roomdo	3efd89ea	full-gate-green burst-backlog+team-flow+limits-live	main 76051ff7	2026-10-11T18:02:28Z
 U28	Human can stop work, ask does not wait	2	haiku	landed	s/u28-agent	1cc89b95	full-gate-green mid-run+team-ask review-fixed	main e8a5f440	2026-10-11T17:44:22Z
 U40	Real-model proof, right-size attention	4	opus	queued	-	-	-	-	2026-10-11T16:28:53Z
 U41	Enforce every rule, docs match code	5	haiku	queued	-	-	-	-	2026-10-11T16:35:27Z
