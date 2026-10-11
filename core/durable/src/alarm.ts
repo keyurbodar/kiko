@@ -1,5 +1,4 @@
 export const MAX_WAKEUPS = 1_000
-export const HISTORY_LIMIT = 100
 
 export class WakeupLimitError extends Error {
   constructor() {
@@ -8,21 +7,15 @@ export class WakeupLimitError extends Error {
   }
 }
 
-export type FiredWakeup = { key: string; at: number; firedAt: number }
-
 export interface Alarms {
   setWakeup(key: string, at: number): Promise<void>
   clearWakeup(key: string): Promise<void>
   dueWakeups(now: number): Promise<string[]>
-  history(): FiredWakeup[]
 }
 
 export function createAlarms(ctx: DurableObjectState): Alarms {
   const sql = ctx.storage.sql
   sql.exec("CREATE TABLE IF NOT EXISTS wakeups (key TEXT PRIMARY KEY, at INTEGER NOT NULL)")
-  sql.exec(
-    "CREATE TABLE IF NOT EXISTS wakeup_history (id INTEGER PRIMARY KEY, key TEXT NOT NULL, at INTEGER NOT NULL, fired_at INTEGER NOT NULL)",
-  )
 
   // Points the alarm at the earliest row. Skips setAlarm when it is already right,
   // because every setAlarm call is a billed row write.
@@ -55,19 +48,10 @@ export function createAlarms(ctx: DurableObjectState): Alarms {
       const keys = ctx.storage.transactionSync(() => {
         const due = sql.exec<{ key: string; at: number }>("SELECT key, at FROM wakeups WHERE at <= ? ORDER BY at, key", now).toArray()
         sql.exec("DELETE FROM wakeups WHERE at <= ?", now)
-        for (const row of due) sql.exec("INSERT INTO wakeup_history (key, at, fired_at) VALUES (?, ?, ?)", row.key, row.at, now)
-        if (due.length) {
-          sql.exec("DELETE FROM wakeup_history WHERE id <= (SELECT max(id) FROM wakeup_history) - ?", HISTORY_LIMIT)
-        }
         return due.map((r) => r.key)
       })
       await arm()
       return keys
-    },
-    history() {
-      return sql
-        .exec<FiredWakeup>(`SELECT key, at, fired_at AS firedAt FROM wakeup_history ORDER BY id DESC LIMIT ${HISTORY_LIMIT}`)
-        .toArray()
     },
   }
 }

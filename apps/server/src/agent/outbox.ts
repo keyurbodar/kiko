@@ -30,8 +30,6 @@ export function partsOf(text: string): { blocks: string[]; reactions: Reaction[]
   return { blocks: [...head.blocks, ...tail.blocks], reactions: [...head.reactions, ...tail.reactions] }
 }
 
-export const blocksOf = (text: string): string[] => partsOf(text).blocks
-
 const assistant = (entry: EntryRecord): AssistantLike | undefined => {
   const message = entry.model?.[0] as AssistantLike | undefined
   return message?.role === "assistant" ? message : undefined

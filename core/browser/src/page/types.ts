@@ -31,7 +31,7 @@ export type Step =
   | { op: "back" }
   | { op: "goto"; url: string }
 
-export type StepFailure = "stale" | "gone" | "hidden" | "dialog" | "timeout" | "crashed"
+type StepFailure = "stale" | "gone" | "hidden" | "dialog" | "timeout" | "crashed"
 
 export type StepResult = { ok: true } | { ok: false; reason: StepFailure; detail?: string }
 

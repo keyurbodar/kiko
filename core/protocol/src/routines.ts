@@ -16,6 +16,5 @@ export type Trigger =
 	 */
 	| { on: "watch"; url: string; everyMinutes: number; extension?: string; headers?: Readonly<Record<string, string>> }
 
-export type TriggerKind = Trigger["on"]
 
 export type RoutineRunStatus = "running" | "ok" | "quiet" | "failed" | "held" | "timeout"
