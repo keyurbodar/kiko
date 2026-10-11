@@ -30,11 +30,42 @@ function hasUserIdKey(value: unknown): boolean {
   return Object.entries(value).some(([key, inner]) => USER_ID_KEY.test(key) || hasUserIdKey(inner))
 }
 
-async function carriesUserId(request: Request, url: URL): Promise<boolean> {
+// Reads a copy of the body, stopping as soon as it passes the cap, so a huge body is never
+// held in memory just to find out that it cannot be scanned.
+async function readCapped(request: Request, max: number): Promise<string | null> {
+  if (!request.body) return ""
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > max) {
+      // The reader is a clone's branch of a tee; waiting on cancel would block on the branch
+      // no one reads. The over-cap request is refused, so the original body is not needed.
+      reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  const all = new Uint8Array(size)
+  let at = 0
+  for (const chunk of chunks) {
+    all.set(chunk, at)
+    at += chunk.byteLength
+  }
+  return new TextDecoder().decode(all)
+}
+
+// A body over the cap is refused, not read whole: the content-length header answers first,
+// and a missing header is caught by the bounded read.
+async function carriesUserId(request: Request, url: URL): Promise<boolean | "too_large"> {
   for (const key of url.searchParams.keys()) if (USER_ID_KEY.test(key)) return true
   if (!request.body || !request.headers.get("content-type")?.includes("json")) return false
-  const text = await request.clone().text()
-  if (text.length > MAX_SCANNED_BODY) return false
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_SCANNED_BODY) return "too_large"
+  const text = await readCapped(request.clone(), MAX_SCANNED_BODY)
+  if (text === null) return "too_large"
   try {
     return hasUserIdKey(JSON.parse(text))
   } catch {
@@ -60,7 +91,9 @@ export async function route(
 ): Promise<Response | null> {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/") || url.pathname.startsWith("/api/auth/")) return null
-  if (await carriesUserId(request, url)) return error(400, "a user id comes from the session, not the request")
+  const scan = await carriesUserId(request, url)
+  if (scan === "too_large") return error(413, "the body is larger than 1 mb")
+  if (scan) return error(400, "a user id comes from the session, not the request")
 
   const target = match(url.pathname)
   if (!target) return null
