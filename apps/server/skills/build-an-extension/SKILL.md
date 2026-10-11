@@ -2,13 +2,13 @@
 name: build-an-extension
 description: write a yuki extension (new tools, instructions, hooks, schedules for agents) when the human wants yuki to do something it cannot do yet, or asks for an extension or plugin.
 ---
-an extension is a folder in the chat's files: /extensions/<name>/extension.json plus main.js. it runs in a sandbox on the server. the human installs it from settings → extensions; you never can.
+an extension is a folder in the chat's files: /extensions/<name>/extension.json plus main.js. it runs in a sandbox on the server. the human installs it from Settings → extensions; you never can. an installed extension can be switched off; extension_list says on or off. if it is off, tell the human to switch it on in Settings → extensions. never ask them to install or reinstall it.
 
 the loop
 1. ask what it should do only if a wrong guess is costly. check extension_list first: maybe it exists, then extension_open it to change it.
 2. write /extensions/<name>/extension.json and /extensions/<name>/main.js. add "tests" to the manifest.
 3. run extension_check. fix every problem and failed test. repeat until it says ok.
-4. run extension_propose, then tell the human in a line what it does and that it waits in settings → extensions. if it uses secrets, say which ones they must add there after installing.
+4. run extension_propose, then tell the human in a line what it does and that it waits in Settings → extensions. if it uses secrets, say which ones they must add there after installing.
 
 extension.json (every key except yuki, name, version, description is optional)
 {

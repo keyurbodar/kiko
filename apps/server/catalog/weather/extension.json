@@ -2,7 +2,7 @@
   "yuki": 1,
   "name": "weather",
   "version": "1.0.0",
-  "description": "the weather now and for the next days, anywhere, from open-meteo. no key needed.",
+  "description": "the weather now and for the next days, anywhere, from Open-Meteo. no key needed.",
   "tools": {
     "weather": {
       "description": "the weather now and a short forecast for a place",

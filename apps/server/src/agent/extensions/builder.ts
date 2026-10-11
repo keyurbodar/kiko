@@ -19,6 +19,14 @@ export type BuilderPorts = {
 }
 
 const text = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError: true } : {}) })
+/** One installed extension as the agent reads it. An off one is still installed, so the agent must not offer to install it. */
+export function extensionLine(x: ExtensionInfo): string {
+  const tools = Object.keys(x.manifest.tools ?? {})
+  const unset = x.secrets.filter((s) => !s.set).map((s) => s.name)
+  const state = x.enabled ? "on" : "off. It is installed but switched off; the human can switch it on in Settings → extensions. Do not offer to install it again"
+  return `${x.name} ${x.version} ${state}${x.agents ? ` for ${x.agents.join(", ")}` : ""}: ${x.description}${tools.length ? ` tools: ${tools.join(", ")}.` : ""}${unset.length ? ` secrets not set: ${unset.join(", ")}.` : ""}${x.error ? ` error: ${x.error}` : ""}`
+}
+
 const NAME = Type.Object({ name: Type.String({ description: "the extension's folder name under /extensions" }) })
 
 async function readBundle(fs: RoomFs, name: string): Promise<{ bundle: unknown } | { error: string }> {
@@ -77,7 +85,7 @@ export function builderExtension(ports: BuilderPorts): Extension {
         defineTool({
           name: "extension_propose",
           description:
-            "send the extension in /extensions/<name>/ to the human to review and install. it must pass extension_check. you cannot install it; tell the human it waits in settings → extensions.",
+            "send the extension in /extensions/<name>/ to the human to review and install. it must pass extension_check. you cannot install it; tell the human it waits in Settings → extensions.",
           parameters: NAME,
           execute: async ({ name }, api, context) => {
             const read = await readBundle(filesOf(api), name)
@@ -87,7 +95,7 @@ export function builderExtension(ports: BuilderPorts): Extension {
             const out = await ports.propose(read.bundle)
             if (!out.ok) return text(`not proposed: ${out.error}${out.problems?.length ? `\n${out.problems.join("\n")}` : ""}`, true)
             const p = out.proposal!
-            return text(`proposed ${p.name} ${p.version}${p.replaces ? " (an update)" : ""}. it waits for the human in settings → extensions; it does nothing until they install it.`)
+            return text(`proposed ${p.name} ${p.version}${p.replaces ? " (an update)" : ""}. it waits for the human in Settings → extensions; it does nothing until they install it.`)
           },
         }),
       ),
@@ -103,11 +111,7 @@ export function builderExtension(ports: BuilderPorts): Extension {
             if (!all.length) return text("no extensions installed")
             return text(
               all
-                .map((x) => {
-                  const tools = Object.keys(x.manifest.tools ?? {})
-                  const unset = x.secrets.filter((s) => !s.set).map((s) => s.name)
-                  return `${x.name} ${x.version} ${x.enabled ? "on" : "off"}${x.agents ? ` for ${x.agents.join(", ")}` : ""}: ${x.description}${tools.length ? ` tools: ${tools.join(", ")}.` : ""}${unset.length ? ` secrets not set: ${unset.join(", ")}.` : ""}${x.error ? ` error: ${x.error}` : ""}`
-                })
+                .map(extensionLine)
                 .join("\n"),
             )
           },

@@ -425,7 +425,7 @@ export class ExtensionStore {
         if (!declared) throw new ExtensionError(`secret ${ref} is not declared in extension.json`)
         if (!hostAllowed(host, declared.hosts)) throw new ExtensionError(`secret ${ref} is never sent to ${host}`)
         const value = await this.secret(name, ref)
-        if (value === null) throw new ExtensionError(`the human has not set ${ref} yet; ask them to add it in settings → extensions → ${name}`)
+        if (value === null) throw new ExtensionError(`the human has not set ${ref} yet; ask them to add it in Settings → extensions → ${name}`)
         out = out.replaceAll(`{{secret.${ref}}}`, value)
       }
       return out

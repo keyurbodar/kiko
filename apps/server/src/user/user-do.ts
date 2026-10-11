@@ -213,7 +213,7 @@ export class UserDO extends DurableObject<Env> {
           const extension = await x.install(op.id)
           if (extension.room && extension.by) {
             const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), extension.room)
-            this.ctx.waitUntil(Promise.resolve(room.homeNotice(extension.by, `the ${extension.name} extension is installed. its tools work from the next message.`)).catch(() => {}))
+            this.ctx.waitUntil(Promise.resolve(room.homeNotice(extension.by, `The ${extension.name} extension is installed. Its tools work from the next message.`)).catch(() => {}))
           }
           return { extension }
         }

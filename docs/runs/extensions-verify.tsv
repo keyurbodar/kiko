@@ -35,3 +35,4 @@ when	what	why	evidence	result
 2026-10-11	bun run test (all packages)	regressions from host and compile changes	exit=0	VERIFIED
 2026-10-11	open: yuki accepts only ck_ Composio keys; an ak_ key could work through a Tool Router session	product choice for the owner	Haiku probe: POST /api/v3/tool_router/session returns an MCP URL that lists tools with x-api-key	OPEN
 2026-10-11	open: model sometimes refuses to save after reading files ("need your ok"); switched-off extension told to reinstall; update review copy; lowercase system lines	UX and prompt	browser pass, extensions-model runs	OPEN
+2026-10-11	UX polish (Sonnet, reviewed) plus run-note clause for switched-off extensions	browser findings	zz-off probe with Muse Spark 3/3: "tally is off. Switch it on in Settings → extensions"; extensions pass; review-diff and extension-list tests pass	VERIFIED
