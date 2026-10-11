@@ -45,18 +45,10 @@ export class Inbox {
       request_id TEXT,
       submitted INTEGER NOT NULL DEFAULT 0,
       in_flight_at INTEGER,
-      in_flight_by TEXT
+      in_flight_by TEXT,
+      at INTEGER
     ) STRICT`)
     this.sql.exec("CREATE INDEX IF NOT EXISTS inbox_open ON inbox (submitted, request_id, priority, arrival)")
-    const columns = this.sql.exec<{ name: string }>("PRAGMA table_info(inbox)").toArray()
-    if (!columns.some((c) => c.name === "in_flight_at")) {
-      this.sql.exec("ALTER TABLE inbox ADD COLUMN in_flight_at INTEGER")
-      this.sql.exec("ALTER TABLE inbox ADD COLUMN in_flight_by TEXT")
-    }
-    if (!columns.some((c) => c.name === "at")) {
-      this.sql.exec("ALTER TABLE inbox ADD COLUMN at INTEGER")
-      this.sql.exec("UPDATE inbox SET at = ?", this.now())
-    }
     this.sql.exec("CREATE TABLE IF NOT EXISTS inbox_state (id INTEGER PRIMARY KEY CHECK (id = 1), arrival INTEGER NOT NULL, pruned_at INTEGER NOT NULL)")
     if (!this.sql.exec("SELECT 1 FROM inbox_state WHERE id = 1").toArray().length) {
       this.sql.exec("INSERT INTO inbox_state (id, arrival, pruned_at) SELECT 1, coalesce(max(arrival), 0), ? FROM inbox", this.now())

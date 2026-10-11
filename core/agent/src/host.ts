@@ -162,7 +162,6 @@ export class AgentHost {
     private readonly options: HostOptions,
   ) {
     ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS harness_epoch (id INTEGER PRIMARY KEY CHECK (id = 1), n INTEGER NOT NULL)")
-    ctx.storage.sql.exec("DROP TABLE IF EXISTS run_authority")
     ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS run_origin (id INTEGER PRIMARY KEY CHECK (id = 1), origin TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)")
     this.inbox = new Inbox(ctx.storage)
     this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), origin: () => this.origin(), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
