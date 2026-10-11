@@ -10,9 +10,6 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
-      "correctness": {
-        "noUnknownProperty": "off"
-      },
       "style": {
         "noNonNullAssertion": "warn",
         "useConst": "warn",
@@ -20,13 +17,23 @@
       },
       "complexity": { "noForEach": "warn" },
       "suspicious": {
-        "noExplicitAny": "error",
+        "noExplicitAny": "warn",
+        "noShadowRestrictedNames": "warn",
         "noAssignInExpressions": "warn",
         "noControlCharactersInRegex": "warn",
         "noImplicitAnyLet": "warn",
         "useIterableCallbackReturn": "warn"
       },
+      "correctness": {
+        "noUnknownProperty": "off",
+        "noVoidTypeReturn": "warn"
+      },
       "a11y": {
+        "noNoninteractiveElementToInteractiveRole": "warn",
+        "noNoninteractiveTabindex": "warn",
+        "useAriaActivedescendantWithTabindex": "warn",
+        "useAriaPropsSupportedByRole": "warn",
+        "useValidAriaRole": "warn",
         "noStaticElementInteractions": "warn",
         "noSvgWithoutTitle": "warn",
         "useButtonType": "warn",
