@@ -21,53 +21,59 @@ Per-kind appetite and the engagement signal (U35 owns `appetite.ts`, `store.ts`,
 
 STATUS: done
 
-Commits on `s/u34-attention-simplify`: `ad089eb7` (the change), a merge of `main` (`5282addc`), and this report commit.
+BRANCH: s/u34-attention-simplify
 
-The uncommitted work from the cancelled worker matched the brief. I kept it and made three fixes: I renamed one test whose name still said "mentioned", I updated `docs/architecture.md` section 26.6 (the score, the moment, and the ranking), and I checked the fixture change below.
+HEAD: 8e965fdf195592269d60c307dc29e41a4b50fc50 (before this report commit). Its source is the tree of ad089eb7858a75fe301067bc25b2c5c59b8b89fc. The merge into it changed issues files only.
 
-Acceptance, from `issues/evidence/u40b` with `HUMAN=aware ROOMS=3` (defaults: 10 seeds x 8 weeks). `gen/` was not regenerated: `gen/rhythm-raw.ts` already equals the new `rhythm.ts` except for the removed pooling and smoothing lines, and the other `gen/` files are standalone copies of the old code.
+This section replaces the earlier report. That report said the ranking change left the brief's top two unchanged in every pass. That was wrong. Its open-loop comparison put the new score against a variant identical to it, so the zeros were true by construction. The corrected numbers are below.
 
-Regular-keen nudges that land within an hour of a session, shipped model (was 9.7% on main, `out-rhythm-r3-aware.txt`):
-- `regular-keen       activeNow differs in 10.4% of week slots; at shipped passes 11.0% | next moment differs >1h 25.0%`
-- `regular-keen       base nudges  296 | ... | welcome: base 170/296 (57.4%) ... | lands <=1h before a session: base 69.6% variant 10.4%` (variant = 168 no pooling)
-- `regular-keen       base nudges  296 | ... | welcome: base 170/296 (57.4%) variant 170/296 (57.4%) | lands <=1h before a session: base 69.6% variant 69.6%` (variant = 168 raw, identical to the shipped code)
-
-No-Jev welcome rate, `bun analyze.ts score`, "score, no Jev" base column. Main's values are from `out-score-r3-aware.txt`; these are the same base, with the rhythm change included:
-
-| persona | main | U34 |
-| --- | --- | --- |
-| regular-keen | 50.2% | 57.4% |
-| regular-ignorer | 7.6% | 9.9% |
-| irregular-keen | 42.2% | 41.5% |
-| irregular-ignorer | 9.8% | 10.4% |
-| kind-split | 37.6% | 42.5% |
-| weekday-weekend | 35.9% | 40.5% |
-| hoarder | 17.0% | 18.7% |
-
-The no-Jev score-only top-2 and top-10 sets changed 0.0% of passes in the open loop for every persona. The no-Jev welcome shift is not "within noise" for kind-split and weekday-weekend (about +4.5 points). I could not isolate score from rhythm in this run, because the baseline combines both changes. See FOLLOW-UPS.
-
-Brief top-2 changes after the score change: 0 of 2,294 brief comparisons changed across the seven personas in the score simulation, so the ranking change left the brief's top two unchanged in every simulated pass.
-
-FAILED-BEFORE (new tests, run against main's files swapped into the worktree, then restored):
-- `rhythm > a moment is the session's own hour, not the hour before it` fails on main's `rhythm.ts`: `38 pass, 1 fail`.
-- `attend > nothing due or promised scores zero, however often it came up or how long ago` fails on main's `attend.ts`: `(fail) attend > nothing due or promised scores zero ...`.
-- `attend > an agent's promise with no date scores half` fails on main's `attend.ts`: `(fail) attend > an agent's promise with no date scores half`. This one is a behavior check: the promise weight is unchanged, but the old score also added `talked` and `stale` on top, which made it fail.
-- `attend > equal scores rank the oldest sighting first` fails on main's `attend.ts` (with `rankOrder` added): `(fail) attend > equal scores rank the oldest sighting first`. Main had no `rankOrder` at all.
-
-DEVIATIONS:
-- Fixture change in `one interruption per room`: the weak candidate's due moved from +2.5 days to +1.5 days. Without `mentions`, +2.5 days gives urgency 1/3, under the worth threshold, so the test would stop reaching the room-taken branch. The asserted behavior is unchanged.
-- `docs/architecture.md` section 26.6 is updated in the same change, as AGENTS.md asks.
-- `gen/` was not regenerated, as described above.
+CHANGED:
+- apps/server/src/initiative/attention/rhythm.ts: pooling and smoothing deleted. `activeSlots` and `ignoreDeadline` read the 168 raw weights. `rates` is gone.
+- apps/server/src/initiative/attention/attend.ts: `score` is a noisy-or of due and promise only. `talked`, `stale`, and `age` are deleted. `rankOrder` is new: score, then oldest `lastSeen`.
+- apps/server/src/initiative/engine.ts: Jev's top ten and `noticed()` sort with `rankOrder`.
+- apps/server/test/attention.test.ts: four new behavior tests, and one fixture changed (see DEVIATIONS).
+- docs/architecture.md: sections 26.5 and 26.6 describe the new model. The text was already in ad089eb7 when I checked it against the code, and I left it as is.
+- issues/U34-attention-simplify.md: this report.
 
 VERIFIED:
-- `bun run --cwd apps/server test -- attention`: `39 pass, 0 fail` (before the test rename; the rename changes no assertion).
-- `bun run --cwd apps/server typecheck`: `tsc --noEmit`, exit 0.
-- `bunx biome check apps/server/src/initiative apps/server/test/attention.test.ts`: `Checked 8 files ... No fixes applied.`
-- `bun scripts/check-imports.ts`: `imports ok: durable, browser, agent, memory, sandbox, protocol`.
-- `bun run check` (after merging main): `all 10 steps passed (1 flaky)`, exit 0. The one flaky step was `test apps/web-solid`, which passed on rerun. The advisory frontend lint reported 17 errors, as on main, and is not gating.
-- Simulation outputs are in `/tmp/u34-sim-rhythm.txt` and `/tmp/u34-sim-score.txt`, not in the repo.
+- `bun test test/attention.test.ts` in apps/server: `Ran 39 tests across 1 file.`, `39 pass`, `0 fail`.
+- `bun run check` on the tree before the merge: `all 10 steps passed`, `EXIT 0`.
+- `bun run check` on HEAD: `all 10 steps passed`, `EXIT 0`. Server tests came from cache (`pass  test apps/server  0.2s`). The uncached run took 88.9s. The advisory frontend lint shows `17 errors`, as on main, and is not gating.
+- `HUMAN=aware ROOMS=3 bun analyze.ts rhythm`: regular-keen, shipped model: `base nudges 296 ... lands <=1h before a session: base 69.6%`. Main was 9.7% (`out-rhythm-r3-aware.txt`). The `168 raw (neither)` variant is identical to the shipped code: `regular-keen base nudges 296 | dropped 0.0% added 0.0% moved>1h 0.0% | welcome: base 170/296 (57.4%) variant 170/296 (57.4%) | lands <=1h before a session: base 69.6% variant 69.6%`.
+- check-imports, check-rules, and check-exports pass inside `bun run check`.
+
+Score, with the old score isolated. The comparison that matters is old score against new score on the same new rhythm. I built it in /tmp from ff26341c with only the new `rhythm.ts` swapped in, and ran `HUMAN=aware ROOMS=3 bun analyze.ts score`. No-Jev welcome rate:
+
+| persona | old score, new rhythm | new score, new rhythm | main (old rhythm, old score) |
+| --- | --- | --- | --- |
+| regular-keen | 56.4% (168/298) | 57.4% (170/296) | 50.2% |
+| regular-ignorer | 9.9% (28/284) | 9.9% (28/282) | 7.6% |
+| irregular-keen | 42.4% (108/255) | 41.5% (108/260) | 42.2% |
+| irregular-ignorer | 9.9% (23/232) | 10.4% (24/230) | 9.8% |
+| kind-split | 41.1% (144/350) | 42.5% (142/334) | 37.6% |
+| weekday-weekend | 40.5% (109/269) | 40.5% (109/269) | 35.9% |
+| hoarder | 19.5% (147/754) | 18.7% (139/743) | 17.0% |
+
+The score change moves welcome by at most 1.5 points, which is within noise. The shift from main, about +5 to +7 points on regular-keen, kind-split, and weekday-weekend, comes from the rhythm change. The committed rhythm evidence shows the same numbers for the `168 raw (neither)` variant on the old score: regular-keen 56.4%, kind-split 41.1%, weekday-weekend 40.5%.
+
+The ranking change, from the same isolated run (old score against the new score that is now `simple`): brief top-two sets change in 26% to 54% of comparisons, depending on persona (regular-keen 51/152, regular-ignorer 79/199, irregular-keen 98/183, irregular-ignorer 54/140, kind-split 66/251, weekday-weekend 26/99, hoarder 468/1261). Jev's top-ten set changes in 2% to 57% (regular-keen 4.3%, kind-split 12.1%, hoarder 56.5%). So the ranking change does alter what the brief shows and what Jev reads. The simulation does not say whether that is better or worse.
+
+FAILED-BEFORE (the new tests, against the pre-change source):
+- `(fail) rhythm > a moment is the session's own hour, not the hour before it`: `Expected: 9`, `Received: 8`.
+- `(fail) attend > nothing due or promised scores zero, however often it came up or how long ago`: `expect(received).toEqual(expected)`, with a diff in the scores.
+- `(fail) attend > an agent's promise with no date scores half`: `Expected: 0.5`, `Received: 0.5905723664263907`.
+- `attend > equal scores rank the oldest sighting first`: without the `rankOrder` export the whole file fails to load (`SyntaxError: Export named 'rankOrder' not found`). With a stub comparator the test fails: `(fail) attend > equal scores rank the oldest sighting first`. The first is a load error, not a behavior failure. The second is the behavior.
+
+DEVIATIONS:
+- One interruption per room: the weak candidate's due moved from +2.5 days to +1.5 days, and `mentions: 3` is removed. Without the removed `talked` term it scores 1/3, under the worth bar, so it reported `brief:worth` instead of `room_taken`. The asserted verdicts are unchanged, and the test passes.
+- Acceptance "no-Jev welcome unchanged within noise" holds for the score change, as shown in the isolated table. It does not hold against main: the rhythm change moves welcome by 5 to 7 points on three personas. That shift is the rhythm change itself.
+- `gen/` is not regenerated. `gen/rhythm-raw.ts` is behaviorally the new rhythm, with the pooling code left in at `POOL = 0`, which is the identity. Closed-loop diff of that variant against the shipped code is 0.0% on every persona.
+- Not run: `bun yuki verify <suite>`. The change does alter nudge timing, which initiative suites cover. Those suites need real model keys and a dev server, and the simulation is this unit's acceptance.
 
 FOLLOW-UPS:
-- `Candidate.mentions` is now unused by `attend`. It is still set in `engine.ts`, `types.ts`, and the simulation, so removing it touches `store.ts`, which U35 owns. Leave it to U35 or a later unit.
-- The kind-split and weekday-weekend no-Jev shifts (about +4.5 points) need an isolating run: a `gen/` variant of main's `attend.ts` on the new rhythm, compared with the new score. Until that exists, the score's share of this change is unknown.
-- The frontend lint has 17 pre-existing errors. It is not gating, but it stays visible.
+- `analyze.ts` now compares the shipped score with a variant identical to it in its open-loop and no-Jev "simple" sections, so those print zero by construction. Add an `oldScore` variant, using the isolated run above as the recipe, so the harness shows the score effect every time.
+- `Candidate.mentions` is unused by `attend`. It is still set in `engine.ts`, `types.ts`, and the simulation. Removing it touches `store.ts`, which U35 owns.
+- The 17 frontend lint errors remain. They are advisory.
+
+DISCOVERIES:
+- My source edits were committed as ad089eb7 by something other than this session, while I was running the gate. The report commits deb87ab2 and 8e965fdf came from an earlier worker. I did not author those commits. I checked their content against the code and corrected the one wrong claim above.
