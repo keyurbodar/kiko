@@ -7,3 +7,4 @@ ts	phase	decision	why	evidence	result
 2026-10-11T16:28:53Z	decide	keep the always capture mode	it is a user setting; no evidence of harm	core/protocol/src/loops.ts:29	open
 2026-10-11T16:28:53Z	decide	park G01 deploy measurement for the operator	deploys are always-pause; nothing depends on it	issues/G01-deploy-measure.md	gated
 2026-10-11T16:28:53Z	decide	dropped upload byte counter, lazy bash listing, snapshot paging, 20-run window	no measured cost; yagni	issues/PLAN.md dropped section	dropped
+2026-10-11T16:30:02Z	spawn	spawned wave 1 window: 9 writers plus the U05 read-only spike	highs, guardrails, and disjoint areas first; U21 U22 U30 wait for free slots	issues/ledger.tsv	running
