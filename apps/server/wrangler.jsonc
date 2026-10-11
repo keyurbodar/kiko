@@ -29,11 +29,13 @@
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "kiko-files" }],
   "queues": {
     "producers": [{ "binding": "JOBS", "queue": "kiko-jobs" }],
-    // 100 is the Queues limit. A job that still fails goes to the dead-letter queue,
-    // whose consumer sends account deletions back to kiko-jobs, so deletion never gives up.
+    // 100 is the Queues limit. One batch is one deletion job, because a job makes many
+    // subrequests. A job that still fails goes to the dead-letter queue, whose consumer
+    // sends account deletions back to kiko-jobs. If that send keeps failing the dead queue
+    // returns the job to kiko-jobs as well, so a deletion is never dropped.
     "consumers": [
-      { "queue": "kiko-jobs", "max_batch_timeout": 1, "max_retries": 100, "dead_letter_queue": "kiko-jobs-dead" },
-      { "queue": "kiko-jobs-dead", "max_batch_timeout": 1, "max_retries": 100 }
+      { "queue": "kiko-jobs", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 100, "dead_letter_queue": "kiko-jobs-dead" },
+      { "queue": "kiko-jobs-dead", "max_batch_timeout": 1, "max_retries": 100, "dead_letter_queue": "kiko-jobs" }
     ]
   }
 }

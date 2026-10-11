@@ -15,7 +15,7 @@ Builds on `verify-yuki-server` (same CLI client and dev server). Real models onl
 .cursor/skills/verify-initiative/scripts/server.sh stop     # when done
 ```
 
-`start` refuses if something already answers on 8787 (another worktree's server): drive that one or set `YUKI_URL`. First copy `apps/server/.dev.vars` from the main checkout. Log and pid are in `artifacts/initiative/` (git ignores `artifacts/`). Run `doctor` first whenever anything looks off.
+`start` refuses if something already answers on 8787 (another worktree's server): drive that one or set `YUKI_URL=http://localhost:<your port>`. When `YUKI_URL` is set, every `server.sh` action and every `bun yuki` command targets your own server, and the CLI prints `yuki: target <url>` on its first line. It also needs `apps/server/.dev.vars`, the symlink a git hook adds; it fails without it. Log and pid are in `artifacts/initiative/` (git ignores `artifacts/`). Run `doctor` first whenever anything looks off.
 
 ## Models and keys
 
@@ -40,11 +40,11 @@ Write a scenario in `scripts/` that imports `./kit` (run with `bun`, from the re
 | `age(ctx, room, ms)` / `seen(ctx, ago)` / `due(ctx, id)` | dev routes below |
 | `save(ctx, name, data)` | writes JSON evidence |
 
-Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. The attention engine has its own suite: `bun yuki verify initiative` (model, both arms; `INITIATIVE_MODE=nojev|jev`, `INITIATIVE_ONLY=a,b,...` picks scenarios), which prints background tokens per arm. For an A/B, run the same scenario with and without `--jev` and compare `background tokens` and `agent usage`.
+Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. `silent-ab.ts <label>` runs the silent-loop measurement the same way. The attention engine has its own suite: `bun yuki verify initiative` (model; `INITIATIVE_MODE=jev|nojev` picks one arm, default both; the Jev arm is skipped without `TYPESAFE_API_KEY`; `INITIATIVE_ONLY=a,b,...` picks scenarios). It prints a `background tokens` line per arm. For an A/B, run the same scenario with and without `--jev` and compare those lines.
 
 ### Dev routes that exist (NODE_ENV=development, localhost only), all `POST /api/dev/agent/<name>`
 
-`fake`, `status`, `deliver`, `seed` (log turns with no run), `memory`, `classic`, `trace`, `children` are fake-agent or inspection routes. Useful here: `attention {action}` (the initiative engine: `rhythm` with `mode: now` makes the human usually write at this hour, `age` with `ms` moves loops, due times, rests, pending nudges, and an agent's own reminders into the past, `pass` runs the attention pass now and returns its verdicts and wakes, `state` reads rhythm, appetite, marks, wakes), `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages open tasks and reports them to UserDO, for stalled-task candidates), `seen {ago}` (human last seen; a week holds unasked runs), `budget {roomId, ms}` (budget for unasked runs), `due {id}` (routine due now), `pending`, `limits`. Also `GET /api/dev/stats`, `POST /api/reminders/<id>/rewind`.
+Useful here: `attention {action}` (the initiative engine: `rhythm` with `mode: now` makes the human usually write at this hour, `age` with `ms` moves loops, due times, rests, pending nudges, and an agent's own reminders into the past, `pass` runs the attention pass now and returns its verdicts and wakes, `state` reads rhythm, appetite, marks, wakes), `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages open tasks and reports them to UserDO, for stalled-task candidates), `seen {ago}` (human last seen; a week holds unasked runs), `budget {roomId, ms}` (budget for unasked runs), `due {id}` (routine due now), `pending`, `limits`. Also `loops`, `quiet`, `initiative`, `workers`, `composio`, `browser` (the last one is `{action}`: `lease`, `touch`, `dead`, `age`, `reap`, `switch`, `state`). Fake-agent and inspection routes: `fake`, `status`, `seed` (log turns with no run), `memory`, `classic`, `trace`. Also `GET /api/dev/stats`, `POST /api/reminders/<id>/rewind`.
 
 ### Gaps an initiative suite will hit
 
@@ -58,6 +58,6 @@ Each `save` lands in `artifacts/initiative/<timestamp>-<name>/` (transcript, lif
 
 ## Cleanup
 
-`server.sh stop` kills what `start` launched, then whatever still listens on 8787. Dev users and rooms stay in local wrangler state, which is fine.
+`server.sh stop` kills the PID in `artifacts/initiative/server.pid` and its children, and nothing else. It never touches another process on the port, so it cannot stop another session's server. Dev users and rooms stay in local wrangler state, which is fine.
 
 Features: [features/README.md](./features/README.md).

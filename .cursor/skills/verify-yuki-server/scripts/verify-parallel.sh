@@ -19,6 +19,16 @@ descendants() {
   done
 }
 
+# PIDs listening on a TCP port, one per line. lsof when present, else ss.
+listeners() {
+  local port="$1"
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -ti ":$port" 2>/dev/null
+  else
+    ss -ltnp "sport = :$port" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u
+  fi
+}
+
 stop_tree() {
   local pid="$1" kids
   [ -n "$pid" ] || return 0
@@ -62,7 +72,7 @@ run_one() {
   tmp="$(mktemp -d)"
   export YUKI_SESSION_FILE="$tmp/session.json"
 
-  if lsof -ti ":$port" >/dev/null 2>&1; then
+  if [ -n "$(listeners "$port")" ]; then
     echo "[$suite] port $port already in use; not touching it"
     rm -rf "$tmp"
     return 1
@@ -104,16 +114,16 @@ run_one() {
   return "$rc"
 }
 
-pids=()
+pids=""
 i=0
 for suite in "$@"; do
   run_one "$i" "$suite" &
-  pids+=("$!")
+  pids="$pids $!"
   i=$((i + 1))
 done
 
 status=0
-for p in "${pids[@]}"; do
+for p in $pids; do
   wait "$p" || status=1
 done
 echo "evidence: $EVID"
