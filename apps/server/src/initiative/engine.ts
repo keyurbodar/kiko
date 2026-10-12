@@ -10,6 +10,7 @@ import { allowance, type Outcome, restUntil } from "./attention/appetite"
 import { attend, rankOrder } from "./attention/attend"
 import { decayed, emptyRhythm, known, nextMoment, slotOf, view } from "./attention/rhythm"
 import { AttentionStore } from "./attention/store"
+import { getSetting, setSetting } from "../lib/settings"
 import type { Candidate, Kind, Level, Signal, Verdict } from "./attention/types"
 import { type WorthItem, worthNow } from "./judge"
 
@@ -17,11 +18,13 @@ export const INITIATIVE_RUN = "initiative"
 export const REMINDER_RUN = "reminder"
 export const INITIATIVE_WAKEUP = "initiative_pass"
 
+const MIN_GAP = 20 * 3_600_000
 const JEV_MAX = 10
 const BUSY_MS = 120_000
 const KEEP_MS = 90 * 86_400_000
 const NOTICED_MAX = 2
 export const SHARED_WORDS = 2
+const LAST_PASS = "initiative_last_pass"
 const REMINDER_RUN_WINDOW = 3_600_000
 
 const LEAD = "@lead"
@@ -244,6 +247,10 @@ export class InitiativeEngine {
     this.d.sql.exec("DELETE FROM initiative_wakes WHERE at < ? AND status != 'pending'", cutoff)
   }
 
+  private lastPass(): number {
+    return Number(getSetting(this.d.sql, LAST_PASS) ?? 0)
+  }
+
   async arm(now = Date.now()): Promise<number | null> {
     const level = this.d.level()
     const rhythm = decayed(this.store.rhythm(), now)
@@ -251,7 +258,7 @@ export class InitiativeEngine {
       await this.d.clearWakeup()
       return null
     }
-    const at = nextMoment(rhythm, now, this.d.tz())
+    const at = nextMoment(rhythm, Math.max(now, this.lastPass() + MIN_GAP), this.d.tz())
     if (at === null) await this.d.clearWakeup()
     else await this.d.setWakeup(at)
     return at
@@ -262,6 +269,7 @@ export class InitiativeEngine {
     const store = this.store
     this.apply(store.observe([], now, tz))
     this.prune(now)
+    setSetting(this.d.sql, LAST_PASS, String(now))
     const rhythm = view(store.rhythm(), now, tz)
     const items = this.items(now, rhythm.cycle)
     const report: PassReport = { at: now, rhythm: { known: rhythm.known, activeNow: rhythm.activeNow, cycle: rhythm.cycle }, jev: false, verdicts: [], woke: [] }
@@ -326,7 +334,7 @@ export class InitiativeEngine {
   noticed(roomId: string, skip: ReadonlySet<number>, now = Date.now()): string[] {
     if (this.d.level() === "off") return []
     const rhythm = view(this.store.rhythm(), now, this.d.tz())
-    const briefed =new Map(this.d.sql.exec<{ loop_id: number; at: number }>("SELECT loop_id, at FROM initiative_briefed").toArray().map((r) => [r.loop_id, r.at]))
+    const briefed = new Map(this.d.sql.exec<{ loop_id: number; at: number }>("SELECT loop_id, at FROM initiative_briefed").toArray().map((r) => [r.loop_id, r.at]))
     const rank = rankOrder({ now, rhythm })
     const picked = this.items(now, rhythm.cycle)
       .filter(
@@ -356,6 +364,7 @@ export class InitiativeEngine {
     sql.exec("UPDATE initiative_briefed SET at = at - ?", ms)
     sql.exec("UPDATE initiative_wakes SET at = at - ?", ms)
     sql.exec("UPDATE initiative_rooms SET human_at = human_at - ?", ms)
+    setSetting(this.d.sql, LAST_PASS, String(this.lastPass() - ms))
     this.store.devShift(ms)
   }
 

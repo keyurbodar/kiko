@@ -144,20 +144,6 @@ test("a pass prunes marks, briefs and wakes older than 90 days and keeps recent 
   expect(ids("initiative_wakes", "id")).toEqual(["w2", "w3"])
 })
 
-test("two active windows 12 hours apart give two passes a day", async () => {
-  const { sql, loops, engine } = world()
-  if (!loops.open({ ...base, certainty: "explicit", text: "renew the car tags", room: "r1", due: "2026-09-01" }).ok) throw new Error("open failed")
-  // Active at 09:00 and 21:00 UTC every day, the world's zone.
-  const w = Array.from({ length: 168 }, (_, slot) => (slot % 24 === 9 || slot % 24 === 21 ? 2 : 0))
-  const t0 = Date.UTC(2026, 8, 7, 9)
-  sql.exec("INSERT INTO attention (name, value) VALUES ('rhythm', ?)", JSON.stringify({ w, at: t0 }))
-  await engine.pass(t0)
-  const first = await engine.arm(t0)
-  await engine.pass(t0 + 12 * 3_600_000)
-  const second = await engine.arm(t0 + 12 * 3_600_000)
-  expect([first, second]).toEqual([t0 + 12 * 3_600_000, t0 + 24 * 3_600_000])
-})
-
 test("with a judge key, Jev alone decides whether a burst answers a nudge; without one, two shared words do", async () => {
   const ignoredOf = async (judged: boolean) => {
     const { sql, loops, engine } = world({ judged })

@@ -57,10 +57,11 @@ const suite: Suite = {
         const v0 = must(p.verdicts[0], "a verdict")
         return { woke: p.woke.filter((w) => w.result === "delivered").length, verdict: `${v0.verdict}${v0.reason ? `:${v0.reason}` : ""}${v0.until ? ` ${((v0.until - p.at) / 86_400_000).toFixed(1)}d` : ""}` }
       }
-      const got = [await step(1), await step(2), await step(2), await step(2), await step(4)]
+      // One ignore rests two cycles (two days here), and the next ignore doubles it to four. The third step is past the first rest but inside a three-day one.
+      const got = [await step(1), await step(1.5), await step(1), await step(2), await step(4)]
       const want = [1, 0, 1, 0, 0]
       if (got.map((g) => g.woke).join() !== want.join()) throw new VerifyError(`nudges per pass ${JSON.stringify(got)}, want ${JSON.stringify(want)}`)
-      console.log(`  ok nudge, ignored, rest, nudge, ignored, then none: ${got.map((g) => g.verdict).join(" | ")}`)
+      console.log(`  ok nudge, rest after an ignore, nudge, rest after a second ignore, then none: ${got.map((g) => g.verdict).join(" | ")}`)
       room.raw.close()
     }
 

@@ -14,8 +14,8 @@ export const MIN = 60_000
 export const HOUR = 60 * MIN
 export const DAY = 24 * HOUR
 const STEP = 15 * MIN
-// GAP=1 restores the pre-U66 20-hour gap between passes, to measure what dropping it (D4) changed.
-const MIN_GAP = process.env.GAP === "1" ? 20 * HOUR : 0
+// The 20-hour gap between passes, as in engine.ts. GAP=0 drops it, to measure what the gap does (U66 D4, declined).
+const MIN_GAP = process.env.GAP === "0" ? 0 : 20 * HOUR
 const BUSY_MS = 120_000
 const JEV_MAX = 10
 const AWARE = process.env.HUMAN === "aware"
