@@ -1,26 +1,30 @@
 # Theme tokens
 
-Source: `kat.css`. Values come from the kat-replica dark tokens and the kat screenshots. The screenshots win.
+Source: `kat.css` in this folder. Values come from the kat-replica dark tokens and the kat screenshots. The screenshots win. Where kat.css and a screenshot disagree, the entry says DEVIATION.
 
 ## Controls
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--hue` | 55 | Hue of every neutral and accent. |
-| `--cm` | 1 | The one chroma multiplier. Raise it for a brighter orange. Every chroma passes through it. |
+| `--hue` | 340 | Hue of the accent and the brand. kat.css defines no preset. |
+| `--h-brand` | 340 | Hue of the user bubble. |
+| `--tinge` | 0 | How much the greys take `--hue`, from 0 to 1. At 0 the greys are neutral. |
+| `--cm` | 1 | The one chroma multiplier. Raise it for a more saturated theme. Every chroma passes through it. |
 
-The user bubble has its own hue, `--h-brand` (48.4). The screenshot pixel `#66422f` is hue 48.4, not 55. DEVIATION from the replica token (`.4196 / .07 / 55`), which does not reproduce the pixel.
+The user bubble has its own hue, `--h-brand`. The screenshot pixel `#66422f` is hue 48.4. DEVIATION: kat.css sets `--h-brand` to 340, which renders `#613f56`. Hue 48.4 reproduces `#66422f` exactly.
 
 ## Measured colors
 
-| Role | Token | oklch | Pixel |
-| --- | --- | --- | --- |
-| sidebar | `--bg-sidebar` | .1442 .003 | `#0b0a09` |
-| panel | `--bg` | .1837 .003 | `#131211` |
-| assistant bubble | `--assistant-bubble` | .2423 .005 | `#221f1e` |
-| user bubble | `--user-bubble` | .4156 .0585 48.4 | `#66422f` |
+The oklch column is the kat.css token at `--tinge: 0`. The pixel column is from the screenshots. The last column converts the token to sRGB.
 
-The sidebar is darker than the panel.
+| Role | Token | oklch | Pixel | Renders as |
+| --- | --- | --- | --- | --- |
+| sidebar | `--bg-sidebar` | .175 0 | `#0b0a09` | `#101010` |
+| panel | `--bg` | .205 0 | `#131211` | `#171717` |
+| assistant bubble | `--assistant-bubble` | .255 0 | `#221f1e` | `#232323` |
+| user bubble | `--user-bubble` | .4156 .0585 340 | `#66422f` (hue 48.4) | `#613f56` |
+
+The sidebar is darker than the panel. The screenshot greys are slightly warm, and at `--tinge: 0` kat.css renders them neutral. The `--tinge` value that matches them is not measured yet.
 
 ## Sizes
 
@@ -28,15 +32,17 @@ The sidebar is darker than the panel.
 | --- | --- |
 | `--sidebar-nav-w` | 60px (rail) |
 | `--sidebar-content-w` | 280px |
-| `--content-max-w` | 768px (column) |
+| `--content-max-w` | 736px (column) |
 | `--topbar-h` | 50px |
-| `--bubble-pad-y`, `--bubble-pad-x` | 7px, 12px |
-| `--radius-bubble` | 16px (one line is a pill, see chat/ui/bubble.css) |
+| `--bubble-pad-y`, `--bubble-pad-x` | 8px, 12px |
+| `--radius-bubble` | 16px (one line is a pill, see `apps/web-solid/src/chat/ui/bubble.css`) |
 | `--bubble-gap` | 2px (inside a stack) |
-| `--row-gap`, `--run-gap` | 1px between messages in a run, 8px before a new run |
+| `--row-gap`, `--run-gap` | 1px between messages in a run, 16px before a new run |
 | `--font-base`, `--line-height` | 14px, 1.45 |
 
-The font stack is the system stack. The light tokens are `--light-*`. They are defined and nothing reads them.
+The text font is Instrument Sans, and the code font is Fantasque Sans Mono. kat.css loads both with `@font-face`. The system stack is the fallback (`--font-family-sans`, `--font-family-mono`).
+
+Light is `:root[data-appearance="light"]` (section 4c of kat.css). It swaps the lightness tokens and keeps every hue and chroma. There are no `--light-*` tokens.
 
 ## Surface tokens
 
@@ -52,33 +58,23 @@ The font stack is the system stack. The light tokens are `--light-*`. They are d
 | board | `--board-bg`, `--board-column-bg`, `--board-card-bg`, `--board-card-hover`, `--board-column-gap`, `--board-card-gap` |
 | shared mixes | `--accent-wash`, `--accent-wash-strong`, `--accent-wash-faint`, `--text-wash`, `--danger-wash`, `--scrim` |
 
-Each color token has a Tailwind utility in section 5 of `kat.css`, for example `bg-tab-active`, `bg-reply-bar`, `bg-accent-wash`. A component uses the utility and never writes a color.
+Color tokens have Tailwind utilities (`--color-*`) in section 5 of `kat.css`, for example `bg-tab-active`, `bg-reply-bar`, `bg-accent-wash`. A component uses the utility and never writes a color.
 
 ## Icons
 
-Target: one sprite, `packages/ui/src/icons/sprite.svg`, one `<Icon name>` component, 20 px grid, `currentColor` stroke. The sprite and the component are not built here, because this task owns only the two style files. ASSUMPTION: a later task builds them from this list.
+Target: one sprite, `packages/ui/src/icons/sprite.svg`, one `<Icon name>` component, 20 px grid, `currentColor` stroke. Neither is built yet. ASSUMPTION: a later task builds the sprite from the lists below.
 
-Today there are four systems:
+Today there are three icon sources:
 
-1. `lucide-solid` named imports in `apps/web-solid/src/chat` and `composer`.
-2. The inline path map in `packages/ui/src/components/icon.tsx`.
-3. The `sidebar/icons.tsx` rail glyphs.
-4. The sprites `file-icons/sprite.svg` (1089 symbols) and `provider-icons/sprite.svg` (99 symbols).
+1. `packages/ui/src/icons.gen.ts`: 76 Hugeicons glyphs copied as data. `scripts/gen-icons.ts` writes it. Add a row there and run the script. `HugeIcon` in `packages/ui/src/components/huge-icon.tsx` draws them.
+2. `packages/ui/src/components/icon.tsx`: `Icon` maps five older names (`arrow-up`, `stop`, `arrow-undo-down`, `link`, `magnifying-glass`) to glyphs from `icons.gen.ts`.
+3. The sprites `packages/ui/src/components/file-icons/sprite.svg` (1089 symbols) and `packages/ui/src/components/provider-icons/sprite.svg` (99 symbols).
 
-Icons the app uses today, which the one sprite must contain:
-
-| Group | Names |
-| --- | --- |
-| rail | chats, terminal, code, browser, settings |
-| chat | plus, copy, reply, pencil, pin, trash, play, file-text, link |
-| navigation | chevron-down, chevron-left, chevron-right, close, minus, scan |
-| composer | plus, mic, send |
-| top bar | search, more |
-
-File-type and provider icons stay out of the sprite. They are data, chosen by name at run time.
+The one sprite holds the glyphs in `icons.gen.ts` and the five names in `icon.tsx`. File-type and provider icons stay out of the sprite. They are data, chosen by name at run time.
 
 ## Known gaps
 
-- Component files still carry `oklch(from var(--accent) ...)` mixes: `sidebar/sidebar.tsx`, `sidebar/chat-panel.tsx`, `sidebar/sidebar.css`, `composer/composer.css`, `chat/ui/DateChip.tsx`, `chat/ui/MessageMenu.tsx`, `chat/ui/WebPageCard.tsx`, `chat/ui/Quote.tsx`. Use `--accent-wash`, `--accent-wash-strong`, `--accent-wash-faint`, `--text-wash`, `--danger-wash` instead.
-- `chat/media/mediaViewer.css` holds literal `rgb()` values for the viewer overlay. Use `--scrim` and the wash tokens.
-- `lib/fixtures.ts` holds four hex avatar colors.
+- Literal `rgb()` values in four web-solid CSS files: `chat/rich/rich.css`, `composer/snowball.css`, `settings/kit.css`, `mascot/hoarfrost.css`. Use the wash and scrim tokens where one fits.
+- `lib/fixtures.ts` holds four hex avatar colors. They are fixture data.
+
+Done on main: no component file uses `oklch(from var(--accent) ...)` any more. The washes live in kat.css. `chat/media/mediaViewer.css` and `sidebar/icons.tsx` are gone. `lucide-solid` is no longer imported.

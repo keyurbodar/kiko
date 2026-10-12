@@ -1,14 +1,14 @@
 # files
 
-Covers uploading files in a room, deduplication by content hash, the agent's file tools, and the pending-upload sweep.
+Covers uploading files in a room, large multi-part uploads and ranged reads, deduplication by content hash, the agent's file tools, and the pending-upload sweep.
 
 Suites: `files` (upload and dedupe), `file-tools` (agent reads and writes files), `attachments` (pending uploads and the sweep).
 
 ## Sub-features
 
-- **files**: alice uploads `notes/a.txt` and the room gets a file event with the uploaded id. Uploading the same bytes again to the same path yields a new event only when the content hash differs; the repeat upload emits nothing (`expectNone`). The suite's size constant is 30,000,000 bytes.
+- **files**: alice uploads a 30,000,000-byte file in three 10 MiB parts. The room gets a file event. A ranged download answers 206 with its `content-range` and an immutable cache, and another user's read of it answers 404. Then a small upload to `notes/a.txt` and the same bytes again with the first upload's content hash: the repeat returns the same file ref and emits no second file event (`expectNone`).
 - **file-tools**: the agent's file tools read, write, edit, list, move, copy, and remove files in a room, and fetch web pages into the chat. It also checks that a copy to `/home` is reported saved. The suite is `model: true` and needs `OPENCODE_API_KEY`.
-- **attachments**: an upload is pending until a message sends it. The dev sweep at `api/dev/agent/pending` ages uploads past the 24 hour TTL (the suite ages them 25 hours) and removes stale pending uploads; a swept upload answers 404 and a sent attachment still answers 200.
+- **attachments**: an upload is pending until a message sends it. It checks the 10 MB picture limit (413, with a named reason), a lying `Content-Length` (400), another user's delete (404), a send that names a deleted upload (refused), a claim of two files, a resend returning the same ack and storing nothing, a 40 MiB multipart upload that sends, and the dev sweep at `api/dev/agent/pending`. The sweep ages uploads past the 24 hour TTL (the suite ages them 25 hours); a swept upload answers 404 and a sent file still answers 200.
 
 ## How to get to it (user POV)
 

@@ -20,10 +20,10 @@ AgentDO  one per agent in a chat pi-durable harness, inbox
 ## How a message travels
 
 1. You send a message. The client shows it at once and writes it to the room socket.
-2. `RoomDO` stores it and waits for a pause in your typing, 1.5 seconds by default.
+2. `RoomDO` stores it and waits for a pause: one second, or 2.5 seconds while you are still typing.
 3. `RoomDO` delivers the whole burst to the agent you addressed. `AgentDO` stores it in an inbox, sets an alarm, and returns.
 4. The alarm starts one `pi-durable` run with your own provider credentials, which `UserDO` decrypts for that run.
-5. The agent's text is split into bubbles at blank lines. Each bubble goes to the room, and the room sends it to your devices.
+5. The agent's text is split into one bubble per model turn. Each bubble goes to the room, and the room sends it to your devices.
 6. If you write again while the agent works, yuki restarts, steers, or queues by fixed rules.
 
 ## The ideas that hold it together

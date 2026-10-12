@@ -15,13 +15,19 @@ From the repo root. Pick a free port. Do not leave it running.
 NODE_ENV=development bun run --cwd apps/server dev --port 8787 --inspector-port 9229
 ```
 
-The `dev` script applies the local D1 migrations (`kiko-auth`) before it starts wrangler, so there is no separate migrate step. The parallel script runs its own migrate step against its own state. `apps/server/.dev.vars` is a symlink to `~/.config/yuki/dev.vars`, added by a git hook. If it is missing, link it by hand.
+The `dev` script applies the local D1 migrations for the `kiko-auth` database (binding `AUTH_DB`) to the default persist dir before it starts wrangler, so that dir needs no separate step. A server on a fresh `--persist-to <dir>` needs them against that same dir first, or it has no auth table.
+
+```bash
+cd apps/server && bunx wrangler d1 migrations apply kiko-auth --local --persist-to <dir>
+```
+
+`verify-parallel.sh` runs this against its own state. `apps/server/.dev.vars` is a symlink to `~/.config/yuki/dev.vars`, added by a git hook. If it is missing, link it by hand.
 
 Set `YUKI_URL=http://localhost:<your port>` to point every command at your own server; the CLI prints `yuki: target <url>` on its first line, and `--url` overrides it per command.
 
 If the inspector port 9229 is taken, pass another `--inspector-port` and `--url http://localhost:<port>` to every command.
 
-If wrangler says the assets directory is missing, run `bun run --cwd apps/web-solid build` once. To stop a server you started, use its recorded PID (see Cleanup). Never kill whatever holds the port.
+The Worker serves the client from `apps/web-solid/dist`. A fresh worktree has none, so run `bun run --cwd apps/web-solid build` once before the server, or wrangler reports the assets directory is missing. To stop a server you started, use its recorded PID (see Cleanup). Never kill whatever holds the port.
 
 ## Check it is up
 
@@ -123,8 +129,10 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `yuki health`, `selftest` | [health](./features/health.md) |
 | `agents`, `team-ask`, `team-flow`, `team-routing`, `team-loops`, `team-model`, `team-race`, `hardcore` | [agents](./features/agents.md) |
 | `mid-run`, `mid-run-model`, `burst-backlog`, `team-priority` | [mid-run](./features/mid-run.md) |
+| `stop-window` | [stop-window](./features/stop-window.md) |
 | `workers`, `workers-model` | [workers](./features/workers.md) |
 | `chats`, `activity` | [chats](./features/chats.md) |
+| `long-text` | [long-text](./features/long-text.md) |
 | `chief` | [chief](./features/chief.md) |
 | `workspace` | [workspace](./features/workspace.md) |
 | `reactions` | [reactions](./features/reactions.md) |

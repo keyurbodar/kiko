@@ -13,11 +13,11 @@ the loop
 extension.json (every key except yuki, name, version, description is optional)
 {
   "yuki": 1,
-  "name": "standup",                       // 2-32 chars: a-z, 0-9, dashes
+  "name": "standup",                       // 2-32 chars: a-z, 0-9, dashes; starts with a letter
   "version": "1.0.0",                      // bump it on every change
   "description": "one plain line the human reads before installing",
   "tools": {
-    "standup_post": {                      // a-z, 0-9, underscores; never a built-in tool's name
+    "standup_post": {                      // 2-48 chars: a-z, 0-9, underscores; starts with a letter; never a built-in tool's name
       "description": "what the model reads",
       "effect": "external",                // read | write | message | external
       "parameters": { "type": "object", "properties": { "extra": { "type": "string" } } }
@@ -34,7 +34,11 @@ extension.json (every key except yuki, name, version, description is optional)
   "tests": [{ "tool": "standup_post", "args": {}, "calls": { "update_task": "updated" }, "fetch": { "status": 200, "body": "ok" }, "expect": "posted" }]
 }
 
+triggers send their text at the times the rrule gives. write one RRULE line with a FREQ and no DTSTART line: the first run is the next time the rule gives after now. a rule may not be MINUTELY, and it may not repeat faster than every 30 minutes. the checker samples the next 500 occurrences and refuses any gap under 30 minutes. a gap that first appears after those 500 is not seen. "send" is at most 500 characters, and a manifest has at most 8 triggers.
+
 effects decide what a tool may fetch and call. read: only reads. write: changes yuki data. message: talks to agents. external: acts outside yuki. any tool may yuki.fetch a GET with no body (so a lookup like weather is "read"); sending anything (POST, PUT, a body) needs "external". a tool may yuki.call only tools its effect covers (read calls read; write calls read and write; message calls read and message; external calls anything). pick the smallest effect that works.
+
+yuki.fetch reaches https only, and only the hosts listed in "egress". the body is at most 256 kb. methods are GET, POST, PUT, PATCH, and DELETE, and a GET has no body. header names are letters, digits, and dashes, and yuki sets host, cookie, content-length, transfer-encoding, and connection itself. extension_check and the run share one rule, so a request the check refuses is refused at run time too.
 
 main.js (an es module; export only what the manifest lists)
 export const tools = {

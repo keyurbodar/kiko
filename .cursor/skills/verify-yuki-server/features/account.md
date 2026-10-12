@@ -6,7 +6,7 @@ Suites: `account-delete`, `credentials`, `byok`, `provider-login`. Flags: `byok`
 
 ## Sub-features
 
-- **Account deletion.** `POST /api/account/delete` needs the typed phrase `delete my account` and a session under 10 minutes old. The user is marked deleting, rooms and agents become jobs, and data is wiped. If the enqueue fails, the mark is rolled back and the user is restored.
+- **Account deletion.** `POST /api/account/delete` needs the typed phrase `delete my account` and a session under 10 minutes old. The user is marked deleting, rooms and agents become jobs, and data is wiped. If the enqueue fails, the mark is rolled back and the user is restored. The suite also checks that the dev residue and rerun routes name the session's user: a live session asking for another user's path gets only its own room and agent, and the other user's objects are untouched.
 - **Saved keys.** One API key per provider, sealed in the user's Durable Object. Reads return metadata only: provider id, kind, last four characters.
 - **BYOK gate.** A user with no connected provider gets a `no_provider` event and no agent run. After a disconnect, the next message is refused the same way.
 - **Provider sign-in.** Login frames run over the user socket: `login.start`, `login.answer`, `login.cancel`. The test provider `yuki-fake` exists only in development.
@@ -27,7 +27,7 @@ bun yuki verify provider-login --fake --url http://localhost:8787
 bun yuki verify byok --url http://localhost:8787
 ```
 
-- `account-delete`: 400 without the phrase, 202 with `{rooms: 4}`, old cookie gets 401, residue gone within 30 s, a second run reports nothing.
+- `account-delete`: 400 without the phrase, 202 with `{rooms: 4}`, old cookie gets 401, residue gone within 30 s, a second run reports nothing. A live session's path for another user returns only its own room and agent.
 - `credentials`: 401 anonymous, 403 foreign origin, save returns metadata only, another user sees none, bad id 400, disconnect `{removed: true}`.
 - `byok`: needs `OPENCODE_API_KEY` in the shell. No provider gets `no_provider` with slug `yuki`, a connected user gets an answer, a disconnected user is refused.
 - `provider-login`: without `--fake`, only the `openrouter` refusal and unknown cancel run. With `--fake`: device code `YUKI-0000`, a wrong code fails, cancel works, a reconnect restarts the login.
