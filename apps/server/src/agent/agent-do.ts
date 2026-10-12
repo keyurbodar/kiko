@@ -42,7 +42,6 @@ import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { jevPort, modelPort, pickDecider } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
 import { findProvider, pickJudge } from "../user/turn-context"
-import { repeatProblem } from "../user/recurrence"
 
 import { devOnly, DEV } from "../lib/dev-guard"
 import { Outbox, type RoomPort } from "./outbox"
@@ -75,6 +74,8 @@ export class AgentDO extends DurableObject<Env> {
     super(ctx, env)
     instrument(ctx, "agent")
     void ctx.blockConcurrencyWhile(async () => {
+      // A wiped agent builds no host: the inbox's constructor writes a row, and a deleted object must hold none.
+      if (await isWiped(ctx.storage)) return
       void this.host
       void this.outbox
       this.home()
@@ -531,6 +532,7 @@ export class AgentDO extends DurableObject<Env> {
   async egress(request: EgressRequest): Promise<Response> {
     await this.refuseIfDeleted()
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+    // check-rules: allow egress the one outside request, made in this object's own invocation, which is the point of egress
     return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
   }
 
@@ -597,7 +599,7 @@ export class AgentDO extends DurableObject<Env> {
       return home
     }
     return {
-      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools, { repeatProblem: (rrule) => repeatProblem(rrule, "UTC", Date.now()) }),
+      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools),
       propose: async (bundle) => {
         const home = where()
         const out = (await userStub(this.env.USER, home.userId).proposeExtension({ bundle, by: home.slug, room: home.roomId })) as ExtensionResult

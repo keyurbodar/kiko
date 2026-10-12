@@ -1,3 +1,4 @@
+import { boundedWait } from "@yuki/durable/bounded-wait"
 import { KernelError, type KernelClient, type Mode } from "./client"
 import type { KernelStore, LeaseRow, Tabs } from "./store"
 
@@ -57,8 +58,7 @@ export class KernelLease {
 
   constructor(private readonly deps: LeaseDeps) {
     this.#now = deps.now ?? Date.now
-    // check-rules: allow no-timer-in-do in-request backoff between Kernel retries; a lease call lives inside one request
-    this.#sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
+    this.#sleep = deps.sleep ?? boundedWait
   }
 
   #serial<T>(fn: () => Promise<T>): Promise<T> {

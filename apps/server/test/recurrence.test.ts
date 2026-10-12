@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { nextOccurrence, ruleProblem } from "../src/user/recurrence";
+import { nextOccurrence, repeatProblem } from "@yuki/sandbox/recurrence";
+import { ruleProblem } from "@yuki/sandbox/rule";
 
 const DAILY = "FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0";
 const MONDAY = "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0";
@@ -90,3 +91,13 @@ describe("ruleProblem: rules rrule could loop on for minutes are refused (archit
     expect(performance.now() - t0).toBeLessThan(50)
   })
 })
+
+describe("repeatProblem: a rule that repeats too fast is refused whichever gap comes first", () => {
+  test("two minutes an hour apart, 10 and 50 minutes, is refused even when the first gap is the long one", () => {
+    const from = Date.UTC(2026, 0, 1, 9, 55);
+    expect(repeatProblem("FREQ=HOURLY;BYMINUTE=0,50", "UTC", from)).toContain("repeats at most every 30 minutes");
+  });
+  test("a rule with one gap of 30 minutes or more passes", () => {
+    expect(repeatProblem("FREQ=HOURLY;BYMINUTE=0,30", "UTC", Date.UTC(2026, 0, 1, 9, 55))).toBeNull();
+  });
+});

@@ -2,6 +2,7 @@ import { duplicateDm, newRoomId } from "@yuki/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
 import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient, ExtensionOp, ExtensionResult } from "@yuki/protocol"
+import type { Deletion } from "../jobs/delete-account"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { DEV } from "../lib/dev-guard"
@@ -41,7 +42,7 @@ import { getTheme, setTheme } from "./theme"
 import { composioUserId, roomStub } from "../lib/names"
 import { type ExtensionEvent, ExtensionStore } from "./extensions"
 import { EXTENSION_CATALOG } from "./catalog.gen"
-import { nextOccurrence } from "./recurrence"
+import { nextOccurrence } from "@yuki/sandbox/recurrence"
 import { CHIEF } from "../room/chief"
 import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
 import { closeSockets, isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
@@ -845,16 +846,22 @@ export class UserDO extends DurableObject<Env> {
     return true
   }
 
-  async beginDeletion(): Promise<RoomId[]> {
-    if (await isWiped(this.ctx.storage)) return []
-    await this.ctx.storage.put(DELETING, Date.now())
-    // The user's Kernel account is theirs, so a failure here must not stop the deletion.
-    await this.#kr.kernel.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
+  async beginDeletion(): Promise<Deletion> {
+    const generation = Date.now()
+    if (await isWiped(this.ctx.storage)) return { generation, rooms: [] }
+    await this.ctx.storage.put(DELETING, generation)
     await this.ctx.storage.deleteAlarm()
     closeSockets(this.ctx)
     this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
     this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) SELECT room_id FROM chats UNION SELECT room_id FROM rooms")
-    return this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
+    const rooms = this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
+    return { generation, rooms }
+  }
+
+  // A deletion job runs while its generation is the one in progress, or once the wipe has finished (a retry of the last job still removes the auth rows).
+  async deletionCurrent(generation: number): Promise<boolean> {
+    if (await isWiped(this.ctx.storage)) return true
+    return (await this.ctx.storage.get<number>(DELETING)) === generation
   }
 
   // The queue refused the jobs, so the account lives on. deletion_rooms stays: a job that did get through must not see an empty ledger and wipe the user.
@@ -873,8 +880,12 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async deleteAll(): Promise<number> {
-    // The Composio session goes too, behind the wipe: it reads the key before the rows are gone.
-    return wipeStorage(this.ctx, async () => this.#composio.disconnect())
+    // The Composio session and the Kernel browser go too, behind the wipe: both read their keys and leases from these rows, so they go before the rows do.
+    // The user's Kernel account is theirs, so a failure here must not stop the deletion.
+    return wipeStorage(this.ctx, async () => {
+      await this.#composio.disconnect()
+      await this.#kr.kernel.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
+    })
   }
 
   async storedRows(): Promise<number> {

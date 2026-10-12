@@ -7,7 +7,8 @@ import type { Budget } from "../room/wake"
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@yuki/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
-import { MIN_REPEAT_MS, nextOccurrence, repeatProblem, ruleProblem, validZone } from "./recurrence"
+import { nextOccurrence, repeatProblem, validZone } from "@yuki/sandbox/recurrence"
+import { MIN_REPEAT_MS, ruleProblem } from "@yuki/sandbox/rule"
 
 export const REMINDERS_WAKEUP = "reminders"
 export const MAX_ROUTINES = 50
