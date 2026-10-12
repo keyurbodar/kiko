@@ -1,6 +1,6 @@
 import { escapeXml } from "@yuki/agent/text"
 import type { Task } from "@yuki/protocol"
-import type { MemberRow } from "./members"
+import { MAX_ROLE, type MemberRow } from "./members"
 import { briefTasks } from "./workspace"
 
 const MAX_LINE = 400
@@ -77,7 +77,7 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 		const now = m.slug === member.slug ? { doing: null, holds: [] } : view.team?.[m.slug]
 		const parts = [
 			m.lead ? "lead" : null,
-			m.role ? oneLine(m.role) : null,
+			m.role ? oneLine(m.role, MAX_ROLE) : null,
 			now?.doing ? `now ${oneLine(now.doing, MAX_DOING)}` : m.slug === member.slug ? null : m.status,
 			now?.holds.length ? `holding ${holding(now.holds)}` : null,
 		]
