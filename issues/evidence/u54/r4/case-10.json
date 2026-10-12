@@ -1,0 +1,79 @@
+{
+  "case": 10,
+  "name": "burst: one small, one large",
+  "run": "r4",
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 12,
+  "timedOut": false,
+  "doneMs": 31223,
+  "firstReplyMs": 5467,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 6,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.ls": 1,
+    "tool.talker.read": 2,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 6,
+  "workerTools": {
+    "tool.worker.read": 1,
+    "tool.worker.web_fetch": 3,
+    "tool.worker.write": 2
+  },
+  "modelTurns": 13,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners as of 2026. Use web search. Compare them briefly on speed, ease of…"
+    }
+  ],
+  "status": {
+    "replyMs": 151,
+    "talkerDuring": {
+      "tool.talker.ls": 1,
+      "tool.talker.start_work": 1
+    },
+    "workerDuring": {},
+    "runningAtSend": 0,
+    "reply": "On it, both tasks in motion."
+  },
+  "note": {
+    "sentMs": 10531,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 3,
+    "reply": "Todo file is done. Test runner research is still running, I will share it when ready."
+  },
+  "replies": [
+    {
+      "at": 5467,
+      "text": "On it, both tasks in motion."
+    },
+    {
+      "at": 12033,
+      "text": "Todo file is done. Test runner research is still running, I will share it when ready."
+    },
+    {
+      "at": 17160,
+      "text": "Got it, told it to keep it short."
+    },
+    {
+      "at": 27112,
+      "text": "Both done.\n\n- notes/todo.md now starts with Reviewed.\n- research/tests.md compares **Jest**, **Vitest**, and **Mocha** on speed, ease, and best use. Short at ~110 words."
+    }
+  ],
+  "bubbles": [
+    "On it, both tasks in motion.",
+    "Todo file is done. Test runner research is still running, I will share it when ready.",
+    "Got it, told it to keep it short.",
+    "Both done.\n\n- notes/todo.md now starts with Reviewed.\n- research/tests.md compares **Jest**, **Vitest**, and **Mocha** on speed, ease, and best use. Short at ~110 words."
+  ]
+}

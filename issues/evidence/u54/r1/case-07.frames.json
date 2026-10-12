@@ -1,0 +1,354 @@
+{
+  "statuses": [
+    {
+      "at": 1229,
+      "state": "typing"
+    },
+    {
+      "at": 4851,
+      "state": "typing"
+    },
+    {
+      "at": 4851,
+      "state": "working"
+    },
+    {
+      "at": 4851,
+      "state": "typing"
+    },
+    {
+      "at": 7577,
+      "state": "typing"
+    },
+    {
+      "at": 8029,
+      "state": "working"
+    },
+    {
+      "at": 8029,
+      "state": "typing"
+    },
+    {
+      "at": 11052,
+      "state": "working"
+    },
+    {
+      "at": 17260,
+      "state": "typing"
+    },
+    {
+      "at": 20574,
+      "state": "working"
+    },
+    {
+      "at": 20574,
+      "state": "typing"
+    },
+    {
+      "at": 22083,
+      "state": "working"
+    },
+    {
+      "at": 22234,
+      "state": "typing"
+    },
+    {
+      "at": 25706,
+      "state": "typing"
+    },
+    {
+      "at": 25706,
+      "state": "working"
+    },
+    {
+      "at": 25706,
+      "state": "typing"
+    },
+    {
+      "at": 26758,
+      "state": "idle"
+    },
+    {
+      "at": 26758,
+      "state": "typing"
+    },
+    {
+      "at": 29777,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 7,
+      "workers": []
+    },
+    {
+      "at": 2130,
+      "workers": []
+    },
+    {
+      "at": 4242,
+      "workers": []
+    },
+    {
+      "at": 6366,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771416574
+        }
+      ]
+    },
+    {
+      "at": 8479,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771419287
+        }
+      ]
+    },
+    {
+      "at": 10591,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771419287
+        }
+      ]
+    },
+    {
+      "at": 12709,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771419287
+        }
+      ]
+    },
+    {
+      "at": 14821,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771419287
+        }
+      ]
+    },
+    {
+      "at": 16951,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771419287
+        }
+      ]
+    },
+    {
+      "at": 19063,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "done",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771429184
+        }
+      ]
+    },
+    {
+      "at": 21176,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 49,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771432281
+        }
+      ]
+    },
+    {
+      "at": 23286,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 49,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771432281
+        }
+      ]
+    },
+    {
+      "at": 25397,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 49,
+          "status": "done",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771436110
+        }
+      ]
+    },
+    {
+      "at": 27509,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 49,
+          "status": "done",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771436110
+        }
+      ]
+    },
+    {
+      "at": 29618,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, community use (likely Qdrant, Milvus, Weaviate, Chroma, pgvector, Faiss, etc). Pick top 3 by evidence. For each give: license, language, key features, deployment, strengths, weaknesses, best use. Also note sources checked. Return structured data for a short report.",
+          "conversationId": 14,
+          "submissionId": 49,
+          "status": "done",
+          "step": "web_fetch {\"url\":\"https://github.com/pgvector/pgvector\"}",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771416548,
+          "updatedAt": 1791771436110
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 5,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 92,
+    "agent.kv.getAlarm": 23,
+    "agent.kv.list": 1,
+    "agent.kv.put": 20,
+    "agent.kv.setAlarm": 19,
+    "agent.kv.transaction": 99,
+    "agent.rowsRead": 2539,
+    "agent.rowsWritten": 1334,
+    "agent.statements": 2077,
+    "model.id.muse-spark-1.3-contributor": 11,
+    "model.ms": 37845,
+    "model.turns": 11,
+    "room.kv.get": 3,
+    "room.kv.getAlarm": 18,
+    "room.kv.setAlarm": 7,
+    "room.rowsRead": 1049,
+    "room.rowsWritten": 219,
+    "room.statements": 728,
+    "rpc.agent.devWorkers": 17,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 5,
+    "rpc.room.fsList": 4,
+    "rpc.room.fsStat": 4,
+    "rpc.room.memorySince": 3,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 5,
+    "rpc.room.putFile": 1,
+    "rpc.room.reportDoing": 7,
+    "rpc.room.setStatus": 11,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 4,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 4,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 8,
+    "rpc.user.turnContext": 4,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.talker.write": 1,
+    "tool.worker.web_fetch": 5,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 2,
+    "user.rowsRead": 142,
+    "user.rowsWritten": 56,
+    "user.statements": 217
+  }
+}
