@@ -2,7 +2,6 @@ import { duplicateDm, newRoomId } from "@yuki/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
 import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient, ExtensionOp, ExtensionResult } from "@yuki/protocol"
-import type { Deletion } from "../jobs/delete-account"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { DEV, loadUserDev } from "../lib/dev-guard"
@@ -13,7 +12,7 @@ import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, take
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
-import { checkAgentId, kernelErrorText } from "../integrations/kernel/connect"
+import { checkAgentId } from "../integrations/kernel/connect"
 import { basenameOf, decodeBase64, encodeBase64, FETCH_BODY_CAP, FETCH_METHODS, FILE_CAP, URL_CAP } from "../integrations/kernel/files"
 import { KernelError } from "../integrations/kernel/client"
 import type { FetchRequest, FetchResult, Lease } from "../agent/browser/lease"
@@ -41,13 +40,11 @@ import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, roomStub } from "../lib/names"
-import { isDeletedUser } from "../auth/auth"
 import { type ExtensionEvent, ExtensionStore } from "./extensions"
 import { EXTENSION_CATALOG } from "./catalog.gen"
 import { nextOccurrence } from "@yuki/sandbox/recurrence"
 import { CHIEF } from "../room/chief"
 import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
-import { closeSockets, isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import type { Certainty, Loop, LoopKind, OpenResult } from "@yuki/memory/loops"
 import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
@@ -70,7 +67,6 @@ const OLD_CHECK_IN_SEEN = "check_in_seen"
 
 const LAST_CHAT = "last_chat"
 
-const DELETING = "deleting"
 
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
@@ -123,10 +119,7 @@ export class UserDO extends DurableObject<Env> {
             await this.reminders.create(userIdFromObjectName(ctx.id.name), { text, time: first.toISOString(), tz, rrule, roomId, target, createdBy })
           },
           cancelBy: async (createdBy) => {
-            const webhooks = this.sql.exec<{ id: string }>("SELECT id FROM reminders WHERE created_by = ? AND status = 'active' AND json_extract(trigger, '$.on') = 'webhook'", createdBy).toArray()
-            const cancelled = await this.reminders.cancelCreatedBy(createdBy)
-            for (const { id } of webhooks) await this.#routines.dropHook(id)
-            return cancelled
+            return this.reminders.cancelCreatedBy(createdBy)
           },
           fallback: () => {
             const roomId = yukiChatRoom(this.sql)
@@ -257,8 +250,8 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  async routineHook(routineId: string, token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
-    return this.#routines.routineHook(routineId, token, deliveryKey, body)
+  async routineHook(token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
+    return this.#routines.routineHook(token, deliveryKey, body)
   }
 
   async snoozeReminder(id: string, time: string) { return asResult(() => this.reminders.snooze(id, time)) }
@@ -734,7 +727,6 @@ export class UserDO extends DurableObject<Env> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 })
     }
-    if (await this.deletionInForce()) return new Response("account deleted", { status: 410 })
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
@@ -837,7 +829,6 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
-    if (await this.deletionInForce()) return
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
@@ -849,71 +840,6 @@ export class UserDO extends DurableObject<Env> {
       [REAP_WAKEUP]: () => this.#kr.reap(),
     })
     this.#logins?.expire(due)
-  }
-
-  async recordRoom(roomId: RoomId): Promise<boolean> {
-    if (await this.deletionInForce()) return false
-    this.sql.exec("INSERT OR IGNORE INTO rooms (room_id) VALUES (?)", roomId)
-    return true
-  }
-
-  async beginDeletion(): Promise<Deletion> {
-    const generation = Date.now()
-    if (await isWiped(this.ctx.storage)) return { generation, rooms: [] }
-    await this.ctx.storage.put(DELETING, generation)
-    await this.ctx.storage.deleteAlarm()
-    closeSockets(this.ctx)
-    this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) SELECT room_id FROM chats UNION SELECT room_id FROM rooms")
-    const rooms = this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
-    return { generation, rooms }
-  }
-
-  // The tombstone is checked first. A rollback restores the account before it clears the mark, so a job from a rolled-back start stops even if the clear never landed.
-  // A job runs while its generation is the mark, or once the wipe has finished (a retry of the last job still removes the auth rows).
-  async deletionCurrent(generation: number): Promise<boolean> {
-    if (!(await this.tombstoned())) return false
-    if (await isWiped(this.ctx.storage)) return true
-    return (await this.ctx.storage.get<number>(DELETING)) === generation
-  }
-
-  // The mark names a deletion, and the tombstone says it is still running. A mark with no tombstone outlived a rollback whose clear failed, so it is cleared here and the account works again.
-  private async deletionInForce(): Promise<boolean> {
-    if (await isWiped(this.ctx.storage)) return true
-    if ((await this.ctx.storage.get(DELETING)) === undefined) return false
-    if (await this.tombstoned()) return true
-    await this.cancelDeletion()
-    return false
-  }
-
-  private tombstoned(): Promise<boolean> {
-    return isDeletedUser(this.env.AUTH_DB, userIdFromObjectName(this.ctx.id.name))
-  }
-
-  // The queue refused the jobs, so the account lives on. deletion_rooms stays: a job that did get through must not see an empty ledger and wipe the user.
-  async cancelDeletion(): Promise<void> {
-    if (await isWiped(this.ctx.storage)) return
-    await this.ctx.storage.delete(DELETING)
-    // beginDeletion dropped the storage alarm; setting the hello wakeup points it at the earliest row again.
-    await enforceHello(this.ctx, this.alarms)
-  }
-
-  async roomDeleted(roomId: RoomId): Promise<number> {
-    if (await isWiped(this.ctx.storage)) return 0
-    this.sql.exec("DELETE FROM deletion_rooms WHERE room_id = ?", roomId)
-    return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM deletion_rooms").one().n
-  }
-
-  async deleteAll(): Promise<number> {
-    // The Composio session and the Kernel browser go too, behind the wipe: both read their keys and leases from these rows, so they go before the rows do.
-    // The user's Kernel account is theirs, so a failure here must not stop the deletion.
-    return wipeStorage(this.ctx, async () => {
-      await this.#composio.disconnect()
-      await this.#kr.kernel.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
-    })
-  }
-
-  async storedRows(): Promise<number> {
-    return storedRows(this.ctx.storage)
   }
 
   async devInitiative(op: DevInitiativeOp): Promise<unknown> {
@@ -948,8 +874,8 @@ export class UserDO extends DurableObject<Env> {
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
     // A private or deleted chat keeps no loops (section 26.1).
     if (event && ((op.op === "private" && op.private) || op.op === "delete")) this.#il.loops.forgetRoom(op.roomId)
-    // A deleted chat keeps no reminders or routines. The rows cancel in this step; the webhook lookup rows follow.
-    if (event && op.op === "delete") this.ctx.waitUntil(this.#routines.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
+    // A deleted chat keeps no reminders or routines.
+    if (event && op.op === "delete") this.ctx.waitUntil(this.reminders.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
       this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))

@@ -206,14 +206,14 @@ function withSlash(url: string) {
 
 /**
  * Signs a test user in. A deployed Worker has no dev route, so with `YUKI_ACCESS_CODE` in the shell the
- * CLI signs in through the access code instead, as a person would.
+ * CLI signs in through the access code instead, as the owner would. Every name then shares the one owner.
  */
 export async function devSession(url: string, name: string): Promise<{ cookie: string; userId: string }> {
   const code = process.env.YUKI_ACCESS_CODE
   const res = await fetch(new URL(code ? "api/auth/access-code" : "api/auth/dev/session", withSlash(url)), {
     method: "POST",
     headers: { "content-type": "application/json", origin: new URL(url).origin },
-    body: JSON.stringify(code ? { name, code } : { name }),
+    body: JSON.stringify(code ? { code } : { name }),
     signal: AbortSignal.timeout(5000),
   }).catch((e) => {
     throw new VerifyError(`cannot reach ${url} (${e instanceof Error ? e.message : e})`)

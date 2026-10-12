@@ -99,11 +99,6 @@ export class KernelConnection {
     await this.deps.wake.clear()
   }
 
-  async wipe(): Promise<void> {
-    if (!this.deps.store.connected()) return
-    await this.lease.wipe()
-  }
-
   async leaseFor(agentId: unknown): Promise<LeaseInfo> {
     return this.lease.lease(checkAgentId(agentId))
   }

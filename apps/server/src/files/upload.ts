@@ -1,7 +1,7 @@
 import { sha256Stream } from "@yuki/durable/hash"
 import { type Actor, isRoomId } from "@yuki/protocol"
 import type { Env } from "../index"
-import { addressRoom, userStub } from "../lib/names"
+import { roomStub, userStub } from "../lib/names"
 import type { SessionLookup } from "../router"
 import type { NewFile } from "../room/files"
 import { pendingRoute } from "./pending"
@@ -99,11 +99,7 @@ export async function refuse(bucket: R2Bucket, userId: string, size: number): Pr
 }
 
 async function index(env: Env, userId: string, roomId: string, input: NewFile): Promise<Response> {
-	const room = roomId === HOME ? null : await addressRoom(env, userId, roomId)
-	if (roomId !== HOME && !room) {
-		await env.FILES.delete(input.r2Key)
-		return error(410, "account deleted")
-	}
+	const room = roomId === HOME ? null : roomStub(env.ROOM, userId, roomId)
 	const { file, drop, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
 	if (drop) await deleteFiles(env.FILES, drop)
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })

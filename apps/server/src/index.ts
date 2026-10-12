@@ -1,11 +1,9 @@
 import type { AgentDO } from "./agent/agent-do"
 import { devResponse } from "./lib/dev-guard"
-import { authRoute, getSessionUser } from "./auth/auth"
+import { type AuthEnv, authRoute, getSessionUser } from "./auth/auth"
 import { userStub } from "./lib/names"
-import { accountRoute } from "./auth/account-route"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
-import { consume } from "./jobs/consumer"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
 import type { RoomDO } from "./room/room-do"
@@ -25,18 +23,15 @@ export { AgentDO } from "./agent/agent-do"
 export { RoomDO } from "./room/room-do"
 export { UserDO } from "./user/user-do"
 
-export interface Env {
+export interface Env extends AuthEnv {
   USER: DurableObjectNamespace<UserDO>
   ROOM: DurableObjectNamespace<RoomDO>
   AGENT: DurableObjectNamespace<AgentDO>
-  AUTH_DB: D1Database
   FILES: R2Bucket
-  JOBS: Queue
   ASSETS: Fetcher
   CREDENTIALS_KEK: string
   CREDENTIALS_KEK_VERSION?: string
   CREDENTIALS_KEK_PREVIOUS?: string
-  BETTER_AUTH_SECRET: string
   PROVIDER_OAUTH?: string
 }
 
@@ -64,8 +59,6 @@ export default {
     if (filed) return filed
     const dev = await devResponse(request, env)
     if (dev) return dev
-    const account = await accountRoute(request, env)
-    if (account) return account
     if (url.pathname === "/api/me") {
       const user = await getSessionUser(request, env)
       if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -76,8 +69,5 @@ export default {
     if (authResponse) return authResponse
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return env.ASSETS.fetch(request)
-  },
-  async queue(batch, env) {
-    await consume(batch, env)
   },
 } satisfies ExportedHandler<Env>

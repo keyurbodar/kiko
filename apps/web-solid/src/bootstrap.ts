@@ -29,10 +29,10 @@ window.addEventListener("vite:preloadError", (event) => {
   location.reload();
 });
 
-// The session check and, for a browser with no cached session, the sign-in screen and its
-// providers start now, in parallel with the route chunk, instead of one after another.
+// The session check and, for a browser with no cached session, the sign-in screen
+// start now, in parallel with the route chunk, instead of one after another.
 declare global {
-  var __yukiBoot: { me?: Promise<Response>; providers?: Promise<Response> } | undefined;
+  var __yukiBoot: { me?: Promise<Response> } | undefined;
 }
 const signedInBefore = (() => {
   try {
@@ -41,10 +41,7 @@ const signedInBefore = (() => {
     return false;
   }
 })();
-globalThis.__yukiBoot = {
-  me: fetch("/api/me"),
-  ...(signedInBefore ? {} : { providers: fetch("/api/providers") }),
-};
+globalThis.__yukiBoot = { me: fetch("/api/me") };
 if (!signedInBefore) void import("./app/sign-in").catch(() => {});
 
 const chunk = firstRouteChunk(location.pathname === "/" ? "/chat" : location.pathname);

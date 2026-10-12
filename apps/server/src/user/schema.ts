@@ -177,4 +177,6 @@ export const USER_STEPS: Step[] = [
   ...ALARM_STEPS,
   // How many Jev passes a heard burst has failed (initiative-loops.ts). Past the last try, the two-word touch decides it.
   addColumn("loop_heard", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+  // A webhook post finds its routine by the hash of its token.
+  "CREATE INDEX IF NOT EXISTS reminders_hook ON reminders (hook_hash)",
 ]

@@ -166,19 +166,6 @@ export class KernelLease {
     })
   }
 
-  wipe(): Promise<void> {
-    return this.#serial(async () => {
-      const row = this.deps.store.lease()
-      if (row) await this.#destroy(row)
-      const client = await this.deps.client()
-      try {
-        await client.deleteProfile(await this.deps.profile())
-      } catch (e) {
-        if (!(e instanceof KernelError && e.kind === "not_found")) throw this.#mark(e)
-      }
-    })
-  }
-
   status(): { mode: Mode; tabs: Record<string, number> } | null {
     const row = this.deps.store.lease()
     if (!row || row.dead) return null

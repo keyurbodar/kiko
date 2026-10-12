@@ -13,7 +13,6 @@ import { HELD_WAKEUP, HeldWakes, type Wake, type WakeResult } from "./wake"
 import { chatTasks, openTasks } from "./open-tasks"
 import type { RoomRoutine } from "../user/routines"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
-import { closeSockets, isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { sha256Hex } from "@yuki/durable/hash"
 import { BURST_HELD_WAKEUP, BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
@@ -125,7 +124,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
-			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home(), isWiped: () => isWiped(ctx.storage) })
+			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home() })
 			this.proposals = new Proposals({ ctx, env: this.env, log: this.log, members: this.members, home: () => this.home(), chat: (home) => this.chat(home), publish: (events) => this.publish(events), memberOp: (op) => this.memberOp(op), writeChatFile: (slug, text) => this.writeChatFile(slug, text) })
 			this.pending = new PendingUploads(ctx.storage.sql)
 			this.outbox = new HeldWakes(ctx.storage.sql)
@@ -413,10 +412,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const userId = request.headers.get(USER_ID_HEADER)
 		const roomId = request.headers.get(ROOM_ID_HEADER)
 		if (!userId || !roomId) return new Response("missing room identity", { status: 400 })
-		if (this.#closed || (await isWiped(this.ctx.storage))) return new Response("account deleted", { status: 410 })
 		if (this.log.meta("user_id") === null) {
-			const recorded = this.env.USER ? await userStub(this.env.USER, userId).recordRoom(roomId as RoomId) : true
-			if (!recorded) return new Response("account deleted", { status: 410 })
 			this.log.setMeta("user_id", userId)
 			this.log.setMeta("room_id", roomId)
 		}
@@ -471,7 +467,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				.then(async () => {
 					this.#touching = false
 					const home = this.home()
-					if (home && !(await isWiped(this.ctx.storage))) await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
+					if (home) await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
 				})
 				.catch((error) => console.error(`touchChat failed: ${error instanceof Error ? error.message : String(error)}`)),
 		)
@@ -896,28 +892,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 					.catch(() => undefined),
 			)
 		}
-	}
-
-	async close(): Promise<void> {
-		this.#closed = true
-		closeSockets(this.ctx)
-	}
-	#closed = false
-
-	async inventory(): Promise<{ agents: AgentSlug[]; keys: string[] }> {
-		if (await isWiped(this.ctx.storage)) return { agents: [], keys: [] }
-		const sql = this.ctx.storage.sql
-		const agents = this.members.everyone()
-		const keys = sql.exec<{ r2_key: string }>("SELECT r2_key FROM ws_files").toArray().map((r) => r.r2_key)
-		return { agents, keys: [...keys, ...this.pending.keys()] }
-	}
-
-	async deleteAll(): Promise<number> {
-		return wipeStorage(this.ctx)
-	}
-
-	async storedRows(): Promise<number> {
-		return storedRows(this.ctx.storage)
 	}
 
 	// The dev-only bodies live in room/dev.ts, which only a development build can load. One cached load

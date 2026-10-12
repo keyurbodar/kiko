@@ -54,15 +54,6 @@ export function roomStub(ns: DurableObjectNamespace<RoomDO>, userId: string, roo
   return rpc(ns.get(ns.idFromName(roomName(userId, roomId))), "room")
 }
 
-export async function addressRoom(
-  env: { USER: DurableObjectNamespace<UserDO>; ROOM: DurableObjectNamespace<RoomDO> },
-  userId: string,
-  roomId: string,
-): Promise<DurableObjectStub<RoomDO> | null> {
-  const stub = roomStub(env.ROOM, userId, roomId)
-  return (await userStub(env.USER, userId).recordRoom(checkRoom(roomId))) ? stub : null
-}
-
 export function agentStub(
   ns: DurableObjectNamespace<AgentDO>,
   userId: string,

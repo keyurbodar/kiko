@@ -6,7 +6,7 @@ import { htmlToText } from "@yuki/durable/html-text"
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
 import type { ExtensionStore } from "./extensions"
-import { asResult, type NewRoutine, type Reminder, ReminderError, type Reminders } from "./reminders"
+import { asResult, type NewRoutine, type Reminder, type Reminders } from "./reminders"
 import { matchWebhook, roomRoutine, type RoutineResult, routineResult } from "./routines"
 
 const HOOK_EXCERPT = 6_000
@@ -24,7 +24,7 @@ export class RoutineWiring {
     return asResult(async () => {
       const before = this.d.reminders.get(id)
       const out = await this.d.reminders.cancel(id)
-      if (out?.trigger) await this.routineChanged(out, undefined, before)
+      if (out?.trigger) await this.routineChanged(out, before)
       return out
     })
   }
@@ -32,9 +32,8 @@ export class RoutineWiring {
   async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> {
     return routineResult(async () => {
       const out = await this.d.reminders.createRoutine(owner, input)
-      // The token is returned only when its lookup row exists, so a failed wiring takes the routine back out.
       try {
-        await this.routineChanged(out.routine, out.token)
+        await this.routineChanged(out.routine)
       } catch (e) {
         this.d.reminders.remove(out.routine.id)
         throw e
@@ -43,31 +42,18 @@ export class RoutineWiring {
     })
   }
 
-  /** A deleted chat's routines stop now; their webhook lookup rows follow. */
-  async cancelRoom(roomId: string): Promise<void> {
-    for (const id of await this.d.reminders.cancelRoom(roomId)) await this.dropHook(id)
-  }
-
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> {
     return routineResult(async () => {
       const before = this.d.reminders.get(id)
-      const row = this.d.reminders.rowOf(id)
       const out = await this.d.reminders.updateRoutine(id, patch)
       if (!out) return null
-      if (before?.trigger?.on === "webhook" && out.routine.trigger?.on !== "webhook") await this.dropHook(id)
-      try {
-        await this.routineChanged(out.routine, out.token, before)
-      } catch (e) {
-        // Only a new token writes the row this update changed; without its lookup row the routine could never be reached.
-        if (out.token && row) await this.d.reminders.putRow(row)
-        throw e
-      }
+      await this.routineChanged(out.routine, before)
       return out
     })
   }
 
-  async routineHook(routineId: string, token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
-    const routine = await this.d.reminders.byHook(routineId, token)
+  async routineHook(token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
+    const routine = this.d.reminders.byHook(await sha256Hex(token))
     if (routine?.trigger?.on !== "webhook") return "unknown"
     let json: unknown = null
     try {
@@ -77,32 +63,15 @@ export class RoutineWiring {
     }
     if (!matchWebhook(routine.trigger.match ?? [], json)) return "skipped"
     const shown = body.length > HOOK_EXCERPT ? `${body.slice(0, HOOK_EXCERPT)}\n[cut at ${HOOK_EXCERPT} characters]` : body
-    const out = await this.d.reminders.fireEvent(routineId, `hook:${deliveryKey}`, "a post to its webhook", `the post:\n${shown}`)
+    const out = await this.d.reminders.fireEvent(routine.id, `hook:${deliveryKey}`, "a post to its webhook", `the post:\n${shown}`)
     return out === "delivered" || out === "duplicate" ? "ran" : out === "held" ? "held" : "skipped"
   }
 
-  async routineChanged(routine: Reminder, token?: string, before?: Reminder | null): Promise<void> {
+  async routineChanged(routine: Reminder, before?: Reminder | null): Promise<void> {
     const owner = this.d.reminders.owner()
     if (!owner) return
     const event = (r?: Reminder | null) => r?.trigger?.on === "task" || r?.trigger?.on === "message" || r?.trigger?.on === "file"
     if (event(routine) || event(before)) await roomStub(this.d.env.ROOM, owner, routine.roomId).setRoutines(this.d.reminders.roomRoutines(routine.roomId).map(roomRoutine))
-    if (routine.trigger?.on !== "webhook") return
-    if (routine.status === "cancelled") return this.dropHook(routine.id)
-    if (!token) return
-    try {
-      // Replacing the routine's row, not adding one, keeps a token from an earlier attempt from answering too.
-      await this.dropHook(routine.id)
-      await this.d.env.AUTH_DB.prepare('insert into "hooks" ("token_hash", "user_id", "routine_id", "created_at") values (?, ?, ?, ?)')
-        .bind(await sha256Hex(token), owner, routine.id, Date.now())
-        .run()
-    } catch (e) {
-      console.error(`webhook row not stored: ${e instanceof Error ? e.message : String(e)}`)
-      throw new ReminderError("the webhook could not be saved. try again.")
-    }
-  }
-
-  async dropHook(routineId: string): Promise<void> {
-    await this.d.env.AUTH_DB.prepare('delete from "hooks" where "routine_id" = ?').bind(routineId).run()
   }
 
   async watchPage(trigger: Extract<Trigger, { on: "watch" }>): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
