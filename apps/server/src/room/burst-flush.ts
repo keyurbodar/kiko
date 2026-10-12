@@ -1,14 +1,13 @@
-import type { AgentSlug, Chat, Envelope, RoomId } from "@yuki/protocol"
+import type { AgentSlug, Chat, Envelope, } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import { agentStub, userStub } from "../lib/names"
 import { route } from "./deliver"
 import { BURST_HELD_WAKEUP, deliverable, MAX_DELIVERY_ENVELOPES, type Burst, type Pending } from "./burst"
 import { receive, type ReceiveDeps } from "./receive"
 import { HELD_WAKEUP, type HeldWakes } from "./wake"
-import type { RoomLog } from "./log"
 import type { Members } from "./members"
 import { DELIVERY_RETRY_MS } from "./wake-delivery"
-type Home = { userId: string; roomId: RoomId }
+import type { Home } from "./home"
 
 export type BurstDeps = ReceiveDeps & {
 	ctx: DurableObjectState
@@ -64,14 +63,12 @@ export class BurstFlush {
 	private async deliverBurst(home: Home, batch: Pending[]): Promise<Set<AgentSlug> | "full" | "held"> {
 		const first = batch[0]?.envelope
 		if (!first) throw new Error("deliverBurst: empty burst")
-		const burstId = first.id
-		const takeTurn = () => userStub(this.d.env.USER, home.userId).takeTurn(burstId)
-		const known = this.d.log.meta("title") !== null
-		const [chat, turn] = known ? await Promise.all([this.d.chat(home), takeTurn()]) : await this.d.chat(home).then(async (c) => [c, c ? await takeTurn() : ({ ok: true } as const)] as const)
+		const chat = await this.d.chat(home)
 		if (!chat) {
 			this.d.burst.clear()
 			return new Set()
 		}
+		const turn = await userStub(this.d.env.USER, home.userId).takeTurn(first.id)
 		if (!turn.ok) {
 			// Held, not dropped: the window waits for the reset, and the alarm for the reset delivers it. The notice's id is the reset, so a retry posts nothing twice.
 			const at = new Date(turn.resetAt).toISOString().slice(11, 16)
