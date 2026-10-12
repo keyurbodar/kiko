@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
+import { type BatchChange, type FilesBackend, type SoulPort, withMount, withSoul } from "../src/files/room-fs"
 import { bundleWorker } from "./bundle"
 
 let mf: Miniflare
@@ -315,4 +316,33 @@ test("in a private chat the drive is read-only", async () => {
     expect(out.text).toContain("this chat is private")
   }
   expect((await quiet.write("/notes.md", "fine")).ok).toBe(true)
+})
+
+// The bash tool groups a command's changes by space, so these batches come from direct callers only.
+// Each backend records the batches it is asked to commit.
+const recording = (seen: string[], name: string) => ({ commit: async (changes: readonly BatchChange[]) => (seen.push(`${name}:${changes.length}`), { ok: true }) }) as unknown as FilesBackend
+const write = (path: string): BatchChange => ({ op: "write", path, bytes: new Uint8Array(), type: "text/plain", expect: "none" })
+
+test("a batch that spans the drive and the chat's files is refused in one error, and nothing is saved", async () => {
+  const seen: string[] = []
+  const mount = withMount(recording(seen, "chat"), "home", recording(seen, "drive"))
+  expect(await mount.commit([write("a.txt"), write("home/b.txt")])).toEqual({ ok: false, path: "a.txt", message: "commit /home paths and the chat's paths in separate calls", conflict: false })
+  expect(seen).toEqual([])
+  expect(await mount.commit([write("a.txt")])).toEqual({ ok: true })
+  expect(await mount.commit([write("home/b.txt")])).toEqual({ ok: true })
+  expect(seen).toEqual(["chat:1", "drive:1"])
+})
+
+test("/me/soul.md is saved in a call of its own: a batch with it and another change is refused and saves nothing", async () => {
+  const seen: string[] = []
+  const soul: SoulPort = {
+    get: async () => ({ body: "", sha: "", at: 0 }),
+    set: async () => (seen.push("soul"), { ok: true, soul: { body: "", sha: "", at: 0 } }),
+  }
+  const space = withSoul(recording(seen, "chat"), soul)
+  const out = await space.commit([write("me/soul.md"), write("a.txt")])
+  expect(out).toMatchObject({ ok: false, path: "me/soul.md", conflict: false })
+  expect(seen).toEqual([])
+  expect(await space.commit([write("me/soul.md")])).toEqual({ ok: true })
+  expect(seen).toEqual(["soul"])
 })
