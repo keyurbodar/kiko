@@ -1,5 +1,5 @@
 import { ALARM_STEPS } from "@yuki/durable/alarm"
-import { addColumn, type Step } from "@yuki/durable/migrate"
+import { addColumn, dropColumn, type Step } from "@yuki/durable/migrate"
 import { treeSteps } from "@yuki/memory/optmem"
 
 // The room's tables, in one list. An object at version N runs only the steps after the first N. A step is
@@ -208,4 +208,10 @@ export const ROOM_STEPS: Step[] = [
 	// each read the whole table.
 	"CREATE INDEX IF NOT EXISTS mem_turns_key ON mem_turns (key)",
 	"CREATE INDEX IF NOT EXISTS deliveries_at ON deliveries (at)",
+	// The autonomous budget, held wakes and the held window are gone (single owner).
+	"DROP TABLE IF EXISTS autonomous_runs",
+	"DROP TABLE IF EXISTS auto_taken",
+	"DROP TABLE IF EXISTS held_wakes",
+	"DROP INDEX IF EXISTS pending_held",
+	dropColumn("pending", "held_until"),
 ]

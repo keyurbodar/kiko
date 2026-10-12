@@ -11,14 +11,8 @@ const PREFIX = "/api/dev/agent/"
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "workers", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention", "composio", "browser"].includes(action ?? "")) return null
+  if (!["fake", "status", "workers", "seed", "memory", "classic", "usage", "trace", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention", "composio", "browser"].includes(action ?? "")) return null
   if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
-  if (action === "limits") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
-    const body = (await request.json().catch(() => null)) as { limits?: Record<string, unknown> } | null
-    return Response.json({ limits: await userStub(env.USER, user.id).setLimits(body?.limits ?? {}) })
-  }
   if (action === "policy") {
     const user = await getSessionUser(request, env)
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -110,11 +104,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   if (action === "memory") return Response.json(await roomStub(env.ROOM, user.id, roomId).devMemory())
   if (action === "pending") return Response.json({ pending: await roomStub(env.ROOM, user.id, roomId).devAgePending(Number((body as { ms?: unknown }).ms ?? 0)) })
   if (action === "age") return Response.json({ open: await roomStub(env.ROOM, user.id, roomId).devAge(Number((body as { ms?: unknown }).ms ?? 0)) })
-  if (action === "budget") {
-    const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
-    await agentStub(env.AGENT, user.id, roomId, slug).devBudget(Number((body as { ms?: unknown }).ms ?? 0))
-    return Response.json({ ok: true })
-  }
   if (action === "usage") {
     const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
     return Response.json({ agent: await agentStub(env.AGENT, user.id, roomId, slug).devUsage(), memory: await userStub(env.USER, user.id).memoryUsage() })

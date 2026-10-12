@@ -65,7 +65,7 @@ export type ReminderDelivery = {
 }
 
 export function reminderChain(own: string, r: Pick<ReminderDelivery, "chain" | "createdBy" | "recurring">): Chain | null {
-	const made = r.chain ?? (r.createdBy === "human" ? { rootId: own, hop: 0, origin: "human" as const } : null)
+	const made = r.chain ?? (r.createdBy === "human" ? { rootId: own, hop: 0 } : null)
 	return made && r.recurring ? { ...made, rootId: own, hop: 0 } : made
 }
 

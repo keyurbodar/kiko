@@ -9,9 +9,9 @@ import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-st
 import { type Batch, INBOX_STEPS, Inbox, type Refusal, renderInput } from "./inbox"
 import { stoppable } from "./effects"
 import { type Arrival, decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
-import { type Envelope, joinOrigin, type Origin, originOfAll } from "./envelope"
+import type { Envelope } from "./envelope"
 import { openDurableObjectSqlite } from "./sqlite"
-import { WORKERS_STEPS, Workers } from "./workers"
+import { WORKERS_STEPS, WORKERS_TAIL, Workers } from "./workers"
 
 const context = BACKGROUND_CONTEXT
 
@@ -105,10 +105,8 @@ export type HostOptions = {
   heartbeatMs?: number
   progress?: () => RunProgress | null
   onIdle?: () => void
-  onTimeout?: () => void | Promise<void>
   shortBrief?: (brief: string) => string
   onReset?: () => void
-  autoBudgetMs?: () => Promise<number>
   onWorkers?: (running: number, pending: boolean) => void
   // Keeps an un-awaited promise alive past the handler's return, so an abort still commits.
   waitUntil: (work: Promise<unknown>) => void
@@ -138,8 +136,6 @@ const TOOL_TASK = "pi.tool"
 const HUMAN_COMING = "human-coming"
 const HUMAN_COMING_MS = 10_000
 
-export const AUTO_RUN_BUDGET_MS = 10 * 60_000
-
 const RESET_AFTER = 3
 const UNRECOVERABLE = /unresolvable path|unsafe path|sqlite database is closed|malformed/i
 const MAX_RESUMES = 3
@@ -155,6 +151,9 @@ export const HOST_STEPS: Step[] = [
   "CREATE TABLE IF NOT EXISTS run_origin (id INTEGER PRIMARY KEY CHECK (id = 1), origin TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)",
 ]
 
+// What the host retired. The object that spreads HOST_STEPS appends these after its own steps, so no earlier step moves.
+export const HOST_TAIL: Step[] = [...WORKERS_TAIL, "DROP TABLE IF EXISTS run_origin"]
+
 export class AgentHost {
   readonly inbox: Inbox
   readonly workers: Workers
@@ -164,7 +163,7 @@ export class AgentHost {
   private failures = 0
   private watchingIdle = false
   private resumed = false
-  // Bumped when input is joined and again once it is submitted. An idle check that saw it move must not wipe the new run's origin.
+  // Bumped when input is joined and again once it is submitted. An idle check that saw it move must not clear the heartbeat.
   private inputs = 0
 
   constructor(
@@ -172,7 +171,7 @@ export class AgentHost {
     private readonly options: HostOptions,
   ) {
     this.inbox = new Inbox(ctx.storage)
-    this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), origin: () => this.origin(), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
+    this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
     this.alarms = createAlarms(ctx)
     this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
   }
@@ -197,7 +196,6 @@ export class AgentHost {
       await this.compactIfDue()
       const opened = await this.current()
       await this.drain(opened)
-      await this.enforceBudget(opened)
       await this.pulse(opened)
       this.failures = 0
     } catch (error) {
@@ -274,7 +272,6 @@ export class AgentHost {
   }
 
   private async idle(): Promise<void> {
-    this.ctx.storage.sql.exec("DELETE FROM run_origin")
     if (this.resumed) {
       this.resumed = false
       await this.ctx.storage.delete(RESUMES_KEY)
@@ -358,7 +355,7 @@ export class AgentHost {
         await this.ctx.storage.delete(JOINED_KEY)
         memory = out.text
       }
-      this.joinOrigin(batch, !run || action === "restart" || !(await this.rootPlaced(harness, root)))
+      this.inputs++
       const [extra, last] = await Promise.all([inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
       const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
       const work = this.workers.note()
@@ -371,45 +368,6 @@ export class AgentHost {
       if (shown.key) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
       if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
     }
-  }
-
-  private joinOrigin(batch: Batch, fresh: boolean): void {
-    this.inputs++
-    const incoming = originOfAll(batch.envelopes) ?? "auto"
-    const row = this.ctx.storage.sql.exec<{ origin: Origin }>("SELECT origin FROM run_origin WHERE id = 1").toArray()[0]
-    if (fresh || !row) {
-      this.ctx.storage.sql.exec(
-        "INSERT INTO run_origin (id, origin, started_at, steered) VALUES (1, ?, ?, 0) ON CONFLICT(id) DO UPDATE SET origin = excluded.origin, started_at = excluded.started_at, steered = 0",
-        incoming,
-        Date.now(),
-      )
-      return
-    }
-    this.ctx.storage.sql.exec("UPDATE run_origin SET origin = ? WHERE id = 1", joinOrigin(row.origin, incoming))
-  }
-
-  origin(): Origin {
-    const row = this.ctx.storage.sql.exec<{ origin: Origin }>("SELECT origin FROM run_origin WHERE id = 1").toArray()[0]
-    return row?.origin ?? "auto"
-  }
-
-  private async enforceBudget({ harness, root }: Opened): Promise<void> {
-    const row = this.ctx.storage.sql.exec<{ origin: Origin; started_at: number; steered: number }>("SELECT origin, started_at, steered FROM run_origin WHERE id = 1").toArray()[0]
-    if (!row || row.origin === "human") return
-    const age = Date.now() - row.started_at
-    const budget = (await this.options.autoBudgetMs?.()) ?? AUTO_RUN_BUDGET_MS
-    if (age < budget) return
-    if (!(await this.runState(harness, root))) return
-    if (age >= 2 * budget) {
-      await this.options.onTimeout?.()
-      await root.abort(context)
-      this.ctx.storage.sql.exec("DELETE FROM run_origin")
-      return
-    }
-    if (row.steered) return
-    const content = '<system-event reason="run_budget">\ntime is up for this run. post what you have now in one short message, and stop.\n</system-event>'
-    await root.submit({ type: "input", content, requestId: `budget:${row.started_at}`, whenBusy: "steer" }, context)
-    this.ctx.storage.sql.exec("UPDATE run_origin SET steered = 1 WHERE id = 1")
   }
 
   // The running tools the host may stop, so a human message is answered after the tool, not after it finishes.
@@ -482,7 +440,6 @@ export class AgentHost {
     const live = await harness.inspect(context)
     const talking = isTalking(live, root.id)
     // Nothing awaits between the check and the delete, so no input can join in between.
-    if (!talking && this.inputs === seen) this.ctx.storage.sql.exec("DELETE FROM run_origin")
     if (live.tasks.length === 0 && live.submissions.length === 0 && this.inputs === seen) {
       await this.idle()
       await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
@@ -506,7 +463,6 @@ export class AgentHost {
         const live = await harness.inspect(context)
         if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Math.max(Date.now(), this.humanComingUntil()))
         if (isTalking(live, root.id) || this.inputs !== seen) return this.watchIdle(harness, root)
-        this.ctx.storage.sql.exec("DELETE FROM run_origin")
         if (live.tasks.length || live.submissions.length) return
         await this.idle()
         await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)

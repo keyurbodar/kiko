@@ -3,7 +3,6 @@ import type { Env } from "../index"
 import type { Alarms } from "@yuki/durable/alarm"
 import { roomStub } from "../lib/names"
 import type { Chain } from "../room/mail"
-import type { Budget } from "../room/wake"
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@yuki/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
@@ -61,7 +60,7 @@ export type NewRoutine = {
 
 export type RunDelivery = "delivered" | "held" | "refused" | "gone" | "duplicate" | "skipped"
 
-export type DeliverRun = (input: { deliveryId: string; routine: Reminder; body: string; budget: Budget }) => Promise<RunDelivery>
+export type DeliverRun = (input: { deliveryId: string; routine: Reminder; body: string }) => Promise<RunDelivery>
 
 export type WatchFetch = (trigger: Extract<Trigger, { on: "watch" }>) => Promise<{ ok: true; text: string } | { ok: false; error: string }>
 
@@ -420,12 +419,12 @@ export class Reminders {
     await this.ports?.notice(reminder.roomId, `${to}:${id}:${occurrence}`, text).catch((e: unknown) => console.error(`${to} notice not sent: ${e instanceof Error ? e.message : String(e)}`))
   }
 
-  async runNow(id: string, byHuman = false): Promise<RunDelivery | null> {
+  async runNow(id: string): Promise<RunDelivery | null> {
     const routine = this.get(id)
     if (!routine?.trigger || routine.status !== "active" || !this.ports) return null
     const n = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM routine_runs WHERE routine_id = ? AND occurrence LIKE 'test:%'", id).one().n + 1
     const occurrence = `test:${this.now()}:${n}`
-    return this.run(routine, occurrence, "a test run the human or an agent asked for", "", byHuman)
+    return this.run(routine, occurrence, "a test run the human or an agent asked for", "")
   }
 
   async fireEvent(id: string, occurrence: string, what: string, extra: string): Promise<RunDelivery | null> {
@@ -435,12 +434,11 @@ export class Reminders {
     return this.run(routine, occurrence, what, extra)
   }
 
-  private async run(routine: Reminder, occurrence: string, why: string, extra: string, paid = false): Promise<RunDelivery> {
+  private async run(routine: Reminder, occurrence: string, why: string, extra: string): Promise<RunDelivery> {
     if (!this.ports) return "refused"
     const body = routineBody(routine, why, this.lastRun(routine.id), extra)
-    const budget: Budget = paid ? "paid" : routine.createdBy === "human" ? "user" : "room"
     const fresh = this.beginRun(routine.id, occurrence)
-    const delivery = await this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body, budget }).catch(thrownAsRefused)
+    const delivery = this.ports.gate.away() ? "held" : await this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body }).catch(thrownAsRefused)
     if (delivery === "gone") {
       this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ?", routine.id)
       await this.rearm()

@@ -33,7 +33,7 @@ import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateSco
 import { createAlarms } from "@yuki/durable/alarm"
 import { migrate } from "@yuki/durable/migrate"
 import { AGENT_STEPS } from "./schema"
-import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@yuki/agent/host"
+import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@yuki/agent/host"
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
 import { isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
@@ -51,7 +51,6 @@ import { Outbox, type RoomPort } from "./outbox"
 // Read by the dev methods in agent/dev.ts too, so they share one key per setting.
 export const DEV_FAKE_KEY = "dev-fake"
 export const DEV_CLASSIC_KEY = "dev-classic"
-export const DEV_BUDGET_KEY = "dev:auto-budget-ms"
 export const DEV_INITIATIVE_KEY = "dev:initiative"
 const INITIATIVE_WAIT_MS = 1_500
 const MEMORY_POS_KEY = "memory:pos"
@@ -97,11 +96,6 @@ export class AgentDO extends DurableObject<Env> {
       onOpen: async (opened) => {
         await this.hostOptions.onOpen?.(opened)
         await this.outbox.attach(opened.harness, opened.root.id)
-      },
-      ...(DEV ? { autoBudgetMs: async () => (await this.ctx.storage.get<number>(DEV_BUDGET_KEY)) ?? AUTO_RUN_BUDGET_MS } : {}),
-      onTimeout: async () => {
-        const home = this.home()
-        if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).runTimedOut(home.slug)
       },
       onGiveUp: async () => {
         await this.hostOptions.onGiveUp?.()
@@ -783,10 +777,6 @@ export class AgentDO extends DurableObject<Env> {
 
   async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
     return (await this.dev()).devTrace(this.agentDevHost())
-  }
-
-  async devBudget(ms: number): Promise<void> {
-    return (await this.dev()).devBudget(this.agentDevHost(), ms)
   }
 
   async devFake(): Promise<void> {

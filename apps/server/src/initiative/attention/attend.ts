@@ -6,7 +6,6 @@ export type AttendContext = {
   now: number
   level: Level
   away: boolean
-  budget: number
   busyRooms: readonly string[]
   leads: Readonly<Record<string, string>>
   rhythm: RhythmView
@@ -69,7 +68,7 @@ export function attend(candidates: readonly Candidate[], ctx: AttendContext): Ve
   }
 
   const appetiteCap = allowance(appetite, now)
-  const cap = Math.min(appetiteCap, ctx.budget, ctx.level === "digest" ? 1 : Number.POSITIVE_INFINITY)
+  const cap = Math.min(appetiteCap, ctx.level === "digest" ? 1 : Number.POSITIVE_INFINITY)
   const taken = new Set<string>()
   contenders.sort((a, b) => b.worth - a.worth)
   for (const { c, score: s, worth } of contenders) {
@@ -77,7 +76,7 @@ export function attend(candidates: readonly Candidate[], ctx: AttendContext): Ve
     const target: Target | undefined = c.owner !== "human" ? { room: c.room, slug: c.owner } : lead ? { room: c.room, slug: lead } : undefined
     if (!target) brief(c, s, "no_lead")
     else if (taken.has(c.room)) brief(c, s, "room_taken")
-    else if (taken.size >= cap) brief(c, s, taken.size >= ctx.budget && ctx.budget < appetiteCap ? "budget" : "allowance")
+    else if (taken.size >= cap) brief(c, s, "allowance")
     else {
       taken.add(c.room)
       out.set(c.id, { id: c.id, verdict: "nudge", score: s, worth, target })

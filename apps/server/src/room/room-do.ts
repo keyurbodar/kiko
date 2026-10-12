@@ -8,14 +8,14 @@ import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
 import { RoomRoutines } from "./routines"
 import { SignalWindow, SIGNALS_WAKEUP } from "./signals"
-import { HELD_WAKEUP, HeldWakes, type Wake, type WakeResult } from "./wake"
+import type { Wake, WakeResult } from "./wake"
 
 import { chatTasks, openTasks } from "./open-tasks"
 import type { RoomRoutine } from "../user/routines"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
 import { closeSockets, isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { sha256Hex } from "@yuki/durable/hash"
-import { BURST_HELD_WAKEUP, BURST_WAKEUP, Burst } from "./burst"
+import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
@@ -92,7 +92,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private wakes!: RoomWakes
 	private mailer!: RoomMail
 	private receiver!: ReceiveDeps
-	private outbox!: HeldWakes
 	private pending!: PendingUploads
 	private readonly typing = new Set<AgentSlug>()
 	private sends: Promise<unknown> = Promise.resolve()
@@ -128,7 +127,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home(), isWiped: () => isWiped(ctx.storage) })
 			this.proposals = new Proposals({ ctx, env: this.env, log: this.log, members: this.members, home: () => this.home(), chat: (home) => this.chat(home), publish: (events) => this.publish(events), memberOp: (op) => this.memberOp(op), writeChatFile: (slug, text) => this.writeChatFile(slug, text) })
 			this.pending = new PendingUploads(ctx.storage.sql)
-			this.outbox = new HeldWakes(ctx.storage.sql)
 			this.signals = new SignalWindow(ctx.storage.sql, () => this.log.meta("room_id"))
 			this.reports = new Reports({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, mail: this.mail, routines: this.routines, signals: this.signals, home: () => this.home() })
 			this.wakes = new RoomWakes({
@@ -138,7 +136,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				mail: this.mail,
 				deliveries: this.deliveries,
 				routines: this.routines,
-				outbox: this.outbox,
 				alarms: this.alarms,
 				workspace: this.workspace,
 				burst: this.burst,
@@ -164,13 +161,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				ctx,
 				members: this.members,
 				burst: this.burst,
-				outbox: this.outbox,
-				alarms: this.alarms,
 				home: () => this.home(),
 				chat: (home) => this.chat(home),
 				seedMembers: (home, chat) => this.seedMembers(home, chat),
 				drainMail: () => this.mailer.drain(),
-				retryHeld: () => this.retryHeld(),
 			})
 		})
 	}
@@ -299,15 +293,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await runDue(this.alarms, due, {
 			[HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
 			[BURST_WAKEUP]: () => this.burstFlush.flush(),
-			[BURST_HELD_WAKEUP]: () => this.burstFlush.flush(),
 			[WAKES_WAKEUP]: () => this.deliverWakes(),
 			[MAIL_WAKEUP]: () => this.mailer.drain(),
 			[MEMORY_WAKEUP]: () => this.memoryNaps.naps(),
 			[QUIET_WAKEUP]: () => this.memoryNaps.rollupQuiet(),
 			[SIGNALS_WAKEUP]: () => this.reports.flush(),
-			[HELD_WAKEUP]: () => this.retryHeld(),
 			[PENDING_WAKEUP]: () => this.sweepPending(),
-		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [SIGNALS_WAKEUP]: 5_000, [HELD_WAKEUP]: 5_000 } })
+		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [SIGNALS_WAKEUP]: 5_000 } })
 		if (!due.includes(MAIL_WAKEUP) && this.mail.queued()) await this.mailer.drain()
 	}
 
@@ -493,7 +485,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.wakes.initiativeWake(input)
 	}
 
-	deliverRoutine(deliveryId: string, input: { target: string; body: string; budget: Wake["budget"] }): Promise<WakeResult> {
+	deliverRoutine(deliveryId: string, input: { target: string; body: string }): Promise<WakeResult> {
 		return this.wakes.deliverRoutine(deliveryId, input)
 	}
 
@@ -515,10 +507,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await userStub(this.env.USER, home.userId).chatTasks(home.roomId, chatTasks(rows)).catch(() => {})
 	}
 
-	async runTimedOut(slug: AgentSlug): Promise<void> {
-		this.reports.run(this.routines.dropped(slug), "timeout")
-	}
-
 	async systemNotice(id: string, text: string, reason: SystemReason = "run_budget"): Promise<void> {
 		const event = this.deliveries.notice(id, text, reason)
 		if (event) this.publish([event])
@@ -526,10 +514,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	wake(w: Wake): Promise<WakeResult> {
 		return this.wakes.wake(w)
-	}
-
-	private retryHeld(): Promise<void> {
-		return this.wakes.retryHeld()
 	}
 
 	/**

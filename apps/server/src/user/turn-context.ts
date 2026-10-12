@@ -6,16 +6,12 @@ import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 // Worker bundles cannot follow pi-ai's computed import() for OAuth refresh, so register the bundled flows explicitly.
 registerBunOAuthFlows()
 
-export { DEFAULT_LIMITS, type Limits } from "./limits"
-import { type Limits, resolveLimits } from "./limits"
-
 export const DEFAULT_TIMEZONE = "UTC"
 
 export type TurnContext = {
   provider: string
   auth: AuthResult | null
   timezone: string
-  limits: Limits
   captures: boolean
   agent?: { extensions: { name: string; hash: string }[]; soul: { body: string; sha: string; at: number } }
 }
@@ -48,10 +44,10 @@ export function pickJudge<T extends { provider: string }>(connected: readonly T[
 export async function resolveTurnContext(
   store: CredentialStore,
   provider: string,
-  settings: { timezone: string | null; limits: Partial<Limits> | null; captures: boolean },
+  settings: { timezone: string | null; captures: boolean },
   agent?: TurnContext["agent"],
 ): Promise<TurnContext> {
-  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: resolveLimits(settings.limits), captures: settings.captures, ...(agent ? { agent } : {}) }
+  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, captures: settings.captures, ...(agent ? { agent } : {}) }
   const found = findProvider(provider)
   if (!found) return { ...base, auth: null }
   const models = createModels({ credentials: store, authContext: NO_AMBIENT })

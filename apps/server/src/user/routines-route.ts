@@ -56,7 +56,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   if (request.method !== "POST") return error(405, "method not allowed")
   const id = action[1]
   if (id === undefined) return error(400, "need a routine id")
-  if (action[2]) return Response.json({ delivery: await stub.runRoutine(id, true) })
+  if (action[2]) return Response.json({ delivery: await stub.runRoutine(id) })
   const b = await json(request)
   if (!b) return error(400, "expected an object")
   let trigger: typeof Trigger.Type | undefined

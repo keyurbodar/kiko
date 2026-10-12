@@ -60,12 +60,6 @@ async function cross(v: { url: string }, s: Session) {
 
 async function refused(v: { url: string }, s: Session) {
 	const { room } = await team(v, s, ["ana", "ben"], "refused burst")
-	const res = await fetch(new URL("api/dev/agent/limits", v.url.endsWith("/") ? v.url : `${v.url}/`), {
-		method: "POST",
-		headers: { "content-type": "application/json", cookie: s.cookie },
-		body: JSON.stringify({ limits: { turnsPerDay: 1 } }),
-	})
-	if (!res.ok) throw new VerifyError(`the limits route answered ${res.status}`)
 	await send(room, "@ana [later ben] hello ben.")
 	const status = (slug: string, state: string) => () =>
 		room.raw.log.some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).slug === slug && (e.frame as Extract<RoomToClient, { t: "status" }>).state === state)

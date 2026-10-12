@@ -177,4 +177,6 @@ export const USER_STEPS: Step[] = [
   ...ALARM_STEPS,
   // How many Jev passes a heard burst has failed (initiative-loops.ts). Past the last try, the two-word touch decides it.
   addColumn("loop_heard", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+  // The per-day charge ids of the retired turn and autonomous-run limits.
+  "DROP TABLE IF EXISTS charged_today",
 ]

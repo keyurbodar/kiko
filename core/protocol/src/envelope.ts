@@ -1,9 +1,6 @@
-import type { Origin } from "@yuki/agent/envelope"
 import type { AgentSlug, MessageId, RoomId } from "./ids"
 
 export type SystemReason = "task_unblocked" | "reminder" | "run_budget" | "limit" | "files" | "created" | "routine" | "stalled" | "initiative"
-
-export type { Origin }
 
 export type Human = { kind: "human" }
 export type AgentRef = { kind: "agent"; slug: AgentSlug }
@@ -21,6 +18,5 @@ export type Envelope = {
 	replyTo?: MessageId
 	hop: number
 	rootId: string
-	origin?: Origin
 	seq: number
 }

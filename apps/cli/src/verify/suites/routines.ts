@@ -64,36 +64,6 @@ const suite: Suite = {
     }
 
     {
-      const b = await v.as(`routines-budget-${Date.now()}`)
-      const { roomId, room } = await newRoom(b, "routines: budget")
-      await fake(v, b, roomId)
-      await dev(url, b, "limits", { roomId, limits: { autonomousRunsPerDay: 2 } })
-      const made: Routine[] = []
-      for (const n of [1, 2, 3]) made.push((await ok<{ routine: Routine }>(url, b, "routines", { roomId, name: `tick ${n}`, instructions: `[reply] tick ${n}`, trigger: { on: "time", at: inSeconds(3) } })).routine)
-      for (const r of made) await waitRuns(url, b, r.id, `run of ${r.name}`, (rs) => rs.some((x) => x.status !== "running"), 40_000)
-      const statuses = await Promise.all(made.map(async (r) => (await waitRuns(url, b, r.id, "a run", (rs) => rs.length > 0))[0]?.status))
-      if (statuses.filter((x) => x === "held").length !== 1 || statuses.filter((x) => x === "ok").length !== 2) throw new VerifyError(`expected 2 ok and 1 held, got ${JSON.stringify(statuses)}`)
-      await eventually("the budget line", () => systemTexts(room).some((t) => t.includes("used its runs")), 5_000)
-      if (systemTexts(room).filter((t) => t.includes("used its runs")).length !== 1) throw new VerifyError("the budget line was posted more than once")
-      await dev(url, b, "limits", { roomId, limits: { autonomousRunsPerDay: 100 } })
-      console.log(`  ok with a limit of 2, runs went ${statuses.join(", ")} and the chat said so once`)
-      room.raw.close()
-    }
-
-    {
-      const { roomId, room } = await newRoom(s, "routines: timeout")
-      await fake(v, s, roomId)
-      await dev(url, s, "budget", { roomId, ms: 5_000 })
-      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "slow", instructions: '[tool slow_tool {"ms":120000}]', trigger: { on: "time", at: inSeconds(2) } })
-      const started = Date.now()
-      const runs = await waitRuns(url, s, routine.id, "a timeout", (rs) => rs.some((x) => x.status !== "running"), 100_000)
-      if (runs[0]?.status !== "timeout") throw new VerifyError(`expected a timeout, got ${JSON.stringify(runs)}`)
-      await dev(url, s, "budget", { roomId, ms: 600_000 })
-      console.log(`  ok a run that would take 2 minutes was stopped after ${Math.round((Date.now() - started) / 1000)}s and recorded as a timeout`)
-      room.raw.close()
-    }
-
-    {
       const f = await v.as(`routines-fail-${Date.now()}`)
       const { roomId, room } = await newRoom(f, "routines: breaker")
       const { routine } = await ok<{ routine: Routine }>(url, f, "routines", { roomId, name: "doomed", instructions: "say hi", trigger: { on: "time", at: inSeconds(3600), rrule: "FREQ=DAILY" } })

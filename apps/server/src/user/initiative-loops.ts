@@ -10,9 +10,7 @@ import { INITIATIVE_WAKEUP, InitiativeEngine } from "../initiative/engine"
 import { roomStub } from "../lib/names"
 import { getSetting } from "../lib/settings"
 import { getChat } from "./chats"
-import { LAST_SEEN } from "./keys"
-import type { Limits } from "./limits"
-import { utcDay } from "./limits"
+import { AWAY_MS, LAST_SEEN } from "./keys"
 import { type MemoryCapture, CAPTURE_TEXT_MAX, CAPTURE_TIMEOUT_MS } from "./memory-capture"
 import type { Reminders } from "./reminders"
 import { DEFAULT_TIMEZONE } from "./turn-context"
@@ -33,7 +31,6 @@ export type LoopsDeps = {
   reminders: Reminders
   room: Env["ROOM"]
   userId: string
-  limits: () => Limits
 }
 
 function loopRow(l: Loop): LoopRow {
@@ -71,9 +68,8 @@ export class InitiativeLoops {
       level: () => this.level(),
       away: () => {
         const last = getSetting(d.sql, LAST_SEEN)
-        return last !== null && Date.now() - Number(last) > d.limits().awayDays * 86_400_000
+        return last !== null && Date.now() - Number(last) > AWAY_MS
       },
-      budget: () => Math.max(0, d.limits().autonomousRunsPerDay - Number(getSetting(d.sql, `autonomous:${utcDay(Date.now())}`) ?? 0)),
       title: (roomId) => {
         const chat = getChat(d.sql, roomId)
         return chat && !chat.private && !chat.temp ? chat.title : null

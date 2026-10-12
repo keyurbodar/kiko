@@ -30,3 +30,11 @@ export function addColumn(table: string, column: string, definition: string): St
 		if (!columns.includes(column)) sql.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
 	}
 }
+
+// The mirror of addColumn, for a column the code no longer writes and that would reject an insert without it.
+export function dropColumn(table: string, column: string): Step {
+	return (sql) => {
+		const columns = sql.exec<{ name: string }>(`PRAGMA table_info(${table})`).toArray().map((c) => c.name)
+		if (columns.includes(column)) sql.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`)
+	}
+}

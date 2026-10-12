@@ -1,8 +1,8 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import { AssistantEntry, type ConversationId, type Harness, type SettledSubmissionRecord, type SubmissionId } from "@earendil-works/pi-durable"
-import type { Envelope, Origin } from "./envelope"
-import { addColumn, type Step } from "@yuki/durable/migrate"
+import type { Envelope } from "./envelope"
+import { addColumn, dropColumn, type Step } from "@yuki/durable/migrate"
 
 const context = BACKGROUND_CONTEXT
 
@@ -27,7 +27,6 @@ export type Work = {
   step: string | null
   steps: number
   delivered: boolean
-  origin: Origin
   startedAt: number
   updatedAt: number
 }
@@ -41,7 +40,6 @@ type Row = {
   step: string | null
   steps: number
   delivered: number
-  origin: Origin
   started_at: number
   updated_at: number
 }
@@ -55,7 +53,6 @@ const toWork = (r: Row): Work => ({
   step: r.step,
   steps: r.steps,
   delivered: r.delivered === 1,
-  origin: r.origin,
   startedAt: r.started_at,
   updatedAt: r.updated_at,
 })
@@ -63,7 +60,6 @@ const toWork = (r: Row): Work => ({
 export type WorkersOptions = {
   // Must not wait for a run.
   deliver: (envelope: Envelope) => Promise<unknown>
-  origin: () => Origin
   onChange?: (running: number) => void
   now?: () => number
 }
@@ -94,6 +90,9 @@ export const WORKERS_STEPS: Step[] = [
     PRIMARY KEY (work_id, path)
   ) STRICT`,
 ]
+
+// Appended after every other step of the object that spreads WORKERS_STEPS: the run origin is gone, and its NOT NULL column would reject every new row.
+export const WORKERS_TAIL: Step[] = [dropColumn("workers", "origin")]
 
 export class Workers {
   private readonly sql: SqlStorage
@@ -134,12 +133,11 @@ export class Workers {
     this.sql.exec("DELETE FROM worker_changes WHERE work_id NOT IN (SELECT id FROM workers)")
     const n = this.sql.exec<{ n: number }>("SELECT coalesce(max(n), 0) + 1 AS n FROM workers").one().n
     this.sql.exec(
-      "INSERT INTO workers (n, id, task_id, task, status, origin, started_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)",
+      "INSERT INTO workers (n, id, task_id, task, status, started_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?)",
       n,
       `w${n}`,
       taskId,
       task,
-      this.options.origin(),
       now,
       now,
     )
@@ -312,14 +310,13 @@ const listed = ({ paths, more }: { paths: readonly string[]; more: number }) => 
   return more > 0 ? `${paths.join(", ")} and ${more} more` : paths.join(", ")
 }
 
-export function workEnvelope(work: Pick<Work, "id" | "origin">, submissionId: SubmissionId, status: WorkStatus, report: string): Envelope {
+export function workEnvelope(work: Pick<Work, "id">, submissionId: SubmissionId, status: WorkStatus, report: string): Envelope {
   return {
     id: `work:${work.id}:${submissionId}`,
     from: { kind: "system", reason: "work" },
     body: report,
     hop: 0,
     rootId: `work:${work.id}`,
-    origin: work.origin,
     seq: 0,
     work: { id: work.id, status },
   }

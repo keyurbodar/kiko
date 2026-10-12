@@ -93,14 +93,14 @@ test("snooze moves only time reminders, and a paused time routine stays paused",
 test("a refused routine run counts toward auto-pause", async () => {
   const { clock, reminders } = setup(["refused", "refused", "refused"])
   const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
-  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id, true)
+  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id)
   expect(reminders.get(routine.id)?.status).toBe("paused")
 })
 
 test("a routine whose delivery throws counts toward auto-pause, like a refused run", async () => {
   const { clock, reminders, notices } = setup([], [], false, true)
   const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
-  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id, true)
+  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id)
   expect(reminders.get(routine.id)?.status).toBe("paused")
   expect(notices.length).toBe(1)
 })
