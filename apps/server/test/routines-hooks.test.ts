@@ -13,9 +13,7 @@ const ROOM = "01J0000000000000000000000R" as RoomId
 
 test("a webhook routine is not created when its lookup row cannot be stored", async () => {
   const sql = sqlWith(USER_STEPS)
-  sql.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-  sql.exec("CREATE TABLE chats (room_id TEXT PRIMARY KEY)")
-  sql.exec("INSERT INTO chats (room_id) VALUES (?)", ROOM)
+  sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
   const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms
   const reminders = new Reminders(sql, alarms, async () => {}, () => Date.now())
   const AUTH_DB = { prepare: () => ({ bind: () => ({ run: async () => Promise.reject(new Error("d1 unavailable")) }) }) }
@@ -41,9 +39,7 @@ function authDb(db: Database, failInserts = false) {
 
 function timedRoutines(failInserts = false) {
   const sql = sqlWith(USER_STEPS)
-  sql.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-  sql.exec("CREATE TABLE chats (room_id TEXT PRIMARY KEY)")
-  sql.exec("INSERT INTO chats (room_id) VALUES (?)", ROOM)
+  sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
   const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms
   const reminders = new Reminders(sql, alarms, async () => {}, () => Date.now())
   const db = new Database(":memory:")
