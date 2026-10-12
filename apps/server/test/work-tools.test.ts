@@ -261,7 +261,6 @@ test("two workers that read a file and both rewrite it: the second is refused, s
   expect(["task a", "task b"]).toContain(files.get("copy.md")!)
 })
 
-
 test("the talker's start_work takes one whole job per worker, so a many-part job is not one worker per part", () => {
   const { workers } = registry()
   const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, work: workers })
