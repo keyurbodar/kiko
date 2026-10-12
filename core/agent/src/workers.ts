@@ -10,7 +10,7 @@ export const MAX_WORKERS = 3
 // The inbox refuses an entry over 128 KB.
 export const REPORT_CHARS = 16_000
 // How many changed paths a note or a report names before it says "and N more".
-export const LISTED_PATHS = 20
+const LISTED_PATHS = 20
 const KEEP_DELIVERED_MS = 7 * 86_400_000
 export const MAX_WORKER_RESUMES = 3
 const GAVE_UP = "it stopped after repeated restarts."
