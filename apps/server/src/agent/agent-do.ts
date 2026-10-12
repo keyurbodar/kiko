@@ -42,13 +42,15 @@ import { jevPort, modelPort, pickDecider } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
 import { findProvider, pickJudge } from "../user/turn-context"
 
-import { devOnly, DEV } from "../lib/dev-guard"
+import { DEV, loadAgentDev } from "../lib/dev-guard"
+import type { AgentDevHost, Usage } from "./dev-impl"
 import { Outbox, type RoomPort } from "./outbox"
 
-const DEV_FAKE_KEY = "dev-fake"
-const DEV_CLASSIC_KEY = "dev-classic"
-const DEV_BUDGET_KEY = "dev:auto-budget-ms"
-const DEV_INITIATIVE_KEY = "dev:initiative"
+// Read by the dev methods in agent/dev-impl.ts too, so they share one key per setting.
+export const DEV_FAKE_KEY = "dev-fake"
+export const DEV_CLASSIC_KEY = "dev-classic"
+export const DEV_BUDGET_KEY = "dev:auto-budget-ms"
+export const DEV_INITIATIVE_KEY = "dev:initiative"
 const INITIATIVE_WAIT_MS = 1_500
 const MEMORY_POS_KEY = "memory:pos"
 const MAX_DELTA_TURNS = 32
@@ -443,18 +445,32 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async devInitiative(): Promise<string | null> {
-    devOnly()
-    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
-    return (await this.ctx.storage.get<string>(DEV_INITIATIVE_KEY)) ?? null
+    return (await loadAgentDev()).devInitiative(this.agentDevHost())
   }
 
   private async carryUsage(harness: Harness): Promise<void> {
     const now = await this.usageOf(harness)
-    const carried = (await this.ctx.storage.get<typeof now>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    const carried = await this.carriedUsage()
     await this.ctx.storage.put(USAGE_CARRIED_KEY, { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite })
   }
 
-  private async usageOf(harness: Harness): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
+  private async carriedUsage(): Promise<Usage> {
+    return (await this.ctx.storage.get<Usage>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+  }
+
+  // The one guarded entry for the dev methods in agent/dev-impl.ts: they reach the object's state here.
+  private agentDevHost(): AgentDevHost {
+    return {
+      storage: this.ctx.storage,
+      home: () => this.home(),
+      opened: () => this.host.open(),
+      usageOf: (harness) => this.usageOf(harness),
+      carried: () => this.carriedUsage(),
+      workers: () => this.host.workers.list(),
+    }
+  }
+
+  private async usageOf(harness: Harness): Promise<Usage> {
     const usage = await harness.usage(BACKGROUND_CONTEXT)
     const sum = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
     for (const u of Object.values(usage.models) as unknown as (typeof sum)[]) {
@@ -749,53 +765,30 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async devClassic(): Promise<void> {
-    devOnly()
-    await this.ctx.storage.put(DEV_CLASSIC_KEY, true)
+    return (await loadAgentDev()).devClassic(this.agentDevHost())
   }
 
-  async devUsage(): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
-    devOnly()
-    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
-    if (!this.home()) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-    const { harness } = await this.host.open()
-    const now = await this.usageOf(harness)
-    const carried = (await this.ctx.storage.get<typeof now>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-    return { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite }
+  async devUsage(): Promise<Usage> {
+    return (await loadAgentDev()).devUsage(this.agentDevHost())
   }
 
   async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
-    devOnly()
-    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
-    if (!this.home()) return []
-    const { root } = await this.host.open()
-    const view = await root.context(BACKGROUND_CONTEXT)
-    return view.entries.map((e) => {
-      const m = e.model?.[0] as { content?: string | { type: string; text?: string; name?: string; thinking?: string }[] } | undefined
-      const parts = typeof m?.content === "string" ? [{ type: "text", text: m.content }] : (m?.content ?? [])
-      const tool = parts.find((p) => p.type === "toolCall")?.name
-      const text = parts.map((p) => p.text ?? "").join("").slice(0, 300)
-      return { kind: e.kind, ...(tool ? { tool } : {}), chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0), ...(text ? { text } : {}) }
-    })
+    return (await loadAgentDev()).devTrace(this.agentDevHost())
   }
 
   async devBudget(ms: number): Promise<void> {
-    devOnly()
-    await this.ctx.storage.put(DEV_BUDGET_KEY, ms)
+    return (await loadAgentDev()).devBudget(this.agentDevHost(), ms)
   }
 
   async devFake(): Promise<void> {
-    devOnly()
-    await this.ctx.storage.put(DEV_FAKE_KEY, true)
+    return (await loadAgentDev()).devFake(this.agentDevHost())
   }
 
   async devWorkers(): Promise<Work[]> {
-    devOnly()
-    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
-    return this.host.workers.list()
+    return (await loadAgentDev()).devWorkers(this.agentDevHost())
   }
 
   async devSeed(): Promise<void> {
-    devOnly()
-    await this.ctx.storage.put("dev-seed", Date.now())
+    return (await loadAgentDev()).devSeed(this.agentDevHost())
   }
 }
