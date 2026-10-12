@@ -78,9 +78,8 @@ test("an admitted message is marked delivered", async () => {
 	expect(mail.chainRoot("ada" as AgentSlug)).toBe("human:m1")
 })
 
-test("a send the room has seen before is not queued again", async () => {
-	const { deps, mail } = setup(null)
-	const queued: unknown[] = []
+test("a send the room has seen before is delivered once", async () => {
+	const { deps, received } = setup(null)
 	const pending: Promise<unknown>[] = []
 	const room = new RoomMail({
 		...deps,
@@ -93,13 +92,37 @@ test("a send the room has seen before is not queued again", async () => {
 		home: () => home,
 		title: async () => "t",
 	})
-	const queue = mail.queue.bind(mail)
-	mail.queue = (...a) => (queued.push(a), queue(...a))
 	const send = { id: "s1", to: "bob" as AgentSlug, text: "hello" }
 	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
 	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
 	await Promise.all(pending)
-	expect(queued).toHaveLength(1)
+	expect(received.filter((r) => r.slug === "bob")).toHaveLength(1)
+})
+
+test("a send that failed after it was recorded is still delivered once when the agent retries", async () => {
+	const { deps, received } = setup(null)
+	const pending: Promise<unknown>[] = []
+	let failing = true
+	const room = new RoomMail({
+		...deps,
+		publish: () => {
+			if (failing) throw new Error("publish failed")
+		},
+		ctx: { waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
+		members: { list: () => members } as never,
+		burst: { pending: () => false } as never,
+		asks: { sent: () => {}, answer: () => null, answeredBy: () => null } as never,
+		team: { doing: () => {} } as never,
+		alarms: {} as never,
+		home: () => home,
+		title: async () => "t",
+	})
+	const send = { id: "s1", to: "bob" as AgentSlug, text: "hello" }
+	await expect(room.send("ada" as AgentSlug, send, null)).rejects.toThrow("publish failed")
+	failing = false
+	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
+	await Promise.all(pending)
+	expect(received.filter((r) => r.slug === "bob")).toHaveLength(1)
 })
 
 test("held wakes older than a week are dropped when the next batch is read", () => {
