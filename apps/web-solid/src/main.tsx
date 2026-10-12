@@ -14,8 +14,8 @@ const SignIn = lazy(() => import("./app/sign-in"));
 
 /*
  * The session gates the shell. The cached flag answers on the first frame and
- * `/api/me` confirms it in the background. With no flag the screen stays empty
- * until the first answer, so a signed-in browser never flashes sign-in.
+ * `/api/me` confirms it in the background. With no flag, sign-in shows on the
+ * first frame; only a sign-in redirect, marked by its query, waits for the answer.
  */
 function Root(props: ParentProps) {
   /*
