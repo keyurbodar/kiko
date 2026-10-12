@@ -3,7 +3,7 @@
 // a picture in the box exactly when it is one in the bubble. The limits and their words come from
 // `@yuki/protocol`, which the server enforces too. No Solid and no DOM.
 
-import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS, MAX_MESSAGE_TEXT } from "@yuki/protocol"
+import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS } from "@yuki/protocol"
 
 export { attachmentType, MAX_ATTACHMENTS }
 
@@ -30,11 +30,6 @@ export function tileSpan(count: number): 1 | 2 {
 /** `index` wrapped into `0..count-1` from either side, so the dialog's arrows cycle. */
 export function wrapIndex(index: number, count: number): number {
   return count > 0 ? ((index % count) + count) % count : 0
-}
-
-/** Whether `text` fits in one message beside the `held` characters already in the box. */
-export function fitsMessage(held: number, text: string): boolean {
-  return held + text.length <= MAX_MESSAGE_TEXT
 }
 
 /** Text too long for one message, as the file that carries it. The file keeps every character. */

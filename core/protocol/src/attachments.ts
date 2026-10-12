@@ -4,6 +4,18 @@ const MiB = 1024 * 1024
 export const MAX_ATTACHMENTS = 100
 /** The most text one message carries. Longer text goes in an attached file instead, so no human has to cut it down. */
 export const MAX_MESSAGE_TEXT = 16_000
+/** The largest frame the room socket takes, counted in characters of its JSON text. */
+export const MAX_FRAME = 64 * 1024
+/** What a frame keeps for its ids and file references beside the text. */
+const FRAME_ROOM = 4 * 1024
+
+/**
+ * Whether text fits one message. The socket counts the frame as JSON, where a control character
+ * takes six characters, so the text is measured as JSON too. Client and server both use this.
+ */
+export function textFits(text: string): boolean {
+	return text.length <= MAX_MESSAGE_TEXT && JSON.stringify(text).length <= MAX_FRAME - FRAME_ROOM
+}
 export const MAX_IMAGE_BYTES = 10 * MiB
 export const MAX_TOTAL_IMAGE_BYTES = 80 * MiB
 export const MAX_ATTACHMENT_FILE_BYTES = 50 * MiB

@@ -29,10 +29,8 @@ const reasonText = (why: string) => (why === "too_large" ? "it was too large" : 
 
 /** What a final refusal costs, by who sent it. A system wake has no row: its caller refunds the budget it reserved. */
 const REFUSED: Record<Envelope["from"]["kind"], ((d: ReceiveDeps, r: Refusal) => Promise<void>) | null> = {
-	human: async (d, r) => {
-		const event = d.deliveries.notice(`refused:${r.first.id}:${r.to}`, `your message to @${r.to} was not delivered: ${reasonText(r.why)}. send a shorter one, or attach the detail as a file.`)
-		if (event) d.publish([event])
-	},
+	// A human message never reaches a refusal: the brief caps the board so the entry fits (`brief.ts`).
+	human: null,
 	agent: async (d, r) => {
 		d.mail.refused(r.first.id, r.first.rootId)
 		const from = r.first.from

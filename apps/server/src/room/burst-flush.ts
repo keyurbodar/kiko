@@ -2,7 +2,7 @@ import type { AgentSlug, Chat, Envelope, RoomId } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import { agentStub, userStub } from "../lib/names"
 import { route } from "./deliver"
-import { deliverable, MAX_DELIVERY_ENVELOPES, type Burst } from "./burst"
+import { BURST_WAKEUP, deliverable, MAX_DELIVERY_ENVELOPES, type Burst } from "./burst"
 import { receive, type ReceiveDeps } from "./receive"
 import { resolveRecipients } from "./recipients"
 import { HELD_WAKEUP, type HeldWakes } from "./wake"
@@ -67,10 +67,11 @@ export class BurstFlush {
 			return new Set()
 		}
 		if (!turn.ok) {
+			// Held, not dropped: the burst stays pending and the alarm for the reset delivers it. The notice's id is the reset, so a retry posts nothing twice.
 			const at = new Date(turn.resetAt).toISOString().slice(11, 16)
-			const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "limit" }, text: `you've used today's ${turn.limit} replies. they come back at ${at} utc.` })
+			const event = this.d.deliveries.notice(`limit:${turn.resetAt}`, `you've used today's ${turn.limit} replies. your messages are held and answered at ${at} utc.`, "limit")
 			if (event) this.d.publish([event])
-			this.d.burst.delivered(envelopes)
+			await this.d.alarms.setWakeup(BURST_WAKEUP, turn.resetAt)
 			return new Set()
 		}
 		await this.d.seedMembers(home, chat)

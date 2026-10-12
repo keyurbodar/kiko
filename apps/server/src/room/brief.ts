@@ -4,6 +4,11 @@ import type { MemberRow } from "./members"
 import { briefTasks } from "./workspace"
 
 const MAX_LINE = 400
+/**
+ * The most of the board one brief carries. A human message rides with its brief in one inbox entry
+ * of 128 KB, and a human message is at most 96 KB of JSON, so 32 KB keeps the entry under the cap.
+ */
+export const MAX_BOARD_BYTES = 32 * 1024
 
 export type BriefView = {
 	goal: string
@@ -26,6 +31,19 @@ export function shortBrief(brief: string): string {
 	return brief.replace(/^(the human is @(\S+)\.) write @\2 only when you need them, such as a question only they can answer\.$/m, "$1")
 }
 
+/** The board's lines, up to `MAX_BOARD_BYTES`. The rest is counted, so the agent knows there is more. */
+function boardLines(tasks: readonly Task[]): string[] {
+	const lines: string[] = []
+	let bytes = 0
+	for (const [i, t] of tasks.entries()) {
+		const line = `- ${t.id} [${t.status}] ${oneLine(t.title)}${t.dependsOn.length ? ` (after ${t.dependsOn.join(", ")})` : ""}`
+		bytes += new TextEncoder().encode(line).length + 1
+		if (bytes > MAX_BOARD_BYTES) return [...lines, `- and ${tasks.length - i} more on the board`]
+		lines.push(line)
+	}
+	return lines
+}
+
 export function buildBrief(member: MemberRow, view: BriefView): string {
 	const lines = [`room goal: ${oneLine(view.goal) || "none yet"}`, `you are @${member.slug}${member.lead ? ", the lead" : ""}.`]
 	if (view.human) lines.push(`the human is @${view.human}.${HUMAN_HINT(view.human)}`)
@@ -41,8 +59,7 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 		lines.push(`- @${m.slug} (${escapeXml(m.name)}): ${parts.filter(Boolean).join(", ")}`)
 	}
 	lines.push("your tasks:")
-	if (view.tasks.length) for (const t of view.tasks) lines.push(`- ${t.id} [${t.status}] ${oneLine(t.title)}${t.dependsOn.length ? ` (after ${t.dependsOn.join(", ")})` : ""}`)
-	else lines.push("- none")
+	lines.push(...(view.tasks.length ? boardLines(view.tasks) : ["- none"]))
 	if (view.proposal) lines.push(escapeXml(view.proposal))
 	if (view.reactions) lines.push(escapeXml(view.reactions))
 	return lines.join("\n")

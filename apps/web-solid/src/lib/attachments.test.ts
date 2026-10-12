@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { admit, attachmentType, fitsMessage, isImage, MAX_ATTACHMENTS, splitFiles, textFile, tileSpan, wrapIndex } from "./attachments"
+import { textFits } from "@yuki/protocol"
+import { admit, attachmentType, isImage, MAX_ATTACHMENTS, splitFiles, textFile, tileSpan, wrapIndex } from "./attachments"
 
 const MB = 1024 * 1024
 const file = (name: string, type: string, size = 1000) => ({ name, type, size })
@@ -77,10 +78,12 @@ describe("the picture grid and the dialog", () => {
 })
 
 describe("text too long for one message", () => {
-  test("text within one message's limit stays in the box, counting what is already held", () => {
-    expect(fitsMessage(0, "x".repeat(16_000))).toBe(true)
-    expect(fitsMessage(1, "x".repeat(16_000))).toBe(false)
-    expect(fitsMessage(0, "x".repeat(20_000))).toBe(false)
+  test("text stays in the box while it fits one frame, counted the way the socket counts it", () => {
+    expect(textFits("x".repeat(16_000))).toBe(true)
+    expect(textFits("x".repeat(16_001))).toBe(false)
+    // A control character takes six characters of JSON, so 16,000 of them overflow the frame.
+    expect(textFits("\u0001".repeat(16_000))).toBe(false)
+    expect(textFits("\u0001".repeat(8_000))).toBe(true)
   })
 
   test("long text goes in a text file that keeps every character", async () => {
