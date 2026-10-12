@@ -46,23 +46,34 @@ export interface DeletionTargets {
 export const userPrefix = (userId: string) => `u/${userId}/`
 export const roomPrefix = (userId: string, roomId: string) => `${userPrefix(userId)}r/${roomId}/`
 
+class Superseded extends Error {}
+
 export async function runDeleteJob(job: DeleteAccountJob, t: DeletionTargets): Promise<DeleteReport> {
 	const report: DeleteReport = { agents: 0, rooms: 0, user: 0, objects: 0, authRows: 0, finished: false }
-	if (!(await t.deletionCurrent(job.generation))) return report
-	if (job.roomId) {
-		const roomId = job.roomId
-		await t.closeRoom(roomId)
-		const { agents, keys } = await t.roomInventory(roomId)
-		report.objects += await t.deleteObjects(roomPrefix(job.userId, roomId), keys)
-		for (const slug of agents) if ((await t.wipeAgent(roomId, slug)) > 0) report.agents++
-		if ((await t.wipeRoom(roomId)) > 0) report.rooms++
-		if ((await t.roomDeleted(roomId)) > 0) return report
+	// Every destructive step re-checks the generation, so a rollback that lands mid-job stops the job before its next step.
+	const step = async <T>(run: () => Promise<T>): Promise<T> => {
+		if (!(await t.deletionCurrent(job.generation))) throw new Superseded()
+		return run()
 	}
-	if ((await t.wipeUser()) > 0) report.user++
-	report.objects += await t.deleteObjects(userPrefix(job.userId), [])
-	report.authRows = await t.deleteAuthRows()
-	report.finished = true
-	return report
+	try {
+		if (job.roomId) {
+			const roomId = job.roomId
+			await step(() => t.closeRoom(roomId))
+			const { agents, keys } = await t.roomInventory(roomId)
+			report.objects += await step(() => t.deleteObjects(roomPrefix(job.userId, roomId), keys))
+			for (const slug of agents) if ((await step(() => t.wipeAgent(roomId, slug))) > 0) report.agents++
+			if ((await step(() => t.wipeRoom(roomId))) > 0) report.rooms++
+			if ((await step(() => t.roomDeleted(roomId))) > 0) return report
+		}
+		if ((await step(() => t.wipeUser())) > 0) report.user++
+		report.objects += await step(() => t.deleteObjects(userPrefix(job.userId), []))
+		report.authRows = await step(() => t.deleteAuthRows())
+		report.finished = true
+		return report
+	} catch (e) {
+		if (e instanceof Superseded) return report
+		throw e
+	}
 }
 
 const R2_DELETE_BATCH = 1000

@@ -120,6 +120,25 @@ describe("runDeleteJob", () => {
 		expect(a.calls).toEqual([])
 	})
 
+	test("a rollback that lands during a job stops its remaining destructive steps", async () => {
+		const a = account()
+		const rolledBack: DeletionTargets = {
+			...a.targets,
+			wipeAgent: async (id, slug) => {
+				const rows = await a.targets.wipeAgent(id, slug)
+				a.state.deletion = null
+				return rows
+			},
+		}
+		const report = await runDeleteJob(job(ROOM_A), rolledBack)
+		expect(report.finished).toBe(false)
+		expect(a.calls).not.toContain("wipeRoom")
+		expect(a.calls).not.toContain("wipeUser")
+		expect(a.calls).not.toContain("deleteAuthRows")
+		expect(a.state.rooms.has(ROOM_A)).toBe(true)
+		expect(a.state.userRows).toBe(4)
+	})
+
 	test("a second run of a finished job deletes nothing", async () => {
 		const a = account()
 		await runDeleteJob(job(ROOM_A), a.targets)
