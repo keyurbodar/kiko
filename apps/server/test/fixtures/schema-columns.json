@@ -165,58 +165,6 @@
         "sqlite_autoindex_agent_sends_1"
       ]
     },
-    "auto_taken": {
-      "columns": [
-        {
-          "cid": 0,
-          "name": "id",
-          "type": "TEXT",
-          "notnull": 0,
-          "dflt_value": null,
-          "pk": 1
-        },
-        {
-          "cid": 1,
-          "name": "day",
-          "type": "TEXT",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        }
-      ],
-      "indexes": [
-        "sqlite_autoindex_auto_taken_1"
-      ]
-    },
-    "autonomous_runs": {
-      "columns": [
-        {
-          "cid": 0,
-          "name": "id",
-          "type": "INTEGER",
-          "notnull": 0,
-          "dflt_value": null,
-          "pk": 1
-        },
-        {
-          "cid": 1,
-          "name": "day",
-          "type": "TEXT",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        },
-        {
-          "cid": 2,
-          "name": "runs",
-          "type": "INTEGER",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        }
-      ],
-      "indexes": []
-    },
     "clients": {
       "columns": [
         {
@@ -340,37 +288,6 @@
       ],
       "indexes": [
         "events_kind_seq"
-      ]
-    },
-    "held_wakes": {
-      "columns": [
-        {
-          "cid": 0,
-          "name": "id",
-          "type": "TEXT",
-          "notnull": 0,
-          "dflt_value": null,
-          "pk": 1
-        },
-        {
-          "cid": 1,
-          "name": "wake",
-          "type": "TEXT",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        },
-        {
-          "cid": 2,
-          "name": "at",
-          "type": "INTEGER",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        }
-      ],
-      "indexes": [
-        "sqlite_autoindex_held_wakes_1"
       ]
     },
     "mail_queue": {
@@ -1011,19 +928,10 @@
           "notnull": 1,
           "dflt_value": "'[]'",
           "pk": 0
-        },
-        {
-          "cid": 6,
-          "name": "held_until",
-          "type": "INTEGER",
-          "notnull": 0,
-          "dflt_value": null,
-          "pk": 0
         }
       ],
       "indexes": [
         "pending_at",
-        "pending_held",
         "pending_seq",
         "sqlite_autoindex_pending_1"
       ]
@@ -1791,29 +1699,6 @@
       ],
       "indexes": [
         "sqlite_autoindex_capture_queue_1"
-      ]
-    },
-    "charged_today": {
-      "columns": [
-        {
-          "cid": 0,
-          "name": "id",
-          "type": "TEXT",
-          "notnull": 0,
-          "dflt_value": null,
-          "pk": 1
-        },
-        {
-          "cid": 1,
-          "name": "day",
-          "type": "TEXT",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        }
-      ],
-      "indexes": [
-        "sqlite_autoindex_charged_today_1"
       ]
     },
     "chat_tasks": {
@@ -4008,43 +3893,6 @@
         "sqlite_autoindex_outbox_1"
       ]
     },
-    "run_origin": {
-      "columns": [
-        {
-          "cid": 0,
-          "name": "id",
-          "type": "INTEGER",
-          "notnull": 0,
-          "dflt_value": null,
-          "pk": 1
-        },
-        {
-          "cid": 1,
-          "name": "origin",
-          "type": "TEXT",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        },
-        {
-          "cid": 2,
-          "name": "started_at",
-          "type": "INTEGER",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        },
-        {
-          "cid": 3,
-          "name": "steered",
-          "type": "INTEGER",
-          "notnull": 1,
-          "dflt_value": "0",
-          "pk": 0
-        }
-      ],
-      "indexes": []
-    },
     "wakeups": {
       "columns": [
         {
@@ -4175,14 +4023,6 @@
         },
         {
           "cid": 10,
-          "name": "origin",
-          "type": "TEXT",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        },
-        {
-          "cid": 11,
           "name": "started_at",
           "type": "INTEGER",
           "notnull": 1,
@@ -4190,7 +4030,7 @@
           "pk": 0
         },
         {
-          "cid": 12,
+          "cid": 11,
           "name": "updated_at",
           "type": "INTEGER",
           "notnull": 1,
@@ -4198,7 +4038,7 @@
           "pk": 0
         },
         {
-          "cid": 13,
+          "cid": 12,
           "name": "resumes",
           "type": "INTEGER",
           "notnull": 1,

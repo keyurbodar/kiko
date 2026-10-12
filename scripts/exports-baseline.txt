@@ -41,7 +41,6 @@ apps/server/src/files/room-fs.ts:SOUL_PATH
 apps/server/src/files/upload.ts:MAX_FILE_BYTES
 apps/server/src/files/upload.ts:STORAGE_LIMIT_BYTES
 apps/server/src/integrations/composio/client.ts:ComposioResultBlock
-apps/server/src/integrations/composio/client.ts:composioRpc
 apps/server/src/integrations/composio/store.ts:SavedListing
 apps/server/src/integrations/composio/tools.ts:fillFlags
 apps/server/src/integrations/composio/tools.ts:relaxSchema
@@ -58,12 +57,10 @@ apps/server/src/room/asks.ts:KEEP_ASKS_MS
 apps/server/src/room/asks.ts:Unanswered
 apps/server/src/room/brief.ts:BriefView
 apps/server/src/room/burst.ts:AFTER_FRAGMENT_MS
-apps/server/src/room/burst.ts:AFTER_MESSAGE_MS
 apps/server/src/room/burst.ts:AFTER_TYPING_MS
 apps/server/src/room/burst.ts:MAX_BURST_MS
 apps/server/src/room/burst.ts:MAX_DELIVERY_BYTES
 apps/server/src/room/burst.ts:isFragment
-apps/server/src/room/limits.ts:MAX_AUTONOMOUS_RUNS_PER_DAY
 apps/server/src/room/limits.ts:MAX_DELIVERIES_PER_ROOT
 apps/server/src/room/limits.ts:MAX_HOP
 apps/server/src/room/limits.ts:SendCheck
@@ -97,7 +94,6 @@ apps/server/src/skills/registry.ts:SkillSource
 apps/server/src/user/extensions.ts:TriggerPort
 apps/server/src/user/extensions.ts:bundleHash
 apps/server/src/user/hooks-route.ts:MAX_HOOK_BYTES
-apps/server/src/user/initiative-loops.ts:LoopsDeps
 apps/server/src/user/memory-capture.ts:MemoryDeps
 apps/server/src/user/provider-login.ts:LoginDeps
 apps/server/src/user/provider-login.ts:MAX_LOGINS

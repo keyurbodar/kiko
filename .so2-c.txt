@@ -1,0 +1,108 @@
+$ bun run --filter '*' typecheck
+@yuki/durable typecheck: Exited with code 0
+@yuki/ui typecheck: Exited with code 0
+@yuki/browser typecheck: Exited with code 0
+@yuki/agent typecheck: Exited with code 0
+@yuki/memory typecheck: Exited with code 0
+@yuki/sandbox typecheck: Exited with code 0
+@yuki/protocol typecheck: Exited with code 0
+@yuki/cli typecheck: Exited with code 0
+web-solid typecheck: Exited with code 0
+@yuki/server typecheck: Exited with code 0
+apps/cli/src/verify/suites/routines.ts:2:27 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━
+
+  ! Several of these imports are unused.
+  
+    1 │ import { VerifyError } from "../client"
+  > 2 │ import { agentTexts, api, dev, eventually, inSeconds, ok, type Routine, systemTexts, toolLine, waitRoutine, waitRuns } from "../routine-kit"
+      │                           ^^^
+    3 │ import type { Suite } from "../runner"
+    4 │ import { fake, newRoom, send } from "./mid-run"
+  
+  i Unused imports might be the result of an incomplete refactoring.
+  
+  i Unsafe fix: Remove the unused imports.
+  
+    2 │ import·{·agentTexts,·api,·dev,·eventually,·inSeconds,·ok,·type·Routine,·systemTexts,·toolLine,·waitRoutine,·waitRuns·}·from·"../routine-kit"
+      │                           -----                                                                                                             
+
+core/durable/src/html-text.ts:32:40 lint/style/noNonNullAssertion ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Forbidden non-null assertion.
+  
+    30 │   while (i >= 0) {
+    31 │     let j = i + needle.length
+  > 32 │     while (j < lower.length && WS.test(lower[j]!)) j++
+       │                                        ^^^^^^^^^
+    33 │     if (lower[j] === ">") return j + 1
+    34 │     i = lower.indexOf(needle, i + 1)
+  
+
+core/memory/src/capture.ts:133:17 lint/style/noNonNullAssertion ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Forbidden non-null assertion.
+  
+    131 │   if (!answers) return null
+    132 │   for (const [i, { message, candidate, known }] of items.entries()) {
+  > 133 │     const row = rows[message]!
+        │                 ^^^^^^^^^^^^^^
+    134 │     if (row.keep && !row.keep()) continue
+    135 │     if (boolOf(answers[`c${i}_private`]) > policy.privateMax) {
+  
+
+core/sandbox/src/compile.ts:235:35 lint/correctness/noUnusedFunctionParameters  FIXABLE  ━━━━━━━━━━━
+
+  ! This parameter effect is unused.
+  
+    233 │   const quietBridge = (where: string, readOnly: boolean): Bridge => makeQuietBridge({ name, manifest: m, ports }, where, readOnly)
+    234 │ 
+  > 235 │   const callPort = (self: string, effect: Effect, api: ToolExecutionApi, context: Context): CallPort => ({
+        │                                   ^^^^^^
+    236 │     effectOf: async (tool) => {
+    237 │       const callee = (await api.agent(context)).tools.find((t) => t.name === tool)
+  
+  i Unused parameters might be the result of an incomplete refactoring.
+  
+  i Unsafe fix: If this is intentional, prepend effect with an underscore.
+  
+    233 233 │     const quietBridge = (where: string, readOnly: boolean): Bridge => makeQuietBridge({ name, manifest: m, ports }, where, readOnly)
+    234 234 │   
+    235     │ - ··const·callPort·=·(self:·string,·effect:·Effect,·api:·ToolExecutionApi,·context:·Context):·CallPort·=>·({
+        235 │ + ··const·callPort·=·(self:·string,·_effect:·Effect,·api:·ToolExecutionApi,·context:·Context):·CallPort·=>·({
+    236 236 │       effectOf: async (tool) => {
+    237 237 │         const callee = (await api.agent(context)).tools.find((t) => t.name === tool)
+  
+
+scripts/check-exports.ts:33:94 lint/style/noNonNullAssertion ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Forbidden non-null assertion.
+  
+    31 │ const WORD = /[A-Za-z_$][\w$]*/g
+    32 │ const where = new Map<string, Set<string>>()
+  > 33 │ for (const [file, body] of text) for (const w of new Set(body.match(WORD))) (where.get(w) ?? where.set(w, new Set()).get(w)!).add(file)
+       │                                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    34 │ 
+    35 │ // Exports that were unused when this check landed. New ones fail; delete a line when its export goes.
+  
+
+scripts/check-rules.ts:99:37 lint/suspicious/noAssignInExpressions ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! The assignment should not be in an expression.
+  
+     97 │         seen.add(rel)
+     98 │         let lines = cache.get(rel)
+   > 99 │         if (!lines) cache.set(rel, (lines = read(file).split("\n")))
+        │                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    100 │         lines.forEach((line, i) => {
+    101 │           const code = line.trim()
+  
+  i The use of assignments in expressions is confusing.
+    Expressions are often considered as side-effect free.
+  
+
+Checked 304 files in 401ms. No fixes applied.
+Found 6 warnings.
+imports ok: durable, browser, agent, memory, sandbox, protocol
+no-timer-in-do: 0 enforced; do-names: 0 enforced; dev-guard: 0 enforced; egress: 0 enforced; sql-list-binds: 0 enforced
+check-rules ok in 109 ms
+check-exports ok: 208 files, 198 baselined, 4 baseline entries now used or gone (delete them) in 189 ms

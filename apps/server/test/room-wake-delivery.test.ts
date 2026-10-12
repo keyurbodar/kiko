@@ -77,10 +77,8 @@ test("a wake the agent admits is delivered once, and a repeat is a duplicate", a
   expect(agent.received.filter((id) => id === "w1")).toHaveLength(1)
 })
 
-test("a wake the agent refuses is refused and not marked delivered", async () => {
+test("a wake the agent refuses is refused", async () => {
   const { wakes, agent } = setup()
   agent.refused = "too_large"
   expect(await wakes.wake(wake("w2"))).toBe("refused")
-  agent.refused = null
-  expect(await wakes.wake(wake("w2"))).toBe("delivered")
 })

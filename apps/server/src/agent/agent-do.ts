@@ -50,7 +50,6 @@ import { Outbox, type RoomPort } from "./outbox"
 
 // Read by the dev methods in agent/dev.ts too, so they share one key per setting.
 export const DEV_FAKE_KEY = "dev-fake"
-export const DEV_CLASSIC_KEY = "dev-classic"
 export const DEV_INITIATIVE_KEY = "dev:initiative"
 const INITIATIVE_WAIT_MS = 1_500
 const MEMORY_POS_KEY = "memory:pos"
@@ -366,7 +365,7 @@ export class AgentDO extends DurableObject<Env> {
         return [clock, down, learned, quiet, extensions, initiative].filter(Boolean).join("\n\n")
       },
       ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
-      ...(DEV && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
+      inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
       beforeCompact: (harness) => this.carryUsage(harness),
     }
   }
@@ -765,10 +764,6 @@ export class AgentDO extends DurableObject<Env> {
   private dev(): Promise<typeof import("./dev")> {
     this.#dev ??= loadAgentDev()
     return this.#dev
-  }
-
-  async devClassic(): Promise<void> {
-    return (await this.dev()).devClassic(this.agentDevHost())
   }
 
   async devUsage(): Promise<Usage> {

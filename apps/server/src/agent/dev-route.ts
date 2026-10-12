@@ -11,7 +11,7 @@ const PREFIX = "/api/dev/agent/"
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "workers", "seed", "memory", "classic", "usage", "trace", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention", "composio", "browser"].includes(action ?? "")) return null
+  if (!["fake", "status", "workers", "seed", "memory", "usage", "trace", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention", "composio", "browser"].includes(action ?? "")) return null
   if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
   if (action === "policy") {
     const user = await getSessionUser(request, env)
@@ -113,10 +113,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     return Response.json({ text: await agentStub(env.AGENT, user.id, roomId, slug).devInitiative() })
   }
   if (action === "trace") return Response.json(await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devTrace())
-  if (action === "classic") {
-    await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devClassic()
-    return Response.json({ ok: true })
-  }
   const slugs = action === "status" ? [body.slug] : (body.slugs ?? [DEFAULT_AGENT])
   if (!Array.isArray(slugs) || !slugs.length || slugs.length > MAX_MEMBERS || !slugs.every((s) => typeof s === "string" && isAgentSlug(s))) {
     return Response.json({ error: "bad slugs" }, { status: 400 })
