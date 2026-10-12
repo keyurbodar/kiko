@@ -2,6 +2,8 @@
 const MiB = 1024 * 1024
 
 export const MAX_ATTACHMENTS = 100
+/** The most text one message carries. Longer text goes in an attached file instead, so no human has to cut it down. */
+export const MAX_MESSAGE_TEXT = 16_000
 export const MAX_IMAGE_BYTES = 10 * MiB
 export const MAX_TOTAL_IMAGE_BYTES = 80 * MiB
 export const MAX_ATTACHMENT_FILE_BYTES = 50 * MiB

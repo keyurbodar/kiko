@@ -1,3 +1,4 @@
+import { MAX_MESSAGE_TEXT } from "@yuki/protocol"
 import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomToClient, TaskOp, FileOp } from "@yuki/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@yuki/protocol/schema"
 import { Schema } from "effect"
@@ -24,7 +25,6 @@ export interface SocketRoom {
 
 export const BAD_FRAME = 1008
 const MAX_FRAME = 64 * 1024
-export const MAX_TEXT = 16_000
 const MAX_EMOJI = 32
 export const MAX_HISTORY = 100
 
@@ -63,9 +63,9 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 	}
 	switch (frame.t) {
 		case "send":
-			return frame.text.length <= MAX_TEXT && (frame.text.trim() !== "" || !!frame.files?.length || !!frame.attachments?.length) ? frame : null
+			return frame.text.length <= MAX_MESSAGE_TEXT && (frame.text.trim() !== "" || !!frame.files?.length || !!frame.attachments?.length) ? frame : null
 		case "edit":
-			return frame.text.length <= MAX_TEXT && frame.text.trim() !== "" ? frame : null
+			return frame.text.length <= MAX_MESSAGE_TEXT && frame.text.trim() !== "" ? frame : null
 		case "react":
 			return frame.emoji === null || (frame.emoji.length > 0 && frame.emoji.length <= MAX_EMOJI && !/\s/.test(frame.emoji))
 				? frame

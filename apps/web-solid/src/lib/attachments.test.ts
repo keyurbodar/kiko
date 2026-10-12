@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { admit, attachmentType, isImage, MAX_ATTACHMENTS, splitFiles, tileSpan, wrapIndex } from "./attachments"
+import { admit, attachmentType, fitsMessage, isImage, MAX_ATTACHMENTS, splitFiles, textFile, tileSpan, wrapIndex } from "./attachments"
 
 const MB = 1024 * 1024
 const file = (name: string, type: string, size = 1000) => ({ name, type, size })
@@ -73,5 +73,21 @@ describe("the picture grid and the dialog", () => {
     expect(wrapIndex(-1, 3)).toBe(2)
     expect(wrapIndex(-7, 3)).toBe(2)
     expect(wrapIndex(1, 0)).toBe(0)
+  })
+})
+
+describe("text too long for one message", () => {
+  test("text within one message's limit stays in the box, counting what is already held", () => {
+    expect(fitsMessage(0, "x".repeat(16_000))).toBe(true)
+    expect(fitsMessage(1, "x".repeat(16_000))).toBe(false)
+    expect(fitsMessage(0, "x".repeat(20_000))).toBe(false)
+  })
+
+  test("long text goes in a text file that keeps every character", async () => {
+    const text = "line\n".repeat(4_000)
+    const file = textFile(text)
+    expect(attachmentType(file)).toBe("text/plain")
+    expect(file.size).toBe(text.length)
+    expect(await file.text()).toBe(text)
   })
 })

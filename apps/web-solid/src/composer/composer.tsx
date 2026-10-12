@@ -2,7 +2,8 @@ import { Show, createEffect, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import type { ComposerProps, MessageFile } from "../lib/types"
-import { isImage } from "../lib/attachments"
+import { MAX_MESSAGE_TEXT } from "@yuki/protocol"
+import { fitsMessage, isImage, textFile } from "../lib/attachments"
 import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
@@ -189,11 +190,21 @@ export function Composer(props: ComposerProps) {
           const text = draftText()
           const editing = props.editing
           if (editing) {
+            // An edit cannot carry a file, so a text past the limit stays in the box for the human to cut.
+            if (!fitsMessage(0, text)) {
+              showToastV2({ title: `Edits can be up to ${MAX_MESSAGE_TEXT.toLocaleString("en-US")} characters.`, variant: "error" })
+              return
+            }
             if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)
             props.onCancelEdit?.()
             return
           }
           if (runSlash(text)) return void store.reset()
+          // Text past one message's limit becomes a file, as a long paste does. It uploads like any attachment and goes with the send.
+          if (!fitsMessage(0, text)) {
+            void controller.addAttachments([textFile(text)])
+            return void store.reset()
+          }
           // Every attachment is already uploaded: the send names the uploads, and the message shows
           // the blob URLs until the room's copy arrives.
           const parts = boxed()
