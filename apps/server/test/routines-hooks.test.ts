@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite"
-import { expect, test } from "bun:test"
+import { expect, spyOn, test } from "bun:test"
 import type { RoomId } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import type { Env } from "../src/index"
@@ -72,6 +72,19 @@ test("a routine that becomes a webhook is unchanged when its lookup row cannot b
   expect(t.reminders.get(made.routine.id)).toEqual(before)
   expect(t.hookHash(made.routine.id)).toBeNull()
   expect(t.hookRows()).toEqual([])
+})
+
+test("editing a webhook's trigger keeps its token and mints none", async () => {
+  const t = timedRoutines()
+  const made = await t.wiring.createRoutine("u", { name: "hook", instructions: "say hi", trigger: { on: "webhook" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  if (!made.ok || !made.token) throw new Error("no webhook token")
+  const random = spyOn(crypto, "getRandomValues")
+  const out = await t.wiring.updateRoutine(made.routine.id, { trigger: { on: "webhook" } })
+  const mints = random.mock.calls.length
+  random.mockRestore()
+  expect(out.ok).toBe(true)
+  expect(mints).toBe(0)
+  expect(await t.reminders.byHook(made.routine.id, made.token)).not.toBeNull()
 })
 
 test("a routine that becomes a webhook leaves exactly one lookup row, even after an earlier stale one", async () => {

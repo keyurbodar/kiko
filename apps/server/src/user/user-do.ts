@@ -41,6 +41,7 @@ import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, roomStub } from "../lib/names"
+import { isDeletedUser } from "../auth/auth"
 import { type ExtensionEvent, ExtensionStore } from "./extensions"
 import { EXTENSION_CATALOG } from "./catalog.gen"
 import { nextOccurrence } from "@yuki/sandbox/recurrence"
@@ -724,7 +725,7 @@ export class UserDO extends DurableObject<Env> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 })
     }
-    if ((await isWiped(this.ctx.storage)) || (await this.ctx.storage.get(DELETING))) return new Response("account deleted", { status: 410 })
+    if (await this.deletionInForce()) return new Response("account deleted", { status: 410 })
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
@@ -827,7 +828,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
-    if ((await isWiped(this.ctx.storage)) || (await this.ctx.storage.get(DELETING))) return
+    if (await this.deletionInForce()) return
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
@@ -842,7 +843,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async recordRoom(roomId: RoomId): Promise<boolean> {
-    if ((await isWiped(this.ctx.storage)) || (await this.ctx.storage.get(DELETING))) return false
+    if (await this.deletionInForce()) return false
     this.sql.exec("INSERT OR IGNORE INTO rooms (room_id) VALUES (?)", roomId)
     return true
   }
@@ -858,10 +859,25 @@ export class UserDO extends DurableObject<Env> {
     return { generation, rooms }
   }
 
-  // A deletion job runs while its generation is the one in progress, or once the wipe has finished (a retry of the last job still removes the auth rows).
+  // The tombstone is checked first. A rollback restores the account before it clears the mark, so a job from a rolled-back start stops even if the clear never landed.
+  // A job runs while its generation is the mark, or once the wipe has finished (a retry of the last job still removes the auth rows).
   async deletionCurrent(generation: number): Promise<boolean> {
+    if (!(await this.tombstoned())) return false
     if (await isWiped(this.ctx.storage)) return true
     return (await this.ctx.storage.get<number>(DELETING)) === generation
+  }
+
+  // The mark names a deletion, and the tombstone says it is still running. A mark with no tombstone outlived a rollback whose clear failed, so it is cleared here and the account works again.
+  private async deletionInForce(): Promise<boolean> {
+    if (await isWiped(this.ctx.storage)) return true
+    if ((await this.ctx.storage.get(DELETING)) === undefined) return false
+    if (await this.tombstoned()) return true
+    await this.cancelDeletion()
+    return false
+  }
+
+  private tombstoned(): Promise<boolean> {
+    return isDeletedUser(this.env.AUTH_DB, userIdFromObjectName(this.ctx.id.name))
   }
 
   // The queue refused the jobs, so the account lives on. deletion_rooms stays: a job that did get through must not see an empty ledger and wipe the user.
