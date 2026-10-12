@@ -31,7 +31,7 @@ import { checkExtension } from "@yuki/sandbox/check"
 import type { BuilderPorts } from "./extensions/builder"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@yuki/protocol"
 import { createAlarms } from "@yuki/durable/alarm"
-import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "@yuki/agent/host"
+import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@yuki/agent/host"
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
 import { isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
@@ -127,7 +127,8 @@ export class AgentDO extends DurableObject<Env> {
     return result
   }
 
-  stop() {
+  async stop(): Promise<{ discarded: number }> {
+    if (await isWiped(this.ctx.storage)) return { discarded: 0 }
     return this.host.stop()
   }
 
@@ -140,7 +141,8 @@ export class AgentDO extends DurableObject<Env> {
     return true
   }
 
-  status() {
+  async status(): Promise<HostStatus> {
+    if (await isWiped(this.ctx.storage)) return { open: false, inbox: { waiting: 0, claimed: 0, submitted: 0 }, tasks: 0, submissions: 0 }
     return this.host.status()
   }
 

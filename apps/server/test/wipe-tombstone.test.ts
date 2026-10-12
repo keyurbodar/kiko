@@ -45,3 +45,16 @@ test("a wiped agent refuses work after it is evicted and restarted, and stores n
   expect(await get(second, "/agent/rows")).toBe(0)
   await second.dispose()
 }, 60_000)
+
+test("a wiped agent answers status and stop without storing a row", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "yuki-wipe-agent-status-"))
+  const first = await start(dir)
+  await get(first, "/agent/wipe")
+  await first.dispose()
+
+  const second = await start(dir)
+  expect(await get(second, "/agent/status")).toMatchObject({ open: false, tasks: 0, submissions: 0 })
+  expect(await get(second, "/agent/stop")).toEqual({ discarded: 0 })
+  expect(await get(second, "/agent/rows")).toBe(0)
+  await second.dispose()
+}, 60_000)
