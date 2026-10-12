@@ -3892,6 +3892,8 @@
         }
       ],
       "indexes": [
+        "inbox_by_request",
+        "inbox_by_submitted_at",
         "inbox_open",
         "sqlite_autoindex_inbox_1"
       ]
@@ -4000,6 +4002,7 @@
         }
       ],
       "indexes": [
+        "outbox_by_ended",
         "sqlite_autoindex_outbox_1"
       ]
     },
