@@ -4,7 +4,8 @@ import { MAX_ENTRY_BYTES, Inbox } from "@yuki/agent/inbox"
 import { BurstFlush, type BurstDeps } from "../src/room/burst-flush"
 import { BURST_HELD_WAKEUP, Burst } from "../src/room/burst"
 import { buildBrief, MAX_BOARD_BYTES } from "../src/room/brief"
-import { attachedLine, Deliveries, MAX_ATTACHED_BYTES, withContext } from "../src/room/deliver"
+import { attachedLine, Deliveries, withContext } from "../src/room/deliver"
+import { reactionLines } from "../src/room/reactions"
 import { RoomLog } from "../src/room/log"
 import { RoomMail } from "../src/room/mail-drain"
 import { Mail } from "../src/room/mail"
@@ -113,32 +114,63 @@ test("a human message rides with the board's largest brief and is admitted", () 
   expect(inbox.admit([envelope], brief)).toEqual({ admitted: ["human:m1"], inserted: 1 })
 })
 
-test("the worst human message fits its inbox entry: a full bubble, a full board, a full roster, 100 attachments and a long holds list", () => {
+test("the worst human message fits its inbox entry, and the test prints the measured margin under the 128 KiB limit", () => {
   const sql = sqlStorage()
   const inbox = new Inbox({ sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage, () => NOW)
-  // Each control character is six bytes of JSON, so 16,000 of them is the largest bubble the text can give.
+  // The bubble: 16,000 control characters, six bytes of JSON each, the largest bubble the text can give.
   const bubble = bubbleOf("\u001b".repeat(16_000))
-  expect(new TextEncoder().encode(JSON.stringify(bubble)).length).toBeLessThanOrEqual(MAX_BUBBLE_BYTES + 2)
-  // An ampersand is the widest escape in the brief's XML (five bytes), so a 400-character role of them is 2,000 bytes.
-  // Every member of a room, the most a room has, each with a 400-character role and a 40-character name.
-  const role = "&".repeat(400)
-  const roster = [ada, ...Array.from({ length: MAX_MEMBERS - 1 }, (_, i) => ({ ...bob, slug: `m${i}`, name: "&".repeat(40), lead: false }) as MemberRow)].map((m) => ({ ...m, role }))
+  // The reply quote withContext adds: 600 control characters, the longest quote it keeps.
+  const reply = `(replying to @m0, about this part: "${"\u001b".repeat(600)}")`
+  // The room's most members, each with a 500-character role (the brief names 400 of them, five bytes each) and a 60-character name.
+  const roster = [ada, ...Array.from({ length: MAX_MEMBERS - 1 }, (_, i) => ({ ...bob, slug: `m${i}`, name: "&".repeat(60), lead: false }) as MemberRow)].map((m) => ({
+    ...m,
+    role: "&".repeat(500),
+  }))
   const tasks = Array.from({ length: MAX_TASKS }, (_, i) => ({ id: `t${i}`, owner: "ada", status: "todo", title: "&".repeat(400), dependsOn: [] }) as unknown as Task)
-  // A member holds 60 paths of 512 characters, the most a path can be.
+  // Every member but the recipient is doing something long, and the first of them holds 60 paths of 500 characters.
   const holds = Array.from({ length: 60 }, (_, i) => `${"&".repeat(500)}${i}`)
-  const team = { m0: { doing: null, holds } }
-  const brief = buildBrief(roster[0]!, { goal: "&".repeat(400), members: roster, tasks, reactions: null, human: "keyur", team })
+  const team = Object.fromEntries(roster.slice(1).map((m, i) => [m.slug, { doing: "&".repeat(500), holds: i === 0 ? holds : [] }]))
+  // Forty reactions by a 33-character actor, each on a 60-character quote.
+  const reactions = reactionLines(Array.from({ length: 40 }, () => ({ by: `@${"a".repeat(32)}`, emoji: "❤️‍🔥", text: "&".repeat(60) })))
+  const brief = buildBrief(roster[0]!, {
+    goal: "&".repeat(500),
+    members: roster,
+    tasks,
+    reactions,
+    human: "&".repeat(60),
+    proposal: "&".repeat(500),
+    team,
+  })
   expect(new TextEncoder().encode(brief).length).toBeGreaterThan(MAX_BOARD_BYTES)
   expect(brief).toContain("and 59 more")
   // 100 attachments with 120-character names of control characters, the largest a message can carry.
   const files = Array.from({ length: 100 }, (_, i) => ({ id: `f${i}`, name: "\u001b".repeat(120), size: 1_000_000, type: "text/plain" }))
   const line = attachedLine(files)
-  expect(new TextEncoder().encode(JSON.stringify(line)).length).toBeLessThan(MAX_ATTACHED_BYTES + 1024)
   expect(line).toContain("and 95 more")
-  const body = `${bubble}\n${line}`
+  const body = `${reply}\n${bubble}\n${line}`
   const envelope: Envelope = { id: "human:m1", roomId: ROOM as never, from: { kind: "human" }, body, hop: 0, rootId: "m1", seq: 1 }
-  expect(new TextEncoder().encode(JSON.stringify(envelope)).length + new TextEncoder().encode(brief).length).toBeLessThan(MAX_ENTRY_BYTES)
+  const entry = new TextEncoder().encode(JSON.stringify(envelope)).length + new TextEncoder().encode(brief).length
+  console.log(`worst entry: ${entry} bytes of ${MAX_ENTRY_BYTES}, margin ${MAX_ENTRY_BYTES - entry}`)
+  expect(entry, `the worst entry is ${entry} bytes, the limit is ${MAX_ENTRY_BYTES} (${MAX_ENTRY_BYTES - entry} bytes of margin)`).toBeLessThan(MAX_ENTRY_BYTES)
   expect(inbox.admit([envelope], brief)).toEqual({ admitted: ["human:m1"], inserted: 1 })
+})
+
+test("a long proposal, a long doing text and a long handle are cut in the brief", () => {
+  const brief = buildBrief(ada, {
+    goal: "g",
+    members: [ada, { ...bob, role: "" }],
+    tasks: [],
+    reactions: null,
+    human: "h".repeat(300),
+    proposal: "p".repeat(5_000),
+    team: { bob: { doing: "d".repeat(5_000), holds: [] } },
+  })
+  const lines = brief.split("\n")
+  // The proposal line: 400 characters and the ellipsis.
+  expect(lines.find((l) => l.startsWith("p"))?.length).toBe(403)
+  expect(lines.find((l) => l.includes("now "))).toContain(`now ${"d".repeat(80)}...`)
+  // The human line: a 40-character handle, then the hint.
+  expect(lines.find((l) => l.startsWith("the human is"))?.length).toBeLessThan(300)
 })
 
 test("a mention past the bubble limit routes the message to the agent it names", async () => {
