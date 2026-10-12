@@ -1,0 +1,43 @@
+{
+  "case": 2,
+  "name": "fix one typo",
+  "run": "run2",
+  "send": [
+    "fix the typo in notes/typo.md: brwon should be brown"
+  ],
+  "sentAt": 21,
+  "timedOut": false,
+  "doneMs": 13231,
+  "firstReplyMs": 2690,
+  "startWorkCalls": 0,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1
+  },
+  "workerToolCalls": 0,
+  "workerTools": {},
+  "modelTurns": 3,
+  "workers": [],
+  "status": null,
+  "note": null,
+  "replies": [
+    {
+      "at": 2690,
+      "text": "I'll read the file to locate that typo."
+    },
+    {
+      "at": 5759,
+      "text": "Found it — now I'll fix the spelling."
+    },
+    {
+      "at": 9178,
+      "text": "Fixed. It now reads brown."
+    }
+  ],
+  "bubbles": [
+    "I'll read the file to locate that typo.",
+    "Found it — now I'll fix the spelling.",
+    "Fixed. It now reads brown."
+  ]
+}

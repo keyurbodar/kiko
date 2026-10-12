@@ -1,0 +1,56 @@
+{
+  "case": 8,
+  "name": "restructure a small folder",
+  "run": "run1",
+  "send": [
+    "restructure projects/ so each project has its own subfolder with its file inside. keep the names."
+  ],
+  "sentAt": 4,
+  "timedOut": false,
+  "doneMs": 12796,
+  "firstReplyMs": 2754,
+  "startWorkCalls": 0,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.bash": 1,
+    "tool.talker.ls": 1
+  },
+  "workerToolCalls": 0,
+  "workerTools": {},
+  "modelTurns": 4,
+  "workers": [],
+  "status": {
+    "replyMs": 2346,
+    "talkerDuring": {},
+    "workerDuring": {},
+    "runningAtSend": 0,
+    "reply": "Done. Each file now lives in its own folder:\n\n- projects/alpha/alpha.md\n- projects/beta/beta.md\n- projects/gamma/gamma.md\n- projects/delta/delta.md"
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 2754,
+      "text": "I'll restructure projects with individual subfolders — first I'll map the layout."
+    },
+    {
+      "at": 3995,
+      "text": "I've mapped the four files. Now I'll create their individual folders."
+    },
+    {
+      "at": 7736,
+      "text": "Done. Each file now lives in its own folder:\n\n- projects/alpha/alpha.md\n- projects/beta/beta.md\n- projects/gamma/gamma.md\n- projects/delta/delta.md"
+    },
+    {
+      "at": 8515,
+      "text": "Done. Four projects, each in its own folder with its file inside."
+    }
+  ],
+  "bubbles": [
+    "I'll restructure projects with individual subfolders — first I'll map the layout.",
+    "I've mapped the four files. Now I'll create their individual folders.",
+    "Done. Each file now lives in its own folder:\n\n- projects/alpha/alpha.md\n- projects/beta/beta.md\n- projects/gamma/gamma.md\n- projects/delta/delta.md",
+    "Done. Four projects, each in its own folder with its file inside."
+  ]
+}

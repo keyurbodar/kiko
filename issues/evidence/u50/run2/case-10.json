@@ -1,0 +1,88 @@
+{
+  "case": 10,
+  "name": "burst: one small, one large",
+  "run": "run2",
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 24,
+  "timedOut": false,
+  "doneMs": 26494,
+  "firstReplyMs": 4000,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 5,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 2,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 3,
+  "workerTools": {
+    "tool.worker.bash": 2,
+    "tool.worker.web_fetch": 1
+  },
+  "modelTurns": 12,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.…"
+    }
+  ],
+  "status": {
+    "replyMs": 1997,
+    "talkerDuring": {
+      "tool.talker.edit": 1
+    },
+    "workerDuring": {
+      "tool.worker.web_fetch": 1
+    },
+    "runningAtSend": 1,
+    "reply": "File read done, now adding the header."
+  },
+  "note": {
+    "sentMs": 12456,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 1,
+    "reply": "Got it, telling the worker to keep it short."
+  },
+  "replies": [
+    {
+      "at": 4000,
+      "text": "On it, I will update the note and research test runners."
+    },
+    {
+      "at": 7426,
+      "text": "File read done, now adding the header."
+    },
+    {
+      "at": 10614,
+      "text": "Done: added **Reviewed** to notes/todo.md.\n\nRunning: test runner research (w1). I will post the file when it lands."
+    },
+    {
+      "at": 14879,
+      "text": "Got it, telling the worker to keep it short."
+    },
+    {
+      "at": 21664,
+      "text": "Research done, checking the file."
+    },
+    {
+      "at": 22416,
+      "text": "Both done.\n\n- notes/todo.md now starts with Reviewed.\n- research/tests.md compares Vitest, Jest, and Playwright in 130 words."
+    }
+  ],
+  "bubbles": [
+    "On it, I will update the note and research test runners.",
+    "File read done, now adding the header.",
+    "Done: added **Reviewed** to notes/todo.md.\n\nRunning: test runner research (w1). I will post the file when it lands.",
+    "Got it, telling the worker to keep it short.",
+    "Research done, checking the file.",
+    "Both done.\n\n- notes/todo.md now starts with Reviewed.\n- research/tests.md compares Vitest, Jest, and Playwright in 130 words."
+  ]
+}

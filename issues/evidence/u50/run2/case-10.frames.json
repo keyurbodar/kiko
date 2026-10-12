@@ -1,0 +1,356 @@
+{
+  "statuses": [
+    {
+      "at": 1272,
+      "state": "typing"
+    },
+    {
+      "at": 4000,
+      "state": "typing"
+    },
+    {
+      "at": 4000,
+      "state": "typing"
+    },
+    {
+      "at": 4000,
+      "state": "working"
+    },
+    {
+      "at": 4000,
+      "state": "typing"
+    },
+    {
+      "at": 7259,
+      "state": "typing"
+    },
+    {
+      "at": 7426,
+      "state": "typing"
+    },
+    {
+      "at": 7426,
+      "state": "working"
+    },
+    {
+      "at": 7426,
+      "state": "typing"
+    },
+    {
+      "at": 7736,
+      "state": "typing"
+    },
+    {
+      "at": 10614,
+      "state": "working"
+    },
+    {
+      "at": 10930,
+      "state": "working"
+    },
+    {
+      "at": 13658,
+      "state": "typing"
+    },
+    {
+      "at": 13969,
+      "state": "typing"
+    },
+    {
+      "at": 13969,
+      "state": "typing"
+    },
+    {
+      "at": 14879,
+      "state": "working"
+    },
+    {
+      "at": 14879,
+      "state": "typing"
+    },
+    {
+      "at": 18046,
+      "state": "working"
+    },
+    {
+      "at": 18497,
+      "state": "typing"
+    },
+    {
+      "at": 21664,
+      "state": "typing"
+    },
+    {
+      "at": 21664,
+      "state": "working"
+    },
+    {
+      "at": 21664,
+      "state": "typing"
+    },
+    {
+      "at": 22416,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 24,
+      "workers": []
+    },
+    {
+      "at": 2024,
+      "workers": []
+    },
+    {
+      "at": 4165,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771049764
+        }
+      ]
+    },
+    {
+      "at": 6185,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771049764
+        }
+      ]
+    },
+    {
+      "at": 8186,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771053020
+        }
+      ]
+    },
+    {
+      "at": 10301,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771053020
+        }
+      ]
+    },
+    {
+      "at": 12437,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "bash {\"command\":\"grep -n -i -o \\\"vitest\\\\|jest\\\\|playwright\\\\|mocha\\\\|cypress\\\\|jasm…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771056714
+        }
+      ]
+    },
+    {
+      "at": 14570,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "bash {\"command\":\"mkdir -p /research && cat > /research/tests.md <<'EOF'\\n# JavaScrip…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771059752
+        }
+      ]
+    },
+    {
+      "at": 16688,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "running",
+          "step": "bash {\"command\":\"mkdir -p /research && cat > /research/tests.md <<'EOF'\\n# JavaScrip…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771060642
+        }
+      ]
+    },
+    {
+      "at": 18797,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "done",
+          "step": "bash {\"command\":\"mkdir -p /research && cat > /research/tests.md <<'EOF'\\n# JavaScrip…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771064293
+        }
+      ]
+    },
+    {
+      "at": 20907,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "done",
+          "step": "bash {\"command\":\"mkdir -p /research && cat > /research/tests.md <<'EOF'\\n# JavaScrip…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771064293
+        }
+      ]
+    },
+    {
+      "at": 23016,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "done",
+          "step": "bash {\"command\":\"mkdir -p /research && cat > /research/tests.md <<'EOF'\\n# JavaScrip…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771064293
+        }
+      ]
+    },
+    {
+      "at": 25128,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files at /). Include for each: name, key strengths, key weakness, best use case. Keep it short, under 300 words, simple format. Create parent folders if needed.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "done",
+          "step": "bash {\"command\":\"mkdir -p /research && cat > /research/tests.md <<'EOF'\\n# JavaScrip…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771049734,
+          "updatedAt": 1791771064293
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 4,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 72,
+    "agent.kv.getAlarm": 13,
+    "agent.kv.list": 1,
+    "agent.kv.put": 17,
+    "agent.kv.setAlarm": 11,
+    "agent.kv.transaction": 112,
+    "agent.rowsRead": 2524,
+    "agent.rowsWritten": 1375,
+    "agent.statements": 2048,
+    "model.id.muse-spark-1.3-contributor": 12,
+    "model.ms": 31308,
+    "model.turns": 12,
+    "room.kv.get": 4,
+    "room.kv.getAlarm": 17,
+    "room.kv.setAlarm": 9,
+    "room.rowsRead": 1138,
+    "room.rowsWritten": 277,
+    "room.statements": 789,
+    "rpc.agent.devWorkers": 15,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 3,
+    "rpc.room.fsCommit": 1,
+    "rpc.room.fsList": 5,
+    "rpc.room.fsStat": 7,
+    "rpc.room.memorySince": 2,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 6,
+    "rpc.room.putFile": 2,
+    "rpc.room.reportDoing": 7,
+    "rpc.room.setStatus": 11,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.homeList": 2,
+    "rpc.user.homeStat": 2,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 3,
+    "rpc.user.signals": 1,
+    "rpc.user.soul": 2,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 7,
+    "rpc.user.turnContext": 3,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 2,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.bash": 2,
+    "tool.worker.web_fetch": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 3,
+    "user.rowsRead": 166,
+    "user.rowsWritten": 70,
+    "user.statements": 273
+  }
+}

@@ -1,0 +1,4 @@
+case	name	start_work	talker_calls	worker_calls	model_turns	first_reply_s	done_s	status_reply_s	status_talker_tools	status_worker_tools	note	note_steer_calls	note_stop_calls	note_worker_tools_after	workers	timed_out
+8	restructure a small folder	0	2	0	3	23.4	34.0	4.0	{"tool.talker.bash":1}	{}	no running worker	-	-	-	-	false
+9	bigger than it looks	0	2	0	4	2.5	12.2	2.0	{}	{}	no running worker	-	-	-	-	false
+10	burst: one small, one large	1	5	3	12	4.0	26.5	2.0	{"tool.talker.edit":1}	{"tool.worker.web_fetch":1}	sent 12.5s	1	0	1	w1:done:delivered	false

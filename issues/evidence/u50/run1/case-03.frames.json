@@ -1,0 +1,99 @@
+{
+  "statuses": [
+    {
+      "at": 1231,
+      "state": "typing"
+    },
+    {
+      "at": 4607,
+      "state": "typing"
+    },
+    {
+      "at": 4607,
+      "state": "working"
+    },
+    {
+      "at": 4761,
+      "state": "typing"
+    },
+    {
+      "at": 7935,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 5,
+      "workers": []
+    },
+    {
+      "at": 2138,
+      "workers": []
+    },
+    {
+      "at": 4142,
+      "workers": []
+    },
+    {
+      "at": 6276,
+      "workers": []
+    },
+    {
+      "at": 8392,
+      "workers": []
+    },
+    {
+      "at": 10516,
+      "workers": []
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 2,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 24,
+    "agent.kv.getAlarm": 4,
+    "agent.kv.list": 1,
+    "agent.kv.put": 6,
+    "agent.kv.setAlarm": 2,
+    "agent.kv.transaction": 19,
+    "agent.rowsRead": 483,
+    "agent.rowsWritten": 304,
+    "agent.statements": 451,
+    "model.id.muse-spark-1.3-contributor": 2,
+    "model.ms": 6692,
+    "model.turns": 2,
+    "room.kv.get": 1,
+    "room.kv.getAlarm": 7,
+    "room.kv.setAlarm": 3,
+    "room.rowsRead": 306,
+    "room.rowsWritten": 77,
+    "room.statements": 218,
+    "rpc.agent.devWorkers": 7,
+    "rpc.agent.receive": 1,
+    "rpc.room.endRun": 1,
+    "rpc.room.fsList": 1,
+    "rpc.room.fsStat": 2,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 2,
+    "rpc.room.reportDoing": 1,
+    "rpc.room.setStatus": 3,
+    "rpc.user.browserCheck": 2,
+    "rpc.user.captureHuman": 1,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 1,
+    "rpc.user.composioTools": 1,
+    "rpc.user.getChat": 1,
+    "rpc.user.initiativeBrief": 1,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 1,
+    "rpc.user.takeTurn": 1,
+    "rpc.user.touchChat": 2,
+    "rpc.user.turnContext": 1,
+    "tool.talker.read": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 2,
+    "user.rowsRead": 67,
+    "user.rowsWritten": 42,
+    "user.statements": 97
+  }
+}

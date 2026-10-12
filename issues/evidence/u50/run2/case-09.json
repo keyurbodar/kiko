@@ -1,0 +1,55 @@
+{
+  "case": 9,
+  "name": "bigger than it looks",
+  "run": "run2",
+  "send": [
+    "change the company name from Acme to Initech everywhere in site/"
+  ],
+  "sentAt": 9,
+  "timedOut": false,
+  "doneMs": 12245,
+  "firstReplyMs": 2460,
+  "startWorkCalls": 0,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.bash": 2
+  },
+  "workerToolCalls": 0,
+  "workerTools": {},
+  "modelTurns": 4,
+  "workers": [],
+  "status": {
+    "replyMs": 1971,
+    "talkerDuring": {},
+    "workerDuring": {},
+    "runningAtSend": 0,
+    "reply": "Done. Changed **Acme** to **Initech** in 5 files:\n\n- about.md, faq.md, footer.md, home.md, pricing.md"
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 2460,
+      "text": "I'll replace Acme with Initech across all files in site/."
+    },
+    {
+      "at": 3963,
+      "text": "Found 5 files; I'll update them now."
+    },
+    {
+      "at": 7168,
+      "text": "Done. Changed **Acme** to **Initech** in 5 files:\n\n- about.md, faq.md, footer.md, home.md, pricing.md"
+    },
+    {
+      "at": 7924,
+      "text": "All done. No **Acme** remains in site/. 5 files now use **Initech**."
+    }
+  ],
+  "bubbles": [
+    "I'll replace Acme with Initech across all files in site/.",
+    "Found 5 files; I'll update them now.",
+    "Done. Changed **Acme** to **Initech** in 5 files:\n\n- about.md, faq.md, footer.md, home.md, pricing.md",
+    "All done. No **Acme** remains in site/. 5 files now use **Initech**."
+  ]
+}
