@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import * as Schema from "effect/Schema"
 import * as F from "../src/fixtures"
+import * as Frames from "./frames"
 import * as S from "../src/schema"
 
 const roundTrip = <T>(schema: Schema.Codec<T, unknown>, frame: T) => {
@@ -11,13 +12,13 @@ const roundTrip = <T>(schema: Schema.Codec<T, unknown>, frame: T) => {
 }
 
 const cases = [
-	["ClientToRoom", S.ClientToRoom, F.clientToRoom],
-	["RoomToClient", S.RoomToClient, F.roomToClient],
+	["ClientToRoom", S.ClientToRoom, Frames.clientToRoom],
+	["RoomToClient", S.RoomToClient, Frames.roomToClient],
 	["RoomEvent", S.RoomEvent, F.roomEvents],
 	["RoomSnapshot", S.RoomSnapshot, [F.roomSnapshot]],
-	["ClientToUser", S.ClientToUser, F.clientToUser],
-	["UserToClient", S.UserToClient, F.userToClient],
-	["Envelope", S.Envelope, F.envelopes],
+	["ClientToUser", S.ClientToUser, Frames.clientToUser],
+	["UserToClient", S.UserToClient, Frames.userToClient],
+	["Envelope", S.Envelope, Frames.envelopes],
 	["RichText", S.RichText, [F.richText]],
 ] as const
 
@@ -31,10 +32,10 @@ describe("fixture round trip", () => {
 
 	test("the fixtures hold every frame and event tag", () => {
 		const tags = (frames: readonly { t: string }[]) => new Set(frames.map((frame) => frame.t))
-		expect(tags(F.clientToRoom)).toEqual(
+		expect(tags(Frames.clientToRoom)).toEqual(
 			new Set(["hello", "send", "react", "edit", "delete", "read", "typing", "stop", "task", "member", "search", "history"]),
 		)
-		expect(tags(F.roomToClient)).toEqual(new Set(["events", "ack", "reset", "typing", "draft", "status", "member_refused", "send_refused", "search", "history"]))
+		expect(tags(Frames.roomToClient)).toEqual(new Set(["events", "ack", "reset", "typing", "draft", "status", "member_refused", "send_refused", "search", "history"]))
 		expect(tags(F.roomEvents)).toEqual(
 			new Set([
 				"message",
@@ -49,8 +50,8 @@ describe("fixture round trip", () => {
 				"file",
 			]),
 		)
-		expect(tags(F.clientToUser)).toEqual(new Set(["hello", "chat", "open", "search", "login.start", "login.answer", "login.cancel"]))
-		expect(tags(F.userToClient)).toEqual(
+		expect(tags(Frames.clientToUser)).toEqual(new Set(["hello", "chat", "open", "search", "login.start", "login.answer", "login.cancel"]))
+		expect(tags(Frames.userToClient)).toEqual(
 			new Set(["events", "reset", "home_refused", "chat_refused", "search", "login.notify", "login.prompt", "login.done", "login.error"]),
 		)
 	})

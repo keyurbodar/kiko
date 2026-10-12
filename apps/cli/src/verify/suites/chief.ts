@@ -1,8 +1,8 @@
+import { poll } from "../kit"
 import { type Chat, type Message, newRoomId, type RoomToClient, type UserToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { until } from "./mid-run"
 import { must } from "../must"
 
 
@@ -52,18 +52,18 @@ const suite: Suite = {
     let from = last(draft)
     t0 = Date.now()
     draft.send("make me an agent to help me plan my weekly meals and grocery list")
-    await until("the made line", () => messages(draft).some((m) => m.seq > from && m.goto), 90_000).catch((e) => {
+    await poll("the made line", () => messages(draft).some((m) => m.seq > from && m.goto), 90_000).catch((e) => {
       throw new VerifyError(`${e instanceof Error ? e.message : e}. yuki said: ${JSON.stringify(yuki(draft, from).map((m) => m.text))}`)
     })
     const made = must(messages(draft).find((m) => m.seq > from && m.goto), "made message")
     const agent = agents()[0]
     if (!agent) throw new VerifyError("no agent was made")
     console.log(`  made @${agent.slug} (${Date.now() - t0} ms): ${JSON.stringify(made.text)}`)
-    const soul = (await (await fetch(new URL(`api/souls/${agent.slug}`, v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })).json()) as { body: string }
+    const soul = (await (await fetch(new URL(`api/souls/${agent.slug}`, v.url), { headers: { cookie: s.cookie } })).json()) as { body: string }
     console.log(`  its soul: ${JSON.stringify(soul.body.slice(0, 240))}`)
     if (soul.body.length < 80) throw new VerifyError("the soul yuki wrote is too thin")
     const dm = await s.room(must(made.goto, "goto"))
-    await until(`@${agent.slug} says hi`, () => messages(dm).some((m) => m.from.kind === "agent" && m.from.slug === agent.slug), 90_000)
+    await poll(`@${agent.slug} says hi`, () => messages(dm).some((m) => m.from.kind === "agent" && m.from.slug === agent.slug), 90_000)
     console.log(`  hello (${Date.now() - t0} ms): ${JSON.stringify(messages(dm).find((m) => m.from.kind === "agent")?.text)}`)
 
     const groupId = newRoomId()
@@ -73,7 +73,7 @@ const suite: Suite = {
     const group = await s.room(groupId)
     from = last(group)
     group.send(`make a group to plan a weekend in lisbon: @${agent.slug} for food, and a new one who plans the itinerary`)
-    await until("the temporary chat to become the group", () => chats().get(groupId) !== undefined && chats().get(groupId)?.temp === undefined, 120_000).catch((e) => {
+    await poll("the temporary chat to become the group", () => chats().get(groupId) !== undefined && chats().get(groupId)?.temp === undefined, 120_000).catch((e) => {
       throw new VerifyError(`${e instanceof Error ? e.message : e}. yuki said: ${JSON.stringify(yuki(group, from).map((m) => m.text))}`)
     })
     const members = new Set<string>()

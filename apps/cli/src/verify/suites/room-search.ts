@@ -1,19 +1,10 @@
+
+import { newRoomId } from "@yuki/protocol"
 import type { RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-	let time = Date.now()
-	let head = ""
-	for (let i = 0; i < 10; i++) {
-		head = CROCKFORD[time % 32] + head
-		time = Math.floor(time / 32)
-	}
-	const tail = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-	return head + tail
-}
 
 const TOTAL = Number(process.env.YUKI_SEARCH_MESSAGES ?? 20_000)
 const BUDGET_MS = 50
@@ -25,7 +16,7 @@ const suite: Suite = {
 	load: true,
 	async run(v) {
 		const s = await v.as(`room-search-${Date.now().toString(36)}`)
-		const roomId = ulid()
+		const roomId = newRoomId()
 		const room = await s.room(roomId)
 		await room.expect({ t: "events" })
 
@@ -83,7 +74,7 @@ const suite: Suite = {
 
 		const user = await s.user()
 		await user.expect(() => true)
-		const titled = ulid()
+		const titled = newRoomId()
 		user.send({ t: "chat", op: { op: "create", roomId: titled as never, title: "Quarterly Budget" } })
 		await user.expect({ t: "events" })
 		user.send({ t: "search", query: "budget quar" })

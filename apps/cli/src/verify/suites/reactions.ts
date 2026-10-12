@@ -1,8 +1,9 @@
+import { newRoom, poll, seen, statuses } from "../kit"
 import type { MessageId, RoomEvent, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { fake, newRoom, seen, statuses, until } from "./mid-run"
+import { fake } from "./mid-run"
 
 
 type React = Extract<RoomEvent, { t: "react" }>
@@ -36,8 +37,8 @@ async function send(room: RoomHandle, text: string): Promise<MessageId> {
 }
 
 async function answered(room: RoomHandle, before: number): Promise<void> {
-  await until("the run to start", () => runs(room) > before, 10_000)
-  await until("the run to end", () => idle(room), 15_000)
+  await poll("the run to start", () => runs(room) > before, 10_000)
+  await poll("the run to end", () => idle(room), 15_000)
 }
 
 const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
@@ -52,14 +53,14 @@ const suite: Suite = {
     try {
       const first = await send(room, "[reply] [react:👍]")
       await answered(room, 0)
-      await until("the agent's reaction", () => reacts(room).length > 0, 5_000)
+      await poll("the agent's reaction", () => reacts(room).length > 0, 5_000)
       expectEqual(reacts(room).map((r) => ({ on: r.messageId, by: r.by, emoji: r.emoji })), [{ on: first, by: { kind: "agent", slug: "yuki" }, emoji: "👍" }], "the reactions")
       expectEqual(texts(room), [], "the agent's bubbles")
       step(`a reply of [react:👍] reacted on the human's message and posted no bubble`)
 
       await send(room, `[reply] [react:🔥:${first}]`)
       await answered(room, 1)
-      await until("the second reaction", () => reacts(room).length > 1, 5_000)
+      await poll("the second reaction", () => reacts(room).length > 1, 5_000)
       expectEqual(reacts(room).at(-1)?.emoji, "🔥", "the second reaction")
       expectEqual(reacts(room).at(-1)?.messageId, first, "the second reaction's target")
       await send(room, `[reply] [react:🔥:${first}]`)
@@ -81,18 +82,18 @@ const suite: Suite = {
       const bubble = seen(room).live.at(-1)
       if (!bubble) throw new VerifyError("the agent did not answer hi")
       room.raw.send({ t: "react", messageId: bubble.id, emoji: "❤️" })
-      await until("the human's reaction", () => reacts(room).some((r) => r.by.kind === "human"), 5_000)
+      await poll("the human's reaction", () => reacts(room).some((r) => r.by.kind === "human"), 5_000)
       await Bun.sleep(4_000)
       expectEqual(runs(room), 5, "runs after the human reacted")
       step("no reaction started a run")
 
       await send(room, "[brief]")
       await answered(room, 5)
-      await until("the brief echo", () => texts(room).some((t) => t.startsWith("brief:")), 5_000)
+      await poll("the brief echo", () => texts(room).some((t) => t.startsWith("brief:")), 5_000)
       expectEqual(texts(room).at(-1), `brief: the human reacted ❤️ to your "${bubble.text}"`, "the next brief")
       await send(room, "[brief]")
       await answered(room, 6)
-      await until("the second brief echo", () => texts(room).filter((t) => t.startsWith("brief:")).length > 1, 5_000)
+      await poll("the second brief echo", () => texts(room).filter((t) => t.startsWith("brief:")).length > 1, 5_000)
       expectEqual(texts(room).at(-1), "brief: none", "the brief after that")
       step("the human's reaction reached the agent in its next brief, once")
     } catch (e) {

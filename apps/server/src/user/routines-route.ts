@@ -1,16 +1,14 @@
 import { isAgentSlug, isRoomId } from "@yuki/protocol"
 import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
-import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
+import { error, signedIn } from "../lib/route"
 import { userStub } from "../lib/names"
-import { originAllowed } from "../router"
 import type { RoutineResult } from "./routines"
 
 const ACTION = /^\/api\/routines\/([0-9a-f-]{36})(\/run)?$/
 const decodeTrigger = Schema.decodeUnknownSync(Trigger)
 
-const error = (status: number, message: string) => Response.json({ error: message }, { status })
 const reply = (r: RoutineResult) => (r.ok ? Response.json({ routine: r.routine, ...(r.token ? { token: r.token } : {}) }) : error(r.error === "no such routine" ? 404 : 400, r.error))
 
 async function json(request: Request): Promise<Record<string, unknown> | null> {
@@ -27,9 +25,8 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   const { pathname } = new URL(request.url)
   const action = ACTION.exec(pathname)
   if (pathname !== "/api/routines" && !action) return null
-  if (!originAllowed(request, new URL(request.url), env)) return error(403, "forbidden origin")
-  const user = await getSessionUser(request, env)
-  if (!user) return error(401, "unauthorized")
+  const user = await signedIn(request, env)
+  if (user instanceof Response) return user
   if (request.method === "POST" && !request.headers.get("content-type")?.includes("application/json")) return error(415, "expected json")
   const stub = userStub(env.USER, user.id)
 
@@ -56,7 +53,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   if (request.method !== "POST") return error(405, "method not allowed")
   const id = action[1]
   if (id === undefined) return error(400, "need a routine id")
-  if (action[2]) return Response.json({ delivery: await stub.runRoutine(id, true) })
+  if (action[2]) return Response.json({ delivery: await stub.runRoutine(id) })
   const b = await json(request)
   if (!b) return error(400, "expected an object")
   let trigger: typeof Trigger.Type | undefined

@@ -37,7 +37,7 @@ jobs:
         run: |
           test -n "$OPENCODE_API_KEY" || { echo "the OPENCODE_API_KEY repository secret is not set"; exit 1; }
           {
-            echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+            echo "SESSION_SECRET=$(openssl rand -hex 32)"
             echo "CREDENTIALS_KEK=$(openssl rand -base64 32)"
             printf 'OPENCODE_API_KEY=%s\n' "$OPENCODE_API_KEY"
           } > .dev.vars

@@ -1,5 +1,5 @@
 import type { Step } from "@yuki/durable/migrate"
-import { HOST_STEPS } from "@yuki/agent/host"
+import { HOST_STEPS, HOST_TAIL } from "@yuki/agent/host"
 
 // The agent's tables, in one list. An object at version N runs only the steps after the first N. A step is
 // appended, never edited or moved, and every step must be safe on a table that already exists.
@@ -18,4 +18,7 @@ export const AGENT_STEPS: Step[] = [
   "CREATE INDEX IF NOT EXISTS inbox_by_request ON inbox (request_id, priority, arrival)",
   "CREATE INDEX IF NOT EXISTS inbox_by_submitted_at ON inbox (submitted, at)",
   "CREATE INDEX IF NOT EXISTS outbox_by_ended ON outbox (ended)",
+  // An ended run now deletes its row. This clears the ones the old code kept.
+  "DELETE FROM outbox WHERE ended = 1",
+  ...HOST_TAIL,
 ]

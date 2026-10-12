@@ -1,7 +1,8 @@
+import { newRoom, poll, seen, statuses } from "../kit"
 import type { ExtensionOp, ExtensionProposal, ExtensionResult, UserEvent } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { newRoom, seen, send, statuses, until } from "./mid-run"
+import { send } from "./mid-run"
 import { must as mustPresent } from "../must"
 
 
@@ -28,8 +29,8 @@ const suite: Suite = {
       const before = seen(room).live.length
       await send(room, text)
       const from = statuses(room).length
-      await until("the agent's reply", () => seen(room).live.length > before, ms)
-      await until("the run to end", () => statuses(room).slice(from).at(-1) === "idle", ms).catch((e: Error) => {
+      await poll("the agent's reply", () => seen(room).live.length > before, ms)
+      await poll("the run to end", () => statuses(room).slice(from).at(-1) === "idle", ms).catch((e: Error) => {
         throw new VerifyError(`${e.message}. statuses ${statuses(room).slice(from).join(",")}; bubbles ${JSON.stringify(seen(room).live.slice(before).map((m) => m.text.slice(0, 80)))}`)
       })
       await Bun.sleep(1_500)

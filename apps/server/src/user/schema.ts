@@ -187,4 +187,10 @@ export const USER_STEPS: Step[] = [
   "CREATE INDEX IF NOT EXISTS attention_seen_at ON attention_seen (at)",
   // Substring search of the life log, for a recall that the word index missed. Kept in step with life_fts by life.ts.
   ...LIFE_TRI_STEPS,
+  // A webhook post finds its routine by the hash of its token.
+  "CREATE INDEX IF NOT EXISTS reminders_hook ON reminders (hook_hash)",
+  // initiative_wakes.ids holds the one loop id a wake carries, no longer a JSON list of it.
+  "UPDATE initiative_wakes SET ids = json_extract(ids, '$[0]') WHERE ids LIKE '[%'",
+  // The per-day charge ids of the retired turn and autonomous-run limits.
+  "DROP TABLE IF EXISTS charged_today",
 ]

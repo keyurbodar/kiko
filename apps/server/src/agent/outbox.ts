@@ -310,7 +310,7 @@ export class Outbox {
     }
     const working = this.workers
     await this.room()?.endRun(id, inputs, working)
-    this.sql.exec("UPDATE outbox SET ended = 1 WHERE run_id = ?", id)
+    this.sql.exec("DELETE FROM outbox WHERE run_id = ?", id)
     if (this.run?.id === id) this.run = null
     this.state = working ? "working" : "idle"
     if (!this.run) await this.setStatus(this.workers ? "working" : "idle")
@@ -323,7 +323,7 @@ export class Outbox {
   }
 
   private openRows(): Row[] {
-    return this.sql.exec<Row>("SELECT run_id, attempt, cursor, blocks, posted FROM outbox WHERE ended = 0 ORDER BY rowid").toArray()
+    return this.sql.exec<Row>("SELECT run_id, attempt, cursor, blocks, posted FROM outbox ORDER BY rowid").toArray()
   }
 
   private load(row: Row): Run {

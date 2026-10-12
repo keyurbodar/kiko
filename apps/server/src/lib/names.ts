@@ -2,7 +2,7 @@ import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from 
 import type { AgentDO } from "../agent/agent-do"
 import type { RoomDO } from "../room/room-do"
 import type { UserDO } from "../user/user-do"
-import { rpc } from "./dev-stats"
+import { rpc } from "./dev-guard"
 
 export const USER_ID_HEADER = "x-yuki-user-id"
 export const HANDLE_HEADER = "x-yuki-handle"
@@ -52,15 +52,6 @@ export function userStub(ns: DurableObjectNamespace<UserDO>, userId: string): Du
 
 export function roomStub(ns: DurableObjectNamespace<RoomDO>, userId: string, roomId: string): DurableObjectStub<RoomDO> {
   return rpc(ns.get(ns.idFromName(roomName(userId, roomId))), "room")
-}
-
-export async function addressRoom(
-  env: { USER: DurableObjectNamespace<UserDO>; ROOM: DurableObjectNamespace<RoomDO> },
-  userId: string,
-  roomId: string,
-): Promise<DurableObjectStub<RoomDO> | null> {
-  const stub = roomStub(env.ROOM, userId, roomId)
-  return (await userStub(env.USER, userId).recordRoom(checkRoom(roomId))) ? stub : null
 }
 
 export function agentStub(

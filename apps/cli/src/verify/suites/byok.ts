@@ -1,7 +1,8 @@
+import { newRoom, poll, seen, statuses } from "../kit"
 import type { RoomEvent, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, expectEqual, type RoomHandle, TEST_PROVIDER, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { newRoom, seen, send, statuses, until } from "./mid-run"
+import { send } from "./mid-run"
 import { must } from "../must"
 
 
@@ -29,7 +30,7 @@ function runSigns(room: RoomHandle, from: number): string[] {
 async function refused(room: RoomHandle, before: number): Promise<void> {
   const from = room.raw.log.length
   await send(room, "reply with the single word ok.")
-  await until("a no_provider event", () => noProviders(room).length > before, 15_000)
+  await poll("a no_provider event", () => noProviders(room).length > before, 15_000)
   const event = must(noProviders(room).at(-1), "no_provider event")
   expectEqual({ slug: event.slug, provider: event.provider }, { slug: "yuki", provider: TEST_PROVIDER }, "the no_provider event")
   const bubbles = seen(room).all.length
@@ -52,8 +53,8 @@ const suite: Suite = {
     await connectTestModel(alice)
     const { roomId, room } = await newRoom(alice, "byok check")
     await send(room, "reply with the single word ok.")
-    await until("an answer", () => seen(room).live.length > 0, ANSWER_MS)
-    await until("the run to end", () => statuses(room).at(-1) === "idle", ANSWER_MS)
+    await poll("an answer", () => seen(room).live.length > 0, ANSWER_MS)
+    await poll("the run to end", () => statuses(room).at(-1) === "idle", ANSWER_MS)
     if (noProviders(room).length) throw new VerifyError("a connected user got no_provider")
     console.log(`  a connected user got ${JSON.stringify(seen(room).live.map((m) => m.text))}`)
 

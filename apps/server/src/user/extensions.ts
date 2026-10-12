@@ -68,8 +68,12 @@ export async function bundleHash(bundle: ExtensionBundle): Promise<string> {
   return sha256Hex(JSON.stringify(canonical(bundle)))
 }
 
+const PARSED_MAX = 64
+
 export class ExtensionStore {
   private readonly scheduled = new Map<string, Promise<unknown>>()
+  // A bundle is up to a few hundred kb of JSON, and a hash names one bundle for good, so a parse is kept by hash.
+  private readonly parsed = new Map<string, ExtensionBundle>()
 
   constructor(
     private readonly sql: SqlStorage,
@@ -86,10 +90,26 @@ export class ExtensionStore {
     return this.sql.exec<Row>("SELECT * FROM extensions WHERE name = ?", name).toArray()[0]
   }
 
-  private info(r: Row): ExtensionInfo {
-    const bundle = JSON.parse(r.bundle) as ExtensionBundle
-    const m = bundle.manifest
-    const set = new Set(this.sql.exec<{ secret: string }>("SELECT secret FROM extension_secrets WHERE extension = ?", r.name).toArray().map((s) => s.secret))
+  private bundleOf(r: { hash: string; bundle: string }): ExtensionBundle {
+    let bundle = this.parsed.get(r.hash)
+    if (!bundle) {
+      if (this.parsed.size >= PARSED_MAX) this.parsed.clear()
+      bundle = JSON.parse(r.bundle) as ExtensionBundle
+      this.parsed.set(r.hash, bundle)
+    }
+    return bundle
+  }
+
+  private secretsSet(name?: string): Map<string, Set<string>> {
+    const rows = name === undefined ? this.sql.exec<{ extension: string; secret: string }>("SELECT extension, secret FROM extension_secrets") : this.sql.exec<{ extension: string; secret: string }>("SELECT extension, secret FROM extension_secrets WHERE extension = ?", name)
+    const out = new Map<string, Set<string>>()
+    for (const s of rows) out.set(s.extension, (out.get(s.extension) ?? new Set()).add(s.secret))
+    return out
+  }
+
+  private info(r: Row, secretsSet: Map<string, Set<string>> = this.secretsSet(r.name)): ExtensionInfo {
+    const m = this.bundleOf(r).manifest
+    const set = secretsSet.get(r.name) ?? new Set<string>()
     return {
       name: r.name,
       version: m.version,
@@ -108,28 +128,30 @@ export class ExtensionStore {
     }
   }
 
-  private proposal(r: ProposalRow): ExtensionProposal {
-    const installed = this.row(r.name)
+  private proposal(r: ProposalRow, installedHash: string | undefined): ExtensionProposal {
+    const bundle = this.bundleOf(r)
     return {
       id: r.id,
       name: r.name,
-      version: (JSON.parse(r.bundle) as ExtensionBundle).manifest.version,
+      version: bundle.manifest.version,
       hash: r.hash,
       source: r.source as ExtensionSource,
       ...(r.by ? { by: r.by as AgentSlug } : {}),
       ...(r.room && isRoomId(r.room) ? { room: r.room } : {}),
-      bundle: JSON.parse(r.bundle) as ExtensionBundle,
-      ...(installed ? { replaces: installed.hash } : {}),
+      bundle,
+      ...(installedHash ? { replaces: installedHash } : {}),
       createdAt: r.created_at,
     }
   }
 
   list(): ExtensionInfo[] {
-    return this.sql.exec<Row>("SELECT * FROM extensions ORDER BY name").toArray().map((r) => this.info(r))
+    const secrets = this.secretsSet()
+    return this.sql.exec<Row>("SELECT * FROM extensions ORDER BY name").toArray().map((r) => this.info(r, secrets))
   }
 
   proposals(): ExtensionProposal[] {
-    return this.sql.exec<ProposalRow>("SELECT * FROM extension_proposals ORDER BY created_at").toArray().map((r) => this.proposal(r))
+    const installed = new Map(this.sql.exec<{ name: string; hash: string }>("SELECT name, hash FROM extensions").toArray().map((r) => [r.name, r.hash]))
+    return this.sql.exec<ProposalRow>("SELECT * FROM extension_proposals ORDER BY created_at").toArray().map((r) => this.proposal(r, installed.get(r.name)))
   }
 
   forAgent(slug: string): { name: string; hash: string }[] {
@@ -146,13 +168,13 @@ export class ExtensionStore {
       .exec<Row>("SELECT * FROM extensions")
       .toArray()
       .filter((r) => want.has(r.hash))
-      .map((r) => ({ name: r.name, hash: r.hash, bundle: JSON.parse(r.bundle) as ExtensionBundle }))
+      .map((r) => ({ name: r.name, hash: r.hash, bundle: this.bundleOf(r) }))
   }
 
   source(name: string): ExtensionBundle {
     const r = this.row(name)
     if (!r) throw new ExtensionError(`no extension named ${name}`)
-    return JSON.parse(r.bundle) as ExtensionBundle
+    return this.bundleOf(r)
   }
 
   async propose(input: { bundle: unknown; source: ExtensionSource; by?: string; room?: string }): Promise<ExtensionProposal> {
@@ -184,7 +206,7 @@ export class ExtensionStore {
       input.room ?? null,
       Date.now(),
     )
-    const proposal = this.proposal(this.sql.exec<ProposalRow>("SELECT * FROM extension_proposals WHERE id = ?", id).one())
+    const proposal = this.proposal(this.sql.exec<ProposalRow>("SELECT * FROM extension_proposals WHERE id = ?", id).one(), this.row(name)?.hash)
     this.commit({ t: "extension_proposal", proposal })
     return proposal
   }
@@ -222,7 +244,7 @@ export class ExtensionStore {
         now,
       )
     }
-    const declared = Object.keys((JSON.parse(p.bundle) as ExtensionBundle).manifest.secrets ?? {})
+    const declared = Object.keys(this.bundleOf(p).manifest.secrets ?? {})
     for (const s of this.sql.exec<{ secret: string }>("SELECT secret FROM extension_secrets WHERE extension = ?", p.name).toArray()) {
       if (!declared.includes(s.secret)) this.sql.exec("DELETE FROM extension_secrets WHERE extension = ? AND secret = ?", p.name, s.secret)
     }
@@ -258,7 +280,7 @@ export class ExtensionStore {
     }
     const r = this.row(name)
     if (r?.enabled !== 1) return
-    const m = (JSON.parse(r.bundle) as ExtensionBundle).manifest
+    const m = this.bundleOf(r).manifest
     if (!m.triggers?.length) return
     const fallback = this.triggers.fallback()
     const roomId = r.room && isRoomId(r.room) ? r.room : fallback?.roomId
@@ -291,7 +313,7 @@ export class ExtensionStore {
   async setSecret(name: string, secret: string, value: string | null): Promise<ExtensionInfo> {
     const r = this.row(name)
     if (!r) throw new ExtensionError(`no extension named ${name}`)
-    const m = (JSON.parse(r.bundle) as ExtensionBundle).manifest
+    const m = this.bundleOf(r).manifest
     if (!m.secrets?.[secret]) throw new ExtensionError(`${name} declares no secret ${secret}`)
     if (value === null) {
       this.sql.exec("DELETE FROM extension_secrets WHERE extension = ? AND secret = ?", name, secret)
@@ -337,14 +359,18 @@ export class ExtensionStore {
     return info
   }
 
-  private live(name: string): { row: Row; manifest: ExtensionManifest } {
-    const r = this.row(name)
+  private live(name: string): ExtensionManifest {
+    const r = this.sql.exec<{ hash: string; enabled: number }>("SELECT hash, enabled FROM extensions WHERE name = ?", name).toArray()[0]
     if (r?.enabled !== 1) throw new ExtensionError(`extension ${name} is not installed and on`)
-    return { row: r, manifest: (JSON.parse(r.bundle) as ExtensionBundle).manifest }
+    const cached = this.parsed.get(r.hash)
+    if (cached) return cached.manifest
+    const row = this.row(name)
+    if (!row) throw new ExtensionError(`extension ${name} is not installed and on`)
+    return this.bundleOf(row).manifest
   }
 
   state(name: string, scope: string, op: "get" | "set" | "delete" | "list", key: string, value?: unknown): unknown {
-    const { manifest } = this.live(name)
+    const manifest = this.live(name)
     if (!manifest.state) throw new ExtensionError(`yuki.state needs "state" in extension.json`)
     if (key.length > 200) throw new ExtensionError("a state key is at most 200 characters")
     if (op === "get") {
@@ -379,7 +405,7 @@ export class ExtensionStore {
   }
 
   async fetch(name: string, request: GuestRequest): Promise<GuestResponse> {
-    const { manifest } = this.live(name)
+    const manifest = this.live(name)
     const problem = guestRequestProblem(manifest, request)
     if (problem) throw new ExtensionError(problem)
     const url = new URL(request.url)

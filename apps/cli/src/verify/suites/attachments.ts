@@ -1,18 +1,9 @@
+import { newRoomId } from "@yuki/protocol"
 import type { PendingAttachment, RoomEvent, RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-	let time = Date.now()
-	let head = ""
-	for (let i = 0; i < 10; i++) {
-		head = CROCKFORD[time % 32] + head
-		time = Math.floor(time / 32)
-	}
-	return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 const MiB = 1024 * 1024
 const PART = 16 * MiB
@@ -22,8 +13,8 @@ const suite: Suite = {
 	async run(v) {
 		const alice = await v.as("attachments-alice")
 		const bob = await v.as("attachments-bob")
-		const roomId = ulid()
-		const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
+		const roomId = newRoomId()
+		const base = new URL(`api/files/${roomId}/`, v.url)
 		const call = (path: string, init: RequestInit & { as?: typeof alice } = {}) =>
 			fetch(new URL(path, base), { ...init, headers: { cookie: (init.as ?? alice).cookie, ...(init.headers as Record<string, string>) } })
 		const errorOf = async (res: Response) => ((await res.json()) as { error?: string }).error
@@ -118,7 +109,7 @@ const suite: Suite = {
 
 		const staleId = crypto.randomUUID()
 		expectEqual((await upload(staleId, new TextEncoder().encode("old"), "old.txt", "text/plain")).status, 204, "the stale upload")
-		const aged = await fetch(new URL("api/dev/agent/pending", v.url.endsWith("/") ? v.url : `${v.url}/`), {
+		const aged = await fetch(new URL("api/dev/agent/pending", v.url), {
 			method: "POST",
 			headers: { cookie: alice.cookie, "content-type": "application/json" },
 			body: JSON.stringify({ roomId, ms: 25 * 3_600_000 }),

@@ -1,14 +1,13 @@
 import { sha256Stream } from "@yuki/durable/hash"
 import { type Actor, isRoomId } from "@yuki/protocol"
 import type { Env } from "../index"
-import { addressRoom, userStub } from "../lib/names"
+import { roomStub, userStub } from "../lib/names"
 import type { SessionLookup } from "../router"
 import type { NewFile } from "../room/files"
 import { pendingRoute } from "./pending"
 
 export const MAX_FILE_BYTES = 512 * 1024 * 1024
 export const MAX_SINGLE_PUT_BYTES = 32 * 1024 * 1024
-export const STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024
 
 const MAX_PATH = 512
 const FILE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -48,7 +47,7 @@ export function filesPath(pathname: string): { roomId: string; rest: string[] } 
 	return { roomId, rest: m[2] ? m[2].split("/") : [] }
 }
 
-function isControl(c: string): boolean {
+export function isControl(c: string): boolean {
 	const n = c.charCodeAt(0)
 	return n <= 0x1f || n === 0x7f
 }
@@ -81,29 +80,12 @@ export async function json(request: Request): Promise<Record<string, unknown> | 
 	}
 }
 
-async function usedBytes(bucket: R2Bucket, userId: string): Promise<number> {
-	let total = 0
-	let cursor: string | undefined
-	do {
-		const page = await bucket.list({ prefix: userPrefix(userId), cursor })
-		for (const o of page.objects) total += o.size
-		cursor = page.truncated ? page.cursor : undefined
-	} while (cursor)
-	return total
-}
-
-export async function refuse(bucket: R2Bucket, userId: string, size: number): Promise<Response | null> {
-	if (size > MAX_FILE_BYTES) return error(413, "file too large")
-	if ((await usedBytes(bucket, userId)) + size > STORAGE_LIMIT_BYTES) return error(413, "storage limit reached")
-	return null
+export function refuse(size: number): Response | null {
+	return size > MAX_FILE_BYTES ? error(413, "file too large") : null
 }
 
 async function index(env: Env, userId: string, roomId: string, input: NewFile): Promise<Response> {
-	const room = roomId === HOME ? null : await addressRoom(env, userId, roomId)
-	if (roomId !== HOME && !room) {
-		await env.FILES.delete(input.r2Key)
-		return error(410, "account deleted")
-	}
+	const room = roomId === HOME ? null : roomStub(env.ROOM, userId, roomId)
 	const { file, drop, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
 	if (drop) await deleteFiles(env.FILES, drop)
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })
@@ -119,7 +101,7 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	if (length > MAX_SINGLE_PUT_BYTES) return error(413, "too large for one request, use a multipart upload")
 	const expectSha256 = expectOf(request.headers.get("x-yuki-if-sha256"))
 	if (!expectSha256) return error(400, EXPECT_ERROR)
-	const refused = await refuse(env.FILES, userId, length)
+	const refused = refuse(length)
 	if (refused) return refused
 	const id = crypto.randomUUID()
 	const key = fileKey(userId, roomId, id)
@@ -144,7 +126,7 @@ async function create(request: Request, env: Env, userId: string, roomId: string
 	if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 0) return error(400, "bad size")
 	const expect = expectOf(body.expect)
 	if (!expect) return error(400, EXPECT_ERROR)
-	const refused = await refuse(env.FILES, userId, size)
+	const refused = refuse(size)
 	if (refused) return refused
 	const fileId = crypto.randomUUID()
 	const upload = await env.FILES.createMultipartUpload(fileKey(userId, roomId, fileId), {
@@ -187,10 +169,10 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 		await object.body.cancel()
 		return error(400, "bad path")
 	}
-	if (fresh && (object.size > MAX_FILE_BYTES || (await usedBytes(env.FILES, userId)) > STORAGE_LIMIT_BYTES)) {
+	if (fresh && object.size > MAX_FILE_BYTES) {
 		await object.body.cancel()
 		await env.FILES.delete(key)
-		return error(413, object.size > MAX_FILE_BYTES ? "file too large" : "storage limit reached")
+		return error(413, "file too large")
 	}
 	const sha256 = await sha256Stream(object.body)
 	const type = mime(object.httpMetadata?.contentType)

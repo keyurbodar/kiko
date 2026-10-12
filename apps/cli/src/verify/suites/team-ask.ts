@@ -1,6 +1,6 @@
+import { poll } from "../kit"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { until } from "./mid-run"
 import { agentSends, bubbles, team } from "./team-loops"
 
 
@@ -10,7 +10,7 @@ const suite: Suite = {
     const s = await v.as("team-ask")
     const { room, received } = await team(v, s, ["ana", "ben"], "ask and wait")
     await room.send("@ana [ask ben] [question] which port does the server use?")
-    await until("ana's reply", () => bubbles(room).some((m) => m.from.kind === "agent" && m.from.slug === "ana"), 30_000)
+    await poll("ana's reply", () => bubbles(room).some((m) => m.from.kind === "agent" && m.from.slug === "ana"), 30_000)
     await Bun.sleep(3_000)
     const ana = bubbles(room).filter((m) => m.from.kind === "agent" && m.from.slug === "ana")
     expectEqual(ana.length, 1, "ana's replies: one run")

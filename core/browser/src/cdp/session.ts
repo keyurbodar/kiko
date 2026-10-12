@@ -24,7 +24,7 @@ export interface Channel {
   readonly sessionId: string | undefined
   send<M extends Method>(method: M, params?: Params<M>): Promise<Result<M>>
   on<E extends EventName>(event: E, listener: (params: Payload<E>) => void): () => void
-  waitFor<E extends EventName>(event: E, ms: number, match?: (params: Payload<E>) => boolean): Promise<Payload<E> | undefined>
+  waitFor<E extends EventName>(event: E, ms: number): Promise<Payload<E> | undefined>
 }
 
 export interface CdpSession extends Channel {
@@ -134,11 +134,11 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
     }
   }
 
-  const waitFor = (event: string, sessionId: string | undefined, ms: number, match?: (params: never) => boolean) => {
+  const waitFor = (event: string, sessionId: string | undefined, ms: number) => {
     let hit: { params: unknown } | undefined
     let wake: (() => void) | undefined
     const off = on(event, sessionId, (params) => {
-      if (hit || (match && !match(params as never))) return
+      if (hit) return
       hit = { params }
       off()
       wake?.()
@@ -166,7 +166,7 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
     sessionId,
     send: (method, params) => Effect.runPromise(command(method, params, sessionId)) as never,
     on: (event, listener) => on(event, sessionId, listener as (params: unknown) => void),
-    waitFor: (event, ms, match) => waitFor(event, sessionId, ms, match as never) as never,
+    waitFor: (event, ms) => waitFor(event, sessionId, ms) as never,
   })
 
   return {

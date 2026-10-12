@@ -2,15 +2,10 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
 import { htmlToText } from "@yuki/durable/html-text"
-
-export { htmlToText }
 import { type Fetcher, safeFetch } from "@yuki/durable/safe-fetch"
 import { defaultFetcher } from "../../lib/dev-fixture-fetch"
-import type { Effect as ToolEffect } from "@yuki/agent/effects"
 import type { RoomFs } from "../../files/room-fs"
 import { spill } from "./spill"
-
-export const WEB_TOOL_EFFECTS = { web_fetch: "read" } as const satisfies Record<string, ToolEffect>
 
 export const WEB = "web"
 

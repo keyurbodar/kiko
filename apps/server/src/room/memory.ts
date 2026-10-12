@@ -1,5 +1,5 @@
 import type { AgentSlug, Sender } from "@yuki/protocol"
-import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, type Node, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@yuki/memory/optmem"
+import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@yuki/memory/optmem"
 import { searchMessages } from "./search"
 
 const HUMAN_GAP_MS = 30 * 60_000
@@ -289,10 +289,6 @@ export class RoomMemory {
     await rollup(out.text, items[items.length - 1]?.at ?? Date.now(), input.span)
     this.meta.set(ROLLED, String(count))
     return { done: true }
-  }
-
-  node(span: Span): Node | null {
-    return this.tree.node(span)
   }
 }
 

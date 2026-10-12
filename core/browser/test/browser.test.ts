@@ -58,17 +58,14 @@ test("a confirm is dismissed and the next act reports it; an alert is accepted a
   await browser.close()
 })
 
-test("a page our tab opens becomes a tab reported to onPopup; a stranger's page does not", async () => {
+test("a page our tab opens becomes a tab; a stranger's page does not", async () => {
   fake = chrome()
   const browser = await connect(fake.url)
   const tab = await browser.openTab()
-  const popups: [string, string][] = []
-  browser.onPopup((opener, popup) => popups.push([opener, popup.id]))
   const info = { type: "page", title: "", url: "https://x.test", attached: false, canAccessOpener: true }
   fake.emit("Target.targetCreated", { targetInfo: { ...info, targetId: "OTHER", openerId: "NOT-OURS" } })
   fake.emit("Target.targetCreated", { targetInfo: { ...info, targetId: "POP", openerId: tab.id } })
   await Bun.sleep(50)
-  expect(popups).toEqual([[tab.id, "POP"]])
   expect(browser.tab("POP")?.id).toBe("POP")
   expect(browser.tab("OTHER")).toBeUndefined()
   expect(sentTo(fake, "Emulation.setFocusEmulationEnabled", "S-POP")).toHaveLength(1)

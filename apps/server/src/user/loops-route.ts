@@ -1,26 +1,23 @@
 import { LoopAction, UserSettingsPatch } from "@yuki/protocol/schema"
 import { isRoomId } from "@yuki/protocol"
 import { Schema } from "effect"
-import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
+import { error, signedIn } from "../lib/route"
 import { userStub } from "../lib/names"
-import { originAllowed } from "../router"
 import { SNOOZE_MAX_MS } from "@yuki/memory/loops"
 import { validZone } from "@yuki/sandbox/recurrence"
 
 const ACTION = /^\/api\/loops\/(\d{1,12})$/
 const decodeAction = Schema.decodeUnknownSync(LoopAction)
 const decodePatch = Schema.decodeUnknownSync(UserSettingsPatch)
-const error = (status: number, message: string) => Response.json({ error: message }, { status })
 
 export async function loopsRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = ACTION.exec(url.pathname)
   const settings = url.pathname === "/api/settings"
   if (url.pathname !== "/api/loops" && !action && !settings) return null
-  if (!originAllowed(request, url, env)) return error(403, "forbidden origin")
-  const user = await getSessionUser(request, env)
-  if (!user) return error(401, "unauthorized")
+  const user = await signedIn(request, env)
+  if (user instanceof Response) return user
   if (request.method === "POST" && !request.headers.get("content-type")?.includes("application/json")) return error(415, "expected json")
   const stub = userStub(env.USER, user.id)
 
@@ -31,7 +28,7 @@ export async function loopsRoute(request: Request, env: Env): Promise<Response |
     try {
       patch = decodePatch(await request.json().catch(() => null))
     } catch {
-      return error(400, "initiative is off, chat, digest or active. capture is auto, always or off")
+      return error(400, "initiative is off, chat, digest or active. capture is auto or off")
     }
     if (patch.timezone !== undefined && !validZone(patch.timezone)) return error(400, "timezone must be an IANA time zone, such as Europe/Berlin")
     return Response.json(await stub.setUserSettings(patch))

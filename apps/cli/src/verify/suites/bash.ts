@@ -1,34 +1,14 @@
+import { agentText } from "../kit"
+import { newRoomId } from "@yuki/protocol"
 import type { RoomToClient } from "@yuki/protocol"
-import type { RoomHandle } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 
 const TURN_MS = 120_000
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-  let time = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[time % 32] + head
-    time = Math.floor(time / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 type FileRef = { id: string; name: string; size: number; type: string }
-
-function agentText(room: RoomHandle, from: number): string {
-  return room.raw.log
-    .slice(from)
-    .flatMap((entry) => {
-      const frame = entry.frame as RoomToClient
-      if (entry.dir !== "in" || frame.t !== "events") return []
-      return frame.events.flatMap((e) => (e.t === "message" && e.from.kind === "agent" ? [e.text] : []))
-    })
-    .join("\n")
-}
 
 const suite: Suite = {
   name: "bash",
@@ -36,8 +16,8 @@ const suite: Suite = {
   async run(v) {
     const s = await v.as(`bash-${Date.now().toString(36)}`)
     await connectTestModel(s)
-    const roomId = ulid()
-    const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
+    const roomId = newRoomId()
+    const base = new URL(`api/files/${roomId}/`, v.url)
     const user = await s.user()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "bash" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))

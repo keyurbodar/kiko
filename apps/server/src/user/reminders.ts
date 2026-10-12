@@ -3,7 +3,6 @@ import type { Env } from "../index"
 import type { Alarms } from "@yuki/durable/alarm"
 import { roomStub } from "../lib/names"
 import type { Chain } from "../room/mail"
-import type { Budget } from "../room/wake"
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@yuki/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
@@ -61,7 +60,7 @@ export type NewRoutine = {
 
 export type RunDelivery = "delivered" | "held" | "refused" | "gone" | "duplicate" | "skipped"
 
-export type DeliverRun = (input: { deliveryId: string; routine: Reminder; body: string; budget: Budget }) => Promise<RunDelivery>
+export type DeliverRun = (input: { deliveryId: string; routine: Reminder; body: string }) => Promise<RunDelivery>
 
 export type WatchFetch = (trigger: Extract<Trigger, { on: "watch" }>) => Promise<{ ok: true; text: string } | { ok: false; error: string }>
 
@@ -355,10 +354,10 @@ export class Reminders {
     return { routine: this.required(id), ...(fresh ? { token: fresh } : {}) }
   }
 
-  async byHook(id: string, token: string): Promise<Reminder | null> {
-    const row = this.sql.exec<Row & { hook_hash: string | null }>("SELECT * FROM reminders WHERE id = ? AND status = 'active'", id).toArray()[0]
-    if (!row?.hook_hash || row.hook_hash !== (await sha256Hex(token))) return null
-    return toReminder(row)
+  /** The active routine whose webhook token hashes to `hash`. The token is the credential, so no id comes with it. */
+  byHook(hash: string): Reminder | null {
+    const row = this.sql.exec<Row>("SELECT * FROM reminders WHERE hook_hash = ? AND status = 'active'", hash).toArray()[0]
+    return row ? toReminder(row) : null
   }
 
   runs(routineId?: string): RoutineRun[] {
@@ -425,12 +424,12 @@ export class Reminders {
     await this.ports?.notice(reminder.roomId, `${to}:${id}:${occurrence}`, text).catch((e: unknown) => console.error(`${to} notice not sent: ${e instanceof Error ? e.message : String(e)}`))
   }
 
-  async runNow(id: string, byHuman = false): Promise<RunDelivery | null> {
+  async runNow(id: string): Promise<RunDelivery | null> {
     const routine = this.get(id)
     if (!routine?.trigger || routine.status !== "active" || !this.ports) return null
     const n = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM routine_runs WHERE routine_id = ? AND occurrence LIKE 'test:%'", id).one().n + 1
     const occurrence = `test:${this.now()}:${n}`
-    return this.run(routine, occurrence, "a test run the human or an agent asked for", "", byHuman)
+    return this.run(routine, occurrence, "a test run the human or an agent asked for", "")
   }
 
   async fireEvent(id: string, occurrence: string, what: string, extra: string): Promise<RunDelivery | null> {
@@ -440,12 +439,11 @@ export class Reminders {
     return this.run(routine, occurrence, what, extra)
   }
 
-  private async run(routine: Reminder, occurrence: string, why: string, extra: string, paid = false): Promise<RunDelivery> {
+  private async run(routine: Reminder, occurrence: string, why: string, extra: string): Promise<RunDelivery> {
     if (!this.ports) return "refused"
     const body = routineBody(routine, why, this.lastRun(routine.id), extra)
-    const budget: Budget = paid ? "paid" : routine.createdBy === "human" ? "user" : "room"
     const fresh = this.beginRun(routine.id, occurrence)
-    const delivery = await this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body, budget }).catch(thrownAsRefused)
+    const delivery = this.ports.gate.away() ? "held" : await this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body }).catch(thrownAsRefused)
     if (delivery === "gone") {
       this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ?", routine.id)
       await this.rearm()
@@ -484,32 +482,15 @@ export class Reminders {
     return this.get(id)
   }
 
-  /** A deleted chat takes its reminders and routines with it. Returns the webhook routines, whose lookup rows the caller drops. */
-  async cancelRoom(roomId: string): Promise<string[]> {
-    const hooks = this.sql
-      .exec<{ id: string }>("SELECT id FROM reminders WHERE room_id = ? AND status IN ('active', 'paused', 'failed') AND json_extract(trigger, '$.on') = 'webhook'", roomId)
-      .toArray()
-      .map((r) => r.id)
+  /** A deleted chat takes its reminders and routines with it. */
+  async cancelRoom(roomId: string): Promise<void> {
     const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE room_id = ? AND status IN ('active', 'paused', 'failed')", roomId)
     if (changed.rowsWritten) await this.rearm()
-    return hooks
   }
 
   /** Drops a routine that was just created, when the wiring around it failed. */
   remove(id: string): void {
     this.sql.exec("DELETE FROM reminders WHERE id = ?", id)
-  }
-
-  /** The stored row, every column, so a wiring that failed after an update can put it back. */
-  rowOf(id: string): Record<string, SqlStorageValue> | null {
-    return this.sql.exec<Record<string, SqlStorageValue>>("SELECT * FROM reminders WHERE id = ?", id).toArray()[0] ?? null
-  }
-
-  /** Writes back a row from rowOf. The alarm is re-armed from the restored due time. */
-  async putRow(row: Record<string, SqlStorageValue>): Promise<void> {
-    const entries = Object.entries(row)
-    this.sql.exec(`UPDATE reminders SET ${entries.map(([c]) => `"${c}" = ?`).join(", ")} WHERE id = ?`, ...entries.map(([, v]) => v), row.id)
-    await this.rearm()
   }
 
   async cancelCreatedBy(createdBy: string): Promise<number> {

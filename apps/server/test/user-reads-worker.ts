@@ -48,52 +48,60 @@ export class UserDO extends User {
 		return ((this as unknown as { life: { nearest(text: string, limit: number): unknown[] } }).life.nearest(text, 12)).length
 	}
 
-	// History, written straight into the tables so a large object is cheap to build. Each kind adds `n` rows.
-	async seed(kind: "life" | "chats" | "reminders" | "loops" | "charged" | "marks" | "capture" | "seen", n: number): Promise<void> {
+	// History, written straight into the tables so a large object is cheap to build. Each kind adds `n` rows and
+	// returns how many it added, so the test can check the seed built what it asked for.
+	async seed(kind: SeedKind, n: number): Promise<number> {
 		const sql = this.ctx.storage.sql
 		const now = Date.now()
+		const count = () => sql.exec<{ n: number }>(`SELECT count(*) AS n FROM ${TABLE[kind]}`).one().n
+		const before = count()
+		// The series' only `?` is the row count, so every insert binds n first. A recursive count bound to a timestamp
+		// runs for trillions of rows and filled the WAL in seconds.
 		const series = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?) "
+		const insert = (body: string, ...binds: SqlStorageValue[]) => sql.exec(`${series}${body}`, n, ...binds)
 		if (kind === "life") {
-			sql.exec(
-				`${series}INSERT INTO life (pos, at, text, source, norm, card) SELECT i, ?, 'tok' || i, 'ada', 'tok' || i, CASE WHEN i % 50 = 0 THEN 'ATTRIBUTE' END FROM n`,
-				n,
+			insert(
+				`INSERT INTO life (pos, at, text, source, norm, card) SELECT i, ?, 'tok' || i, 'ada', 'tok' || i, CASE WHEN i % 50 = 0 THEN 'ATTRIBUTE' END FROM n`,
 				now,
 			)
-			sql.exec(`${series}INSERT INTO life_fts (rowid, text) SELECT i, 'tok' || i FROM n`, n)
-			sql.exec(`${series}INSERT INTO life_tri (rowid, text) SELECT i, 'tok' || i FROM n`, n)
+			insert(`INSERT INTO life_fts (rowid, text) SELECT i, 'tok' || i FROM n`)
+			insert(`INSERT INTO life_tri (rowid, text) SELECT i, 'tok' || i FROM n`)
 		} else if (kind === "chats") {
-			sql.exec(`${series}INSERT INTO chats (room_id, title, updated_at) SELECT 'r' || i, 'chat ' || i, ? FROM n`, n, now)
+			insert(`INSERT INTO chats (room_id, title, updated_at) SELECT 'r' || i, 'chat ' || i, ? FROM n`, now)
 		} else if (kind === "reminders") {
-			sql.exec(
-				`${series}INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at) SELECT 'done' || i, 'old ' || i, ?, 'UTC', NULL, 'r1', 'human', 'human', 'done', ?, ? FROM n`,
-				n,
+			insert(
+				`INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at) SELECT 'done' || i, 'old ' || i, ?, 'UTC', NULL, 'r1', 'human', 'human', 'done', ?, ? FROM n`,
+				now - 86_400_000,
 				now - 86_400_000,
 				now - 86_400_000,
 			)
 		} else if (kind === "loops") {
-			sql.exec(
-				`${series}INSERT INTO loops (kind, certainty, owner, room, ref, status, text, norm, source, opened_at, last_seen) SELECT 'goal', 'explicit', 'human', 'r1', 'ref' || i, 'done', 'old loop ' || i, 'old loop ' || i, 'tool', ?, ? FROM n`,
+			insert(
+				`INSERT INTO loops (kind, certainty, owner, room, ref, status, text, norm, source, opened_at, last_seen) SELECT 'goal', 'explicit', 'human', 'r1', 'ref' || i, 'done', 'old loop ' || i, 'old loop ' || i, 'tool', ?, ? FROM n`,
 				now,
 				now,
-				n,
 			)
-		} else if (kind === "charged") {
-			const day = new Date(now).toISOString().slice(0, 10)
-			sql.exec(`${series}INSERT INTO charged_today (id, day) SELECT 'burst' || i, ? FROM n`, n, day)
 		} else if (kind === "marks") {
-			sql.exec(`${series}INSERT INTO initiative_marks (id, surfaced, last_at) SELECT 'loop:' || i, 1, ? FROM n`, n, now)
+			insert(`INSERT INTO initiative_marks (id, surfaced, last_at) SELECT 'loop:' || i, 1, ? FROM n`, now)
 		} else if (kind === "seen") {
 			// A week of bursts, each seen once: rows the window keeps until they age out.
-			sql.exec(`${series}INSERT INTO attention_seen (id, at) SELECT 'burst:r1:' || i, ? - i * 60000 FROM n`, n, now)
+			insert(`INSERT INTO attention_seen (id, at) SELECT 'burst:r1:' || i, ? - i * 60000 FROM n`, now)
 		} else if (kind === "capture") {
-			sql.exec(
-				`${series}INSERT INTO capture_queue (room_id, message_id, text, at, queued_at) SELECT 'r1', 'q' || i, 'queued line ' || i, ?, ? FROM n`,
-				n,
-				now,
-				now,
-			)
+			insert(`INSERT INTO capture_queue (room_id, message_id, text, at, queued_at) SELECT 'r1', 'q' || i, 'queued line ' || i, ?, ? FROM n`, now, now)
 		}
+		return count() - before
 	}
+}
+
+type SeedKind = "life" | "chats" | "reminders" | "loops" | "marks" | "capture" | "seen"
+const TABLE: Record<SeedKind, string> = {
+	life: "life",
+	chats: "chats",
+	reminders: "reminders",
+	loops: "loops",
+	marks: "initiative_marks",
+	seen: "attention_seen",
+	capture: "capture_queue",
 }
 
 type Env = { USER: DurableObjectNamespace<UserDO> }
@@ -106,8 +114,7 @@ export default {
 		const stub = env.USER.get(env.USER.idFromName(`user:${user}`))
 		if (kind === "seed") {
 			const { what, n } = (await request.json()) as { what: Parameters<UserDO["seed"]>[0]; n: number }
-			await stub.seed(what, n)
-			return new Response("ok")
+			return Response.json(await stub.seed(what, n))
 		}
 		const { op, args } = (await request.json()) as { op: string; args: unknown[] }
 		try {

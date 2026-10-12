@@ -3,8 +3,6 @@ import type { Alarms } from "@yuki/durable/alarm"
 import { MAX_ENTRY_BYTES, MAX_OPEN } from "@yuki/agent/inbox"
 
 export const BURST_WAKEUP = "burst"
-/** The reset of a held window. Its own key, so a later message's wakeup does not overwrite it. */
-export const BURST_HELD_WAKEUP = "burst-held"
 
 export const AFTER_MESSAGE_MS = 1_000
 export const AFTER_TYPING_MS = 2_500
@@ -62,13 +60,12 @@ export class Burst {
 		this.sql = storage.sql
 	}
 
-	/** A burst is due: some message is not held, or its hold has passed. */
 	pending(): boolean {
-		return this.sql.exec("SELECT 1 FROM pending WHERE held_until IS NULL OR held_until <= ? LIMIT 1", this.now()).toArray().length > 0
+		return this.sql.exec("SELECT 1 FROM pending LIMIT 1").toArray().length > 0
 	}
 
 	private startedAt(): number | null {
-		return this.sql.exec<{ at: number | null }>("SELECT min(at) AS at FROM pending WHERE held_until IS NULL").one().at
+		return this.sql.exec<{ at: number | null }>("SELECT min(at) AS at FROM pending").one().at
 	}
 
 	/** Records a human message in the window, in the same transaction that stores the message. */
@@ -96,18 +93,10 @@ export class Burst {
 		await this.alarms.setWakeup(BURST_WAKEUP, debounce("typing", this.now(), startedAt))
 	}
 
-	/**
-	 * The window's messages in send order. A delivery takes held ones too, so a limit that lifts before
-	 * its reset sends a held message ahead of a later one; only the due checks skip a held message.
-	 */
-	envelopes(roomId: RoomId, limit = MAX_DELIVERY_ENVELOPES, held = false): Pending[] {
+	/** The window's messages in send order. */
+	envelopes(roomId: RoomId, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
 		return this.sql
-			.exec<Row>(
-				"SELECT id, seq, at, text, reply_to, mentions FROM pending WHERE ? OR held_until IS NULL OR held_until <= ? ORDER BY seq LIMIT ?",
-				held ? 1 : 0,
-				this.now(),
-				limit,
-			)
+			.exec<Row>("SELECT id, seq, at, text, reply_to, mentions FROM pending ORDER BY seq LIMIT ?", limit)
 			.toArray()
 			.map((r) => ({
 				envelope: {
@@ -119,15 +108,9 @@ export class Burst {
 					hop: 0,
 					rootId: r.id,
 					seq: r.seq,
-					origin: "human",
 				},
 				mentions: JSON.parse(r.mentions) as string[],
 			}))
-	}
-
-	/** Holds the window until a reset: its messages are not due, so they do not count as pending. */
-	hold(until: number): void {
-		this.sql.exec("UPDATE pending SET held_until = ? WHERE held_until IS NULL", until)
 	}
 
 	delivered(envelopes: readonly Envelope[]): void {

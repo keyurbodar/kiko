@@ -1,3 +1,4 @@
+import { newRoomId } from "@yuki/protocol"
 import type { Message, RoomToClient, UserToClient } from "@yuki/protocol"
 import type { RoomHandle, UserChannel } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
@@ -10,16 +11,6 @@ const RESTART_AT = process.env.YUKI_TURN_RESTART_AT ?? "start"
 const TIMEOUT_MS = RESTART ? 120_000 : 60_000
 const QUIET_MS = 3_000
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-  let time = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[time % 32] + head
-    time = Math.floor(time / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 type Seen = { live: Map<string, Message>; runIds: Set<string>; started: boolean; deleted: number }
 
@@ -84,7 +75,7 @@ const suite: Suite = {
   async run(v) {
     const s = await v.as("turn")
     await connectTestModel(s)
-    const roomId = ulid()
+    const roomId = newRoomId()
     const user = await s.user()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "turn check" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))

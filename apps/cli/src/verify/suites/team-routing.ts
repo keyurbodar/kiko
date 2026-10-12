@@ -1,8 +1,10 @@
+import { poll } from "../kit"
+import { newRoomId } from "@yuki/protocol"
 import type { Agent, AgentSlug, Member, Message, RoomEvent, RoomId, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { send, ulid, until } from "./mid-run"
+import { send } from "./mid-run"
 
 
 const TEAM = ["bob", "ada", "cy"] as const
@@ -15,10 +17,9 @@ const agentOf = (name: string): Agent => ({
   model: "opencode-go/deepseek-v4.1-flash",
 })
 
-const base = (url: string) => (url.endsWith("/") ? url : `${url}/`)
 
 async function dev(url: string, cookie: string, path: string, body: unknown): Promise<unknown> {
-  const res = await fetch(new URL(`api/dev/agent/${path}`, base(url)), {
+  const res = await fetch(new URL(`api/dev/agent/${path}`, url), {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
     body: JSON.stringify(body),
@@ -62,13 +63,13 @@ const suite: Suite = {
     const s = await v.as("team-routing")
     const user = await s.user()
     for (const name of TEAM) user.send({ t: "agent", op: { op: "create", agent: agentOf(name) } })
-    const roomId = ulid() as RoomId
+    const roomId = newRoomId() as RoomId
     user.send({ t: "chat", op: { op: "create", roomId, title: "ship the plan", agents: TEAM.map((n) => agentOf(n).id) } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
     await dev(v.url, s.cookie, "fake", { roomId, slugs: MEMBERS })
 
-    await until("four members", () => members(room).length === 4, 5_000)
+    await poll("four members", () => members(room).length === 4, 5_000)
     expectEqual(
       members(room).map((m) => `${m.slug}${m.lead ? " (lead)" : ""}`),
       ["yuki (lead)", "bob", "ada", "cy"],
@@ -83,19 +84,19 @@ const suite: Suite = {
     }
 
     await send(room, "hello team")
-    await until("yuki's answer", () => bubbles(room).yuki?.length === 1, 15_000)
+    await poll("yuki's answer", () => bubbles(room).yuki?.length === 1, 15_000)
     await Bun.sleep(2_500)
     expectEqual([await received("bob"), await received("ada"), await received("cy")], [0, 0, 0], "envelopes bob, ada and cy received after an untagged message")
     expectEqual(bubbles(room), { yuki: ["heard: hello team"], bob: [], ada: [], cy: [] }, "bubbles after an untagged message")
     console.log("  ok untagged: only yuki, the lead, was woken")
 
     await send(room, "@bob [reply] noted")
-    await until("bob's answer", () => bubbles(room).bob?.length === 1, 15_000)
+    await poll("bob's answer", () => bubbles(room).bob?.length === 1, 15_000)
     await Bun.sleep(2_500)
     expectEqual([await received("ada"), await received("cy")], [0, 0], "envelopes ada and cy received after @bob")
 
     await send(room, "@ada [missed] your turn")
-    await until("ada's answer", () => bubbles(room).ada?.length === 1, 15_000)
+    await poll("ada's answer", () => bubbles(room).ada?.length === 1, 15_000)
     await Bun.sleep(2_500)
     const b = bubbles(room)
     expectEqual(b.ada, ["heard: @ada [missed] your turn; missed: human: hello team | @yuki: heard: hello team | human: @bob [reply] noted | @bob: noted"], "ada's answer")
@@ -104,7 +105,7 @@ const suite: Suite = {
     console.log(`  ok @ada: ${JSON.stringify(b.ada?.[0])}`)
 
     await send(room, "@all ping")
-    await until("four answers", () => MEMBERS.every((n) => bubbles(room)[n]?.includes("heard: @all ping")), 20_000)
+    await poll("four answers", () => MEMBERS.every((n) => bubbles(room)[n]?.includes("heard: @all ping")), 20_000)
     await Bun.sleep(1_500)
     expectEqual(
       bubbles(room),
@@ -140,7 +141,7 @@ const suite: Suite = {
       })
     const before = bubbles(room)
     await send(room, "@all [reply] [react:👍]")
-    await until("four reactions", () => reactsSince().length === 4, 20_000)
+    await poll("four reactions", () => reactsSince().length === 4, 20_000)
     await Bun.sleep(5_000)
     expectEqual(runsSince(), { yuki: 1, bob: 1, ada: 1, cy: 1 }, "runs after four agents reacted")
     expectEqual(bubbles(room), before, "bubbles after the reactions")

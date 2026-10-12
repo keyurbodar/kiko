@@ -1,7 +1,8 @@
+import { agentTexts, newRoom, poll } from "../kit"
 import { VerifyError } from "../client"
-import { agentTexts, api, dev, eventually, inSeconds, ok, type Routine, systemTexts, toolLine, waitRoutine, waitRuns } from "../routine-kit"
+import { api, dev, inSeconds, ok, type Routine, systemTexts, toolLine, waitRoutine, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
-import { fake, newRoom, send } from "./mid-run"
+import { fake, send } from "./mid-run"
 
 
 const suite: Suite = {
@@ -14,12 +15,12 @@ const suite: Suite = {
       const { roomId, room } = await newRoom(s, "routines: ask")
       await fake(v, s, roomId)
       await send(room, toolLine("create_routine", { name: "ping", instructions: "[reply] pong", trigger: { on: "time", at: inSeconds(4) } }))
-      await eventually("the tool result", () => agentTexts(room).some((t) => t.includes("routine set")), 20_000)
+      await poll("the tool result", () => agentTexts(room).some((t) => t.includes("routine set")), 20_000)
       const r = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "ping"), "the routine")
       if (!["active", "done"].includes(r.status) || r.target !== "yuki" || r.createdBy !== "yuki") throw new VerifyError(`expected an active routine for yuki, got ${JSON.stringify(r)}`)
       const runs = await waitRuns(url, s, r.id, "the run to answer", (rs) => rs.some((x) => x.status === "ok"), 40_000)
       if (runs.length !== 1 || runs[0]?.seq === null) throw new VerifyError(`expected one ok run with a seq, got ${JSON.stringify(runs)}`)
-      await eventually("pong", () => agentTexts(room).some((t) => t.includes("pong")), 5_000)
+      await poll("pong", () => agentTexts(room).some((t) => t.includes("pong")), 5_000)
       const after = await waitRoutine(url, s, (all) => all.find((x) => x.id === r.id), "the routine")
       if (after.status !== "done") throw new VerifyError(`a one-off routine should be done after its run, got ${after.status}`)
       console.log(`  ok a human's ask made routine ${r.id} at once; it ran once (seq ${runs[0]?.seq}) and is done`)
@@ -56,40 +57,10 @@ const suite: Suite = {
       await fake(v, s, roomId)
       const made = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "send it", instructions: "[call fake_send]", trigger: { on: "time", at: inSeconds(3) } })
       await waitRuns(url, s, made.routine.id, "the run", (rs) => rs.some((x) => x.status === "ok"), 40_000)
-      await eventually("the answer", () => agentTexts(room).some((t) => t.startsWith("tools:")), 5_000)
+      await poll("the answer", () => agentTexts(room).some((t) => t.startsWith("tools:")), 5_000)
       const said = agentTexts(room).find((t) => t.startsWith("tools:"))
       if (said !== "tools: fake_send ran") throw new VerifyError(`expected the outside tool to run, got ${JSON.stringify(said)}`)
       console.log("  ok a routine run used fake_send with nobody asked")
-      room.raw.close()
-    }
-
-    {
-      const b = await v.as(`routines-budget-${Date.now()}`)
-      const { roomId, room } = await newRoom(b, "routines: budget")
-      await fake(v, b, roomId)
-      await dev(url, b, "limits", { roomId, limits: { autonomousRunsPerDay: 2 } })
-      const made: Routine[] = []
-      for (const n of [1, 2, 3]) made.push((await ok<{ routine: Routine }>(url, b, "routines", { roomId, name: `tick ${n}`, instructions: `[reply] tick ${n}`, trigger: { on: "time", at: inSeconds(3) } })).routine)
-      for (const r of made) await waitRuns(url, b, r.id, `run of ${r.name}`, (rs) => rs.some((x) => x.status !== "running"), 40_000)
-      const statuses = await Promise.all(made.map(async (r) => (await waitRuns(url, b, r.id, "a run", (rs) => rs.length > 0))[0]?.status))
-      if (statuses.filter((x) => x === "held").length !== 1 || statuses.filter((x) => x === "ok").length !== 2) throw new VerifyError(`expected 2 ok and 1 held, got ${JSON.stringify(statuses)}`)
-      await eventually("the budget line", () => systemTexts(room).some((t) => t.includes("used its runs")), 5_000)
-      if (systemTexts(room).filter((t) => t.includes("used its runs")).length !== 1) throw new VerifyError("the budget line was posted more than once")
-      await dev(url, b, "limits", { roomId, limits: { autonomousRunsPerDay: 100 } })
-      console.log(`  ok with a limit of 2, runs went ${statuses.join(", ")} and the chat said so once`)
-      room.raw.close()
-    }
-
-    {
-      const { roomId, room } = await newRoom(s, "routines: timeout")
-      await fake(v, s, roomId)
-      await dev(url, s, "budget", { roomId, ms: 5_000 })
-      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "slow", instructions: '[tool slow_tool {"ms":120000}]', trigger: { on: "time", at: inSeconds(2) } })
-      const started = Date.now()
-      const runs = await waitRuns(url, s, routine.id, "a timeout", (rs) => rs.some((x) => x.status !== "running"), 100_000)
-      if (runs[0]?.status !== "timeout") throw new VerifyError(`expected a timeout, got ${JSON.stringify(runs)}`)
-      await dev(url, s, "budget", { roomId, ms: 600_000 })
-      console.log(`  ok a run that would take 2 minutes was stopped after ${Math.round((Date.now() - started) / 1000)}s and recorded as a timeout`)
       room.raw.close()
     }
 
@@ -102,7 +73,7 @@ const suite: Suite = {
         await waitRuns(url, f, routine.id, `failed run ${n}`, (rs) => rs.filter((x) => x.status === "failed").length >= n, 30_000)
       }
       const paused = await waitRoutine(url, f, (all) => all.find((x) => x.id === routine.id && x.status === "paused"), "the pause", 10_000)
-      await eventually("the pause line", () => systemTexts(room).some((t) => t.includes("paused itself")), 10_000)
+      await poll("the pause line", () => systemTexts(room).some((t) => t.includes("paused itself")), 10_000)
       const again = await api<{ delivery: string | null }>(url, f, `routines/${routine.id}/run`, {})
       if (again.json.delivery !== null) throw new VerifyError(`a paused routine ran: ${JSON.stringify(again.json)}`)
       console.log(`  ok three failed runs paused routine ${paused.id} (fails ${paused.fails}) and said so; run now refuses it`)

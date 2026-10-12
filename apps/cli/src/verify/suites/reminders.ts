@@ -1,18 +1,9 @@
+import { newRoomId } from "@yuki/protocol"
 import type { RoomEvent, RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-  let time = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[time % 32] + head
-    time = Math.floor(time / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 type Reminder = { id: string; dueUtc: number; status: string; lastFired: number | null; text: string }
 
@@ -27,7 +18,7 @@ const suite: Suite = {
   name: "reminders",
   async run(v) {
     const s = await v.as("reminders")
-    const base = v.url.endsWith("/") ? v.url : `${v.url}/`
+    const base = v.url
     async function api<T>(path: string, body?: unknown): Promise<T> {
       const res = await fetch(new URL(`api/${path}`, base), {
         method: body === undefined ? "GET" : "POST",
@@ -48,7 +39,7 @@ const suite: Suite = {
       }
     }
 
-    const roomId = ulid()
+    const roomId = newRoomId()
     const user = await s.user()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "reminders check" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))

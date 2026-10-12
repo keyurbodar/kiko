@@ -2,19 +2,15 @@ import { duplicateDm, newRoomId } from "@yuki/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
 import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient, ExtensionOp, ExtensionResult } from "@yuki/protocol"
-import type { Deletion } from "../jobs/delete-account"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
-import { DEV, loadUserDev } from "../lib/dev-guard"
-import { instrument } from "../lib/dev-stats"
+import { instrument, loadUserDev } from "../lib/dev-guard"
 import { Schema } from "effect"
 import type { Env } from "../index"
-import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, takeTurn, type TurnAnswer, utcDay } from "./limits"
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
-import { checkAgentId, kernelErrorText } from "../integrations/kernel/connect"
-import { basenameOf, decodeBase64, encodeBase64, FETCH_BODY_CAP, FETCH_METHODS, FILE_CAP, URL_CAP } from "../integrations/kernel/files"
+import { basenameOf, decodeBase64, encodeBase64, FILE_CAP } from "../integrations/kernel/files"
 import { KernelError } from "../integrations/kernel/client"
 import type { FetchRequest, FetchResult, Lease } from "../agent/browser/lease"
 import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
@@ -41,13 +37,11 @@ import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, roomStub } from "../lib/names"
-import { isDeletedUser } from "../auth/auth"
 import { type ExtensionEvent, ExtensionStore } from "./extensions"
 import { EXTENSION_CATALOG } from "./catalog.gen"
 import { nextOccurrence } from "@yuki/sandbox/recurrence"
 import { CHIEF } from "../room/chief"
 import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
-import { closeSockets, isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import type { Certainty, Loop, LoopKind, OpenResult } from "@yuki/memory/loops"
 import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
@@ -57,7 +51,7 @@ import { KernelWiring } from "./kernel-wiring"
 import { extensionOp, type ExtensionHost, proposeExtension } from "./extension-wiring"
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
-import { LAST_SEEN } from "./keys"
+import { AWAY_MS, LAST_SEEN } from "./keys"
 
 const REPLAY_LIMIT = 500
 
@@ -70,7 +64,6 @@ const OLD_CHECK_IN_SEEN = "check_in_seen"
 
 const LAST_CHAT = "last_chat"
 
-const DELETING = "deleting"
 
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
@@ -96,15 +89,15 @@ export class UserDO extends DurableObject<Env> {
         return event
       }, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()), Date.now, {
-        deliverRun: async ({ deliveryId, routine, body, budget }) => {
-          return roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, budget })
+        deliverRun: async ({ deliveryId, routine, body }) => {
+          return roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body })
         },
         watch: (trigger) => this.#routines.watchPage(trigger),
         notice: (roomId, id, text) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).systemNotice(id, text, "routine"),
         gate: {
           away: () => {
             const last = this.setting(LAST_SEEN)
-            const away = last !== null && Date.now() - Number(last) > this.limits().awayDays * 86_400_000
+            const away = last !== null && Date.now() - Number(last) > AWAY_MS
             if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
             return away
           },
@@ -123,10 +116,7 @@ export class UserDO extends DurableObject<Env> {
             await this.reminders.create(userIdFromObjectName(ctx.id.name), { text, time: first.toISOString(), tz, rrule, roomId, target, createdBy })
           },
           cancelBy: async (createdBy) => {
-            const webhooks = this.sql.exec<{ id: string }>("SELECT id FROM reminders WHERE created_by = ? AND status = 'active' AND json_extract(trigger, '$.on') = 'webhook'", createdBy).toArray()
-            const cancelled = await this.reminders.cancelCreatedBy(createdBy)
-            for (const { id } of webhooks) await this.#routines.dropHook(id)
-            return cancelled
+            return this.reminders.cancelCreatedBy(createdBy)
           },
           fallback: () => {
             const roomId = yukiChatRoom(this.sql)
@@ -239,8 +229,8 @@ export class UserDO extends DurableObject<Env> {
     return this.setting(PUBLIC_ORIGIN)
   }
 
-  async runRoutine(id: string, byHuman = false): Promise<RunDelivery | null> {
-    return this.reminders.runNow(id, byHuman)
+  async runRoutine(id: string): Promise<RunDelivery | null> {
+    return this.reminders.runNow(id)
   }
 
   async routineRuns(id?: string): Promise<RoutineRun[]> {
@@ -257,8 +247,8 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  async routineHook(routineId: string, token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
-    return this.#routines.routineHook(routineId, token, deliveryKey, body)
+  async routineHook(token: string, deliveryKey: string, body: string): Promise<"ran" | "held" | "skipped" | "unknown"> {
+    return this.#routines.routineHook(token, deliveryKey, body)
   }
 
   async snoozeReminder(id: string, time: string) { return asResult(() => this.reminders.snooze(id, time)) }
@@ -470,46 +460,10 @@ export class UserDO extends DurableObject<Env> {
     return this.#credentials.listProviders().map((p) => this.#mem.describe(p))
   }
 
-  limits(): Limits {
-    const raw = this.setting("limits")
-    return resolveLimits(raw ? (JSON.parse(raw) as Partial<Limits>) : null)
-  }
-
-  setLimits(patch: Partial<Limits>): Limits {
-    const next = { ...JSON.parse(this.setting("limits") ?? "{}"), ...patch }
-    this.putSetting("limits", JSON.stringify(next))
-    return this.limits()
-  }
-
-  /** One run nobody's message started, paid once per wake id however often the room asks (section 25.5). */
-  takeAutonomous(id: string): AutonomousAnswer {
-    const now = Date.now()
-    const day = utcDay(now)
-    const key = `autonomous:${day}`
-    const used = Number(this.setting(key) ?? 0)
-    if (this.sql.exec("SELECT 1 FROM charged_today WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
-    const lastSeen = this.setting(LAST_SEEN)
-    const answer = takeAutonomous(used, lastSeen === null ? null : Number(lastSeen), this.limits(), now)
-    if (answer.ok) {
-      this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM charged_today WHERE day < ?", day)
-      this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
-    } else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
-    return answer
-  }
-
-  /** The agent refused the wake `id`: the run it paid for goes back to today's count. */
-  refundAutonomous(id: string): void {
-    const day = utcDay(Date.now())
-    if (!this.sql.exec("DELETE FROM charged_today WHERE id = ? AND day = ?", id, day).rowsWritten) return
-    const key = `autonomous:${day}`
-    this.putSetting(key, String(Math.max(0, Number(this.setting(key) ?? 0) - 1)))
-  }
-
   private seen(): void {
     const now = Date.now()
     const last = Number(this.setting(LAST_SEEN) ?? 0)
-    const wasAway = last > 0 && now - last > this.limits().awayDays * 86_400_000
+    const wasAway = last > 0 && now - last > AWAY_MS
     if (now - last < 3_600_000) return
     this.putSetting(LAST_SEEN, String(now))
     if (wasAway) deleteSetting(this.sql, AWAY_NOTICE)
@@ -523,28 +477,11 @@ export class UserDO extends DurableObject<Env> {
     if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open yuki.", "limit")
   }
 
-  /** One human burst, charged once per burst id however often the room retries it. Shares the day's id table with `takeAutonomous`; burst ids never look like wake ids. */
-  takeTurn(id: string): TurnAnswer {
-    const now = Date.now()
-    const day = utcDay(now)
-    const key = `turns:${day}`
-    const used = Number(this.setting(key) ?? 0)
-    if (this.sql.exec("SELECT 1 FROM charged_today WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
-    const answer = takeTurn(used, this.limits(), now)
-    if (answer.ok) {
-      this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM charged_today WHERE day < ?", day)
-      this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
-    }
-    return answer
-  }
-
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
       getSetting(this.sql, key)
-    const limits = setting("limits")
     const agent = slug ? { extensions: this.extensions.forAgent(slug), soul: await this.souls.get(slug) } : undefined
-    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null, captures: this.#mem.captures() }, agent)
+    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), captures: this.#mem.captures() }, agent)
   }
 
   async lifeView(): Promise<string> {
@@ -594,7 +531,6 @@ export class UserDO extends DurableObject<Env> {
       reminders: this.reminders,
       room: this.env.ROOM,
       userId: userIdFromObjectName(this.ctx.id.name),
-      limits: () => this.limits(),
     })
     return this.#loopsModule
   }
@@ -667,7 +603,7 @@ export class UserDO extends DurableObject<Env> {
 
   /** Whether the human is driving the browser. A tool returns "The human is using the browser" and waits while it is true. */
   async browserTakeover(): Promise<boolean> {
-    return this.#kr.kernel.takeover()
+    return this.#kr.takeover()
   }
 
   /**
@@ -684,36 +620,26 @@ export class UserDO extends DurableObject<Env> {
     return this.#kr.dead(agentId, sessionId)
   }
 
-  /** HTTP through the browser's stack. The body is capped at 20000 chars; only http and https. */
-  async browserFetch(agentId: string, req: FetchRequest): Promise<FetchResult> {
-    checkAgentId(agentId)
-    if (typeof req?.url !== "string" || req.url.length > URL_CAP) throw new KernelError("failed", "bad url")
-    if (req.method !== undefined && FETCH_METHODS[req.method] !== true) throw new KernelError("failed", "bad method")
-    const res = await this.#kr.kernel.fetchPage(req)
-    const truncated = res.body.length > FETCH_BODY_CAP
-    return { status: res.status, headers: res.headers, body: truncated ? res.body.slice(0, FETCH_BODY_CAP) : res.body, truncated }
+  /** HTTP through the browser's stack. The body is capped at 20000 chars and `truncated` says so; only http and https. */
+  async browserFetch(req: FetchRequest): Promise<FetchResult> {
+    return this.#kr.fetch(req)
   }
 
   /** Writes an upload into the browser's VM. `name` is sanitized to a basename; the file is capped at 10 MB. */
-  async browserPutFile(agentId: string, name: string, base64: string): Promise<{ path: string }> {
-    checkAgentId(agentId)
-    const bytes = decodeBase64(base64)
-    const safe = basenameOf(name)
-    return this.#kr.kernel.putFile(safe, bytes)
+  async browserPutFile(name: string, base64: string): Promise<{ path: string }> {
+    return this.#kr.putFile(basenameOf(name), decodeBase64(base64))
   }
 
   /** Reads a file from the browser's VM. The path must be under /tmp or the downloads folder; the file is capped at 10 MB. */
-  async browserGetFile(agentId: string, path: string): Promise<{ name: string; base64: string; size: number }> {
-    checkAgentId(agentId)
-    const bytes = await this.#kr.kernel.getFile(path)
+  async browserGetFile(path: string): Promise<{ name: string; base64: string; size: number }> {
+    const bytes = await this.#kr.getFile(path)
     if (bytes.byteLength > FILE_CAP) throw new KernelError("failed", "file is over 10 MB")
     return { name: basenameOf(path), base64: encodeBase64(bytes), size: bytes.byteLength }
   }
 
   /** Names of the files in a folder on the browser's VM. The folder must be under /tmp or the downloads folder. */
-  async browserListFiles(agentId: string, dir: string): Promise<string[]> {
-    checkAgentId(agentId)
-    return this.#kr.kernel.listFiles(dir)
+  async browserListFiles(dir: string): Promise<string[]> {
+    return this.#kr.listFiles(dir)
   }
 
   /** The agent closed its tabs. */
@@ -723,18 +649,17 @@ export class UserDO extends DurableObject<Env> {
 
   /** Read before each browser call. Holds no URL. */
   async browserCheck(): Promise<{ connected: boolean; takeover: boolean; tabs: Record<string, number> }> {
-    return this.#kr.kernel.check()
+    return this.#kr.check()
   }
 
   async devBrowser(op: DevBrowserOp): Promise<Record<string, unknown>> {
-    return (await this.dev()).devBrowser(() => this.#kr.kernel, userIdFromObjectName(this.ctx.id.name), op)
+    return (await this.dev()).devBrowser(() => this.#kr, userIdFromObjectName(this.ctx.id.name), op)
   }
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 })
     }
-    if (await this.deletionInForce()) return new Response("account deleted", { status: 410 })
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
@@ -750,10 +675,13 @@ export class UserDO extends DurableObject<Env> {
       store: this.#credentials,
       info: (provider) => this.#credentials.listProviders().find((p) => p.provider === provider) ?? null,
       send,
-      setWakeup: (key, at) => this.alarms.setWakeup(key, at),
-      clearWakeup: (key) => this.alarms.clearWakeup(key),
-      subscriptions: this.env.PROVIDER_OAUTH === "on",
-      fake: DEV,
+      devProvider: async (id) => {
+        try {
+          return (await loadUserDev()).fakeProvider(id)
+        } catch {
+          return undefined
+        }
+      },
     })
     return this.#logins
   }
@@ -804,7 +732,7 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "open") {
-      this.putSetting(LAST_CHAT, frame.roomId)
+      if (this.setting(LAST_CHAT) !== frame.roomId) this.putSetting(LAST_CHAT, frame.roomId)
       return
     }
     if (frame.t === "extension") {
@@ -837,7 +765,6 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
-    if (await this.deletionInForce()) return
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
@@ -848,72 +775,6 @@ export class UserDO extends DurableObject<Env> {
       [INITIATIVE_WAKEUP]: () => this.#il.engine.pass(),
       [REAP_WAKEUP]: () => this.#kr.reap(),
     })
-    this.#logins?.expire(due)
-  }
-
-  async recordRoom(roomId: RoomId): Promise<boolean> {
-    if (await this.deletionInForce()) return false
-    this.sql.exec("INSERT OR IGNORE INTO rooms (room_id) VALUES (?)", roomId)
-    return true
-  }
-
-  async beginDeletion(): Promise<Deletion> {
-    const generation = Date.now()
-    if (await isWiped(this.ctx.storage)) return { generation, rooms: [] }
-    await this.ctx.storage.put(DELETING, generation)
-    await this.ctx.storage.deleteAlarm()
-    closeSockets(this.ctx)
-    this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) SELECT room_id FROM chats UNION SELECT room_id FROM rooms")
-    const rooms = this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
-    return { generation, rooms }
-  }
-
-  // The tombstone is checked first. A rollback restores the account before it clears the mark, so a job from a rolled-back start stops even if the clear never landed.
-  // A job runs while its generation is the mark, or once the wipe has finished (a retry of the last job still removes the auth rows).
-  async deletionCurrent(generation: number): Promise<boolean> {
-    if (!(await this.tombstoned())) return false
-    if (await isWiped(this.ctx.storage)) return true
-    return (await this.ctx.storage.get<number>(DELETING)) === generation
-  }
-
-  // The mark names a deletion, and the tombstone says it is still running. A mark with no tombstone outlived a rollback whose clear failed, so it is cleared here and the account works again.
-  private async deletionInForce(): Promise<boolean> {
-    if (await isWiped(this.ctx.storage)) return true
-    if ((await this.ctx.storage.get(DELETING)) === undefined) return false
-    if (await this.tombstoned()) return true
-    await this.cancelDeletion()
-    return false
-  }
-
-  private tombstoned(): Promise<boolean> {
-    return isDeletedUser(this.env.AUTH_DB, userIdFromObjectName(this.ctx.id.name))
-  }
-
-  // The queue refused the jobs, so the account lives on. deletion_rooms stays: a job that did get through must not see an empty ledger and wipe the user.
-  async cancelDeletion(): Promise<void> {
-    if (await isWiped(this.ctx.storage)) return
-    await this.ctx.storage.delete(DELETING)
-    // beginDeletion dropped the storage alarm; setting the hello wakeup points it at the earliest row again.
-    await enforceHello(this.ctx, this.alarms)
-  }
-
-  async roomDeleted(roomId: RoomId): Promise<number> {
-    if (await isWiped(this.ctx.storage)) return 0
-    this.sql.exec("DELETE FROM deletion_rooms WHERE room_id = ?", roomId)
-    return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM deletion_rooms").one().n
-  }
-
-  async deleteAll(): Promise<number> {
-    // The Composio session and the Kernel browser go too, behind the wipe: both read their keys and leases from these rows, so they go before the rows do.
-    // The user's Kernel account is theirs, so a failure here must not stop the deletion.
-    return wipeStorage(this.ctx, async () => {
-      await this.#composio.disconnect()
-      await this.#kr.kernel.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
-    })
-  }
-
-  async storedRows(): Promise<number> {
-    return storedRows(this.ctx.storage)
   }
 
   async devInitiative(op: DevInitiativeOp): Promise<unknown> {
@@ -948,8 +809,8 @@ export class UserDO extends DurableObject<Env> {
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
     // A private or deleted chat keeps no loops (section 26.1).
     if (event && ((op.op === "private" && op.private) || op.op === "delete")) this.#il.loops.forgetRoom(op.roomId)
-    // A deleted chat keeps no reminders or routines. The rows cancel in this step; the webhook lookup rows follow.
-    if (event && op.op === "delete") this.ctx.waitUntil(this.#routines.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
+    // A deleted chat keeps no reminders or routines.
+    if (event && op.op === "delete") this.ctx.waitUntil(this.reminders.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
       this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))

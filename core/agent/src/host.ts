@@ -9,9 +9,9 @@ import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-st
 import { type Batch, INBOX_STEPS, Inbox, type Refusal, renderInput } from "./inbox"
 import { stoppable } from "./effects"
 import { type Arrival, decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
-import { type Envelope, joinOrigin, type Origin, originOfAll } from "./envelope"
+import type { Envelope } from "./envelope"
 import { openDurableObjectSqlite } from "./sqlite"
-import { WORKERS_STEPS, Workers } from "./workers"
+import { WORKERS_STEPS, WORKERS_TAIL, Workers } from "./workers"
 
 const context = BACKGROUND_CONTEXT
 
@@ -102,13 +102,11 @@ export type HostOptions = {
   setup: () => AgentSetup | Promise<AgentSetup>
   onOpen?: (opened: Opened) => void | Promise<void>
   onGiveUp?: () => void | Promise<void>
-  heartbeatMs?: number
   progress?: () => RunProgress | null
   onIdle?: () => void
-  onTimeout?: () => void | Promise<void>
   shortBrief?: (brief: string) => string
   onReset?: () => void
-  autoBudgetMs?: () => Promise<number>
+  heartbeatMs?: number
   onWorkers?: (running: number, pending: boolean) => void
   // Keeps an un-awaited promise alive past the handler's return, so an abort still commits.
   waitUntil: (work: Promise<unknown>) => void
@@ -117,14 +115,8 @@ export type HostOptions = {
 export type Opened = {
   harness: Harness
   root: Conversation
-  registry: AgentSetup["registry"]
   storage: CoalescingStorage
-  beginRun?: AgentSetup["beginRun"]
-  joinRun?: AgentSetup["joinRun"]
-  inputContext?: AgentSetup["inputContext"]
-  inputMemory?: AgentSetup["inputMemory"]
-  beforeCompact?: AgentSetup["beforeCompact"]
-  stale?: AgentSetup["stale"]
+  setup: AgentSetup
 }
 
 export type HostStatus = {
@@ -137,8 +129,6 @@ export type HostStatus = {
 const TOOL_TASK = "pi.tool"
 const HUMAN_COMING = "human-coming"
 const HUMAN_COMING_MS = 10_000
-
-export const AUTO_RUN_BUDGET_MS = 10 * 60_000
 
 const RESET_AFTER = 3
 const UNRECOVERABLE = /unresolvable path|unsafe path|sqlite database is closed|malformed/i
@@ -155,26 +145,29 @@ export const HOST_STEPS: Step[] = [
   "CREATE TABLE IF NOT EXISTS run_origin (id INTEGER PRIMARY KEY CHECK (id = 1), origin TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)",
 ]
 
+// What the host retired. The object that spreads HOST_STEPS appends these after its own steps, so no earlier step moves.
+export const HOST_TAIL: Step[] = [...WORKERS_TAIL, "DROP TABLE IF EXISTS run_origin"]
+
 export class AgentHost {
   readonly inbox: Inbox
   readonly workers: Workers
   private readonly alarms: Alarms
-  private readonly heartbeatMs: number
   private opened?: Promise<Opened>
+  private readonly heartbeatMs: number
   private failures = 0
   private watchingIdle = false
   private resumed = false
-  // Bumped when input is joined and again once it is submitted. An idle check that saw it move must not wipe the new run's origin.
+  // Bumped when input is joined and again once it is submitted. An idle check that saw it move must not clear the heartbeat.
   private inputs = 0
 
   constructor(
     private readonly ctx: DurableObjectState,
     private readonly options: HostOptions,
   ) {
-    this.inbox = new Inbox(ctx.storage)
-    this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), origin: () => this.origin(), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
-    this.alarms = createAlarms(ctx)
     this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
+    this.inbox = new Inbox(ctx.storage)
+    this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
+    this.alarms = createAlarms(ctx)
   }
 
   async receive(envelopes: readonly Envelope[], brief: string): Promise<{ admitted: string[]; refused?: Refusal }> {
@@ -197,7 +190,6 @@ export class AgentHost {
       await this.compactIfDue()
       const opened = await this.current()
       await this.drain(opened)
-      await this.enforceBudget(opened)
       await this.pulse(opened)
       this.failures = 0
     } catch (error) {
@@ -241,9 +233,9 @@ export class AgentHost {
 
   private async current(): Promise<Opened> {
     const opened = await this.open()
-    if (!opened.stale || !this.inbox.hasOpen()) return opened
+    if (!opened.setup.stale || !this.inbox.hasOpen()) return opened
     const live = await opened.harness.inspect(context)
-    if (live.tasks.length || live.submissions.length || !(await opened.stale())) return opened
+    if (live.tasks.length || live.submissions.length || !(await opened.setup.stale())) return opened
     await this.drop()
     return this.open()
   }
@@ -253,7 +245,7 @@ export class AgentHost {
     const env = setup.env
     const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, context)
     const root = await harness.root(context, { agent: setup.agent })
-    return { harness, root, registry: setup.registry, storage, beginRun: setup.beginRun, joinRun: setup.joinRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact, stale: setup.stale }
+    return { harness, root, storage, setup }
   }
 
   private async crashLooping({ harness, root }: Opened): Promise<boolean> {
@@ -274,7 +266,6 @@ export class AgentHost {
   }
 
   private async idle(): Promise<void> {
-    this.ctx.storage.sql.exec("DELETE FROM run_origin")
     if (this.resumed) {
       this.resumed = false
       await this.ctx.storage.delete(RESUMES_KEY)
@@ -291,7 +282,7 @@ export class AgentHost {
     const opened = await this.open()
     const live = await opened.harness.inspect(context)
     if (live.tasks.length || live.submissions.length) return
-    await opened.beforeCompact?.(opened.harness)
+    await opened.setup.beforeCompact?.(opened.harness)
     await this.drop()
     this.reset(false)
     await this.ctx.storage.put(RUNS_KEY, 0)
@@ -306,7 +297,8 @@ export class AgentHost {
     return { open: true, inbox, tasks: live.tasks.length, submissions: live.submissions.length }
   }
 
-  private async drain({ harness, root, registry, storage, beginRun, joinRun, inputContext, inputMemory }: Opened): Promise<void> {
+  private async drain({ harness, root, storage, setup }: Opened): Promise<void> {
+    const { registry, beginRun, joinRun, inputContext, inputMemory } = setup
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
       this.workers.stopAll()
       await root.abort(context)
@@ -336,12 +328,10 @@ export class AgentHost {
         continue
       }
       if (run) await joinRun?.(batch, root)
-      let restarts = run?.restarts ?? 0
       if (action === "restart") {
         await root.abort(context)
-        restarts++
-      }
-      await this.ctx.storage.put(RESTARTS_KEY, restarts)
+        await this.ctx.storage.put(RESTARTS_KEY, (run?.restarts ?? 0) + 1)
+      } else if (!run) await this.ctx.storage.delete(RESTARTS_KEY)
       // Read before the steer: a tool the steer starts must not be stopped by it.
       const stopping = run && action === "interrupt" ? await this.stoppableTools(harness, root, registry, run.tools) : []
       const whenBusy = action === "steer" || action === "interrupt" ? ({ whenBusy: "steer" } as const) : {}
@@ -358,7 +348,7 @@ export class AgentHost {
         await this.ctx.storage.delete(JOINED_KEY)
         memory = out.text
       }
-      this.joinOrigin(batch, !run || action === "restart" || !(await this.rootPlaced(harness, root)))
+      this.inputs++
       const [extra, last] = await Promise.all([inputContext?.(), this.ctx.storage.get<{ epoch: number; key: string }>(BRIEF_KEY)])
       const shown = briefToShow(batch.briefs, fresh, last?.epoch === this.epoch() ? last.key : undefined, this.options.shortBrief)
       const work = this.workers.note()
@@ -368,48 +358,9 @@ export class AgentHost {
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
       this.inputs++
-      if (shown.key) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
+      if (shown.key && (last?.epoch !== this.epoch() || last.key !== shown.key)) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
       if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
     }
-  }
-
-  private joinOrigin(batch: Batch, fresh: boolean): void {
-    this.inputs++
-    const incoming = originOfAll(batch.envelopes) ?? "auto"
-    const row = this.ctx.storage.sql.exec<{ origin: Origin }>("SELECT origin FROM run_origin WHERE id = 1").toArray()[0]
-    if (fresh || !row) {
-      this.ctx.storage.sql.exec(
-        "INSERT INTO run_origin (id, origin, started_at, steered) VALUES (1, ?, ?, 0) ON CONFLICT(id) DO UPDATE SET origin = excluded.origin, started_at = excluded.started_at, steered = 0",
-        incoming,
-        Date.now(),
-      )
-      return
-    }
-    this.ctx.storage.sql.exec("UPDATE run_origin SET origin = ? WHERE id = 1", joinOrigin(row.origin, incoming))
-  }
-
-  origin(): Origin {
-    const row = this.ctx.storage.sql.exec<{ origin: Origin }>("SELECT origin FROM run_origin WHERE id = 1").toArray()[0]
-    return row?.origin ?? "auto"
-  }
-
-  private async enforceBudget({ harness, root }: Opened): Promise<void> {
-    const row = this.ctx.storage.sql.exec<{ origin: Origin; started_at: number; steered: number }>("SELECT origin, started_at, steered FROM run_origin WHERE id = 1").toArray()[0]
-    if (!row || row.origin === "human") return
-    const age = Date.now() - row.started_at
-    const budget = (await this.options.autoBudgetMs?.()) ?? AUTO_RUN_BUDGET_MS
-    if (age < budget) return
-    if (!(await this.runState(harness, root))) return
-    if (age >= 2 * budget) {
-      await this.options.onTimeout?.()
-      await root.abort(context)
-      this.ctx.storage.sql.exec("DELETE FROM run_origin")
-      return
-    }
-    if (row.steered) return
-    const content = '<system-event reason="run_budget">\ntime is up for this run. post what you have now in one short message, and stop.\n</system-event>'
-    await root.submit({ type: "input", content, requestId: `budget:${row.started_at}`, whenBusy: "steer" }, context)
-    this.ctx.storage.sql.exec("UPDATE run_origin SET steered = 1 WHERE id = 1")
   }
 
   // The running tools the host may stop, so a human message is answered after the tool, not after it finishes.
@@ -482,7 +433,6 @@ export class AgentHost {
     const live = await harness.inspect(context)
     const talking = isTalking(live, root.id)
     // Nothing awaits between the check and the delete, so no input can join in between.
-    if (!talking && this.inputs === seen) this.ctx.storage.sql.exec("DELETE FROM run_origin")
     if (live.tasks.length === 0 && live.submissions.length === 0 && this.inputs === seen) {
       await this.idle()
       await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)
@@ -506,7 +456,6 @@ export class AgentHost {
         const live = await harness.inspect(context)
         if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Math.max(Date.now(), this.humanComingUntil()))
         if (isTalking(live, root.id) || this.inputs !== seen) return this.watchIdle(harness, root)
-        this.ctx.storage.sql.exec("DELETE FROM run_origin")
         if (live.tasks.length || live.submissions.length) return
         await this.idle()
         await this.alarms.clearWakeup(HEARTBEAT_WAKEUP)

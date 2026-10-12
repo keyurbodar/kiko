@@ -1,7 +1,7 @@
 import { connect } from "@yuki/browser/cdp/browser"
 import { BROWSER } from "@yuki/browser/config"
 import type { BrowserSession, Tab } from "@yuki/browser/page/types"
-import { count } from "../../lib/dev-stats"
+import { count } from "../../lib/dev-guard"
 import type { LeasePort } from "./lease"
 
 export const IDLE_CLOSE_MS = 15_000
@@ -269,9 +269,5 @@ export class BrowserConnection {
     if (this.session || this.dialing || this.busy > 0) return "closed"
     await this.deps.lease.release().catch(() => {})
     return "closed"
-  }
-
-  isOpen(): boolean {
-    return this.session !== null
   }
 }

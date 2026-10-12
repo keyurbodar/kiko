@@ -13,9 +13,6 @@ export class UserDO extends DurableObject {
 	async getChat(): Promise<null> {
 		return null
 	}
-	async takeTurn(): Promise<{ ok: true }> {
-		return { ok: true }
-	}
 }
 
 // Every statement's cursor, read once when a test asks for the total. rowsRead is final once a cursor is consumed.

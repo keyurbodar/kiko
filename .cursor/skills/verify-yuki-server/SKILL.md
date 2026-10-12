@@ -15,8 +15,6 @@ From the repo root. Pick a free port. Do not leave it running.
 NODE_ENV=development bun run --cwd apps/server dev --port 8787 --inspector-port 9229
 ```
 
-The `dev` script applies the local D1 migrations for the `kiko-auth` database (binding `AUTH_DB`) to the default persist dir before it starts wrangler, so that dir needs no separate step. A server on a fresh `--persist-to <dir>` needs them against that same dir first, or it has no auth table.
-
 ```bash
 cd apps/server && bunx wrangler d1 migrations apply kiko-auth --local --persist-to <dir>
 ```
@@ -145,11 +143,10 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `fanout` | [fanout](./features/fanout.md) |
 | `extensions`, `extensions-compose`, `extensions-model`, `extensions-edit-model`, `skills` | [extensions](./features/extensions.md) |
 | `routines`, `reminders`, `routine-triggers`, `routines-model`, `routines-scale` | [routines](./features/routines.md) |
-| `account-delete`, `credentials`, `byok`, `provider-login` | [account](./features/account.md) |
-| `limits`, `overhead`, `token-cost`, `latency`, `latency-model` | [limits](./features/limits.md) |
+| `credentials`, `byok`, `provider-login` | [account](./features/account.md) |
+| `overhead`, `token-cost`, `latency`, `latency-model` | [limits](./features/limits.md) |
 | `memory-jev` | [memory-jev](./features/memory-jev.md) |
 | `memory-edge` | [memory-edge](./features/memory-edge.md) |
-| `memory-isolation` | [memory-isolation](./features/memory-isolation.md) |
 | `memory-tools`, `memory-session`, `memory-eval`, `memory-hard`, `soul` | [memory](./features/memory.md) |
 | `proactive` | [proactive](./features/proactive.md) |
 | `initiative`, `initiative-loops` | the `verify-initiative` skill |

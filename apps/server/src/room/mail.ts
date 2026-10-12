@@ -1,18 +1,17 @@
-import type { AgentSlug, Envelope, Origin, RoomEvent, RoomId } from "@yuki/protocol"
-import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
+import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
+import { checkSend, type Limit, limitError, limitNotice } from "./limits"
 import type { Asks } from "./asks"
 import type { RoomLog } from "./log"
 import { parseRichText } from "./rich-text"
-import { joinOrigin, originOfAll } from "@yuki/agent/envelope"
 
 export type AgentSend = { id: string; to: AgentSlug | "all"; text: string }
 
-export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; recipients: AgentSlug[]; origin?: Origin }
+export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; recipients: AgentSlug[] }
 
 /** `answered` is the ask this send answered, if any: its bubbles go to the asker, not to the inbox. */
 export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[]; answered: string | null } | { ok: false; error: string; events: RoomEvent[] }
 
-export type Chain = { rootId: string; hop: number; origin: Origin }
+export type Chain = { rootId: string; hop: number }
 
 export type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend }
 
@@ -71,47 +70,41 @@ export class Mail {
 		const last = envelopes.at(-1)
 		if (!last) return
 		const human = envelopes.some((e) => e.from.kind === "human")
-		const origin = originOfAll(envelopes) ?? "auto"
 		if (human || !this.busy(slug)) {
 			this.sql.exec(
-				`INSERT INTO agent_chains (slug, root_id, hop, origin) VALUES (?, ?, ?, ?)
-				 ON CONFLICT(slug) DO UPDATE SET root_id = excluded.root_id, hop = excluded.hop, origin = excluded.origin,
-				   next_root_id = NULL, next_hop = NULL, next_origin = NULL`,
+				`INSERT INTO agent_chains (slug, root_id, hop) VALUES (?, ?, ?)
+				 ON CONFLICT(slug) DO UPDATE SET root_id = excluded.root_id, hop = excluded.hop,
+				   next_root_id = NULL, next_hop = NULL`,
 				slug,
 				last.rootId,
 				last.hop,
-				origin,
 			)
 		} else {
-			const held = this.sql.exec<{ o: Origin | null }>("SELECT next_origin AS o FROM agent_chains WHERE slug = ?", slug).toArray()[0]?.o ?? null
 			this.sql.exec(
-				`INSERT INTO agent_chains (slug, root_id, hop, origin, next_root_id, next_hop, next_origin) VALUES (?, ?, ?, ?, ?, ?, ?)
-				 ON CONFLICT(slug) DO UPDATE SET next_root_id = excluded.next_root_id, next_hop = excluded.next_hop, next_origin = excluded.next_origin`,
+				`INSERT INTO agent_chains (slug, root_id, hop, next_root_id, next_hop) VALUES (?, ?, ?, ?, ?)
+				 ON CONFLICT(slug) DO UPDATE SET next_root_id = excluded.next_root_id, next_hop = excluded.next_hop`,
 				slug,
 				last.rootId,
 				last.hop,
-				origin,
 				last.rootId,
 				last.hop,
-				joinOrigin(held, origin),
 			)
 		}
-		if (human) this.sql.exec("DELETE FROM autonomous_runs")
 	}
 
 	runEnded(slug: AgentSlug): void {
 		this.sql.exec(
-			`UPDATE agent_chains SET root_id = next_root_id, hop = next_hop, origin = next_origin,
-			   next_root_id = NULL, next_hop = NULL, next_origin = NULL
+			`UPDATE agent_chains SET root_id = next_root_id, hop = next_hop,
+			   next_root_id = NULL, next_hop = NULL
 			 WHERE slug = ? AND next_root_id IS NOT NULL`,
 			slug,
 		)
 	}
 
 	chain(slug: AgentSlug): Chain {
-		const row = this.sql.exec<{ root_id: string; hop: number; origin: Origin | null }>("SELECT root_id, hop, origin FROM agent_chains WHERE slug = ?", slug).toArray()[0]
-		if (!row) return { rootId: `agent:${slug}`, hop: 0, origin: "auto" }
-		return { rootId: row.root_id, hop: row.hop, origin: row.origin ?? "auto" }
+		const row = this.sql.exec<{ root_id: string; hop: number }>("SELECT root_id, hop FROM agent_chains WHERE slug = ?", slug).toArray()[0]
+		if (!row) return { rootId: `agent:${slug}`, hop: 0 }
+		return { rootId: row.root_id, hop: row.hop }
 	}
 
 	chainRoot(slug: AgentSlug): string | null {
@@ -140,14 +133,14 @@ export class Mail {
 			}
 			const recipients = input.to === "all" ? others : [input.to]
 			if (!recipients.length) return { ok: false, error: "not sent: you are the only agent in this room.", events: [] }
-			const { rootId, hop: was, origin } = this.chain(from)
+			const { rootId, hop: was } = this.chain(from)
 			if (this.stopped(rootId)) return { ok: false, error: "not sent: the human pressed stop.", events: [] }
 			const hop = was + 1
 			const check = checkSend(hop, this.deliveries(rootId), recipients.length)
 			if (!check.ok) return { ok: false, error: limitError(check.limit), events: this.trip(rootId, check.limit) }
 			const shown = `@${input.to} ${text}`
 			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), to: input.to })
-			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients, origin }
+			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients }
 			this.count(rootId, recipients.length)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
 			if (askId) this.asks.sent(askId, stored.id)
@@ -162,10 +155,10 @@ export class Mail {
 	relay(id: string, from: AgentSlug, to: AgentSlug, message: { id: string; seq: number; text: string }): StoredSend | null {
 		return this.storage.transactionSync(() => {
 			if (this.sql.exec("SELECT 1 FROM agent_sends WHERE id = ?", id).toArray().length) return null
-			const { rootId, hop: was, origin } = this.chain(from)
+			const { rootId, hop: was } = this.chain(from)
 			const hop = was + 1
 			if (this.stopped(rootId) || !checkSend(hop, this.deliveries(rootId), 1).ok) return null
-			const send: StoredSend = { messageId: message.id, seq: message.seq, text: message.text, hop, rootId, recipients: [to], origin }
+			const send: StoredSend = { messageId: message.id, seq: message.seq, text: message.text, hop, rootId, recipients: [to] }
 			this.count(rootId, 1)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", id, JSON.stringify(send), this.now())
 			this.enqueue(from, send)
@@ -202,7 +195,6 @@ export class Mail {
 			hop: send.hop,
 			rootId: send.rootId,
 			seq: send.seq,
-			origin: send.origin ?? "auto",
 		}
 	}
 
@@ -212,26 +204,5 @@ export class Mail {
 		this.sql.exec("INSERT INTO root_counts (root_id, deliveries, tripped, at) VALUES (?, 0, 1, ?) ON CONFLICT(root_id) DO UPDATE SET tripped = 1", rootId, this.now())
 		const { event } = this.log.addMessage({ from: { kind: "system", reason: "run_budget" }, text: limitNotice(limit) })
 		return event ? [event] : []
-	}
-
-	reserve(now: number, id: string): "ok" | "paid" | "full" {
-		return this.storage.transactionSync(() => {
-			const day = utcDay(now)
-			if (this.sql.exec("SELECT 1 FROM auto_taken WHERE id = ?", id).toArray().length) return "paid"
-			const counter = this.sql.exec<{ day: string; runs: number }>("SELECT day, runs FROM autonomous_runs WHERE id = 1").toArray()[0] ?? null
-			if (!autonomousRunAllowed(counter, day)) return "full"
-			const runs = counter?.day === day ? counter.runs + 1 : 1
-			this.sql.exec("INSERT INTO autonomous_runs (id, day, runs) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET day = excluded.day, runs = excluded.runs", day, runs)
-			this.sql.exec("DELETE FROM auto_taken WHERE day != ?", day)
-			this.sql.exec("INSERT INTO auto_taken (id, day) VALUES (?, ?)", id, day)
-			return "ok"
-		})
-	}
-
-	refund(id: string): void {
-		this.storage.transactionSync(() => {
-			if (!this.sql.exec("DELETE FROM auto_taken WHERE id = ?", id).rowsWritten) return
-			this.sql.exec("UPDATE autonomous_runs SET runs = max(0, runs - 1) WHERE id = 1")
-		})
 	}
 }

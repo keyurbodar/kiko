@@ -28,18 +28,18 @@ async function call(user: string, op: string, args: unknown[]): Promise<Counts> 
 	return (await res.json()) as Counts
 }
 
+// The seed reports how many rows it added. A wrong bind fails here, not as a runaway write.
 async function seed(user: string, what: string, n: number): Promise<void> {
-	await mf.dispatchFetch(`http://do/seed/${user}`, { method: "POST", body: JSON.stringify({ what, n }) })
+	const res = await mf.dispatchFetch(`http://do/seed/${user}`, { method: "POST", body: JSON.stringify({ what, n }) })
+	expect(await res.json()).toBe(n)
 }
 
 const ROOM = "r1"
 let step = 0
 
 const ACTIONS: { name: string; op: string; args: () => unknown[] }[] = [
-	{ name: "human burst: takeTurn (new burst)", op: "takeTurn", args: () => [`burst-${++step}`] },
 	{ name: "human burst: signals (one burst)", op: "signals", args: () => [{ roomId: ROOM, openedAt: Date.now(), more: 0, signals: [{ kind: "burst", roomId: ROOM, at: Date.now(), seq: ++step, text: "hi there", by: { kind: "human" } }] }] },
 	{ name: "send: touchChat", op: "touchChat", args: () => [ROOM, { lastSeq: ++step, lastPreview: "hi", unread: 1 }] },
-	{ name: "send: recordRoom", op: "recordRoom", args: () => [ROOM] },
 	{ name: "agent turn: initiativeBrief", op: "initiativeBrief", args: () => [ROOM, "ada", { text: "hello" }] },
 	{ name: "agent turn: turnContext", op: "turnContext", args: () => ["anthropic", "ada"] },
 	{ name: "agent turn: lifeView", op: "lifeView", args: () => [] },
@@ -71,7 +71,6 @@ test("rows read and written per user action, fresh and with history", async () =
 	await seed("large", "chats", 300)
 	await seed("large", "reminders", 500)
 	await seed("large", "loops", 2000)
-	await seed("large", "charged", 300)
 	await seed("large", "marks", 1000)
 	await seed("large", "capture", 200)
 	await seed("large", "seen", 1400)
@@ -81,7 +80,6 @@ test("rows read and written per user action, fresh and with history", async () =
 	// Budgets at the large size. Each bound sits well under the cost before the fix and well over the cost after it.
 	// lifeView is not bounded here: with no naps built, every line is still a backlog line and the view reads them all.
 	const BUDGET: Record<string, number> = {
-		"human burst: takeTurn (new burst)": 10,
 		"human burst: signals (one burst)": 100,
 		"agent turn: initiativeBrief": 200,
 		"agent post: chatTasks (one open task)": 100,

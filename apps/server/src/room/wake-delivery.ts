@@ -2,16 +2,14 @@ import type { AgentSlug, Chat, Envelope, RoomEvent, } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import type { Env } from "../index"
 import { INITIATIVE_RUN, REMINDER_RUN } from "../initiative/engine"
-import { userStub } from "../lib/names"
 import type { Burst } from "./burst"
 import type { Mail } from "./mail"
-import { BUDGET_LINE, nextReset, utcDay } from "./limits"
 import type { Members } from "./members"
 import type { RoomLog } from "./log"
 import type { RoomRoutines } from "./routines"
 import type { RoomWorkspace } from "./workspace"
 import { wakeBody } from "./workspace"
-import { type HeldWakes, HELD_PER_PASS, HELD_WAKEUP, type Wake, type WakeResult, wakeStamp } from "./wake"
+import { type Wake, type WakeResult, wakeStamp } from "./wake"
 import { receive, type ReceiveDeps } from "./receive"
 import type { Home } from "./home"
 import { type Deliveries, type ReminderDelivery, reminderChain } from "./deliver"
@@ -27,7 +25,6 @@ export type WakeDeps = {
 	mail: Mail
 	deliveries: Deliveries
 	routines: RoomRoutines
-	outbox: HeldWakes
 	alarms: Alarms
 	workspace: RoomWorkspace
 	burst: Burst
@@ -64,8 +61,6 @@ export class RoomWakes {
 			why: "reminder",
 			body: reminder.createdBy === reminder.target ? `reminder: ${reminder.text}\nyou set this to come back now. the time has come: do it and post the result here.` : `reminder: ${reminder.text}`,
 			chain: reminderChain(own, reminder),
-			budget: reminder.createdBy === "human" ? "user" : "room",
-			retry: true,
 			...(event ? { seq: event.seq } : {}),
 		})
 		if (out !== "delivered" && out !== "duplicate") this.d.routines.unfollow(run)
@@ -89,7 +84,7 @@ export class RoomWakes {
 		this.d.log.setMeta(`initiative:${id}`, input.reason)
 		let out: WakeResult
 		try {
-			out = await this.wake({ id, to: slug, why: "initiative", body: input.body, chain: null, budget: "room", retry: false })
+			out = await this.wake({ id, to: slug, why: "initiative", body: input.body, chain: null })
 		} catch (error) {
 			this.d.routines.unfollow(run)
 			throw error
@@ -98,7 +93,7 @@ export class RoomWakes {
 		return out
 	}
 
-	async deliverRoutine(deliveryId: string, input: { target: string; body: string; budget: Wake["budget"] }): Promise<WakeResult> {
+	async deliverRoutine(deliveryId: string, input: { target: string; body: string }): Promise<WakeResult> {
 		const id = `routine:${deliveryId}`
 		if (!this.d.home()) return "refused"
 		if (this.d.deliveries.seen(id)) return "duplicate"
@@ -109,7 +104,7 @@ export class RoomWakes {
 		this.d.routines.follow(run)
 		let out: WakeResult
 		try {
-			out = await this.wake({ id, to: slug, why: "routine", body: input.body, chain: { rootId: id, hop: 0, origin: "routine" }, budget: input.budget, retry: false, seq })
+			out = await this.wake({ id, to: slug, why: "routine", body: input.body, chain: { rootId: id, hop: 0 }, seq })
 		} catch (error) {
 			this.d.routines.unfollow(run)
 			throw error
@@ -122,80 +117,17 @@ export class RoomWakes {
 		const home = this.d.home()
 		if (!home) return "refused"
 		if (this.d.deliveries.seen(w.id)) return "duplicate"
-		if (this.d.outbox.has(w.id)) return "held"
-		const out = await this.deliverWake(home, w)
-		if (out === "held" && w.retry) {
-			this.d.outbox.hold(w, Date.now())
-			await this.d.alarms.setWakeup(HELD_WAKEUP, nextReset(Date.now()))
-		}
-		return out
-	}
-
-	private async deliverWake(home: Home, w: Wake): Promise<WakeResult> {
 		const chat = await this.d.chat(home)
 		if (!chat) return "gone"
 		await this.d.seedMembers(home, chat)
 		const members = this.d.members.list()
 		const member = members.find((m) => m.slug === w.to)
 		if (!member) return "gone"
-		const now = Date.now()
-		if (w.budget === "room" && this.d.mail.reserve(now, w.id) === "full") return this.budgetHeld(now, "this chat")
-		if (w.budget !== "paid") {
-			const user = await userStub(this.d.env.USER, home.userId).takeAutonomous(w.id)
-			if (!user.ok) {
-				this.d.mail.refund(w.id)
-				return user.reason === "away" ? "held" : this.budgetHeld(now, "your account")
-			}
-		}
 		const envelope: Envelope = { id: w.id, roomId: home.roomId, from: { kind: "system", reason: w.why }, body: w.body, seq: w.seq ?? this.d.log.lastSeq(), ...wakeStamp(w, (root) => this.d.mail.stopped(root)) }
 		const receipt = await receive(this.d.receiver, home, member, members, chat.title, [envelope])
-		if (receipt !== "admitted") {
-			this.d.mail.refund(w.id)
-			if (w.budget !== "paid") await userStub(this.d.env.USER, home.userId).refundAutonomous(w.id)
-			if (receipt === "full") throw new Error(`${w.to}'s inbox is full`)
-		}
+		if (receipt === "full") throw new Error(`${w.to}'s inbox is full`)
 		this.d.deliveries.mark(w.id)
 		return receipt === "admitted" ? "delivered" : "refused"
-	}
-
-	async retryHeld(): Promise<void> {
-		const home = this.d.home()
-		if (!home) return
-		const due = this.d.outbox.next(Date.now())
-		let stuck = false
-		let failed = false
-		for (const w of due) {
-			if (this.d.deliveries.seen(w.id)) {
-				this.d.outbox.drop(w.id)
-				continue
-			}
-			const run = w.id.startsWith("reminder:") ? { routineId: REMINDER_RUN, occurrence: w.id.slice("reminder:".length), slug: w.to, seq: this.d.log.lastSeq() } : null
-			if (run) this.d.routines.follow(run)
-			let out: WakeResult
-			try {
-				out = await this.deliverWake(home, w)
-			} catch (error) {
-				if (run) this.d.routines.unfollow(run)
-				console.error(`held wake not delivered, kept for a retry: ${w.id}: ${error instanceof Error ? error.message : String(error)}`)
-				failed = true
-				continue
-			}
-			if (run && out !== "delivered") this.d.routines.unfollow(run)
-			if (out === "held") {
-				stuck = true
-				break
-			}
-			this.d.outbox.drop(w.id)
-		}
-		if (!this.d.outbox.any()) return await this.d.alarms.clearWakeup(HELD_WAKEUP)
-		const now = Date.now()
-		await this.d.alarms.setWakeup(HELD_WAKEUP, stuck ? nextReset(now) : failed ? now + DELIVERY_RETRY_MS : due.length < HELD_PER_PASS ? nextReset(now) : now + 1_000)
-	}
-
-	private budgetHeld(now: number, whose: string): "held" {
-		const event = this.d.deliveries.notice(`budget:${utcDay(now)}`, BUDGET_LINE(whose))
-		if (event) this.d.publish([event])
-		return "held"
 	}
 
 	async deliverWakes(): Promise<void> {
@@ -204,7 +136,7 @@ export class RoomWakes {
 		if (!home || !wakes.length) return
 		try {
 			for (const wake of wakes) {
-				await this.wake({ id: `unblocked:${wake.taskId}`, to: wake.owner, why: "task_unblocked", body: wakeBody(wake), chain: wake.chain, budget: "room", retry: true, seq: wake.seq })
+				await this.wake({ id: `unblocked:${wake.taskId}`, to: wake.owner, why: "task_unblocked", body: wakeBody(wake), chain: wake.chain, seq: wake.seq })
 				this.d.workspace.markWoken(wake.taskId)
 			}
 		} catch (error) {

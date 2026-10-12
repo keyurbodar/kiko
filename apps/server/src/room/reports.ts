@@ -66,7 +66,7 @@ export class Reports {
 		if (next !== null) await this.d.alarms.setWakeup(SIGNALS_WAKEUP, next)
 	}
 
-	run(runs: readonly Inflight[], status: "ended" | "stopped" | "failed" | "timeout"): void {
+	run(runs: readonly Inflight[], status: "ended" | "stopped" | "failed"): void {
 		const home = this.d.home()
 		if (!home || !runs.length) return
 		const now = Date.now()

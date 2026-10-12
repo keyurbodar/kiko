@@ -1,8 +1,9 @@
+import { newRoom, poll, seen, statuses } from "../kit"
 import type { ExtensionOp, ExtensionResult, UserEvent } from "@yuki/protocol"
 import { expectEqual, type Session, VerifyError } from "../client"
 import { must } from "../must"
 import type { Suite } from "../runner"
-import { fake, newRoom, seen, send, statuses, until } from "./mid-run"
+import { fake, send } from "./mid-run"
 
 
 const MANIFEST = (version: string) => ({
@@ -65,7 +66,7 @@ const suite: Suite = {
     const { roomId, room } = await newRoom(s, "extensions")
     await fake(v, s, roomId)
     await send(room, "[ws verify_bump {}]")
-    await until("the agent's answer before the install", () => seen(room).live.length >= 1, 20_000)
+    await poll("the agent's answer before the install", () => seen(room).live.length >= 1, 20_000)
     const before = must(seen(room).live.at(-1), "agent answer").text
     if (!/not available|not found|unknown/i.test(before)) throw new VerifyError(`the tool ran before the human installed it: ${before}`)
 
@@ -74,7 +75,7 @@ const suite: Suite = {
 
     const answer = async (text: string, n: number) => {
       await send(room, text)
-      await until(`answer ${n}`, () => seen(room).live.length >= n, 20_000)
+      await poll(`answer ${n}`, () => seen(room).live.length >= n, 20_000)
       return must(seen(room).live[n - 1], `answer ${n}`).text
     }
     const first = await answer("[ws verify_bump {}]", 2)
@@ -115,10 +116,10 @@ const suite: Suite = {
     const busy = await newRoom(s, "extensions mid-run")
     await fake(v, s, busy.roomId)
     await send(busy.room, "[tool] wait")
-    await until("the slow tool to start", () => statuses(busy.room).includes("working"), 10_000)
+    await poll("the slow tool to start", () => statuses(busy.room).includes("working"), 10_000)
     ok(await op({ op: "enable", name: "verify-counter", enabled: true }), "switch on during the run")
     await send(busy.room, "[ws verify_bump {}]")
-    await until("the joined answer", () => seen(busy.room).live.length >= 1, 20_000)
+    await poll("the joined answer", () => seen(busy.room).live.length >= 1, 20_000)
     const joined = must(seen(busy.room).live.at(-1), "joined answer").text
     if (!joined.includes("tally 1")) throw new VerifyError(`a message that joined a run did not see the extension switched on during it: ${joined}`)
     console.log(`  ok a message that joined a run saw the extension switched on during it: ${JSON.stringify(joined.slice(0, 80))}`)
@@ -126,17 +127,17 @@ const suite: Suite = {
     ok(await op({ op: "uninstall", name: "verify-counter" }), "clean up")
 
     const sender = { yuki: 1, name: "verify-sender", version: "1.0.0", description: "sends, for yuki verify", tools: { verify_send: { description: "sends a ping outside yuki", effect: "external" } }, triggers: [{ id: "ping", rrule: "FREQ=DAILY", send: "[ws verify_send {}]" }], tests: [{ tool: "verify_send", expect: "sent" }] }
-    await fetch(new URL("api/me", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
+    await fetch(new URL("api/me", v.url), { headers: { cookie: s.cookie } })
     const sent = ok(await op({ op: "propose", bundle: { manifest: sender as never, files: { "main.js": 'export const tools = { async verify_send() { return "sent" } }' } } }), "propose the sender")
     ok(await op({ op: "install", id: must(sent.proposal, "sender proposal").id }), "install the sender")
-    const reminders = await fetch(new URL("api/reminders", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
+    const reminders = await fetch(new URL("api/reminders", v.url), { headers: { cookie: s.cookie } })
     const trigger = ((await reminders.json()) as { id: string; roomId: string; createdBy: string; status: string }[]).find((r) => r.createdBy === "ext:verify-sender" && r.status === "active")
     if (!trigger) throw new VerifyError("installing an extension with a trigger scheduled nothing")
     const home = await s.room(trigger.roomId)
     await fake(v, s, trigger.roomId)
-    const due = await fetch(new URL("api/dev/agent/due", v.url.endsWith("/") ? v.url : `${v.url}/`), { method: "POST", headers: { "content-type": "application/json", cookie: s.cookie }, body: JSON.stringify({ id: trigger.id }) })
+    const due = await fetch(new URL("api/dev/agent/due", v.url), { method: "POST", headers: { "content-type": "application/json", cookie: s.cookie }, body: JSON.stringify({ id: trigger.id }) })
     if (!due.ok) throw new VerifyError(`the due route answered ${due.status}`)
-    await until("the trigger's run", () => seen(home).live.some((m) => m.text.includes("tool: ")), 30_000)
+    await poll("the trigger's run", () => seen(home).live.some((m) => m.text.includes("tool: ")), 30_000)
     const said = must(seen(home).live.find((m) => m.text.includes("tool: ")), "trigger run").text
     if (!said.includes("tool: sent")) throw new VerifyError(`the trigger's run could not use its extension's outside tool: ${said}`)
     console.log(`  ok an extension's trigger ran its own outside tool: ${JSON.stringify(said.slice(0, 80))}`)

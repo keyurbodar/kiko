@@ -4,7 +4,6 @@ import type {
   AuthInteraction,
   AuthPrompt,
   CredentialStore,
-  OAuthCredential,
   Provider,
 } from "@earendil-works/pi-ai"
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth"
@@ -18,9 +17,7 @@ import { xaiProvider } from "@earendil-works/pi-ai/providers/xai"
 import type { LoginErrorReason, LoginEvent, LoginPrompt, UserToClient } from "@yuki/protocol"
 import { isProviderId, type ProviderInfo } from "./credentials"
 
-export const LOGIN_TIMEOUT_MS = 10 * 60 * 1000
 export const MAX_LOGINS = 4
-const WAKEUP_PREFIX = "login:"
 
 // Workers cannot dynamically import pi-ai's OAuth modules, so the flows are registered statically here.
 registerBunOAuthFlows()
@@ -39,55 +36,14 @@ export function hasSignIn(provider: string): boolean {
   return Object.hasOwn(FLOWS, provider)
 }
 
-// The test provider only; a development bundle offers it. Its flow shows a device code, then asks for it back.
-
-export const FAKE_PROVIDER = "yuki-fake"
-export const FAKE_CODE = "YUKI-0000"
-
-export function fakeProvider(): Provider {
-  return {
-    id: FAKE_PROVIDER,
-    name: "yuki fake",
-    auth: {
-      oauth: {
-        name: "yuki fake sign-in",
-        async login(interaction): Promise<OAuthCredential> {
-          interaction.notify({
-            type: "device_code",
-            userCode: FAKE_CODE,
-            verificationUri: "https://example.invalid/device",
-            expiresInSeconds: LOGIN_TIMEOUT_MS / 1000,
-          })
-          const code = await interaction.prompt({ type: "manual_code", message: "type the code shown above" })
-          if (code.trim() !== FAKE_CODE) throw new Error("that code is wrong")
-          interaction.notify({ type: "progress", message: "code accepted" })
-          return { type: "oauth", access: `fake-${crypto.randomUUID()}`, refresh: "fake", expires: Date.now() + 3_600_000 }
-        },
-        refresh: async (credential) => credential,
-        toAuth: async (credential) => ({ apiKey: credential.access }),
-      },
-    },
-    getModels: () => [],
-    stream: noModels,
-    streamSimple: noModels,
-  }
-}
-
-function noModels(): never {
-  throw new Error("the fake provider only signs in")
-}
-
 const NO_AMBIENT: AuthContext = { env: async () => undefined, fileExists: async () => false }
 
 export interface LoginDeps<Owner> {
   store: CredentialStore
   info(provider: string): ProviderInfo | null
   send(owner: Owner, frame: UserToClient): void
-  setWakeup(key: string, at: number): Promise<void>
-  clearWakeup(key: string): Promise<void>
-  subscriptions: boolean
-  fake: boolean
-  now?: () => number
+  /** A provider only a development build offers. */
+  devProvider?(id: string): Promise<Provider | undefined>
 }
 
 type Waiter = { resolve(value: string): void; reject(error: Error): void }
@@ -116,12 +72,9 @@ export class ProviderLogins<Owner> {
     const refuse = (reason: LoginErrorReason, message: string) =>
       this.deps.send(owner, { t: "login.error", loginId, reason, message })
     if (this.logins.has(loginId)) return refuse("failed", "this sign-in is already running")
-    const provider = this.provider(providerId)
+    const provider = await this.provider(providerId)
     const oauth = provider?.auth.oauth
     if (!provider || !oauth) return refuse("unsupported", "this provider has no sign-in yuki can run. use an api key")
-    if (oauth.isSubscription && !this.deps.subscriptions) {
-      return refuse("disabled", "subscription sign-in is off on this server. use an api key")
-    }
     for (const other of [...this.logins.values()]) {
       if (other.provider === providerId) this.end(other, { reason: "cancelled", message: "a newer sign-in replaced this one" })
     }
@@ -136,8 +89,6 @@ export class ProviderLogins<Owner> {
       promptCount: 0,
     }
     this.logins.set(loginId, login)
-    const now = this.deps.now?.() ?? Date.now()
-    await this.deps.setWakeup(WAKEUP_PREFIX + loginId, now + LOGIN_TIMEOUT_MS)
 
     const models = createModels({ credentials: this.deps.store, authContext: NO_AMBIENT })
     models.setProvider(provider)
@@ -187,18 +138,9 @@ export class ProviderLogins<Owner> {
     for (const login of [...this.logins.values()]) if (login.owner === owner) this.end(login, null)
   }
 
-  expire(dueKeys: readonly string[]): void {
-    for (const key of dueKeys) {
-      if (!key.startsWith(WAKEUP_PREFIX)) continue
-      const login = this.logins.get(key.slice(WAKEUP_PREFIX.length))
-      if (login) this.end(login, { reason: "timeout", message: "sign-in timed out after 10 minutes" })
-    }
-  }
-
-  private provider(id: string): Provider | undefined {
-    if (id === FAKE_PROVIDER) return this.deps.fake ? fakeProvider() : undefined
-    if (!isProviderId(id) || !hasSignIn(id)) return undefined
-    return FLOWS[id]?.provider()
+  private async provider(id: string): Promise<Provider | undefined> {
+    if (!isProviderId(id)) return undefined
+    return hasSignIn(id) ? FLOWS[id]?.provider() : this.deps.devProvider?.(id)
   }
 
   private live(login: Login<Owner>): boolean {
@@ -241,7 +183,6 @@ export class ProviderLogins<Owner> {
     login.controller.abort(new Error("sign-in ended"))
     for (const waiter of login.prompts.values()) waiter.reject(new Error("sign-in ended"))
     login.prompts.clear()
-    void this.deps.clearWakeup(WAKEUP_PREFIX + login.id).catch(() => {})
     if (ending) this.deps.send(login.owner, { t: "login.error", loginId: login.id, ...ending })
   }
 }

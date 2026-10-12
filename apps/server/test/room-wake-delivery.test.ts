@@ -6,7 +6,7 @@ import { RoomLog } from "../src/room/log"
 import { Mail } from "../src/room/mail"
 import { ROOM_STEPS } from "../src/room/schema"
 import type { ReceiveDeps } from "../src/room/receive"
-import { HeldWakes, type Wake } from "../src/room/wake"
+import type { Wake } from "../src/room/wake"
 import { RoomWakes } from "../src/room/wake-delivery"
 import { sqlWith } from "./sql-shim"
 
@@ -14,8 +14,8 @@ const ROOM = "01J0000000000000000000000A"
 const home = { userId: "alice", roomId: ROOM as never }
 const ada = { slug: "ada", name: "Ada", role: "", model: "", lead: true, status: "idle" }
 
-function wake(id: string, budget: Wake["budget"] = "user"): Wake {
-  return { id, to: "ada" as AgentSlug, why: "reminder", body: "b", chain: null, budget, retry: true }
+function wake(id: string): Wake {
+  return { id, to: "ada" as AgentSlug, why: "reminder", body: "b", chain: null }
 }
 
 function setup() {
@@ -24,9 +24,6 @@ function setup() {
   const log = new RoomLog(storage, () => 1)
   const mail = new Mail(storage, log, new Asks(sql))
   const deliveries = new Deliveries(storage, log)
-  const outbox = new HeldWakes(sql)
-  // What the user object answers: whether the day's runs that start without the human are used up, and which wakes it refunded.
-  const user = { limited: false, refunded: [] as string[] }
   // What the agent answers to what the room delivers.
   const agent = { refused: null as string | null, received: [] as string[] }
   const env = {
@@ -41,10 +38,7 @@ function setup() {
     },
     USER: {
       idFromName: (name: string) => name,
-      get: () => ({
-        takeAutonomous: async () => (user.limited ? { ok: false, reason: "limit" } : { ok: true, used: 1 }),
-        refundAutonomous: async (id: string) => void user.refunded.push(id),
-      }),
+      get: () => ({}),
     },
   }
   const receiver = {
@@ -64,7 +58,6 @@ function setup() {
     mail,
     deliveries,
     routines: { follow: () => {}, unfollow: () => {} } as never,
-    outbox,
     alarms: alarms as never,
     workspace: {} as never,
     burst: { pending: () => false } as never,
@@ -74,7 +67,7 @@ function setup() {
     publish: () => {},
     receiver,
   } as never)
-  return { wakes, outbox, user, agent }
+  return { wakes, agent }
 }
 
 test("a wake the agent admits is delivered once, and a repeat is a duplicate", async () => {
@@ -84,29 +77,8 @@ test("a wake the agent admits is delivered once, and a repeat is a duplicate", a
   expect(agent.received.filter((id) => id === "w1")).toHaveLength(1)
 })
 
-test("a wake the agent refuses gives its autonomous run back", async () => {
-  const { wakes, user, agent } = setup()
+test("a wake the agent refuses is refused", async () => {
+  const { wakes, agent } = setup()
   agent.refused = "too_large"
   expect(await wakes.wake(wake("w2"))).toBe("refused")
-  expect(user.refunded).toEqual(["w2"])
-})
-
-test("a wake held by the run limit waits in the outbox and is delivered once the limit lifts", async () => {
-  const { wakes, outbox, user, agent } = setup()
-  user.limited = true
-  expect(await wakes.wake(wake("w3"))).toBe("held")
-  expect(outbox.has("w3")).toBe(true)
-  user.limited = false
-  await wakes.retryHeld()
-  expect(agent.received.filter((id) => id === "w3")).toHaveLength(1)
-  expect(outbox.has("w3")).toBe(false)
-})
-
-test("a held wake stays held while the limit still holds", async () => {
-  const { wakes, outbox, user, agent } = setup()
-  user.limited = true
-  await wakes.wake(wake("w4"))
-  await wakes.retryHeld()
-  expect(agent.received).toEqual([])
-  expect(outbox.has("w4")).toBe(true)
 })

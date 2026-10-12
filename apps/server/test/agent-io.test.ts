@@ -3,9 +3,9 @@ import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 
 // An agent's rows read and written must not grow with its history. The inbox keeps seven days of messages, and
-// the outbox keeps one row per run it ever ended. Each test reads one action's rows at a small size and at a
-// large one, and bounds the large one. Both bounds fail on the code before the indexes: a turn read 3,265 rows
-// with 3,000 inbox rows, and reopening read 3,043 rows with 3,000 ended runs.
+// the outbox keeps a row only while a run is open. Each test reads one action's rows at a small size and at a
+// large one, and bounds the large one. The inbox bound fails on the code before the indexes: a turn read 3,265
+// rows with 3,000 inbox rows.
 
 let mf: Miniflare
 
@@ -39,7 +39,8 @@ async function agent(tps = 50) {
 	await call({ op: "config", tps })
 	return {
 		turn: (text: string) => call<Turn>({ op: "turn", text, n: ++turns }),
-		seed: (table: "inbox" | "outbox", rows: number) => call<boolean>({ op: "seed", table, rows }),
+		seed: (rows: number) => call<boolean>({ op: "seed", rows }),
+		outboxRows: () => call<number>({ op: "outbox" }),
 		reopen: () => call<Row[]>({ op: "reopen" }),
 		prune: () => call<Row[]>({ op: "prune" }),
 	}
@@ -54,7 +55,7 @@ test("a turn reads about the same rows with 3,000 inbox rows as with none", asyn
 	const small = await agent()
 	const fresh = await small.turn("hello")
 	const inbox = await agent()
-	await inbox.seed("inbox", 3000)
+	await inbox.seed(3000)
 	const large = await inbox.turn("hello")
 	report("turn, fresh", fresh.rows)
 	report("turn, 3,000 inbox rows", large.rows)
@@ -62,19 +63,19 @@ test("a turn reads about the same rows with 3,000 inbox rows as with none", asyn
 	expect(read(large.rows)).toBeLessThanOrEqual(read(fresh.rows) + 100)
 }, 120_000)
 
-test("reopening reads the open runs, not every run the outbox ever ended", async () => {
+test("an ended run leaves no outbox row, so the outbox stays as small as the open runs", async () => {
 	const a = await agent()
-	await a.turn("hello")
-	await a.seed("outbox", 3000)
+	for (let i = 0; i < 5; i++) expect((await a.turn("hello")).posted).toBe(1)
+	expect(await a.outboxRows()).toBe(0)
 	const rows = await a.reopen()
-	report("reopen, 3,000 ended runs", rows)
+	report("reopen, 5 ended runs", rows)
 	expect(read(rows)).toBeLessThanOrEqual(300)
 }, 120_000)
 
 test("pruning the inbox reads the rows it deletes, not every submitted row", async () => {
 	const a = await agent()
 	await a.turn("hello")
-	await a.seed("inbox", 3000)
+	await a.seed(3000)
 	const rows = await a.prune()
 	report("prune, 3,000 submitted rows", rows)
 	expect(read(rows)).toBeLessThanOrEqual(100)

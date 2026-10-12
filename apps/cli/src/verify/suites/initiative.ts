@@ -1,9 +1,9 @@
-import type { Agent, AgentSlug, Message, RoomToClient } from "@yuki/protocol"
-import type { RoomHandle, Session, UserChannel } from "../client"
+import { frames, idles, messages, newRoom, poll } from "../kit"
+import type { Agent, AgentSlug, Message, } from "@yuki/protocol"
+import type { RoomHandle, } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import { ok } from "../routine-kit"
 import type { Suite } from "../runner"
-import { ulid } from "./mid-run"
 import { dev } from "./team-loops"
 import { must } from "../must"
 
@@ -19,31 +19,14 @@ type Verdict = { id: string; verdict: string; reason?: string; until?: number; t
 type Pass = { at: number; jev: boolean; verdicts: Verdict[]; woke: { id: string; to: string; result: string; ids: string[] }[] }
 type Usage = { agent: { input: number; output: number }; memory: Record<string, number> }
 
-const frames = (room: RoomHandle) => room.raw.log.flatMap((e) => (e.dir === "in" ? [e.frame as RoomToClient] : []))
-const idles = (room: RoomHandle) => frames(room).filter((f) => f.t === "status" && (f as { state: string }).state === "idle").length
-const messages = (room: RoomHandle): Message[] => {
-  const byId = new Map<string, Message>()
-  for (const f of frames(room)) if (f.t === "events") for (const e of f.events) if (e.t === "message") byId.set(e.id, e)
-  return [...byId.values()].sort((a, b) => a.seq - b.seq)
-}
 const agentMessages = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent")
 const runsOf = (ms: readonly Message[]) => new Set(ms.map((m) => m.run?.runId ?? m.id)).size
-
-async function poll<T>(what: string, ms: number, test: () => Promise<T | false | null | undefined> | T | false | null | undefined): Promise<T> {
-  const end = Date.now() + ms
-  for (;;) {
-    const got = await test()
-    if (got) return got
-    if (Date.now() > end) throw new VerifyError(`timed out after ${ms / 1000}s waiting for ${what}`)
-    await Bun.sleep(1_000)
-  }
-}
 
 async function say(room: RoomHandle, text: string): Promise<string> {
   const before = idles(room)
   const seen = messages(room).length
   room.send(text)
-  await poll(`an answer to ${JSON.stringify(text)}`, 150_000, () => idles(room) > before)
+  await poll(`an answer to ${JSON.stringify(text)}`, () => idles(room) > before, 150_000)
   await Bun.sleep(800)
   return messages(room)
     .slice(seen)
@@ -100,14 +83,6 @@ async function user(v: Parameters<Suite["run"]>[0], arm: Arm, tag: string) {
   }
 }
 
-async function openChat(channel: UserChannel, s: Session, title: string, agents?: string[]): Promise<RoomHandle & { id: string }> {
-  const roomId = ulid()
-  channel.send({ t: "chat", op: { op: "create", roomId: roomId as never, title, ...(agents ? { agents } : {}) } })
-  await channel.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
-  const room = await s.room(roomId)
-  await room.expect((f) => f.t === "events")
-  return Object.assign(room, { id: roomId })
-}
 
 const show = (p: Pass) => p.verdicts.map((x) => `${x.verdict}${x.reason ? `:${x.reason}` : ""}${x.target ? `->${x.target.slug}` : ""} "${x.text.slice(0, 50)}"`).join("; ") + (p.woke.length ? ` | woke ${p.woke.map((w) => `${w.to}:${w.result}`).join(", ")}` : "")
 const spent = (u: Usage) => u.agent.input + u.agent.output
@@ -138,10 +113,10 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
 
   if (only("d")) try {
     const u = await user(v, arm, "d")
-    const room = await openChat(u.channel, u.s, "trip")
+    const room = (await newRoom(u.s, "trip")).room
     console.log(`       agent: ${(await say(room, `Heads up, I need to renew my US passport before my trip to Lisbon on ${inDays(10)}. Nothing to do right now.`)).slice(0, 140)}`)
     await u.roll(room.id, "I need to renew my US passport before my trip to Lisbon")
-    const loop = await poll("an open passport loop", 60_000, async () => humanLoop(await u.loops(), /passport/i))
+    const loop = await poll("an open passport loop", async () => humanLoop(await u.loops(), /passport/i), 60_000)
     await u.age(DAY)
     const before = agentMessages(room).length
     const p = await u.pass()
@@ -157,10 +132,10 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
 
   if (only("a")) try {
     const u = await user(v, arm, "a")
-    const room = await openChat(u.channel, u.s, "work")
+    const room = (await newRoom(u.s, "work")).room
     const reply = await say(room, "No rush, but could you put together a short checklist for renewing a passport and come back with it tomorrow? I am out for the rest of today.")
     console.log(`       agent: ${reply.slice(0, 140)}`)
-    const owed = await poll("a commitment the agent owns", 60_000, async () => (await u.loops()).find((l) => l.status === "open" && l.owner !== "human"))
+    const owed = await poll("a commitment the agent owns", async () => (await u.loops()).find((l) => l.status === "open" && l.owner !== "human"), 60_000)
     const before = agentMessages(room)
     await u.rhythm()
     let first = null as Pass | null
@@ -186,10 +161,10 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
 
   if (only("b")) try {
     const u = await user(v, arm, "b")
-    const room = await openChat(u.channel, u.s, "admin")
+    const room = (await newRoom(u.s, "admin")).room
     await say(room, `I have to file my tax return by ${inDays(1)} at 6pm.`)
     await u.roll(room.id, "file my tax return", new Date(Date.now() + DAY).toISOString())
-    const loop = await poll("an explicit tax loop", 60_000, async () => humanLoop(await u.loops(), /tax/i))
+    const loop = await poll("an explicit tax loop", async () => humanLoop(await u.loops(), /tax/i), 60_000)
     console.log(`       loop: L${loop.id} ${loop.kind}/${loop.certainty} due ${loop.due}`)
     await u.rhythm()
     const wakes: number[] = []
@@ -231,10 +206,10 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
 
   if (only("c")) try {
     const u = await user(v, arm, "c")
-    const room = await openChat(u.channel, u.s, "health")
+    const room = (await newRoom(u.s, "health")).room
     await say(room, `I have to call the dentist to move my appointment, by ${inDays(1)} at noon.`)
     await u.roll(room.id, "call the dentist to move my appointment", new Date(Date.now() + DAY).toISOString())
-    const loop = await poll("an explicit dentist loop", 60_000, async () => humanLoop(await u.loops(), /dentist/i))
+    const loop = await poll("an explicit dentist loop", async () => humanLoop(await u.loops(), /dentist/i), 60_000)
     await u.rhythm()
     let p = null as Pass | null
     await cost(u, room.id, async () => {
@@ -245,7 +220,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     console.log(`       pass: ${show(must(p, "pass"))}; said: ${JSON.stringify(tagged(room).map((m) => m.text).join(" / ").slice(0, 200))}`)
     const reply = await say(room, "Please stop reminding me about the dentist. I will handle it myself.")
     console.log(`       agent: ${reply.slice(0, 140)}`)
-    const dropped = await poll("the dentist loop closed", 60_000, async () => (await u.loops()).find((l) => l.id === loop.id && l.status !== "open")).catch(() => null)
+    const dropped = await poll("the dentist loop closed", async () => (await u.loops()).find((l) => l.id === loop.id && l.status !== "open"), 60_000).catch(() => null)
     check(dropped?.status === "dropped", `(c) the loop is ${dropped?.status ?? "still open"}`)
     const before = tagged(room).length
     await u.age(3 * DAY)
@@ -268,7 +243,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     const bob = agent("bob")
     for (const a of [ada, bob]) u.channel.send({ t: "agent", op: { op: "create", agent: a } })
     await Bun.sleep(500)
-    const room = await openChat(u.channel, u.s, "launch", [ada.id, bob.id])
+    const room = (await newRoom(u.s, "launch", [ada.id, bob.id])).room
     await say(room, "We are launching the site next week. Track the work here.")
     await settle(room)
     room.raw.send({ t: "task", op: { op: "create", id: "copy", title: "write the launch announcement", owner: "ada" as AgentSlug } })
@@ -301,10 +276,10 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
 
   if (only("f")) try {
     const u = await user(v, arm, "f")
-    const room = await openChat(u.channel, u.s, "errands")
+    const room = (await newRoom(u.s, "errands")).room
     await say(room, `I have to pick up my new glasses by ${inDays(1)} at 5pm.`)
     await u.roll(room.id, "pick up my new glasses", new Date(Date.now() + DAY).toISOString())
-    await poll("an open glasses loop", 60_000, async () => humanLoop(await u.loops(), /glasses/i))
+    await poll("an open glasses loop", async () => humanLoop(await u.loops(), /glasses/i), 60_000)
     await u.rhythm()
     await u.age(DAY)
     await dev(v.url, u.s.cookie, "seen", { ago: 8 * DAY })

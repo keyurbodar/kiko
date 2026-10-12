@@ -1,12 +1,11 @@
+import { activeBrowsers as active, kernel, kernelKey, waitForNoBrowsers } from "../browser-kit"
 import { expectEqual, VerifyError } from "../client"
 import { api } from "../routine-kit"
 import type { Suite } from "../runner"
 
 
-const KERNEL = "https://api.onkernel.com"
 const USER = "kernel-alice"
 const BAD_KEY = "sk_not_a_real_key_0000"
-const CONFIRM = "delete my account"
 const COOKIE = "yuki_probe"
 const IDLE_PAST_MS = 6 * 60_000
 
@@ -18,26 +17,8 @@ const suite: Suite = {
   name: "kernel",
   human: true,
   async run(v) {
-    const key = process.env.KERNEL_API_KEY
-    if (!key) throw new VerifyError("KERNEL_API_KEY is not set in this shell")
-    const kernel = async <T>(method: string, path: string, body?: unknown): Promise<{ status: number; json: T }> => {
-      const res = await fetch(`${KERNEL}${path}`, {
-        method,
-        headers: { authorization: `Bearer ${key}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        signal: AbortSignal.timeout(60_000),
-      })
-      const text = await res.text()
-      return { status: res.status, json: (text ? JSON.parse(text) : null) as T }
-    }
-    const active = async () => {
-      const out = await kernel<{ session_id: string }[]>("GET", "/browsers?status=active")
-      if (out.status !== 200) throw new VerifyError(`Kernel answered ${out.status} to the active list`)
-      return out.json.map((b) => b.session_id)
-    }
-    for (const start = Date.now(); (await active()).length; await Bun.sleep(5_000)) {
-      if (Date.now() - start > 150_000) throw new VerifyError("Kernel still has active browsers on this key after 150 s. Close them first")
-    }
+    const key = kernelKey()
+    await waitForNoBrowsers()
 
     const s = await v.as(USER)
     const user = await s.user()
@@ -145,20 +126,6 @@ const suite: Suite = {
       if (leaks.length) throw new VerifyError(`${leaks.length} frame(s) hold a key or a browser URL, for example: ${leaks[0]?.replace(key, "<key>").slice(0, 200)}`)
       console.error(`  ${user.texts.length} frames scanned, none holds the key or a browser URL`)
 
-      const profiles = async () => (await kernel<{ name?: string }[]>("GET", "/profiles")).json.map((p) => p.name)
-      if (!(await profiles()).includes(profile)) throw new VerifyError("the profile does not exist on Kernel")
-      const deleted = await fetch(new URL("api/account/delete", v.url.endsWith("/") ? v.url : `${v.url}/`), {
-        method: "POST",
-        headers: { cookie: s.cookie, "content-type": "application/json" },
-        body: JSON.stringify({ confirm: CONFIRM }),
-      })
-      expectEqual(deleted.status, 202, "the delete answer")
-      const deadline = Date.now() + 60_000
-      while ((await ours()).length || (await profiles()).includes(profile)) {
-        if (Date.now() > deadline) throw new VerifyError("account deletion left a browser or the profile on Kernel")
-        await Bun.sleep(1_000)
-      }
-      console.error("  account deletion removed the browser and the profile")
     } finally {
       for (const id of await ours().catch(() => [])) await kernel("DELETE", `/browsers/${id}`).catch(() => undefined)
       if (profile) await kernel("DELETE", `/profiles/${profile}`).catch(() => undefined)

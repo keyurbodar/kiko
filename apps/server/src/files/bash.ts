@@ -3,7 +3,8 @@ import type { Context } from "@earendil-works/chord"
 import { err, ExecutionError, ok, type Result, type ShellExecOptions, type ShellExecResult } from "@earendil-works/pi-durable/env"
 import { Bash, type BufferEncoding, type CpOptions, type CreateExclusiveOptions, type FileContent, type FsStat, type IFileSystem, type MkdirOptions, type RmOptions } from "just-bash"
 import type { FsEntry } from "../room/files"
-import { type BatchChange, batchPaths, HOME_PATH, type RoomFs, typeForPath } from "./room-fs"
+import { HOME } from "./upload"
+import { type BatchChange, batchPaths, type RoomFs, typeForPath } from "./room-fs"
 
 export const DEFAULT_TIMEOUT_S = 30
 export const MAX_TIMEOUT_S = 120
@@ -84,7 +85,7 @@ type Change =
 const SPACES = ["chat", "home", "me"] as const
 type Space = (typeof SPACES)[number]
 const SPACE_NAME: Record<Space, string> = { home: "the drive (/home)", me: "/me", chat: "the chat's files" }
-const spaceOf = (path: string): Space => (path === `/${HOME_PATH}` || path.startsWith(`/${HOME_PATH}/`) ? "home" : path.startsWith("/me/") || path === "/me" ? "me" : "chat")
+const spaceOf = (path: string): Space => (path === `/${HOME}` || path.startsWith(`/${HOME}/`) ? "home" : path.startsWith("/me/") || path === "/me" ? "me" : "chat")
 
 function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string, Node>): Change[] {
   const moves: Change[] = []
@@ -431,6 +432,10 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
   const timer = AbortSignal.timeout(seconds * 1000)
   const outside = context.abortSignal ? AbortSignal.any([context.abortSignal, timer]) : timer
   const say = (text: string) => void (text && options?.onOutput?.(text, context))
+  const overRead = (): Result<BashResult, ExecutionError> => {
+    say(OVER_READ)
+    return ok({ exitCode: LIMIT_EXIT, changed: [] })
+  }
   let fs: CommandFs | undefined
   // Once the commit starts it runs to its end: a stop after this point cannot undo a save, so the result names what saved.
   let committing = false
@@ -440,10 +445,7 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
     const bash = new Bash({ fs, cwd, env: { HOME: "/", USER: "agent", TMPDIR: "/tmp", ...options?.env } })
     const out = await bash.exec(command, { cwd, signal: AbortSignal.any([outside, fs.overRead.signal]) })
     if (outside.aborted) return err(stopped(timer, seconds))
-    if (fs.overRead.signal.aborted) {
-      say(OVER_READ)
-      return ok({ exitCode: LIMIT_EXIT, changed: [] })
-    }
+    if (fs.overRead.signal.aborted) return overRead()
     if (out.exitCode === LIMIT_EXIT) {
       say(`${out.stdout}${out.stderr}bash: the command hit a limit and was stopped, and none of its changes were saved\n`)
       return ok({ exitCode: LIMIT_EXIT, changed: [] })
@@ -457,10 +459,7 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
     return ok({ exitCode: refused.length && !out.exitCode ? 1 : out.exitCode, changed })
   } catch (e) {
     if (outside.aborted && !committing) return err(stopped(timer, seconds))
-    if (fs?.overRead.signal.aborted) {
-      say(OVER_READ)
-      return ok({ exitCode: LIMIT_EXIT, changed: [] })
-    }
+    if (fs?.overRead.signal.aborted) return overRead()
     return err(new ExecutionError("unknown", e instanceof Error ? e.message : String(e)))
   }
 }

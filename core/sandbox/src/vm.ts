@@ -67,11 +67,15 @@ function resolve(base: string, specifier: string): string {
   return parts.join("/")
 }
 
+const scriptMessage = (name: string | undefined, message: string | undefined): string => {
+  const msg = `${name && name !== "Error" ? `${name}: ` : ""}${message ?? ""}`
+  return /interrupted/i.test(msg) ? "the script ran too long and was stopped" : msg
+}
+
 function describe(e: unknown): string {
   if (e instanceof JSException) {
-    const msg = e.name && e.name !== "Error" ? `${e.name}: ${e.message}` : e.message || e.name
+    const msg = scriptMessage(e.name, e.message) || e.name
     e.dispose()
-    if (/interrupted/i.test(msg)) return "the script ran too long and was stopped"
     return msg
   }
   if (e instanceof ScriptError) return e.message
@@ -81,10 +85,7 @@ function describe(e: unknown): string {
 const errorText = (vm: QuickJS, h: JSValueHandle): string => {
   const v = vm.dump(h) as { name?: string; message?: string } | string | undefined
   h.dispose()
-  if (v && typeof v === "object") {
-    const msg = `${v.name && v.name !== "Error" ? `${v.name}: ` : ""}${v.message ?? ""}`
-    return /interrupted/i.test(msg) ? "the script ran too long and was stopped" : msg || "the script failed"
-  }
+  if (v && typeof v === "object") return scriptMessage(v.name, v.message) || "the script failed"
   return String(v ?? "the script failed")
 }
 

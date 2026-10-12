@@ -201,7 +201,7 @@ export class Life {
 
   refsLike(prefix: string): string[] {
     return this.sql
-      .exec<{ ref: string }>("SELECT DISTINCT ref FROM life WHERE redacted = 0 AND substr(ref, 1, ?) = ?", prefix.length, prefix)
+      .exec<{ ref: string }>("SELECT DISTINCT ref FROM life WHERE ref >= ? AND ref < ? AND redacted = 0", prefix, `${prefix}\u{10FFFF}`)
       .toArray()
       .map((r) => r.ref)
   }

@@ -3,23 +3,19 @@ import { boolOf, choiceOf, type Judge, type Question } from "./judge"
 import { type CardTag, isCardTag, type Life } from "./life"
 import { LINE_BYTES } from "./optmem"
 
-export type CaptureMode = "auto" | "always" | "off"
-const MODES: readonly CaptureMode[] = ["auto", "always", "off"]
+export type CaptureMode = "auto" | "off"
 
-export type CapturePolicy = {
-  batch: number
-  idleMs: number
-  jevDelayMs: number
-  worthMin: number
-  privateMax: number
-  cardMin: number
-  relationMin: number
-  rerankMin: number
-  recallMax: number
-  capture: CaptureMode
-}
+export type CapturePolicy = { idleMs: number; jevDelayMs: number; capture: CaptureMode }
 
-export const DEFAULT_POLICY: CapturePolicy = { batch: 8, idleMs: 60_000, jevDelayMs: 3_000, worthMin: 0.6, privateMax: 0.5, cardMin: 0.7, relationMin: 0.5, rerankMin: 0.3, recallMax: 6, capture: "auto" }
+export const DEFAULT_POLICY: CapturePolicy = { idleMs: 60_000, jevDelayMs: 3_000, capture: "auto" }
+
+// How sure the judge must be. Scores are probabilities.
+const WORTH_MIN = 0.6
+const PRIVATE_MAX = 0.5
+const CARD_MIN = 0.7
+const RELATION_MIN = 0.5
+export const RERANK_MIN = 0.3
+export const RECALL_MAX = 6
 
 export function mergePolicy(raw: string | null): CapturePolicy {
   let stored: Record<string, unknown> = {}
@@ -27,17 +23,13 @@ export function mergePolicy(raw: string | null): CapturePolicy {
     const parsed: unknown = raw ? JSON.parse(raw) : {}
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed as Record<string, unknown>
   } catch {}
-  const out = { ...DEFAULT_POLICY }
-  for (const key of Object.keys(DEFAULT_POLICY) as (keyof CapturePolicy)[]) {
-    if (key !== "capture" && Number.isFinite(stored[key])) (out as Record<string, unknown>)[key] = stored[key]
+  const { idleMs, jevDelayMs } = stored
+  return {
+    idleMs: Number.isFinite(idleMs) ? (idleMs as number) : DEFAULT_POLICY.idleMs,
+    jevDelayMs: Number.isFinite(jevDelayMs) ? (jevDelayMs as number) : DEFAULT_POLICY.jevDelayMs,
+    capture: stored.capture === "off" || stored.capture === false ? "off" : "auto",
   }
-  const capture = stored.capture
-  if (typeof capture === "boolean") out.capture = capture ? "auto" : "off"
-  else if (MODES.includes(capture as CaptureMode)) out.capture = capture as CaptureMode
-  return out
 }
-
-export const captureActive = (policy: CapturePolicy, judgeReady: boolean): boolean => policy.capture === "always" || (policy.capture === "auto" && judgeReady)
 
 export type Heard = { messageId: string; text: string; at: number }
 
@@ -94,7 +86,7 @@ const YES_NO = { true: "yes", false: "no" }
 
 export type CaptureItem = { message: number; candidate: string; known: { pos: number; text: string }[] }
 
-export function captureQuestions(messages: readonly string[], items: readonly CaptureItem[]): { state: JsonObject; questions: Record<string, Question> } {
+export function captureQuestions(items: readonly CaptureItem[]): { state: JsonObject; questions: Record<string, Question> } {
   const questions: Record<string, Question> = {}
   items.forEach(({ known }, i) => {
     const c = `\`candidates[${i}].text\``
@@ -112,126 +104,40 @@ export function captureQuestions(messages: readonly string[], items: readonly Ca
       criteria: Object.fromEntries(Object.keys(RULES.card).map((k) => [k, k])),
     }
   })
-  const state = { messages: [...messages], candidates: items.map((it) => ({ text: it.candidate, message: it.message })), rules: RULES }
+  const state = { candidates: items.map((it) => ({ text: it.candidate })), rules: RULES }
   return { state, questions }
 }
 
 type CaptureRow = { heard: Heard; ref: string; keep?: () => boolean }
 
 // One judge request for every queued message. A message the human changed meanwhile (keep() false) is asked about but not written.
-export async function captureWithJudge(life: Life, judge: Judge, rows: readonly CaptureRow[], policy: CapturePolicy): Promise<CaptureCount | null> {
+export async function captureWithJudge(life: Life, judge: Judge, rows: readonly CaptureRow[]): Promise<CaptureCount | null> {
   const count: CaptureCount = { added: 0, replaced: 0, same: 0, private: 0 }
   const items = rows.flatMap((row, message) => candidates(row.heard.text).map((candidate) => ({ message, candidate, known: life.nearest(candidate, NEIGHBORS).map((l) => ({ pos: l.pos, text: l.text })) })))
   if (!items.length) return count
-  const { state, questions } = captureQuestions(
-    rows.map((r) => r.heard.text),
-    items,
-  )
+  const { state, questions } = captureQuestions(items)
   const answers = await judge(state, questions)
   if (!answers) return null
   for (const [i, { message, candidate, known }] of items.entries()) {
     const row = rows[message]!
     if (row.keep && !row.keep()) continue
-    if (boolOf(answers[`c${i}_private`]) > policy.privateMax) {
+    if (boolOf(answers[`c${i}_private`]) > PRIVATE_MAX) {
       count.private++
       continue
     }
     const answer = choiceOf(answers[`c${i}_card`])
-    const card = answer && isCardTag(answer.choice) && answer.p >= policy.cardMin ? answer.choice : null
+    const card = answer && isCardTag(answer.choice) && answer.p >= CARD_MIN ? answer.choice : null
     // Jev scores a standing rule low on worth, so it is asked separately.
-    const standing = card === "INSTRUCTION" && boolOf(answers[`c${i}_standing`]) >= policy.worthMin
-    if (!standing && boolOf(answers[`c${i}_worth`]) < policy.worthMin) continue
-    const replaced = known.filter((k) => boolOf(answers[`c${i}_replaces_${k.pos}`]) >= policy.relationMin).map((k) => k.pos)
-    if (!replaced.length && known.some((k) => boolOf(answers[`c${i}_same_${k.pos}`]) >= policy.relationMin)) {
+    const standing = card === "INSTRUCTION" && boolOf(answers[`c${i}_standing`]) >= WORTH_MIN
+    if (!standing && boolOf(answers[`c${i}_worth`]) < WORTH_MIN) continue
+    const replaced = known.filter((k) => boolOf(answers[`c${i}_replaces_${k.pos}`]) >= RELATION_MIN).map((k) => k.pos)
+    if (!replaced.length && known.some((k) => boolOf(answers[`c${i}_same_${k.pos}`]) >= RELATION_MIN)) {
       count.same++
       continue
     }
     store(life, candidate, card, row.heard.at, row.ref, replaced, count)
   }
   return count
-}
-
-export type CaptureOp =
-  | { kind: "new"; text: string; card: CardTag | null; from: number }
-  | { kind: "same"; pos: number }
-  | { kind: "replace"; pos: number; text: string; card: CardTag | null; from: number }
-
-export const CAPTURE_SYSTEM = "you keep a memory of lasting facts about one human. you answer only with lines in the format you are given."
-
-const MAX_KNOWN = 12
-const MESSAGE_CUT = 2_000
-
-export function capturePrompt(heard: readonly Heard[], known: readonly { pos: number; text: string }[]): string {
-  return [
-    "read the human's messages and the facts already known. write one line for each fact worth remembering for months: who they are, their people, places, work, plans, tastes, and how they want to be helped.",
-    "skip small talk, passing moods, questions, requests to the agent, and private details (a street address, phone number, government id, account number, password, pin or key, a medical diagnosis, condition, or medication, or something they asked to keep secret). a city, employer, job, who someone is to them, tastes, and food allergies or diets are not private.",
-    `write each fact in the third person about the human, in one line of at most ${LINE_BYTES} bytes. copy names, numbers, and dates exactly. invent nothing.`,
-    "use only these line formats:",
-    "+ m<i> <fact>        a new fact, from message m<i>",
-    "= <n>                the same as known fact #n",
-    "~ <n> m<i> <fact>    replaces known fact #n, which is no longer true",
-    "a fact a known fact already covers, even in other words, is = <n>. keep one fact on one line; do not split it.",
-    "end a fact with [IDENTITY], [ATTRIBUTE], [RELATIONSHIP], or [INSTRUCTION] only when it is unlikely to change within six months.",
-    "if nothing is worth keeping, answer: none",
-    "",
-    "known facts:",
-    ...(known.length ? known.slice(0, MAX_KNOWN).map((k) => `#${k.pos} ${k.text}`) : ["(none)"]),
-    "",
-    "human messages:",
-    ...heard.map((h, i) => `m${i + 1}: ${(h.text.length > MESSAGE_CUT ? `${h.text.slice(0, MESSAGE_CUT)}…` : h.text).replace(/\s+/g, " ").trim()}`),
-  ].join("\n")
-}
-
-export function knownFor(life: Life, heard: readonly Heard[]): { pos: number; text: string }[] {
-  const seen = new Map<number, string>()
-  for (const h of heard) for (const l of life.nearest(h.text, NEIGHBORS)) if (seen.size < MAX_KNOWN) seen.set(l.pos, l.text)
-  return [...seen].map(([pos, text]) => ({ pos, text }))
-}
-
-const TAG = /\s*\[(IDENTITY|ATTRIBUTE|RELATIONSHIP|INSTRUCTION)\]\s*$/
-
-export function parseCapture(answer: string, known: ReadonlySet<number>, messages = 1): CaptureOp[] {
-  const ops: CaptureOp[] = []
-  const from = (raw: string | undefined) => {
-    const i = raw ? Number(raw) - 1 : 0
-    return i >= 0 && i < messages ? i : 0
-  }
-  const fact = (raw: string) => {
-    const tag = TAG.exec(raw)
-    const text = raw.replace(TAG, "").replace(/\s+/g, " ").trim()
-    const card = tag && isCardTag(tag[1]) ? tag[1] : null
-    return text.length >= 3 && encoder.encode(text).byteLength <= LINE_BYTES ? { text, card } : null
-  }
-  for (const line of answer.split("\n").map((l) => l.trim())) {
-    const plus = /^\+\s+(?:m(\d+)\s+)?(.+)$/.exec(line)
-    const same = /^=\s*#?(\d+)$/.exec(line)
-    const replace = /^~\s*#?(\d+)\s+(?:m(\d+)\s+)?(.+)$/.exec(line)
-    if (plus) {
-      const f = fact(plus[2] ?? "")
-      if (f) ops.push({ kind: "new", ...f, from: from(plus[1]) })
-    } else if (same) {
-      if (known.has(Number(same[1]))) ops.push({ kind: "same", pos: Number(same[1]) })
-    } else if (replace) {
-      const f = fact(replace[3] ?? "")
-      if (f && known.has(Number(replace[1]))) ops.push({ kind: "replace", pos: Number(replace[1]), ...f, from: from(replace[2]) })
-    }
-  }
-  return ops
-}
-
-export function applyOps(life: Life, ops: readonly CaptureOp[], heard: readonly { ref: string; at: number }[]): CaptureCount {
-  const count: CaptureCount = { added: 0, replaced: 0, same: 0, private: 0 }
-  for (const op of ops) {
-    const source = heard[op.kind === "same" ? 0 : op.from] ?? heard[0]
-    if (!source) throw new Error("capture op has no heard message")
-    apply(life, op, source.ref, source.at, count)
-  }
-  return count
-}
-
-function apply(life: Life, op: CaptureOp, ref: string, at: number, count: CaptureCount): void {
-  if (op.kind === "same") return void count.same++
-  store(life, op.text, op.card, at, ref, op.kind === "replace" ? [op.pos] : [], count)
 }
 
 function store(life: Life, text: string, card: CardTag | null, at: number, ref: string, replaces: readonly number[], count: CaptureCount): void {

@@ -18,7 +18,6 @@ function world(answer: WakeResult = "delivered") {
     tz: () => "UTC",
     level: () => "digest",
     away: () => false,
-    budget: () => 5,
     title: (id) => (id === "r1" ? "Taxes" : null),
     home: () => null,
     routines: () => [],

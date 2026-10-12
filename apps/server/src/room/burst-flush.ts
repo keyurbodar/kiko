@@ -1,10 +1,8 @@
 import type { AgentSlug, Chat, Envelope, } from "@yuki/protocol"
-import type { Alarms } from "@yuki/durable/alarm"
 import { agentStub, userStub } from "../lib/names"
 import { route } from "./deliver"
-import { BURST_HELD_WAKEUP, deliverable, MAX_DELIVERY_ENVELOPES, type Burst, type Pending } from "./burst"
+import { deliverable, MAX_DELIVERY_ENVELOPES, type Burst, type Pending } from "./burst"
 import { receive, type ReceiveDeps } from "./receive"
-import { HELD_WAKEUP, type HeldWakes } from "./wake"
 import type { Members } from "./members"
 import { DELIVERY_RETRY_MS } from "./wake-delivery"
 import type { Home } from "./home"
@@ -13,13 +11,10 @@ export type BurstDeps = ReceiveDeps & {
 	ctx: DurableObjectState
 	members: Members
 	burst: Burst
-	outbox: HeldWakes
-	alarms: Alarms
 	home: () => Home | null
 	chat: (home: Home) => Promise<Chat | null>
 	seedMembers: (home: Home, chat: Chat) => Promise<void>
 	drainMail: () => Promise<void>
-	retryHeld: () => Promise<void>
 }
 
 export class BurstFlush {
@@ -30,14 +25,12 @@ export class BurstFlush {
 	async flush(): Promise<void> {
 		const home = this.d.home()
 		if (!home) return
-		const pending = this.d.burst.envelopes(home.roomId, MAX_DELIVERY_ENVELOPES + 1, true)
+		const pending = this.d.burst.envelopes(home.roomId, MAX_DELIVERY_ENVELOPES + 1)
 		const batch = deliverable(pending)
 		if (!batch.length) return
 		let reached: Set<AgentSlug>
 		try {
 			const out = await this.deliverBurst(home, batch)
-			// A held window set its own wakeup for the reset. A retry now would spin until then.
-			if (out === "held") return
 			if (out === "full") return await this.d.burst.retry(DELIVERY_RETRY_MS)
 			reached = out
 			if (batch.length < pending.length) return await this.d.burst.retry(0)
@@ -47,12 +40,6 @@ export class BurstFlush {
 		}
 		this.closeWarnings(home, reached)
 		await this.d.drainMail()
-		if (this.d.outbox.any()) {
-			await this.d.retryHeld().catch(async (error: unknown) => {
-				console.error(`held wakes failed: ${error instanceof Error ? error.message : String(error)}`)
-				await this.d.alarms.setWakeup(HELD_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
-			})
-		}
 	}
 
 	private replyAuthor(id: string): AgentSlug | undefined {
@@ -60,23 +47,13 @@ export class BurstFlush {
 		return from?.kind === "agent" ? from.slug : undefined
 	}
 
-	private async deliverBurst(home: Home, batch: Pending[]): Promise<Set<AgentSlug> | "full" | "held"> {
+	private async deliverBurst(home: Home, batch: Pending[]): Promise<Set<AgentSlug> | "full"> {
 		const first = batch[0]?.envelope
 		if (!first) throw new Error("deliverBurst: empty burst")
 		const chat = await this.d.chat(home)
 		if (!chat) {
 			this.d.burst.clear()
 			return new Set()
-		}
-		const turn = await userStub(this.d.env.USER, home.userId).takeTurn(first.id)
-		if (!turn.ok) {
-			// Held, not dropped: the window waits for the reset, and the alarm for the reset delivers it. The notice's id is the reset, so a retry posts nothing twice.
-			const at = new Date(turn.resetAt).toISOString().slice(11, 16)
-			const event = this.d.deliveries.notice(`limit:${turn.resetAt}`, `you've used today's ${turn.limit} replies. your messages are held and answered at ${at} utc.`, "limit")
-			if (event) this.d.publish([event])
-			await this.d.alarms.setWakeup(BURST_HELD_WAKEUP, turn.resetAt)
-			this.d.burst.hold(turn.resetAt)
-			return "held"
 		}
 		await this.d.seedMembers(home, chat)
 		const members = this.d.members.list()

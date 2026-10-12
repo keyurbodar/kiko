@@ -16,9 +16,6 @@ export class UserDO extends DurableObject {
 	async getChat(): Promise<null> {
 		return null
 	}
-	async takeTurn(): Promise<{ ok: true }> {
-		return { ok: true }
-	}
 }
 
 // A burst flush hands envelopes to the agent. The agent's own cost is measured in its object; here it only accepts them.

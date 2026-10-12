@@ -6,16 +6,12 @@ import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 // Worker bundles cannot follow pi-ai's computed import() for OAuth refresh, so register the bundled flows explicitly.
 registerBunOAuthFlows()
 
-export { DEFAULT_LIMITS, type Limits } from "./limits"
-import { type Limits, resolveLimits } from "./limits"
-
 export const DEFAULT_TIMEZONE = "UTC"
 
 export type TurnContext = {
   provider: string
   auth: AuthResult | null
   timezone: string
-  limits: Limits
   captures: boolean
   agent?: { extensions: { name: string; hash: string }[]; soul: { body: string; sha: string; at: number } }
 }
@@ -34,24 +30,17 @@ export function providerUses(id: string): { chat: boolean; judge: boolean } {
   return { chat: (found?.getModels().length ?? 0) > 0, judge: (found?.getAllModels?.() ?? []).some((m) => isModelType(m, "classifier")) }
 }
 
-export function pickJudge<T extends { provider: string }>(connected: readonly T[], refused: (p: T) => boolean, preferred: string | null = null): { key: T; model: string | null } | null {
-  const usable = connected.filter((p) => !refused(p) && providerUses(p.provider).judge)
-  const slash = preferred?.indexOf("/") ?? -1
-  if (preferred !== null && slash > 0) {
-    const named = usable.find((p) => p.provider === preferred.slice(0, slash))
-    if (named) return { key: named, model: preferred.slice(slash + 1) }
-  }
-  const own = usable.find((p) => !providerUses(p.provider).chat)
-  return own ? { key: own, model: slash < 0 ? preferred : null } : null
+export function pickJudge<T extends { provider: string }>(connected: readonly T[], refused: (p: T) => boolean): T | null {
+  return connected.find((p) => !refused(p) && providerUses(p.provider).judge && !providerUses(p.provider).chat) ?? null
 }
 
 export async function resolveTurnContext(
   store: CredentialStore,
   provider: string,
-  settings: { timezone: string | null; limits: Partial<Limits> | null; captures: boolean },
+  settings: { timezone: string | null; captures: boolean },
   agent?: TurnContext["agent"],
 ): Promise<TurnContext> {
-  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, limits: resolveLimits(settings.limits), captures: settings.captures, ...(agent ? { agent } : {}) }
+  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, captures: settings.captures, ...(agent ? { agent } : {}) }
   const found = findProvider(provider)
   if (!found) return { ...base, auth: null }
   const models = createModels({ credentials: store, authContext: NO_AMBIENT })

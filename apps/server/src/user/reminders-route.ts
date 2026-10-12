@@ -1,14 +1,11 @@
 import { isRoomId } from "@yuki/protocol"
-import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { DEV } from "../lib/dev-guard"
+import { error, signedIn } from "../lib/route"
 import { userStub } from "../lib/names"
-import { originAllowed } from "../router"
 import type { ReminderResult } from "./reminders"
 
 const ACTION = /^\/api\/reminders\/([0-9a-f-]{36})\/(cancel|snooze|rewind)$/
-
-const error = (status: number, message: string) => Response.json({ error: message }, { status })
 
 function reply(result: ReminderResult): Response {
   return result.ok ? Response.json(result.reminder) : error(result.error === "no such reminder" ? 404 : 400, result.error)
@@ -29,9 +26,8 @@ export async function remindersRoute(request: Request, env: Env): Promise<Respon
   const { pathname } = new URL(request.url)
   const action = ACTION.exec(pathname)
   if (pathname !== "/api/reminders" && !action) return null
-  if (!originAllowed(request, new URL(request.url), env)) return error(403, "forbidden origin")
-  const user = await getSessionUser(request, env)
-  if (!user) return error(401, "unauthorized")
+  const user = await signedIn(request, env)
+  if (user instanceof Response) return user
   if (request.method === "POST" && !request.headers.get("content-type")?.includes("application/json")) {
     return error(415, "expected json")
   }

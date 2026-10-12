@@ -1,54 +1,31 @@
-import type { LifeLine, MemoryOp, MemoryResult, Message, RoomToClient } from "@yuki/protocol"
-import type { RoomHandle, Session, UserChannel } from "../client"
+import { idles, messages, newRoom, poll } from "../kit"
+import type { LifeLine, MemoryOp, MemoryResult, Message, } from "@yuki/protocol"
+import type { RoomHandle, } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { ulid } from "./mid-run"
 import { dev } from "./team-loops"
 import { must } from "../must"
 
 
 const TYPESAFE = "typesafe"
-const FAST = { batch: 2, idleMs: 3_000, jevDelayMs: 1_000, capture: "always" }
+const FAST = { idleMs: 3_000, jevDelayMs: 1_000, capture: "auto" }
 const T0 = Date.now()
 const stamp = () => `${((Date.now() - T0) / 1000).toFixed(1).padStart(6)}s`
 
 type Usage = Record<string, number>
 
-async function openChat(user: UserChannel, s: Session, title: string, agents?: string[]): Promise<RoomHandle> {
-  const roomId = ulid()
-  user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title, ...(agents ? { agents } : {}) } as never })
-  await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
-  const room = await s.room(roomId)
-  await room.expect((f) => f.t === "events")
-  Object.assign(room, { id: roomId })
-  return room
-}
-const idOf = (room: RoomHandle) => (room as RoomHandle & { id: string }).id
 
-const frames = (room: RoomHandle) => room.raw.log.flatMap((e) => (e.dir === "in" ? [e.frame as RoomToClient] : []))
-const idles = (room: RoomHandle) => frames(room).filter((f) => f.t === "status" && (f as { state: string }).state === "idle").length
-const messages = (room: RoomHandle): Message[] => frames(room).flatMap((f) => (f.t === "events" ? f.events.flatMap((e) => (e.t === "message" ? [e as Message] : [])) : []))
 const humanMessage = (room: RoomHandle, word: RegExp): Message => {
   const m = messages(room).find((x) => x.from.kind === "human" && word.test(x.text))
   if (!m) throw new VerifyError(`no human message matching ${word} in the chat`)
   return m
 }
 
-async function poll<T>(what: string, ms: number, test: () => Promise<T | false | null | undefined>): Promise<T> {
-  const end = Date.now() + ms
-  for (;;) {
-    const got = await test()
-    if (got) return got
-    if (Date.now() > end) throw new VerifyError(`timed out after ${ms / 1000}s waiting for ${what}`)
-    await Bun.sleep(1_000)
-  }
-}
-
 async function say(room: RoomHandle, text: string, ms = 90_000): Promise<string> {
   const before = idles(room)
   const seen = messages(room).length
   room.send(text)
-  await poll(`an answer to ${JSON.stringify(text)}`, ms, async () => idles(room) > before)
+  await poll(`an answer to ${JSON.stringify(text)}`, async () => idles(room) > before, ms)
   await Bun.sleep(500)
   return messages(room)
     .slice(seen)
@@ -62,7 +39,7 @@ const suite: Suite = {
   model: true,
   async run(v) {
     const jevKey = process.env.TYPESAFE_API_KEY
-    if (!jevKey) console.log("  TYPESAFE_API_KEY is not set: the Jev cases are skipped.")
+    if (!jevKey) throw new VerifyError("TYPESAFE_API_KEY is not set: capture needs a judge key")
     const stampId = Date.now().toString(36)
     const s = await v.as(`memedge${stampId}`)
     await connectTestModel(s)
@@ -87,29 +64,30 @@ const suite: Suite = {
       const r = await memory({ op: "view" })
       return "text" in r ? r.text.join("\n") : ""
     }
-    const usage = async (): Promise<Usage> => ((await dev(v.url, s.cookie, "usage", { roomId: idOf(home) })) as { memory: Usage }).memory
+    const usage = async (): Promise<Usage> => ((await dev(v.url, s.cookie, "usage", { roomId: home.id })) as { memory: Usage }).memory
     const policy = (p: Record<string, unknown>) => dev(v.url, s.cookie, "policy", { policy: p })
     const ok = (name: string, evidence: string) => console.log(`  [${stamp()}] ok ${name}: ${evidence}`)
     const settle = async () => {
-      await poll("capture to settle", 60_000, async () => {
+      await poll("capture to settle", async () => {
         const before = JSON.stringify(await usage())
         await Bun.sleep(6_000)
         return before === JSON.stringify(await usage())
-      })
+      }, 60_000)
       await Bun.sleep(2_000)
     }
     const lineTexts = (ls: readonly LifeLine[]) => JSON.stringify(ls.map((l) => l.text))
-    const close = (room: RoomHandle) => {
+    const close = (room: RoomHandle & { id: string }) => {
       room.raw.close()
-      user.send({ t: "chat", op: { op: "delete", roomId: idOf(room) as never } })
+      user.send({ t: "chat", op: { op: "delete", roomId: room.id as never } })
     }
 
-    const home = await openChat(user, s, "memory edge home")
+    const home = (await newRoom(s, "memory edge home")).room
     await policy(FAST)
-    console.log(`  [${stamp()}] policy set: capture always, batch 2, idle 3 s, jev delay 1 s`)
+    await s.connectProvider(TYPESAFE, jevKey)
+    console.log(`  [${stamp()}] policy set: capture auto, idle 3 s, jev delay 1 s; judge key connected`)
     {
-      const priv = await openChat(user, s, "memory edge private")
-      user.send({ t: "chat", op: { op: "private", roomId: idOf(priv) as never, private: true } })
+      const priv = (await newRoom(s, "memory edge private")).room
+      user.send({ t: "chat", op: { op: "private", roomId: priv.id as never, private: true } })
       await Bun.sleep(1_000)
       await say(priv, "my cat is called zorbalin")
       await settle()
@@ -129,20 +107,20 @@ const suite: Suite = {
     }
 
     {
-      await policy({ ...FAST, capture: "auto" })
+      await s.disconnectProvider(TYPESAFE)
       const attempts: [string, string][] = [
         ["bangalore", "pune"],
         ["chennai", "mumbai"],
       ]
       const outcomes: string[] = []
       for (const [from, to] of attempts) {
-        const chat = await openChat(user, s, `memory edge move ${from}`)
+        const chat = (await newRoom(s, `memory edge move ${from}`)).room
         await say(chat, `i live in ${from}`)
         const was = new RegExp(from, "i")
-        const noted = await poll(`the agent's note about ${from}`, 60_000, async () => {
+        const noted = await poll(`the agent's note about ${from}`, async () => {
           const got = (await live(was)).filter((l) => l.source.startsWith("@"))
           return got.length > 0 && got
-        }).catch(() => [])
+        }, 60_000).catch(() => [])
         if (!noted.length) {
           outcomes.push(`${from}: the agent wrote no note`)
           close(chat)
@@ -150,37 +128,37 @@ const suite: Suite = {
         }
         await say(chat, `i moved to ${to}`)
         const ids = new Set(noted.map((l) => l.pos))
-        const replaced = await poll(`the ${from} line superseded`, 60_000, async () => (await lines()).some((l) => ids.has(l.pos) && !l.redacted && !isLive(l))).catch(() => false)
+        const replaced = await poll(`the ${from} line superseded`, async () => (await lines()).some((l) => ids.has(l.pos) && !l.redacted && !isLive(l)), 60_000).catch(() => false)
         const now = (await lines()).filter((l) => was.test(l.text) || new RegExp(to, "i").test(l.text)).map((l) => `${l.source}: ${l.text}${isLive(l) ? "" : " (replaced)"}`)
         outcomes.push(`${from} -> ${to}: ${replaced ? "superseded" : "not superseded"} ${JSON.stringify(now)}`)
         close(chat)
       }
       for (const o of outcomes) console.log(`  [${stamp()}] note replaces: ${o}`)
       if (!outcomes.some((o) => o.includes(": superseded"))) throw new VerifyError("without Jev, the agent's correction did not supersede the old line in either attempt")
-      await policy(FAST)
+      await s.connectProvider(TYPESAFE, jevKey)
       ok("note replaces without Jev", must(outcomes.at(-1), "outcome"))
     }
     {
-      await policy({ ...FAST, capture: "always" })
+      await policy(FAST)
       await say(home, "my favourite colour is teal")
-      await poll("a live teal line", 60_000, async () => (await live(/teal/i)).length > 0)
+      await poll("a live teal line", async () => (await live(/teal/i)).length > 0, 60_000)
       const m = humanMessage(home, /teal/i)
       home.raw.send({ t: "edit", messageId: m.id, text: "my favourite colour is ochre" } as never)
       const t = Date.now()
-      await poll("no live teal line and a live ochre line", 60_000, async () => (await live(/teal/i)).length === 0 && (await live(/ochre/i)).length > 0)
+      await poll("no live teal line and a live ochre line", async () => (await live(/teal/i)).length === 0 && (await live(/ochre/i)).length > 0, 60_000)
       ok("edit", `teal gone and ochre live ${((Date.now() - t) / 1000).toFixed(1)}s after the edit`)
       await policy(FAST)
     }
     {
-      const x = await openChat(user, s, "memory edge x")
-      const y = await openChat(user, s, "memory edge y")
+      const x = (await newRoom(s, "memory edge x")).room
+      const y = (await newRoom(s, "memory edge y")).room
       const [bx, by] = [idles(x), idles(y)]
       x.send("my parrot is named quillon")
       y.send("my scooter is called brindle")
-      await poll("both chats to answer", 90_000, async () => idles(x) > bx && idles(y) > by)
-      await poll("lines for quillon and brindle", 60_000, async () => (await live(/quillon/i)).length > 0 && (await live(/brindle/i)).length > 0)
+      await poll("both chats to answer", async () => idles(x) > bx && idles(y) > by, 90_000)
+      await poll("lines for quillon and brindle", async () => (await live(/quillon/i)).length > 0 && (await live(/brindle/i)).length > 0, 60_000)
       x.raw.send({ t: "delete", messageId: humanMessage(x, /quillon/i).id } as never)
-      await poll("quillon forgotten", 60_000, async () => (await live(/quillon/i)).length === 0)
+      await poll("quillon forgotten", async () => (await live(/quillon/i)).length === 0, 60_000)
       const kept = await live(/brindle/i)
       if (!kept.length) throw new VerifyError("deleting the message in chat X also removed chat Y's fact")
       ok("two chats at once", `both captured; X's fact gone after delete, Y's still live: ${lineTexts(kept)}`)
@@ -188,10 +166,10 @@ const suite: Suite = {
       close(y)
     }
     {
-      const x = await openChat(user, s, "memory edge dentist x")
-      const y = await openChat(user, s, "memory edge dentist y")
+      const x = (await newRoom(s, "memory edge dentist x")).room
+      const y = (await newRoom(s, "memory edge dentist y")).room
       await say(x, "my dentist is dr okafor")
-      await poll("a line about okafor", 60_000, async () => (await live(/okafor/i)).length > 0)
+      await poll("a line about okafor", async () => (await live(/okafor/i)).length > 0, 60_000)
       await say(y, "my dentist is dr okafor")
       await settle()
       const hit = await live(/okafor/i)
@@ -209,7 +187,7 @@ const suite: Suite = {
         await Bun.sleep(300)
         await s.connectProvider(TYPESAFE, jevKey)
         const t = Date.now()
-        await poll("tidewater captured well before the 20 s idle", 15_000, async () => (await live(/tidewater/i)).length > 0)
+        await poll("tidewater captured well before the 20 s idle", async () => (await live(/tidewater/i)).length > 0, 15_000)
         const took = (Date.now() - t) / 1000
         const after = (await usage()).capture_jev ?? 0
         if (!(after > before)) throw new VerifyError(`capture_jev did not grow: ${before} -> ${after}`)
@@ -219,12 +197,12 @@ const suite: Suite = {
       }
       {
         await say(home, "i work at acme corp")
-        await poll("a live acme line", 60_000, async () => (await live(/acme/i)).length > 0)
+        await poll("a live acme line", async () => (await live(/acme/i)).length > 0, 60_000)
         await say(home, "i now work at globex")
-        await poll("globex live and acme not live", 60_000, async () => (await live(/globex/i)).length > 0 && (await live(/work(s)? at acme/i)).length === 0)
+        await poll("globex live and acme not live", async () => (await live(/globex/i)).length > 0 && (await live(/work(s)? at acme/i)).length === 0, 60_000)
         home.raw.send({ t: "delete", messageId: humanMessage(home, /globex/i).id } as never)
         const t = Date.now()
-        await poll("acme live again and globex gone", 60_000, async () => (await live(/acme/i)).length > 0 && (await live(/globex/i)).length === 0)
+        await poll("acme live again and globex gone", async () => (await live(/acme/i)).length > 0 && (await live(/globex/i)).length === 0, 60_000)
         ok("delete a correction restores", `acme back ${((Date.now() - t) / 1000).toFixed(1)}s after the delete, globex gone`)
       }
       {
@@ -232,10 +210,10 @@ const suite: Suite = {
           home,
           "my daughter is named pelagia. the pizza at lunch was soggy. i am allergic to quince. what a breezy afternoon. i drive a vintage saab. haha that meeting dragged on forever. ok cool thanks. anyway long day. lol nice one.",
         )
-        await poll("lines for pelagia, quince and saab", 90_000, async () => {
+        await poll("lines for pelagia, quince and saab", async () => {
           for (const w of [/pelagia/i, /quince/i, /saab/i]) if (!(await live(w)).length) return false
           return true
-        })
+        }, 90_000)
         await settle()
         const talk = await live(/soggy|breezy|dragged|haha|\blol\b|long day/i)
         if (talk.length) throw new VerifyError(`small talk reached the life log: ${lineTexts(talk)}`)
@@ -246,18 +224,18 @@ const suite: Suite = {
         for (let i = 0; i < names.length; i += 2) await say(home, `my friend ${names[i]} likes jazz. my friend ${names[i + 1]} likes jazz.`)
         let missing = names
         try {
-          await poll("lines for all eight friends", 120_000, async () => {
+          await poll("lines for all eight friends", async () => {
             const jazz = await live(/jazz/i)
             missing = names.filter((nm) => !jazz.some((l) => l.text.toLowerCase().includes(nm)))
             return missing.length === 0
-          })
+          }, 120_000)
         } catch (_error) {
           const all = (await lines()).filter((l) => /jazz|friend/i.test(l.text)).map((l) => `${l.pos} ${l.source} ${isLive(l) ? "live" : "gone"} ${l.text}`)
           throw new VerifyError(`friends missing: ${missing.join(", ")}; lines: ${JSON.stringify(all)}; usage ${JSON.stringify(await usage())}`)
         }
         await settle()
         const before = (await usage()).rerank_jev ?? 0
-        const chat = await openChat(user, s, "memory edge recall")
+        const chat = (await newRoom(s, "memory edge recall")).room
         const reply = await say(chat, "which of my friends like jazz? list names.")
         const after = (await usage()).rerank_jev ?? 0
         const named = names.filter((nm) => reply.toLowerCase().includes(nm)).length
@@ -270,9 +248,9 @@ const suite: Suite = {
     if (jevKey) {
       await say(home, "mi hermana se llama Ximena y vive en Valencia")
       const sister = /ximena.*(sister|hermana)|(sister|hermana).*ximena/i
-      await poll("a live line about the sister ximena", 90_000, async () => (await live(sister)).length > 0)
+      await poll("a live line about the sister ximena", async () => (await live(sister)).length > 0, 90_000)
       await settle()
-      const fresh = await openChat(user, s, "memory edge spanish recall")
+      const fresh = (await newRoom(s, "memory edge spanish recall")).room
       const reply = await say(fresh, "how is my sister called and where does she live?")
       if (!/ximena/i.test(reply) || !/valencia/i.test(reply)) throw new VerifyError(`a new chat did not say ximena and valencia: ${JSON.stringify(reply)}`)
       ok("non-English fact", `live line ${lineTexts(await live(sister))}; a new chat answered ${JSON.stringify(reply.slice(0, 80))}`)
@@ -281,13 +259,13 @@ const suite: Suite = {
     {
       const bo = { id: `agent-bo-${stampId}`, name: "bo", slug: "bo", prompt: "helps with trips", model: "" }
       user.send({ t: "agent", op: { op: "create", agent: bo as never } })
-      const group = await openChat(user, s, "memory edge group", ["yuki", bo.id])
+      const group = (await newRoom(s, "memory edge group", ["yuki", bo.id])).room
       await say(group, "my brother teo lives in oslo, tell @bo too", 120_000)
-      await poll("a line about teo", 60_000, async () => (await live(/\bteo\b|oslo/i)).length > 0)
+      await poll("a line about teo", async () => (await live(/\bteo\b|oslo/i)).length > 0, 60_000)
       await settle()
       const hit = (await live(/\bteo\b|oslo/i)).filter((l) => l.source !== "you")
       if (hit.length !== 1) throw new VerifyError(`expected exactly one live line about teo, found ${hit.length}: ${lineTexts(hit)}`)
-      const fresh = await openChat(user, s, "memory edge group recall")
+      const fresh = (await newRoom(s, "memory edge group recall")).room
       const reply = await say(fresh, "where does my brother live?")
       if (!/oslo/i.test(reply)) throw new VerifyError(`a new chat did not say oslo: ${JSON.stringify(reply)}`)
       ok("group chat A2A", `one live line ${lineTexts(hit)}; a new chat answered ${JSON.stringify(reply.slice(0, 80))}`)
@@ -295,7 +273,7 @@ const suite: Suite = {
       close(group)
     }
 
-    if (jevKey) await s.disconnectProvider(TYPESAFE)
+    await s.disconnectProvider(TYPESAFE)
     close(home)
   },
 }

@@ -14,7 +14,8 @@ import type { ChiefPort } from "./extensions/chief"
 import { initiativeBrief, shortBrief } from "../room/brief"
 import type { LoopPort } from "@yuki/memory/loop-tool"
 import { CHIEF } from "../room/chief"
-import { HOME_PATH, homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
+import { HOME } from "../files/upload"
+import { homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
 import { mergeRecall, RECALL_MAX, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@yuki/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
@@ -29,29 +30,26 @@ import type { GuestResponse, Installed, ScriptPorts } from "@yuki/sandbox/compil
 import { hasScriptWasm, scriptWasm } from "@yuki/sandbox/wasm"
 import { checkExtension } from "@yuki/sandbox/check"
 import type { BuilderPorts } from "./extensions/builder"
+import { SyncMemo } from "./extension-sync"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@yuki/protocol"
 import { createAlarms } from "@yuki/durable/alarm"
 import { migrate } from "@yuki/durable/migrate"
 import { AGENT_STEPS } from "./schema"
-import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@yuki/agent/host"
+import { AgentHost, type AgentSetup, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@yuki/agent/host"
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
-import { isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
-import { count, instrument } from "../lib/dev-stats"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { jevPort, modelPort, pickDecider } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
 import { findProvider, pickJudge } from "../user/turn-context"
 
-import { DEV, loadAgentDev } from "../lib/dev-guard"
+import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
 
 // Read by the dev methods in agent/dev.ts too, so they share one key per setting.
 export const DEV_FAKE_KEY = "dev-fake"
-export const DEV_CLASSIC_KEY = "dev-classic"
-export const DEV_BUDGET_KEY = "dev:auto-budget-ms"
 export const DEV_INITIATIVE_KEY = "dev:initiative"
 const INITIATIVE_WAIT_MS = 1_500
 const MEMORY_POS_KEY = "memory:pos"
@@ -76,8 +74,6 @@ export class AgentDO extends DurableObject<Env> {
     instrument(ctx, "agent")
     void ctx.blockConcurrencyWhile(async () => {
       migrate(ctx.storage, AGENT_STEPS)
-      // A wiped agent builds no host: the inbox's constructor writes a row, and a deleted object must hold none.
-      if (await isWiped(ctx.storage)) return
       void this.host
       void this.outbox
       this.home()
@@ -97,11 +93,6 @@ export class AgentDO extends DurableObject<Env> {
       onOpen: async (opened) => {
         await this.hostOptions.onOpen?.(opened)
         await this.outbox.attach(opened.harness, opened.root.id)
-      },
-      ...(DEV ? { autoBudgetMs: async () => (await this.ctx.storage.get<number>(DEV_BUDGET_KEY)) ?? AUTO_RUN_BUDGET_MS } : {}),
-      onTimeout: async () => {
-        const home = this.home()
-        if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).runTimedOut(home.slug)
       },
       onGiveUp: async () => {
         await this.hostOptions.onGiveUp?.()
@@ -124,9 +115,7 @@ export class AgentDO extends DurableObject<Env> {
     return this.outboxInstance
   }
 
-  // A deleted agent takes no work: admitting it would write rows into an object that is meant to stay empty.
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
-    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
     if (home) this.setHome(home)
     const result = await this.host.receive(envelopes, brief)
     if (!result.refused && envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
@@ -134,12 +123,10 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async stop(): Promise<{ discarded: number }> {
-    if (await isWiped(this.ctx.storage)) return { discarded: 0 }
     return this.host.stop()
   }
 
   async wake(): Promise<boolean> {
-    if (await isWiped(this.ctx.storage)) return false
     const at = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HEARTBEAT_WAKEUP).toArray()[0]?.at
     if (at === undefined) return false
     if (at > Date.now()) await createAlarms(this.ctx).setWakeup(HEARTBEAT_WAKEUP, Date.now())
@@ -147,13 +134,18 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async status(): Promise<HostStatus> {
-    if (await isWiped(this.ctx.storage)) return { open: false, inbox: { waiting: 0, claimed: 0, submitted: 0 }, tasks: 0, submissions: 0 }
     return this.host.status()
   }
 
   protected home(): AgentHome | null {
     const row = this.ctx.storage.sql.exec<{ home: string }>("SELECT home FROM agent_home WHERE id = 1").toArray()[0]
     return row ? (JSON.parse(row.home) as AgentHome) : null
+  }
+
+  private homeOrThrow(): AgentHome {
+    const home = this.home()
+    if (!home) throw new Error("this agent has no room yet")
+    return home
   }
 
   private setHome(home: AgentHome): void {
@@ -217,13 +209,11 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async humanComing(): Promise<void> {
-    if (await isWiped(this.ctx.storage)) return
     this.host.humanComing()
     this.answers.interrupt()
   }
 
   async humanGone(): Promise<void> {
-    if (await isWiped(this.ctx.storage)) return
     await this.host.humanGone()
   }
 
@@ -239,7 +229,6 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async askAnswered(id: string, answer: string): Promise<void> {
-    if (await isWiped(this.ctx.storage)) return
     this.answers.answer(id, answer)
   }
 
@@ -278,8 +267,7 @@ export class AgentDO extends DurableObject<Env> {
 
   private soulPort(): SoulPort {
     const user = () => {
-      const home = this.home()
-      if (!home) throw new Error("this agent has no room yet")
+      const home = this.homeOrThrow()
       return { stub: userStub(this.env.USER, home.userId), slug: home.slug }
     }
     return {
@@ -333,7 +321,7 @@ export class AgentDO extends DurableObject<Env> {
       return h ? roomStub(this.env.ROOM, h.userId, h.roomId).homeNotice(h.slug, text) : Promise.resolve()
     }
     const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
-    const backend = withMount(roomBackend(this.env, where, cache), HOME_PATH, homeBackend(this.env, where, notice, cache, locked))
+    const backend = withMount(roomBackend(this.env, where, cache), HOME, homeBackend(this.env, where, notice, cache, locked))
     const id = `room-files:${this.ctx.id.toString()}`
     const space = withSoul(backend, soul)
     const views = roomViews(id, space)
@@ -372,7 +360,7 @@ export class AgentDO extends DurableObject<Env> {
         return [clock, down, learned, quiet, extensions, initiative].filter(Boolean).join("\n\n")
       },
       ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
-      ...(DEV && (await this.ctx.storage.get<boolean>(DEV_CLASSIC_KEY)) ? {} : { inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined) }),
+      inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
       beforeCompact: (harness) => this.carryUsage(harness),
     }
   }
@@ -490,45 +478,47 @@ export class AgentDO extends DurableObject<Env> {
     const user = userStub(this.env.USER, home.userId)
     try {
       const list = versions ?? (await user.extensionsFor(home.slug))
-      const key = JSON.stringify(list)
-      if (this.#extensionsSynced?.on === extensions && this.#extensionsSynced.key === key) return
-      this.#extensionsSynced = undefined
-      const installed: Installed[] = []
-      const missing: string[] = []
-      for (const item of list) {
-        const stored = await this.ctx.storage.get<Installed>(`${BUNDLE_PREFIX}${item.hash}`)
-        if (stored) installed.push(stored)
-        else missing.push(item.hash)
+      await this.#syncMemo.apply(extensions, list, (key) => this.loadAndSync(user, extensions, root, list, key))
+    } catch (error) {
+      console.error(`extensions not synced: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  private async loadAndSync(user: ReturnType<typeof userStub>, extensions: UserExtensions, root: Conversation, list: { name: string; hash: string }[], key: string): Promise<void> {
+    const installed: Installed[] = []
+    const missing: string[] = []
+    for (const item of list) {
+      const stored = await this.ctx.storage.get<Installed>(`${BUNDLE_PREFIX}${item.hash}`)
+      if (stored) installed.push(stored)
+      else missing.push(item.hash)
+    }
+    if (missing.length) {
+      for (const b of (await user.extensionBundles(missing)) as unknown as Installed[]) {
+        await this.ctx.storage.put(`${BUNDLE_PREFIX}${b.hash}`, b)
+        installed.push(b)
       }
-      if (missing.length) {
-        for (const b of (await user.extensionBundles(missing)) as unknown as Installed[]) {
-          await this.ctx.storage.put(`${BUNDLE_PREFIX}${b.hash}`, b)
-          installed.push(b)
-        }
-      }
+    }
+    if (this.#syncMemo.firstSight(key)) {
       const keep = new Set(list.map((i) => `${BUNDLE_PREFIX}${i.hash}`))
       const stale = [...(await this.ctx.storage.list({ prefix: BUNDLE_PREFIX })).keys()].filter((k) => !keep.has(k))
       if (stale.length) await this.ctx.storage.delete(stale)
-      const problems = extensions.sync(installed)
-      for (const p of problems) void user.extensionError(p.name, p.hash, p.error).catch(() => {})
-      const broken = new Set(problems.map((p) => p.name))
-      this.#extensionsNote = installed
-        .filter((i) => !broken.has(i.name))
-        .map((i) => `${i.name} ${i.bundle.manifest.version}${Object.keys(i.bundle.manifest.tools ?? {}).length ? ` (tools: ${Object.keys(i.bundle.manifest.tools ?? {}).join(", ")})` : ""}`)
-        .join("; ")
-      const want = extensions.talker()
-      const have = (await root.agent(BACKGROUND_CONTEXT)).extensions.map((e) => e.name)
-      if (want.map((e) => e.name).join("\n") !== have.join("\n")) {
-        const workers = this.host.workers.list().flatMap((w) => (w.conversationId === null ? [] : [w.conversationId]))
-        const all = forWorker(extensions.selection())
-        await root.commit(async (tx) => {
-          await configure(tx, root.id, { extensions: want })
-          for (const id of workers) await configure(tx, id, { extensions: all })
-        }, BACKGROUND_CONTEXT)
-      }
-      if (!problems.length) this.#extensionsSynced = { on: extensions, key }
-    } catch (error) {
-      console.error(`extensions not synced: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    const problems = extensions.sync(installed)
+    for (const p of problems) void user.extensionError(p.name, p.hash, p.error).catch(() => {})
+    const broken = new Set(problems.map((p) => p.name))
+    this.#extensionsNote = installed
+      .filter((i) => !broken.has(i.name))
+      .map((i) => `${i.name} ${i.bundle.manifest.version}${Object.keys(i.bundle.manifest.tools ?? {}).length ? ` (tools: ${Object.keys(i.bundle.manifest.tools ?? {}).join(", ")})` : ""}`)
+      .join("; ")
+    const want = extensions.talker()
+    const have = (await root.agent(BACKGROUND_CONTEXT)).extensions.map((e) => e.name)
+    if (want.map((e) => e.name).join("\n") !== have.join("\n")) {
+      const workers = this.host.workers.list().flatMap((w) => (w.conversationId === null ? [] : [w.conversationId]))
+      const all = forWorker(extensions.selection())
+      await root.commit(async (tx) => {
+        await configure(tx, root.id, { extensions: want })
+        for (const id of workers) await configure(tx, id, { extensions: all })
+      }, BACKGROUND_CONTEXT)
     }
   }
 
@@ -540,7 +530,6 @@ export class AgentDO extends DurableObject<Env> {
    * Only this object calls it, through `egressFetch`.
    */
   async egress(request: EgressRequest): Promise<Response> {
-    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
     // check-rules: allow egress the one outside request, made in this object's own invocation, which is the point of egress
     return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
@@ -568,17 +557,13 @@ export class AgentDO extends DurableObject<Env> {
 
   #userExtensions?: UserExtensions
 
-  #extensionsSynced?: { on: UserExtensions; key: string }
+  #syncMemo = new SyncMemo()
 
   #extensionsNote = ""
 
   private scriptPorts(): ScriptPorts | undefined {
     if (!hasScriptWasm()) return undefined
-    const where = () => {
-      const home = this.home()
-      if (!home) throw new Error("this agent has no room yet")
-      return home
-    }
+    const where = () => this.homeOrThrow()
     const scope = (kind: ExtensionStateScope) => {
       const home = where()
       return kind === "user" ? "user" : kind === "room" ? `room:${home.roomId}` : `agent:${home.roomId}:${home.slug}`
@@ -603,11 +588,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   private builderPorts(): BuilderPorts {
-    const where = () => {
-      const home = this.home()
-      if (!home) throw new Error("this agent has no room yet")
-      return home
-    }
+    const where = () => this.homeOrThrow()
     return {
       check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools),
       propose: async (bundle) => {
@@ -685,14 +666,12 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async setModel(model: ModelRef): Promise<boolean> {
-    if (await isWiped(this.ctx.storage)) return false
     if (!findProvider(model.provider)?.getModels().some((m) => m.id === model.modelId)) return false
     await this.ctx.storage.put(MODEL_KEY, { provider: model.provider, modelId: model.modelId })
     return true
   }
 
   async alarm() {
-    if (await isWiped(this.ctx.storage)) return
     if (await this.browserIdle()) return
     await this.host.alarm()
   }
@@ -707,15 +686,13 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   private browserLease(): LeasePort {
-    const home = this.home()
-    if (!home) throw new Error("this agent has no room yet")
+    const home = this.homeOrThrow()
     this.#browserLease ??= userLease(() => userStub(this.env.USER, home.userId) as unknown as UserBrowserRpc, `${home.roomId}:${home.slug}`, home.roomId)
     return this.#browserLease
   }
 
   private browser(): BrowserConnection {
-    const home = this.home()
-    if (!home) throw new Error("this agent has no room yet")
+    const home = this.homeOrThrow()
     this.#browser ??= new BrowserConnection({
       agentId: `${home.roomId}:${home.slug}`,
       lease: this.browserLease(),
@@ -730,10 +707,10 @@ export class AgentDO extends DurableObject<Env> {
     if (home) {
       const user = userStub(this.env.USER, home.userId)
       const picked = pickJudge(await user.listProviders(), (p) => p.refused === true)
-      const auth = picked ? (await user.turnContext(picked.key.provider)).auth : null
+      const auth = picked ? (await user.turnContext(picked.provider)).auth : null
       if (picked && auth) {
         const jevModels = userModels(async () => auth, `browser-${this.ctx.id.toString()}`, egress).models
-        return { name: "jev", ...pickDecider(own, jevPort(jevModels, { provider: picked.key.provider, model: picked.model, auth }, egress)) }
+        return { name: "jev", ...pickDecider(own, jevPort(jevModels, { provider: picked.provider, auth }, egress)) }
       }
     }
     return { name: "model", ...pickDecider(own, null) }
@@ -753,17 +730,6 @@ export class AgentDO extends DurableObject<Env> {
     return due.length === 1
   }
 
-  async deleteAll(): Promise<number> {
-    return wipeStorage(this.ctx, async () => {
-      await this.#browser?.idle().catch(() => {})
-      await this.hostInstance?.shutdown()
-    })
-  }
-
-  async storedRows(): Promise<number> {
-    return storedRows(this.ctx.storage)
-  }
-
   // The dev-only bodies live in agent/dev.ts, which only a development build can load. One cached load
   // per object reaches every dev method below.
   #dev?: Promise<typeof import("./dev")>
@@ -771,10 +737,6 @@ export class AgentDO extends DurableObject<Env> {
   private dev(): Promise<typeof import("./dev")> {
     this.#dev ??= loadAgentDev()
     return this.#dev
-  }
-
-  async devClassic(): Promise<void> {
-    return (await this.dev()).devClassic(this.agentDevHost())
   }
 
   async devUsage(): Promise<Usage> {
@@ -785,19 +747,11 @@ export class AgentDO extends DurableObject<Env> {
     return (await this.dev()).devTrace(this.agentDevHost())
   }
 
-  async devBudget(ms: number): Promise<void> {
-    return (await this.dev()).devBudget(this.agentDevHost(), ms)
-  }
-
   async devFake(): Promise<void> {
     return (await this.dev()).devFake(this.agentDevHost())
   }
 
   async devWorkers(): Promise<Work[]> {
     return (await this.dev()).devWorkers(this.agentDevHost())
-  }
-
-  async devSeed(): Promise<void> {
-    return (await this.dev()).devSeed(this.agentDevHost())
   }
 }

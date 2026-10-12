@@ -227,6 +227,16 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
     return vm.invoke(target, args, env, bridge)
   }
 
+  // A section or hook that fails is reported once and reads as "no answer"; it never fails the run.
+  const runQuiet = async (where: string, target: Target, args: unknown[], env: Record<string, unknown>, readOnly: boolean): Promise<unknown> => {
+    try {
+      return await run(target, args, env, quietBridge(where, readOnly))
+    } catch (e) {
+      report(`${where}: ${e instanceof Error ? e.message : String(e)}`)
+      return undefined
+    }
+  }
+
   const toolBridge = (effect: Effect, self: string, api: ToolExecutionApi, context: Context, logs: string[], next?: (args: Record<string, unknown>) => Promise<unknown>): Bridge =>
     makeToolBridge({ name, manifest: m, ports, effect, self, logs, next, calls: callPort(self, effect, api, context) })
 
@@ -282,26 +292,14 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
       return section(key, () => fixed)
     }
     return section(key, async () => {
-      try {
-        const out = await run({ group: "sections", name: id }, [], envFor({ section: id }), quietBridge(`section ${id}`, true))
-        return typeof out === "string" && out.trim() ? out : undefined
-      } catch (e) {
-        report(`section ${id}: ${e instanceof Error ? e.message : String(e)}`)
-        return undefined
-      }
+      const out = await runQuiet(`section ${id}`, { group: "sections", name: id }, [], envFor({ section: id }), true)
+      return typeof out === "string" && out.trim() ? out : undefined
     })
   })
 
   const wants = new Set(m.hooks ?? [])
   const hooks: HookRegistration[] = []
-  const quiet = async (hookName: string, args: unknown[]): Promise<unknown> => {
-    try {
-      return await run({ group: "hooks", name: hookName }, args, envFor({ hook: hookName }), quietBridge(`hook ${hookName}`, false))
-    } catch (e) {
-      report(`hook ${hookName}: ${e instanceof Error ? e.message : String(e)}`)
-      return undefined
-    }
-  }
+  const quiet = (hookName: string, args: unknown[]) => runQuiet(`hook ${hookName}`, { group: "hooks", name: hookName }, args, envFor({ hook: hookName }), false)
   if (wants.has("beforeTool") || wants.has("afterTool")) {
     hooks.push(
       hook(ToolTask, {
@@ -392,13 +390,8 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
         ...original,
         render: async (input, context) => {
           const before = await original.render(input, context)
-          try {
-            const out = await run({ group: "wrapSections", name: key }, [before ?? null], envFor({ section: key }), quietBridge(`section wrap ${key}`, true))
-            return typeof out === "string" ? out : before
-          } catch (e) {
-            report(`section wrap ${key}: ${e instanceof Error ? e.message : String(e)}`)
-            return before
-          }
+          const out = await runQuiet(`section wrap ${key}`, { group: "wrapSections", name: key }, [before ?? null], envFor({ section: key }), true)
+          return typeof out === "string" ? out : before
         },
       })),
     )

@@ -59,9 +59,7 @@ export class KernelStore {
   async key(): Promise<string | undefined> {
     const row = this.sql.exec<Sealed>("SELECT kek_version, iv, ciphertext FROM kernel WHERE name = 'key'").toArray()[0]
     if (!row) return undefined
-    const key = await open(this.secrets().keyring, this.secrets().userId, KEY_AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) })
-    if (row.kek_version !== this.secrets().keyring.current.version) await this.putKey(key)
-    return key
+    return open(this.secrets().keyring, this.secrets().userId, KEY_AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) })
   }
 
   async putKey(key: string, generation = this.generation): Promise<void> {
@@ -126,9 +124,8 @@ export class KernelStore {
     return JSON.parse(text) as LeaseUrls
   }
 
-  async putLease(row: LeaseRow, urls: LeaseUrls, generation = this.generation): Promise<boolean> {
+  async putLease(row: LeaseRow, urls: LeaseUrls): Promise<void> {
     const sealed = await seal(this.secrets().keyring, this.secrets().userId, LEASE_AAD, JSON.stringify(urls))
-    if (generation !== this.generation) return false
     this.sql.exec(
       `INSERT OR REPLACE INTO kernel_lease (id, session_id, mode, kek_version, iv, ciphertext, created_at, last_use, tabs, takeover, watch_until, dead)
        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -144,7 +141,6 @@ export class KernelStore {
       row.watchUntil,
       row.dead ? 1 : 0,
     )
-    return true
   }
 
   patchLease(patch: Partial<Pick<LeaseRow, "lastUse" | "tabs" | "takeover" | "watchUntil" | "dead">>): void {

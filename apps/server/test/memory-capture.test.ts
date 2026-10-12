@@ -32,7 +32,7 @@ async function rpc(user: string, method: string, ...args: unknown[]) {
 const fact = (id: string) => [{ messageId: id, text: "My sister Sam is a nurse in Leeds.", at: Date.now() }]
 const policy = (user: string, p: Record<string, unknown>) => rpc(user, "devSetting", "memory_policy", JSON.stringify({ jevDelayMs: 600_000, idleMs: 600_000, ...p }))
 
-test("auto capture without a judge queues nothing and tells agents to note; always queues and says capture is on", async () => {
+test("capture without a judge queues nothing and tells agents to note; with a judge it queues, and off stops it", async () => {
   const user = fresh()
   await rpc(user, "createChat", ROOM, "plans")
   await policy(user, {})
@@ -40,7 +40,7 @@ test("auto capture without a judge queues nothing and tells agents to note; alwa
   expect(await rpc(user, "devCaptureQueue")).toBe(0)
   expect((await rpc(user, "turnContext", "anthropic")).captures).toBe(false)
 
-  await policy(user, { capture: "always" })
+  await rpc(user, "connectProvider", "typesafe", `ts-test-${crypto.randomUUID()}`)
   await rpc(user, "captureHuman", ROOM, fact("m2"))
   expect(await rpc(user, "devCaptureQueue")).toBe(1)
   expect((await rpc(user, "turnContext", "anthropic")).captures).toBe(true)
@@ -86,12 +86,9 @@ test("a note with replaces supersedes that live line, and a line no longer live 
   expect(((await rpc(user, "lifeRecall", "pune")) as string[]).length).toBe(1)
 })
 
-test("the judge is the connected judge-only provider, or a chat provider only when the setting names it", () => {
+test("the judge is the connected judge-only provider that has not refused", () => {
   const keys = [{ provider: "anthropic" }, { provider: "opencode" }, { provider: "typesafe" }]
-  expect(pickJudge(keys, () => false)).toEqual({ key: { provider: "typesafe" }, model: null })
+  expect(pickJudge(keys, () => false)).toEqual({ provider: "typesafe" })
   expect(pickJudge(keys.slice(0, 2), () => false)).toBeNull()
   expect(pickJudge(keys, (p) => p.provider === "typesafe")).toBeNull()
-  expect(pickJudge(keys, () => false, "opencode/jev-1.13-free")).toEqual({ key: { provider: "opencode" }, model: "jev-1.13-free" })
-  expect(pickJudge(keys, () => false, "anthropic/claude")).toEqual({ key: { provider: "typesafe" }, model: null })
-  expect(pickJudge(keys, () => false, "jev-latest")).toEqual({ key: { provider: "typesafe" }, model: "jev-latest" })
 })

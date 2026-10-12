@@ -1,21 +1,12 @@
+import { poll } from "../kit"
+import { newRoomId } from "@yuki/protocol"
 import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import { must } from "../must"
 import type { Suite } from "../runner"
-import { until } from "./mid-run"
 
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-const ulid = () => {
-  let t = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[t % 32] + head
-    t = Math.floor(t / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 function seen(room: RoomHandle): { messages: Message[]; files: Map<string, FileRef> } {
   const messages = new Map<string, Message>()
@@ -58,18 +49,18 @@ const suite: Suite = {
     const user = await s.user()
     const ada = { id: `agent-ada-${Date.now()}`, name: "ada", slug: "ada" as never, prompt: "you plan food and drink. opinionated about wine.", model: "" }
     user.send({ t: "agent", op: { op: "create", agent: ada } })
-    const roomId = ulid()
+    const roomId = newRoomId()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "lisbon trip", agents: ["yuki", ada.id] } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
-    const soulNow = async () => ((await (await fetch(new URL(`api/souls/yuki`, v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })).json()) as { body: string }).body
+    const soulNow = async () => ((await (await fetch(new URL(`api/souls/yuki`, v.url), { headers: { cookie: s.cookie } })).json()) as { body: string }).body
     const soulBefore = await soulNow()
     const fail: string[] = []
 
     let from = lastSeq(room)
     let t0 = Date.now()
     room.send("what's a good neighborhood to stay in lisbon?")
-    await until("yuki's answer", () => yukiSays(room, from).length > 0, 90_000)
+    await poll("yuki's answer", () => yukiSays(room, from).length > 0, 90_000)
     await quiet(room, 5_000, 60_000)
     const voice = yukiSays(room, from).map((m) => m.text)
     console.log(`  voice (${Date.now() - t0} ms): ${JSON.stringify(voice)}`)
@@ -81,7 +72,7 @@ const suite: Suite = {
     from = lastSeq(room)
     t0 = Date.now()
     room.send("@yuki from now on, never use emojis with me, and always give me exactly one recommendation, not a list.")
-    await until("yuki's reply", () => yukiSays(room, from).length > 0, 90_000)
+    await poll("yuki's reply", () => yukiSays(room, from).length > 0, 90_000)
     await quiet(room, 6_000, 60_000)
     const reply = yukiSays(room, from).map((m) => m.text)
     const soulAfter = await soulNow()
@@ -96,11 +87,11 @@ const suite: Suite = {
     if (!seen(room).files.has("chat.md")) fail.push("chat file: the room did not seed /chat.md for the group")
     const budget = `${600 + Math.floor(Math.random() * 300)} euros`
     room.send(`ok decided: the budget is ${budget} for the whole trip, and we fly on the 14th.`)
-    await until("yuki's reply", () => yukiSays(room, from).length > 0, 90_000)
+    await poll("yuki's reply", () => yukiSays(room, from).length > 0, 90_000)
     await quiet(room, 8_000, 90_000)
     console.log(`  decision reply (${Date.now() - t0} ms): ${JSON.stringify(yukiSays(room, from).map((m) => m.text))}`)
     const chat = seen(room).files.get("chat.md")
-    const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
+    const base = new URL(`api/files/${roomId}/`, v.url)
     const text = chat ? await (await fetch(new URL(chat.id, base), { headers: { cookie: s.cookie } })).text() : ""
     console.log(`  /chat.md: ${JSON.stringify(text)}`)
     if (!text.includes(must(budget.split(" ")[0], "the budget's first word"))) fail.push("chat file: the budget is not in /chat.md")

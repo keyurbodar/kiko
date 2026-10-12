@@ -57,6 +57,10 @@ export class StoreDO extends DurableObject<Env> {
 
   async call(op: string, args: unknown[]): Promise<unknown> {
     try {
+      if (op === "__corruptBundleText") {
+        this.ctx.storage.sql.exec("UPDATE extensions SET bundle = 'not json' WHERE name = ?", args[0] as string)
+        return { ok: true }
+      }
       const fn = (this.store as unknown as Record<string, (...a: unknown[]) => unknown>)[op]
       if (!fn) throw new Error(`no op ${op}`)
       return { ok: true, value: await fn.apply(this.store, args) }

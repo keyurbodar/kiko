@@ -1,3 +1,4 @@
+import { idles } from "../kit"
 import { newRoomId, type RoomToClient } from "@yuki/protocol"
 import { connectTestModel, type Verifier, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -21,7 +22,7 @@ const LINES = [
   "what should i read next if i liked dune",
 ]
 
-async function chat(v: Pick<Verifier, "url" | "as">, mode: "classic" | "memory") {
+async function chat(v: Pick<Verifier, "url" | "as">, mode: "memory") {
   const s = await v.as(`tokens-${mode}-${Date.now().toString(36)}`)
   await connectTestModel(s)
   const user = await s.user()
@@ -29,12 +30,6 @@ async function chat(v: Pick<Verifier, "url" | "as">, mode: "classic" | "memory")
   user.send({ t: "chat", op: { op: "create", roomId, title: `tokens ${mode}` } })
   await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
   const room = await s.room(roomId)
-  if (mode === "classic") await dev(v.url, s.cookie, "classic", { roomId })
-  const idles = () =>
-    room.raw.log.filter((e) => {
-      const f = e.frame
-      return e.dir === "in" && typeof f === "object" && f !== null && "t" in f && f.t === "status" && "state" in f && f.state === "idle"
-    }).length
   const answers = () => {
     const out: string[] = []
     for (const e of room.raw.log) {
@@ -44,10 +39,10 @@ async function chat(v: Pick<Verifier, "url" | "as">, mode: "classic" | "memory")
     return out
   }
   const send = async (text: string) => {
-    const before = idles()
+    const before = idles(room)
     room.send(text)
     const end = Date.now() + 90_000
-    while (idles() <= before) {
+    while (idles(room) <= before) {
       if (Date.now() > end) throw new VerifyError(`${mode}: no answer to ${JSON.stringify(text)}`)
       await Bun.sleep(300)
     }
@@ -73,7 +68,7 @@ async function chat(v: Pick<Verifier, "url" | "as">, mode: "classic" | "memory")
     for (const e of room.raw.log.slice(Math.max(0, from))) if (e.dir === "in") console.log(`    ${mode} event: ${JSON.stringify(e.frame).slice(0, 300)}`)
     console.log(`    ${mode} trace: ${JSON.stringify(await dev(v.url, s.cookie, "trace", { roomId })).slice(0, 2000)}`)
   }
-  await Bun.sleep(mode === "memory" ? 60_000 : 0)
+  await Bun.sleep(60_000)
   const memory = (await usage()).memory
   room.raw.close()
   return { perRun, memory, recalled }
@@ -86,8 +81,8 @@ const suite: Suite = {
   name: "token-cost",
   model: true,
   async run(v) {
-    const modes = (process.env.YUKI_TOKEN_MODES ?? "classic,memory").split(",") as ("classic" | "memory")[]
-    const results: Partial<Record<"classic" | "memory", Awaited<ReturnType<typeof chat>>>> = {}
+    const modes = (process.env.YUKI_TOKEN_MODES ?? "memory").split(",") as "memory"[]
+    const results: Partial<Record<"memory", Awaited<ReturnType<typeof chat>>>> = {}
     for (const m of modes) results[m] = await chat(v, m)
     for (const [mode, r] of Object.entries(results) as [string, NonNullable<(typeof results)["memory"]>][]) {
       const first = r.perRun.slice(0, 5)

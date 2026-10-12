@@ -5,7 +5,7 @@ import type { Suite } from "../runner"
 const suite: Suite = {
   name: "selftest",
   async run(v) {
-    const base = v.url.endsWith("/") ? v.url : `${v.url}/`
+    const base = v.url
     const health = await fetch(new URL("api/health", base)).catch(() => null)
     if (!health?.ok) throw new VerifyError(`${v.url} is not healthy`)
     const a = await v.as("selftest-a")

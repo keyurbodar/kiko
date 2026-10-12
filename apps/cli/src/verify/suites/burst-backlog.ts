@@ -1,6 +1,7 @@
+import { newRoom, poll, seen } from "../kit"
 import { VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { fake, newRoom, seen, until } from "./mid-run"
+import { fake } from "./mid-run"
 
 
 const COUNT = 250
@@ -13,7 +14,7 @@ const suite: Suite = {
     await fake(v, s, roomId)
     for (let i = 0; i < COUNT; i++) room.send(`b${i}x`)
     const heard = () => seen(room).live.flatMap((m) => [...m.text.matchAll(/\bb(\d+)x\b/g)].map((x) => Number(x[1])))
-    await until(`all ${COUNT} messages heard`, () => new Set(heard()).size === COUNT, 120_000)
+    await poll(`all ${COUNT} messages heard`, () => new Set(heard()).size === COUNT, 120_000)
     await Bun.sleep(2_000)
     const all = heard()
     const twice = all.filter((n, i) => all.indexOf(n) !== i)

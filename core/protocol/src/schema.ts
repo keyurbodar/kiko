@@ -17,7 +17,6 @@ export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 
 export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "run_budget", "limit", "files", "created", "routine", "stalled", "initiative"])
-export const Origin = Schema.Literals(["human", "routine", "auto"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })
@@ -35,7 +34,6 @@ export const Envelope = Schema.Struct({
 	hop: Count,
 	rootId: Id,
 	seq: Count,
-	origin: Schema.optionalKey(Origin),
 })
 
 
@@ -239,7 +237,6 @@ export const ClientToRoom = Schema.Union([
 		replyTo: Schema.optionalKey(MessageId),
 		quote: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1000))),
 		attachments: Schema.optionalKey(Schema.Array(PendingAttachment)),
-		files: Schema.optionalKey(Schema.Array(FileRef)),
 	}),
 	Schema.Struct({ t: Schema.Literal("react"), messageId: MessageId, emoji: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("edit"), messageId: MessageId, text: Schema.String }),

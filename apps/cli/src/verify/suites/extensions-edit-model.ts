@@ -1,7 +1,8 @@
+import { newRoom, poll, seen } from "../kit"
 import type { ExtensionOp, ExtensionProposal, ExtensionResult, RoomToClient, UserEvent } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { newRoom, seen, send, until } from "./mid-run"
+import { send } from "./mid-run"
 import { must as mustPresent } from "../must"
 
 
@@ -30,7 +31,7 @@ const suite: Suite = {
     const replyAfter = async (text: string, ms: number) => {
       const before = seen(room).live.length
       await send(room, text)
-      await until("the agent's reply", () => seen(room).live.length > before, ms)
+      await poll("the agent's reply", () => seen(room).live.length > before, ms)
       for (let quiet = Date.now(); Date.now() - quiet < 20_000; await Bun.sleep(1_000)) {
         const count = seen(room).live.length
         await Bun.sleep(1_000)

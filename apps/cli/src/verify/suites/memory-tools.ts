@@ -1,20 +1,10 @@
-import type { MemoryOp, MemoryResult, RoomToClient } from "@yuki/protocol"
-import type { RoomHandle, UserChannel } from "../client"
+import { agentText, newRoom } from "../kit"
+import type { MemoryOp, MemoryResult, } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { must } from "../must"
 
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-  let time = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[time % 32] + head
-    time = Math.floor(time / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 function codename(): string {
   const consonants = "bdfgklmnprstvz"
@@ -23,25 +13,6 @@ function codename(): string {
   return `${pick(consonants)}${pick(vowels)}${pick(consonants)}${pick(vowels)}${pick(consonants)}${pick(vowels)}lix`
 }
 
-async function openChat(user: UserChannel, s: { room(id: string): Promise<RoomHandle> }, title: string): Promise<RoomHandle & { id: string }> {
-  const roomId = ulid()
-  user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title } })
-  await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
-  const room = await s.room(roomId)
-  await room.expect((f) => f.t === "events")
-  return Object.assign(room, { id: roomId })
-}
-
-function agentText(room: RoomHandle): string {
-  const texts: string[] = []
-  for (const entry of room.raw.log) {
-    if (entry.dir !== "in") continue
-    const frame = entry.frame as RoomToClient
-    if (frame.t !== "events") continue
-    for (const e of frame.events) if (e.t === "message" && e.from.kind === "agent") texts.push(e.text)
-  }
-  return texts.join("\n")
-}
 
 const suite: Suite = {
   name: "memory-tools",
@@ -59,7 +30,7 @@ const suite: Suite = {
     }
     const name = codename()
 
-    const first = await openChat(user, s, "memory one")
+    const first = (await newRoom(s, "memory one")).room
     first.send(`my sister's name is ${name.charAt(0).toUpperCase() + name.slice(1)}. remember that. reply in five words.`)
 
     let saved = ""
@@ -75,7 +46,7 @@ const suite: Suite = {
     console.log(`  saved ${saved}`)
     for (let i = 0; i < 60 && !agentText(first); i++) await Bun.sleep(500)
 
-    const second = await openChat(user, s, "memory two")
+    const second = (await newRoom(s, "memory two")).room
     second.send("what is my sister's name? answer with just the name.")
     const until = Date.now() + 60_000
     while (!agentText(second).toLowerCase().includes(name)) {

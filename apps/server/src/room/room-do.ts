@@ -1,21 +1,19 @@
 import { isAgentSlug, tagline } from "@yuki/protocol"
 import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp } from "@yuki/protocol"
 import { DurableObject } from "cloudflare:workers"
-import { instrument } from "../lib/dev-stats"
-import { loadRoomDev } from "../lib/dev-guard"
+import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
 import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
 import { RoomRoutines } from "./routines"
 import { SignalWindow, SIGNALS_WAKEUP } from "./signals"
-import { HELD_WAKEUP, HeldWakes, type Wake, type WakeResult } from "./wake"
+import type { Wake, WakeResult } from "./wake"
 
 import { chatTasks, openTasks } from "./open-tasks"
 import type { RoomRoutine } from "../user/routines"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
-import { closeSockets, isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { sha256Hex } from "@yuki/durable/hash"
-import { BURST_HELD_WAKEUP, BURST_WAKEUP, Burst } from "./burst"
+import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
@@ -32,7 +30,7 @@ import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult,
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, reactionBrief } from "./reactions"
-import { attachmentPath, claim, ClaimRefused, legacyFiles, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
+import { attachmentPath, claim, ClaimRefused, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
 import { bubbleOf, discardWhole, putWhole, WHOLE_NAME, WHOLE_TYPE, type WholeText } from "./whole-text"
 import { tags } from "./recipients"
 import { migrate } from "@yuki/durable/migrate"
@@ -92,7 +90,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private wakes!: RoomWakes
 	private mailer!: RoomMail
 	private receiver!: ReceiveDeps
-	private outbox!: HeldWakes
 	private pending!: PendingUploads
 	private readonly typing = new Set<AgentSlug>()
 	private sends: Promise<unknown> = Promise.resolve()
@@ -125,10 +122,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
-			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home(), isWiped: () => isWiped(ctx.storage) })
+			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home() })
 			this.proposals = new Proposals({ ctx, env: this.env, log: this.log, members: this.members, home: () => this.home(), chat: (home) => this.chat(home), publish: (events) => this.publish(events), memberOp: (op) => this.memberOp(op), writeChatFile: (slug, text) => this.writeChatFile(slug, text) })
 			this.pending = new PendingUploads(ctx.storage.sql)
-			this.outbox = new HeldWakes(ctx.storage.sql)
 			this.signals = new SignalWindow(ctx.storage.sql, () => this.log.meta("room_id"))
 			this.reports = new Reports({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, mail: this.mail, routines: this.routines, signals: this.signals, home: () => this.home() })
 			this.wakes = new RoomWakes({
@@ -138,7 +134,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				mail: this.mail,
 				deliveries: this.deliveries,
 				routines: this.routines,
-				outbox: this.outbox,
 				alarms: this.alarms,
 				workspace: this.workspace,
 				burst: this.burst,
@@ -164,13 +159,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				ctx,
 				members: this.members,
 				burst: this.burst,
-				outbox: this.outbox,
-				alarms: this.alarms,
 				home: () => this.home(),
 				chat: (home) => this.chat(home),
 				seedMembers: (home, chat) => this.seedMembers(home, chat),
 				drainMail: () => this.mailer.drain(),
-				retryHeld: () => this.retryHeld(),
 			})
 		})
 	}
@@ -299,15 +291,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await runDue(this.alarms, due, {
 			[HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
 			[BURST_WAKEUP]: () => this.burstFlush.flush(),
-			[BURST_HELD_WAKEUP]: () => this.burstFlush.flush(),
 			[WAKES_WAKEUP]: () => this.deliverWakes(),
 			[MAIL_WAKEUP]: () => this.mailer.drain(),
 			[MEMORY_WAKEUP]: () => this.memoryNaps.naps(),
 			[QUIET_WAKEUP]: () => this.memoryNaps.rollupQuiet(),
 			[SIGNALS_WAKEUP]: () => this.reports.flush(),
-			[HELD_WAKEUP]: () => this.retryHeld(),
 			[PENDING_WAKEUP]: () => this.sweepPending(),
-		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [SIGNALS_WAKEUP]: 5_000, [HELD_WAKEUP]: 5_000 } })
+		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [SIGNALS_WAKEUP]: 5_000 } })
 		if (!due.includes(MAIL_WAKEUP) && this.mail.queued()) await this.mailer.drain()
 	}
 
@@ -413,10 +403,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const userId = request.headers.get(USER_ID_HEADER)
 		const roomId = request.headers.get(ROOM_ID_HEADER)
 		if (!userId || !roomId) return new Response("missing room identity", { status: 400 })
-		if (this.#closed || (await isWiped(this.ctx.storage))) return new Response("account deleted", { status: 410 })
 		if (this.log.meta("user_id") === null) {
-			const recorded = this.env.USER ? await userStub(this.env.USER, userId).recordRoom(roomId as RoomId) : true
-			if (!recorded) return new Response("account deleted", { status: 410 })
 			this.log.setMeta("user_id", userId)
 			this.log.setMeta("room_id", roomId)
 		}
@@ -471,7 +458,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				.then(async () => {
 					this.#touching = false
 					const home = this.home()
-					if (home && !(await isWiped(this.ctx.storage))) await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
+					if (home) await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
 				})
 				.catch((error) => console.error(`touchChat failed: ${error instanceof Error ? error.message : String(error)}`)),
 		)
@@ -493,7 +480,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.wakes.initiativeWake(input)
 	}
 
-	deliverRoutine(deliveryId: string, input: { target: string; body: string; budget: Wake["budget"] }): Promise<WakeResult> {
+	deliverRoutine(deliveryId: string, input: { target: string; body: string }): Promise<WakeResult> {
 		return this.wakes.deliverRoutine(deliveryId, input)
 	}
 
@@ -515,10 +502,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await userStub(this.env.USER, home.userId).chatTasks(home.roomId, chatTasks(rows)).catch(() => {})
 	}
 
-	async runTimedOut(slug: AgentSlug): Promise<void> {
-		this.reports.run(this.routines.dropped(slug), "timeout")
-	}
-
 	async systemNotice(id: string, text: string, reason: SystemReason = "run_budget"): Promise<void> {
 		const event = this.deliveries.notice(id, text, reason)
 		if (event) this.publish([event])
@@ -526,10 +509,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	wake(w: Wake): Promise<WakeResult> {
 		return this.wakes.wake(w)
-	}
-
-	private retryHeld(): Promise<void> {
-		return this.wakes.retryHeld()
 	}
 
 	/**
@@ -555,9 +534,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const earlier = this.log.sentBefore(frame.clientId)
 				if (earlier) return { ack: earlier, events: [] }
 				const now = Date.now()
-				const claimed = frame.attachments?.length
-					? claim(this.pending, this.files, frame.attachments, now)
-					: { refs: frame.files?.length ? legacyFiles(this.files, frame.files) : [], events: [] }
+				const claimed = frame.attachments?.length ? claim(this.pending, this.files, frame.attachments, now) : { refs: [], events: [] }
 				const filed = whole
 					? this.files.put({ id: whole.id, path: attachmentPath(WHOLE_NAME, now, (p) => this.files.stat(p) !== null), r2Key: whole.r2Key, size: whole.size, type: WHOLE_TYPE, sha256: whole.sha256, author: { kind: "human" }, expectSha256: "none" })
 					: null
@@ -898,28 +875,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	async close(): Promise<void> {
-		this.#closed = true
-		closeSockets(this.ctx)
-	}
-	#closed = false
-
-	async inventory(): Promise<{ agents: AgentSlug[]; keys: string[] }> {
-		if (await isWiped(this.ctx.storage)) return { agents: [], keys: [] }
-		const sql = this.ctx.storage.sql
-		const agents = this.members.everyone()
-		const keys = sql.exec<{ r2_key: string }>("SELECT r2_key FROM ws_files").toArray().map((r) => r.r2_key)
-		return { agents, keys: [...keys, ...this.pending.keys()] }
-	}
-
-	async deleteAll(): Promise<number> {
-		return wipeStorage(this.ctx)
-	}
-
-	async storedRows(): Promise<number> {
-		return storedRows(this.ctx.storage)
-	}
-
 	// The dev-only bodies live in room/dev.ts, which only a development build can load. One cached load
 	// per object reaches every dev method below.
 	private devCache?: Promise<RoomDev>
@@ -958,10 +913,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	async devAgePending(ms: number): Promise<number> {
 		return (await this.dev()).agePending(ms)
-	}
-
-	async devAgentMessage(slug: AgentSlug, text: string): Promise<void> {
-		return (await this.dev()).agentMessage(slug, text)
 	}
 
 	async browserShare(slug: AgentSlug, reason: string): Promise<boolean> {

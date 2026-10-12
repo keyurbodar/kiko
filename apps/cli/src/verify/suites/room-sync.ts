@@ -1,3 +1,4 @@
+import { newRoomId } from "@yuki/protocol"
 import type { RoomEvent, RoomToClient } from "@yuki/protocol"
 import { ClientToRoom, RoomToClient as RoomToClientSchema } from "@yuki/protocol/schema"
 import { Channel, expectEqual, VerifyError } from "../client"
@@ -7,17 +8,6 @@ import type { Suite } from "../runner"
 /** workerd evicts an idle object after about 10 s. The sockets stay open and the room hibernates. */
 const HIBERNATE_MS = Number(process.env.YUKI_HIBERNATE_MS ?? 12_000)
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-	let time = Date.now()
-	let head = ""
-	for (let i = 0; i < 10; i++) {
-		head = CROCKFORD[time % 32] + head
-		time = Math.floor(time / 32)
-	}
-	const tail = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-	return head + tail
-}
 
 type In = RoomToClient
 const isEvents = (f: In): f is Extract<In, { t: "events" }> => f.t === "events"
@@ -27,7 +17,7 @@ const suite: Suite = {
 	name: "room-sync",
 	async run(v) {
 		const s = await v.as("room-sync")
-		const roomId = ulid()
+		const roomId = newRoomId()
 		const phone = await s.room(roomId)
 		const laptop = await s.room(roomId)
 		expectEqual(await phone.expect(isEvents), { t: "events", events: [] }, "a new room replays nothing")
@@ -107,7 +97,7 @@ const suite: Suite = {
 }
 
 function wsUrl(base: string, path: string): URL {
-	const u = new URL(path, base.endsWith("/") ? base : `${base}/`)
+	const u = new URL(path, base)
 	u.protocol = u.protocol === "https:" ? "wss:" : "ws:"
 	return u
 }

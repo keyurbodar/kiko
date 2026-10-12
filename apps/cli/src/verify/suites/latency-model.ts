@@ -1,7 +1,9 @@
+import { poll, seen } from "../kit"
+import { newRoomId } from "@yuki/protocol"
 import { connectTestModel } from "../client"
 import type { Suite } from "../runner"
 import { Samples, timedTurn } from "./latency"
-import { seen, send, ulid, until } from "./mid-run"
+import { send } from "./mid-run"
 
 
 const RUNS = Number(process.env.YUKI_LATENCY_RUNS ?? 10)
@@ -14,7 +16,7 @@ const suite: Suite = {
     const s = await v.as("latency")
     await connectTestModel(s)
     const user = await s.user()
-    const roomId = ulid()
+    const roomId = newRoomId()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "latency model" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
@@ -27,9 +29,9 @@ const suite: Suite = {
       const before = seen(room).live.length
       const t0 = performance.now()
       await send(room, `web ${i}: what is the main heading on https://example.com? one line.`)
-      await until("a first bubble", () => seen(room).live.length > before, 90_000)
+      await poll("a first bubble", () => seen(room).live.length > before, 90_000)
       samples.add("web question: send to first bubble", performance.now() - t0)
-      await until("the answer", () => seen(room).live.slice(before).some((m) => /example domain/i.test(m.text)), 120_000)
+      await poll("the answer", () => seen(room).live.slice(before).some((m) => /example domain/i.test(m.text)), 120_000)
       samples.add("web question: send to answer", performance.now() - t0)
       await Bun.sleep(3_000)
     }

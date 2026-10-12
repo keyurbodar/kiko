@@ -1,7 +1,7 @@
 import { CliError, type Context } from "../main"
 
 export async function health(ctx: Context): Promise<void> {
-  const url = new URL("api/health", ctx.url.endsWith("/") ? ctx.url : `${ctx.url}/`)
+  const url = new URL("api/health", ctx.url)
   let res: Response
   try {
     res = await fetch(url, { signal: AbortSignal.timeout(5000) })

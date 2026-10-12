@@ -52,7 +52,7 @@ test("the wrapper passes conformance when it holds every single-delta commit", a
   expect(results.length).toBe(CONFORMANCE_CASES)
 }, 60_000)
 
-type Measurement = { status: string; rowsWritten: number; commits: number; held: number; answerChars: number }
+type Measurement = { status: string; rowsWritten: number; commits: number; answerChars: number }
 
 test("a coalesced turn writes fewer rows and gives the same answer", async () => {
   const [plain, coalesced] = await Promise.all([
@@ -64,13 +64,11 @@ test("a coalesced turn writes fewer rows and gives the same answer", async () =>
     expect(m.status).toBe("done")
     expect(m.answerChars).toBeGreaterThan(0)
   }
-  expect(plain.held).toBe(0)
-  expect(coalesced.held).toBeGreaterThan(10)
   expect(coalesced.rowsWritten).toBeLessThan(plain.rowsWritten / 2)
 }, 60_000)
 
 type Crash = {
-  info: { pending: number; memoryChars: number; storedChars: number }
+  info: { memoryChars: number; storedChars: number }
   messages: { text: string; stopReason?: string }[]
   answer: string
   recovered: string
@@ -87,7 +85,6 @@ test("a crash inside a window still resumes to a correct answer", async () => {
   const result = await call<Crash>({ op: "resume" }, await object(id))
   const { info, messages, answer, recovered } = result
   console.log("crash inside a window:", info)
-  expect(info.pending).toBeGreaterThan(0)
   expect(info.storedChars).toBeGreaterThan(0)
   expect(info.memoryChars).toBeGreaterThan(info.storedChars)
   expect(messages).toHaveLength(2)

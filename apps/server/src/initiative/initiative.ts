@@ -1,6 +1,7 @@
 import type { Judge } from "@yuki/memory/judge"
 import { keywords, type Life } from "@yuki/memory/life"
 import { type BurstCheck, type Loop, type Loops, NAP_LOOPS_SYSTEM, napLoopsPrompt, parseNapLoops, sentencesOf } from "@yuki/memory/loops"
+import { escapeXml } from "@yuki/agent/text"
 import { isAgentSlug } from "@yuki/protocol"
 import { day, SHARED_WORDS } from "./engine"
 import { classifyBurst } from "./judge"
@@ -27,7 +28,6 @@ const RELATED_MAX = 3
 const NAP_KNOWN = 12
 
 const ref = (roomId: string, messageId: string) => `room:${roomId}:msg:${messageId}`
-const escapeXml = (t: string) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
 
 export class Initiative {
   constructor(private readonly deps: InitiativeDeps) {}

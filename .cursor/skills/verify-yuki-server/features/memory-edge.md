@@ -8,7 +8,7 @@ Needs, in the shell: `OPENCODE_API_KEY`. The Jev cases (5, 7, 9, 10, 12) also ne
 bun yuki verify memory-edge --url http://localhost:8787
 ```
 
-Typical time: about 5 to 6 minutes. Policy is batch 2, idle 3 s, Jev delay 1 s, and most cases set `capture: "always"`. A fresh user per run.
+Typical time: about 5 to 6 minutes. Policy is idle 3 s, Jev delay 1 s, and capture `auto`; the capture-off case sets `off`. A fresh user per run.
 
 Each case prints `ok <case>: <evidence>`:
 

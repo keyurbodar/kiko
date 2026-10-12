@@ -24,7 +24,7 @@ import { BROWSER_EXT, type BrowserToolDeps, browserExtension } from "./browser/t
 import { baseSections, type RoleInput } from "./prompt"
 import { compileExtension, type Installed, type ScriptPorts, VmPool } from "@yuki/sandbox/compile"
 import { type BuilderPorts, builderExtension } from "./extensions/builder"
-import { count } from "../lib/dev-stats"
+import { count } from "../lib/dev-guard"
 
 export type BuildAgentInput = RoleInput & {
   model: ModelRef

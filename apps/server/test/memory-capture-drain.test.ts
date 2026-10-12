@@ -35,7 +35,7 @@ function setup(refuse?: string) {
     turn: async () => ({}) as never,
     loops: () => ({}) as never,
   })
-  mem.judgeKey = () => ({ key: {} as never, model: null })
+  mem.judgeKey = () => ({}) as never
   mem.judge = () => judge
   return { sql, mem }
 }

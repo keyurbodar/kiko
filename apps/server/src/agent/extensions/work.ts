@@ -8,7 +8,7 @@ import { MESSAGING } from "./messaging"
 import { REMINDERS } from "./reminders"
 import { WORKSPACE } from "./workspace"
 import { WORK_LINES } from "../prompt"
-import { count } from "../../lib/dev-stats"
+import { count } from "../../lib/dev-guard"
 
 export const WORK = "work"
 export const WORK_STEPS = "work-steps"
