@@ -165,7 +165,7 @@ Not taken: handing pi's long waits to the alarm, because pi caps its retry wait 
 
 A human message takes this path.
 
-1. The client renders the bubble at once and sends `send {clientId, text, replyTo, files}` on the room WebSocket.
+1. The client renders the bubble at once and sends `send {clientId, text, replyTo, quote, attachments}` on the room WebSocket.
 2. `RoomDO` stores the message, assigns the next `seq`, acknowledges, and broadcasts. `clientId` has a unique index, so a resend after a reconnect stores nothing twice.
 3. `RoomDO` adds the message to the `pending` burst and sets the debounce wakeup.
 4. When the wakeup fires with no newer message, `RoomDO` resolves the recipients (section 7.2) and delivers the whole burst to each one in a single `receive()` call. Recipients come from the mentions of each message's whole text, which the row keeps at send time, so a mention past the bubble limit still routes.
@@ -501,7 +501,7 @@ Every stored change in a room has a `seq` that only increases. The client stores
 ```ts
 type ClientToRoom =
 	| { t: "hello"; lastSeq: number }
-	| { t: "send"; clientId: string; text: string; replyTo?: string; files?: FileRef[] }
+	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; quote?: string; attachments?: readonly PendingAttachment[] }
 	| { t: "react"; messageId: string; emoji: string | null }
 	| { t: "edit"; messageId: string; text: string }
 	| { t: "delete"; messageId: string }
@@ -787,17 +787,15 @@ Phase 15, after comparing yuki with bops, memoryrepo, and Honcho on 2026-10-10. 
 
 **Judge-only capture.** Base-path capture without a judge cost too much for what it found. Measured with Muse Spark 1.3 on 2026-10-10 by `bun yuki verify token-cost`: in a 30-turn chat, capture made 4 to 7 background model calls and found no new fact. Background spend rose from 1,179 to 8,076 and 18,557 tokens, while the agent's own spend stayed flat (44,838 and 41,250 against 45,027). UNVERIFIED beyond these runs.
 
-So the `capture` field of `memory_policy` has three values:
+So the `capture` field of `memory_policy` has two values:
 
 - `auto` (default). Capture runs only when a judge is connected. Without one, agents keep the `note` rule at no extra cost.
-- `always`. Capture runs on the base path when there is no judge, for users who want it.
 - `off`. No automatic capture. `note` still saves facts.
 
 **Capture.** `RoomDO` hands each delivered burst's human messages to `UserDO.captureHuman`. Private chats hand nothing. `UserDO` queues them (`capture_queue`) and works in its own wakeup, never on the path of a reply.
 
-- Capture runs only when it pays. The policy's `capture` is `auto` (the default), `always`, or `off`; a stored `true` means `auto` and `false` means `off`. `auto` captures only while a judge is ready, and with none `captureHuman` queues nothing. `always` takes the base path below when there is no judge. Measured with Muse Spark 1.3 on a 30-turn chat: the base path made 4 to 7 background model calls that found no new fact, and background spend went from 1,179 to between 8,076 and 18,557 tokens while the agent's own spend stayed flat.
+- Capture runs only when it pays. The policy's `capture` is `auto` (the default) or `off`. A stored `true` means `auto` and `false` means `off`, and a stored `always` from before the base path was removed reads as `auto`. Capture runs only while a judge is ready, and with none `captureHuman` queues nothing.
 - With a judge, code splits each message into sentences and one Jev request judges the sentences of up to four messages, so a long queue never makes one request too big to answer. A chunk Jev does not answer stays queued; the chunks around it are still settled. Per sentence it asks: worth keeping for months, private, a standing rule for how to help, a card tag, and, for each known fact nearby, "says the same" and "makes it no longer true". The sentences and their nearby facts go in the request's `state` once, and each question points at them by path (`candidates[0].known[2].text`), so no text is sent twice. The kept sentence is stored word for word, so Jev picks text and never writes it. A first version asked one choice over every known fact. Two copies of "lives in Bangalore" split the replace vote 0.41 and 0.10, and "new" won at 0.49. One yes or no per fact fixed it, and a correction now replaces every copy.
-- Without one, under `always`, the memory model reads a batch (8 messages, or a minute of quiet) and answers in a four-line format: new, same, replaces, with an optional card tag. Each fact names the message it came from.
 - Nearby facts are keyword matches, then the card, then the newest facts. A correction often shares no word with what it corrects ("i moved to pune" against "lives in Bangalore").
 - The note rule follows capture on every run. `UserDO.turnContext` says whether capture is on (`captures`), and the memory extension reads it through its port. With capture on, `note` is for facts an agent finds out itself, in a file, a tool, or a teammate's message. With it off, the rule is the original one: note a new fact the moment you learn it. A note carries the ref of the human message it answers.
 - `note` takes an optional `replaces`, a life id such as `life:12`, and supersedes that line when it is live. The tool's answer names the new line's id, so a later run in the same transcript can correct it. This gives corrections to users without a judge at no background cost.
@@ -807,7 +805,7 @@ So the `capture` field of `memory_policy` has three values:
 - The judge is pi-ai's own `typesafe` classifier provider (api `typesafe-system-one`, model from the pi-ai catalog). Yuki adds no client and no model list.
 **The note rule.** `note` stays for facts an agent finds out itself, in a file, a tool, or a teammate's message. The rule is chosen per run. With capture active, it says the human's own words are saved without `note`. Otherwise the agent gets the original rule, which asks it to call `note` for lasting facts from the human too. A note carries the ref of the human message it answers.
 
-**Judge availability.** Settings decides "model provider" from the pi-ai catalog's chat models, and "judge" from its classifier models. Neither list has a hardcoded id. A provider is a judge when the catalog gives it classifier models and the user has a credential. Every judgment reads the credential when it runs, so adding or removing a key mid-session changes the next capture and nothing else. A key the API refuses is marked, and Settings says "Key refused". Under `auto`, capture then stops and `note` carries the facts. Under `always`, capture takes the base path. Any judge failure returns no answer, and the caller falls back the same way.
+**Judge availability.** Settings decides "model provider" from the pi-ai catalog's chat models, and "judge" from its classifier models. Neither list has a hardcoded id. A provider is a judge when the catalog gives it classifier models and the user has a credential. Every judgment reads the credential when it runs, so adding or removing a key mid-session changes the next capture and nothing else. A key the API refuses is marked, and Settings says "Key refused". Capture then stops and `note` carries the facts. Any judge failure returns no answer, and the caller falls back the same way.
 
 **Replacement and forgetting.** `life` gains `ref`, `superseded_by`, and `card`. `note` gains an optional `replaces`, a life id such as `life:12`, so a user without a judge still gets corrections that replace the old fact. A replaced line leaves recall and the card, and the summaries above it rebuild. Deleting or editing a message redacts every line with its ref, and an edit is queued again. A redacted correction brings back what it replaced. A rollup's ref is its turn span, so a deleted turn takes its rollup too.
 
@@ -817,15 +815,14 @@ So the `capture` field of `memory_policy` has three values:
 
 **Policy.** Thresholds, timings, and the `capture` field are one user setting, `memory_policy`, merged over defaults in `core/memory/src/capture.ts`, so they change without a deploy.
 
-**Jev is dynamic.** Jev comes from pi-ai: the `typesafe` provider's classifier model, called with `models.classify`. Yuki has no adapter of its own. A judge is a connected provider that pi-ai lists classifier models for. The key is sealed like any other and listed in Settings. Every judgment looks the key up when it runs, so adding or removing it mid-session, with agents running, changes the next capture and nothing else. The model is the user setting `judge_model` when set, else the provider's first classifier model. A key the API refuses (pi-ai's error carries 401 or 403) is marked by its last four, Settings says "Key refused", and the mark clears when the key changes. Any other failure returns no answer: `always` takes the base path, and `auto` keeps the messages queued for the judge.
+**Jev is dynamic.** Jev comes from pi-ai: the `typesafe` provider's classifier model, called with `models.classify`. Yuki has no adapter of its own. A judge is a connected provider that pi-ai lists classifier models for. The key is sealed like any other and listed in Settings. Every judgment looks the key up when it runs, so adding or removing it mid-session, with agents running, changes the next capture and nothing else. The model is the user setting `judge_model` when set, else the provider's first classifier model. A key the API refuses (pi-ai's error carries 401 or 403) is marked by its last four, Settings says "Key refused", and the mark clears when the key changes. Any other failure returns no answer, and the messages stay queued for the judge.
 
 DEVIATION: pi-ai 1.0.0 also lists classifier models for OpenCode, OpenRouter, Vercel AI Gateway, and Cloudflare Workers AI, which are chat providers most users already have. Counting them would turn on background judgments, billed to a chat key, for nearly everyone. So a provider with only classifier models (TypeSafe today) is a judge on its own, and one that also runs chat models is a judge only when `judge_model` names it as `provider/model`. Settings learns which providers run chat models and which judge from pi-ai's catalog (`classifiers` in the catalog asset, and `chat` and `judge` on each saved provider), never from a provider id.
 
 **Measured, 2026-10-10.** All with Muse Spark 1.3 through OpenCode Go and the real Jev API.
 
-- `bun yuki verify memory-jev` passed in six runs with the final suite, the last two after the final capture change (about 50 s each): no capture and an agent note without a judge, the base path under `always`, the key added mid-session with Jev replacing Bangalore by Pune, a bank pin never stored, chat B answering "You live in Pune and your sister works as a nurse in Lisbon.", a deleted message forgotten 1.0 s later, a refused key marked in Settings, and the key removed.
+- `bun yuki verify memory-jev` passed in six runs with the final suite, the last two after the final capture change (about 50 s each): no capture and an agent note without a judge, the key added mid-session with Jev replacing Bangalore by Pune, a bank pin never stored, chat B answering "You live in Pune and your sister works as a nurse in Lisbon.", a deleted message forgotten 1.0 s later, a refused key marked in Settings, and the key removed.
 - `bun yuki verify memory-edge` passed three runs in a row on the final code, 13 cases each: a private chat, capture off, an edit, a correction through `note replaces` without a judge, two chats at once, a repeated fact, a key added while capture is queued, deleting a correction, a long message, eight similar friends, a Spanish fact, and a group chat with two agents. Its rerank case only prints a note when rerank does not fire.
-- `bun yuki verify memory-isolation`: two users, and user B never saw user A's facts, in the list, the view, or an answer.
 - `bun yuki verify memory-eval` scored 10 of 10 in every run, and `memory-hard` 14 of 15 over 640 turns (its harness first ran on 2026-10-10, so there is no older score on this model).
 - `bun yuki verify token-cost`, two runs on the final code: agent 41,251 and 40,631 plus background 1,939 and 1,733, against 45,027 plus 1,179 before this work, so 6.5 and 8 percent less in all. Agents no longer spend a `note` call on what the human said when capture is on, and capture costs nothing without a judge.
 - A failure found this way: with known facts in the classifier `state`, Jev rated each new friend lower the more friends it already knew (worth 0.61, then 0.47, then 0.35). Known facts now appear only in their own same and replaces questions, which also cut Jev input by 10 percent.
@@ -997,7 +994,7 @@ Yuki has no per-user limits record and no daily run budget. The caps are the hop
   - **Sweep.** A pending row nobody sent within 24 hours is deleted with its object by the room's `pending_sweep` wakeup (`core/durable/src/alarm.ts`), objects first so a failed delete leaves the row for the next sweep. The wakeup always points at the oldest row's expiry. Account deletion lists pending objects with the rest (`RoomDO.inventory`).
   - DEVIATION from t3code: the upload carries the session cookie, not a signed upload URL. It is same-origin and the cookie already names the user, so a token would cost a round trip and prove nothing more. The R2 key is still built from the session's user id only.
   - DEVIATION from t3code: a claim does not copy bytes. The object is written at the key the file keeps, and the claim only moves the row from `pending_uploads` to `ws_files`. R2 has no rename, and a copy of a 50 MB file inside a socket frame would be slow; t3code copies so a failed turn can retry from the pending file, and yuki's retry is the resent `clientId`, which is already idempotent.
-  - The `files` field of `send` (a client from before 2026-10-09 that stored its files itself) is accepted for one release, and only when every id is already in the chat's files. Remove it after the next release. The agent's envelope lists each one with `attachedLine` (`room/deliver.ts`), and `read` opens it. Agents send no files on messages: an agent names a path in its text. DEVIATION (2026-10-09): the old media system is removed. There are no stills, no thumbhash, no dimensions, no attachment job, no media catalog, and no `send_message` files. The owner chose t3code's simpler model, where a message carries its attachments and the assistant sends none. Stills already in R2 at `<key>/thumb` are no longer served; account deletion removes them with the rest of the user's prefix.
+  - The agent's envelope lists each one with `attachedLine` (`room/deliver.ts`), and `read` opens it. Agents send no files on messages: an agent names a path in its text. DEVIATION (2026-10-09): the old media system is removed. There are no stills, no thumbhash, no dimensions, no attachment job, no media catalog, and no `send_message` files. The owner chose t3code's simpler model, where a message carries its attachments and the assistant sends none. Stills already in R2 at `<key>/thumb` are no longer served; account deletion removes them with the rest of the user's prefix.
 - The client follows t3code too. DEVIATION (2026-10-09) from the album, document rows, and media viewer this section used to describe:
   - The composer takes files from the attach button, a paste, or a drop anywhere on the page, and decides as t3code's does (`lib/attachments.ts` over `@yuki/protocol`'s `attachments.ts`, which the server enforces too). A file is a picture when its type is GIF, JPEG, PNG, or WebP (or its name says so and the type is empty or generic). Another `image/*` type, an SVG or a HEIC, is refused: "'x' is not a supported image type. Attach GIF, JPEG, PNG, or WebP images." Limits: 100 files a message, 50 MB a file, 80 MB of pictures together; an empty file is refused. A picture over 10 MB is re-encoded to fit (`lib/image-compression.ts`): WebP when the browser can, else JPEG on white, at a 2048 px long edge down the quality ladder 0.92, 0.85, 0.78, 0.68, then at 0.75 and 0.55 of that size; one within 10 MB passes through byte for byte. DEVIATION from t3code: no HEIC conversion, because it needs a decoder library yuki does not ship.
   - The upload queue (`sync/uploads.ts`, t3code's `attachmentUploadQueue.ts`) runs three uploads at once over XHR, reports progress in 5% steps, and gives up on a request after five minutes. Each attachment is uploading (with its progress), ready (with its pending id), or failed (with t3code's reason: "Upload rejected (413)", "Upload failed", "Upload timed out", "Not connected"). A thumbnail shows the percentage along its bottom edge and a file row in place of its size; a failed one shows a retry button with the reason as its tooltip, and every failed upload goes again when the room's socket opens. Send is off, with t3code's reason as its name and tooltip, until every attachment is ready. An attachment that leaves the box unsent (removed, a slash command, the composer gone) has its upload stopped and deleted; one that stays in the box across a chat switch uploads again to the new chat.
@@ -1284,7 +1281,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | A7 | kat's hue with one chroma token is the "yuki orange", and dark ships first | 19.8 |
 | A8 | terminal and browser slots become board and memory | product.md |
 | A9 | a 24/7 user has 30 turns a day | 17.1 |
-| A10 | routines: a 30-minute minimum schedule (15 for a watch), a 10 minute run limit, 3 failures pause, a missed run within an hour still runs, a 60 s event window, 7 days away pauses them | 25 |
+| A10 | routines: a 30-minute minimum schedule (15 for a watch), 3 failures pause, a missed run within an hour still runs, a 60 s event window, 7 days away pauses them | 25 |
 
 ### Spec claims corrected by the source
 
@@ -1460,8 +1457,7 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 
 - The run starts from memory like any run (section 13.4). The answer posts as ordinary bubbles.
 - The room follows a run before handing it over, and marks it started when the agent next goes from idle to busy. When that run ends (`RoomDO.endRun`), it reports `ok` when the agent posted after the delivery, else `quiet`. A run that never started because the agent has no credential, or was dropped by the crash breaker, is `failed`. One the human stopped is `quiet`. A run whose report never arrives counts as `failed` after two hours.
-- **Time limit.** A routine's run gets 10 minutes (`AUTO_RUN_BUDGET_MS`). Past it, the heartbeat steers once: "time is up for this run. post what you have now in one short message, and stop." At twice that time the host aborts it and the run is `timeout`.
-- **Breaker.** Three `failed` or `timeout` runs in a row pause the routine, and its chat says so.
+- **Breaker.** Three `failed` runs in a row pause the routine, and its chat says so. A routine's run has no time limit of its own.
 - **Missed times.** A routine runs its newest missed occurrence once when it is less than an hour late, and skips older ones.
 - **Limits.** 50 routines per agent per chat, 100 reminders per chat, a time at most a year away (new reminders, routines, and snoozes alike), 10 watches per user, 20 runs kept, a schedule no more often than every 30 minutes (every reminder too, the human's included, and a row stored before that rule never fires sooner; a watch every 15, since its checks call no model), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
 
@@ -1678,7 +1674,7 @@ The details panel has an On your plate page (`apps/web-solid/src/chat/info/loops
 Routes, all from the session's user:
 
 - `GET /api/loops` lists open and snoozed loops. `POST /api/loops/<id>` takes `{action: "done" | "drop"}` or `{action: "snooze", until}` and goes through `UserDO.closeLoop` for a close.
-- `GET /api/settings` and `POST /api/settings` read and patch `initiative` (off, chat, digest, active) and `capture` (auto, always, off).
+- `GET /api/settings` and `POST /api/settings` read and patch `initiative` (off, chat, digest, active) and `capture` (auto, off).
 
 ## 27. Browser
 

@@ -144,10 +144,9 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `extensions`, `extensions-compose`, `extensions-model`, `extensions-edit-model`, `skills` | [extensions](./features/extensions.md) |
 | `routines`, `reminders`, `routine-triggers`, `routines-model`, `routines-scale` | [routines](./features/routines.md) |
 | `credentials`, `byok`, `provider-login` | [account](./features/account.md) |
-| `limits`, `overhead`, `token-cost`, `latency`, `latency-model` | [limits](./features/limits.md) |
+| `overhead`, `token-cost`, `latency`, `latency-model` | [limits](./features/limits.md) |
 | `memory-jev` | [memory-jev](./features/memory-jev.md) |
 | `memory-edge` | [memory-edge](./features/memory-edge.md) |
-| `memory-isolation` | [memory-isolation](./features/memory-isolation.md) |
 | `memory-tools`, `memory-session`, `memory-eval`, `memory-hard`, `soul` | [memory](./features/memory.md) |
 | `proactive` | [proactive](./features/proactive.md) |
 | `initiative`, `initiative-loops` | the `verify-initiative` skill |

@@ -30,4 +30,4 @@ bun yuki verify byok --url http://localhost:8787
 ## Gotchas
 
 - Keys never leave the server. `credentials` fails if a response contains the full key.
-- Subscription sign-ins need `PROVIDER_OAUTH=on`. Logins time out after 10 minutes, and at most 4 run at once.
+- At most 4 sign-ins run at once (`MAX_LOGINS` in `provider-login.ts`). A fifth is refused with "too many sign-ins are running".
