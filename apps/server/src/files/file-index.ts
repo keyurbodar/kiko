@@ -71,9 +71,10 @@ export function parents(path: string): string[] {
   return out
 }
 
-// The prefix every path under a folder starts with. The root's prefix is empty, so it matches all.
-const under = (dir: string) => (dir ? `${dir}/` : "")
-const WITHIN = "substr(path, 1, length(?)) = ?"
+// The half-open range of paths under a folder. The root's range is open at the top. A range, not substr(), so SQLite reads the path index.
+function under(dir: string): [string, string | null] {
+  return dir ? [`${dir}/`, `${dir}0`] : ["", null]
+}
 
 export function toRef(r: FileRow): FileRef {
   return { id: r.id, name: r.path, size: r.size, type: r.type }
@@ -126,13 +127,21 @@ export class FileIndex<E> {
   }
 
   private dirRows(dir: string): string[] {
-    const prefix = under(dir)
-    return this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE ${WITHIN} ORDER BY path`, prefix, prefix).toArray().map((r) => r.path)
+    const [lo, hi] = under(dir)
+    return (
+      hi === null
+        ? this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE path >= ? ORDER BY path`, lo)
+        : this.sql.exec<{ path: string }>(`SELECT path FROM ${this.t.dirs} WHERE path >= ? AND path < ? ORDER BY path`, lo, hi)
+    )
+      .toArray()
+      .map((r) => r.path)
   }
 
   private files(dir: string, limit = -1): FileRow[] {
-    const prefix = under(dir)
-    return this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE ${WITHIN} ORDER BY path LIMIT ?`, prefix, prefix, limit).toArray()
+    const [lo, hi] = under(dir)
+    return hi === null
+      ? this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE path >= ? ORDER BY path LIMIT ?`, lo, limit).toArray()
+      : this.sql.exec<FileRow>(`SELECT * FROM ${this.t.files} WHERE path >= ? AND path < ? ORDER BY path LIMIT ?`, lo, hi, limit).toArray()
   }
 
   private isDir(path: string): boolean {
@@ -217,10 +226,11 @@ export class FileIndex<E> {
   }
 
   private tally(dir: string): { files: number; size: number } {
-    const prefix = under(dir)
-    const row = this.sql
-      .exec<{ n: number; size: number | null }>(`SELECT count(*) AS n, sum(size) AS size FROM ${this.t.files} WHERE ${WITHIN}`, prefix, prefix)
-      .one()
+    const [lo, hi] = under(dir)
+    const row =
+      hi === null
+        ? this.sql.exec<{ n: number; size: number | null }>(`SELECT count(*) AS n, sum(size) AS size FROM ${this.t.files} WHERE path >= ?`, lo).one()
+        : this.sql.exec<{ n: number; size: number | null }>(`SELECT count(*) AS n, sum(size) AS size FROM ${this.t.files} WHERE path >= ? AND path < ?`, lo, hi).one()
     return { files: row.n, size: row.size ?? 0 }
   }
 
@@ -228,7 +238,7 @@ export class FileIndex<E> {
     const self = this.stat(dir)
     if (!self) return fail("not_found", `no such folder: ${dir}`)
     if (self.kind === "file") return [self]
-    const prefix = under(dir)
+    const prefix = dir ? `${dir}/` : ""
     const files = this.files(dir)
     const names = new Set<string>()
     for (const p of this.dirRows(dir)) names.add(recursive ? p : prefix + (p.slice(prefix.length).split("/")[0] ?? ""))
