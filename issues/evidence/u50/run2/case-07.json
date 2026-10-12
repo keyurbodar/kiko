@@ -1,0 +1,62 @@
+{
+  "case": 7,
+  "name": "web research and short report",
+  "run": "run2",
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 38,
+  "timedOut": false,
+  "doneMs": 21402,
+  "firstReplyMs": 3325,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 1,
+  "talkerTools": {
+    "tool.talker.start_work": 1
+  },
+  "workerToolCalls": 5,
+  "workerTools": {
+    "tool.worker.web_fetch": 4,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 7,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases on the web as of 2026. Find their names, licenses, key featur…"
+    }
+  ],
+  "status": {
+    "replyMs": 4303,
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.web_fetch": 4
+    },
+    "runningAtSend": 1,
+    "reply": "Research is still running. I will share the report once it is done."
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 3325,
+      "text": "On it, I will research the top open source vector databases and write the report."
+    },
+    {
+      "at": 9691,
+      "text": "Research is still running. I will share the report once it is done."
+    },
+    {
+      "at": 17290,
+      "text": "Done. Report is at `research/vectors.md`.\n\nTop 3: **Milvus**, **Qdrant**, **Weaviate**. Short file with features and best use for each."
+    }
+  ],
+  "bubbles": [
+    "On it, I will research the top open source vector databases and write the report.",
+    "Research is still running. I will share the report once it is done.",
+    "Done. Report is at `research/vectors.md`.\n\nTop 3: **Milvus**, **Qdrant**, **Weaviate**. Short file with features and best use for each."
+  ]
+}

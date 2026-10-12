@@ -5,8 +5,8 @@ Source: `spike.ts` against `http://localhost:8850` (wrangler dev, own session). 
 ## Status of the runs
 
 - **Run1: complete**, cases 1–10. Log: `run1.log`, `run1/summary.tsv`.
-- **Run2: partial**, cases 1–4 only. Cases 5–10 failed twice on load (see below). Log: `run2-attempt1-load-failure.log`, `run2-attempt2-load-failure.log`, `run2-retry-attempt1-load-failure.log`, and the queued retry in `run2-retry.log`.
-- Load: the machine was saturated by other sessions (load average 34 to 44 on 4 CPUs). Client calls with 5 s deadlines timed out (`TimeoutError` in `devSession`, and an ack timeout in `newRoom`). These are load-caused failures under STANDING rule 10, not app failures.
+- **Run2: complete**, cases 1–10, in three passes. Case 1–4 from the first pass, cases 5–7 from the retry (`run2-retry-attempt2-partial.log`), cases 8–10 from `run2-retry2.log`. Per-case JSON is in `run2/`. Logs of the failed attempts are kept: `run2-attempt1-load-failure.log`, `run2-attempt2-load-failure.log`, `run2-retry-attempt1-load-failure.log`.
+- Load: the machine was saturated by other sessions (load average 34 to 44 on 4 CPUs). Failures were load-caused under STANDING rule 10, not app failures: 5 s client timeouts in `devSession` and in `newRoom`, and once a dropped internal connection on a file upload (`Network connection lost` in `server.log`, server kept running). Each failure was rerun from the failing case.
 
 ## Table, run1 (complete)
 
@@ -30,19 +30,26 @@ Notes on the table:
 - Tokens: the dev stats do not expose token counts. `model.turns` is shared by the lead and workers, so the split is not measured.
 - Tool rounds: the table uses talker tool calls as the proxy. There is no per-run round counter in the stats.
 
-## Table, run2 (partial, cases 1–4 done)
+## Table, run2 (complete)
 
-| # | Request | start_work | Talker tool calls | Worker tool calls | Model turns | First reply | Done |
-|---|---|---|---|---|---|---|---|
-| 1 | rename a file | 0 | 1 | 0 | 2 | 4.6 | 12.0 |
-| 2 | fix one typo | 0 | 2 | 0 | 3 | 2.7 | 13.2 |
-| 3 | factual question | 0 | 1 | 0 | 2 | 4.8 | 35.3 |
-| 4 | add a line to 3 files | 0 | 2 | 0 | 3 | 5.2 | 30.1 |
-| 5–10 | pending | | | | | | |
+| # | Request | start_work | Talker tool calls | Worker tool calls | Model turns | First reply | Done | Status reply | Status window: talker tools | Status window: worker tools | Note | Steer | Stop | Workers at end |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | rename a file | 0 | 1 | 0 | 2 | 4.6 | 12.0 | - | - | - | - | - | - | none |
+| 2 | fix one typo | 0 | 2 | 0 | 3 | 2.7 | 13.2 | - | - | - | - | - | - | none |
+| 3 | factual question | 0 | 1 | 0 | 2 | 4.8 | 35.3 | - | - | - | - | - | - | none |
+| 4 | add a line to 3 files | 0 | 2 | 0 | 3 | 5.2 | 30.1 | - | - | - | - | - | - | none |
+| 5 | 600 word draft | 0 | 5 | 0 | 7 | 19.3 | 39.1 | 14.1 | write 1 | none | no running worker | - | - | none |
+| 6 | summarize five files | 0 | 7 | 0 | 4 | 4.7 | 18.6 | 2.4 | read 5 | none | no running worker | - | - | none |
+| 7 | web research and report | 1 | 1 | 5 | 7 | 3.3 | 21.4 | 4.3 | none | web_fetch 4 | no running worker | - | - | w1 done, delivered |
+| 8 | restructure folder | 0 | 2 | 0 | 3 | 23.4 | 34.0 | 4.0 | bash 1 | none | no running worker | - | - | none |
+| 9 | "bigger than it looks" | 0 | 2 | 0 | 4 | 2.5 | 12.2 | 2.0 | none | none | no running worker | - | - | none |
+| 10 | burst: small + large | 1 | 5 | 3 | 12 | 4.0 | 26.5 | 2.0 | edit 1 | web_fetch 1 | sent at 12.5 s, 1 worker running | 1 | 0 | w1 done, delivered |
 
-Run2 case 1 earlier had a first reply of 68.8 s before the rerun. That was from the first aborted attempt, not the rerun, and it is not in the table.
+Notes on run2:
 
-Cases 3 and 4 took 30 to 35 s to done against 12 to 14 s in run1. The load explains it: they ran under load average 34 to 44.
+- Run2 case 1 earlier had a first reply of 68.8 s in the aborted first attempt. That attempt is not in the table.
+- Cases 3 and 4 took 30 to 35 s to done against 12 to 14 s in run1. The machine load (34 to 44) explains it. Run2 cases 5–10 ran at load 10 to 24, so their timings are closer to run1.
+- The run2 case 10 counts (5 talker calls, 3 worker calls) differ from run1 (4 and 3). The status window also caught a different worker tool (`web_fetch` in run2, `mkdir` in run1). The runs are not identical; the lead's choices vary from run to run.
 
 ## Verdicts
 
@@ -72,7 +79,7 @@ So status got a fast answer, but usually one about the lead's current task, not 
 
 ### 3. Do notes reach the worker?
 
-Yes, in the one case tested. Case 10's note ("one note: keep it short") caused one `steer_work` call. The worker had been running, and the lead replied "Noted, I'll tell the worker to keep it short." The final report compared three test runners in a short paragraph, which is consistent with the note. This is a single sample, so it is weak evidence. Cases 5 to 9 had no running worker when the note was due, so the note was skipped there (the lead did not need a worker).
+Yes, in both cases tested (run1 and run2 case 10). Run1 case 10's note ("one note: keep it short") caused one `steer_work` call. The worker had been running, and the lead replied "Noted, I'll tell the worker to keep it short." The final report compared three test runners in a short paragraph, which is consistent with the note. This is a single sample, so it is weak evidence. Cases 5 to 9 had no running worker when the note was due, so the note was skipped there (the lead did not need a worker).
 
 ## Misjudgments named, with request and what the lead did
 
@@ -86,8 +93,14 @@ Yes, in the one case tested. Case 10's note ("one note: keep it short") caused o
 - **Tool description** is not the gap: the status question does not call a tool.
 - **Structural gap**: the lead has no status channel that is separate from its current run. It answers from whatever it is doing. This is the cause of the "Adding that header now" answer. If prompt wording does not fix it, add a status line to the context (the `note()` output already exists) and check it on each reply.
 
+### Run2 confirms run1
+
+- Routing: run2 used a worker in the same two cases (7 and 10), and handled the rest itself.
+- Status: run2 status replies were the lead's own task in cases 5, 6, 8, and 10 ("Got it, I'll create a subfolder per project file"; "File read done, now adding the header"). Case 7 named the running worker. No status window in run2 has a `steer_work` or `stop_work`.
+- Notes: run2 case 10 again caused one `steer_work`, and the worker's final report was short (130 words, against "short" requested). Two note samples now: both reached a worker. Neither shows the outcome changed in a measurable way.
+- Case 9 judgment: the lead changed "Acme" to "Initech" in five files and left `hi@acme.example` unchanged. The status reply said "Done. Changed Acme to Initech in 5 files." That is an honest report of what it did, but the lowercase domain in the email was a judgment call the human might not have wanted. It is a misjudgment only if the human meant every mention.
+
 ## Follow-ups
 
-- Run2 cases 5 to 10: rerun queued (`bn4ebbd8o`). It waits for load average below 8 before it starts, then writes `run2-retry.log` and `run2/` case files.
-- Run2 summary: the table above has cases 1 to 4 only. Update it from `run2/` when the retry completes.
-- A second note sample is needed before claiming notes reach workers reliably. Run1 has one.
+- A third note sample would strengthen the note verdict. Two samples exist, both from the burst case with a worker.
+- The fix in `WORK_LINES` should be tested by rerunning the status probes once the wording changes. This spike does not change product code.
