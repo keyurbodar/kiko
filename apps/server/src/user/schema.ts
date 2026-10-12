@@ -1,7 +1,7 @@
 import { ALARM_STEPS } from "@yuki/durable/alarm"
 import { addColumn, type Step } from "@yuki/durable/migrate"
 import { fileIndexSteps, HOME_TABLES } from "../files/file-index"
-import { LIFE_STEPS } from "@yuki/memory/life"
+import { LIFE_STEPS, LIFE_TRI_STEPS } from "@yuki/memory/life"
 import { LOOPS_STEPS } from "@yuki/memory/loops"
 
 // The user's tables, in one list. An object at version N runs only the steps after the first N. A step is
@@ -177,4 +177,14 @@ export const USER_STEPS: Step[] = [
   ...ALARM_STEPS,
   // How many Jev passes a heard burst has failed (initiative-loops.ts). Past the last try, the two-word touch decides it.
   addColumn("loop_heard", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+  // Lookups that read every row of a table that only grows: the pinned lines and the tagged cards of the life log
+  // (read on every agent turn), the reminders by how recently they fired, and the day's charged bursts.
+  "CREATE INDEX IF NOT EXISTS life_pinned ON life (pos) WHERE pinned = 1",
+  "CREATE INDEX IF NOT EXISTS life_card ON life (pos) WHERE card IS NOT NULL AND pinned = 0",
+  "CREATE INDEX IF NOT EXISTS reminders_fired ON reminders (status, last_fired)",
+  "CREATE INDEX IF NOT EXISTS charged_today_day ON charged_today (day)",
+  // The seen-signal window is seven days of bursts, and each burst swept the whole table to trim it.
+  "CREATE INDEX IF NOT EXISTS attention_seen_at ON attention_seen (at)",
+  // Substring search of the life log, for a recall that the word index missed. Kept in step with life_fts by life.ts.
+  ...LIFE_TRI_STEPS,
 ]
