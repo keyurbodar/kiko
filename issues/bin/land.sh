@@ -34,4 +34,9 @@ if ! git merge --no-ff -q -m "Land $unit from $branch" "$branch" >>"$logs/$unit-
 fi
 sha="$(git rev-parse --short HEAD)"
 "$root/issues/bin/ledger.sh" "$unit" state=landed verdict=gate-green head="$(git rev-parse --short "$branch")" evidence="main_$sha"
+# A landed unit's brief and report are done; git history keeps them. Only paths git tracks are removed.
+done_files="$(git ls-files "issues/$unit.md" "issues/$unit-*.md")"
+if [ -n "$done_files" ]; then
+  git rm -q $done_files && git commit -q -m "Close $unit: remove its brief and report" -- issues/
+fi
 echo "land: $unit landed as $sha"; tail -8 "$logs/$unit-check.log"

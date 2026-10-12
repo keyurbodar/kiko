@@ -1,7 +1,0 @@
-wording	rep	case	name	running_at_send	status_skipped	turn_ms	steer_in_window	stop_in_window	steer_after_note	stop_after_note	worker_delivered_in_turn	status_reply	note_steer_calls	note_stop_calls	timed_out
-going	1	7	web research and short report	1	-	2.5	0	0	1	0	false	"Research is running. It checked candidate lists and now pulls repo details, starting with Chroma. The report is not yet in `research/vectors.md`. I will send it when done."	1	0	false
-going	1	10	burst: one small, one large	1	-	2.0	0	0	-	-	false	"Todo file is done.\n\nResearch worker is on step 1, checking test runner data. No file yet. I will send it when done."	-	-	false
-going	2	7	web research and short report	1	-	2.5	0	0	1	0	false	"Report is in work.\n\n- **Me:** waiting on research, then I will check `research/vectors.md`.\n- **Research worker:** step 3, checking Chroma GitHub page after broad web search."	1	0	false
-going	2	10	burst: one small, one large	1	-	2.0	0	0	-	-	false	"notes/todo.md is done.\n\nResearch worker is running. It listed files and is now doing web research. No file yet."	-	-	false
-going	3	7	web research and short report	1	-	2.4	0	0	1	0	false	"Research is running. It is checking rankings now to pick the top 3, then it will write `research/vectors.md`."	1	0	false
-going	3	10	burst: one small, one large	1	-	2.4	0	0	-	-	false	"Done: notes/todo.md has **Reviewed** at the top.\n\nIn progress: research worker is on step 2, checking Vitest comparisons now. I will send the file when done."	-	-	false

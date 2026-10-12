@@ -1,3 +1,0 @@
-$ bun apps/cli/src/index.ts verify long-text --url "http://localhost:8852"
-yuki: target http://localhost:8852
-pass long-text (1256ms)
