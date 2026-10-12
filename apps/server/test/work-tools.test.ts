@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
-import { Harness, MemoryStorage } from "@earendil-works/pi-durable"
+import { type ConversationId, Harness, MemoryStorage } from "@earendil-works/pi-durable"
 import type { Envelope } from "@yuki/agent/envelope"
 import { Workers } from "@yuki/agent/workers"
 import type { MemoryPort } from "@yuki/memory/tools"
@@ -260,3 +260,4 @@ test("two workers that read a file and both rewrite it: the second is refused, s
   expect(kept[1]).not.toContain("changed")
   expect(["task a", "task b"]).toContain(files.get("copy.md")!)
 })
+

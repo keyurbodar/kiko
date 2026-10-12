@@ -1,9 +1,10 @@
 import { Type } from "@earendil-works/pi-ai"
-import { type Agent, type AgentChange, configure, defineExtension, defineTool, type Extension, hook, ToolTask, wrapSection } from "@earendil-works/pi-durable"
+import { type Agent, type AgentChange, configure, defineExtension, defineTool, type Extension, hook, type ToolExecutionResult, ToolTask, wrapSection } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
 import { MAX_WORKERS, type Workers } from "@yuki/agent/workers"
 import { MEMORY_NOTE } from "@yuki/memory/tools"
 import { CHIEF_EXT } from "./chief"
+import type { Saved } from "./files"
 import { MESSAGING } from "./messaging"
 import { REMINDERS } from "./reminders"
 import { WORKSPACE } from "./workspace"
@@ -25,6 +26,10 @@ export const forWorker = (all: readonly Extension[]): Extension[] => all.filter(
 function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
   return { model: agent.model ?? null, thinkingLevel: agent.thinkingLevel, extensions: forWorker(all), instructions: WORKER_PROMPT }
 }
+
+// The paths a call saved, from its details. A call that failed saved nothing it reports; a bash command that exits nonzero still
+// reports what it saved before it failed.
+const changedBy = (result: ToolExecutionResult): string[] => (result.details as Saved | undefined)?.changed ?? []
 
 const brief = (args: unknown) => {
   const text = JSON.stringify(args ?? {})
@@ -98,6 +103,10 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
           beforeTool: async (call, api) => {
             const worker = workers.step(api.conversationId, `${call.name}${brief(call.arguments)}`)
             count(`tool.${worker ? "worker" : "talker"}.${call.name}`)
+            return undefined
+          },
+          afterTool: async (_call, result, api) => {
+            workers.touched(api.conversationId, changedBy(result))
             return undefined
           },
         }),
