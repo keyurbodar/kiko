@@ -24,6 +24,7 @@ async function pool<T, R>(items: readonly T[], size: number, work: (item: T, i: 
 
 const suite: Suite = {
   name: "routines-scale",
+  load: true,
   async run(v) {
     const url = v.url
     const run = Date.now()

@@ -14,4 +14,8 @@ export const AGENT_STEPS: Step[] = [
     ended INTEGER NOT NULL DEFAULT 0
   ) STRICT`,
   ...HOST_STEPS,
+  // The inbox's reads by request and by age scanned every row the inbox kept, seven days of history. The outbox read every run it ever ended.
+  "CREATE INDEX IF NOT EXISTS inbox_by_request ON inbox (request_id, priority, arrival)",
+  "CREATE INDEX IF NOT EXISTS inbox_by_submitted_at ON inbox (submitted, at)",
+  "CREATE INDEX IF NOT EXISTS outbox_by_ended ON outbox (ended)",
 ]
