@@ -1,5 +1,5 @@
 import { Type } from "@earendil-works/pi-ai"
-import { type Agent, type AgentChange, configure, defineExtension, defineTool, type Extension, hook, ToolTask, wrapSection } from "@earendil-works/pi-durable"
+import { type Agent, type AgentChange, configure, defineExtension, defineTool, type Extension, hook, type ToolExecutionResult, ToolTask, wrapSection } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
 import { MAX_WORKERS, type Workers } from "@yuki/agent/workers"
 import { MEMORY_NOTE } from "@yuki/memory/tools"
@@ -26,8 +26,7 @@ function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
   return { model: agent.model ?? null, thinkingLevel: agent.thinkingLevel, extensions: forWorker(all), instructions: WORKER_PROMPT }
 }
 
-// The paths a file tool's arguments name, read only after the tool succeeded. bash is not here: it saves per space,
-// and its result names the spaces, not the paths.
+// The paths a file tool's arguments name. bash is not here: its result names the paths it saved (see changedBy).
 const TOUCHED: Record<string, (args: Record<string, unknown>) => string[]> = {
   write: (a) => [a.path as string],
   edit: (a) => [a.path as string],
@@ -38,6 +37,13 @@ const TOUCHED: Record<string, (args: Record<string, unknown>) => string[]> = {
 }
 
 export const touchedPaths = (name: string, args: Record<string, unknown>): string[] => (TOUCHED[name]?.(args) ?? []).map((p) => (p.startsWith("/") ? p : `/${p}`))
+
+// A file tool counts only when it succeeded. bash counts what it saved even when it exits nonzero: its details list the
+// saved paths, and a refused space saves and lists nothing.
+const changedBy = (call: { name: string; arguments: unknown }, result: ToolExecutionResult): string[] => {
+  if (call.name === "bash") return (result.details as { changed?: string[] } | undefined)?.changed ?? []
+  return result.isError ? [] : touchedPaths(call.name, call.arguments as Record<string, unknown>)
+}
 
 const brief = (args: unknown) => {
   const text = JSON.stringify(args ?? {})
@@ -114,7 +120,7 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
             return undefined
           },
           afterTool: async (call, result, api) => {
-            if (!result.isError) workers.touched(api.conversationId, touchedPaths(call.name, call.arguments as Record<string, unknown>))
+            workers.touched(api.conversationId, changedBy(call, result))
             return undefined
           },
         }),

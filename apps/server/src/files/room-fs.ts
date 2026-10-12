@@ -19,7 +19,7 @@ import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
-import { runCommand } from "./bash"
+import { type BashResult, runCommand } from "./bash"
 import { cleanPath, deleteFiles, fileKey } from "./upload"
 import type { CommitResult, IndexChange, NewFile } from "./file-index"
 
@@ -48,7 +48,7 @@ export type BatchChange =
 
 export type BatchResult = { ok: true } | { ok: false; path: string; message: string; conflict: boolean }
 
-const batchPaths = (c: BatchChange): [string, ...string[]] => (c.op === "move" ? [c.from, c.to] : [c.path])
+export const batchPaths = (c: BatchChange): [string, ...string[]] => (c.op === "move" ? [c.from, c.to] : [c.path])
 
 const CODE: Record<string, FileErrorCode> = { not_found: "not_found", is_directory: "is_directory", not_directory: "not_directory", invalid: "invalid" }
 
@@ -362,7 +362,7 @@ export class RoomFs implements ExecutionEnv {
     return err(new FileError("not_supported", "the chat's files have no temporary files"))
   }
 
-  async exec(command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<ShellExecResult, ExecutionError>> {
+  async exec(command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<BashResult, ExecutionError>> {
     return runCommand(this, command, options, context)
   }
 

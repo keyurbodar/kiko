@@ -9,6 +9,32 @@ import type { Envelope } from "@yuki/protocol"
 import { AgentDO } from "../src/agent/agent-do"
 import { buildAgent } from "../src/agent/factory"
 import type { RoomPort } from "../src/agent/outbox"
+import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
+import type { FsEntry } from "../src/room/files"
+
+// The chat's files in memory, so a worker's write or bash command lands where the test can see it.
+function memoryFiles(): FilesBackend {
+  const files = new Map<string, string>()
+  const entry = (path: string): FsEntry & { kind: "file" } => ({ kind: "file", path, id: path, size: files.get(path)!.length, type: "text/plain", sha256: `sha:${files.get(path)}`, r2Key: `key:${path}`, at: 0 })
+  const apply = (path: string, bytes: Uint8Array) => void files.set(path, new TextDecoder().decode(bytes))
+  const refused = { ok: false as const, code: "invalid", message: "not in this test" }
+  return {
+    stat: async (path) => (files.has(path) ? entry(path) : null),
+    list: async () => [],
+    bytes: async (key) => (files.has(key.slice(4)) ? new TextEncoder().encode(files.get(key.slice(4))!) : null),
+    write: async (path, bytes) => {
+      apply(path, bytes)
+      return { ok: true, entry: entry(path) }
+    },
+    move: async () => refused,
+    remove: async () => refused,
+    mkdir: async () => refused,
+    commit: async (changes) => {
+      for (const c of changes) if (c.op === "write") apply(c.path, c.bytes)
+      return { ok: true }
+    },
+  }
+}
 
 const context = BACKGROUND_CONTEXT
 
@@ -97,16 +123,6 @@ export class T extends AgentDO {
         },
       }),
     )
-    const write = declareEffect(
-      "write",
-      defineTool({
-        name: "write",
-        description: "writes a file.",
-        parameters: Type.Object({ path: Type.String(), content: Type.String() }),
-        replay: "safe",
-        execute: async (args) => ({ content: [{ type: "text", text: `wrote ${args.path}` }] }),
-      }),
-    )
     const step = (request: { messages: readonly unknown[] }) => {
       const all = request.messages as Msg[]
       const talker = JSON.stringify(all.filter((m) => m.role === "system")).includes('"start_work"')
@@ -115,10 +131,12 @@ export class T extends AgentDO {
       this.table().exec("INSERT INTO t_requests (worker, roles, users) VALUES (?, ?, ?)", talker ? 0 : 1, JSON.stringify(messages.map((m) => m.role)), JSON.stringify(users))
       const last = messages.at(-1)
       if (!talker) {
-        // A task that says WRITE writes two files first, then hangs.
-        const writes = users[0]?.includes("WRITE") ? ["/a.txt", "/b.txt"] : []
+        // A task that says WRITE writes two files first, one write each; BASH writes the same two files with one command. Then it hangs.
+        const first = users[0] ?? ""
+        const writes: ReturnType<typeof fauxToolCall>[] = first.includes("WRITE") ? [fauxToolCall("write", { path: "/a.txt", content: "x" }), fauxToolCall("write", { path: "/b.txt", content: "x" })] : []
+        if (first.includes("BASH")) writes.push(fauxToolCall("bash", { command: "echo x > /a.txt && echo x > /b.txt" }))
         const calls = messages.filter((m) => m.role === "toolResult").length
-        if (calls < writes.length) return fauxAssistantMessage(fauxToolCall("write", { path: writes[calls]!, content: "x" }), { stopReason: "toolUse" })
+        if (calls < writes.length) return fauxAssistantMessage(writes[calls]!, { stopReason: "toolUse" })
         if (calls === writes.length) return fauxAssistantMessage(fauxToolCall("hang", {}), { stopReason: "toolUse" })
         return fauxAssistantMessage(`worker answer; heard=${users.join(" | ")}`)
       }
@@ -141,8 +159,9 @@ export class T extends AgentDO {
     faux.setResponses(Array.from({ length: 300 }, () => step))
     const models = createModels()
     models.setProvider(faux.provider)
-    const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, work: this.host.workers, testExtensions: [defineExtension({ name: "test-hang", tools: [hang, write] })] })
-    return { models, ...built, beginRun: async () => true }
+    const backend = memoryFiles()
+    const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, work: this.host.workers, files: { fs: new RoomFs("workers", backend), acceptsImages: () => false }, testExtensions: [defineExtension({ name: "test-hang", tools: [hang] })] })
+    return { models, ...built, env: roomViews("workers", backend), beginRun: async () => true }
   }
 
   override async fetch(request: Request) {

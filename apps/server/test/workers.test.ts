@@ -195,3 +195,16 @@ test("(h) a worker that wrote two files and is stopped names both in the lead's 
   const posts = await until(a.posts, (p) => p.some((t) => t.startsWith("reported w1 stopped")))
   expect(posts.find((t) => t.startsWith("reported w1 stopped"))).toBe("reported w1 stopped: stopped before it finished. changed: /a.txt, /b.txt.")
 }, 30_000)
+
+test("(i) a worker whose one bash command wrote two files and is stopped names both in the lead's note and in its report", async () => {
+  const a = await agent()
+  await a.say("START BASH two files")
+  await until(a.hangs, (h) => h.waiting === 1)
+  await until(a.workers, (w) => w[0]?.changed.length === 2)
+  await a.say("are you there?")
+  await until(a.posts, (p) => p.includes("reply to: are you there?"))
+  expect((await a.transcript()).users.join("\n")).toContain("- w1 (running, 2 steps): BASH two files. changed: /a.txt, /b.txt.")
+  await a.say("STOP")
+  const posts = await until(a.posts, (p) => p.some((t) => t.startsWith("reported w1 stopped")))
+  expect(posts.find((t) => t.startsWith("reported w1 stopped"))).toBe("reported w1 stopped: stopped before it finished. changed: /a.txt, /b.txt.")
+}, 30_000)
