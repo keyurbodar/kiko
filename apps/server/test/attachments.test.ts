@@ -260,3 +260,15 @@ test("a long human message resent with its client id stores one message and one 
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${sent?.t === "file" ? sent.file.id : ""}`])
 	c.close()
 })
+
+test("two sends from one socket keep their order when the first one waits on R2", async () => {
+	const room = fresh()
+	const c = await Client.open(room)
+	c.send({ t: "send", clientId: "order-long", text: "x".repeat(40_000) })
+	c.send({ t: "send", clientId: "order-short", text: "after" })
+	const long = await c.next((f) => f.t === "ack" && f.clientId === "order-long")
+	const short = await c.next((f) => f.t === "ack" && f.clientId === "order-short")
+	if (long.t !== "ack" || short.t !== "ack") throw new Error("no ack")
+	expect(long.seq).toBeLessThan(short.seq)
+	c.close()
+})

@@ -72,6 +72,8 @@ function bubbleOf(text: string): string {
 	return text.slice(0, MAX_MESSAGE_TEXT - (high ? 1 : 0))
 }
 
+type SendOutcome = { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }
+
 export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string }
 
 const SPAWN_REFUSAL: Record<MemberRefusal, string> = {
@@ -108,6 +110,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private dev!: RoomDev
 	private pending!: PendingUploads
 	private readonly typing = new Set<AgentSlug>()
+	private sends: Promise<unknown> = Promise.resolve()
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env)
@@ -563,7 +566,17 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.wakes.retryHeld()
 	}
 
-	async humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<{ ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }> {
+	/**
+	 * Sends run one at a time, in the order the sockets delivered them. A long send waits on R2
+	 * before its transaction, so a short send that came after it must wait too, or it takes an earlier seq.
+	 */
+	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<SendOutcome> {
+		const out = this.sends.then(() => this.storeSend(frame))
+		this.sends = out.catch(() => {})
+		return out
+	}
+
+	private async storeSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<SendOutcome> {
 		try {
 			const whole = frame.text.length > MAX_MESSAGE_TEXT && !this.log.sentBefore(frame.clientId) ? await this.writeWhole(frame.clientId, frame.text) : null
 			return this.ctx.storage.transactionSync(() => {

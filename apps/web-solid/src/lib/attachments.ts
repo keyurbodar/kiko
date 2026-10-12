@@ -3,7 +3,7 @@
 // a picture in the box exactly when it is one in the bubble. The limits and their words come from
 // `@yuki/protocol`, which the server enforces too. No Solid and no DOM.
 
-import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS, MAX_MESSAGE_TEXT, textFits } from "@yuki/protocol"
+import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS, MAX_MESSAGE_TEXT, type PendingAttachment, sendFits } from "@yuki/protocol"
 
 export { attachmentType, MAX_ATTACHMENTS }
 
@@ -11,9 +11,9 @@ export { attachmentType, MAX_ATTACHMENTS }
  * Why a draft cannot be sent as it is, or null. A message over the frame stays in the box. An edit
  * cannot carry a file, so an edit stays within the bubble limit.
  */
-export function sendRefusal(text: string, editing: boolean): string | null {
+export function sendRefusal(text: string, editing: boolean, attachments: readonly PendingAttachment[] = []): string | null {
   if (editing) return text.length > MAX_MESSAGE_TEXT ? `Edits can be up to ${MAX_MESSAGE_TEXT.toLocaleString("en-US")} characters.` : null
-  return textFits(text) ? null : "This message is too long to send."
+  return sendFits(text, attachments) ? null : "This message is too long to send."
 }
 
 type Named = { name: string; type: string }

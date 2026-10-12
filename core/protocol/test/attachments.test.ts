@@ -1,8 +1,17 @@
 import { describe, expect, test } from "bun:test"
-import { attachmentError, attachmentKind, attachmentsError, limitLabel, MAX_IMAGE_BYTES } from "../src/attachments"
+import { attachmentError, attachmentKind, attachmentsError, limitLabel, MAX_IMAGE_BYTES, sendFits } from "../src/attachments"
 
 
 const MB = 1024 * 1024
+
+describe("a send's size", () => {
+	test("counts the text as JSON, and the file names beside it", () => {
+		expect(sendFits("\u0001".repeat(100_000))).toBe(false)
+		expect(sendFits("x".repeat(500_000))).toBe(true)
+		const named = Array.from({ length: 100 }, () => ({ pendingId: "p", name: "n".repeat(255), type: "application/pdf", size: 1 }))
+		expect(sendFits("x".repeat(500_000), named)).toBe(false)
+	})
+})
 
 describe("attachment rules", () => {
 	test.each([

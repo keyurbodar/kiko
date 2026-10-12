@@ -86,6 +86,13 @@ describe("a draft too long to send stays in the box", () => {
     expect(sendRefusal("\u0001".repeat(100_000), false)).toBe("This message is too long to send.")
   })
 
+  test("the file names in a send count toward the frame, not only the text", () => {
+    // A 500,000-character text fits the frame alone; 100 names of 255 characters push it over.
+    const names = Array.from({ length: 100 }, (_, i) => ({ pendingId: `p${i}`, name: "n".repeat(255), type: "application/pdf", size: 1 }))
+    expect(sendRefusal("x".repeat(500_000), false)).toBeNull()
+    expect(sendRefusal("x".repeat(500_000), false, names)).toBe("This message is too long to send.")
+  })
+
   test("an edit is held to the bubble limit, since it cannot carry a file", () => {
     expect(sendRefusal("x".repeat(16_000), true)).toBeNull()
     expect(sendRefusal("x".repeat(16_001), true)).toBe("Edits can be up to 16,000 characters.")

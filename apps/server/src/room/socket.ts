@@ -1,4 +1,4 @@
-import { MAX_FRAME, MAX_MESSAGE_TEXT, textFits } from "@yuki/protocol"
+import { MAX_FRAME, MAX_MESSAGE_TEXT, sendFits } from "@yuki/protocol"
 import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomToClient, TaskOp, FileOp } from "@yuki/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@yuki/protocol/schema"
 import { Schema } from "effect"
@@ -61,11 +61,13 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 		return null
 	}
 	switch (frame.t) {
-		case "send":
-			return textFits(frame.text) && (frame.text.trim() !== "" || !!frame.files?.length || !!frame.attachments?.length) ? frame : null
+		case "send": {
+			const refs = [...(frame.attachments ?? []), ...(frame.files ?? [])]
+			return sendFits(frame.text, refs) && (frame.text.trim() !== "" || refs.length > 0) ? frame : null
+		}
 		case "edit":
 			// An edit cannot carry a file, so it stays within the bubble limit.
-			return frame.text.length <= MAX_MESSAGE_TEXT && textFits(frame.text) && frame.text.trim() !== "" ? frame : null
+			return frame.text.length <= MAX_MESSAGE_TEXT && sendFits(frame.text) && frame.text.trim() !== "" ? frame : null
 		case "react":
 			return frame.emoji === null || (frame.emoji.length > 0 && frame.emoji.length <= MAX_EMOJI && !/\s/.test(frame.emoji))
 				? frame
