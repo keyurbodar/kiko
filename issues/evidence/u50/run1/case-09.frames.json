@@ -1,0 +1,142 @@
+{
+  "statuses": [
+    {
+      "at": 1082,
+      "state": "typing"
+    },
+    {
+      "at": 3072,
+      "state": "typing"
+    },
+    {
+      "at": 3072,
+      "state": "working"
+    },
+    {
+      "at": 3072,
+      "state": "typing"
+    },
+    {
+      "at": 6246,
+      "state": "typing"
+    },
+    {
+      "at": 6246,
+      "state": "working"
+    },
+    {
+      "at": 6246,
+      "state": "typing"
+    },
+    {
+      "at": 9941,
+      "state": "typing"
+    },
+    {
+      "at": 9941,
+      "state": "working"
+    },
+    {
+      "at": 9941,
+      "state": "working"
+    },
+    {
+      "at": 9941,
+      "state": "typing"
+    },
+    {
+      "at": 11026,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 5,
+      "workers": []
+    },
+    {
+      "at": 2144,
+      "workers": []
+    },
+    {
+      "at": 4275,
+      "workers": []
+    },
+    {
+      "at": 6412,
+      "workers": []
+    },
+    {
+      "at": 8430,
+      "workers": []
+    },
+    {
+      "at": 10542,
+      "workers": []
+    },
+    {
+      "at": 12646,
+      "workers": []
+    },
+    {
+      "at": 14698,
+      "workers": []
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 2,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 37,
+    "agent.kv.getAlarm": 7,
+    "agent.kv.list": 1,
+    "agent.kv.put": 9,
+    "agent.kv.setAlarm": 5,
+    "agent.kv.transaction": 46,
+    "agent.rowsRead": 986,
+    "agent.rowsWritten": 570,
+    "agent.statements": 866,
+    "model.id.muse-spark-1.3-contributor": 4,
+    "model.ms": 9528,
+    "model.turns": 4,
+    "room.kv.get": 2,
+    "room.kv.getAlarm": 10,
+    "room.kv.setAlarm": 6,
+    "room.rowsRead": 679,
+    "room.rowsWritten": 189,
+    "room.statements": 459,
+    "rpc.agent.devWorkers": 10,
+    "rpc.agent.humanComing": 1,
+    "rpc.agent.receive": 2,
+    "rpc.room.endRun": 1,
+    "rpc.room.fsCommit": 1,
+    "rpc.room.fsList": 4,
+    "rpc.room.fsStat": 1,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 4,
+    "rpc.room.reportDoing": 3,
+    "rpc.room.setStatus": 7,
+    "rpc.user.browserCheck": 2,
+    "rpc.user.captureHuman": 2,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 1,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 2,
+    "rpc.user.homeList": 3,
+    "rpc.user.homeStat": 3,
+    "rpc.user.initiativeBrief": 1,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 1,
+    "rpc.user.signals": 1,
+    "rpc.user.soul": 3,
+    "rpc.user.takeTurn": 2,
+    "rpc.user.touchChat": 3,
+    "rpc.user.turnContext": 1,
+    "tool.talker.bash": 3,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 3,
+    "user.rowsRead": 112,
+    "user.rowsWritten": 59,
+    "user.statements": 191
+  }
+}

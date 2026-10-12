@@ -1,0 +1,117 @@
+{
+  "statuses": [
+    {
+      "at": 1355,
+      "state": "typing"
+    },
+    {
+      "at": 2690,
+      "state": "typing"
+    },
+    {
+      "at": 2690,
+      "state": "working"
+    },
+    {
+      "at": 2690,
+      "state": "typing"
+    },
+    {
+      "at": 5910,
+      "state": "typing"
+    },
+    {
+      "at": 5910,
+      "state": "working"
+    },
+    {
+      "at": 5910,
+      "state": "typing"
+    },
+    {
+      "at": 9178,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 21,
+      "workers": []
+    },
+    {
+      "at": 2154,
+      "workers": []
+    },
+    {
+      "at": 4232,
+      "workers": []
+    },
+    {
+      "at": 6374,
+      "workers": []
+    },
+    {
+      "at": 8484,
+      "workers": []
+    },
+    {
+      "at": 10538,
+      "workers": []
+    },
+    {
+      "at": 12668,
+      "workers": []
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 2,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 26,
+    "agent.kv.getAlarm": 4,
+    "agent.kv.list": 1,
+    "agent.kv.put": 6,
+    "agent.kv.setAlarm": 2,
+    "agent.kv.transaction": 29,
+    "agent.rowsRead": 662,
+    "agent.rowsWritten": 408,
+    "agent.statements": 596,
+    "model.id.muse-spark-1.3-contributor": 3,
+    "model.ms": 7232,
+    "model.turns": 3,
+    "room.kv.get": 1,
+    "room.kv.getAlarm": 7,
+    "room.kv.setAlarm": 3,
+    "room.rowsRead": 357,
+    "room.rowsWritten": 103,
+    "room.statements": 262,
+    "rpc.agent.devWorkers": 8,
+    "rpc.agent.receive": 1,
+    "rpc.room.endRun": 1,
+    "rpc.room.fsList": 1,
+    "rpc.room.fsStat": 3,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 3,
+    "rpc.room.putFile": 1,
+    "rpc.room.reportDoing": 2,
+    "rpc.room.setStatus": 5,
+    "rpc.user.browserCheck": 2,
+    "rpc.user.captureHuman": 1,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 1,
+    "rpc.user.composioTools": 1,
+    "rpc.user.getChat": 1,
+    "rpc.user.initiativeBrief": 1,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 1,
+    "rpc.user.takeTurn": 1,
+    "rpc.user.touchChat": 2,
+    "rpc.user.turnContext": 1,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 2,
+    "user.rowsRead": 59,
+    "user.rowsWritten": 8,
+    "user.statements": 93
+  }
+}
