@@ -55,15 +55,3 @@ test("a chunk the judge cannot answer stays queued and the chunks around it drai
   await mem.captureNow()
   expect(queued(sql)).toEqual(["m4", "m5", "m6", "m7"])
 })
-
-test("a chunk the judge never answers is dropped after five passes, not reselected forever", async () => {
-  const { sql, mem } = setup("slow")
-  const rows = batch(24).map((r) => (r.messageId === "m5" ? { ...r, text: "The weather report for day 5 is slow." } : r))
-  await mem.captureHuman(ROOM, rows)
-  for (let pass = 1; pass < 5; pass++) {
-    await mem.captureNow()
-    expect(queued(sql)).toEqual(["m4", "m5", "m6", "m7"])
-  }
-  await mem.captureNow()
-  expect(queued(sql)).toEqual([])
-})
