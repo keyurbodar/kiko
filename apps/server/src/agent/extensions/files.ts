@@ -1,6 +1,6 @@
 import { Type } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai"
-import { defineExtension, defineTool, type Extension, type ModelRef, type ToolExecutionApi, type ToolRegistration } from "@earendil-works/pi-durable"
+import { type ConversationId, defineExtension, defineTool, type Extension, type ModelRef, type ToolExecutionApi, type ToolRegistration } from "@earendil-works/pi-durable"
 import { type ExecutionEnv, getOrThrow } from "@earendil-works/pi-durable/env"
 import { createBashTool, createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
 import type { FsEntry } from "../../room/files"
@@ -43,12 +43,12 @@ function isBinary(bytes: Uint8Array): boolean {
 const text = (value: string) => [{ type: "text" as const, text: value }]
 const refused = (message: string) => ({ content: text(message), isError: true })
 
-// The paths a tool saved, in its result's details: the work record reads them (work.ts). A call that saved nothing has none.
-export type Saved = { changed: string[] }
-const saved = (paths: readonly string[]): Saved | undefined => (paths.length ? { changed: [...paths] } : undefined)
+// The paths a tool saved, in its result's details.
+type Saved = { changed: string[] }
 
 // The room path RoomFs writes for a path a tool was given.
 const roomPathOf = (api: Pick<ToolExecutionApi, "env">, path: string) => `/${getOrThrow(filesOf(api).roomPath(path))}`
+
 
 function base64(bytes: Uint8Array): string {
   let binary = ""
@@ -68,9 +68,17 @@ function line(e: FsEntry): string {
 
 export type FilesOptions = {
   acceptsImages(model: ModelRef | undefined): boolean
+  // The paths a call saved, once they committed. The worker's list reads them.
+  touched(conversationId: ConversationId, paths: readonly string[]): void
 }
 
-export function filesExtension({ acceptsImages }: FilesOptions): Extension {
+// Recorded at the commit, not after the call: a stopped call's hook does not run, and a save before the stop must still be listed.
+export function filesExtension({ acceptsImages, touched }: FilesOptions): Extension {
+  const saved = (api: Pick<ToolExecutionApi, "conversationId">, paths: readonly string[]): Saved | undefined => {
+    if (!paths.length) return undefined
+    touched(api.conversationId, paths)
+    return { changed: [...paths] }
+  }
   const piRead = createReadTool()
   const read = defineTool({
     ...piRead,
@@ -138,7 +146,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
       const out = getOrThrow(await filesOf(api).removeAll(args.paths, args.recursive ?? false))
       const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`
       const parts = [out.changed ? count(out.changed, "file") : "", out.folders ? count(out.folders, "folder") : ""].filter(Boolean)
-      return { content: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete"), details: saved(parts.length ? out.paths : []) }
+      return { content: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete"), details: saved(api, parts.length ? out.paths : []) }
     },
   })
 
@@ -151,7 +159,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
     execute: async (args, api) => {
       const out = getOrThrow(await filesOf(api).move(args.from, args.to))
       if (!out.changed) return { content: text(`${args.from} is already there`) }
-      return { content: text(`moved ${args.from} to ${out.to.slice(1)}`), details: saved([out.to]) }
+      return { content: text(`moved ${args.from} to ${out.to.slice(1)}`), details: saved(api, [out.to]) }
     },
   })
 
@@ -162,7 +170,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
     replay: "safe",
     execute: async (args, api) => {
       const out = getOrThrow(await filesOf(api).mkdir(args.path))
-      return { content: text(out.changed ? `made ${args.path}` : `${args.path} already exists`), details: saved(out.changed ? [roomPathOf(api, args.path)] : []) }
+      return { content: text(out.changed ? `made ${args.path}` : `${args.path} already exists`), details: saved(api, out.changed ? [roomPathOf(api, args.path)] : []) }
     },
   })
 
@@ -181,19 +189,26 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
         const bytes = await fs.bytesOf(src)
         if (!bytes) return refused(`no file at ${args.from}`)
         getOrThrow(await fs.write(target, bytes, src.type))
-        return { content: text(`copied ${args.from} to ${target}`), details: saved([roomPathOf(api, target)]) }
+        return { content: text(`copied ${args.from} to ${target}`), details: saved(api, [roomPathOf(api, target)]) }
       }
       if (!args.recursive) return refused(`${args.from} is a folder. copy it with recursive`)
       if ((await fs.stat(target)).ok) return refused(`${target} already exists`)
       const files = getOrThrow(await fs.list(args.from, true)).filter((e) => e.kind === "file")
       if (files.length > MAX_COPIED) return refused(`${args.from} holds ${files.length} files, over the ${MAX_COPIED} a copy takes. move it, or copy a folder inside`)
-      await Promise.all(
+      // Every write runs to its end, so one refused file does not cancel the rest. The result names what saved and what did not.
+      const copies = await Promise.allSettled(
         files.map(async (f) => {
+          const to = `${target}/${f.path.slice(src.path.length + 1)}`
           const bytes = await fs.bytesOf(f)
-          if (bytes) getOrThrow(await fs.write(`${target}/${f.path.slice(src.path.length + 1)}`, bytes, f.type))
+          if (!bytes) throw new Error(`no file at ${f.path}`)
+          getOrThrow(await fs.write(to, bytes, f.type))
+          return roomPathOf(api, to)
         }),
       )
-      return { content: text(`copied ${files.length} files to ${target}`), details: saved(files.length ? [roomPathOf(api, target)] : []) }
+      const done = copies.flatMap((c) => (c.status === "fulfilled" ? [c.value] : []))
+      const failed = copies.flatMap((c) => (c.status === "rejected" ? [c.reason instanceof Error ? c.reason.message : String(c.reason)] : []))
+      const content = failed.length ? `copied ${done.length} of ${files.length} files to ${target}. ${failed.length} not copied: ${failed[0]}` : `copied ${files.length} files to ${target}`
+      return { content: text(content), details: saved(api, done), isError: failed.length > 0 }
     },
   })
 
@@ -203,7 +218,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
     ...piWrite,
     execute: async (args, api, context) => {
       const out = await piWrite.execute(args, api, context)
-      return out.isError ? out : { ...out, details: saved([roomPathOf(api, args.path)]) }
+      return out.isError ? out : { ...out, details: saved(api, [roomPathOf(api, args.path)]) }
     },
   })
   // pi's edit asks for the file's info and then reads it: one room call for both, and the write
@@ -213,11 +228,12 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
     execute: (args, api, context) =>
       filesOf(api).within(async () => {
         const out = await piEdit.execute(args, api, context)
-        return out.isError ? out : { ...out, details: saved([roomPathOf(api, args.path)]) }
+        return out.isError ? out : { ...out, details: saved(api, [roomPathOf(api, args.path)]) }
       }),
   })
 
-  // pi's bash only reads the env's cwd and runs its exec. This call's exec reports the paths the command saved, as the tool's details.
+  // pi's bash only reads the env's cwd and runs its exec. This call's exec records the paths the command saved. It sets no details: a
+  // stopped call's api.details throws, and the saves it would report have already happened.
   const piBash = createBashTool()
   const bash = defineTool({
     ...piBash,
@@ -227,7 +243,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
       const files = filesOf(api)
       const exec: ExecutionEnv["exec"] = async (command, options, ctx) => {
         const out = await files.exec(command, options, ctx)
-        if (out.ok && out.value.changed.length) await api.details({ changed: out.value.changed }, ctx)
+        if (out.ok && out.value.changed.length) touched(api.conversationId, out.value.changed)
         return out
       }
       return piBash.execute(args, { ...api, env: Object.create(files, { exec: { value: exec } }) }, context)

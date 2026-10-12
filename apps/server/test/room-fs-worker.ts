@@ -62,6 +62,9 @@ const notices: string[] = []
 
 const systems = new Map<string, RoomFs>()
 const counts = new Map<string, { stat: number; get: number; put: number }>()
+// Per request: a hook that runs when a commit starts, and a path substring whose writes the drive refuses.
+let beforeCommit: (() => void) | null = null
+let refusing: string | null = null
 
 function counted(key: string, backend: FilesBackend, env: Env): FilesBackend {
   const c = { stat: 0, get: 0, put: 0 }
@@ -75,7 +78,8 @@ function counted(key: string, backend: FilesBackend, env: Env): FilesBackend {
       const out = await backend.bytes(k, m)
       return (c.get += ((env.FILES as unknown as { _gets?: number })._gets ?? 0) - before), out
     },
-    write: (...a) => (c.put++, backend.write(...a)),
+    write: (...a) => (c.put++, refusing && a[0].includes(refusing) ? { ok: false as const, code: "invalid" as const, message: "refused in test" } : backend.write(...a)),
+    commit: (changes) => (beforeCommit?.(), backend.commit(changes)),
   }
 }
 
@@ -123,19 +127,27 @@ export default {
       systems.set(key, fs)
     }
     const { name, args } = (await request.json()) as { name: string; args: Record<string, unknown> }
-    const tool = (filesExtension({ fs, acceptsImages: () => slug === "seer" }).tools ?? []).find((t) => t.name === name)
+    // The stop header stops the call the moment its commit starts; the commit still runs to its end, as in a real stop during a save.
+    const stop = new AbortController()
+    const touched: string[] = []
+    beforeCommit = request.headers.get("x-test-stop-on-commit") ? () => stop.abort() : null
+    refusing = request.headers.get("x-test-refuse")
+    const tool = (filesExtension({ fs, acceptsImages: () => slug === "seer", touched: (_, paths) => void touched.push(...paths) }).tools ?? []).find((t) => t.name === name)
     if (!tool) return Response.json({ error: `no tool ${name}` }, { status: 404 })
     let streamed = ""
     let reported: unknown
     const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID(), output: (t: string) => void (streamed += t), diagnostic: () => {}, details: async (d: unknown) => void (reported = d) } as unknown as ToolExecutionApi
     const started = performance.now()
     try {
-      const result = await tool.execute(args as never, api, BACKGROUND_CONTEXT)
+      const result = await tool.execute(args as never, api, { ...BACKGROUND_CONTEXT, abortSignal: stop.signal })
       const text = (result.content ?? []).map((p) => (p.type === "text" ? p.text : `[${p.type}]`)).join("") || streamed
       const notes = (result.diagnostics ?? []).map((d) => d.message).join("\n")
-      return Response.json({ ok: !result.isError, text, notes, ms: performance.now() - started, details: reported ?? result.details })
+      return Response.json({ ok: !result.isError, text, notes, ms: performance.now() - started, details: reported ?? result.details, touched })
     } catch (error) {
-      return Response.json({ ok: false, text: streamed + (error instanceof Error ? error.message : String(error)), ms: performance.now() - started, details: reported })
+      return Response.json({ ok: false, text: streamed + (error instanceof Error ? error.message : String(error)), ms: performance.now() - started, details: reported, touched })
+    } finally {
+      beforeCommit = null
+      refusing = null
     }
   },
 }

@@ -196,6 +196,18 @@ test("(h) a worker that wrote two files and is stopped names both in the lead's 
   expect(posts.find((t) => t.startsWith("reported w1 stopped"))).toBe("reported w1 stopped: stopped before it finished. changed: /a.txt, /b.txt.")
 }, 30_000)
 
+test("(k) a worker stopped while its bash command is saving still names every file the save wrote", async () => {
+  const a = await agent()
+  await a.call({ op: "gate" })
+  await a.say("START BASH two files")
+  await until(() => a.call<number>({ op: "held" }), (n) => n === 1)
+  await a.say("STOP")
+  await until(a.workers, (w) => w[0]?.status === "stopped")
+  await a.call({ op: "ungate" })
+  const posts = await until(a.posts, (p) => p.some((t) => t.startsWith("reported w1 stopped")))
+  expect(posts.find((t) => t.startsWith("reported w1 stopped"))).toBe("reported w1 stopped: stopped before it finished. changed: /a.txt, /b.txt.")
+}, 30_000)
+
 test("(i) a worker whose one bash command wrote two files and is stopped names both in the lead's note and in its report", async () => {
   const a = await agent()
   await a.say("START BASH two files")

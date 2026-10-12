@@ -164,7 +164,7 @@ export class Workers {
     return cursor.rowsWritten > 0
   }
 
-  // A path is kept once, so a replayed tool result adds nothing. Ends with the run, so a write that lands during a stop is kept too.
+  // A path is kept once, so a replayed call adds nothing. The files extension calls this at each commit, so a stop or a restart after the commit keeps the path.
   touched(conversationId: ConversationId, paths: readonly string[]): void {
     if (!paths.length) return
     const row = this.sql.exec<{ id: string }>("SELECT id FROM workers WHERE conversation_id = ?", conversationId).toArray()[0]
