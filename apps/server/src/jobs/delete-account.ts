@@ -4,12 +4,20 @@ import { agentStub, roomStub, userStub } from "../lib/names"
 
 // Every step is safe to run twice: a wiped object or missing row is not an error, so a failed job completes on retry.
 
-export type DeleteAccountJob = { kind: "delete-account"; userId: string; roomId: RoomId | null }
+// `generation` is the deletion that queued the job. A job whose deletion was rolled back, or superseded by a retry, does nothing.
+export type DeleteAccountJob = { kind: "delete-account"; userId: string; roomId: RoomId | null; generation: number }
+
+export type Deletion = { generation: number; rooms: RoomId[] }
 
 export function isDeleteAccountJob(body: unknown): body is DeleteAccountJob {
 	if (!body || typeof body !== "object") return false
 	const b = body as Record<string, unknown>
-	return b.kind === "delete-account" && typeof b.userId === "string" && (b.roomId === null || (typeof b.roomId === "string" && isRoomId(b.roomId)))
+	return (
+		b.kind === "delete-account" &&
+		typeof b.userId === "string" &&
+		(b.roomId === null || (typeof b.roomId === "string" && isRoomId(b.roomId))) &&
+		Number.isSafeInteger(b.generation)
+	)
 }
 
 export type DeleteReport = {
@@ -30,6 +38,7 @@ export interface DeletionTargets {
 	wipeUser(): Promise<number>
 	deleteObjects(prefix: string, keys: string[]): Promise<number>
 	deleteAuthRows(): Promise<number>
+	deletionCurrent(generation: number): Promise<boolean>
 }
 
 export const userPrefix = (userId: string) => `u/${userId}/`
@@ -37,6 +46,7 @@ export const roomPrefix = (userId: string, roomId: string) => `${userPrefix(user
 
 export async function runDeleteJob(job: DeleteAccountJob, t: DeletionTargets): Promise<DeleteReport> {
 	const report: DeleteReport = { agents: 0, rooms: 0, user: 0, objects: 0, authRows: 0, finished: false }
+	if (!(await t.deletionCurrent(job.generation))) return report
 	if (job.roomId) {
 		const roomId = job.roomId
 		await t.closeRoom(roomId)
@@ -90,13 +100,14 @@ export function deletionTargets(env: Env, userId: string): DeletionTargets {
 		wipeUser: () => user().deleteAll(),
 		deleteObjects: (prefix, keys) => deleteObjects(env.FILES, prefix, keys),
 		deleteAuthRows: () => deleteAuthRows(env.AUTH_DB, userId),
+		deletionCurrent: (generation) => user().deletionCurrent(generation),
 	}
 }
 
-export async function enqueueDeletion(queue: Queue, userId: string, rooms: RoomId[]): Promise<void> {
+export async function enqueueDeletion(queue: Queue, userId: string, { generation, rooms }: Deletion): Promise<void> {
 	const jobs: DeleteAccountJob[] = rooms.length
-		? rooms.map((roomId) => ({ kind: "delete-account", userId, roomId }))
-		: [{ kind: "delete-account", userId, roomId: null }]
+		? rooms.map((roomId) => ({ kind: "delete-account", userId, roomId, generation }))
+		: [{ kind: "delete-account", userId, roomId: null, generation }]
 	for (let i = 0; i < jobs.length; i += QUEUE_BATCH) {
 		await queue.sendBatch(jobs.slice(i, i + QUEUE_BATCH).map((body) => ({ body })))
 	}
@@ -104,8 +115,8 @@ export async function enqueueDeletion(queue: Queue, userId: string, rooms: RoomI
 
 interface DeletionStart {
 	revoke(): Promise<void>
-	begin(): Promise<RoomId[]>
-	enqueue(rooms: RoomId[]): Promise<void>
+	begin(): Promise<Deletion>
+	enqueue(deletion: Deletion): Promise<void>
 	// Undoes revoke and begin so the user can sign in and ask again.
 	abort(): Promise<void>
 }
@@ -115,9 +126,9 @@ interface DeletionStart {
 export async function startDeletion(s: DeletionStart): Promise<number> {
 	await s.revoke()
 	try {
-		const rooms = await s.begin()
-		await s.enqueue(rooms)
-		return rooms.length
+		const deletion = await s.begin()
+		await s.enqueue(deletion)
+		return deletion.rooms.length
 	} catch (e) {
 		await s.abort().catch((abortError) => console.error("account deletion rollback failed", abortError))
 		throw e

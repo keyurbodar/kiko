@@ -4,6 +4,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { type Effect, declareEffect } from "@yuki/agent/effects"
+import { boundedWait } from "@yuki/durable/bounded-wait"
 import { type BuildAgentInput, buildAgent } from "./factory"
 import type { AgentSetup } from "@yuki/agent/host"
 import type { RoleInput } from "./prompt"
@@ -170,8 +171,7 @@ const slowTool = (name: string, effect: Effect) =>
       description: "waits a few seconds, then says slept.",
       parameters: Type.Object({ ms: Type.Optional(Type.Number()) }),
       execute: async (args, _api, context) => {
-        // check-rules: allow no-timer-in-do dev-only fake tool; the wait ends when the run aborts, and a run lives inside one request
-        await awaitWithContext(new Promise((resolve) => setTimeout(resolve, Math.min(args.ms ?? SLOW_TOOL_MS, 300_000))), context)
+        await awaitWithContext(boundedWait(Math.min(args.ms ?? SLOW_TOOL_MS, 300_000)), context)
         return { content: [{ type: "text", text: "slept" }] }
       },
     }),

@@ -75,11 +75,8 @@ async function deleteAccount(request: Request, env: Env, url: URL): Promise<Resp
 		rooms = await startDeletion({
 			revoke: () => revokeUser(env.AUTH_DB, userId),
 			begin: () => user.beginDeletion(),
-			enqueue: (ids) => enqueueDeletion(env.JOBS, userId, ids),
-			abort: async () => {
-				await user.cancelDeletion()
-				await restoreUser(env.AUTH_DB, userId)
-			},
+			enqueue: (deletion) => enqueueDeletion(env.JOBS, userId, deletion),
+			abort: () => rollbackDeletion(env.AUTH_DB, user, userId),
 		})
 	} catch (e) {
 		console.error("account deletion could not start", e)
@@ -90,6 +87,12 @@ async function deleteAccount(request: Request, env: Env, url: URL): Promise<Resp
 	const response = Response.json({ rooms }, { status: 202 })
 	for (const cookie of headers.getAll("set-cookie")) response.headers.append("set-cookie", cookie)
 	return response
+}
+
+// The user comes back first: if the object cannot clear its mark, sign-in still works and a retry's beginDeletion overwrites the mark.
+export async function rollbackDeletion(db: D1Database, user: { cancelDeletion(): Promise<void> }, userId: string): Promise<void> {
+	await restoreUser(db, userId)
+	await user.cancelDeletion()
 }
 
 async function devRoute(request: Request, env: Env, url: URL): Promise<Response> {
@@ -107,14 +110,17 @@ async function devRoute(request: Request, env: Env, url: URL): Promise<Response>
 			return Response.json({ ok: true })
 		}
 		const match = DEV_USER_PATH.exec(url.pathname)
-		const userId = match?.[1]
-		if (!match || userId === undefined) return error(404, "not found")
+		const pathId = match?.[1]
+		if (!match || pathId === undefined) return error(404, "not found")
+		const userId = await devUserId(request, env, pathId)
+		if (userId === null) return error(403, "sign in, or name a deleted account")
 		if (match[2] === "rerun") {
 			if (request.method !== "POST") return error(405, "method not allowed")
 			const body = await readJson(request)
 			const roomId = body?.roomId ?? null
 			if (roomId !== null && (typeof roomId !== "string" || !isRoomId(roomId))) return error(400, "bad room id")
-			const report = await runDeleteJob({ kind: "delete-account", userId, roomId }, deletionTargets(env, userId))
+			// Generation 0 never matches a live deletion's mark, so a rerun does nothing to a live user and runs on a finished wipe.
+			const report = await runDeleteJob({ kind: "delete-account", userId, roomId, generation: 0 }, deletionTargets(env, userId))
 			return Response.json({ report })
 		}
 		return Response.json(await residue(env, userId, url))
@@ -122,6 +128,15 @@ async function devRoute(request: Request, env: Env, url: URL): Promise<Response>
 		if (e instanceof NameError) return error(400, e.message)
 		throw e
 	}
+}
+
+// A session names its own user, and the path id is ignored. Without a session the path id counts only for a deleted user:
+// revokeUser already removed its sessions, and its objects are wiped, so the path reaches nothing live.
+// This is an AGENTS rule 5 exception for the dev suite only (architecture D9).
+async function devUserId(request: Request, env: Env, pathId: string): Promise<string | null> {
+	const session = await createAuth(env, request).api.getSession({ headers: request.headers })
+	if (session) return session.user.id
+	return (await isDeletedUser(env.AUTH_DB, pathId)) ? pathId : null
 }
 
 // Reading an object wakes it and recreates its empty tables, so an empty object is wiped again after the probe.

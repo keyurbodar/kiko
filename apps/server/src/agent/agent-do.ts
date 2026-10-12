@@ -72,6 +72,8 @@ export class AgentDO extends DurableObject<Env> {
     super(ctx, env)
     instrument(ctx, "agent")
     void ctx.blockConcurrencyWhile(async () => {
+      // A wiped agent builds no host: the inbox's constructor writes a row, and a deleted object must hold none.
+      if (await isWiped(ctx.storage)) return
       void this.host
       void this.outbox
       this.home()
@@ -524,6 +526,7 @@ export class AgentDO extends DurableObject<Env> {
   async egress(request: EgressRequest): Promise<Response> {
     if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+    // check-rules: allow egress the one outside request, made in this object's own invocation, which is the point of egress
     return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
   }
 
