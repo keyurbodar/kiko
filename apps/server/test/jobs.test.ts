@@ -47,8 +47,22 @@ test("a dead account deletion goes back to the main queue, and other dead bodies
 	await consume(d.b, t.env)
 	const other = batch({ type: "attachment", userId: "u1", roomId: "r", fileId: "f" }, 1, DEAD_LETTER_QUEUE)
 	await consume(other.b, t.env)
-	expect(t.seen.sent).toEqual([deletion])
+	expect(t.seen.sent).toEqual([{ ...deletion, cycles: 1 }])
 	expect([d.seen.ack, other.seen.ack]).toEqual([1, 1])
+})
+
+test("each trip through the dead-letter queue is counted and logged", async () => {
+	const t = fakeEnv()
+	const logged: string[] = []
+	const error = console.error
+	console.error = (line: string) => void logged.push(line)
+	try {
+		await consume(batch({ ...deletion, cycles: 2 }, 1, DEAD_LETTER_QUEUE).b, t.env)
+	} finally {
+		console.error = error
+	}
+	expect(t.seen.sent).toEqual([{ ...deletion, cycles: 3 }])
+	expect(logged).toEqual(["account deletion still failing after 3 dead-letter cycles; requeued (user u1, room none)"])
 })
 
 test("an unknown job is dropped, not retried forever", async () => {
