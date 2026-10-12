@@ -98,7 +98,9 @@ const suite: Suite = {
     const leadRuns = seen(room).runs.get("yuki") ?? 0
     print(room, from)
     if (leadRuns !== 1) fail.push(`rapid fire: the lead ran ${leadRuns} times for one burst`)
-    if (agentSays(room, from, "ada").length) fail.push("rapid fire: ada spoke on a message that tagged nobody")
+    // The lead may hand part of the burst to ada; she must not speak before the lead tags her.
+    const leadTagsAda = agentSays(room, from, "yuki").find((m) => /@ada\b/i.test(m.text))?.seq ?? Number.POSITIVE_INFINITY
+    if (agentSays(room, from, "ada").some((m) => m.seq < leadTagsAda)) fail.push("rapid fire: ada spoke on a message that tagged nobody")
     step(`rapid fire: 5 messages, the lead answered once (first bubble ${firstLead} ms), ada was not woken`)
 
     from = lastSeq(room)
