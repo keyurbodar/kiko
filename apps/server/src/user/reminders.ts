@@ -12,6 +12,8 @@ import { MIN_REPEAT_MS, ruleProblem } from "@yuki/sandbox/rule"
 
 export const REMINDERS_WAKEUP = "reminders"
 export const MAX_ROUTINES = 50
+const MAX_REMINDERS = 100
+const YEAR_MS = 365 * 86_400_000
 export const RUNS_KEPT = 20
 const LATE_MS = 60 * 60_000
 export const MAX_FAILS = 3
@@ -117,11 +119,14 @@ const toReminder = (r: Row): Reminder => ({
 })
 
 export const deliveryId = (r: Pick<Reminder, "id" | "dueUtc">) => `${r.id}:${r.dueUtc}`
-function parseTime(time: string): number {
+// The one place a time is parsed, so every reminder, routine, and snooze obeys the same horizon.
+function parseTime(time: string, now: number): number {
   if (!/(z|[+-]\d{2}:?\d{2})$/i.test(time.trim())) throw new ReminderError("time must include an offset or z")
   const at = Date.parse(time)
   if (Number.isNaN(at)) throw new ReminderError("time is not an iso date")
-  return Math.ceil(at / 1000) * 1000
+  const due = Math.ceil(at / 1000) * 1000
+  if (due > now + YEAR_MS) throw new ReminderError("time is more than a year away")
+  return due
 }
 
 export function nextAfter(rrule: string, tz: string, due: number, now: number): number | null {
@@ -228,7 +233,7 @@ export class Reminders {
     if (!text) throw new ReminderError("text is empty")
     if (text.length > MAX_TEXT) throw new ReminderError("text is too long")
     if (!validZone(input.tz)) throw new ReminderError("unknown time zone")
-    const due = parseTime(input.time)
+    const due = parseTime(input.time, this.now())
     const rrule = input.rrule?.trim() || null
     if (rrule) {
       const problem = ruleProblem(rrule)
@@ -242,6 +247,8 @@ export class Reminders {
     const target = input.target?.trim() || "human"
     if (target !== "human" && !/^[a-z0-9-]{1,32}$/.test(target)) throw new ReminderError("bad target")
     if (rrule) checkRepeat(rrule, input.tz, due)
+    const open = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM reminders WHERE room_id = ? AND trigger IS NULL AND status = 'active'", input.roomId).one().n
+    if (open >= MAX_REMINDERS) throw new ReminderError(`this chat already has ${MAX_REMINDERS} reminders. cancel one first.`)
     const id = crypto.randomUUID()
     const chain = input.chain
     this.sql.exec(
@@ -319,7 +326,7 @@ export class Reminders {
     const now = this.now()
     switch (t.on) {
       case "time": {
-        let due = parseTime(t.at)
+        let due = parseTime(t.at, now)
         const rrule = t.rrule?.trim().replace(/^RRULE:/i, "") || null
         if (rrule) {
           checkRepeat(rrule, input.tz, due)
@@ -424,13 +431,22 @@ export class Reminders {
       occurrence,
     )
     if (!changed.rowsWritten) return
-    const bad = status === "failed" || status === "timeout"
-    this.sql.exec(`UPDATE reminders SET fails = ${bad ? "fails + 1" : "0"} WHERE id = ?`, routineId)
-    const routine = this.get(routineId)
-    if (!bad || !routine || routine.fails < MAX_FAILS || routine.status !== "active") return
-    this.sql.exec("UPDATE reminders SET status = 'paused' WHERE id = ? AND status = 'active'", routineId)
+    if (status === "failed" || status === "timeout") await this.countFailure(routineId, occurrence)
+    else this.sql.exec("UPDATE reminders SET fails = 0 WHERE id = ?", routineId)
+  }
+
+  // One failed run or post. At MAX_FAILS a routine pauses and a one-off fails. The human hears once per occurrence.
+  private async countFailure(id: string, occurrence: string): Promise<void> {
+    this.sql.exec("UPDATE reminders SET fails = fails + 1 WHERE id = ?", id)
+    const reminder = this.get(id)
+    if (!reminder || reminder.fails < MAX_FAILS) return
+    const to = reminder.trigger ? "paused" : "failed"
+    if (!this.sql.exec("UPDATE reminders SET status = ? WHERE id = ? AND status = 'active'", to, id).rowsWritten) return
     await this.rearm()
-    await this.ports?.notice(routine.roomId, `paused:${routineId}:${occurrence}`, `routine "${routine.name}" paused itself: its last ${MAX_FAILS} runs failed. ask @${routine.target} to look at it, or resume it.`)
+    const text = reminder.trigger
+      ? `routine "${reminder.name}" paused itself: its last ${MAX_FAILS} runs failed. ask @${reminder.target} to look at it, or resume it.`
+      : `reminder "${reminder.text}" did not post after ${MAX_FAILS} tries. snooze it to try again.`
+    await this.ports?.notice(reminder.roomId, `${to}:${id}:${occurrence}`, text).catch((e: unknown) => console.error(`${to} notice not sent: ${e instanceof Error ? e.message : String(e)}`))
   }
 
   async runNow(id: string, byHuman = false): Promise<RunDelivery | null> {
@@ -453,13 +469,12 @@ export class Reminders {
     const body = routineBody(routine, why, this.lastRun(routine.id), extra)
     const budget: Budget = paid ? "paid" : routine.createdBy === "human" ? "user" : "room"
     const fresh = this.beginRun(routine.id, occurrence)
-    const delivery = await this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body, budget })
+    const delivery = await this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body, budget }).catch(thrownAsRefused)
     if (delivery === "gone") {
       this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ?", routine.id)
       await this.rearm()
     }
-    // The room never reports a refusal, so the run counts as failed here, where finishRun would have counted it.
-    if (fresh && delivery === "refused") await this.finishRun(routine.id, occurrence, "failed", null)
+    if (fresh && delivery === "refused") await this.countFailure(routine.id, occurrence)
     this.settleRun(routine.id, occurrence, delivery, fresh)
     return delivery
   }
@@ -528,7 +543,7 @@ export class Reminders {
   }
 
   async snooze(id: string, time: string): Promise<Reminder | null> {
-    const due = parseTime(time)
+    const due = parseTime(time, this.now())
     const current = this.get(id)
     if (!current || current.status === "cancelled") return null
     if (current.trigger && current.trigger.on !== "time") throw new ReminderError("snooze works on time reminders")
@@ -540,17 +555,6 @@ export class Reminders {
     )
     await this.rearm()
     return this.get(id)
-  }
-
-  // A reminder that keeps failing to post is not retried forever. The human hears about it once.
-  private async undelivered(reminder: Reminder): Promise<void> {
-    const fails = reminder.fails + 1
-    if (fails < MAX_FAILS) {
-      this.sql.exec("UPDATE reminders SET fails = ? WHERE id = ?", fails, reminder.id)
-      return
-    }
-    this.sql.exec("UPDATE reminders SET fails = ?, status = 'failed' WHERE id = ? AND status = 'active'", fails, reminder.id)
-    await this.ports?.notice(reminder.roomId, `failed:${reminder.id}:${reminder.dueUtc}`, `reminder "${reminder.text}" did not post after ${MAX_FAILS} tries. snooze it to try again.`).catch((e: unknown) => console.error(`failed reminder not announced: ${e instanceof Error ? e.message : String(e)}`))
   }
 
   async rewind(id: string): Promise<Reminder | null> {
@@ -579,7 +583,11 @@ export class Reminders {
       let next: number | null
       try {
         if (!reminder.trigger) {
-          await this.deliver(deliveryId(reminder), reminder)
+          if ((await this.deliver(deliveryId(reminder), reminder).catch(thrownAsRefused)) === "refused") {
+            await this.countFailure(reminder.id, String(reminder.dueUtc))
+            failed = true
+            continue
+          }
           next = nextTime(reminder, this.now())
         } else if (reminder.trigger.on === "watch") {
           if (!away && ++watched > WATCHES_PER_PASS) {
@@ -598,7 +606,6 @@ export class Reminders {
         }
       } catch {
         failed = true
-        if (!reminder.trigger) await this.undelivered(reminder)
         continue
       }
       this.sql.exec(
@@ -650,6 +657,12 @@ const toRun = (r: RunRow): RoutineRun => ({ routineId: r.routine_id, occurrence:
 
 const fail = (message: string): never => {
   throw new ReminderError(message)
+}
+
+// A throw from the room is a refusal, so the failure counts the same way a refused run does.
+const thrownAsRefused = (e: unknown): "refused" => {
+  console.error(`delivery refused: ${e instanceof Error ? e.message : String(e)}`)
+  return "refused"
 }
 
 

@@ -157,9 +157,12 @@ export class BrowserConnection {
     return this.slots(1, async () => {
       const session = await this.socket()
       const t = performance.now()
-      held.tab = this.track(held, await session.openTab(held.url))
+      const tab = this.track(held, await session.openTab(held.url))
       count("browser.open.ms", Math.round(performance.now() - t))
-      return held.tab
+      // A switchTo during the open made this held non-current. Its tab must still count as the agent's, or the cap is not enforced and idle never closes it.
+      if (this.current !== held) this.parked.set(tab.id, held.url)
+      held.tab = tab
+      return tab
     })
   }
 
