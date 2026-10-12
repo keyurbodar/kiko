@@ -28,8 +28,10 @@ async function call(user: string, op: string, args: unknown[]): Promise<Counts> 
 	return (await res.json()) as Counts
 }
 
+// The seed reports how many rows it added. A wrong bind fails here, not as a runaway write.
 async function seed(user: string, what: string, n: number): Promise<void> {
-	await mf.dispatchFetch(`http://do/seed/${user}`, { method: "POST", body: JSON.stringify({ what, n }) })
+	const res = await mf.dispatchFetch(`http://do/seed/${user}`, { method: "POST", body: JSON.stringify({ what, n }) })
+	expect(await res.json()).toBe(n)
 }
 
 const ROOM = "r1"
