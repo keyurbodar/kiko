@@ -22,6 +22,7 @@ type Page = Extract<RoomToClient, { t: "search" }>
 
 const suite: Suite = {
 	name: "room-search",
+	load: true,
 	async run(v) {
 		const s = await v.as(`room-search-${Date.now().toString(36)}`)
 		const roomId = ulid()
