@@ -177,4 +177,6 @@ export const USER_STEPS: Step[] = [
   ...ALARM_STEPS,
   // How many Jev passes a heard burst has failed (initiative-loops.ts). Past the last try, the two-word touch decides it.
   addColumn("loop_heard", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+  // initiative_wakes.ids holds the one loop id a wake carries, no longer a JSON list of it.
+  "UPDATE initiative_wakes SET ids = json_extract(ids, '$[0]') WHERE ids LIKE '[%'",
 ]

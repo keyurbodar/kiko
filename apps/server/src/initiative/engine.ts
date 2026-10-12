@@ -7,7 +7,7 @@ import type { WakeResult } from "../room/wake"
 import type { ChatTasks } from "../user/overview"
 import type { Reminder, RoutineRun } from "../user/reminders"
 import { allowance, type Outcome, restUntil } from "./attention/appetite"
-import { attend, rankOrder } from "./attention/attend"
+import { attend, LEAD, rankOrder } from "./attention/attend"
 import { decayed, emptyRhythm, known, nextMoment, slotOf, view } from "./attention/rhythm"
 import { AttentionStore } from "./attention/store"
 import { getSetting, setSetting } from "../lib/settings"
@@ -26,8 +26,6 @@ const NOTICED_MAX = 2
 export const SHARED_WORDS = 2
 const LAST_PASS = "initiative_last_pass"
 const REMINDER_RUN_WINDOW = 3_600_000
-
-const LEAD = "@lead"
 
 export type WakeInput = { id: string; to: AgentSlug | null; body: string; reason: string }
 
@@ -136,8 +134,7 @@ export class InitiativeEngine {
     const { occurrence: wakeId, outcome } = result
     const row = this.d.sql.exec<{ room: string; slug: string; kind: string; ids: string; status: string }>("SELECT * FROM initiative_wakes WHERE id = ?", wakeId).toArray()[0]
     if (row?.status !== "pending") return
-    const [id] = JSON.parse(row.ids) as string[]
-    if (id === undefined) throw new Error(`initiative wake ${wakeId} has no loop id`)
+    const id = row.ids
     const kind = row.kind as Kind
     const status = outcome === "ok" ? "spoke" : outcome === "quiet" ? "skipped" : "failed"
     this.d.sql.exec("UPDATE initiative_wakes SET status = ? WHERE id = ?", status, wakeId)
@@ -281,11 +278,12 @@ export class InitiativeEngine {
     const items = this.items(now, rhythm.cycle)
     const report: PassReport = { at: now, rhythm: { known: rhythm.known, activeNow: rhythm.activeNow, cycle: rhythm.cycle }, jev: false, verdicts: [], woke: [] }
     const level = this.d.level()
+    if (level === "off" || level === "chat") return report
     const appetite = store.appetite()
     const busyRooms = this.d.sql.exec<{ room_id: string }>("SELECT room_id FROM initiative_rooms WHERE human_at > ?", now - BUSY_MS).toArray().map((r) => r.room_id)
     const away = this.d.away()
     const budget = this.d.budget()
-    const ctx = { now, level, away, budget, busyRooms, leads: Object.fromEntries(items.map((i) => [i.c.room, LEAD])), rhythm, appetite }
+    const ctx = { now, level, away, budget, busyRooms, rhythm, appetite }
     let worth: Record<string, number> | null = null
     const judge = this.d.judge()
     if (judge && items.length && (level === "digest" || level === "active") && rhythm.known && rhythm.activeNow && !away && budget > 0 && allowance(appetite, now) > 0) {
@@ -326,7 +324,7 @@ export class InitiativeEngine {
       const id = `${item.c.id}#${item.c.lastSurfaced ?? 0}`
       const result = await this.d.wake(item.c.room, { id, to: own ? (slug as AgentSlug) : null, body: wakeBody(item, own), reason: item.reason })
       if (result === "delivered") {
-        this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')", id, item.c.room, slug, item.c.kind, JSON.stringify([item.c.id]), now)
+        this.d.sql.exec("INSERT OR IGNORE INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')", id, item.c.room, slug, item.c.kind, item.c.id, now)
         this.d.count({ initiative_woke: 1 })
       } else if (result === "duplicate" && !this.d.sql.exec("SELECT 1 FROM initiative_wakes WHERE id = ?", id).toArray().length) {
         this.mark(item.c.id, null, now)

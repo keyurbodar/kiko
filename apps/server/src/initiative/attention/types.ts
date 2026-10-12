@@ -25,7 +25,7 @@ export type Level = UserSettings["initiative"]
 
 export type Target = { room: string; slug: string }
 
-export type Reason = "off" | "quiet" | "cold" | "away" | "typing" | "fresh" | "tentative" | "appetite" | "worth" | "moment" | "no_lead" | "room_taken" | "allowance" | "budget"
+export type Reason = "cold" | "away" | "typing" | "fresh" | "tentative" | "appetite" | "worth" | "moment" | "room_taken" | "allowance" | "budget"
 
 export type Verdict =
   | { id: string; verdict: "rest"; until: number }

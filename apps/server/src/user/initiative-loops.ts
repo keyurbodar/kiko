@@ -49,14 +49,16 @@ export class InitiativeLoops {
   constructor(d: LoopsDeps) {
     this.d = d
     this.loops = new Loops(d.sql, d.transaction)
+    // A chat the human keeps private never reaches initiative. A temporary chat reaches only the loops it already holds.
+    const title = (roomId: string, withTemp: boolean) => {
+      const chat = getChat(d.sql, roomId)
+      return chat && !chat.private && (withTemp || !chat.temp) ? chat.title : null
+    }
     this.initiative = new Initiative({
       loops: this.loops,
       life: d.life,
       judge: () => d.memory.judgeFor(CAPTURE_TIMEOUT_MS),
-      title: (roomId) => {
-        const chat = getChat(d.sql, roomId)
-        return chat && !chat.private ? chat.title : null
-      },
+      title: (roomId) => title(roomId, true),
       off: () => this.level() === "off",
       count: (delta) => d.memory.count(delta),
       close: (id, status, at, room) => this.closeLoop(id, status, at, room),
@@ -74,10 +76,7 @@ export class InitiativeLoops {
         return last !== null && Date.now() - Number(last) > d.limits().awayDays * 86_400_000
       },
       budget: () => Math.max(0, d.limits().autonomousRunsPerDay - Number(getSetting(d.sql, `autonomous:${utcDay(Date.now())}`) ?? 0)),
-      title: (roomId) => {
-        const chat = getChat(d.sql, roomId)
-        return chat && !chat.private && !chat.temp ? chat.title : null
-      },
+      title: (roomId) => title(roomId, false),
       home: () => yukiChatRoom(d.sql),
       routines: () => {
         const runs = d.reminders.runs()
