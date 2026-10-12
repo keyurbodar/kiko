@@ -10,7 +10,6 @@ import { allowance, type Outcome, restUntil } from "./attention/appetite"
 import { attend, rankOrder } from "./attention/attend"
 import { decayed, emptyRhythm, known, nextMoment, slotOf, view } from "./attention/rhythm"
 import { AttentionStore } from "./attention/store"
-import { getSetting, setSetting } from "../lib/settings"
 import type { Candidate, Kind, Level, Signal, Verdict } from "./attention/types"
 import { type WorthItem, worthNow } from "./judge"
 
@@ -18,13 +17,11 @@ export const INITIATIVE_RUN = "initiative"
 export const REMINDER_RUN = "reminder"
 export const INITIATIVE_WAKEUP = "initiative_pass"
 
-const MIN_GAP = 20 * 3_600_000
 const JEV_MAX = 10
 const BUSY_MS = 120_000
 const KEEP_MS = 90 * 86_400_000
 const NOTICED_MAX = 2
 export const SHARED_WORDS = 2
-const LAST_PASS = "initiative_last_pass"
 const REMINDER_RUN_WINDOW = 3_600_000
 
 const LEAD = "@lead"
@@ -42,6 +39,8 @@ type EngineDeps = {
   home: () => string | null
   routines: () => { routine: Reminder; last: RoutineRun | null }[]
   judge: () => Judge | null
+  /** Whether Jev reads this chat's bursts for nudge answers: then its verdict decides, not the two-word touch. */
+  judged: (roomId: string) => boolean
   wake: (roomId: string, input: WakeInput) => Promise<WakeResult | "busy">
   count: (delta: Record<string, number>) => void
   setWakeup: (at: number) => Promise<void>
@@ -94,10 +93,12 @@ export class InitiativeEngine {
         this.d.sql.exec("INSERT INTO initiative_rooms (room_id, human_at) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET human_at = max(human_at, excluded.human_at)", s.roomId, s.at)
         if (fresh.has(`burst:${s.roomId}:${s.seq}`) && this.d.title(s.roomId) !== null) {
           const said = new Set(keywords(s.text))
+          // Where Jev reads bursts, it judges the burst against the nudge (initiative.ts) and its verdict decides; sharing two words is the rule only elsewhere.
+          const judged = this.d.judged(s.roomId)
           for (const l of this.d.loops.similar(s.text, 2)) {
             if (l.room !== s.roomId || keywords(l.text).filter((w) => said.has(w)).length < SHARED_WORDS) continue
             this.d.loops.touch(l.id, s.at)
-            heard.push(answer(`loop:${l.id}`, s.roomId, `${s.seq}`, s.at))
+            if (!judged) heard.push(answer(`loop:${l.id}`, s.roomId, `${s.seq}`, s.at))
           }
         }
       }
@@ -196,7 +197,7 @@ export class InitiativeEngine {
       const said = l.owner === "human" ? "said" : `@${l.owner} promised`
       add(
         `loop:${l.id}`,
-        { kind: l.kind, certainty: l.certainty, owner: l.owner, room, ...(due !== undefined && !Number.isNaN(due) ? { due } : {}), mentions: l.mentions, lastSeen: l.lastSeen },
+        { kind: l.kind, certainty: l.certainty, owner: l.owner, room, ...(due !== undefined && !Number.isNaN(due) ? { due } : {}), lastSeen: l.lastSeen },
         { text: l.text, line: `${loopLine(l)} (${said} ${day(l.openedAt, tz)}, last mentioned ${ago(l.lastSeen, now)})`, reason: l.owner === "human" ? `You mentioned this ${day(l.openedAt, tz)}` : `Promised ${day(l.openedAt, tz)}`, loopId: l.id },
       )
     }
@@ -207,7 +208,7 @@ export class InitiativeEngine {
         const owner = t.status === "review" || !t.owner ? "human" : t.owner
         add(
           `task:${r.room_id}:${t.id}:${t.updatedAt}`,
-          { kind: "task", certainty: "explicit", owner, room: r.room_id, due: t.updatedAt + cycle, mentions: 1, lastSeen: t.updatedAt },
+          { kind: "task", certainty: "explicit", owner, room: r.room_id, due: t.updatedAt + cycle, lastSeen: t.updatedAt },
           { text: t.title, line: `task ${t.id} "${t.title}" is ${t.status}${t.owner ? `, owner @${t.owner}` : ""}, untouched ${ago(t.updatedAt, now)}`, reason: `Untouched for ${span(now - t.updatedAt)}` },
         )
       }
@@ -219,7 +220,7 @@ export class InitiativeEngine {
       const what = routine.status === "paused" ? "is paused" : `last run ${last?.status} ${ago(at, now)}`
       add(
         `routine:${routine.id}:${last?.occurrence ?? routine.status}`,
-        { kind: "routine", certainty: "explicit", owner: "human", room: routine.roomId, due: at, mentions: 1, lastSeen: at },
+        { kind: "routine", certainty: "explicit", owner: "human", room: routine.roomId, due: at, lastSeen: at },
         { text: routine.name ?? "a routine", line: `routine "${routine.name ?? routine.id}" (${routine.id}) ${what}`, reason: routine.status === "paused" ? "A routine paused" : "A routine failed" },
       )
     }
@@ -235,16 +236,12 @@ export class InitiativeEngine {
     })
   }
 
-  /** Rows older than the longest rest the appetite can ask for no longer change a decision. */
+  /** Rows older than KEEP_MS cannot change a decision: the longest rest is eight cycles, and a cycle is at most eight days. */
   private prune(now: number): void {
     const cutoff = now - KEEP_MS
     this.d.sql.exec("DELETE FROM initiative_marks WHERE last_at < ?", cutoff)
     this.d.sql.exec("DELETE FROM initiative_briefed WHERE at < ?", cutoff)
     this.d.sql.exec("DELETE FROM initiative_wakes WHERE at < ? AND status != 'pending'", cutoff)
-  }
-
-  private lastPass(): number {
-    return Number(getSetting(this.d.sql, LAST_PASS) ?? 0)
   }
 
   async arm(now = Date.now()): Promise<number | null> {
@@ -254,7 +251,7 @@ export class InitiativeEngine {
       await this.d.clearWakeup()
       return null
     }
-    const at = nextMoment(rhythm, Math.max(now, this.lastPass() + MIN_GAP), this.d.tz())
+    const at = nextMoment(rhythm, now, this.d.tz())
     if (at === null) await this.d.clearWakeup()
     else await this.d.setWakeup(at)
     return at
@@ -265,7 +262,6 @@ export class InitiativeEngine {
     const store = this.store
     this.apply(store.observe([], now, tz))
     this.prune(now)
-    setSetting(this.d.sql, LAST_PASS, String(now))
     const rhythm = view(store.rhythm(), now, tz)
     const items = this.items(now, rhythm.cycle)
     const report: PassReport = { at: now, rhythm: { known: rhythm.known, activeNow: rhythm.activeNow, cycle: rhythm.cycle }, jev: false, verdicts: [], woke: [] }
@@ -280,7 +276,7 @@ export class InitiativeEngine {
     if (judge && items.length && (level === "digest" || level === "active") && rhythm.known && rhythm.activeNow && !away && budget > 0 && allowance(appetite, now) > 0) {
       const rank = rankOrder(ctx)
       const eligible = items
-        .filter((i) => now >= restUntil(appetite, i.c, rhythm.cycle, now) && !busyRooms.includes(i.c.room))
+        .filter((i) => now >= restUntil(i.c, rhythm.cycle) && !busyRooms.includes(i.c.room))
         .sort((a, b) => rank(a.c, b.c))
         .slice(0, JEV_MAX)
       if (eligible.length) {
@@ -330,8 +326,7 @@ export class InitiativeEngine {
   noticed(roomId: string, skip: ReadonlySet<number>, now = Date.now()): string[] {
     if (this.d.level() === "off") return []
     const rhythm = view(this.store.rhythm(), now, this.d.tz())
-    const appetite = this.store.appetite()
-    const briefed = new Map(this.d.sql.exec<{ loop_id: number; at: number }>("SELECT loop_id, at FROM initiative_briefed").toArray().map((r) => [r.loop_id, r.at]))
+    const briefed =new Map(this.d.sql.exec<{ loop_id: number; at: number }>("SELECT loop_id, at FROM initiative_briefed").toArray().map((r) => [r.loop_id, r.at]))
     const rank = rankOrder({ now, rhythm })
     const picked = this.items(now, rhythm.cycle)
       .filter(
@@ -341,7 +336,7 @@ export class InitiativeEngine {
           i.c.room === roomId &&
           i.c.certainty === "explicit" &&
           !skip.has(i.loopId) &&
-          now >= restUntil(appetite, i.c, rhythm.cycle, now) &&
+          now >= restUntil(i.c, rhythm.cycle) &&
           now >= (briefed.get(i.loopId) ?? -Infinity) + rhythm.cycle,
       )
       .sort((a, b) => rank(a.c, b.c))
@@ -361,7 +356,6 @@ export class InitiativeEngine {
     sql.exec("UPDATE initiative_briefed SET at = at - ?", ms)
     sql.exec("UPDATE initiative_wakes SET at = at - ?", ms)
     sql.exec("UPDATE initiative_rooms SET human_at = human_at - ?", ms)
-    setSetting(this.d.sql, LAST_PASS, String(this.lastPass() - ms))
     this.store.devShift(ms)
   }
 

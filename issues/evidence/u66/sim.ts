@@ -14,7 +14,8 @@ export const MIN = 60_000
 export const HOUR = 60 * MIN
 export const DAY = 24 * HOUR
 const STEP = 15 * MIN
-const MIN_GAP = 20 * HOUR
+// GAP=1 restores the pre-U66 20-hour gap between passes, to measure what dropping it (D4) changed.
+const MIN_GAP = process.env.GAP === "1" ? 20 * HOUR : 0
 const BUSY_MS = 120_000
 const JEV_MAX = 10
 const AWARE = process.env.HUMAN === "aware"
@@ -205,8 +206,8 @@ export function run(p: Persona, seed: number, weeks: number, v: Variant, roomCou
   const marks = new Map<string, Mark>()
   const lastHuman = new Map<string, number>()
   const intents: { kind: "reply" | "dismiss"; room: string; loop: string }[] = []
-  let lastPass = 0
   let alarm: number | null = null
+  let lastPass = 0
   let nextId = 1
   const res: Result = { passes: [], nudges: [], outcomes: {}, byKind: {}, firstKnown: null }
   const end = START + weeks * 7 * DAY
@@ -261,7 +262,6 @@ export function run(p: Persona, seed: number, weeks: number, v: Variant, roomCou
         owner: l.owner,
         room: l.room,
         ...(l.taskStatus ? { due: l.lastSeen + cycle } : l.due !== undefined ? { due: l.due } : {}),
-        mentions: l.mentions,
         lastSeen: l.lastSeen,
         surfaced: m?.surfaced ?? 0,
         ignored: (m?.ignored ?? 0) + (m?.skipped ?? 0),
@@ -293,7 +293,7 @@ export function run(p: Persona, seed: number, weeks: number, v: Variant, roomCou
     let worth: Record<string, number> | null = null
     if (v.judge && its.length && view.known && view.activeNow && AP.allowance(app, now) > 0) {
       const eligible = its
-        .filter((i) => now >= AP.restUntil(app, i.c, view.cycle, now) && !busy.includes(i.c.room))
+        .filter((i) => now >= AP.restUntil(i.c, view.cycle) && !busy.includes(i.c.room))
         .sort((a, b) => rank(b.c) - rank(a.c))
         .slice(0, JEV_MAX)
       if (eligible.length) worth = Object.fromEntries(eligible.map((i) => [i.c.id, jevProxy(i.c, now, i.skipped, rnd(seed, p.name, "jev", i.c.id, i.c.surfaced, Math.floor(now / DAY)))]))

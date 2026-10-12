@@ -73,20 +73,20 @@ function ignoreN(app: Appetite, n: number, kind: Candidate["kind"] = "intention"
 }
 
 describe("appetite", () => {
-  test("ignored twice: nudges drop to zero and rest grows faster than doubling", () => {
+  test("ignored twice: nudges drop to zero and rest doubles with each ignore", () => {
     const fresh = emptyAppetite()
     const once = ignoreN(fresh, 1)
     const twice = ignoreN(fresh, 2)
     expect([allowance(fresh, 0), allowance(once, 2 * DAY), allowance(twice, 4 * DAY)]).toEqual([1, 1, 0])
-    const rest = (app: Appetite, ignored: number) => restUntil(app, { kind: "intention", lastSurfaced: 0, ignored }, DAY, 4 * DAY)
-    expect(rest(fresh, 0)).toBe(DAY)
-    expect(rest(once, 1)).toBeGreaterThan(2 * DAY)
-    expect(rest(twice, 2)).toBeGreaterThan(2 * rest(once, 1))
+    const rest = (ignored: number) => restUntil({ lastSurfaced: 0, ignored }, DAY)
+    expect([rest(0), rest(1), rest(2)]).toEqual([DAY, 2 * DAY, 4 * DAY])
   })
 
-  test("a loop ignored ten times rests under a year, not a thousand days", () => {
-    const rest = restUntil(emptyAppetite(), { kind: "intention", lastSurfaced: 0, ignored: 10 }, DAY, 0)
-    expect(rest).toBeLessThan(365 * DAY)
+  test("a loop ignored ten times rests eight cycles at most, however closed its kind is", () => {
+    let closed = emptyAppetite()
+    for (let i = 0; i < 60; i++) closed = learn(closed, "intention", "ignored", 0)
+    expect(kindOpen(closed, "intention", 0)).toBe(false)
+    expect(restUntil({ lastSurfaced: 0, ignored: 10 }, DAY)).toBe(8 * DAY)
   })
 
   test("time fades ignores and lets one careful nudge back", () => {
@@ -139,7 +139,7 @@ const NOW = 100 * DAY
 const known = { known: true, activeNow: true, moments: [NOW + DAY, NOW + 2 * DAY, NOW + 3 * DAY], cycle: DAY }
 
 function cand(over: Partial<Candidate> = {}): Candidate {
-  return { id: "c", kind: "intention", certainty: "explicit", owner: "human", room: "r1", due: NOW + 12 * HOUR, mentions: 1, lastSeen: NOW - DAY, surfaced: 0, ignored: 0, ...over }
+  return { id: "c", kind: "intention", certainty: "explicit", owner: "human", room: "r1", due: NOW + 12 * HOUR, lastSeen: NOW - DAY, surfaced: 0, ignored: 0, ...over }
 }
 
 function ctx(over: Partial<AttendContext> = {}): AttendContext {
@@ -168,6 +168,8 @@ describe("attend", () => {
     ["promised an hour ago, due a week out", { kind: "commitment", owner: "scout", lastSeen: NOW - 2 * DAY, due: NOW + 7 * DAY }, {}, "brief:worth"],
     ["nudged an hour ago", { surfaced: 1, lastSurfaced: NOW - HOUR }, {}, "rest"],
     ["two ignores of the kind", {}, { appetite: ignoreN(emptyAppetite(), 2, "intention", NOW - 4 * DAY) }, "brief:appetite"],
+    ["Jev says worth it for a kind the appetite has closed", {}, { appetite: skipped(2), worthNow: { c: 0.9 } }, "nudge", "r1/yuki"],
+    ["no Jev: the score alone decides, not the kind's welcome", { due: NOW + 2 * DAY }, { appetite: halfWelcome() }, "nudge", "r1/yuki"],
     ["dismissed kind", { kind: "goal" }, { appetite: settle(nudged(emptyAppetite(), pending("x", NOW - DAY, "goal")), [{ kind: "dismiss", id: "d", room: "r1", at: NOW - HOUR, loop: "loop-x" }], NOW).appetite }, "brief:appetite"],
   ]
 
@@ -180,11 +182,11 @@ describe("attend", () => {
     })
   }
 
-  test("nothing due or promised scores zero, however often it came up or how long ago", () => {
+  test("nothing due or promised scores zero, however long ago it was said", () => {
     const scores = [
-      cand({ due: undefined, mentions: 1, lastSeen: NOW - HOUR }),
-      cand({ due: undefined, mentions: 9, lastSeen: NOW - 60 * DAY }),
-      cand({ kind: "goal", due: undefined, mentions: 9, lastSeen: NOW - 60 * DAY }),
+      cand({ due: undefined, lastSeen: NOW - HOUR }),
+      cand({ due: undefined, lastSeen: NOW - 60 * DAY }),
+      cand({ kind: "goal", due: undefined, lastSeen: NOW - 60 * DAY }),
     ].map((c) => score(c, { now: NOW, rhythm: known }))
     expect(scores).toEqual([0, 0, 0])
   })
@@ -222,6 +224,19 @@ describe("attend", () => {
     expect(count({ appetite: ignoreN(emptyAppetite(), 2, "waiting", NOW - 4 * DAY) })).toBe(0)
   })
 })
+
+// Two skips of intentions in the last two days: the kind is closed, the user's allowance is open.
+function skipped(n: number): Appetite {
+  let a = emptyAppetite()
+  for (let i = 0; i < n; i++) a = learn(a, "intention", "skipped", NOW - (n - i) * DAY)
+  return a
+}
+
+// One engagement and two ignores of intentions a day ago: the kind's welcome is 0.4 and still open.
+function halfWelcome(): Appetite {
+  const a = learn(emptyAppetite(), "intention", "engaged", NOW - DAY)
+  return learn(learn(a, "intention", "ignored", NOW - DAY), "intention", "ignored", NOW - DAY)
+}
 
 function keenAppetite(): Appetite {
   let a = emptyAppetite()

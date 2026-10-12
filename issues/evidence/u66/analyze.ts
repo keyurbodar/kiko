@@ -109,7 +109,7 @@ function openLoopScore() {
         const na = attend(cs, { ...ctx, worthNow: worth }).filter((v) => v.verdict === "nudge").map((v) => v.id).sort().join()
         if (na !== nb) t.noJudge++
         // With Jev: the score only picks which ten Jev reads.
-        const elig = cs.filter((c) => log.at >= AP.restUntil(log.appetite, c, view.cycle, log.at) && !log.busy.includes(c.room))
+        const elig = cs.filter((c) => log.at >= AP.restUntil(c, view.cycle) && !log.busy.includes(c.room))
         if (elig.length) {
           t.jPass++
           if (elig.length > 10) t.top10elig++
@@ -118,7 +118,7 @@ function openLoopScore() {
         }
         // noticed(): top two explicit human loops per room for the brief
         for (const room of new Set(cs.map((c) => c.room))) {
-          const pool = cs.filter((c) => c.owner === "human" && c.room === room && c.certainty === "explicit" && c.id.startsWith("loop:") && log.at >= AP.restUntil(log.appetite, c, view.cycle, log.at))
+          const pool = cs.filter((c) => c.owner === "human" && c.room === room && c.certainty === "explicit" && c.id.startsWith("loop:") && log.at >= AP.restUntil(c, view.cycle))
           if (pool.length < 3) continue
           t.briefRooms++
           const top2 = (f: (c: (typeof cs)[0]) => number) => pool.slice().sort((a, b) => f(b) - f(a)).slice(0, 2).map((c) => c.id).sort().join()

@@ -1,4 +1,4 @@
-import { type Appetite, allowance, kindMean, kindOpen, restUntil } from "./appetite"
+import { type Appetite, allowance, kindOpen, restUntil } from "./appetite"
 import type { RhythmView } from "./rhythm"
 import type { Candidate, Level, Reason, Target, Verdict } from "./types"
 
@@ -45,7 +45,7 @@ export function attend(candidates: readonly Candidate[], ctx: AttendContext): Ve
   const brief = (c: Candidate, s: number, reason: Reason) => out.set(c.id, { id: c.id, verdict: "brief", score: s, reason })
 
   for (const c of candidates) {
-    const until = restUntil(appetite, c, rhythm.cycle, now)
+    const until = restUntil(c, rhythm.cycle)
     if (ctx.level !== "off" && now < until) {
       out.set(c.id, { id: c.id, verdict: "rest", until })
       continue
@@ -59,9 +59,9 @@ export function attend(candidates: readonly Candidate[], ctx: AttendContext): Ve
     else if (ctx.busyRooms.includes(c.room)) brief(c, s, "typing")
     else if (now - c.lastSeen < rhythm.cycle / 2 && (c.due === undefined || c.due > now)) brief(c, s, "fresh")
     else if (c.certainty === "tentative" && jev === undefined) brief(c, s, "tentative")
-    else if (!kindOpen(appetite, c.kind, now)) brief(c, s, "appetite")
+    else if (jev === undefined && !kindOpen(appetite, c.kind, now)) brief(c, s, "appetite")
     else {
-      const worth = (jev ?? s) * Math.min(1, kindMean(appetite, c.kind, now) / 0.5)
+      const worth = jev ?? s
       if (worth < WORTH) brief(c, s, "worth")
       else if (!rhythm.activeNow) brief(c, s, "moment")
       else contenders.push({ c, score: s, worth })

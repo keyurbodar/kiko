@@ -1,0 +1,36 @@
+
+== open loop: appetite (rooms=3) — same pass, same state, appetite swapped ==
+  regular-keen       passes 1063 | per-kind->pooled changes 1.2% {"appetite->nudge":13,"nudge->allowance":1} | per-kind->none changes 5.6% {"appetite->nudge":13,"nudge->allowance":49}
+  regular-ignorer    passes 1060 | per-kind->pooled changes 8.6% {"nudge->appetite":74,"appetite->nudge":31,"nudge->room_taken":2} | per-kind->none changes 76.0% {"allowance->nudge":381,"appetite->nudge":425,"nudge->room_taken":14,"nudge->allowance":10}
+  irregular-keen     passes 1419 | per-kind->pooled changes 21.0% {"appetite->nudge":287,"nudge->room_taken":31,"nudge->appetite":33,"nudge->allowance":11} | per-kind->none changes 34.0% {"allowance->nudge":90,"appetite->nudge":374,"nudge->room_taken":36,"nudge->allowance":47}
+  irregular-ignorer  passes 1440 | per-kind->pooled changes 5.1% {"nudge->appetite":64,"appetite->nudge":9} | per-kind->none changes 73.8% {"allowance->nudge":611,"appetite->nudge":452,"nudge->allowance":9,"nudge->room_taken":5}
+  kind-split         passes 1049 | per-kind->pooled changes 27.1% {"nudge->appetite":13,"appetite->nudge":305,"nudge->allowance":23,"nudge->room_taken":34} | per-kind->none changes 42.0% {"appetite->nudge":391,"nudge->allowance":71,"allowance->nudge":23,"nudge->room_taken":34}
+  weekday-weekend    passes 904 | per-kind->pooled changes 16.2% {"appetite->nudge":123,"nudge->appetite":28,"nudge->allowance":10,"nudge->room_taken":6} | per-kind->none changes 24.8% {"appetite->nudge":183,"nudge->allowance":35,"nudge->room_taken":9,"allowance->nudge":28}
+  hoarder            passes 1053 | per-kind->pooled changes 21.7% {"appetite->nudge":138,"nudge->allowance":36,"nudge->appetite":122,"nudge->room_taken":15} | per-kind->none changes 59.9% {"appetite->nudge":497,"nudge->allowance":120,"nudge->room_taken":34,"allowance->nudge":108}
+
+== closed loop: appetite, no Jev (rooms=3, 10 seeds x 8 weeks) ==
+ variant pooled appetite
+   regular-keen       base nudges  312 | dropped   0.6% added   1.3% moved>1h   0.0% | welcome: base 279/357 (78.2%) variant 280/359 (78.0%) | lands <=1h before a session: base 54.3% variant 54.0%
+   regular-ignorer    base nudges   85 | dropped  77.6% added  44.7% moved>1h   0.0% | welcome: base 8/89 (9.0%) variant 6/58 (10.3%) | lands <=1h before a session: base 53.9% variant 60.3%
+   irregular-keen     base nudges  260 | dropped  33.1% added  25.8% moved>1h   6.9% | welcome: base 220/300 (73.3%) variant 198/278 (71.2%) | lands <=1h before a session: base 8.7% variant 10.8%
+   irregular-ignorer  base nudges  126 | dropped  44.4% added  20.6% moved>1h   2.4% | welcome: base 26/132 (19.7%) variant 16/101 (15.8%) | lands <=1h before a session: base 12.1% variant 11.9%
+   kind-split         base nudges  291 | dropped  32.6% added  30.2% moved>1h   3.8% | welcome: base 206/313 (65.8%) variant 171/305 (56.1%) | lands <=1h before a session: base 54.0% variant 54.1%
+   weekday-weekend    base nudges  273 | dropped  22.3% added   8.8% moved>1h   1.1% | welcome: base 152/286 (53.1%) variant 131/246 (53.3%) | lands <=1h before a session: base 65.4% variant 65.9%
+   hoarder            base nudges  430 | dropped  57.4% added  38.8% moved>1h   6.7% | welcome: base 193/468 (41.2%) variant 158/373 (42.4%) | lands <=1h before a session: base 56.8% variant 57.9%
+ variant no appetite (allowance 1, rest doubles)
+   regular-keen       base nudges  312 | dropped  12.2% added   8.3% moved>1h   5.8% | welcome: base 279/357 (78.2%) variant 264/337 (78.3%) | lands <=1h before a session: base 54.3% variant 54.6%
+   regular-ignorer    base nudges   85 | dropped  37.6% added 263.5% moved>1h   5.9% | welcome: base 8/89 (9.0%) variant 31/294 (10.5%) | lands <=1h before a session: base 53.9% variant 50.0%
+   irregular-keen     base nudges  260 | dropped  20.8% added  41.2% moved>1h  14.2% | welcome: base 220/300 (73.3%) variant 264/362 (72.9%) | lands <=1h before a session: base 8.7% variant 10.2%
+   irregular-ignorer  base nudges  126 | dropped  42.9% added 175.4% moved>1h   4.0% | welcome: base 26/132 (19.7%) variant 63/336 (18.8%) | lands <=1h before a session: base 12.1% variant 8.3%
+   kind-split         base nudges  291 | dropped  29.9% added  53.6% moved>1h   8.6% | welcome: base 206/313 (65.8%) variant 223/387 (57.6%) | lands <=1h before a session: base 54.0% variant 53.7%
+   weekday-weekend    base nudges  273 | dropped  17.9% added  30.0% moved>1h   4.0% | welcome: base 152/286 (53.1%) variant 175/321 (54.5%) | lands <=1h before a session: base 65.4% variant 67.0%
+   hoarder            base nudges  430 | dropped  42.3% added  89.8% moved>1h  11.2% | welcome: base 193/468 (41.2%) variant 286/678 (42.2%) | lands <=1h before a session: base 56.8% variant 56.9%
+
+== closed loop: appetite, with Jev (rooms=3, 10 seeds x 8 weeks) ==
+ variant pooled+jev
+   regular-keen       base nudges  346 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 305/398 (76.6%) variant 305/398 (76.6%) | lands <=1h before a session: base 55.8% variant 55.8%
+   regular-ignorer    base nudges  131 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 15/138 (10.9%) variant 15/138 (10.9%) | lands <=1h before a session: base 55.8% variant 55.8%
+   irregular-keen     base nudges  298 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 267/358 (74.6%) variant 267/358 (74.6%) | lands <=1h before a session: base 7.0% variant 7.0%
+   irregular-ignorer  base nudges  152 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 28/165 (17.0%) variant 28/165 (17.0%) | lands <=1h before a session: base 9.7% variant 9.7%
+   kind-split         base nudges  347 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 201/387 (51.9%) variant 201/387 (51.9%) | lands <=1h before a session: base 49.9% variant 49.9%
+   weekday-weekend    base nudges  341 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 181/359 (50.4%) variant 181/359 (50.4%) | lands <=1h before a session: base 59.1% variant 59.1%

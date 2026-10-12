@@ -8,7 +8,7 @@ import { sqlStorage } from "./sql-shim"
 
 const base = { kind: "intention" as const, owner: "human", source: "tool" as const }
 
-function world(opts: { level?: Level; titles?: Record<string, string | null> } = {}) {
+function world(opts: { level?: Level; titles?: Record<string, string | null>; judged?: boolean } = {}) {
   const sql = sqlStorage()
   sql.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   sql.exec("CREATE TABLE IF NOT EXISTS chat_tasks (room_id TEXT PRIMARY KEY, tasks TEXT NOT NULL)")
@@ -30,7 +30,8 @@ function world(opts: { level?: Level; titles?: Record<string, string | null> } =
     title,
     home: () => null,
     routines: () => [],
-    judge: () => null,
+    judge: () => (opts.judged ? ((async () => ({})) as never) : null),
+    judged: () => opts.judged === true,
     wake: async (_room, input) => {
       wakes.push(input)
       return "delivered"
@@ -129,7 +130,7 @@ test("a burst closes a human's plan from any chat but an agent's promise only fr
   expect(loops.get(promise.id)?.status).toBe("open")
 })
 
-test("a pass prunes marks, briefs and wakes older than the longest rest and keeps recent ones", async () => {
+test("a pass prunes marks, briefs and wakes older than 90 days and keeps recent ones", async () => {
   const { sql, engine } = world()
   const now = Date.now()
   const old = now - 100 * 86_400_000
@@ -141,6 +142,36 @@ test("a pass prunes marks, briefs and wakes older than the longest rest and keep
   expect(ids("initiative_marks", "id")).toEqual(["loop:2"])
   expect(ids("initiative_briefed", "loop_id")).toEqual([2])
   expect(ids("initiative_wakes", "id")).toEqual(["w2", "w3"])
+})
+
+test("two active windows 12 hours apart give two passes a day", async () => {
+  const { sql, loops, engine } = world()
+  if (!loops.open({ ...base, certainty: "explicit", text: "renew the car tags", room: "r1", due: "2026-09-01" }).ok) throw new Error("open failed")
+  // Active at 09:00 and 21:00 UTC every day, the world's zone.
+  const w = Array.from({ length: 168 }, (_, slot) => (slot % 24 === 9 || slot % 24 === 21 ? 2 : 0))
+  const t0 = Date.UTC(2026, 8, 7, 9)
+  sql.exec("INSERT INTO attention (name, value) VALUES ('rhythm', ?)", JSON.stringify({ w, at: t0 }))
+  await engine.pass(t0)
+  const first = await engine.arm(t0)
+  await engine.pass(t0 + 12 * 3_600_000)
+  const second = await engine.arm(t0 + 12 * 3_600_000)
+  expect([first, second]).toEqual([t0 + 12 * 3_600_000, t0 + 24 * 3_600_000])
+})
+
+test("with a judge key, Jev alone decides whether a burst answers a nudge; without one, two shared words do", async () => {
+  const ignoredOf = async (judged: boolean) => {
+    const { sql, loops, engine } = world({ judged })
+    const plan = loops.open({ ...base, certainty: "explicit", text: "call the plumber about the leak", room: "r1" })
+    if (!plan.ok) throw new Error("open failed")
+    const now = Date.now()
+    sql.exec("INSERT INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES ('w1', 'r1', 'ada', 'intention', ?, ?, 'pending')", JSON.stringify([`loop:${plan.id}`]), now)
+    await engine.signals({ roomId: "r1", openedAt: now, more: 0, signals: [{ kind: "routine_result", roomId: "r1", at: now, routineId: INITIATIVE_RUN, occurrence: "w1", outcome: "ok", seq: 5, text: "did you call the plumber?" }] }, now)
+    await engine.signals({ roomId: "r1", openedAt: now + 60_000, more: 0, signals: [{ kind: "burst", roomId: "r1", at: now + 60_000, seq: 6, text: "the plumber is booked for the leak", by: { kind: "human" } }] }, now + 60_000)
+    await engine.pass(now + 2 * 86_400_000)
+    return engine.devState().marks.find((m) => m.id === `loop:${plan.id}`)?.ignored ?? 0
+  }
+  expect(await ignoredOf(true)).toBe(1)
+  expect(await ignoredOf(false)).toBe(0)
 })
 
 test("Jev records a nudge as engaged only when it judges the human's words answer it", async () => {
