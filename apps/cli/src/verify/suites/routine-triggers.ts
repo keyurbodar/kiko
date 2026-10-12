@@ -10,7 +10,8 @@ const base = (url: string) => (url.endsWith("/") ? url : `${url}/`)
 const suite: Suite = {
   name: "routine-triggers",
   async run(v) {
-    const s = await v.as(`triggers-${Date.now()}`)
+    // A webhook post has no session, so the Worker hands it to the one owner. The suite signs in as that owner.
+    const s = await v.as("owner")
     const url = v.url
 
     {

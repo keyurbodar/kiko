@@ -1,4 +1,3 @@
-import { Database } from "bun:sqlite"
 import { expect, spyOn, test } from "bun:test"
 import type { RoomId } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
@@ -11,72 +10,51 @@ import { USER_STEPS } from "../src/user/schema"
 
 const ROOM = "01J0000000000000000000000R" as RoomId
 
-test("a webhook routine is not created when its lookup row cannot be stored", async () => {
+function routines() {
   const sql = sqlWith(USER_STEPS)
   sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
   const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms
   const reminders = new Reminders(sql, alarms, async () => {}, () => Date.now())
-  const AUTH_DB = { prepare: () => ({ bind: () => ({ run: async () => Promise.reject(new Error("d1 unavailable")) }) }) }
-  const wiring = new RoutineWiring({ env: { AUTH_DB } as unknown as Env, reminders, extensions: {} as never })
-  const out = await wiring.createRoutine("u", { name: "hook", instructions: "say hi", trigger: { on: "webhook" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
-  expect(out.ok).toBe(false)
-  expect(reminders.list()).toEqual([])
-})
-
-// A real lookup table, so a test can count the rows a webhook leaves behind.
-function authDb(db: Database, failInserts = false) {
-  return {
-    prepare: (query: string) => ({
-      bind: (...args: unknown[]) => ({
-        run: async () => {
-          if (failInserts && query.startsWith("insert")) throw new Error("d1 unavailable")
-          db.query(query).run(...(args as never[]))
-        },
-      }),
-    }),
-  }
+  const wiring = new RoutineWiring({ env: {} as Env, reminders, extensions: {} as never })
+  return { sql, reminders, wiring }
 }
 
-function timedRoutines(failInserts = false) {
-  const sql = sqlWith(USER_STEPS)
-  sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
-  const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms
-  const reminders = new Reminders(sql, alarms, async () => {}, () => Date.now())
-  const db = new Database(":memory:")
-  db.exec('CREATE TABLE "hooks" (token_hash TEXT PRIMARY KEY, user_id TEXT, routine_id TEXT, created_at INTEGER)')
-  const AUTH_DB = authDb(db, failInserts)
-  const wiring = new RoutineWiring({ env: { AUTH_DB } as unknown as Env, reminders, extensions: {} as never })
-  const hookRows = () => db.query('SELECT routine_id FROM "hooks"').all() as { routine_id: string }[]
-  const hookHash = (id: string) => (sql.exec<{ hook_hash: string | null }>("SELECT hook_hash FROM reminders WHERE id = ?", id).toArray()[0]?.hook_hash ?? null)
-  return { sql, reminders, wiring, db, hookRows, hookHash }
-}
-
+const hook = { name: "hook", instructions: "say hi", trigger: { on: "webhook" as const }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" }
 const timed = { on: "time" as const, at: new Date(Date.now() + 86_400_000).toISOString() }
 
-test("deleting a chat drops its webhook lookup rows, so the token stops working", async () => {
-  const t = timedRoutines()
-  const made = await t.wiring.createRoutine("u", { name: "hook", instructions: "say hi", trigger: { on: "webhook" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
-  if (!made.ok) throw new Error(made.error)
-  expect(t.hookRows()).toEqual([{ routine_id: made.routine.id }])
-  await t.wiring.cancelRoom(ROOM)
-  expect(t.hookRows()).toEqual([])
+test("a webhook token finds its routine by hash, and a wrong token finds none", async () => {
+  const t = routines()
+  const made = await t.wiring.createRoutine("u", hook)
+  if (!made.ok || !made.token) throw new Error("no webhook token")
+  expect(t.reminders.byHook(await sha256Hex(made.token))?.id).toBe(made.routine.id)
+  expect(t.reminders.byHook(await sha256Hex("0".repeat(48)))).toBeNull()
 })
 
-test("a routine that becomes a webhook is unchanged when its lookup row cannot be stored", async () => {
-  const t = timedRoutines(true)
-  const made = await t.wiring.createRoutine("u", { name: "hook", instructions: "say hi", trigger: timed, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
-  if (!made.ok) throw new Error(made.error)
-  const before = t.reminders.get(made.routine.id)
-  const out = await t.wiring.updateRoutine(made.routine.id, { trigger: { on: "webhook" } })
-  expect(out.ok).toBe(false)
-  expect(t.reminders.get(made.routine.id)).toEqual(before)
-  expect(t.hookHash(made.routine.id)).toBeNull()
-  expect(t.hookRows()).toEqual([])
+test("the hook lookup reads the index, not the table", () => {
+  const t = routines()
+  const plan = t.sql.exec<{ detail: string }>("EXPLAIN QUERY PLAN SELECT * FROM reminders WHERE hook_hash = ? AND status = 'active'", "x").toArray()
+  expect(plan.map((r) => r.detail).join(" ")).toContain("reminders_hook")
+})
+
+test("deleting a chat cancels its webhook routines, so the token stops working", async () => {
+  const t = routines()
+  const made = await t.wiring.createRoutine("u", hook)
+  if (!made.ok || !made.token) throw new Error("no webhook token")
+  await t.reminders.cancelRoom(ROOM)
+  expect(t.reminders.byHook(await sha256Hex(made.token))).toBeNull()
+})
+
+test("cancelling a webhook routine stops its token", async () => {
+  const t = routines()
+  const made = await t.wiring.createRoutine("u", hook)
+  if (!made.ok || !made.token) throw new Error("no webhook token")
+  await t.wiring.cancelReminder(made.routine.id)
+  expect(t.reminders.byHook(await sha256Hex(made.token))).toBeNull()
 })
 
 test("editing a webhook's trigger keeps its token and mints none", async () => {
-  const t = timedRoutines()
-  const made = await t.wiring.createRoutine("u", { name: "hook", instructions: "say hi", trigger: { on: "webhook" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  const t = routines()
+  const made = await t.wiring.createRoutine("u", hook)
   if (!made.ok || !made.token) throw new Error("no webhook token")
   const random = spyOn(crypto, "getRandomValues")
   const out = await t.wiring.updateRoutine(made.routine.id, { trigger: { on: "webhook" } })
@@ -84,16 +62,14 @@ test("editing a webhook's trigger keeps its token and mints none", async () => {
   random.mockRestore()
   expect(out.ok).toBe(true)
   expect(mints).toBe(0)
-  expect(await t.reminders.byHook(made.routine.id, made.token)).not.toBeNull()
+  expect(t.reminders.byHook(await sha256Hex(made.token))).not.toBeNull()
 })
 
-test("a routine that becomes a webhook leaves exactly one lookup row, even after an earlier stale one", async () => {
-  const t = timedRoutines()
-  const made = await t.wiring.createRoutine("u", { name: "hook", instructions: "say hi", trigger: timed, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+test("a routine that becomes a webhook gets a token that finds it", async () => {
+  const t = routines()
+  const made = await t.wiring.createRoutine("u", { ...hook, trigger: timed })
   if (!made.ok) throw new Error(made.error)
-  t.db.query('INSERT INTO "hooks" (token_hash, user_id, routine_id, created_at) VALUES (?, ?, ?, ?)').run("stale", "u", made.routine.id, 1)
   const out = await t.wiring.updateRoutine(made.routine.id, { trigger: { on: "webhook" } })
-  if (!out.ok) throw new Error(out.error)
-  expect(t.hookRows()).toEqual([{ routine_id: made.routine.id }])
-  expect(t.db.query('SELECT token_hash FROM "hooks"').all()).toEqual([{ token_hash: await sha256Hex(out.token!) }])
+  if (!out.ok || !out.token) throw new Error("no webhook token")
+  expect(t.reminders.byHook(await sha256Hex(out.token))?.id).toBe(made.routine.id)
 })

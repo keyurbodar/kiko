@@ -77,7 +77,6 @@ The Worker serves the client from `apps/web-solid/dist` (`apps/server/wrangler.j
 
 ```bash
 bun run --cwd apps/web-solid build
-(cd apps/server && bunx wrangler d1 migrations apply kiko-auth --local --persist-to /tmp/yuki-verify-state)
 (cd apps/server && nohup bunx wrangler dev --port 8799 --persist-to /tmp/yuki-verify-state > /tmp/yuki-verify-evidence/worker.log 2>&1 &)
 for _ in $(seq 1 60); do
   lsof -nP -iTCP:8799 -sTCP:LISTEN -t 2>/dev/null > /tmp/yuki-verify-evidence/worker.pid && break
@@ -85,7 +84,7 @@ for _ in $(seq 1 60); do
 done
 ```
 
-Run the migration only for a new persist directory. `kiko-auth` is the database name; the binding `AUTH_DB` works too. The loop records the Worker's pid the same way Vite's is recorded, by asking the port who owns it. Cleanup stops only that pid.
+The loop records the Worker's pid the same way Vite's is recorded, by asking the port who owns it. Cleanup stops only that pid.
 
 ## Doctor
 

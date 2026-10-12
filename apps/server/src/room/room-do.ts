@@ -934,10 +934,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return (await this.dev()).agePending(ms)
 	}
 
-	async devAgentMessage(slug: AgentSlug, text: string): Promise<void> {
-		return (await this.dev()).agentMessage(slug, text)
-	}
-
 	async browserShare(slug: AgentSlug, reason: string): Promise<boolean> {
 		const member = this.members.get(slug)
 		if (!member) return false

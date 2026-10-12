@@ -55,11 +55,4 @@ export class RoomDev {
 		await this.d.sweepPending()
 		return this.d.pending.count()
 	}
-
-	async agentMessage(slug: AgentSlug, text: string): Promise<void> {
-		const added = this.d.members.apply({ op: "add", slug, name: slug })
-		if (added.ok) this.d.publish(added.events)
-		const { event } = this.d.log.addMessage({ from: { kind: "agent", slug }, text })
-		if (event) this.d.publish([event])
-	}
 }
