@@ -45,22 +45,26 @@ export class RoomMail {
 	}
 
 	answerAsks(home: Home, slug: AgentSlug, runId: string, heard: readonly string[]): void {
-		const asks = this.d.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))
-		if (!asks.length) return
 		const bubbles = this.d.ctx.storage.sql
 			.exec<{ id: string; seq: number; text: string }>("SELECT id, seq, text FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
 			.toArray()
 		const text = bubbles.map((b) => b.text).join("\n\n").trim()
 		const last = bubbles.at(-1)
 		if (!last || !text) return
+		this.answerHeard(home, slug, heard, text, { id: last.id, seq: last.seq })
+	}
+
+	/** Answers the asks `slug` heard. An open ask gets the text pushed to its asker. A closed one gets it as mail, and is settled only once the mail is accepted, so a refused answer is not lost. */
+	answerHeard(home: Home, slug: AgentSlug, heard: readonly string[], text: string, message: { id: string; seq: number }): void {
 		let relayed = false
-		for (const ask of asks) {
-			if (!this.d.asks.settle(ask.id, text)) continue
+		for (const ask of this.d.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
 			if (ask.state === "open") {
-				this.answer(home, ask.asker, ask.id, text)
+				if (this.d.asks.settle(ask.id, text)) this.answer(home, ask.asker, ask.id, text)
 				continue
 			}
-			if (this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { id: last.id, seq: last.seq, text })) relayed = true
+			if (!this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { ...message, text })) continue
+			this.d.asks.settle(ask.id, text)
+			relayed = true
 		}
 		if (relayed) this.d.ctx.waitUntil(this.drain())
 	}

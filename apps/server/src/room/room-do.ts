@@ -22,7 +22,7 @@ import { Asks, type AskState } from "./asks"
 import { Bubbles, replyTag } from "./bubbles"
 import { chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
 import { Deliveries, type ReminderDelivery, withContext } from "./deliver"
-import { type AgentSend, type Chain, Mail, messageIdOf } from "./mail"
+import { type AgentSend, type Chain, Mail } from "./mail"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
@@ -824,16 +824,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const key = `no_provider:${slug}:${requestId}`
 		const event = this.ctx.storage.transactionSync(() => {
 			if (this.log.meta(key) !== null) return null
-			this.log.setMeta(key, "1")
-			return this.log.append(`agent:${slug}`, { t: "no_provider", slug, provider })
+			const event = this.log.append(`agent:${slug}`, { t: "no_provider", slug, provider })
+			this.log.setMeta(key, String(event.seq))
+			return event
 		})
 		if (event) this.publish([event])
 		const home = this.home()
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because the human has not connected ${provider}. tell the human, or go on without it.)`
-			for (const ask of this.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
-				if (this.asks.settle(ask.id, why) && ask.state === "open") this.mailer.answer(home, ask.asker, ask.id, why)
-			}
+			this.mailer.answerHeard(home, slug, heard, why, { id: key, seq: Number(this.log.meta(key)) })
 		}
 		this.reports.run(this.routines.dropped(slug), "failed")
 		return event !== null

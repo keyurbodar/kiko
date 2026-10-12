@@ -158,3 +158,56 @@ test("a held result batch keeps its opening time across retries", async () => {
 	await reports.sendResults()
 	expect(sent).toEqual([5_000, 5_000])
 })
+
+/** Ada asked bob. The ask timed out, so it is closed. Bob's reply to it is the answer the room has to relay. */
+function closedAsk(s: ReturnType<typeof setup>) {
+	const pending: Promise<unknown>[] = []
+	const asks = new Asks(s.storage.sql)
+	asks.open("ask1", "ada" as AgentSlug, "bob" as AgentSlug, 1)
+	asks.sent("ask1", "m-ask1")
+	asks.close("ask1")
+	s.mail.delivered("bob" as AgentSlug, [human("human:m0")])
+	const room = new RoomMail({
+		...s.deps,
+		ctx: { storage: s.storage, waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
+		members: { list: () => members } as never,
+		burst: { pending: () => false } as never,
+		asks,
+		team: { doing: () => {} } as never,
+		alarms: {} as never,
+		home: () => home,
+		title: async () => "t",
+	})
+	return { room, asks, pending }
+}
+
+test("a closed ask's answer reaches its asker as mail", async () => {
+	const s = setup(null)
+	const { room, asks, pending } = closedAsk(s)
+	s.log.addMessage({ from: { kind: "agent", slug: "bob" as AgentSlug }, text: "yes", run: { runId: "r1", attempt: 1, index: 0 } })
+	room.answerAsks(home, "bob" as AgentSlug, "r1", ["agent:m-ask1:bob"])
+	await Promise.all(pending)
+	expect(asks.get("ask1")).toEqual({ state: "closed", answer: "yes" })
+	expect(s.received.filter((r) => r.slug === "ada")).toHaveLength(1)
+})
+
+test("a closed ask whose answer the room refuses to relay keeps its answer, not consumed", async () => {
+	const s = setup(null)
+	const { room, asks, pending } = closedAsk(s)
+	s.mail.stop()
+	s.log.addMessage({ from: { kind: "agent", slug: "bob" as AgentSlug }, text: "yes", run: { runId: "r1", attempt: 1, index: 0 } })
+	room.answerAsks(home, "bob" as AgentSlug, "r1", ["agent:m-ask1:bob"])
+	await Promise.all(pending)
+	expect(asks.get("ask1")).toEqual({ state: "closed", answer: null })
+	expect(s.received.filter((r) => r.slug === "ada")).toHaveLength(0)
+})
+
+test("a closed ask gets the no-provider notice as mail", async () => {
+	const s = setup(null)
+	const { room, asks, pending } = closedAsk(s)
+	const why = "(no answer: @bob cannot run, because the human has not connected Anthropic.)"
+	room.answerHeard(home, "bob" as AgentSlug, ["agent:m-ask1:bob"], why, { id: "no_provider:bob:r1", seq: 9 })
+	await Promise.all(pending)
+	expect(asks.get("ask1")).toEqual({ state: "closed", answer: why })
+	expect(s.received.filter((r) => r.slug === "ada").flatMap((r) => r.ids)).toEqual(["agent:no_provider:bob:r1:ada"])
+})
