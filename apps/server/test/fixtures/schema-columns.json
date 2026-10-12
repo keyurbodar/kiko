@@ -268,6 +268,7 @@
         }
       ],
       "indexes": [
+        "deliveries_at",
         "sqlite_autoindex_deliveries_1"
       ]
     },
@@ -595,6 +596,7 @@
         }
       ],
       "indexes": [
+        "mem_turns_key",
         "mem_turns_seq"
       ]
     },

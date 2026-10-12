@@ -204,4 +204,8 @@ export const ROOM_STEPS: Step[] = [
 	// to stop at its first few rows, not sort every row. The start of the window needs held_until before at.
 	"CREATE INDEX IF NOT EXISTS pending_seq ON pending (seq)",
 	"CREATE INDEX IF NOT EXISTS pending_held ON pending (held_until, at)",
+	// A run's end looks up its turn by key, and the deliveries sweep deletes by age. Neither had an index, so
+	// each read the whole table.
+	"CREATE INDEX IF NOT EXISTS mem_turns_key ON mem_turns (key)",
+	"CREATE INDEX IF NOT EXISTS deliveries_at ON deliveries (at)",
 ]

@@ -121,12 +121,15 @@ export class RoomMemory {
     this.meta.set(FORWARDED, String(upto))
   }
 
+  // Turns cover disjoint seq ranges in pos order, so the turn for a seq is the last one that starts at or before it.
+  // A join on BETWEEN read every turn for each lookup, and recall looks up each hit.
   private posOfMessage(id: string): number | null {
-    return (
-      this.sql
-        .exec<{ pos: number }>("SELECT t.pos FROM messages m JOIN mem_turns t ON m.seq BETWEEN t.first_seq AND t.last_seq WHERE m.id = ?", id)
-        .toArray()[0]?.pos ?? null
-    )
+    const seq = this.sql.exec<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", id).toArray()[0]?.seq
+    if (seq === undefined) return null
+    const turn = this.sql
+      .exec<{ pos: number; last_seq: number | null }>("SELECT pos, last_seq FROM mem_turns WHERE first_seq <= ? ORDER BY first_seq DESC LIMIT 1", seq)
+      .toArray()[0]
+    return turn && turn.last_seq !== null && seq <= turn.last_seq ? turn.pos : null
   }
 
   items(lo: number, hi: number, skip: ReadonlySet<number> = new Set()): Item[] {
