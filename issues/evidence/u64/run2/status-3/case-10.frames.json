@@ -1,0 +1,342 @@
+{
+  "statuses": [
+    {
+      "at": 1246,
+      "state": "typing"
+    },
+    {
+      "at": 4434,
+      "state": "typing"
+    },
+    {
+      "at": 4434,
+      "state": "typing"
+    },
+    {
+      "at": 4434,
+      "state": "working"
+    },
+    {
+      "at": 4434,
+      "state": "typing"
+    },
+    {
+      "at": 6237,
+      "state": "typing"
+    },
+    {
+      "at": 6237,
+      "state": "working"
+    },
+    {
+      "at": 6237,
+      "state": "typing"
+    },
+    {
+      "at": 6860,
+      "state": "typing"
+    },
+    {
+      "at": 7011,
+      "state": "typing"
+    },
+    {
+      "at": 7313,
+      "state": "working"
+    },
+    {
+      "at": 7472,
+      "state": "typing"
+    },
+    {
+      "at": 8224,
+      "state": "typing"
+    },
+    {
+      "at": 8525,
+      "state": "working"
+    },
+    {
+      "at": 9282,
+      "state": "working"
+    },
+    {
+      "at": 11090,
+      "state": "working"
+    },
+    {
+      "at": 13516,
+      "state": "working"
+    },
+    {
+      "at": 13516,
+      "state": "typing"
+    },
+    {
+      "at": 14874,
+      "state": "working"
+    },
+    {
+      "at": 14874,
+      "state": "typing"
+    },
+    {
+      "at": 15783,
+      "state": "typing"
+    },
+    {
+      "at": 16534,
+      "state": "working"
+    },
+    {
+      "at": 16534,
+      "state": "typing"
+    },
+    {
+      "at": 17893,
+      "state": "working"
+    },
+    {
+      "at": 17893,
+      "state": "working"
+    },
+    {
+      "at": 18796,
+      "state": "typing"
+    },
+    {
+      "at": 19554,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 19,
+      "workers": []
+    },
+    {
+      "at": 2149,
+      "workers": []
+    },
+    {
+      "at": 4275,
+      "workers": []
+    },
+    {
+      "at": 6387,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, compare them briefly (speed, features, use cases), and write a short comparison markdown file to research/tests.md in the chat files. Create parent folders as needed. Keep it concise, under 300 words, Simplified Technical English style if possible.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788142994,
+          "updatedAt": 1791788143000
+        }
+      ]
+    },
+    {
+      "at": 8525,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, compare them briefly (speed, features, use cases), and write a short comparison markdown file to research/tests.md in the chat files. Create parent folders as needed. Keep it concise, under 300 words, Simplified Technical English style if possible.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "bash {\"command\":\"grep -n -i -o \\\"vitest\\\\|jest\\\\|playwright\\\\|mocha\\\\|cypress\\\\|test…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788142994,
+          "updatedAt": 1791788146709
+        }
+      ]
+    },
+    {
+      "at": 10634,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, compare them briefly (speed, features, use cases), and write a short comparison markdown file to research/tests.md in the chat files. Create parent folders as needed. Keep it concise, under 300 words, Simplified Technical English style if possible.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "read {\"limit\":30,\"offset\":1,\"path\":\"/downloads/stateofjs.com-en-us-e17206ad.txt\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788142994,
+          "updatedAt": 1791788147880
+        }
+      ]
+    },
+    {
+      "at": 12759,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, compare them briefly (speed, features, use cases), and write a short comparison markdown file to research/tests.md in the chat files. Create parent folders as needed. Keep it concise, under 300 words, Simplified Technical English style if possible.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "bash {\"command\":\"mkdir -p /tmp/x; echo ok\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788142994,
+          "updatedAt": 1791788149571
+        }
+      ]
+    },
+    {
+      "at": 14874,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, compare them briefly (speed, features, use cases), and write a short comparison markdown file to research/tests.md in the chat files. Create parent folders as needed. Keep it concise, under 300 words, Simplified Technical English style if possible.",
+          "conversationId": 15,
+          "submissionId": 63,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 in 2026\\n\\nTop 3 by use and popula…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788142994,
+          "updatedAt": 1791788153399
+        }
+      ]
+    },
+    {
+      "at": 16985,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, compare them briefly (speed, features, use cases), and write a short comparison markdown file to research/tests.md in the chat files. Create parent folders as needed. Keep it concise, under 300 words, Simplified Technical English style if possible.",
+          "conversationId": 15,
+          "submissionId": 63,
+          "status": "running",
+          "step": "read {\"path\":\"/research/tests.md\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788142994,
+          "updatedAt": 1791788154393
+        }
+      ]
+    },
+    {
+      "at": 19097,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, compare them briefly (speed, features, use cases), and write a short comparison markdown file to research/tests.md in the chat files. Create parent folders as needed. Keep it concise, under 300 words, Simplified Technical English style if possible.",
+          "conversationId": 15,
+          "submissionId": 63,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 in 2026\\n\\n## 1. Vitest\\n- Fast, V…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788142994,
+          "updatedAt": 1791788157240
+        }
+      ]
+    },
+    {
+      "at": 21207,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, compare them briefly (speed, features, use cases), and write a short comparison markdown file to research/tests.md in the chat files. Create parent folders as needed. Keep it concise, under 300 words, Simplified Technical English style if possible.",
+          "conversationId": 15,
+          "submissionId": 63,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 in 2026\\n\\n## 1. Vitest\\n- Fast, V…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788142994,
+          "updatedAt": 1791788157240
+        }
+      ]
+    },
+    {
+      "at": 23319,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, compare them briefly (speed, features, use cases), and write a short comparison markdown file to research/tests.md in the chat files. Create parent folders as needed. Keep it concise, under 300 words, Simplified Technical English style if possible.",
+          "conversationId": 15,
+          "submissionId": 63,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 in 2026\\n\\n## 1. Vitest\\n- Fast, V…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788142994,
+          "updatedAt": 1791788157240
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 6,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 96,
+    "agent.kv.getAlarm": 19,
+    "agent.kv.list": 1,
+    "agent.kv.put": 22,
+    "agent.kv.setAlarm": 17,
+    "agent.kv.transaction": 154,
+    "agent.rowsRead": 3502,
+    "agent.rowsWritten": 1844,
+    "agent.statements": 2765,
+    "model.id.muse-spark-1.3-contributor": 17,
+    "model.ms": 25759,
+    "model.turns": 17,
+    "room.kv.get": 4,
+    "room.kv.getAlarm": 21,
+    "room.kv.setAlarm": 9,
+    "room.rowsRead": 1400,
+    "room.rowsWritten": 333,
+    "room.statements": 983,
+    "rpc.agent.devWorkers": 16,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 5,
+    "rpc.room.fsList": 7,
+    "rpc.room.fsStat": 10,
+    "rpc.room.memorySince": 4,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 8,
+    "rpc.room.putFile": 4,
+    "rpc.room.reportDoing": 10,
+    "rpc.room.setStatus": 11,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.homeList": 2,
+    "rpc.user.homeStat": 2,
+    "rpc.user.initiativeBrief": 3,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 5,
+    "rpc.user.signals": 1,
+    "rpc.user.soul": 2,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 9,
+    "rpc.user.turnContext": 5,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.bash": 2,
+    "tool.worker.read": 2,
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 2,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 3,
+    "user.rowsRead": 219,
+    "user.rowsWritten": 80,
+    "user.statements": 339
+  }
+}

@@ -1,0 +1,214 @@
+{
+  "statuses": [
+    {
+      "at": 1225,
+      "state": "typing"
+    },
+    {
+      "at": 3042,
+      "state": "typing"
+    },
+    {
+      "at": 3042,
+      "state": "working"
+    },
+    {
+      "at": 3042,
+      "state": "typing"
+    },
+    {
+      "at": 4579,
+      "state": "typing"
+    },
+    {
+      "at": 5032,
+      "state": "working"
+    },
+    {
+      "at": 5333,
+      "state": "typing"
+    },
+    {
+      "at": 6542,
+      "state": "working"
+    },
+    {
+      "at": 10327,
+      "state": "working"
+    },
+    {
+      "at": 11403,
+      "state": "typing"
+    },
+    {
+      "at": 12161,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 6,
+      "workers": []
+    },
+    {
+      "at": 2128,
+      "workers": []
+    },
+    {
+      "at": 4246,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases as of 2026. Find their names, GitHub stars approximate, license, language, key features, and best use case. Then write a short report to /research/vectors.md with a comparison table and a recommendation. Keep it concise, under 400 words.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788035330,
+          "updatedAt": 1791788035338
+        }
+      ]
+    },
+    {
+      "at": 6385,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases as of 2026. Find their names, GitHub stars approximate, license, language, key features, and best use case. Then write a short report to /research/vectors.md with a comparison table and a recommendation. Keep it concise, under 400 words.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/weaviate/weaviate\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788035330,
+          "updatedAt": 1791788038726
+        }
+      ]
+    },
+    {
+      "at": 8508,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases as of 2026. Find their names, GitHub stars approximate, license, language, key features, and best use case. Then write a short report to /research/vectors.md with a comparison table and a recommendation. Keep it concise, under 400 words.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/weaviate/weaviate\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788035330,
+          "updatedAt": 1791788038726
+        }
+      ]
+    },
+    {
+      "at": 10635,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases as of 2026. Find their names, GitHub stars approximate, license, language, key features, and best use case. Then write a short report to /research/vectors.md with a comparison table and a recommendation. Keep it concise, under 400 words.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "write {\"content\":\"# Open Source Vector Databases - 2026\\n\\nThree most used open sourc…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788035330,
+          "updatedAt": 1791788042647
+        }
+      ]
+    },
+    {
+      "at": 12763,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases as of 2026. Find their names, GitHub stars approximate, license, language, key features, and best use case. Then write a short report to /research/vectors.md with a comparison table and a recommendation. Keep it concise, under 400 words.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "done",
+          "step": "write {\"content\":\"# Open Source Vector Databases - 2026\\n\\nThree most used open sourc…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788035330,
+          "updatedAt": 1791788043619
+        }
+      ]
+    },
+    {
+      "at": 14874,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases as of 2026. Find their names, GitHub stars approximate, license, language, key features, and best use case. Then write a short report to /research/vectors.md with a comparison table and a recommendation. Keep it concise, under 400 words.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "done",
+          "step": "write {\"content\":\"# Open Source Vector Databases - 2026\\n\\nThree most used open sourc…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788035330,
+          "updatedAt": 1791788043619
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 4,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 57,
+    "agent.kv.getAlarm": 10,
+    "agent.kv.list": 1,
+    "agent.kv.put": 14,
+    "agent.kv.setAlarm": 8,
+    "agent.kv.transaction": 70,
+    "agent.rowsRead": 1624,
+    "agent.rowsWritten": 931,
+    "agent.statements": 1383,
+    "model.id.muse-spark-1.3-contributor": 8,
+    "model.ms": 12598,
+    "model.turns": 8,
+    "room.kv.get": 2,
+    "room.kv.getAlarm": 13,
+    "room.kv.setAlarm": 4,
+    "room.rowsRead": 714,
+    "room.rowsWritten": 153,
+    "room.statements": 494,
+    "rpc.agent.devWorkers": 12,
+    "rpc.agent.humanComing": 1,
+    "rpc.agent.receive": 2,
+    "rpc.room.endRun": 3,
+    "rpc.room.fsList": 3,
+    "rpc.room.fsStat": 3,
+    "rpc.room.memorySince": 2,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 3,
+    "rpc.room.putFile": 1,
+    "rpc.room.reportDoing": 5,
+    "rpc.room.setStatus": 5,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 2,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.getChat": 2,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 3,
+    "rpc.user.takeTurn": 2,
+    "rpc.user.touchChat": 5,
+    "rpc.user.turnContext": 3,
+    "tool.talker.start_work": 1,
+    "tool.worker.web_fetch": 3,
+    "tool.worker.write": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 2,
+    "user.rowsRead": 116,
+    "user.rowsWritten": 49,
+    "user.statements": 175
+  }
+}

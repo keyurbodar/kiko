@@ -1,0 +1,127 @@
+{
+  "run": "run2",
+  "case": 10,
+  "name": "burst: one small, one large",
+  "wording": "what is the status?",
+  "wordingTag": "status",
+  "rep": 3,
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 19,
+  "timedOut": false,
+  "doneMs": 23637,
+  "firstReplyMs": 4434,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 7,
+  "workerTools": {
+    "tool.worker.bash": 2,
+    "tool.worker.read": 2,
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 2
+  },
+  "modelTurns": 17,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify the top 3 by usage/popularity, com…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "what is the status?",
+    "replyMs": 904,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US\"}"
+      }
+    ],
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.web_fetch": 1
+    },
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "Added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will send the file when done.",
+    "repliesAfterSend": [
+      "Added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will send the file when done.",
+      "notes/todo.md is done.\n\nw1 is running: researching JS test runners, now checking State of JS results.",
+      "Got it, I'll tell the researcher to keep it brief.",
+      "Done. Kept short.",
+      "Research done. File is at research/tests.md, about 150 words.\n\nTop 3: **Vitest, Jest, Playwright Test.** It picks Vitest + Playwright as the common pair.",
+      "Short version done. research/tests.md is now about 70 words."
+    ]
+  },
+  "note": {
+    "sentMs": 12459,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 3,
+    "reply": "Got it, I'll tell the researcher to keep it brief."
+  },
+  "replies": [
+    {
+      "at": 4434,
+      "text": "I'll add that note and research the test runners for you."
+    },
+    {
+      "at": 6237,
+      "text": "File says only \"buy milk\", so I'll prepend the header now."
+    },
+    {
+      "at": 7313,
+      "text": "Added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will send the file when done."
+    },
+    {
+      "at": 8525,
+      "text": "notes/todo.md is done.\n\nw1 is running: researching JS test runners, now checking State of JS results."
+    },
+    {
+      "at": 14874,
+      "text": "Got it, I'll tell the researcher to keep it brief."
+    },
+    {
+      "at": 16383,
+      "text": "Done. Kept short."
+    },
+    {
+      "at": 17893,
+      "text": "Research done. File is at research/tests.md, about 150 words.\n\nTop 3: **Vitest, Jest, Playwright Test.** It picks Vitest + Playwright as the common pair."
+    },
+    {
+      "at": 19554,
+      "text": "Short version done. research/tests.md is now about 70 words."
+    }
+  ],
+  "bubbles": [
+    "I'll add that note and research the test runners for you.",
+    "File says only \"buy milk\", so I'll prepend the header now.",
+    "Added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will send the file when done.",
+    "notes/todo.md is done.\n\nw1 is running: researching JS test runners, now checking State of JS results.",
+    "Got it, I'll tell the researcher to keep it brief.",
+    "Done. Kept short.",
+    "Research done. File is at research/tests.md, about 150 words.\n\nTop 3: **Vitest, Jest, Playwright Test.** It picks Vitest + Playwright as the common pair.",
+    "Short version done. research/tests.md is now about 70 words."
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "run": "run1",
+  "case": 7,
+  "name": "web research and short report",
+  "wording": "how is it going?",
+  "wordingTag": "going",
+  "rep": 1,
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 9,
+  "timedOut": false,
+  "doneMs": 15332,
+  "firstReplyMs": 2766,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1
+  },
+  "workerToolCalls": 2,
+  "workerTools": {
+    "tool.worker.mkdir": 1,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 8,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases on the web as of 2026. For each: name, license, key features,…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "how is it going?",
+    "replyMs": 2261,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "mkdir {\"path\":\"/research\"}"
+      }
+    ],
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.mkdir": 1
+    },
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "Worker is still running. It made the research folder and now gathers data on the three vector databases. I will post the report when it is done.",
+    "repliesAfterSend": [
+      "Worker is still running. It made the research folder and now gathers data on the three vector databases. I will post the report when it is done.",
+      "Report is done — let me verify the file before I summarize it.",
+      "Done. Report is in `research/vectors.md`.\n\nTop three: **Milvus, Qdrant, Weaviate**.\n\nMy pick for most teams is **Qdrant**. It is fast, low RAM use, and easy to run. Use Milvus for very large scale, Weaviate for hybrid text plus vector search."
+    ]
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 2766,
+      "text": "I'm on it — researching the three most used open source vector databases for your report."
+    },
+    {
+      "at": 6565,
+      "text": "Worker is still running. It made the research folder and now gathers data on the three vector databases. I will post the report when it is done."
+    },
+    {
+      "at": 9842,
+      "text": "Report is done — let me verify the file before I summarize it."
+    },
+    {
+      "at": 11209,
+      "text": "Done. Report is in `research/vectors.md`.\n\nTop three: **Milvus, Qdrant, Weaviate**.\n\nMy pick for most teams is **Qdrant**. It is fast, low RAM use, and easy to run. Use Milvus for very large scale, Weaviate for hybrid text plus vector search."
+    }
+  ],
+  "bubbles": [
+    "I'm on it — researching the three most used open source vector databases for your report.",
+    "Worker is still running. It made the research folder and now gathers data on the three vector databases. I will post the report when it is done.",
+    "Report is done — let me verify the file before I summarize it.",
+    "Done. Report is in `research/vectors.md`.\n\nTop three: **Milvus, Qdrant, Weaviate**.\n\nMy pick for most teams is **Qdrant**. It is fast, low RAM use, and easy to run. Use Milvus for very large scale, Weaviate for hybrid text plus vector search."
+  ]
+}

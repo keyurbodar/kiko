@@ -1,0 +1,121 @@
+{
+  "run": "run1",
+  "case": 10,
+  "name": "burst: one small, one large",
+  "wording": "what is the status?",
+  "wordingTag": "status",
+  "rep": 3,
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 75,
+  "timedOut": false,
+  "doneMs": 20957,
+  "firstReplyMs": 4528,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 5,
+  "workerTools": {
+    "tool.worker.bash": 2,
+    "tool.worker.web_fetch": 2,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 14,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "what is the status?",
+    "replyMs": 1097,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "bash {\"command\":\"ls -R / 2>/dev/null | head -n 50\"}"
+      }
+    ],
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.bash": 1,
+      "tool.worker.web_fetch": 1
+    },
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will send the comparison when it lands.",
+    "repliesAfterSend": [
+      "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will send the comparison when it lands.",
+      "Small task done: `notes/todo.md` now starts with **Reviewed**.\n\nLarge task in progress: worker is researching test runners and writing `research/tests.md`. Current step is checking files.",
+      "I'll tell the worker to keep it short.",
+      "Got it. I told the worker to keep `research/tests.md` short, under 200 words.",
+      "Done. Both tasks finished:\n\n1. `notes/todo.md` starts with **Reviewed**.\n2. `research/tests.md` compares **Vitest, Jest, and Playwright** in 178 words. Short as asked.\n\nNote: the test survey page did not load, so picks use 2024-2026 usage trends."
+    ]
+  },
+  "note": {
+    "sentMs": 12542,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 1,
+    "reply": "I'll tell the worker to keep it short."
+  },
+  "replies": [
+    {
+      "at": 4528,
+      "text": "On it — small edit now, research next."
+    },
+    {
+      "at": 6206,
+      "text": "I'll add Reviewed to the top of your todo file now."
+    },
+    {
+      "at": 7410,
+      "text": "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will send the comparison when it lands."
+    },
+    {
+      "at": 9277,
+      "text": "Small task done: `notes/todo.md` now starts with **Reviewed**.\n\nLarge task in progress: worker is researching test runners and writing `research/tests.md`. Current step is checking files."
+    },
+    {
+      "at": 14718,
+      "text": "I'll tell the worker to keep it short."
+    },
+    {
+      "at": 15785,
+      "text": "Got it. I told the worker to keep `research/tests.md` short, under 200 words."
+    },
+    {
+      "at": 16858,
+      "text": "Done. Both tasks finished:\n\n1. `notes/todo.md` starts with **Reviewed**.\n2. `research/tests.md` compares **Vitest, Jest, and Playwright** in 178 words. Short as asked.\n\nNote: the test survey page did not load, so picks use 2024-2026 usage trends."
+    }
+  ],
+  "bubbles": [
+    "On it — small edit now, research next.",
+    "I'll add Reviewed to the top of your todo file now.",
+    "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will send the comparison when it lands.",
+    "Small task done: `notes/todo.md` now starts with **Reviewed**.\n\nLarge task in progress: worker is researching test runners and writing `research/tests.md`. Current step is checking files.",
+    "I'll tell the worker to keep it short.",
+    "Got it. I told the worker to keep `research/tests.md` short, under 200 words.",
+    "Done. Both tasks finished:\n\n1. `notes/todo.md` starts with **Reviewed**.\n2. `research/tests.md` compares **Vitest, Jest, and Playwright** in 178 words. Short as asked.\n\nNote: the test survey page did not load, so picks use 2024-2026 usage trends."
+  ]
+}
