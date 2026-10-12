@@ -4,11 +4,11 @@ import { Asks } from "../src/room/asks"
 import { Deliveries } from "../src/room/deliver"
 import { RoomLog } from "../src/room/log"
 import { Mail } from "../src/room/mail"
-import { migrate } from "../src/room/schema"
+import { ROOM_STEPS } from "../src/room/schema"
 import type { ReceiveDeps } from "../src/room/receive"
 import { HeldWakes, type Wake } from "../src/room/wake"
 import { RoomWakes } from "../src/room/wake-delivery"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000A"
 const home = { userId: "alice", roomId: ROOM as never }
@@ -19,9 +19,8 @@ function wake(id: string, budget: Wake["budget"] = "user"): Wake {
 }
 
 function setup() {
-  const sql = sqlStorage()
+  const sql = sqlWith(ROOM_STEPS)
   const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-  migrate(storage)
   const log = new RoomLog(storage, () => 1)
   const mail = new Mail(storage, log, new Asks(sql))
   const deliveries = new Deliveries(storage, log)

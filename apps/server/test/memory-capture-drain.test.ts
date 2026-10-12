@@ -2,8 +2,8 @@ import { expect, test } from "bun:test"
 import type { Answer, Judge, Question } from "@yuki/memory/judge"
 import { Life } from "@yuki/memory/life"
 import { MemoryCapture } from "../src/user/memory-capture"
-import { migrate } from "../src/user/schema"
-import { sqlStorage } from "./sql-shim"
+import { USER_STEPS } from "../src/user/schema"
+import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000B"
 // A judge request above this many questions gets no answer, as a model would time out on a long list.
@@ -17,8 +17,7 @@ const answer = (key: string, q: Question): Answer =>
   q.type === "choice" ? { type: "choice", choice: "not_card", confidence: 0.9, probabilities: { not_card: 0.9 } } : { type: "bool", probability: key.endsWith("_worth") ? 0.1 : 0.05 }
 
 function setup(refuse?: string) {
-  const sql = sqlStorage()
-  migrate(sql)
+  const sql = sqlWith(USER_STEPS)
   sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
   const settings = new Map<string, string>()
   const life = new Life(sql, (fn) => fn(), { get: (k) => settings.get(k) ?? null, set: (k, v) => void settings.set(k, v) })

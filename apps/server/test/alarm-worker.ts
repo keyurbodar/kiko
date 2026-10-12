@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
-import { createAlarms, runDue } from "@yuki/durable/alarm"
+import { ALARM_STEPS, createAlarms, runDue } from "@yuki/durable/alarm"
+import { migrate } from "@yuki/durable/migrate"
 
 export class T extends DurableObject {
   alarms = createAlarms(this.ctx)
@@ -8,6 +9,7 @@ export class T extends DurableObject {
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never)
+    migrate(ctx.storage, ALARM_STEPS)
     const real = ctx.storage.setAlarm.bind(ctx.storage)
     ctx.storage.setAlarm = (t: number | Date, o?: any) => {
       this.setAlarmCalls++

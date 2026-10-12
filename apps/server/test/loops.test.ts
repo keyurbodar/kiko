@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test"
-import { type Loop, loopOps, Loops, parseNapLoops, sentencesOf } from "@yuki/memory/loops"
-import { sqlStorage } from "./sql-shim"
+import { type Loop, LOOPS_STEPS, loopOps, Loops, parseNapLoops, sentencesOf } from "@yuki/memory/loops"
+import { sqlWith } from "./sql-shim"
 
-const store = () => new Loops(sqlStorage(), (fn) => fn())
+const store = () => new Loops(sqlWith(LOOPS_STEPS), (fn) => fn())
 const base = { kind: "intention" as const, owner: "human", source: "tool" as const }
 
 test("a repeat merges into one loop, firms a tentative one up, and never softens an explicit one", () => {

@@ -8,7 +8,8 @@ import { type FilesBackend, HOME_PATH, homeBackend, RoomFs, roomBackend, withMou
 import { FileIndex, HOME_TABLES, type IndexChange, type NewFile } from "../src/files/file-index"
 import { actorKey } from "../src/room/log"
 import type { Actor } from "@yuki/protocol"
-import { migrate } from "../src/user/schema"
+import { USER_STEPS } from "../src/user/schema"
+import { migrate } from "@yuki/durable/migrate"
 import { Souls } from "../src/user/souls"
 import type { Env } from "../src/index"
 import { roomStub } from "../src/lib/names"
@@ -20,7 +21,7 @@ export class UserDO extends DurableObject {
   private readonly home: FileIndex<unknown>
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never)
-    migrate(ctx.storage.sql)
+    migrate(ctx.storage, USER_STEPS)
     this.souls = new Souls(ctx.storage.sql)
     this.home = new FileIndex<unknown>(ctx.storage, HOME_TABLES, (_, body) => body, actorKey)
   }

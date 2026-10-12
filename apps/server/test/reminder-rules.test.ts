@@ -2,14 +2,15 @@ import { expect, test } from "bun:test"
 import type { RoomId } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import { MAX_FAILS, type DeliverRun, type Reminder, Reminders, type RunDelivery } from "../src/user/reminders"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
+import { USER_STEPS } from "../src/user/schema"
 
 const ROOM = "01J0000000000000000000000R" as RoomId
 const MIN = 60_000
 const DAY = 86_400_000
 
 function setup(results: RunDelivery[] = [], pages: string[] = [], deliverFails = false, runFails = false) {
-  const sql = sqlStorage()
+  const sql = sqlWith(USER_STEPS)
   sql.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   sql.exec("CREATE TABLE chats (room_id TEXT PRIMARY KEY)")
   sql.exec("INSERT INTO chats (room_id) VALUES (?)", ROOM)

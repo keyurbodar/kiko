@@ -4,7 +4,8 @@ import { callTool, ComposioError, createSession, learnedSignature, listTools, pa
 import { ComposioConnection } from "../src/integrations/composio/connect"
 import { LEARNED_MAX, type LearnedTool, remember } from "../src/integrations/composio/learn"
 import { ComposioStore } from "../src/integrations/composio/store"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
+import { USER_STEPS } from "../src/user/schema"
 import { composioExtension, learnedNote } from "../src/integrations/composio/tools"
 
 const SSE = "text/event-stream"
@@ -294,7 +295,7 @@ describe("composio store", () => {
   const session = { id: "trs_1", url: "https://backend.composio.dev/tool_router/trs_1/mcp" }
 
   test("the key and its session come back together, and a new object still has them", async () => {
-    const sql = sqlStorage()
+    const sql = sqlWith(USER_STEPS)
     await new ComposioStore(sql, keyring, "u1").putKey("ak_secret", session)
     expect(await new ComposioStore(sql, keyring, "u1").target()).toEqual({ key: "ak_secret", url: session.url, session: "trs_1" })
   })

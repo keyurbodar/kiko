@@ -9,9 +9,9 @@ import type { MemberRow } from "../src/room/members"
 import { receive, type ReceiveDeps } from "../src/room/receive"
 import { Reports } from "../src/room/reports"
 import { SignalWindow } from "../src/room/signals"
-import { migrate } from "../src/room/schema"
+import { ROOM_STEPS } from "../src/room/schema"
 import { HeldWakes } from "../src/room/wake"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000A"
 const home = { userId: "alice", roomId: ROOM as never }
@@ -20,9 +20,8 @@ const bob = { slug: "bob" } as MemberRow
 const members = [ada, bob]
 
 function setup(refusal: string | null) {
-	const sql = sqlStorage()
+	const sql = sqlWith(ROOM_STEPS)
 	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-	migrate(storage)
 	const log = new RoomLog(storage, () => 1)
 	const mail = new Mail(storage, log, new Asks(sql))
 	const deliveries = new Deliveries(storage, log)
@@ -127,7 +126,7 @@ test("a send that failed after it was recorded is still delivered once when the 
 })
 
 test("held wakes older than a week are dropped when the next batch is read", () => {
-	const sql = sqlStorage()
+	const sql = sqlWith(ROOM_STEPS)
 	const outbox = new HeldWakes(sql)
 	const wake = (id: string) => ({ id, to: "ada" as AgentSlug, why: "reminder" as const, body: "b", chain: null, budget: "room" as const, retry: true })
 	const now = 10 * 86_400_000
@@ -139,7 +138,7 @@ test("held wakes older than a week are dropped when the next batch is read", () 
 test("a held result batch keeps its opening time across retries", async () => {
 	const sent: number[] = []
 	let fail = true
-	const signals = new SignalWindow(sqlStorage(), () => ROOM)
+	const signals = new SignalWindow(sqlWith(ROOM_STEPS), () => ROOM)
 	signals.hold([{ kind: "routine_result", roomId: ROOM, at: 5_000, routineId: "r", occurrence: "o", outcome: "ok", seq: null }])
 	const env = {
 		USER: {

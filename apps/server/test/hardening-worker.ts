@@ -1,12 +1,19 @@
 import { DurableObject } from "cloudflare:workers"
 import type { Envelope } from "@yuki/protocol"
-import { Inbox } from "@yuki/agent/inbox"
-import { createAlarms } from "@yuki/durable/alarm"
+import { INBOX_STEPS, Inbox } from "@yuki/agent/inbox"
+import { ALARM_STEPS, createAlarms } from "@yuki/durable/alarm"
+import { migrate } from "@yuki/durable/migrate"
 
 export class H extends DurableObject {
   clock = 1_000_000
-  inbox = new Inbox(this.ctx.storage, () => this.clock)
+  inbox: Inbox
   alarms = createAlarms(this.ctx)
+
+  constructor(ctx: DurableObjectState, env: unknown) {
+    super(ctx, env as never)
+    migrate(ctx.storage, [...INBOX_STEPS, ...ALARM_STEPS])
+    this.inbox = new Inbox(ctx.storage, () => this.clock)
+  }
 
   async alarm() {}
 

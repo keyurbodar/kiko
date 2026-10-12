@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Chat, Envelope, Task } from "@yuki/protocol"
-import { MAX_ENTRY_BYTES, Inbox } from "@yuki/agent/inbox"
+import { INBOX_STEPS, MAX_ENTRY_BYTES, Inbox } from "@yuki/agent/inbox"
 import { BurstFlush, type BurstDeps } from "../src/room/burst-flush"
 import { BURST_HELD_WAKEUP, Burst } from "../src/room/burst"
 import { buildBrief, MAX_BOARD_BYTES } from "../src/room/brief"
@@ -15,8 +15,8 @@ import { tags } from "../src/room/recipients"
 import { MAX_TASKS } from "../src/room/workspace"
 import { DELIVERY_RETRY_MS } from "../src/room/wake-delivery"
 import { bubbleOf, MAX_BUBBLE_BYTES } from "../src/room/whole-text"
-import { migrate } from "../src/room/schema"
-import { sqlStorage } from "./sql-shim"
+import { ROOM_STEPS } from "../src/room/schema"
+import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000A"
 const NOW = 1_000_000
@@ -27,9 +27,8 @@ const bob = { slug: "bob", name: "Bob", role: "", model: "", lead: false, status
 type Turn = { ok: true } | { ok: false; limit: number; resetAt: number }
 
 function setup(refusal: string | null, turn: Turn = { ok: true }, members: MemberRow[] = [ada, bob]) {
-  const sql = sqlStorage()
+  const sql = sqlWith(ROOM_STEPS)
   const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-  migrate(storage)
   const log = new RoomLog(storage, () => 1)
   const clock = { now: NOW }
   const state = { chatFails: false, chatGone: false }
@@ -112,7 +111,7 @@ test("a burst the agent's inbox is full for stays pending and comes back without
 })
 
 test("a human message rides with the board's largest brief and is admitted", () => {
-  const sql = sqlStorage()
+  const sql = sqlWith(INBOX_STEPS)
   const inbox = new Inbox({ sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage, () => NOW)
   const tasks = Array.from({ length: MAX_TASKS }, (_, i) => ({ id: `t${i}`, owner: "ada", status: "todo", title: "漢".repeat(200), dependsOn: [] }) as unknown as Task)
   const brief = buildBrief(ada, { goal: "ship", members: [ada, bob], tasks, reactions: null })
@@ -123,7 +122,7 @@ test("a human message rides with the board's largest brief and is admitted", () 
 })
 
 test("the worst human message fits its inbox entry, and the test prints the measured margin under the 128 KiB limit", () => {
-  const sql = sqlStorage()
+  const sql = sqlWith(INBOX_STEPS)
   const inbox = new Inbox({ sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage, () => NOW)
   // The bubble: 16,000 control characters, six bytes of JSON each, the largest bubble the text can give.
   const bubble = bubbleOf("\u001b".repeat(16_000))

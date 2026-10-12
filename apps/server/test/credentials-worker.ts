@@ -1,6 +1,8 @@
 import { DurableObject } from "cloudflare:workers"
 import type { Keyring } from "@yuki/durable/crypto"
 import { CredentialVault, userIdFromObjectName } from "../src/user/credentials"
+import { USER_STEPS } from "../src/user/schema"
+import { migrate } from "@yuki/durable/migrate"
 import { UserDO } from "../src/user/user-do"
 
 export { UserDO }
@@ -10,6 +12,11 @@ type Env = { USER: DurableObjectNamespace<UserDO>; VAULT: DurableObjectNamespace
 type VaultCall = { keyring: Keyring; op: "connect" | "read" | "versions"; provider?: string; apiKey?: string }
 
 export class VaultDO extends DurableObject {
+  constructor(ctx: DurableObjectState, env: unknown) {
+    super(ctx, env as never)
+    migrate(ctx.storage, USER_STEPS)
+  }
+
   async call({ keyring, op, provider, apiKey }: VaultCall): Promise<unknown> {
     const vault = new CredentialVault(this.ctx.storage.sql, keyring, userIdFromObjectName(this.ctx.id.name))
     if (op === "connect") return vault.connect(provider!, apiKey)

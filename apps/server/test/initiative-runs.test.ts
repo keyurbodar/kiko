@@ -4,10 +4,11 @@ import { INITIATIVE_RUN, InitiativeEngine, REMINDER_RUN, type WakeInput } from "
 import { slotOf } from "../src/initiative/attention/rhythm"
 import type { SignalBatch } from "../src/room/signals"
 import type { WakeResult } from "../src/room/wake"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
+import { USER_STEPS } from "../src/user/schema"
 
 function world(answer: WakeResult = "delivered") {
-  const sql = sqlStorage()
+  const sql = sqlWith(USER_STEPS)
   sql.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   sql.exec("CREATE TABLE IF NOT EXISTS chat_tasks (room_id TEXT PRIMARY KEY, tasks TEXT NOT NULL)")
   sql.exec("CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, status TEXT NOT NULL, last_fired INTEGER)")
