@@ -24,7 +24,7 @@
     { "tag": "v3", "deleted_classes": ["WorkDO"] }
   ],
   "d1_databases": [
-    { "binding": "AUTH_DB", "database_name": "kiko-auth", "database_id": "c2af5b95-ccf9-4e80-a743-fe8aee9233ca" }
+    { "binding": "AUTH_DB", "database_name": "kiko-auth", "database_id": "d8244d9d-2856-4c0a-adbc-b34edeffc198" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "kiko-files" }],
   "queues": {
