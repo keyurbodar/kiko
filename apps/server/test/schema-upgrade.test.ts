@@ -4,10 +4,11 @@ import { migrate } from "@yuki/durable/migrate"
 import { AGENT_STEPS } from "../src/agent/schema"
 import { ROOM_STEPS } from "../src/room/schema"
 import { USER_STEPS } from "../src/user/schema"
+import { LEGACY_AGENT, LEGACY_ROOM_LAZY, LEGACY_ROOM_V1, LEGACY_USER_LAZY, LEGACY_USER_V1 } from "./legacy-schema"
 import { sqlStorage } from "./sql-shim"
 
-// A table's columns as a set, and its indexes. SQLite appends an added column at the end, so an upgraded
-// table is compared by column name, not by position.
+// Every table's columns by name, and its indexes. SQLite appends an added column at the end, so an upgraded
+// table is compared by name, not by position.
 function schemaOf(db: Database) {
   const tables = db.query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name").all()
   return Object.fromEntries(
@@ -30,56 +31,67 @@ function storageOn(db: Database): DurableObjectStorage {
   return { sql: sqlStorage(db), transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
 }
 
-test("a room created before the pending columns upgrades to the tables a fresh room has", () => {
-  const old = new Database(":memory:")
-  // The room as version 1 left it: its first step, the meta table, and a pending table from before the two columns.
-  old.exec(ROOM_STEPS[0] as string)
-  old.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-  old.exec("INSERT INTO meta (key, value) VALUES ('schema_version', '1')")
-  old.exec("CREATE TABLE pending (id TEXT PRIMARY KEY, seq INTEGER NOT NULL, at INTEGER NOT NULL, text TEXT NOT NULL, reply_to TEXT)")
+// An object as main left it: its version 1 and the tables its code made on demand, with a version row where main kept one.
+function legacy(statements: string[], version?: { table: "meta" | "settings"; value: string }) {
+  const db = new Database(":memory:")
+  for (const s of statements) db.exec(s)
+  if (version) {
+    db.exec(`CREATE TABLE IF NOT EXISTS ${version.table} (key TEXT PRIMARY KEY, value TEXT NOT NULL)`)
+    db.query(`INSERT INTO ${version.table} (key, value) VALUES ('schema_version', ?)`).run(version.value)
+  }
+  return db
+}
+
+test("a room from main upgrades to the tables and columns a fresh room has, and keeps its rows", () => {
+  const old = legacy([LEGACY_ROOM_V1, ...LEGACY_ROOM_LAZY], { table: "meta", value: "1" })
+  // The pending table has no mentions or held_until column: the shape from before the U52 columns.
+  expect(old.query<{ name: string }, []>("PRAGMA table_info(pending)").all().map((c) => c.name)).toEqual(["id", "seq", "at", "text", "reply_to"])
   old.exec("INSERT INTO pending (id, seq, at, text) VALUES ('m1', 1, 0, 'kept')")
+  old.exec("INSERT INTO events (kind, at, actor, payload) VALUES ('message', 1, 'human', '{}')")
+  old.exec("INSERT INTO members (slug, name, added_seq) VALUES ('ada', 'Ada', 1)")
 
   migrate(storageOn(old), ROOM_STEPS)
 
-  const fresh = new Database(":memory:")
+  const fresh = legacy([])
   migrate(storageOn(fresh), ROOM_STEPS)
   expect(schemaOf(old)).toEqual(schemaOf(fresh))
-  expect(old.query("SELECT text FROM pending").all()).toEqual([{ text: "kept" }])
+  expect(old.query("SELECT id, text FROM pending").all()).toEqual([{ id: "m1", text: "kept" }])
+  expect(old.query("SELECT kind FROM events").all()).toEqual([{ kind: "message" }])
+  expect(old.query("SELECT name FROM members").all()).toEqual([{ name: "Ada" }])
   expect(old.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({ value: String(ROOM_STEPS.length) })
 })
 
-test("an agent with a workers table from before the step count upgrades to the tables a fresh agent has", () => {
-  const old = new Database(":memory:")
-  // The workers table core/agent created before the steps column, and no version: an object that predates the lists.
-  old.exec(`CREATE TABLE workers (
-    n INTEGER PRIMARY KEY, id TEXT NOT NULL UNIQUE, task_id TEXT NOT NULL UNIQUE, task TEXT NOT NULL,
-    conversation_id INTEGER, submission_id INTEGER, status TEXT NOT NULL, step TEXT, delivered INTEGER NOT NULL DEFAULT 0,
-    origin TEXT NOT NULL, started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, resumes INTEGER NOT NULL DEFAULT 0
-  ) STRICT`)
-
-  migrate(storageOn(old), AGENT_STEPS)
-
-  const fresh = new Database(":memory:")
-  migrate(storageOn(fresh), AGENT_STEPS)
-  expect(schemaOf(old)).toEqual(schemaOf(fresh))
-})
-
-test("a user object from before the list upgrades in place: rows stay, and the tables match a fresh user", () => {
-  const old = new Database(":memory:")
-  // Before this change a user object had no version table. It kept its version in settings, and its tables were
-  // created on demand by the same statements the list now holds. So it starts from step 0 and must survive the rerun.
-  for (const step of USER_STEPS) if (typeof step === "string") old.exec(step)
+test("a user from main upgrades in place: its rows stay, and its tables match a fresh user", () => {
+  // Main's user object kept its version in settings and started from there. The new list has no version in settings,
+  // so the object runs every step from 0. Its tables already exist, so each step must be safe to run again.
+  const old = legacy([...LEGACY_USER_V1, ...LEGACY_USER_LAZY], undefined)
   old.exec("INSERT INTO settings (key, value) VALUES ('schema_version', '1'), ('theme', 'dark')")
   old.exec("INSERT INTO chats (room_id, title, updated_at) VALUES ('r1', 'plans', 5)")
   old.exec("INSERT INTO reminders (id, text, due_utc, tz, room_id, target, created_by, status, created_at) VALUES ('rem1', 'taxes', 9, 'UTC', 'r1', 'yuki', 'human', 'active', 0)")
+  old.exec("INSERT INTO attention (name, value) VALUES ('rhythm', 'slow')")
 
   migrate(storageOn(old), USER_STEPS)
 
-  const fresh = new Database(":memory:")
+  const fresh = legacy([])
   migrate(storageOn(fresh), USER_STEPS)
   expect(schemaOf(old)).toEqual(schemaOf(fresh))
   expect(old.query("SELECT title FROM chats").all()).toEqual([{ title: "plans" }])
   expect(old.query("SELECT text FROM reminders").all()).toEqual([{ text: "taxes" }])
   expect(old.query("SELECT value FROM settings WHERE key = 'theme'").get()).toEqual({ value: "dark" })
+  expect(old.query("SELECT value FROM attention WHERE name = 'rhythm'").get()).toEqual({ value: "slow" })
   expect(old.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({ value: String(USER_STEPS.length) })
+})
+
+test("an agent from main upgrades to the tables and columns a fresh agent has, and keeps its workers", () => {
+  // No version row, and workers without the steps column: the shape before c22a6086.
+  const old = legacy(LEGACY_AGENT)
+  expect(old.query<{ name: string }, []>("PRAGMA table_info(workers)").all().map((c) => c.name)).not.toContain("steps")
+  old.exec("INSERT INTO workers (n, id, task_id, task, status, origin, started_at, updated_at) VALUES (1, 'w1', 'old-task', 'older work', 'done', 'human', 0, 0)")
+
+  migrate(storageOn(old), AGENT_STEPS)
+
+  const fresh = legacy([])
+  migrate(storageOn(fresh), AGENT_STEPS)
+  expect(schemaOf(old)).toEqual(schemaOf(fresh))
+  expect(old.query("SELECT task, steps FROM workers").all()).toEqual([{ task: "older work", steps: 0 }])
 })
