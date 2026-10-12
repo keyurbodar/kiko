@@ -432,6 +432,8 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
   const outside = context.abortSignal ? AbortSignal.any([context.abortSignal, timer]) : timer
   const say = (text: string) => void (text && options?.onOutput?.(text, context))
   let fs: CommandFs | undefined
+  // Once the commit starts it runs to its end: a stop after this point cannot undo a save, so the result names what saved.
+  let committing = false
   try {
     fs = await CommandFs.open(files)
     const cwd = options?.cwd && (await fs.stat(options.cwd).catch(() => null))?.isDirectory ? options.cwd : "/"
@@ -446,13 +448,15 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
       say(`${out.stdout}${out.stderr}bash: the command hit a limit and was stopped, and none of its changes were saved\n`)
       return ok({ exitCode: LIMIT_EXIT, changed: [] })
     }
+    committing = true
     const { saved, changed, refused } = await fs.commit()
     const report = refused.map((r) => `bash: ${r.path}: not saved: ${r.message}\n`)
     if (saved.length && refused.length) report.push(`bash: saved in ${saved.join(" and ")}\n`)
+    if (outside.aborted && changed.length) report.push(`bash: stopped while it saved, and these were saved: ${changed.join(", ")}\n`)
     say(out.stdout + out.stderr + report.join(""))
     return ok({ exitCode: refused.length && !out.exitCode ? 1 : out.exitCode, changed })
   } catch (e) {
-    if (outside.aborted) return err(stopped(timer, seconds))
+    if (outside.aborted && !committing) return err(stopped(timer, seconds))
     if (fs?.overRead.signal.aborted) {
       say(OVER_READ)
       return ok({ exitCode: LIMIT_EXIT, changed: [] })

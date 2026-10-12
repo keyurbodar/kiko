@@ -5,7 +5,7 @@ import { stoppable } from "@yuki/agent/effects"
 import { FAKE_TOOLS } from "../src/agent/dev-fake"
 import { filesExtension } from "../src/agent/extensions/files"
 
-const files = new Map((filesExtension({ acceptsImages: () => false }).tools ?? []).map((t) => [t.name, t]))
+const files = new Map((filesExtension({ acceptsImages: () => false, touched: () => {} }).tools ?? []).map((t) => [t.name, t]))
 const real = (name: string) => {
   const tool = files.get(name)
   if (!tool) throw new Error(`no files tool ${name}`)

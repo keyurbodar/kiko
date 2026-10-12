@@ -24,11 +24,11 @@ afterAll(async () => {
 
 let n = 0
 const fresh = () => `01JZ8Q4T6F${String(++n).padStart(16, "0")}`
-type Out = { ok: boolean; text: string; notes: string; ms: number; details?: { changed: string[] } }
+type Out = { ok: boolean; text: string; notes: string; ms: number; details?: { changed: string[] }; touched?: string[] }
 
 function agent(room: string, slug = "ada") {
-  const run = async (name: string, args: Record<string, unknown>): Promise<Out> => {
-    const res = await fetch(`${origin}/tool/${room}/${slug}`, { method: "POST", body: JSON.stringify({ name, args }) })
+  const run = async (name: string, args: Record<string, unknown>, headers: Record<string, string> = {}): Promise<Out> => {
+    const res = await fetch(`${origin}/tool/${room}/${slug}`, { method: "POST", headers, body: JSON.stringify({ name, args }) })
     return (await res.json()) as Out
   }
   return {
@@ -180,13 +180,34 @@ test("every file tool says which paths it saved, where RoomFs wrote them; a chan
   expect(await saved("edit", { path: "app.ts", edits: [{ oldText: "const a = 1", newText: "const a = 2" }] })).toEqual({ changed: ["/app.ts"] })
   expect(await saved("mv", { from: "a.md", to: "docs" })).toEqual({ changed: ["/docs/a.md"] })
   expect(await saved("cp", { from: "notes/x.md", to: "docs" })).toEqual({ changed: ["/docs/x.md"] })
-  expect(await saved("cp", { from: "docs", to: "copy", recursive: true })).toEqual({ changed: ["/copy"] })
   expect(await saved("mkdir", { path: "made/deep" })).toEqual({ changed: ["/made/deep"] })
   expect(await saved("rm", { paths: ["docs/x.md"] })).toEqual({ changed: ["/docs/x.md"] })
-  expect(await saved("rm", { paths: ["copy"], recursive: true })).toEqual({ changed: ["/copy"] })
   expect(await saved("mv", { from: "made", to: "made" })).toBeUndefined()
   expect(await saved("rm", { paths: ["nothing.md"] })).toBeUndefined()
 })
+
+test("a folder's copy records the files it wrote, not the folder", async () => {
+  const a = agent(fresh())
+  await a.write("docs/keep.md", "k")
+  await a.write("docs/sub/deep.md", "d")
+  const copied = await a.run("cp", { from: "docs", to: "copy", recursive: true })
+  expect(copied.touched?.sort()).toEqual(["/copy/keep.md", "/copy/sub/deep.md"])
+})
+
+test("cp -r saves the files the drive accepts when one is refused, and says which did not", async () => {
+  const a = agent(fresh())
+  await a.write("src/a.md", "a")
+  await a.write("src/b.md", "b")
+  await a.write("src/c.md", "c")
+  const out = await a.run("cp", { from: "src", to: "copy", recursive: true }, { "x-test-refuse": "b.md" })
+  expect(out.ok).toBe(false)
+  expect(out.text).toContain("copied 2 of 3 files to copy")
+  expect(out.text).toContain("not copied")
+  expect(out.touched?.sort()).toEqual(["/copy/a.md", "/copy/c.md"])
+  expect(await a.read("copy/a.md")).toBe("a")
+  expect(await a.read("copy/c.md")).toBe("c")
+})
+
 
 test("paths stay inside the chat, and a file and a folder never share a name", async () => {
   const a = agent(fresh())

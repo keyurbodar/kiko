@@ -28,7 +28,7 @@ import { count } from "../lib/dev-stats"
 
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
-  files?: FilesOptions & { fs: RoomFs }
+  files?: Omit<FilesOptions, "touched"> & { fs: RoomFs }
   soul?: SoulPort
   runStamp?: () => number
   chief?: ChiefPort
@@ -67,7 +67,7 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul, input.runStamp)] : []),
     ...(input.memory ? memoryExtensions(input.memory) : []),
     ...(input.loops ? [loopExtension(input.loops)] : []),
-    ...(input.files ? [filesExtension(input.files)] : []),
+    ...(input.files ? [filesExtension({ acceptsImages: input.files.acceptsImages, touched: (conversationId, paths) => input.work?.touched(conversationId, paths) })] : []),
     skillsExtension(input.files?.fs, input.runStamp),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(input.egress, input.files?.fs),

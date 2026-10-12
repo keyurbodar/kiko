@@ -23,14 +23,15 @@ afterAll(async () => {
 
 let n = 0
 const fresh = () => `01JZ8Q4T7B${String(++n).padStart(16, "0")}`
-type Out = { ok: boolean; text: string; ms: number; details?: { changed: string[] } }
+type Out = { ok: boolean; text: string; ms: number; touched?: string[] }
 
 function agent(room: string, slug = "ada") {
-  const run = async (name: string, args: Record<string, unknown>): Promise<Out> => {
-    const res = await fetch(`${origin}/tool/${room}/${slug}`, { method: "POST", body: JSON.stringify({ name, args }) })
+  const run = async (name: string, args: Record<string, unknown>, headers: Record<string, string> = {}): Promise<Out> => {
+    const res = await fetch(`${origin}/tool/${room}/${slug}`, { method: "POST", headers, body: JSON.stringify({ name, args }) })
     return (await res.json()) as Out
   }
   return {
+    run,
     bash: (command: string) => run("bash", { command }),
     write: (path: string, content: string) => run("write", { path, content }),
     read: async (path: string) => (await run("read", { path })).text,
@@ -314,7 +315,19 @@ test("when the drive refuses a command's write, the output says the chat's files
   expect(out.text).toContain("saved in the chat's files")
   expect(await ada.read("/a.txt")).toBe("new\n")
   expect(await ada.read("/home/d.txt")).toBe("two\n")
-  expect(out.details?.changed).toEqual(["/a.txt"])
+  expect(out.touched).toEqual(["/a.txt"])
+})
+
+test("a command stopped while it saves still says what it saved, and records it", async () => {
+  const a = agent(fresh())
+  const out = await a.run("bash", { command: "echo x > /a.txt && echo y > /b.txt" }, { "x-test-stop-on-commit": "1" })
+  expect(out.ok).toBe(true)
+  expect(out.text).toContain("stopped while it saved")
+  expect(out.text).toContain("/a.txt")
+  expect(out.text).toContain("/b.txt")
+  expect(out.touched?.sort()).toEqual(["/a.txt", "/b.txt"])
+  expect(await a.read("/a.txt")).toBe("x\n")
+  expect(await a.read("/b.txt")).toBe("y\n")
 })
 
 test("a move into the drive keeps its source when the drive refuses the write", async () => {
@@ -333,7 +346,7 @@ test("a move into the drive keeps its source when the drive refuses the write", 
   expect(out.ok).toBe(false)
   expect(out.text).toContain("/home/m.txt changed after this command started")
   expect(out.text).toContain("/c.txt: not saved")
-  expect(out.details?.changed ?? []).toEqual([])
+  expect(out.touched ?? []).toEqual([])
 })
 
 test("a runaway loop stops at the interpreter's limits and saves nothing", async () => {

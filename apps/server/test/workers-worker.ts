@@ -12,6 +12,11 @@ import type { RoomPort } from "../src/agent/outbox"
 import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
 import type { FsEntry } from "../src/room/files"
 
+// While a gate is shut, every commit waits at it and counts itself as held: a test stops a worker in the middle of a save.
+let gate: Promise<void> | null = null
+let openGate = () => {}
+let held = 0
+
 // The chat's files in memory, so a worker's write or bash command lands where the test can see it.
 function memoryFiles(): FilesBackend {
   const files = new Map<string, string>()
@@ -30,6 +35,10 @@ function memoryFiles(): FilesBackend {
     remove: async () => refused,
     mkdir: async () => refused,
     commit: async (changes) => {
+      if (gate) {
+        held++
+        await gate
+      }
       for (const c of changes) if (c.op === "write") apply(c.path, c.bytes)
       return { ok: true }
     },
@@ -56,6 +65,9 @@ type Body =
   | { op: "status" }
   | { op: "crash" }
   | { op: "repeat" }
+  | { op: "gate" }
+  | { op: "ungate" }
+  | { op: "held" }
 
 export class T extends AgentDO {
   protected override readonly hostOptions: Partial<HostOptions> = {
@@ -174,6 +186,17 @@ export class T extends AgentDO {
       const get = async (key: string) => (await this.ctx.storage.get<number>(key)) ?? 0
       return Response.json({ started: await get("hang:started"), aborted: await get("hang:aborted"), waiting: this.waiters.size })
     }
+    if (body.op === "gate") {
+      gate = new Promise((resolve) => (openGate = resolve))
+      held = 0
+      return Response.json({ ok: true })
+    }
+    if (body.op === "ungate") {
+      openGate()
+      gate = null
+      return Response.json({ ok: true })
+    }
+    if (body.op === "held") return Response.json(held)
     if (body.op === "release") {
       await this.ctx.storage.put("released", true)
       for (const resolve of this.waiters) resolve()
