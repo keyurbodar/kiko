@@ -206,7 +206,8 @@ export class UserDO extends DurableObject<Env> {
   private devCache?: Promise<typeof import("./dev")>
 
   private dev(): Promise<typeof import("./dev")> {
-    return (this.devCache ??= loadUserDev())
+    this.devCache ??= loadUserDev()
+    return this.devCache
   }
 
   async devSeen(ago: number): Promise<void> {

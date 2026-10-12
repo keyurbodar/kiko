@@ -926,7 +926,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private devCache?: Promise<RoomDev>
 
 	private dev(): Promise<RoomDev> {
-		return (this.devCache ??= loadRoomDev().then((m) => new m.RoomDev({
+		this.devCache ??= loadRoomDev().then((m) => new m.RoomDev({
 			sql: this.ctx.storage.sql,
 			log: this.log,
 			members: this.members,
@@ -937,7 +937,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			rollupQuiet: () => this.memoryNaps.rollupQuiet(),
 			tasksChanged: () => this.tasksChanged(),
 			sweepPending: () => this.sweepPending(),
-		})))
+		}))
+		return this.devCache
 	}
 
 	async devSeed(turns: { from: string; text: string }[]): Promise<number> {

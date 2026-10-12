@@ -769,7 +769,8 @@ export class AgentDO extends DurableObject<Env> {
   #dev?: Promise<typeof import("./dev")>
 
   private dev(): Promise<typeof import("./dev")> {
-    return (this.#dev ??= loadAgentDev())
+    this.#dev ??= loadAgentDev()
+    return this.#dev
   }
 
   async devClassic(): Promise<void> {
