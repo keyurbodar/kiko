@@ -5,7 +5,7 @@ import { fake, newRoom, seen, send, statuses, until } from "./mid-run"
 import { must } from "../must"
 
 
-type Work = { id: string; status: string; step: string | null }
+type Work = { id: string; status: string; step: string | null; submissionId: unknown }
 
 async function workers(url: string, s: Session, roomId: string): Promise<Work[]> {
   const res = await fetch(new URL(`api/dev/agent/workers?roomId=${roomId}`, url.endsWith("/") ? url : `${url}/`), { headers: { cookie: s.cookie } })
@@ -62,6 +62,28 @@ const cases: Case[] = [
       await until("the stop report", () => texts(room).some((t) => t.startsWith("report w1 stopped")), 15_000)
       if (Date.now() - at > 10_000) throw new VerifyError("the stop waited for the worker's steps")
       expectEqual((await list())[0]?.status, "stopped", "w1")
+      expectEqual(texts(room).filter((t) => t.startsWith("report w1")).length, 1, "reports")
+    },
+  },
+  {
+    name: "status does not touch the worker",
+    async run(room, list) {
+      await started(room, "[steps 8] find flights")
+      const [before] = await list()
+      await send(room, "what is the status?")
+      await until("the status answer", () => texts(room).some((t) => t.startsWith("status: ")), 15_000)
+      const answer = must(texts(room).find((t) => t.startsWith("status: ")), "the status answer")
+      if (!answer.includes("w1 (running)")) throw new VerifyError(`the status answer does not show w1 running: ${answer}`)
+      const [after] = await list()
+      expectEqual(after?.status, "running", "w1 after the status answer")
+      expectEqual(after?.submissionId, before?.submissionId, "w1's input after the status answer")
+      await send(room, `[tool steer_work ${JSON.stringify({ id: "w1", text: "only morning flights" })}]`)
+      await until("the worker's report", () => texts(room).some((t) => t.startsWith("report w1 done")), 40_000)
+      expectEqual(
+        must(texts(room).find((t) => t.startsWith("report w1")), "the report"),
+        "report w1 done: work done: heard=[steps 8] find flights | only morning flights",
+        "the report: the status question never reached the worker, and the note arrived once",
+      )
       expectEqual(texts(room).filter((t) => t.startsWith("report w1")).length, 1, "reports")
     },
   },
