@@ -6,12 +6,11 @@ import { InitiativeLoops, type LoopsDeps } from "../src/user/initiative-loops"
 import { USER_STEPS } from "../src/user/schema"
 import { sqlWith } from "./sql-shim"
 
-function judgingWith(capture: "auto" | "always" | "off") {
+function judgingWith(captures: boolean) {
   const sql = sqlWith(USER_STEPS)
   sql.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   const memory = {
-    judgeKey: () => ({ key: {}, model: null }),
-    policy: () => ({ capture }),
+    captures: () => captures,
     capturable: () => true,
   }
   const loops = new InitiativeLoops({ sql, memory, transaction: (fn: () => unknown) => fn() } as unknown as LoopsDeps)
@@ -19,8 +18,8 @@ function judgingWith(capture: "auto" | "always" | "off") {
 }
 
 test("a judge key with capture off leaves Jev out of a chat, so the two-word touch decides engagement", () => {
-  expect(judgingWith("off")).toBe(false)
-  expect(judgingWith("auto")).toBe(true)
+  expect(judgingWith(false)).toBe(false)
+  expect(judgingWith(true)).toBe(true)
 })
 
 test("a judge that fails keeps the human's answer to a nudge counted, not ignored", async () => {
@@ -29,8 +28,7 @@ test("a judge that fails keeps the human's answer to a nudge counted, not ignore
   const settings = new Map<string, string>()
   const life = new Life(sql, (fn) => fn(), { get: (k) => settings.get(k) ?? null, set: (k, v) => void settings.set(k, v) })
   const memory = {
-    judgeKey: () => ({ key: {}, model: null }),
-    policy: () => ({ capture: "auto" }),
+    captures: () => true,
     capturable: () => true,
     judgeFor: () => (async () => null) as never,
     count: () => {},

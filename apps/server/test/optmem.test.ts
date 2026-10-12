@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { ancestors, capBytes, cleanLine, cover, type Item, isNode, LINE_BYTES, napPrompt, range, region, type Shape, type Span, tile, Tree, treeSteps } from "@yuki/memory/optmem"
+import { capBytes, cleanLine, cover, type Item, isNode, LINE_BYTES, napPrompt, range, region, type Shape, type Span, tile, Tree, treeSteps } from "@yuki/memory/optmem"
 import { sqlWith } from "./sql-shim"
 
 const tiles = (spans: Span[], T: number) => {
@@ -54,15 +54,6 @@ test("a stale tiling is replaced, never trusted", () => {
   const bad: Span[] = [{ lo: 0, hi: 24 }]
   expect(tile(bad, 64, shape).every((s) => isNode(s, 8))).toBe(true)
   expect(tiles(tile([{ lo: 0, hi: 128 }], 64, shape), 64)).toBe(true)
-})
-
-test("ancestors climb one node per level", () => {
-  expect(ancestors(13, 64, 8)).toEqual([
-    { lo: 8, hi: 16 },
-    { lo: 0, hi: 16 },
-    { lo: 0, hi: 32 },
-    { lo: 0, hi: 64 },
-  ])
 })
 
 function fakeLog(n: number) {

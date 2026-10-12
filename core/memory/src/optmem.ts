@@ -93,15 +93,6 @@ export function isNode(span: Span, page: number): boolean {
   return size >= page && size % page === 0 && isPow2(size / page) && span.lo % size === 0
 }
 
-export function ancestors(pos: number, count: number, page: number): Span[] {
-  const out: Span[] = []
-  for (let size = page; size <= count; size *= 2) {
-    const lo = Math.floor(pos / size) * size
-    if (lo + size <= count) out.push({ lo, hi: lo + size })
-  }
-  return out
-}
-
 export function spanOf(id: string): Span | null {
   const m = /^(?:\w+:)?#?(\d+)-(\d+)$/.exec(id.trim())
   if (!m) return null

@@ -2,12 +2,13 @@ import type { JsonObject } from "@earendil-works/pi-ai"
 import type { Alarms } from "@yuki/durable/alarm"
 import type { Life } from "@yuki/memory/life"
 import { cleanLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@yuki/memory/optmem"
-import { applyOps, CAPTURE_SYSTEM, captureActive, candidates, type CaptureCount, type CapturePolicy, capturePrompt, captureWithJudge, type Heard, knownFor, mergePolicy, parseCapture } from "@yuki/memory/capture"
+import { candidates, type CaptureCount, type CapturePolicy, captureWithJudge, mergePolicy, RECALL_MAX, RERANK_MIN } from "@yuki/memory/capture"
 import { type Answer, boolOf, type Judge, type Question } from "@yuki/memory/judge"
 import { parseNapLoops } from "@yuki/memory/loops"
 import type { MemoryModel, MemoryOp, MemoryResult, RoomId } from "@yuki/protocol"
 import type { UserSettingsPatch } from "@yuki/protocol/schema"
 import { DEFAULT_MODEL, userModels } from "../agent/factory"
+import { DEV } from "../lib/dev-guard"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import type { CredentialVault, ProviderInfo } from "./credentials"
 import { getChat } from "./chats"
@@ -21,7 +22,6 @@ const COMPRESS_TIMEOUT_MS = 120_000
 const MEMORY_USAGE = "memory_usage"
 const MEMORY_MODEL = "memory_model"
 const MEMORY_POLICY = "memory_policy"
-const JUDGE_MODEL = "judge_model"
 const refusedKey = (provider: string) => `${provider}_refused`
 const REFUSED = /\((401|403)\)/
 export const CAPTURE_WAKEUP = "life_capture"
@@ -59,16 +59,8 @@ export class MemoryCapture {
     this.alarms = d.alarms
   }
 
-  private setting(key: string): string | null {
-    return getSetting(this.sql, key)
-  }
-
-  private putSetting(key: string, value: string): void {
-    setSetting(this.sql, key, value)
-  }
-
   policy(): CapturePolicy {
-    return mergePolicy(this.setting(MEMORY_POLICY))
+    return mergePolicy(getSetting(this.sql, MEMORY_POLICY))
   }
 
   capturable(roomId: RoomId): boolean {
@@ -77,15 +69,15 @@ export class MemoryCapture {
   }
 
   captures(): boolean {
-    return captureActive(this.policy(), this.judgeKey() !== null)
+    return this.policy().capture !== "off" && this.judgeKey() !== null
   }
 
   private refused(p: ProviderInfo): boolean {
-    return this.setting(refusedKey(p.provider)) === p.last4
+    return getSetting(this.sql, refusedKey(p.provider)) === p.last4
   }
 
-  judgeKey(): { key: ProviderInfo; model: string | null } | null {
-    return pickJudge(this.d.credentials().listProviders(), (p) => this.refused(p), this.setting(JUDGE_MODEL))
+  judgeKey(): ProviderInfo | null {
+    return pickJudge(this.d.credentials().listProviders(), (p) => this.refused(p))
   }
 
   judgeFor(timeoutMs: number): Judge | null {
@@ -94,20 +86,19 @@ export class MemoryCapture {
 
   judge(timeoutMs: number): Judge {
     return async <K extends string>(state: JsonObject, questions: Record<K, Question>): Promise<Record<K, Answer> | null> => {
-      const picked = this.judgeKey()
-      if (!picked) return null
-      const { key } = picked
+      const key = this.judgeKey()
+      if (!key) return null
       try {
         const auth = (await this.d.turn(key.provider)).auth
         if (!auth) return null
         const { models } = userModels(async () => auth, `memory-${this.d.label}`)
-        const model = (picked.model ? models.getModelOfType("classifier", key.provider, picked.model) : undefined) ?? models.getModelsOfType("classifier", key.provider)[0]
+        const model = models.getModelsOfType("classifier", key.provider)[0]
         if (!model) return null
         const result = await models.classify(model, { state, questions }, { signal: AbortSignal.timeout(timeoutMs) })
         this.count({ jev_input: result.usage?.input ?? 0, jev_output: result.usage?.output ?? 0 })
         if (result.stopReason === "stop") return result.answers as Record<K, Answer>
         if (REFUSED.test(result.errorMessage ?? "")) {
-          this.putSetting(refusedKey(key.provider), key.last4)
+          setSetting(this.sql, refusedKey(key.provider), key.last4)
           this.count({ jev_refused: 1 })
         } else {
           this.count({ jev_errors: 1 })
@@ -122,14 +113,16 @@ export class MemoryCapture {
     }
   }
 
+  // Only a dev route reads these counters, so production skips the settings write on every model call.
   count(delta: Record<string, number>): void {
-    const spent = JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
+    if (!DEV) return
+    const spent = this.usage()
     for (const [k, n] of Object.entries(delta)) if (n) spent[k] = (spent[k] ?? 0) + n
-    this.putSetting(MEMORY_USAGE, JSON.stringify(spent))
+    setSetting(this.sql, MEMORY_USAGE, JSON.stringify(spent))
   }
 
   usage(): Record<string, number> {
-    return JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
+    return JSON.parse(getSetting(this.sql, MEMORY_USAGE) ?? "{}") as Record<string, number>
   }
 
   private tally(c: CaptureCount): void {
@@ -137,13 +130,10 @@ export class MemoryCapture {
   }
 
   private async armCapture(): Promise<void> {
-    const q = this.sql.exec<{ n: number; oldest: number | null; newest: number | null }>("SELECT count(*) AS n, min(queued_at) AS oldest, max(queued_at) AS newest FROM capture_queue").one()
-    if (q.n && !this.captures()) return this.captureNow()
-    if (!q.n) return this.alarms.clearWakeup(CAPTURE_WAKEUP)
-    const p = this.policy()
-    const { oldest, newest } = q
-    if (oldest === null || newest === null) throw new Error("capture queue rows have no timestamps")
-    await this.alarms.setWakeup(CAPTURE_WAKEUP, this.judgeKey() ? newest + p.jevDelayMs : q.n >= p.batch ? Date.now() : oldest + p.idleMs)
+    const { n, newest } = this.sql.exec<{ n: number; newest: number }>("SELECT count(*) AS n, coalesce(max(queued_at), 0) AS newest FROM capture_queue").one()
+    if (!n) return this.alarms.clearWakeup(CAPTURE_WAKEUP)
+    if (!this.captures()) return this.captureNow()
+    await this.alarms.setWakeup(CAPTURE_WAKEUP, newest + this.policy().jevDelayMs)
   }
 
   private queued(roomId: string, messageId: string, text: string): boolean {
@@ -169,76 +159,37 @@ export class MemoryCapture {
   }
 
   async captureNow(): Promise<void> {
-    const policy = this.policy()
     if (!this.captures()) {
       this.sql.exec("DELETE FROM capture_queue")
       return this.alarms.clearWakeup(CAPTURE_WAKEUP)
     }
-    type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number; queued_at: number }
-    let rows = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at, queued_at FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_ALARM).toArray()
-    for (const r of rows.filter((r) => !this.capturable(r.room_id))) this.dequeue(r.room_id, [r.message_id])
-    rows = rows.filter((r) => this.capturable(r.room_id))
+    type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number }
+    const queue = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_ALARM).toArray()
+    for (const r of queue.filter((r) => !this.capturable(r.room_id))) this.dequeue(r.room_id, [r.message_id])
+    const rows = queue.filter((r) => this.capturable(r.room_id))
+    const judge = this.judge(CAPTURE_TIMEOUT_MS)
     let learned = false
-    if (this.judgeKey()) {
-      const judge = this.judge(CAPTURE_TIMEOUT_MS)
-      // A chunk the judge does not answer stays queued. The chunks around it still settle, so one slow chunk cannot hold up the queue.
-      const left: QueueRow[] = []
-      for (let i = 0; i < rows.length; i += CAPTURE_CHUNK) {
-        const chunk = rows.slice(i, i + CAPTURE_CHUNK)
-        this.count({ capture_jev: 1 })
-        const out = await captureWithJudge(
-          this.life,
-          judge,
-          chunk.map((r) => ({ heard: { messageId: r.message_id, text: r.text, at: r.at }, ref: `room:${r.room_id}:msg:${r.message_id}`, keep: () => this.queued(r.room_id, r.message_id, r.text) })),
-          policy,
-        )
-        if (!out) {
-          left.push(...chunk)
-          continue
-        }
-        this.tally(out)
-        learned ||= out.added + out.replaced > 0
-        for (const r of chunk) if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
+    // A chunk the judge does not answer stays queued. The chunks around it still settle, so one slow chunk cannot hold up the queue.
+    let unanswered = false
+    for (let i = 0; i < rows.length; i += CAPTURE_CHUNK) {
+      const chunk = rows.slice(i, i + CAPTURE_CHUNK)
+      this.count({ capture_jev: 1 })
+      const out = await captureWithJudge(
+        this.life,
+        judge,
+        chunk.map((r) => ({ heard: { messageId: r.message_id, text: r.text, at: r.at }, ref: `room:${r.room_id}:msg:${r.message_id}`, keep: () => this.queued(r.room_id, r.message_id, r.text) })),
+      )
+      if (!out) {
+        unanswered = true
+        continue
       }
-      rows = left
-      if (rows.length && policy.capture === "auto") {
-        if (learned) await this.armNaps()
-        return void (await this.alarms.setWakeup(CAPTURE_WAKEUP, Date.now() + policy.idleMs))
-      }
-    } else {
-      const total = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM capture_queue").one().n
-      if (total < policy.batch && (rows[0]?.queued_at ?? Date.now()) + policy.idleMs > Date.now()) rows = []
-    }
-    const rooms = new Map<RoomId, QueueRow[]>()
-    for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
-    for (const [roomId, batch] of rooms) {
-      const out = await this.captureByModel(roomId, batch.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at })))
-      if (out === "later") {
-        if (learned) await this.armNaps()
-        return void (await this.alarms.setWakeup(CAPTURE_WAKEUP, Date.now() + policy.idleMs))
-      }
-      learned ||= out
+      this.tally(out)
+      learned ||= out.added + out.replaced > 0
+      for (const r of chunk) if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
     }
     if (learned) await this.armNaps()
+    if (unanswered) return void (await this.alarms.setWakeup(CAPTURE_WAKEUP, Date.now() + this.policy().idleMs))
     await this.armCapture()
-  }
-
-  private async captureByModel(roomId: RoomId, heard: Heard[]): Promise<boolean | "later"> {
-    const known = knownFor(this.life, heard)
-    let answer: string | null
-    try {
-      answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, CAPTURE_SYSTEM, capturePrompt(heard, known))
-    } catch (error) {
-      console.error(`capture by model failed: ${error instanceof Error ? error.message.slice(0, 200) : "error"}`)
-      return "later"
-    }
-    if (answer === null) return "later"
-    this.count({ capture_model: 1 })
-    if (heard.some((h) => !this.queued(roomId, h.messageId, h.text))) return false
-    const out = applyOps(this.life, parseCapture(answer, new Set(known.map((k) => k.pos)), heard.length), heard.map((h) => ({ ref: `room:${roomId}:msg:${h.messageId}`, at: h.at })))
-    this.tally(out)
-    this.dequeue(roomId, heard.map((h) => h.messageId))
-    return out.added + out.replaced > 0
   }
 
   async armNaps(): Promise<void> {
@@ -298,12 +249,8 @@ export class MemoryCapture {
       { systemPrompt: system, messages: [{ role: "user", content: prompt, timestamp: Date.now() }] },
       { headers, signal: AbortSignal.timeout(COMPRESS_TIMEOUT_MS), ...(model.reasoning && model.thinkingLevelMap?.off === null ? { reasoning: "minimal" as const } : {}) },
     )
-    const spent = JSON.parse(this.setting(MEMORY_USAGE) ?? "{}") as Record<string, number>
-    for (const k of ["input", "output", "cacheRead"] as const) spent[k] = (spent[k] ?? 0) + (reply.usage?.[k] ?? 0)
-    spent.calls = (spent.calls ?? 0) + 1
     const failed = reply.stopReason === "error" || reply.stopReason === "aborted"
-    if (failed) spent.failed = (spent.failed ?? 0) + 1
-    this.putSetting(MEMORY_USAGE, JSON.stringify(spent))
+    this.count({ input: reply.usage?.input ?? 0, output: reply.usage?.output ?? 0, cacheRead: reply.usage?.cacheRead ?? 0, calls: 1, failed: failed ? 1 : 0 })
     if (failed) throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
     return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
   }
@@ -319,17 +266,16 @@ export class MemoryCapture {
     const answers = await this.judge(RERANK_TIMEOUT_MS)({ query, lines: shown.map((l) => l.text) }, questions)
     if (!answers) return null
     this.count({ rerank_jev: 1 })
-    const policy = this.policy()
     return shown
       .map((l, i) => ({ id: l.id, p: boolOf(answers[`l${i}`]) }))
-      .filter((x) => x.p >= policy.rerankMin)
+      .filter((x) => x.p >= RERANK_MIN)
       .sort((a, b) => b.p - a.p)
-      .slice(0, policy.recallMax)
+      .slice(0, RECALL_MAX)
       .map((x) => x.id)
   }
 
   private memoryModel(): MemoryModel {
-    const raw = this.setting(MEMORY_MODEL)
+    const raw = getSetting(this.sql, MEMORY_MODEL)
     return raw ? (JSON.parse(raw) as MemoryModel) : null
   }
 
@@ -364,7 +310,7 @@ export class MemoryCapture {
       case "set_model": {
         const model = op.model
         if (model && !findProvider(model.provider)?.getModels().some((m) => m.id === model.modelId)) return { ok: false, error: "no such model" }
-        if (model) this.putSetting(MEMORY_MODEL, JSON.stringify(model))
+        if (model) setSetting(this.sql, MEMORY_MODEL, JSON.stringify(model))
         else deleteSetting(this.sql, MEMORY_MODEL)
         return { ok: true }
       }
@@ -374,10 +320,10 @@ export class MemoryCapture {
   setCapture(capture: NonNullable<UserSettingsPatch["capture"]>): void {
     let stored: Record<string, unknown> = {}
     try {
-      const parsed: unknown = JSON.parse(this.setting(MEMORY_POLICY) ?? "{}")
+      const parsed: unknown = JSON.parse(getSetting(this.sql, MEMORY_POLICY) ?? "{}")
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed as Record<string, unknown>
     } catch {}
-    this.putSetting(MEMORY_POLICY, JSON.stringify({ ...stored, capture }))
+    setSetting(this.sql, MEMORY_POLICY, JSON.stringify({ ...stored, capture }))
   }
 
   describe(p: ProviderInfo): ProviderInfo {

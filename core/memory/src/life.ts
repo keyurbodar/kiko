@@ -129,7 +129,7 @@ export class Life {
     if (!words.length) return []
     const skip = JSON.stringify(options.skipCard ? this.card().map((c) => c.pos) : [])
     const match = words.map((w) => `"${w}"*`).join(" OR ")
-    let rows = this.sql
+    const rows = this.sql
       .exec<Row>(
         "SELECT l.* FROM life_fts f JOIN life l ON l.pos = f.rowid WHERE life_fts MATCH ? AND l.redacted = 0 AND l.superseded_by IS NULL AND l.pos NOT IN (SELECT value FROM json_each(?)) ORDER BY bm25(life_fts), l.pos DESC LIMIT ?",
         match,
@@ -137,12 +137,6 @@ export class Life {
         limit,
       )
       .toArray()
-    const longest = (words.map((w) => w.replace(/[%_\\]/g, "")).sort((a, b) => b.length - a.length)[0] ?? "").slice(0, 40)
-    if (!rows.length && longest.length > 2) {
-      rows = this.sql
-        .exec<Row>(`SELECT * FROM life WHERE ${LIVE} AND text LIKE ? AND pos NOT IN (SELECT value FROM json_each(?)) ORDER BY pos DESC LIMIT ?`, `%${longest}%`, skip, limit)
-        .toArray()
-    }
     return rows.map(toLine)
   }
 

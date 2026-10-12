@@ -135,7 +135,7 @@ export class InitiativeLoops {
 
   /** Whether Jev reads this chat's bursts: a judge key, capture on, initiative on, and a chat that may be kept. */
   judging(roomId: RoomId): boolean {
-    return this.d.memory.judgeKey() !== null && this.d.memory.policy().capture !== "off" && this.level() !== "off" && this.d.memory.capturable(roomId)
+    return this.d.memory.captures() && this.level() !== "off" && this.d.memory.capturable(roomId)
   }
 
   /** Queues a human burst, or an agent's answer, for one Jev pass. Without a judge, with capture off, or with initiative off, nothing is queued. */

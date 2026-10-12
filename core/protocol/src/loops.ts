@@ -26,7 +26,7 @@ export const LoopAction = Schema.Union([
 export type LoopAction = typeof LoopAction.Type
 
 export const INITIATIVE_LEVELS = ["off", "chat", "digest", "active"] as const
-export const CAPTURE_MODES = ["auto", "always", "off"] as const
+export const CAPTURE_MODES = ["auto", "off"] as const
 export const UserSettings = Schema.Struct({
 	initiative: Schema.Literals(INITIATIVE_LEVELS),
 	capture: Schema.Literals(CAPTURE_MODES),

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { applyOps, candidates, captureActive, captureQuestions, captureWithJudge, DEFAULT_POLICY, mergePolicy, parseCapture } from "@yuki/memory/capture"
+import { candidates, captureQuestions, captureWithJudge, DEFAULT_POLICY, mergePolicy } from "@yuki/memory/capture"
 import type { Answer, Judge, Question } from "@yuki/memory/judge"
 import { CARD_MAX, LIFE_STEPS, Life } from "@yuki/memory/life"
 import { sqlWith } from "./sql-shim"
@@ -65,41 +65,6 @@ test("rollup refs are found by prefix", () => {
   expect(l.refsLike("room:r:turns:")).toEqual(["room:r:turns:0-128"])
 })
 
-test("the model's capture lines are read strictly, and a malformed line or an unknown fact is dropped", () => {
-  const answer = [
-    "+ the human's sister sam is a nurse [RELATIONSHIP]",
-    "= 4",
-    "~ 7 the human lives in porto [IDENTITY]",
-    "~ 9 the human hates mornings",
-    "= 99",
-    "+",
-    "sure! here is what i found:",
-    "- the human likes tea",
-    `+ ${"x".repeat(300)}`,
-    "+ the human prefers short answers [WHATEVER]",
-    "none",
-  ].join("\n")
-  expect(parseCapture(answer, new Set([4, 7]))).toEqual([
-    { kind: "new", text: "the human's sister sam is a nurse", card: "RELATIONSHIP", from: 0 },
-    { kind: "same", pos: 4 },
-    { kind: "replace", pos: 7, text: "the human lives in porto", card: "IDENTITY", from: 0 },
-    { kind: "new", text: "the human prefers short answers [WHATEVER]", card: null, from: 0 },
-  ])
-})
-
-test("each applied fact carries the ref of the message it came from, and a replacement supersedes", () => {
-  const l = life()
-  l.append("the human lives in lisbon", "you", 1)
-  const heard = [{ ref: "room:r:msg:m1", at: 5 }, { ref: "room:r:msg:m2", at: 6 }]
-  const count = applyOps(l, parseCapture("~ 0 m2 the human lives in porto [IDENTITY]\n+ m1 the human has a cat\n+ m9 the human plays chess", new Set([0]), 2), heard)
-  expect(count).toEqual({ added: 2, replaced: 1, same: 0, private: 0 })
-  expect(l.recall("lives").map((x) => x.text)).toEqual(["the human lives in porto"])
-  expect(l.redactRefs(["room:r:msg:m2"]).length).toBe(1)
-  expect(l.recall("lives").map((x) => x.text)).toEqual(["the human lives in lisbon"])
-  expect(l.recall("cat").map((x) => x.text)).toEqual(["the human has a cat"])
-  expect(l.list(null, 10).find((x) => x.text === "the human lives in lisbon")?.supersededBy).toBeNull()
-})
-
 test("candidates are the sentences between 12 characters and 280 bytes, at most six", () => {
   expect(candidates("ok. My sister Sam is a nurse in Leeds! lol\nI moved to Porto last week.")).toEqual(["My sister Sam is a nurse in Leeds!", "I moved to Porto last week."])
   expect(candidates(Array.from({ length: 9 }, (_, i) => `This is sentence number ${i}.`).join(" ")).length).toBe(6)
@@ -109,8 +74,8 @@ test("candidates are the sentences between 12 characters and 280 bytes, at most 
 test("the policy setting merges over the defaults and ignores fields of the wrong type", () => {
   expect(mergePolicy(null)).toEqual(DEFAULT_POLICY)
   expect(DEFAULT_POLICY.capture).toBe("auto")
-  expect(mergePolicy('{"batch": 3, "worthMin": "high", "capture": "always"}')).toEqual({ ...DEFAULT_POLICY, batch: 3, capture: "always" })
-  expect(mergePolicy('{"capture": "sometimes"}').capture).toBe("auto")
+  expect(mergePolicy('{"idleMs": 5, "jevDelayMs": "slow", "capture": "off"}')).toEqual({ ...DEFAULT_POLICY, idleMs: 5, capture: "off" })
+  expect(mergePolicy('{"capture": "always"}').capture).toBe("auto")
   expect(mergePolicy("not json")).toEqual(DEFAULT_POLICY)
 })
 
@@ -119,26 +84,13 @@ test("a stored boolean capture means auto or off", () => {
   expect(mergePolicy('{"capture": false}').capture).toBe("off")
 })
 
-test("capture is active with always, with auto only when a judge is ready, and never when off", () => {
-  const at = (capture: "auto" | "always" | "off") => ({ ...DEFAULT_POLICY, capture })
-  expect(captureActive(at("auto"), false)).toBe(false)
-  expect(captureActive(at("auto"), true)).toBe(true)
-  expect(captureActive(at("always"), false)).toBe(true)
-  expect(captureActive(at("off"), true)).toBe(false)
-})
-
 test("capture questions are pi-ai bool and choice questions that point into the state by path", () => {
-  const { state, questions } = captureQuestions(["I moved to Pune. The weather is nice."], [
+  const { state, questions } = captureQuestions([
     { message: 0, candidate: "I moved to Pune.", known: [{ pos: 3, text: "lives in Bangalore" }, { pos: 9, text: "likes tea" }] },
     { message: 0, candidate: "The weather is nice.", known: [] },
   ])
-  expect(state).toMatchObject({
-    messages: ["I moved to Pune. The weather is nice."],
-    candidates: [
-      { text: "I moved to Pune.", message: 0 },
-      { text: "The weather is nice.", message: 0 },
-    ],
-  })
+  expect(state).toMatchObject({ candidates: [{ text: "I moved to Pune." }, { text: "The weather is nice." }] })
+  expect(state).not.toHaveProperty("messages")
   expect(Object.keys(questions).sort()).toEqual(
     ["c0_card", "c0_private", "c0_replaces_3", "c0_replaces_9", "c0_same_3", "c0_same_9", "c0_standing", "c0_worth", "c1_card", "c1_private", "c1_standing", "c1_worth"].sort(),
   )
@@ -194,7 +146,7 @@ test("the judged path keeps only worthy, non-private facts, and a replacement su
     },
     seen,
   )
-  const count = await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text, at: 10 }, ref: "room:r:msg:m1" }], DEFAULT_POLICY)
+  const count = await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text, at: 10 }, ref: "room:r:msg:m1" }])
   expect(count).toEqual({ added: 2, replaced: 2, same: 0, private: 1 })
   expect(seen.length).toBe(1)
   expect(l.recall("lisbon")).toEqual([])
@@ -208,12 +160,12 @@ test("the judged path keeps only worthy, non-private facts, and a replacement su
 test("an unavailable judge writes nothing, and a message changed meanwhile is not written", async () => {
   const l = life()
   const none: Judge = async () => null
-  expect(await captureWithJudge(l, none, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" }], DEFAULT_POLICY)).toBeNull()
+  expect(await captureWithJudge(l, none, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" }])).toBeNull()
   const judge = fakeJudge({ "My sister Sam is a nurse.": { worth: 0.9 } })
-  expect(await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1", keep: () => false }], DEFAULT_POLICY)).toEqual({ added: 0, replaced: 0, same: 0, private: 0 })
+  expect(await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1", keep: () => false }])).toEqual({ added: 0, replaced: 0, same: 0, private: 0 })
   expect(l.count()).toBe(0)
-  expect((await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" }], DEFAULT_POLICY))!.added).toBe(1)
-  expect((await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" }], DEFAULT_POLICY))!.same).toBe(1)
+  expect((await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" }]))!.added).toBe(1)
+  expect((await captureWithJudge(l, judge, [{ heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" }]))!.same).toBe(1)
   expect(l.count()).toBe(1)
 })
 
@@ -246,7 +198,7 @@ test("a queue of messages is judged in one request and each fact keeps its own m
     { heard: { messageId: "m1", text: "My sister Sam is a nurse.", at: 1 }, ref: "room:r:msg:m1" },
     { heard: { messageId: "m2", text: "I work at the Porto library.", at: 2 }, ref: "room:r:msg:m2" },
   ]
-  expect((await captureWithJudge(l, judge, rows, DEFAULT_POLICY))!.added).toBe(2)
+  expect((await captureWithJudge(l, judge, rows))!.added).toBe(2)
   expect(calls).toBe(1)
   expect(l.redactRefs(["room:r:msg:m2"]).length).toBe(1)
   expect(l.recall("sam nurse").map((x) => x.text)).toEqual(["My sister Sam is a nurse."])
@@ -255,7 +207,7 @@ test("a queue of messages is judged in one request and each fact keeps its own m
 test("the criteria text is sent once in the state, not once per question", () => {
   const known = Array.from({ length: 8 }, (_, i) => ({ pos: i + 1, text: `fact ${i}` }))
   const items = Array.from({ length: 3 }, (_, i) => ({ message: 0, candidate: `candidate number ${i}`, known }))
-  const { state, questions } = captureQuestions(["m"], items)
+  const { state, questions } = captureQuestions(items)
   const bytes = JSON.stringify({ state, questions }).length
   expect(Object.keys(questions).length).toBe(3 * (4 + 16))
   expect(bytes).toBeLessThan(40_000)

@@ -7,7 +7,7 @@ import { dev } from "./team-loops"
 import { must } from "../must"
 
 
-const FAST = { batch: 2, idleMs: 3_000, jevDelayMs: 1_000 }
+const FAST = { idleMs: 3_000, jevDelayMs: 1_000 }
 const T0 = Date.now()
 const stamp = () => `${((Date.now() - T0) / 1000).toFixed(1).padStart(6)}s`
 

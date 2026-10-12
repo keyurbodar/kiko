@@ -730,10 +730,10 @@ export class AgentDO extends DurableObject<Env> {
     if (home) {
       const user = userStub(this.env.USER, home.userId)
       const picked = pickJudge(await user.listProviders(), (p) => p.refused === true)
-      const auth = picked ? (await user.turnContext(picked.key.provider)).auth : null
+      const auth = picked ? (await user.turnContext(picked.provider)).auth : null
       if (picked && auth) {
         const jevModels = userModels(async () => auth, `browser-${this.ctx.id.toString()}`, egress).models
-        return { name: "jev", ...pickDecider(own, jevPort(jevModels, { provider: picked.key.provider, model: picked.model, auth }, egress)) }
+        return { name: "jev", ...pickDecider(own, jevPort(jevModels, { provider: picked.provider, auth }, egress)) }
       }
     }
     return { name: "model", ...pickDecider(own, null) }

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Sender } from "@yuki/protocol"
-import { ancestors, region, ROOM_SHAPE } from "@yuki/memory/optmem"
+import { ROOM_SHAPE } from "@yuki/memory/optmem"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
 import { ROOM_STEPS } from "../src/room/schema"
@@ -88,7 +88,7 @@ test("deleting an old message rebuilds only the summaries above its turn", async
   const before = prompts.length
   log.deleteMessages([first.id], human)
   await napAll()
-  const above = ancestors(0, region(100, ROOM_SHAPE), ROOM_SHAPE.page).length
+  const above = 4 // the nodes above one turn: 8, 16, 32 and 64 turns
   expect(prompts.length - before).toBe(above)
   expect(prompts.at(-above)).not.toContain("passport")
 })
@@ -122,7 +122,7 @@ test("a settled stretch of eight pages rolls up into the user's life once", asyn
   const rollups: string[] = []
   const spans: { lo: number; hi: number }[] = []
   await napAll(rollups, spans)
-  expect(rollups).toEqual([memory.node({ lo: 0, hi: size })!.text, memory.node({ lo: size, hi: 2 * size })!.text])
+  expect(rollups).toEqual([memory.tree.node({ lo: 0, hi: size })!.text, memory.tree.node({ lo: size, hi: 2 * size })!.text])
   expect(spans).toEqual([{ lo: 0, hi: size }, { lo: size, hi: 2 * size }])
   await napAll(rollups)
   expect(rollups.length).toBe(2)
@@ -189,7 +189,7 @@ test("a node the model keeps failing on gets a model-free line after three tries
   const [span] = memory.pending(1)
   for (let i = 0; i < 2; i++) await expect(memory.nap(span!, failing, null)).rejects.toThrow("refused")
   await memory.nap(span!, failing, null)
-  expect(memory.node(span!)!.text).toStartWith("human: turn 0 and some")
+  expect(memory.tree.node(span!)!.text).toStartWith("human: turn 0 and some")
 })
 
 test("the delta since an agent's last turn leaves out its own turns and the burst it is answering", () => {

@@ -8,7 +8,7 @@ import { must } from "../must"
 
 
 const TYPESAFE = "typesafe"
-const FAST = { batch: 2, idleMs: 3_000, jevDelayMs: 1_000, capture: "always" }
+const FAST = { idleMs: 3_000, jevDelayMs: 1_000, capture: "auto" }
 const T0 = Date.now()
 const stamp = () => `${((Date.now() - T0) / 1000).toFixed(1).padStart(6)}s`
 
@@ -62,7 +62,7 @@ const suite: Suite = {
   model: true,
   async run(v) {
     const jevKey = process.env.TYPESAFE_API_KEY
-    if (!jevKey) console.log("  TYPESAFE_API_KEY is not set: the Jev cases are skipped.")
+    if (!jevKey) throw new VerifyError("TYPESAFE_API_KEY is not set: capture needs a judge key")
     const stampId = Date.now().toString(36)
     const s = await v.as(`memedge${stampId}`)
     await connectTestModel(s)
@@ -106,7 +106,8 @@ const suite: Suite = {
 
     const home = await openChat(user, s, "memory edge home")
     await policy(FAST)
-    console.log(`  [${stamp()}] policy set: capture always, batch 2, idle 3 s, jev delay 1 s`)
+    await s.connectProvider(TYPESAFE, jevKey)
+    console.log(`  [${stamp()}] policy set: capture auto, idle 3 s, jev delay 1 s; judge key connected`)
     {
       const priv = await openChat(user, s, "memory edge private")
       user.send({ t: "chat", op: { op: "private", roomId: idOf(priv) as never, private: true } })
@@ -129,7 +130,7 @@ const suite: Suite = {
     }
 
     {
-      await policy({ ...FAST, capture: "auto" })
+      await s.disconnectProvider(TYPESAFE)
       const attempts: [string, string][] = [
         ["bangalore", "pune"],
         ["chennai", "mumbai"],
@@ -157,11 +158,11 @@ const suite: Suite = {
       }
       for (const o of outcomes) console.log(`  [${stamp()}] note replaces: ${o}`)
       if (!outcomes.some((o) => o.includes(": superseded"))) throw new VerifyError("without Jev, the agent's correction did not supersede the old line in either attempt")
-      await policy(FAST)
+      await s.connectProvider(TYPESAFE, jevKey)
       ok("note replaces without Jev", must(outcomes.at(-1), "outcome"))
     }
     {
-      await policy({ ...FAST, capture: "always" })
+      await policy(FAST)
       await say(home, "my favourite colour is teal")
       await poll("a live teal line", 60_000, async () => (await live(/teal/i)).length > 0)
       const m = humanMessage(home, /teal/i)
@@ -295,7 +296,7 @@ const suite: Suite = {
       close(group)
     }
 
-    if (jevKey) await s.disconnectProvider(TYPESAFE)
+    await s.disconnectProvider(TYPESAFE)
     close(home)
   },
 }
