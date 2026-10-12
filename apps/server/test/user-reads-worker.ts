@@ -81,9 +81,6 @@ export class UserDO extends User {
 				now,
 				now,
 			)
-		} else if (kind === "charged") {
-			const day = new Date(now).toISOString().slice(0, 10)
-			insert(`INSERT INTO charged_today (id, day) SELECT 'burst' || i, ? FROM n`, day)
 		} else if (kind === "marks") {
 			insert(`INSERT INTO initiative_marks (id, surfaced, last_at) SELECT 'loop:' || i, 1, ? FROM n`, now)
 		} else if (kind === "seen") {
@@ -96,13 +93,12 @@ export class UserDO extends User {
 	}
 }
 
-type SeedKind = "life" | "chats" | "reminders" | "loops" | "charged" | "marks" | "capture" | "seen"
+type SeedKind = "life" | "chats" | "reminders" | "loops" | "marks" | "capture" | "seen"
 const TABLE: Record<SeedKind, string> = {
 	life: "life",
 	chats: "chats",
 	reminders: "reminders",
 	loops: "loops",
-	charged: "charged_today",
 	marks: "initiative_marks",
 	seen: "attention_seen",
 	capture: "capture_queue",
