@@ -23,7 +23,7 @@ afterAll(async () => {
 
 let n = 0
 const fresh = () => `01JZ8Q4T6F${String(++n).padStart(16, "0")}`
-type Out = { ok: boolean; text: string; notes: string; ms: number }
+type Out = { ok: boolean; text: string; notes: string; ms: number; details?: { changed: string[] } }
 
 function agent(room: string, slug = "ada") {
   const run = async (name: string, args: Record<string, unknown>): Promise<Out> => {
@@ -167,6 +167,24 @@ test("cp copies a file, and a folder with recursive", async () => {
   expect((await a.run("cp", { from: "src", to: "dst", recursive: true })).text).toBe("copied 2 files to dst")
   expect(await a.read("dst/b/c.md")).toBe("c")
   expect(await a.read("src/b/c.md")).toBe("c")
+})
+
+test("every file tool says which paths it saved, where RoomFs wrote them; a change that saved nothing says nothing", async () => {
+  const a = agent(fresh())
+  await a.write("a.md", "a")
+  await a.write("docs/keep.md", "k")
+  await a.write("app.ts", "const a = 1\n")
+  const saved = async (name: string, args: Record<string, unknown>) => (await a.run(name, args)).details
+  expect(await saved("write", { path: "notes/x.md", content: "x" })).toEqual({ changed: ["/notes/x.md"] })
+  expect(await saved("edit", { path: "app.ts", edits: [{ oldText: "const a = 1", newText: "const a = 2" }] })).toEqual({ changed: ["/app.ts"] })
+  expect(await saved("mv", { from: "a.md", to: "docs" })).toEqual({ changed: ["/docs/a.md"] })
+  expect(await saved("cp", { from: "notes/x.md", to: "docs" })).toEqual({ changed: ["/docs/x.md"] })
+  expect(await saved("cp", { from: "docs", to: "copy", recursive: true })).toEqual({ changed: ["/copy"] })
+  expect(await saved("mkdir", { path: "made/deep" })).toEqual({ changed: ["/made/deep"] })
+  expect(await saved("rm", { paths: ["docs/x.md"] })).toEqual({ changed: ["/docs/x.md"] })
+  expect(await saved("rm", { paths: ["copy"], recursive: true })).toEqual({ changed: ["/copy"] })
+  expect(await saved("mv", { from: "made", to: "made" })).toBeUndefined()
+  expect(await saved("rm", { paths: ["nothing.md"] })).toBeUndefined()
 })
 
 test("paths stay inside the chat, and a file and a folder never share a name", async () => {

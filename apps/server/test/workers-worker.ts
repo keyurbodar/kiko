@@ -182,10 +182,10 @@ export class T extends AgentDO {
       this.waiters.clear()
       return Response.json({ ok: true })
     }
-    if (body.op === "workers") return Response.json(this.host.workers.list())
+    if (body.op === "workers") return Response.json(this.host.workers.list().map((w) => ({ ...w, changed: this.host.workers.changedPaths(w.id).paths })))
     if (body.op === "columns") {
       const sql = this.ctx.storage.sql
-      const tables = ["inbox", "inbox_state", "workers", "harness_epoch", "run_origin"]
+      const tables = ["inbox", "inbox_state", "workers", "worker_changes", "harness_epoch", "run_origin"]
       return Response.json(Object.fromEntries(tables.map((t) => [t, sql.exec<Column>(`PRAGMA table_info(${t})`).toArray()])))
     }
     if (body.op === "status") return Response.json({ ...(await this.status()), opens: (await this.ctx.storage.get<number>("opens")) ?? 0 })

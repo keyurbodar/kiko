@@ -20,7 +20,7 @@ import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
 import { type BashResult, runCommand } from "./bash"
 import { cleanPath, deleteFiles, fileKey } from "./upload"
-import type { CommitResult, IndexChange, NewFile } from "./file-index"
+import { baseName, type CommitResult, type IndexChange, type NewFile } from "./file-index"
 
 export const MAX_WRITE_BYTES = 1024 * 1024
 export const CHAT_PATH = "chat.md"
@@ -262,16 +262,20 @@ export class RoomFs implements ExecutionEnv {
     return ok(undefined)
   }
 
-  async move(from: string, to: string): Promise<Result<FsChange, FileError>> {
+  // `to` is the path the move wrote: a folder given as `to` keeps the name, as the backend does.
+  async move(from: string, to: string): Promise<Result<FsChange & { to: string }, FileError>> {
     const a = this.roomPath(from)
     if (!a.ok) return a
     const b = this.roomPath(to)
     if (!b.ok) return b
+    const dest = await this.stat(to)
+    const into = dest.ok && dest.value.kind === "directory"
+    const target = into ? [b.value, baseName(a.value)].filter(Boolean).join("/") : b.value
     const out = await this.backend.move(a.value, b.value)
     this.stats.clear()
     this.seen.delete(a.value)
     this.seen.delete(b.value)
-    return out.ok ? ok(out) : err(this.fail(out, from))
+    return out.ok ? ok({ ...out, to: `/${target}` }) : err(this.fail(out, from))
   }
 
   async renameFile(sourcePath: string, destinationPath: string): Promise<Result<void, FileError>> {
@@ -285,7 +289,7 @@ export class RoomFs implements ExecutionEnv {
     return out.ok ? ok(undefined) : out
   }
 
-  async removeAll(paths: readonly string[], recursive: boolean): Promise<Result<FsChange, FileError>> {
+  async removeAll(paths: readonly string[], recursive: boolean): Promise<Result<FsChange & { paths: string[] }, FileError>> {
     const rels: string[] = []
     for (const p of paths) {
       const rel = this.roomPath(p)
@@ -296,7 +300,7 @@ export class RoomFs implements ExecutionEnv {
     this.stats.clear()
     if (!out.ok) return err(this.fail(out))
     for (const rel of rels) this.seen.delete(rel)
-    return ok(out)
+    return ok({ ...out, paths: rels.map((rel) => `/${rel}`) })
   }
 
   async within<T>(fn: () => Promise<T>): Promise<T> {

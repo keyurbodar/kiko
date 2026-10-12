@@ -25,7 +25,6 @@ export type Work = {
   status: WorkStatus
   step: string | null
   steps: number
-  changed: string[]
   delivered: boolean
   origin: Origin
   startedAt: number
@@ -40,7 +39,6 @@ type Row = {
   status: WorkStatus
   step: string | null
   steps: number
-  changed: string
   delivered: number
   origin: Origin
   started_at: number
@@ -55,7 +53,6 @@ const toWork = (r: Row): Work => ({
   status: r.status,
   step: r.step,
   steps: r.steps,
-  changed: JSON.parse(r.changed) as string[],
   delivered: r.delivered === 1,
   origin: r.origin,
   startedAt: r.started_at,
@@ -92,12 +89,21 @@ export class Workers {
       status TEXT NOT NULL,
       step TEXT,
       steps INTEGER NOT NULL DEFAULT 0,
-      changed TEXT NOT NULL DEFAULT '[]',
       delivered INTEGER NOT NULL DEFAULT 0,
       origin TEXT NOT NULL,
       started_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       resumes INTEGER NOT NULL DEFAULT 0
+    ) STRICT`)
+    // A table from before the step count has no steps column. A new table already has it.
+    if (!this.sql.exec<{ name: string }>("PRAGMA table_info(workers)").toArray().some((c) => c.name === "steps")) {
+      this.sql.exec("ALTER TABLE workers ADD COLUMN steps INTEGER NOT NULL DEFAULT 0")
+    }
+    // One row per path a worker's calls saved. The key makes a replayed call a no-op, and a row per path keeps each write O(1).
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS worker_changes (
+      work_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      PRIMARY KEY (work_id, path)
     ) STRICT`)
   }
 
@@ -123,6 +129,7 @@ export class Workers {
     if (this.running().length >= MAX_WORKERS) return null
     const now = this.now()
     this.sql.exec("DELETE FROM workers WHERE delivered = 1 AND updated_at < ? AND n < (SELECT max(n) FROM workers)", now - KEEP_DELIVERED_MS)
+    this.sql.exec("DELETE FROM worker_changes WHERE work_id NOT IN (SELECT id FROM workers)")
     const n = this.sql.exec<{ n: number }>("SELECT coalesce(max(n), 0) + 1 AS n FROM workers").one().n
     this.sql.exec(
       "INSERT INTO workers (n, id, task_id, task, status, origin, started_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)",
@@ -157,12 +164,17 @@ export class Workers {
 
   // A path is kept once, so a replayed tool result adds nothing. Ends with the run, so a write that lands during a stop is kept too.
   touched(conversationId: ConversationId, paths: readonly string[]): void {
-    const row = this.sql.exec<{ id: string; changed: string }>("SELECT id, changed FROM workers WHERE conversation_id = ?", conversationId).toArray()[0]
+    if (!paths.length) return
+    const row = this.sql.exec<{ id: string }>("SELECT id FROM workers WHERE conversation_id = ?", conversationId).toArray()[0]
     if (!row) return
-    const known = JSON.parse(row.changed) as string[]
-    const next = [...new Set([...known, ...paths])]
-    if (next.length === known.length) return
-    this.sql.exec("UPDATE workers SET changed = ? WHERE id = ?", JSON.stringify(next), row.id)
+    this.sql.exec("INSERT OR IGNORE INTO worker_changes (work_id, path) SELECT ?, value FROM json_each(?)", row.id, JSON.stringify(paths))
+  }
+
+  // The first paths a worker changed, in the order they changed, and how many more.
+  changedPaths(id: string): { paths: string[]; more: number } {
+    const paths = this.sql.exec<{ path: string }>("SELECT path FROM worker_changes WHERE work_id = ? ORDER BY rowid LIMIT ?", id, LISTED_PATHS).toArray()
+    const total = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM worker_changes WHERE work_id = ?", id).one().n
+    return { paths: paths.map((r) => r.path), more: total - paths.length }
   }
 
   stop(id: string): Work | null {
@@ -220,7 +232,7 @@ export class Workers {
   note(): string | undefined {
     const live = this.list().filter((w) => !w.delivered && w.conversationId)
     if (!live.length) return undefined
-    const lines = live.map((w) => `- ${w.id} (${w.status}, ${w.steps} ${w.steps === 1 ? "step" : "steps"}): ${clip(w.task, 160)}. changed: ${listed(w.changed)}.${w.step ? ` last step: ${clip(w.step, 100)}` : ""}`)
+    const lines = live.map((w) => `- ${w.id} (${w.status}, ${w.steps} ${w.steps === 1 ? "step" : "steps"}): ${clip(w.task, 160)}. changed: ${listed(this.changedPaths(w.id))}.${w.step ? ` last step: ${clip(w.step, 100)}` : ""}`)
     return `your workers:\n${lines.join("\n")}`
   }
 
@@ -272,7 +284,7 @@ export class Workers {
     if (harness !== this.harness || !now || now.delivered || now.submissionId !== submissionId) return
     this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ?", status, this.now(), id)
     // A done worker's report is its own words. A worker that ended early says what it left behind.
-    const text = status === "done" ? report : `${report} changed: ${listed(now.changed)}.`
+    const text = status === "done" ? report : `${report} changed: ${listed(this.changedPaths(id))}.`
     await this.options.deliver(workEnvelope(now, submissionId, status, text))
     this.sql.exec("UPDATE workers SET delivered = 1, resumes = 0 WHERE id = ? AND submission_id = ?", id, submissionId)
     // After the report is in the inbox, so the agent does not show idle before the run that tells the human.
@@ -293,10 +305,9 @@ export class Workers {
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
 
-const listed = (paths: readonly string[]) => {
+const listed = ({ paths, more }: { paths: readonly string[]; more: number }) => {
   if (!paths.length) return "no files"
-  const shown = paths.slice(0, LISTED_PATHS).join(", ")
-  return paths.length > LISTED_PATHS ? `${shown} and ${paths.length - LISTED_PATHS} more` : shown
+  return more > 0 ? `${paths.join(", ")} and ${more} more` : paths.join(", ")
 }
 
 export function workEnvelope(work: Pick<Work, "id" | "origin">, submissionId: SubmissionId, status: WorkStatus, report: string): Envelope {

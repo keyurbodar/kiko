@@ -1,6 +1,6 @@
 import { Type } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai"
-import { defineExtension, defineTool, type Extension, type ModelRef, type ToolRegistration } from "@earendil-works/pi-durable"
+import { defineExtension, defineTool, type Extension, type ModelRef, type ToolExecutionApi, type ToolRegistration } from "@earendil-works/pi-durable"
 import { type ExecutionEnv, getOrThrow } from "@earendil-works/pi-durable/env"
 import { createBashTool, createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
 import type { FsEntry } from "../../room/files"
@@ -42,6 +42,13 @@ function isBinary(bytes: Uint8Array): boolean {
 
 const text = (value: string) => [{ type: "text" as const, text: value }]
 const refused = (message: string) => ({ content: text(message), isError: true })
+
+// The paths a tool saved, in its result's details: the work record reads them (work.ts). A call that saved nothing has none.
+export type Saved = { changed: string[] }
+const saved = (paths: readonly string[]): Saved | undefined => (paths.length ? { changed: [...paths] } : undefined)
+
+// The room path RoomFs writes for a path a tool was given.
+const roomPathOf = (api: Pick<ToolExecutionApi, "env">, path: string) => `/${getOrThrow(filesOf(api).roomPath(path))}`
 
 function base64(bytes: Uint8Array): string {
   let binary = ""
@@ -131,7 +138,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
       const out = getOrThrow(await filesOf(api).removeAll(args.paths, args.recursive ?? false))
       const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`
       const parts = [out.changed ? count(out.changed, "file") : "", out.folders ? count(out.folders, "folder") : ""].filter(Boolean)
-      return { content: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete") }
+      return { content: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete"), details: saved(parts.length ? out.paths : []) }
     },
   })
 
@@ -142,11 +149,9 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
     parameters: Type.Object({ from: Type.String(), to: Type.String() }),
     replay: "safe",
     execute: async (args, api) => {
-      const fs = filesOf(api)
-      const dest = await fs.stat(args.to)
-      const where = dest.ok && dest.value.kind === "directory" ? `${args.to.replace(/\/$/, "")}/${baseName(args.from.replace(/\/$/, ""))}` : args.to
-      const out = getOrThrow(await fs.move(args.from, args.to))
-      return { content: text(out.changed ? `moved ${args.from} to ${where}` : `${args.from} is already there`) }
+      const out = getOrThrow(await filesOf(api).move(args.from, args.to))
+      if (!out.changed) return { content: text(`${args.from} is already there`) }
+      return { content: text(`moved ${args.from} to ${out.to.slice(1)}`), details: saved([out.to]) }
     },
   })
 
@@ -157,7 +162,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
     replay: "safe",
     execute: async (args, api) => {
       const out = getOrThrow(await filesOf(api).mkdir(args.path))
-      return { content: text(out.changed ? `made ${args.path}` : `${args.path} already exists`) }
+      return { content: text(out.changed ? `made ${args.path}` : `${args.path} already exists`), details: saved(out.changed ? [roomPathOf(api, args.path)] : []) }
     },
   })
 
@@ -176,7 +181,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
         const bytes = await fs.bytesOf(src)
         if (!bytes) return refused(`no file at ${args.from}`)
         getOrThrow(await fs.write(target, bytes, src.type))
-        return { content: text(`copied ${args.from} to ${target}`) }
+        return { content: text(`copied ${args.from} to ${target}`), details: saved([roomPathOf(api, target)]) }
       }
       if (!args.recursive) return refused(`${args.from} is a folder. copy it with recursive`)
       if ((await fs.stat(target)).ok) return refused(`${target} already exists`)
@@ -188,13 +193,29 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
           if (bytes) getOrThrow(await fs.write(`${target}/${f.path.slice(src.path.length + 1)}`, bytes, f.type))
         }),
       )
-      return { content: text(`copied ${files.length} files to ${target}`) }
+      return { content: text(`copied ${files.length} files to ${target}`), details: saved(files.length ? [roomPathOf(api, target)] : []) }
     },
   })
 
+  // pi's write and edit change only the path they are given. A failed call saved nothing, so it reports nothing.
+  const piWrite = createWriteTool()
+  const write = defineTool({
+    ...piWrite,
+    execute: async (args, api, context) => {
+      const out = await piWrite.execute(args, api, context)
+      return out.isError ? out : { ...out, details: saved([roomPathOf(api, args.path)]) }
+    },
+  })
   // pi's edit asks for the file's info and then reads it: one room call for both, and the write
   const piEdit = createEditTool()
-  const edit = defineTool({ ...piEdit, execute: (args, api, context) => filesOf(api).within(() => piEdit.execute(args, api, context)) })
+  const edit = defineTool({
+    ...piEdit,
+    execute: (args, api, context) =>
+      filesOf(api).within(async () => {
+        const out = await piEdit.execute(args, api, context)
+        return out.isError ? out : { ...out, details: saved([roomPathOf(api, args.path)]) }
+      }),
+  })
 
   // pi's bash only reads the env's cwd and runs its exec. This call's exec reports the paths the command saved, as the tool's details.
   const piBash = createBashTool()
@@ -215,7 +236,7 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
 
   const tools: ToolRegistration[] = [
     declareEffect("read", read) as ToolRegistration,
-    declareEffect("write", createWriteTool()) as ToolRegistration,
+    declareEffect("write", write) as ToolRegistration,
     declareEffect("write", edit) as ToolRegistration,
     declareEffect("read", ls) as ToolRegistration,
     declareEffect("write", rm) as ToolRegistration,

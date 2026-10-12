@@ -4,6 +4,7 @@ import { declareEffect } from "@yuki/agent/effects"
 import { MAX_WORKERS, type Workers } from "@yuki/agent/workers"
 import { MEMORY_NOTE } from "@yuki/memory/tools"
 import { CHIEF_EXT } from "./chief"
+import type { Saved } from "./files"
 import { MESSAGING } from "./messaging"
 import { REMINDERS } from "./reminders"
 import { WORKSPACE } from "./workspace"
@@ -26,24 +27,9 @@ function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
   return { model: agent.model ?? null, thinkingLevel: agent.thinkingLevel, extensions: forWorker(all), instructions: WORKER_PROMPT }
 }
 
-// The paths a file tool's arguments name. bash is not here: its result names the paths it saved (see changedBy).
-const TOUCHED: Record<string, (args: Record<string, unknown>) => string[]> = {
-  write: (a) => [a.path as string],
-  edit: (a) => [a.path as string],
-  mkdir: (a) => [a.path as string],
-  rm: (a) => a.paths as string[],
-  mv: (a) => [a.from as string, a.to as string],
-  cp: (a) => [a.to as string],
-}
-
-export const touchedPaths = (name: string, args: Record<string, unknown>): string[] => (TOUCHED[name]?.(args) ?? []).map((p) => (p.startsWith("/") ? p : `/${p}`))
-
-// A file tool counts only when it succeeded. bash counts what it saved even when it exits nonzero: its details list the
-// saved paths, and a refused space saves and lists nothing.
-const changedBy = (call: { name: string; arguments: unknown }, result: ToolExecutionResult): string[] => {
-  if (call.name === "bash") return (result.details as { changed?: string[] } | undefined)?.changed ?? []
-  return result.isError ? [] : touchedPaths(call.name, call.arguments as Record<string, unknown>)
-}
+// The paths a call saved, from its details. A call that failed saved nothing it reports; a bash command that exits nonzero still
+// reports what it saved before it failed.
+const changedBy = (result: ToolExecutionResult): string[] => (result.details as Saved | undefined)?.changed ?? []
 
 const brief = (args: unknown) => {
   const text = JSON.stringify(args ?? {})
@@ -119,8 +105,8 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
             count(`tool.${worker ? "worker" : "talker"}.${call.name}`)
             return undefined
           },
-          afterTool: async (call, result, api) => {
-            workers.touched(api.conversationId, changedBy(call, result))
+          afterTool: async (_call, result, api) => {
+            workers.touched(api.conversationId, changedBy(result))
             return undefined
           },
         }),
