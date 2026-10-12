@@ -16,6 +16,8 @@ const textOf = (m: Msg | undefined) => (typeof m?.content === "string" ? m.conte
 const bare = (text: string) => text.replace(/<context>[\s\S]*?<\/context>\s*/g, "").trim()
 
 const gates = new Map<string, Set<() => void>>()
+// The order the host calls abort, submit, and inbox.submitted in, per object.
+const calls = new Map<string, string[]>()
 
 type Body =
   | { op: "receive"; envelopes: Envelope[] }
@@ -24,10 +26,28 @@ type Body =
   | { op: "release" }
   | { op: "counts" }
   | { op: "posts" }
+  | { op: "calls" }
 
 // A read that waits until released or aborted, and a write that waits until released. Each counts its starts and ends.
 export class I extends AgentDO {
-  protected override readonly hostOptions: Partial<HostOptions> = { heartbeatMs: 500 }
+  protected override readonly hostOptions: Partial<HostOptions> = {
+    heartbeatMs: 500,
+    onOpen: ({ harness, root }) => {
+      const log = this.calls()
+      const { submit } = root
+      const abortTask = harness.abortTask.bind(harness)
+      const submitted = this.host.inbox.submitted.bind(this.host.inbox)
+      Object.assign(root, { submit: (input: Parameters<typeof submit>[0], context: Parameters<typeof submit>[1]) => (log.push("submit"), submit.call(root, input, context)) })
+      Object.assign(harness, { abortTask: (id: Parameters<typeof abortTask>[0], context: Parameters<typeof abortTask>[1]) => (log.push("abort"), abortTask(id, context)) })
+      Object.assign(this.host.inbox, { submitted: (requestId: string) => (log.push("submitted"), submitted(requestId)) })
+    },
+  }
+
+  private calls(): string[] {
+    const id = this.ctx.id.toString()
+    if (!calls.has(id)) calls.set(id, [])
+    return calls.get(id)!
+  }
 
   private get waiters(): Set<() => void> {
     const id = this.ctx.id.toString()
@@ -102,6 +122,7 @@ export class I extends AgentDO {
   override async fetch(request: Request) {
     const body = (await request.json()) as Body
     if (body.op === "receive") return Response.json(await this.receive(body.envelopes, ""))
+    if (body.op === "calls") return Response.json(this.calls())
     if (body.op === "wait") return Response.json(await this.answers.wait("ask", 5_000))
     if (body.op === "answer") {
       this.answers.answer("ask", body.text)

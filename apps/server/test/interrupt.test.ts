@@ -44,6 +44,7 @@ async function agent() {
     say: (body: string) => call<{ admitted: string[]; refused?: string }>({ op: "receive", envelopes: [human(body)] }),
     counts: () => call<Counts>({ op: "counts" }),
     posts: () => call<string[]>({ op: "posts" }),
+    calls: () => call<string[]>({ op: "calls" }),
     release: () => call({ op: "release" }),
     wait: () => call<string | null>({ op: "wait" }),
     answer: (text: string) => call({ op: "answer", text }),
@@ -82,6 +83,16 @@ test("a human message during a running write does not stop it, and the write run
   const posts = await until(a.posts, (p) => p.includes("reply to: two"))
   expect(posts.some((t) => t.includes("aborted"))).toBe(false)
   expect((await a.counts()).holdFinished).toBe(1)
+}, 30_000)
+
+test("a human message stops a running read before the answer is submitted", async () => {
+  const a = await agent()
+  await a.say("HANG one")
+  await until(a.counts, (c) => c.hangStarted === 1)
+  await a.say("two")
+  const order = await until(a.calls, (c) => c.indexOf("abort") >= 0 && c.length >= c.indexOf("abort") + 3)
+  const at = order.indexOf("abort")
+  expect(order.slice(at, at + 3)).toEqual(["abort", "submit", "submitted"])
 }, 30_000)
 
 test("a refused human message stops nothing that waits on an answer", async () => {

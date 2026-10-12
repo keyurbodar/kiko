@@ -8,7 +8,6 @@ apps/server/src/agent/browser/tools.ts:TextResult
 apps/server/src/agent/browser/tools.ts:dialogNote
 apps/server/src/agent/browser/tools.ts:taskLine
 apps/server/src/agent/dev-fake.ts:FAKE_MODEL
-apps/server/src/agent/dev-fake.ts:FAKE_TOOLS
 apps/server/src/agent/dev-fake.ts:SLOW_TOOL
 apps/server/src/agent/dev-fake.ts:SLOW_TOOL_EXTENSION
 apps/server/src/agent/dev-fake.ts:SLOW_TOOL_MS
@@ -131,7 +130,6 @@ core/agent/src/coalescing-storage.ts:CoalescingStats
 core/agent/src/coalescing-storage.ts:holdsPartialOutput
 core/agent/src/effects.ts:EFFECTS
 core/agent/src/host.ts:COMPACT_EVERY_RUNS
-core/agent/src/host.ts:HostStatus
 core/agent/src/host.ts:INBOX_WAKEUP
 core/agent/src/host.ts:RUNS_KEY
 core/agent/src/host.ts:Transcript
