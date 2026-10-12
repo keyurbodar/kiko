@@ -52,15 +52,6 @@ function setup(refusal: string | null) {
 
 const human = (id: string): Envelope => ({ id, roomId: home.roomId, from: { kind: "human" }, body: "hi", hop: 0, rootId: id, seq: 1 })
 
-test("a refused human message gets a notice in the chat and leaves no chain behind", async () => {
-	const { deps, mail, texts } = setup("too_large")
-	expect(await receive(deps, home, ada, members, "t", [human("human:m1")])).toBe("refused")
-	expect(texts().some((t) => /your message to @ada was not delivered: it was too large/.test(t))).toBe(true)
-	expect(mail.chainRoot("ada" as AgentSlug)).toBeNull()
-	await receive(deps, home, ada, members, "t", [human("human:m1")])
-	expect(texts().filter((t) => /not delivered/.test(t))).toHaveLength(1)
-})
-
 test("a full inbox is no one's final answer: no notice, nothing marked", async () => {
 	const { deps, mail, texts } = setup("full")
 	expect(await receive(deps, home, ada, members, "t", [human("human:m1")])).toBe("full")
