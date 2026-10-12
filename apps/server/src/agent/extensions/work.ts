@@ -39,7 +39,7 @@ const brief = (args: unknown) => {
 export function workExtensions(workers: Workers, all: () => readonly Extension[]): Extension[] {
   const start = defineTool({
     name: "start_work",
-    description: "Start a background worker on one clear task. The only way to fetch web pages, use the human's connected apps, or run extension tools; also for slow work. Returns its id at once; its report comes back later as <work>.",
+    description: "Start one background worker for a whole job, with everything it needs. A job with many parts (say, 20 lookups) is one call: the worker runs the parts at once, so never one worker per part. The only way to fetch web pages, use the human's connected apps, or run extension tools; also for slow work. Returns its id at once; its report comes back later as <work>.",
     parameters: Type.Object({ task: Type.String({ description: "The whole task, with everything the worker needs to know" }) }),
     replay: "safe",
     execute: async ({ task }, api, ctx) => {
