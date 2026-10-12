@@ -104,6 +104,23 @@ const cases: Case[] = [
     },
   },
   {
+    name: "steer during a write",
+    async run(room) {
+      await send(room, "[write] save")
+      await until("the write to start", () => statuses(room).includes("working"), 10_000)
+      await send(room, "also this")
+      await until("an answer to both turns", () => texts(room).some((t) => t.startsWith("heard:")), 20_000)
+      await Bun.sleep(2_000)
+      const { all, deleted } = seen(room)
+      expectEqual(
+        all.map((m) => m.text),
+        ["heard: [write] save | also this; tool: slept"],
+        "the agent's bubbles: the write ran to its end, and one answer covers both turns",
+      )
+      expectEqual(deleted, 0, "deleted bubbles")
+    },
+  },
+  {
     name: "steer after a bubble",
     async run(room) {
       await send(room, "[two-part] first")

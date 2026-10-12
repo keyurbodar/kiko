@@ -4,7 +4,7 @@ import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
 import { NOT_FOR_WORKERS, workExtensions } from "./extensions/work"
 import type { Workers } from "@yuki/agent/workers"
-import { type Effect, effectTable } from "@yuki/agent/effects"
+import { effectTable } from "@yuki/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
 import { WEB, webExtension } from "./extensions/web"
 import type { Fetcher } from "@yuki/durable/safe-fetch"
@@ -51,13 +51,7 @@ export type BuiltAgent = {
   registry: Registry
   agent: AgentChange
   extensions: UserExtensions
-  effects: ReadonlyMap<string, Effect>
 }
-
-// A human message may stop these mid-call. A read changes nothing outside the run, bash saves none of a command it
-// did not finish, and ask only waits. Anything that writes, messages, or calls out runs to its end.
-const STOPPABLE_TOOLS: readonly string[] = ["bash", "ask"]
-export const stoppable = (effects: ReadonlyMap<string, Effect>, tool: string): boolean => effects.get(tool) === "read" || STOPPABLE_TOOLS.includes(tool)
 
 export const BASE = "base"
 
@@ -92,14 +86,15 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
   let extensions: UserExtensions | undefined
   const builtins = extensionsFor(input, () => extensions?.selection() ?? builtins)
-  const effects = effectTable(builtins)
+  // Throws when a tool declares no effect or two tools share a name with different effects.
+  effectTable(builtins)
   const registry = createRegistry()
   for (const extension of builtins) registry.install(extension)
   extensions = new UserExtensions(registry, builtins, input.scripts)
   // The lowest reasoning a model offers: pi-ai clamps "minimal" up to the first level the model
   // supports. A chat reply waits on every turn, and on tool-heavy tasks the default level made each
   // turn take 2 to 5 s longer with the same answers.
-  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: forTalker(builtins) }, extensions, effects }
+  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: forTalker(builtins) }, extensions }
 }
 
 function split(extension: Extension, calls: readonly string[], talkerOnly: ReadonlySet<string>): Extension[] {

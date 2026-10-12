@@ -25,6 +25,8 @@ export default {
 		const stub = env.AGENT.get(env.AGENT.idFromName(`agent:alice:${ROOM}:ada`))
 		if (op === "wipe") return Response.json(await stub.deleteAll())
 		if (op === "rows") return Response.json(await stub.storedRows())
+		if (op === "status") return Response.json(await stub.status())
+		if (op === "stop") return Response.json(await stub.stop())
 		try {
 			return Response.json({ admitted: (await stub.receive([human()], "")).admitted })
 		} catch (e) {

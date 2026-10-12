@@ -6,15 +6,23 @@ export const EFFECTS: readonly Effect[] = ["read", "write", "message", "external
 
 const DECLARED = Symbol.for("yuki.effect")
 
-type Declared = { [DECLARED]?: Effect }
+type Declaration = { effect: Effect; stoppable: boolean }
 
-export function declareEffect<T extends ToolRegistration>(effect: Effect, tool: T): T {
+type Declared = { [DECLARED]?: Declaration }
+
+// A tool may be stopped mid-call when it is a read: it changes nothing outside the run. `stoppable` opts in the rest.
+export function declareEffect<T extends ToolRegistration>(effect: Effect, tool: T, options: { stoppable?: boolean } = {}): T {
   if (!EFFECTS.includes(effect)) throw new Error(`tool ${tool.name}: unknown effect ${String(effect)}`)
-  return Object.assign({ ...tool }, { [DECLARED]: effect }) as T
+  return Object.assign({ ...tool }, { [DECLARED]: { effect, stoppable: options.stoppable ?? false } }) as T
 }
 
 export function effectOf(tool: ToolRegistration): Effect | undefined {
-  return (tool as Declared)[DECLARED]
+  return (tool as Declared)[DECLARED]?.effect
+}
+
+export function stoppable(tool: ToolRegistration): boolean {
+  const declared = (tool as Declared)[DECLARED]
+  return declared?.effect === "read" || declared?.stoppable === true
 }
 
 export function effectTable(extensions: readonly Extension[]): ReadonlyMap<string, Effect> {
