@@ -28,11 +28,7 @@ export class ComposioStore {
     const row = this.sql.exec<KeyRow>("SELECT kek_version, iv, ciphertext, value FROM composio WHERE name = 'key'").toArray()[0]
     if (!row) return Promise.resolve(undefined)
     const session = JSON.parse(row.value) as Session
-    const generation = this.generation
-    return open(this.keyring, this.userId, AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) }).then(async (key) => {
-      if (row.kek_version !== this.keyring.current.version) await this.resealKey(key, row, generation)
-      return { key, url: session.url, session: session.id }
-    })
+    return open(this.keyring, this.userId, AAD, { kekVersion: row.kek_version, iv: new Uint8Array(row.iv), ciphertext: new Uint8Array(row.ciphertext) }).then((key) => ({ key, url: session.url, session: session.id }))
   }
 
   async putKey(key: string, session: Session, generation = this.generation): Promise<void> {
@@ -47,21 +43,6 @@ export class ComposioStore {
       sealed.ciphertext,
       JSON.stringify(session),
       Date.now(),
-    )
-  }
-
-  /** Re-seals only the key columns, so a session written meanwhile is not overwritten. */
-  private async resealKey(key: string, old: KeyRow, generation: number): Promise<void> {
-    const sealed = await seal(this.keyring, this.userId, AAD, key)
-    if (generation !== this.generation) return
-    this.sql.exec(
-      "UPDATE composio SET kek_version = ?, iv = ?, ciphertext = ?, updated_at = ? WHERE name = 'key' AND kek_version = ? AND ciphertext = ?",
-      sealed.kekVersion,
-      sealed.iv,
-      sealed.ciphertext,
-      Date.now(),
-      old.kek_version,
-      old.ciphertext,
     )
   }
 

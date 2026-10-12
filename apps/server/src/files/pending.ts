@@ -3,14 +3,9 @@ import { attachmentError, attachmentType } from "@yuki/protocol"
 import type { Env } from "../index"
 import { addressRoom } from "../lib/names"
 import type { RoomDO } from "../room/room-do"
-import { declaredSize, deleteFiles, error, fileKey, HOME, isFileId, json, MAX_SINGLE_PUT_BYTES, mime, part, refuse } from "./upload"
+import { declaredSize, deleteFiles, error, fileKey, HOME, isControl, isFileId, json, MAX_SINGLE_PUT_BYTES, mime, part, refuse } from "./upload"
 
 type Room = DurableObjectStub<RoomDO>
-
-function isControl(c: string): boolean {
-	const n = c.charCodeAt(0)
-	return n <= 0x1f || n === 0x7f
-}
 
 function cleanName(raw: unknown): string | null {
 	if (typeof raw !== "string") return null
@@ -18,10 +13,10 @@ function cleanName(raw: unknown): string | null {
 	return name && name.length <= 255 && ![...name].some(isControl) ? name : null
 }
 
-async function admit(env: Env, userId: string, name: string, type: string, size: number): Promise<Response | null> {
+function admit(name: string, type: string, size: number): Response | null {
 	const why = attachmentError({ name, type, size })
 	if (why) return error(size > 0 ? 413 : 400, why)
-	return refuse(env.FILES, userId, size)
+	return refuse(size)
 }
 
 async function room(env: Env, userId: string, roomId: string): Promise<Room | Response> {
@@ -67,7 +62,7 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	if (!name) return error(400, "bad name")
 	if (size === null) return error(400, "bad size")
 	const type = attachmentType({ name, type: mime(request.headers.get("content-type")) })
-	const refused = await admit(env, userId, name, type, size)
+	const refused = admit(name, type, size)
 	if (refused) return refused
 	if (declaredSize(request.headers.get("content-length")) !== size) return error(400, "Content-Length must match the upload size.")
 	if (size > MAX_SINGLE_PUT_BYTES) return error(413, "too large for one request, use a multipart upload")
@@ -92,7 +87,7 @@ async function createParts(request: Request, env: Env, userId: string, roomId: s
 	if (!name) return error(400, "bad name")
 	if (size === null) return error(400, "bad size")
 	const type = attachmentType({ name, type: mime(typeof body.type === "string" ? body.type : "") })
-	const refused = await admit(env, userId, name, type, size)
+	const refused = admit(name, type, size)
 	if (refused) return refused
 	const stub = await room(env, userId, roomId)
 	if (stub instanceof Response) return stub

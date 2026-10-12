@@ -62,7 +62,7 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 	}
 	switch (frame.t) {
 		case "send": {
-			const refs = [...(frame.attachments ?? []), ...(frame.files ?? [])]
+			const refs = frame.attachments ?? []
 			return sendFits(frame.text, refs) && (frame.text.trim() !== "" || refs.length > 0) ? frame : null
 		}
 		case "edit":

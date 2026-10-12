@@ -24,7 +24,6 @@ export type CurlRequest = {
   method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE"
   headers?: Record<string, string>
   body?: string
-  timeoutMs?: number
 }
 
 export type CurlResponse = { status: number; headers: Record<string, string>; body: string; truncated: boolean }
@@ -94,7 +93,6 @@ export function sdkClient(apiKey: string): KernelClient {
           method: req.method ?? "GET",
           ...(req.headers ? { headers: req.headers } : {}),
           ...(req.body !== undefined ? { body: req.body } : {}),
-          ...(req.timeoutMs !== undefined ? { timeout_ms: req.timeoutMs } : {}),
           response_encoding: "utf8",
         })
         const headers = Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, v.join(", ")]))

@@ -42,12 +42,14 @@ export type PutResult<E = unknown> = {
 
 export const fail = (code: FsFail["code"], message: string): FsFail => ({ ok: false, code, message })
 
-export type IndexChange =
-  | { op: "put"; file: NewFile }
+/** The changes every batch shares. A batch of writes carries bytes where the index carries a stored file. */
+export type TreeChange =
   | { op: "move"; from: string; to: string; sha256: string }
   | { op: "remove"; path: string; sha256: string }
   | { op: "rmdir"; path: string; files: Readonly<Record<string, string>> }
   | { op: "mkdir"; path: string }
+
+export type IndexChange = { op: "put"; file: NewFile } | TreeChange
 
 export type CommitResult<E = unknown> = { ok: true; events: E[]; drop: string[] } | { ok: false; path: string; message: string; conflict: boolean }
 
@@ -93,10 +95,9 @@ export function fileIndexSteps(t: Tables): Step[] {
 }
 
 export function listSpace(storage: DurableObjectStorage, t: Tables): { files: FileRef[]; folders: string[] } {
-  const has = (name: string) => storage.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", name).toArray().length > 0
   return {
-    files: has(t.files) ? storage.sql.exec<FileRow>(`SELECT * FROM ${t.files} ORDER BY path`).toArray().map(toRef) : [],
-    folders: has(t.dirs) ? storage.sql.exec<{ path: string }>(`SELECT path FROM ${t.dirs} ORDER BY path`).toArray().map((r) => r.path) : [],
+    files: storage.sql.exec<FileRow>(`SELECT * FROM ${t.files} ORDER BY path`).toArray().map(toRef),
+    folders: storage.sql.exec<{ path: string }>(`SELECT path FROM ${t.dirs} ORDER BY path`).toArray().map((r) => r.path),
   }
 }
 

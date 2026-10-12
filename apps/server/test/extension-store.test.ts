@@ -195,3 +195,31 @@ test("users never share an extension", async () => {
   expect((await call(b, "list")).value).toEqual([])
   expect(await call(b, "fetch", "hook", { url: "https://api.example.com/" })).toMatchObject({ ok: false })
 })
+
+test("a bundle is parsed once per hash, and a new hash is read fresh", async () => {
+  const u = fresh()
+  await installed(u)
+  expect((await call(u, "state", "hook", "room:r1", "set", "k", 1)).ok).toBe(true)
+  await call(u, "__corruptBundleText", "hook")
+  expect((await call(u, "state", "hook", "room:r1", "get", "k")).value).toBe(1)
+  const { state: _state, ...noState } = manifest
+  const next = await call(u, "propose", { bundle: { manifest: { ...noState, version: "2.0.0" }, files: bundle.files }, source: "agent", by: "ada" })
+  expect((await call(u, "install", next.value.id)).ok).toBe(true)
+  expect(await call(u, "state", "hook", "room:r1", "get", "k")).toMatchObject({ ok: false, error: expect.stringContaining("needs \"state\"") })
+})
+
+test("list and proposals read each extension's secrets and replaced hash apart", async () => {
+  const u = fresh()
+  const other = { manifest: { ...manifest, name: "other", triggers: undefined }, files: bundle.files }
+  await installed(u)
+  const o = await call(u, "propose", { bundle: other, source: "agent", by: "ada" })
+  await call(u, "install", o.value.id)
+  await call(u, "setSecret", "hook", "TOKEN", SECRET)
+  const update = await call(u, "propose", { bundle: { ...bundle, manifest: { ...manifest, version: "1.1.0" } }, source: "agent", by: "ada" })
+  const fresh1 = await call(u, "propose", { bundle: { manifest: { ...manifest, name: "third", triggers: undefined }, files: bundle.files }, source: "agent", by: "ada" })
+  const list = (await call(u, "list")).value as { name: string; secrets: { set: boolean }[] }[]
+  expect(list.map((e) => [e.name, e.secrets[0]?.set])).toEqual([["hook", true], ["other", false]])
+  const proposals = (await call(u, "proposals")).value as { id: string; replaces?: string }[]
+  expect(proposals.find((p) => p.id === update.value.id)?.replaces).toBeTruthy()
+  expect(proposals.find((p) => p.id === fresh1.value.id)?.replaces).toBeUndefined()
+})

@@ -9,7 +9,6 @@ export type FetchRequest = {
   method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE"
   headers?: Record<string, string>
   body?: string
-  timeoutMs?: number
 }
 
 export type FetchResult = { status: number; headers: Record<string, string>; body: string; truncated: boolean }
@@ -70,9 +69,9 @@ export function userLease(user: () => UserBrowserRpc, agentId: string, roomId: s
     paused: () => user().browserTakeover(),
     share: async (reason) =>
       (await user().browserShare(agentId, roomId, reason)) ? "Asked the human to watch or take over the browser." : "Could not post the request to the human.",
-    fetchPage: (req) => connected(() => user().browserFetch(agentId, req)),
-    putFile: (name, base64) => connected(() => user().browserPutFile(agentId, name, base64)),
-    getFile: (path) => connected(() => user().browserGetFile(agentId, path)),
-    listFiles: (dir) => connected(() => user().browserListFiles(agentId, dir)),
+    fetchPage: (req) => connected(() => user().browserFetch(req)),
+    putFile: (name, base64) => connected(() => user().browserPutFile(name, base64)),
+    getFile: (path) => connected(() => user().browserGetFile(path)),
+    listFiles: (dir) => connected(() => user().browserListFiles(dir)),
   }
 }

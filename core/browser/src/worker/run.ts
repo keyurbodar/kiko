@@ -10,7 +10,6 @@ export type WorkerDeps = {
   paused(): boolean
   signal: AbortSignal
   opened?: boolean
-  onFast?: (picks: Choice[], page: PageView) => void
 }
 
 // A login box in a header must not stop a search: only what is on screen counts.
@@ -71,7 +70,6 @@ export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<T
 
       const options = choices(last, task.goal, values)
       const fast = fastSteps(last, task.goal, values, options, actions)
-      if (fast.length) deps.onFast?.(fast, last)
       const decision: Decision = fast[0]
         ? { choice: fast[0], confidence: null, runnersUp: [], after: fast.slice(1) }
         : await deps.decider.decide({ goal: task.goal, values, page: last, options, history: actions }, deps.signal)
@@ -126,14 +124,5 @@ export async function runTask(tab: Tab, task: Task, deps: WorkerDeps): Promise<T
 }
 
 export async function runTasks(tabs: Tab[], tasks: Task[], deps: WorkerDeps): Promise<TaskResult[]> {
-  const n = Math.min(tasks.length, tabs.length, BROWSER.workersPerRun)
-  const ran = await Promise.all(tasks.slice(0, n).map((t, i) => runTask(tabs[i], t, deps)))
-  const skipped: TaskResult[] = tasks.slice(n).map((t) => ({
-    stop: "budget",
-    url: t.url ?? "",
-    title: "",
-    actions: [],
-    note: `not started: at most ${n} tasks run at once`,
-  }))
-  return [...ran, ...skipped]
+  return Promise.all(tasks.map((t, i) => runTask(tabs[i], t, deps)))
 }

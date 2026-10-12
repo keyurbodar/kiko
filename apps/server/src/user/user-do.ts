@@ -5,7 +5,7 @@ import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as Use
 import type { Deletion } from "../jobs/delete-account"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
-import { DEV, loadUserDev } from "../lib/dev-guard"
+import { loadUserDev } from "../lib/dev-guard"
 import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
 import type { Env } from "../index"
@@ -13,8 +13,8 @@ import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, take
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
-import { checkAgentId, kernelErrorText } from "../integrations/kernel/connect"
-import { basenameOf, decodeBase64, encodeBase64, FETCH_BODY_CAP, FETCH_METHODS, FILE_CAP, URL_CAP } from "../integrations/kernel/files"
+import { kernelErrorText } from "../integrations/kernel/connect"
+import { basenameOf, decodeBase64, encodeBase64, FILE_CAP } from "../integrations/kernel/files"
 import { KernelError } from "../integrations/kernel/client"
 import type { FetchRequest, FetchResult, Lease } from "../agent/browser/lease"
 import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
@@ -667,7 +667,7 @@ export class UserDO extends DurableObject<Env> {
 
   /** Whether the human is driving the browser. A tool returns "The human is using the browser" and waits while it is true. */
   async browserTakeover(): Promise<boolean> {
-    return this.#kr.kernel.takeover()
+    return this.#kr.takeover()
   }
 
   /**
@@ -684,36 +684,26 @@ export class UserDO extends DurableObject<Env> {
     return this.#kr.dead(agentId, sessionId)
   }
 
-  /** HTTP through the browser's stack. The body is capped at 20000 chars; only http and https. */
-  async browserFetch(agentId: string, req: FetchRequest): Promise<FetchResult> {
-    checkAgentId(agentId)
-    if (typeof req?.url !== "string" || req.url.length > URL_CAP) throw new KernelError("failed", "bad url")
-    if (req.method !== undefined && FETCH_METHODS[req.method] !== true) throw new KernelError("failed", "bad method")
-    const res = await this.#kr.kernel.fetchPage(req)
-    const truncated = res.body.length > FETCH_BODY_CAP
-    return { status: res.status, headers: res.headers, body: truncated ? res.body.slice(0, FETCH_BODY_CAP) : res.body, truncated }
+  /** HTTP through the browser's stack. The body is capped at 20000 chars and `truncated` says so; only http and https. */
+  async browserFetch(req: FetchRequest): Promise<FetchResult> {
+    return this.#kr.fetch(req)
   }
 
   /** Writes an upload into the browser's VM. `name` is sanitized to a basename; the file is capped at 10 MB. */
-  async browserPutFile(agentId: string, name: string, base64: string): Promise<{ path: string }> {
-    checkAgentId(agentId)
-    const bytes = decodeBase64(base64)
-    const safe = basenameOf(name)
-    return this.#kr.kernel.putFile(safe, bytes)
+  async browserPutFile(name: string, base64: string): Promise<{ path: string }> {
+    return this.#kr.putFile(basenameOf(name), decodeBase64(base64))
   }
 
   /** Reads a file from the browser's VM. The path must be under /tmp or the downloads folder; the file is capped at 10 MB. */
-  async browserGetFile(agentId: string, path: string): Promise<{ name: string; base64: string; size: number }> {
-    checkAgentId(agentId)
-    const bytes = await this.#kr.kernel.getFile(path)
+  async browserGetFile(path: string): Promise<{ name: string; base64: string; size: number }> {
+    const bytes = await this.#kr.getFile(path)
     if (bytes.byteLength > FILE_CAP) throw new KernelError("failed", "file is over 10 MB")
     return { name: basenameOf(path), base64: encodeBase64(bytes), size: bytes.byteLength }
   }
 
   /** Names of the files in a folder on the browser's VM. The folder must be under /tmp or the downloads folder. */
-  async browserListFiles(agentId: string, dir: string): Promise<string[]> {
-    checkAgentId(agentId)
-    return this.#kr.kernel.listFiles(dir)
+  async browserListFiles(dir: string): Promise<string[]> {
+    return this.#kr.listFiles(dir)
   }
 
   /** The agent closed its tabs. */
@@ -723,11 +713,11 @@ export class UserDO extends DurableObject<Env> {
 
   /** Read before each browser call. Holds no URL. */
   async browserCheck(): Promise<{ connected: boolean; takeover: boolean; tabs: Record<string, number> }> {
-    return this.#kr.kernel.check()
+    return this.#kr.check()
   }
 
   async devBrowser(op: DevBrowserOp): Promise<Record<string, unknown>> {
-    return (await this.dev()).devBrowser(() => this.#kr.kernel, userIdFromObjectName(this.ctx.id.name), op)
+    return (await this.dev()).devBrowser(() => this.#kr, userIdFromObjectName(this.ctx.id.name), op)
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -750,10 +740,13 @@ export class UserDO extends DurableObject<Env> {
       store: this.#credentials,
       info: (provider) => this.#credentials.listProviders().find((p) => p.provider === provider) ?? null,
       send,
-      setWakeup: (key, at) => this.alarms.setWakeup(key, at),
-      clearWakeup: (key) => this.alarms.clearWakeup(key),
-      subscriptions: this.env.PROVIDER_OAUTH === "on",
-      fake: DEV,
+      devProvider: async (id) => {
+        try {
+          return (await loadUserDev()).fakeProvider(id)
+        } catch {
+          return undefined
+        }
+      },
     })
     return this.#logins
   }
@@ -848,7 +841,6 @@ export class UserDO extends DurableObject<Env> {
       [INITIATIVE_WAKEUP]: () => this.#il.engine.pass(),
       [REAP_WAKEUP]: () => this.#kr.reap(),
     })
-    this.#logins?.expire(due)
   }
 
   async recordRoom(roomId: RoomId): Promise<boolean> {
@@ -908,7 +900,7 @@ export class UserDO extends DurableObject<Env> {
     // The user's Kernel account is theirs, so a failure here must not stop the deletion.
     return wipeStorage(this.ctx, async () => {
       await this.#composio.disconnect()
-      await this.#kr.kernel.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
+      await this.#kr.wipe().catch((e) => console.error(`kernel wipe failed: ${kernelErrorText(e)}`))
     })
   }
 

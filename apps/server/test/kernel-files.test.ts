@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test"
-import { KernelError } from "../src/integrations/kernel/client"
-import { KernelConnection } from "../src/integrations/kernel/connect"
-import { basenameOf, decodeBase64, encodeBase64, FETCH_BODY_CAP, FETCH_METHODS, FILE_CAP } from "../src/integrations/kernel/files"
+import { CURL_BODY_CAP, KernelError } from "../src/integrations/kernel/client"
+import { basenameOf, decodeBase64, encodeBase64, FETCH_METHODS, FILE_CAP } from "../src/integrations/kernel/files"
+import { KernelWiring } from "../src/user/kernel-wiring"
+
+const OPEN = { sessionId: "s1", dead: false, tabs: {}, mode: "headless", lastUse: 0, createdAt: 0, takeover: false, watchUntil: 0 }
+
+function wire(client: object, open = true): KernelWiring {
+  const store = { connected: () => true, lease: () => (open ? OPEN : undefined), key: async () => "k", generation: 0 }
+  return new KernelWiring({ ctx: {}, sql: {}, env: {}, alarms: {}, userId: () => "u", store, clientFor: () => client } as never)
+}
 
 describe("basenameOf", () => {
   test("keeps only the last path segment", () => {
@@ -43,62 +50,41 @@ describe("fetch edge", () => {
     expect(FETCH_METHODS.OPTIONS).toBeUndefined()
   })
 
-  test("fetchPage forwards timeoutMs and caps the body at the client", async () => {
-    const seen: { timeoutMs?: number; body: string }[] = []
-    const conn = new KernelConnection({
-      store: { connected: () => true, lease: () => ({ sessionId: "s1", dead: false, tabs: {}, mode: "headless", lastUse: 0, takeover: false, watchUntil: 0 }), key: async () => "k", generation: 0 } as never,
-      userId: () => "u",
-      wake: { set: async () => {}, clear: async () => {} },
-      clientFor: () => ({
-        curl: async (_id: string, req: { timeoutMs?: number }) => {
-          seen.push({ timeoutMs: req.timeoutMs, body: "x".repeat(FETCH_BODY_CAP + 5) })
-          return { status: 200, headers: {}, body: "x".repeat(FETCH_BODY_CAP + 5), truncated: false }
-        },
-      }) as never,
-    })
-    const out = await conn.fetchPage({ url: "https://example.com", timeoutMs: 1234 })
-    expect(seen[0]?.timeoutMs).toBe(1234)
-    expect(out.body.length).toBe(FETCH_BODY_CAP + 5)
+  test("fetch tells the model when Kernel cut the body", async () => {
+    const wiring = wire({ curl: async () => ({ status: 200, headers: {}, body: "x".repeat(CURL_BODY_CAP), truncated: true }) })
+    const out = await wiring.fetch({ url: "https://example.com" })
+    expect(out.truncated).toBe(true)
+    expect(out.body.length).toBe(CURL_BODY_CAP)
+  })
+
+  test("fetch leaves a whole body marked whole", async () => {
+    const out = await wire({ curl: async () => ({ status: 200, headers: {}, body: "ok", truncated: false }) }).fetch({ url: "https://example.com" })
+    expect(out).toMatchObject({ body: "ok", truncated: false })
+  })
+
+  test("fetch refuses a bad method before any Kernel call", async () => {
+    const wiring = wire({ curl: async () => { throw new Error("called") } })
+    await expect(wiring.fetch({ url: "https://example.com", method: "OPTIONS" as never })).rejects.toThrow("bad method")
   })
 })
 
 describe("scheme and connection checks", () => {
   test("refuses a non-http url before any Kernel call", async () => {
     const calls: string[] = []
-    const conn = new KernelConnection({
-      store: { connected: () => true, lease: () => undefined, key: async () => "k", generation: 0 } as never,
-      userId: () => "u",
-      wake: { set: async () => {}, clear: async () => {} },
-      clientFor: () => ({ curl: async (id: string) => void calls.push(id) }) as never,
-    })
-    await expect(conn.fetchPage({ url: "file:///etc/passwd" })).rejects.toThrow("only http and https urls")
+    const wiring = wire({ curl: async (id: string) => void calls.push(id) })
+    await expect(wiring.fetch({ url: "file:///etc/passwd" })).rejects.toThrow("only http and https urls")
     expect(calls).toEqual([])
   })
 
   test("refuses file operations when no browser is open", async () => {
-    const conn = new KernelConnection({
-      store: { connected: () => true, lease: () => undefined, key: async () => "k", generation: 0 } as never,
-      userId: () => "u",
-      wake: { set: async () => {}, clear: async () => {} },
-      clientFor: () => ({}) as never,
-    })
-    await expect(conn.putFile("a.txt", new Uint8Array([1]))).rejects.toThrow("No browser is open")
-    await expect(conn.getFile("/tmp/a.txt")).rejects.toThrow("No browser is open")
+    const wiring = wire({}, false)
+    await expect(wiring.putFile("a.txt", new Uint8Array([1]))).rejects.toThrow("No browser is open")
+    await expect(wiring.getFile("/tmp/a.txt")).rejects.toThrow("No browser is open")
   })
 
   test("getFile refuses paths outside /tmp and the downloads folder", async () => {
-    const conn = new KernelConnection({
-      store: {
-        connected: () => true,
-        lease: () => ({ sessionId: "s1", dead: false, tabs: {}, mode: "headless", lastUse: 0, createdAt: 0, takeover: false, watchUntil: 0 }),
-        key: async () => "k",
-        generation: 0,
-      } as never,
-      userId: () => "u",
-      wake: { set: async () => {}, clear: async () => {} },
-      clientFor: () => ({}) as never,
-    })
-    await expect(conn.getFile("/etc/passwd")).rejects.toThrow("only files under /tmp or the downloads folder")
-    await expect(conn.getFile("/tmp/../etc/passwd")).rejects.toThrow("only files under /tmp or the downloads folder")
+    const wiring = wire({})
+    await expect(wiring.getFile("/etc/passwd")).rejects.toThrow("only files under /tmp or the downloads folder")
+    await expect(wiring.getFile("/tmp/../etc/passwd")).rejects.toThrow("only files under /tmp or the downloads folder")
   })
 })

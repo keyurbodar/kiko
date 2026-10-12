@@ -114,12 +114,8 @@ export type ChatSearchPage = { results: readonly ChatSearchHit[]; next: number |
 
 export type ClientToRoom =
 	| { t: "hello"; lastSeq: number }
-	/**
-	 * `attachments` are claimed from the pending uploads. `files` is what a client from before
-	 * 2026-10-09 sends: files it stored itself. The room accepts them for one release, and only
-	 * when each one is already in the chat's files.
-	 */
-	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; quote?: string; attachments?: readonly PendingAttachment[]; files?: readonly FileRef[] }
+	/** `attachments` are claimed from the pending uploads. */
+	| { t: "send"; clientId: string; text: string; replyTo?: MessageId; quote?: string; attachments?: readonly PendingAttachment[] }
 	| { t: "react"; messageId: MessageId; emoji: string | null }
 	| { t: "edit"; messageId: MessageId; text: string }
 	| { t: "delete"; messageId: MessageId }

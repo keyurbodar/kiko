@@ -270,8 +270,4 @@ export class BrowserConnection {
     await this.deps.lease.release().catch(() => {})
     return "closed"
   }
-
-  isOpen(): boolean {
-    return this.session !== null
-  }
 }

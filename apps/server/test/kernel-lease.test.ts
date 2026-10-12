@@ -9,13 +9,11 @@ function memoryStore() {
   let profile = false
   const state = { broken: false }
   const store: LeaseStore = {
-    generation: 0,
     lease: () => (row ? { ...row, tabs: structuredClone(row.tabs) } : undefined),
     urls: async () => urls,
     putLease: async (r, u) => {
       row = { ...r }
       urls = u
-      return true
     },
     patchLease: (patch) => {
       if (row) row = { ...row, ...patch }

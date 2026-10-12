@@ -192,13 +192,6 @@ describe("runTasks", () => {
     // One task is two decisions. Four in a row would take 8 * DELAY.
     expect(ms).toBeLessThan(DELAY * 2 * 2)
   })
-
-  test("tasks beyond workersPerRun are reported, not dropped", async () => {
-    const tabs = Array.from({ length: 6 }, () => fakeTab(site, "home").tab)
-    const rs = await runTasks(tabs, Array.from({ length: 6 }, () => ({ goal: "x" })), deps(scripted(() => ({ key: "done" }))))
-    expect(rs).toHaveLength(6)
-    expect(rs.filter((r) => r.stop === "budget")).toHaveLength(6 - BROWSER.workersPerRun)
-  })
 })
 
 describe("deciders", () => {

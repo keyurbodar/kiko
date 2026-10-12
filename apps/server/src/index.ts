@@ -34,10 +34,7 @@ export interface Env {
   JOBS: Queue
   ASSETS: Fetcher
   CREDENTIALS_KEK: string
-  CREDENTIALS_KEK_VERSION?: string
-  CREDENTIALS_KEK_PREVIOUS?: string
   BETTER_AUTH_SECRET: string
-  PROVIDER_OAUTH?: string
 }
 
 export default {

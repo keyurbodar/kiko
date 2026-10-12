@@ -1,5 +1,5 @@
 import { attachmentMessages, attachmentsError, type FileRef, type PendingAttachment, type RoomEvent } from "@yuki/protocol"
-import { cleanPath } from "../files/upload"
+import { cleanPath, isControl } from "../files/upload"
 import type { FileIndex } from "../files/file-index"
 
 
@@ -89,11 +89,6 @@ export class PendingUploads {
 	}
 }
 
-function isControl(c: string): boolean {
-	const n = c.charCodeAt(0)
-	return n <= 0x1f || n === 0x7f
-}
-
 export function safeName(name: string): string {
 	return name.split("").map((c) => (c === "/" || c === "\\" || isControl(c) ? "_" : c)).join("").slice(-120) || "file"
 }
@@ -143,14 +138,4 @@ export function claim(
 	}
 	pending.drop(list.map((a) => a.pendingId))
 	return { refs, events }
-}
-
-/** The files an older client stored itself, each checked against the chat's files. */
-export function legacyFiles(files: FileIndex<RoomEvent>, list: readonly FileRef[]): FileRef[] {
-	const all = new Map(files.all().map((f) => [f.id, f]))
-	return list.map((f) => {
-		const held = all.get(f.id)
-		if (!held) throw new ClaimRefused(attachmentMessages.notSendable(f.name, "attachment not found (removed or expired)"))
-		return held
-	})
 }

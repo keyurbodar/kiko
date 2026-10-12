@@ -1,33 +1,9 @@
 import { boundedWait } from "@yuki/durable/bounded-wait"
 import { ComposioError } from "./client"
 
-export const COMPOSIO_MAX_CONCURRENT = 40
-
 const RETRY_DELAYS_MS = [400, 1200]
 const RETRY_STATUSES = new Set([429, 502, 503, 504])
 const RETRY_AFTER_MAX_MS = 10_000
-
-export function createLimiter(max: number) {
-  let active = 0
-  const waiting: (() => void)[] = []
-  return {
-    async run<T>(fn: () => Promise<T>): Promise<T> {
-      if (active < max) active++
-      else {
-        const { promise, resolve } = Promise.withResolvers<void>()
-        waiting.push(resolve)
-        await promise
-      }
-      try {
-        return await fn()
-      } finally {
-        const next = waiting.shift()
-        if (next) next()
-        else active--
-      }
-    },
-  }
-}
 
 export async function withRetry<T>(fn: () => Promise<T>, delays: readonly number[] = RETRY_DELAYS_MS): Promise<T> {
   for (let attempt = 0; ; attempt++) {

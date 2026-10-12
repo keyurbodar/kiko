@@ -2,8 +2,6 @@ import { KernelError } from "./client"
 
 /** Largest file the browser moves in either direction. */
 export const FILE_CAP = 10 * 1024 * 1024
-/** Largest HTTP body returned to the model, in characters. */
-export const FETCH_BODY_CAP = 20_000
 /** Longest URL a fetch accepts. */
 export const URL_CAP = 2048
 /** Methods a fetch may use. OPTIONS and anything else are refused at the edge. */

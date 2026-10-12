@@ -1,23 +1,17 @@
 import { expect, test } from "bun:test"
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai"
 import type { UserToClient } from "@yuki/protocol"
-import { FAKE_CODE, FAKE_PROVIDER, LOGIN_TIMEOUT_MS, ProviderLogins } from "../src/user/provider-login"
+import { FAKE_CODE, FAKE_PROVIDER, fakeProvider } from "../src/user/dev"
+import { ProviderLogins } from "../src/user/provider-login"
 
-const NOW = 1_800_000_000_000
-
-function setup(options: { subscriptions?: boolean; fake?: boolean } = {}) {
+function setup(options: { fake?: boolean } = {}) {
   const store = new InMemoryCredentialStore()
   const frames: { owner: string; frame: UserToClient }[] = []
-  const wakeups = new Map<string, number>()
   const logins = new ProviderLogins<string>({
     store,
     info: (provider) => (provider === FAKE_PROVIDER ? { provider, kind: "oauth", last4: "" } : null),
     send: (owner, frame) => void frames.push({ owner, frame }),
-    setWakeup: async (key, at) => void wakeups.set(key, at),
-    clearWakeup: async (key) => void wakeups.delete(key),
-    subscriptions: options.subscriptions ?? false,
-    fake: options.fake ?? true,
-    now: () => NOW,
+    ...((options.fake ?? true) ? { devProvider: async (id: string) => fakeProvider(id) } : {}),
   })
   const seen = (owner = "ws1") => frames.filter((f) => f.owner === owner).map((f) => f.frame)
   async function next(t: UserToClient["t"], owner = "ws1"): Promise<any> {
@@ -28,7 +22,7 @@ function setup(options: { subscriptions?: boolean; fake?: boolean } = {}) {
     }
     throw new Error(`no ${t} frame. got ${JSON.stringify(seen(owner))}`)
   }
-  return { store, frames, wakeups, logins, seen, next }
+  return { store, frames, logins, seen, next }
 }
 
 test("the fake flow notifies, prompts, and stores the credential", async () => {
@@ -38,7 +32,6 @@ test("the fake flow notifies, prompts, and stores the credential", async () => {
   expect(notify.event).toMatchObject({ type: "device_code", userCode: FAKE_CODE })
   const prompt = await s.next("login.prompt")
   expect(prompt.prompt).toEqual({ type: "manual_code", message: "type the code shown above" })
-  expect(s.wakeups.get("login:l1")).toBe(NOW + LOGIN_TIMEOUT_MS)
   s.logins.answer("ws1", "l1", prompt.promptId, FAKE_CODE)
   await run
   expect(await s.next("login.done")).toEqual({
@@ -48,7 +41,6 @@ test("the fake flow notifies, prompts, and stores the credential", async () => {
   })
   expect((await s.store.read(FAKE_PROVIDER))?.type).toBe("oauth")
   expect(s.logins.size).toBe(0)
-  expect(s.wakeups.size).toBe(0)
 })
 
 test("a wrong code fails and stores nothing", async () => {
@@ -60,7 +52,6 @@ test("a wrong code fails and stores nothing", async () => {
   expect(await s.next("login.error")).toMatchObject({ reason: "failed", message: "that code is wrong" })
   expect(await s.store.read(FAKE_PROVIDER)).toBeUndefined()
   expect(s.logins.size).toBe(0)
-  expect(s.wakeups.size).toBe(0)
 })
 
 test("cancel ends the login and a late answer hears unknown", async () => {
@@ -74,7 +65,6 @@ test("cancel ends the login and a late answer hears unknown", async () => {
   expect(s.seen().filter((f) => f.t === "login.error").map((f: any) => f.reason)).toEqual(["cancelled", "unknown"])
   expect(await s.store.read(FAKE_PROVIDER)).toBeUndefined()
   expect(s.logins.size).toBe(0)
-  expect(s.wakeups.size).toBe(0)
 })
 
 test("an abandoned login, its socket closed, leaves no state and sends nothing", async () => {
@@ -86,20 +76,6 @@ test("an abandoned login, its socket closed, leaves no state and sends nothing",
   await run
   expect(s.frames.length).toBe(before)
   expect(s.logins.size).toBe(0)
-  expect(s.wakeups.size).toBe(0)
-})
-
-test("the wakeup ends a login after 10 minutes", async () => {
-  const s = setup()
-  const run = s.logins.start("ws1", "l1", FAKE_PROVIDER)
-  await s.next("login.prompt")
-  s.logins.expire(["reminders", "login:other"])
-  expect(s.logins.size).toBe(1)
-  s.logins.expire(["login:l1"])
-  await run
-  expect(await s.next("login.error")).toMatchObject({ reason: "timeout" })
-  expect(s.logins.size).toBe(0)
-  expect(s.wakeups.size).toBe(0)
 })
 
 test("only the socket that started a login can answer or cancel it", async () => {
@@ -126,23 +102,19 @@ test("a second login for the same provider replaces the first", async () => {
   s.logins.dropOwner("ws1")
   await second
   expect(s.logins.size).toBe(0)
-  expect(s.wakeups.size).toBe(0)
 })
 
-test("refusals: subscription flag off, no flow, fake off", async () => {
+test("refusals: no flow, fake off", async () => {
   const s = setup({ fake: false })
-  await s.logins.start("ws1", "a", "github-copilot")
   await s.logins.start("ws1", "b", "openrouter")
   await s.logins.start("ws1", "c", "opencode-go")
   await s.logins.start("ws1", "d", FAKE_PROVIDER)
   await s.logins.start("ws1", "e", "../etc")
   expect(s.seen().map((f: any) => [f.loginId, f.reason])).toEqual([
-    ["a", "disabled"],
     ["b", "unsupported"],
     ["c", "unsupported"],
     ["d", "unsupported"],
     ["e", "unsupported"],
   ])
   expect(s.logins.size).toBe(0)
-  expect(s.wakeups.size).toBe(0)
 })

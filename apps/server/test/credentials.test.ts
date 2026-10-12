@@ -5,8 +5,6 @@ import { CryptoError, type Keyring, keyringFromEnv, open, seal } from "@yuki/dur
 
 const random = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("")
 const V1: Keyring = { current: { version: 1, secret: `kek-one-${random()}` } }
-const V2: Keyring = { current: { version: 2, secret: `kek-two-${random()}` }, previous: V1.current }
-const V2_ONLY: Keyring = { current: V2.current }
 const keys: string[] = []
 const newKey = () => {
   const key = `sk-test-${random()}`
@@ -73,12 +71,8 @@ test("a sealed key opens only for the same user and provider", async () => {
   expect(Buffer.from(again.iv).equals(Buffer.from(sealed.iv))).toBe(false)
 }, 20_000)
 
-test("the keyring reads its version and the previous secret from env", () => {
+test("the keyring is the one secret from env", () => {
   expect(keyringFromEnv({ CREDENTIALS_KEK: "a" })).toEqual({ current: { version: 1, secret: "a" } })
-  expect(keyringFromEnv({ CREDENTIALS_KEK: "b", CREDENTIALS_KEK_VERSION: "3", CREDENTIALS_KEK_PREVIOUS: "a" })).toEqual({
-    current: { version: 3, secret: "b" },
-    previous: { version: 2, secret: "a" },
-  })
   expect(() => keyringFromEnv({ CREDENTIALS_KEK: "" })).toThrow(CryptoError)
 })
 
@@ -107,19 +101,13 @@ test("connect refuses a bad provider id or an empty key", async () => {
   expect((await rpc(user, "listProviders")).result).toEqual([])
 })
 
-test("a key sealed with the previous kek opens during rotation and is re-sealed", async () => {
+test("a stored key reads back and a read does not rewrite its row", async () => {
   const user = fresh()
   const key = newKey()
   await vault(user, { keyring: V1, op: "connect", provider: "opencode-go", apiKey: key })
-  expect((await vault(user, { keyring: V1, op: "versions" })).result).toEqual([{ provider_id: "opencode-go", kek_version: 1 }])
-
-  expect((await vault(user, { keyring: V2_ONLY, op: "read", provider: "opencode-go" })).error).toContain("kek version 1")
-
-  const read = await vault(user, { keyring: V2, op: "read", provider: "opencode-go" })
-  expect(read.result).toEqual({ type: "api_key", key })
-  expect((await vault(user, { keyring: V2, op: "versions" })).result).toEqual([{ provider_id: "opencode-go", kek_version: 2 }])
-
-  expect((await vault(user, { keyring: V2_ONLY, op: "read", provider: "opencode-go" })).result).toEqual({ type: "api_key", key })
+  const before = (await vault(user, { keyring: V1, op: "versions" })).result
+  expect((await vault(user, { keyring: V1, op: "read", provider: "opencode-go" })).result).toEqual({ type: "api_key", key })
+  expect((await vault(user, { keyring: V1, op: "versions" })).result).toEqual(before)
 })
 
 test("no key the suite stored appears in the workerd log", async () => {
