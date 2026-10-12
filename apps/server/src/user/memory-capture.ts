@@ -27,6 +27,8 @@ const REFUSED = /\((401|403)\)/
 export const CAPTURE_WAKEUP = "life_capture"
 const CAPTURE_QUEUE_MAX = 200
 const CAPTURE_PER_ALARM = 24
+// Rows per judge request. A request grows with rows times candidates times known facts, and a long one times out.
+const CAPTURE_CHUNK = 4
 export const CAPTURE_TEXT_MAX = 8_000
 export const CAPTURE_TIMEOUT_MS = 8_000
 const RERANK_TIMEOUT_MS = 1_500
@@ -179,20 +181,24 @@ export class MemoryCapture {
     let learned = false
     if (this.judgeKey()) {
       const judge = this.judge(CAPTURE_TIMEOUT_MS)
-      let left: QueueRow[] = []
-      if (rows.length) {
+      // A chunk the judge does not answer stays queued. The chunks around it still settle, so one slow chunk cannot hold up the queue.
+      const left: QueueRow[] = []
+      for (let i = 0; i < rows.length; i += CAPTURE_CHUNK) {
+        const chunk = rows.slice(i, i + CAPTURE_CHUNK)
         this.count({ capture_jev: 1 })
         const out = await captureWithJudge(
           this.life,
           judge,
-          rows.map((r) => ({ heard: { messageId: r.message_id, text: r.text, at: r.at }, ref: `room:${r.room_id}:msg:${r.message_id}`, keep: () => this.queued(r.room_id, r.message_id, r.text) })),
+          chunk.map((r) => ({ heard: { messageId: r.message_id, text: r.text, at: r.at }, ref: `room:${r.room_id}:msg:${r.message_id}`, keep: () => this.queued(r.room_id, r.message_id, r.text) })),
           policy,
         )
-        if (out) {
-          this.tally(out)
-          learned = out.added + out.replaced > 0
-          for (const r of rows) if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
-        } else left = rows
+        if (!out) {
+          left.push(...chunk)
+          continue
+        }
+        this.tally(out)
+        learned ||= out.added + out.replaced > 0
+        for (const r of chunk) if (this.queued(r.room_id, r.message_id, r.text)) this.dequeue(r.room_id, [r.message_id])
       }
       rows = left
       if (rows.length && policy.capture === "auto") {

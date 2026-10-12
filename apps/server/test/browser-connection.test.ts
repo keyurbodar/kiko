@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test"
+import { BROWSER } from "@yuki/browser/config"
 import type { BrowserSession, PageView, Step, Tab } from "@yuki/browser/page/types"
 import { BrowserConnection, Busy, IDLE_CLOSE_MS, RESTARTED } from "../src/agent/browser/connection"
 import type { BrowserState, Lease, LeasePort } from "../src/agent/browser/lease"
 
-function fakeBrowser() {
+/** `delay` holds an open for that many ms, so a test can switch tabs while it is in flight. */
+function fakeBrowser(delay: (url: string) => number = () => 0) {
   const opened: string[] = []
+  const live = new Map<string, { tab: Tab; url: () => string }>()
   let n = 0
   const sessions: { kill: () => void }[] = []
   const connect = async (_cdpUrl: string): Promise<BrowserSession> => {
@@ -17,7 +20,7 @@ function fakeBrowser() {
       let at = url
       opened.push(url)
       const id = `t${++n}`
-      return {
+      const tab: Tab = {
         id,
         read: async (): Promise<PageView> => ({ key: at, url: at, title: at, controls: [], text: "", omitted: 0 }),
         act: async (step: Step) => {
@@ -25,18 +28,30 @@ function fakeBrowser() {
           return { ok: true }
         },
         screenshot: async () => new Uint8Array(),
-        close: async () => {},
+        close: async () => {
+          live.delete(id)
+        },
       }
+      live.set(id, { tab, url: () => at })
+      return tab
     }
     return {
-      openTab: async (url) => tabOf(url ?? "about:blank"),
-      tab: () => undefined,
+      openTab: async (url) => {
+        const ms = delay(url ?? "about:blank")
+        if (ms) await new Promise((r) => setTimeout(r, ms))
+        return tabOf(url ?? "about:blank")
+      },
+      tab: (id) => live.get(id)?.tab,
+      listTabs: async () => [...live].map(([id, t]) => ({ id, url: t.url(), title: t.url() })),
       onPopup: () => {},
       closed,
-      close: async () => close(),
+      close: async () => {
+        live.clear()
+        close()
+      },
     }
   }
-  return { opened, connect, killLast: () => sessions.at(-1)?.kill() }
+  return { opened, live, connect, killLast: () => sessions.at(-1)?.kill() }
 }
 
 function fakeLease(state: Partial<BrowserState> = {}) {
@@ -129,6 +144,21 @@ describe("browser connection", () => {
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(8)
     expect(results.filter((r) => r.status === "rejected" && r.reason instanceof Busy)).toHaveLength(1)
     expect(browser.opened).toHaveLength(8)
+  })
+
+  test("a tab opened while switchTo runs still counts against the cap, and idle closes it", async () => {
+    const browser = fakeBrowser((url) => (url === "https://slow.test" ? 50 : 0))
+    const { lease } = fakeLease()
+    const conn = new BrowserConnection({ agentId: "r:a", lease, idle: { arm: async () => {} }, connect: browser.connect })
+    const home = await conn.openTab("https://home.test")
+    const opening = conn.goto("https://slow.test")
+    await new Promise((r) => setTimeout(r, 10))
+    await conn.switchTo(home.id)
+    const slow = await opening
+    const admitted = await Promise.allSettled(Array.from({ length: BROWSER.tabsPerBrowser }, (_, i) => conn.openTab(`https://${i}.test`)))
+    expect(admitted.filter((r) => r.status === "fulfilled")).toHaveLength(BROWSER.tabsPerBrowser - 2)
+    expect(await conn.idle()).toBe("closed")
+    expect(browser.live.has(slow.id)).toBe(false)
   })
 
   test("a ninth tab is refused at once, naming who holds the others", async () => {
