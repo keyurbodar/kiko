@@ -1,10 +1,11 @@
-import type { AgentSlug, RoomId } from "@yuki/protocol"
+import type { AgentSlug, } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
 import type { RoomMemory } from "./memory"
+import type { Home } from "./home"
 
 export const MEMORY_WAKEUP = "memory_naps"
 export const QUIET_WAKEUP = "memory_quiet"
@@ -12,7 +13,6 @@ const QUIET_MS = 6 * 3_600_000
 const NAPS_PER_PASS = 24
 const NAPS_AT_ONCE = 4
 
-type Home = { userId: string; roomId: RoomId }
 
 export type MemoryNapsDeps = {
 	ctx: DurableObjectState

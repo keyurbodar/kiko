@@ -3,7 +3,7 @@ import type { Context } from "@earendil-works/chord"
 import { err, ExecutionError, ok, type Result, type ShellExecOptions, type ShellExecResult } from "@earendil-works/pi-durable/env"
 import { Bash, type BufferEncoding, type CpOptions, type CreateExclusiveOptions, type FileContent, type FsStat, type IFileSystem, type MkdirOptions, type RmOptions } from "just-bash"
 import type { FsEntry } from "../room/files"
-import { type BatchChange, HOME_PATH, type RoomFs, typeForPath } from "./room-fs"
+import { type BatchChange, batchPaths, HOME_PATH, type RoomFs, typeForPath } from "./room-fs"
 
 export const DEFAULT_TIMEOUT_S = 30
 export const MAX_TIMEOUT_S = 120
@@ -374,8 +374,9 @@ class CommandFs implements IFileSystem {
     return path
   }
 
-  // Each space commits on its own, so a command that changes two spaces can save one and refuse the other.
-  async commit(): Promise<{ saved: string[]; refused: Refusal[] }> {
+  // Writes commit before deletions, and a deletion commits only when every write saved, so a refused write
+  // keeps the file it would have moved. Each space commits its group in one call. `changed` lists what saved.
+  async commit(): Promise<{ saved: string[]; changed: string[]; refused: Refusal[] }> {
     const changes = plan(this.start, this.tree)
     const batch = await Promise.all(
       changes.map(async (c): Promise<BatchChange> => {
@@ -385,30 +386,47 @@ class CommandFs implements IFileSystem {
       }),
     )
     const saved: string[] = []
+    const changed: string[] = []
     const refused: Refusal[] = []
-    for (const space of SPACES) {
-      const group = batch.filter((c) => spaceOf(c.op === "move" ? c.to : c.path) === space)
-      if (!group.length) continue
-      const out = await this.files.commit(group)
-      if (out.ok) {
-        saved.push(SPACE_NAME[space])
-        continue
+    const commitSpaces = async (group: BatchChange[], refuse: (space: string) => string) => {
+      for (const space of SPACES) {
+        const part = group.filter((c) => spaceOf(c.op === "move" ? c.to : c.path) === space)
+        if (!part.length) continue
+        const out = await this.files.commit(part)
+        if (out.ok) {
+          saved.push(SPACE_NAME[space])
+          changed.push(...part.flatMap(batchPaths))
+          continue
+        }
+        const why = out.conflict ? `${out.path} changed after this command started (a teammate or the human wrote it)` : out.message
+        refused.push({ path: out.path, message: `${why}. ${refuse(SPACE_NAME[space])}` })
       }
-      const why = out.conflict ? `${out.path} changed after this command started (a teammate or the human wrote it)` : out.message
-      refused.push({ path: out.path, message: `${why}. nothing this command changed in ${SPACE_NAME[space]} was saved. look again, then run it again` })
     }
-    return { saved, refused }
+    const deletions = batch.filter((c) => c.op === "remove" || c.op === "rmdir")
+    await commitSpaces(
+      batch.filter((c) => c.op !== "remove" && c.op !== "rmdir"),
+      (space) => `nothing this command changed in ${space} was saved. look again, then run it again`,
+    )
+    if (refused.length) {
+      for (const c of deletions) refused.push({ path: batchPaths(c)[0], message: "a write in this command was refused, so this file was kept. look again, then run it again" })
+      return { saved, changed, refused }
+    }
+    await commitSpaces(deletions, () => "the file was kept. look again, then run it again")
+    return { saved, changed, refused }
   }
 }
 
 const LIMIT_EXIT = 126
+
+// The paths a command saved. The bash tool reports them as its details, so the work hook can list them.
+export type BashResult = ShellExecResult & { changed: string[] }
 
 const stopped = (timer: AbortSignal, seconds: number) =>
   timer.aborted ? new ExecutionError("timeout", `the command ran past ${seconds} seconds, and none of its changes were saved`) : new ExecutionError("aborted", "the command was stopped, and none of its changes were saved")
 
 const OVER_READ = `bash: the command read more than ${MAX_READS} files and was stopped, and none of its changes were saved. narrow it to a folder or a pattern, or split it\n`
 
-export async function runCommand(files: RoomFs, command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<ShellExecResult, ExecutionError>> {
+export async function runCommand(files: RoomFs, command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<BashResult, ExecutionError>> {
   const seconds = Math.min(options?.timeout ?? DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S)
   const timer = AbortSignal.timeout(seconds * 1000)
   const outside = context.abortSignal ? AbortSignal.any([context.abortSignal, timer]) : timer
@@ -422,22 +440,22 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
     if (outside.aborted) return err(stopped(timer, seconds))
     if (fs.overRead.signal.aborted) {
       say(OVER_READ)
-      return ok({ exitCode: LIMIT_EXIT })
+      return ok({ exitCode: LIMIT_EXIT, changed: [] })
     }
     if (out.exitCode === LIMIT_EXIT) {
       say(`${out.stdout}${out.stderr}bash: the command hit a limit and was stopped, and none of its changes were saved\n`)
-      return ok({ exitCode: LIMIT_EXIT })
+      return ok({ exitCode: LIMIT_EXIT, changed: [] })
     }
-    const { saved, refused } = await fs.commit()
+    const { saved, changed, refused } = await fs.commit()
     const report = refused.map((r) => `bash: ${r.path}: not saved: ${r.message}\n`)
     if (saved.length && refused.length) report.push(`bash: saved in ${saved.join(" and ")}\n`)
     say(out.stdout + out.stderr + report.join(""))
-    return ok({ exitCode: refused.length && !out.exitCode ? 1 : out.exitCode })
+    return ok({ exitCode: refused.length && !out.exitCode ? 1 : out.exitCode, changed })
   } catch (e) {
     if (outside.aborted) return err(stopped(timer, seconds))
     if (fs?.overRead.signal.aborted) {
       say(OVER_READ)
-      return ok({ exitCode: LIMIT_EXIT })
+      return ok({ exitCode: LIMIT_EXIT, changed: [] })
     }
     return err(new ExecutionError("unknown", e instanceof Error ? e.message : String(e)))
   }

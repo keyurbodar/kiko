@@ -1,7 +1,8 @@
 import type { AgentSlug } from "@yuki/protocol"
 
+/** `mentions` are the slugs the whole text names, from `tags`, so a long message routes on all of it. */
 export type RecipientMessage = {
-	text: string
+	mentions: readonly string[]
 	replyToAgent?: AgentSlug
 }
 
@@ -20,9 +21,8 @@ export function tags(text: string): string[] {
 }
 
 export function resolveRecipients(message: RecipientMessage, members: readonly RecipientMember[]): AgentSlug[] {
-	const tagged = tags(message.text)
-	if (tagged.includes("all")) return members.map((m) => m.slug)
-	const chosen = new Set<string>(tagged)
+	if (message.mentions.includes("all")) return members.map((m) => m.slug)
+	const chosen = new Set<string>(message.mentions)
 	if (message.replyToAgent) chosen.add(message.replyToAgent)
 	const addressed = members.filter((m) => chosen.has(m.slug))
 	if (addressed.length) return addressed.map((m) => m.slug)

@@ -16,8 +16,9 @@ const steps: Step[] = [
   { name: "lint (frontend, not gating)", cmd: ["bunx", "biome", "check", "packages", "apps/web-solid"], cwd: root, advisory: true },
 ]
 for (const script of ["check-imports", "check-rules", "check-exports"]) {
-  if (existsSync(join(root, "scripts", `${script}.ts`))) steps.push({ name: script, cmd: ["bun", `scripts/${script}.ts`], cwd: root })
+  steps.push({ name: script, cmd: ["bun", `scripts/${script}.ts`], cwd: root })
 }
+steps.push({ name: "test scripts", cmd: ["bun", "test", "scripts/"], cwd: root })
 for (const group of ["apps", "core", "packages"]) {
   for (const name of readdirSync(join(root, group))) {
     const dir = join(root, group, name)

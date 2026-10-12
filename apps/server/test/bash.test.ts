@@ -23,7 +23,7 @@ afterAll(async () => {
 
 let n = 0
 const fresh = () => `01JZ8Q4T7B${String(++n).padStart(16, "0")}`
-type Out = { ok: boolean; text: string; ms: number }
+type Out = { ok: boolean; text: string; ms: number; details?: { changed: string[] } }
 
 function agent(room: string, slug = "ada") {
   const run = async (name: string, args: Record<string, unknown>): Promise<Out> => {
@@ -269,7 +269,7 @@ test("many files written in a loop are saved in one commit", async () => {
   expect((await a.bash("cat /n/*.txt | awk '{s += $1} END {print s}'")).text).toBe("465\n")
 })
 
-test("a command's changes save together: one refused file means none of them land", async () => {
+test("a command's writes save before its deletes: a refused delete keeps its file and says what saved", async () => {
   const room = fresh()
   const ada = agent(room, "ada")
   const bo = agent(room, "bo")
@@ -283,8 +283,11 @@ test("a command's changes save together: one refused file means none of them lan
   const out = await slow
   expect(out.ok).toBe(false)
   expect(out.text).toContain("/b.txt changed after this command started")
-  expect(out.text).toContain("nothing this command changed in the chat's files was saved")
-  expect(await ada.ls()).not.toMatch(/a\.txt|made|moved/)
+  expect(out.text).toContain("the file was kept")
+  expect(out.text).toContain("saved in the chat's files")
+  expect(await ada.ls()).toContain("/a.txt")
+  expect(await ada.ls()).toContain("/made")
+  expect(await ada.ls()).toContain("/moved.txt")
   expect(await ada.read("b.txt")).toBe("2\n")
 })
 
@@ -311,6 +314,26 @@ test("when the drive refuses a command's write, the output says the chat's files
   expect(out.text).toContain("saved in the chat's files")
   expect(await ada.read("/a.txt")).toBe("new\n")
   expect(await ada.read("/home/d.txt")).toBe("two\n")
+  expect(out.details?.changed).toEqual(["/a.txt"])
+})
+
+test("a move into the drive keeps its source when the drive refuses the write", async () => {
+  const room = fresh()
+  const ada = agent(room, "ada")
+  const bo = agent(room, "bo")
+  await ada.bash("echo keep > /c.txt")
+  await idle(room, "ada")
+  const slow = ada.bash("mv /c.txt /home/m.txt; sleep 1")
+  await sleep(300)
+  await bo.bash("echo bo > /home/m.txt")
+  await idle(room, "bo")
+  const out = await slow
+  expect(await ada.read("/c.txt")).toBe("keep\n")
+  expect(await ada.read("/home/m.txt")).toBe("bo\n")
+  expect(out.ok).toBe(false)
+  expect(out.text).toContain("/home/m.txt changed after this command started")
+  expect(out.text).toContain("/c.txt: not saved")
+  expect(out.details?.changed ?? []).toEqual([])
 })
 
 test("a runaway loop stops at the interpreter's limits and saves nothing", async () => {

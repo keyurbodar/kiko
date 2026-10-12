@@ -10,7 +10,6 @@ import {
   ok,
   type Result,
   type ShellExecOptions,
-  type ShellExecResult,
   type TextLineReader,
 } from "@earendil-works/pi-durable/env"
 import type { ConversationId, ToolExecutionApi } from "@earendil-works/pi-durable"
@@ -19,9 +18,9 @@ import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
-import { runCommand } from "./bash"
+import { type BashResult, runCommand } from "./bash"
 import { cleanPath, deleteFiles, fileKey } from "./upload"
-import type { CommitResult, IndexChange, NewFile } from "./file-index"
+import { baseName, type CommitResult, type IndexChange, type NewFile } from "./file-index"
 
 export const MAX_WRITE_BYTES = 1024 * 1024
 export const CHAT_PATH = "chat.md"
@@ -48,7 +47,7 @@ export type BatchChange =
 
 export type BatchResult = { ok: true } | { ok: false; path: string; message: string; conflict: boolean }
 
-const batchPaths = (c: BatchChange): [string, ...string[]] => (c.op === "move" ? [c.from, c.to] : [c.path])
+export const batchPaths = (c: BatchChange): [string, ...string[]] => (c.op === "move" ? [c.from, c.to] : [c.path])
 
 const CODE: Record<string, FileErrorCode> = { not_found: "not_found", is_directory: "is_directory", not_directory: "not_directory", invalid: "invalid" }
 
@@ -263,16 +262,20 @@ export class RoomFs implements ExecutionEnv {
     return ok(undefined)
   }
 
-  async move(from: string, to: string): Promise<Result<FsChange, FileError>> {
+  // `to` is the path the move wrote: a folder given as `to` keeps the name, as the backend does.
+  async move(from: string, to: string): Promise<Result<FsChange & { to: string }, FileError>> {
     const a = this.roomPath(from)
     if (!a.ok) return a
     const b = this.roomPath(to)
     if (!b.ok) return b
+    const dest = await this.stat(to)
+    const into = dest.ok && dest.value.kind === "directory"
+    const target = into ? [b.value, baseName(a.value)].filter(Boolean).join("/") : b.value
     const out = await this.backend.move(a.value, b.value)
     this.stats.clear()
     this.seen.delete(a.value)
     this.seen.delete(b.value)
-    return out.ok ? ok(out) : err(this.fail(out, from))
+    return out.ok ? ok({ ...out, to: `/${target}` }) : err(this.fail(out, from))
   }
 
   async renameFile(sourcePath: string, destinationPath: string): Promise<Result<void, FileError>> {
@@ -286,7 +289,7 @@ export class RoomFs implements ExecutionEnv {
     return out.ok ? ok(undefined) : out
   }
 
-  async removeAll(paths: readonly string[], recursive: boolean): Promise<Result<FsChange, FileError>> {
+  async removeAll(paths: readonly string[], recursive: boolean): Promise<Result<FsChange & { paths: string[] }, FileError>> {
     const rels: string[] = []
     for (const p of paths) {
       const rel = this.roomPath(p)
@@ -297,7 +300,7 @@ export class RoomFs implements ExecutionEnv {
     this.stats.clear()
     if (!out.ok) return err(this.fail(out))
     for (const rel of rels) this.seen.delete(rel)
-    return ok(out)
+    return ok({ ...out, paths: rels.map((rel) => `/${rel}`) })
   }
 
   async within<T>(fn: () => Promise<T>): Promise<T> {
@@ -362,7 +365,7 @@ export class RoomFs implements ExecutionEnv {
     return err(new FileError("not_supported", "the chat's files have no temporary files"))
   }
 
-  async exec(command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<ShellExecResult, ExecutionError>> {
+  async exec(command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<BashResult, ExecutionError>> {
     return runCommand(this, command, options, context)
   }
 
@@ -617,17 +620,17 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
       const mine = (c: BatchChange) => batchPaths(c).every(inside)
       const crossing = changes.find((c) => !mine(c) && batchPaths(c).some(inside))
       if (crossing) return { ok: false, path: batchPaths(crossing)[0], message: across.message, conflict: false }
-      const outside = changes.filter((c) => !mine(c))
+      const ours = changes.filter(mine)
+      if (ours.length && ours.length < changes.length) return { ok: false, path: batchPaths(changes[0])[0], message: `commit /${at} paths and the chat's paths in separate calls`, conflict: false }
       if (changes.some((c) => c.op !== "mkdir" && mine(c) && batchPaths(c).includes(at))) return { ok: false, path: at, message: `/${at} stays where it is`, conflict: false }
-      const there = changes.filter(mine).map((c): BatchChange => {
+      if (!ours.length) return base.commit(changes)
+      const there = ours.map((c): BatchChange => {
         if (c.op === "move") return { ...c, from: strip(c.from), to: strip(c.to) }
         if (c.op === "rmdir") return { ...c, path: strip(c.path), files: Object.fromEntries(Object.entries(c.files).map(([p, sha]) => [strip(p), sha])) }
         return { ...c, path: strip(c.path) }
       })
-      const first = outside.length ? await base.commit(outside) : ({ ok: true } as const)
-      if (!first.ok || !there.length) return first
-      const second = await mounted.commit(there)
-      return second.ok ? second : { ...second, path: `${at}/${second.path}` }
+      const out = await mounted.commit(there)
+      return out.ok ? out : { ...out, path: `${at}/${out.path}` }
     },
   }
 }
@@ -694,10 +697,9 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
         const hit = batchPaths(c).find(mine)
         if (hit !== undefined) return { ok: false, path: hit, message: "/me/soul.md stays where it is, and only it lives in /me. edit it instead", conflict: false }
       }
-      const rest = changes.filter((c) => !batchPaths(c).some(mine))
-      const first = rest.length ? await base.commit(rest) : ({ ok: true } as const)
       const write = changes.find((c) => c.op === "write" && c.path === SOUL_PATH)
-      if (!first.ok || write?.op !== "write") return first
+      if (write?.op !== "write") return base.commit(changes)
+      if (changes.length > 1) return { ok: false, path: SOUL_PATH, message: `${SOUL_PATH} is saved on its own. save it in a call of its own`, conflict: false }
       const out = await soul.set(new TextDecoder().decode(write.bytes), write.expect)
       return out.ok ? { ok: true } : { ok: false, path: SOUL_PATH, message: out.message, conflict: out.code === "conflict" }
     },

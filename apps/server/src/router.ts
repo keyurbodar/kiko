@@ -1,8 +1,10 @@
 import { type AuthEnv, getSessionUser } from "./auth/auth"
 import type { Env } from "./index"
 import { humanHandle } from "@yuki/protocol"
+import { boundedWait } from "@yuki/durable/bounded-wait"
 import { DEV } from "./lib/dev-guard"
 import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, roomStub, USER_ID_HEADER, userStub } from "./lib/names"
+import { readCapped } from "./lib/read-capped"
 
 export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string; name?: string } | null>
 
@@ -27,34 +29,6 @@ function hasUserIdKey(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(hasUserIdKey)
   if (value === null || typeof value !== "object") return false
   return Object.entries(value).some(([key, inner]) => USER_ID_KEY.test(key) || hasUserIdKey(inner))
-}
-
-// Reads a copy of the body, stopping as soon as it passes the cap, so a huge body is never
-// held in memory just to find out that it cannot be scanned.
-async function readCapped(request: Request, max: number): Promise<string | null> {
-  if (!request.body) return ""
-  const reader = request.body.getReader()
-  const chunks: Uint8Array[] = []
-  let size = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    size += value.byteLength
-    if (size > max) {
-      // The reader is a clone's branch of a tee; waiting on cancel would block on the branch
-      // no one reads. The over-cap request is refused, so the original body is not needed.
-      reader.cancel().catch(() => {})
-      return null
-    }
-    chunks.push(value)
-  }
-  const all = new Uint8Array(size)
-  let at = 0
-  for (const chunk of chunks) {
-    all.set(chunk, at)
-    at += chunk.byteLength
-  }
-  return new TextDecoder().decode(all)
 }
 
 // A body over the cap is refused, not read whole: the content-length header answers first,
@@ -103,11 +77,8 @@ export const UPGRADE_TIMEOUT_MS = 5_000
 
 // If this Worker invocation ends first, the object's own hello deadline closes the socket.
 async function within(ms: number, work: Promise<Response>): Promise<Response> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const late = new Promise<null>((resolve) => {
-    // check-rules: allow no-timer-in-do the Worker's own per-request timeout; it ends this request and holds no state
-    timer = setTimeout(() => resolve(null), ms)
-  })
+  const wait = boundedWait(ms)
+  const late = wait.then(() => null)
   try {
     const answer = await Promise.race([work, late])
     if (answer) return answer
@@ -121,7 +92,7 @@ async function within(ms: number, work: Promise<Response>): Promise<Response> {
     )
     return error(504, "socket setup timed out")
   } finally {
-    clearTimeout(timer)
+    wait.cancel()
   }
 }
 

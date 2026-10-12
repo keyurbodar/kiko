@@ -1,3 +1,5 @@
+import { boundedWait } from "@yuki/durable/bounded-wait"
+
 export type Answer = string
 
 export class AnswerWaiters {
@@ -13,15 +15,15 @@ export class AnswerWaiters {
     }
     if (signal?.aborted) return Promise.resolve(null)
     return new Promise((resolve) => {
+      const wait = boundedWait(ms)
       const onAbort = () => settle(null)
       const settle = (answer: Answer | null) => {
-        clearTimeout(deadline)
+        wait.cancel()
         signal?.removeEventListener("abort", onAbort)
         this.waiting.delete(id)
         resolve(answer)
       }
-      // check-rules: allow no-timer-in-do ask's bounded wait; on timeout the run goes on by safe replay, so no work depends on this timer surviving eviction (U05)
-      const deadline = setTimeout(() => settle(null), ms)
+      wait.then(() => settle(null))
       signal?.addEventListener("abort", onAbort)
       this.waiting.set(id, settle)
     })

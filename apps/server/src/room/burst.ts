@@ -3,13 +3,15 @@ import type { Alarms } from "@yuki/durable/alarm"
 import { MAX_ENTRY_BYTES, MAX_OPEN } from "@yuki/agent/inbox"
 
 export const BURST_WAKEUP = "burst"
+/** The reset of a held window. Its own key, so a later message's wakeup does not overwrite it. */
+export const BURST_HELD_WAKEUP = "burst-held"
 
 export const AFTER_MESSAGE_MS = 1_000
 export const AFTER_TYPING_MS = 2_500
 export const AFTER_FRAGMENT_MS = 2_500
 export const MAX_BURST_MS = 8_000
 
-type Row = { id: string; seq: number; at: number; text: string; reply_to: string | null }
+type Row = { id: string; seq: number; at: number; text: string; reply_to: string | null; mentions: string }
 
 const DANGLING = new Set(
 	"a an the and or but so because cause if then than that which who whom whose when while where though although unless until since as nor yet plus also like with without of to for from in on at by about into onto over under after before between through during against toward towards via per".split(
@@ -46,6 +48,9 @@ export function deliverable<T>(envelopes: readonly T[], maxCount = MAX_DELIVERY_
 
 export const envelopeId = (messageId: string) => `human:${messageId}`
 
+/** A human message waiting in the window: its envelope, and the slugs its whole text names. */
+export type Pending = { envelope: Envelope; mentions: string[] }
+
 export class Burst {
 	private readonly sql: SqlStorage
 
@@ -60,30 +65,43 @@ export class Burst {
 			seq INTEGER NOT NULL,
 			at INTEGER NOT NULL,
 			text TEXT NOT NULL,
-			reply_to TEXT
+			reply_to TEXT,
+			mentions TEXT NOT NULL DEFAULT '[]',
+			held_until INTEGER
 		)`)
 		this.sql.exec("CREATE INDEX IF NOT EXISTS pending_at ON pending (at)")
+		// A room whose window was open before these columns came has the old table.
+		const cols = this.sql.exec<{ name: string }>("PRAGMA table_info(pending)").toArray().map((c) => c.name)
+		if (!cols.includes("mentions")) this.sql.exec("ALTER TABLE pending ADD COLUMN mentions TEXT NOT NULL DEFAULT '[]'")
+		if (!cols.includes("held_until")) this.sql.exec("ALTER TABLE pending ADD COLUMN held_until INTEGER")
 	}
 
+	/** A burst is due: some message is not held, or its hold has passed. */
 	pending(): boolean {
-		return this.startedAt() !== null
+		return this.sql.exec("SELECT 1 FROM pending WHERE held_until IS NULL OR held_until <= ? LIMIT 1", this.now()).toArray().length > 0
 	}
 
 	private startedAt(): number | null {
-		return this.sql.exec<{ at: number | null }>("SELECT min(at) AS at FROM pending").one().at
+		return this.sql.exec<{ at: number | null }>("SELECT min(at) AS at FROM pending WHERE held_until IS NULL").one().at
 	}
 
-	async add(message: Pick<Message, "id" | "seq" | "text" | "replyTo">): Promise<void> {
-		const now = this.now()
+	/** Records a human message in the window, in the same transaction that stores the message. */
+	stage(message: Pick<Message, "id" | "seq" | "text" | "replyTo">, mentions: readonly string[]): void {
 		this.sql.exec(
-			"INSERT OR IGNORE INTO pending (id, seq, at, text, reply_to) VALUES (?, ?, ?, ?, ?)",
+			"INSERT OR IGNORE INTO pending (id, seq, at, text, reply_to, mentions) VALUES (?, ?, ?, ?, ?, ?)",
 			message.id,
 			message.seq,
-			now,
+			this.now(),
 			message.text,
 			message.replyTo ?? null,
+			JSON.stringify(mentions),
 		)
-		await this.alarms.setWakeup(BURST_WAKEUP, debounce(isFragment(message.text) ? "fragment" : "message", now, this.startedAt() ?? now))
+	}
+
+	/** Sets the wakeup for a staged message: the window closes a pause after it, or at the cap. */
+	async arm(text: string): Promise<void> {
+		const now = this.now()
+		await this.alarms.setWakeup(BURST_WAKEUP, debounce(isFragment(text) ? "fragment" : "message", now, this.startedAt() ?? now))
 	}
 
 	async typing(): Promise<void> {
@@ -92,21 +110,29 @@ export class Burst {
 		await this.alarms.setWakeup(BURST_WAKEUP, debounce("typing", this.now(), startedAt))
 	}
 
-	envelopes(roomId: RoomId, limit = MAX_DELIVERY_ENVELOPES): Envelope[] {
+	envelopes(roomId: RoomId, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
 		return this.sql
-			.exec<Row>("SELECT id, seq, at, text, reply_to FROM pending ORDER BY seq LIMIT ?", limit)
+			.exec<Row>("SELECT id, seq, at, text, reply_to, mentions FROM pending WHERE held_until IS NULL OR held_until <= ? ORDER BY seq LIMIT ?", this.now(), limit)
 			.toArray()
 			.map((r) => ({
-				id: envelopeId(r.id),
-				roomId,
-				from: { kind: "human" },
-				body: r.text,
-				...(r.reply_to ? { replyTo: r.reply_to as Envelope["replyTo"] } : {}),
-				hop: 0,
-				rootId: r.id,
-				seq: r.seq,
-				origin: "human",
+				envelope: {
+					id: envelopeId(r.id),
+					roomId,
+					from: { kind: "human" },
+					body: r.text,
+					...(r.reply_to ? { replyTo: r.reply_to as Envelope["replyTo"] } : {}),
+					hop: 0,
+					rootId: r.id,
+					seq: r.seq,
+					origin: "human",
+				},
+				mentions: JSON.parse(r.mentions) as string[],
 			}))
+	}
+
+	/** Holds the window until a reset: its messages are not due, so they do not count as pending. */
+	hold(until: number): void {
+		this.sql.exec("UPDATE pending SET held_until = ? WHERE held_until IS NULL", until)
 	}
 
 	delivered(envelopes: readonly Envelope[]): void {
@@ -118,6 +144,6 @@ export class Burst {
 	}
 
 	async retry(ms: number): Promise<void> {
-		if (this.startedAt() !== null) await this.alarms.setWakeup(BURST_WAKEUP, this.now() + ms)
+		if (this.pending()) await this.alarms.setWakeup(BURST_WAKEUP, this.now() + ms)
 	}
 }

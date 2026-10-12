@@ -1,3 +1,5 @@
+import { triggerProblem } from "./rule"
+
 export const EXTENSION_SDK = 1
 
 export type ExtensionEffect = "read" | "write" | "message" | "external"
@@ -108,10 +110,7 @@ export function needsScript(m: ExtensionManifest): boolean {
 
 export type ManifestCheck = { ok: true; manifest: ExtensionManifest } | { ok: false; problems: string[] }
 
-/** Rules that need code this package may not import, passed in by the host so the check and the install apply one rule. */
-export type CheckOptions = { repeatProblem?: (rrule: string) => string | null }
-
-export function checkManifest(value: unknown, options: CheckOptions = {}): ManifestCheck {
+export function checkManifest(value: unknown): ManifestCheck {
 	const problems: string[] = []
 	const bad = (line: string) => problems.push(line)
 	if (!isObject(value)) return { ok: false, problems: ["the manifest must be a json object"] }
@@ -241,7 +240,7 @@ export function checkManifest(value: unknown, options: CheckOptions = {}): Manif
 				else seen.add(t.id)
 				if (typeof t.rrule !== "string" || !RRULE.test(t.rrule.trim())) bad(`${at}: "rrule" must be a recurrence rule such as FREQ=DAILY;BYHOUR=9;BYMINUTE=0`)
 				else {
-					const problem = /FREQ=MINUTELY/.test(t.rrule) ? "a schedule repeats at most every 30 minutes" : options.repeatProblem?.(t.rrule)
+					const problem = triggerProblem(t.rrule)
 					if (problem) bad(`${at}: ${problem}`)
 				}
 				if (typeof t.send !== "string" || !t.send.trim() || t.send.length > 500) bad(`${at}: "send" must be text of at most 500 characters`)
@@ -270,9 +269,9 @@ export function checkManifest(value: unknown, options: CheckOptions = {}): Manif
 
 export type BundleCheck = { ok: true; bundle: ExtensionBundle } | { ok: false; problems: string[] }
 
-export function checkBundle(value: unknown, options: CheckOptions = {}): BundleCheck {
+export function checkBundle(value: unknown): BundleCheck {
 	if (!isObject(value)) return { ok: false, problems: ["the bundle must be { manifest, files }"] }
-	const m = checkManifest(value.manifest, options)
+	const m = checkManifest(value.manifest)
 	const problems = m.ok ? [] : [...m.problems]
 	const files = value.files
 	if (!isObject(files)) problems.push(`"files" must be an object of path to text`)

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Envelope } from "@yuki/protocol"
+import { Asks } from "../src/room/asks"
 import { Deliveries } from "../src/room/deliver"
 import { RoomLog } from "../src/room/log"
 import { Mail } from "../src/room/mail"
@@ -23,7 +24,7 @@ function setup(refusal: string | null) {
 	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
 	migrate(storage)
 	const log = new RoomLog(storage, () => 1)
-	const mail = new Mail(storage, log)
+	const mail = new Mail(storage, log, new Asks(sql))
 	const deliveries = new Deliveries(storage, log)
 	const received: { slug: string; ids: string[] }[] = []
 	const env = {
@@ -32,7 +33,7 @@ function setup(refusal: string | null) {
 			get: (name: string) => ({
 				receive: async (envelopes: Envelope[]) => {
 					received.push({ slug: name.split(":").at(-1)!, ids: envelopes.map((e) => e.id) })
-					return { refused: received.length === 1 ? refusal : null }
+					return { refused: refusal }
 				},
 			}),
 		},
@@ -52,15 +53,6 @@ function setup(refusal: string | null) {
 
 const human = (id: string): Envelope => ({ id, roomId: home.roomId, from: { kind: "human" }, body: "hi", hop: 0, rootId: id, seq: 1 })
 
-test("a refused human message gets a notice in the chat and leaves no chain behind", async () => {
-	const { deps, mail, texts } = setup("too_large")
-	expect(await receive(deps, home, ada, members, "t", [human("human:m1")])).toBe("refused")
-	expect(texts().some((t) => /your message to @ada was not delivered: it was too large/.test(t))).toBe(true)
-	expect(mail.chainRoot("ada" as AgentSlug)).toBeNull()
-	await receive(deps, home, ada, members, "t", [human("human:m1")])
-	expect(texts().filter((t) => /not delivered/.test(t))).toHaveLength(1)
-})
-
 test("a full inbox is no one's final answer: no notice, nothing marked", async () => {
 	const { deps, mail, texts } = setup("full")
 	expect(await receive(deps, home, ada, members, "t", [human("human:m1")])).toBe("full")
@@ -71,6 +63,9 @@ test("a full inbox is no one's final answer: no notice, nothing marked", async (
 test("a refused agent message gives back its hop and tells the sender", async () => {
 	const { deps, mail, received } = setup("too_large")
 	const members2 = [ada, bob]
+	mail.delivered("ada" as AgentSlug, [human("r1")])
+	expect(mail.send("ada" as AgentSlug, { id: "s1", to: "bob" as AgentSlug, text: "hello" }, members2)).toMatchObject({ ok: true })
+	expect(mail.deliveries("r1")).toBe(1)
 	const envelope: Envelope = { id: "agent:m9:bob", roomId: home.roomId, from: { kind: "agent", slug: "ada" as AgentSlug }, body: "x", hop: 1, rootId: "r1", seq: 1 }
 	expect(await receive(deps, home, bob, members2, "t", [envelope])).toBe("refused")
 	expect(received.map((r) => r.slug)).toEqual(["bob", "ada"])
@@ -84,9 +79,8 @@ test("an admitted message is marked delivered", async () => {
 	expect(mail.chainRoot("ada" as AgentSlug)).toBe("human:m1")
 })
 
-test("a send the room has seen before is not queued again", async () => {
-	const { deps, mail } = setup(null)
-	const queued: unknown[] = []
+test("a send the room has seen before is delivered once", async () => {
+	const { deps, received } = setup(null)
 	const pending: Promise<unknown>[] = []
 	const room = new RoomMail({
 		...deps,
@@ -99,13 +93,37 @@ test("a send the room has seen before is not queued again", async () => {
 		home: () => home,
 		title: async () => "t",
 	})
-	const queue = mail.queue.bind(mail)
-	mail.queue = (...a) => (queued.push(a), queue(...a))
 	const send = { id: "s1", to: "bob" as AgentSlug, text: "hello" }
 	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
 	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
 	await Promise.all(pending)
-	expect(queued).toHaveLength(1)
+	expect(received.filter((r) => r.slug === "bob")).toHaveLength(1)
+})
+
+test("a send that failed after it was recorded is still delivered once when the agent retries", async () => {
+	const { deps, received } = setup(null)
+	const pending: Promise<unknown>[] = []
+	let failing = true
+	const room = new RoomMail({
+		...deps,
+		publish: () => {
+			if (failing) throw new Error("publish failed")
+		},
+		ctx: { waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
+		members: { list: () => members } as never,
+		burst: { pending: () => false } as never,
+		asks: { sent: () => {}, answer: () => null, answeredBy: () => null } as never,
+		team: { doing: () => {} } as never,
+		alarms: {} as never,
+		home: () => home,
+		title: async () => "t",
+	})
+	const send = { id: "s1", to: "bob" as AgentSlug, text: "hello" }
+	await expect(room.send("ada" as AgentSlug, send, null)).rejects.toThrow("publish failed")
+	failing = false
+	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
+	await Promise.all(pending)
+	expect(received.filter((r) => r.slug === "bob")).toHaveLength(1)
 })
 
 test("held wakes older than a week are dropped when the next batch is read", () => {

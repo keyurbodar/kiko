@@ -60,11 +60,11 @@ export async function send(room: RoomHandle, text: string): Promise<void> {
 
 const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
 
-export async function fake(v: { url: string }, s: Session, roomId: string): Promise<void> {
+export async function fake(v: { url: string }, s: Session, roomId: string, slugs?: string[]): Promise<void> {
   const res = await fetch(new URL("api/dev/agent/fake", v.url.endsWith("/") ? v.url : `${v.url}/`), {
     method: "POST",
     headers: { "content-type": "application/json", cookie: s.cookie },
-    body: JSON.stringify({ roomId }),
+    body: JSON.stringify({ roomId, ...(slugs ? { slugs } : {}) }),
   })
   if (!res.ok) throw new VerifyError(`the fake agent route answered ${res.status}. start the Worker with NODE_ENV=development`)
 }
@@ -95,13 +95,27 @@ const cases: Case[] = [
       await send(room, "[tool] check")
       await until("the tool to start", () => statuses(room).includes("working"), 10_000)
       await send(room, "also this")
-      await until("an answer that says the tool was aborted", () => texts(room).some((t) => t.includes("aborted")), 3_000)
+      await until("an answer to both turns", () => texts(room).some((t) => t.startsWith("heard: [tool] check | also this;")), 3_000)
       await Bun.sleep(3_000)
+      const { all, deleted } = seen(room)
+      expectEqual(all.length, 1, "the agent's bubbles: one answer")
+      expectEqual(all[0]?.text.includes("slept"), false, "the stopped tool did not finish")
+      expectEqual(deleted, 0, "deleted bubbles")
+    },
+  },
+  {
+    name: "steer during a write",
+    async run(room) {
+      await send(room, "[write] save")
+      await until("the write to start", () => statuses(room).includes("working"), 10_000)
+      await send(room, "also this")
+      await until("an answer to both turns", () => texts(room).some((t) => t.startsWith("heard:")), 20_000)
+      await Bun.sleep(2_000)
       const { all, deleted } = seen(room)
       expectEqual(
         all.map((m) => m.text),
-        ["heard: [tool] check | also this; tool: <harness>\n[error] Tool slow_tool was aborted\n</harness>"],
-        "the agent's bubbles: the tool was stopped and one answer covers both turns",
+        ["heard: [write] save | also this; tool: slept"],
+        "the agent's bubbles: the write ran to its end, and one answer covers both turns",
       )
       expectEqual(deleted, 0, "deleted bubbles")
     },

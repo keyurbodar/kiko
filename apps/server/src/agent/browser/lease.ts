@@ -1,3 +1,5 @@
+import type { UserDO } from "../../user/user-do"
+
 export type Lease = { sessionId: string; cdpUrl: string; mode: "headless" | "headful"; restarted: boolean; reopen: string[] }
 
 export type BrowserState = { connected: boolean; takeover: boolean; tabs: Record<string, number> }
@@ -36,19 +38,21 @@ export interface LeasePort {
   listFiles(dir: string): Promise<string[]>
 }
 
-export type UserBrowserRpc = {
-  browserLease(agentId: string): Promise<Lease>
-  browserTouch(agentId: string, tabs?: Record<string, string>): Promise<boolean>
-  browserDead(agentId: string, sessionId: string): Promise<boolean>
-  browserRelease(agentId: string): Promise<void>
-  browserCheck(): Promise<BrowserState>
-  browserTakeover(): Promise<boolean>
-  browserShare(agentId: string, roomId: string, reason: string): Promise<boolean>
-  browserFetch(agentId: string, req: FetchRequest): Promise<FetchResult>
-  browserPutFile(agentId: string, name: string, base64: string): Promise<{ path: string }>
-  browserGetFile(agentId: string, path: string): Promise<{ name: string; base64: string; size: number }>
-  browserListFiles(agentId: string, dir: string): Promise<string[]>
-}
+/** The user's RPC surface, read from `UserDO` so each signature is declared once. */
+export type UserBrowserRpc = Pick<
+  UserDO,
+  | "browserLease"
+  | "browserTouch"
+  | "browserDead"
+  | "browserRelease"
+  | "browserCheck"
+  | "browserTakeover"
+  | "browserShare"
+  | "browserFetch"
+  | "browserPutFile"
+  | "browserGetFile"
+  | "browserListFiles"
+>
 
 const NOT_CONNECTED = /not connected/i
 

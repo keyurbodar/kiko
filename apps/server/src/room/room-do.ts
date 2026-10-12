@@ -14,7 +14,7 @@ import type { RoomRoutine } from "../user/routines"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
 import { closeSockets, isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { sha256Hex } from "@yuki/durable/hash"
-import { BURST_WAKEUP, Burst } from "./burst"
+import { BURST_HELD_WAKEUP, BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
@@ -30,8 +30,10 @@ import { CHIEF, type ProposalInput } from "./chief"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
-import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
-import { claim, ClaimRefused, legacyFiles, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
+import { agentReact, reactionBrief } from "./reactions"
+import { attachmentPath, claim, ClaimRefused, legacyFiles, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
+import { bubbleOf, discardWhole, putWhole, WHOLE_NAME, WHOLE_TYPE, type WholeText } from "./whole-text"
+import { tags } from "./recipients"
 import { migrate } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
@@ -40,19 +42,20 @@ import { MemoryNaps, MEMORY_WAKEUP, QUIET_WAKEUP } from "./memory-naps"
 import { applyTaskOp, RoomWorkspace, runCall, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
 import { Reports } from "./reports"
 import { Proposals } from "./proposals"
-import { receive, type ReceiveDeps } from "./receive"
+import type { ReceiveDeps } from "./receive"
+import type { AgentHome, Home } from "./home"
 import { RoomWakes, WAKES_WAKEUP } from "./wake-delivery"
-import { RoomMail } from "./mail-drain"
+import { MAIL_WAKEUP, RoomMail } from "./mail-drain"
 import { BurstFlush } from "./burst-flush"
 
 export const DEFAULT_AGENT = "yuki" as AgentSlug
 const CHIEF_NAME = "Yuki"
-const MAIL_WAKEUP = "mail"
-
-export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
+export type { AgentHome }
 
 
 const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "delete", "react", "read", "member", "member_removed"])
+
+type SendOutcome = { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }
 
 export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string }
 
@@ -86,10 +89,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private reports!: Reports
 	private wakes!: RoomWakes
 	private mailer!: RoomMail
+	private receiver!: ReceiveDeps
 	private outbox!: HeldWakes
 	private dev!: RoomDev
 	private pending!: PendingUploads
 	private readonly typing = new Set<AgentSlug>()
+	private sends: Promise<unknown> = Promise.resolve()
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env)
@@ -104,10 +109,19 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.alarms = createAlarms(ctx)
 			this.burst = new Burst(ctx.storage, this.alarms)
 			this.bubbles = new Bubbles(ctx.storage, this.log)
-			this.mail = new Mail(ctx.storage, this.log, (slug) => (this.members.get(slug)?.status ?? "idle") !== "idle")
+			this.asks = new Asks(ctx.storage.sql)
+			this.mail = new Mail(ctx.storage, this.log, this.asks, (slug) => (this.members.get(slug)?.status ?? "idle") !== "idle")
+			this.receiver = {
+				env: this.env,
+				log: this.log,
+				mail: this.mail,
+				deliveries: this.deliveries,
+				publish: (events) => this.publish(events),
+				agentHome: (home, slug, member) => this.agentHome(home, slug, member),
+				delivery: (member, members, goal, raw) => this.delivery(member, members, goal, raw),
+			}
 			this.members = new Members(ctx.storage, this.log)
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
-			this.asks = new Asks(ctx.storage.sql)
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home(), isWiped: () => isWiped(ctx.storage) })
@@ -143,10 +157,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				chat: (home) => this.chat(home),
 				seedMembers: (home, chat) => this.seedMembers(home, chat),
 				publish: (events) => this.publish(events),
-				receive: (home, member, members, chatTitle, envelope) => receive(this.receiveDeps, home, member, members, chatTitle, [envelope]),
+				receiver: this.receiver,
 			})
 			this.mailer = new RoomMail({
-				...this.receiveDeps,
+				...this.receiver,
 				ctx,
 				members: this.members,
 				burst: this.burst,
@@ -157,7 +171,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				title: (home) => this.title(home),
 			})
 			this.burstFlush = new BurstFlush({
-				...this.receiveDeps,
+				...this.receiver,
 				ctx,
 				members: this.members,
 				burst: this.burst,
@@ -172,25 +186,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		})
 	}
 
-	private get receiveDeps(): ReceiveDeps {
-		return {
-			env: this.env,
-			log: this.log,
-			mail: this.mail,
-			deliveries: this.deliveries,
-			publish: (events) => this.publish(events),
-			agentHome: (home, slug, member) => this.agentHome(home, slug, member),
-			delivery: (member, members, goal, raw) => this.delivery(member, members, goal, raw),
-		}
-	}
-
-	private home(): { userId: string; roomId: RoomId } | null {
+	private home(): Home | null {
 		const userId = this.log.meta("user_id")
 		const roomId = this.log.meta("room_id")
 		return userId && roomId ? { userId, roomId: roomId as RoomId } : null
 	}
 
-	private async chat(home: { userId: string; roomId: RoomId }): Promise<Chat | null> {
+	private async chat(home: Home): Promise<Chat | null> {
 		const chat = await userStub(this.env.USER, home.userId).getChat(home.roomId)
 		if (chat) this.remember(chat)
 		return chat
@@ -201,7 +203,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (this.log.meta("title") !== chat.title) this.log.setMeta("title", chat.title)
 	}
 
-	private async title(home: { userId: string; roomId: RoomId }): Promise<string> {
+	private async title(home: Home): Promise<string> {
 		return this.log.meta("title") ?? (await this.chat(home))?.title ?? ""
 	}
 
@@ -209,11 +211,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if ((this.log.meta("private") === "1") !== value) this.log.setMeta("private", value ? "1" : "0")
 	}
 
-	private agentHome(home: { userId: string; roomId: RoomId }, slug: AgentSlug, member: { role?: string; lead: boolean }): AgentHome {
+	private agentHome(home: Home, slug: AgentSlug, member: { role?: string; lead: boolean }): AgentHome {
 		return { ...home, slug, role: member.role, lead: member.lead, private: this.log.meta("private") === "1" }
 	}
 
-	private async seedMembers(home: { userId: string; roomId: RoomId }, chat: Chat): Promise<void> {
+	private async seedMembers(home: Home, chat: Chat): Promise<void> {
 		if (this.members.seeded()) return this.trySeedChatFile(chat.title)
 		let agents: NewMember[] = []
 		if (chat.agents?.length) {
@@ -276,7 +278,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.log.setMeta("chat_file", "1")
 	}
 
-	private adopt(userId: string): { userId: string; roomId: RoomId } | null {
+	private adopt(userId: string): Home | null {
 		if (this.log.meta("user_id") === null) {
 			const name = this.ctx.id.name ?? ""
 			const roomId = name.slice(name.lastIndexOf(":") + 1)
@@ -308,6 +310,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await runDue(this.alarms, due, {
 			[HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
 			[BURST_WAKEUP]: () => this.burstFlush.flush(),
+			[BURST_HELD_WAKEUP]: () => this.burstFlush.flush(),
 			[WAKES_WAKEUP]: () => this.deliverWakes(),
 			[MAIL_WAKEUP]: () => this.mailer.drain(),
 			[MEMORY_WAKEUP]: () => this.memoryNaps.naps(),
@@ -319,7 +322,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!due.includes(MAIL_WAKEUP) && this.mail.queued()) await this.mailer.drain()
 	}
 
-	private async captureAnswer(home: { userId: string; roomId: RoomId }, slug: AgentSlug, runId: string): Promise<void> {
+	private async captureAnswer(home: Home, slug: AgentSlug, runId: string): Promise<void> {
 		if (this.log.meta("private") === "1") return
 		const items = this.ctx.storage.sql
 			.exec<{ id: string; text: string; at: number }>("SELECT id, text, at FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
@@ -369,14 +372,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	async agentMessage(slug: AgentSlug, send: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }> {
 		return this.mailer.send(slug, send, null)
-	}
-
-	private pushAnswer(home: { userId: string; roomId: RoomId }, asker: AgentSlug, askId: string, text: string): void {
-		this.ctx.waitUntil(
-			agentStub(this.env.AGENT, home.userId, home.roomId, asker)
-				.askAnswered(askId, text)
-				.catch((e: unknown) => console.error(`ask answer push failed: ${e instanceof Error ? e.message : String(e)}`)),
-		)
 	}
 
 	async ask(slug: AgentSlug, send: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }> {
@@ -452,7 +447,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-		handleFrame(this, ws, message)
+		await handleFrame(this, ws, message)
 	}
 
 	async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
@@ -469,9 +464,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.reports.gather(events)
 		if (events.some((e) => e.t === "edit" || e.t === "delete")) this.ctx.waitUntil(this.memoryNaps.forget())
 		if (events.some((e) => e.t === "task" || e.t === "task_removed")) this.ctx.waitUntil(this.tasksChanged())
-		for (const e of events) if (e.t === "message" && e.from.kind === "human") this.ctx.waitUntil(this.burst.add(e))
-		const human = events.flatMap((e) => (e.t === "message" && e.from.kind === "human" ? [e] : []))
-		if (human.length) this.ctx.waitUntil(this.burstFlush.warnBusyAgents(human))
+		const human = events.flatMap((e) => (e.t === "message" && e.from.kind === "human" ? [e.text] : []))
+		const last = human.at(-1)
+		if (last !== undefined) {
+			this.ctx.waitUntil(this.burst.arm(last))
+			this.ctx.waitUntil(this.burstFlush.warnBusyAgents())
+		}
 	}
 
 	#touching = false
@@ -545,26 +543,52 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.wakes.retryHeld()
 	}
 
-	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string } {
-		const earlier = this.log.sentBefore(frame.clientId)
-		if (earlier) return { ack: earlier, events: [] }
+	/**
+	 * Sends run one at a time, in the order the sockets delivered them. A long send waits on R2
+	 * before its transaction, so a short send that came after it must wait too, or it takes an earlier seq.
+	 */
+	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<SendOutcome> {
+		const out = this.sends.then(() => this.storeSend(frame))
+		this.sends = out.catch(() => {})
+		return out
+	}
+
+	private async storeSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<SendOutcome> {
+		const text = bubbleOf(frame.text)
+		let whole: WholeText | null = null
 		try {
+			if (text.length < frame.text.length && !this.log.sentBefore(frame.clientId)) {
+				const home = this.home()
+				if (!home) throw new ClaimRefused("This chat is not ready. Send again in a moment.")
+				whole = await putWhole(this.env.FILES, home, frame.clientId, frame.text)
+			}
 			return this.ctx.storage.transactionSync(() => {
+				const earlier = this.log.sentBefore(frame.clientId)
+				if (earlier) return { ack: earlier, events: [] }
+				const now = Date.now()
 				const claimed = frame.attachments?.length
-					? claim(this.pending, this.files, frame.attachments, Date.now())
+					? claim(this.pending, this.files, frame.attachments, now)
 					: { refs: frame.files?.length ? legacyFiles(this.files, frame.files) : [], events: [] }
+				const filed = whole
+					? this.files.put({ id: whole.id, path: attachmentPath(WHOLE_NAME, now, (p) => this.files.stat(p) !== null), r2Key: whole.r2Key, size: whole.size, type: WHOLE_TYPE, sha256: whole.sha256, author: { kind: "human" }, expectSha256: "none" })
+					: null
+				if (filed && (!filed.file || filed.refused || filed.drop)) throw new ClaimRefused("The message's text could not be stored as a file.")
+				const refs = [...claimed.refs, ...(filed?.file ? [filed.file] : [])]
 				const replyTo = frame.replyTo && this.log.message(frame.replyTo) ? frame.replyTo : undefined
 				const stored = this.log.addMessage({
 					from: { kind: "human" },
-					text: frame.text,
+					text,
 					clientId: frame.clientId,
 					...(replyTo ? { replyTo } : {}),
 					...(replyTo && frame.quote?.trim() ? { quote: frame.quote.trim() } : {}),
-					...(claimed.refs.length ? { files: claimed.refs } : {}),
+					...(refs.length ? { files: refs } : {}),
 				})
-				return { ack: { id: stored.id, seq: stored.seq }, events: [...claimed.events, ...(stored.event ? [stored.event] : [])] }
+				// The burst row takes the whole text's mentions, so routing does not depend on the bubble.
+				if (stored.event) this.burst.stage({ id: stored.id, seq: stored.seq, text, replyTo }, tags(frame.text))
+				return { ack: { id: stored.id, seq: stored.seq }, events: [...claimed.events, ...(filed?.events ?? []), ...(stored.event ? [stored.event] : [])] }
 			})
 		} catch (error) {
+			if (whole) await discardWhole(this.env.FILES, whole).catch((e: unknown) => console.error(`whole text delete failed: ${e instanceof Error ? e.message : String(e)}`))
 			if (error instanceof ClaimRefused) return { refused: error.message }
 			throw error
 		}
@@ -699,10 +723,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out
 	}
 
+	/** The human's messages still in the burst window are not dropped: they go out after the stop, as sent. */
 	stop(): void {
 		const home = this.home()
 		if (!home) return
-		this.burst.clear()
 		this.mail.stop()
 		for (const member of this.members.list()) {
 			this.stopAgent(home, member.slug)
@@ -710,7 +734,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	private stopAgent(home: { userId: string; roomId: RoomId }, slug: AgentSlug): void {
+	private stopAgent(home: Home, slug: AgentSlug): void {
 		const agent = agentStub(this.env.AGENT, home.userId, home.roomId, slug)
 		this.ctx.waitUntil(
 			agent.stop().then(
@@ -819,7 +843,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because the human has not connected ${provider}. tell the human, or go on without it.)`
 			for (const ask of this.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
-				if (this.asks.settle(ask.id, why) && ask.state === "open") this.pushAnswer(home, ask.asker, ask.id, why)
+				if (this.asks.settle(ask.id, why) && ask.state === "open") this.mailer.answer(home, ask.asker, ask.id, why)
 			}
 		}
 		this.reports.run(this.routines.dropped(slug), "failed")

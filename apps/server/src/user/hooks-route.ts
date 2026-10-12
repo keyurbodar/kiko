@@ -1,5 +1,6 @@
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
+import { readCapped } from "../lib/read-capped"
 import { sha256Hex } from "@yuki/durable/hash"
 const PATH = /^\/api\/hooks\/([0-9a-f]{48})$/
 export const MAX_HOOK_BYTES = 64 * 1024
@@ -18,28 +19,4 @@ export async function hooksRoute(request: Request, env: Env): Promise<Response |
   const key = request.headers.get("x-github-delivery") ?? request.headers.get("idempotency-key") ?? request.headers.get("x-request-id") ?? `${(await sha256Hex(body)).slice(0, 32)}:${Math.floor(Date.now() / 60_000)}`
   const status = await userStub(env.USER, row.user_id).routineHook(row.routine_id, token, key.slice(0, 128), body)
   return status === "unknown" ? answer(404, { error: "no such hook" }) : answer(202, { status })
-}
-
-async function readCapped(request: Request, max: number): Promise<string | null> {
-  if (!request.body) return ""
-  const reader = request.body.getReader()
-  const chunks: Uint8Array[] = []
-  let size = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    size += value.byteLength
-    if (size > max) {
-      await reader.cancel()
-      return null
-    }
-    chunks.push(value)
-  }
-  const all = new Uint8Array(size)
-  let at = 0
-  for (const c of chunks) {
-    all.set(c, at)
-    at += c.byteLength
-  }
-  return new TextDecoder().decode(all)
 }
