@@ -12,7 +12,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 2. **Optimistic.** Every user action applies locally before the server answers.
 3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles.
 4. **The human outranks every agent.** A human message is handled first and can interrupt work.
-5. **Users never cross.** Only the Worker builds a Durable Object name, always from the session's user id. The one exception is a routine's webhook, which has no session: the Worker uses the user id its D1 row names (architecture D9).
+5. **Users never cross.** Only the Worker builds a Durable Object name, through `apps/server/src/lib/names.ts`, always from the session's user id. The one exception is a routine's webhook, which has no session: the Worker uses the user id its D1 row names (architecture D9).
 6. **Keys stay on the server.** A credential is encrypted in `UserDO`, never logged, and never sent to the client.
 7. **Sentence case.** Interface strings are sentence case, as in monocode and t3code: "Accent color", "Sign out". Names keep their own casing: Yuki, Anthropic, Claude Opus 4.6, Open VSX.
 
@@ -36,13 +36,15 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Do not do CPU-heavy work in a Worker handler or the queue consumer.** On the Free plan they are stopped at random from about 0.15 s of CPU. Put it in a Durable Object, which has 30 s per request. Architecture section 17.3.
 - **Do not fetch the outside from an agent's run except through `egress`.** A run's work belongs to one invocation, and Free allows 50 subrequests per invocation. Model requests and `web_fetch` already go through `AgentDO.egress`.
 - **Do not bind one SQL value per item of a list.** A query binds at most 100. Pass the list as one JSON value and read it with `json_each(?)`.
+- **Do not add a table anywhere but its object's step list.** Every table is one versioned step at the end of the list in `schema.ts`, run by `migrate` in `core/durable/src/migrate.ts`. Appended, never edited or moved, and safe on a table that already exists.
 - **Do not use `setTimeout` to schedule work in a Durable Object.** It does not survive eviction and it blocks hibernation. Use `alarm.ts`.
 - **Do not write a handler that is unsafe to run twice.** Alarms and queues deliver at least once. Give every delivery and post a stable id.
 - **Do not add a tool without an effect.** Every tool declares `read`, `write`, `message`, or `external`.
 - **Do not build an agent outside `factory.ts`.** It is the one place that selects extensions.
 - **Do not give an extension script a way out except the bridge in `core/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `yuki.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
 - **Do not let anything but the human's socket install an extension.** Agents and the catalog only propose.
-- **Do not import `apps/` or `@yuki/protocol` from `core/durable`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass yuki's behavior in as an option. `scripts/check-imports.ts` fails the build.
+- **Do not import `apps/` or `@yuki/protocol` from `core/durable`, `browser`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass yuki's behavior in as an option. `scripts/check-imports.ts` fails the build.
+- **Do not read `process.env.NODE_ENV` outside `apps/server/src/lib/dev-guard.ts`.** Dev-only code loads through that module, so a production build drops it. `bun run --cwd apps/server deploy` forces `NODE_ENV=production`.
 - **Do not import Effect, CodeMirror, or a markdown parser into client tiers 1 to 3.** The budget script fails the build.
 - **Do not add a model list, a provider adapter, or a Composio tool name.** Those come from `pi-ai` and from Composio at run time.
 - **Do not commit a secret.** Keys live in `.dev.vars` and in CI secrets. `OPENCODE_API_KEY` is read from the environment.
@@ -67,9 +69,9 @@ Dev keys live in `~/.config/yuki/dev.vars`. Every worktree's `apps/server/.dev.v
 A change is not done until it is verified and you have shown the output. Tests alone are not enough.
 
 ```bash
-bun run check                     # the one gate: typecheck, backend lint, imports, rules, exports, every package's tests
+bun run check                     # the one gate: typecheck, backend lint, imports, rules, exports, script tests, every package's tests
 bun run typecheck
-bun run test                      # every package: client, cli, protocol, server (a bare `bun test` at the root fails)
+bun run test                      # every package's tests: client, cli, server, core/browser, core/protocol (a bare `bun test` at the root fails)
 bun run --cwd apps/server test    # server: one process per file, each boots its own workerd
 bun yuki verify --list            # backend suites
 bun yuki verify <suite> --url http://localhost:<n>   # one suite; or set YUKI_URL (the default port 8787 belongs to other sessions)
@@ -79,6 +81,7 @@ bun scripts/check-imports.ts      # packages import only the packages below them
 ```
 
 - `bun run check` is the gate a change must pass before it lands. `scripts/check-rules.ts` enforces the rules under "Ways to hurt yourself" (`no-timer-in-do`, `egress`, `dev-guard`, `do-names`, `sql-list-binds`). A reasoned exception goes on the line above the code as `// check-rules: allow <rule> <reason>`.
+- Wrap every heavy command (the gate, a test run, a typecheck, a dev server, `bun yuki verify`) in `issues/bin/heavy.sh`. The machine has 4 CPUs, and at most two heavy commands run at once (issues/STANDING.md).
 - Backend work is verified through the yuki CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
 - Frontend work is verified with the `verify-yuki` skill, which drives a real browser. Use it for checks that matter, not for every change.
 - Team and loop behavior is tested with fake agents first, so tests are deterministic and cost no tokens.

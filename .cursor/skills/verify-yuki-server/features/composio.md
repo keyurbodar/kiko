@@ -2,13 +2,15 @@
 
 Proves the Composio integration end to end with a real model: a bad key is refused, a learned tool is reused, and a routine reloads to use it.
 
+Suite: `composio`. Flags: `model: true`, `human: true`. A person must connect the Composio account, so it runs only by name, alone.
+
 Needs, in the shell: `OPENCODE_API_KEY` (the model) and `COMPOSIO_API_KEY` (the Composio project key, `ak_...`). Never print or paste a key value.
 
 ```bash
 bun yuki verify composio --url http://localhost:8787
 ```
 
-This suite is `human: true`, so run it by name, alone. It needs network access to Composio. Set `YUKI_COMPOSIO_MODEL` to pick another model. The suite allows 150 s per turn and runs four chats plus a routine.
+It needs network access to Composio. Set `YUKI_COMPOSIO_MODEL` to pick another model. The suite allows 150 s per turn and runs three chats plus a routine.
 
 The suite asserts, in order:
 

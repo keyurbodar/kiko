@@ -52,6 +52,15 @@ Useful here: `attention {action}` (the initiative engine: `rhythm` with `mode: n
 - No route ages memory lines or the life log (for staleness or "follow up on a stated deadline" behavior).
 - `usage` memory counters are cumulative per user; take a before and after, or use a fresh user per arm.
 
+## What the engine does
+
+Use these rules when a scenario asserts timing. They are in `apps/server/src/initiative`.
+
+- Rest. After a loop is surfaced it rests until `lastSurfaced + cycle * 2^min(ignored, 3)`, where `cycle` is the rhythm's cycle (`restUntil` in `attention/appetite.ts`). The ignore count stops doubling at 3, so the longest rest is 8 cycles.
+- Pass gap. The next attention pass is scheduled at least 20 hours after the last one (`MIN_GAP` in `engine.ts`).
+- Engagement. In a chat that Jev reads, Jev's verdict on the burst decides whether a nudge was answered. Elsewhere, a burst that shares two words with a loop counts as a reply (`SHARED_WORDS`).
+- Jev failures. A burst gets three Jev passes in all: the first try and two retries, 15 seconds apart (`LOOPS_TRIES` and `LOOPS_DELAY_MS` in `user/initiative-loops.ts`). If the third pass fails, the two-word rule decides the burst.
+
 ## Evidence
 
 Each `save` lands in `artifacts/initiative/<timestamp>-<name>/` (transcript, lifelines, usage, reminders, routines JSON). Proof standard: real user path (CLI client sockets and credentials route), the agent's actual bubbles, and the side effects (life lines, reminders, counters) read back, not just the reply. Cleanup removes the server, never the artifacts.

@@ -8,7 +8,7 @@ Suites: `memory-tools`, `memory-session`, `memory-eval`, `memory-hard`, `soul`. 
 
 - Cross-chat recall (`memory-tools`): a fact said in chat one is answered in chat two. It passes on an agent note ("@") or a "you:" line.
 - In-chat answers without tools (`memory-session`): small talk and facts already in the conversation do not call recall or zoom.
-- Long-chat recall (`memory-eval`, `memory-hard`): summaries of a 320 or 640 turn chat answer questions about early facts. `memory-eval` needs all 9 answers right. `memory-hard` needs 12 of 15.
+- Long-chat recall (`memory-eval`, `memory-hard`): summaries of a 320 or 640 turn chat answer questions about early facts. `memory-eval` needs 9 of 10. `memory-hard` needs 12 of 15.
 - Soul (`soul`): a correction to the agent is written to its soul and holds in a later chat.
 
 ## How to get to it (user POV)
@@ -33,4 +33,4 @@ bun yuki verify memory-hard --url http://localhost:<port>
 ## Gotchas
 
 - `memory-session` fails if turn 6 calls recall or zoom, or if the session restarts.
-- `memory-eval` and `memory-hard` can poll for up to 45 minutes. Run them alone, not through `verify-parallel.sh`, which caps each suite at 540 s.
+- `memory-eval` and `memory-hard` passed on main on 2026-10-12 in about 1 and 3 minutes. The summary loop still gives up after 45 minutes, so run them alone, not through `verify-parallel.sh`, which caps each suite at 540 s.

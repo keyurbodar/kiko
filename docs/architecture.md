@@ -35,9 +35,9 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 | Code mode | `@earendil-works/pi-codemode`, which needs Node `worker_threads` | nothing. See section 12 |
 | User extensions | the registry, `install` that replaces in place, and per-conversation selection | the manifest, the QuickJS sandbox, and the storage and review. See section 24 |
 
-**Decision.** Yuki depends on `pi-durable`, `pi-ai`, and `chord` from npm at exact pinned versions. All three are published at 1.0.0 (checked against the npm registry on 2026-10-02). Yuki extends `pi-durable` only through its documented extension points, which are `defineExtension`, `defineTool`, `PromptSection`, the generation, tool, and compaction hooks, and the `Storage` and `SqliteDatabase` interfaces.
+**Decision.** Yuki depends on `pi-durable`, `pi-ai`, and `chord` from npm. `chord` is declared at `1.0.0`. `pi-durable` and `pi-ai` are declared as `^1.0.0`, and `bun.lock` pins all three at 1.0.0. All three were published at 1.0.0 (checked against the npm registry on 2026-10-02). Yuki extends `pi-durable` only through its documented extension points, which are `defineExtension`, `defineTool`, `PromptSection`, the generation, tool, and compaction hooks, and the `Storage` and `SqliteDatabase` interfaces.
 
-**Reasoning.** The `pi-durable` README opens with "Experimental. The API changes without notice between releases." An exact pin and a thin host layer keep an upgrade to one package's worth of work. Yuki code that touches pi types lives in `apps/server/src/agent/` and in three reusable packages: `@yuki/agent` (the host), `@yuki/memory`, and `@yuki/sandbox`. A breaking release lands there and nowhere else.
+**Reasoning.** The `pi-durable` README opens with "Experimental. The API changes without notice between releases." A lockfile pin and a thin host layer keep an upgrade to one package's worth of work. Yuki code that touches pi types lives in `apps/server/src/agent/` and in three reusable packages: `@yuki/agent` (the host), `@yuki/memory`, and `@yuki/sandbox`. A breaking release lands there and nowhere else.
 
 **Reusable packages.** Changed on 2026-10-08. The parts of the server any chat on Durable Objects and `pi-durable` could use are workspace packages, so a second app can depend on them without yuki's rooms, protocol, or product:
 
@@ -45,8 +45,8 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 | --- | --- | --- |
 | `@yuki/durable` | the multiplexed alarm, the hello deadline, storage wipe, `safeFetch`, sealed secrets, HTML to text | nothing from yuki |
 | `@yuki/agent` | the `pi-durable` host, inbox, mid-run rules, effects, the run's origin, ask waiters, the SQLite facade, coalesced storage, and a structural `Envelope` | `@yuki/durable` |
-| `@yuki/memory` | the OptMem tree, the life log, and the `recall`, `zoom`, and `note` tools | `@yuki/agent` |
-| `@yuki/sandbox` | the QuickJS VM, the manifest format and its checks, the bridge compiler, and the bundle checker | `@yuki/agent` |
+| `@yuki/memory` | the OptMem tree, the life log, the judge and capture, the open loops, and the `recall`, `zoom`, and `note` tools | `@yuki/agent` |
+| `@yuki/sandbox` | the QuickJS VM, the manifest format and its checks, the bridge compiler, the bundle checker, and the recurrence rule (`rrule`) | `@yuki/agent` |
 
 `bun scripts/check-imports.ts` enforces the last column and that no package reaches into `apps/`. CI runs it. The packages are not published: they become an SDK when a second app needs them, not before. The room engine (burst, mail, delivery) stays in `RoomDO` until its protocol unions are open to another app's events.
 
@@ -145,7 +145,7 @@ Wipe. A deleted object writes one stored wipe order in `core/durable` (U33) befo
 | Agent loop | its own (`AIChatAgent`, "Think"), built around the AI SDK | `pi-durable`, as the spec requires |
 | Storage | its own SQLite tables, sessions, and compaction | `pi-durable` storage |
 | Client sync | whole-state sync aimed at `useAgent` React hooks | per-message rows with resume by sequence |
-| Scheduling | alarm multiplexing built in | about 60 lines in `alarm.ts` |
+| Scheduling | alarm multiplexing built in | about 80 lines in `alarm.ts` |
 | Maturity | pre-1.0, many subpath exports, pushed daily | two experimental layers avoided |
 
 **Reasoning.** The spec fixes `pi-durable` as the foundation. The Agents SDK would bring a second agent loop, a second storage model, and a second compaction system next to the first, and yuki would use almost none of it. What yuki needs from the SDK is alarm multiplexing, hibernatable WebSockets, and RPC. The last two are platform features. The first is small. Stacking a pre-1.0 SDK on an experimental harness doubles the surface that can break on upgrade.
@@ -193,7 +193,7 @@ The room reads the chat row from `UserDO` first, and charges the day's turn only
 | State of the current run | Action | `pi-durable` call |
 | --- | --- | --- |
 | No bubble posted and no tool started | **restart**. Abort, then submit the new burst. The model sees both user turns and answers once | `conversation.abort()`, then `submit()` |
-| A tool is running | **interrupt**. The burst is submitted as a steer, and each running tool that may be stopped (a read, `bash`, or `ask`) is aborted. The steer lands right after the stopped tool | `submit({whenBusy: "steer"})`, then `abortTask()` for each such tool |
+| A tool is running | **interrupt**. The burst is submitted as a steer, and each running tool that may be stopped (a read or `bash`) is aborted. The steer lands right after the stopped tool | `submit({whenBusy: "steer"})`, then `abortTask()` for each such tool |
 | A tool round has finished | **steer**. The new burst joins the run after the current tool round | `submit({whenBusy: "steer"})` |
 | Bubbles posted, no tool running | **steer**. The new burst is placed when the run answers, before any queued follow-up | `submit({whenBusy: "steer"})` |
 | The human pressed stop | **abort**. Nothing is submitted | `conversation.abort()` |
@@ -206,12 +206,12 @@ Two guards apply.
 The table is `decide()` in `core/agent/src/mid-run.ts`, and `AgentHost.drain()` applies it. Four details the table leaves open:
 
 - ASSUMPTION: only a human message interrupts. An agent or system message is queued.
-- DEVIATION: a human message used to wait for a running tool to finish. A read, `bash`, or `ask` is now stopped, as AGENTS.md rule 4 asks. A write, a message, or an outside call still runs to its end.
+- DEVIATION: a human message used to wait for a running tool to finish. A read or `bash` is now stopped, as AGENTS.md rule 4 asks. A write, a message, or an outside call still runs to its end.
 - A human message never waits for a run to end. It steers whenever the run cannot restart. DEVIATION: a finished tool round with bubbles used to queue the burst as a follow-up (owner directive 2026-10-11, section 8).
 - When inputs already wait in the conversation's queue, or the cap is reached, a human message steers instead of restarting, because a restart's abort would withdraw the waiting inputs. With no tool round, a steer is placed when the run answers. UNVERIFIED: stopping a tool does not withdraw queued inputs. The `abortTask` comment names only the tool task, so an interrupt is used whenever a tool runs.
 - Stop does not drop the room's pending burst. A message sent just before stop goes out after the stop, as the human sent it. Stop used to clear the window, which lost the message.
 
-**Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). A steer never rewrites bubbles the human has already read: it joins after the current tool round, or when the run answers. Slow work runs in workers (section 8), so a run that holds the human up is short. An interrupt stops a slow read, `bash`, or `ask` at once, so the steer lands sooner. A write, a message, or an outside call is never stopped mid-call, because a half-finished effect is worse than a late answer. `bash` is the exception among writes: it saves nothing it did not finish.
+**Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). A steer never rewrites bubbles the human has already read: it joins after the current tool round, or when the run answers. Slow work runs in workers (section 8), so a run that holds the human up is short. An interrupt stops a slow read or `bash` at once, so the steer lands sooner. A write, a message, or an outside call is never stopped mid-call, because a half-finished effect is worse than a late answer. `bash` is the exception among writes: it saves nothing it did not finish.
 
 Human messages always outrank agent messages. The inbox sorts by priority first, so a human burst is placed before any waiting agent message, and the table above applies even when the current run was started by another agent.
 
@@ -263,7 +263,7 @@ type Envelope = {
 	origin?: Origin           // section 25.3. who started the chain
 }
 type SystemReason = "task_unblocked" | "reminder" | "run_budget"
-	| "limit" | "files" | "created" | "routine" | "stalled"   // section 25
+	| "limit" | "files" | "created" | "routine" | "stalled" | "initiative"   // section 25, 26
 ```
 
 `from` is set by the room from the authenticated WebSocket or from the calling agent's own Durable Object name. Message text cannot change it.
@@ -312,7 +312,7 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 | Tool | Who | Effect |
 | --- | --- | --- |
 | `send_message(to, text)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. To hand over a file, the agent names its path in the text: every agent in the room shares one file space. DEVIATION (2026-10-09): the `files` argument is removed (section 18.1) |
-| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`agent/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message for this agent waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`). Several asks in one reply, to several teammates, wait together, since `pi-durable` runs a round's tool calls in parallel |
+| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`core/agent/src/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message for this agent waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`). Several asks in one reply, to several teammates, wait together, since `pi-durable` runs a round's tool calls in parallel |
 | `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
 | `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
 | `update_task(id, status, note)` | every agent | the task board. Setting a task nobody owns to `doing` takes it |
@@ -470,7 +470,7 @@ How it works:
 
 `harness.waitForIdle` waits on every ownerless conversation, workers included. Anything that means "the talker is idle" uses the root conversation instead: the host's idle watch (`root.waitForIdle`), the run state that `decide()` reads, and the check that frees held mail. Only a harness with no live task clears the heartbeat, resets the crash count, or compacts.
 
-**Reasoning.** Owner directive, 2026-10-11: anything the agent runs (browsing, searching, tools) must never block the human's messages, and the agent reads or changes its work based on the human's steering. The old `spawn_subagent` tool waited for its child inside the parent's tool call, so the agent could not answer until the child finished. The prototype on branch `proto-workers` (`apps/server/test/proto-workers.test.ts`, commit fdf31a3c) established the facts this design relies on: an ownerless child keeps running after the parent's run ends and the root takes new input meanwhile; `harness.conversation(id).submit({whenBusy: "steer"})` reaches the child after its current tool; `child.abort` kills it and its submission settles `unanswered`, while `root.abort` leaves it alone; a child survives a harness close and reopen when its tools are replay safe; and `harness.waitForIdle` waits on children while `root.waitForIdle` does not.
+**Reasoning.** Owner directive, 2026-10-11: anything the agent runs (browsing, searching, tools) must never block the human's messages, and the agent reads or changes its work based on the human's steering. The old `spawn_subagent` tool waited for its child inside the parent's tool call, so the agent could not answer until the child finished. The prototype (branch `proto-workers`, commit fdf31a3c, test file since removed; neither is in this repository now) established the facts this design relies on: an ownerless child keeps running after the parent's run ends and the root takes new input meanwhile; `harness.conversation(id).submit({whenBusy: "steer"})` reaches the child after its current tool; `child.abort` kills it and its submission settles `unanswered`, while `root.abort` leaves it alone; a child survives a harness close and reopen when its tools are replay safe; and `harness.waitForIdle` waits on children while `root.waitForIdle` does not.
 
 The host's crash-loop guard counts only the talker's live tasks, so a slow worker can never drop the agent. Each worker has its own count on its row: a worker still live at more than three opens (`MAX_WORKER_RESUMES`) is aborted and reports `failed` with one line saying it stopped after repeated restarts. The count resets when it reports.
 
@@ -641,7 +641,6 @@ Two cautions for the owner to decide on.
 
 - The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. A hosted multi-user service that signs users in with that client id may break the provider's terms. The plan ships API keys first and puts subscription sign-in behind a flag that is off by default.
 - pi-ai's published npm package contains the generated model catalog as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5).
-- pi-ai's published npm package 1.0.0 contains the generated model catalog, one JSON file per provider under `dist/providers/data/` (experiment 1).
 
 ### 11.5 Model catalog for the client
 
@@ -651,7 +650,6 @@ Providers and models are one settings page, `/settings/models`. Connected provid
 
 ### 11.6 Test provider
 
-Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The catalog id for "deepseek v4.1 flash" is `deepseek-v4.1-flash` under `opencode-go`. The verification CLI resolves the id from the live catalog by name and fails loudly if no model matches.
 Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 does not pass the `sessionId` that would add it. The host sets it through `settings.stream.headers`. The Worker never reads the key: a verify suite that calls the model runs `connectTestModel(s)`, which saves `OPENCODE_API_KEY` from the CLI's shell through `PUT /api/credentials/opencode-go` like any user.
 
 ## 12. Composio integration
@@ -666,7 +664,7 @@ Executor Cloud was an earlier integration and was removed on 2026-10-10: Composi
 
 - The session's MCP server needs no `initialize` and no `Mcp-Session-Id`: `tools/list` and `tools/call` work with a bare POST (checked 2026-10-11). The session id is stored with the key, so nothing is lost when `UserDO` is evicted.
 - One key does everything: the session, its tools, and the catalog lookups in section 12.3.
-- Tools are typed. `COMPOSIO_MULTI_EXECUTE_TOOL` batches slowly: measured 2026-10-11, 5 tools took 4.8 s against 2.1 s as 5 separate calls, and 30 tools took 15.2 s against 2.8 to 6.8 s as 30 separate concurrent calls. Separate concurrent `tools/call` requests returned 200 at 30 and at 60, with no 429. So an agent issues independent calls separately, and the tool description says so. Each connection runs at most 40 calls at once, and a read-only call retries on 429 and 5xx (`integrations/composio/limit.ts`).
+- Tools are typed. `COMPOSIO_MULTI_EXECUTE_TOOL` batches slowly: measured 2026-10-11, 5 tools took 4.8 s against 2.1 s as 5 separate calls, and 30 tools took 15.2 s against 2.8 to 6.8 s as 30 separate concurrent calls. Separate concurrent `tools/call` requests returned 200 at 30 and at 60, with no 429. So an agent issues independent calls separately, and the tool description says so. Each connection runs at most 40 calls at once, and a read-only call retries on 429, 502, 503, and 504 (`integrations/composio/limit.ts`).
 - Connections live in the user's own Composio account. Yuki never holds an app token.
 
 ### 12.1 Connecting
@@ -689,12 +687,21 @@ A Composio tool is `read` when its `readOnlyHint` is true, and `external` otherw
 
 ### 12.4 Code mode
 
-**Decision.** Yuki does not build or host a code-mode runtime. `COMPOSIO_REMOTE_WORKBENCH` is Composio's code mode: it runs model-written code over the user's apps on Composio's side.
+**Decision.** Yuki does not build or host a code-mode runtime. Composio already gives every agent a code mode through its session, and yuki passes it through unfiltered.
+
+What a Composio tool router session lists (checked live on 2026-10-12 with `createSession` and `listTools`):
+
+- `COMPOSIO_SEARCH_TOOLS`, `COMPOSIO_GET_TOOL_SCHEMAS`, `COMPOSIO_MANAGE_CONNECTIONS`, `COMPOSIO_MULTI_EXECUTE_TOOL`, `COMPOSIO_REMOTE_WORKBENCH`, and `COMPOSIO_REMOTE_BASH_TOOL`.
+- `COMPOSIO_REMOTE_WORKBENCH` is a persistent Python sandbox on Composio's side. It runs model-written code over the user's apps, for bulk or chained app work. A cell has a 3-minute limit.
+- `COMPOSIO_REMOTE_BASH_TOOL` is Composio's bash sandbox in the same session.
+
+Yuki lists the whole set for workers and does not filter it. `sync_response_to_workbench: false` is set only on yuki's own direct `COMPOSIO_MULTI_EXECUTE_TOOL` calls (`apps/server/src/integrations/composio/tools.ts`, section 12.2). The workbench and bash tools that an agent calls itself are passed through as Composio lists them.
 
 **Reasoning.**
 
 - `pi-codemode` runs QuickJS inside a Node `worker_threads` worker and reads the wasm file with `node:fs`. It does not run on Workers as shipped.
-- Cloudflare's Dynamic Workers would give a sandbox without containers, but the `worker_loaders` binding is on the Paid plan only. The spec targets the Free plan.
+- Cloudflare's Dynamic Workers would give a sandbox without containers. The `worker_loaders` binding is on Workers Paid only, in open beta since 2026-03-24 (Cloudflare changelog, checked 2026-10-12). The spec targets the Free plan.
+- A QuickJS runtime inside a Durable Object is possible on Free. User extensions already run one (section 24). Yuki has not built one as a code-mode runtime for the model.
 - Code mode pays off when a task chains many tool calls and the intermediate results are large. That is the integration case. Yuki's own tools (memory, reminders, tasks) take one call each and gain nothing from it.
 
 User extensions (section 24) do run QuickJS inside the agent's object, through `quickjs-wasi` imported as a compiled wasm module. That is a sandbox for small, declared extension functions, not a code-mode runtime for the model, so this decision stands.
@@ -768,7 +775,7 @@ The prompt says the conversation above is memory too: an agent looks there first
 
 Three tools cover what the block does not show. `recall(query)` searches this chat's messages, newest first, and every life line, best match first. A hit is the message itself cut at 300 characters, not a 16-word snippet, so it rarely needs a zoom after it. `zoom(id)` opens a summary into its halves, or one turn or line in full (`life:64-127`, `chat:0-63`, `chat:12`). It also takes `#12` and `12`, which mean this chat, and a cut line's hint names the exact id (`(cut, zoom chat:12)`). Before this, the hint said `zoom 12`, which the tool rejected. OptChat's rule, to zoom "before you act, guess, or ask", was tried: with it in the prompt the agent's spend in `verify token-cost` ran 9 to 30% above the old design over four paired runs, and without it the spend was even again, so yuki keeps its own rule. `note(text)` adds one life line. The rule in the system prompt is three lines, so the cached prefix holds. A private chat reads memory and writes nothing.
 
-Each fact has one home, so one fact costs one write. A note is a fact about the human that matters beyond this chat and that the agent did not know. `/chat.md` changes only when the chat's goal or a standing decision changes. The soul changes only when the human corrects how the agent works or talks. A note that says a stored fact again with different case, punctuation, or filler words ("the human's sister is maya." and "human's sister maya") is stored once (`norm` in `user/life.ts`). No model call decides it.
+Each fact has one home, so one fact costs one write. A note is a fact about the human that matters beyond this chat and that the agent did not know. `/chat.md` changes only when the chat's goal or a standing decision changes. The soul changes only when the human corrects how the agent works or talks. A note that says a stored fact again with different case, punctuation, or filler words ("the human's sister is maya." and "human's sister maya") is stored once (`norm` in `core/memory/src/life.ts`). No model call decides it.
 
 **Storage.** With the reset, old pi-durable entries are never read again. Every 50 runs that started fresh, an idle agent closes its harness and drops pi-durable's tables; the next run opens a fresh one. Until 2026-10-06 every run counted, so a short chat started cold every 50 runs for nothing.
 
@@ -808,12 +815,8 @@ So the `capture` field of `memory_policy` has three values:
 - `note` takes an optional `replaces`, a life id such as `life:12`, and supersedes that line when it is live. The tool's answer names the new line's id, so a later run in the same transcript can correct it. This gives corrections to users without a judge at no background cost.
 - A sentence that ends in "?" or opens with a question or request word never reaches a judge or a model. Questions and requests to the agent are not facts.
 
-- With a judge, code splits each message into sentences and one request judges all of them. Per sentence it asks: worth keeping for months, private, a standing rule for how to help, a card tag, and, for each nearby fact, "says the same" and "makes it no longer true". Each question points at the sentence data by a backticked path into the classifier `state`, which is written once, so the text is not repeated per question. The kept sentence is stored word for word, so the judge picks text and never writes it. A first version asked one choice over every known fact. Two copies of "lives in Bangalore" split the replace vote 0.41 and 0.10, and "new" won at 0.49. One yes or no per fact fixed it, and a correction now replaces every copy.
 - Privacy: a diagnosis, condition, or medication is private. Food allergies and diets, a city, an employer, or a job are not.
 - The judge is pi-ai's own `typesafe` classifier provider (api `typesafe-system-one`, model from the pi-ai catalog). Yuki adds no client and no model list.
-- Under `always` without a judge, the memory model reads a batch (8 messages, or a minute of quiet) and answers in a four-line format: new, same, replaces, with an optional card tag. Each fact names the message it came from.
-- Nearby facts are keyword matches, then the card, then the newest facts. A correction often shares no word with what it corrects ("i moved to pune" against "lives in Bangalore").
-
 **The note rule.** `note` stays for facts an agent finds out itself, in a file, a tool, or a teammate's message. The rule is chosen per run. With capture active, it says the human's own words are saved without `note`. Otherwise the agent gets the original rule, which asks it to call `note` for lasting facts from the human too. A note carries the ref of the human message it answers.
 
 **Judge availability.** Settings decides "model provider" from the pi-ai catalog's chat models, and "judge" from its classifier models. Neither list has a hardcoded id. A provider is a judge when the catalog gives it classifier models and the user has a credential. Every judgment reads the credential when it runs, so adding or removing a key mid-session changes the next capture and nothing else. A key the API refuses is marked, and Settings says "Key refused". Under `auto`, capture then stops and `note` carries the facts. Under `always`, capture takes the base path. Any judge failure returns no answer, and the caller falls back the same way.
@@ -876,12 +879,12 @@ The recurrence library is `rrule` 2.8.1 (experiment 10, settled). `rrule` checks
 
 | Aspect | pi | yuki |
 | --- | --- | --- |
-| Frontmatter | `name`, `description`, `disable-model-invocation` | the same, with the same validation rules |
-| Discovery order | project, ancestors, user home | room, then user, then built-in. The first name wins |
-| Storage | directories | `skills` table in `RoomDO` and `UserDO`. Built-in skills are bundled. Attached files go to R2 |
+| Frontmatter | `name`, `description`, `disable-model-invocation` | the same, with the same validation rules (`apps/server/src/skills/registry.ts`) |
+| Discovery order | project, ancestors, user home | room, then built-in. The first name wins (`resolveSkills`) |
+| Storage | directories | a room skill is `skills/<name>/SKILL.md` in the room's files. Built-in skills are bundled (`skills/builtin.gen.ts`) |
 | Listing | `<available_skills>` block in the system prompt | the same block, from a `PromptSection` |
 | Loading | the model reads the file | a `read_skill(name)` tool, because there is no filesystem tool |
-| Manual use | `/skill:name` | the same, expanded in the composer |
+| Manual use | `/skill:name` | the composer sends `/skill:name` as text, and the agent loads the skill with `read_skill` |
 
 The list is part of the system prompt and changes rarely, so it stays in the cached prefix.
 
@@ -1020,7 +1023,7 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
 - A file the human attaches ends up in `attachments/` in the chat's files, and the message carries its `FileRef` (`id`, `name`, `size`, `type`). It gets there the way t3code's attachments do (2026-10-09), in two steps:
   - **Upload at pick time.** The composer uploads each file the moment it is picked, as a pending upload: `PUT /api/files/<room>/pending/<id>?name=&size=` with the raw bytes, or the parts routes for a file over 32 MB (`files/pending.ts`). The client picks the id, a UUID, so a retry, a cancel, and the send all name the same upload. The Worker checks that `Content-Length` equals the declared size ("Content-Length must match the upload size.", or "Body was N bytes, expected M." when the body comes short), the per-type limit, and the user's storage, then asks the room to record the id (`RoomDO.pendingOpen`), streams the bytes to R2 at `u/<user>/r/<room>/<id>`, and marks the row ready with its SHA-256. The row lives in `pending_uploads` (`room/pending.ts`), not in `ws_files`: the Files tab, the snapshot, and the agents see nothing, and no event is stored. An id the chat's files already use is refused, so an upload never writes over a sent file. `DELETE /api/files/<room>/pending/<id>` deletes a pending upload and its bytes; it answers 404 for any other id, a sent file's included.
   - **Claim at send.** The `send` frame names its uploads (`attachments: { pendingId, name, type, size }[]`). `RoomDO.humanSend` checks the limits (100 files, pictures 80 MB together), refuses a repeated id, checks each row exists, is ready, and has the claimed size and type, and then, in one SQLite transaction with the message, moves each row into `ws_files` at `attachments/<time36>-<name>` (the next free time when two collide) and stores the message with the `FileRef`s. A refusal stores nothing and answers the socket with `send_refused` and t3code's words, such as "Attachment 'plan.pdf' cannot be sent: attachment not found (removed or expired)." A resent `clientId` gets the first ack and claims nothing again.
-  - **Sweep.** A pending row nobody sent within 24 hours is deleted with its object by the room's `pending_sweep` wakeup (`lib/alarm.ts`), objects first so a failed delete leaves the row for the next sweep. The wakeup always points at the oldest row's expiry. Account deletion lists pending objects with the rest (`RoomDO.inventory`).
+  - **Sweep.** A pending row nobody sent within 24 hours is deleted with its object by the room's `pending_sweep` wakeup (`core/durable/src/alarm.ts`), objects first so a failed delete leaves the row for the next sweep. The wakeup always points at the oldest row's expiry. Account deletion lists pending objects with the rest (`RoomDO.inventory`).
   - DEVIATION from t3code: the upload carries the session cookie, not a signed upload URL. It is same-origin and the cookie already names the user, so a token would cost a round trip and prove nothing more. The R2 key is still built from the session's user id only.
   - DEVIATION from t3code: a claim does not copy bytes. The object is written at the key the file keeps, and the claim only moves the row from `pending_uploads` to `ws_files`. R2 has no rename, and a copy of a 50 MB file inside a socket frame would be slow; t3code copies so a failed turn can retry from the pending file, and yuki's retry is the resent `clientId`, which is already idempotent.
   - The `files` field of `send` (a client from before 2026-10-09 that stored its files itself) is accepted for one release, and only when every id is already in the chat's files. Remove it after the next release. The agent's envelope lists each one with `attachedLine` (`room/deliver.ts`), and `read` opens it. Agents send no files on messages: an agent names a path in its text. DEVIATION (2026-10-09): the old media system is removed. There are no stills, no thumbhash, no dimensions, no attachment job, no media catalog, and no `send_message` files. The owner chose t3code's simpler model, where a message carries its attachments and the assistant sends none. Stills already in R2 at `<key>/thumb` are no longer served; account deletion removes them with the rest of the user's prefix.
@@ -1036,7 +1039,7 @@ Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO
   - A picture opens in one image dialog per surface (`chat/ui/ImageDialog.tsx`, lazy). It opens and closes with no animation, as section 19.5 asks of overlays, and has no zoom.
   - The files tab draws a picture inline, and video and sound in the browser's own players, as t3code's file preview does. The old picture viewer and players are deleted (section 19.3).
 - The protocol dropped `LinkPreview`, `Message.preview`, the `preview` event, `CatalogItem`, the `catalog` frames, and `FileRef`'s `width`, `height`, `thumbhash`, and `thumb`. A schema ignores keys it does not know, so a stored message that still has them decodes. The room socket ignores a retired `catalog` frame from an older client rather than close (`room/socket.ts`), and the client store ignores an event tag it does not know, such as an old `preview`.
-- The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, `edit`, and `bash` run unchanged. The shell is an interpreter, not a process (section 18.4). Folders are path prefixes and exist while they hold files. `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
+- The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, `edit`, and `bash` run unchanged. The shell is an interpreter, not a process (section 18.4). Folders are rows of their own (`ws_dirs`, `home_dirs`), so an empty folder stays (section 18.3). `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
 - `read` returns pi's text with offset and limit, a pdf as text page by page, or an image for a model that accepts images (`Model.input` in pi-ai). It refuses a binary file.
 - R2 objects never change (a write makes a new key), so each agent caches bytes by key: an `edit` after a `read` fetches nothing again.
 - **No writer replaces bytes it did not see.** Every write to `/`, `/home`, and `/me/soul.md` names what the writer saw at the path: the SHA-256 of the bytes it read, or `none`. The index refuses anything else (`NewFile.expectSha256`, required). The writers:
@@ -1102,7 +1105,7 @@ Each file space's writes are atomic on their own. A command that changes both th
 
 DEVIATION (2026-10-09): link previews are removed: the `/api/preview` and `/api/preview-image` routes, the room's card on a message's first link, the `PREVIEWS` KV namespace, and the client's preview cache. The owner chose t3code's model, where a link is a link. Old messages keep their stored card in the `messages.preview` column, which nothing reads.
 
-The safe fetcher the previews used stays for `web_fetch` and watch routines (`lib/safe-fetch.ts`). It allows `http` and `https` only, rejects IP literals and private, loopback, link-local, and metadata hosts, uses `redirect: "manual"`, rechecks every hop, follows 3 redirects at most, and times out after 3 seconds. On a development server, a host named `fixture-<port>.preview.test` reaches `localhost:<port>` (`lib/dev-fixture-fetch.ts`), so a verify suite can serve a page.
+The safe fetcher the previews used stays for `web_fetch` and watch routines (`core/durable/src/safe-fetch.ts`). It allows `http` and `https` only, rejects IP literals and private, loopback, link-local, and metadata hosts, uses `redirect: "manual"`, rechecks every hop, follows 3 redirects at most, and times out after 3 seconds. On a development server, a host named `fixture-<port>.preview.test` reaches `localhost:<port>` (`lib/dev-fixture-fetch.ts`), so a verify suite can serve a page.
 
 UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare's docs do not say. The fetcher validates on its own and does not rely on the platform.
 
@@ -1196,7 +1199,7 @@ Three places let the birds play, each where nobody is waiting on the interface a
 
 The typing indicator is a port of [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx) with no React and no `motion` in tier 2.
 
-- `useTypingPresence` becomes a Solid primitive with the same state machine: a 3000 ms timeout per typist, a 900 ms minimum visible time, a beat counter that rises on each ping, and a 340 ms send phase. The sweep timer keeps its 24 ms floor.
+- `createTypingPresence` (`chat/typing/create-typing-presence.ts`) is a Solid primitive with the same state machine: a 3000 ms timeout per typist, a 900 ms minimum visible time, a beat counter that rises on each ping, and a 340 ms send phase. The sweep timer keeps its 24 ms floor.
 - The dot wave is one CSS keyframe animation of 1.25 s per dot, offset by a third of the period for each dot. The reference computes each dot's lift as `max(0, 1 - |distance|)` on a loop of length 3, which is a triangle that CSS keyframes express exactly. Scale runs from 0.74 to 1 and opacity from 0.32 to 1. The reference names the constant `WAVE_MS`, but the value 1.25 is in seconds.
 - The bubble enters from scale 0.74 with the spring (stiffness 380, damping 30, mass 0.8), leaves to scale 0.4 in 260 ms, and on send shrinks to scale 0.45 in 340 ms from the bottom-left corner. The label slides 7 px with the spring (260, 34, 0.8). Each spring is precomputed at build time into a CSS `linear()` easing and run with the Web Animations API.
 - The `role="status"` text updates 700 ms after the label changes. Reduced motion shows static dots and fades only.
@@ -1214,7 +1217,7 @@ Icons, default avatars, emoji data, theme tokens, the model catalog, and built-i
 - The layout and sizes come from the kat screenshots: 60 px rail, 280 px sidebar, 768 px content column, 50 px top bar, bubbles with 7 px by 12 px padding, 18 px radius, 14 px text, and 1.45 line height.
 - The look follows monocode (MIT). The stock palette is monocode's: one hue and saturation over a dark background at 9% lightness (97% in light) and content at 92% (18%), which the person can tint. Dark is the default, as in monocode.
 - Every fill is monocode's: the theme's text at a few percent over whatever is beneath (hover 5%, selection 10%, raised 12%, cards 3%, hairlines 7%, gentler in light). So fills always show, though yuki draws no borders, and glass shows through them. Your bubble is the content at 10% in dark and solid in light; an accent color, if chosen, fills the send button and tints your bubbles.
-- Themes come from t3code (MIT): its five built-ins, and any t3code or VS Code theme file or Open VSX extension (the search, the checksummed VSIX download, and the variant pairing are t3code's). A theme sets the canvas, sidebar, text, accent and primary action; the neutrals above derive from its text. `theme/palette.ts` maps it all (`TOKEN_ROLES`, `NEUTRALS`), and kat.css section 4e holds the stock palette for the first frame, written by `bun scripts/gen-palette.ts`.
+- Themes come from t3code (MIT): its five built-ins, and any t3code or VS Code theme file or Open VSX extension (the search, the checksummed VSIX download, and the variant pairing are t3code's). A theme sets the canvas, sidebar, text, accent and primary action; the neutrals above derive from its text. `theme/palette.ts` maps it all (`PALETTES`, `NEUTRALS`), and kat.css section 4e holds the stock palette for the first frame, written by `bun apps/web-solid/scripts/gen-palette.ts`.
 - The look is one record synced through the user socket: the mode, the theme that owns each half, the imported themes those halves name, the tint, the accent, and each agent's bird. Imported themes otherwise stay in the browser that imported them, as in t3code.
 - Glass is monocode's and on by default in dark (off in light, where the window is opaque). Popovers are a 2% tint over a 24px backdrop blur. A web page has no desktop to see through, so the chat background stands in for it: blurred by the blur radius behind the whole window, with the shell at the sidebar opacity (85% by default) and the panes too when main pane glass is on. DEVIATION: monocode blurs the real desktop.
 - The chat background is monocode's: a picture kept on this device (IndexedDB, with a small blurred copy in localStorage for the first frame), shown in the chat pane at its own visibility for empty chats and for chats with messages, on empty chats only or all, with monocode's effects (dither, ascii, halftone, scanlines, haze) drawn by a worker. DEVIATION: it switches instantly instead of monocode's 600 ms ease, because switching chats is navigation.
@@ -1244,11 +1247,13 @@ apps/
   cli/              the yuki verification CLI
 packages/
   ui/               @yuki/ui
-  protocol/         wire types shared by the client, the server, and the CLI
+core/
+  protocol/         @yuki/protocol: wire types shared by the client, the server, and the CLI
   durable/          @yuki/durable: Durable Object plumbing (section 2)
   agent/            @yuki/agent: the pi-durable host
   memory/           @yuki/memory: the log memory (section 13)
   sandbox/          @yuki/sandbox: user extensions (section 24)
+  browser/          @yuki/browser: the browser session (section 27)
 docs/             overview, product, architecture, and reference material
 ```
 
@@ -1430,7 +1435,7 @@ Before each run, `AgentDO.syncExtensions` asks `UserDO.extensionsFor(slug)` for 
 
 ### 24.8 Triggers
 
-A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to the chat the extension came from, for the agent that wrote it, or else to the yuki chat for yuki. Installing, switching on, or updating replaces the extension's reminders; switching off and uninstalling cancel them. A trigger repeats at most every 30 minutes, the reminder rule. `triggerProblem` (`core/sandbox/src/rule.ts`) refuses a rule that fires every minute or that `ruleProblem` refuses. `triggerGapProblems` finds the fastest gap over the first two weeks of a rule (ASSUMPTION: two weeks covers every weekday and time-of-day pattern, since a daily pattern repeats daily and a weekly one weekly). `extension_check` and install apply both.
+A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to the chat the extension came from, for the agent that wrote it, or else to the yuki chat for yuki. Installing, switching on, or updating replaces the extension's reminders; switching off and uninstalling cancel them. A trigger repeats at most every 30 minutes, the reminder rule. `triggerProblem` (`core/sandbox/src/rule.ts`) refuses a rule that fires every minute or that `ruleProblem` refuses. `triggerGapProblems` finds the fastest gap over the first 500 occurrences of a rule (`repeatProblem`, `GAP_SAMPLES`). ASSUMPTION: 500 occurrences reach the fastest gap of any rule yuki accepts. `extension_check` and install apply both.
 
 DEVIATION (U68): the recurrence code moved from `apps/server/src/user/recurrence.ts` to `core/sandbox/src/recurrence.ts`, with `rrule` declared in `@yuki/sandbox`. The trigger rule has to be one check, and the checker in `@yuki/sandbox` cannot import `apps/`. The pure syntax rule sits in `rule.ts`, which does not import `rrule`, so `@yuki/protocol` (loaded by the client) stays free of it.
 
@@ -1589,7 +1594,7 @@ Yuki sends no notifications. A routine's run answers in its chat as bubbles; an 
 | Check | Proves |
 | --- | --- |
 | `test/routines.test.ts` | origin combining, the trigger schema, webhook and signal matching, one run per batch, the watch grid, the budget and away rules |
-| `test/wake.test.ts` | with the real `UserDO` and `RoomDO`: a reminder and a task wake held by the budget reach the agent once the human is back; a refused run gives its budget back; an agent's reminder on the human's chain wakes as the human's |
+| `test/room-wake-delivery.test.ts` | with the real `UserDO` and `RoomDO`: a reminder and a task wake held by the budget reach the agent once the human is back; a refused run gives its budget back; an agent's reminder on the human's chain wakes as the human's |
 | `test/reminder-rules.test.ts` | a held watch run keeps the old fingerprint; a reminder for the human repeats at most every 30 minutes, even one stored before the rule |
 | `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for makes a routine; a routine run uses an outside tool; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
 | `bun yuki verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its run uses an outside tool; a watch wakes only on change |
@@ -1714,7 +1719,7 @@ Measured 2026-10-11 with Muse Spark 1.3, ten messages per row, before and after 
 
 A loop message's first bubble is back near a plain one, and plain prompt tokens are about 300 above the build before initiative (7,838). Jev spends more on plain chats than before because it now reads the agent's answers too; it spends less on loop chats because the related calls are gone.
 
-### 26.8 Client surfaces and routes
+### 26.9 Client surfaces and routes
 
 The details panel has an On your plate page (`apps/web-solid/src/chat/info/loops.tsx`). It lists the chat's open loops with done, tomorrow, and drop. Each action applies at once and is put back with a toast if the server refuses. The list stays in memory, so a reopened panel paints at once. It is fetched again when the panel opens, when the page shows, and, debounced, when the room gets a message or an agent's status changes. Settings has an Initiative page (`settings/initiative.tsx`) for the level and the memory capture mode. Saves apply at once, and a failed save puts back only a field that no newer save touched. The client takes its types from `@yuki/protocol` (`LoopRow`, `UserSettings`), types only.
 
