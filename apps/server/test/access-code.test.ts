@@ -36,23 +36,15 @@ async function start(bindings: Record<string, string>): Promise<string> {
     compatibilityFlags: ["nodejs_compat"],
     host: "localhost",
     port: 0,
-    d1Databases: ["AUTH_DB"],
     durableObjects: {
       USER: { className: "UserDO", useSQLite: true },
       ROOM: { className: "RoomDO", useSQLite: true },
       AGENT: { className: "AgentDO", useSQLite: true },
     },
     serviceBindings: { ASSETS: () => new Response("app shell") },
-    bindings: { BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters-long", ...bindings },
+    bindings: { SESSION_SECRET: "test-secret-that-is-at-least-32-characters-long", ...bindings },
   })
   workers.push(mf)
-  const db = await mf.getD1Database("AUTH_DB")
-  for (const file of (await readdir(join(serverDir, "migrations"))).filter((f) => f.endsWith(".sql")).sort()) {
-    const sql = await readFile(join(serverDir, "migrations", file), "utf8")
-    for (const statement of sql.split(";").map((s) => s.trim()).filter(Boolean)) {
-      await db.prepare(statement).run()
-    }
-  }
   return (await mf.ready).origin
 }
 
@@ -75,55 +67,52 @@ afterAll(async () => {
   if (tmp) await rm(tmp, { recursive: true, force: true })
 })
 
+const sessionCookie = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith("yuki_session="))
+
 describe("with ACCESS_CODE set", () => {
   let origin: string
   beforeAll(async () => {
     origin = await start({ ACCESS_CODE: CODE })
   })
 
-  test("reports the access code sign-in", async () => {
-    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({
-      google: false,
-      github: false,
-      dev: false,
-      code: true,
-    })
-  })
-
-  test("the right code signs in, sets a session cookie, and names the user from the form", async () => {
-    const res = await signIn(origin, { code: CODE, name: "owner" })
+  test("the right code sets a one year, HttpOnly, Lax cookie that /api/me accepts as the owner", async () => {
+    const res = await signIn(origin, { code: CODE })
     expect(res.status).toBe(200)
-    const token = res.headers.getSetCookie().find((c) => c.startsWith("better-auth.session_token="))
-    expect(token).toBeDefined()
-    const me = await fetch(`${origin}/api/me`, { headers: { cookie: token!.split(";")[0]! } })
+    const cookie = sessionCookie(res)
+    expect(cookie).toBeDefined()
+    expect(cookie).toContain("HttpOnly")
+    expect(cookie).toContain("SameSite=Lax")
+    expect(cookie).toContain(`Max-Age=${365 * 24 * 60 * 60}`)
+    const me = await fetch(`${origin}/api/me`, { headers: { cookie: cookie!.split(";")[0]! } })
     expect(me.status).toBe(200)
-    const { user } = (await me.json()) as { user: { name: string; email: string } }
-    expect(user).toMatchObject({ name: "owner", email: "owner@code.yuki" })
-  })
-
-  test("the same name signs in as the same user, and another name as another user", async () => {
-    const ids = async (name: string) => {
-      const res = await signIn(origin, { code: CODE, name })
-      return ((await res.json()) as { user: { id: string } }).user.id
-    }
-    const first = await ids("friend")
-    expect(await ids("friend")).toBe(first)
-    expect(await ids("guest")).not.toBe(first)
+    expect(((await me.json()) as { user: { id: string } }).user.id).toBe("owner")
   })
 
   test("a wrong code answers 401 with the fixed message and sets no cookie", async () => {
-    const res = await signIn(origin, { code: "not-the-code", name: "mallory" })
+    const res = await signIn(origin, { code: "not-the-code" })
     expect(res.status).toBe(401)
     expect(res.headers.getSetCookie()).toEqual([])
     expect(((await res.json()) as { message: string }).message).toBe("That access code is not right")
   })
 
   test("a missing code answers 401, not a server error", async () => {
-    expect((await signIn(origin, { name: "mallory" })).status).toBe(401)
+    expect((await signIn(origin, {})).status).toBe(401)
   })
 
-  test("a bad name answers 400", async () => {
-    expect((await signIn(origin, { code: CODE, name: "Not A Name" })).status).toBe(400)
+  test("a cookie with a tampered owner id or mac is refused", async () => {
+    const cookie = sessionCookie(await signIn(origin, { code: CODE }))!.split(";")[0]!
+    const [, value] = cookie.split("=")
+    const [id, mac] = value!.split(".")
+    const refused = async (forged: string) => (await fetch(`${origin}/api/me`, { headers: { cookie: `yuki_session=${forged}` } })).status
+    expect(await refused(`other.${mac}`)).toBe(401)
+    expect(await refused(`${id}.${mac!.replace(/^./, mac![0] === "0" ? "1" : "0")}`)).toBe(401)
+    expect(await refused("garbage")).toBe(401)
+  })
+
+  test("sign out clears the cookie", async () => {
+    const res = await fetch(`${origin}/api/auth/sign-out`, { method: "POST" })
+    expect(res.status).toBe(200)
+    expect(res.headers.getSetCookie().find((c) => c.startsWith("yuki_session=;"))).toContain("Max-Age=0")
   })
 })
 
@@ -133,17 +122,8 @@ describe("without ACCESS_CODE", () => {
     origin = await start({})
   })
 
-  test("reports no access code sign-in", async () => {
-    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({
-      google: false,
-      github: false,
-      dev: false,
-      code: false,
-    })
-  })
-
   test("the sign-in route answers 404, even with a code", async () => {
-    const res = await signIn(origin, { code: CODE, name: "owner" })
+    const res = await signIn(origin, { code: CODE })
     expect(res.status).toBe(404)
     expect(res.headers.getSetCookie()).toEqual([])
   })

@@ -43,7 +43,6 @@ export interface KernelClient {
   /** Names of the files, not folders, directly in `path`. A missing folder is `not_found`. */
   listFiles(sessionId: string, path: string): Promise<string[]>
   createProfile(name: string): Promise<void>
-  deleteProfile(name: string): Promise<void>
 }
 
 export const REJECTED = "Kernel rejected this key"
@@ -120,6 +119,5 @@ export function sdkClient(apiKey: string): KernelClient {
       }
     },
     createProfile: (name) => call(async () => void (await kernel.profiles.create({ name }))),
-    deleteProfile: (name) => call(() => kernel.profiles.delete(name)),
   }
 }

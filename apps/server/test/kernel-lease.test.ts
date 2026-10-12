@@ -57,7 +57,6 @@ function fakeKernel(script: { createErrors?: KernelError[]; deleteError?: Kernel
     async createProfile(name) {
       calls.push(`profile ${name}`)
     },
-    deleteProfile: async (name) => void calls.push(`delete profile ${name}`),
     async curl(id, req) {
       calls.push(`curl ${id} ${req.method ?? "GET"}`)
       return { status: 200, headers: {}, body: req.url, durationMs: 1 }
@@ -288,15 +287,5 @@ describe("Kernel failures", () => {
     const t = setup({ createErrors: [new KernelError("failed", "boom")] })
     await expect(t.lease.lease("a")).rejects.toThrow("boom")
     expect((await t.lease.lease("a")).mode).toBe("headless")
-  })
-})
-
-describe("wipe", () => {
-  test("deletes the browser, then the profile", async () => {
-    const t = setup()
-    await t.lease.lease("a")
-    await t.lease.wipe()
-    expect(t.kernel.calls.slice(-2)).toEqual(["delete s1", "delete profile yuki-test"])
-    expect(t.store.lease()).toBeUndefined()
   })
 })

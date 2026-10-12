@@ -23,19 +23,5 @@
     // The attachment job and its WorkDO were removed on 2026-10-09 (architecture section 17.3).
     { "tag": "v3", "deleted_classes": ["WorkDO"] }
   ],
-  "d1_databases": [
-    { "binding": "AUTH_DB", "database_name": "kiko-auth", "database_id": "d8244d9d-2856-4c0a-adbc-b34edeffc198" }
-  ],
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "kiko-files" }],
-  "queues": {
-    "producers": [{ "binding": "JOBS", "queue": "kiko-jobs" }],
-    // 100 is the Queues limit. One batch is one deletion job, because a job makes many
-    // subrequests. A job that still fails goes to the dead-letter queue, whose consumer
-    // sends account deletions back to kiko-jobs. If that send keeps failing the dead queue
-    // returns the job to kiko-jobs as well, so a deletion is never dropped.
-    "consumers": [
-      { "queue": "kiko-jobs", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 100, "dead_letter_queue": "kiko-jobs-dead" },
-      { "queue": "kiko-jobs-dead", "max_batch_timeout": 1, "max_retries": 100, "dead_letter_queue": "kiko-jobs" }
-    ]
-  }
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "kiko-files" }]
 }

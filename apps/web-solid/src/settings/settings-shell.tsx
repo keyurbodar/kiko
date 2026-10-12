@@ -3,7 +3,6 @@ import { Suspense, createEffect, lazy } from "solid-js"
 import { NAV_SECTIONS, SETTINGS_SECTIONS } from "./sections"
 import { ModelsPage, ProvidersPage } from "./models"
 import { Integrations } from "./integrations"
-import { DeleteAccount } from "../app/delete-account"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { session, signOut } from "../app/session"
 import type { JSX } from "solid-js"
@@ -32,16 +31,12 @@ function Account() {
         <Item
           icon={<IdentityAvatar seed={user()?.id ?? "you"} size={28} />}
           title={user()?.name ?? "You"}
-          meta={user()?.email ?? ""}
           actions={
             <Button data-action="sign-out" onClick={() => void signOut()}>
               Sign out
             </Button>
           }
         />
-      </Group>
-      <Group title="Delete account">
-        <DeleteAccount />
       </Group>
     </div>
   )

@@ -1,7 +1,7 @@
 import { sha256Stream, toHex } from "@yuki/durable/hash"
 import { attachmentError, attachmentType } from "@yuki/protocol"
 import type { Env } from "../index"
-import { addressRoom } from "../lib/names"
+import { roomStub } from "../lib/names"
 import type { RoomDO } from "../room/room-do"
 import { declaredSize, deleteFiles, error, fileKey, HOME, isControl, isFileId, json, MAX_SINGLE_PUT_BYTES, mime, part, refuse } from "./upload"
 
@@ -17,10 +17,6 @@ function admit(name: string, type: string, size: number): Response | null {
 	const why = attachmentError({ name, type, size })
 	if (why) return error(size > 0 ? 413 : 400, why)
 	return refuse(size)
-}
-
-async function room(env: Env, userId: string, roomId: string): Promise<Room | Response> {
-	return (await addressRoom(env, userId, roomId)) ?? error(410, "account deleted")
 }
 
 async function store(request: Request, env: Env, key: string, type: string, size: number): Promise<{ sha256: string } | { error: string }> {
@@ -66,8 +62,7 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	if (refused) return refused
 	if (declaredSize(request.headers.get("content-length")) !== size) return error(400, "Content-Length must match the upload size.")
 	if (size > MAX_SINGLE_PUT_BYTES) return error(413, "too large for one request, use a multipart upload")
-	const stub = await room(env, userId, roomId)
-	if (stub instanceof Response) return stub
+	const stub = roomStub(env.ROOM, userId, roomId)
 	const key = fileKey(userId, roomId, id)
 	const taken = await stub.pendingOpen({ id, name, type, size, r2Key: key })
 	if (taken) return error(409, taken)
@@ -89,8 +84,7 @@ async function createParts(request: Request, env: Env, userId: string, roomId: s
 	const type = attachmentType({ name, type: mime(typeof body.type === "string" ? body.type : "") })
 	const refused = admit(name, type, size)
 	if (refused) return refused
-	const stub = await room(env, userId, roomId)
-	if (stub instanceof Response) return stub
+	const stub = roomStub(env.ROOM, userId, roomId)
 	const key = fileKey(userId, roomId, id)
 	const upload = await env.FILES.createMultipartUpload(key, { httpMetadata: { contentType: type } })
 	const taken = await stub.pendingOpen({ id, name, type, size, r2Key: key, uploadId: upload.uploadId })
@@ -107,8 +101,7 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 	if (!Array.isArray(parts) || !parts.every((p) => p && Number.isSafeInteger(p.partNumber) && typeof p.etag === "string")) {
 		return error(400, "bad parts")
 	}
-	const stub = await room(env, userId, roomId)
-	if (stub instanceof Response) return stub
+	const stub = roomStub(env.ROOM, userId, roomId)
 	const key = fileKey(userId, roomId, id)
 	await env.FILES.resumeMultipartUpload(key, uploadId)
 		.complete(parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })))
@@ -119,8 +112,7 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 }
 
 async function remove(env: Env, userId: string, roomId: string, id: string): Promise<Response> {
-	const stub = await room(env, userId, roomId)
-	if (stub instanceof Response) return stub
+	const stub = roomStub(env.ROOM, userId, roomId)
 	const row = await stub.pendingRemove(id)
 	if (!row) return error(404, "not pending")
 	if (row.uploadId) await env.FILES.resumeMultipartUpload(row.r2Key, row.uploadId).abort().catch(() => {})

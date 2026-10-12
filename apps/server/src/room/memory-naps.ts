@@ -24,7 +24,6 @@ export type MemoryNapsDeps = {
 	members: Members
 	memory: RoomMemory
 	home: () => Home | null
-	isWiped: () => Promise<boolean>
 }
 
 export class MemoryNaps {
@@ -58,7 +57,7 @@ export class MemoryNaps {
 
 	async forget(): Promise<void> {
 		const home = this.d.home()
-		if (!home || (await this.d.isWiped())) return
+		if (!home) return
 		const changes = this.d.memory.changes()
 		if (!changes) return
 		const user = userStub(this.d.env.USER, home.userId)

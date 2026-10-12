@@ -187,4 +187,6 @@ export const USER_STEPS: Step[] = [
   "CREATE INDEX IF NOT EXISTS attention_seen_at ON attention_seen (at)",
   // Substring search of the life log, for a recall that the word index missed. Kept in step with life_fts by life.ts.
   ...LIFE_TRI_STEPS,
+  // A webhook post finds its routine by the hash of its token.
+  "CREATE INDEX IF NOT EXISTS reminders_hook ON reminders (hook_hash)",
 ]

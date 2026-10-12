@@ -78,11 +78,6 @@ export class KernelWiring {
     await this.d.alarms.clearWakeup(REAP_WAKEUP)
   }
 
-  async wipe(): Promise<void> {
-    if (!this.store.connected()) return
-    await this.browser.wipe()
-  }
-
   /** The user's browser for `agentId`, headless unless the human asked to watch. Creates it when there is none. */
   async lease(agentId: string): Promise<LeaseInfo> {
     const info = await this.browser.lease(checkAgentId(agentId))

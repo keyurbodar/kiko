@@ -10,7 +10,7 @@ export const SETTINGS_SECTIONS = [
   { id: "extensions", group: "agents", label: "Extensions", hint: undefined, keywords: "extension plugin addon tool hook script catalog install instructions schedules" },
   { id: "skills", group: "agents", label: "Skills", hint: undefined, keywords: "skill" },
   { id: "appearance", group: "you", label: "Appearance", hint: undefined, keywords: "theme json dark light font radius spacing wallpaper background glass blur colors picture" },
-  { id: "account", group: "you", label: "Account", hint: undefined, keywords: "delete sign out email profile leave" },
+  { id: "account", group: "you", label: "Account", hint: undefined, keywords: "sign out profile leave" },
 ] as const
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"]

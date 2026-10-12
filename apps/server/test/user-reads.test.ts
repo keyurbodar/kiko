@@ -39,7 +39,6 @@ const ACTIONS: { name: string; op: string; args: () => unknown[] }[] = [
 	{ name: "human burst: takeTurn (new burst)", op: "takeTurn", args: () => [`burst-${++step}`] },
 	{ name: "human burst: signals (one burst)", op: "signals", args: () => [{ roomId: ROOM, openedAt: Date.now(), more: 0, signals: [{ kind: "burst", roomId: ROOM, at: Date.now(), seq: ++step, text: "hi there", by: { kind: "human" } }] }] },
 	{ name: "send: touchChat", op: "touchChat", args: () => [ROOM, { lastSeq: ++step, lastPreview: "hi", unread: 1 }] },
-	{ name: "send: recordRoom", op: "recordRoom", args: () => [ROOM] },
 	{ name: "agent turn: initiativeBrief", op: "initiativeBrief", args: () => [ROOM, "ada", { text: "hello" }] },
 	{ name: "agent turn: turnContext", op: "turnContext", args: () => ["anthropic", "ada"] },
 	{ name: "agent turn: lifeView", op: "lifeView", args: () => [] },

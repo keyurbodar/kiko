@@ -6,7 +6,7 @@ import { Miniflare } from "miniflare"
 
 const serverDir = new URL("..", import.meta.url).pathname
 const cliEntry = new URL("../../cli/src/index.ts", import.meta.url).pathname
-const MARKER = "yuki-dev-session"
+const MARKER = "name must match [a-z0-9-]"
 
 let tmp: string
 const workers: Miniflare[] = []
@@ -32,23 +32,15 @@ async function start(path: string): Promise<string> {
     compatibilityFlags: ["nodejs_compat"],
     host: "localhost",
     port: 0,
-    d1Databases: ["AUTH_DB"],
     durableObjects: {
       USER: { className: "UserDO", useSQLite: true },
       ROOM: { className: "RoomDO", useSQLite: true },
       AGENT: { className: "AgentDO", useSQLite: true },
     },
     serviceBindings: { ASSETS: () => new Response("app shell") },
-    bindings: { BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters-long" },
+    bindings: { SESSION_SECRET: "test-secret-that-is-at-least-32-characters-long" },
   })
   workers.push(mf)
-  const db = await mf.getD1Database("AUTH_DB")
-  for (const file of (await readdir(join(serverDir, "migrations"))).filter((f) => f.endsWith(".sql")).sort()) {
-    const sql = await readFile(join(serverDir, "migrations", file), "utf8")
-    for (const statement of sql.split(";").map((s) => s.trim()).filter(Boolean)) {
-      await db.prepare(statement).run()
-    }
-  }
   return (await mf.ready).origin
 }
 
@@ -87,7 +79,6 @@ describe("production build", () => {
 
   test("does not contain the dev sign-in code", () => {
     expect(prodScript).not.toContain(MARKER)
-    expect(prodScript).not.toContain("dev.yuki.test")
   })
 
   test("answers the dev sign-in route with 404", async () => {
@@ -104,14 +95,10 @@ describe("production build", () => {
     expect((await fetch(`${origin}/api/me`)).status).toBe(401)
   })
 
-  test("reports no providers and no dev sign-in", async () => {
-    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: false, code: false })
-  })
-
   test("yuki login --dev fails", async () => {
     const r = await cli(["login", "--dev", "--url", origin])
     expect(r.code).toBe(1)
-    expect(r.err).toContain("no dev sign-in route")
+    expect(r.err).toContain("no such sign-in route")
   })
 })
 
@@ -129,24 +116,20 @@ describe("development build", () => {
     expect((await fetch(`${origin}/api/me`)).status).toBe(401)
   })
 
-  test("reports dev sign-in on", async () => {
-    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: true, code: false })
-  })
-
   test("yuki login --dev stores a session and yuki whoami prints the same user id", async () => {
     const before = await cli(["whoami", "--url", origin])
     expect(before.code).toBe(1)
 
     const login = await cli(["login", "--dev", "--name", "alice", "--url", origin])
     expect(login.code).toBe(0)
-    expect(login.out).toMatch(/^\S+$/)
+    expect(login.out).toBe("alice")
 
     const me = await cli(["whoami", "--url", origin])
     expect(me.code).toBe(0)
     expect(me.out).toBe(login.out)
   })
 
-  test("the same name signs in as the same user, and another name as another user", async () => {
+  test("the same name signs in as the same owner, and another name as another owner", async () => {
     const a1 = await cli(["login", "--dev", "--name", "bob", "--url", origin])
     const a2 = await cli(["login", "--dev", "--name", "bob", "--url", origin])
     const c = await cli(["login", "--dev", "--name", "carol", "--url", origin])
@@ -154,21 +137,8 @@ describe("development build", () => {
     expect(c.out).not.toBe(a1.out)
   })
 
-  test("a session token alone, without the cookie cache, still signs in", async () => {
-    const res = await fetch(`${origin}/api/auth/dev/session`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "dave" }),
-    })
-    const token = res.headers.getSetCookie().find((c) => c.startsWith("better-auth.session_token="))
-    expect(token).toBeDefined()
-    const me = await fetch(`${origin}/api/me`, { headers: { cookie: token!.split(";")[0]! } })
-    expect(me.status).toBe(200)
-    expect(((await me.json()) as { user: { name: string } }).user.name).toBe("dave")
-  })
-
   test("a forged cookie is refused", async () => {
-    const me = await fetch(`${origin}/api/me`, { headers: { cookie: "better-auth.session_token=forged.value" } })
+    const me = await fetch(`${origin}/api/me`, { headers: { cookie: `yuki_session=dave.${"0".repeat(64)}` } })
     expect(me.status).toBe(401)
   })
 
@@ -179,6 +149,7 @@ describe("development build", () => {
       body: JSON.stringify({ name: "erin" }),
     })
     expect(res.status).toBe(404)
+    expect(res.headers.getSetCookie()).toEqual([])
   })
 
   test("the dev route rejects a bad name", async () => {

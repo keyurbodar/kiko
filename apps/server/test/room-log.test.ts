@@ -12,7 +12,7 @@ beforeAll(async () => {
 		script: await bundleWorker(new URL("./room-worker.ts", import.meta.url)),
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
-		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true } },
+		durableObjects: { ROOM: { className: "RoomProbe", useSQLite: true } },
 	})
 	origin = (await mf.ready).origin
 }, 60_000)

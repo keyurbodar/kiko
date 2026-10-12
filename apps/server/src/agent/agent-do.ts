@@ -38,7 +38,6 @@ import { AGENT_STEPS } from "./schema"
 import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@yuki/agent/host"
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
-import { isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { jevPort, modelPort, pickDecider } from "./browser/deciders"
@@ -77,8 +76,6 @@ export class AgentDO extends DurableObject<Env> {
     instrument(ctx, "agent")
     void ctx.blockConcurrencyWhile(async () => {
       migrate(ctx.storage, AGENT_STEPS)
-      // A wiped agent builds no host: the inbox's constructor writes a row, and a deleted object must hold none.
-      if (await isWiped(ctx.storage)) return
       void this.host
       void this.outbox
       this.home()
@@ -125,9 +122,7 @@ export class AgentDO extends DurableObject<Env> {
     return this.outboxInstance
   }
 
-  // A deleted agent takes no work: admitting it would write rows into an object that is meant to stay empty.
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
-    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
     if (home) this.setHome(home)
     const result = await this.host.receive(envelopes, brief)
     if (!result.refused && envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
@@ -135,12 +130,10 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async stop(): Promise<{ discarded: number }> {
-    if (await isWiped(this.ctx.storage)) return { discarded: 0 }
     return this.host.stop()
   }
 
   async wake(): Promise<boolean> {
-    if (await isWiped(this.ctx.storage)) return false
     const at = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HEARTBEAT_WAKEUP).toArray()[0]?.at
     if (at === undefined) return false
     if (at > Date.now()) await createAlarms(this.ctx).setWakeup(HEARTBEAT_WAKEUP, Date.now())
@@ -148,7 +141,6 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async status(): Promise<HostStatus> {
-    if (await isWiped(this.ctx.storage)) return { open: false, inbox: { waiting: 0, claimed: 0, submitted: 0 }, tasks: 0, submissions: 0 }
     return this.host.status()
   }
 
@@ -224,13 +216,11 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async humanComing(): Promise<void> {
-    if (await isWiped(this.ctx.storage)) return
     this.host.humanComing()
     this.answers.interrupt()
   }
 
   async humanGone(): Promise<void> {
-    if (await isWiped(this.ctx.storage)) return
     await this.host.humanGone()
   }
 
@@ -246,7 +236,6 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async askAnswered(id: string, answer: string): Promise<void> {
-    if (await isWiped(this.ctx.storage)) return
     this.answers.answer(id, answer)
   }
 
@@ -548,7 +537,6 @@ export class AgentDO extends DurableObject<Env> {
    * Only this object calls it, through `egressFetch`.
    */
   async egress(request: EgressRequest): Promise<Response> {
-    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
     // check-rules: allow egress the one outside request, made in this object's own invocation, which is the point of egress
     return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
@@ -685,14 +673,12 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async setModel(model: ModelRef): Promise<boolean> {
-    if (await isWiped(this.ctx.storage)) return false
     if (!findProvider(model.provider)?.getModels().some((m) => m.id === model.modelId)) return false
     await this.ctx.storage.put(MODEL_KEY, { provider: model.provider, modelId: model.modelId })
     return true
   }
 
   async alarm() {
-    if (await isWiped(this.ctx.storage)) return
     if (await this.browserIdle()) return
     await this.host.alarm()
   }
@@ -751,17 +737,6 @@ export class AgentDO extends DurableObject<Env> {
     return due.length === 1
   }
 
-  async deleteAll(): Promise<number> {
-    return wipeStorage(this.ctx, async () => {
-      await this.#browser?.idle().catch(() => {})
-      await this.hostInstance?.shutdown()
-    })
-  }
-
-  async storedRows(): Promise<number> {
-    return storedRows(this.ctx.storage)
-  }
-
   // The dev-only bodies live in agent/dev.ts, which only a development build can load. One cached load
   // per object reaches every dev method below.
   #dev?: Promise<typeof import("./dev")>
@@ -793,9 +768,5 @@ export class AgentDO extends DurableObject<Env> {
 
   async devWorkers(): Promise<Work[]> {
     return (await this.dev()).devWorkers(this.agentDevHost())
-  }
-
-  async devSeed(): Promise<void> {
-    return (await this.dev()).devSeed(this.agentDevHost())
   }
 }

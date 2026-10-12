@@ -43,7 +43,7 @@ jobs:
         working-directory: apps/server
         run: |
           {
-            echo "BETTER_AUTH_SECRET=$(openssl rand -hex 32)"
+            echo "SESSION_SECRET=$(openssl rand -hex 32)"
             echo "CREDENTIALS_KEK=$(openssl rand -base64 32)"
           } > .dev.vars
       - name: apply the local database migration

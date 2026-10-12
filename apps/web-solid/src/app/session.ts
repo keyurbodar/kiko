@@ -10,21 +10,10 @@ import { createSignal } from "solid-js"
 export interface SessionUser {
   id: string
   name: string
-  email: string
-  image: string | null
 }
 
 /** unknown: no cached flag yet, so the first `/api/me` decides. */
 export type SessionState = { status: "unknown" } | { status: "signed-in"; user: SessionUser } | { status: "signed-out" }
-
-export interface Providers {
-  google: boolean
-  github: boolean
-  /** True only on a development Worker, which has the dev session route. */
-  dev: boolean
-  /** True when the Worker has an access code set, so the sign-in screen shows the code form. */
-  code: boolean
-}
 
 const FLAG_KEY = "yuki:session"
 
@@ -72,17 +61,12 @@ export async function clearWarmTier(userId: string): Promise<void> {
   )
 }
 
-/** A sign-in redirect lands with this query, so its first frame waits on `/api/me` instead of showing sign-in. */
-export const SIGNED_IN_PARAM = "signed-in"
-
 /*
  * A signed-in browser always has the cached flag, so no flag means sign-in shows on the first frame.
- * Only a fresh sign-in redirect, which has the cookie but not yet the flag, waits for `/api/me`.
  */
 const cached = readFlag()
-const returning = typeof location !== "undefined" && new URLSearchParams(location.search).has(SIGNED_IN_PARAM)
 const [state, setState] = createSignal<SessionState>(
-  cached ? { status: "signed-in", user: cached } : returning ? { status: "unknown" } : { status: "signed-out" },
+  cached ? { status: "signed-in", user: cached } : { status: "signed-out" },
 )
 
 export const session = state
@@ -143,36 +127,12 @@ export async function signOut(): Promise<void> {
   await signedOut()
 }
 
-export async function loadProviders(): Promise<Providers> {
-  try {
-    const early = globalThis.__yukiBoot?.providers
-    if (globalThis.__yukiBoot) globalThis.__yukiBoot.providers = undefined
-    const res = await (early ?? fetch("/api/providers"))
-    if (res.ok) return (await res.json()) as Providers
-  } catch {
-    // fall through to none
-  }
-  return { google: false, github: false, dev: false, code: false }
-}
-
-/** Starts the OAuth redirect for a provider. */
-export async function signInWithProvider(provider: "google" | "github"): Promise<void> {
-  const res = await fetch("/api/auth/sign-in/social", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ provider, callbackURL: `/chat?${SIGNED_IN_PARAM}=1` }),
-  })
-  const { url } = (await res.json()) as { url?: string }
-  if (!url) throw new Error("no sign-in url")
-  location.assign(url)
-}
-
 /** Signs in with the access code. A wrong code throws the server's message. */
-export async function signInWithAccessCode(name: string, code: string): Promise<void> {
+export async function signInWithAccessCode(code: string): Promise<void> {
   const res = await fetch("/api/auth/access-code", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name, code }),
+    body: JSON.stringify({ code }),
   }).catch(() => null)
   if (!res?.ok) {
     const { message } = res ? ((await res.json().catch(() => ({}))) as { message?: string }) : {}

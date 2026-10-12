@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler d1 migrations apply AUTH_DB --local >/dev/null && wrangler dev",
+    "dev": "wrangler dev",
     "test": "bun scripts/test-each.ts",
     "test:workerd": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -29,7 +29,6 @@
     "@yuki/memory": "workspace:*",
     "@yuki/protocol": "workspace:*",
     "@yuki/sandbox": "workspace:*",
-    "better-auth": "^1.7.7",
     "effect": "4.0.0",
     "just-bash": "3.6.0",
     "marked": "18.0.14",
