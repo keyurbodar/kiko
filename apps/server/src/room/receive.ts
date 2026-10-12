@@ -1,4 +1,4 @@
-import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
+import type { AgentSlug, Envelope, RoomEvent, } from "@yuki/protocol"
 import type { Env } from "../index"
 import { agentStub } from "../lib/names"
 import type { Deliveries } from "./deliver"
@@ -6,9 +6,9 @@ import type { RoomLog } from "./log"
 import type { Mail } from "./mail"
 import type { MemberRow } from "./members"
 import { markReactionsBriefed } from "./reactions"
-import type { AgentHome } from "./mail-drain"
+import type { AgentHome } from "./home"
+import type { Home } from "./home"
 
-type Home = { userId: string; roomId: RoomId }
 
 /** "full" is the same for every sender: nothing was taken, the caller tries again later. Any other refusal is final and runs the sender's row of `REFUSED`. */
 export type Receipt = "admitted" | "full" | "refused"

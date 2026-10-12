@@ -1,20 +1,17 @@
-import type { AgentSlug, RoomId } from "@yuki/protocol"
+import type { AgentSlug } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import { agentStub } from "../lib/names"
 import type { Asks } from "./asks"
 import type { Burst } from "./burst"
 import { route } from "./deliver"
+import type { Home } from "./home"
 import type { Team } from "./team"
-import type { MemberRow, Members } from "./members"
+import type { Members } from "./members"
 import { type AgentSend, messageIdOf, type QueuedMail } from "./mail"
 import { receive, type ReceiveDeps } from "./receive"
 import { DELIVERY_RETRY_MS } from "./wake-delivery"
 
-export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?: string; lead?: boolean; private?: boolean }
-
 export const MAIL_WAKEUP = "mail"
-
-export type Home = { userId: string; roomId: RoomId }
 
 export type MailOutcome = { ok: true; to: AgentSlug[] } | { ok: false; error: string }
 
@@ -38,20 +35,12 @@ export class RoomMail {
 		const home = this.d.home()
 		const members = this.d.members.list()
 		if (!home || !members.some((m) => m.slug === slug)) return { ok: false, error: "not sent: you are not a member of this room." }
-		const out = this.d.mail.send(slug, send, members)
-		if (out.ok && out.fresh) this.d.team.doing(slug, `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`, Date.now())
+		const out = this.d.mail.send(slug, send, members, askId)
+		if (out.ok) this.d.team.doing(slug, `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`, Date.now())
 		this.d.publish(out.events)
 		if (!out.ok) return out
-		if (askId) this.d.asks.sent(askId, out.send.messageId)
-		const asked = askId || send.to === "all" ? null : out.fresh ? this.d.asks.answer(slug, send.to, send.text, send.id) : this.d.asks.answeredBy(send.id)
-		if (asked) {
-			this.pushAnswer(home, send.to as AgentSlug, asked, out.send.text)
-			return { ok: true, to: out.send.recipients }
-		}
-		if (out.fresh) {
-			this.d.mail.queue(slug, out.send)
-			this.d.ctx.waitUntil(this.drain())
-		}
+		if (out.answered) this.answer(home, send.to as AgentSlug, out.answered, out.send.text)
+		else this.d.ctx.waitUntil(this.drain())
 		return { ok: true, to: out.send.recipients }
 	}
 
@@ -68,14 +57,10 @@ export class RoomMail {
 		for (const ask of asks) {
 			if (!this.d.asks.settle(ask.id, text)) continue
 			if (ask.state === "open") {
-				this.pushAnswer(home, ask.asker, ask.id, text)
+				this.answer(home, ask.asker, ask.id, text)
 				continue
 			}
-			const send = this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { id: last.id, seq: last.seq, text })
-			if (send) {
-				this.d.mail.queue(slug, send)
-				relayed = true
-			}
+			if (this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { id: last.id, seq: last.seq, text })) relayed = true
 		}
 		if (relayed) this.d.ctx.waitUntil(this.drain())
 	}
@@ -121,7 +106,8 @@ export class RoomMail {
 		return new Set(route(this.d.burst.envelopes(home.roomId), this.d.members.list(), replyAuthor).keys())
 	}
 
-	private pushAnswer(home: Home, asker: AgentSlug, askId: string, text: string): void {
+	/** A replay pushes again: the first push may have died with the caller that made it. */
+	answer(home: Home, asker: AgentSlug, askId: string, text: string): void {
 		this.d.ctx.waitUntil(
 			agentStub(this.d.env.AGENT, home.userId, home.roomId, asker)
 				.askAnswered(askId, text)

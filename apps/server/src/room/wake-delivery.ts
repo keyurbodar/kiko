@@ -1,4 +1,4 @@
-import type { AgentSlug, Chat, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
+import type { AgentSlug, Chat, Envelope, RoomEvent, } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import type { Env } from "../index"
 import { INITIATIVE_RUN, REMINDER_RUN } from "../initiative/engine"
@@ -6,20 +6,19 @@ import { userStub } from "../lib/names"
 import type { Burst } from "./burst"
 import type { Mail } from "./mail"
 import { BUDGET_LINE, nextReset, utcDay } from "./limits"
-import type { MemberRow, Members } from "./members"
+import type { Members } from "./members"
 import type { RoomLog } from "./log"
 import type { RoomRoutines } from "./routines"
 import type { RoomWorkspace } from "./workspace"
 import { wakeBody } from "./workspace"
 import { type HeldWakes, HELD_PER_PASS, HELD_WAKEUP, type Wake, type WakeResult, wakeStamp } from "./wake"
-import type { Receipt } from "./receive"
+import { receive, type ReceiveDeps } from "./receive"
+import type { Home } from "./home"
 import { type Deliveries, type ReminderDelivery, reminderChain } from "./deliver"
 
 export const DELIVERY_RETRY_MS = 2_000
 export const WAKES_WAKEUP = "ws_wakes"
 const HUMAN_HERE_MS = 120_000
-
-export type Home = { userId: string; roomId: RoomId }
 
 export type WakeDeps = {
 	env: Env
@@ -36,7 +35,7 @@ export type WakeDeps = {
 	chat: (home: Home) => Promise<Chat | null>
 	seedMembers: (home: Home, chat: Chat) => Promise<void>
 	publish: (events: RoomEvent[]) => void
-	receive: (home: Home, member: MemberRow, members: readonly MemberRow[], chatTitle: string, envelope: Envelope) => Promise<Receipt>
+	receiver: ReceiveDeps
 }
 
 export class RoomWakes {
@@ -149,7 +148,7 @@ export class RoomWakes {
 			}
 		}
 		const envelope: Envelope = { id: w.id, roomId: home.roomId, from: { kind: "system", reason: w.why }, body: w.body, seq: w.seq ?? this.d.log.lastSeq(), ...wakeStamp(w, (root) => this.d.mail.stopped(root)) }
-		const receipt = await this.d.receive(home, member, members, chat.title, envelope)
+		const receipt = await receive(this.d.receiver, home, member, members, chat.title, [envelope])
 		if (receipt !== "admitted") {
 			this.d.mail.refund(w.id)
 			if (w.budget !== "paid") await userStub(this.d.env.USER, home.userId).refundAutonomous(w.id)

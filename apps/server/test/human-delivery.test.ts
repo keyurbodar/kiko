@@ -9,6 +9,7 @@ import { reactionLines } from "../src/room/reactions"
 import { RoomLog } from "../src/room/log"
 import { RoomMail } from "../src/room/mail-drain"
 import { Mail } from "../src/room/mail"
+import { Asks } from "../src/room/asks"
 import { MAX_MEMBERS, type MemberRow } from "../src/room/members"
 import { tags } from "../src/room/recipients"
 import { MAX_TASKS } from "../src/room/workspace"
@@ -31,11 +32,12 @@ function setup(refusal: string | null, turn: Turn = { ok: true }, members: Membe
   migrate(storage)
   const log = new RoomLog(storage, () => 1)
   const clock = { now: NOW }
-  const state = { chatFails: false }
+  const state = { chatFails: false, chatGone: false }
   const wakes: [string, number][] = []
   const received: string[][] = []
   const to: string[] = []
   const published: unknown[] = []
+  const takes: string[] = []
   // The latest time each wakeup key holds, as the alarm table keeps it.
   const wakeups = new Map<string, number>()
   const alarms = {
@@ -59,14 +61,19 @@ function setup(refusal: string | null, turn: Turn = { ok: true }, members: Membe
     },
     USER: {
       idFromName: (name: string) => name,
-      get: () => ({ takeTurn: async () => turn }),
+      get: () => ({
+        takeTurn: async (id: string) => {
+          takes.push(id)
+          return turn
+        },
+      }),
     },
   }
   const deps: BurstDeps = {
     env: env as never,
     ctx: {} as never,
     log,
-    mail: new Mail(storage, log),
+    mail: new Mail(storage, log, new Asks(sql)),
     deliveries: new Deliveries(storage, log),
     publish: (events) => void published.push(...events),
     agentHome: (_h, slug) => ({ ...home, slug }),
@@ -78,13 +85,14 @@ function setup(refusal: string | null, turn: Turn = { ok: true }, members: Membe
     home: () => home,
     chat: async () => {
       if (state.chatFails) throw new Error("chat unavailable")
+      if (state.chatGone) return null
       return { title: "t" } as Chat
     },
     seedMembers: async () => {},
     drainMail: async () => {},
     retryHeld: async () => {},
   }
-  return { flush: new BurstFlush(deps), burst, log, wakes, wakeups, received, to, turn, clock, published, deps, storage, sql, state }
+  return { flush: new BurstFlush(deps), burst, log, wakes, wakeups, received, to, turn, clock, published, deps, storage, sql, state, takes }
 }
 
 /** A human message as the room stores it: the bubble, with the mentions of its whole text. */
@@ -178,6 +186,17 @@ test("a mention past the bubble limit routes the message to the agent it names",
   await human(burst, 1, `${"x".repeat(20_000)} @ada`)
   await flush.flush()
   expect(to).toEqual(["ada"])
+})
+
+test("a burst for a chat that is gone is not charged a turn", async () => {
+  const { flush, burst, log, state, takes } = setup(null)
+  // The title is known, the case where the old code asked for the turn at the same time as the chat.
+  log.setMeta("title", "t")
+  state.chatGone = true
+  await human(burst, 1, "hello")
+  await flush.flush()
+  expect(takes).toEqual([])
+  expect(burst.pending()).toBe(false)
 })
 
 test("a held burst of more than one delivery waits for the reset and does not spin before it", async () => {

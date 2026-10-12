@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, Envelope } from "@yuki/protocol"
+import { Asks } from "../src/room/asks"
 import { Deliveries } from "../src/room/deliver"
 import { RoomLog } from "../src/room/log"
 import { Mail } from "../src/room/mail"
@@ -23,7 +24,7 @@ function setup(refusal: string | null) {
 	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
 	migrate(storage)
 	const log = new RoomLog(storage, () => 1)
-	const mail = new Mail(storage, log)
+	const mail = new Mail(storage, log, new Asks(sql))
 	const deliveries = new Deliveries(storage, log)
 	const received: { slug: string; ids: string[] }[] = []
 	const env = {
