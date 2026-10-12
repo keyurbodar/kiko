@@ -28,7 +28,7 @@ export async function loopsRoute(request: Request, env: Env): Promise<Response |
     try {
       patch = decodePatch(await request.json().catch(() => null))
     } catch {
-      return error(400, "initiative is off, chat, digest or active. capture is auto, always or off")
+      return error(400, "initiative is off, chat, digest or active. capture is auto or off")
     }
     if (patch.timezone !== undefined && !validZone(patch.timezone)) return error(400, "timezone must be an IANA time zone, such as Europe/Berlin")
     return Response.json(await stub.setUserSettings(patch))
