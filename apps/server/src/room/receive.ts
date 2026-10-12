@@ -27,7 +27,7 @@ type Refusal = { home: Home; to: AgentSlug; members: readonly MemberRow[]; title
 
 const reasonText = (why: string) => (why === "too_large" ? "it was too large" : "its inbox could not take it")
 
-/** What a final refusal costs, by who sent it. A system wake has no row: its caller refunds the budget it reserved. */
+/** What a final refusal costs, by who sent it. A system wake has no row. */
 const REFUSED: Record<Envelope["from"]["kind"], ((d: ReceiveDeps, r: Refusal) => Promise<void>) | null> = {
 	// A refused batch of human messages is posted back to the human, one notice per message. The messages stay in the chat, so the human is not asked to send them again.
 	human: async (d, r) => {

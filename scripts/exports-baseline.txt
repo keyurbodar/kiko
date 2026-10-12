@@ -58,7 +58,6 @@ apps/server/src/room/burst.ts:AFTER_TYPING_MS
 apps/server/src/room/burst.ts:MAX_BURST_MS
 apps/server/src/room/burst.ts:MAX_DELIVERY_BYTES
 apps/server/src/room/burst.ts:isFragment
-apps/server/src/room/limits.ts:MAX_AUTONOMOUS_RUNS_PER_DAY
 apps/server/src/room/limits.ts:MAX_DELIVERIES_PER_ROOT
 apps/server/src/room/limits.ts:MAX_HOP
 apps/server/src/room/limits.ts:SendCheck

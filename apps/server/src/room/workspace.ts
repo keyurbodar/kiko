@@ -139,7 +139,7 @@ export class RoomWorkspace implements Workspace {
 			const missing = deps.filter((d) => !this.task(d))
 			if (missing.length) return fail(`no task ${missing.join(", ")}`)
 			const seq = this.log.lastSeq() + 1
-			const made = chain ?? (by.kind === "human" ? { rootId: `task:${input.id}`, hop: 0, origin: "human" as const } : null)
+			const made = chain ?? (by.kind === "human" ? { rootId: `task:${input.id}`, hop: 0 } : null)
 			this.sql.exec(
 				"INSERT INTO ws_tasks (id, title, status, owner, note, created_by, created_seq, updated_at, chain) VALUES (?, ?, 'todo', ?, NULL, ?, ?, ?, ?)",
 				input.id,

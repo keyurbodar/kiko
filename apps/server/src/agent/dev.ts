@@ -3,7 +3,7 @@ import type { Harness } from "@earendil-works/pi-durable"
 import type { Opened } from "@yuki/agent/host"
 import type { Work } from "@yuki/agent/workers"
 import type { AgentHome } from "../room/room-do"
-import { DEV_BUDGET_KEY, DEV_CLASSIC_KEY, DEV_FAKE_KEY, DEV_INITIATIVE_KEY } from "./agent-do"
+import { DEV_FAKE_KEY, DEV_INITIATIVE_KEY } from "./agent-do"
 
 // The bodies never reach a production bundle: dev-guard loads this module only in a dev build.
 
@@ -43,14 +43,6 @@ export async function devTrace(host: AgentDevHost): Promise<{ kind: string; tool
     const text = parts.map((p) => p.text ?? "").join("").slice(0, 300)
     return { kind: e.kind, ...(tool ? { tool } : {}), chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0), ...(text ? { text } : {}) }
   })
-}
-
-export async function devClassic(host: AgentDevHost): Promise<void> {
-  await host.storage.put(DEV_CLASSIC_KEY, true)
-}
-
-export async function devBudget(host: AgentDevHost, ms: number): Promise<void> {
-  await host.storage.put(DEV_BUDGET_KEY, ms)
 }
 
 export async function devFake(host: AgentDevHost): Promise<void> {

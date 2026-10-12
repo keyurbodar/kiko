@@ -1,5 +1,5 @@
 import { messages, poll } from "../kit"
-import type { AgentSlug, Message, RoomToClient } from "@yuki/protocol"
+import type { AgentSlug, Message } from "@yuki/protocol"
 import { expectEqual, type Session, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send } from "./mid-run"
@@ -59,33 +59,6 @@ async function cross(v: { url: string }, s: Session) {
 	room.raw.close()
 }
 
-async function refused(v: { url: string }, s: Session) {
-	const { room } = await team(v, s, ["ana", "ben"], "refused burst")
-	const res = await fetch(new URL("api/dev/agent/limits", v.url), {
-		method: "POST",
-		headers: { "content-type": "application/json", cookie: s.cookie },
-		body: JSON.stringify({ limits: { turnsPerDay: 1 } }),
-	})
-	if (!res.ok) throw new VerifyError(`the limits route answered ${res.status}`)
-	await send(room, "@ana [later ben] hello ben.")
-	const status = (slug: string, state: string) => () =>
-		room.raw.log.some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).slug === slug && (e.frame as Extract<RoomToClient, { t: "status" }>).state === state)
-	await poll("ana at work", status("ana", "working"), 15_000)
-	await send(room, "@ben [reply] no,")
-	const sentAt = () => agentSends(room).some((m) => slugOf(m) === "ana")
-	const end = Date.now() + 7_000
-	while (!sentAt() && Date.now() < end) {
-		room.raw.send({ t: "typing" })
-		await Bun.sleep(700)
-	}
-	if (!sentAt()) throw new VerifyError("ana's message to ben never came while the burst was open")
-	await poll("the limit line", () => messages(room).some((m) => m.from.kind === "system" && /today's 1 replies/.test(m.text)), 15_000)
-	await poll("ben's answer to ana's mail", () => runsOf(room, "ben").some((t) => t.includes("hello ben")), 15_000)
-	if (runsOf(room, "ben").some((t) => t.includes("no,"))) throw new VerifyError("the refused burst reached ben")
-	console.log("  ok refused: mail held behind a refused burst reached ben")
-	room.raw.close()
-}
-
 async function taskWake(v: { url: string }, s: Session) {
 	const { room } = await team(v, s, ["ana", "ben"], "task wake")
 	room.raw.send({ t: "task", op: { op: "create", id: "t1", title: "first", owner: "ana" as AgentSlug } })
@@ -108,7 +81,6 @@ const suite: Suite = {
 		await batch(v, await v.as(`team-flow-batch-${stamp}`))
 		await ask(v, await v.as(`team-flow-ask-${stamp}`))
 		await cross(v, await v.as(`team-flow-cross-${stamp}`))
-		await refused(v, await v.as(`team-flow-refused-${stamp}`))
 		await taskWake(v, await v.as(`team-flow-task-${stamp}`))
 	},
 }

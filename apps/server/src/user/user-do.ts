@@ -7,7 +7,6 @@ import { DurableObject } from "cloudflare:workers"
 import { instrument, loadUserDev } from "../lib/dev-guard"
 import { Schema } from "effect"
 import type { Env } from "../index"
-import { type AutonomousAnswer, type Limits, resolveLimits, takeAutonomous, takeTurn, type TurnAnswer, utcDay } from "./limits"
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
@@ -52,7 +51,7 @@ import { KernelWiring } from "./kernel-wiring"
 import { extensionOp, type ExtensionHost, proposeExtension } from "./extension-wiring"
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
-import { LAST_SEEN } from "./keys"
+import { AWAY_MS, LAST_SEEN } from "./keys"
 
 const REPLAY_LIMIT = 500
 
@@ -90,15 +89,15 @@ export class UserDO extends DurableObject<Env> {
         return event
       }, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()), Date.now, {
-        deliverRun: async ({ deliveryId, routine, body, budget }) => {
-          return roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body, budget })
+        deliverRun: async ({ deliveryId, routine, body }) => {
+          return roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body })
         },
         watch: (trigger) => this.#routines.watchPage(trigger),
         notice: (roomId, id, text) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).systemNotice(id, text, "routine"),
         gate: {
           away: () => {
             const last = this.setting(LAST_SEEN)
-            const away = last !== null && Date.now() - Number(last) > this.limits().awayDays * 86_400_000
+            const away = last !== null && Date.now() - Number(last) > AWAY_MS
             if (away) this.ctx.waitUntil(this.awayNotice(Date.now()).catch(() => {}))
             return away
           },
@@ -230,8 +229,8 @@ export class UserDO extends DurableObject<Env> {
     return this.setting(PUBLIC_ORIGIN)
   }
 
-  async runRoutine(id: string, byHuman = false): Promise<RunDelivery | null> {
-    return this.reminders.runNow(id, byHuman)
+  async runRoutine(id: string): Promise<RunDelivery | null> {
+    return this.reminders.runNow(id)
   }
 
   async routineRuns(id?: string): Promise<RoutineRun[]> {
@@ -461,46 +460,10 @@ export class UserDO extends DurableObject<Env> {
     return this.#credentials.listProviders().map((p) => this.#mem.describe(p))
   }
 
-  limits(): Limits {
-    const raw = this.setting("limits")
-    return resolveLimits(raw ? (JSON.parse(raw) as Partial<Limits>) : null)
-  }
-
-  setLimits(patch: Partial<Limits>): Limits {
-    const next = { ...JSON.parse(this.setting("limits") ?? "{}"), ...patch }
-    this.putSetting("limits", JSON.stringify(next))
-    return this.limits()
-  }
-
-  /** One run nobody's message started, paid once per wake id however often the room asks (section 25.5). */
-  takeAutonomous(id: string): AutonomousAnswer {
-    const now = Date.now()
-    const day = utcDay(now)
-    const key = `autonomous:${day}`
-    const used = Number(this.setting(key) ?? 0)
-    if (this.sql.exec("SELECT 1 FROM charged_today WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
-    const lastSeen = this.setting(LAST_SEEN)
-    const answer = takeAutonomous(used, lastSeen === null ? null : Number(lastSeen), this.limits(), now)
-    if (answer.ok) {
-      this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM charged_today WHERE day < ?", day)
-      this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
-    } else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
-    return answer
-  }
-
-  /** The agent refused the wake `id`: the run it paid for goes back to today's count. */
-  refundAutonomous(id: string): void {
-    const day = utcDay(Date.now())
-    if (!this.sql.exec("DELETE FROM charged_today WHERE id = ? AND day = ?", id, day).rowsWritten) return
-    const key = `autonomous:${day}`
-    this.putSetting(key, String(Math.max(0, Number(this.setting(key) ?? 0) - 1)))
-  }
-
   private seen(): void {
     const now = Date.now()
     const last = Number(this.setting(LAST_SEEN) ?? 0)
-    const wasAway = last > 0 && now - last > this.limits().awayDays * 86_400_000
+    const wasAway = last > 0 && now - last > AWAY_MS
     if (now - last < 3_600_000) return
     this.putSetting(LAST_SEEN, String(now))
     if (wasAway) deleteSetting(this.sql, AWAY_NOTICE)
@@ -514,28 +477,11 @@ export class UserDO extends DurableObject<Env> {
     if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open yuki.", "limit")
   }
 
-  /** One human burst, charged once per burst id however often the room retries it. Shares the day's id table with `takeAutonomous`; burst ids never look like wake ids. */
-  takeTurn(id: string): TurnAnswer {
-    const now = Date.now()
-    const day = utcDay(now)
-    const key = `turns:${day}`
-    const used = Number(this.setting(key) ?? 0)
-    if (this.sql.exec("SELECT 1 FROM charged_today WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
-    const answer = takeTurn(used, this.limits(), now)
-    if (answer.ok) {
-      this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM charged_today WHERE day < ?", day)
-      this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
-    }
-    return answer
-  }
-
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
       getSetting(this.sql, key)
-    const limits = setting("limits")
     const agent = slug ? { extensions: this.extensions.forAgent(slug), soul: await this.souls.get(slug) } : undefined
-    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), limits: limits ? JSON.parse(limits) : null, captures: this.#mem.captures() }, agent)
+    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), captures: this.#mem.captures() }, agent)
   }
 
   async lifeView(): Promise<string> {
@@ -585,7 +531,6 @@ export class UserDO extends DurableObject<Env> {
       reminders: this.reminders,
       room: this.env.ROOM,
       userId: userIdFromObjectName(this.ctx.id.name),
-      limits: () => this.limits(),
     })
     return this.#loopsModule
   }

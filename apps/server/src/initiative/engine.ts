@@ -35,7 +35,6 @@ type EngineDeps = {
   tz: () => string
   level: () => Level
   away: () => boolean
-  budget: () => number
   title: (roomId: string) => string | null
   home: () => string | null
   routines: () => { routine: Reminder; last: RoutineRun | null }[]
@@ -282,11 +281,10 @@ export class InitiativeEngine {
     const appetite = store.appetite()
     const busyRooms = this.d.sql.exec<{ room_id: string }>("SELECT room_id FROM initiative_rooms WHERE human_at > ?", now - BUSY_MS).toArray().map((r) => r.room_id)
     const away = this.d.away()
-    const budget = this.d.budget()
-    const ctx = { now, level, away, budget, busyRooms, rhythm, appetite }
+    const ctx = { now, level, away, busyRooms, rhythm, appetite }
     let worth: Record<string, number> | null = null
     const judge = this.d.judge()
-    if (judge && items.length && (level === "digest" || level === "active") && rhythm.known && rhythm.activeNow && !away && budget > 0 && allowance(appetite, now) > 0) {
+    if (judge && items.length && (level === "digest" || level === "active") && rhythm.known && rhythm.activeNow && !away && allowance(appetite, now) > 0) {
       const rank = rankOrder(ctx)
       const eligible = items
         .filter((i) => now >= restUntil(i.c, rhythm.cycle) && !busyRooms.includes(i.c.room))

@@ -17,7 +17,6 @@ export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 
 export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "run_budget", "limit", "files", "created", "routine", "stalled", "initiative"])
-export const Origin = Schema.Literals(["human", "routine", "auto"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })
@@ -35,7 +34,6 @@ export const Envelope = Schema.Struct({
 	hop: Count,
 	rootId: Id,
 	seq: Count,
-	origin: Schema.optionalKey(Origin),
 })
 
 

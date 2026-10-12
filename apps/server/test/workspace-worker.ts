@@ -15,7 +15,7 @@ export class WorkspaceDO extends DurableObject {
 		this.ws = new RoomWorkspace(ctx.storage, new RoomLog(ctx.storage))
 	}
 	async call(slug: AgentSlug, lead: boolean, call: WorkspaceCall) {
-		const { answer, events } = runCall(this.ws, slug, lead, call, MEMBERS, { rootId: `m-${slug}`, hop: 1, origin: "human" })
+		const { answer, events } = runCall(this.ws, slug, lead, call, MEMBERS, { rootId: `m-${slug}`, hop: 1 })
 		return { answer, events, wakes: this.ws.pendingWakes() }
 	}
 	async human(op: Parameters<RoomWorkspace["update"]>[2] & { id: string; dependsOn?: string[]; title?: string; create?: boolean }) {

@@ -27,7 +27,6 @@ function world(opts: { level?: Level; titles?: Record<string, string | null>; ju
     tz: () => "UTC",
     level: () => level,
     away: () => false,
-    budget: () => 5,
     title,
     home: () => null,
     routines: () => [],

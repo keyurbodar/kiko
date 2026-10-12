@@ -10,7 +10,6 @@ import { receive, type ReceiveDeps } from "../src/room/receive"
 import { Reports } from "../src/room/reports"
 import { SignalWindow } from "../src/room/signals"
 import { ROOM_STEPS } from "../src/room/schema"
-import { HeldWakes } from "../src/room/wake"
 import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000A"
@@ -123,16 +122,6 @@ test("a send that failed after it was recorded is still delivered once when the 
 	expect(await room.send("ada" as AgentSlug, send, null)).toMatchObject({ ok: true })
 	await Promise.all(pending)
 	expect(received.filter((r) => r.slug === "bob")).toHaveLength(1)
-})
-
-test("held wakes older than a week are dropped when the next batch is read", () => {
-	const sql = sqlWith(ROOM_STEPS)
-	const outbox = new HeldWakes(sql)
-	const wake = (id: string) => ({ id, to: "ada" as AgentSlug, why: "reminder" as const, body: "b", chain: null, budget: "room" as const, retry: true })
-	const now = 10 * 86_400_000
-	outbox.hold(wake("old"), now - 8 * 86_400_000)
-	outbox.hold(wake("new"), now - 1_000)
-	expect(outbox.next(now).map((w) => w.id)).toEqual(["new"])
 })
 
 test("a held result batch keeps its opening time across retries", async () => {

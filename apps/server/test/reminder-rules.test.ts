@@ -17,6 +17,7 @@ function setup(results: RunDelivery[] = [], pages: string[] = [], deliverFails =
   const runs: { deliveryId: string; body: string }[] = []
   const posted: string[] = []
   const notices: string[] = []
+  const away = { now: false }
   const deliverRun: DeliverRun = async ({ deliveryId, body }) => {
     runs.push({ deliveryId, body })
     if (runFails) throw new Error("room unreachable")
@@ -29,9 +30,9 @@ function setup(results: RunDelivery[] = [], pages: string[] = [], deliverFails =
     deliverRun,
     watch: async () => ({ ok: true, text: pages.shift() ?? "same" }),
     notice: async (_roomId, _id, text) => void notices.push(text),
-    gate: { away: () => false },
+    gate: { away: () => away.now },
   })
-  return { sql, clock, reminders, runs, posted, notices }
+  return { sql, clock, reminders, runs, posted, notices, away }
 }
 
 test("a held watch run keeps the old fingerprint, so the next check reports the change", async () => {
@@ -43,6 +44,17 @@ test("a held watch run keeps the old fingerprint, so the next check reports the 
   }
   expect(runs.length).toBe(2)
   expect(runs.every((r) => r.body.includes("page two"))).toBe(true)
+})
+
+test("a routine run is held, not delivered, while the human is away", async () => {
+  const { clock, reminders, runs, away } = setup()
+  const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + MIN).toISOString(), rrule: "FREQ=DAILY" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  away.now = true
+  expect(await reminders.runNow(routine.id)).toBe("held")
+  expect(runs).toEqual([])
+  away.now = false
+  expect(await reminders.runNow(routine.id)).toBe("delivered")
+  expect(runs).toHaveLength(1)
 })
 
 test("a reminder for the human repeats at most every 30 minutes, like one for an agent", async () => {
@@ -93,14 +105,14 @@ test("snooze moves only time reminders, and a paused time routine stays paused",
 test("a refused routine run counts toward auto-pause", async () => {
   const { clock, reminders } = setup(["refused", "refused", "refused"])
   const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
-  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id, true)
+  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id)
   expect(reminders.get(routine.id)?.status).toBe("paused")
 })
 
 test("a routine whose delivery throws counts toward auto-pause, like a refused run", async () => {
   const { clock, reminders, notices } = setup([], [], false, true)
   const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
-  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id, true)
+  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id)
   expect(reminders.get(routine.id)?.status).toBe("paused")
   expect(notices.length).toBe(1)
 })
