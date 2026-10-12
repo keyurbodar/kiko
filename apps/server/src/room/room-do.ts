@@ -1,4 +1,4 @@
-import { isAgentSlug, tagline } from "@yuki/protocol"
+import { isAgentSlug, MAX_MESSAGE_TEXT, tagline } from "@yuki/protocol"
 import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp } from "@yuki/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
@@ -31,7 +31,7 @@ import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult,
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, markReactionsBriefed, reactionBrief } from "./reactions"
-import { claim, ClaimRefused, legacyFiles, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
+import { attachmentPath, claim, ClaimRefused, legacyFiles, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
 import { migrate } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
@@ -53,6 +53,24 @@ export type AgentHome = { userId: string; roomId: RoomId; slug: AgentSlug; role?
 
 
 const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "delete", "react", "read", "member", "member_removed"])
+
+// A long message's whole text is stored as this file. The name is what the agent reads in its envelope.
+const WHOLE_NAME = "message.txt"
+const WHOLE_TYPE = "text/plain"
+type WholeText = { id: string; r2Key: string; size: number; sha256: string }
+
+/** A UUID-shaped id that one client id always gives, so a resend names the same file. */
+async function fileIdOf(clientId: string): Promise<string> {
+	const hex = await sha256Hex(`text:${clientId}`)
+	return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20, 32)].join("-")
+}
+
+/** The bubble's text: the first part of a long message. The cut never splits a surrogate pair. */
+function bubbleOf(text: string): string {
+	if (text.length <= MAX_MESSAGE_TEXT) return text
+	const high = /[\uD800-\uDBFF]/.test(text.charAt(MAX_MESSAGE_TEXT - 1))
+	return text.slice(0, MAX_MESSAGE_TEXT - (high ? 1 : 0))
+}
 
 export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string }
 
@@ -452,7 +470,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-		handleFrame(this, ws, message)
+		await handleFrame(this, ws, message)
 	}
 
 	async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
@@ -545,29 +563,50 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.wakes.retryHeld()
 	}
 
-	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string } {
-		const earlier = this.log.sentBefore(frame.clientId)
-		if (earlier) return { ack: earlier, events: [] }
+	async humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<{ ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }> {
 		try {
+			const whole = frame.text.length > MAX_MESSAGE_TEXT && !this.log.sentBefore(frame.clientId) ? await this.writeWhole(frame.clientId, frame.text) : null
 			return this.ctx.storage.transactionSync(() => {
+				const earlier = this.log.sentBefore(frame.clientId)
+				if (earlier) return { ack: earlier, events: [] }
+				const now = Date.now()
 				const claimed = frame.attachments?.length
-					? claim(this.pending, this.files, frame.attachments, Date.now())
+					? claim(this.pending, this.files, frame.attachments, now)
 					: { refs: frame.files?.length ? legacyFiles(this.files, frame.files) : [], events: [] }
+				const filed = whole
+					? this.files.put({ id: whole.id, path: attachmentPath(WHOLE_NAME, now, (p) => this.files.stat(p) !== null), r2Key: whole.r2Key, size: whole.size, type: WHOLE_TYPE, sha256: whole.sha256, author: { kind: "human" }, expectSha256: "none" })
+					: null
+				if (filed && (!filed.file || filed.refused || filed.drop)) throw new ClaimRefused("The message's text could not be stored as a file.")
+				const refs = [...claimed.refs, ...(filed?.file ? [filed.file] : [])]
 				const replyTo = frame.replyTo && this.log.message(frame.replyTo) ? frame.replyTo : undefined
 				const stored = this.log.addMessage({
 					from: { kind: "human" },
-					text: frame.text,
+					text: bubbleOf(frame.text),
 					clientId: frame.clientId,
 					...(replyTo ? { replyTo } : {}),
 					...(replyTo && frame.quote?.trim() ? { quote: frame.quote.trim() } : {}),
-					...(claimed.refs.length ? { files: claimed.refs } : {}),
+					...(refs.length ? { files: refs } : {}),
 				})
-				return { ack: { id: stored.id, seq: stored.seq }, events: [...claimed.events, ...(stored.event ? [stored.event] : [])] }
+				return { ack: { id: stored.id, seq: stored.seq }, events: [...claimed.events, ...(filed?.events ?? []), ...(stored.event ? [stored.event] : [])] }
 			})
 		} catch (error) {
 			if (error instanceof ClaimRefused) return { refused: error.message }
 			throw error
 		}
+	}
+
+	/**
+	 * A long message's whole text, as bytes in R2, before the send's transaction. The key comes from
+	 * the send's client id, which a resend repeats, so the resend writes the same object again.
+	 */
+	private async writeWhole(clientId: string, text: string): Promise<WholeText> {
+		const home = this.home()
+		if (!home) throw new ClaimRefused("This chat is not ready. Send again in a moment.")
+		const body = new TextEncoder().encode(text)
+		const id = await fileIdOf(clientId)
+		const r2Key = fileKey(home.userId, home.roomId, id)
+		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: WHOLE_TYPE } })
+		return { id, r2Key, size: body.length, sha256: await sha256Hex(body) }
 	}
 
 	async pendingOpen(input: NewPending): Promise<string | null> {

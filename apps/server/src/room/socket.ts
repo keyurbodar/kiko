@@ -1,4 +1,4 @@
-import { MAX_FRAME, textFits } from "@yuki/protocol"
+import { MAX_FRAME, MAX_MESSAGE_TEXT, textFits } from "@yuki/protocol"
 import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomToClient, TaskOp, FileOp } from "@yuki/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@yuki/protocol/schema"
 import { Schema } from "effect"
@@ -18,7 +18,7 @@ export interface SocketRoom {
 	search(query: string, options?: SearchOptions): SearchPage
 	memberOp(op: MemberOp): MemberRefusal | null
 	fileOp(op: FileOp): string | null
-	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }
+	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<{ ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }>
 	taskOp(op: TaskOp): void
 	setModel(ref: string, slug?: AgentSlug): void
 }
@@ -64,7 +64,8 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 		case "send":
 			return textFits(frame.text) && (frame.text.trim() !== "" || !!frame.files?.length || !!frame.attachments?.length) ? frame : null
 		case "edit":
-			return textFits(frame.text) && frame.text.trim() !== "" ? frame : null
+			// An edit cannot carry a file, so it stays within the bubble limit.
+			return frame.text.length <= MAX_MESSAGE_TEXT && textFits(frame.text) && frame.text.trim() !== "" ? frame : null
 		case "react":
 			return frame.emoji === null || (frame.emoji.length > 0 && frame.emoji.length <= MAX_EMOJI && !/\s/.test(frame.emoji))
 				? frame
@@ -76,17 +77,17 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 	}
 }
 
-export function handleFrame(room: SocketRoom, ws: WebSocket, raw: string | ArrayBuffer): void {
+export async function handleFrame(room: SocketRoom, ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
 	const frame = parse(raw)
 	if (!frame) {
 		if (!retired(raw)) ws.close(BAD_FRAME, "bad frame")
 		return
 	}
-	const events = apply(room, ws, frame)
+	const events = await apply(room, ws, frame)
 	if (events) room.publish(Array.isArray(events) ? events : [events])
 }
 
-function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent | readonly RoomEvent[] | null {
+async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Promise<RoomEvent | readonly RoomEvent[] | null> {
 	const { log } = room
 	const human = { kind: "human" } as const
 	switch (frame.t) {
@@ -95,7 +96,7 @@ function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): RoomEvent 
 			ws.serializeAttachment({ ...attachment(ws), ready: true } satisfies Attachment)
 			return null
 		case "send": {
-			const out = room.humanSend(frame)
+			const out = await room.humanSend(frame)
 			if ("refused" in out) {
 				send(ws, { t: "send_refused", clientId: frame.clientId, reason: out.refused })
 				return null

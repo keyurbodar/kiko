@@ -1,7 +1,7 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { MAX_IMAGE_BYTES, attachmentMessages, textFits } from "@yuki/protocol"
-import { admit, attachmentType, textFile } from "../../lib/attachments"
+import { MAX_IMAGE_BYTES, attachmentMessages } from "@yuki/protocol"
+import { admit, attachmentType } from "../../lib/attachments"
 import { prepareImageForAttachment } from "../../lib/image-compression"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
@@ -86,9 +86,6 @@ export function createPromptInputV2Attachments(
     const plainText = clipboardData.getData("text/plain") ?? ""
     if (!plainText) return
     const text = plainText.includes("\r") ? plainText.replace(/\r\n?/g, "\n") : plainText
-    // Past one message's limit the paste becomes a file, so the message is never cut and never refused.
-    const held = target.current().map((part) => ("content" in part ? part.content : "")).join("")
-    if (!textFits(held + text)) return addAttachments([textFile(text)], target)
     const put = () => {
       if (input.addPart({ type: "text", content: text, start: 0, end: 0 })) return true
       input.focusEditor()

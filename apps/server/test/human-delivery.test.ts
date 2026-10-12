@@ -4,7 +4,7 @@ import { MAX_ENTRY_BYTES, Inbox } from "@yuki/agent/inbox"
 import { BurstFlush, type BurstDeps } from "../src/room/burst-flush"
 import { Burst } from "../src/room/burst"
 import { buildBrief, MAX_BOARD_BYTES } from "../src/room/brief"
-import { Deliveries } from "../src/room/deliver"
+import { Deliveries, withContext } from "../src/room/deliver"
 import { RoomLog } from "../src/room/log"
 import { Mail } from "../src/room/mail"
 import type { MemberRow } from "../src/room/members"
@@ -106,4 +106,12 @@ test("a human message over the daily reply limit is held and answered at the res
   await flush.flush()
   expect(burst.pending()).toBe(false)
   expect(received).toEqual([["human:m1"]])
+})
+
+test("the agent's envelope of a long human message names the file that holds its whole text", () => {
+  const { log } = setup(null)
+  const whole = { id: "0c4f0c4f-0000-4000-8000-000000000001", name: "attachments/abc-message.txt", type: "text/plain", size: 40_000 }
+  const stored = log.addMessage({ from: { kind: "human" }, text: "x".repeat(16_000), clientId: "c1", files: [whole] })
+  const envelope: Envelope = { id: `human:${stored.id}`, roomId: ROOM as never, from: { kind: "human" }, body: "x".repeat(16_000), hop: 0, rootId: stored.id, seq: stored.seq }
+  expect(withContext(log, envelope).body).toContain("(attached: /attachments/abc-message.txt (text/plain, 39 kb).")
 })

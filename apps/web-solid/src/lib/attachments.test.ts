@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { textFits } from "@yuki/protocol"
-import { admit, attachmentType, isImage, MAX_ATTACHMENTS, splitFiles, textFile, tileSpan, wrapIndex } from "./attachments"
+import { admit, attachmentType, isImage, MAX_ATTACHMENTS, sendRefusal, splitFiles, tileSpan, wrapIndex } from "./attachments"
 
 const MB = 1024 * 1024
 const file = (name: string, type: string, size = 1000) => ({ name, type, size })
@@ -77,20 +76,18 @@ describe("the picture grid and the dialog", () => {
   })
 })
 
-describe("text too long for one message", () => {
-  test("text stays in the box while it fits one frame, counted the way the socket counts it", () => {
-    expect(textFits("x".repeat(16_000))).toBe(true)
-    expect(textFits("x".repeat(16_001))).toBe(false)
-    // A control character takes six characters of JSON, so 16,000 of them overflow the frame.
-    expect(textFits("\u0001".repeat(16_000))).toBe(false)
-    expect(textFits("\u0001".repeat(8_000))).toBe(true)
+describe("a draft too long to send stays in the box", () => {
+  test("a long message is sent whole, since one frame holds it", () => {
+    expect(sendRefusal("x".repeat(40_000), false)).toBeNull()
   })
 
-  test("long text goes in a text file that keeps every character", async () => {
-    const text = "line\n".repeat(4_000)
-    const file = textFile(text)
-    expect(attachmentType(file)).toBe("text/plain")
-    expect(file.size).toBe(text.length)
-    expect(await file.text()).toBe(text)
+  test("a draft over the frame is refused with the reason, so the composer leaves it in the box", () => {
+    // A control character takes six characters of JSON, so 100,000 of them overflow the frame.
+    expect(sendRefusal("\u0001".repeat(100_000), false)).toBe("This message is too long to send.")
+  })
+
+  test("an edit is held to the bubble limit, since it cannot carry a file", () => {
+    expect(sendRefusal("x".repeat(16_000), true)).toBeNull()
+    expect(sendRefusal("x".repeat(16_001), true)).toBe("Edits can be up to 16,000 characters.")
   })
 })

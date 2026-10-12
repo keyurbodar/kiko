@@ -26,6 +26,7 @@ let n = 0
 const fresh = () => `01JZ8Q4T6N${String(++n).padStart(16, "0")}`
 const as = { "x-test-user": "alice" }
 const MiB = 1024 * 1024
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function upload(room: string, id: string, body: string | Uint8Array, init: { name?: string; size?: number; type?: string } = {}) {
 	const size = init.size ?? (typeof body === "string" ? new TextEncoder().encode(body).length : body.length)
@@ -219,5 +220,43 @@ test("the sweep deletes pending uploads older than a day and leaves sent files",
 	expect(await sweep(Date.now() + 25 * 3_600_000)).toBe(1)
 	expect(await keys(room)).toEqual([`u/alice/r/${room}/${sent}`])
 	expect(await sweep(Date.now() + 25 * 3_600_000)).toBe(0)
+	c.close()
+})
+
+test("a human message past the bubble limit shows its first 16,000 characters and keeps the whole text as a file", async () => {
+	const room = fresh()
+	const c = await Client.open(room)
+	const text = "0123456789".repeat(4_000)
+	c.send({ t: "send", clientId: "long1", text })
+	const ack = await c.next((f) => f.t === "ack")
+	const events = await c.next((f) => f.t === "events")
+	const all = events.t === "events" ? events.events : []
+	const message = all.find((e) => e.t === "message")
+	const file = all.find((e) => e.t === "file")
+	expect(ack.t === "ack" && ack.id).toBe(message?.t === "message" ? message.id : "")
+	expect(message?.t === "message" && message.text.length).toBe(16_000)
+	const ref = file?.t === "file" ? file.file : null
+	expect(ref).toMatchObject({ size: 40_000, type: "text/plain" })
+	expect(ref?.id).toMatch(UUID)
+	expect(ref?.name).toMatch(/^attachments\/[0-9a-z]+-message\.txt$/)
+	expect(message?.t === "message" && message.files).toEqual(ref ? [ref] : [])
+	const got = await fetch(`${origin}/api/files/${room}/${ref?.id}`, { headers: as })
+	expect(await got.text()).toBe(text)
+	c.close()
+})
+
+test("a long human message resent with its client id stores one message and one file", async () => {
+	const room = fresh()
+	const c = await Client.open(room)
+	const frame = { t: "send", clientId: "long2", text: "x".repeat(20_000) }
+	c.send(frame)
+	const first = await c.next((f) => f.t === "ack")
+	c.send(frame)
+	expect(await c.next((f) => f.t === "ack" || f.t === "send_refused")).toEqual(first)
+	const replay = await c.replay()
+	expect(replay.filter((e) => e.t === "message").length).toBe(1)
+	expect(replay.filter((e) => e.t === "file").length).toBe(1)
+	const [sent] = replay.filter((e) => e.t === "file")
+	expect(await keys(room)).toEqual([`u/alice/r/${room}/${sent?.t === "file" ? sent.file.id : ""}`])
 	c.close()
 })

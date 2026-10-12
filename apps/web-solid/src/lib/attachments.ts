@@ -3,9 +3,18 @@
 // a picture in the box exactly when it is one in the bubble. The limits and their words come from
 // `@yuki/protocol`, which the server enforces too. No Solid and no DOM.
 
-import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS } from "@yuki/protocol"
+import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS, MAX_MESSAGE_TEXT, textFits } from "@yuki/protocol"
 
 export { attachmentType, MAX_ATTACHMENTS }
+
+/**
+ * Why a draft cannot be sent as it is, or null. A message over the frame stays in the box. An edit
+ * cannot carry a file, so an edit stays within the bubble limit.
+ */
+export function sendRefusal(text: string, editing: boolean): string | null {
+  if (editing) return text.length > MAX_MESSAGE_TEXT ? `Edits can be up to ${MAX_MESSAGE_TEXT.toLocaleString("en-US")} characters.` : null
+  return textFits(text) ? null : "This message is too long to send."
+}
 
 type Named = { name: string; type: string }
 
@@ -30,11 +39,6 @@ export function tileSpan(count: number): 1 | 2 {
 /** `index` wrapped into `0..count-1` from either side, so the dialog's arrows cycle. */
 export function wrapIndex(index: number, count: number): number {
   return count > 0 ? ((index % count) + count) % count : 0
-}
-
-/** Text too long for one message, as the file that carries it. The file keeps every character. */
-export function textFile(text: string): File {
-  return new File([text], "message.txt", { type: "text/plain" })
 }
 
 /**

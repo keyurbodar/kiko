@@ -2,8 +2,7 @@ import { Show, createEffect, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import type { ComposerProps, MessageFile } from "../lib/types"
-import { MAX_MESSAGE_TEXT, textFits } from "@yuki/protocol"
-import { isImage, textFile } from "../lib/attachments"
+import { isImage, sendRefusal } from "../lib/attachments"
 import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
@@ -157,59 +156,6 @@ export function Composer(props: ComposerProps) {
     return name ? `Message ${name}` : "Message"
   }
 
-  // One press sends. A typed draft past one message's limit goes as a file, and the send waits for that file's upload.
-  const submit = () => {
-    if (props.busy || blocked()) return
-    // There is no conversation to land in, so there is nothing to send.
-    if (!props.threadId) return
-    const text = draftText()
-    const editing = props.editing
-    if (editing) {
-      // An edit cannot carry a file, so a text past the limit stays in the box for the human to cut.
-      if (!textFits(text)) {
-        showToastV2({ title: `Edits can be up to ${MAX_MESSAGE_TEXT.toLocaleString("en-US")} characters.`, variant: "error" })
-        return
-      }
-      if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)
-      props.onCancelEdit?.()
-      return
-    }
-    if (runSlash(text)) return void store.reset()
-    // Text past one message's limit becomes a file, as a long paste does. It uploads like any attachment and goes with the send.
-    if (!textFits(text)) {
-      sendWhenReady = true
-      void controller.addAttachments([textFile(text)])
-      // Only the text leaves the box: the pictures already there go with the send.
-      return void store.setText("")
-    }
-    // Every attachment is already uploaded: the send names the uploads, and the message shows
-    // the blob URLs until the room's copy arrives.
-    const parts = boxed()
-    const attachments = readyAttachments(parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size })))
-    if (!attachments) return
-    const files = parts.map((part): MessageFile => ({ name: part.filename, size: part.size, type: part.mime, src: part.blob.url }))
-    if (!text.trim() && files.length === 0) return
-    for (const part of parts) forgetUpload(part.id)
-    held = new Map()
-    store.reset()
-    props.onSend(files.length ? { body: text, files, attachments } : { body: text })
-    props.onClearReply?.()
-  }
-
-  // The send that waits on a long draft's file goes once the file is ready. A failed or removed file leaves it in the box.
-  let sendWhenReady = false
-  createEffect(
-    on(
-      blocked,
-      (reason) => {
-        if (reason || !sendWhenReady) return
-        sendWhenReady = false
-        submit()
-      },
-      { defer: true },
-    ),
-  )
-
   const controller = createPromptInputV2Controller({
     store: [persisted, setPersisted],
     commands: slashSuggestions,
@@ -236,7 +182,34 @@ export function Composer(props: ComposerProps) {
         stopping: () => false,
         working: () => !!props.busy,
         blocked,
-        onSubmit: submit,
+        onSubmit: () => {
+          if (props.busy || blocked()) return
+          // There is no conversation to land in, so there is nothing to send.
+          if (!props.threadId) return
+          const text = draftText()
+          const editing = props.editing
+          // A refused draft stays in the box, untouched, with the reason in a toast.
+          const refusal = sendRefusal(text, !!editing)
+          if (refusal) return void showToastV2({ title: refusal, variant: "error" })
+          if (editing) {
+            if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)
+            props.onCancelEdit?.()
+            return
+          }
+          if (runSlash(text)) return void store.reset()
+          // Every attachment is already uploaded: the send names the uploads, and the message shows
+          // the blob URLs until the room's copy arrives.
+          const parts = boxed()
+          const attachments = readyAttachments(parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size })))
+          if (!attachments) return
+          const files = parts.map((part): MessageFile => ({ name: part.filename, size: part.size, type: part.mime, src: part.blob.url }))
+          if (!text.trim() && files.length === 0) return
+          for (const part of parts) forgetUpload(part.id)
+          held = new Map()
+          store.reset()
+          props.onSend(files.length ? { body: text, files, attachments } : { body: text })
+          props.onClearReply?.()
+        },
         onStop: () => {},
       },
     },
