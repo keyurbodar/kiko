@@ -10,7 +10,6 @@ import {
   ok,
   type Result,
   type ShellExecOptions,
-  type ShellExecResult,
   type TextLineReader,
 } from "@earendil-works/pi-durable/env"
 import type { ConversationId, ToolExecutionApi } from "@earendil-works/pi-durable"
