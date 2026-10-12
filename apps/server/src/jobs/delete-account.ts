@@ -5,7 +5,8 @@ import { agentStub, roomStub, userStub } from "../lib/names"
 // Every step is safe to run twice: a wiped object or missing row is not an error, so a failed job completes on retry.
 
 // `generation` is the deletion that queued the job. A job whose deletion was rolled back, or superseded by a retry, does nothing.
-export type DeleteAccountJob = { kind: "delete-account"; userId: string; roomId: RoomId | null; generation: number }
+// `cycles` counts trips through the dead-letter queue, so a deletion that keeps failing is visible in the logs.
+export type DeleteAccountJob = { kind: "delete-account"; userId: string; roomId: RoomId | null; generation: number; cycles?: number }
 
 export type Deletion = { generation: number; rooms: RoomId[] }
 
@@ -16,7 +17,8 @@ export function isDeleteAccountJob(body: unknown): body is DeleteAccountJob {
 		b.kind === "delete-account" &&
 		typeof b.userId === "string" &&
 		(b.roomId === null || (typeof b.roomId === "string" && isRoomId(b.roomId))) &&
-		Number.isSafeInteger(b.generation)
+		Number.isSafeInteger(b.generation) &&
+		(b.cycles === undefined || Number.isSafeInteger(b.cycles))
 	)
 }
 

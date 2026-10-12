@@ -18,7 +18,11 @@ const REQUEUE_DELAY_SECONDS = 15 * 60
 async function requeueDead(batch: MessageBatch<unknown>, env: Env): Promise<void> {
 	for (const message of batch.messages) {
 		try {
-			if (isDeleteAccountJob(message.body)) await env.JOBS.send(message.body, { delaySeconds: REQUEUE_DELAY_SECONDS })
+			if (isDeleteAccountJob(message.body)) {
+				const cycles = (message.body.cycles ?? 0) + 1
+				console.error(`account deletion still failing after ${cycles} dead-letter ${cycles === 1 ? "cycle" : "cycles"}; requeued (user ${message.body.userId}, room ${message.body.roomId ?? "none"})`)
+				await env.JOBS.send({ ...message.body, cycles }, { delaySeconds: REQUEUE_DELAY_SECONDS })
+			}
 			message.ack()
 		} catch {
 			message.retry({ delaySeconds: retryDelay(message.attempts) })
@@ -32,7 +36,8 @@ export async function consume(batch: MessageBatch<unknown>, env: Env): Promise<v
 		try {
 			await run(message.body, env)
 			message.ack()
-		} catch {
+		} catch (error) {
+			console.error(`job failed on attempt ${message.attempts}: ${error instanceof Error ? error.message : String(error)}`)
 			message.retry({ delaySeconds: retryDelay(message.attempts) })
 		}
 	}
