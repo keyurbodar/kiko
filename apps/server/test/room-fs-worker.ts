@@ -125,7 +125,7 @@ export default {
     const tool = (filesExtension({ fs, acceptsImages: () => slug === "seer" }).tools ?? []).find((t) => t.name === name)
     if (!tool) return Response.json({ error: `no tool ${name}` }, { status: 404 })
     let streamed = ""
-    const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID(), output: (t: string) => void (streamed += t), diagnostic: () => {} } as unknown as ToolExecutionApi
+    const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID(), output: (t: string) => void (streamed += t), diagnostic: () => {}, details: async () => {} } as unknown as ToolExecutionApi
     const started = performance.now()
     try {
       const result = await tool.execute(args as never, api, BACKGROUND_CONTEXT)
