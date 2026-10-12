@@ -31,8 +31,9 @@ U35	Engagement signal, then decide per-kind appetite	4	opus	landed	s/u35-engagem
 U36	Engagement test red on main: clock or code	5	haiku	landed	s/u36-engagement-test	005c8335	gate-green root-cause-product-ignoreDeadline	main d4aed249	2026-10-11T20:18:49Z
 U40c	Final proof: every suite on finished main	5	haiku	landed	s/u40c-final	ffdc89cf	gate-green	main e3d929c4	2026-10-11T21:13:00Z
 U37	initiative-loops asserts structure not wording	5	deepseek	landed	s/u37-loops-assert	9264a585	gate-green	main bd404fd6	2026-10-11T21:20:24Z
-U50	Spike: lead judgment and status latency, real model	6	haiku	landed	s/u50-spike	a67a77b9	gate-green	main 96f9600f	2026-10-12T02:13:13Z
-U51	Workers report files changed	6	haiku	running	s/u51-work-changes				2026-10-12T01:10:21Z
-U52	A human never resends a message	6	haiku	round-2	s/u52-no-resend	3e7405f2			2026-10-12T01:59:57Z
+U50	Spike: lead judgment and status latency, real model	6	haiku	landed	s/u50-spike	a67a77b9	evidence-landed	main 96f9600f	2026-10-12T02:13:29Z
+U51	Workers report files changed	6	haiku	round-2	s/u51-work-changes	56d0613d			2026-10-12T02:57:45Z
+U52	A human never resends a message	6	haiku	round-4	s/u52-no-resend	2675f886			2026-10-12T02:57:45Z
 U53	Status does not touch running work, fake suite	6	haiku	landed	s/u53-status-proof	417ed14b	gate-green	main 3aada23a	2026-10-12T02:06:11Z
-U54	Status answer covers all work in progress	6	deepseek	queued	s/u54-status-words				2026-10-12T02:13:29Z
+U54	Status answer covers all work in progress	6	deepseek	landed	s/u54-status-words	5311f1a6	gate-green	main 445b7500	2026-10-12T02:42:56Z
+U55	Server tests leave nothing in /tmp	7	deepseek	queued	s/u55-test-tmp				2026-10-12T03:00:27Z

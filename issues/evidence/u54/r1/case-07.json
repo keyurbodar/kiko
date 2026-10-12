@@ -1,0 +1,78 @@
+{
+  "case": 7,
+  "name": "web research and short report",
+  "run": "r1",
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 7,
+  "timedOut": false,
+  "doneMs": 30839,
+  "firstReplyMs": 4700,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 3,
+  "talkerTools": {
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.talker.write": 1
+  },
+  "workerToolCalls": 5,
+  "workerTools": {
+    "tool.worker.web_fetch": 5
+  },
+  "modelTurns": 11,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases on the web. Find current leaders by stars, adoption, communit…"
+    }
+  ],
+  "status": {
+    "replyMs": 5740,
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.web_fetch": 5
+    },
+    "runningAtSend": 0,
+    "reply": "Research is running.\n\n- **Me now:** waiting for research results, then I will write `research/vectors.md`.\n- **Worker w1:** researching top open source vector databases. Status: running, no result yet."
+  },
+  "note": {
+    "sentMs": 16200,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 0,
+    "reply": "Got it, I'll push it to finish fast."
+  },
+  "replies": [
+    {
+      "at": 4700,
+      "text": "I'm on it, I'll research the top open source vector databases."
+    },
+    {
+      "at": 11052,
+      "text": "Research is running.\n\n- **Me now:** waiting for research results, then I will write `research/vectors.md`.\n- **Worker w1:** researching top open source vector databases. Status: running, no result yet."
+    },
+    {
+      "at": 20574,
+      "text": "Got it, I'll push it to finish fast."
+    },
+    {
+      "at": 25706,
+      "text": "Got the results, I'll write the report now."
+    },
+    {
+      "at": 26758,
+      "text": "Done. Report is in `research/vectors.md`.\n\nTop 3 by stars and adoption:\n\n1. **Milvus** (46.4k) - best for large scale.\n2. **Qdrant** (35.0k) - best for production with low ops. My pick for most teams.\n3. **Chroma** (29.5k) - best for fast prototypes.\n\npgvector and Weaviate rank next."
+    }
+  ],
+  "bubbles": [
+    "I'm on it, I'll research the top open source vector databases.",
+    "Research is running.\n\n- **Me now:** waiting for research results, then I will write `research/vectors.md`.\n- **Worker w1:** researching top open source vector databases. Status: running, no result yet.",
+    "Got it, I'll push it to finish fast.",
+    "Got the results, I'll write the report now.",
+    "Done. Report is in `research/vectors.md`.\n\nTop 3 by stars and adoption:\n\n1. **Milvus** (46.4k) - best for large scale.\n2. **Qdrant** (35.0k) - best for production with low ops. My pick for most teams.\n3. **Chroma** (29.5k) - best for fast prototypes.\n\npgvector and Weaviate rank next."
+  ]
+}

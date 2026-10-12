@@ -1,0 +1,67 @@
+{
+  "case": 7,
+  "name": "web research and short report",
+  "run": "r3",
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 4,
+  "timedOut": false,
+  "doneMs": 21462,
+  "firstReplyMs": 4539,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.start_work": 1,
+    "tool.talker.write": 1
+  },
+  "workerToolCalls": 3,
+  "workerTools": {
+    "tool.worker.web_fetch": 3
+  },
+  "modelTurns": 7,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases on the web as of 2026. Find their names, GitHub stars approx,…"
+    }
+  ],
+  "status": {
+    "replyMs": 4220,
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.web_fetch": 3
+    },
+    "runningAtSend": 0,
+    "reply": "Research running. Worker w1 is gathering top three open source vector DBs, stars, license, strengths. I will write research/vectors.md when facts land."
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 4539,
+      "text": "On it — researching the top open source vector DBs now."
+    },
+    {
+      "at": 9522,
+      "text": "Research running. Worker w1 is gathering top three open source vector DBs, stars, license, strengths. I will write research/vectors.md when facts land."
+    },
+    {
+      "at": 14353,
+      "text": "Facts are in — writing the report file now."
+    },
+    {
+      "at": 17383,
+      "text": "Done. Report is in research/vectors.md.\n\nTop three: **Milvus** (~46k stars, scale pick), **Qdrant** (~35k, fast filters), **Weaviate** (~17k, all in one for RAG).\n\nMy pick: Qdrant for most apps. Milvus for billions of vectors."
+    }
+  ],
+  "bubbles": [
+    "On it — researching the top open source vector DBs now.",
+    "Research running. Worker w1 is gathering top three open source vector DBs, stars, license, strengths. I will write research/vectors.md when facts land.",
+    "Facts are in — writing the report file now.",
+    "Done. Report is in research/vectors.md.\n\nTop three: **Milvus** (~46k stars, scale pick), **Qdrant** (~35k, fast filters), **Weaviate** (~17k, all in one for RAG).\n\nMy pick: Qdrant for most apps. Milvus for billions of vectors."
+  ]
+}
