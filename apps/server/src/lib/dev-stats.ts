@@ -1,6 +1,7 @@
 // Under `wrangler dev` every object of one Worker shares one isolate, so this module-level table sees them all.
 
-import { devRequest, DEV } from "./dev-guard"
+import { DEV, devRequest, instrumentDev } from "./dev-guard"
+import type { DevCounterPort } from "./dev-stats-patch"
 
 const counters = new Map<string, number>()
 const open: { kind: string; write: boolean; cursor: SqlStorageCursor<Record<string, SqlStorageValue>> }[] = []
@@ -16,37 +17,18 @@ function settle(): void {
   }
 }
 
-const KV = ["get", "put", "delete", "list", "setAlarm", "getAlarm", "deleteAlarm", "transaction"] as const
+// The storage patch is dev-only and lives in dev-stats-patch.ts; the fold in dev-guard drops it from a
+// production bundle. A dev build wires the patch to these counters through one port.
+const port: DevCounterPort = {
+  bump,
+  track(kind, cursor, write) {
+    open.push({ kind, write, cursor })
+    if (open.length > 10_000) settle()
+  },
+}
 
 export function instrument(ctx: DurableObjectState, kind: string): void {
-  if (!DEV) return
-  const storage = ctx.storage as unknown as Record<string, unknown>
-  const sql = ctx.storage.sql
-  const exec = sql.exec.bind(sql)
-  try {
-    Object.defineProperty(sql, "exec", {
-      configurable: true,
-      value: (query: string, ...bindings: SqlStorageValue[]) => {
-        const cursor = exec(query, ...bindings)
-        bump(`${kind}.statements`)
-        open.push({ kind, write: !/^\s*(SELECT|PRAGMA)/i.test(query), cursor })
-        if (open.length > 10_000) settle()
-        return cursor
-      },
-    })
-    for (const name of KV) {
-      const fn = storage[name]
-      if (typeof fn !== "function") continue
-      Object.defineProperty(storage, name, {
-        configurable: true,
-        value: (...args: unknown[]) => {
-          bump(`${kind}.kv.${name}`)
-          return Reflect.apply(fn as (...a: unknown[]) => unknown, ctx.storage, args)
-        },
-      })
-    }
-  } catch {
-  }
+  instrumentDev(ctx, kind, port)
 }
 
 export function rpc<T extends object>(stub: T, target: string): T {
