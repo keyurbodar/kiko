@@ -25,7 +25,9 @@ export const RULES: readonly Rule[] = [
     id: "no-timer-in-do",
     description: "setTimeout and setInterval do not survive eviction. Use alarm.ts.",
     roots: SERVER_AND_CORE,
-    skip: (path) => path === "core/durable/src/bounded-wait.ts",
+    // bounded-wait.ts is the one shared timer. page/script.ts holds page scripts the browser runs, so
+    // its timers are not the Durable Object's even though the file ships inside the object.
+    skip: (path) => path === "core/durable/src/bounded-wait.ts" || path === "core/browser/src/page/script.ts",
     match: (line) => /(?<![\w.])(setTimeout|setInterval)\s*\(/.test(line) || /globalThis\.(setTimeout|setInterval)\s*\(/.test(line),
     enforce: true,
   },

@@ -5,7 +5,7 @@ import { RULES, scan } from "./check-rules.ts"
 // Add a row when a rule grows. SAMPLE_FILE is a real path inside every rule's roots.
 const SAMPLE_FILE = "apps/server/src/router.ts"
 const SAMPLES: Record<string, readonly string[]> = {
-  "no-timer-in-do": ["setTimeout(work, 1)", "globalThis.setTimeout(work, 1)", "setInterval (work, 1)"],
+  "no-timer-in-do": ["setTimeout(work, 1)", "globalThis.setTimeout(work, 1)", "setTimeout (work, 1)", "setInterval (work, 1)"],
   "do-names": ['env.ROOM.idFromName("room")', 'env.ROOM.idFromString("id")', 'env.ROOM.getByName("room")'],
   "dev-guard": ['const dev = process.env.NODE_ENV === "development"', 'const dev = process.env["NODE_ENV"] === "development"', "const { NODE_ENV } = process.env"],
   egress: ["return fetch(url)", "return globalThis.fetch(url)", "return fetch (url)"],

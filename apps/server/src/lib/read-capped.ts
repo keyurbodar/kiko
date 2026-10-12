@@ -10,8 +10,9 @@ export async function readCapped(request: Request, max: number): Promise<string 
     if (done) break
     size += value.byteLength
     if (size > max) {
-      // The reader is a clone's branch of a tee; waiting on cancel would block on the branch
-      // no one reads. The over-cap request is refused, so the original body is not needed.
+      // The over-cap request is refused, so the original body is not needed. Cancel is not awaited:
+      // on a cloned body the reader is one branch of a tee, and waiting on its cancel blocks on the
+      // branch no one reads.
       reader.cancel().catch(() => {})
       return null
     }
