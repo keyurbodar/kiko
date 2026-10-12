@@ -48,9 +48,9 @@ Yuki runs on your own Cloudflare account. One deployment serves one owner. You s
 
    | Secret | What it is |
    | --- | --- |
-   | `SESSION_SECRET` | Signs the session cookie. Use a long random string, 32 bytes or more. |
+   | `SESSION_SECRET` | Signs the session cookie. Use a long random string, 32 bytes or more. Changing it signs every device out. |
    | `CREDENTIALS_KEK` | Encrypts your provider keys in the owner's Durable Object. Use a long random string. Keep it: a new value cannot read the keys stored under the old one. |
-   | `ACCESS_CODE` | The code you type on the sign-in screen. |
+   | `ACCESS_CODE` | The code you type on the sign-in screen. Make it long, at least 24 random characters, for example `openssl rand -hex 16`. The sign-in route has no attempt limit. |
 
    ```bash
    cd apps/server
@@ -64,6 +64,14 @@ Yuki runs on your own Cloudflare account. One deployment serves one owner. You s
    `TRUSTED_ORIGINS` is optional. Set it to a comma-separated list of extra origins only if you serve the app from another hostname.
 
 8. **Open the URL** that `wrangler` printed, enter the access code, and add a model key in Settings.
+
+## Signing out
+
+Sessions are signed cookies, and the server stores none. Sign-out clears the cookie on the device you sign out on. Other devices stay signed in until `SESSION_SECRET` changes, which signs all of them out at once.
+
+## Upgrading from before the single-owner change
+
+Objects are now named for the owner id `owner`. An instance deployed before that change keeps its data under the old user ids, so it opens empty. Connect your Composio apps again.
 
 ## Local development
 

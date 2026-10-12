@@ -1,30 +1,27 @@
 # limits
 
-Covers the daily reply limit, server overhead, token cost, and latency.
+Covers server overhead, token cost, and latency. There is no reply limit: a user gets every reply.
 
-Suites: `limits`, `overhead`, `token-cost`, `latency`, `latency-model`. Flags: `token-cost` and `latency-model` set `model: true` and need `OPENCODE_API_KEY`. None sets `human: true`. `overhead` and `latency` read and reset dev counters, so each needs its own server.
+Suites: `overhead`, `token-cost`, `latency`, `latency-model`. Flags: `token-cost` and `latency-model` set `model: true` and need `OPENCODE_API_KEY`. None sets `human: true`. `overhead` and `latency` read and reset dev counters, so each needs its own server.
 
 ## Sub-features
 
-- **Turn limit** (`limits`): a user with `turnsPerDay: 2` gets two agent replies. The third burst gets a system line matching "today's 2 replies" and no run. Raising the limit to 10 lets the next burst through. The default is 500.
 - **Server overhead** (`overhead`): timed steps such as `GET /api/health (no session)`, `user socket upgrade`, `send to ack`, `send to second tab`, `room socket upgrade (warm room)`, and `send to ack (N messages)`. It also checks replay order, that a hello at the newest seq replays nothing, and that a resume from `seq - 5` replays the exact tail. `YUKI_OVERHEAD_RUNS` (20) and `YUKI_OVERHEAD_BIG` (1500) set runs and size.
-- **Token cost** (`token-cost`): 30 turns (`YUKI_TOKEN_TURNS`) in `classic` and `memory` modes (`YUKI_TOKEN_MODES`). It prints fresh input, cached and output tokens, and estimated cost. It fails only if memory mode forgets the code from turn 2.
+- **Token cost** (`token-cost`): 30 turns (`YUKI_TOKEN_TURNS`) in `memory` mode (`YUKI_TOKEN_MODES`, default `memory`). It prints fresh input, cached and output tokens, and estimated cost. It fails only if memory mode forgets the code from turn 2.
 - **Latency, fake agent** (`latency`): `send to ack`, `burst close to typing (cold agent)`, `typing to first bubble (warm agent)`, `stop to idle`, `warm reconnect to first frame`, and per-turn counts of RPCs, statements and rows. The restart case fails if the agent is not alive within 15 s.
 - **Latency, real model** (`latency-model`): `YUKI_LATENCY_RUNS` (10) turns, then `YUKI_LATENCY_WEB_RUNS` (3) questions about example.com. The answer must mention "example domain".
 
 ## How to get to it (user POV)
 
-1. Hit the daily reply cap. The next message gets a system line with the cap and the UTC reset time.
-2. Send a message and watch the typing indicator and the first bubble.
-3. Open a second tab on the same chat. It shows a new message soon after the send.
-4. Chat for a while, then ask for a fact from early on. The agent still knows it.
+1. Send a message and watch the typing indicator and the first bubble.
+2. Open a second tab on the same chat. It shows a new message soon after the send.
+3. Chat for a while, then ask for a fact from early on. The agent still knows it.
 
 ## Driving it with the yuki CLI
 
 One server per suite, each on its own port:
 
 ```bash
-bun yuki verify limits --url http://localhost:<port>
 bun yuki verify overhead --url http://localhost:<port>
 bun yuki verify latency --url http://localhost:<port>
 bun yuki verify token-cost --url http://localhost:<port>

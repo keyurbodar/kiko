@@ -37,15 +37,12 @@ apps/server/src/files/room-fs.ts:BatchResult
 apps/server/src/files/room-fs.ts:MAX_WRITE_BYTES
 apps/server/src/files/room-fs.ts:SOUL_PATH
 apps/server/src/files/upload.ts:MAX_FILE_BYTES
-apps/server/src/files/upload.ts:STORAGE_LIMIT_BYTES
 apps/server/src/integrations/composio/client.ts:ComposioResultBlock
 apps/server/src/integrations/composio/store.ts:SavedListing
 apps/server/src/integrations/composio/tools.ts:fillFlags
 apps/server/src/integrations/composio/tools.ts:relaxSchema
-apps/server/src/integrations/kernel/client.ts:CURL_BODY_CAP
 apps/server/src/integrations/kernel/client.ts:CreatedBrowser
 apps/server/src/integrations/kernel/client.ts:KernelErrorKind
-apps/server/src/integrations/kernel/connect.ts:UPLOAD_DIR
 apps/server/src/integrations/kernel/lease.ts:LeaseDeps
 apps/server/src/integrations/kernel/lease.ts:ReapDecision
 apps/server/src/integrations/kernel/lease.ts:Switched
@@ -94,7 +91,6 @@ apps/server/src/user/hooks-route.ts:MAX_HOOK_BYTES
 apps/server/src/user/memory-capture.ts:MemoryDeps
 apps/server/src/user/provider-login.ts:LoginDeps
 apps/server/src/user/provider-login.ts:MAX_LOGINS
-apps/server/src/user/dev.ts:fakeProvider
 apps/server/src/user/provider-login.ts:hasSignIn
 apps/server/src/user/reminders.ts:Deliver
 apps/server/src/user/reminders.ts:MAX_ROUTINES
@@ -147,7 +143,6 @@ core/durable/src/safe-fetch.ts:SafeFetchRefusal
 core/durable/src/safe-fetch.ts:SafeFetchResult
 core/memory/src/capture.ts:CaptureItem
 core/memory/src/capture.ts:CaptureMode
-core/memory/src/capture.ts:CaptureOp
 core/memory/src/life.ts:AppendOptions
 core/memory/src/life.ts:CARD_TAGS
 core/memory/src/life.ts:NoteResult
