@@ -33,7 +33,7 @@ export const norm = (text: string) =>
 
 export const keywords = (text: string): string[] => [...new Set(norm(text).split(" ").filter((w) => w.length >= 3 && !STOP.has(w)))]
 
-export const LIFE_TREE = "life_tree"
+const LIFE_TREE = "life_tree"
 
 // The life log's tables, with its tree's. Its object's schema list spreads these.
 export const LIFE_STEPS: Step[] = [
