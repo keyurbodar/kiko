@@ -2,7 +2,7 @@ import type { BetterAuthPlugin } from "better-auth"
 import { APIError, createAuthEndpoint } from "better-auth/api"
 import { setSessionCookie } from "better-auth/cookies"
 
-export const ACCESS_CODE_PATH = "/access-code"
+const ACCESS_CODE_PATH = "/access-code"
 
 const NAME = /^[a-z0-9][a-z0-9-]{0,31}$/
 
@@ -14,7 +14,7 @@ async function digest(text: string): Promise<Uint8Array> {
 async function matches(expected: string, given: string): Promise<boolean> {
   const [a, b] = await Promise.all([digest(expected), digest(given)])
   let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!
+  for (const [i, byte] of a.entries()) diff |= byte ^ (b[i] ?? 0)
   return diff === 0
 }
 
