@@ -110,14 +110,17 @@ async function devRoute(request: Request, env: Env, url: URL): Promise<Response>
 			return Response.json({ ok: true })
 		}
 		const match = DEV_USER_PATH.exec(url.pathname)
-		const userId = match?.[1]
-		if (!match || userId === undefined) return error(404, "not found")
+		const pathId = match?.[1]
+		if (!match || pathId === undefined) return error(404, "not found")
+		const userId = await devUserId(request, env, pathId)
+		if (userId === null) return error(403, "sign in, or name a deleted account")
 		if (match[2] === "rerun") {
 			if (request.method !== "POST") return error(405, "method not allowed")
 			const body = await readJson(request)
 			const roomId = body?.roomId ?? null
 			if (roomId !== null && (typeof roomId !== "string" || !isRoomId(roomId))) return error(400, "bad room id")
-			const report = await runDeleteJob({ kind: "delete-account", userId, roomId }, deletionTargets(env, userId))
+			// Generation 0 never matches a live deletion's mark, so a rerun does nothing to a live user and runs on a finished wipe.
+			const report = await runDeleteJob({ kind: "delete-account", userId, roomId, generation: 0 }, deletionTargets(env, userId))
 			return Response.json({ report })
 		}
 		return Response.json(await residue(env, userId, url))
@@ -125,6 +128,15 @@ async function devRoute(request: Request, env: Env, url: URL): Promise<Response>
 		if (e instanceof NameError) return error(400, e.message)
 		throw e
 	}
+}
+
+// A session names its own user, and the path id is ignored. Without a session the path id counts only for a deleted user:
+// revokeUser already removed its sessions, and its objects are wiped, so the path reaches nothing live.
+// This is an AGENTS rule 5 exception for the dev suite only (architecture D9).
+async function devUserId(request: Request, env: Env, pathId: string): Promise<string | null> {
+	const session = await createAuth(env, request).api.getSession({ headers: request.headers })
+	if (session) return session.user.id
+	return (await isDeletedUser(env.AUTH_DB, pathId)) ? pathId : null
 }
 
 // Reading an object wakes it and recreates its empty tables, so an empty object is wiped again after the probe.

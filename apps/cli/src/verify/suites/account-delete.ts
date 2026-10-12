@@ -95,13 +95,35 @@ const suite: Suite = {
 		const key = await call(s.cookie, "PUT", "api/credentials/opencode-go", { apiKey: `sk-verify-${crypto.randomUUID()}` })
 		expectEqual(key.status, 200, "credential status")
 
+		// Another live user with one file. The dev routes name the session's user, so a path that names this user reaches nothing.
+		const other = await v.as(`del-other-${crypto.randomUUID().slice(0, 8)}`)
+		const otherRoom = ulid()
+		const otherUser = await other.user()
+		await otherUser.expect({ t: "reset" })
+		otherUser.send({ t: "chat", op: { op: "create", roomId: otherRoom, title: "other" } })
+		await otherUser.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === otherRoom))
+		expectEqual((await other.putFile(otherRoom, "notes/other.txt", "the other user's file")).status, 200, "the other user's upload status")
+		const otherResidue = `api/dev/account/${other.userId}/residue`
+
 		const residuePath = `api/dev/account/${s.userId}/residue?rooms=${rooms.join(",")}&agents=${agent}`
-		const residue = async () => (await call(null, "GET", residuePath)).body as Residue
-		const before = await residue()
+		const residue = async (cookie: string | null = null) => (await call(cookie, "GET", residuePath)).body as Residue
+		const before = await residue(s.cookie)
 		if (!(before.user > 0 && Object.values(before.rooms).every((n) => n > 0) && (before.agents[agent] ?? 0) > 0)) {
 			throw new VerifyError(`the account was not built\n${JSON.stringify(before)}`)
 		}
-		expectEqual([before.objects, before.auth.user], [2, 1], "objects and the user row before deletion")
+		expectEqual(before.auth.user, 1, "the user row before deletion")
+		if (before.objects < 2) throw new VerifyError(`the uploads are not in the account\n${JSON.stringify(before)}`)
+
+		// The session's rooms named on the other user's path: only the session's own objects answer.
+		const otherBefore = (await call(other.cookie, "GET", otherResidue)).body as Residue
+		const crossed = await call(s.cookie, "GET", `${otherResidue}?rooms=${rooms[0]}&agents=${agent}`)
+		expectEqual(crossed.status, 200, "a live session's residue for another user's path")
+		const own = crossed.body as Residue
+		expectEqual([own.rooms[rooms[0]], own.agents[agent]], [before.rooms[rooms[0]], before.agents[agent]], "the session's own room and agent, not the other user's")
+		const crossedRerun = await call(s.cookie, "POST", `api/dev/account/${other.userId}/rerun`, { roomId: null })
+		expectEqual([crossedRerun.status, (crossedRerun.body as { report: { finished: boolean } }).report.finished], [200, false], "a live session's rerun for another user's path")
+		expectEqual(((await call(other.cookie, "GET", otherResidue)).body as Residue).objects, otherBefore.objects, "the other user's objects after the crossed rerun")
+		expectEqual((await call(null, "GET", otherResidue)).status, 403, "a live user's residue without a session")
 
 		const wrong = await call(s.cookie, "POST", "api/account/delete", { confirm: "yes" })
 		expectEqual(wrong.status, 400, "status without the typed confirmation")
