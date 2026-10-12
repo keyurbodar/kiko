@@ -45,10 +45,10 @@ import type { DeciderChoice } from "./browser/tools"
 import { findProvider, pickJudge } from "../user/turn-context"
 
 import { DEV, loadAgentDev } from "../lib/dev-guard"
-import type { AgentDevHost, Usage } from "./dev-impl"
+import type { AgentDevHost, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
 
-// Read by the dev methods in agent/dev-impl.ts too, so they share one key per setting.
+// Read by the dev methods in agent/dev.ts too, so they share one key per setting.
 export const DEV_FAKE_KEY = "dev-fake"
 export const DEV_CLASSIC_KEY = "dev-classic"
 export const DEV_BUDGET_KEY = "dev:auto-budget-ms"
@@ -446,7 +446,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async devInitiative(): Promise<string | null> {
-    return (await loadAgentDev()).devInitiative(this.agentDevHost())
+    return (await this.dev()).devInitiative(this.agentDevHost())
   }
 
   private async carryUsage(harness: Harness): Promise<void> {
@@ -459,7 +459,7 @@ export class AgentDO extends DurableObject<Env> {
     return (await this.ctx.storage.get<Usage>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
   }
 
-  // The one guarded entry for the dev methods in agent/dev-impl.ts: they reach the object's state here.
+  // The one guarded entry for the dev methods in agent/dev.ts: they reach the object's state here.
   private agentDevHost(): AgentDevHost {
     return {
       storage: this.ctx.storage,
@@ -764,31 +764,39 @@ export class AgentDO extends DurableObject<Env> {
     return storedRows(this.ctx.storage)
   }
 
+  // The dev-only bodies live in agent/dev.ts, which only a development build can load. One cached load
+  // per object reaches every dev method below.
+  #dev?: Promise<typeof import("./dev")>
+
+  private dev(): Promise<typeof import("./dev")> {
+    return (this.#dev ??= loadAgentDev())
+  }
+
   async devClassic(): Promise<void> {
-    return (await loadAgentDev()).devClassic(this.agentDevHost())
+    return (await this.dev()).devClassic(this.agentDevHost())
   }
 
   async devUsage(): Promise<Usage> {
-    return (await loadAgentDev()).devUsage(this.agentDevHost())
+    return (await this.dev()).devUsage(this.agentDevHost())
   }
 
   async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
-    return (await loadAgentDev()).devTrace(this.agentDevHost())
+    return (await this.dev()).devTrace(this.agentDevHost())
   }
 
   async devBudget(ms: number): Promise<void> {
-    return (await loadAgentDev()).devBudget(this.agentDevHost(), ms)
+    return (await this.dev()).devBudget(this.agentDevHost(), ms)
   }
 
   async devFake(): Promise<void> {
-    return (await loadAgentDev()).devFake(this.agentDevHost())
+    return (await this.dev()).devFake(this.agentDevHost())
   }
 
   async devWorkers(): Promise<Work[]> {
-    return (await loadAgentDev()).devWorkers(this.agentDevHost())
+    return (await this.dev()).devWorkers(this.agentDevHost())
   }
 
   async devSeed(): Promise<void> {
-    return (await loadAgentDev()).devSeed(this.agentDevHost())
+    return (await this.dev()).devSeed(this.agentDevHost())
   }
 }

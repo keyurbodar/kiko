@@ -33,19 +33,19 @@ export function devRequest(url: URL): boolean {
   return DEV && LOCAL_HOSTS.has(url.hostname)
 }
 
-// The single guarded entry for the dev-only methods of each Durable Object. The facade in room/dev.ts,
-// user/dev.ts, and agent/agent-do.ts reaches its bodies through one of these, and each body lives in the
-// `-impl` module the fold drops. Outside a dev build the load throws, as if the method did not exist.
-export function loadRoomDev(): Promise<typeof import("../room/dev-impl")> {
-  return process.env.NODE_ENV === "development" ? import("../room/dev-impl") : devMissing()
+// The single guarded entry for the dev-only methods of each Durable Object. Each DO holds its own lazily
+// loaded dev module through one of these, and the bodies live in room/dev.ts, user/dev.ts, and
+// agent/dev.ts, the modules the fold drops. Outside a dev build the load throws, as if the method did not exist.
+export function loadRoomDev(): Promise<typeof import("../room/dev")> {
+  return process.env.NODE_ENV === "development" ? import("../room/dev") : devMissing()
 }
 
-export function loadUserDev(): Promise<typeof import("../user/dev-impl")> {
-  return process.env.NODE_ENV === "development" ? import("../user/dev-impl") : devMissing()
+export function loadUserDev(): Promise<typeof import("../user/dev")> {
+  return process.env.NODE_ENV === "development" ? import("../user/dev") : devMissing()
 }
 
-export function loadAgentDev(): Promise<typeof import("../agent/dev-impl")> {
-  return process.env.NODE_ENV === "development" ? import("../agent/dev-impl") : devMissing()
+export function loadAgentDev(): Promise<typeof import("../agent/dev")> {
+  return process.env.NODE_ENV === "development" ? import("../agent/dev") : devMissing()
 }
 
 // The storage patch behind the dev counters, synchronous so it lands before an object's first query.

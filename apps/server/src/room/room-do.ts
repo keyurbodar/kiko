@@ -2,6 +2,7 @@ import { isAgentSlug, tagline } from "@yuki/protocol"
 import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp } from "@yuki/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument } from "../lib/dev-stats"
+import { loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
 import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
@@ -38,7 +39,7 @@ import { migrate } from "@yuki/durable/migrate"
 import { ROOM_STEPS } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
-import { RoomDev } from "./dev"
+import type { RoomDev } from "./dev"
 import { MemoryNaps, MEMORY_WAKEUP, QUIET_WAKEUP } from "./memory-naps"
 import { applyTaskOp, RoomWorkspace, runCall, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
 import { Reports } from "./reports"
@@ -92,7 +93,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private mailer!: RoomMail
 	private receiver!: ReceiveDeps
 	private outbox!: HeldWakes
-	private dev!: RoomDev
 	private pending!: PendingUploads
 	private readonly typing = new Set<AgentSlug>()
 	private sends: Promise<unknown> = Promise.resolve()
@@ -131,18 +131,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.outbox = new HeldWakes(ctx.storage.sql)
 			this.signals = new SignalWindow(ctx.storage.sql, () => this.log.meta("room_id"))
 			this.reports = new Reports({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, mail: this.mail, routines: this.routines, signals: this.signals, home: () => this.home() })
-			this.dev = new RoomDev({
-				sql: ctx.storage.sql,
-				log: this.log,
-				members: this.members,
-				memory: this.memory,
-				pending: this.pending,
-				publish: (events) => this.publish(events),
-				armMemory: () => this.memoryNaps.arm(),
-				rollupQuiet: () => this.memoryNaps.rollupQuiet(),
-				tasksChanged: () => this.tasksChanged(),
-				sweepPending: () => this.sweepPending(),
-			})
 			this.wakes = new RoomWakes({
 				env: this.env,
 				log: this.log,
@@ -932,28 +920,48 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async storedRows(): Promise<number> {
 		return storedRows(this.ctx.storage)
 	}
+
+	// The dev-only bodies live in room/dev.ts, which only a development build can load. One cached load
+	// per object reaches every dev method below.
+	private devCache?: Promise<RoomDev>
+
+	private dev(): Promise<RoomDev> {
+		return (this.devCache ??= loadRoomDev().then((m) => new m.RoomDev({
+			sql: this.ctx.storage.sql,
+			log: this.log,
+			members: this.members,
+			memory: this.memory,
+			pending: this.pending,
+			publish: (events) => this.publish(events),
+			armMemory: () => this.memoryNaps.arm(),
+			rollupQuiet: () => this.memoryNaps.rollupQuiet(),
+			tasksChanged: () => this.tasksChanged(),
+			sweepPending: () => this.sweepPending(),
+		})))
+	}
+
 	async devSeed(turns: { from: string; text: string }[]): Promise<number> {
-		return this.dev.seed(turns)
+		return (await this.dev()).seed(turns)
 	}
 
 	async devMemory(): Promise<{ turns: number; pending: number; view: string }> {
-		return this.dev.memory()
+		return (await this.dev()).memory()
 	}
 
 	async devQuiet(): Promise<void> {
-		return this.dev.quiet()
+		return (await this.dev()).quiet()
 	}
 
 	async devAge(ms: number): Promise<number> {
-		return this.dev.age(ms)
+		return (await this.dev()).age(ms)
 	}
 
 	async devAgePending(ms: number): Promise<number> {
-		return this.dev.agePending(ms)
+		return (await this.dev()).agePending(ms)
 	}
 
 	async devAgentMessage(slug: AgentSlug, text: string): Promise<void> {
-		return this.dev.agentMessage(slug, text)
+		return (await this.dev()).agentMessage(slug, text)
 	}
 
 	async browserShare(slug: AgentSlug, reason: string): Promise<boolean> {
