@@ -1,0 +1,12 @@
+$ bun run --filter '*' typecheck
+@yuki/durable typecheck: Exited with code 0
+@yuki/browser typecheck: Exited with code 0
+@yuki/ui typecheck: Exited with code 0
+@yuki/agent typecheck: Exited with code 0
+@yuki/sandbox typecheck: Exited with code 0
+@yuki/memory typecheck: Exited with code 0
+@yuki/protocol typecheck: Exited with code 0
+@yuki/cli typecheck: Exited with code 0
+web-solid typecheck: Exited with code 0
+@yuki/server typecheck: Exited with code 0
+exit 0

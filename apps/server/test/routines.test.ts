@@ -1,44 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import type { AgentSlug, Envelope, RoomEvent } from "@yuki/protocol"
+import type { AgentSlug, RoomEvent } from "@yuki/protocol"
 import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
-import { joinOrigin, type Origin, originOf, originOfAll } from "@yuki/agent/envelope"
 import { matches, routineRun, Signal, signalOf, SignalWindow } from "../src/room/signals"
 import { sqlWith } from "./sql-shim"
 import { ROOM_STEPS } from "../src/room/schema"
-import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
 import { describeTrigger, nextEvery } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
-
-const env = (e: Partial<Envelope>): Pick<Envelope, "from" | "origin"> => ({ from: { kind: "system", reason: "routine" }, ...e })
-
-describe("origin (section 25.3)", () => {
-  test("a stored envelope without an origin is the human's only when a human wrote it", () => {
-    expect(originOf(env({ from: { kind: "human" } }))).toBe("human")
-    expect(originOf(env({ from: { kind: "agent", slug: "ada" as AgentSlug } }))).toBe("auto")
-    expect(originOf(env({}))).toBe("auto")
-    expect(originOf(env({ origin: "routine" }))).toBe("routine")
-  })
-
-  test("a human anywhere wins; otherwise auto wins over routine", () => {
-    const cases: [Origin | null, Origin, Origin][] = [
-      [null, "routine", "routine"],
-      ["routine", "human", "human"],
-      ["human", "auto", "human"],
-      ["routine", "auto", "auto"],
-      ["routine", "routine", "routine"],
-    ]
-    for (const [a, b, out] of cases) expect(joinOrigin(a, b)).toBe(out)
-    expect(originOfAll([])).toBeNull()
-    expect(originOfAll([env({ origin: "routine" }), env({ from: { kind: "human" } })])).toBe("human")
-  })
-})
-
-test("the signal schema has no kind that nothing reads", () => {
-  const decode = Schema.decodeUnknownSync(Signal)
-  expect(() => decode({ kind: "reminder_fired", roomId: "r1", at: 0, reminderId: "x", target: "yuki" })).toThrow()
-  expect(() => decode({ kind: "watch_change", roomId: "r1", at: 0, routineId: "x", url: "https://example.com" })).toThrow()
-})
 
 describe("triggers (section 25.4)", () => {
   const decode = Schema.decodeUnknownSync(Trigger)
@@ -99,18 +67,6 @@ describe("triggers (section 25.4)", () => {
     expect(describeTrigger({ on: "watch", url: "https://x.test", everyMinutes: 30 }, "UTC", due)).toBe("when https://x.test changes, checked every 30 minutes")
   })
 })
-
-describe("proactivity (sections 25.5 and 25.6)", () => {
-  test("runs nobody asked for stop at the day's limit, and while the human is away", () => {
-    const now = Date.UTC(2026, 9, 5, 12)
-    const limits = { ...DEFAULT_LIMITS, autonomousRunsPerDay: 2, awayDays: 7 }
-    expect(takeAutonomous(0, now - 3_600_000, limits, now)).toEqual({ ok: true, used: 1 })
-    expect(takeAutonomous(2, now, limits, now)).toEqual({ ok: false, reason: "limit" })
-    expect(takeAutonomous(0, now - 8 * 86_400_000, limits, now)).toEqual({ ok: false, reason: "away" })
-    expect(takeAutonomous(0, null, limits, now)).toEqual({ ok: true, used: 1 })
-  })
-})
-
 
 describe("signal window", () => {
   test("a sent batch subtracts its overflow, so overflow that arrived in flight stays for the next window", () => {

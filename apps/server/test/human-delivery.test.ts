@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import type { AgentSlug, Chat, Envelope, Task } from "@yuki/protocol"
 import { INBOX_STEPS, MAX_ENTRY_BYTES, Inbox } from "@yuki/agent/inbox"
 import { BurstFlush, type BurstDeps } from "../src/room/burst-flush"
-import { BURST_HELD_WAKEUP, Burst } from "../src/room/burst"
+import { Burst } from "../src/room/burst"
 import { buildBrief, MAX_BOARD_BYTES } from "../src/room/brief"
 import { attachedLine, Deliveries, withContext } from "../src/room/deliver"
 import { reactionLines } from "../src/room/reactions"
@@ -24,9 +24,7 @@ const home = { userId: "alice", roomId: ROOM as never }
 const ada = { slug: "ada", name: "Ada", role: "", model: "", lead: true, status: "idle" } as MemberRow
 const bob = { slug: "bob", name: "Bob", role: "", model: "", lead: false, status: "idle" } as MemberRow
 
-type Turn = { ok: true } | { ok: false; limit: number; resetAt: number }
-
-function setup(refusal: string | null, turn: Turn = { ok: true }, members: MemberRow[] = [ada, bob]) {
+function setup(refusal: string | null, members: MemberRow[] = [ada, bob]) {
   const sql = sqlWith(ROOM_STEPS)
   const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
   const log = new RoomLog(storage, () => 1)
@@ -36,7 +34,6 @@ function setup(refusal: string | null, turn: Turn = { ok: true }, members: Membe
   const received: string[][] = []
   const to: string[] = []
   const published: unknown[] = []
-  const takes: string[] = []
   // The latest time each wakeup key holds, as the alarm table keeps it.
   const wakeups = new Map<string, number>()
   const alarms = {
@@ -60,12 +57,7 @@ function setup(refusal: string | null, turn: Turn = { ok: true }, members: Membe
     },
     USER: {
       idFromName: (name: string) => name,
-      get: () => ({
-        takeTurn: async (id: string) => {
-          takes.push(id)
-          return turn
-        },
-      }),
+      get: () => ({}),
     },
   }
   const deps: BurstDeps = {
@@ -91,7 +83,7 @@ function setup(refusal: string | null, turn: Turn = { ok: true }, members: Membe
     drainMail: async () => {},
     retryHeld: async () => {},
   }
-  return { flush: new BurstFlush(deps), burst, log, wakes, wakeups, received, to, turn, clock, published, deps, storage, sql, state, takes }
+  return { flush: new BurstFlush(deps), burst, log, wakes, wakeups, received, to, clock, published, deps, storage, sql, state }
 }
 
 /** A human message as the room stores it: the bubble, with the mentions of its whole text. */
@@ -181,85 +173,20 @@ test("a long proposal, a long doing text and a long handle are cut in the brief"
 })
 
 test("a mention past the bubble limit routes the message to the agent it names", async () => {
-  const { flush, burst, to } = setup(null, { ok: true }, [{ ...ada, lead: false } as MemberRow, { ...bob, lead: true } as MemberRow])
+  const { flush, burst, to } = setup(null, [{ ...ada, lead: false } as MemberRow, { ...bob, lead: true } as MemberRow])
   await human(burst, 1, `${"x".repeat(20_000)} @ada`)
   await flush.flush()
   expect(to).toEqual(["ada"])
 })
 
-test("a burst for a chat that is gone is not charged a turn", async () => {
-  const { flush, burst, log, state, takes } = setup(null)
-  // The title is known, the case where the old code asked for the turn at the same time as the chat.
+test("a burst for a chat that is gone is dropped", async () => {
+  const { flush, burst, log, state, received } = setup(null)
   log.setMeta("title", "t")
   state.chatGone = true
   await human(burst, 1, "hello")
   await flush.flush()
-  expect(takes).toEqual([])
+  expect(received).toEqual([])
   expect(burst.pending()).toBe(false)
-})
-
-test("a held burst of more than one delivery waits for the reset and does not spin before it", async () => {
-  const resetAt = NOW + 60_000
-  const { flush, burst, wakes } = setup(null, { ok: false, limit: 10, resetAt })
-  for (let i = 1; i <= 101; i++) await human(burst, i, `m${i}`)
-  await flush.flush()
-  expect(wakes.at(-1)).toEqual([BURST_HELD_WAKEUP, resetAt])
-  expect(burst.pending()).toBe(false)
-})
-
-test("a held human window does not hold agent mail to its recipients", async () => {
-  const resetAt = NOW + 60_000
-  const { burst, log } = setup(null, { ok: false, limit: 10, resetAt })
-  await human(burst, 1, "@ada hello")
-  burst.hold(resetAt)
-  const mail = new RoomMail({ burst, log, members: { list: () => [ada, bob] }, env: {} } as never)
-  expect(mail.burstAddressed(home)).toEqual(new Set())
-})
-
-test("a human message over the daily reply limit is held and answered at the reset", async () => {
-  const resetAt = NOW + 60_000
-  const { flush, burst, log, wakes, received, turn, clock } = setup(null, { ok: false, limit: 10, resetAt })
-  await human(burst, 1, "hello")
-  await flush.flush()
-  expect(burst.pending()).toBe(false)
-  expect(wakes.at(-1)).toEqual([BURST_HELD_WAKEUP, resetAt])
-  expect(log.snapshot().messages.filter((m) => /answered at/.test(m.text))).toHaveLength(1)
-  await flush.flush()
-  expect(log.snapshot().messages.filter((m) => /answered at/.test(m.text))).toHaveLength(1)
-  expect(received).toHaveLength(0)
-  // The reset: the same burst is delivered, and the human has not sent again.
-  Object.assign(turn, { ok: true })
-  clock.now = resetAt
-  await flush.flush()
-  expect(burst.pending()).toBe(false)
-  expect(received).toEqual([["human:m1"]])
-})
-
-test("a held message goes out before a later one when the limit lifts early", async () => {
-  const resetAt = NOW + 60_000
-  const { flush, burst, received, turn } = setup(null, { ok: false, limit: 2, resetAt })
-  await human(burst, 1, "three.")
-  await flush.flush()
-  expect(received).toHaveLength(0)
-  // The plan's limit is raised before the reset, then the human writes again.
-  Object.assign(turn, { ok: true })
-  await human(burst, 2, "four.")
-  await flush.flush()
-  expect(received).toEqual([["human:m1", "human:m2"]])
-  expect(burst.pending()).toBe(false)
-})
-
-test("a held reset survives a later message whose flush fails", async () => {
-  const resetAt = NOW + 60_000
-  const { flush, burst, wakeups, state } = setup(null, { ok: false, limit: 10, resetAt })
-  await human(burst, 1, "hello")
-  await flush.flush()
-  expect([...wakeups.values()]).toContain(resetAt)
-  // A new message's wakeup takes the burst key. Its flush then fails before the limit is read.
-  state.chatFails = true
-  await human(burst, 2, "again")
-  await flush.flush()
-  expect([...wakeups.values()]).toContain(resetAt)
 })
 
 test("a refused human message posts a notice to the human, one for each message", async () => {

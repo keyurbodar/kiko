@@ -144,7 +144,7 @@ function cand(over: Partial<Candidate> = {}): Candidate {
 }
 
 function ctx(over: Partial<AttendContext> = {}): AttendContext {
-  return { now: NOW, level: "active", away: false, budget: 10, busyRooms: [], leads: { r1: "yuki", r2: "yuki" }, rhythm: known, appetite: emptyAppetite(), ...over }
+  return { now: NOW, level: "active", away: false, busyRooms: [], leads: { r1: "yuki", r2: "yuki" }, rhythm: known, appetite: emptyAppetite(), ...over }
 }
 
 describe("attend", () => {
@@ -160,7 +160,6 @@ describe("attend", () => {
     ["writing in another room does not hold this one", {}, { busyRooms: ["r2"] }, "nudge", "r1/yuki"],
     ["cold start", {}, { rhythm: { known: false, activeNow: false, moments: [], cycle: DAY } }, "brief:cold"],
     ["away", {}, { away: true }, "brief:away"],
-    ["no budget", {}, { budget: 0 }, "brief:budget"],
     ["tentative without Jev never interrupts", { certainty: "tentative" }, {}, "brief:tentative"],
     ["far due, seen long ago", { due: NOW + 30 * DAY, lastSeen: NOW - 60 * DAY }, {}, "brief:worth"],
     ["outside the usual window", {}, { rhythm: { ...known, activeNow: false } }, "brief:moment"],

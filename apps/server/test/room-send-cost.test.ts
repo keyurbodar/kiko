@@ -68,7 +68,7 @@ test("a chat that was never counted is counted once, when first asked, and then 
 	expect(new RoomLog(storage).unread()).toBe(3)
 })
 
-test("the per-send plans read the burst window in seq order and its start through the held index", () => {
+test("the per-send plans read the burst window in seq order and its start through the at index", () => {
 	const { db } = setup()
 	const now = Date.now()
 	db.exec("BEGIN")
@@ -78,8 +78,8 @@ test("the per-send plans read the burst window in seq order and its start throug
 	const plan = (query: string, ...args: (string | number)[]) =>
 		db.query<{ detail: string }, (string | number)[]>(`EXPLAIN QUERY PLAN ${query}`).all(...args).map((r) => r.detail).join(" | ")
 
-	const envelopes = plan("SELECT id, seq, at, text, reply_to, mentions FROM pending WHERE ? OR held_until IS NULL OR held_until <= ? ORDER BY seq LIMIT ?", 0, now, 100)
+	const envelopes = plan("SELECT id, seq, at, text, reply_to, mentions FROM pending ORDER BY seq LIMIT ?", 100)
 	expect(envelopes).toContain("USING INDEX pending_seq")
 	expect(envelopes).not.toContain("TEMP B-TREE")
-	expect(plan("SELECT min(at) AS at FROM pending WHERE held_until IS NULL")).toContain("pending_held")
+	expect(plan("SELECT min(at) AS at FROM pending")).toContain("pending_at")
 })
