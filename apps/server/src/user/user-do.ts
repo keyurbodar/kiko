@@ -469,45 +469,6 @@ export class UserDO extends DurableObject<Env> {
     return this.#credentials.listProviders().map((p) => this.#mem.describe(p))
   }
 
-<<<<<<< HEAD
-=======
-  limits(): Limits {
-    const raw = this.setting("limits")
-    return resolveLimits(raw ? (JSON.parse(raw) as Partial<Limits>) : null)
-  }
-
-  setLimits(patch: Partial<Limits>): Limits {
-    const next = { ...JSON.parse(this.setting("limits") ?? "{}"), ...patch }
-    this.putSetting("limits", JSON.stringify(next))
-    return this.limits()
-  }
-
-  /** One run nobody's message started, paid once per wake id however often the room asks (section 25.5). */
-  takeAutonomous(id: string): AutonomousAnswer {
-    const now = Date.now()
-    const day = utcDay(now)
-    const key = `autonomous:${day}`
-    const used = Number(this.setting(key) ?? 0)
-    if (this.sql.exec("SELECT 1 FROM charged_today WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
-    const lastSeen = this.setting(LAST_SEEN)
-    const answer = takeAutonomous(used, lastSeen === null ? null : Number(lastSeen), this.limits(), now)
-    if (answer.ok) {
-      this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM charged_today WHERE day < ?", day)
-      this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
-    } else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
-    return answer
-  }
-
-  /** The agent refused the wake `id`: the run it paid for goes back to today's count. */
-  refundAutonomous(id: string): void {
-    const day = utcDay(Date.now())
-    if (!this.sql.exec("DELETE FROM charged_today WHERE id = ? AND day = ?", id, day).rowsWritten) return
-    const key = `autonomous:${day}`
-    this.putSetting(key, String(Math.max(0, Number(this.setting(key) ?? 0) - 1)))
-  }
-
->>>>>>> main
   private seen(): void {
     const now = Date.now()
     const last = Number(this.setting(LAST_SEEN) ?? 0)
@@ -525,25 +486,6 @@ export class UserDO extends DurableObject<Env> {
     if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open yuki.", "limit")
   }
 
-<<<<<<< HEAD
-=======
-  /** One human burst, charged once per burst id however often the room retries it. Shares the day's id table with `takeAutonomous`; burst ids never look like wake ids. */
-  takeTurn(id: string): TurnAnswer {
-    const now = Date.now()
-    const day = utcDay(now)
-    const key = `turns:${day}`
-    const used = Number(this.setting(key) ?? 0)
-    if (this.sql.exec("SELECT 1 FROM charged_today WHERE id = ? AND day = ?", id, day).toArray().length) return { ok: true, used }
-    const answer = takeTurn(used, this.limits(), now)
-    if (answer.ok) {
-      this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM charged_today WHERE day < ?", day)
-      this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
-    }
-    return answer
-  }
-
->>>>>>> main
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
       getSetting(this.sql, key)

@@ -177,10 +177,6 @@ export const USER_STEPS: Step[] = [
   ...ALARM_STEPS,
   // How many Jev passes a heard burst has failed (initiative-loops.ts). Past the last try, the two-word touch decides it.
   addColumn("loop_heard", "attempts", "INTEGER NOT NULL DEFAULT 0"),
-<<<<<<< HEAD
-  // The per-day charge ids of the retired turn and autonomous-run limits.
-  "DROP TABLE IF EXISTS charged_today",
-=======
   // Lookups that read every row of a table that only grows: the pinned lines and the tagged cards of the life log
   // (read on every agent turn), the reminders by how recently they fired, and the day's charged bursts.
   "CREATE INDEX IF NOT EXISTS life_pinned ON life (pos) WHERE pinned = 1",
@@ -191,5 +187,6 @@ export const USER_STEPS: Step[] = [
   "CREATE INDEX IF NOT EXISTS attention_seen_at ON attention_seen (at)",
   // Substring search of the life log, for a recall that the word index missed. Kept in step with life_fts by life.ts.
   ...LIFE_TRI_STEPS,
->>>>>>> main
+  // The per-day charge ids of the retired turn and autonomous-run limits.
+  "DROP TABLE IF EXISTS charged_today",
 ]

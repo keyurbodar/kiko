@@ -1702,33 +1702,6 @@
         "sqlite_autoindex_capture_queue_1"
       ]
     },
-<<<<<<< HEAD
-=======
-    "charged_today": {
-      "columns": [
-        {
-          "cid": 0,
-          "name": "id",
-          "type": "TEXT",
-          "notnull": 0,
-          "dflt_value": null,
-          "pk": 1
-        },
-        {
-          "cid": 1,
-          "name": "day",
-          "type": "TEXT",
-          "notnull": 1,
-          "dflt_value": null,
-          "pk": 0
-        }
-      ],
-      "indexes": [
-        "charged_today_day",
-        "sqlite_autoindex_charged_today_1"
-      ]
-    },
->>>>>>> main
     "chat_tasks": {
       "columns": [
         {
