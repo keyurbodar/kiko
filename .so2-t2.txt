@@ -1,4 +1,0 @@
-$ bun scripts/test-each.ts zz-regen
-ok   zz-regen.test.ts  1 pass
-
-1 pass, 0 fail, 0 cached across 1 files

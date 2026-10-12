@@ -1651,6 +1651,7 @@
         }
       ],
       "indexes": [
+        "attention_seen_at",
         "sqlite_autoindex_attention_seen_1"
       ]
     },
@@ -1701,6 +1702,33 @@
         "sqlite_autoindex_capture_queue_1"
       ]
     },
+<<<<<<< HEAD
+=======
+    "charged_today": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "id",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "day",
+          "type": "TEXT",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "charged_today_day",
+        "sqlite_autoindex_charged_today_1"
+      ]
+    },
+>>>>>>> main
     "chat_tasks": {
       "columns": [
         {
@@ -2733,7 +2761,9 @@
         }
       ],
       "indexes": [
+        "life_card",
         "life_norm",
+        "life_pinned",
         "life_ref"
       ]
     },
@@ -2931,6 +2961,132 @@
           "name": "n",
           "type": "INTEGER",
           "notnull": 1,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "indexes": []
+    },
+    "life_tri": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "text",
+          "type": "",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "indexes": []
+    },
+    "life_tri_config": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "k",
+          "type": "",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "v",
+          "type": "",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "indexes": []
+    },
+    "life_tri_content": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "c0",
+          "type": "",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "indexes": []
+    },
+    "life_tri_data": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "block",
+          "type": "BLOB",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "indexes": []
+    },
+    "life_tri_docsize": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "sz",
+          "type": "BLOB",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "indexes": []
+    },
+    "life_tri_idx": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "segid",
+          "type": "",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "term",
+          "type": "",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 2
+        },
+        {
+          "cid": 2,
+          "name": "pgno",
+          "type": "",
+          "notnull": 0,
           "dflt_value": null,
           "pk": 0
         }
@@ -3464,6 +3620,7 @@
       ],
       "indexes": [
         "reminders_due",
+        "reminders_fired",
         "sqlite_autoindex_reminders_1"
       ]
     },
