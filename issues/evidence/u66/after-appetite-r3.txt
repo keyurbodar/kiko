@@ -34,3 +34,12 @@
    irregular-ignorer  base nudges  152 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 28/165 (17.0%) variant 28/165 (17.0%) | lands <=1h before a session: base 9.7% variant 9.7%
    kind-split         base nudges  347 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 201/387 (51.9%) variant 201/387 (51.9%) | lands <=1h before a session: base 49.9% variant 49.9%
    weekday-weekend    base nudges  341 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 181/359 (50.4%) variant 181/359 (50.4%) | lands <=1h before a session: base 59.1% variant 59.1%
+   hoarder            base nudges  426 | dropped   0.0% added   0.0% moved>1h   0.0% | welcome: base 198/461 (43.0%) variant 198/461 (43.0%) | lands <=1h before a session: base 57.3% variant 57.3%
+ variant none+jev
+   regular-keen       base nudges  346 | dropped  11.6% added  10.7% moved>1h   7.5% | welcome: base 305/398 (76.6%) variant 290/381 (76.1%) | lands <=1h before a session: base 55.8% variant 56.4%
+   regular-ignorer    base nudges  131 | dropped  33.6% added 148.1% moved>1h   3.8% | welcome: base 15/138 (10.9%) variant 32/307 (10.4%) | lands <=1h before a session: base 55.8% variant 52.8%
+   irregular-keen     base nudges  298 | dropped   9.7% added  16.1% moved>1h   6.0% | welcome: base 267/358 (74.6%) variant 282/380 (74.2%) | lands <=1h before a session: base 7.0% variant 8.4%
+   irregular-ignorer  base nudges  152 | dropped  34.9% added 140.1% moved>1h   3.9% | welcome: base 28/165 (17.0%) variant 65/373 (17.4%) | lands <=1h before a session: base 9.7% variant 7.5%
+   kind-split         base nudges  347 | dropped  15.0% added  30.0% moved>1h   6.1% | welcome: base 201/387 (51.9%) variant 230/441 (52.2%) | lands <=1h before a session: base 49.9% variant 51.0%
+   weekday-weekend    base nudges  341 | dropped  10.6% added   9.4% moved>1h   2.9% | welcome: base 181/359 (50.4%) variant 183/357 (51.3%) | lands <=1h before a session: base 59.1% variant 59.1%
+   hoarder            base nudges  426 | dropped  26.8% added  41.8% moved>1h   7.0% | welcome: base 198/461 (43.0%) variant 222/536 (41.4%) | lands <=1h before a session: base 57.3% variant 58.0%
