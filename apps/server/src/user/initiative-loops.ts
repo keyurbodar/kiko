@@ -81,7 +81,7 @@ export class InitiativeLoops {
       home: () => yukiChatRoom(d.sql),
       routines: () => {
         const runs = d.reminders.runs()
-        return d.reminders.list().filter((r) => r.trigger).map((routine) => ({ routine, last: runs.find((x) => x.routineId === routine.id && x.status !== "running") ?? null }))
+        return d.reminders.triggered().map((routine) => ({ routine, last: runs.find((x) => x.routineId === routine.id && x.status !== "running") ?? null }))
       },
       judge: () => d.memory.judgeFor(CAPTURE_TIMEOUT_MS),
       judged: (roomId) => this.judging(roomId as RoomId),

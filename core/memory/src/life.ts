@@ -55,6 +55,13 @@ export const LIFE_STEPS: Step[] = [
   ...treeSteps(LIFE_TREE),
 ]
 
+// The substring index for recall. It is its own list so an object can append it at the end of its schema: a step
+// placed in the middle of LIFE_STEPS would shift the version of every step after it.
+export const LIFE_TRI_STEPS: Step[] = [
+  "CREATE VIRTUAL TABLE IF NOT EXISTS life_tri USING fts5(text, tokenize = 'trigram')",
+  "INSERT INTO life_tri (rowid, text) SELECT pos, text FROM life WHERE redacted = 0 AND pos NOT IN (SELECT rowid FROM life_tri)",
+]
+
 export class Life {
   readonly tree: Tree
 
@@ -94,6 +101,7 @@ export class Life {
         options.card ?? null,
       )
       this.sql.exec("INSERT INTO life_fts (rowid, text) VALUES (?, ?)", pos, line)
+      this.sql.exec("INSERT INTO life_tri (rowid, text) VALUES (?, ?)", pos, line)
       return { ok: true, pos } as const
     })
   }
@@ -139,8 +147,14 @@ export class Life {
       .toArray()
     const longest = (words.map((w) => w.replace(/[%_\\]/g, "")).sort((a, b) => b.length - a.length)[0] ?? "").slice(0, 40)
     if (!rows.length && longest.length > 2) {
+      // A trigram index finds the substring. A LIKE scan read the whole life log on every miss.
       rows = this.sql
-        .exec<Row>(`SELECT * FROM life WHERE ${LIVE} AND text LIKE ? AND pos NOT IN (SELECT value FROM json_each(?)) ORDER BY pos DESC LIMIT ?`, `%${longest}%`, skip, limit)
+        .exec<Row>(
+          `SELECT l.* FROM life_tri t JOIN life l ON l.pos = t.rowid WHERE life_tri MATCH ? AND l.redacted = 0 AND l.superseded_by IS NULL AND l.pos NOT IN (SELECT value FROM json_each(?)) ORDER BY l.pos DESC LIMIT ?`,
+          `"${longest}"`,
+          skip,
+          limit,
+        )
         .toArray()
     }
     return rows.map(toLine)
@@ -150,8 +164,10 @@ export class Life {
     const words = keywords(text)
     const hits = words.length ? this.recall(words.join(" "), limit) : []
     const card = this.card().map((c) => c.pos)
+    // The loop below stops at `limit` lines, and at most `hits` of the rows it reads are already in `out`, so
+    // `limit` rows are enough. Without the LIMIT every call read the whole life log.
     const rows = this.sql
-      .exec<Row>(`SELECT * FROM life WHERE ${LIVE} AND (pos IN (SELECT value FROM json_each(?)) OR pos >= ?) ORDER BY pos DESC`, JSON.stringify(card), this.count() - limit)
+      .exec<Row>(`SELECT * FROM life WHERE ${LIVE} AND (pos IN (SELECT value FROM json_each(?)) OR pos >= ?) ORDER BY pos DESC LIMIT ?`, JSON.stringify(card), this.count() - limit, limit)
       .toArray()
     const out = new Map(hits.map((l) => [l.pos, l]))
     for (const r of rows) if (out.size < limit && !out.has(r.pos)) out.set(r.pos, toLine(r))
@@ -223,6 +239,7 @@ export class Life {
     const done = this.sql.exec("UPDATE life SET text = '', norm = '', redacted = 1, pinned = 0, card = NULL WHERE pos = ? AND redacted = 0", pos).rowsWritten > 0
     if (!done) return false
     this.sql.exec("DELETE FROM life_fts WHERE rowid = ?", pos)
+    this.sql.exec("DELETE FROM life_tri WHERE rowid = ?", pos)
     this.tree.forget(pos)
     return true
   }

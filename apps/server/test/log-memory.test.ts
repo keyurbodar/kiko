@@ -4,7 +4,7 @@ import { ancestors, region, ROOM_SHAPE } from "@yuki/memory/optmem"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
 import { ROOM_STEPS } from "../src/room/schema"
-import { Life, LIFE_STEPS, MAX_PINS } from "@yuki/memory/life"
+import { Life, LIFE_STEPS, LIFE_TRI_STEPS, MAX_PINS } from "@yuki/memory/life"
 import { MemoryNaps } from "../src/room/memory-naps"
 import { sqlWith } from "./sql-shim"
 
@@ -129,7 +129,7 @@ test("a settled stretch of eight pages rolls up into the user's life once", asyn
 })
 
 function life() {
-  const sql = sqlWith(LIFE_STEPS)
+  const sql = sqlWith([...LIFE_STEPS, ...LIFE_TRI_STEPS])
   const settings = new Map<string, string>()
   return new Life(sql, (fn) => fn(), { get: (k) => settings.get(k) ?? null, set: (k, v) => void settings.set(k, v) })
 }

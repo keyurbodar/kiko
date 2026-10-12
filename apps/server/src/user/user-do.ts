@@ -485,7 +485,7 @@ export class UserDO extends DurableObject<Env> {
     const answer = takeAutonomous(used, lastSeen === null ? null : Number(lastSeen), this.limits(), now)
     if (answer.ok) {
       this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM charged_today WHERE day != ?", day)
+      this.sql.exec("DELETE FROM charged_today WHERE day < ?", day)
       this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
     } else if (answer.reason === "away") this.ctx.waitUntil(this.awayNotice(now).catch(() => {}))
     return answer
@@ -526,7 +526,7 @@ export class UserDO extends DurableObject<Env> {
     const answer = takeTurn(used, this.limits(), now)
     if (answer.ok) {
       this.putSetting(key, String(answer.used))
-      this.sql.exec("DELETE FROM charged_today WHERE day != ?", day)
+      this.sql.exec("DELETE FROM charged_today WHERE day < ?", day)
       this.sql.exec("INSERT OR IGNORE INTO charged_today (id, day) VALUES (?, ?)", id, day)
     }
     return answer

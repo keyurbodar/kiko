@@ -193,6 +193,11 @@ export class Reminders {
       .map(toReminder)
   }
 
+  /** The routines that can still run or be reported on. Done and cancelled rows only grow the table. */
+  triggered(): Reminder[] {
+    return this.sql.exec<Row>("SELECT * FROM reminders WHERE trigger IS NOT NULL AND status IN ('active', 'paused')").toArray().map(toReminder)
+  }
+
   owner(): string | null {
     const value = getSetting(this.sql, "owner")
     return value ? (JSON.parse(value) as string) : null
