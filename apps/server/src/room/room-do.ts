@@ -1,8 +1,7 @@
 import { isAgentSlug, tagline } from "@yuki/protocol"
 import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp } from "@yuki/protocol"
 import { DurableObject } from "cloudflare:workers"
-import { instrument } from "../lib/dev-stats"
-import { loadRoomDev } from "../lib/dev-guard"
+import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
 import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
@@ -32,7 +31,7 @@ import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult,
 import { RoomLog } from "./log"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, reactionBrief } from "./reactions"
-import { attachmentPath, claim, ClaimRefused, legacyFiles, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
+import { attachmentPath, claim, ClaimRefused, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
 import { bubbleOf, discardWhole, putWhole, WHOLE_NAME, WHOLE_TYPE, type WholeText } from "./whole-text"
 import { tags } from "./recipients"
 import { migrate } from "@yuki/durable/migrate"
@@ -555,9 +554,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const earlier = this.log.sentBefore(frame.clientId)
 				if (earlier) return { ack: earlier, events: [] }
 				const now = Date.now()
-				const claimed = frame.attachments?.length
-					? claim(this.pending, this.files, frame.attachments, now)
-					: { refs: frame.files?.length ? legacyFiles(this.files, frame.files) : [], events: [] }
+				const claimed = frame.attachments?.length ? claim(this.pending, this.files, frame.attachments, now) : { refs: [], events: [] }
 				const filed = whole
 					? this.files.put({ id: whole.id, path: attachmentPath(WHOLE_NAME, now, (p) => this.files.stat(p) !== null), r2Key: whole.r2Key, size: whole.size, type: WHOLE_TYPE, sha256: whole.sha256, author: { kind: "human" }, expectSha256: "none" })
 					: null

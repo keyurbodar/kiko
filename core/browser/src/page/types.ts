@@ -61,7 +61,6 @@ export interface BrowserSession {
   openTab(url?: string): Promise<Tab>
   tab(id: string): Tab | undefined
   listTabs(): Promise<{ id: string; url: string; title: string }[]>
-  onPopup(listener: (opener: string, tab: Tab) => void): void
   closed: Promise<void>
   close(): Promise<void>
 }

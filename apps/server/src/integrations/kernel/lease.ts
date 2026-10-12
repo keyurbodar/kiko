@@ -2,7 +2,7 @@ import { boundedWait } from "@yuki/durable/bounded-wait"
 import { KernelError, type KernelClient, type Mode } from "./client"
 import type { KernelStore, LeaseRow, Tabs } from "./store"
 
-export type LeaseStore = Pick<KernelStore, "lease" | "urls" | "putLease" | "patchLease" | "deleteLease" | "profileReady" | "setProfileReady" | "setBroken" | "generation">
+export type LeaseStore = Pick<KernelStore, "lease" | "urls" | "putLease" | "patchLease" | "deleteLease" | "profileReady" | "setProfileReady" | "setBroken">
 
 export const IDLE_MS = 5 * 60_000
 /** While the human drives, the reaper looks again this often. */
@@ -197,7 +197,6 @@ export class KernelLease {
     const { store, wake } = this.deps
     const client = await this.deps.client()
     const profile = await this.deps.profile()
-    const generation = store.generation
     try {
       if (!store.profileReady()) {
         try {
@@ -210,14 +209,10 @@ export class KernelLease {
       const made = await this.#retrying(() => client.createBrowser({ headless: mode === "headless", profile, timeoutSeconds: KERNEL_TIMEOUT_SECONDS }))
       const now = this.#now()
       const row: LeaseRow = { sessionId: made.sessionId, mode, createdAt: now, lastUse: now, tabs: {}, dead: false, ...keep }
-      const saved = await store.putLease(row, { cdpUrl: made.cdpUrl, ...(made.liveUrl ? { liveUrl: made.liveUrl } : {}) }, generation).catch(async (e) => {
+      await store.putLease(row, { cdpUrl: made.cdpUrl, ...(made.liveUrl ? { liveUrl: made.liveUrl } : {}) }).catch(async (e) => {
         await client.deleteBrowser(made.sessionId).catch(() => undefined)
         throw e
       })
-      if (!saved) {
-        await client.deleteBrowser(made.sessionId).catch(() => undefined)
-        throw new KernelError("failed", "Kernel was disconnected")
-      }
       await wake.set(reapDecisionAt(row, now))
       return { cdpUrl: made.cdpUrl, row }
     } catch (e) {

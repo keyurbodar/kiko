@@ -141,7 +141,7 @@ export const roomSnapshot: RoomSnapshot = {
 
 export const clientToRoom: readonly ClientToRoom[] = [
 	{ t: "hello", lastSeq: 0 },
-	{ t: "send", clientId: "c1", text: "can you two plan the protocol package?", files: [file] },
+	{ t: "send", clientId: "c1", text: "can you two plan the protocol package?" },
 	{ t: "send", clientId: "c2", text: "thanks", replyTo: messageId(2) },
 	{ t: "send", clientId: "c3", text: "", attachments: [{ pendingId: "0199a8f0-0000-7000-8000-000000000001", name: "plan.pdf", type: "application/pdf", size: 2048 }] },
 	{ t: "react", messageId: messageId(2), emoji: "🔥" },

@@ -43,7 +43,6 @@ function fakeSession(): { session: BrowserSession; tabs: Map<string, FakeTab> } 
     },
     tab: (id: string) => tabs.get(id),
     listTabs: async () => [...tabs.values()].map((t) => ({ id: t.id, url: "about:blank", title: "" })),
-    onPopup: () => {},
     closed: new Promise<void>(() => {}),
     close: async () => {},
   }

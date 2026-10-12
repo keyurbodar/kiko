@@ -116,6 +116,18 @@ test("a pending upload is not the chat's until a send claims it, then it is a fi
 	c.close()
 })
 
+test("a send names files only by pending upload: a files field from an old client carries nothing", async () => {
+	const room = fresh()
+	const c = await Client.open(room)
+	c.send({ t: "send", clientId: "old", text: "hi", files: [{ id: crypto.randomUUID(), name: "attachments/x-a.txt", size: 1, type: "text/plain" }] })
+	const answer = await c.next((f) => f.t === "ack" || f.t === "send_refused")
+	expect(answer.t).toBe("ack")
+	const events = await c.next((f) => f.t === "events")
+	const message = events.t === "events" ? events.events.find((e) => e.t === "message") : undefined
+	expect(message?.t === "message" && message.files).toBeFalsy()
+	c.close()
+})
+
 test("a send resent with the same client id claims once and gets the first ack", async () => {
 	const room = fresh()
 	const id = crypto.randomUUID()

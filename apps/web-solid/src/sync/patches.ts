@@ -150,8 +150,7 @@ function pendingMessage(p: RoomPatch & { frame: SendFrame }): ViewMessage {
 		pending: true,
 	}
 	if (p.frame.replyTo) m.replyTo = p.frame.replyTo
-	if (p.frame.files?.length) m.files = p.frame.files
-	else if (p.local?.length) m.local = p.local
+	if (p.local?.length) m.local = p.local
 	if (p.failed) m.failed = true
 	if (p.reason) m.reason = p.reason
 	return m

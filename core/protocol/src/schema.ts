@@ -239,7 +239,6 @@ export const ClientToRoom = Schema.Union([
 		replyTo: Schema.optionalKey(MessageId),
 		quote: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1000))),
 		attachments: Schema.optionalKey(Schema.Array(PendingAttachment)),
-		files: Schema.optionalKey(Schema.Array(FileRef)),
 	}),
 	Schema.Struct({ t: Schema.Literal("react"), messageId: MessageId, emoji: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("edit"), messageId: MessageId, text: Schema.String }),

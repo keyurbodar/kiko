@@ -1,6 +1,8 @@
+import type { OAuthCredential, Provider } from "@earendil-works/pi-ai"
 import type { Mode } from "../integrations/kernel/client"
 import type { ComposioConnection } from "../integrations/composio/connect"
-import { type KernelConnection, profileName } from "../integrations/kernel/connect"
+import { profileName } from "../integrations/kernel/connect"
+import type { KernelWiring } from "./kernel-wiring"
 import type { InitiativeEngine } from "../initiative/engine"
 import { setSetting } from "../lib/settings"
 import type { Reminders } from "./reminders"
@@ -32,22 +34,22 @@ export async function devDue(reminders: Reminders, id: string): Promise<void> {
 export type DevBrowserOp = { action: "lease" | "touch" | "dead" | "age" | "reap" | "switch" | "state"; agentId?: string; mode?: Mode; ms?: number }
 
 // DEVELOPMENT ONLY: `verify kernel` drives the lease and the reaper without waiting minutes.
-export async function devBrowser(kernel: () => KernelConnection, userId: string, op: DevBrowserOp): Promise<Record<string, unknown>> {
+export async function devBrowser(kernel: () => KernelWiring, userId: string, op: DevBrowserOp): Promise<Record<string, unknown>> {
   const k = kernel()
   if (op.action === "lease") {
-    const { cdpUrl: _, ...rest } = await k.leaseFor(op.agentId)
+    const { cdpUrl: _, ...rest } = await k.lease(op.agentId ?? "")
     return { ...rest, sessionId: k.sessionId() }
   }
-  if (op.action === "touch") return { ok: k.touch(op.agentId) }
+  if (op.action === "touch") return { ok: k.touch(op.agentId ?? "") }
   if (op.action === "dead") {
-    const gone = await k.lease.killForDev()
-    if (gone) await k.markDead(op.agentId, gone)
+    const gone = await k.browser.killForDev()
+    if (gone) await k.dead(op.agentId ?? "", gone)
   }
   if (op.action === "age") k.age(op.ms ?? 0)
   if (op.action === "reap") await k.reap()
   if (["dead", "age", "reap"].includes(op.action)) return { sessionId: k.sessionId() }
   if (op.action === "switch") {
-    const { cdpUrl: _, ...rest } = await k.lease.switchMode(op.mode === "headful" ? "headful" : "headless")
+    const { cdpUrl: _, ...rest } = await k.browser.switchMode(op.mode === "headful" ? "headful" : "headless")
     return { ...rest, sessionId: k.sessionId() }
   }
   return { sessionId: k.sessionId(), status: k.status(), profile: await profileName(userId) }
@@ -68,4 +70,42 @@ export async function devInitiative(engine: () => InitiativeEngine, reminders: R
   // A reminder an agent set for itself ages with the clock, and fires once the aging reaches it.
   await reminders.devAge(op.ms)
   return { at: await e.arm() }
+}
+
+// The sign-in test provider. Its flow shows a device code, then asks for it back.
+export const FAKE_PROVIDER = "yuki-fake"
+export const FAKE_CODE = "YUKI-0000"
+
+export function fakeProvider(id: string): Provider | undefined {
+  if (id !== FAKE_PROVIDER) return undefined
+  return {
+    id: FAKE_PROVIDER,
+    name: "yuki fake",
+    auth: {
+      oauth: {
+        name: "yuki fake sign-in",
+        async login(interaction): Promise<OAuthCredential> {
+          interaction.notify({
+            type: "device_code",
+            userCode: FAKE_CODE,
+            verificationUri: "https://example.invalid/device",
+            expiresInSeconds: 600,
+          })
+          const code = await interaction.prompt({ type: "manual_code", message: "type the code shown above" })
+          if (code.trim() !== FAKE_CODE) throw new Error("that code is wrong")
+          interaction.notify({ type: "progress", message: "code accepted" })
+          return { type: "oauth", access: `fake-${crypto.randomUUID()}`, refresh: "fake", expires: Date.now() + 3_600_000 }
+        },
+        refresh: async (credential) => credential,
+        toAuth: async (credential) => ({ apiKey: credential.access }),
+      },
+    },
+    getModels: () => [],
+    stream: noModels,
+    streamSimple: noModels,
+  }
+}
+
+function noModels(): never {
+  throw new Error("the fake provider only signs in")
 }

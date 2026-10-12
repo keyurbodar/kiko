@@ -187,11 +187,10 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			}
 			// The room's claim (room/pending.ts): each upload becomes a file under attachments/.
 			const claimed: FileRef[] = (f.attachments ?? []).map((a, i) => ({ id: a.pendingId, name: `attachments/${(now() + i).toString(36)}-${a.name}`, size: a.size, type: a.type }))
-			const files = claimed.length ? claimed : f.files
 			const seq = nextSeq() + claimed.length
 			const m: Omit<Message, "seq" | "at"> = { id: `m${seq}` as MessageId, from: { kind: "human" }, text: f.text }
 			if (f.replyTo) m.replyTo = f.replyTo
-			if (files?.length) m.files = files
+			if (claimed.length) m.files = claimed
 			const fileEvents = claimed.map((file): WithoutStored<RoomEvent> => ({ t: "file", file }) as WithoutStored<RoomEvent>)
 			if (mock.loseNextAck) {
 				mock.loseNextAck = false

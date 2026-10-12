@@ -43,7 +43,6 @@ function fakeBrowser(delay: (url: string) => number = () => 0) {
       },
       tab: (id) => live.get(id)?.tab,
       listTabs: async () => [...live].map(([id, t]) => ({ id, url: t.url(), title: t.url() })),
-      onPopup: () => {},
       closed,
       close: async () => {
         live.clear()
@@ -96,7 +95,6 @@ describe("browser connection", () => {
 
     browser.killLast()
     await tick()
-    expect(conn.isOpen()).toBe(false)
 
     const again = await conn.use(async () => (await conn.currentTab())?.read())
     expect(again?.url).toBe("https://news.ycombinator.com/newest")

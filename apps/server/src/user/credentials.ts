@@ -53,9 +53,7 @@ export class CredentialVault implements CredentialStore {
 
   async read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
     options?.signal?.throwIfAborted()
-    const loaded = await this.load(providerId)
-    if (loaded?.stale) await this.modify(providerId, async (current) => current)
-    return loaded?.credential
+    return this.load(providerId)
   }
 
   async list(options?: AuthOperationOptions): Promise<readonly CredentialInfo[]> {
@@ -70,13 +68,11 @@ export class CredentialVault implements CredentialStore {
   ): Promise<Credential | undefined> {
     return this.enqueue(providerId, async () => {
       options?.signal?.throwIfAborted()
-      const loaded = await this.load(providerId)
-      const current = loaded?.credential
+      const current = await this.load(providerId)
       const next = await fn(current)
       options?.signal?.throwIfAborted()
-      const written = next ?? current
-      if (written !== undefined && (next !== undefined || loaded?.stale)) await this.store(providerId, written)
-      return written
+      if (next !== undefined) await this.store(providerId, next)
+      return next ?? current
     })
   }
 
@@ -116,7 +112,7 @@ export class CredentialVault implements CredentialStore {
     return this.listProviders().find((p) => p.provider === provider) ?? null
   }
 
-  private async load(providerId: string): Promise<{ credential: Credential; stale: boolean } | undefined> {
+  private async load(providerId: string): Promise<Credential | undefined> {
     const row = this.sql
       .exec<Row>("SELECT kind, kek_version, iv, ciphertext FROM credentials WHERE provider_id = ?", providerId)
       .toArray()[0]
@@ -126,7 +122,7 @@ export class CredentialVault implements CredentialStore {
       iv: new Uint8Array(row.iv),
       ciphertext: new Uint8Array(row.ciphertext),
     })
-    return { credential: JSON.parse(plain) as Credential, stale: row.kek_version !== this.keyring.current.version }
+    return JSON.parse(plain) as Credential
   }
 
   private async store(providerId: string, credential: Credential): Promise<void> {

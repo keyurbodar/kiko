@@ -1,6 +1,6 @@
 import type { ComposioStatus } from "@yuki/protocol"
 import { CredentialError, checkApiKey } from "../../user/credentials"
-import { count } from "../../lib/dev-stats"
+import { count } from "../../lib/dev-guard"
 import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkKey, createSession, deleteSession, learnedSignature, listTools, sessionGone, type Target } from "./client"
 import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded } from "./learn"
 import type { ComposioStore, StoredTarget } from "./store"
@@ -14,7 +14,7 @@ export function composioErrorText(e: unknown): string {
 }
 
 export class ComposioConnection {
-  private listing: { at: number; tools: Promise<ComposioTool[]> } | undefined
+  private loading: Promise<ComposioTool[]> | undefined
   private readonly candidates = new Map<string, Candidate>()
   private renewing: { gone: string; next: Promise<Target> } | undefined
 
@@ -60,7 +60,7 @@ export class ComposioConnection {
     const generation = this.store.generation
     await this.store.putKey(key, session, generation)
     this.store.putListing({ at: Date.now(), tools }, generation)
-    this.listing = { at: Date.now(), tools: Promise.resolve(tools) }
+    this.loading = undefined
     this.candidates.clear()
     this.dropSession(old)
     return { status: this.status(), tools: tools.map((t) => t.name) }
@@ -68,7 +68,7 @@ export class ComposioConnection {
 
   disconnect(): number {
     const old = this.store.target()
-    this.listing = undefined
+    this.loading = undefined
     this.candidates.clear()
     const removed = this.store.clear()
     this.dropSession(old)
@@ -97,15 +97,16 @@ export class ComposioConnection {
   private async listed(now: number): Promise<ComposioTool[] | null> {
     if (!this.store.connected()) return null
     const saved = this.store.listing()
-    const kept = this.listing ?? (saved ? { at: saved.at, tools: Promise.resolve(saved.tools) } : undefined)
-    if (kept && now - kept.at < LISTING_FRESH_MS) return kept.tools
-    const loading = this.discover()
-    const next = { at: now, tools: loading }
-    this.listing = next
-    loading.catch(() => {
-      if (this.listing === next) this.listing = kept
-    })
-    return kept ? kept.tools : loading
+    if (saved && now - saved.at < LISTING_FRESH_MS) return saved.tools
+    if (!this.loading) {
+      const loading = this.discover()
+      const done = () => {
+        if (this.loading === loading) this.loading = undefined
+      }
+      loading.then(done, done)
+      this.loading = loading
+    }
+    return saved ? saved.tools : this.loading
   }
 
   private async discover(): Promise<ComposioTool[]> {

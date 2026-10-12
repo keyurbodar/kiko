@@ -10,30 +10,17 @@ export interface Kek {
 
 export interface Keyring {
   current: Kek
-  previous?: Kek
 }
 
 export interface KeyringEnv {
   CREDENTIALS_KEK: string
-  CREDENTIALS_KEK_VERSION?: string
-  CREDENTIALS_KEK_PREVIOUS?: string
 }
 
 export class CryptoError extends Error {}
 
 export function keyringFromEnv(env: KeyringEnv): Keyring {
   if (!env.CREDENTIALS_KEK) throw new CryptoError("CREDENTIALS_KEK is not set")
-  const version = env.CREDENTIALS_KEK_VERSION ? Number(env.CREDENTIALS_KEK_VERSION) : 1
-  if (!Number.isInteger(version) || version < 1) throw new CryptoError("CREDENTIALS_KEK_VERSION must be a positive integer")
-  const current = { version, secret: env.CREDENTIALS_KEK }
-  const previous = env.CREDENTIALS_KEK_PREVIOUS ? { version: version - 1, secret: env.CREDENTIALS_KEK_PREVIOUS } : undefined
-  return previous ? { current, previous } : { current }
-}
-
-function kekFor(keyring: Keyring, version: number): Kek {
-  if (keyring.current.version === version) return keyring.current
-  if (keyring.previous?.version === version) return keyring.previous
-  throw new CryptoError(`no secret for kek version ${version}`)
+  return { current: { version: 1, secret: env.CREDENTIALS_KEK } }
 }
 
 async function dataKey(kek: Kek, userId: string): Promise<CryptoKey> {
@@ -70,7 +57,7 @@ export async function seal(keyring: Keyring, userId: string, providerId: string,
 }
 
 export async function open(keyring: Keyring, userId: string, providerId: string, sealed: Sealed): Promise<string> {
-  const key = await dataKey(kekFor(keyring, sealed.kekVersion), userId)
+  const key = await dataKey(keyring.current, userId)
   try {
     const plain = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: sealed.iv, additionalData: aad(userId, providerId) },

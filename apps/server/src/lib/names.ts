@@ -2,7 +2,7 @@ import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from 
 import type { AgentDO } from "../agent/agent-do"
 import type { RoomDO } from "../room/room-do"
 import type { UserDO } from "../user/user-do"
-import { rpc } from "./dev-stats"
+import { rpc } from "./dev-guard"
 
 export const USER_ID_HEADER = "x-yuki-user-id"
 export const HANDLE_HEADER = "x-yuki-handle"

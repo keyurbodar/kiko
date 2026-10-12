@@ -101,7 +101,7 @@ apps/server/src/user/initiative-loops.ts:LoopsDeps
 apps/server/src/user/memory-capture.ts:MemoryDeps
 apps/server/src/user/provider-login.ts:LoginDeps
 apps/server/src/user/provider-login.ts:MAX_LOGINS
-apps/server/src/user/provider-login.ts:fakeProvider
+apps/server/src/user/dev.ts:fakeProvider
 apps/server/src/user/provider-login.ts:hasSignIn
 apps/server/src/user/reminders.ts:Deliver
 apps/server/src/user/reminders.ts:MAX_ROUTINES

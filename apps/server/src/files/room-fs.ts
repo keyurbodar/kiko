@@ -19,8 +19,8 @@ import { roomStub, userStub } from "../lib/names"
 import type { FsChange, FsEntry, FsFail } from "../room/files"
 import type { AgentHome } from "../room/room-do"
 import { type BashResult, runCommand } from "./bash"
-import { cleanPath, deleteFiles, fileKey } from "./upload"
-import { baseName, type CommitResult, type IndexChange, type NewFile } from "./file-index"
+import { cleanPath, deleteFiles, fileKey, HOME } from "./upload"
+import { baseName, type CommitResult, type IndexChange, type NewFile, type TreeChange } from "./file-index"
 
 export const MAX_WRITE_BYTES = 1024 * 1024
 export const CHAT_PATH = "chat.md"
@@ -38,12 +38,7 @@ export interface FilesBackend {
   commit(changes: readonly BatchChange[]): Promise<BatchResult>
 }
 
-export type BatchChange =
-  | { op: "write"; path: string; bytes: Uint8Array; type: string; expect: string }
-  | { op: "move"; from: string; to: string; sha256: string }
-  | { op: "remove"; path: string; sha256: string }
-  | { op: "rmdir"; path: string; files: Readonly<Record<string, string>> }
-  | { op: "mkdir"; path: string }
+export type BatchChange = { op: "write"; path: string; bytes: Uint8Array; type: string; expect: string } | TreeChange
 
 export type BatchResult = { ok: true } | { ok: false; path: string; message: string; conflict: boolean }
 
@@ -465,7 +460,7 @@ function spaceBackend(env: Env, home: () => AgentHome, index: () => SpaceIndex, 
       const stored: { key: string; bytes: Uint8Array }[] = []
       const indexed = await Promise.all(
         changes.map(async (c): Promise<IndexChange> => {
-          if (c.op !== "write") return c.op === "move" ? { op: "move", from: c.from, to: c.to, sha256: c.sha256 } : c
+          if (c.op !== "write") return c
           const id = crypto.randomUUID()
           const r2Key = fileKey(h.userId, at.space, id)
           const sha256 = await sha256Hex(c.bytes)
@@ -527,7 +522,7 @@ export function homeBackend(
     const user = userStub(env.USER, userId)
     const me = { kind: "agent", slug: slug as AgentSlug } as const
     return {
-      space: HOME_SPACE,
+      space: HOME,
       stat: (p) => user.homeStat(p),
       list: (d, r) => user.homeList(d, r),
       put: (input) => user.homePut(input),
@@ -568,9 +563,6 @@ export function homeBackend(
   }
 }
 
-const HOME_SPACE = "home"
-export const HOME_PATH = "home"
-
 export function withMount(base: FilesBackend, at: string, mounted: FilesBackend): FilesBackend {
   const inside = (p: string) => p === at || p.startsWith(`${at}/`)
   const strip = (p: string) => (p === at ? "" : p.slice(at.length + 1))
@@ -595,7 +587,7 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
       const all = await mounted.list("", true)
       return [self, ...(Array.isArray(all) ? all.map(add) : []), ...out]
     },
-    bytes: (key, max) => (key.includes(`/r/${HOME_SPACE}/`) ? mounted.bytes(key, max) : base.bytes(key, max)),
+    bytes: (key, max) => (key.includes(`/r/${HOME}/`) ? mounted.bytes(key, max) : base.bytes(key, max)),
     async write(path, bytes, type, expect) {
       if (!inside(path)) return base.write(path, bytes, type, expect)
       if (path === at) return { ok: false, code: "is_directory", message: `/${at} is a folder` }

@@ -2,11 +2,11 @@ import { defineExtension, defineTool, type Extension, section } from "@earendil-
 import { declareEffect } from "@yuki/agent/effects"
 import { spill } from "../../agent/extensions/spill"
 import type { RoomFs } from "../../files/room-fs"
-import { count, inFlight } from "../../lib/dev-stats"
+import { count, inFlight } from "../../lib/dev-guard"
 import { composioErrorText } from "./connect"
 import type { ComposioCall, ComposioCallResult, ComposioTool } from "./client"
 import { directResult, MULTI_EXECUTE } from "./learn"
-import { COMPOSIO_MAX_CONCURRENT, createLimiter, withRetry } from "./limit"
+import { withRetry } from "./retry"
 
 export const COMPOSIO = "composio"
 
@@ -55,9 +55,7 @@ export function learnedNote(tools: readonly ComposioTool[]): string | undefined 
 }
 
 export function composioExtension(tools: readonly ComposioTool[], rawCall: ComposioCall, fs?: RoomFs): Extension {
-  const limiter = createLimiter(COMPOSIO_MAX_CONCURRENT)
-  // Inside the limiter, so the peak counts calls that run together, not calls queued behind it.
-  const send: ComposioCall = (n, a) => limiter.run(() => inFlight("composio.peak", () => rawCall(n, a)))
+  const send: ComposioCall = (n, a) => inFlight("composio.peak", () => rawCall(n, a))
   const names = learned(tools)
   return defineExtension({
     name: COMPOSIO,

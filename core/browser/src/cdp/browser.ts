@@ -5,17 +5,15 @@ import { evaluate, type PageState, read } from "../page/read"
 import type { BrowserSession, Dialog, DialogPolicy, Tab } from "../page/types"
 import { openSession, type SessionOptions } from "./session"
 
-export type ConnectOptions = SessionOptions & { dialogs?: DialogPolicy; now?: () => number }
+export type ConnectOptions = SessionOptions & { now?: () => number }
 
-const defaultPolicy: DialogPolicy = (dialog) => (dialog.type === "alert" || dialog.type === "beforeunload" ? "accept" : "stop")
+const policy: DialogPolicy = (dialog) => (dialog.type === "alert" || dialog.type === "beforeunload" ? "accept" : "stop")
 
 export async function connect(cdpUrl: string, options: ConnectOptions = {}): Promise<BrowserSession> {
   const cdp = await openSession(cdpUrl, options)
-  const policy = options.dialogs ?? defaultPolicy
   const now = options.now ?? Date.now
   const tabs = new Map<string, Tab>()
   const opening = new Set<string>()
-  const popupListeners = new Set<(opener: string, tab: Tab) => void>()
 
   const releases = new Map<string, () => void>()
 
@@ -129,9 +127,6 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     if (tabs.has(targetInfo.targetId) || opening.has(targetInfo.targetId)) return
     opening.add(targetInfo.targetId)
     adopt(targetInfo.targetId)
-      .then((tab) => {
-        for (const listener of popupListeners) listener(opener, tab)
-      })
       .catch(() => {})
       .finally(() => opening.delete(targetInfo.targetId))
   })
@@ -156,9 +151,6 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       Promise.all(
         [...tabs.values()].map(async (tab) => ({ id: tab.id, url: await tab.url(), title: await tab.title() })),
       ),
-    onPopup: (listener) => {
-      popupListeners.add(listener)
-    },
     closed: cdp.closed,
     close: () => cdp.close(),
   }
