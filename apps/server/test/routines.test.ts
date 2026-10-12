@@ -4,7 +4,8 @@ import { Trigger } from "@yuki/protocol/schema"
 import { Schema } from "effect"
 import { joinOrigin, type Origin, originOf, originOfAll } from "@yuki/agent/envelope"
 import { matches, routineRun, Signal, signalOf, SignalWindow } from "../src/room/signals"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
+import { ROOM_STEPS } from "../src/room/schema"
 import { DEFAULT_LIMITS, takeAutonomous } from "../src/user/limits"
 import { describeTrigger, nextEvery } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
@@ -113,7 +114,7 @@ describe("proactivity (sections 25.5 and 25.6)", () => {
 
 describe("signal window", () => {
   test("a sent batch subtracts its overflow, so overflow that arrived in flight stays for the next window", () => {
-    const window = new SignalWindow(sqlStorage(), () => "r1")
+    const window = new SignalWindow(sqlWith(ROOM_STEPS), () => "r1")
     const hit = (n: number): Signal => ({ kind: "burst", roomId: "r1", at: 1, seq: n, text: `t${n}`, by: { kind: "human" } })
     window.add(Array.from({ length: 25 }, (_, i) => hit(i)), 1)
     const due = window.due(1 + 60_001)!

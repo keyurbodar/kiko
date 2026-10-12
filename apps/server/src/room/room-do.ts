@@ -34,7 +34,8 @@ import { agentReact, reactionBrief } from "./reactions"
 import { attachmentPath, claim, ClaimRefused, legacyFiles, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
 import { bubbleOf, discardWhole, putWhole, WHOLE_NAME, WHOLE_TYPE, type WholeText } from "./whole-text"
 import { tags } from "./recipients"
-import { migrate } from "./schema"
+import { migrate } from "@yuki/durable/migrate"
+import { ROOM_STEPS } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
 import { RoomDev } from "./dev"
@@ -101,7 +102,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		instrument(ctx, "room")
 		ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
 		void ctx.blockConcurrencyWhile(async () => {
-			migrate(ctx.storage)
+			migrate(ctx.storage, ROOM_STEPS)
 			this.log = new RoomLog(ctx.storage)
 			this.deliveries = new Deliveries(ctx.storage, this.log)
 			this.files = roomFiles(ctx.storage, this.log)

@@ -80,44 +80,6 @@ export class ExtensionStore {
     private readonly catalog: () => readonly ExtensionCatalogEntry[],
     private readonly fetcher?: Fetcher,
   ) {
-    sql.exec(`CREATE TABLE IF NOT EXISTS extensions (
-      name TEXT PRIMARY KEY,
-      hash TEXT NOT NULL,
-      bundle TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      agents TEXT,
-      source TEXT NOT NULL,
-      by TEXT,
-      room TEXT,
-      error TEXT,
-      installed_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`)
-    sql.exec(`CREATE TABLE IF NOT EXISTS extension_proposals (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      hash TEXT NOT NULL,
-      bundle TEXT NOT NULL,
-      source TEXT NOT NULL,
-      by TEXT,
-      room TEXT,
-      created_at INTEGER NOT NULL
-    )`)
-    sql.exec(`CREATE TABLE IF NOT EXISTS extension_state (
-      extension TEXT NOT NULL,
-      scope TEXT NOT NULL,
-      key TEXT NOT NULL,
-      value TEXT NOT NULL,
-      PRIMARY KEY (extension, scope, key)
-    )`)
-    sql.exec(`CREATE TABLE IF NOT EXISTS extension_secrets (
-      extension TEXT NOT NULL,
-      secret TEXT NOT NULL,
-      kek_version INTEGER NOT NULL,
-      iv BLOB NOT NULL,
-      ciphertext BLOB NOT NULL,
-      PRIMARY KEY (extension, secret)
-    )`)
   }
 
   private row(name: string): Row | undefined {

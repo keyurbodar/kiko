@@ -60,20 +60,6 @@ export class Burst {
 		private readonly now: () => number = Date.now,
 	) {
 		this.sql = storage.sql
-		this.sql.exec(`CREATE TABLE IF NOT EXISTS pending (
-			id TEXT PRIMARY KEY,
-			seq INTEGER NOT NULL,
-			at INTEGER NOT NULL,
-			text TEXT NOT NULL,
-			reply_to TEXT,
-			mentions TEXT NOT NULL DEFAULT '[]',
-			held_until INTEGER
-		)`)
-		this.sql.exec("CREATE INDEX IF NOT EXISTS pending_at ON pending (at)")
-		// A room whose window was open before these columns came has the old table.
-		const cols = this.sql.exec<{ name: string }>("PRAGMA table_info(pending)").toArray().map((c) => c.name)
-		if (!cols.includes("mentions")) this.sql.exec("ALTER TABLE pending ADD COLUMN mentions TEXT NOT NULL DEFAULT '[]'")
-		if (!cols.includes("held_until")) this.sql.exec("ALTER TABLE pending ADD COLUMN held_until INTEGER")
 	}
 
 	/** A burst is due: some message is not held, or its hold has passed. */

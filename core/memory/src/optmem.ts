@@ -10,6 +10,9 @@ export type Shape = {
 
 export type ZoomLog = "chat" | "life"
 
+// The shape of a schema step. Structurally the same as core/durable's Step, which this package may not import.
+export type Step = string | ((sql: SqlStorage) => void)
+
 export const ROOM_SHAPE: Shape = { page: 16, floor: 32, budget: 48, retile: 32, log: "chat" }
 export const LIFE_SHAPE: Shape = { page: 8, floor: 16, budget: 32, retile: 24, log: "life" }
 
@@ -120,15 +123,21 @@ export type Node = { text: string; from: number; to: number }
 
 export type NapInput = { span: Span; items: Item[] } | { span: Span; halves: [Node, Node] }
 
+// A tree's table and its fail counter. The object's schema list runs these, so a tree never creates a table on use.
+export function treeSteps(name: string): Step[] {
+  return [
+    `CREATE TABLE IF NOT EXISTS ${name} (size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`,
+    `CREATE TABLE IF NOT EXISTS ${name}_fails (size INTEGER NOT NULL, k INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`,
+  ]
+}
+
 export class Tree {
   constructor(
     private readonly sql: SqlStorage,
     private readonly name: string,
     readonly shape: Shape,
     private readonly items: (lo: number, hi: number) => Item[],
-  ) {
-    sql.exec(`CREATE TABLE IF NOT EXISTS ${name} (size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`)
-  }
+  ) {}
 
   node(span: Span): Node | null {
     const size = span.hi - span.lo
@@ -204,7 +213,6 @@ export class Tree {
 
   failed(span: Span): number {
     const size = span.hi - span.lo
-    this.sql.exec(`CREATE TABLE IF NOT EXISTS ${this.name}_fails (size INTEGER NOT NULL, k INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`)
     this.sql.exec(`INSERT INTO ${this.name}_fails (size, k, n) VALUES (?, ?, 1) ON CONFLICT(size, k) DO UPDATE SET n = n + 1`, size, span.lo / size)
     return this.sql.exec<{ n: number }>(`SELECT n FROM ${this.name}_fails WHERE size = ? AND k = ?`, size, span.lo / size).one().n
   }

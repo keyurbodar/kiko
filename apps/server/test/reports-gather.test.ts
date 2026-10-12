@@ -2,16 +2,15 @@ import { expect, test } from "bun:test"
 import type { RoomEvent } from "@yuki/protocol"
 import { RoomLog } from "../src/room/log"
 import { Reports } from "../src/room/reports"
-import { migrate } from "../src/room/schema"
+import { ROOM_STEPS } from "../src/room/schema"
 import type { Signal } from "../src/room/signals"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000A"
 
 function setup() {
-	const sql = sqlStorage()
+	const sql = sqlWith(ROOM_STEPS)
 	const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-	migrate(storage)
 	const log = new RoomLog(storage, () => 1)
 	log.setMeta("room_id", ROOM)
 	const added: Signal[] = []

@@ -50,28 +50,6 @@ export class KernelStore {
     // Resolved only when sealing or opening, so reading browser state needs no key ring.
     private readonly secrets: () => { keyring: Keyring; userId: string },
   ) {
-    sql.exec(`CREATE TABLE IF NOT EXISTS kernel (
-      name TEXT PRIMARY KEY,
-      kek_version INTEGER,
-      iv BLOB,
-      ciphertext BLOB,
-      value TEXT,
-      updated_at INTEGER NOT NULL
-    )`)
-    sql.exec(`CREATE TABLE IF NOT EXISTS kernel_lease (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      session_id TEXT NOT NULL,
-      mode TEXT NOT NULL,
-      kek_version INTEGER NOT NULL,
-      iv BLOB NOT NULL,
-      ciphertext BLOB NOT NULL,
-      created_at INTEGER NOT NULL,
-      last_use INTEGER NOT NULL,
-      tabs TEXT NOT NULL DEFAULT '{}',
-      takeover INTEGER NOT NULL DEFAULT 0,
-      watch_until INTEGER NOT NULL DEFAULT 0,
-      dead INTEGER NOT NULL DEFAULT 0
-    )`)
   }
 
   connected(): boolean {

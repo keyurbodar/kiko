@@ -1,10 +1,15 @@
-import { getSetting, setSetting } from "../lib/settings"
+import { ALARM_STEPS } from "@yuki/durable/alarm"
+import type { Step } from "@yuki/durable/migrate"
+import { fileIndexSteps, HOME_TABLES } from "../files/file-index"
+import { LIFE_STEPS } from "@yuki/memory/life"
+import { LOOPS_STEPS } from "@yuki/memory/loops"
 
-// One entry per schema version, applied once, in order. Version 1 is the current shape of every table.
-// A later change appends an entry. An entry that has run is never edited.
-const MIGRATIONS: readonly (readonly string[])[] = [
-  [
-    `CREATE TABLE IF NOT EXISTS chats (
+// The user's tables, in one list. An object at version N runs only the steps after the first N. A step is
+// appended, never edited or moved, and every step must be safe on a table that already exists. An object
+// with no recorded version runs them all, so the first steps are CREATE ... IF NOT EXISTS.
+export const USER_STEPS: Step[] = [
+  "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+  `CREATE TABLE IF NOT EXISTS chats (
     room_id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     pinned INTEGER NOT NULL DEFAULT 0,
@@ -20,7 +25,7 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     mentions INTEGER NOT NULL DEFAULT 0,
     grp INTEGER NOT NULL DEFAULT 0
   )`,
-    `CREATE TABLE IF NOT EXISTS agents (
+  `CREATE TABLE IF NOT EXISTS agents (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
@@ -28,11 +33,11 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     model TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL
   )`,
-    `CREATE TABLE IF NOT EXISTS rooms (room_id TEXT PRIMARY KEY)`,
-    `CREATE TABLE IF NOT EXISTS chat_tasks (room_id TEXT PRIMARY KEY, tasks TEXT NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS user_events (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, body TEXT NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS charged_today (id TEXT PRIMARY KEY, day TEXT NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS capture_queue (
+  "CREATE TABLE IF NOT EXISTS rooms (room_id TEXT PRIMARY KEY)",
+  "CREATE TABLE IF NOT EXISTS chat_tasks (room_id TEXT PRIMARY KEY, tasks TEXT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS user_events (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, body TEXT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS charged_today (id TEXT PRIMARY KEY, day TEXT NOT NULL)",
+  `CREATE TABLE IF NOT EXISTS capture_queue (
     room_id TEXT NOT NULL,
     message_id TEXT NOT NULL,
     text TEXT NOT NULL,
@@ -40,7 +45,7 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     queued_at INTEGER NOT NULL,
     PRIMARY KEY (room_id, message_id)
   )`,
-    `CREATE TABLE IF NOT EXISTS loop_heard (
+  `CREATE TABLE IF NOT EXISTS loop_heard (
     room_id TEXT NOT NULL,
     message_id TEXT NOT NULL,
     text TEXT NOT NULL,
@@ -48,14 +53,126 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     agent TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (room_id, message_id)
   )`,
-    `CREATE TABLE IF NOT EXISTS nap_applied (id TEXT PRIMARY KEY, at INTEGER NOT NULL)`,
-  ],
+  "CREATE TABLE IF NOT EXISTS nap_applied (id TEXT PRIMARY KEY, at INTEGER NOT NULL)",
+  // Tables that earlier code created inside its class constructors or methods.
+  "CREATE TABLE IF NOT EXISTS souls (slug TEXT PRIMARY KEY, body TEXT NOT NULL, sha TEXT NOT NULL, at INTEGER NOT NULL)",
+  `CREATE TABLE IF NOT EXISTS reminders (
+    id TEXT PRIMARY KEY,
+    text TEXT NOT NULL,
+    due_utc INTEGER NOT NULL,
+    tz TEXT NOT NULL,
+    rrule TEXT,
+    room_id TEXT NOT NULL,
+    target TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    status TEXT NOT NULL,
+    last_fired INTEGER,
+    created_at INTEGER NOT NULL,
+    name TEXT,
+    "trigger" TEXT,
+    fails INTEGER NOT NULL DEFAULT 0,
+    watch_state TEXT,
+    hook_hash TEXT,
+    chain TEXT
+  )`,
+  "CREATE INDEX IF NOT EXISTS reminders_due ON reminders (status, due_utc)",
+  `CREATE TABLE IF NOT EXISTS routine_runs (
+    routine_id TEXT NOT NULL,
+    occurrence TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    status TEXT NOT NULL,
+    seq INTEGER,
+    PRIMARY KEY (routine_id, occurrence)
+  )`,
+  `CREATE TABLE IF NOT EXISTS credentials (
+    provider_id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    last4 TEXT NOT NULL,
+    kek_version INTEGER NOT NULL,
+    iv BLOB NOT NULL,
+    ciphertext BLOB NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS extensions (
+    name TEXT PRIMARY KEY,
+    hash TEXT NOT NULL,
+    bundle TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    agents TEXT,
+    source TEXT NOT NULL,
+    by TEXT,
+    room TEXT,
+    error TEXT,
+    installed_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS extension_proposals (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    bundle TEXT NOT NULL,
+    source TEXT NOT NULL,
+    by TEXT,
+    room TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS extension_state (
+    extension TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (extension, scope, key)
+  )`,
+  `CREATE TABLE IF NOT EXISTS extension_secrets (
+    extension TEXT NOT NULL,
+    secret TEXT NOT NULL,
+    kek_version INTEGER NOT NULL,
+    iv BLOB NOT NULL,
+    ciphertext BLOB NOT NULL,
+    PRIMARY KEY (extension, secret)
+  )`,
+  "CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)",
+  // The attention and initiative tables, created on demand by initiative/ before they joined this list.
+  "CREATE TABLE IF NOT EXISTS attention (name TEXT PRIMARY KEY, value TEXT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS attention_seen (id TEXT PRIMARY KEY, at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS initiative_marks (id TEXT PRIMARY KEY, surfaced INTEGER NOT NULL DEFAULT 0, ignored INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, last_at INTEGER)",
+  "CREATE TABLE IF NOT EXISTS initiative_wakes (id TEXT PRIMARY KEY, room TEXT NOT NULL, slug TEXT NOT NULL, kind TEXT NOT NULL, ids TEXT NOT NULL, at INTEGER NOT NULL, status TEXT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS initiative_rooms (room_id TEXT PRIMARY KEY, human_at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS loop_reminders (reminder_id TEXT PRIMARY KEY, loop_id INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS initiative_briefed (loop_id INTEGER PRIMARY KEY, at INTEGER NOT NULL)",
+  `CREATE TABLE IF NOT EXISTS composio (
+    name TEXT PRIMARY KEY,
+    kek_version INTEGER,
+    iv BLOB,
+    ciphertext BLOB,
+    value TEXT,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS kernel (
+    name TEXT PRIMARY KEY,
+    kek_version INTEGER,
+    iv BLOB,
+    ciphertext BLOB,
+    value TEXT,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS kernel_lease (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    session_id TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    kek_version INTEGER NOT NULL,
+    iv BLOB NOT NULL,
+    ciphertext BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_use INTEGER NOT NULL,
+    tabs TEXT NOT NULL DEFAULT '{}',
+    takeover INTEGER NOT NULL DEFAULT 0,
+    watch_until INTEGER NOT NULL DEFAULT 0,
+    dead INTEGER NOT NULL DEFAULT 0
+  )`,
+  ...LIFE_STEPS,
+  ...LOOPS_STEPS,
+  ...fileIndexSteps(HOME_TABLES),
+  ...ALARM_STEPS,
 ]
-
-export function migrate(sql: SqlStorage): void {
-  // The version lives here, so the table exists before the first read of it.
-  sql.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`)
-  const from = Number(getSetting(sql, "schema_version") ?? 0)
-  for (const migration of MIGRATIONS.slice(from)) for (const statement of migration) sql.exec(statement)
-  if (from < MIGRATIONS.length) setSetting(sql, "schema_version", String(MIGRATIONS.length))
-}

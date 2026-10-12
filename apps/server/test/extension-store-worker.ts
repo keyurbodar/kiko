@@ -1,6 +1,8 @@
 import { DurableObject } from "cloudflare:workers"
 import { keyringFromEnv } from "@yuki/durable/crypto"
 import { ExtensionError, ExtensionStore } from "../src/user/extensions"
+import { USER_STEPS } from "../src/user/schema"
+import { migrate } from "@yuki/durable/migrate"
 
 type Env = { STORE: DurableObjectNamespace<StoreDO>; CREDENTIALS_KEK: string }
 
@@ -11,6 +13,11 @@ export class StoreDO extends DurableObject<Env> {
   triggers: string[] = []
   events: string[] = []
   #store?: ExtensionStore
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env)
+    migrate(ctx.storage, USER_STEPS)
+  }
 
   get store(): ExtensionStore {
     this.#store ??= new ExtensionStore(

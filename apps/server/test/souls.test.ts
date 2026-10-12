@@ -1,16 +1,12 @@
-import { Database } from "bun:sqlite"
 import { expect, test } from "bun:test"
 import { YUKI_SOUL, Souls } from "../src/user/souls"
+import { USER_STEPS } from "../src/user/schema"
+import { sqlWith } from "./sql-shim"
 
 function storage(agents: [slug: string, name: string, prompt: string][] = []): SqlStorage {
-  const db = new Database(":memory:")
-  db.exec("CREATE TABLE agents (slug TEXT PRIMARY KEY, name TEXT, prompt TEXT)")
-  for (const row of agents) db.query("INSERT INTO agents VALUES (?, ?, ?)").run(...row)
-  const exec = (query: string, ...args: unknown[]) => {
-    const rows = db.query(query).all(...(args as never[]))
-    return { toArray: () => rows }
-  }
-  return { exec } as unknown as SqlStorage
+  const sql = sqlWith(USER_STEPS)
+  for (const [slug, name, prompt] of agents) sql.exec("INSERT INTO agents (id, name, slug, prompt, created_at) VALUES (?, ?, ?, ?, 0)", slug, name, slug, prompt)
+  return sql
 }
 
 test("a new chief gets Yuki's soul", async () => {

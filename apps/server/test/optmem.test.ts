@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
-import { ancestors, capBytes, cleanLine, cover, type Item, isNode, LINE_BYTES, napPrompt, range, region, type Shape, type Span, tile, Tree } from "@yuki/memory/optmem"
-import { sqlStorage } from "./sql-shim"
+import { ancestors, capBytes, cleanLine, cover, type Item, isNode, LINE_BYTES, napPrompt, range, region, type Shape, type Span, tile, Tree, treeSteps } from "@yuki/memory/optmem"
+import { sqlWith } from "./sql-shim"
 
 const tiles = (spans: Span[], T: number) => {
   let at = 0
@@ -67,7 +67,7 @@ test("ancestors climb one node per level", () => {
 
 function fakeLog(n: number) {
   const log: Item[] = Array.from({ length: n }, (_, i) => ({ pos: i, at: Date.UTC(2026, 8, 1) + i * 3_600_000, text: `item ${i}` }))
-  const tree = new Tree(sqlStorage(), "t", shape, (lo, hi) => log.slice(lo, Math.min(hi, log.length)))
+  const tree = new Tree(sqlWith(treeSteps("t")), "t", shape, (lo, hi) => log.slice(lo, Math.min(hi, log.length)))
   const napAll = () => {
     let calls = 0
     for (;;) {

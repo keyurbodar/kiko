@@ -2,6 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import { AssistantEntry, type ConversationId, type Harness, type SettledSubmissionRecord, type SubmissionId } from "@earendil-works/pi-durable"
 import type { Envelope, Origin } from "./envelope"
+import { addColumn, type Step } from "@yuki/durable/migrate"
 
 const context = BACKGROUND_CONTEXT
 
@@ -67,6 +68,33 @@ export type WorkersOptions = {
   now?: () => number
 }
 
+export const WORKERS_STEPS: Step[] = [
+  `CREATE TABLE IF NOT EXISTS workers (
+    n INTEGER PRIMARY KEY,
+    id TEXT NOT NULL UNIQUE,
+    task_id TEXT NOT NULL UNIQUE,
+    task TEXT NOT NULL,
+    conversation_id INTEGER,
+    submission_id INTEGER,
+    status TEXT NOT NULL,
+    step TEXT,
+    steps INTEGER NOT NULL DEFAULT 0,
+    delivered INTEGER NOT NULL DEFAULT 0,
+    origin TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    resumes INTEGER NOT NULL DEFAULT 0
+  ) STRICT`,
+  // A table from before the step count has no steps column.
+  addColumn("workers", "steps", "INTEGER NOT NULL DEFAULT 0"),
+  // One row per path a worker's calls saved. The key makes a replayed call a no-op, and a row per path keeps each write O(1).
+  `CREATE TABLE IF NOT EXISTS worker_changes (
+    work_id TEXT NOT NULL,
+    path TEXT NOT NULL,
+    PRIMARY KEY (work_id, path)
+  ) STRICT`,
+]
+
 export class Workers {
   private readonly sql: SqlStorage
   private readonly now: () => number
@@ -79,32 +107,6 @@ export class Workers {
   ) {
     this.sql = storage.sql
     this.now = options.now ?? Date.now
-    this.sql.exec(`CREATE TABLE IF NOT EXISTS workers (
-      n INTEGER PRIMARY KEY,
-      id TEXT NOT NULL UNIQUE,
-      task_id TEXT NOT NULL UNIQUE,
-      task TEXT NOT NULL,
-      conversation_id INTEGER,
-      submission_id INTEGER,
-      status TEXT NOT NULL,
-      step TEXT,
-      steps INTEGER NOT NULL DEFAULT 0,
-      delivered INTEGER NOT NULL DEFAULT 0,
-      origin TEXT NOT NULL,
-      started_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      resumes INTEGER NOT NULL DEFAULT 0
-    ) STRICT`)
-    // A table from before the step count has no steps column. A new table already has it.
-    if (!this.sql.exec<{ name: string }>("PRAGMA table_info(workers)").toArray().some((c) => c.name === "steps")) {
-      this.sql.exec("ALTER TABLE workers ADD COLUMN steps INTEGER NOT NULL DEFAULT 0")
-    }
-    // One row per path a worker's calls saved. The key makes a replayed call a no-op, and a row per path keeps each write O(1).
-    this.sql.exec(`CREATE TABLE IF NOT EXISTS worker_changes (
-      work_id TEXT NOT NULL,
-      path TEXT NOT NULL,
-      PRIMARY KEY (work_id, path)
-    ) STRICT`)
   }
 
   list(): Work[] {
