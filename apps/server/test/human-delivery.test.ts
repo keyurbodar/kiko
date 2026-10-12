@@ -128,10 +128,10 @@ test("the worst human message fits its inbox entry, and the test prints the meas
   const bubble = bubbleOf("\u001b".repeat(16_000))
   // The reply quote withContext adds: 600 control characters, the longest quote it keeps.
   const reply = `(replying to @m0, about this part: "${"\u001b".repeat(600)}")`
-  // The room's most members, each with a 500-character role (the brief names 400 of them, five bytes each) and a 60-character name.
+  // The room's most members, each with a 400-character role (the brief names the whole role, five bytes per character) and a 60-character name.
   const roster = [ada, ...Array.from({ length: MAX_MEMBERS - 1 }, (_, i) => ({ ...bob, slug: `m${i}`, name: "&".repeat(60), lead: false }) as MemberRow)].map((m) => ({
     ...m,
-    role: "&".repeat(500),
+    role: "&".repeat(400),
   }))
   const tasks = Array.from({ length: MAX_TASKS }, (_, i) => ({ id: `t${i}`, owner: "ada", status: "todo", title: "&".repeat(400), dependsOn: [] }) as unknown as Task)
   // Every member but the recipient is doing something long, and the first of them holds 60 paths of 500 characters.

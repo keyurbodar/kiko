@@ -5,7 +5,7 @@ import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as Use
 import type { Deletion } from "../jobs/delete-account"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@yuki/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
-import { DEV } from "../lib/dev-guard"
+import { DEV, loadUserDev } from "../lib/dev-guard"
 import { instrument } from "../lib/dev-stats"
 import { Schema } from "effect"
 import type { Env } from "../index"
@@ -50,7 +50,7 @@ import { closeSockets, isWiped, storedRows, wipeStorage } from "@yuki/durable/wi
 import type { Certainty, Loop, LoopKind, OpenResult } from "@yuki/memory/loops"
 import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
-import { type DevBrowserOp, type DevInitiativeOp, devBrowser, devCaptureQueue, devComposioSession, devDue, devInitiative, devSeen, devSetting } from "./dev"
+import type { DevBrowserOp, DevInitiativeOp } from "./dev"
 import { InitiativeLoops, LOOPS_WAKEUP } from "./initiative-loops"
 import { KernelWiring } from "./kernel-wiring"
 import { extensionOp, type ExtensionHost, proposeExtension } from "./extension-wiring"
@@ -201,24 +201,33 @@ export class UserDO extends DurableObject<Env> {
     await this.#il.engine.arm()
   }
 
+  // The dev-only bodies live in user/dev.ts, which only a development build can load. One cached load
+  // per object reaches every dev method below.
+  private devCache?: Promise<typeof import("./dev")>
+
+  private dev(): Promise<typeof import("./dev")> {
+    this.devCache ??= loadUserDev()
+    return this.devCache
+  }
+
   async devSeen(ago: number): Promise<void> {
-    return devSeen(this.sql, ago)
+    return (await this.dev()).devSeen(this.sql, ago)
   }
 
   async devSetting(key: "memory_policy", value: string): Promise<void> {
-    return devSetting(this.sql, key, value)
+    return (await this.dev()).devSetting(this.sql, key, value)
   }
 
   async devComposioSession(): Promise<string | null> {
-    return devComposioSession(() => this.#composio)
+    return (await this.dev()).devComposioSession(() => this.#composio)
   }
 
   async devCaptureQueue(): Promise<number> {
-    return devCaptureQueue(this.sql)
+    return (await this.dev()).devCaptureQueue(this.sql)
   }
 
   async devDue(id: string): Promise<void> {
-    return devDue(this.reminders, id)
+    return (await this.dev()).devDue(this.reminders, id)
   }
 
   async timezone(): Promise<string | null> {
@@ -717,7 +726,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async devBrowser(op: DevBrowserOp): Promise<Record<string, unknown>> {
-    return devBrowser(() => this.#kr.kernel, userIdFromObjectName(this.ctx.id.name), op)
+    return (await this.dev()).devBrowser(() => this.#kr.kernel, userIdFromObjectName(this.ctx.id.name), op)
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -892,7 +901,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async devInitiative(op: DevInitiativeOp): Promise<unknown> {
-    return devInitiative(() => this.#il.engine, this.reminders, op)
+    return (await this.dev()).devInitiative(() => this.#il.engine, this.reminders, op)
   }
 
   /** A reminder an agent set for itself opens its commitment (section 26.2); a dev route opens a loop for the fake-agent suite. */

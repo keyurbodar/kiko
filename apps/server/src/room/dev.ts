@@ -1,39 +1,65 @@
-import type { AgentSlug } from "@yuki/protocol"
-import { loadRoomDev } from "../lib/dev-guard"
-import type { DevDeps, RoomDev as RoomDevImpl } from "./dev-impl"
+import type { AgentSlug, RoomEvent, Sender } from "@yuki/protocol"
+import { openTasks } from "./open-tasks"
+import type { Members } from "./members"
+import type { RoomLog } from "./log"
+import type { PendingUploads } from "./pending"
+import type { RoomMemory } from "./memory"
 
-// One dev facade per Durable Object. Every method reaches the body in dev-impl.ts through loadRoomDev,
-// the single guarded entry, so a production bundle carries neither the bodies nor a guard per method.
+type DevDeps = {
+	sql: SqlStorage
+	log: RoomLog
+	members: Members
+	memory: RoomMemory
+	pending: PendingUploads
+	publish: (events: RoomEvent[]) => void
+	armMemory: () => Promise<void>
+	rollupQuiet: () => Promise<void>
+	tasksChanged: () => Promise<void>
+	sweepPending: () => Promise<number>
+}
+
+// The bodies never reach a production bundle: dev-guard loads this module only in a dev build.
 export class RoomDev {
-	#impl: Promise<RoomDevImpl> | null = null
 	constructor(private readonly d: DevDeps) {}
 
-	private impl(): Promise<RoomDevImpl> {
-		if (!this.#impl) this.#impl = loadRoomDev().then((m) => new m.RoomDev(this.d))
-		return this.#impl
-	}
-
 	async seed(turns: { from: string; text: string }[]): Promise<number> {
-		return (await this.impl()).seed(turns)
+		const call = crypto.randomUUID()
+		for (const [i, t] of turns.entries()) {
+			const from: Sender = t.from === "human" ? { kind: "human" } : { kind: "agent", slug: t.from as AgentSlug }
+			this.d.log.addMessage({ from, text: t.text, ...(from.kind === "agent" ? { run: { runId: `seed:${call}:${i}`, attempt: 0, index: 0 } } : {}) })
+		}
+		const count = this.d.memory.sync()
+		await this.d.armMemory()
+		return count
 	}
 
 	async memory(): Promise<{ turns: number; pending: number; view: string }> {
-		return (await this.impl()).memory()
+		const view = this.d.memory.view(Date.now())
+		const pending = this.d.memory.pending(1_000).length
+		if (pending) await this.d.armMemory()
+		return { turns: this.d.memory.count(), pending, view }
 	}
 
 	async quiet(): Promise<void> {
-		return (await this.impl()).quiet()
+		await this.d.rollupQuiet()
 	}
 
 	async age(ms: number): Promise<number> {
-		return (await this.impl()).age(ms)
+		this.d.sql.exec("UPDATE ws_tasks SET updated_at = updated_at - ? WHERE status NOT IN ('done', 'cancelled')", ms)
+		await this.d.tasksChanged()
+		return openTasks(this.d.sql).length
 	}
 
 	async agePending(ms: number): Promise<number> {
-		return (await this.impl()).agePending(ms)
+		this.d.pending.age(ms)
+		await this.d.sweepPending()
+		return this.d.pending.count()
 	}
 
 	async agentMessage(slug: AgentSlug, text: string): Promise<void> {
-		return (await this.impl()).agentMessage(slug, text)
+		const added = this.d.members.apply({ op: "add", slug, name: slug })
+		if (added.ok) this.d.publish(added.events)
+		const { event } = this.d.log.addMessage({ from: { kind: "agent", slug }, text })
+		if (event) this.d.publish([event])
 	}
 }

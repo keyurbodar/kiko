@@ -6,7 +6,8 @@ import { CHIEF } from "./chief"
 
 export const MAX_MEMBERS = 8
 const MAX_NAME = 60
-const MAX_ROLE = 500
+/** The brief shows a role whole, so the stored role is the text a member reads. */
+export const MAX_ROLE = 400
 const MAX_MODEL = 200
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set(["all"])
 
