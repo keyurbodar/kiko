@@ -96,9 +96,18 @@ export class Burst {
 		await this.alarms.setWakeup(BURST_WAKEUP, debounce("typing", this.now(), startedAt))
 	}
 
-	envelopes(roomId: RoomId, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
+	/**
+	 * The window's messages in send order. A delivery takes held ones too, so a limit that lifts before
+	 * its reset sends a held message ahead of a later one; only the due checks skip a held message.
+	 */
+	envelopes(roomId: RoomId, limit = MAX_DELIVERY_ENVELOPES, held = false): Pending[] {
 		return this.sql
-			.exec<Row>("SELECT id, seq, at, text, reply_to, mentions FROM pending WHERE held_until IS NULL OR held_until <= ? ORDER BY seq LIMIT ?", this.now(), limit)
+			.exec<Row>(
+				"SELECT id, seq, at, text, reply_to, mentions FROM pending WHERE ? OR held_until IS NULL OR held_until <= ? ORDER BY seq LIMIT ?",
+				held ? 1 : 0,
+				this.now(),
+				limit,
+			)
 			.toArray()
 			.map((r) => ({
 				envelope: {
