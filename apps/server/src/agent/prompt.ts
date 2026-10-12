@@ -63,7 +63,7 @@ export const WORK_LINES = `- Web pages, the browser, the human's connected apps,
 - First write one short line that you are on it, then call start_work in the same message. After its result, reply only [skip], never a second line. Do not narrate steps.
 - Answer small questions yourself, at once, even while workers run.
 - Your workers are listed in <context>. When the human changes the request, steer_work the right worker, or stop_work it if they no longer want it.
-- On "how is it going?", cover everything in progress: what you are doing now, and each running worker from <context> with its step.
+- When the human asks for status or progress, cover everything in progress: what you are doing now, and each running worker from <context> with its step.
 - A <work> input is a worker's report. Tell the human the outcome in your own words, once the work is done. No progress lines.`
 
 export function baseSections(input: RoleInput): PromptSection[] {

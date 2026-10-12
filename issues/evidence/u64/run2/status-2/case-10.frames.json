@@ -1,0 +1,329 @@
+{
+  "statuses": [
+    {
+      "at": 1226,
+      "state": "typing"
+    },
+    {
+      "at": 4090,
+      "state": "typing"
+    },
+    {
+      "at": 4090,
+      "state": "typing"
+    },
+    {
+      "at": 4090,
+      "state": "working"
+    },
+    {
+      "at": 4090,
+      "state": "typing"
+    },
+    {
+      "at": 5174,
+      "state": "typing"
+    },
+    {
+      "at": 5174,
+      "state": "working"
+    },
+    {
+      "at": 5174,
+      "state": "typing"
+    },
+    {
+      "at": 6240,
+      "state": "working"
+    },
+    {
+      "at": 6240,
+      "state": "typing"
+    },
+    {
+      "at": 6392,
+      "state": "typing"
+    },
+    {
+      "at": 6392,
+      "state": "typing"
+    },
+    {
+      "at": 7153,
+      "state": "working"
+    },
+    {
+      "at": 10522,
+      "state": "working"
+    },
+    {
+      "at": 10522,
+      "state": "working"
+    },
+    {
+      "at": 11279,
+      "state": "typing"
+    },
+    {
+      "at": 12482,
+      "state": "working"
+    },
+    {
+      "at": 12482,
+      "state": "typing"
+    },
+    {
+      "at": 13541,
+      "state": "working"
+    },
+    {
+      "at": 13691,
+      "state": "working"
+    },
+    {
+      "at": 15199,
+      "state": "working"
+    },
+    {
+      "at": 16862,
+      "state": "working"
+    },
+    {
+      "at": 18070,
+      "state": "typing"
+    },
+    {
+      "at": 18823,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 10,
+      "workers": []
+    },
+    {
+      "at": 2128,
+      "workers": []
+    },
+    {
+      "at": 4241,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Compare them briefly (popularity, speed, key strengths, best use case). Write a short comparison in markdown to research/tests.md in the chat files. Create parent folders if needed. Keep it under 300 words, simple format.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788092545,
+          "updatedAt": 1791788092551
+        }
+      ]
+    },
+    {
+      "at": 6392,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Compare them briefly (popularity, speed, key strengths, best use case). Write a short comparison in markdown to research/tests.md in the chat files. Create parent folders if needed. Keep it under 300 words, simple format.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "bash {\"command\":\"ls -R / 2>/dev/null | head -n 100\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788092545,
+          "updatedAt": 1791788094860
+        }
+      ]
+    },
+    {
+      "at": 8516,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Compare them briefly (popularity, speed, key strengths, best use case). Write a short comparison in markdown to research/tests.md in the chat files. Create parent folders if needed. Keep it under 300 words, simple format.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "bash {\"command\":\"ls -R / 2>/dev/null | head -n 100\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788092545,
+          "updatedAt": 1791788094860
+        }
+      ]
+    },
+    {
+      "at": 10522,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Compare them briefly (popularity, speed, key strengths, best use case). Write a short comparison in markdown to research/tests.md in the chat files. Create parent folders if needed. Keep it under 300 words, simple format.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "mkdir {\"path\":\"/research\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788092545,
+          "updatedAt": 1791788098960
+        }
+      ]
+    },
+    {
+      "at": 12633,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Compare them briefly (popularity, speed, key strengths, best use case). Write a short comparison in markdown to research/tests.md in the chat files. Create parent folders if needed. Keep it under 300 words, simple format.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "running",
+          "step": "mkdir {\"path\":\"/research\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788092545,
+          "updatedAt": 1791788100944
+        }
+      ]
+    },
+    {
+      "at": 14743,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Compare them briefly (popularity, speed, key strengths, best use case). Write a short comparison in markdown to research/tests.md in the chat files. Create parent folders if needed. Keep it under 300 words, simple format.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 (2026)\\n\\n## 1. Vitest\\n- **Popula…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788092545,
+          "updatedAt": 1791788102120
+        }
+      ]
+    },
+    {
+      "at": 16862,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Compare them briefly (popularity, speed, key strengths, best use case). Write a short comparison in markdown to research/tests.md in the chat files. Create parent folders if needed. Keep it under 300 words, simple format.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "running",
+          "step": "write {\"content\":\"# JS Test Runners: Top 3 (2026)\\n\\n## 1. Vitest\\nFastest growing. V…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788092545,
+          "updatedAt": 1791788105328
+        }
+      ]
+    },
+    {
+      "at": 18973,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Compare them briefly (popularity, speed, key strengths, best use case). Write a short comparison in markdown to research/tests.md in the chat files. Create parent folders if needed. Keep it under 300 words, simple format.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners: Top 3 (2026)\\n\\n## 1. Vitest\\nFastest growing. V…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788092545,
+          "updatedAt": 1791788106574
+        }
+      ]
+    },
+    {
+      "at": 21084,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Compare them briefly (popularity, speed, key strengths, best use case). Write a short comparison in markdown to research/tests.md in the chat files. Create parent folders if needed. Keep it under 300 words, simple format.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners: Top 3 (2026)\\n\\n## 1. Vitest\\nFastest growing. V…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788092545,
+          "updatedAt": 1791788106574
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 4,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 73,
+    "agent.kv.getAlarm": 13,
+    "agent.kv.list": 1,
+    "agent.kv.put": 17,
+    "agent.kv.setAlarm": 11,
+    "agent.kv.transaction": 123,
+    "agent.rowsRead": 2769,
+    "agent.rowsWritten": 1529,
+    "agent.statements": 2219,
+    "model.id.muse-spark-1.3-contributor": 13,
+    "model.ms": 19800,
+    "model.turns": 13,
+    "room.kv.get": 4,
+    "room.kv.getAlarm": 19,
+    "room.kv.setAlarm": 9,
+    "room.rowsRead": 1246,
+    "room.rowsWritten": 300,
+    "room.statements": 893,
+    "rpc.agent.devWorkers": 15,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 4,
+    "rpc.room.fsList": 4,
+    "rpc.room.fsMkdir": 1,
+    "rpc.room.fsStat": 6,
+    "rpc.room.memorySince": 2,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 7,
+    "rpc.room.putFile": 3,
+    "rpc.room.reportDoing": 9,
+    "rpc.room.setStatus": 10,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.homeList": 1,
+    "rpc.user.homeStat": 1,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 4,
+    "rpc.user.signals": 2,
+    "rpc.user.soul": 1,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 8,
+    "rpc.user.turnContext": 3,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.bash": 1,
+    "tool.worker.mkdir": 1,
+    "tool.worker.read": 1,
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 2,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 4,
+    "user.rowsRead": 199,
+    "user.rowsWritten": 90,
+    "user.statements": 335
+  }
+}

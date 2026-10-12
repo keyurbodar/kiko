@@ -1,0 +1,87 @@
+{
+  "run": "run2",
+  "case": 7,
+  "name": "web research and short report",
+  "wording": "what is the status?",
+  "wordingTag": "status",
+  "rep": 1,
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 6,
+  "timedOut": false,
+  "doneMs": 16267,
+  "firstReplyMs": 3042,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 1,
+  "talkerTools": {
+    "tool.talker.start_work": 1
+  },
+  "workerToolCalls": 4,
+  "workerTools": {
+    "tool.worker.web_fetch": 3,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 8,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases as of 2026. Find their names, GitHub stars approximate, licen…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "what is the status?",
+    "replyMs": 2268,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "web_fetch {\"url\":\"https://github.com/weaviate/weaviate\"}"
+      }
+    ],
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.web_fetch": 3
+    },
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "w1 is running. It is checking Milvus on GitHub now, then it will write the report to `research/vectors.md`.",
+    "repliesAfterSend": [
+      "w1 is running. It is checking Milvus on GitHub now, then it will write the report to `research/vectors.md`.",
+      "Done. Report is at `research/vectors.md`.\n\nTop 3: **Milvus**, **Qdrant**, **Weaviate**. I pick **Qdrant** as the default choice for ease of use and speed."
+    ]
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 3042,
+      "text": "I'm on it — I'll research the top open-source vector databases and write the report."
+    },
+    {
+      "at": 6542,
+      "text": "w1 is running. It is checking Milvus on GitHub now, then it will write the report to `research/vectors.md`."
+    },
+    {
+      "at": 12161,
+      "text": "Done. Report is at `research/vectors.md`.\n\nTop 3: **Milvus**, **Qdrant**, **Weaviate**. I pick **Qdrant** as the default choice for ease of use and speed."
+    }
+  ],
+  "bubbles": [
+    "I'm on it — I'll research the top open-source vector databases and write the report.",
+    "w1 is running. It is checking Milvus on GitHub now, then it will write the report to `research/vectors.md`.",
+    "Done. Report is at `research/vectors.md`.\n\nTop 3: **Milvus**, **Qdrant**, **Weaviate**. I pick **Qdrant** as the default choice for ease of use and speed."
+  ]
+}

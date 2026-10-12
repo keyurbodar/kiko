@@ -1,0 +1,297 @@
+{
+  "statuses": [
+    {
+      "at": 1233,
+      "state": "typing"
+    },
+    {
+      "at": 3798,
+      "state": "typing"
+    },
+    {
+      "at": 3798,
+      "state": "typing"
+    },
+    {
+      "at": 3798,
+      "state": "working"
+    },
+    {
+      "at": 3798,
+      "state": "typing"
+    },
+    {
+      "at": 4872,
+      "state": "typing"
+    },
+    {
+      "at": 4872,
+      "state": "working"
+    },
+    {
+      "at": 4872,
+      "state": "typing"
+    },
+    {
+      "at": 5487,
+      "state": "typing"
+    },
+    {
+      "at": 5938,
+      "state": "typing"
+    },
+    {
+      "at": 6239,
+      "state": "working"
+    },
+    {
+      "at": 6239,
+      "state": "typing"
+    },
+    {
+      "at": 8806,
+      "state": "working"
+    },
+    {
+      "at": 9257,
+      "state": "working"
+    },
+    {
+      "at": 11086,
+      "state": "typing"
+    },
+    {
+      "at": 12440,
+      "state": "working"
+    },
+    {
+      "at": 12440,
+      "state": "typing"
+    },
+    {
+      "at": 13648,
+      "state": "working"
+    },
+    {
+      "at": 13648,
+      "state": "typing"
+    },
+    {
+      "at": 14400,
+      "state": "working"
+    },
+    {
+      "at": 15253,
+      "state": "typing"
+    },
+    {
+      "at": 16332,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 13,
+      "workers": []
+    },
+    {
+      "at": 2135,
+      "workers": []
+    },
+    {
+      "at": 4248,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files). Include for each: name, key strengths, weaknesses, and best use case. Keep it short and clear. Likely candidates are Jest, Vitest, Mocha, Jasmine, Playwright/Cypress for e2e — pick the three most used for JS unit testing based on web sources.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791787794349,
+          "updatedAt": 1791787794356
+        }
+      ]
+    },
+    {
+      "at": 6389,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files). Include for each: name, key strengths, weaknesses, and best use case. Keep it short and clear. Likely candidates are Jest, Vitest, Mocha, Jasmine, Playwright/Cypress for e2e — pick the three most used for JS unit testing based on web sources.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://npmtrends.com/jest-vs-vitest-vs-mocha\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791787794349,
+          "updatedAt": 1791787796135
+        }
+      ]
+    },
+    {
+      "at": 8498,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files). Include for each: name, key strengths, weaknesses, and best use case. Keep it short and clear. Likely candidates are Jest, Vitest, Mocha, Jasmine, Playwright/Cypress for e2e — pick the three most used for JS unit testing based on web sources.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://npmtrends.com/jest-vs-vitest-vs-mocha\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791787794349,
+          "updatedAt": 1791787796135
+        }
+      ]
+    },
+    {
+      "at": 10624,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files). Include for each: name, key strengths, weaknesses, and best use case. Keep it short and clear. Likely candidates are Jest, Vitest, Mocha, Jasmine, Playwright/Cypress for e2e — pick the three most used for JS unit testing based on web sources.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners Comparison (2026)\\n\\nBased on State of JS 2024, n…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791787794349,
+          "updatedAt": 1791787800767
+        }
+      ]
+    },
+    {
+      "at": 12741,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files). Include for each: name, key strengths, weaknesses, and best use case. Keep it short and clear. Likely candidates are Jest, Vitest, Mocha, Jasmine, Playwright/Cypress for e2e — pick the three most used for JS unit testing based on web sources.",
+          "conversationId": 15,
+          "submissionId": 55,
+          "status": "running",
+          "step": "write {\"content\":\"# JS Test Runners Comparison (2026)\\n\\nBased on State of JS 2024, n…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791787794349,
+          "updatedAt": 1791787803028
+        }
+      ]
+    },
+    {
+      "at": 14859,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files). Include for each: name, key strengths, weaknesses, and best use case. Keep it short and clear. Likely candidates are Jest, Vitest, Mocha, Jasmine, Playwright/Cypress for e2e — pick the three most used for JS unit testing based on web sources.",
+          "conversationId": 15,
+          "submissionId": 55,
+          "status": "running",
+          "step": "write {\"content\":\"# JS Test Runners (2026)\\n\\nTop 3 for unit testing: Jest, Vitest, M…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791787794349,
+          "updatedAt": 1791787804830
+        }
+      ]
+    },
+    {
+      "at": 16955,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files). Include for each: name, key strengths, weaknesses, and best use case. Keep it short and clear. Likely candidates are Jest, Vitest, Mocha, Jasmine, Playwright/Cypress for e2e — pick the three most used for JS unit testing based on web sources.",
+          "conversationId": 15,
+          "submissionId": 55,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners (2026)\\n\\nTop 3 for unit testing: Jest, Vitest, M…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791787794349,
+          "updatedAt": 1791787805611
+        }
+      ]
+    },
+    {
+      "at": 19046,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.md (in the chat files). Include for each: name, key strengths, weaknesses, and best use case. Keep it short and clear. Likely candidates are Jest, Vitest, Mocha, Jasmine, Playwright/Cypress for e2e — pick the three most used for JS unit testing based on web sources.",
+          "conversationId": 15,
+          "submissionId": 55,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners (2026)\\n\\nTop 3 for unit testing: Jest, Vitest, M…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791787794349,
+          "updatedAt": 1791787805611
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 5,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 463,
+    "agent.kv.getAlarm": 395,
+    "agent.kv.list": 1,
+    "agent.kv.put": 20,
+    "agent.kv.setAlarm": 205,
+    "agent.kv.transaction": 115,
+    "agent.rowsRead": 6621,
+    "agent.rowsWritten": 2354,
+    "agent.statements": 5586,
+    "model.id.muse-spark-1.3-contributor": 13,
+    "model.ms": 20196,
+    "model.turns": 13,
+    "room.kv.get": 4,
+    "room.kv.getAlarm": 20,
+    "room.kv.setAlarm": 8,
+    "room.rowsRead": 1277,
+    "room.rowsWritten": 302,
+    "room.statements": 895,
+    "rpc.agent.devWorkers": 14,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 5,
+    "rpc.room.fsList": 4,
+    "rpc.room.fsStat": 6,
+    "rpc.room.memorySince": 3,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 8,
+    "rpc.room.putFile": 3,
+    "rpc.room.reportDoing": 9,
+    "rpc.room.setStatus": 11,
+    "rpc.user.browserCheck": 98,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 97,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 5,
+    "rpc.user.signals": 1,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 9,
+    "rpc.user.turnContext": 4,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.web_fetch": 3,
+    "tool.worker.write": 2,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 3,
+    "user.rowsRead": 377,
+    "user.rowsWritten": 41,
+    "user.statements": 666
+  }
+}

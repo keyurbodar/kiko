@@ -1,0 +1,98 @@
+{
+  "run": "run1",
+  "case": 10,
+  "name": "burst: one small, one large",
+  "wording": "how is it going?",
+  "wordingTag": "going",
+  "rep": 1,
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 52,
+  "timedOut": false,
+  "doneMs": 16624,
+  "firstReplyMs": 3015,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 2,
+    "tool.talker.start_work": 1
+  },
+  "workerToolCalls": 1,
+  "workerTools": {
+    "tool.worker.write": 1
+  },
+  "modelTurns": 8,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Incl…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "how is it going?",
+    "replyMs": 2741,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "talkerDuring": {},
+    "workerDuring": {},
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "Quick task done: **Reviewed** is at the top of notes/todo.md.\n\nLarge task in progress: worker w1 is researching test runners and writing research/tests.md. Not done yet.",
+    "repliesAfterSend": [
+      "Quick task done: **Reviewed** is at the top of notes/todo.md.\n\nLarge task in progress: worker w1 is researching test runners and writing research/tests.md. Not done yet.",
+      "Research is done — I'll pull the file to summarize.",
+      "Both done.\n\nnotes/todo.md now starts with **Reviewed**.\n\nResearch is in research/tests.md. Quick take:\n1. **Jest** - full set in one tool, best for React teams.\n2. **Vitest** - fastest, best for new Vite projects. My pick for new work.\n3. **Mocha** - flexible runner only, best for old stacks or custom setups."
+    ]
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 3015,
+      "text": "On it — quick edit now, plus research in background."
+    },
+    {
+      "at": 5935,
+      "text": "Done: added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running now. I will post the file when ready."
+    },
+    {
+      "at": 8851,
+      "text": "Quick task done: **Reviewed** is at the top of notes/todo.md.\n\nLarge task in progress: worker w1 is researching test runners and writing research/tests.md. Not done yet."
+    },
+    {
+      "at": 11583,
+      "text": "Research is done — I'll pull the file to summarize."
+    },
+    {
+      "at": 12491,
+      "text": "Both done.\n\nnotes/todo.md now starts with **Reviewed**.\n\nResearch is in research/tests.md. Quick take:\n1. **Jest** - full set in one tool, best for React teams.\n2. **Vitest** - fastest, best for new Vite projects. My pick for new work.\n3. **Mocha** - flexible runner only, best for old stacks or custom setups."
+    }
+  ],
+  "bubbles": [
+    "On it — quick edit now, plus research in background.",
+    "Done: added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running now. I will post the file when ready.",
+    "Quick task done: **Reviewed** is at the top of notes/todo.md.\n\nLarge task in progress: worker w1 is researching test runners and writing research/tests.md. Not done yet.",
+    "Research is done — I'll pull the file to summarize.",
+    "Both done.\n\nnotes/todo.md now starts with **Reviewed**.\n\nResearch is in research/tests.md. Quick take:\n1. **Jest** - full set in one tool, best for React teams.\n2. **Vitest** - fastest, best for new Vite projects. My pick for new work.\n3. **Mocha** - flexible runner only, best for old stacks or custom setups."
+  ]
+}

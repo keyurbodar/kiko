@@ -42,6 +42,8 @@ type EngineDeps = {
   home: () => string | null
   routines: () => { routine: Reminder; last: RoutineRun | null }[]
   judge: () => Judge | null
+  /** Whether Jev reads this chat's bursts for nudge answers: then its verdict decides, not the two-word touch. */
+  judged: (roomId: string) => boolean
   wake: (roomId: string, input: WakeInput) => Promise<WakeResult | "busy">
   count: (delta: Record<string, number>) => void
   setWakeup: (at: number) => Promise<void>
@@ -94,10 +96,12 @@ export class InitiativeEngine {
         this.d.sql.exec("INSERT INTO initiative_rooms (room_id, human_at) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET human_at = max(human_at, excluded.human_at)", s.roomId, s.at)
         if (fresh.has(`burst:${s.roomId}:${s.seq}`) && this.d.title(s.roomId) !== null) {
           const said = new Set(keywords(s.text))
+          // Where Jev reads bursts, it judges the burst against the nudge (initiative.ts) and its verdict decides; sharing two words is the rule only elsewhere.
+          const judged = this.d.judged(s.roomId)
           for (const l of this.d.loops.similar(s.text, 2)) {
             if (l.room !== s.roomId || keywords(l.text).filter((w) => said.has(w)).length < SHARED_WORDS) continue
             this.d.loops.touch(l.id, s.at)
-            heard.push(answer(`loop:${l.id}`, s.roomId, `${s.seq}`, s.at))
+            if (!judged) heard.push(answer(`loop:${l.id}`, s.roomId, `${s.seq}`, s.at))
           }
         }
       }
@@ -196,7 +200,7 @@ export class InitiativeEngine {
       const said = l.owner === "human" ? "said" : `@${l.owner} promised`
       add(
         `loop:${l.id}`,
-        { kind: l.kind, certainty: l.certainty, owner: l.owner, room, ...(due !== undefined && !Number.isNaN(due) ? { due } : {}), mentions: l.mentions, lastSeen: l.lastSeen },
+        { kind: l.kind, certainty: l.certainty, owner: l.owner, room, ...(due !== undefined && !Number.isNaN(due) ? { due } : {}), lastSeen: l.lastSeen },
         { text: l.text, line: `${loopLine(l)} (${said} ${day(l.openedAt, tz)}, last mentioned ${ago(l.lastSeen, now)})`, reason: l.owner === "human" ? `You mentioned this ${day(l.openedAt, tz)}` : `Promised ${day(l.openedAt, tz)}`, loopId: l.id },
       )
     }
@@ -207,7 +211,7 @@ export class InitiativeEngine {
         const owner = t.status === "review" || !t.owner ? "human" : t.owner
         add(
           `task:${r.room_id}:${t.id}:${t.updatedAt}`,
-          { kind: "task", certainty: "explicit", owner, room: r.room_id, due: t.updatedAt + cycle, mentions: 1, lastSeen: t.updatedAt },
+          { kind: "task", certainty: "explicit", owner, room: r.room_id, due: t.updatedAt + cycle, lastSeen: t.updatedAt },
           { text: t.title, line: `task ${t.id} "${t.title}" is ${t.status}${t.owner ? `, owner @${t.owner}` : ""}, untouched ${ago(t.updatedAt, now)}`, reason: `Untouched for ${span(now - t.updatedAt)}` },
         )
       }
@@ -219,7 +223,7 @@ export class InitiativeEngine {
       const what = routine.status === "paused" ? "is paused" : `last run ${last?.status} ${ago(at, now)}`
       add(
         `routine:${routine.id}:${last?.occurrence ?? routine.status}`,
-        { kind: "routine", certainty: "explicit", owner: "human", room: routine.roomId, due: at, mentions: 1, lastSeen: at },
+        { kind: "routine", certainty: "explicit", owner: "human", room: routine.roomId, due: at, lastSeen: at },
         { text: routine.name ?? "a routine", line: `routine "${routine.name ?? routine.id}" (${routine.id}) ${what}`, reason: routine.status === "paused" ? "A routine paused" : "A routine failed" },
       )
     }
@@ -235,7 +239,7 @@ export class InitiativeEngine {
     })
   }
 
-  /** Rows older than the longest rest the appetite can ask for no longer change a decision. */
+  /** Rows older than KEEP_MS cannot change a decision: the longest rest is eight cycles, and a cycle is at most eight days. */
   private prune(now: number): void {
     const cutoff = now - KEEP_MS
     this.d.sql.exec("DELETE FROM initiative_marks WHERE last_at < ?", cutoff)
@@ -280,7 +284,7 @@ export class InitiativeEngine {
     if (judge && items.length && (level === "digest" || level === "active") && rhythm.known && rhythm.activeNow && !away && budget > 0 && allowance(appetite, now) > 0) {
       const rank = rankOrder(ctx)
       const eligible = items
-        .filter((i) => now >= restUntil(appetite, i.c, rhythm.cycle, now) && !busyRooms.includes(i.c.room))
+        .filter((i) => now >= restUntil(i.c, rhythm.cycle) && !busyRooms.includes(i.c.room))
         .sort((a, b) => rank(a.c, b.c))
         .slice(0, JEV_MAX)
       if (eligible.length) {
@@ -330,7 +334,6 @@ export class InitiativeEngine {
   noticed(roomId: string, skip: ReadonlySet<number>, now = Date.now()): string[] {
     if (this.d.level() === "off") return []
     const rhythm = view(this.store.rhythm(), now, this.d.tz())
-    const appetite = this.store.appetite()
     const briefed = new Map(this.d.sql.exec<{ loop_id: number; at: number }>("SELECT loop_id, at FROM initiative_briefed").toArray().map((r) => [r.loop_id, r.at]))
     const rank = rankOrder({ now, rhythm })
     const picked = this.items(now, rhythm.cycle)
@@ -341,7 +344,7 @@ export class InitiativeEngine {
           i.c.room === roomId &&
           i.c.certainty === "explicit" &&
           !skip.has(i.loopId) &&
-          now >= restUntil(appetite, i.c, rhythm.cycle, now) &&
+          now >= restUntil(i.c, rhythm.cycle) &&
           now >= (briefed.get(i.loopId) ?? -Infinity) + rhythm.cycle,
       )
       .sort((a, b) => rank(a.c, b.c))

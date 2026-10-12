@@ -1,0 +1,221 @@
+{
+  "snapshots": [
+    {
+      "at": 12,
+      "workers": []
+    },
+    {
+      "at": 2036,
+      "workers": []
+    },
+    {
+      "at": 4048,
+      "workers": []
+    },
+    {
+      "at": 6154,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it short and in simple Markdown. Create parent folders as needed. The chat files are at /.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "steps": 0,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791789155193,
+          "updatedAt": 1791789155204
+        }
+      ]
+    },
+    {
+      "at": 8245,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it short and in simple Markdown. Create parent folders as needed. The chat files are at /.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "bash {\"command\":\"ls -R / 2>&1 | head -n 50\"}",
+          "steps": 1,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791789155193,
+          "updatedAt": 1791789157463
+        }
+      ]
+    },
+    {
+      "at": 10378,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it short and in simple Markdown. Create parent folders as needed. The chat files are at /.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US/libraries/testing\"}",
+          "steps": 2,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791789155193,
+          "updatedAt": 1791789158744
+        }
+      ]
+    },
+    {
+      "at": 12403,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it short and in simple Markdown. Create parent folders as needed. The chat files are at /.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners - Short Comparison\\n\\n## 1. Jest\\n- **Key…",
+          "steps": 3,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791789155193,
+          "updatedAt": 1791789161862
+        }
+      ]
+    },
+    {
+      "at": 14414,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it short and in simple Markdown. Create parent folders as needed. The chat files are at /.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners - Short Comparison\\n\\n## 1. Jest\\n- **Key…",
+          "steps": 3,
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791789155193,
+          "updatedAt": 1791789162877
+        }
+      ]
+    },
+    {
+      "at": 16488,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it short and in simple Markdown. Create parent folders as needed. The chat files are at /.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners - Short Comparison\\n\\n## 1. Jest\\n- **Key…",
+          "steps": 3,
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791789155193,
+          "updatedAt": 1791789162877
+        }
+      ]
+    },
+    {
+      "at": 18516,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it short and in simple Markdown. Create parent folders as needed. The chat files are at /.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners - Short Comparison\\n\\n## 1. Jest\\n- **Key…",
+          "steps": 3,
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791789155193,
+          "updatedAt": 1791789162877
+        }
+      ]
+    },
+    {
+      "at": 20529,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it short and in simple Markdown. Create parent folders as needed. The chat files are at /.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners - Short Comparison\\n\\n## 1. Jest\\n- **Key…",
+          "steps": 3,
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791789155193,
+          "updatedAt": 1791789162877
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 4,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 63,
+    "agent.kv.getAlarm": 10,
+    "agent.kv.list": 1,
+    "agent.kv.put": 14,
+    "agent.kv.setAlarm": 8,
+    "agent.kv.transaction": 100,
+    "agent.rowsRead": 2129,
+    "agent.rowsWritten": 1191,
+    "agent.statements": 1790,
+    "model.id.muse-spark-1.3-contributor": 10,
+    "model.ms": 18839,
+    "model.turns": 10,
+    "room.kv.get": 3,
+    "room.kv.getAlarm": 14,
+    "room.kv.setAlarm": 6,
+    "room.rowsRead": 905,
+    "room.rowsWritten": 235,
+    "room.statements": 641,
+    "rpc.agent.devWorkers": 15,
+    "rpc.agent.humanComing": 1,
+    "rpc.agent.receive": 2,
+    "rpc.room.endRun": 3,
+    "rpc.room.fsCommit": 1,
+    "rpc.room.fsList": 6,
+    "rpc.room.fsStat": 4,
+    "rpc.room.memorySince": 2,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 6,
+    "rpc.room.putFile": 1,
+    "rpc.room.reportDoing": 8,
+    "rpc.room.setStatus": 9,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 2,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.getChat": 2,
+    "rpc.user.homeList": 3,
+    "rpc.user.homeStat": 3,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 3,
+    "rpc.user.soul": 3,
+    "rpc.user.takeTurn": 2,
+    "rpc.user.touchChat": 6,
+    "rpc.user.turnContext": 3,
+    "tool.talker.bash": 2,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.worker.bash": 1,
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 2,
+    "user.rowsRead": 135,
+    "user.rowsWritten": 19,
+    "user.statements": 203
+  }
+}

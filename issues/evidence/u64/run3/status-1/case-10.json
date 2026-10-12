@@ -1,0 +1,786 @@
+{
+  "run": "run3",
+  "case": 10,
+  "name": "burst: one small, one large",
+  "wording": "what is the status?",
+  "wordingTag": "status",
+  "rep": 1,
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 14,
+  "endAt": 18580,
+  "timedOut": false,
+  "doneMs": 18580,
+  "firstReplyMs": 4987,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 3,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1
+  },
+  "workerToolCalls": 4,
+  "workerTools": {
+    "tool.worker.web_fetch": 3,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 8,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Incl…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "what is the status?",
+    "sentAt": 7807,
+    "turnStartAt": 8910,
+    "turnEndAt": 10468,
+    "noteSentAt": null,
+    "replyMs": 2661,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "web_fetch {\"url\":\"https://mochajs.org/\"}"
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "web_fetch {\"url\":\"https://mochajs.org/\"}"
+      }
+    ],
+    "workerDeliveredInTurn": false,
+    "talkerDuring": {},
+    "steerInWindow": 0,
+    "stopInWindow": 0,
+    "steerAfterNote": null,
+    "stopAfterNote": null,
+    "reply": "Small task done: notes/todo.md now starts with **Reviewed**.\n\nLarge task in progress:\n- Research worker is running, step 3, checking mochajs.org. No file yet.",
+    "answerMessages": [
+      {
+        "at": 10468,
+        "text": "Small task done: notes/todo.md now starts with **Reviewed**.\n\nLarge task in progress:\n- Research worker is running, step 3, checking mochajs.org. No file yet."
+      }
+    ]
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 4987,
+      "text": "I'll add 'Reviewed' to your todo and research test runners now."
+    },
+    {
+      "at": 6228,
+      "text": "Adding that header now."
+    },
+    {
+      "at": 7770,
+      "text": "Done: added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will share it when done."
+    },
+    {
+      "at": 10468,
+      "text": "Small task done: notes/todo.md now starts with **Reviewed**.\n\nLarge task in progress:\n- Research worker is running, step 3, checking mochajs.org. No file yet."
+    },
+    {
+      "at": 14536,
+      "text": "Research done. Compared **Jest, Vitest, and Mocha** in research/tests.md with strengths, weaknesses, and a quick pick."
+    }
+  ],
+  "statuses": [
+    {
+      "at": 1109,
+      "state": "typing"
+    },
+    {
+      "at": 4987,
+      "state": "typing"
+    },
+    {
+      "at": 4987,
+      "state": "typing"
+    },
+    {
+      "at": 4987,
+      "state": "working"
+    },
+    {
+      "at": 4987,
+      "state": "typing"
+    },
+    {
+      "at": 6228,
+      "state": "typing"
+    },
+    {
+      "at": 6228,
+      "state": "working"
+    },
+    {
+      "at": 6228,
+      "state": "typing"
+    },
+    {
+      "at": 7770,
+      "state": "working"
+    },
+    {
+      "at": 7807,
+      "state": "working"
+    },
+    {
+      "at": 8910,
+      "state": "typing"
+    },
+    {
+      "at": 10468,
+      "state": "working"
+    },
+    {
+      "at": 11412,
+      "state": "working"
+    },
+    {
+      "at": 12680,
+      "state": "typing"
+    },
+    {
+      "at": 14536,
+      "state": "idle"
+    }
+  ],
+  "samples": [
+    {
+      "at": 14,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 187,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 340,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 494,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 647,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 801,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 955,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1109,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1265,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1419,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1572,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1726,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1879,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2034,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2191,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2345,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2500,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2654,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2809,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2963,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3116,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3275,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3429,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3583,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3737,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3892,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4047,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4211,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4366,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4521,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4677,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4832,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4987,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5141,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5295,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5449,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5605,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5759,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5914,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6067,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6228,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6382,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6536,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6691,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6845,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6999,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7153,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7308,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7462,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7615,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7770,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7807,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7976,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8130,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8289,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8443,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8597,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8752,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8910,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9065,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9219,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9373,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9528,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9684,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9845,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9999,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10154,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10314,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10468,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10639,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10793,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10948,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11101,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11257,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11412,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11567,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11721,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11876,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12030,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12185,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12344,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12499,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12680,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12834,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12987,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13143,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13297,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13451,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13605,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13758,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13912,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14067,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14221,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14382,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14536,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14690,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14846,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15001,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15155,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15311,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15465,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15619,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15628,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15782,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15935,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16089,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16243,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16402,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16557,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16712,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16866,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17020,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17175,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17330,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17484,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17638,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17791,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17946,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18100,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18255,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18416,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18569,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18580,
+      "steer": 0,
+      "stop": 0
+    }
+  ],
+  "bubbles": [
+    "I'll add 'Reviewed' to your todo and research test runners now.",
+    "Adding that header now.",
+    "Done: added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will share it when done.",
+    "Small task done: notes/todo.md now starts with **Reviewed**.\n\nLarge task in progress:\n- Research worker is running, step 3, checking mochajs.org. No file yet.",
+    "Research done. Compared **Jest, Vitest, and Mocha** in research/tests.md with strengths, weaknesses, and a quick pick."
+  ]
+}

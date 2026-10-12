@@ -10,7 +10,6 @@ export type Candidate = {
   owner: string
   room: string
   due?: number
-  mentions: number
   lastSeen: number
   surfaced: number
   ignored: number

@@ -1,0 +1,113 @@
+{
+  "run": "run1",
+  "case": 7,
+  "name": "web research and short report",
+  "wording": "what is the status?",
+  "wordingTag": "status",
+  "rep": 1,
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 6,
+  "timedOut": false,
+  "doneMs": 20113,
+  "firstReplyMs": 3398,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 3,
+  "workerTools": {
+    "tool.worker.mkdir": 1,
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 12,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases on the web. Compare features, license, language, popularity. …"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "what is the status?",
+    "replyMs": 2274,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "mkdir {\"path\":\"/research\"}"
+      }
+    ],
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.mkdir": 1,
+      "tool.worker.web_fetch": 1
+    },
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "On it. Researching the top three now, report lands in research/vectors.md.",
+    "repliesAfterSend": [
+      "On it. Researching the top three now, report lands in research/vectors.md.",
+      "Research in progress.\n\n- **w1:** fetching DB-Engines vector ranking to pick top three, then writes report to research/vectors.md.",
+      "Got it — I'll push it to finish fast.",
+      "Pushed it. It will land in a minute.",
+      "Done. Report is in research/vectors.md.\n\nTop three: **Milvus, Qdrant, Weaviate.**\n- Milvus: most scalable, Apache 2.0\n- Qdrant: my pick for most projects, fast Rust build\n- Weaviate: best search blend, BSD-3\n\nNote: live ranking page failed to load, so stars use early 2026 baseline. Check GitHub before you publish."
+    ]
+  },
+  "note": {
+    "sentMs": 11460,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 0,
+    "reply": "Got it — I'll push it to finish fast."
+  },
+  "replies": [
+    {
+      "at": 3398,
+      "text": "I'm on it — I'll research the top open source vector databases now."
+    },
+    {
+      "at": 6443,
+      "text": "On it. Researching the top three now, report lands in research/vectors.md."
+    },
+    {
+      "at": 7667,
+      "text": "Research in progress.\n\n- **w1:** fetching DB-Engines vector ranking to pick top three, then writes report to research/vectors.md."
+    },
+    {
+      "at": 13729,
+      "text": "Got it — I'll push it to finish fast."
+    },
+    {
+      "at": 14820,
+      "text": "Pushed it. It will land in a minute."
+    },
+    {
+      "at": 16030,
+      "text": "Done. Report is in research/vectors.md.\n\nTop three: **Milvus, Qdrant, Weaviate.**\n- Milvus: most scalable, Apache 2.0\n- Qdrant: my pick for most projects, fast Rust build\n- Weaviate: best search blend, BSD-3\n\nNote: live ranking page failed to load, so stars use early 2026 baseline. Check GitHub before you publish."
+    }
+  ],
+  "bubbles": [
+    "I'm on it — I'll research the top open source vector databases now.",
+    "On it. Researching the top three now, report lands in research/vectors.md.",
+    "Research in progress.\n\n- **w1:** fetching DB-Engines vector ranking to pick top three, then writes report to research/vectors.md.",
+    "Got it — I'll push it to finish fast.",
+    "Pushed it. It will land in a minute.",
+    "Done. Report is in research/vectors.md.\n\nTop three: **Milvus, Qdrant, Weaviate.**\n- Milvus: most scalable, Apache 2.0\n- Qdrant: my pick for most projects, fast Rust build\n- Weaviate: best search blend, BSD-3\n\nNote: live ranking page failed to load, so stars use early 2026 baseline. Check GitHub before you publish."
+  ]
+}

@@ -68,3 +68,15 @@ The new line fixes the u50 case-10 miss. In u50 the lead never named the researc
 ## Verdict
 
 Acceptance met on the sample the brief asks for: status names the running worker in 5 of 6 runs. The wording does its job: when a worker is running at answer time, the lead covers both its own work and the worker, with the worker's step when the worker has reported one. No status reply disturbed the work. The remaining variance is in when the spike sends the question, not in the wording. The wording is not changed further, per the brief ("do not add structure").
+
+## Correction
+
+The verdict above overclaims. Counted from the per-case JSON of passes r1 to r3, the status reply names the running work under three definitions:
+
+- Names the running work: 5 of 6. This is the claim above.
+- Names the worker by id or as "worker": 4 of 6. This is the strict count that review B (B11) reports.
+- Names the worker and gives its current step: 2 of 6.
+
+The brief's acceptance (at least 5 of 6) holds only under the first definition. Only one of the six windows had a worker running when the question was sent (r2, case 7). Across all six passes, `runningAtSend` is 0 in all six case-10 runs and in 2 of 6 case-7 runs, not in half the case-7 runs. The spike sent before the worker existed in most windows, so these numbers do not measure the answer while a worker runs.
+
+Re-measured in `issues/evidence/u64/`, with the question sent only after a worker is running and counted strictly (names the worker AND gives its step): on this U54 line, 2 of 6 for "what is the status?" and 4 of 6 for "how is it going?". The U64 run also changed the line, so the wording above is no longer the one on the U64 branch. See `issues/evidence/u64/results.md`.

@@ -1,0 +1,259 @@
+{
+  "statuses": [
+    {
+      "at": 1231,
+      "state": "typing"
+    },
+    {
+      "at": 4558,
+      "state": "typing"
+    },
+    {
+      "at": 4558,
+      "state": "typing"
+    },
+    {
+      "at": 4558,
+      "state": "working"
+    },
+    {
+      "at": 4558,
+      "state": "typing"
+    },
+    {
+      "at": 6212,
+      "state": "typing"
+    },
+    {
+      "at": 6212,
+      "state": "working"
+    },
+    {
+      "at": 6212,
+      "state": "typing"
+    },
+    {
+      "at": 7135,
+      "state": "typing"
+    },
+    {
+      "at": 7437,
+      "state": "typing"
+    },
+    {
+      "at": 7437,
+      "state": "working"
+    },
+    {
+      "at": 7437,
+      "state": "typing"
+    },
+    {
+      "at": 8648,
+      "state": "working"
+    },
+    {
+      "at": 8648,
+      "state": "typing"
+    },
+    {
+      "at": 9572,
+      "state": "working"
+    },
+    {
+      "at": 11845,
+      "state": "working"
+    },
+    {
+      "at": 11996,
+      "state": "working"
+    },
+    {
+      "at": 12903,
+      "state": "typing"
+    },
+    {
+      "at": 13811,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 13,
+      "workers": []
+    },
+    {
+      "at": 2133,
+      "workers": []
+    },
+    {
+      "at": 4244,
+      "workers": []
+    },
+    {
+      "at": 6363,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha - verify by usage/popularity). Write a short comparison in research/tests.md. Include for each: key strengths, key weakness, best use case. Keep it short, markdown, no filler. Create parent folders as needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788230198,
+          "updatedAt": 1791788230205
+        }
+      ]
+    },
+    {
+      "at": 8489,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha - verify by usage/popularity). Write a short comparison in research/tests.md. Include for each: key strengths, key weakness, best use case. Keep it short, markdown, no filler. Create parent folders as needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://npmtrends.com/jest-vs-vitest-vs-mocha\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788230198,
+          "updatedAt": 1791788232783
+        }
+      ]
+    },
+    {
+      "at": 10630,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha - verify by usage/popularity). Write a short comparison in research/tests.md. Include for each: key strengths, key weakness, best use case. Keep it short, markdown, no filler. Create parent folders as needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://npmtrends.com/jest-vs-vitest-vs-mocha\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788230198,
+          "updatedAt": 1791788232783
+        }
+      ]
+    },
+    {
+      "at": 12747,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha - verify by usage/popularity). Write a short comparison in research/tests.md. Include for each: key strengths, key weakness, best use case. Keep it short, markdown, no filler. Create parent folders as needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "bash {\"command\":\"mkdir -p research && cat > research/tests.md <<'EOF'\\n# JavaScript …",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788230198,
+          "updatedAt": 1791788237556
+        }
+      ]
+    },
+    {
+      "at": 14866,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha - verify by usage/popularity). Write a short comparison in research/tests.md. Include for each: key strengths, key weakness, best use case. Keep it short, markdown, no filler. Create parent folders as needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "bash {\"command\":\"mkdir -p research && cat > research/tests.md <<'EOF'\\n# JavaScript …",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788230198,
+          "updatedAt": 1791788238512
+        }
+      ]
+    },
+    {
+      "at": 17018,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha - verify by usage/popularity). Write a short comparison in research/tests.md. Include for each: key strengths, key weakness, best use case. Keep it short, markdown, no filler. Create parent folders as needed.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "bash {\"command\":\"mkdir -p research && cat > research/tests.md <<'EOF'\\n# JavaScript …",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788230198,
+          "updatedAt": 1791788238512
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 3,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 55,
+    "agent.kv.getAlarm": 10,
+    "agent.kv.list": 1,
+    "agent.kv.put": 12,
+    "agent.kv.setAlarm": 8,
+    "agent.kv.transaction": 86,
+    "agent.rowsRead": 1918,
+    "agent.rowsWritten": 1081,
+    "agent.statements": 1608,
+    "model.id.muse-spark-1.3-contributor": 9,
+    "model.ms": 16212,
+    "model.turns": 9,
+    "room.kv.get": 3,
+    "room.kv.getAlarm": 14,
+    "room.kv.setAlarm": 7,
+    "room.rowsRead": 845,
+    "room.rowsWritten": 219,
+    "room.statements": 625,
+    "rpc.agent.devWorkers": 13,
+    "rpc.agent.humanComing": 1,
+    "rpc.agent.receive": 2,
+    "rpc.room.endRun": 3,
+    "rpc.room.fsCommit": 1,
+    "rpc.room.fsList": 4,
+    "rpc.room.fsStat": 4,
+    "rpc.room.memorySince": 1,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 5,
+    "rpc.room.putFile": 1,
+    "rpc.room.reportDoing": 6,
+    "rpc.room.setStatus": 9,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 2,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 2,
+    "rpc.user.homeList": 2,
+    "rpc.user.homeStat": 2,
+    "rpc.user.initiativeBrief": 1,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 3,
+    "rpc.user.signals": 1,
+    "rpc.user.soul": 2,
+    "rpc.user.takeTurn": 2,
+    "rpc.user.touchChat": 6,
+    "rpc.user.turnContext": 2,
+    "tool.talker.bash": 1,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.worker.bash": 1,
+    "tool.worker.web_fetch": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 3,
+    "user.rowsRead": 130,
+    "user.rowsWritten": 65,
+    "user.statements": 221
+  }
+}

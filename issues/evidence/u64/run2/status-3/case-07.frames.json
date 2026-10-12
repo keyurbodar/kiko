@@ -1,0 +1,304 @@
+{
+  "statuses": [
+    {
+      "at": 1223,
+      "state": "typing"
+    },
+    {
+      "at": 4546,
+      "state": "typing"
+    },
+    {
+      "at": 4546,
+      "state": "working"
+    },
+    {
+      "at": 4546,
+      "state": "typing"
+    },
+    {
+      "at": 6200,
+      "state": "working"
+    },
+    {
+      "at": 6520,
+      "state": "working"
+    },
+    {
+      "at": 7422,
+      "state": "typing"
+    },
+    {
+      "at": 12878,
+      "state": "working"
+    },
+    {
+      "at": 18775,
+      "state": "working"
+    },
+    {
+      "at": 19076,
+      "state": "typing"
+    },
+    {
+      "at": 20436,
+      "state": "working"
+    },
+    {
+      "at": 20436,
+      "state": "typing"
+    },
+    {
+      "at": 21795,
+      "state": "idle"
+    },
+    {
+      "at": 21795,
+      "state": "typing"
+    },
+    {
+      "at": 22848,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 4,
+      "workers": []
+    },
+    {
+      "at": 2125,
+      "workers": []
+    },
+    {
+      "at": 4236,
+      "workers": []
+    },
+    {
+      "at": 6350,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788115980
+        }
+      ]
+    },
+    {
+      "at": 8474,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/chroma-core/chroma\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788118019
+        }
+      ]
+    },
+    {
+      "at": 10585,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/chroma-core/chroma\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788118019
+        }
+      ]
+    },
+    {
+      "at": 12700,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/chroma-core/chroma\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788118019
+        }
+      ]
+    },
+    {
+      "at": 14841,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/facebookresearch/faiss\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788124383
+        }
+      ]
+    },
+    {
+      "at": 16951,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/facebookresearch/faiss\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788124383
+        }
+      ]
+    },
+    {
+      "at": 19076,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "write {\"content\":\"# Open Source Vector Databases - Top 3\\n\\nDate: 2026-10-12. Stars c…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788130244
+        }
+      ]
+    },
+    {
+      "at": 21187,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 53,
+          "status": "running",
+          "step": "write {\"content\":\"# Open Source Vector Databases - Top 3\\n\\nDate: 2026-10-12. Stars c…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788131961
+        }
+      ]
+    },
+    {
+      "at": 23299,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 53,
+          "status": "done",
+          "step": "write {\"content\":\"# Open Source Vector Databases - Top 3\\n\\nDate: 2026-10-12. Stars c…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788133211
+        }
+      ]
+    },
+    {
+      "at": 25409,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, FAISS, LanceDB - determine top 3 by stars/adoption). For each give: license, language, key features, deployment, GitHub stars approximate, when to use. Then write a short report in markdown to research/vectors.md in the chat files. Keep it concise, with comparison table and recommendation.",
+          "conversationId": 14,
+          "submissionId": 53,
+          "status": "done",
+          "step": "write {\"content\":\"# Open Source Vector Databases - Top 3\\n\\nDate: 2026-10-12. Stars c…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788115973,
+          "updatedAt": 1791788133211
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 5,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 86,
+    "agent.kv.getAlarm": 20,
+    "agent.kv.list": 1,
+    "agent.kv.put": 19,
+    "agent.kv.setAlarm": 16,
+    "agent.kv.transaction": 99,
+    "agent.rowsRead": 2396,
+    "agent.rowsWritten": 1293,
+    "agent.statements": 1984,
+    "model.id.muse-spark-1.3-contributor": 11,
+    "model.ms": 29520,
+    "model.turns": 11,
+    "room.kv.get": 3,
+    "room.kv.getAlarm": 18,
+    "room.kv.setAlarm": 8,
+    "room.rowsRead": 1015,
+    "room.rowsWritten": 211,
+    "room.statements": 724,
+    "rpc.agent.devWorkers": 17,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 4,
+    "rpc.room.fsList": 4,
+    "rpc.room.fsStat": 4,
+    "rpc.room.memorySince": 3,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 4,
+    "rpc.room.putFile": 1,
+    "rpc.room.reportDoing": 6,
+    "rpc.room.setStatus": 8,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 4,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.initiativeBrief": 3,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 4,
+    "rpc.user.signals": 1,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 7,
+    "rpc.user.turnContext": 4,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.web_fetch": 4,
+    "tool.worker.write": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 3,
+    "user.rowsRead": 189,
+    "user.rowsWritten": 73,
+    "user.statements": 299
+  }
+}

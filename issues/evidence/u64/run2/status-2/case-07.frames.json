@@ -1,0 +1,273 @@
+{
+  "statuses": [
+    {
+      "at": 1073,
+      "state": "typing"
+    },
+    {
+      "at": 3036,
+      "state": "typing"
+    },
+    {
+      "at": 3036,
+      "state": "working"
+    },
+    {
+      "at": 3036,
+      "state": "typing"
+    },
+    {
+      "at": 5007,
+      "state": "working"
+    },
+    {
+      "at": 5307,
+      "state": "typing"
+    },
+    {
+      "at": 5758,
+      "state": "typing"
+    },
+    {
+      "at": 6361,
+      "state": "working"
+    },
+    {
+      "at": 10908,
+      "state": "working"
+    },
+    {
+      "at": 12585,
+      "state": "typing"
+    },
+    {
+      "at": 13796,
+      "state": "working"
+    },
+    {
+      "at": 13796,
+      "state": "typing"
+    },
+    {
+      "at": 14400,
+      "state": "working"
+    },
+    {
+      "at": 14400,
+      "state": "typing"
+    },
+    {
+      "at": 15310,
+      "state": "idle"
+    },
+    {
+      "at": 15310,
+      "state": "typing"
+    },
+    {
+      "at": 16664,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 5,
+      "workers": []
+    },
+    {
+      "at": 2127,
+      "workers": []
+    },
+    {
+      "at": 4238,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (by adoption/popularity: likely Qdrant, Milvus, Weaviate, or Chroma, pgvector, etc - determine top 3 by stars, usage, community). For each: name, license, language, key features (3-4 bullets), best use case. Then write a short report in markdown to research/vectors.md in the chat files. Report: title, date 2026-10-12, intro line, section per DB, short comparison table, recommendation of one with reason.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788072033,
+          "updatedAt": 1791788072042
+        }
+      ]
+    },
+    {
+      "at": 6361,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (by adoption/popularity: likely Qdrant, Milvus, Weaviate, or Chroma, pgvector, etc - determine top 3 by stars, usage, community). For each: name, license, language, key features (3-4 bullets), best use case. Then write a short report in markdown to research/vectors.md in the chat files. Report: title, date 2026-10-12, intro line, section per DB, short comparison table, recommendation of one with reason.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/weaviate/weaviate\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788072033,
+          "updatedAt": 1791788074762
+        }
+      ]
+    },
+    {
+      "at": 8482,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (by adoption/popularity: likely Qdrant, Milvus, Weaviate, or Chroma, pgvector, etc - determine top 3 by stars, usage, community). For each: name, license, language, key features (3-4 bullets), best use case. Then write a short report in markdown to research/vectors.md in the chat files. Report: title, date 2026-10-12, intro line, section per DB, short comparison table, recommendation of one with reason.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/weaviate/weaviate\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788072033,
+          "updatedAt": 1791788074762
+        }
+      ]
+    },
+    {
+      "at": 10593,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (by adoption/popularity: likely Qdrant, Milvus, Weaviate, or Chroma, pgvector, etc - determine top 3 by stars, usage, community). For each: name, license, language, key features (3-4 bullets), best use case. Then write a short report in markdown to research/vectors.md in the chat files. Report: title, date 2026-10-12, intro line, section per DB, short comparison table, recommendation of one with reason.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://github.com/weaviate/weaviate\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788072033,
+          "updatedAt": 1791788074762
+        }
+      ]
+    },
+    {
+      "at": 12735,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (by adoption/popularity: likely Qdrant, Milvus, Weaviate, or Chroma, pgvector, etc - determine top 3 by stars, usage, community). For each: name, license, language, key features (3-4 bullets), best use case. Then write a short report in markdown to research/vectors.md in the chat files. Report: title, date 2026-10-12, intro line, section per DB, short comparison table, recommendation of one with reason.",
+          "conversationId": 14,
+          "submissionId": 20,
+          "status": "done",
+          "step": "write {\"content\":\"# Open Source Vector Databases: Top 3 by Adoption\\n\\nDate: 2026-10-…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788072033,
+          "updatedAt": 1791788080948
+        }
+      ]
+    },
+    {
+      "at": 14851,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (by adoption/popularity: likely Qdrant, Milvus, Weaviate, or Chroma, pgvector, etc - determine top 3 by stars, usage, community). For each: name, license, language, key features (3-4 bullets), best use case. Then write a short report in markdown to research/vectors.md in the chat files. Report: title, date 2026-10-12, intro line, section per DB, short comparison table, recommendation of one with reason.",
+          "conversationId": 14,
+          "submissionId": 49,
+          "status": "running",
+          "step": "write {\"content\":\"# Open Source Vector Databases: Top 3 by Adoption\\n\\nDate: 2026-10-…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788072033,
+          "updatedAt": 1791788082776
+        }
+      ]
+    },
+    {
+      "at": 16965,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (by adoption/popularity: likely Qdrant, Milvus, Weaviate, or Chroma, pgvector, etc - determine top 3 by stars, usage, community). For each: name, license, language, key features (3-4 bullets), best use case. Then write a short report in markdown to research/vectors.md in the chat files. Report: title, date 2026-10-12, intro line, section per DB, short comparison table, recommendation of one with reason.",
+          "conversationId": 14,
+          "submissionId": 49,
+          "status": "done",
+          "step": "write {\"content\":\"# Open Source Vector Databases: Top 3 by Adoption\\n\\nDate: 2026-10-…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788072033,
+          "updatedAt": 1791788083978
+        }
+      ]
+    },
+    {
+      "at": 19075,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used open source vector databases on the web (by adoption/popularity: likely Qdrant, Milvus, Weaviate, or Chroma, pgvector, etc - determine top 3 by stars, usage, community). For each: name, license, language, key features (3-4 bullets), best use case. Then write a short report in markdown to research/vectors.md in the chat files. Report: title, date 2026-10-12, intro line, section per DB, short comparison table, recommendation of one with reason.",
+          "conversationId": 14,
+          "submissionId": 49,
+          "status": "done",
+          "step": "write {\"content\":\"# Open Source Vector Databases: Top 3 by Adoption\\n\\nDate: 2026-10-…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788072033,
+          "updatedAt": 1791788083978
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 6,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 318,
+    "agent.kv.getAlarm": 247,
+    "agent.kv.list": 1,
+    "agent.kv.put": 22,
+    "agent.kv.setAlarm": 130,
+    "agent.kv.transaction": 93,
+    "agent.rowsRead": 4651,
+    "agent.rowsWritten": 1751,
+    "agent.statements": 3958,
+    "model.id.muse-spark-1.3-contributor": 11,
+    "model.ms": 18497,
+    "model.turns": 11,
+    "room.kv.get": 3,
+    "room.kv.getAlarm": 19,
+    "room.kv.setAlarm": 6,
+    "room.rowsRead": 1061,
+    "room.rowsWritten": 208,
+    "room.statements": 735,
+    "rpc.agent.devWorkers": 14,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 5,
+    "rpc.room.fsList": 5,
+    "rpc.room.fsStat": 5,
+    "rpc.room.memorySince": 4,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 4,
+    "rpc.room.putFile": 1,
+    "rpc.room.reportDoing": 5,
+    "rpc.room.setStatus": 9,
+    "rpc.user.browserCheck": 60,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 4,
+    "rpc.user.composioSignature": 59,
+    "rpc.user.composioTools": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.initiativeBrief": 3,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 4,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 8,
+    "rpc.user.turnContext": 5,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.web_fetch": 3,
+    "tool.worker.write": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 2,
+    "user.rowsRead": 279,
+    "user.rowsWritten": 56,
+    "user.statements": 476
+  }
+}

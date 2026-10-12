@@ -1,0 +1,7 @@
+wording	rep	case	name	running_at_send	status_skipped	status_reply_s	steer_work	stop_work	status_reply	note_steer_calls	note_stop_calls	timed_out
+going	1	7	web research and short report	1	-	7.1	0	0	"Research is running. I am checking the top open source vector databases now. I will write the report to research/vectors.md when the facts return."	-	-	false
+going	1	10	burst: one small, one large	1	-	1.1	0	0	"Adding the 'Reviewed' line to notes now."	-	-	false
+going	2	7	web research and short report	1	-	2.3	0	0	"Research is running. Worker is now checking Chroma page after Milvus and others. I will share the report in `research/vectors.md` when done."	1	0	false
+going	2	10	burst: one small, one large	1	-	2.3	0	0	"Done: added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will send the comparison when it lands."	-	-	false
+going	3	7	web research and short report	1	-	2.3	0	0	"Research is running. It is now checking DB-Engines ranking to confirm the top three.\n\nI will post the report in `research/vectors.md` once it is done."	1	0	false
+going	3	10	burst: one small, one large	1	-	1.8	0	0	"Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will post the comparison when ready."	1	0	false
