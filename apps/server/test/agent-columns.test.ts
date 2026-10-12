@@ -40,6 +40,8 @@ const EXPECTED: Record<string, string[]> = {
     "submission_id INTEGER",
     "status TEXT NOT NULL",
     "step TEXT",
+    "steps INTEGER NOT NULL DEFAULT 0",
+    "changed TEXT NOT NULL DEFAULT '[]'",
     "delivered INTEGER NOT NULL DEFAULT 0",
     "origin TEXT NOT NULL",
     "started_at INTEGER NOT NULL",
