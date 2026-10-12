@@ -867,7 +867,7 @@ Agents schedule their own work with the same tool by naming themselves as the ta
 
 Delivery is into the chat only. The spec excludes notifications.
 
-The recurrence library is `rrule` 2.8.1 (experiment 10, settled). `rrule` checks a rule's end only on a date that passes every filter, so a rule no date can pass (February 30, or every 2 hours at odd hours stepping from an even one) walks to the year 9999 one step at a time: minutes of CPU, a request that never finishes on Workers. `ruleProblem` in `recurrence.ts` runs first and accepts only the shapes that always reach a date in bounded steps: known parts, sane ranges, no filter an interval can step over, and a month day some chosen month has. Anything else is refused in microseconds with the reason, and a stored rule it refuses ends its row. `nextOccurrence(rrule, tz, afterUtc)` in `apps/server/src/user/recurrence.ts` runs the rule on floating wall-clock dates and converts each result to UTC with `Intl`, because `rrule` has no zone math. Tests in workerd cover "every day at 09:00" and "every monday at 09:00" in `America/New_York` and `Europe/Berlin` across both 2026 changes. Local time stays 09:00. A time inside a spring-forward gap runs later by the gap (02:30 becomes 03:30). In a fall-back overlap the first instant wins. `rrule-temporal` was not needed.
+The recurrence library is `rrule` 2.8.1 (experiment 10, settled). `rrule` checks a rule's end only on a date that passes every filter, so a rule no date can pass (February 30, or every 2 hours at odd hours stepping from an even one) walks to the year 9999 one step at a time: minutes of CPU, a request that never finishes on Workers. `ruleProblem` in `core/sandbox/src/rule.ts` runs first and accepts only the shapes that always reach a date in bounded steps: known parts, sane ranges, no filter an interval can step over, and a month day some chosen month has. Anything else is refused in microseconds with the reason, and a stored rule it refuses ends its row. `nextOccurrence(rrule, tz, afterUtc)` in `core/sandbox/src/recurrence.ts` runs the rule on floating wall-clock dates and converts each result to UTC with `Intl`, because `rrule` has no zone math. Tests in workerd cover "every day at 09:00" and "every monday at 09:00" in `America/New_York` and `Europe/Berlin` across both 2026 changes. Local time stays 09:00. A time inside a spring-forward gap runs later by the gap (02:30 becomes 03:30). In a fall-back overlap the first instant wins. `rrule-temporal` was not needed.
 
 ## 15. Skills
 
@@ -1341,7 +1341,7 @@ Users and agents add pi-durable extensions while yuki runs, on the Free plan, wi
 ### 24.1 Decision
 
 - An extension is data: `extension.json` plus files, stored by content hash in the user's `UserDO`. User extensions never live in the repository, so a pull from upstream never conflicts with them.
-- The manifest mirrors pi-durable's extension points one to one: `tools`, `sections`, `hooks`, `wraps`. Yuki adds `calls`, `egress`, `secrets`, `state`, `triggers`, and `tests`. The format is versioned by `"yuki": 1` and checked by `checkManifest` in `core/sandbox/src/manifest.ts`, which `@yuki/protocol` re-exports: the same function on the server, in the CLI, and in the client.
+- The manifest mirrors pi-durable's extension points one to one: `tools`, `sections`, `hooks`, `wraps`. Yuki adds `calls`, `egress`, `secrets`, `state`, `triggers`, and `tests`. The format is versioned by `"yuki": 1` and checked by `checkManifest` in `core/sandbox/src/manifest.ts`, which `@yuki/protocol` re-exports: the same function on the server, in the CLI, and in the client. The trigger rate rule is the one check that needs `rrule`, so it runs apart from that function, in `triggerGapProblems` (`core/sandbox/src/recurrence.ts`), on the server's check and install only.
 - DEVIATION (U20): the section key is `<extension>_<id>`, not `name:id`. pi-durable's key pattern has no colon, and `_` cannot appear in a name or id, so two extensions cannot share a key.
 - The script is JavaScript, run by QuickJS compiled to wasm (`quickjs-wasi` 3.6.2). The wasm is imported with the Worker, so no code is evaluated by V8. The script is data for a bundled interpreter.
 - Only the human installs. Agents, the catalog, and files the human opens can only propose. The install is reachable from the human's socket alone.
@@ -1383,7 +1383,7 @@ The client gets extensions and proposals in the user snapshot and as user events
 | `yuki.` | Rule |
 | --- | --- |
 | `call(tool)` | Only tools in `calls`, only tools the agent has, never the caller itself, and only with an effect the caller's effect covers. A `read` tool calls only reads; `write` adds writes; `message` adds messages; `external` calls anything. The callee meets every selected extension's `beforeTool` and `afterTool` hooks in selection order, as the model's own call would: the first block makes `call` throw with its reason, so a user's guard extension also guards a tool another extension reaches through `call`. Calls nest at most 4 deep, so two tools that call each other stop at once |
-| `fetch(url)` | From a tool or tool wrap. Any tool may GET without a body; another method or a body needs an `external` tool. `UserDO` checks the host against `egress` and fetches (24.7) |
+| `fetch(url)` | From a tool or tool wrap. Any tool may GET without a body; another method or a body needs an `external` tool. `guestRequestProblem` (`core/sandbox/src/compile.ts`) refuses a request the rule forbids, and `UserDO` checks it again and fetches (24.7) |
 | `state` | Needs `state` in the manifest. Sections only read. In a private chat (section 7.10) user-wide state only reads |
 | `next(args)` | Only in a tool wrap. Runs the wrapped tool |
 
@@ -1417,14 +1417,16 @@ Before each run, `AgentDO.syncExtensions` asks `UserDO.extensionsFor(slug)` for 
 
 `UserDO.extensionFetch` is the only way a script reaches the network.
 
-- The extension must be installed and on. Only `https`. The host must match `egress`, where `*.example.com` covers every subdomain.
+- The extension must be installed and on. `guestRequestProblem` applies one rule to the bridge, the checker, and `UserDO`: only `https`, a host that matches `egress` (where `*.example.com` covers every subdomain), a listed method, safe headers, and a text body of at most 256 KB with no body on a GET.
 - `{{secret.NAME}}` in the URL, a header value, or the body is filled in here, and only when the host is one of that secret's `hosts`. The script never holds a key.
 - A server that echoes a secret does not hand it back: every set secret is replaced by its placeholder in the response text. `set-cookie` and `authorization` response headers are dropped.
 - `safeRequest` in `core/durable/src/safe-fetch.ts` makes the request. It has `safeFetch`'s address checks, and it never follows a redirect, so headers chosen for one host never reach another. Bodies are at most 256 KB each way, and the deadline is 10 seconds.
 
 ### 24.8 Triggers
 
-A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to the chat the extension came from, for the agent that wrote it, or else to the yuki chat for yuki. Installing, switching on, or updating replaces the extension's reminders; switching off and uninstalling cancel them. A trigger repeats at most every 30 minutes, the reminder rule. `extension_check` and install apply the same rule.
+A trigger is a recurring reminder (section 14) made as `ext:<name>`, posted to the chat the extension came from, for the agent that wrote it, or else to the yuki chat for yuki. Installing, switching on, or updating replaces the extension's reminders; switching off and uninstalling cancel them. A trigger repeats at most every 30 minutes, the reminder rule. `triggerProblem` (`core/sandbox/src/rule.ts`) refuses a rule that fires every minute or that `ruleProblem` refuses. `triggerGapProblems` finds the fastest gap over the first two weeks of a rule (ASSUMPTION: two weeks covers every weekday and time-of-day pattern, since a daily pattern repeats daily and a weekly one weekly). `extension_check` and install apply both.
+
+DEVIATION (U68): the recurrence code moved from `apps/server/src/user/recurrence.ts` to `core/sandbox/src/recurrence.ts`, with `rrule` declared in `@yuki/sandbox`. The trigger rule has to be one check, and the checker in `@yuki/sandbox` cannot import `apps/`. The pure syntax rule sits in `rule.ts`, which does not import `rrule`, so `@yuki/protocol` (loaded by the client) stays free of it.
 
 ### 24.9 The catalog
 

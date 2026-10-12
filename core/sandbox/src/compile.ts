@@ -21,7 +21,7 @@ import {
   wrapSection,
   wrapTool,
 } from "@earendil-works/pi-durable"
-import type { ExtensionBundle, ExtensionManifest, ExtensionStateScope } from "./manifest"
+import { type ExtensionBundle, type ExtensionManifest, type ExtensionStateScope, hostAllowed } from "./manifest"
 import { declareEffect, type Effect, effectOf } from "@yuki/agent/effects"
 import { type Bridge, ScriptError, ScriptVM, type Target } from "./vm"
 
@@ -35,6 +35,33 @@ export type ScriptPorts = {
 
 export type GuestRequest = { url: string; method?: string; headers?: Record<string, string>; body?: string; json?: unknown }
 export type GuestResponse = { status: number; headers: Record<string, string>; text: string; json?: unknown; truncated?: boolean }
+
+const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"])
+const MAX_REQUEST_BODY = 256 * 1024
+
+/** The rule for a request a script makes, shared by the bridge, the checker, and the runtime. */
+export function guestRequestProblem(manifest: ExtensionManifest, request: GuestRequest): string | null {
+  let url: URL
+  try {
+    url = new URL(request.url)
+  } catch {
+    return "that is not a url"
+  }
+  if (url.protocol !== "https:") return "yuki.fetch only reaches https urls"
+  const host = url.hostname.toLowerCase()
+  if (!hostAllowed(host, manifest.egress ?? [])) return `${host} is not in "egress" in extension.json`
+  const method = (request.method ?? (request.body !== undefined || request.json !== undefined ? "POST" : "GET")).toUpperCase()
+  if (!METHODS.has(method)) return `method ${method} is not allowed`
+  for (const [k, v] of Object.entries(request.headers ?? {})) {
+    if (typeof v !== "string" || /[\r\n]/.test(k + v) || !/^[A-Za-z0-9-]{1,64}$/.test(k)) return `header ${k} is not allowed`
+    if (/^(host|cookie|content-length|transfer-encoding|connection)$/i.test(k)) return `header ${k} is set by yuki`
+  }
+  const body = request.json !== undefined ? JSON.stringify(request.json) : request.body
+  if (body !== undefined && typeof body !== "string") return "body must be text; use json for objects"
+  if (body !== undefined && body.length > MAX_REQUEST_BODY) return "the body is larger than 256 kb"
+  if (method === "GET" && body !== undefined) return "a GET has no body"
+  return null
+}
 
 export type Installed = { name: string; hash: string; bundle: ExtensionBundle }
 
@@ -151,7 +178,10 @@ export function makeToolBridge(input: ToolBridgeInput): Bridge {
     if (op === "fetch") {
       const [url, init] = payload as [string, Omit<GuestRequest, "url">]
       if (effect !== "external" && !isPlainGet(init)) throw new Error(`only a GET without a body works in a "${effect}" tool; ${self} needs "external" to send anything`)
-      return ports.fetch(name, { ...(init ?? {}), url })
+      const request = { ...(init ?? {}), url }
+      const problem = guestRequestProblem(manifest, request)
+      if (problem) throw new Error(problem)
+      return ports.fetch(name, request)
     }
     if (op === "call") {
       const [tool, args] = payload as [string, Record<string, unknown>]
