@@ -1,0 +1,410 @@
+{
+  "statuses": [
+    {
+      "at": 1226,
+      "state": "typing"
+    },
+    {
+      "at": 21595,
+      "state": "idle"
+    },
+    {
+      "at": 21595,
+      "state": "typing"
+    },
+    {
+      "at": 25366,
+      "state": "typing"
+    },
+    {
+      "at": 25366,
+      "state": "typing"
+    },
+    {
+      "at": 25366,
+      "state": "working"
+    },
+    {
+      "at": 25366,
+      "state": "typing"
+    },
+    {
+      "at": 28688,
+      "state": "typing"
+    },
+    {
+      "at": 28688,
+      "state": "typing"
+    },
+    {
+      "at": 28688,
+      "state": "working"
+    },
+    {
+      "at": 28688,
+      "state": "typing"
+    },
+    {
+      "at": 28988,
+      "state": "typing"
+    },
+    {
+      "at": 31877,
+      "state": "working"
+    },
+    {
+      "at": 31877,
+      "state": "typing"
+    },
+    {
+      "at": 32778,
+      "state": "typing"
+    },
+    {
+      "at": 35039,
+      "state": "working"
+    },
+    {
+      "at": 35039,
+      "state": "typing"
+    },
+    {
+      "at": 38209,
+      "state": "working"
+    },
+    {
+      "at": 39111,
+      "state": "working"
+    },
+    {
+      "at": 40318,
+      "state": "working"
+    },
+    {
+      "at": 43329,
+      "state": "typing"
+    },
+    {
+      "at": 46491,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 11,
+      "workers": []
+    },
+    {
+      "at": 2128,
+      "workers": []
+    },
+    {
+      "at": 4237,
+      "workers": []
+    },
+    {
+      "at": 6359,
+      "workers": []
+    },
+    {
+      "at": 8467,
+      "workers": []
+    },
+    {
+      "at": 10579,
+      "workers": []
+    },
+    {
+      "at": 12690,
+      "workers": []
+    },
+    {
+      "at": 14801,
+      "workers": []
+    },
+    {
+      "at": 16912,
+      "workers": []
+    },
+    {
+      "at": 19026,
+      "workers": []
+    },
+    {
+      "at": 21138,
+      "workers": []
+    },
+    {
+      "at": 23249,
+      "workers": []
+    },
+    {
+      "at": 25366,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 24,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771468093
+        }
+      ]
+    },
+    {
+      "at": 27479,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 24,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771468093
+        }
+      ]
+    },
+    {
+      "at": 29589,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 24,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US/libraries/testing/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771471354
+        }
+      ]
+    },
+    {
+      "at": 31718,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 24,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US/libraries/testing/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771471354
+        }
+      ]
+    },
+    {
+      "at": 33830,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 24,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 in 2026\\n\\n## 1. Vitest\\n- **Stren…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771475529
+        }
+      ]
+    },
+    {
+      "at": 35941,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 48,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 in 2026\\n\\n## 1. Vitest\\n- **Stren…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771477793
+        }
+      ]
+    },
+    {
+      "at": 38050,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 48,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 in 2026\\n\\n## 1. Vitest\\n- **Stren…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771477793
+        }
+      ]
+    },
+    {
+      "at": 40163,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 48,
+          "status": "running",
+          "step": "read {\"path\":\"/research/tests.md\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771481813
+        }
+      ]
+    },
+    {
+      "at": 42272,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 48,
+          "status": "running",
+          "step": "bash {\"command\":\"wc -w /research/tests.md\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771483018
+        }
+      ]
+    },
+    {
+      "at": 44381,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 48,
+          "status": "done",
+          "step": "bash {\"command\":\"wc -w /research/tests.md\"}",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771486037
+        }
+      ]
+    },
+    {
+      "at": 46491,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 48,
+          "status": "done",
+          "step": "bash {\"command\":\"wc -w /research/tests.md\"}",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771486037
+        }
+      ]
+    },
+    {
+      "at": 48601,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (as of 2026). Write a short comparison in research/tests.md in the chat files. Include for each: name, key strengths, weaknesses, best use case. Keep it short, under 400 words, in simple markdown with no headings? Use headings if helpful. Create parent folders as needed. Return a 2-sentence summary of what you wrote.",
+          "conversationId": 18,
+          "submissionId": 48,
+          "status": "done",
+          "step": "bash {\"command\":\"wc -w /research/tests.md\"}",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771468082,
+          "updatedAt": 1791771486037
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 3,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 83,
+    "agent.kv.getAlarm": 16,
+    "agent.kv.list": 1,
+    "agent.kv.put": 15,
+    "agent.kv.setAlarm": 13,
+    "agent.kv.transaction": 116,
+    "agent.rowsRead": 2589,
+    "agent.rowsWritten": 1416,
+    "agent.statements": 2085,
+    "model.id.muse-spark-1.3-contributor": 13,
+    "model.ms": 57477,
+    "model.turns": 13,
+    "room.kv.get": 4,
+    "room.kv.getAlarm": 17,
+    "room.kv.setAlarm": 9,
+    "room.rowsRead": 1106,
+    "room.rowsWritten": 269,
+    "room.statements": 808,
+    "rpc.agent.devWorkers": 26,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 4,
+    "rpc.room.fsList": 3,
+    "rpc.room.fsStat": 5,
+    "rpc.room.memorySince": 1,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 6,
+    "rpc.room.putFile": 2,
+    "rpc.room.reportDoing": 8,
+    "rpc.room.setStatus": 10,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 3,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 2,
+    "rpc.user.getChat": 3,
+    "rpc.user.homeList": 1,
+    "rpc.user.homeStat": 1,
+    "rpc.user.initiativeBrief": 1,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 3,
+    "rpc.user.signals": 1,
+    "rpc.user.soul": 1,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 8,
+    "rpc.user.turnContext": 2,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.bash": 1,
+    "tool.worker.read": 1,
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 3,
+    "user.rowsRead": 149,
+    "user.rowsWritten": 74,
+    "user.statements": 276
+  }
+}

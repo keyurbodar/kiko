@@ -1,0 +1,73 @@
+{
+  "case": 7,
+  "name": "web research and short report",
+  "run": "r5",
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 4,
+  "timedOut": false,
+  "doneMs": 27388,
+  "firstReplyMs": 4242,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 4,
+  "workerTools": {
+    "tool.worker.web_fetch": 3,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 10,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, etc). Fo…"
+    }
+  ],
+  "status": {
+    "replyMs": 3497,
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.web_fetch": 3
+    },
+    "runningAtSend": 1,
+    "reply": "Research is running. Worker is checking Weaviate GitHub now, after Qdrant and Milvus. Report goes to research/vectors.md when done."
+  },
+  "note": {
+    "sentMs": 13810,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 0,
+    "reply": "Got it — pushing it to finish fast."
+  },
+  "replies": [
+    {
+      "at": 4242,
+      "text": "I'm on it — researching the top open-source vector databases for your report."
+    },
+    {
+      "at": 8659,
+      "text": "Research is running. Worker is checking Weaviate GitHub now, after Qdrant and Milvus. Report goes to research/vectors.md when done."
+    },
+    {
+      "at": 16072,
+      "text": "Got it — pushing it to finish fast."
+    },
+    {
+      "at": 23305,
+      "text": "Done. Report is in research/vectors.md.\n\nTop 3: Milvus, Qdrant, Weaviate. Short compare with license, features, and best use for each."
+    }
+  ],
+  "bubbles": [
+    "I'm on it — researching the top open-source vector databases for your report.",
+    "Research is running. Worker is checking Weaviate GitHub now, after Qdrant and Milvus. Report goes to research/vectors.md when done.",
+    "Got it — pushing it to finish fast.",
+    "Done. Report is in research/vectors.md.\n\nTop 3: Milvus, Qdrant, Weaviate. Short compare with license, features, and best use for each."
+  ]
+}

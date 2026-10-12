@@ -1,0 +1,91 @@
+{
+  "case": 10,
+  "name": "burst: one small, one large",
+  "run": "r5",
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 17,
+  "timedOut": false,
+  "doneMs": 27849,
+  "firstReplyMs": 4555,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 6,
+  "workerTools": {
+    "tool.worker.ls": 1,
+    "tool.worker.read": 1,
+    "tool.worker.web_fetch": 2,
+    "tool.worker.write": 2
+  },
+  "modelTurns": 15,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress …"
+    }
+  ],
+  "status": {
+    "replyMs": 2714,
+    "talkerDuring": {
+      "tool.talker.edit": 1
+    },
+    "workerDuring": {
+      "tool.worker.ls": 1,
+      "tool.worker.web_fetch": 1
+    },
+    "runningAtSend": 0,
+    "reply": "Got the file — adding the flag now while research runs."
+  },
+  "note": {
+    "sentMs": 13181,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 3,
+    "reply": "Noted — telling the worker to keep it tight."
+  },
+  "replies": [
+    {
+      "at": 4555,
+      "text": "On it — I'll mark the todo list and pull the test runner comparison."
+    },
+    {
+      "at": 8032,
+      "text": "Got the file — adding the flag now while research runs."
+    },
+    {
+      "at": 11356,
+      "text": "Done: **notes/todo.md** now starts with Reviewed.\n\nRunning: test runner comparison by my worker, now checking files. I will send it when done."
+    },
+    {
+      "at": 17554,
+      "text": "Noted — telling the worker to keep it tight."
+    },
+    {
+      "at": 20566,
+      "text": "Done. It will stay short."
+    },
+    {
+      "at": 23772,
+      "text": "Both done.\n\n- **notes/todo.md** starts with Reviewed.\n- **research/tests.md** compares Jest, Vitest, and Playwright. Take: Vitest for unit tests, Playwright for end to end. Stay on Jest only if it already works."
+    }
+  ],
+  "bubbles": [
+    "On it — I'll mark the todo list and pull the test runner comparison.",
+    "Got the file — adding the flag now while research runs.",
+    "Done: **notes/todo.md** now starts with Reviewed.\n\nRunning: test runner comparison by my worker, now checking files. I will send it when done.",
+    "Noted — telling the worker to keep it tight.",
+    "Done. It will stay short.",
+    "Both done.\n\n- **notes/todo.md** starts with Reviewed.\n- **research/tests.md** compares Jest, Vitest, and Playwright. Take: Vitest for unit tests, Playwright for end to end. Stay on Jest only if it already works."
+  ]
+}

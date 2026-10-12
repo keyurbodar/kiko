@@ -1,0 +1,81 @@
+{
+  "case": 10,
+  "name": "burst: one small, one large",
+  "run": "r2",
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 14,
+  "timedOut": false,
+  "doneMs": 37883,
+  "firstReplyMs": 4556,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 6,
+  "workerTools": {
+    "tool.worker.bash": 2,
+    "tool.worker.edit": 1,
+    "tool.worker.web_fetch": 2,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 14,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison to research/tests.…"
+    }
+  ],
+  "status": {
+    "replyMs": 8406,
+    "talkerDuring": {
+      "tool.talker.edit": 1
+    },
+    "workerDuring": {
+      "tool.worker.bash": 1,
+      "tool.worker.web_fetch": 1
+    },
+    "runningAtSend": 0,
+    "reply": "Done: added **Reviewed** to `notes/todo.md`.\n\nIn progress: test runner research (worker is checking sources now). I will send the comparison when done."
+  },
+  "note": {
+    "sentMs": 18720,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 3,
+    "reply": "Got it, will keep it short."
+  },
+  "replies": [
+    {
+      "at": 4556,
+      "text": "On it — I'll get both done."
+    },
+    {
+      "at": 13573,
+      "text": "Done: added **Reviewed** to `notes/todo.md`.\n\nIn progress: test runner research (worker is checking sources now). I will send the comparison when done."
+    },
+    {
+      "at": 21131,
+      "text": "Got it, will keep it short."
+    },
+    {
+      "at": 33804,
+      "text": "Both done.\n\n- `notes/todo.md`: added Reviewed at top.\n- `research/tests.md`: short comparison (149 words) of the three top test runners is ready."
+    }
+  ],
+  "bubbles": [
+    "On it — I'll get both done.",
+    "Done: added **Reviewed** to `notes/todo.md`.\n\nIn progress: test runner research (worker is checking sources now). I will send the comparison when done.",
+    "Got it, will keep it short.",
+    "Both done.\n\n- `notes/todo.md`: added Reviewed at top.\n- `research/tests.md`: short comparison (149 words) of the three top test runners is ready."
+  ]
+}

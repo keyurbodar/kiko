@@ -1,0 +1,63 @@
+{
+  "case": 7,
+  "name": "web research and short report",
+  "run": "r2",
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 5,
+  "timedOut": false,
+  "doneMs": 21781,
+  "firstReplyMs": 2882,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 1,
+  "talkerTools": {
+    "tool.talker.start_work": 1
+  },
+  "workerToolCalls": 6,
+  "workerTools": {
+    "tool.worker.bash": 1,
+    "tool.worker.web_fetch": 4,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 8,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases on the web as of 2026. For each: name, GitHub stars approx, l…"
+    }
+  ],
+  "status": {
+    "replyMs": 4083,
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.bash": 1
+    },
+    "runningAtSend": 1,
+    "reply": "Researching top 3 open vector DBs for `research/vectors.md`.\n\n- **w1 running:** checking Chroma GitHub page for stars and features."
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 2882,
+      "text": "I'm on it — I'll research the top 3 open source vector databases and write the report."
+    },
+    {
+      "at": 9386,
+      "text": "Researching top 3 open vector DBs for `research/vectors.md`.\n\n- **w1 running:** checking Chroma GitHub page for stars and features."
+    },
+    {
+      "at": 17700,
+      "text": "Done. Report is in `research/vectors.md`.\n\nTop 3 open vector DBs:\n\n1. **Milvus** (~46k stars) - best for billion scale\n2. **Qdrant** (~35k stars) - my pick for most teams, fast Rust core\n3. **Chroma** (~29k stars) - best for quick prototypes\n\nAll are Apache-2.0. Full compare in the file."
+    }
+  ],
+  "bubbles": [
+    "I'm on it — I'll research the top 3 open source vector databases and write the report.",
+    "Researching top 3 open vector DBs for `research/vectors.md`.\n\n- **w1 running:** checking Chroma GitHub page for stars and features.",
+    "Done. Report is in `research/vectors.md`.\n\nTop 3 open vector DBs:\n\n1. **Milvus** (~46k stars) - best for billion scale\n2. **Qdrant** (~35k stars) - my pick for most teams, fast Rust core\n3. **Chroma** (~29k stars) - best for quick prototypes\n\nAll are Apache-2.0. Full compare in the file."
+  ]
+}

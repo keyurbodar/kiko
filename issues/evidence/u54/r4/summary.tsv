@@ -1,0 +1,3 @@
+case	name	start_work	talker_calls	worker_calls	model_turns	first_reply_s	done_s	status_reply_s	status_talker_tools	status_worker_tools	note	note_steer_calls	note_stop_calls	note_worker_tools_after	workers	timed_out
+7	web research and short report	1	2	5	10	3.5	27.5	4.7	{}	{"tool.worker.web_fetch":4}	sent 15.0s	1	0	0	w1:done:delivered	false
+10	burst: one small, one large	1	6	6	13	5.5	31.2	0.2	{"tool.talker.ls":1,"tool.talker.start_work":1}	{}	sent 10.5s	1	0	3	w1:done:delivered	false
