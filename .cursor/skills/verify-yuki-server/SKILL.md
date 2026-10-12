@@ -146,4 +146,4 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `proactive` | [proactive](./features/proactive.md) |
 | `initiative`, `initiative-loops` | the `verify-initiative` skill |
 
-Not covered by any suite yet: the executor integration (`apps/server/src/integrations/executor/`) and themes (`apps/server/src/user/theme.ts`).
+Themes (`apps/server/src/user/theme.ts`) have no suite; `apps/server/test/user.test.ts` covers sync across sockets, snapshots and refused text.
