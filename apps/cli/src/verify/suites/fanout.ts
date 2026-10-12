@@ -7,11 +7,10 @@ import { newRoom } from "./mid-run"
 
 const USER = "fanout-alice"
 const MODEL = process.env.YUKI_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
-const TOOL = "composio_search_web"
 const TURN_MS = 150_000
 const WALL_LIMIT_MS = 60_000
 const MIN_CALLS = 15
-const MAX_OVERLAP = 0.6
+const MIN_PEAK = 10
 
 const TOPICS = [
   "latest stable Bun version", "latest stable Deno version", "latest stable Node.js LTS version", "latest Rust stable release",
@@ -26,10 +25,10 @@ const TOPICS = [
 
 type Events = Extract<RoomToClient, { t: "events" }>
 type Status = Extract<RoomToClient, { t: "status" }>
-type Row = { turn: string; calls: number; wallMs: number; sumMs: number; ratio: number }
+type Row = { turn: string; calls: number; wallMs: number; peak: number }
 
 const prompt = (topics: string[]) =>
-  `Use Composio to search the web for each of these ${topics.length} topics. Call the ${TOOL} tool ${topics.length} times, all in ONE response as parallel tool calls, one call per topic, do not do them one after another. Then answer with one line per topic.\n${topics.map((t, i) => `${i + 1}. ${t}`).join("\n")}`
+  `Look up these ${topics.length} things on the web with Composio, as one job, and answer with one line per thing.\n${topics.map((t, i) => `${i + 1}. ${t}`).join("\n")}`
 
 const suite: Suite = {
   name: "fanout",
@@ -91,21 +90,19 @@ const suite: Suite = {
       const { text, total } = await turn(room, prompt(TOPICS.slice(0, count)))
       await Bun.sleep(300)
       const counters = await readStats(v, s)
-      const search = (_k: string, re: RegExp) => Object.entries(counters).filter(([key]) => re.test(key) && !key.includes("search_tools")).reduce((n, [, v]) => n + v, 0)
-      const calls = search("calls", /^composio\.call\.composio_search_/)
-      const sumMs = search("ms", /^composio\.composio_search_\w+\.ms$/)
-      const ratio = sumMs > 0 ? total / sumMs : Number.POSITIVE_INFINITY
+      const calls = Object.entries(counters).filter(([key]) => /^composio\.call\.composio_search_/.test(key) && !key.includes("search_tools")).reduce((n, [, v]) => n + v, 0)
+      const peak = counters["composio.peak"] ?? 0
       const composioCounters = Object.entries(counters).filter(([k]) => k.startsWith("composio.")).map(([k, c]) => `${k}=${c}`).join(" ")
       console.log(`    counters: ${composioCounters}`)
-      console.log(`  ${name}: asked ${count}, calls ${calls}, wall ${(total / 1000).toFixed(1)} s, sum of call ms ${sumMs}, wall/sum ${ratio.toFixed(3)} (limit ${MAX_OVERLAP}), model turns ${counters["model.turns"] ?? 0}`)
+      console.log(`  ${name}: asked ${count}, calls ${calls}, peak in flight ${peak} (need ${MIN_PEAK}), wall ${(total / 1000).toFixed(1)} s (limit ${WALL_LIMIT_MS / 1000} s), model turns ${counters["model.turns"] ?? 0}`)
       console.log(`    reply: ${text.slice(0, 160)}`)
       const bad = errors(counters)
       if (bad.length) throw new VerifyError(`${name}: error counters: ${bad.map(([k, n]) => `${k}=${n}`).join(", ")}`)
-      const numbers = `calls ${calls}, wall ${total.toFixed(0)} ms, sum ${sumMs} ms, ratio ${ratio.toFixed(3)}`
+      const numbers = `calls ${calls}, peak in flight ${peak}, wall ${total.toFixed(0)} ms`
       if (calls < MIN_CALLS) throw new VerifyError(`${name}: only ${calls} of ${count} web search calls (need ${MIN_CALLS}). ${numbers}. reply: ${text.slice(0, 200)}`)
       if (total >= WALL_LIMIT_MS) throw new VerifyError(`${name}: wall time over ${WALL_LIMIT_MS} ms. ${numbers}`)
-      if (!(ratio < MAX_OVERLAP)) throw new VerifyError(`${name}: calls did not overlap (wall/sum ${ratio.toFixed(3)} >= ${MAX_OVERLAP}). ${numbers}`)
-      rows.push({ turn: name, calls, wallMs: Math.round(total), sumMs, ratio })
+      if (peak < MIN_PEAK) throw new VerifyError(`${name}: calls did not run together (peak in flight ${peak}, need ${MIN_PEAK}). ${numbers}`)
+      rows.push({ turn: name, calls, wallMs: Math.round(total), peak })
     }
 
     try {
@@ -116,8 +113,8 @@ const suite: Suite = {
       await ask({ t: "disconnectComposio" }).catch(() => undefined)
     }
 
-    console.log("turn      calls  wall ms  sum call ms  wall/sum")
-    for (const r of rows) console.log(`${r.turn.padEnd(9)} ${String(r.calls).padStart(5)}  ${String(r.wallMs).padStart(7)}  ${String(r.sumMs).padStart(11)}  ${r.ratio.toFixed(3).padStart(8)}`)
+    console.log("turn      calls  wall ms  peak in flight")
+    for (const r of rows) console.log(`${r.turn.padEnd(9)} ${String(r.calls).padStart(5)}  ${String(r.wallMs).padStart(7)}  ${String(r.peak).padStart(14)}`)
   },
 }
 

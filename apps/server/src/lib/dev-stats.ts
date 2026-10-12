@@ -49,6 +49,21 @@ export function count(key: string, n = 1): void {
   if (DEV) bump(key, n)
 }
 
+const live = new Map<string, number>()
+
+// Records the most calls of one key running at once, as a counter that holds the peak until the next reset.
+export async function inFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
+  if (!DEV) return run()
+  const now = (live.get(key) ?? 0) + 1
+  live.set(key, now)
+  counters.set(key, Math.max(counters.get(key) ?? 0, now))
+  try {
+    return await run()
+  } finally {
+    live.set(key, (live.get(key) ?? 1) - 1)
+  }
+}
+
 export function devStatsRoute(request: Request): Response | null {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/dev/stats")) return null
