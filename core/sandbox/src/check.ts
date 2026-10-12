@@ -1,17 +1,18 @@
-import { type CheckOptions, checkBundle, describeManifest, type ExtensionBundle, type ExtensionTest, hostAllowed } from "./manifest"
+import { checkBundle, describeManifest, type ExtensionBundle, type ExtensionTest } from "./manifest"
+import { triggerGapProblems } from "./recurrence"
 import type { Effect } from "@yuki/agent/effects"
 import { type Bridge, ScriptError, ScriptVM } from "./vm"
 import { type CallPort, makeQuietBridge, makeToolBridge, mayCall, type ScriptPorts } from "./compile"
 
 export type CheckReport = { ok: boolean; lines: string[] }
 
-export async function checkExtension(input: unknown, wasm: WebAssembly.Module, tools: ReadonlyMap<string, Effect>, options?: CheckOptions): Promise<CheckReport> {
-  const checked = checkBundle(input, options)
+export async function checkExtension(input: unknown, wasm: WebAssembly.Module, tools: ReadonlyMap<string, Effect>): Promise<CheckReport> {
+  const checked = checkBundle(input)
   if (!checked.ok) return { ok: false, lines: checked.problems.map((p) => `problem: ${p}`) }
   const bundle: ExtensionBundle = checked.bundle
   const m = bundle.manifest
   const lines: string[] = []
-  const problems: string[] = []
+  const problems: string[] = triggerGapProblems(bundle)
 
   for (const name of Object.keys(m.tools ?? {})) if (tools.has(name)) problems.push(`tool ${name} is a built-in tool; pick another name`)
   for (const c of m.calls ?? []) {
@@ -70,7 +71,7 @@ export async function checkExtension(input: unknown, wasm: WebAssembly.Module, t
 }
 
 // The same bridge code the agent runs, over ports that answer from the manifest's tests instead of the network and the user's store.
-function fakePorts(bundle: ExtensionBundle, test: ExtensionTest): Pick<ScriptPorts, "state" | "fetch"> {
+function fakePorts(test: ExtensionTest): Pick<ScriptPorts, "state" | "fetch"> {
   const kept = new Map<string, unknown>()
   return {
     state: async (_name, _scope, op, key, value) => {
@@ -79,16 +80,14 @@ function fakePorts(bundle: ExtensionBundle, test: ExtensionTest): Pick<ScriptPor
       if (op === "delete") return void kept.delete(key)
       return [...kept.keys()].filter((k) => k.startsWith(key)).sort()
     },
-    fetch: async (_name, request) => {
-      const host = new URL(request.url).hostname.toLowerCase()
-      if (!hostAllowed(host, bundle.manifest.egress ?? [])) throw new Error(`${host} is not in "egress" in extension.json`)
+    fetch: async () => {
       const body = test.fetch?.body ?? ""
       return { status: test.fetch?.status ?? 200, headers: {}, text: typeof body === "string" ? body : JSON.stringify(body), ...(typeof body === "string" ? {} : { json: body }) }
     },
   }
 }
 
-const quietBridge = (bundle: ExtensionBundle): Bridge => makeQuietBridge({ name: bundle.manifest.name, manifest: bundle.manifest, ports: fakePorts(bundle, {} as ExtensionTest) }, "section", true)
+const quietBridge = (bundle: ExtensionBundle): Bridge => makeQuietBridge({ name: bundle.manifest.name, manifest: bundle.manifest, ports: fakePorts({} as ExtensionTest) }, "section", true)
 
 function toolBridge(tools: ReadonlyMap<string, Effect>, effect: Effect, bundle: ExtensionBundle, test: ExtensionTest, tool: string, logs: string[]): Bridge {
   const calls: CallPort = {
@@ -99,7 +98,7 @@ function toolBridge(tools: ReadonlyMap<string, Effect>, effect: Effect, bundle: 
       return typeof out === "string" ? out : JSON.stringify(out)
     },
   }
-  return makeToolBridge({ name: bundle.manifest.name, manifest: bundle.manifest, ports: fakePorts(bundle, test), effect, self: tool, logs, calls })
+  return makeToolBridge({ name: bundle.manifest.name, manifest: bundle.manifest, ports: fakePorts(test), effect, self: tool, logs, calls })
 }
 
 async function runTest(vm: ScriptVM, bundle: ExtensionBundle, test: ExtensionTest, n: number, tools: ReadonlyMap<string, Effect>): Promise<string> {

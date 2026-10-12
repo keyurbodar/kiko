@@ -15,8 +15,8 @@ import {
 } from "@yuki/protocol"
 import { type Keyring, open, seal } from "@yuki/durable/crypto"
 import { type Fetcher, safeRequest, type SafeRequest } from "@yuki/durable/safe-fetch"
-import type { GuestRequest, GuestResponse } from "@yuki/sandbox/compile"
-import { repeatProblem } from "./recurrence"
+import { type GuestRequest, type GuestResponse, guestRequestProblem } from "@yuki/sandbox/compile"
+import { triggerGapProblems } from "@yuki/sandbox/recurrence"
 
 export type ExtensionEvent =
   | { t: "extension"; extension: ExtensionInfo }
@@ -44,7 +44,6 @@ const MAX_STATE_KEYS = 1000
 const MAX_STATE_VALUE = 64 * 1024
 const MAX_FETCH_BYTES = 256 * 1024
 const FETCH_TIMEOUT_MS = 10_000
-const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"])
 const SECRET_REF = /\{\{secret\.([A-Z][A-Z0-9_]{0,31})\}\}/g
 
 type Row = {
@@ -70,6 +69,8 @@ export async function bundleHash(bundle: ExtensionBundle): Promise<string> {
 }
 
 export class ExtensionStore {
+  private readonly scheduled = new Map<string, Promise<void>>()
+
   constructor(
     private readonly sql: SqlStorage,
     private readonly keyring: () => Keyring,
@@ -193,9 +194,11 @@ export class ExtensionStore {
   }
 
   async propose(input: { bundle: unknown; source: ExtensionSource; by?: string; room?: string }): Promise<ExtensionProposal> {
-    const checked = checkBundle(input.bundle, { repeatProblem: (rrule) => repeatProblem(rrule, "UTC", Date.now()) })
+    const checked = checkBundle(input.bundle)
     if (!checked.ok) throw new ExtensionError("the extension has problems", checked.problems)
     const bundle = checked.bundle
+    const gaps = triggerGapProblems(bundle)
+    if (gaps.length) throw new ExtensionError("the extension has problems", gaps)
     const hash = await bundleHash(bundle)
     const name = bundle.manifest.name
     if (this.row(name)?.hash === hash) throw new ExtensionError(`${name} ${bundle.manifest.version} is already installed`)
@@ -270,15 +273,24 @@ export class ExtensionStore {
     return this.info(row)
   }
 
-  private async scheduleTriggers(name: string): Promise<void> {
+  // Each rewrite of one extension's triggers waits for the one before it, so a quick toggle never
+  // reads a switch that a later toggle has already changed.
+  private scheduleTriggers(name: string): Promise<void> {
+    const run = (this.scheduled.get(name) ?? Promise.resolve()).then(() => this.rewriteTriggers(name))
+    this.scheduled.set(name, run.catch(() => {}))
+    return run
+  }
+
+  private async rewriteTriggers(name: string): Promise<void> {
     const by = `ext:${name}`
-    const r = this.row(name)
     try {
       await this.triggers.cancelBy(by)
     } catch (e) {
+      const r = this.row(name)
       if (r) this.setError(name, r.hash, `triggers: ${e instanceof Error ? e.message : String(e)}`)
       return
     }
+    const r = this.row(name)
     if (r?.enabled !== 1) return
     const m = (JSON.parse(r.bundle) as ExtensionBundle).manifest
     if (!m.triggers?.length) return
@@ -399,31 +411,18 @@ export class ExtensionStore {
 
   async fetch(name: string, request: GuestRequest): Promise<GuestResponse> {
     const { manifest } = this.live(name)
-    let url: URL
-    try {
-      url = new URL(request.url)
-    } catch {
-      throw new ExtensionError("that is not a url")
-    }
-    if (url.protocol !== "https:") throw new ExtensionError("yuki.fetch only reaches https urls")
+    const problem = guestRequestProblem(manifest, request)
+    if (problem) throw new ExtensionError(problem)
+    const url = new URL(request.url)
     const host = url.hostname.toLowerCase()
-    if (!hostAllowed(host, manifest.egress ?? [])) throw new ExtensionError(`${host} is not in "egress" in extension.json`)
     const method = (request.method ?? (request.body !== undefined || request.json !== undefined ? "POST" : "GET")).toUpperCase()
-    if (!METHODS.has(method)) throw new ExtensionError(`method ${method} is not allowed`)
     const headers: Record<string, string> = {}
-    for (const [k, v] of Object.entries(request.headers ?? {})) {
-      if (typeof v !== "string" || /[\r\n]/.test(k + v) || !/^[A-Za-z0-9-]{1,64}$/.test(k)) throw new ExtensionError(`header ${k} is not allowed`)
-      if (/^(host|cookie|content-length|transfer-encoding|connection)$/i.test(k)) throw new ExtensionError(`header ${k} is set by yuki`)
-      headers[k.toLowerCase()] = v
-    }
+    for (const [k, v] of Object.entries(request.headers ?? {})) headers[k.toLowerCase()] = v
     let body = request.body
     if (request.json !== undefined) {
       body = JSON.stringify(request.json)
       headers["content-type"] ??= "application/json"
     }
-    if (body !== undefined && typeof body !== "string") throw new ExtensionError("body must be text; use json for objects")
-    if (body !== undefined && body.length > MAX_FETCH_BYTES) throw new ExtensionError("the body is larger than 256 kb")
-    if (method === "GET" && body !== undefined) throw new ExtensionError("a GET has no body")
 
     const secrets = manifest.secrets ?? {}
     const fill = async (text: string): Promise<string> => {

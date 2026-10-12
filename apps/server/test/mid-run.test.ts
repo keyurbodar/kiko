@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { type Arrival, decide, MAX_RESTARTS, type MidRunAction, type RunState } from "@yuki/agent/mid-run"
 
-const run = (patch: Partial<RunState> = {}): RunState => ({
+const RUNNING = new Map([["call-1", "bash"]])
+const run = ({ toolRunning = false, ...patch }: Partial<RunState> & { toolRunning?: boolean } = {}): RunState => ({
   bubblePosted: false,
   toolStarted: false,
-  toolRunning: false,
+  tools: toolRunning ? RUNNING : new Map(),
   queued: false,
   restarts: 0,
   ...patch,

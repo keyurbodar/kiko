@@ -1,80 +1,9 @@
-import { RRule } from "rrule";
-
 export const MIN_REPEAT_MS = 30 * 60_000;
 
-export function nextOccurrence(rrule: string, tz: string, afterUtc: Date | number): Date | null {
-  const unsafe = ruleProblem(rrule);
-  if (unsafe) throw new Error(unsafe);
-  const after = new Date(afterUtc);
-  const afterWall = toWall(after, tz);
-  const options = RRule.parseString(rrule.trim());
-  options.dtstart ??= afterWall;
-  options.tzid = undefined;
-  const rule = new RRule(options);
-
-  let cursor = afterWall;
-  for (let i = 0; i < 4; i++) {
-    const wall = rule.after(cursor, false);
-    if (!wall) return null;
-    const utc = fromWall(wall, tz);
-    if (utc.getTime() > after.getTime()) return utc;
-    cursor = wall;
-  }
-  return null;
-}
-
-const formatters = new Map<string, Intl.DateTimeFormat>();
-
-function formatter(tz: string): Intl.DateTimeFormat {
-  let f = formatters.get(tz);
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-    });
-    formatters.set(tz, f);
-  }
-  return f;
-}
-
-function toWall(utc: Date, tz: string): Date {
-  const p: Partial<Record<string, number>> = {};
-  for (const part of formatter(tz).formatToParts(utc)) {
-    if (part.type !== "literal") p[part.type] = Number(part.value);
-  }
-  const { year, month, day, hour, minute, second } = p;
-  if (year === undefined || month === undefined || day === undefined || hour === undefined || minute === undefined || second === undefined) {
-    throw new Error(`Intl formatter omitted date parts for ${tz}`);
-  }
-  return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
-}
-
-function offsetAt(t: number, tz: string): number {
-  return toWall(new Date(t), tz).getTime() - Math.floor(t / 1000) * 1000;
-}
-
-function fromWall(wall: Date, tz: string): Date {
-  const w = wall.getTime();
-  const before = offsetAt(w - 86_400_000, tz);
-  const after = offsetAt(w + 86_400_000, tz);
-  const valid = [before, after].map((o) => w - o).filter((t) => offsetAt(t, tz) === w - t);
-  return new Date(valid.length ? Math.min(...valid) : w - before);
-}
-
-export function validZone(tz: string): boolean {
-  if (!tz || tz.length > 64) return false
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz })
-    return true
-  } catch {
-    return false
-  }
+// A trigger may not fire every minute. The gap check that needs rrule runs in recurrence.ts.
+export function triggerProblem(rrule: string): string | null {
+  if (/FREQ=MINUTELY/.test(rrule)) return "a schedule repeats at most every 30 minutes";
+  return ruleProblem(rrule);
 }
 
 const PARTS = new Set(["FREQ", "INTERVAL", "COUNT", "UNTIL", "WKST", "BYDAY", "BYHOUR", "BYMINUTE", "BYSECOND", "BYMONTHDAY", "BYMONTH"])
@@ -132,18 +61,4 @@ export function ruleProblem(rrule: string): string | null {
   const months = parts.get("BYMONTH")?.split(",").map(Number) ?? Array.from({ length: 12 }, (_, i) => i + 1);
   if (days.length && !days.some((d) => months.some((m) => Math.abs(d) <= (MONTH_DAYS[m - 1] ?? -Infinity)))) return "rrule BYMONTHDAY never falls in the chosen months";
   return null;
-}
-
-export function repeatProblem(rrule: string, tz: string, from: number): string | null {
-  const problem = ruleProblem(rrule)
-  if (problem) return problem
-  let first: Date | null
-  try {
-    first = nextOccurrence(rrule, tz, from - 1000)
-  } catch {
-    return "rrule does not parse"
-  }
-  const second = first ? nextOccurrence(rrule, tz, first) : null
-  if (first && second && second.getTime() - first.getTime() < MIN_REPEAT_MS) return "a schedule repeats at most every 30 minutes. to notice changes on a page, use a watch trigger instead: it checks every 15 minutes without a model run."
-  return null
 }

@@ -12,22 +12,23 @@ export type MidRunAction =
 export type RunState = {
   bubblePosted: boolean
   toolStarted: boolean
-  toolRunning: boolean
+  // The tool calls still running, by call id, with the tool's name.
+  tools: ReadonlyMap<string, string>
   queued: boolean
   restarts: number
 }
 
-export type RunProgress = Pick<RunState, "bubblePosted" | "toolStarted" | "toolRunning">
+export type RunProgress = Pick<RunState, "bubblePosted" | "toolStarted" | "tools">
 
 export type Arrival = { kind: Sender["kind"] }
 
-export const FRESH_RUN: Omit<RunState, "restarts" | "queued"> = { bubblePosted: false, toolStarted: false, toolRunning: false }
+export const FRESH_RUN: Omit<RunState, "restarts" | "queued"> = { bubblePosted: false, toolStarted: false, tools: new Map() }
 
 export function decide(run: RunState | null, arrival: Arrival): MidRunAction {
   if (!run) return "queue"
   if (arrival.kind !== "human") return "hold"
   // A human never waits for a run to end (section 6.2). A running tool may be stopped (section 7.8); the steer lands right after it.
-  if (run.toolRunning) return "interrupt"
+  if (run.tools.size > 0) return "interrupt"
   if (run.bubblePosted || run.toolStarted || run.queued || run.restarts >= MAX_RESTARTS) return "steer"
   return "restart"
 }
