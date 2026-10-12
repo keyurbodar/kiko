@@ -93,7 +93,8 @@ const human = (body: string, n: number): Envelope => ({
 type Body =
 	| { op: "config"; tps: number }
 	| { op: "turn"; text: string; n: number }
-	| { op: "seed"; table: "inbox" | "outbox"; rows: number }
+	| { op: "seed"; rows: number }
+	| { op: "outbox" }
 	| { op: "reopen" }
 	| { op: "prune" }
 
@@ -150,6 +151,7 @@ export class T extends AgentDO {
 			tps = body.tps
 			return Response.json(true)
 		}
+		if (body.op === "outbox") return Response.json(this.ctx.storage.sql.exec<{ n: number }>("SELECT count(*) AS n FROM outbox").one().n)
 		if (body.op === "reopen") {
 			// Drop the host and the outbox the way an eviction does, then open again: the outbox re-reads its open runs.
 			const self = this as unknown as { hostInstance?: AgentDO["host"]; outboxInstance?: unknown }
@@ -177,16 +179,13 @@ export class T extends AgentDO {
 			const now = Date.now()
 			this.ctx.storage.transactionSync(() => {
 				for (let i = 0; i < body.rows; i++) {
-					if (body.table === "inbox")
-						sql.exec(
-							"INSERT INTO inbox (id, arrival, priority, envelope, brief, request_id, submitted, at) VALUES (?, ?, 2, '{}', '', ?, 1, ?)",
-							`seed:${this.nextSeq}`,
-							-this.nextSeq,
-							`seed-request:${i % 500}`,
-							now - 86_400_000 * 2,
-						)
-					// Runs that ended: one outbox row per run, and the table keeps them.
-					else sql.exec("INSERT INTO outbox (run_id, attempt, cursor, blocks, posted, ended) VALUES (?, 0, 0, '[]', 0, 1)", `seed-run:${this.nextSeq}`)
+					sql.exec(
+						"INSERT INTO inbox (id, arrival, priority, envelope, brief, request_id, submitted, at) VALUES (?, ?, 2, '{}', '', ?, 1, ?)",
+						`seed:${this.nextSeq}`,
+						-this.nextSeq,
+						`seed-request:${i % 500}`,
+						now - 86_400_000 * 2,
+					)
 					this.nextSeq++
 				}
 			})

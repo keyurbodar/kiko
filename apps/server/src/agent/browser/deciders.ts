@@ -32,7 +32,7 @@ export function modelPort(models: Models, ref: ModelRef, sessionId: string): Mod
   }
 }
 
-export type JevKey = { provider: string; model: string | null; auth: AuthResult }
+export type JevKey = { provider: string; auth: AuthResult }
 
 /**
  * Jev through pi-ai `classify`, which answers a Choice with per-option probabilities and a confidence,
@@ -40,7 +40,7 @@ export type JevKey = { provider: string; model: string | null; auth: AuthResult 
  */
 export function jevPort(models: Models, key: JevKey, egress: typeof fetch | undefined): JevPort {
   const classifier = () => {
-    const model = (key.model ? models.getModelOfType("classifier", key.provider, key.model) : undefined) ?? models.getModelsOfType("classifier", key.provider)[0]
+    const model = models.getModelsOfType("classifier", key.provider)[0]
     if (!model) throw new Error(`no classifier model for ${key.provider}`)
     return model
   }

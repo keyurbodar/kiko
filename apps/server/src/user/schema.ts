@@ -189,4 +189,6 @@ export const USER_STEPS: Step[] = [
   ...LIFE_TRI_STEPS,
   // A webhook post finds its routine by the hash of its token.
   "CREATE INDEX IF NOT EXISTS reminders_hook ON reminders (hook_hash)",
+  // initiative_wakes.ids holds the one loop id a wake carries, no longer a JSON list of it.
+  "UPDATE initiative_wakes SET ids = json_extract(ids, '$[0]') WHERE ids LIKE '[%'",
 ]

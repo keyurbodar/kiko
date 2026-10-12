@@ -144,33 +144,30 @@ function cand(over: Partial<Candidate> = {}): Candidate {
 }
 
 function ctx(over: Partial<AttendContext> = {}): AttendContext {
-  return { now: NOW, level: "active", away: false, budget: 10, busyRooms: [], leads: { r1: "yuki", r2: "yuki" }, rhythm: known, appetite: emptyAppetite(), ...over }
+  return { now: NOW, level: "active", away: false, budget: 10, busyRooms: [], rhythm: known, appetite: emptyAppetite(), ...over }
 }
 
 describe("attend", () => {
   const cases: [string, Partial<Candidate>, Partial<AttendContext>, string, string?][] = [
-    ["due before the next moment, no Jev: the score decides", {}, {}, "nudge", "r1/yuki"],
+    ["due before the next moment, no Jev: the score decides", {}, {}, "nudge", "r1/@lead"],
     ["an agent's own promise goes to that agent", { kind: "commitment", owner: "scout", due: undefined }, {}, "nudge", "r1/scout"],
-    ["Jev says worth it", {}, { worthNow: { c: 0.9 } }, "nudge", "r1/yuki"],
+    ["Jev says worth it", {}, { worthNow: { c: 0.9 } }, "nudge", "r1/@lead"],
     ["Jev says not now", {}, { worthNow: { c: 0.2 } }, "brief:worth"],
     ["Jev answered but did not read it", {}, { worthNow: { other: 0.9 } }, "brief:worth"],
-    ["initiative off", {}, { level: "off" }, "brief:off"],
-    ["in chat only", {}, { level: "chat" }, "brief:quiet"],
     ["the human wrote in that room moments ago", {}, { busyRooms: ["r1"] }, "brief:typing"],
-    ["writing in another room does not hold this one", {}, { busyRooms: ["r2"] }, "nudge", "r1/yuki"],
+    ["writing in another room does not hold this one", {}, { busyRooms: ["r2"] }, "nudge", "r1/@lead"],
     ["cold start", {}, { rhythm: { known: false, activeNow: false, moments: [], cycle: DAY } }, "brief:cold"],
     ["away", {}, { away: true }, "brief:away"],
     ["no budget", {}, { budget: 0 }, "brief:budget"],
     ["tentative without Jev never interrupts", { certainty: "tentative" }, {}, "brief:tentative"],
     ["far due, seen long ago", { due: NOW + 30 * DAY, lastSeen: NOW - 60 * DAY }, {}, "brief:worth"],
     ["outside the usual window", {}, { rhythm: { ...known, activeNow: false } }, "brief:moment"],
-    ["no lead in the room", { room: "r9" }, {}, "brief:no_lead"],
     ["said an hour ago, not due yet", { lastSeen: NOW - HOUR }, {}, "brief:fresh"],
     ["promised an hour ago, due a week out", { kind: "commitment", owner: "scout", lastSeen: NOW - 2 * DAY, due: NOW + 7 * DAY }, {}, "brief:worth"],
     ["nudged an hour ago", { surfaced: 1, lastSurfaced: NOW - HOUR }, {}, "rest"],
     ["two ignores of the kind", {}, { appetite: ignoreN(emptyAppetite(), 2, "intention", NOW - 4 * DAY) }, "brief:appetite"],
-    ["Jev says worth it for a kind the appetite has closed", {}, { appetite: skipped(2), worthNow: { c: 0.9 } }, "nudge", "r1/yuki"],
-    ["no Jev: the score alone decides, not the kind's welcome", { due: NOW + 2 * DAY }, { appetite: halfWelcome() }, "nudge", "r1/yuki"],
+    ["Jev says worth it for a kind the appetite has closed", {}, { appetite: skipped(2), worthNow: { c: 0.9 } }, "nudge", "r1/@lead"],
+    ["no Jev: the score alone decides, not the kind's welcome", { due: NOW + 2 * DAY }, { appetite: halfWelcome() }, "nudge", "r1/@lead"],
     ["dismissed kind", { kind: "goal" }, { appetite: settle(nudged(emptyAppetite(), pending("x", NOW - DAY, "goal")), [{ kind: "dismiss", id: "d", room: "r1", at: NOW - HOUR, loop: "loop-x" }], NOW).appetite }, "brief:appetite"],
   ]
 

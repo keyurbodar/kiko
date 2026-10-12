@@ -8,7 +8,7 @@ import { dev } from "./team-loops"
 
 const TYPESAFE = "typesafe"
 const WRONG_KEY = `apikey_${"0".repeat(64)}`
-const FAST = { batch: 2, idleMs: 3_000, jevDelayMs: 1_000 }
+const FAST = { idleMs: 3_000, jevDelayMs: 1_000 }
 const T0 = Date.now()
 const stamp = () => `${((Date.now() - T0) / 1000).toFixed(1).padStart(6)}s`
 
@@ -73,7 +73,7 @@ const suite: Suite = {
 
     const chatA = (await newRoom(s, "memory jev a")).room
     await policy({})
-    console.log(`  [${stamp()}] policy: default capture (auto), batch 2, idle 3 s, jev delay 1 s`)
+    console.log(`  [${stamp()}] policy: default capture (auto), idle 3 s, jev delay 1 s`)
 
     await say(chatA, "my sister lives in lisbon and works as a nurse")
     const noted = await poll("the agent's own note about lisbon or the nurse", async () => {
@@ -82,23 +82,17 @@ const suite: Suite = {
     }, 60_000)
     let u = await settle()
     await show("no judge, default policy")
-    if ((u.capture_model ?? 0) !== 0) throw new VerifyError(`capture_model is ${u.capture_model} with no judge and capture auto`)
     if ((u.capture_jev ?? 0) !== 0) throw new VerifyError(`capture_jev is ${u.capture_jev} with no judge`)
     const captured = await live(/lisbon|nurse/i, fromYou)
     if (captured.length) throw new VerifyError(`capture auto stored the human's words with no judge: ${JSON.stringify(captured.map((l) => l.text))}`)
     console.log(`  agent noted: ${JSON.stringify(noted.map((l) => `${l.source}: ${l.text}`))}`)
 
-    await policy({ capture: "always" })
     await say(chatA, "i live in bangalore")
-    await poll("base capture ran and a live line about bangalore", async () => ((await usage()).capture_model ?? 0) >= 1 && (await live(/bangalore/i)).length > 0, 60_000)
-    u = await usage()
-    await show("base path, capture always")
-    if (!((u.capture_model ?? 0) >= 1)) throw new VerifyError(`base path did not capture: capture_model is ${u.capture_model ?? 0}`)
+    await poll("the agent noted bangalore", async () => (await live(/bangalore/i, fromAgent)).length > 0, 60_000)
 
     if (jevKey) {
       await s.connectProvider(TYPESAFE, jevKey)
       await policy({})
-      const firstModel = u.capture_model ?? 0
       await say(chatA, "btw i moved to pune last month")
       await poll("a line about pune, and no live line saying they live in bangalore", async () => {
         const [pune, bangalore] = [await live(/pune/i), await live(/\bliv(e|es|ing) in bangalore/i)]
@@ -108,7 +102,6 @@ const suite: Suite = {
       await show("jev added mid-session, auto: the correction replaced bangalore")
       if (!((u.capture_jev ?? 0) >= 1)) throw new VerifyError(`capture_jev is ${u.capture_jev ?? 0} after the key was added mid-session`)
       if (!((u.facts_replaced ?? 0) >= 1) && !(await lines()).some((l) => /bangalore/i.test(l.text) && l.supersededBy != null)) throw new VerifyError("no bangalore line was replaced, by Jev or by a note")
-      if ((u.capture_model ?? 0) !== firstModel) throw new VerifyError(`capture_model moved with Jev ready: ${firstModel} -> ${u.capture_model}`)
     }
 
     const errorsBefore = (await usage()).jev_errors ?? 0
@@ -140,24 +133,16 @@ const suite: Suite = {
       console.log(`  [${stamp()}] pune forgotten ${((Date.now() - t) / 1000).toFixed(1)}s after delete`)
     }
 
-    await policy({ capture: "always" })
-    const beforeRefused = (await usage()).capture_model ?? 0
+    await policy({})
     await s.connectProvider(TYPESAFE, WRONG_KEY)
     await say(chatA, "my favourite tea is genmaicha")
-    await poll("base capture ran and a live line about genmaicha", async () => ((await usage()).capture_model ?? 0) > beforeRefused && (await live(/genmaicha/i)).length > 0, 60_000)
-    u = await usage()
-    await show("refused key, capture always falls back to the base path")
-    if (!((u.capture_model ?? 0) > beforeRefused)) throw new VerifyError(`capture_model did not grow with a refused key: ${beforeRefused} -> ${u.capture_model ?? 0}`)
-    const row = await poll("the typesafe row marked refused", async () => (await credentials()).find((p) => p.provider === TYPESAFE && p.refused === true), 15_000)
+    const row = await poll("the typesafe row marked refused", async () => (await credentials()).find((p) => p.provider === TYPESAFE && p.refused === true), 30_000)
     console.log(`  [${stamp()}] typesafe row refused: ${row.refused}`)
 
     await s.disconnectProvider(TYPESAFE)
-    const beforeRemoved = (await usage()).capture_model ?? 0
     await say(chatA, "i keep my notes in a notebook called ember")
-    await poll("base capture ran and a live line about ember", async () => ((await usage()).capture_model ?? 0) > beforeRemoved && (await live(/ember/i)).length > 0, 60_000)
-    u = await usage()
-    await show("key removed, capture always")
-    if (!((u.capture_model ?? 0) > beforeRemoved)) throw new VerifyError(`capture_model did not grow after the key was removed: ${beforeRemoved} -> ${u.capture_model ?? 0}`)
+    await poll("the agent noted ember", async () => (await live(/ember/i, fromAgent)).length > 0, 60_000)
+    await show("key removed, agents note")
 
     chatA.raw.close()
     user.send({ t: "chat", op: { op: "delete", roomId: chatA.id as never } })

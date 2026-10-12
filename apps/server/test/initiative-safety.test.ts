@@ -151,7 +151,7 @@ test("with a judge key, Jev alone decides whether a burst answers a nudge; witho
     const plan = loops.open({ ...base, certainty: "explicit", text: "call the plumber about the leak", room: "r1" })
     if (!plan.ok) throw new Error("open failed")
     const now = Date.now()
-    sql.exec("INSERT INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES ('w1', 'r1', 'ada', 'intention', ?, ?, 'pending')", JSON.stringify([`loop:${plan.id}`]), now)
+    sql.exec("INSERT INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES ('w1', 'r1', 'ada', 'intention', ?, ?, 'pending')", `loop:${plan.id}`, now)
     await engine.signals({ roomId: "r1", openedAt: now, more: 0, signals: [{ kind: "routine_result", roomId: "r1", at: now, routineId: INITIATIVE_RUN, occurrence: "w1", outcome: "ok", seq: 5, text: "did you call the plumber?" }] }, now)
     await engine.signals({ roomId: "r1", openedAt: now + 60_000, more: 0, signals: [{ kind: "burst", roomId: "r1", at: now + 60_000, seq: 6, text: "the plumber is booked for the leak", by: { kind: "human" } }] }, now + 60_000)
     await engine.pass(now + 2 * 86_400_000)
@@ -165,7 +165,7 @@ test("Jev records a nudge as engaged only when it judges the human's words answe
   const engaged = async (answers: boolean) => {
     const { sql, life, engine, loops } = world()
     const now = Date.now()
-    sql.exec("INSERT INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES ('w1', 'r1', 'ada', 'intention', '[\"loop:1\"]', ?, 'pending')", now)
+    sql.exec("INSERT INTO initiative_wakes (id, room, slug, kind, ids, at, status) VALUES ('w1', 'r1', 'ada', 'intention', 'loop:1', ?, 'pending')", now)
     await engine.signals({ roomId: "r1", openedAt: now, more: 0, signals: [{ kind: "routine_result", roomId: "r1", at: now, routineId: INITIATIVE_RUN, occurrence: "w1", outcome: "ok", seq: 5, text: "did you call the plumber?" }] }, now)
     let read: unknown
     const judge = (async (state: { nudges?: string[] }, questions: Record<string, unknown>) => {

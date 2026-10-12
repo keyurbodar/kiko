@@ -137,7 +137,7 @@ export class Life {
     if (!words.length) return []
     const skip = JSON.stringify(options.skipCard ? this.card().map((c) => c.pos) : [])
     const match = words.map((w) => `"${w}"*`).join(" OR ")
-    let rows = this.sql
+    const rows = this.sql
       .exec<Row>(
         "SELECT l.* FROM life_fts f JOIN life l ON l.pos = f.rowid WHERE life_fts MATCH ? AND l.redacted = 0 AND l.superseded_by IS NULL AND l.pos NOT IN (SELECT value FROM json_each(?)) ORDER BY bm25(life_fts), l.pos DESC LIMIT ?",
         match,

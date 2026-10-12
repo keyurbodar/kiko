@@ -8,13 +8,15 @@ export type AttendContext = {
   away: boolean
   budget: number
   busyRooms: readonly string[]
-  leads: Readonly<Record<string, string>>
   rhythm: RhythmView
   appetite: Appetite
   worthNow?: Readonly<Record<string, number>>
 }
 
 const WORTH = 0.5
+
+// The slug a nudge for the human's own loop goes to: whoever leads the room.
+export const LEAD = "@lead"
 
 export function score(c: Candidate, ctx: Pick<AttendContext, "now" | "rhythm">): number {
   const { now, rhythm } = ctx
@@ -46,15 +48,13 @@ export function attend(candidates: readonly Candidate[], ctx: AttendContext): Ve
 
   for (const c of candidates) {
     const until = restUntil(c, rhythm.cycle)
-    if (ctx.level !== "off" && now < until) {
+    if (now < until) {
       out.set(c.id, { id: c.id, verdict: "rest", until })
       continue
     }
     const s = score(c, ctx)
     const jev = ctx.worthNow ? (ctx.worthNow[c.id] ?? 0) : undefined
-    if (ctx.level === "off") brief(c, s, "off")
-    else if (ctx.level === "chat") brief(c, s, "quiet")
-    else if (!rhythm.known) brief(c, s, "cold")
+    if (!rhythm.known) brief(c, s, "cold")
     else if (ctx.away) brief(c, s, "away")
     else if (ctx.busyRooms.includes(c.room)) brief(c, s, "typing")
     else if (now - c.lastSeen < rhythm.cycle / 2 && (c.due === undefined || c.due > now)) brief(c, s, "fresh")
@@ -73,10 +73,8 @@ export function attend(candidates: readonly Candidate[], ctx: AttendContext): Ve
   const taken = new Set<string>()
   contenders.sort((a, b) => b.worth - a.worth)
   for (const { c, score: s, worth } of contenders) {
-    const lead = ctx.leads[c.room]
-    const target: Target | undefined = c.owner !== "human" ? { room: c.room, slug: c.owner } : lead ? { room: c.room, slug: lead } : undefined
-    if (!target) brief(c, s, "no_lead")
-    else if (taken.has(c.room)) brief(c, s, "room_taken")
+    const target: Target = { room: c.room, slug: c.owner !== "human" ? c.owner : LEAD }
+    if (taken.has(c.room)) brief(c, s, "room_taken")
     else if (taken.size >= cap) brief(c, s, taken.size >= ctx.budget && ctx.budget < appetiteCap ? "budget" : "allowance")
     else {
       taken.add(c.room)

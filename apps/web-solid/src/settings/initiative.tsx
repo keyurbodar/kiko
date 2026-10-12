@@ -13,7 +13,7 @@ export type Level = Settings["initiative"]
 export type Capture = Settings["capture"]
 
 const LEVELS: readonly Level[] = ["off", "chat", "digest", "active"]
-const CAPTURES: readonly Capture[] = ["auto", "always", "off"]
+const CAPTURES: readonly Capture[] = ["auto", "off"]
 const DEFAULTS: Settings = { initiative: "digest", capture: "auto" }
 
 const [settings, setSettings] = createSignal<Settings>(DEFAULTS)
@@ -71,13 +71,12 @@ export default function InitiativePage() {
           </Row>
         </Group>
         <Group title="Memory">
-          <Row label="Memory capture" id="capture" description="Auto captures facts when you have saved a judge key. Always falls back to the memory model. Off never captures.">
+          <Row label="Memory capture" id="capture" description="Auto captures facts when you have saved a judge key. Off never captures.">
             <Segmented<Capture>
               label="Memory capture"
               value={settings().capture}
               options={[
                 { value: "auto", label: "Auto" },
-                { value: "always", label: "Always" },
                 { value: "off", label: "Off" },
               ]}
               onChange={(capture) => void save({ capture })}
