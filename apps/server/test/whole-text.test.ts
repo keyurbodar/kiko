@@ -24,6 +24,13 @@ test("a bubble never splits a surrogate pair", () => {
   expect(bubble).toBe("a".repeat(MAX_MESSAGE_TEXT - 1))
 })
 
+test("a bubble's cap counts UTF-8 bytes of its JSON, so a three-byte character weighs three", () => {
+  // 2,000 euro signs weigh 6,000 bytes. The control characters after them fill the rest of the 64 KB: 9,922 of them.
+  const bubble = bubbleOf("€".repeat(2_000) + "\u001b".repeat(12_000))
+  expect(bubble.length).toBe(2_000 + 9_922)
+  expect(new TextEncoder().encode(JSON.stringify(bubble)).length).toBeLessThanOrEqual(MAX_BUBBLE_BYTES + 2)
+})
+
 test("a fully emoji text cuts at a whole code point", () => {
   const bubble = bubbleOf("😀".repeat(9_000))
   expect(bubble).not.toMatch(/[\uD800-\uDBFF]$/)

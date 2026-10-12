@@ -32,6 +32,23 @@ export function shortBrief(brief: string): string {
 	return brief.replace(/^(the human is @(\S+)\.) write @\2 only when you need them, such as a question only they can answer\.$/m, "$1")
 }
 
+/** The most of a member's held paths one brief names, in bytes after escaping. A path is cut to `MAX_HOLD_PATH` characters, so one path always fits. */
+export const MAX_HOLDING_BYTES = 1024
+const MAX_HOLD_PATH = 128
+
+function holding(paths: readonly string[]): string {
+	const shown: string[] = []
+	let bytes = 0
+	for (const [i, p] of paths.entries()) {
+		const cut = p.length > MAX_HOLD_PATH ? `${p.slice(0, MAX_HOLD_PATH)}...` : p
+		const item = `/${escapeXml(cut)}`
+		bytes += new TextEncoder().encode(item).length + 2
+		if (bytes > MAX_HOLDING_BYTES) return [...shown, `and ${paths.length - i} more`].join(", ")
+		shown.push(item)
+	}
+	return shown.join(", ")
+}
+
 /** The board's lines, up to `MAX_BOARD_BYTES`. The rest is counted, so the agent knows there is more. */
 function boardLines(tasks: readonly Task[]): string[] {
 	const lines: string[] = []
@@ -55,7 +72,7 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 			m.lead ? "lead" : null,
 			m.role ? oneLine(m.role) : null,
 			now?.doing ? `now ${escapeXml(now.doing)}` : m.slug === member.slug ? null : m.status,
-			now?.holds.length ? `holding ${now.holds.map((p) => `/${escapeXml(p)}`).join(", ")}` : null,
+			now?.holds.length ? `holding ${holding(now.holds)}` : null,
 		]
 		lines.push(`- @${m.slug} (${escapeXml(m.name)}): ${parts.filter(Boolean).join(", ")}`)
 	}

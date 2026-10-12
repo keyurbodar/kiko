@@ -2,7 +2,7 @@ import type { AgentSlug, Chat, Envelope, RoomId } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import { agentStub, userStub } from "../lib/names"
 import { route } from "./deliver"
-import { BURST_WAKEUP, deliverable, MAX_DELIVERY_ENVELOPES, type Burst, type Pending } from "./burst"
+import { BURST_HELD_WAKEUP, BURST_WAKEUP, deliverable, MAX_DELIVERY_ENVELOPES, type Burst, type Pending } from "./burst"
 import { receive, type ReceiveDeps } from "./receive"
 import { HELD_WAKEUP, type HeldWakes } from "./wake"
 import type { RoomLog } from "./log"
@@ -77,8 +77,8 @@ export class BurstFlush {
 			const at = new Date(turn.resetAt).toISOString().slice(11, 16)
 			const event = this.d.deliveries.notice(`limit:${turn.resetAt}`, `you've used today's ${turn.limit} replies. your messages are held and answered at ${at} utc.`, "limit")
 			if (event) this.d.publish([event])
+			await this.d.alarms.setWakeup(BURST_HELD_WAKEUP, turn.resetAt)
 			this.d.burst.hold(turn.resetAt)
-			await this.d.alarms.setWakeup(BURST_WAKEUP, turn.resetAt)
 			return "held"
 		}
 		await this.d.seedMembers(home, chat)

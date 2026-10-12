@@ -4,9 +4,22 @@ import type { Chain } from "./mail"
 import type { Pending } from "./burst"
 import { type RecipientMember, resolveRecipients } from "./recipients"
 
+/** The attached line's budget in the JSON bytes the entry counts. The files past it are counted, not named. */
+export const MAX_ATTACHED_BYTES = 4 * 1024
+
 export function attachedLine(files: readonly FileRef[]): string {
-	const list = files.map((f) => `/${f.name} (${f.type || "file"}, ${Math.max(1, Math.round(f.size / 1024))} kb)`).join(", ")
-	return `(attached: ${list}. open each with read before you answer about it.)`
+	const names: string[] = []
+	let bytes = 0
+	for (const [i, f] of files.entries()) {
+		const name = `/${f.name} (${f.type || "file"}, ${Math.max(1, Math.round(f.size / 1024))} kb)`
+		bytes += new TextEncoder().encode(JSON.stringify(name)).length + 2
+		if (bytes > MAX_ATTACHED_BYTES) {
+			names.push(`and ${files.length - i} more`)
+			break
+		}
+		names.push(name)
+	}
+	return `(attached: ${names.join(", ")}. open each with read before you answer about it.)`
 }
 
 export function route(

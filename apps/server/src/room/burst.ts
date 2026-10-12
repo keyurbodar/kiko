@@ -3,6 +3,8 @@ import type { Alarms } from "@yuki/durable/alarm"
 import { MAX_ENTRY_BYTES, MAX_OPEN } from "@yuki/agent/inbox"
 
 export const BURST_WAKEUP = "burst"
+/** The reset of a held window. Its own key, so a later message's wakeup does not overwrite it. */
+export const BURST_HELD_WAKEUP = "burst-held"
 
 export const AFTER_MESSAGE_MS = 1_000
 export const AFTER_TYPING_MS = 2_500
