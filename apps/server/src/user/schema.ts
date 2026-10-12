@@ -1,5 +1,5 @@
 import { ALARM_STEPS } from "@yuki/durable/alarm"
-import type { Step } from "@yuki/durable/migrate"
+import { addColumn, type Step } from "@yuki/durable/migrate"
 import { fileIndexSteps, HOME_TABLES } from "../files/file-index"
 import { LIFE_STEPS } from "@yuki/memory/life"
 import { LOOPS_STEPS } from "@yuki/memory/loops"
@@ -175,4 +175,7 @@ export const USER_STEPS: Step[] = [
   ...LOOPS_STEPS,
   ...fileIndexSteps(HOME_TABLES),
   ...ALARM_STEPS,
+  // How many passes a row failed to get an answer from Jev. A row that keeps failing is dropped (memory-capture.ts, initiative-loops.ts).
+  addColumn("capture_queue", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+  addColumn("loop_heard", "attempts", "INTEGER NOT NULL DEFAULT 0"),
 ]

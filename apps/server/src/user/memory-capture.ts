@@ -29,6 +29,8 @@ const CAPTURE_QUEUE_MAX = 200
 const CAPTURE_PER_ALARM = 24
 // Rows per judge request. A request grows with rows times candidates times known facts, and a long one times out.
 const CAPTURE_CHUNK = 4
+// Passes a row may fail before it is dropped, so a chunk the judge never answers cannot be reselected forever.
+const CAPTURE_TRIES = 5
 export const CAPTURE_TEXT_MAX = 8_000
 export const CAPTURE_TIMEOUT_MS = 8_000
 const RERANK_TIMEOUT_MS = 1_500
@@ -174,14 +176,14 @@ export class MemoryCapture {
       this.sql.exec("DELETE FROM capture_queue")
       return this.alarms.clearWakeup(CAPTURE_WAKEUP)
     }
-    type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number; queued_at: number }
-    let rows = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at, queued_at FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_ALARM).toArray()
+    type QueueRow = { room_id: RoomId; message_id: string; text: string; at: number; queued_at: number; attempts: number }
+    let rows = this.sql.exec<QueueRow>("SELECT room_id, message_id, text, at, queued_at, attempts FROM capture_queue ORDER BY queued_at, at LIMIT ?", CAPTURE_PER_ALARM).toArray()
     for (const r of rows.filter((r) => !this.capturable(r.room_id))) this.dequeue(r.room_id, [r.message_id])
     rows = rows.filter((r) => this.capturable(r.room_id))
     let learned = false
     if (this.judgeKey()) {
       const judge = this.judge(CAPTURE_TIMEOUT_MS)
-      // A chunk the judge does not answer stays queued. The chunks around it still settle, so one slow chunk cannot hold up the queue.
+      // A chunk the judge does not answer stays queued, up to CAPTURE_TRIES passes. The chunks around it still settle, so one slow chunk cannot hold up the queue.
       const left: QueueRow[] = []
       for (let i = 0; i < rows.length; i += CAPTURE_CHUNK) {
         const chunk = rows.slice(i, i + CAPTURE_CHUNK)
@@ -193,7 +195,13 @@ export class MemoryCapture {
           policy,
         )
         if (!out) {
-          left.push(...chunk)
+          for (const r of chunk) {
+            if (r.attempts + 1 >= CAPTURE_TRIES) this.dequeue(r.room_id, [r.message_id])
+            else {
+              this.sql.exec("UPDATE capture_queue SET attempts = attempts + 1 WHERE room_id = ? AND message_id = ?", r.room_id, r.message_id)
+              left.push(r)
+            }
+          }
           continue
         }
         this.tally(out)
