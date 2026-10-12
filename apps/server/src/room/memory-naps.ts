@@ -10,6 +10,8 @@ import type { Home } from "./home"
 export const MEMORY_WAKEUP = "memory_naps"
 export const QUIET_WAKEUP = "memory_quiet"
 const QUIET_MS = 6 * 3_600_000
+// The quiet timer fires about QUIET_MS after the last activity. A view or a run's end moves it only when it is this far behind, so a busy chat does not rewrite the wakeup on every call.
+const QUIET_SLACK_MS = 30 * 60_000
 const NAPS_PER_PASS = 24
 const NAPS_AT_ONCE = 4
 
@@ -48,7 +50,10 @@ export class MemoryNaps {
 
 	async arm(): Promise<void> {
 		if (this.d.memory.pending(1).length) await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 2_000)
-		if (this.d.log.meta("private") !== "1") await this.d.alarms.setWakeup(QUIET_WAKEUP, Date.now() + QUIET_MS)
+		if (this.d.log.meta("private") === "1") return
+		const target = Date.now() + QUIET_MS
+		const armed = this.d.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", QUIET_WAKEUP).toArray()[0]?.at
+		if (armed === undefined || armed < target - QUIET_SLACK_MS) await this.d.alarms.setWakeup(QUIET_WAKEUP, target)
 	}
 
 	async forget(): Promise<void> {

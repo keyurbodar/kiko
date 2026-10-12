@@ -804,7 +804,7 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "open") {
-      this.putSetting(LAST_CHAT, frame.roomId)
+      if (this.setting(LAST_CHAT) !== frame.roomId) this.putSetting(LAST_CHAT, frame.roomId)
       return
     }
     if (frame.t === "extension") {
