@@ -620,17 +620,17 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
       const mine = (c: BatchChange) => batchPaths(c).every(inside)
       const crossing = changes.find((c) => !mine(c) && batchPaths(c).some(inside))
       if (crossing) return { ok: false, path: batchPaths(crossing)[0], message: across.message, conflict: false }
-      const outside = changes.filter((c) => !mine(c))
+      const ours = changes.filter(mine)
+      if (ours.length && ours.length < changes.length) return { ok: false, path: batchPaths(changes[0])[0], message: `commit /${at} paths and the chat's paths in separate calls`, conflict: false }
       if (changes.some((c) => c.op !== "mkdir" && mine(c) && batchPaths(c).includes(at))) return { ok: false, path: at, message: `/${at} stays where it is`, conflict: false }
-      const there = changes.filter(mine).map((c): BatchChange => {
+      if (!ours.length) return base.commit(changes)
+      const there = ours.map((c): BatchChange => {
         if (c.op === "move") return { ...c, from: strip(c.from), to: strip(c.to) }
         if (c.op === "rmdir") return { ...c, path: strip(c.path), files: Object.fromEntries(Object.entries(c.files).map(([p, sha]) => [strip(p), sha])) }
         return { ...c, path: strip(c.path) }
       })
-      const first = outside.length ? await base.commit(outside) : ({ ok: true } as const)
-      if (!first.ok || !there.length) return first
-      const second = await mounted.commit(there)
-      return second.ok ? second : { ...second, path: `${at}/${second.path}` }
+      const out = await mounted.commit(there)
+      return out.ok ? out : { ...out, path: `${at}/${out.path}` }
     },
   }
 }
@@ -697,10 +697,9 @@ export function withSoul(base: FilesBackend, soul: SoulPort): FilesBackend {
         const hit = batchPaths(c).find(mine)
         if (hit !== undefined) return { ok: false, path: hit, message: "/me/soul.md stays where it is, and only it lives in /me. edit it instead", conflict: false }
       }
-      const rest = changes.filter((c) => !batchPaths(c).some(mine))
-      const first = rest.length ? await base.commit(rest) : ({ ok: true } as const)
       const write = changes.find((c) => c.op === "write" && c.path === SOUL_PATH)
-      if (!first.ok || write?.op !== "write") return first
+      if (write?.op !== "write") return base.commit(changes)
+      if (changes.length > 1) return { ok: false, path: SOUL_PATH, message: `${SOUL_PATH} is saved on its own. save it in a call of its own`, conflict: false }
       const out = await soul.set(new TextDecoder().decode(write.bytes), write.expect)
       return out.ok ? { ok: true } : { ok: false, path: SOUL_PATH, message: out.message, conflict: out.code === "conflict" }
     },
