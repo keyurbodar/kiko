@@ -1,0 +1,57 @@
+{
+  "case": 9,
+  "name": "bigger than it looks",
+  "run": "run1",
+  "send": [
+    "change the company name from Acme to Initech everywhere in site/"
+  ],
+  "sentAt": 5,
+  "timedOut": false,
+  "doneMs": 15070,
+  "firstReplyMs": 3072,
+  "startWorkCalls": 0,
+  "talkerToolCalls": 3,
+  "talkerTools": {
+    "tool.talker.bash": 3
+  },
+  "workerToolCalls": 0,
+  "workerTools": {},
+  "modelTurns": 4,
+  "workers": [],
+  "status": {
+    "replyMs": 1054,
+    "talkerDuring": {
+      "tool.talker.bash": 1
+    },
+    "workerDuring": {},
+    "runningAtSend": 0,
+    "reply": "That search didn't work, so I'll try another way to find the files."
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 3072,
+      "text": "I'm on it — I'll swap Acme to Initech in every file under site/."
+    },
+    {
+      "at": 6246,
+      "text": "That search didn't work, so I'll try another way to find the files."
+    },
+    {
+      "at": 9941,
+      "text": "Found 5 files with Acme. I'll replace them now."
+    },
+    {
+      "at": 11026,
+      "text": "Done. Changed **Acme** to **Initech** in 5 files:\n\n- about.md\n- faq.md\n- footer.md\n- home.md\n- pricing.md"
+    }
+  ],
+  "bubbles": [
+    "I'm on it — I'll swap Acme to Initech in every file under site/.",
+    "That search didn't work, so I'll try another way to find the files.",
+    "Found 5 files with Acme. I'll replace them now.",
+    "Done. Changed **Acme** to **Initech** in 5 files:\n\n- about.md\n- faq.md\n- footer.md\n- home.md\n- pricing.md"
+  ]
+}

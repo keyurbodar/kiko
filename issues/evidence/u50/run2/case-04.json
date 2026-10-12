@@ -1,0 +1,42 @@
+{
+  "case": 4,
+  "name": "add a line to three files",
+  "run": "run2",
+  "send": [
+    "add the line 'Reviewed by Sam' at the end of notes/a.md, notes/b.md and notes/c.md"
+  ],
+  "sentAt": 25,
+  "timedOut": false,
+  "doneMs": 30149,
+  "firstReplyMs": 5169,
+  "startWorkCalls": 0,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.bash": 2
+  },
+  "workerToolCalls": 0,
+  "workerTools": {},
+  "modelTurns": 3,
+  "workers": [],
+  "status": null,
+  "note": null,
+  "replies": [
+    {
+      "at": 5169,
+      "text": "I'll append the review line to all three notes files."
+    },
+    {
+      "at": 8578,
+      "text": "Files confirmed. I'll append the line now."
+    },
+    {
+      "at": 12010,
+      "text": "Done. I added **Reviewed by Sam** to the end of all three files."
+    }
+  ],
+  "bubbles": [
+    "I'll append the review line to all three notes files.",
+    "Files confirmed. I'll append the line now.",
+    "Done. I added **Reviewed by Sam** to the end of all three files."
+  ]
+}

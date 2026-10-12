@@ -1,0 +1,59 @@
+{
+  "case": 6,
+  "name": "summarize five files",
+  "run": "run2",
+  "send": [
+    "summarize the five files in reports/ into reports/summary.md, one paragraph each"
+  ],
+  "sentAt": 16,
+  "timedOut": false,
+  "doneMs": 18596,
+  "firstReplyMs": 4718,
+  "startWorkCalls": 0,
+  "talkerToolCalls": 7,
+  "talkerTools": {
+    "tool.talker.ls": 1,
+    "tool.talker.read": 5,
+    "tool.talker.write": 1
+  },
+  "workerToolCalls": 0,
+  "workerTools": {},
+  "modelTurns": 4,
+  "workers": [],
+  "status": {
+    "replyMs": 2433,
+    "talkerDuring": {
+      "tool.talker.read": 5
+    },
+    "workerDuring": {},
+    "runningAtSend": 0,
+    "reply": "Found five files. I'll read each one now."
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 4718,
+      "text": "I'll summarize the five reports, starting by checking the folder contents."
+    },
+    {
+      "at": 7766,
+      "text": "Found five files. I'll read each one now."
+    },
+    {
+      "at": 11227,
+      "text": "Working on it, I'll create the summary file now."
+    },
+    {
+      "at": 14418,
+      "text": "Done. `reports/summary.md` now has one short paragraph for each of the five reports."
+    }
+  ],
+  "bubbles": [
+    "I'll summarize the five reports, starting by checking the folder contents.",
+    "Found five files. I'll read each one now.",
+    "Working on it, I'll create the summary file now.",
+    "Done. `reports/summary.md` now has one short paragraph for each of the five reports."
+  ]
+}

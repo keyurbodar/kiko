@@ -1,0 +1,18 @@
+  status sent at 5187 ms, 0 worker(s) running
+case 5 600 word draft: start_work=0 talker_calls=5 worker_calls=0 turns=7 first_reply=19257 done=39058 timed_out=false
+  status sent at 5333 ms, 0 worker(s) running
+case 6 summarize five files: start_work=0 talker_calls=7 worker_calls=0 turns=4 first_reply=4718 done=18596 timed_out=false
+  status sent at 5388 ms, 1 worker(s) running
+case 7 web research and short report: start_work=1 talker_calls=1 worker_calls=5 turns=7 first_reply=3325 done=21402 timed_out=false
+64 |   try {
+65 |     await connectTestModel(s)
+66 |     const { roomId, room } = await newRoom(s, `u50 ${c.name}`)
+67 |     for (const [path, body] of Object.entries(c.files ?? {})) {
+68 |       const res = await s.putFile(roomId, path, body, { expect: "none" })
+69 |       if (!res.ok) throw new Error(`putFile ${path} answered ${res.status}`)
+                                  ^
+error: putFile projects/gamma.md answered 500
+      at runCase (/home/keyur/kiko/.claude/worktrees/U50/issues/evidence/u50/spike.ts:69:30)
+
+Bun v1.3.14 (Linux x64)
+EXIT 1
