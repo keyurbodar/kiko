@@ -2,7 +2,7 @@ import { defineExtension, defineTool, type Extension, section } from "@earendil-
 import { declareEffect } from "@yuki/agent/effects"
 import { spill } from "../../agent/extensions/spill"
 import type { RoomFs } from "../../files/room-fs"
-import { count } from "../../lib/dev-stats"
+import { count, inFlight } from "../../lib/dev-stats"
 import { composioErrorText } from "./connect"
 import type { ComposioCall, ComposioCallResult, ComposioTool } from "./client"
 import { directResult, MULTI_EXECUTE } from "./learn"
@@ -56,6 +56,8 @@ export function learnedNote(tools: readonly ComposioTool[]): string | undefined 
 
 export function composioExtension(tools: readonly ComposioTool[], rawCall: ComposioCall, fs?: RoomFs): Extension {
   const limiter = createLimiter(COMPOSIO_MAX_CONCURRENT)
+  // Inside the limiter, so the peak counts calls that run together, not calls queued behind it.
+  const send: ComposioCall = (n, a) => limiter.run(() => inFlight("composio.peak", () => rawCall(n, a)))
   const names = learned(tools)
   return defineExtension({
     name: COMPOSIO,
@@ -63,7 +65,7 @@ export function composioExtension(tools: readonly ComposioTool[], rawCall: Compo
     sections: names.length ? [section("composio", () => `connected-app tools you can call directly, no search needed: ${names.join(", ")}.`)] : [],
     tools: shown(tools).map((t) => {
         const name = toolName(t.name)
-        const call: ComposioCall = t.readOnly ? (n, a) => withRetry(() => limiter.run(() => rawCall(n, a))) : (n, a) => limiter.run(() => rawCall(n, a))
+        const call: ComposioCall = t.readOnly ? (n, a) => withRetry(() => send(n, a)) : send
         const base = t.direct ? `${t.description || t.name} (${t.direct.toolkit} through composio, call it directly)` : `${t.description?.trim() || t.name} (through composio, the human's connected apps)`
         return declareEffect(
           t.readOnly ? "read" : "external",
