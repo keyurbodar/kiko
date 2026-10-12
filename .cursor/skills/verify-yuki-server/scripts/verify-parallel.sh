@@ -114,6 +114,16 @@ run_one() {
   return "$rc"
 }
 
+# A suite that needs a person, or spends a shared key, must run alone.
+if [ "$#" -gt 1 ]; then
+  for suite in "$@"; do
+    if grep -q "human: true" "$ROOT/apps/cli/src/verify/suites/$suite.ts" 2>/dev/null; then
+      echo "verify-parallel: $suite is human: true; run it alone" >&2
+      exit 2
+    fi
+  done
+fi
+
 pids=""
 i=0
 for suite in "$@"; do
