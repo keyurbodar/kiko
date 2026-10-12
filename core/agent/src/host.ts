@@ -102,7 +102,6 @@ export type HostOptions = {
   setup: () => AgentSetup | Promise<AgentSetup>
   onOpen?: (opened: Opened) => void | Promise<void>
   onGiveUp?: () => void | Promise<void>
-  heartbeatMs?: number
   progress?: () => RunProgress | null
   onIdle?: () => void
   onTimeout?: () => void | Promise<void>
@@ -159,7 +158,6 @@ export class AgentHost {
   readonly inbox: Inbox
   readonly workers: Workers
   private readonly alarms: Alarms
-  private readonly heartbeatMs: number
   private opened?: Promise<Opened>
   private failures = 0
   private watchingIdle = false
@@ -174,7 +172,6 @@ export class AgentHost {
     this.inbox = new Inbox(ctx.storage)
     this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), origin: () => this.origin(), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
     this.alarms = createAlarms(ctx)
-    this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
   }
 
   async receive(envelopes: readonly Envelope[], brief: string): Promise<{ admitted: string[]; refused?: Refusal }> {
@@ -210,7 +207,7 @@ export class AgentHost {
         this.failures = 0
       }
       this.inbox.release()
-      const delay = Math.min(RETRY_MS * 2 ** (this.failures - 1), this.heartbeatMs)
+      const delay = Math.min(RETRY_MS * 2 ** (this.failures - 1), HEARTBEAT_MS)
       await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + delay)
     }
   }
@@ -336,12 +333,10 @@ export class AgentHost {
         continue
       }
       if (run) await joinRun?.(batch, root)
-      let restarts = run?.restarts ?? 0
       if (action === "restart") {
         await root.abort(context)
-        restarts++
-      }
-      await this.ctx.storage.put(RESTARTS_KEY, restarts)
+        await this.ctx.storage.put(RESTARTS_KEY, (run?.restarts ?? 0) + 1)
+      } else if (!run) await this.ctx.storage.delete(RESTARTS_KEY)
       // Read before the steer: a tool the steer starts must not be stopped by it.
       const stopping = run && action === "interrupt" ? await this.stoppableTools(harness, root, registry, run.tools) : []
       const whenBusy = action === "steer" || action === "interrupt" ? ({ whenBusy: "steer" } as const) : {}
@@ -368,7 +363,7 @@ export class AgentHost {
       await root.submit({ type: "input", content, requestId: batch.requestId, ...whenBusy }, context)
       this.inbox.submitted(batch.requestId)
       this.inputs++
-      if (shown.key) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
+      if (shown.key && (last?.epoch !== this.epoch() || last.key !== shown.key)) await this.ctx.storage.put(BRIEF_KEY, { epoch: this.epoch(), key: shown.key })
       if (run) await this.ctx.storage.put(JOINED_KEY, [...(await this.joinedSeqs()), ...batch.envelopes.map((e) => e.seq)].slice(-500))
     }
   }
@@ -490,7 +485,7 @@ export class AgentHost {
       if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
       return
     }
-    await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + this.heartbeatMs)
+    await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + HEARTBEAT_MS)
     if (talking) this.watchIdle(harness, root)
   }
 

@@ -31,7 +31,6 @@ type Body =
 // A read that waits until released or aborted, and a write that waits until released. Each counts its starts and ends.
 export class I extends AgentDO {
   protected override readonly hostOptions: Partial<HostOptions> = {
-    heartbeatMs: 500,
     onOpen: ({ harness, root }) => {
       const log = this.calls()
       const { submit } = root

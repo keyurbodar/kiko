@@ -18,4 +18,6 @@ export const AGENT_STEPS: Step[] = [
   "CREATE INDEX IF NOT EXISTS inbox_by_request ON inbox (request_id, priority, arrival)",
   "CREATE INDEX IF NOT EXISTS inbox_by_submitted_at ON inbox (submitted, at)",
   "CREATE INDEX IF NOT EXISTS outbox_by_ended ON outbox (ended)",
+  // An ended run now deletes its row. This clears the ones the old code kept.
+  "DELETE FROM outbox WHERE ended = 1",
 ]
