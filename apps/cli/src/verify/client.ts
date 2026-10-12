@@ -204,16 +204,27 @@ function withSlash(url: string) {
   return url.endsWith("/") ? url : `${url}/`
 }
 
+/**
+ * Signs a test user in. A deployed Worker has no dev route, so with `YUKI_ACCESS_CODE` in the shell the
+ * CLI signs in through the access code instead, as a person would.
+ */
 export async function devSession(url: string, name: string): Promise<{ cookie: string; userId: string }> {
-  const res = await fetch(new URL("api/auth/dev/session", withSlash(url)), {
+  const code = process.env.YUKI_ACCESS_CODE
+  const res = await fetch(new URL(code ? "api/auth/access-code" : "api/auth/dev/session", withSlash(url)), {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name }),
+    headers: { "content-type": "application/json", origin: new URL(url).origin },
+    body: JSON.stringify(code ? { name, code } : { name }),
     signal: AbortSignal.timeout(5000),
   }).catch((e) => {
     throw new VerifyError(`cannot reach ${url} (${e instanceof Error ? e.message : e})`)
   })
-  if (!res.ok) throw new VerifyError(`dev sign-in failed with ${res.status}. start the Worker with NODE_ENV=development`)
+  if (!res.ok) {
+    throw new VerifyError(
+      code
+        ? `access-code sign-in failed with ${res.status}. check YUKI_ACCESS_CODE`
+        : `dev sign-in failed with ${res.status}. start the Worker with NODE_ENV=development`,
+    )
+  }
   const cookie = res.headers
     .getSetCookie()
     .map((l) => l.split(";", 1)[0] ?? "")
