@@ -1,0 +1,104 @@
+{
+  "run": "run2",
+  "case": 10,
+  "name": "burst: one small, one large",
+  "wording": "how is it going?",
+  "wordingTag": "going",
+  "rep": 2,
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 13,
+  "timedOut": false,
+  "doneMs": 17959,
+  "firstReplyMs": 4558,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.bash": 1,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1
+  },
+  "workerToolCalls": 2,
+  "workerTools": {
+    "tool.worker.bash": 1,
+    "tool.worker.web_fetch": 1
+  },
+  "modelTurns": 9,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha - verify by usage/popularit…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "how is it going?",
+    "replyMs": 2265,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "web_fetch {\"url\":\"https://npmtrends.com/jest-vs-vitest-vs-mocha\"}"
+      }
+    ],
+    "talkerDuring": {
+      "tool.talker.edit": 1
+    },
+    "workerDuring": {
+      "tool.worker.web_fetch": 1
+    },
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "Done: added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will send the comparison when it lands.",
+    "repliesAfterSend": [
+      "Done: added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will send the comparison when it lands.",
+      "notes/todo.md is done.\n\nResearch is still running, now checking download trends for Jest vs Vitest vs Mocha. I will send the file when it is ready.",
+      "Both done.\n\n- notes/todo.md has **Reviewed** at the top.\n- research/tests.md compares **Jest, Mocha, Vitest**. Jest leads on use, Vitest is fastest for Vite projects, Mocha is most flexible."
+    ]
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 4558,
+      "text": "On it — I'll mark the todo and research the test runners."
+    },
+    {
+      "at": 6212,
+      "text": "Todo file is simple, prepending now."
+    },
+    {
+      "at": 8648,
+      "text": "Done: added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will send the comparison when it lands."
+    },
+    {
+      "at": 9572,
+      "text": "notes/todo.md is done.\n\nResearch is still running, now checking download trends for Jest vs Vitest vs Mocha. I will send the file when it is ready."
+    },
+    {
+      "at": 13811,
+      "text": "Both done.\n\n- notes/todo.md has **Reviewed** at the top.\n- research/tests.md compares **Jest, Mocha, Vitest**. Jest leads on use, Vitest is fastest for Vite projects, Mocha is most flexible."
+    }
+  ],
+  "bubbles": [
+    "On it — I'll mark the todo and research the test runners.",
+    "Todo file is simple, prepending now.",
+    "Done: added **Reviewed** to notes/todo.md.\n\nResearch on test runners is running. I will send the comparison when it lands.",
+    "notes/todo.md is done.\n\nResearch is still running, now checking download trends for Jest vs Vitest vs Mocha. I will send the file when it is ready.",
+    "Both done.\n\n- notes/todo.md has **Reviewed** at the top.\n- research/tests.md compares **Jest, Mocha, Vitest**. Jest leads on use, Vitest is fastest for Vite projects, Mocha is most flexible."
+  ]
+}

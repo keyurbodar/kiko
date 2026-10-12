@@ -1,0 +1,116 @@
+{
+  "run": "run2",
+  "case": 10,
+  "name": "burst: one small, one large",
+  "wording": "how is it going?",
+  "wordingTag": "going",
+  "rep": 3,
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 11,
+  "timedOut": false,
+  "doneMs": 22315,
+  "firstReplyMs": 3940,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 3,
+  "workerTools": {
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 2
+  },
+  "modelTurns": 13,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "how is it going?",
+    "replyMs": 1806,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "web_fetch {\"url\":\"https://2024.stateofjs.com/en-US/testing/\"}"
+      }
+    ],
+    "talkerDuring": {
+      "tool.talker.edit": 1
+    },
+    "workerDuring": {
+      "tool.worker.web_fetch": 1
+    },
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will post the comparison when ready.",
+    "repliesAfterSend": [
+      "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will post the comparison when ready.",
+      "Small task done: `notes/todo.md` now starts with Reviewed.\n\nLarge task still running: research worker on test runners is gathering data and will write `research/tests.md`. No result yet.",
+      "Noted. Told the research to keep `research/tests.md` short.",
+      "Both done.\n\n- `notes/todo.md`: starts with Reviewed.\n- `research/tests.md`: short comparison of **Vitest, Jest, Mocha**, picks Vitest for new projects for speed.",
+      "Update: research file is now short, about 150 words, same three picks with Vitest recommended."
+    ]
+  },
+  "note": {
+    "sentMs": 11138,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 2,
+    "reply": "Noted. Told the research to keep `research/tests.md` short."
+  },
+  "replies": [
+    {
+      "at": 3940,
+      "text": "On it, both files now."
+    },
+    {
+      "at": 6064,
+      "text": "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will post the comparison when ready."
+    },
+    {
+      "at": 7143,
+      "text": "Small task done: `notes/todo.md` now starts with Reviewed.\n\nLarge task still running: research worker on test runners is gathering data and will write `research/tests.md`. No result yet."
+    },
+    {
+      "at": 14527,
+      "text": "Noted. Told the research to keep `research/tests.md` short."
+    },
+    {
+      "at": 16214,
+      "text": "Both done.\n\n- `notes/todo.md`: starts with Reviewed.\n- `research/tests.md`: short comparison of **Vitest, Jest, Mocha**, picks Vitest for new projects for speed."
+    },
+    {
+      "at": 18186,
+      "text": "Update: research file is now short, about 150 words, same three picks with Vitest recommended."
+    }
+  ],
+  "bubbles": [
+    "On it, both files now.",
+    "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will post the comparison when ready.",
+    "Small task done: `notes/todo.md` now starts with Reviewed.\n\nLarge task still running: research worker on test runners is gathering data and will write `research/tests.md`. No result yet.",
+    "Noted. Told the research to keep `research/tests.md` short.",
+    "Both done.\n\n- `notes/todo.md`: starts with Reviewed.\n- `research/tests.md`: short comparison of **Vitest, Jest, Mocha**, picks Vitest for new projects for speed.",
+    "Update: research file is now short, about 150 words, same three picks with Vitest recommended."
+  ]
+}

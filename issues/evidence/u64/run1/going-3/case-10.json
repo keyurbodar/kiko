@@ -1,0 +1,102 @@
+{
+  "run": "run1",
+  "case": 10,
+  "name": "burst: one small, one large",
+  "wording": "how is it going?",
+  "wordingTag": "going",
+  "rep": 3,
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 11,
+  "timedOut": false,
+  "doneMs": 15909,
+  "firstReplyMs": 3352,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 2,
+    "tool.talker.start_work": 1
+  },
+  "workerToolCalls": 2,
+  "workerTools": {
+    "tool.worker.mkdir": 1,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 9,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "how is it going?",
+    "replyMs": 1205,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "talkerDuring": {
+      "tool.talker.edit": 1
+    },
+    "workerDuring": {},
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will send the comparison when it is ready.",
+    "repliesAfterSend": [
+      "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will send the comparison when it is ready.",
+      "`notes/todo.md` is updated.\n\nResearch worker `w1` is still running. It will write the comparison to `research/tests.md`.",
+      "Research is done, I will check the file to confirm.",
+      "Both tasks are done.\n\n- `notes/todo.md` starts with **Reviewed**.\n- `research/tests.md` compares **Jest, Vitest, and Mocha**.\n\nQuick take: I recommend **Vitest** for speed if you use Vite, **Jest** for a full tool with React. Full details are in the file."
+    ]
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 3352,
+      "text": "On it: I will update your todo file and research test runners."
+    },
+    {
+      "at": 5514,
+      "text": "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will send the comparison when it is ready."
+    },
+    {
+      "at": 8909,
+      "text": "`notes/todo.md` is updated.\n\nResearch worker `w1` is still running. It will write the comparison to `research/tests.md`."
+    },
+    {
+      "at": 10752,
+      "text": "Research is done, I will check the file to confirm."
+    },
+    {
+      "at": 11805,
+      "text": "Both tasks are done.\n\n- `notes/todo.md` starts with **Reviewed**.\n- `research/tests.md` compares **Jest, Vitest, and Mocha**.\n\nQuick take: I recommend **Vitest** for speed if you use Vite, **Jest** for a full tool with React. Full details are in the file."
+    }
+  ],
+  "bubbles": [
+    "On it: I will update your todo file and research test runners.",
+    "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will send the comparison when it is ready.",
+    "`notes/todo.md` is updated.\n\nResearch worker `w1` is still running. It will write the comparison to `research/tests.md`.",
+    "Research is done, I will check the file to confirm.",
+    "Both tasks are done.\n\n- `notes/todo.md` starts with **Reviewed**.\n- `research/tests.md` compares **Jest, Vitest, and Mocha**.\n\nQuick take: I recommend **Vitest** for speed if you use Vite, **Jest** for a full tool with React. Full details are in the file."
+  ]
+}

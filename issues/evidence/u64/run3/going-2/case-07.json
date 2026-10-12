@@ -1,0 +1,874 @@
+{
+  "run": "run3",
+  "case": 7,
+  "name": "web research and short report",
+  "wording": "how is it going?",
+  "wordingTag": "going",
+  "rep": 2,
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 6,
+  "endAt": 21402,
+  "timedOut": false,
+  "doneMs": 21402,
+  "firstReplyMs": 3121,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 4,
+  "workerTools": {
+    "tool.worker.web_fetch": 3,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 10,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases on the web (likely Qdrant, Milvus, Weaviate, Chroma, LanceDB,…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "how is it going?",
+    "sentAt": 4382,
+    "turnStartAt": 5471,
+    "turnEndAt": 6886,
+    "noteSentAt": 12024,
+    "replyMs": 2504,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "web_fetch {\"url\":\"https://github.com/chroma-core/chroma\"}"
+      }
+    ],
+    "workerDeliveredInTurn": false,
+    "talkerDuring": {},
+    "steerInWindow": 0,
+    "stopInWindow": 0,
+    "steerAfterNote": 1,
+    "stopAfterNote": 0,
+    "reply": "Report is in work.\n\n- **Me:** waiting on research, then I will check `research/vectors.md`.\n- **Research worker:** step 3, checking Chroma GitHub page after broad web search.",
+    "answerMessages": [
+      {
+        "at": 6886,
+        "text": "Report is in work.\n\n- **Me:** waiting on research, then I will check `research/vectors.md`.\n- **Research worker:** step 3, checking Chroma GitHub page after broad web search."
+      }
+    ]
+  },
+  "note": {
+    "sentMs": 12024,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 0,
+    "reply": "Got it — I'll hurry the research along."
+  },
+  "replies": [
+    {
+      "at": 3121,
+      "text": "I'm on it — I'll research the three most used open-source vector DBs and draft the report."
+    },
+    {
+      "at": 6886,
+      "text": "Report is in work.\n\n- **Me:** waiting on research, then I will check `research/vectors.md`.\n- **Research worker:** step 3, checking Chroma GitHub page after broad web search."
+    },
+    {
+      "at": 14561,
+      "text": "Got it — I'll hurry the research along."
+    },
+    {
+      "at": 17368,
+      "text": "Done. Report is in `research/vectors.md`.\n\nTop 3 by use: **Milvus, Qdrant, Chroma**. All Apache 2.0.\n\nMy pick: **Qdrant** as default. Easy to run, fast, good filters. Milvus for very large scale. Chroma for quick tests."
+    }
+  ],
+  "statuses": [
+    {
+      "at": 1102,
+      "state": "typing"
+    },
+    {
+      "at": 3121,
+      "state": "typing"
+    },
+    {
+      "at": 3121,
+      "state": "working"
+    },
+    {
+      "at": 3121,
+      "state": "typing"
+    },
+    {
+      "at": 4366,
+      "state": "working"
+    },
+    {
+      "at": 4852,
+      "state": "working"
+    },
+    {
+      "at": 5471,
+      "state": "typing"
+    },
+    {
+      "at": 6886,
+      "state": "working"
+    },
+    {
+      "at": 11543,
+      "state": "working"
+    },
+    {
+      "at": 13161,
+      "state": "typing"
+    },
+    {
+      "at": 14561,
+      "state": "working"
+    },
+    {
+      "at": 14561,
+      "state": "typing"
+    },
+    {
+      "at": 16107,
+      "state": "idle"
+    },
+    {
+      "at": 16107,
+      "state": "typing"
+    },
+    {
+      "at": 17368,
+      "state": "idle"
+    }
+  ],
+  "samples": [
+    {
+      "at": 6,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 177,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 331,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 485,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 639,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 794,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 948,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1102,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1258,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1414,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1568,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1722,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1878,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2034,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2193,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2348,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2502,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2656,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2811,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2966,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3121,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3275,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3430,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3586,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3741,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3896,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4050,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4210,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4366,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4382,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4542,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4696,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4852,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5009,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5163,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5317,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5471,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5625,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5780,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5936,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6090,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6251,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6406,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6560,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6714,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6886,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7053,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7207,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7362,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7517,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7671,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7825,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7979,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8133,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8294,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8450,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8606,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8761,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8915,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9069,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9223,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9377,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9532,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9686,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9840,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9993,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10147,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10307,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10462,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10617,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10771,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10926,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11080,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11234,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11388,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11543,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11697,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11852,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12006,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12024,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12181,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12341,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12503,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12671,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12836,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12997,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13161,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13315,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13470,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13624,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13780,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13934,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14088,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14242,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14407,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14561,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 14715,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 14869,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 15024,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 15180,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 15335,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 15489,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 15643,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 15797,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 15953,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 16107,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 16262,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 16422,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 16576,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 16730,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 16885,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 17040,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 17194,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 17368,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 17522,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 17675,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 17829,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 17983,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 18136,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 18290,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 18451,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 18605,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 18759,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 18913,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 19067,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 19222,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 19379,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 19533,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 19689,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 19842,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 19999,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 20152,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 20308,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 20469,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 20624,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 20778,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 20933,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 21086,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 21240,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 21393,
+      "steer": 1,
+      "stop": 0
+    },
+    {
+      "at": 21402,
+      "steer": 1,
+      "stop": 0
+    }
+  ],
+  "bubbles": [
+    "I'm on it — I'll research the three most used open-source vector DBs and draft the report.",
+    "Report is in work.\n\n- **Me:** waiting on research, then I will check `research/vectors.md`.\n- **Research worker:** step 3, checking Chroma GitHub page after broad web search.",
+    "Got it — I'll hurry the research along.",
+    "Done. Report is in `research/vectors.md`.\n\nTop 3 by use: **Milvus, Qdrant, Chroma**. All Apache 2.0.\n\nMy pick: **Qdrant** as default. Easy to run, fast, good filters. Milvus for very large scale. Chroma for quick tests."
+  ]
+}

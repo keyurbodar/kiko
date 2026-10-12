@@ -1,0 +1,314 @@
+{
+  "statuses": [
+    {
+      "at": 1229,
+      "state": "typing"
+    },
+    {
+      "at": 3940,
+      "state": "typing"
+    },
+    {
+      "at": 3940,
+      "state": "typing"
+    },
+    {
+      "at": 3940,
+      "state": "working"
+    },
+    {
+      "at": 3940,
+      "state": "typing"
+    },
+    {
+      "at": 5011,
+      "state": "typing"
+    },
+    {
+      "at": 5011,
+      "state": "working"
+    },
+    {
+      "at": 5011,
+      "state": "typing"
+    },
+    {
+      "at": 5763,
+      "state": "typing"
+    },
+    {
+      "at": 6064,
+      "state": "working"
+    },
+    {
+      "at": 6064,
+      "state": "typing"
+    },
+    {
+      "at": 6235,
+      "state": "typing"
+    },
+    {
+      "at": 7143,
+      "state": "working"
+    },
+    {
+      "at": 11451,
+      "state": "working"
+    },
+    {
+      "at": 12212,
+      "state": "typing"
+    },
+    {
+      "at": 13307,
+      "state": "working"
+    },
+    {
+      "at": 13457,
+      "state": "typing"
+    },
+    {
+      "at": 14527,
+      "state": "working"
+    },
+    {
+      "at": 14679,
+      "state": "typing"
+    },
+    {
+      "at": 16214,
+      "state": "working"
+    },
+    {
+      "at": 16967,
+      "state": "typing"
+    },
+    {
+      "at": 18186,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 11,
+      "workers": []
+    },
+    {
+      "at": 2131,
+      "workers": []
+    },
+    {
+      "at": 4241,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File path is research/tests.md relative to chat files root /. Include: which three are most used, key features, pros/cons, and recommendation. Write file directly.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788270918,
+          "updatedAt": 1791788270926
+        }
+      ]
+    },
+    {
+      "at": 6385,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File path is research/tests.md relative to chat files root /. Include: which three are most used, key features, pros/cons, and recommendation. Write file directly.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://2024.stateofjs.com/en-US/testing/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788270918,
+          "updatedAt": 1791788272766
+        }
+      ]
+    },
+    {
+      "at": 8496,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File path is research/tests.md relative to chat files root /. Include: which three are most used, key features, pros/cons, and recommendation. Write file directly.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://2024.stateofjs.com/en-US/testing/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788270918,
+          "updatedAt": 1791788272766
+        }
+      ]
+    },
+    {
+      "at": 10614,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File path is research/tests.md relative to chat files root /. Include: which three are most used, key features, pros/cons, and recommendation. Write file directly.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://2024.stateofjs.com/en-US/testing/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788270918,
+          "updatedAt": 1791788272766
+        }
+      ]
+    },
+    {
+      "at": 12686,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File path is research/tests.md relative to chat files root /. Include: which three are most used, key features, pros/cons, and recommendation. Write file directly.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 Comparison\\n\\nResearch date: 2026-…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788270918,
+          "updatedAt": 1791788279226
+        }
+      ]
+    },
+    {
+      "at": 14838,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File path is research/tests.md relative to chat files root /. Include: which three are most used, key features, pros/cons, and recommendation. Write file directly.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 Comparison\\n\\nResearch date: 2026-…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788270918,
+          "updatedAt": 1791788280296
+        }
+      ]
+    },
+    {
+      "at": 16967,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File path is research/tests.md relative to chat files root /. Include: which three are most used, key features, pros/cons, and recommendation. Write file directly.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners: Top 3\\n\\nThe three most used are **Vitest**, **J…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788270918,
+          "updatedAt": 1791788283821
+        }
+      ]
+    },
+    {
+      "at": 19113,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File path is research/tests.md relative to chat files root /. Include: which three are most used, key features, pros/cons, and recommendation. Write file directly.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners: Top 3\\n\\nThe three most used are **Vitest**, **J…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788270918,
+          "updatedAt": 1791788283821
+        }
+      ]
+    },
+    {
+      "at": 21228,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. File path is research/tests.md relative to chat files root /. Include: which three are most used, key features, pros/cons, and recommendation. Write file directly.",
+          "conversationId": 15,
+          "submissionId": 51,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners: Top 3\\n\\nThe three most used are **Vitest**, **J…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788270918,
+          "updatedAt": 1791788283821
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 5,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 87,
+    "agent.kv.getAlarm": 19,
+    "agent.kv.list": 1,
+    "agent.kv.put": 20,
+    "agent.kv.setAlarm": 17,
+    "agent.kv.transaction": 113,
+    "agent.rowsRead": 2739,
+    "agent.rowsWritten": 1431,
+    "agent.statements": 2221,
+    "model.id.muse-spark-1.3-contributor": 13,
+    "model.ms": 22130,
+    "model.turns": 13,
+    "room.kv.get": 4,
+    "room.kv.getAlarm": 20,
+    "room.kv.setAlarm": 8,
+    "room.rowsRead": 1233,
+    "room.rowsWritten": 281,
+    "room.statements": 872,
+    "rpc.agent.devWorkers": 15,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 5,
+    "rpc.room.fsList": 4,
+    "rpc.room.fsStat": 6,
+    "rpc.room.memorySince": 3,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 6,
+    "rpc.room.putFile": 3,
+    "rpc.room.reportDoing": 7,
+    "rpc.room.setStatus": 11,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 5,
+    "rpc.user.signals": 1,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 9,
+    "rpc.user.turnContext": 4,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 2,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 3,
+    "user.rowsRead": 179,
+    "user.rowsWritten": 77,
+    "user.statements": 290
+  }
+}

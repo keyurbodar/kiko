@@ -1,0 +1,7 @@
+wording	rep	case	name	running_at_send	status_skipped	status_reply_s	steer_work	stop_work	status_reply	note_steer_calls	note_stop_calls	timed_out
+going	1	7	web research and short report	1	-	2.3	0	0	"Worker is still running. It made the research folder and now gathers data on the three vector databases. I will post the report when it is done."	-	-	false
+going	1	10	burst: one small, one large	1	-	2.7	0	0	"Quick task done: **Reviewed** is at the top of notes/todo.md.\n\nLarge task in progress: worker w1 is researching test runners and writing research/tests.md. Not done yet."	-	-	false
+going	2	7	web research and short report	1	-	2.3	0	0	"Research is running. Worker is checking source pages now. I will share the report in `research/vectors.md` when it is done."	1	0	false
+going	2	10	burst: one small, one large	1	-	2.3	0	0	"notes/todo.md is done. Reviewed is at the top.\n\nw1 research is running. It is setting up research/tests.md now."	-	-	false
+going	3	7	web research and short report	1	-	2.0	0	0	"Research is in progress. Worker w1 is checking sources now. I will write the report when it returns."	-	-	false
+going	3	10	burst: one small, one large	1	-	1.2	0	0	"Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running now. I will send the comparison when it is ready."	-	-	false

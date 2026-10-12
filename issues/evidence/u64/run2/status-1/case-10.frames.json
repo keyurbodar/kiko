@@ -1,0 +1,293 @@
+{
+  "statuses": [
+    {
+      "at": 1237,
+      "state": "typing"
+    },
+    {
+      "at": 4101,
+      "state": "typing"
+    },
+    {
+      "at": 4101,
+      "state": "typing"
+    },
+    {
+      "at": 4101,
+      "state": "working"
+    },
+    {
+      "at": 4101,
+      "state": "typing"
+    },
+    {
+      "at": 5631,
+      "state": "typing"
+    },
+    {
+      "at": 5631,
+      "state": "working"
+    },
+    {
+      "at": 5631,
+      "state": "typing"
+    },
+    {
+      "at": 6541,
+      "state": "typing"
+    },
+    {
+      "at": 6541,
+      "state": "working"
+    },
+    {
+      "at": 6871,
+      "state": "working"
+    },
+    {
+      "at": 10810,
+      "state": "working"
+    },
+    {
+      "at": 12634,
+      "state": "typing"
+    },
+    {
+      "at": 13842,
+      "state": "working"
+    },
+    {
+      "at": 13842,
+      "state": "typing"
+    },
+    {
+      "at": 14744,
+      "state": "working"
+    },
+    {
+      "at": 14744,
+      "state": "typing"
+    },
+    {
+      "at": 15203,
+      "state": "typing"
+    },
+    {
+      "at": 16105,
+      "state": "working"
+    },
+    {
+      "at": 16406,
+      "state": "typing"
+    },
+    {
+      "at": 17313,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 14,
+      "workers": []
+    },
+    {
+      "at": 2139,
+      "workers": []
+    },
+    {
+      "at": 4253,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify them by usage/popularity, then write a short comparison to research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it under 300 words, clear markdown with a small table if helpful.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788052855,
+          "updatedAt": 1791788052862
+        }
+      ]
+    },
+    {
+      "at": 6383,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify them by usage/popularity, then write a short comparison to research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it under 300 words, clear markdown with a small table if helpful.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788052855,
+          "updatedAt": 1791788052862
+        }
+      ]
+    },
+    {
+      "at": 8525,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify them by usage/popularity, then write a short comparison to research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it under 300 words, clear markdown with a small table if helpful.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US/libraries/testing\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788052855,
+          "updatedAt": 1791788055223
+        }
+      ]
+    },
+    {
+      "at": 10637,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify them by usage/popularity, then write a short comparison to research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it under 300 words, clear markdown with a small table if helpful.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US/libraries/testing\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788052855,
+          "updatedAt": 1791788055223
+        }
+      ]
+    },
+    {
+      "at": 12784,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify them by usage/popularity, then write a short comparison to research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it under 300 words, clear markdown with a small table if helpful.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 by Usage (2026)\\n\\nBased on npm do…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788052855,
+          "updatedAt": 1791788060406
+        }
+      ]
+    },
+    {
+      "at": 14896,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify them by usage/popularity, then write a short comparison to research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it under 300 words, clear markdown with a small table if helpful.",
+          "conversationId": 15,
+          "submissionId": 49,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 by Usage (2026)\\n\\nBased on npm do…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791788052855,
+          "updatedAt": 1791788062610
+        }
+      ]
+    },
+    {
+      "at": 17007,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify them by usage/popularity, then write a short comparison to research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it under 300 words, clear markdown with a small table if helpful.",
+          "conversationId": 15,
+          "submissionId": 49,
+          "status": "done",
+          "step": "read {\"path\":\"research/tests.md\"}",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788052855,
+          "updatedAt": 1791788065063
+        }
+      ]
+    },
+    {
+      "at": 19116,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web as of 2026. Identify them by usage/popularity, then write a short comparison to research/tests.md. Include for each: name, key strengths, key weaknesses, best use case. Keep it under 300 words, clear markdown with a small table if helpful.",
+          "conversationId": 15,
+          "submissionId": 49,
+          "status": "done",
+          "step": "read {\"path\":\"research/tests.md\"}",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791788052855,
+          "updatedAt": 1791788065063
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 5,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 458,
+    "agent.kv.getAlarm": 393,
+    "agent.kv.list": 1,
+    "agent.kv.put": 20,
+    "agent.kv.setAlarm": 203,
+    "agent.kv.transaction": 106,
+    "agent.rowsRead": 6336,
+    "agent.rowsWritten": 2211,
+    "agent.statements": 5377,
+    "model.id.muse-spark-1.3-contributor": 12,
+    "model.ms": 19117,
+    "model.turns": 12,
+    "room.kv.get": 4,
+    "room.kv.getAlarm": 18,
+    "room.kv.setAlarm": 7,
+    "room.rowsRead": 1083,
+    "room.rowsWritten": 235,
+    "room.statements": 730,
+    "rpc.agent.devWorkers": 14,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 4,
+    "rpc.room.fsList": 4,
+    "rpc.room.fsStat": 7,
+    "rpc.room.memorySince": 3,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 4,
+    "rpc.room.putFile": 2,
+    "rpc.room.reportDoing": 7,
+    "rpc.room.setStatus": 10,
+    "rpc.user.browserCheck": 98,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 97,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 3,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 8,
+    "rpc.user.turnContext": 4,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.read": 1,
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 2,
+    "user.rowsRead": 333,
+    "user.rowsWritten": 58,
+    "user.statements": 597
+  }
+}

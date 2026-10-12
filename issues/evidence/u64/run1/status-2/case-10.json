@@ -1,0 +1,126 @@
+{
+  "run": "run1",
+  "case": 10,
+  "name": "burst: one small, one large",
+  "wording": "what is the status?",
+  "wordingTag": "status",
+  "rep": 2,
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 13,
+  "timedOut": false,
+  "doneMs": 20488,
+  "firstReplyMs": 3798,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1
+  },
+  "workerToolCalls": 5,
+  "workerTools": {
+    "tool.worker.web_fetch": 3,
+    "tool.worker.write": 2
+  },
+  "modelTurns": 13,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web as of 2026. Write a short comparison in research/tests.…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "what is the status?",
+    "replyMs": 602,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "talkerDuring": {
+      "tool.talker.edit": 1
+    },
+    "workerDuring": {},
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "I'll add \"Reviewed\" to the top of your todo file now.",
+    "repliesAfterSend": [
+      "I'll add \"Reviewed\" to the top of your todo file now.",
+      "Done:\n1. Added **Reviewed** to `notes/todo.md`.\n2. Research on test runners is running. I will send `research/tests.md` when it is done.",
+      "1. `notes/todo.md` update is done.\n2. Test runner research (w1) is still running. I will post the comparison when it finishes.",
+      "Got it — I'll tell the researcher to keep it short.",
+      "Noted. Kept short.",
+      "Research is done in `research/tests.md`.\n\nShort take:\n- **Vitest** for new Vite work\n- **Jest** for existing React work\n- **Mocha** for lean Node work",
+      "Shortened. `research/tests.md` now has 2 lines per runner."
+    ]
+  },
+  "note": {
+    "sentMs": 10024,
+    "runningAtSend": 1,
+    "steerCalls": 1,
+    "stopCalls": 0,
+    "workerToolsAfter": 1,
+    "reply": "Got it — I'll tell the researcher to keep it short."
+  },
+  "replies": [
+    {
+      "at": 3798,
+      "text": "On it — I'll update your todo file and research test runners."
+    },
+    {
+      "at": 4872,
+      "text": "I'll add \"Reviewed\" to the top of your todo file now."
+    },
+    {
+      "at": 6239,
+      "text": "Done:\n1. Added **Reviewed** to `notes/todo.md`.\n2. Research on test runners is running. I will send `research/tests.md` when it is done."
+    },
+    {
+      "at": 8806,
+      "text": "1. `notes/todo.md` update is done.\n2. Test runner research (w1) is still running. I will post the comparison when it finishes."
+    },
+    {
+      "at": 12440,
+      "text": "Got it — I'll tell the researcher to keep it short."
+    },
+    {
+      "at": 13648,
+      "text": "Noted. Kept short."
+    },
+    {
+      "at": 14400,
+      "text": "Research is done in `research/tests.md`.\n\nShort take:\n- **Vitest** for new Vite work\n- **Jest** for existing React work\n- **Mocha** for lean Node work"
+    },
+    {
+      "at": 16332,
+      "text": "Shortened. `research/tests.md` now has 2 lines per runner."
+    }
+  ],
+  "bubbles": [
+    "On it — I'll update your todo file and research test runners.",
+    "I'll add \"Reviewed\" to the top of your todo file now.",
+    "Done:\n1. Added **Reviewed** to `notes/todo.md`.\n2. Research on test runners is running. I will send `research/tests.md` when it is done.",
+    "1. `notes/todo.md` update is done.\n2. Test runner research (w1) is still running. I will post the comparison when it finishes.",
+    "Got it — I'll tell the researcher to keep it short.",
+    "Noted. Kept short.",
+    "Research is done in `research/tests.md`.\n\nShort take:\n- **Vitest** for new Vite work\n- **Jest** for existing React work\n- **Mocha** for lean Node work",
+    "Shortened. `research/tests.md` now has 2 lines per runner."
+  ]
+}

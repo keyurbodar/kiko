@@ -1,0 +1,93 @@
+{
+  "run": "run1",
+  "case": 7,
+  "name": "web research and short report",
+  "wording": "what is the status?",
+  "wordingTag": "status",
+  "rep": 2,
+  "send": [
+    "research the three most used open source vector databases on the web and write a short report in research/vectors.md"
+  ],
+  "sentAt": 4,
+  "timedOut": false,
+  "doneMs": 18842,
+  "firstReplyMs": 2598,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 2,
+  "talkerTools": {
+    "tool.talker.start_work": 1,
+    "tool.talker.write": 1
+  },
+  "workerToolCalls": 4,
+  "workerTools": {
+    "tool.worker.web_fetch": 4
+  },
+  "modelTurns": 7,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used open source vector databases on the web as of 2026. Find popularity signals (GitHub stars,…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "what is the status?",
+    "replyMs": 2128,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": null
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "web_fetch {\"url\":\"https://github.com/chroma-core/chroma\"}"
+      }
+    ],
+    "talkerDuring": {},
+    "workerDuring": {
+      "tool.worker.web_fetch": 4
+    },
+    "steerWorkDuring": 0,
+    "stopWorkDuring": 0,
+    "reply": "Research is running. Worker **w1** is gathering the top three open source vector DBs, features, and sources. I will write `research/vectors.md` when it reports back.",
+    "repliesAfterSend": [
+      "Research is running. Worker **w1** is gathering the top three open source vector DBs, features, and sources. I will write `research/vectors.md` when it reports back.",
+      "Got the research back — I'll write the short report to research/vectors.md now.",
+      "Done. Report is in `research/vectors.md`.\n\nTop three by stars: **Milvus** for large scale, **Qdrant** for production filtered search, **Chroma** for fast prototypes."
+    ]
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 2598,
+      "text": "I'm on it — I'll research the three most used open source vector databases for you."
+    },
+    {
+      "at": 6433,
+      "text": "Research is running. Worker **w1** is gathering the top three open source vector DBs, features, and sources. I will write `research/vectors.md` when it reports back."
+    },
+    {
+      "at": 13858,
+      "text": "Got the research back — I'll write the short report to research/vectors.md now."
+    },
+    {
+      "at": 14759,
+      "text": "Done. Report is in `research/vectors.md`.\n\nTop three by stars: **Milvus** for large scale, **Qdrant** for production filtered search, **Chroma** for fast prototypes."
+    }
+  ],
+  "bubbles": [
+    "I'm on it — I'll research the three most used open source vector databases for you.",
+    "Research is running. Worker **w1** is gathering the top three open source vector DBs, features, and sources. I will write `research/vectors.md` when it reports back.",
+    "Got the research back — I'll write the short report to research/vectors.md now.",
+    "Done. Report is in `research/vectors.md`.\n\nTop three by stars: **Milvus** for large scale, **Qdrant** for production filtered search, **Chroma** for fast prototypes."
+  ]
+}

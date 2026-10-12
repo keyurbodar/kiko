@@ -1,0 +1,871 @@
+{
+  "run": "run3",
+  "case": 10,
+  "name": "burst: one small, one large",
+  "wording": "what is the status?",
+  "wordingTag": "status",
+  "rep": 3,
+  "send": [
+    "add 'Reviewed' at the top of notes/todo.md",
+    "research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md"
+  ],
+  "sentAt": 12,
+  "endAt": 20543,
+  "timedOut": false,
+  "doneMs": 20543,
+  "firstReplyMs": 5290,
+  "startWorkCalls": 1,
+  "talkerToolCalls": 4,
+  "talkerTools": {
+    "tool.talker.bash": 2,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1
+  },
+  "workerToolCalls": 3,
+  "workerTools": {
+    "tool.worker.bash": 1,
+    "tool.worker.web_fetch": 1,
+    "tool.worker.write": 1
+  },
+  "modelTurns": 10,
+  "workers": [
+    {
+      "id": "w1",
+      "status": "done",
+      "delivered": true,
+      "task": "Research the three most used JavaScript test runners on the web and write a short comparison in research/tests.md. Incl…"
+    }
+  ],
+  "statusSkipped": null,
+  "status": {
+    "wording": "what is the status?",
+    "sentAt": 8649,
+    "turnStartAt": 9759,
+    "turnEndAt": 10848,
+    "noteSentAt": null,
+    "replyMs": 2199,
+    "runningAtSend": 1,
+    "workersAtSend": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "bash {\"command\":\"ls -R / 2>&1 | head -n 50\"}"
+      }
+    ],
+    "workersAtReply": [
+      {
+        "id": "w1",
+        "status": "running",
+        "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US/libraries/testing\"}"
+      }
+    ],
+    "workerDeliveredInTurn": false,
+    "talkerDuring": {},
+    "steerInWindow": 0,
+    "stopInWindow": 0,
+    "steerAfterNote": null,
+    "stopAfterNote": null,
+    "reply": "Done: `notes/todo.md` now starts with Reviewed.\n\nIn progress: research worker is on step 2, checking test runner usage data. The comparison file `research/tests.md` is not written yet.",
+    "answerMessages": [
+      {
+        "at": 10848,
+        "text": "Done: `notes/todo.md` now starts with Reviewed.\n\nIn progress: research worker is on step 2, checking test runner usage data. The comparison file `research/tests.md` is not written yet."
+      }
+    ]
+  },
+  "note": {
+    "skipped": "no running worker"
+  },
+  "replies": [
+    {
+      "at": 5290,
+      "text": "On it, I will update the note and research test runners."
+    },
+    {
+      "at": 6943,
+      "text": "File check done, now I'll add that header."
+    },
+    {
+      "at": 8615,
+      "text": "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running. I will post the comparison when ready."
+    },
+    {
+      "at": 10848,
+      "text": "Done: `notes/todo.md` now starts with Reviewed.\n\nIn progress: research worker is on step 2, checking test runner usage data. The comparison file `research/tests.md` is not written yet."
+    },
+    {
+      "at": 15398,
+      "text": "Research done, I'll verify the file."
+    },
+    {
+      "at": 16488,
+      "text": "Both done:\n\n- `notes/todo.md` starts with Reviewed.\n- `research/tests.md` compares **Jest**, **Vitest**, and **Playwright** with strengths, weaknesses, and best use. Pick: Vitest for new unit tests, Playwright for end to end."
+    }
+  ],
+  "statuses": [
+    {
+      "at": 1113,
+      "state": "typing"
+    },
+    {
+      "at": 5512,
+      "state": "typing"
+    },
+    {
+      "at": 5512,
+      "state": "typing"
+    },
+    {
+      "at": 5512,
+      "state": "working"
+    },
+    {
+      "at": 5512,
+      "state": "typing"
+    },
+    {
+      "at": 6943,
+      "state": "typing"
+    },
+    {
+      "at": 7133,
+      "state": "working"
+    },
+    {
+      "at": 7133,
+      "state": "working"
+    },
+    {
+      "at": 7133,
+      "state": "typing"
+    },
+    {
+      "at": 7608,
+      "state": "typing"
+    },
+    {
+      "at": 8615,
+      "state": "working"
+    },
+    {
+      "at": 8972,
+      "state": "working"
+    },
+    {
+      "at": 9287,
+      "state": "working"
+    },
+    {
+      "at": 9759,
+      "state": "typing"
+    },
+    {
+      "at": 10848,
+      "state": "working"
+    },
+    {
+      "at": 12094,
+      "state": "working"
+    },
+    {
+      "at": 13026,
+      "state": "typing"
+    },
+    {
+      "at": 15398,
+      "state": "typing"
+    },
+    {
+      "at": 15398,
+      "state": "working"
+    },
+    {
+      "at": 15398,
+      "state": "typing"
+    },
+    {
+      "at": 16664,
+      "state": "idle"
+    }
+  ],
+  "samples": [
+    {
+      "at": 12,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 182,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 337,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 492,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 646,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 802,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 956,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1113,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1266,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1421,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1575,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1729,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 1883,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2036,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2196,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2350,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2503,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2658,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2812,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 2966,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3121,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3276,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3430,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3585,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3738,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 3893,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4048,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4208,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4363,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4518,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4672,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4827,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 4982,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5137,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5290,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5512,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5678,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5841,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 5996,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6154,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6316,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6474,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6633,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6788,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 6943,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7133,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7291,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7448,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7608,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7771,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 7927,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8084,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8245,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8410,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8615,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8649,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8813,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 8972,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9132,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9287,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9451,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9604,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9759,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 9913,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10070,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10225,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10378,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10539,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10693,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 10848,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11011,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11166,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11322,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11476,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11632,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11785,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 11939,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12094,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12249,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12403,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12564,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12718,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 12871,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13026,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13179,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13334,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13488,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13641,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13796,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 13950,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14105,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14259,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14414,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14573,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14751,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 14905,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15059,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15212,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15398,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15552,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15706,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15860,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 15871,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16025,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16178,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16332,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16488,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16664,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16819,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 16974,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17129,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17283,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17439,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17592,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17746,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 17900,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18054,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18208,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18361,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18516,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18676,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18830,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 18985,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 19141,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 19295,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 19449,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 19604,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 19758,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 19912,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 20066,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 20220,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 20375,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 20529,
+      "steer": 0,
+      "stop": 0
+    },
+    {
+      "at": 20543,
+      "steer": 0,
+      "stop": 0
+    }
+  ],
+  "bubbles": [
+    "On it, I will update the note and research test runners.",
+    "File check done, now I'll add that header.",
+    "Done: added **Reviewed** to `notes/todo.md`.\n\nResearch on test runners is running. I will post the comparison when ready.",
+    "Done: `notes/todo.md` now starts with Reviewed.\n\nIn progress: research worker is on step 2, checking test runner usage data. The comparison file `research/tests.md` is not written yet.",
+    "Research done, I'll verify the file.",
+    "Both done:\n\n- `notes/todo.md` starts with Reviewed.\n- `research/tests.md` compares **Jest**, **Vitest**, and **Playwright** with strengths, weaknesses, and best use. Pick: Vitest for new unit tests, Playwright for end to end."
+  ]
+}
