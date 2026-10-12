@@ -30,7 +30,6 @@ apps/server/src/agent/recall.ts:RecallHit
 apps/server/src/agent/recall.ts:RecallLog
 apps/server/src/agent/split-bubbles.ts:DRAFT_THRESHOLD
 apps/server/src/agent/split-bubbles.ts:SplitOutput
-apps/server/src/auth/auth.ts:LIVE_USER_TTL_MS
 apps/server/src/auth/dev-session.ts:DEV_SESSION_PATH
 apps/server/src/files/download.ts:parseRange
 apps/server/src/files/file-index.ts:FileRow
@@ -52,7 +51,6 @@ apps/server/src/integrations/kernel/connect.ts:UPLOAD_DIR
 apps/server/src/integrations/kernel/lease.ts:LeaseDeps
 apps/server/src/integrations/kernel/lease.ts:ReapDecision
 apps/server/src/integrations/kernel/lease.ts:Switched
-apps/server/src/jobs/delete-account.ts:DeleteReport
 apps/server/src/lib/dev-fixture-fetch.ts:devFixtureFetcher
 apps/server/src/room/asks.ts:KEEP_ASKS_MS
 apps/server/src/room/asks.ts:Unanswered

@@ -74,7 +74,7 @@ export async function getSessionUser(request: Request, env: AuthEnv): Promise<Se
   return ok ? { id, name: id } : null
 }
 
-export function isSecure(request: Request): boolean {
+function isSecure(request: Request): boolean {
   return new URL(request.url).protocol === "https:"
 }
 

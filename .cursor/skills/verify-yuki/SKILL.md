@@ -73,7 +73,7 @@ curl -sf "http://localhost:${YUKI_PORT}/" | grep -q '<div id="root">' && echo re
 
 The Vite server alone serves the sign-in screen. Doctor's shell checks and every recipe that drives the composed app need a signed-in session, which needs the Worker. Vite proxies `/api` to port 8787 unless `YUKI_SERVER_PORT` says otherwise, so start the Worker on a free port and launch Vite with `YUKI_SERVER_PORT` set to that port, for example `YUKI_SERVER_PORT=8799 nohup bunx vite ...` in the Launch block.
 
-The Worker serves the client from `apps/web-solid/dist` (`apps/server/wrangler.jsonc`, `assets.directory`). A fresh worktree has that folder empty, so build the client first. A fresh persist directory also needs its D1 migration before the Worker starts. Use an absolute path for `<dir>`:
+The Worker serves the client from `apps/web-solid/dist` (`apps/server/wrangler.jsonc`, `assets.directory`). A fresh worktree has that folder empty, so build the client first. Use an absolute path for `<dir>`:
 
 ```bash
 bun run --cwd apps/web-solid build
