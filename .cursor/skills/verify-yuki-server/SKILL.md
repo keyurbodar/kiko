@@ -15,7 +15,7 @@ From the repo root. Pick a free port. Do not leave it running.
 NODE_ENV=development bun run --cwd apps/server dev --port 8787 --inspector-port 9229
 ```
 
-The `dev` script applies the local D1 migrations (`kiko-auth`) before it starts wrangler, so there is no separate migrate step. `apps/server/.dev.vars` is a symlink to `~/.config/yuki/dev.vars`, added by a git hook. If it is missing, link it by hand.
+The `dev` script applies the local D1 migrations (`kiko-auth`) before it starts wrangler, so there is no separate migrate step. The parallel script runs its own migrate step against its own state. `apps/server/.dev.vars` is a symlink to `~/.config/yuki/dev.vars`, added by a git hook. If it is missing, link it by hand.
 
 Set `YUKI_URL=http://localhost:<your port>` to point every command at your own server; the CLI prints `yuki: target <url>` on its first line, and `--url` overrides it per command.
 
@@ -87,10 +87,10 @@ To run several suites at once, use `scripts/verify-parallel.sh` (inside this ski
 Invoke it from the repo root:
 
 ```bash
-bash .cursor/skills/verify-yuki-server/scripts/verify-parallel.sh agents bash files browser-run
+bash .cursor/skills/verify-yuki-server/scripts/verify-parallel.sh agents bash files
 ```
 
-Target: the whole run under 10 minutes. Each suite has a 540 s cap (`VERIFY_SUITE_LIMIT`); a suite that hits it is killed and reported as a fail. Do not run suites that need a person (`human: true`) in parallel; run those by name, alone. Suites that share a key (for example `KERNEL_API_KEY`) should run in separate calls.
+Target: the whole run under 10 minutes. Each suite has a 540 s cap (`VERIFY_SUITE_LIMIT`); a suite that hits it is killed and reported as a fail. Suites marked `human: true` must run alone, by name; the script refuses them in a batch. Suites that share a key (for example `KERNEL_API_KEY`) should run in separate calls.
 
 ## Evidence
 
@@ -120,17 +120,30 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 
 | Suite or command | Feature file |
 | --- | --- |
-| `yuki health` | [health](./features/health.md) |
-| `composio` | [composio](./features/composio.md) |
+| `yuki health`, `selftest` | [health](./features/health.md) |
+| `agents`, `team-ask`, `team-flow`, `team-routing`, `team-loops`, `team-model`, `team-race`, `hardcore` | [agents](./features/agents.md) |
+| `mid-run`, `mid-run-model`, `burst-backlog`, `team-priority` | [mid-run](./features/mid-run.md) |
+| `workers`, `workers-model` | [workers](./features/workers.md) |
+| `chats`, `activity` | [chats](./features/chats.md) |
+| `chief` | [chief](./features/chief.md) |
+| `workspace` | [workspace](./features/workspace.md) |
+| `reactions` | [reactions](./features/reactions.md) |
+| `search`, `room-search` | [search](./features/search.md) |
+| `room-sync`, `user-sync`, `turn` | [room-sync](./features/room-sync.md) |
+| `files`, `file-tools`, `attachments` | [files](./features/files.md) |
+| `bash` | [bash](./features/bash.md) |
+| `browser`, `browser-run`, `kernel`, `browser-takeover` | [browser](./features/browser.md) |
+| `composio`, `composio-extension` | [composio](./features/composio.md) |
+| `fanout` | [fanout](./features/fanout.md) |
+| `extensions`, `extensions-compose`, `extensions-model`, `extensions-edit-model`, `skills` | [extensions](./features/extensions.md) |
+| `routines`, `reminders`, `routine-triggers`, `routines-model`, `routines-scale` | [routines](./features/routines.md) |
+| `account-delete`, `credentials`, `byok`, `provider-login` | [account](./features/account.md) |
+| `limits`, `overhead`, `token-cost`, `latency`, `latency-model` | [limits](./features/limits.md) |
 | `memory-jev` | [memory-jev](./features/memory-jev.md) |
 | `memory-edge` | [memory-edge](./features/memory-edge.md) |
 | `memory-isolation` | [memory-isolation](./features/memory-isolation.md) |
-| `agents`, `team-ask`, `team-flow`, `team-routing`, `team-loops` | [agents](./features/agents.md) |
-| `bash` | [bash](./features/bash.md) |
-| `files`, `file-tools`, `attachments` | [files](./features/files.md) |
-| `browser`, `browser-run`, `kernel` | [browser](./features/browser.md) |
-| `routines`, `reminders`, `routine-triggers` | [routines](./features/routines.md) |
-| `extensions` | [extensions](./features/extensions.md) |
-| `room-sync`, `user-sync` | [room-sync](./features/room-sync.md) |
-| `fanout` | [fanout](./features/fanout.md) |
-| `selftest` | runner self check, no feature file |
+| `memory-tools`, `memory-session`, `memory-eval`, `memory-hard`, `soul` | [memory](./features/memory.md) |
+| `proactive` | [proactive](./features/proactive.md) |
+| `initiative`, `initiative-loops` | the `verify-initiative` skill |
+
+Themes (`apps/server/src/user/theme.ts`) have no suite; `apps/server/test/user.test.ts` covers sync across sockets, snapshots and refused text.

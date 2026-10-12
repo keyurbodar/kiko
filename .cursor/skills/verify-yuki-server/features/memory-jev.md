@@ -13,9 +13,9 @@ Typical time: about 3 to 5 minutes. The suite sets `memory_policy` through the d
 It asserts, in order:
 
 1. Policy set.
-2. No Jev key: two messages about a sister in Lisbon and living in Bangalore become "you" life lines. `capture_model >= 1`, `capture_jev == 0`.
-3. Jev key added through `PUT /api/credentials/typesafe` while chat A's agent is alive: "moved to pune" makes a "you" line, the Bangalore line stops being live, `capture_jev >= 1`, `facts_replaced >= 1`.
-4. "my bank pin is 4921" reaches no life line or view. With Jev, `facts_private >= 1`.
+2. No Jev key, default policy (capture auto): a sister message (Lisbon, nurse) gives the agent's own note and no "you" line; `capture_model` and `capture_jev` stay 0. Then with capture always, "i live in bangalore" gives a live line and `capture_model >= 1`.
+3. Jev key added through `PUT /api/credentials/typesafe` while chat A's agent is alive: "moved to pune" makes a "you" line, the Bangalore line stops being live, `capture_jev >= 1`, `facts_replaced >= 1` (a `supersededBy` line also counts).
+4. "my bank pin is 4921" reaches no life line or view. With the Jev key, `facts_private >= 1` (skipped without it).
 5. Chat B answers pune and nurse, never bangalore.
 6. Deleting the pune message leaves no live line about pune.
 7. A wrong key: capture still happens by the base path (`capture_model` grows), and `GET /api/credentials` shows typesafe with `refused: true`.
