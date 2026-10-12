@@ -3,14 +3,15 @@ import type { Models } from "@earendil-works/pi-ai"
 import { type AgentChange, type Conversation, type ConversationId, Harness, type HarnessSettings, type RegistryReader, type TaskId, type ToolTaskInput } from "@earendil-works/pi-durable"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
-import { type Alarms, createAlarms } from "@yuki/durable/alarm"
+import { ALARM_STEPS, type Alarms, createAlarms } from "@yuki/durable/alarm"
+import type { Step } from "@yuki/durable/migrate"
 import { type CoalescingStorage, createCoalescingStorage } from "./coalescing-storage"
-import { type Batch, Inbox, type Refusal, renderInput } from "./inbox"
+import { type Batch, INBOX_STEPS, Inbox, type Refusal, renderInput } from "./inbox"
 import { stoppable } from "./effects"
 import { type Arrival, decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
 import { type Envelope, joinOrigin, type Origin, originOfAll } from "./envelope"
 import { openDurableObjectSqlite } from "./sqlite"
-import { Workers } from "./workers"
+import { WORKERS_STEPS, Workers } from "./workers"
 
 const context = BACKGROUND_CONTEXT
 
@@ -145,6 +146,15 @@ const MAX_RESUMES = 3
 const RESUMES_KEY = "crash:resumes"
 const PI_DURABLE_TABLES = ["document_revisions", "documents", "submissions", "tasks", "entries", "conversations", "record_ids", "durable_metadata", "durable_schema"]
 
+// Everything the host's objects store. Its object's schema list spreads this, so the host adds its tables in one place.
+export const HOST_STEPS: Step[] = [
+  ...ALARM_STEPS,
+  ...INBOX_STEPS,
+  ...WORKERS_STEPS,
+  "CREATE TABLE IF NOT EXISTS harness_epoch (id INTEGER PRIMARY KEY CHECK (id = 1), n INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS run_origin (id INTEGER PRIMARY KEY CHECK (id = 1), origin TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)",
+]
+
 export class AgentHost {
   readonly inbox: Inbox
   readonly workers: Workers
@@ -161,8 +171,6 @@ export class AgentHost {
     private readonly ctx: DurableObjectState,
     private readonly options: HostOptions,
   ) {
-    ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS harness_epoch (id INTEGER PRIMARY KEY CHECK (id = 1), n INTEGER NOT NULL)")
-    ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS run_origin (id INTEGER PRIMARY KEY CHECK (id = 1), origin TEXT NOT NULL, started_at INTEGER NOT NULL, steered INTEGER NOT NULL DEFAULT 0)")
     this.inbox = new Inbox(ctx.storage)
     this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), origin: () => this.origin(), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
     this.alarms = createAlarms(ctx)

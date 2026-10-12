@@ -31,6 +31,8 @@ import { checkExtension } from "@yuki/sandbox/check"
 import type { BuilderPorts } from "./extensions/builder"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@yuki/protocol"
 import { createAlarms } from "@yuki/durable/alarm"
+import { migrate } from "@yuki/durable/migrate"
+import { AGENT_STEPS } from "./schema"
 import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@yuki/agent/host"
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
@@ -73,6 +75,7 @@ export class AgentDO extends DurableObject<Env> {
     super(ctx, env)
     instrument(ctx, "agent")
     void ctx.blockConcurrencyWhile(async () => {
+      migrate(ctx.storage, AGENT_STEPS)
       // A wiped agent builds no host: the inbox's constructor writes a row, and a deleted object must hold none.
       if (await isWiped(ctx.storage)) return
       void this.host
@@ -137,7 +140,6 @@ export class AgentDO extends DurableObject<Env> {
 
   async wake(): Promise<boolean> {
     if (await isWiped(this.ctx.storage)) return false
-    this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS wakeups (key TEXT PRIMARY KEY, at INTEGER NOT NULL)")
     const at = this.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", HEARTBEAT_WAKEUP).toArray()[0]?.at
     if (at === undefined) return false
     if (at > Date.now()) await createAlarms(this.ctx).setWakeup(HEARTBEAT_WAKEUP, Date.now())
@@ -150,7 +152,6 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   protected home(): AgentHome | null {
-    this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS agent_home (id INTEGER PRIMARY KEY CHECK (id = 1), home TEXT NOT NULL)")
     const row = this.ctx.storage.sql.exec<{ home: string }>("SELECT home FROM agent_home WHERE id = 1").toArray()[0]
     return row ? (JSON.parse(row.home) as AgentHome) : null
   }
@@ -744,7 +745,6 @@ export class AgentDO extends DurableObject<Env> {
    */
   private async browserIdle(): Promise<boolean> {
     const now = Date.now()
-    this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS wakeups (key TEXT PRIMARY KEY, at INTEGER NOT NULL)")
     const due = this.ctx.storage.sql.exec<{ key: string }>("SELECT key FROM wakeups WHERE at <= ?", now).toArray().map((r) => r.key)
     if (!due.includes(BROWSER_IDLE_WAKEUP)) return false
     await createAlarms(this.ctx).clearWakeup(BROWSER_IDLE_WAKEUP)

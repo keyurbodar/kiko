@@ -1,4 +1,5 @@
 import type { Actor, FileRef } from "@yuki/protocol"
+import type { Step } from "@yuki/durable/migrate"
 
 export type FileRow = {
   id: string
@@ -81,6 +82,16 @@ export type Tables = { files: string; dirs: string }
 export const ROOM_TABLES: Tables = { files: "ws_files", dirs: "ws_dirs" }
 export const HOME_TABLES: Tables = { files: "home_files", dirs: "home_dirs" }
 
+// The index's two tables under the given names. The object's schema list spreads these.
+export function fileIndexSteps(t: Tables): Step[] {
+  return [
+    `CREATE TABLE IF NOT EXISTS ${t.files} (
+      id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, r2_key TEXT NOT NULL, size INTEGER NOT NULL, type TEXT NOT NULL,
+      sha256 TEXT NOT NULL, width INTEGER, height INTEGER, thumbhash TEXT, author TEXT NOT NULL, at INTEGER NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS ${t.dirs} (path TEXT PRIMARY KEY)`,
+  ]
+}
+
 export function listSpace(storage: DurableObjectStorage, t: Tables): { files: FileRef[]; folders: string[] } {
   const has = (name: string) => storage.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", name).toArray().length > 0
   return {
@@ -95,13 +106,7 @@ export class FileIndex<E> {
     private readonly t: Tables,
     private readonly append: (author: string, body: FileBody) => E,
     private readonly actorKey: (actor: Actor) => string,
-  ) {
-    const sql = storage.sql
-    sql.exec(`CREATE TABLE IF NOT EXISTS ${t.files} (
-      id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, r2_key TEXT NOT NULL, size INTEGER NOT NULL, type TEXT NOT NULL,
-      sha256 TEXT NOT NULL, width INTEGER, height INTEGER, thumbhash TEXT, author TEXT NOT NULL, at INTEGER NOT NULL)`)
-    sql.exec(`CREATE TABLE IF NOT EXISTS ${t.dirs} (path TEXT PRIMARY KEY)`)
-  }
+  ) {}
 
   private get sql() {
     return this.storage.sql

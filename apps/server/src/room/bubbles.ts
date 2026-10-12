@@ -19,7 +19,6 @@ export class Bubbles {
 		private readonly log: RoomLog,
 	) {
 		this.sql = storage.sql
-		this.sql.exec("CREATE TABLE IF NOT EXISTS ended_runs (run_id TEXT PRIMARY KEY, at INTEGER NOT NULL)")
 	}
 
 	post(slug: AgentSlug, run: RunRef, block: string, initiative?: { reason: string }): RoomEvent[] {

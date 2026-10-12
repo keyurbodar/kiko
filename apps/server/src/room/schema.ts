@@ -1,4 +1,11 @@
-const MIGRATIONS: readonly string[] = [
+import { ALARM_STEPS, type Step } from "@yuki/durable/alarm"
+import { addColumn } from "@yuki/durable/migrate"
+import { fileIndexSteps, ROOM_TABLES } from "../files/file-index"
+import { treeSteps } from "@yuki/memory/optmem"
+
+// The room's tables, in one list. An object at version N runs only the steps after the first N. A step is
+// appended, never edited or moved, and every step must be safe on a table that already exists.
+export const ROOM_STEPS: Step[] = [
 	`
 	-- Every stored change a human can see. seq only increases and is never reused.
 	-- actor is "human", "agent:<slug>", or "system:<reason>". payload is the event
@@ -128,20 +135,69 @@ const MIGRATIONS: readonly string[] = [
 	);
 	CREATE INDEX pending_uploads_created ON pending_uploads (created_at);
 	`,
+	// Tables that earlier code created inside its class constructors. The object's first boot now creates them here.
+	"CREATE TABLE IF NOT EXISTS deliveries (id TEXT PRIMARY KEY, at INTEGER NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS agent_chains (slug TEXT PRIMARY KEY, root_id TEXT NOT NULL, hop INTEGER NOT NULL, next_root_id TEXT, next_hop INTEGER, origin TEXT, next_origin TEXT)",
+	"CREATE TABLE IF NOT EXISTS root_counts (root_id TEXT PRIMARY KEY, deliveries INTEGER NOT NULL, tripped INTEGER NOT NULL DEFAULT 0, at INTEGER)",
+	"CREATE TABLE IF NOT EXISTS agent_sends (id TEXT PRIMARY KEY, send TEXT NOT NULL, at INTEGER)",
+	"CREATE TABLE IF NOT EXISTS autonomous_runs (id INTEGER PRIMARY KEY CHECK (id = 1), day TEXT NOT NULL, runs INTEGER NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS stopped_roots (root_id TEXT PRIMARY KEY, at INTEGER)",
+	"CREATE TABLE IF NOT EXISTS mail_refused (id TEXT PRIMARY KEY, at INTEGER NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS auto_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS mail_queue (n INTEGER PRIMARY KEY, sender TEXT NOT NULL, send TEXT NOT NULL, recipient TEXT)",
+	"CREATE TABLE IF NOT EXISTS ended_runs (run_id TEXT PRIMARY KEY, at INTEGER NOT NULL)",
+	`CREATE TABLE IF NOT EXISTS pending (
+		id TEXT PRIMARY KEY,
+		seq INTEGER NOT NULL,
+		at INTEGER NOT NULL,
+		text TEXT NOT NULL,
+		reply_to TEXT,
+		mentions TEXT NOT NULL DEFAULT '[]',
+		held_until INTEGER
+	)`,
+	"CREATE INDEX IF NOT EXISTS pending_at ON pending (at)",
+	// A room whose window was open before these columns came has the old table.
+	addColumn("pending", "mentions", "TEXT NOT NULL DEFAULT '[]'"),
+	addColumn("pending", "held_until", "INTEGER"),
+	"CREATE TABLE IF NOT EXISTS held_wakes (id TEXT PRIMARY KEY, wake TEXT NOT NULL, at INTEGER NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS signal_window (n INTEGER PRIMARY KEY, at INTEGER NOT NULL, signal TEXT NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS signal_more (id INTEGER PRIMARY KEY CHECK (id = 1), more INTEGER NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS signal_results (n INTEGER PRIMARY KEY, signal TEXT NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS routine_inflight (routine_id TEXT NOT NULL, occurrence TEXT NOT NULL, slug TEXT NOT NULL, seq INTEGER NOT NULL, started INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (routine_id, occurrence))",
+	`CREATE TABLE IF NOT EXISTS members (
+		slug TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		role TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
+		lead INTEGER NOT NULL DEFAULT 0,
+		status TEXT NOT NULL DEFAULT 'idle',
+		added_seq INTEGER NOT NULL,
+		removed_at INTEGER
+	)`,
+	`CREATE TABLE IF NOT EXISTS agent_asks (
+		id TEXT PRIMARY KEY,
+		asker TEXT NOT NULL,
+		askee TEXT NOT NULL,
+		at INTEGER NOT NULL,
+		state TEXT NOT NULL CHECK (state IN ('open', 'answered', 'closed')),
+		answer TEXT,
+		message_id TEXT,
+		answer_send TEXT
+	) STRICT`,
+	`CREATE TABLE IF NOT EXISTS mem_turns (
+		pos INTEGER PRIMARY KEY,
+		key TEXT NOT NULL,
+		first_seq INTEGER,
+		last_seq INTEGER,
+		at INTEGER NOT NULL,
+		at_last INTEGER NOT NULL,
+		trace TEXT
+	) STRICT`,
+	"CREATE INDEX IF NOT EXISTS mem_turns_seq ON mem_turns (first_seq)",
+	"CREATE TABLE IF NOT EXISTS mem_did (slug TEXT NOT NULL, doing TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (slug, doing)) WITHOUT ROWID",
+	...treeSteps("mem_tree"),
+	"CREATE TABLE IF NOT EXISTS team_doing (slug TEXT PRIMARY KEY, doing TEXT NOT NULL, at INTEGER NOT NULL)",
+	"CREATE TABLE IF NOT EXISTS team_leases (path TEXT PRIMARY KEY, slug TEXT NOT NULL, at INTEGER NOT NULL)",
+	...fileIndexSteps(ROOM_TABLES),
+	...ALARM_STEPS,
 ]
-
-export function migrate(storage: DurableObjectStorage): void {
-	const sql = storage.sql
-	storage.transactionSync(() => {
-		sql.exec("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-		const row = sql.exec<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'").toArray()[0]
-		const from = row ? Number(row.value) : 0
-		for (const migration of MIGRATIONS.slice(from)) sql.exec(migration)
-		if (from < MIGRATIONS.length) {
-			sql.exec(
-				"INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-				String(MIGRATIONS.length),
-			)
-		}
-	})
-}

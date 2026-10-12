@@ -1,7 +1,7 @@
 import type { JsonObject } from "@earendil-works/pi-ai"
 import type { Answer, Question } from "./judge"
 import { keywords, norm } from "./life"
-import { LINE_BYTES } from "./optmem"
+import { LINE_BYTES, type Step } from "./optmem"
 
 const LOOP_KINDS = ["goal", "intention", "commitment", "waiting", "project"] as const
 export type LoopKind = (typeof LOOP_KINDS)[number]
@@ -76,33 +76,36 @@ function match(text: string): string | null {
   return words.length ? words.map((w) => `"${w}"*`).join(" OR ") : null
 }
 
+// The open loops' table, its indexes, and its search table. Its object's schema list spreads these.
+export const LOOPS_STEPS: Step[] = [
+  `CREATE TABLE IF NOT EXISTS loops (
+    id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    certainty TEXT NOT NULL,
+    owner TEXT NOT NULL,
+    room TEXT NOT NULL DEFAULT '',
+    ref TEXT NOT NULL DEFAULT '',
+    due TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    text TEXT NOT NULL,
+    norm TEXT NOT NULL,
+    source TEXT NOT NULL,
+    opened_at INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    mentions INTEGER NOT NULL DEFAULT 1,
+    closed_at INTEGER,
+    snoozed_until INTEGER
+  )`,
+  "CREATE INDEX IF NOT EXISTS loops_live ON loops (status, owner)",
+  "CREATE INDEX IF NOT EXISTS loops_ref ON loops (ref)",
+  "CREATE VIRTUAL TABLE IF NOT EXISTS loops_fts USING fts5(text)",
+]
+
 export class Loops {
   constructor(
     private readonly sql: SqlStorage,
     private readonly transaction: <T>(fn: () => T) => T,
-  ) {
-    sql.exec(`CREATE TABLE IF NOT EXISTS loops (
-      id INTEGER PRIMARY KEY,
-      kind TEXT NOT NULL,
-      certainty TEXT NOT NULL,
-      owner TEXT NOT NULL,
-      room TEXT NOT NULL DEFAULT '',
-      ref TEXT NOT NULL DEFAULT '',
-      due TEXT,
-      status TEXT NOT NULL DEFAULT 'open',
-      text TEXT NOT NULL,
-      norm TEXT NOT NULL,
-      source TEXT NOT NULL,
-      opened_at INTEGER NOT NULL,
-      last_seen INTEGER NOT NULL,
-      mentions INTEGER NOT NULL DEFAULT 1,
-      closed_at INTEGER,
-      snoozed_until INTEGER
-    )`)
-    sql.exec("CREATE INDEX IF NOT EXISTS loops_live ON loops (status, owner)")
-    sql.exec("CREATE INDEX IF NOT EXISTS loops_ref ON loops (ref)")
-    sql.exec("CREATE VIRTUAL TABLE IF NOT EXISTS loops_fts USING fts5(text)")
-  }
+  ) {}
 
   open(input: NewLoop, same?: number): OpenResult {
     const text = input.text.replace(/\s+/g, " ").trim()

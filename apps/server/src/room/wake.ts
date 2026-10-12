@@ -29,7 +29,6 @@ export const HELD_WAKEUP = "held_wakes"
 
 export class HeldWakes {
 	constructor(private readonly sql: SqlStorage) {
-		sql.exec("CREATE TABLE IF NOT EXISTS held_wakes (id TEXT PRIMARY KEY, wake TEXT NOT NULL, at INTEGER NOT NULL)")
 	}
 
 	hold(w: Wake, now: number): void {

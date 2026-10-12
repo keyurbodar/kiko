@@ -171,35 +171,6 @@ export class Reminders {
     private readonly now: () => number = Date.now,
     private readonly ports?: RoutinePorts,
   ) {
-    this.sql.exec(`CREATE TABLE IF NOT EXISTS reminders (
-      id TEXT PRIMARY KEY,
-      text TEXT NOT NULL,
-      due_utc INTEGER NOT NULL,
-      tz TEXT NOT NULL,
-      rrule TEXT,
-      room_id TEXT NOT NULL,
-      target TEXT NOT NULL,
-      created_by TEXT NOT NULL,
-      status TEXT NOT NULL,
-      last_fired INTEGER,
-      created_at INTEGER NOT NULL,
-      name TEXT,
-      "trigger" TEXT,
-      fails INTEGER NOT NULL DEFAULT 0,
-      watch_state TEXT,
-      hook_hash TEXT,
-      chain TEXT
-    )`)
-    this.sql.exec("CREATE INDEX IF NOT EXISTS reminders_due ON reminders (status, due_utc)")
-    this.sql.exec(`CREATE TABLE IF NOT EXISTS routine_runs (
-      routine_id TEXT NOT NULL,
-      occurrence TEXT NOT NULL,
-      started_at INTEGER NOT NULL,
-      ended_at INTEGER,
-      status TEXT NOT NULL,
-      seq INTEGER,
-      PRIMARY KEY (routine_id, occurrence)
-    )`)
   }
 
   get(id: string): Reminder | null {

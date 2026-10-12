@@ -55,16 +55,6 @@ export class Members {
 		private readonly log: RoomLog,
 	) {
 		this.sql = storage.sql
-		this.sql.exec(`CREATE TABLE IF NOT EXISTS members (
-			slug TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			role TEXT NOT NULL DEFAULT '',
-			model TEXT NOT NULL DEFAULT '',
-			lead INTEGER NOT NULL DEFAULT 0,
-			status TEXT NOT NULL DEFAULT 'idle',
-			added_seq INTEGER NOT NULL,
-			removed_at INTEGER
-		)`)
 	}
 
 	list(): MemberRow[] {

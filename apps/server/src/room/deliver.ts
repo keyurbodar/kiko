@@ -74,7 +74,6 @@ export class Deliveries {
 		private readonly storage: DurableObjectStorage,
 		private readonly log: RoomLog,
 	) {
-		storage.sql.exec("CREATE TABLE IF NOT EXISTS deliveries (id TEXT PRIMARY KEY, at INTEGER NOT NULL)")
 	}
 
 	seen(id: string): boolean {

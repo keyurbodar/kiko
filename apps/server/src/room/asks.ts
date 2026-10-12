@@ -9,16 +9,6 @@ export const KEEP_ASKS_MS = 7 * 86_400_000
 
 export class Asks {
   constructor(private readonly sql: SqlStorage) {
-    sql.exec(`CREATE TABLE IF NOT EXISTS agent_asks (
-      id TEXT PRIMARY KEY,
-      asker TEXT NOT NULL,
-      askee TEXT NOT NULL,
-      at INTEGER NOT NULL,
-      state TEXT NOT NULL CHECK (state IN ('open', 'answered', 'closed')),
-      answer TEXT,
-      message_id TEXT,
-      answer_send TEXT
-    ) STRICT`)
   }
 
   open(id: string, asker: AgentSlug, askee: AgentSlug, now: number): void {

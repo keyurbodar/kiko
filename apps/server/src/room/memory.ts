@@ -31,17 +31,6 @@ export class RoomMemory {
     private readonly meta: { get(key: string): string | null; set(key: string, value: string): void },
   ) {
     this.sql = storage.sql
-    this.sql.exec(`CREATE TABLE IF NOT EXISTS mem_turns (
-      pos INTEGER PRIMARY KEY,
-      key TEXT NOT NULL,
-      first_seq INTEGER,
-      last_seq INTEGER,
-      at INTEGER NOT NULL,
-      at_last INTEGER NOT NULL,
-      trace TEXT
-    ) STRICT`)
-    this.sql.exec("CREATE INDEX IF NOT EXISTS mem_turns_seq ON mem_turns (first_seq)")
-    this.sql.exec("CREATE TABLE IF NOT EXISTS mem_did (slug TEXT NOT NULL, doing TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (slug, doing)) WITHOUT ROWID")
     this.tree = new Tree(this.sql, "mem_tree", ROOM_SHAPE, (lo, hi) => this.items(lo, hi))
   }
 

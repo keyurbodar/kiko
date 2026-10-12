@@ -21,14 +21,6 @@ export class ComposioStore {
     private readonly keyring: Keyring,
     private readonly userId: string,
   ) {
-    sql.exec(`CREATE TABLE IF NOT EXISTS composio (
-      name TEXT PRIMARY KEY,
-      kek_version INTEGER,
-      iv BLOB,
-      ciphertext BLOB,
-      value TEXT,
-      updated_at INTEGER NOT NULL
-    )`)
   }
 
   /** Read before the first await, so a caller that clears the store right after still gets what was stored. */

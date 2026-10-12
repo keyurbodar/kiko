@@ -90,9 +90,6 @@ export class SignalWindow {
 		private readonly sql: SqlStorage,
 		private readonly roomId: () => string | null,
 	) {
-		sql.exec("CREATE TABLE IF NOT EXISTS signal_window (n INTEGER PRIMARY KEY, at INTEGER NOT NULL, signal TEXT NOT NULL)")
-		sql.exec("CREATE TABLE IF NOT EXISTS signal_more (id INTEGER PRIMARY KEY CHECK (id = 1), more INTEGER NOT NULL)")
-		sql.exec("CREATE TABLE IF NOT EXISTS signal_results (n INTEGER PRIMARY KEY, signal TEXT NOT NULL)")
 	}
 
 	hold(results: readonly Signal[]): void {
