@@ -1,5 +1,5 @@
 import { ALARM_STEPS } from "@yuki/durable/alarm"
-import type { Step } from "@yuki/durable/migrate"
+import { addColumn, type Step } from "@yuki/durable/migrate"
 import { fileIndexSteps, HOME_TABLES } from "../files/file-index"
 import { LIFE_STEPS } from "@yuki/memory/life"
 import { LOOPS_STEPS } from "@yuki/memory/loops"
@@ -175,4 +175,6 @@ export const USER_STEPS: Step[] = [
   ...LOOPS_STEPS,
   ...fileIndexSteps(HOME_TABLES),
   ...ALARM_STEPS,
+  // How many Jev passes a heard burst has failed (initiative-loops.ts). Past the last try, the two-word touch decides it.
+  addColumn("loop_heard", "attempts", "INTEGER NOT NULL DEFAULT 0"),
 ]

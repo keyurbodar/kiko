@@ -21,6 +21,8 @@ import { yukiChatRoom } from "./yuki-chat"
 export const LOOPS_WAKEUP = "loops_heard"
 const LOOPS_DELAY_MS = 15_000
 const LOOPS_ROOMS_PER_PASS = 8
+// Jev passes a burst may fail before the two-word touch decides it.
+const LOOPS_TRIES = 3
 
 export type LoopsDeps = {
   sql: SqlStorage
@@ -153,16 +155,26 @@ export class InitiativeLoops {
   }
 
   async now(): Promise<void> {
-    const rows = this.d.sql.exec<{ room_id: RoomId; message_id: string; text: string; at: number; agent: string }>("SELECT * FROM loop_heard ORDER BY at LIMIT 48").toArray()
+    const rows = this.d.sql.exec<{ room_id: RoomId; message_id: string; text: string; at: number; agent: string; attempts: number }>("SELECT * FROM loop_heard ORDER BY at LIMIT 48").toArray()
     const rooms = new Map<RoomId, typeof rows>()
     for (const r of rows) rooms.set(r.room_id, [...(rooms.get(r.room_id) ?? []), r])
     // One Jev call per chat, and an invocation has 50 subrequests: the rest wait for the next alarm.
+    let retry = false
     for (const [roomId, burst] of [...rooms].slice(0, LOOPS_ROOMS_PER_PASS)) {
+      const ids = JSON.stringify(burst.map((r) => r.message_id))
       const out = await this.initiative.heard(roomId, burst.map((r) => ({ messageId: r.message_id, text: r.text, at: r.at, ...(r.agent ? { by: r.agent } : {}) })))
-      // Jev failed: the summary pass still sees these words, so nothing waits.
-      if (out === "later") this.d.memory.count({ loops_jev_failed: 1 })
-      this.d.sql.exec("DELETE FROM loop_heard WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(burst.map((r) => r.message_id)))
+      if (out === "later") {
+        this.d.memory.count({ loops_jev_failed: 1 })
+        // Keep the burst for another pass. Once the tries run out, the two-word touch counts a reply, so a nudge is not settled as ignored.
+        if (Math.max(...burst.map((r) => r.attempts)) + 1 < LOOPS_TRIES) {
+          this.d.sql.exec("UPDATE loop_heard SET attempts = attempts + 1 WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, ids)
+          retry = true
+          continue
+        }
+        for (const r of burst) this.engine.fallback(roomId, r.text, r.message_id, r.at)
+      }
+      this.d.sql.exec("DELETE FROM loop_heard WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, ids)
     }
-    if (this.d.sql.exec<{ n: number }>("SELECT count(*) AS n FROM loop_heard").one().n) await this.d.alarms.setWakeup(LOOPS_WAKEUP, Date.now())
+    if (this.d.sql.exec<{ n: number }>("SELECT count(*) AS n FROM loop_heard").one().n) await this.d.alarms.setWakeup(LOOPS_WAKEUP, Date.now() + (retry ? LOOPS_DELAY_MS : 0))
   }
 }

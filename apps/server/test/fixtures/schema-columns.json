@@ -3089,6 +3089,14 @@
           "notnull": 1,
           "dflt_value": "''",
           "pk": 0
+        },
+        {
+          "cid": 5,
+          "name": "attempts",
+          "type": "INTEGER",
+          "notnull": 1,
+          "dflt_value": "0",
+          "pk": 0
         }
       ],
       "indexes": [

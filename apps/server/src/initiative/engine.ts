@@ -88,20 +88,20 @@ export class InitiativeEngine {
           if (nudge) heard.push(answer(nudge.loop, s.roomId, `${s.seq}`, s.at))
         }
         this.d.sql.exec("INSERT INTO initiative_rooms (room_id, human_at) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET human_at = max(human_at, excluded.human_at)", s.roomId, s.at)
-        if (fresh.has(`burst:${s.roomId}:${s.seq}`) && this.d.title(s.roomId) !== null) {
-          const said = new Set(keywords(s.text))
+        if (fresh.has(`burst:${s.roomId}:${s.seq}`)) {
           // Where Jev reads bursts, it judges the burst against the nudge (initiative.ts) and its verdict decides; sharing two words is the rule only elsewhere.
           const judged = this.d.judged(s.roomId)
-          for (const l of this.d.loops.similar(s.text, 2)) {
-            if (l.room !== s.roomId || keywords(l.text).filter((w) => said.has(w)).length < SHARED_WORDS) continue
-            this.d.loops.touch(l.id, s.at)
-            if (!judged) heard.push(answer(`loop:${l.id}`, s.roomId, `${s.seq}`, s.at))
-          }
+          for (const id of this.touched(s.roomId, s.text, s.at)) if (!judged) heard.push(answer(`loop:${id}`, s.roomId, `${s.seq}`, s.at))
         }
       }
     }
     this.apply(this.store.observe(heard, now, this.d.tz()))
     await this.arm(now)
+  }
+
+  /** A burst Jev could not judge (its pass failed for good) falls back to the two-word touch, so a reply still counts as engagement. */
+  fallback(roomId: string, text: string, messageId: string, at: number, now = Date.now()): void {
+    this.apply(this.store.observe(this.touched(roomId, text, at).map((id) => answer(`loop:${id}`, roomId, messageId, at)), now, this.d.tz()))
   }
 
   /** The nudges in a chat still waiting for the human, for Jev to judge whether a burst answers one. */
@@ -117,6 +117,19 @@ export class InitiativeEngine {
     const loop = `loop:${id}`
     const pending = this.store.appetite().pending.find((p) => p.loop === loop)
     if (pending) this.apply(this.store.observe([{ kind: "dismiss", id: `dismiss:${loop}:${now}`, room: pending.room, at: now, loop }], now, this.d.tz()))
+  }
+
+  /** The loops of this chat that a burst shares at least two words with. Each is touched; returns their ids. */
+  private touched(roomId: string, text: string, at: number): number[] {
+    if (this.d.title(roomId) === null) return []
+    const said = new Set(keywords(text))
+    const ids: number[] = []
+    for (const l of this.d.loops.similar(text, 2)) {
+      if (l.room !== roomId || keywords(l.text).filter((w) => said.has(w)).length < SHARED_WORDS) continue
+      this.d.loops.touch(l.id, at)
+      ids.push(l.id)
+    }
+    return ids
   }
 
   private ran(result: Extract<SignalBatch["signals"][number], { kind: "routine_result" }>, now: number): void {
