@@ -114,6 +114,12 @@ describe("runDeleteJob", () => {
 		})
 	}
 
+	test("a rerun with generation 0 on a live user deletes nothing", async () => {
+		const a = account()
+		expect(await runDeleteJob(job(ROOM_A, 0), a.targets)).toEqual({ agents: 0, rooms: 0, user: 0, objects: 0, authRows: 0, finished: false })
+		expect(a.calls).toEqual([])
+	})
+
 	test("a second run of a finished job deletes nothing", async () => {
 		const a = account()
 		await runDeleteJob(job(ROOM_A), a.targets)

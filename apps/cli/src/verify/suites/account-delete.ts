@@ -112,7 +112,8 @@ const suite: Suite = {
 			throw new VerifyError(`the account was not built\n${JSON.stringify(before)}`)
 		}
 		expectEqual(before.auth.user, 1, "the user row before deletion")
-		if (before.objects < 2) throw new VerifyError(`the uploads are not in the account\n${JSON.stringify(before)}`)
+		// Two objects, the two uploads. No chat.md: a room seeds one only with two members, and these rooms hold just the chief. Exact, so a leaked object fails here.
+		expectEqual(before.objects, 2, "the objects in the account: the two uploads")
 
 		// The session's rooms named on the other user's path: only the session's own objects answer.
 		const otherBefore = (await call(other.cookie, "GET", otherResidue)).body as Residue

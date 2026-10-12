@@ -75,6 +75,8 @@ export class AgentDO extends DurableObject<Env> {
     super(ctx, env)
     instrument(ctx, "agent")
     void ctx.blockConcurrencyWhile(async () => {
+      // A wiped agent builds no host: the inbox's constructor writes a row, and a deleted object must hold none.
+      if (await isWiped(ctx.storage)) return
       void this.host
       void this.outbox
       this.home()
