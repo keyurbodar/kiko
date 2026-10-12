@@ -8,6 +8,14 @@ const API = "https://backend.composio.dev/api/v3.1/"
 const SESSION_ORIGIN = "https://backend.composio.dev"
 export const REJECTED = "Composio rejected this key"
 
+/*
+ * Composio has two kinds of key. A Platform project key (`ak_`) makes a session per yuki user on
+ * `backend.composio.dev`. A Composio Connect key (`ck_`) is one person's own account: its apps are
+ * connected on Composio's side, and its MCP server is one fixed url with no sessions and no catalog.
+ */
+const CONNECT_URL = "https://connect.composio.dev/mcp"
+const isConnectKey = (key: string) => key.startsWith("ck_")
+
 /** What a session request needs: the key and the session's MCP url. */
 export type Session = { id: string; url: string }
 export type Target = { key: string; url: string }
@@ -84,7 +92,11 @@ export async function composioRpc(target: Target, method: string, params: Record
   const id = nextId++
   const res = await fetchImpl(target.url, {
     method: "POST",
-    headers: { "x-api-key": target.key, "content-type": "application/json", accept: "application/json, text/event-stream" },
+    headers: {
+      [isConnectKey(target.key) ? "x-consumer-api-key" : "x-api-key"]: target.key,
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+    },
     body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
     signal: AbortSignal.timeout(timeoutMs),
   })
@@ -138,11 +150,13 @@ async function api(key: string, path: string, fetchImpl: typeof fetch, init: { m
 
 /** Throws unless Composio accepts `key`, with the cheapest read it has. */
 export async function checkKey(key: string, fetchImpl: typeof fetch = fetch): Promise<void> {
+  if (isConnectKey(key)) return void (await listTools({ key, url: CONNECT_URL }, fetchImpl))
   await (await api(key, "toolkits?limit=1", fetchImpl)).body?.cancel()
 }
 
 /** A new session for `userId`. Its MCP url must be on Composio's own origin. */
 export async function createSession(key: string, userId: string, fetchImpl: typeof fetch = fetch): Promise<Session> {
+  if (isConnectKey(key)) return { id: "connect", url: CONNECT_URL }
   const body = (await (await api(key, "tool_router/session", fetchImpl, { method: "POST", body: { user_id: userId } })).json()) as { session_id?: unknown; mcp?: { url?: unknown } }
   const id = body.session_id
   const url = body.mcp?.url
@@ -152,6 +166,7 @@ export async function createSession(key: string, userId: string, fetchImpl: type
 
 /** Deletes a session. One that is already gone is not an error. */
 export async function deleteSession(key: string, id: string, fetchImpl: typeof fetch = fetch): Promise<void> {
+  if (isConnectKey(key)) return
   await api(key, `tool_router/session/${encodeURIComponent(id)}`, fetchImpl, { method: "DELETE" }).then(
     (res) => res.body?.cancel(),
     (e) => {
@@ -162,6 +177,8 @@ export async function deleteSession(key: string, id: string, fetchImpl: typeof f
 
 /** Whether Composio's tool catalog tags `slug` read-only. */
 export async function catalogReadOnly(key: string, slug: string, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+  // A Connect key has no catalog access, so its learned tools stay `external`, the safe class.
+  if (isConnectKey(key)) return false
   const { tags } = (await (await api(key, `tools/${encodeURIComponent(slug)}`, fetchImpl)).json()) as { tags?: unknown }
   return Array.isArray(tags) && tags.includes("readOnlyHint")
 }
