@@ -125,15 +125,16 @@ export default {
     const tool = (filesExtension({ fs, acceptsImages: () => slug === "seer" }).tools ?? []).find((t) => t.name === name)
     if (!tool) return Response.json({ error: `no tool ${name}` }, { status: 404 })
     let streamed = ""
-    const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID(), output: (t: string) => void (streamed += t), diagnostic: () => {}, details: async () => {} } as unknown as ToolExecutionApi
+    let reported: unknown
+    const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID(), output: (t: string) => void (streamed += t), diagnostic: () => {}, details: async (d: unknown) => void (reported = d) } as unknown as ToolExecutionApi
     const started = performance.now()
     try {
       const result = await tool.execute(args as never, api, BACKGROUND_CONTEXT)
       const text = (result.content ?? []).map((p) => (p.type === "text" ? p.text : `[${p.type}]`)).join("") || streamed
       const notes = (result.diagnostics ?? []).map((d) => d.message).join("\n")
-      return Response.json({ ok: !result.isError, text, notes, ms: performance.now() - started, details: result.details })
+      return Response.json({ ok: !result.isError, text, notes, ms: performance.now() - started, details: reported ?? result.details })
     } catch (error) {
-      return Response.json({ ok: false, text: streamed + (error instanceof Error ? error.message : String(error)), ms: performance.now() - started })
+      return Response.json({ ok: false, text: streamed + (error instanceof Error ? error.message : String(error)), ms: performance.now() - started, details: reported })
     }
   },
 }
