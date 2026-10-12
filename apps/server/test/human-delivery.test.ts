@@ -235,6 +235,20 @@ test("a human message over the daily reply limit is held and answered at the res
   expect(received).toEqual([["human:m1"]])
 })
 
+test("a held message goes out before a later one when the limit lifts early", async () => {
+  const resetAt = NOW + 60_000
+  const { flush, burst, received, turn } = setup(null, { ok: false, limit: 2, resetAt })
+  await human(burst, 1, "three.")
+  await flush.flush()
+  expect(received).toHaveLength(0)
+  // The plan's limit is raised before the reset, then the human writes again.
+  Object.assign(turn, { ok: true })
+  await human(burst, 2, "four.")
+  await flush.flush()
+  expect(received).toEqual([["human:m1", "human:m2"]])
+  expect(burst.pending()).toBe(false)
+})
+
 test("a held reset survives a later message whose flush fails", async () => {
   const resetAt = NOW + 60_000
   const { flush, burst, wakeups, state } = setup(null, { ok: false, limit: 10, resetAt })
