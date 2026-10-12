@@ -26,7 +26,11 @@ export class StoreDO extends DurableObject<Env> {
       () => "user-1",
       (e) => this.events.push(e.t),
       {
-        create: async (t) => void this.triggers.push(`create ${t.createdBy} ${t.rrule} ${t.text}`),
+        create: async (t) => {
+          this.triggers.push(`create ${t.createdBy} ${t.rrule} ${t.text}`)
+          // Slow enough that an uninstall can land while a rewrite is still creating triggers.
+          if (t.createdBy === "ext:slow") await new Promise((r) => setTimeout(r, 30))
+        },
         cancelBy: async (by) => {
           if (by === "ext:boom") throw new Error("the scheduler is down")
           this.triggers.push(`cancel ${by}`)

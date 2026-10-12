@@ -24,10 +24,12 @@ const ints = (v: string, min: number, max: number) =>
 
 export function ruleProblem(rrule: string): string | null {
   const parts = new Map<string, string>();
-  const lines = rrule.trim().split(/\r?\n/).filter((l) => !/^DTSTART[:;]/i.test(l.trim()));
-  if (lines.length !== 1) return "rrule must be one RRULE line, optionally after a DTSTART line";
+  // No caller sets a start time: the first occurrence comes from the time the schedule is given.
+  if (/^DTSTART[:;]/im.test(rrule.trim())) return "rrule takes no DTSTART line. the first time comes from the time you give";
+  const lines = rrule.trim().split(/\r?\n/);
+  if (lines.length !== 1) return "rrule must be one RRULE line";
   const [single] = lines;
-  if (single === undefined) return "rrule must be one RRULE line, optionally after a DTSTART line";
+  if (single === undefined) return "rrule must be one RRULE line";
   for (const line of single.trim().replace(/^RRULE:/i, "").split(";")) {
     const [k, v] = line.split("=");
     if (!k || v === undefined || !v) return `rrule part "${line}" does not parse`;

@@ -68,7 +68,7 @@ describe("exact instants", () => {
     expect(nextOccurrence(rule, "America/New_York", new Date("2026-03-07T12:00:00Z"))!.toISOString()).toBe("2026-03-08T07:30:00.000Z");
   });
   test("a finished rule returns null", () => {
-    expect(nextOccurrence("DTSTART:20260101T090000\nRRULE:FREQ=DAILY;COUNT=1", "Europe/Berlin", new Date("2026-06-01T00:00:00Z"))).toBeNull();
+    expect(nextOccurrence("FREQ=DAILY;COUNT=1", "Europe/Berlin", new Date("2026-06-01T00:00:00Z"))).toBeNull();
   });
 });
 
@@ -99,5 +99,29 @@ describe("repeatProblem: a rule that repeats too fast is refused whichever gap c
   });
   test("a rule with one gap of 30 minutes or more passes", () => {
     expect(repeatProblem("FREQ=HOURLY;BYMINUTE=0,30", "UTC", Date.UTC(2026, 0, 1, 9, 55))).toBeNull();
+  });
+});
+
+describe("repeatProblem: the gap check sees the fastest gap however far off the first occurrence is", () => {
+  test("two minutes on Christmas, first due in December, is refused", () => {
+    const from = Date.UTC(2026, 0, 1, 9, 0);
+    expect(repeatProblem("FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=25;BYHOUR=9;BYMINUTE=0,1", "UTC", from)).toContain("repeats at most every 30 minutes");
+  });
+  test("a rule whose first time is weeks out is still judged by its gaps", () => {
+    const from = Date.UTC(2026, 0, 1, 9, 0);
+    expect(repeatProblem("FREQ=MONTHLY;BYMONTHDAY=20;BYHOUR=9;BYMINUTE=0,1", "UTC", from)).toContain("repeats at most every 30 minutes");
+  });
+});
+
+describe("a trigger rule takes no DTSTART line, so the first time cannot hide a fast gap", () => {
+  const hourly = "DTSTART:20261101T090000\nRRULE:FREQ=HOURLY;BYMINUTE=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59";
+  test("ruleProblem refuses a DTSTART line", () => {
+    expect(ruleProblem("DTSTART:20261101T090000\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0")).toContain("DTSTART");
+  });
+  test("repeatProblem refuses the hourly rule that a DTSTART a month out used to hide", () => {
+    expect(repeatProblem(hourly, "UTC", Date.UTC(2026, 9, 12, 9, 0))).not.toBeNull();
+  });
+  test("nextOccurrence refuses it too, so no caller can store it", () => {
+    expect(() => nextOccurrence("DTSTART:20261101T090000\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0", "UTC", Date.now())).toThrow();
   });
 });

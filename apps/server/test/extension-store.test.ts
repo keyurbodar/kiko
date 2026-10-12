@@ -79,6 +79,31 @@ test("two quick toggles leave the triggers matching the switch", async () => {
   expect(log.at(-1)?.startsWith("create ")).toBe(info.enabled)
 })
 
+test("an uninstall waits for a trigger rewrite already running, so no trigger outlives it", async () => {
+  const u = fresh()
+  const two = {
+    manifest: {
+      ...manifest,
+      name: "slow",
+      triggers: [
+        { id: "morning", rrule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0", send: "one" },
+        { id: "evening", rrule: "FREQ=DAILY;BYHOUR=18;BYMINUTE=0", send: "two" },
+      ],
+    },
+    files: bundle.files,
+  }
+  const p = await call(u, "propose", { bundle: two, source: "agent", by: "ada", room: "0190f5e2-7c3a-7b4d-8e9f-0123456789ab" })
+  await call(u, "install", p.value.id)
+  await call(u, "setEnabled", "slow", false)
+  const on = call(u, "setEnabled", "slow", true)
+  const creates = async () => (await seen(u)).triggers.filter((t) => t.startsWith("create ext:slow")).length
+  while ((await creates()) < 3) await new Promise((r) => setTimeout(r, 5))
+  const gone = await call(u, "uninstall", "slow")
+  await on
+  expect(gone.ok).toBe(true)
+  expect((await seen(u)).triggers.filter((t) => t.includes("ext:slow")).at(-1)).toBe("cancel ext:slow")
+})
+
 test("a secret is filled in only for its own host, and an echo never hands it back", async () => {
   const u = fresh()
   await installed(u)
