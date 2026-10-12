@@ -153,6 +153,8 @@ The layout follows the kat screenshots in `docs/reference/`: an icon rail, a sid
 | `/memory`, `/memory/:id` | none | none | opens the active chat with the right panel on Memory |
 | `/settings/*` | settings (bottom) | sections | providers, models, integrations, skills, account |
 
+Sign-in: Google or GitHub when the server has them set. The sign-in screen also takes a name and an access code when the owner sets one for the deployment, so anyone with the code can sign in and no one else can.
+
 Overlays: command palette, calendar jump, context menus, onboarding, and the image dialog, which zooms and pans as t3code's does. The media viewer is gone (DEVIATION, 2026-10-09): the files tab draws a picture inline.
 
 ### What replaces kat's terminal and browser panels

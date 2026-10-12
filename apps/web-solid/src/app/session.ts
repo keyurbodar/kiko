@@ -22,6 +22,8 @@ export interface Providers {
   github: boolean
   /** True only on a development Worker, which has the dev session route. */
   dev: boolean
+  /** True when the Worker has an access code set, so the sign-in screen shows the code form. */
+  code: boolean
 }
 
 const FLAG_KEY = "yuki:session"
@@ -150,7 +152,7 @@ export async function loadProviders(): Promise<Providers> {
   } catch {
     // fall through to none
   }
-  return { google: false, github: false, dev: false }
+  return { google: false, github: false, dev: false, code: false }
 }
 
 /** Starts the OAuth redirect for a provider. */
@@ -163,6 +165,23 @@ export async function signInWithProvider(provider: "google" | "github"): Promise
   const { url } = (await res.json()) as { url?: string }
   if (!url) throw new Error("no sign-in url")
   location.assign(url)
+}
+
+/** Signs in with the access code. A wrong code throws the server's message. */
+export async function signInWithAccessCode(name: string, code: string): Promise<void> {
+  const res = await fetch("/api/auth/access-code", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, code }),
+  }).catch(() => null)
+  if (!res?.ok) {
+    const { message } = res ? ((await res.json().catch(() => ({}))) as { message?: string }) : {}
+    throw new Error(message ?? "Could not sign in. Try again")
+  }
+  // The cookie is set. Read the user back and show the shell without a reload.
+  const me = await fetch("/api/me")
+  if (!me.ok) throw new Error("Could not sign in. Try again")
+  signedIn(((await me.json()) as { user: SessionUser }).user)
 }
 
 /** Development Workers only. Mints a session for a test user, then reads it back. */

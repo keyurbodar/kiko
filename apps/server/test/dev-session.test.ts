@@ -105,7 +105,7 @@ describe("production build", () => {
   })
 
   test("reports no providers and no dev sign-in", async () => {
-    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: false })
+    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: false, code: false })
   })
 
   test("yuki login --dev fails", async () => {
@@ -130,7 +130,7 @@ describe("development build", () => {
   })
 
   test("reports dev sign-in on", async () => {
-    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: true })
+    expect(await (await fetch(`${origin}/api/providers`)).json()).toEqual({ google: false, github: false, dev: true, code: false })
   })
 
   test("yuki login --dev stores a session and yuki whoami prints the same user id", async () => {

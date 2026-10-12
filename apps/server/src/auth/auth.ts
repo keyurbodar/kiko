@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth"
 import { DEV, devAuthPlugins, devTrustedOrigins } from "../lib/dev-guard"
+import { accessCode } from "./access-code"
 
 export interface AuthEnv {
   AUTH_DB: D1Database
@@ -10,6 +11,7 @@ export interface AuthEnv {
   GOOGLE_CLIENT_SECRET?: string
   GITHUB_CLIENT_ID?: string
   GITHUB_CLIENT_SECRET?: string
+  ACCESS_CODE?: string
 }
 
 export interface SessionUser {
@@ -50,7 +52,7 @@ export function createAuth(env: AuthEnv, request: Request) {
       // Schema is owned by D1 migrations; validating per instance reads it on every request.
       database: { validateSchema: false },
     },
-    plugins: devAuthPlugins(),
+    plugins: [...devAuthPlugins(), ...(env.ACCESS_CODE ? [accessCode(env.ACCESS_CODE)] : [])],
   })
 }
 
@@ -95,7 +97,7 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
   if (pathname.startsWith(`${AUTH_PATH}/`)) return createAuth(env, request).handler(request)
   if (pathname === "/api/providers") {
     const on = socialProviders(env)
-    return Response.json({ google: "google" in on, github: "github" in on, dev: DEV })
+    return Response.json({ google: "google" in on, github: "github" in on, dev: DEV, code: Boolean(env.ACCESS_CODE) })
   }
   return null
 }
