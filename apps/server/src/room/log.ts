@@ -19,6 +19,8 @@ export const REPLAY_LIMIT = 500
 export const KEEP_EVENTS = 2 * REPLAY_LIMIT
 const TRIM_EVERY = 100
 export const SNAPSHOT_MESSAGES = 200
+// The meta key of the kept unread count (see RoomLog.unread).
+const UNREAD = "unread"
 
 type Body = RoomEvent extends infer E ? (E extends unknown ? Omit<E, "seq" | "at"> : never) : never
 
@@ -273,6 +275,8 @@ export class RoomLog {
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
 			}
+			// A new message is past the read mark, so it is unread unless the human wrote it.
+			if (input.from.kind !== "human") this.adjustUnread(1)
 			return { id, seq: event.seq, event }
 		})
 	}
@@ -300,13 +304,20 @@ export class RoomLog {
 
 	deleteMessages(ids: readonly MessageId[], by: Actor): RoomEvent | null {
 		return this.storage.transactionSync(() => {
-			const live = ids.filter((id) => this.message(id))
+			const live = ids.flatMap((id) => {
+				const m = this.message(id)
+				return m ? [m] : []
+			})
 			if (!live.length) return null
-			const event = this.append(actorKey(by), { t: "delete", messageIds: live })
-			for (const id of live) {
-				this.sql.exec("UPDATE messages SET deleted_at = ? WHERE id = ?", event.at, id)
-				this.sql.exec("DELETE FROM reactions WHERE message_id = ?", id)
+			const event = this.append(actorKey(by), { t: "delete", messageIds: live.map((m) => m.id) })
+			const read = this.readSeq()
+			let unread = 0
+			for (const m of live) {
+				this.sql.exec("UPDATE messages SET deleted_at = ? WHERE id = ?", event.at, m.id)
+				this.sql.exec("DELETE FROM reactions WHERE message_id = ?", m.id)
+				if (m.from.kind !== "human" && m.seq > read) unread++
 			}
+			this.adjustUnread(-unread)
 			return event
 		})
 	}
@@ -337,13 +348,44 @@ export class RoomLog {
 	/** Moves the human's read mark forward. It never moves back or past the log. */
 	markRead(seq: number): RoomEvent | null {
 		return this.storage.transactionSync(() => {
+			const from = this.readSeq()
 			const upTo = Math.min(seq, this.lastSeq())
-			if (upTo <= this.readSeq()) return null
+			if (upTo <= from) return null
 			// The read event itself is after upTo, so it never counts as unread.
 			const event = this.append("human", { t: "read", upTo })
 			this.setMeta("read_seq", String(upTo))
+			this.adjustUnread(-this.countNonHuman(from, upTo))
 			return event
 		})
+	}
+
+	/**
+	 * Live messages from anyone but the human, after the read mark: the chat's unread count. It is kept in
+	 * meta once counted, so a send does not count the chat again. The first call counts it.
+	 */
+	unread(): number {
+		const kept = this.meta(UNREAD)
+		if (kept !== null) return Number(kept)
+		const n = this.countNonHuman(this.readSeq(), Number.MAX_SAFE_INTEGER)
+		this.setMeta(UNREAD, String(n))
+		return n
+	}
+
+	/** Moves the kept count, if one is kept. When none is, the next unread() counts the chat from the rows. */
+	private adjustUnread(by: number): void {
+		const kept = this.meta(UNREAD)
+		if (kept !== null && by !== 0) this.setMeta(UNREAD, String(Number(kept) + by))
+	}
+
+	/** Live messages from anyone but the human with seq in (after, upTo]. */
+	private countNonHuman(after: number, upTo: number): number {
+		return this.sql
+			.exec<{ n: number }>(
+				"SELECT count(*) AS n FROM messages WHERE deleted_at IS NULL AND seq > ? AND seq <= ? AND json_extract(sender, '$.kind') != 'human'",
+				after,
+				upTo,
+			)
+			.one().n
 	}
 
 	/** Stores one event and returns it with its seq. Call inside a transaction with the state change. */
