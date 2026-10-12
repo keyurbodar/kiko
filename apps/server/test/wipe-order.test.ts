@@ -59,6 +59,15 @@ test("a probe during deletion counts the rows still there, so a second deletion 
 	await wipeStorage(ctx, async () => {
 		during = await storedRows(storage)
 	})
-	expect(during).toBeGreaterThan(0)
+	expect(during).toBe(1)
 	expect([...kv.keys()]).toEqual(["wiped"])
+})
+
+test("a probe after a finished wipe counts the rows written since, and the marker is never a row", async () => {
+	const { kv, storage, ctx } = object()
+	await wipeStorage(ctx)
+	expect(await storedRows(storage)).toBe(0)
+	kv.set("late", 1)
+	kv.set("later", 2)
+	expect(await storedRows(storage)).toBe(2)
 })

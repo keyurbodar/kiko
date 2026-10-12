@@ -19,7 +19,7 @@ fi
 bun install --frozen-lockfile >/dev/null 2>&1
 [ -e apps/server/.dev.vars ] || ln -s "$HOME/.config/yuki/dev.vars" apps/server/.dev.vars 2>/dev/null
 if [ -f scripts/check.ts ]; then
-  bun scripts/check.ts >"$logs/$unit-check.log" 2>&1
+  "$root/issues/bin/heavy.sh" bun scripts/check.ts >"$logs/$unit-check.log" 2>&1
 else
   { bun run typecheck && bunx biome check apps/server core apps/cli scripts && bun scripts/check-imports.ts && { [ ! -f scripts/check-rules.ts ] || bun scripts/check-rules.ts; } && { [ ! -f scripts/check-exports.ts ] || bun scripts/check-exports.ts; }; } >"$logs/$unit-check.log" 2>&1
 fi

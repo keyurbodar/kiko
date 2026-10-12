@@ -1,3 +1,7 @@
+// `toLowerCase` can change a string's length (`İ` becomes two code units), and every index here comes
+// from the original string. Only ASCII letters move.
+const asciiLower = (s: string): string => s.replace(/[A-Z]+/g, (m) => m.toLowerCase())
+
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }
 
 function decodeEntities(text: string): string {
@@ -6,7 +10,7 @@ function decodeEntities(text: string): string {
       const code = name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10)
       return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole
     }
-    return ENTITIES[name.toLowerCase()] ?? whole
+    return ENTITIES[asciiLower(name)] ?? whole
   })
 }
 
@@ -33,7 +37,7 @@ function closeIndex(lower: string, tag: string, from: number): number {
 }
 
 function titleOf(head: string): string {
-  const lower = head.toLowerCase()
+  const lower = asciiLower(head)
   let i = lower.indexOf("<title")
   while (i >= 0) {
     const at = i + 6
@@ -63,13 +67,13 @@ function stripComments(html: string): string {
 }
 
 function stripElements(html: string): string {
-  const lower = html.toLowerCase()
+  const lower = asciiLower(html)
   const open = /<(script|style|noscript|template|svg|head)\b/gi
   const exhausted = new Set<string>()
   let out = ""
   let end = 0
   for (let m = open.exec(html); m; m = open.exec(html)) {
-    const tag = (m[1] ?? "").toLowerCase()
+    const tag = asciiLower(m[1] ?? "")
     if (exhausted.has(tag)) continue
     const close = closeIndex(lower, tag, m.index + m[0].length)
     if (close < 0) {

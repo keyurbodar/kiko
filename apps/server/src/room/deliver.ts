@@ -1,22 +1,36 @@
 import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 import type { Chain } from "./mail"
+import type { Pending } from "./burst"
 import { type RecipientMember, resolveRecipients } from "./recipients"
 
+/** The attached line's budget in the JSON bytes the entry counts. The files past it are counted, not named. */
+const MAX_ATTACHED_BYTES = 4 * 1024
+
 export function attachedLine(files: readonly FileRef[]): string {
-	const list = files.map((f) => `/${f.name} (${f.type || "file"}, ${Math.max(1, Math.round(f.size / 1024))} kb)`).join(", ")
-	return `(attached: ${list}. open each with read before you answer about it.)`
+	const names: string[] = []
+	let bytes = 0
+	for (const [i, f] of files.entries()) {
+		const name = `/${f.name} (${f.type || "file"}, ${Math.max(1, Math.round(f.size / 1024))} kb)`
+		bytes += new TextEncoder().encode(JSON.stringify(name)).length + 2
+		if (bytes > MAX_ATTACHED_BYTES) {
+			names.push(`and ${files.length - i} more`)
+			break
+		}
+		names.push(name)
+	}
+	return `(attached: ${names.join(", ")}. open each with read before you answer about it.)`
 }
 
 export function route(
-	envelopes: readonly Envelope[],
+	pending: readonly Pending[],
 	members: readonly RecipientMember[],
 	replyAuthor: (messageId: string) => AgentSlug | undefined,
 ): Map<AgentSlug, Envelope[]> {
 	const out = new Map<AgentSlug, Envelope[]>()
-	for (const e of envelopes) {
+	for (const { envelope: e, mentions } of pending) {
 		const replyToAgent = e.replyTo ? replyAuthor(e.replyTo) : undefined
-		for (const slug of resolveRecipients({ text: e.body, ...(replyToAgent ? { replyToAgent } : {}) }, members)) {
+		for (const slug of resolveRecipients({ mentions, ...(replyToAgent ? { replyToAgent } : {}) }, members)) {
 			out.set(slug, [...(out.get(slug) ?? []), e])
 		}
 	}

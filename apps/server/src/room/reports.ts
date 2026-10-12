@@ -1,4 +1,4 @@
-import type { AgentSlug, RoomEvent, RoomId } from "@yuki/protocol"
+import type { AgentSlug, RoomEvent, } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
@@ -9,8 +9,8 @@ import { matches, type Signal, type SignalWindow, signalOf, SIGNALS_WAKEUP } fro
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
 import type { Mail } from "./mail"
+import type { Home } from "./home"
 
-type Home = { userId: string; roomId: RoomId }
 
 const RESULT_TEXT_MAX = 500
 

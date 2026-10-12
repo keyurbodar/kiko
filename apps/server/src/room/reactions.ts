@@ -1,4 +1,5 @@
 import type { AgentSlug, MessageId, RoomEvent } from "@yuki/protocol"
+import { escapeXml } from "@yuki/agent/text"
 import type { RoomLog } from "./log"
 
 const ALLOWED = [
@@ -39,13 +40,25 @@ const QUOTE = 60
 
 export type ReactionNote = { by: string; emoji: string; text: string }
 
+/** The most of the reactions block, in the bytes the brief escapes it to. The newest reactions are kept; the rest are counted. */
+export const MAX_REACTIONS_BYTES = 1024
+
 export function reactionLines(notes: readonly ReactionNote[]): string | null {
 	if (!notes.length) return null
-	const lines = notes.slice(-MAX_LINES).map(({ by, emoji, text }) => {
+	const kept: string[] = []
+	let bytes = 0
+	let left = notes.length
+	for (const { by, emoji, text } of [...notes].reverse()) {
 		const quote = text.length > QUOTE ? `${text.slice(0, QUOTE - 1)}…` : text
-		return `- ${by} reacted ${emoji} to your "${quote}"`
-	})
-	return `reactions since your last turn:\n${lines.join("\n")}`
+		const line = `- ${by} reacted ${emoji} to your "${quote}"`
+		const size = new TextEncoder().encode(escapeXml(line)).length + 1
+		if (kept.length === MAX_LINES || bytes + size > MAX_REACTIONS_BYTES) break
+		kept.unshift(line)
+		bytes += size
+		left--
+	}
+	if (left) kept.unshift(`- and ${left} more`)
+	return `reactions since your last turn:\n${kept.join("\n")}`
 }
 
 export function reactionBrief(log: RoomLog, sql: SqlStorage, slug: AgentSlug): { text: string | null; upTo: number } {

@@ -5,7 +5,6 @@ import { type Conversation, type ConversationId, configure, type Harness, type M
 import type { Envelope, RoomId } from "@yuki/protocol"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@yuki/agent/answers"
-import type { Effect } from "@yuki/agent/effects"
 import { roomStub, userStub } from "../lib/names"
 import type { AgentHome } from "../room/room-do"
 import type { Soul } from "../user/souls"
@@ -24,7 +23,7 @@ import type { RemindersPort } from "./extensions/reminders"
 import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
 import { learnedNote } from "../integrations/composio/tools"
 
-import { buildAgent, DEFAULT_MODEL, stoppable, type UserExtensions, userModels } from "./factory"
+import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
 import { forWorker } from "./extensions/work"
 import type { GuestResponse, Installed, ScriptPorts } from "@yuki/sandbox/compile"
 import { hasScriptWasm, scriptWasm } from "@yuki/sandbox/wasm"
@@ -32,7 +31,7 @@ import { checkExtension } from "@yuki/sandbox/check"
 import type { BuilderPorts } from "./extensions/builder"
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@yuki/protocol"
 import { createAlarms } from "@yuki/durable/alarm"
-import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions } from "@yuki/agent/host"
+import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type HostOptions, type HostStatus } from "@yuki/agent/host"
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
 import { isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
@@ -42,15 +41,16 @@ import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { jevPort, modelPort, pickDecider } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
 import { findProvider, pickJudge } from "../user/turn-context"
-import { repeatProblem } from "../user/recurrence"
 
-import { devOnly, DEV } from "../lib/dev-guard"
+import { DEV, loadAgentDev } from "../lib/dev-guard"
+import type { AgentDevHost, Usage } from "./dev-impl"
 import { Outbox, type RoomPort } from "./outbox"
 
-const DEV_FAKE_KEY = "dev-fake"
-const DEV_CLASSIC_KEY = "dev-classic"
-const DEV_BUDGET_KEY = "dev:auto-budget-ms"
-const DEV_INITIATIVE_KEY = "dev:initiative"
+// Read by the dev methods in agent/dev-impl.ts too, so they share one key per setting.
+export const DEV_FAKE_KEY = "dev-fake"
+export const DEV_CLASSIC_KEY = "dev-classic"
+export const DEV_BUDGET_KEY = "dev:auto-budget-ms"
+export const DEV_INITIATIVE_KEY = "dev:initiative"
 const INITIATIVE_WAIT_MS = 1_500
 const MEMORY_POS_KEY = "memory:pos"
 const MAX_DELTA_TURNS = 32
@@ -67,14 +67,14 @@ export class AgentDO extends DurableObject<Env> {
   protected readonly hostOptions: Partial<HostOptions> = {}
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
-  private readonly answers = new AnswerWaiters()
-  // Set by setup(); no tool is stoppable before the agent is built, which is before any run.
-  private effects: ReadonlyMap<string, Effect> = new Map()
+  protected readonly answers = new AnswerWaiters()
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     instrument(ctx, "agent")
     void ctx.blockConcurrencyWhile(async () => {
+      // A wiped agent builds no host: the inbox's constructor writes a row, and a deleted object must hold none.
+      if (await isWiped(ctx.storage)) return
       void this.host
       void this.outbox
       this.home()
@@ -88,7 +88,6 @@ export class AgentDO extends DurableObject<Env> {
       onReset: () => this.outbox.clear(),
       onIdle: () => this.#userExtensions?.release(),
       onWorkers: (running, pending) => void this.outbox.background(running > 0, pending).catch(() => undefined),
-      interruptible: (tool) => stoppable(this.effects, tool),
       waitUntil: (work) => this.ctx.waitUntil(work),
       ...this.hostOptions,
       setup: () => this.setup(),
@@ -123,18 +122,16 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   // A deleted agent takes no work: admitting it would write rows into an object that is meant to stay empty.
-  private async refuseIfDeleted(): Promise<void> {
-    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
-  }
-
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
-    await this.refuseIfDeleted()
+    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
     if (home) this.setHome(home)
-    if (envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
-    return this.host.receive(envelopes, brief)
+    const result = await this.host.receive(envelopes, brief)
+    if (!result.refused && envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
+    return result
   }
 
-  stop() {
+  async stop(): Promise<{ discarded: number }> {
+    if (await isWiped(this.ctx.storage)) return { discarded: 0 }
     return this.host.stop()
   }
 
@@ -147,7 +144,8 @@ export class AgentDO extends DurableObject<Env> {
     return true
   }
 
-  status() {
+  async status(): Promise<HostStatus> {
+    if (await isWiped(this.ctx.storage)) return { open: false, inbox: { waiting: 0, claimed: 0, submitted: 0 }, tasks: 0, submissions: 0 }
     return this.host.status()
   }
 
@@ -313,7 +311,6 @@ export class AgentDO extends DurableObject<Env> {
         loops: () => this.loopPort(),
         work: this.host.workers,
       })
-      this.effects = fake.effects
       return {
         ...fake,
         beginRun: async (_batch, root) => {
@@ -349,7 +346,6 @@ export class AgentDO extends DurableObject<Env> {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
     const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
-    this.effects = built.effects
     return {
       ...built,
       ...user,
@@ -449,18 +445,32 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async devInitiative(): Promise<string | null> {
-    devOnly()
-    await this.refuseIfDeleted()
-    return (await this.ctx.storage.get<string>(DEV_INITIATIVE_KEY)) ?? null
+    return (await loadAgentDev()).devInitiative(this.agentDevHost())
   }
 
   private async carryUsage(harness: Harness): Promise<void> {
     const now = await this.usageOf(harness)
-    const carried = (await this.ctx.storage.get<typeof now>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    const carried = await this.carriedUsage()
     await this.ctx.storage.put(USAGE_CARRIED_KEY, { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite })
   }
 
-  private async usageOf(harness: Harness): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
+  private async carriedUsage(): Promise<Usage> {
+    return (await this.ctx.storage.get<Usage>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+  }
+
+  // The one guarded entry for the dev methods in agent/dev-impl.ts: they reach the object's state here.
+  private agentDevHost(): AgentDevHost {
+    return {
+      storage: this.ctx.storage,
+      home: () => this.home(),
+      opened: () => this.host.open(),
+      usageOf: (harness) => this.usageOf(harness),
+      carried: () => this.carriedUsage(),
+      workers: () => this.host.workers.list(),
+    }
+  }
+
+  private async usageOf(harness: Harness): Promise<Usage> {
     const usage = await harness.usage(BACKGROUND_CONTEXT)
     const sum = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
     for (const u of Object.values(usage.models) as unknown as (typeof sum)[]) {
@@ -529,8 +539,9 @@ export class AgentDO extends DurableObject<Env> {
    * Only this object calls it, through `egressFetch`.
    */
   async egress(request: EgressRequest): Promise<Response> {
-    await this.refuseIfDeleted()
+    if (await isWiped(this.ctx.storage)) throw new Error("this agent was deleted")
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+    // check-rules: allow egress the one outside request, made in this object's own invocation, which is the point of egress
     return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
   }
 
@@ -597,7 +608,7 @@ export class AgentDO extends DurableObject<Env> {
       return home
     }
     return {
-      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools, { repeatProblem: (rrule) => repeatProblem(rrule, "UTC", Date.now()) }),
+      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools),
       propose: async (bundle) => {
         const home = where()
         const out = (await userStub(this.env.USER, home.userId).proposeExtension({ bundle, by: home.slug, room: home.roomId })) as ExtensionResult
@@ -673,6 +684,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async setModel(model: ModelRef): Promise<boolean> {
+    if (await isWiped(this.ctx.storage)) return false
     if (!findProvider(model.provider)?.getModels().some((m) => m.id === model.modelId)) return false
     await this.ctx.storage.put(MODEL_KEY, { provider: model.provider, modelId: model.modelId })
     return true
@@ -753,53 +765,30 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async devClassic(): Promise<void> {
-    devOnly()
-    await this.ctx.storage.put(DEV_CLASSIC_KEY, true)
+    return (await loadAgentDev()).devClassic(this.agentDevHost())
   }
 
-  async devUsage(): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number }> {
-    devOnly()
-    await this.refuseIfDeleted()
-    if (!this.home()) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-    const { harness } = await this.host.open()
-    const now = await this.usageOf(harness)
-    const carried = (await this.ctx.storage.get<typeof now>(USAGE_CARRIED_KEY)) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-    return { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite }
+  async devUsage(): Promise<Usage> {
+    return (await loadAgentDev()).devUsage(this.agentDevHost())
   }
 
   async devTrace(): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
-    devOnly()
-    await this.refuseIfDeleted()
-    if (!this.home()) return []
-    const { root } = await this.host.open()
-    const view = await root.context(BACKGROUND_CONTEXT)
-    return view.entries.map((e) => {
-      const m = e.model?.[0] as { content?: string | { type: string; text?: string; name?: string; thinking?: string }[] } | undefined
-      const parts = typeof m?.content === "string" ? [{ type: "text", text: m.content }] : (m?.content ?? [])
-      const tool = parts.find((p) => p.type === "toolCall")?.name
-      const text = parts.map((p) => p.text ?? "").join("").slice(0, 300)
-      return { kind: e.kind, ...(tool ? { tool } : {}), chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0), ...(text ? { text } : {}) }
-    })
+    return (await loadAgentDev()).devTrace(this.agentDevHost())
   }
 
   async devBudget(ms: number): Promise<void> {
-    devOnly()
-    await this.ctx.storage.put(DEV_BUDGET_KEY, ms)
+    return (await loadAgentDev()).devBudget(this.agentDevHost(), ms)
   }
 
   async devFake(): Promise<void> {
-    devOnly()
-    await this.ctx.storage.put(DEV_FAKE_KEY, true)
+    return (await loadAgentDev()).devFake(this.agentDevHost())
   }
 
   async devWorkers(): Promise<Work[]> {
-    devOnly()
-    await this.refuseIfDeleted()
-    return this.host.workers.list()
+    return (await loadAgentDev()).devWorkers(this.agentDevHost())
   }
 
   async devSeed(): Promise<void> {
-    devOnly()
-    await this.ctx.storage.put("dev-seed", Date.now())
+    return (await loadAgentDev()).devSeed(this.agentDevHost())
   }
 }
