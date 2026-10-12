@@ -96,7 +96,9 @@ async function signedOut(): Promise<void> {
 /** Confirms the cached flag with the server. Call once on boot. */
 export async function bootstrapSession(): Promise<void> {
   try {
-    const res = await fetch("/api/me")
+    const early = globalThis.__yukiBoot?.me
+    if (globalThis.__yukiBoot) globalThis.__yukiBoot.me = undefined
+    const res = await (early ?? fetch("/api/me"))
     if (res.status === 401) return await signedOut()
     if (!res.ok) throw new Error(String(res.status))
     const { user } = (await res.json()) as { user: SessionUser }
@@ -135,7 +137,9 @@ export async function signOut(): Promise<void> {
 
 export async function loadProviders(): Promise<Providers> {
   try {
-    const res = await fetch("/api/providers")
+    const early = globalThis.__yukiBoot?.providers
+    if (globalThis.__yukiBoot) globalThis.__yukiBoot.providers = undefined
+    const res = await (early ?? fetch("/api/providers"))
     if (res.ok) return (await res.json()) as Providers
   } catch {
     // fall through to none
