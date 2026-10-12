@@ -374,8 +374,8 @@ class CommandFs implements IFileSystem {
     return path
   }
 
-  // Each space commits on its own, so a command that changes two spaces can save one and refuse the other.
-  // `changed` lists the paths of the spaces that saved; a refused space saved nothing and lists nothing.
+  // Writes commit before deletions, and a deletion commits only when every write saved, so a refused write
+  // keeps the file it would have moved. Each space commits its group in one call. `changed` lists what saved.
   async commit(): Promise<{ saved: string[]; changed: string[]; refused: Refusal[] }> {
     const changes = plan(this.start, this.tree)
     const batch = await Promise.all(
@@ -388,18 +388,30 @@ class CommandFs implements IFileSystem {
     const saved: string[] = []
     const changed: string[] = []
     const refused: Refusal[] = []
-    for (const space of SPACES) {
-      const group = batch.filter((c) => spaceOf(c.op === "move" ? c.to : c.path) === space)
-      if (!group.length) continue
-      const out = await this.files.commit(group)
-      if (out.ok) {
-        saved.push(SPACE_NAME[space])
-        changed.push(...group.flatMap(batchPaths))
-        continue
+    const commitSpaces = async (group: BatchChange[], refuse: (space: string) => string) => {
+      for (const space of SPACES) {
+        const part = group.filter((c) => spaceOf(c.op === "move" ? c.to : c.path) === space)
+        if (!part.length) continue
+        const out = await this.files.commit(part)
+        if (out.ok) {
+          saved.push(SPACE_NAME[space])
+          changed.push(...part.flatMap(batchPaths))
+          continue
+        }
+        const why = out.conflict ? `${out.path} changed after this command started (a teammate or the human wrote it)` : out.message
+        refused.push({ path: out.path, message: `${why}. ${refuse(SPACE_NAME[space])}` })
       }
-      const why = out.conflict ? `${out.path} changed after this command started (a teammate or the human wrote it)` : out.message
-      refused.push({ path: out.path, message: `${why}. nothing this command changed in ${SPACE_NAME[space]} was saved. look again, then run it again` })
     }
+    const deletions = batch.filter((c) => c.op === "remove" || c.op === "rmdir")
+    await commitSpaces(
+      batch.filter((c) => c.op !== "remove" && c.op !== "rmdir"),
+      (space) => `nothing this command changed in ${space} was saved. look again, then run it again`,
+    )
+    if (refused.length) {
+      for (const c of deletions) refused.push({ path: batchPaths(c)[0], message: "a write in this command was refused, so this file was kept. look again, then run it again" })
+      return { saved, changed, refused }
+    }
+    await commitSpaces(deletions, () => "the file was kept. look again, then run it again")
     return { saved, changed, refused }
   }
 }
