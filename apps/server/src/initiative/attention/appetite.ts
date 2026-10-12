@@ -46,10 +46,6 @@ function posterior(c: Counts | undefined, now: number): { mean: number; sd: numb
   return { mean: a / n, sd: Math.sqrt((a * b) / (n * n * (n + 1))) }
 }
 
-export function kindMean(app: Appetite, kind: Kind, now: number): number {
-  return posterior(app.kinds[kind], now).mean
-}
-
 export function kindOpen(app: Appetite, kind: Kind, now: number): boolean {
   const p = posterior(app.kinds[kind], now)
   return p.mean + p.sd > GATE
@@ -62,10 +58,9 @@ export function allowance(app: Appetite, now: number): number {
   return n
 }
 
-export function restUntil(app: Appetite, c: { kind: Kind; lastSurfaced?: number; ignored: number }, cycle: number, now: number): number {
+export function restUntil(c: { lastSurfaced?: number; ignored: number }, cycle: number): number {
   if (c.lastSurfaced === undefined) return 0
-  const p = Math.max(kindMean(app, c.kind, now), 0.02)
-  return c.lastSurfaced + cycle * 2 ** Math.min(c.ignored, MAX_DOUBLINGS) * (0.5 / p)
+  return c.lastSurfaced + cycle * 2 ** Math.min(c.ignored, MAX_DOUBLINGS)
 }
 
 export function nudged(app: Appetite, p: Pending): Appetite {

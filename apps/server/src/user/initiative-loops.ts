@@ -82,6 +82,7 @@ export class InitiativeLoops {
         return d.reminders.list().filter((r) => r.trigger).map((routine) => ({ routine, last: runs.find((x) => x.routineId === routine.id && x.status !== "running") ?? null }))
       },
       judge: () => d.memory.judgeFor(CAPTURE_TIMEOUT_MS),
+      judged: (roomId) => this.judging(roomId as RoomId),
       wake: (roomId, input) => roomStub(d.room, d.userId, roomId).initiativeWake(input),
       count: (delta) => d.memory.count(delta),
       setWakeup: (at) => d.alarms.setWakeup(INITIATIVE_WAKEUP, at),
@@ -130,9 +131,14 @@ export class InitiativeLoops {
     return this.close(id, action.action === "done" ? "done" : "dropped")
   }
 
+  /** Whether Jev reads this chat's bursts: a judge key, capture on, initiative on, and a chat that may be kept. */
+  judging(roomId: RoomId): boolean {
+    return this.d.memory.judgeKey() !== null && this.d.memory.policy().capture !== "off" && this.level() !== "off" && this.d.memory.capturable(roomId)
+  }
+
   /** Queues a human burst, or an agent's answer, for one Jev pass. Without a judge, with capture off, or with initiative off, nothing is queued. */
   async hear(roomId: RoomId, items: { messageId: string; text: string; at: number }[], agent = ""): Promise<void> {
-    if (!this.d.memory.judgeKey() || this.d.memory.policy().capture === "off" || this.level() === "off" || !this.d.memory.capturable(roomId)) return
+    if (!this.judging(roomId)) return
     const rows = items.filter((i) => i.messageId && i.text.trim()).map((i) => ({ id: i.messageId, text: i.text.slice(0, CAPTURE_TEXT_MAX), at: i.at }))
     if (!rows.length) return
     // A wakeup is already set while anything waits: pushing it on each burst would starve Jev in a steady chat.

@@ -25,6 +25,7 @@ function world(answer: WakeResult = "delivered") {
     home: () => null,
     routines: () => [],
     judge: () => null,
+    judged: () => false,
     wake: async (_room, input) => {
       wakes.push(input)
       return answer
