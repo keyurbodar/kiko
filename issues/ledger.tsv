@@ -33,7 +33,11 @@ U40c	Final proof: every suite on finished main	5	haiku	landed	s/u40c-final	ffdc8
 U37	initiative-loops asserts structure not wording	5	deepseek	landed	s/u37-loops-assert	9264a585	gate-green	main bd404fd6	2026-10-11T21:20:24Z
 U50	Spike: lead judgment and status latency, real model	6	haiku	landed	s/u50-spike	a67a77b9	evidence-landed	main 96f9600f	2026-10-12T02:13:29Z
 U51	Workers report files changed	6	haiku	round-2	s/u51-work-changes	56d0613d			2026-10-12T02:57:45Z
-U52	A human never resends a message	6	haiku	round-4	s/u52-no-resend	2675f886			2026-10-12T02:57:45Z
+U52	A human never resends a message	6	haiku	ready-pending-review-A	s/u52-no-resend	9f8cad0d			2026-10-12T03:11:54Z
 U53	Status does not touch running work, fake suite	6	haiku	landed	s/u53-status-proof	417ed14b	gate-green	main 3aada23a	2026-10-12T02:06:11Z
 U54	Status answer covers all work in progress	6	deepseek	landed	s/u54-status-words	5311f1a6	gate-green	main 445b7500	2026-10-12T02:42:56Z
-U55	Server tests leave nothing in /tmp	7	deepseek	queued	s/u55-test-tmp				2026-10-12T03:00:27Z
+U55	Server tests leave nothing in /tmp	7	deepseek	landed	s/u55-test-tmp	10be764b	gate-green	main 7bca8320	2026-10-12T03:09:48Z
+U56	Account deletion converges	7	haiku	running	s/u56-deletion				2026-10-12T03:11:37Z
+U57	Reminders count every failure and are bounded	7	haiku	running	s/u57-reminders				2026-10-12T03:11:37Z
+U59	The gate checks what it claims	7	deepseek	running	s/u59-gate				2026-10-12T03:11:37Z
+U61	Tests that fail when behavior breaks	7	haiku	running	s/u61-tests				2026-10-12T03:11:37Z

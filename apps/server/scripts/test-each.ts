@@ -6,7 +6,8 @@
 // A passing file is cached under node_modules/.cache/yuki-tests, keyed by a hash of every source file
 // the tests can reach. The key is coarse on purpose: any change to the tree reruns every file.
 // `--no-cache` forces a run. Exit code 1 if any file fails.
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
 const serverDir = join(import.meta.dir, "..")
@@ -45,10 +46,23 @@ const isCached = (f: string) => {
 type Result = { f: string; code: number; pass: number; fail: number; out: string }
 
 async function runFile(f: string): Promise<Result> {
-  const proc = Bun.spawn(["bun", "test", "--timeout", "30000", join("test", f)], { cwd: serverDir, stdout: "pipe", stderr: "pipe" })
-  const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited])
-  const out = stdout + stderr
-  return { f, code, pass: Number(/(\d+) pass/.exec(out)?.[1] ?? 0), fail: Number(/(\d+) fail/.exec(out)?.[1] ?? 0), out }
+  // Miniflare leaves a `miniflare-*` directory in the system temp dir for each boot, and it does not
+  // remove it on dispose. Pointing TMPDIR at a directory this process owns lets us delete them all
+  // when the test process exits. Without it, overnight runs filled a 7.9 GB /tmp with 1,006 dirs.
+  const tmp = mkdtempSync(join(tmpdir(), "yuki-tests-"))
+  try {
+    const proc = Bun.spawn(["bun", "test", "--timeout", "30000", join("test", f)], {
+      cwd: serverDir,
+      env: { ...process.env, TMPDIR: tmp },
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited])
+    const out = stdout + stderr
+    return { f, code, pass: Number(/(\d+) pass/.exec(out)?.[1] ?? 0), fail: Number(/(\d+) fail/.exec(out)?.[1] ?? 0), out }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
 }
 
 async function pool(list: string[], limit: number, work: (f: string) => Promise<Result>): Promise<Result[]> {
