@@ -1,0 +1,320 @@
+{
+  "statuses": [
+    {
+      "at": 1229,
+      "state": "typing"
+    },
+    {
+      "at": 2587,
+      "state": "typing"
+    },
+    {
+      "at": 2587,
+      "state": "working"
+    },
+    {
+      "at": 2587,
+      "state": "typing"
+    },
+    {
+      "at": 6359,
+      "state": "typing"
+    },
+    {
+      "at": 6359,
+      "state": "typing"
+    },
+    {
+      "at": 6559,
+      "state": "working"
+    },
+    {
+      "at": 6559,
+      "state": "typing"
+    },
+    {
+      "at": 6559,
+      "state": "typing"
+    },
+    {
+      "at": 7762,
+      "state": "working"
+    },
+    {
+      "at": 8213,
+      "state": "working"
+    },
+    {
+      "at": 11234,
+      "state": "working"
+    },
+    {
+      "at": 12450,
+      "state": "typing"
+    },
+    {
+      "at": 13810,
+      "state": "working"
+    },
+    {
+      "at": 13810,
+      "state": "typing"
+    },
+    {
+      "at": 15920,
+      "state": "working"
+    },
+    {
+      "at": 15920,
+      "state": "typing"
+    },
+    {
+      "at": 16978,
+      "state": "typing"
+    },
+    {
+      "at": 16978,
+      "state": "working"
+    },
+    {
+      "at": 19991,
+      "state": "working"
+    },
+    {
+      "at": 20743,
+      "state": "typing"
+    },
+    {
+      "at": 23765,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 12,
+      "workers": []
+    },
+    {
+      "at": 2131,
+      "workers": []
+    },
+    {
+      "at": 4241,
+      "workers": []
+    },
+    {
+      "at": 6359,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include for each: name, key strengths, key weakness, best use case. Keep it short and clear.",
+          "conversationId": 20,
+          "submissionId": 26,
+          "status": "running",
+          "step": null,
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771610879,
+          "updatedAt": 1791771610885
+        }
+      ]
+    },
+    {
+      "at": 8363,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include for each: name, key strengths, key weakness, best use case. Keep it short and clear.",
+          "conversationId": 20,
+          "submissionId": 26,
+          "status": "running",
+          "step": "ls {\"path\":\"/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771610879,
+          "updatedAt": 1791771612712
+        }
+      ]
+    },
+    {
+      "at": 10476,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include for each: name, key strengths, key weakness, best use case. Keep it short and clear.",
+          "conversationId": 20,
+          "submissionId": 26,
+          "status": "running",
+          "step": "ls {\"path\":\"/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771610879,
+          "updatedAt": 1791771612712
+        }
+      ]
+    },
+    {
+      "at": 12600,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include for each: name, key strengths, key weakness, best use case. Keep it short and clear.",
+          "conversationId": 20,
+          "submissionId": 26,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Short Comparison\\n\\n## 1. Jest\\n- **Key …",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771610879,
+          "updatedAt": 1791771616442
+        }
+      ]
+    },
+    {
+      "at": 14711,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include for each: name, key strengths, key weakness, best use case. Keep it short and clear.",
+          "conversationId": 20,
+          "submissionId": 49,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Short Comparison\\n\\n## 1. Jest\\n- **Key …",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771610879,
+          "updatedAt": 1791771618226
+        }
+      ]
+    },
+    {
+      "at": 16821,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include for each: name, key strengths, key weakness, best use case. Keep it short and clear.",
+          "conversationId": 20,
+          "submissionId": 49,
+          "status": "running",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Short Comparison\\n\\n## 1. Jest\\n- **Key …",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771610879,
+          "updatedAt": 1791771618226
+        }
+      ]
+    },
+    {
+      "at": 18932,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include for each: name, key strengths, key weakness, best use case. Keep it short and clear.",
+          "conversationId": 20,
+          "submissionId": 49,
+          "status": "running",
+          "step": "read {\"path\":\"/research/tests.md\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771610879,
+          "updatedAt": 1791771621389
+        }
+      ]
+    },
+    {
+      "at": 21043,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include for each: name, key strengths, key weakness, best use case. Keep it short and clear.",
+          "conversationId": 20,
+          "submissionId": 49,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners\\n1. Jest: full package, big base. Weak: slow. Bes…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771610879,
+          "updatedAt": 1791771625137
+        }
+      ]
+    },
+    {
+      "at": 23155,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web. Write a short comparison in research/tests.md. Include for each: name, key strengths, key weakness, best use case. Keep it short and clear.",
+          "conversationId": 20,
+          "submissionId": 49,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners\\n1. Jest: full package, big base. Weak: slow. Bes…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771610879,
+          "updatedAt": 1791771625137
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 5,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 295,
+    "agent.kv.getAlarm": 227,
+    "agent.kv.list": 1,
+    "agent.kv.put": 20,
+    "agent.kv.setAlarm": 120,
+    "agent.kv.transaction": 115,
+    "agent.rowsRead": 4839,
+    "agent.rowsWritten": 1927,
+    "agent.statements": 4043,
+    "model.id.muse-spark-1.3-contributor": 13,
+    "model.ms": 26360,
+    "model.turns": 13,
+    "room.kv.get": 4,
+    "room.kv.getAlarm": 18,
+    "room.kv.setAlarm": 8,
+    "room.rowsRead": 1146,
+    "room.rowsWritten": 258,
+    "room.statements": 776,
+    "rpc.agent.devWorkers": 14,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 4,
+    "rpc.room.fsList": 5,
+    "rpc.room.fsStat": 7,
+    "rpc.room.memorySince": 3,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 5,
+    "rpc.room.putFile": 3,
+    "rpc.room.reportDoing": 7,
+    "rpc.room.setStatus": 10,
+    "rpc.user.browserCheck": 56,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 55,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.homeStat": 1,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 3,
+    "rpc.user.soul": 1,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 8,
+    "rpc.user.turnContext": 4,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.ls": 1,
+    "tool.worker.read": 1,
+    "tool.worker.write": 2,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 2,
+    "user.rowsRead": 255,
+    "user.rowsWritten": 60,
+    "user.statements": 437
+  }
+}

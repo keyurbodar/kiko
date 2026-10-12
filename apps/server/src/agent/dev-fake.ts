@@ -123,6 +123,10 @@ export function fakeReply(transcript: readonly Message[]) {
     const lines = raw.split("\n").filter((l) => l.startsWith("- ") && l.includes(" reacted "))
     return fauxAssistantMessage(lines.length ? `brief: ${lines.map((l) => l.slice(2)).join(" | ")}` : "brief: none")
   }
+  if (newest.includes("what is the status")) {
+    const notes = last ? rawOf(last).split("\n").filter((l) => /^- w\d+ \(/.test(l)) : []
+    return fauxAssistantMessage(`status: ${notes.join(" | ") || "no workers"}`)
+  }
   if (newest.includes("[quiet]") && !results.length) return fauxAssistantMessage("[skip]")
   if (newest.includes("[slow]")) return fauxAssistantMessage(`${LONG} ${heard}`)
   return fauxAssistantMessage(heard)

@@ -1,0 +1,156 @@
+{
+  "statuses": [
+    {
+      "at": 1239,
+      "state": "typing"
+    },
+    {
+      "at": 4718,
+      "state": "typing"
+    },
+    {
+      "at": 4718,
+      "state": "working"
+    },
+    {
+      "at": 4718,
+      "state": "typing"
+    },
+    {
+      "at": 7766,
+      "state": "typing"
+    },
+    {
+      "at": 7973,
+      "state": "typing"
+    },
+    {
+      "at": 7973,
+      "state": "typing"
+    },
+    {
+      "at": 7973,
+      "state": "typing"
+    },
+    {
+      "at": 7973,
+      "state": "typing"
+    },
+    {
+      "at": 7973,
+      "state": "working"
+    },
+    {
+      "at": 7973,
+      "state": "typing"
+    },
+    {
+      "at": 11227,
+      "state": "typing"
+    },
+    {
+      "at": 11227,
+      "state": "working"
+    },
+    {
+      "at": 11227,
+      "state": "typing"
+    },
+    {
+      "at": 14418,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 16,
+      "workers": []
+    },
+    {
+      "at": 2144,
+      "workers": []
+    },
+    {
+      "at": 4259,
+      "workers": []
+    },
+    {
+      "at": 6396,
+      "workers": []
+    },
+    {
+      "at": 8423,
+      "workers": []
+    },
+    {
+      "at": 10461,
+      "workers": []
+    },
+    {
+      "at": 12591,
+      "workers": []
+    },
+    {
+      "at": 14719,
+      "workers": []
+    },
+    {
+      "at": 16828,
+      "workers": []
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 2,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 38,
+    "agent.kv.getAlarm": 7,
+    "agent.kv.list": 1,
+    "agent.kv.put": 9,
+    "agent.kv.setAlarm": 5,
+    "agent.kv.transaction": 48,
+    "agent.rowsRead": 1181,
+    "agent.rowsWritten": 711,
+    "agent.statements": 999,
+    "model.id.muse-spark-1.3-contributor": 4,
+    "model.ms": 13024,
+    "model.turns": 4,
+    "room.kv.get": 2,
+    "room.kv.getAlarm": 9,
+    "room.kv.setAlarm": 5,
+    "room.rowsRead": 604,
+    "room.rowsWritten": 153,
+    "room.statements": 390,
+    "rpc.agent.devWorkers": 11,
+    "rpc.agent.humanComing": 1,
+    "rpc.agent.receive": 2,
+    "rpc.room.endRun": 1,
+    "rpc.room.fsList": 2,
+    "rpc.room.fsStat": 6,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 4,
+    "rpc.room.putFile": 1,
+    "rpc.room.reportDoing": 7,
+    "rpc.room.setStatus": 7,
+    "rpc.user.browserCheck": 2,
+    "rpc.user.captureHuman": 2,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 1,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 2,
+    "rpc.user.initiativeBrief": 1,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 1,
+    "rpc.user.takeTurn": 2,
+    "rpc.user.touchChat": 3,
+    "rpc.user.turnContext": 1,
+    "tool.talker.ls": 1,
+    "tool.talker.read": 5,
+    "tool.talker.write": 1,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 2,
+    "user.rowsRead": 79,
+    "user.rowsWritten": 47,
+    "user.statements": 118
+  }
+}

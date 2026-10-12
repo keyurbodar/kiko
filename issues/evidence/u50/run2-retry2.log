@@ -1,0 +1,8 @@
+  status sent at 24795 ms, 0 worker(s) running
+case 8 restructure a small folder: start_work=0 talker_calls=2 worker_calls=0 turns=3 first_reply=23423 done=33996 timed_out=false
+  status sent at 5197 ms, 0 worker(s) running
+case 9 bigger than it looks: start_work=0 talker_calls=2 worker_calls=0 turns=4 first_reply=2460 done=12245 timed_out=false
+  status sent at 5429 ms, 1 worker(s) running
+  note "one note: keep it short" sent at 12456 ms, 1 worker(s) running
+case 10 burst: one small, one large: start_work=1 talker_calls=5 worker_calls=3 turns=12 first_reply=4000 done=26494 timed_out=false
+wrote /home/keyur/kiko/.claude/worktrees/U50/issues/evidence/u50/run2/summary.tsv

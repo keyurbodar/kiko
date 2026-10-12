@@ -1,0 +1,364 @@
+{
+  "statuses": [
+    {
+      "at": 1234,
+      "state": "typing"
+    },
+    {
+      "at": 4555,
+      "state": "typing"
+    },
+    {
+      "at": 4555,
+      "state": "typing"
+    },
+    {
+      "at": 4555,
+      "state": "working"
+    },
+    {
+      "at": 4555,
+      "state": "typing"
+    },
+    {
+      "at": 5919,
+      "state": "typing"
+    },
+    {
+      "at": 6980,
+      "state": "typing"
+    },
+    {
+      "at": 7280,
+      "state": "typing"
+    },
+    {
+      "at": 8032,
+      "state": "typing"
+    },
+    {
+      "at": 8032,
+      "state": "working"
+    },
+    {
+      "at": 8032,
+      "state": "typing"
+    },
+    {
+      "at": 10147,
+      "state": "typing"
+    },
+    {
+      "at": 11506,
+      "state": "working"
+    },
+    {
+      "at": 14233,
+      "state": "typing"
+    },
+    {
+      "at": 15742,
+      "state": "typing"
+    },
+    {
+      "at": 17554,
+      "state": "working"
+    },
+    {
+      "at": 17554,
+      "state": "typing"
+    },
+    {
+      "at": 18757,
+      "state": "typing"
+    },
+    {
+      "at": 20566,
+      "state": "working"
+    },
+    {
+      "at": 20717,
+      "state": "typing"
+    },
+    {
+      "at": 21926,
+      "state": "typing"
+    },
+    {
+      "at": 23772,
+      "state": "working"
+    },
+    {
+      "at": 24975,
+      "state": "typing"
+    },
+    {
+      "at": 26783,
+      "state": "idle"
+    }
+  ],
+  "snapshots": [
+    {
+      "at": 17,
+      "workers": []
+    },
+    {
+      "at": 2135,
+      "workers": []
+    },
+    {
+      "at": 4245,
+      "workers": []
+    },
+    {
+      "at": 6370,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "ls {\"path\":\"/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771765929
+        }
+      ]
+    },
+    {
+      "at": 8488,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://stateofjs.com/en-US/libraries/testing\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771766983
+        }
+      ]
+    },
+    {
+      "at": 10598,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://2024.stateofjs.com/en-US/libraries/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771770222
+        }
+      ]
+    },
+    {
+      "at": 12708,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://2024.stateofjs.com/en-US/libraries/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771770222
+        }
+      ]
+    },
+    {
+      "at": 14834,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "running",
+          "step": "web_fetch {\"url\":\"https://2024.stateofjs.com/en-US/libraries/\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771770222
+        }
+      ]
+    },
+    {
+      "at": 16944,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 21,
+          "status": "done",
+          "step": "write {\"content\":\"# JavaScript Test Runners: Top 3 Comparison\\n\\nBased on State of JS…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771776593
+        }
+      ]
+    },
+    {
+      "at": 19057,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 57,
+          "status": "running",
+          "step": "read {\"path\":\"research/tests.md\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771778730
+        }
+      ]
+    },
+    {
+      "at": 21168,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 57,
+          "status": "running",
+          "step": "read {\"path\":\"research/tests.md\"}",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771778730
+        }
+      ]
+    },
+    {
+      "at": 23279,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 57,
+          "status": "running",
+          "step": "write {\"content\":\"# JS Test Runners: Top 3\\n\\nSource: State of JS 2024.\\n\\n## 1. Jest…",
+          "delivered": false,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771781912
+        }
+      ]
+    },
+    {
+      "at": 25426,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 57,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners: Top 3\\n\\nSource: State of JS 2024.\\n\\n## 1. Jest…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771784925
+        }
+      ]
+    },
+    {
+      "at": 27535,
+      "workers": [
+        {
+          "id": "w1",
+          "task": "Research the three most used JavaScript test runners on the web (likely Jest, Vitest, Mocha/Jasmine/Playwright/Cypress - pick top 3 by usage). Write a short comparison in research/tests.md in the chat files. Include for each: key strengths, weaknesses, best use case, and a final recommendation. Keep it short and clear.",
+          "conversationId": 15,
+          "submissionId": 57,
+          "status": "done",
+          "step": "write {\"content\":\"# JS Test Runners: Top 3\\n\\nSource: State of JS 2024.\\n\\n## 1. Jest…",
+          "delivered": true,
+          "origin": "human",
+          "startedAt": 1791771764601,
+          "updatedAt": 1791771784925
+        }
+      ]
+    }
+  ],
+  "final": {
+    "agent.kv.delete": 5,
+    "agent.kv.deleteAlarm": 1,
+    "agent.kv.get": 90,
+    "agent.kv.getAlarm": 19,
+    "agent.kv.list": 1,
+    "agent.kv.put": 20,
+    "agent.kv.setAlarm": 17,
+    "agent.kv.transaction": 135,
+    "agent.rowsRead": 3121,
+    "agent.rowsWritten": 1665,
+    "agent.statements": 2464,
+    "model.id.muse-spark-1.3-contributor": 15,
+    "model.ms": 39740,
+    "model.turns": 15,
+    "room.kv.get": 4,
+    "room.kv.getAlarm": 19,
+    "room.kv.setAlarm": 9,
+    "room.rowsRead": 1202,
+    "room.rowsWritten": 278,
+    "room.statements": 841,
+    "rpc.agent.devWorkers": 16,
+    "rpc.agent.humanComing": 2,
+    "rpc.agent.receive": 3,
+    "rpc.room.endRun": 4,
+    "rpc.room.fsList": 5,
+    "rpc.room.fsStat": 7,
+    "rpc.room.memorySince": 3,
+    "rpc.room.memoryView": 1,
+    "rpc.room.post": 6,
+    "rpc.room.putFile": 3,
+    "rpc.room.reportDoing": 10,
+    "rpc.room.setStatus": 10,
+    "rpc.user.browserCheck": 3,
+    "rpc.user.captureHuman": 3,
+    "rpc.user.chatTyping": 2,
+    "rpc.user.composioSignature": 2,
+    "rpc.user.composioTools": 1,
+    "rpc.user.extensionsFor": 1,
+    "rpc.user.getChat": 3,
+    "rpc.user.homeStat": 1,
+    "rpc.user.initiativeBrief": 2,
+    "rpc.user.lifeView": 1,
+    "rpc.user.loopsAnswer": 3,
+    "rpc.user.signals": 1,
+    "rpc.user.soul": 1,
+    "rpc.user.takeTurn": 3,
+    "rpc.user.touchChat": 8,
+    "rpc.user.turnContext": 4,
+    "tool.talker.edit": 1,
+    "tool.talker.read": 1,
+    "tool.talker.start_work": 1,
+    "tool.talker.steer_work": 1,
+    "tool.worker.ls": 1,
+    "tool.worker.read": 1,
+    "tool.worker.web_fetch": 2,
+    "tool.worker.write": 2,
+    "user.kv.get": 2,
+    "user.kv.getAlarm": 3,
+    "user.rowsRead": 177,
+    "user.rowsWritten": 76,
+    "user.statements": 280
+  }
+}
