@@ -2,6 +2,25 @@
 const MiB = 1024 * 1024
 
 export const MAX_ATTACHMENTS = 100
+/** The most text a message shows as its bubble. The room keeps longer text whole as a file (`RoomDO.humanSend`). */
+export const MAX_MESSAGE_TEXT = 16_000
+/**
+ * The largest frame the room socket takes, in characters. Cloudflare's limit for a received
+ * WebSocket message is 32 MiB (https://developers.cloudflare.com/durable-objects/platform/limits/),
+ * so this leaves a wide margin.
+ */
+export const MAX_FRAME = 512 * 1024
+/** What a frame keeps for its ids, its reply, and its quote beside the text and the file references. */
+const FRAME_ROOM = 8 * 1024
+
+/**
+ * Whether a send fits one frame. The frame is JSON, where a control character takes six characters,
+ * so the text and the file references are measured as JSON. A long file name takes its share.
+ * Client and server both use this.
+ */
+export function sendFits(text: string, refs: readonly unknown[] = []): boolean {
+	return JSON.stringify(text).length + JSON.stringify(refs).length <= MAX_FRAME - FRAME_ROOM
+}
 export const MAX_IMAGE_BYTES = 10 * MiB
 export const MAX_TOTAL_IMAGE_BYTES = 80 * MiB
 export const MAX_ATTACHMENT_FILE_BYTES = 50 * MiB

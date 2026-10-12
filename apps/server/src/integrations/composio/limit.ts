@@ -1,3 +1,4 @@
+import { boundedWait } from "@yuki/durable/bounded-wait"
 import { ComposioError } from "./client"
 
 export const COMPOSIO_MAX_CONCURRENT = 40
@@ -36,10 +37,7 @@ export async function withRetry<T>(fn: () => Promise<T>, delays: readonly number
       const delay = delays[attempt]
       if (delay === undefined || !(e instanceof ComposioError) || !e.status || !RETRY_STATUSES.has(e.status)) throw e
       const wait = e.retryAfter !== undefined ? Math.min(e.retryAfter * 1000, RETRY_AFTER_MAX_MS) : delay * (0.75 + Math.random() * 0.5)
-      const { promise, resolve } = Promise.withResolvers<void>()
-      // check-rules: allow no-timer-in-do in-request backoff before a Composio retry; if the object is evicted, the request and the retry end with it
-      setTimeout(resolve, wait)
-      await promise
+      await boundedWait(wait)
     }
   }
 }

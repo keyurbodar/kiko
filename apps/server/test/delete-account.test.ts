@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import type { RoomId } from "@yuki/protocol"
-import { FRESH_SESSION_MS, isFresh } from "../src/auth/account-route"
-import { type DeletionTargets, isDeleteAccountJob, roomPrefix, runDeleteJob, startDeletion, userPrefix } from "../src/jobs/delete-account"
+import { FRESH_SESSION_MS, isFresh, rollbackDeletion } from "../src/auth/account-route"
+import { type DeleteAccountJob, type DeletionTargets, isDeleteAccountJob, roomPrefix, runDeleteJob, startDeletion, userPrefix } from "../src/jobs/delete-account"
 
 const USER = "u1"
+const GEN = 7
 const ROOM_A = "01JAAAAAAAAAAAAAAAAAAAAAAA" as RoomId
 const ROOM_B = "01JBBBBBBBBBBBBBBBBBBBBBBB" as RoomId
 
@@ -20,6 +21,8 @@ function account() {
 		userRows: 4,
 		objects: new Set([`${roomPrefix(USER, ROOM_A)}f1`, `${roomPrefix(USER, ROOM_B)}f2`, `${userPrefix(USER)}stray`]),
 		authRows: 3,
+		deletion: GEN as number | null,
+		wiped: false,
 	}
 	const failOnce = new Set<Step>()
 	const calls: Step[] = []
@@ -52,6 +55,7 @@ function account() {
 			const rows = state.userRows
 			state.userRows = 0
 			state.ledger.clear()
+			state.wiped = true
 			return rows
 		}),
 		deleteObjects: (prefix) => step("deleteObjects", () => {
@@ -64,13 +68,14 @@ function account() {
 			state.authRows = 0
 			return rows
 		}),
+		deletionCurrent: async (generation) => state.wiped || state.deletion === generation,
 	}
 	const empty = () =>
 		state.rooms.size === 0 && state.agents.size === 0 && state.userRows === 0 && state.objects.size === 0 && state.authRows === 0
 	return { state, targets, failOnce, calls, empty }
 }
 
-const job = (roomId: RoomId | null) => ({ kind: "delete-account" as const, userId: USER, roomId })
+const job = (roomId: RoomId | null, generation = GEN): DeleteAccountJob => ({ kind: "delete-account", userId: USER, roomId, generation })
 
 describe("runDeleteJob", () => {
 	test("the last room job finishes the account, and the auth rows go last", async () => {
@@ -109,6 +114,12 @@ describe("runDeleteJob", () => {
 		})
 	}
 
+	test("a rerun with generation 0 on a live user deletes nothing", async () => {
+		const a = account()
+		expect(await runDeleteJob(job(ROOM_A, 0), a.targets)).toEqual({ agents: 0, rooms: 0, user: 0, objects: 0, authRows: 0, finished: false })
+		expect(a.calls).toEqual([])
+	})
+
 	test("a second run of a finished job deletes nothing", async () => {
 		const a = account()
 		await runDeleteJob(job(ROOM_A), a.targets)
@@ -123,6 +134,7 @@ test("isDeleteAccountJob accepts only well formed jobs", () => {
 	expect(isDeleteAccountJob(job(null))).toBe(true)
 	expect(isDeleteAccountJob({ kind: "delete-account", userId: USER, roomId: "nope" })).toBe(false)
 	expect(isDeleteAccountJob({ kind: "image", userId: USER, roomId: null })).toBe(false)
+	expect(isDeleteAccountJob({ kind: "delete-account", userId: USER, roomId: null })).toBe(false)
 	expect(isDeleteAccountJob(null)).toBe(false)
 })
 
@@ -144,9 +156,9 @@ describe("startDeletion", () => {
 					revoke: async () => void (state.tombstoned = true),
 					begin: async () => {
 						state.deleting = true
-						return rooms
+						return { generation: GEN, rooms }
 					},
-					enqueue: async (ids) => {
+					enqueue: async ({ rooms: ids }) => {
 						if (state.failSends-- > 0) {
 							state.queued.push(...ids.slice(0, 1))
 							throw new Error("queue unavailable")
@@ -172,11 +184,37 @@ describe("startDeletion", () => {
 		expect(new Set(a.state.queued)).toEqual(new Set([ROOM_A, ROOM_B]))
 	})
 
+	test("a job that a failed start queued does nothing after the rollback", async () => {
+		const a = account()
+		const queued: DeleteAccountJob[] = []
+		await expect(
+			startDeletion({
+				revoke: async () => {},
+				begin: async () => {
+					a.state.deletion = GEN
+					return { generation: GEN, rooms: [ROOM_A, ROOM_B] }
+				},
+				enqueue: async () => {
+					queued.push(job(ROOM_A))
+					throw new Error("queue unavailable")
+				},
+				abort: async () => {
+					a.state.deletion = null
+				},
+			}),
+		).rejects.toThrow("queue unavailable")
+		expect(queued).toHaveLength(1)
+		const report = await runDeleteJob(queued[0]!, a.targets)
+		expect(report).toEqual({ agents: 0, rooms: 0, user: 0, objects: 0, authRows: 0, finished: false })
+		expect(a.calls).toEqual([])
+		expect(a.state.rooms.has(ROOM_A)).toBe(true)
+	})
+
 	test("a failed rollback still reports the original error", async () => {
 		await expect(
 			startDeletion({
 				revoke: async () => {},
-				begin: async () => [],
+				begin: async () => ({ generation: GEN, rooms: [] }),
 				enqueue: async () => {
 					throw new Error("queue unavailable")
 				},
@@ -185,5 +223,22 @@ describe("startDeletion", () => {
 				},
 			}),
 		).rejects.toThrow("queue unavailable")
+	})
+})
+
+describe("rollbackDeletion", () => {
+	test("a cancel that throws still lets the user sign in, and a retry can cancel again", async () => {
+		const deleted = new Set([USER])
+		const db = { prepare: () => ({ bind: () => ({ run: async () => void deleted.delete(USER) }) }) } as unknown as D1Database
+		let cancels = 0
+		const user = {
+			cancelDeletion: async () => {
+				if (cancels++ === 0) throw new Error("object unavailable")
+			},
+		}
+		await expect(rollbackDeletion(db, user, USER)).rejects.toThrow("object unavailable")
+		expect(deleted.has(USER)).toBe(false)
+		await rollbackDeletion(db, user, USER)
+		expect(cancels).toBe(2)
 	})
 })

@@ -1,5 +1,6 @@
 import type { AgentSlug, Envelope, Origin, RoomEvent, RoomId } from "@yuki/protocol"
 import { autonomousRunAllowed, checkSend, type Limit, limitError, limitNotice, utcDay } from "./limits"
+import type { Asks } from "./asks"
 import type { RoomLog } from "./log"
 import { parseRichText } from "./rich-text"
 import { joinOrigin, originOfAll } from "@yuki/agent/envelope"
@@ -8,7 +9,8 @@ export type AgentSend = { id: string; to: AgentSlug | "all"; text: string }
 
 export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; recipients: AgentSlug[]; origin?: Origin }
 
-export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[]; fresh: boolean } | { ok: false; error: string; events: RoomEvent[] }
+/** `answered` is the ask this send answered, if any: its bubbles go to the asker, not to the inbox. */
+export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[]; answered: string | null } | { ok: false; error: string; events: RoomEvent[] }
 
 export type Chain = { rootId: string; hop: number; origin: Origin }
 
@@ -29,6 +31,7 @@ export class Mail {
 	constructor(
 		private readonly storage: DurableObjectStorage,
 		private readonly log: RoomLog,
+		private readonly asks: Asks,
 		private readonly busy: (slug: AgentSlug) => boolean = () => false,
 		private readonly now: () => number = Date.now,
 	) {
@@ -41,12 +44,6 @@ export class Mail {
 		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_refused (id TEXT PRIMARY KEY, at INTEGER NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS auto_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)")
 		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_queue (n INTEGER PRIMARY KEY, sender TEXT NOT NULL, send TEXT NOT NULL, recipient TEXT)")
-	}
-
-	queue(from: AgentSlug, send: StoredSend): void {
-		this.storage.transactionSync(() => {
-			for (const to of send.recipients) this.sql.exec("INSERT INTO mail_queue (sender, send, recipient) VALUES (?, ?, ?)", from, JSON.stringify(send), to)
-		})
 	}
 
 	pending(): QueuedMail[] {
@@ -137,10 +134,11 @@ export class Mail {
 		return this.sql.exec<{ n: number }>("SELECT deliveries AS n FROM root_counts WHERE root_id = ?", rootId).toArray()[0]?.n ?? 0
 	}
 
-	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[]): SendOutcome {
+	/** Records the send, queues it for each recipient, and links it to `askId`, all in one transaction. A replay returns the first record and queues nothing. */
+	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], askId: string | null): SendOutcome {
 		return this.storage.transactionSync((): SendOutcome => {
 			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", input.id).toArray()[0]
-			if (earlier) return { ok: true, send: JSON.parse(earlier.send) as StoredSend, events: [], fresh: false }
+			if (earlier) return { ok: true, send: JSON.parse(earlier.send) as StoredSend, events: [], answered: this.asks.answeredBy(input.id) }
 			const text = input.text.trim()
 			if (!text) return { ok: false, error: "not sent: the message is empty.", events: [] }
 			if (input.to === from) return { ok: false, error: "not sent: you cannot message yourself.", events: [] }
@@ -160,11 +158,15 @@ export class Mail {
 			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients, origin }
 			this.count(rootId, recipients.length)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
+			if (askId) this.asks.sent(askId, stored.id)
+			const answered = askId || input.to === "all" ? null : this.asks.answer(from, input.to, text, input.id)
+			if (!answered) this.enqueue(from, send)
 			this.prune()
-			return { ok: true, send, events: stored.event ? [stored.event] : [], fresh: true }
+			return { ok: true, send, events: stored.event ? [stored.event] : [], answered }
 		})
 	}
 
+	/** An answer to an ask, relayed to its asker as mail. Recorded and queued in one transaction, like `send`. */
 	relay(id: string, from: AgentSlug, to: AgentSlug, message: { id: string; seq: number; text: string }): StoredSend | null {
 		return this.storage.transactionSync(() => {
 			if (this.sql.exec("SELECT 1 FROM agent_sends WHERE id = ?", id).toArray().length) return null
@@ -174,8 +176,13 @@ export class Mail {
 			const send: StoredSend = { messageId: message.id, seq: message.seq, text: message.text, hop, rootId, recipients: [to], origin }
 			this.count(rootId, 1)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", id, JSON.stringify(send), this.now())
+			this.enqueue(from, send)
 			return send
 		})
+	}
+
+	private enqueue(from: AgentSlug, send: StoredSend): void {
+		for (const to of send.recipients) this.sql.exec("INSERT INTO mail_queue (sender, send, recipient) VALUES (?, ?, ?)", from, JSON.stringify(send), to)
 	}
 
 	private count(rootId: string, deliveries: number): void {

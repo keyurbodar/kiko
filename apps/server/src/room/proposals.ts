@@ -1,4 +1,4 @@
-import type { AgentSlug, RoomEvent, RoomId } from "@yuki/protocol"
+import type { AgentSlug, RoomEvent, } from "@yuki/protocol"
 import { tagline, type MemberOp } from "@yuki/protocol"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
@@ -6,8 +6,8 @@ import { CHIEF, checkProposal, introduction, type NewAgentSpec, type Proposal, t
 import type { Chat } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
+import type { Home } from "./home"
 
-type Home = { userId: string; roomId: RoomId }
 
 export type ProposalsDeps = {
 	ctx: DurableObjectState

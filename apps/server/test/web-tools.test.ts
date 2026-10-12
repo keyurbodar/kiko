@@ -67,6 +67,10 @@ describe("web_fetch", () => {
     expect(htmlToText("<ul><li>a</li><li>b&#x21;</li></ul>")).toBe("a\n\nb!")
   })
 
+  test("htmlToText keeps the text after a script when an earlier character changes length on lowercasing", () => {
+    expect(htmlToText("İ<script>x</script>visible")).toBe("İ visible")
+  })
+
   test("htmlToText finishes 1 MB of bare '<' quickly", () => {
     const start = performance.now()
     htmlToText("<".repeat(1_000_000))

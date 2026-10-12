@@ -11,7 +11,8 @@
     "@earendil-works/pi-ai": "^1.0.0",
     "@earendil-works/pi-durable": "^1.0.0",
     "@yuki/agent": "workspace:*",
-    "quickjs-wasi": "3.6.2"
+    "quickjs-wasi": "3.6.2",
+    "rrule": "2.8.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260101.0",

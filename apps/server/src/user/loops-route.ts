@@ -6,7 +6,7 @@ import type { Env } from "../index"
 import { userStub } from "../lib/names"
 import { originAllowed } from "../router"
 import { SNOOZE_MAX_MS } from "@yuki/memory/loops"
-import { validZone } from "./recurrence"
+import { validZone } from "@yuki/sandbox/recurrence"
 
 const ACTION = /^\/api\/loops\/(\d{1,12})$/
 const decodeAction = Schema.decodeUnknownSync(LoopAction)

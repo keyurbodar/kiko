@@ -1,21 +1,32 @@
 import { expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
 import { RULES, scan } from "./check-rules.ts"
 
-const devGuard = RULES.filter((rule) => rule.id === "dev-guard")
+// One row per rule: the forms the matcher must catch, including the ones review F found missing.
+// Add a row when a rule grows. SAMPLE_FILE is a real path inside every rule's roots.
+const SAMPLE_FILE = "apps/server/src/router.ts"
+const SAMPLES: Record<string, readonly string[]> = {
+  "no-timer-in-do": ["setTimeout(work, 1)", "globalThis.setTimeout(work, 1)", "setTimeout (work, 1)", "setInterval (work, 1)"],
+  "do-names": ['env.ROOM.idFromName("room")', 'env.ROOM.idFromString("id")', 'env.ROOM.getByName("room")'],
+  "dev-guard": ['const dev = process.env.NODE_ENV === "development"', 'const dev = process.env["NODE_ENV"] === "development"', "const { NODE_ENV } = process.env"],
+  egress: ["return fetch(url)", "return globalThis.fetch(url)", "return fetch (url)"],
+  "sql-list-binds": ['ids.map(() => "?")', 'Array.from({ length: n }, () => "?")', '"?, ".repeat(n)', 'values.fill("?")'],
+}
 
-test("the tree has no NODE_ENV read outside the dev guard module", () => {
-  expect(scan(devGuard).map((f) => f.at)).toEqual([])
-})
+// The reader stands in for the file the sample claims to be, so no real file is opened.
+const read = (body: string) => (path: string) => (path.endsWith(SAMPLE_FILE) ? body : "")
 
-test("a NODE_ENV read in a route module is reported", () => {
-  const read = (path: string) =>
-    path.endsWith("apps/server/src/router.ts") ? 'const dev = process.env.NODE_ENV === "development"' : readFileSync(path, "utf8")
-  expect(scan(devGuard, read).map((f) => f.at)).toEqual(["apps/server/src/router.ts:1"])
-})
-
-test("the dev guard module itself may read NODE_ENV", () => {
-  const read = (path: string) =>
-    path.endsWith("apps/server/src/lib/dev-guard.ts") ? 'export const DEV = process.env.NODE_ENV === "development"' : readFileSync(path, "utf8")
-  expect(scan(devGuard, read).map((f) => f.at)).toEqual([])
-})
+for (const rule of RULES) {
+  const samples = SAMPLES[rule.id] ?? []
+  test(`${rule.id} has sample violations to check`, () => expect(samples.length).toBeGreaterThan(0))
+  for (const [i, sample] of samples.entries()) {
+    test(`${rule.id} reports sample ${i + 1}: ${sample}`, () => {
+      expect(scan([rule], read(sample)).map((f) => f.at)).toEqual([`${SAMPLE_FILE}:1`])
+    })
+    test(`${rule.id} accepts a reasoned allow on sample ${i + 1}`, () => {
+      expect(scan([rule], read(`// check-rules: allow ${rule.id} this reason says why\n${sample}`))).toEqual([])
+    })
+    test(`${rule.id} refuses an empty reason on sample ${i + 1}`, () => {
+      expect(scan([rule], read(`// check-rules: allow ${rule.id}\n${sample}`)).map((f) => f.at)).toEqual([`${SAMPLE_FILE}:2`])
+    })
+  }
+}

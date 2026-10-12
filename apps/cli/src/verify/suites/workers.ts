@@ -73,7 +73,7 @@ const cases: Case[] = [
       await send(room, "what is the status?")
       await until("the status answer", () => texts(room).some((t) => t.startsWith("status: ")), 15_000)
       const answer = must(texts(room).find((t) => t.startsWith("status: ")), "the status answer")
-      if (!answer.includes("w1 (running)")) throw new VerifyError(`the status answer does not show w1 running: ${answer}`)
+      if (!answer.includes("w1 (running")) throw new VerifyError(`the status answer does not show w1 running: ${answer}`)
       const [after] = await list()
       expectEqual(after?.status, "running", "w1 after the status answer")
       expectEqual(after?.submissionId, before?.submissionId, "w1's input after the status answer")

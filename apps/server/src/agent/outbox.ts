@@ -49,7 +49,7 @@ type Run = {
   generation: Generation | null
   bubbled: boolean
   toolStarted: boolean
-  toolsRunning: number
+  tools: Map<string, string>
   quiet: boolean
 }
 
@@ -116,7 +116,7 @@ export class Outbox {
   progress(): RunProgress | null {
     const run = this.run
     if (!run) return null
-    return { bubblePosted: run.bubbled || run.posted > 0 || run.attempt > 0, toolStarted: run.toolStarted, toolRunning: run.toolsRunning > 0 }
+    return { bubblePosted: run.bubbled || run.posted > 0 || run.attempt > 0, toolStarted: run.toolStarted, tools: new Map(run.tools) }
   }
 
   private async guard(step: () => Promise<void>): Promise<void> {
@@ -168,12 +168,12 @@ export class Outbox {
       case "tool_execution_start":
         if (this.run) {
           this.run.toolStarted = true
-          this.run.toolsRunning++
+          this.run.tools.set(event.toolCallId, event.toolName)
         }
         return this.setStatus("working")
       case "tool_execution_end":
         this.see(event.entry)
-        if (this.run) this.run.toolsRunning = Math.max(0, this.run.toolsRunning - 1)
+        this.run?.tools.delete(event.toolCallId)
         return this.setStatus("typing")
       case "run_end":
         return this.end(`${this.prefix()}:${event.inputs[0]}`, event.inputs)
@@ -192,7 +192,7 @@ export class Outbox {
         run.generation = this.run.generation
         run.bubbled = this.run.bubbled
         run.toolStarted = this.run.toolStarted
-        run.toolsRunning = this.run.toolsRunning
+        run.tools = this.run.tools
         run.quiet = this.run.quiet
       }
       for (const entry of entries) {
@@ -345,7 +345,7 @@ export class Outbox {
       generation: null,
       bubbled: false,
       toolStarted: false,
-      toolsRunning: 0,
+      tools: new Map(),
       quiet: false,
     }
   }

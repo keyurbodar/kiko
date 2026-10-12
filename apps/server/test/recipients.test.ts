@@ -4,7 +4,14 @@ import type { MemberRow } from "../src/room/members"
 import { buildBrief } from "../src/room/brief"
 import { replyTag } from "../src/room/bubbles"
 import { route } from "../src/room/deliver"
-import { resolveRecipients, tags } from "../src/room/recipients"
+import { resolveRecipients, tags, type RecipientMessage } from "../src/room/recipients"
+import type { Pending } from "../src/room/burst"
+
+/** A message as the room routes it: its mentions are the tags of its text. */
+const routeTo = (message: { text: string; replyToAgent?: AgentSlug }, members: Parameters<typeof resolveRecipients>[1]): AgentSlug[] => {
+	const recipient: RecipientMessage = { mentions: tags(message.text), ...(message.replyToAgent ? { replyToAgent: message.replyToAgent } : {}) }
+	return resolveRecipients(recipient, members)
+}
 
 const slug = (s: string) => s as AgentSlug
 const team = [
@@ -30,16 +37,16 @@ const rows: [string, { text: string; replyToAgent?: AgentSlug }, string[]][] = [
 ]
 
 describe("resolveRecipients", () => {
-  for (const [name, message, expected] of rows) test(name, () => expect(resolveRecipients(message, team)).toEqual(expected.map(slug)))
+  for (const [name, message, expected] of rows) test(name, () => expect(routeTo(message, team)).toEqual(expected.map(slug)))
 
-  test("a room with no members has no recipients", () => expect(resolveRecipients({ text: "hi" }, [])).toEqual([]))
+  test("a room with no members has no recipients", () => expect(routeTo({ text: "hi" }, [])).toEqual([]))
 
   test("tags are found once each, in order", () => expect(tags("@cy @ada @cy, (@bob)")).toEqual(["cy", "ada", "bob"]))
 
   test("@yuki reaches the chief, whose slug is yuki", () => {
     const room = [{ slug: slug("yuki"), lead: true }, { slug: slug("ada"), lead: false }]
-    expect(resolveRecipients({ text: "@ada and @Yuki, look" }, room)).toEqual([slug("yuki"), slug("ada")])
-    expect(resolveRecipients({ text: "@ada look" }, room)).toEqual([slug("ada")])
+    expect(routeTo({ text: "@ada and @Yuki, look" }, room)).toEqual([slug("yuki"), slug("ada")])
+    expect(routeTo({ text: "@ada look" }, room)).toEqual([slug("ada")])
   })
 })
 
@@ -54,15 +61,17 @@ const envelope = (seq: number, body: string, replyTo?: string): Envelope => ({
   seq,
 })
 
+const pending = (e: Envelope): Pending => ({ envelope: e, mentions: tags(e.body) })
+
 describe("route", () => {
   test("each member gets only its own envelopes of a burst, in one call", () => {
-    const burst = [envelope(1, "hello"), envelope(2, "@ada look"), envelope(3, "@all done?"), envelope(4, "this one", "b1")]
+    const burst = [envelope(1, "hello"), envelope(2, "@ada look"), envelope(3, "@all done?"), envelope(4, "this one", "b1")].map(pending)
     const routes = route(burst, team, (id) => (id === "b1" ? slug("cy") : undefined))
     expect(Object.fromEntries([...routes].map(([s, es]) => [s, es.map((e) => e.seq)]))).toEqual({ bob: [1, 3], ada: [2, 3], cy: [3, 4] })
   })
 
   test("an agent that is not addressed is not in the result", () => {
-    const routes = route([envelope(1, "@ada only")], team, () => undefined)
+    const routes = route([pending(envelope(1, "@ada only"))], team, () => undefined)
     expect([...routes.keys()]).toEqual([slug("ada")])
   })
 })
