@@ -941,6 +941,8 @@ Subrequests. A Free invocation may make 50 outside requests, and it is enforced 
 
 Egress decision. The `egress` rule in `scripts/check-rules.ts` is enforced: a bare `fetch(` is allowed only in `safe-fetch.ts`, in `AgentDO`, or on a line with `// check-rules: allow egress <reason>`. Two lines carry that reason. The dev fixture fetcher (`lib/dev-fixture-fetch.ts`) runs only when `DEV` is on, and it sits under `safeRequest`, which checks the host first. Composio's default fetcher (`integrations/composio/connect.ts`) runs in `UserDO`, which gets its own invocation per RPC, so its calls do not share an agent run's 50. UNVERIFIED until G01 (`issues/G01-deploy-measure.md`): that the RPC and R2 calls stay outside the 50 on a deployed Free Worker. The counts above came from `wrangler dev`.
 
+DEVIATION: the browser lease socket is the one outside connection `AgentDO` opens by itself. `core/browser/src/cdp/session.ts` opens a Kernel CDP WebSocket for the life of a lease. It is not a per-run fetch, so it does not go through `egress`. UNVERIFIED until G01 (`issues/G01-deploy-measure.md`): whether this socket counts against the 50 subrequests of a Free invocation.
+
 Each request through `egress` is one more Durable Object request, about five per turn. Free allows 100,000 a day, and rows written still bind first (the table above), so the user count does not move.
 
 Alarms. The runtime retries a throwing `alarm()` six times, and `dueWakeups` has already claimed the due keys, so a throwing step would lose its wakeup and skip the steps after it. `UserDO` and `RoomDO` run each due step through `runDue` (`core/durable/src/alarm.ts`), which catches a failure and sets that key again: after 30 seconds, or 2 seconds for the room's message path. `AgentHost` already catches and re-arms.
@@ -1730,7 +1732,7 @@ A switch to the other mode deletes the browser, waits for the profile save, and 
 
 `dead` marks the lease when an agent reports that its socket died. The next lease deletes the browser, ignoring a 404, makes a new one, and answers `restarted: true` with the caller's last tab URLs.
 
-Known gap (U21): two agents on one browser can still pass the tab cap together, because an agent's opens in flight are not visible to another agent until it touches the lease. Closing it needs a reservation in the UserDO lease. UNVERIFIED: a `switchTo` during an open can leave a tab that no map counts, so `idle()` never closes it.
+Known gap (U21): two agents on one browser can still pass the tab cap together, because an agent's opens in flight are not visible to another agent until it touches the lease. Closing it needs a reservation in the UserDO lease.
 
 ### 27.3 The reaper and the wipe
 
