@@ -75,11 +75,8 @@ async function deleteAccount(request: Request, env: Env, url: URL): Promise<Resp
 		rooms = await startDeletion({
 			revoke: () => revokeUser(env.AUTH_DB, userId),
 			begin: () => user.beginDeletion(),
-			enqueue: (ids) => enqueueDeletion(env.JOBS, userId, ids),
-			abort: async () => {
-				await user.cancelDeletion()
-				await restoreUser(env.AUTH_DB, userId)
-			},
+			enqueue: (deletion) => enqueueDeletion(env.JOBS, userId, deletion),
+			abort: () => rollbackDeletion(env.AUTH_DB, user, userId),
 		})
 	} catch (e) {
 		console.error("account deletion could not start", e)
@@ -90,6 +87,12 @@ async function deleteAccount(request: Request, env: Env, url: URL): Promise<Resp
 	const response = Response.json({ rooms }, { status: 202 })
 	for (const cookie of headers.getAll("set-cookie")) response.headers.append("set-cookie", cookie)
 	return response
+}
+
+// The user comes back first: if the object cannot clear its mark, sign-in still works and a retry's beginDeletion overwrites the mark.
+export async function rollbackDeletion(db: D1Database, user: { cancelDeletion(): Promise<void> }, userId: string): Promise<void> {
+	await restoreUser(db, userId)
+	await user.cancelDeletion()
 }
 
 async function devRoute(request: Request, env: Env, url: URL): Promise<Response> {

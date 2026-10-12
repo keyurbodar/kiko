@@ -8,23 +8,20 @@ export async function isWiped(storage: DurableObjectStorage): Promise<boolean> {
 	return state === true || state === DELETING
 }
 
-// Only a finished wipe reads as empty. A wipe in progress still holds rows that a probe must count.
 async function finished(storage: DurableObjectStorage): Promise<boolean> {
 	return (await storage.get(TOMBSTONE)) === true
 }
 
 // `_cf_KV` answers SQLITE_AUTH, so key-value entries are counted through the key-value API, not SQL.
-// A wiped object reports 0, so the tombstone is never residue. Reloading a wiped object recreates empty tables and a row,
-// so counting it would report residue the wipe already removed.
+// The wipe marker is not a row, so it is never counted. Rows written after a finished wipe are counted, so a probe sees residue.
 export async function storedRows(storage: DurableObjectStorage): Promise<number> {
-	if (await finished(storage)) return 0
 	const sql = storage.sql
 	const tables = sql
 		.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'")
 		.toArray()
 		.map((r) => r.name)
 		.filter((name) => name !== "meta" && !name.startsWith("sqlite_") && !name.startsWith("_cf_") && !name.includes("_fts"))
-	let rows = (await storage.list()).size
+	let rows = [...(await storage.list()).keys()].filter((key) => key !== TOMBSTONE).length
 	for (const name of tables) {
 		rows += sql.exec<{ n: number }>(`SELECT count(*) AS n FROM "${name.replaceAll('"', '""')}"`).one().n
 	}

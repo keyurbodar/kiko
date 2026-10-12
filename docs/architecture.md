@@ -1744,7 +1744,7 @@ The reaper is the wakeup `kernel_reap` in `alarm.ts`. It is set when a browser i
 | idle for 5 min, or 30 min old | delete |
 | otherwise | keep until the earlier of those two times |
 
-A delete that finds a 404 counts as done. Any other failure keeps the row and the wakeup retries. Kernel deletes a browser on its own after 600 s without activity and saves the profile then too, which is the net if a wakeup is missed. Account deletion deletes the browser and then the profile before the object's storage goes (`beginDeletion`). A Kernel failure there is logged and does not stop the deletion.
+A delete that finds a 404 counts as done. Any other failure keeps the row and the wakeup retries. Kernel deletes a browser on its own after 600 s without activity and saves the profile then too, which is the net if a wakeup is missed. Account deletion deletes the browser and then the profile before the object's storage goes (`UserDO.deleteAll`, in the wipe's shutdown step, because the lease is read from those rows). It runs only when the jobs finish, never on a start that is rolled back. A Kernel failure there is logged and does not stop the deletion.
 
 ### 27.4 Connecting
 
