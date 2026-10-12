@@ -77,3 +77,56 @@ Columns: run, wording, rep, case, workers running at send, milliseconds from sen
 - The spike's `status.reply` field should take the status answer, not the first message after send. The protocol does not tag which message answers which question, so this needs either a fixed window after the question or a reply-matching rule. Not fixed in U64.
 - The status window for steer and stop counts should end at the judged answer, not at the first message.
 - The lead rarely reports a step for the worker. Whether a stronger prompt line helps is UNVERIFIED; this run only shows the one-line change does not move the total.
+
+## Round 2: steer and stop measured, attribution automatic
+
+Run: `run3/` (generalized line, the same as `run2`). Spike rewritten (`spike.ts`):
+
+- **Send gate:** the status question goes out only when the lead is not typing (`idle` or `working`, where `working` means its turn ended while a worker still runs) and a fresh read shows a worker running.
+- **Attribution, automatic:** the answer turn starts at the first `typing` status after the send and ends at the next status that is not `typing`. The answer is every agent message in that turn, plus a 1 s tail. The gate means no task reply can fall inside it. Fields: `statusSentAt`, `turnStartAt`, `turnEndAt`, `noteSentAt` (in each `status-N/case-NN.json`).
+- **Steer and stop timing:** `tool.talker.steer_work` and `tool.talker.stop_work` are sampled from `api/dev/stats` on every loop tick (about 150 to 200 ms). A call counts toward a window when its sample interval overlaps the window. This is a bound: a zero means no call could have fallen inside.
+- **Window:** [status send, note send), or [status send, run end] when no note was sent.
+
+Counts per trial (from the JSON; `steerInWindow` and `stopInWindow` are the window bounds, `steerAfterNote` is after the note send):
+
+| Wording | Rep | Case | Status sent (ms) | Answer turn (ms) | Note sent (ms) | steer in window | stop in window | steer after note | stop after note |
+|---|---|---|---|---|---|---|---|---|---|
+| status | 1 | 7 | 4167 | 5256–6181 | 11323 | 0 | 0 | 1 | 0 |
+| status | 1 | 10 | 7807 | 8910–10468 | none | 0 | 0 | none | none |
+| status | 2 | 7 | 4090 | 5193–6473 | 11607 | 0 | 0 | 1 | 0 |
+| status | 2 | 10 | 6323 | 7464–8431 | none | 0 | 0 | none | none |
+| status | 3 | 7 | 4835 | 5918–7014 | none | 0 | 0 | none | none |
+| status | 3 | 10 | 8649 | 9759–10848 | none | 0 | 0 | none | none |
+| going | 1 | 7 | 6584 | 7672–9065 | 14197 | 0 | 0 | 1 | 0 |
+| going | 1 | 10 | 6261 | 7358–8294 | none | 0 | 0 | none | none |
+| going | 2 | 7 | 4382 | 5471–6886 | 12024 | 0 | 0 | 1 | 0 |
+| going | 2 | 10 | 5530 | 6622–7549 | none | 0 | 0 | none | none |
+| going | 3 | 7 | 5417 | 6560–7810 | 12979 | 0 | 0 | 1 | 0 |
+| going | 3 | 10 | 5926 | 7025–8292 | none | 0 | 0 | none | none |
+
+"none" means the note was skipped because no worker was running when it was due, so no after-note window exists.
+
+**Result: steer_work and stop_work calls strictly between the status send and the note send: 0 in all 12 trials.** Because the window is a bound, this covers the whole run in the 7 trials with no note. Steer and stop calls after the note: one steer in each of the 5 trials where the note was sent, and no stop, which matches the note asking for a change. Attribution of the steer to the note is inferred from timing (it comes after the note send) and is not proven.
+
+## Round 2: strict count on the automatic answers
+
+The attribution is automatic. The content judgment is still by hand, with the rule from round 1 (names the worker by id or word; step is what the worker is doing now). The answers are the `answerMessages` in each JSON.
+
+| Wording | Rep | Case | Names running work | Names worker | Gives step | Strict |
+|---|---|---|---|---|---|---|
+| status | 1 | 7 | yes | yes (Worker 1) | yes (set up folder, now drafting) | yes |
+| status | 1 | 10 | yes | yes (Research worker) | yes (step 3, checking mochajs.org) | yes |
+| status | 2 | 7 | yes | no ("Research is running") | yes (checking ranking page) | no |
+| status | 2 | 10 | yes | yes (Research worker) | yes (checking usage signals) | yes |
+| status | 3 | 7 | yes | yes (w1) | yes (checking sources, Milvus) | yes |
+| status | 3 | 10 | yes | yes (research worker) | yes (step 2, usage data) | yes |
+| going | 1 | 7 | yes | no ("Research is running") | yes (pulls repo details) | no |
+| going | 1 | 10 | yes | yes (Research worker) | yes (step 1, test runner data) | yes |
+| going | 2 | 7 | yes | yes (Research worker) | yes (step 3, Chroma page) | yes |
+| going | 2 | 10 | yes | yes (Research worker) | yes (web research) | yes |
+| going | 3 | 7 | yes | no ("Research is running") | yes (checking rankings) | no |
+| going | 3 | 10 | yes | yes (research worker) | yes (step 2, Vitest comparisons) | yes |
+
+**Strict count, round 2: "what is the status?" 5 of 6; "how is it going?" 4 of 6.** Names the worker: 5 of 6 and 4 of 6. Names the running work: 12 of 12.
+
+The round 2 generalized line therefore scores 5 of 6 and 4 of 6 under the automatic attribution. Round 1 was judged on a first-message rule, so the two rounds are not directly comparable. The two round-2 wordings are close to the round 1 numbers, and neither line change is shown to help with 6 trials per wording.

@@ -1,18 +1,21 @@
-// U64 spike: send status questions to the real lead through the yuki CLI client, only once a worker is running.
+// U64 spike: send status questions to the real lead through the yuki CLI client, only while the lead is idle
+// and a worker is running. Records timestamps for the status send, the lead's answer turn, and the note send,
+// and samples steer_work and stop_work counters on every tick so each call is bracketed in time.
 // Usage (from the worktree root, with the server on port 8864 in the same heavy slot):
-//   set -a; . apps/server/.dev.vars; set +a; bun issues/evidence/u64/spike.ts run1 [caseIds]
+//   set -a; . apps/server/.dev.vars; set +a; bun issues/evidence/u64/spike.ts run3 7,10 status
 import { mkdir, writeFile } from "node:fs/promises"
 import type { RoomToClient } from "@yuki/protocol"
 import { connectTestModel, createVerifier, type Session } from "../../../apps/cli/src/verify/client"
 import { newRoom, seen, send } from "../../../apps/cli/src/verify/suites/mid-run"
 
 const BASE = "http://localhost:8864"
-const RUN = process.argv[2] ?? "run1"
+const RUN = process.argv[2] ?? "run3"
 const ONLY = (process.argv[3] ?? "7,10").split(",").filter(Boolean).map(Number)
 const ONLY_WORDING = process.argv[4] ?? "status,going"
 const DIR = `${import.meta.dir}/${RUN}`
 const DEADLINE_MS = 300_000
 const REPS = 3
+const TURN_TAIL_MS = 1000
 const WORDINGS = [
   { tag: "status", text: "what is the status?" },
   { tag: "going", text: "how is it going?" },
@@ -22,6 +25,7 @@ type Counters = Record<string, number>
 type Work = { id: string; task: string; status: string; delivered: boolean; step: string | null }
 type Case = { id: number; name: string; files?: Record<string, string>; send: string[]; status?: boolean; note?: string }
 type Wording = (typeof WORDINGS)[number]
+type Sample = { at: number; steer: number; stop: number }
 
 const SENTENCES = ["Our sprint was short.", "Sales grew in March.", "Two hires started.", "The cache bug is fixed.", "Support volume fell."]
 const PROJECTS = ["alpha", "beta", "gamma", "delta"]
@@ -67,10 +71,25 @@ const diff = (a: Counters, b: Counters): Counters => Object.fromEntries(Object.e
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1)}…` : t)
 const brief = (w: Work) => ({ id: w.id, status: w.status, step: w.step })
 
+// A counter increment is seen between two samples. It counts toward a window when its sample interval
+// overlaps the window, so a zero here is a bound, not a guess.
+function callsIn(samples: Sample[], from: number, to: number): { steer: number; stop: number } {
+  let steer = 0
+  let stop = 0
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1]!
+    const b = samples[i]!
+    if (b.at < from || a.at > to) continue
+    steer += b.steer - a.steer
+    stop += b.stop - a.stop
+  }
+  return { steer, stop }
+}
+
 async function runCase(c: Case, wording: Wording, rep: number) {
   const dir = `${DIR}/${wording.tag}-${rep}`
   await mkdir(dir, { recursive: true })
-  const s = await v.as(`u64-${RUN}-${wording.tag}-${rep}-${c.id}`)
+  const s = await v.as(`u64r2-${RUN}-${wording.tag}-${rep}-${c.id}`)
   try {
     await connectTestModel(s)
     const { roomId, room } = await newRoom(s, `u64 ${c.name}`)
@@ -89,12 +108,13 @@ async function runCase(c: Case, wording: Wording, rep: number) {
     const seenIds = new Set<string>()
     const statuses: { at: number; state: string }[] = []
     const snapshots: { at: number; workers: Work[] }[] = []
+    const samples: Sample[] = []
     let cursor = 0
     let lead = "none"
     let typingAt: number | null = null
     let everRunning = false
     let statusSent: { at: number; before: Counters; workersAtSend: Work[] } | null = null
-    let statusReply: { at: number; after: Counters; workersAtReply: Work[] } | null = null
+    let statusReply: { at: number; turnStart: number; after: Counters; workersAtReply: Work[] } | null = null
     let note: { at: number; skipped?: string; before?: Counters; runningAtSend?: number } | null = null
     let lastSnap = -Infinity
     let workers: Work[] = []
@@ -126,10 +146,14 @@ async function runCase(c: Case, wording: Wording, rep: number) {
         everRunning ||= workers.some((w) => w.status === "running")
         snapshots.push({ at: now, workers })
       }
-      // The question goes out only when a worker is running at send time, checked against a fresh read.
-      if (c.status && !statusSent && workers.some((w) => w.status === "running")) {
+      const cs = await counters(s)
+      samples.push({ at: now, steer: cs["tool.talker.steer_work"] ?? 0, stop: cs["tool.talker.stop_work"] ?? 0 })
+
+      // Sent only while the lead is not typing (its last turn is over; "working" means it waits on a worker)
+      // and a worker is running, so the next lead turn is the answer to this question.
+      if (c.status && !statusSent && lead !== "typing" && typingAt !== null && workers.some((w) => w.status === "running")) {
         const running = (await workersOf(s, roomId)).filter((w) => w.status === "running")
-        if (running.length > 0) {
+        if (running.length > 0 && lead !== "typing") {
           const before = await counters(s)
           await send(room, wording.text)
           statusSent = { at: at(), before, workersAtSend: running }
@@ -138,9 +162,11 @@ async function runCase(c: Case, wording: Wording, rep: number) {
           continue
         }
       }
+      // The answer turn: the first typing after the send, closed by the next state that is not typing.
       if (statusSent && !statusReply) {
-        const reply = replies.find((r) => r.at > statusSent!.at)
-        if (reply) statusReply = { at: reply.at, after: await counters(s), workersAtReply: await workersOf(s, roomId) }
+        const start = statuses.find((x) => x.at > statusSent!.at && x.state === "typing")
+        const end = start && statuses.find((x) => x.at > start.at && x.state !== "typing")
+        if (start && end) statusReply = { at: end.at, turnStart: start.at, after: await counters(s), workersAtReply: await workersOf(s, roomId) }
       }
       const anchor = statusReply?.at ?? (statusSent ? statusSent.at + 30_000 : null)
       if (c.note && anchor !== null && !note && now - anchor >= 5000) {
@@ -157,7 +183,8 @@ async function runCase(c: Case, wording: Wording, rep: number) {
         continue
       }
       const quiet = replies.length ? now - replies[replies.length - 1]!.at : now
-      const pendingStatus = statusSent !== null && statusReply === null
+      // A question with no answer turn within 90 s counts as no answer, so it cannot hold the run open.
+      const pendingStatus = statusSent !== null && statusReply === null && now - statusSent.at < 90_000
       const pendingNote = statusSent !== null && c.note !== undefined && note === null
       if (typingAt !== null && lead === "idle" && quiet >= 4000 && !pendingStatus && !pendingNote) {
         workers = await workersOf(s, roomId)
@@ -168,24 +195,42 @@ async function runCase(c: Case, wording: Wording, rep: number) {
       }
       await Bun.sleep(150)
     }
+    const endAt = at()
+    const endCounters = await counters(s)
+    samples.push({ at: endAt, steer: endCounters["tool.talker.steer_work"] ?? 0, stop: endCounters["tool.talker.stop_work"] ?? 0 })
+
+    // Attribution: the answer is every lead message from the start of the answer turn to its end (plus a short tail).
+    const answer = statusSent && statusReply ? replies.filter((r) => r.at >= statusReply!.turnStart && r.at <= statusReply!.at + TURN_TAIL_MS) : []
+    const workerDelivered = statusSent && statusReply
+      ? snapshots.some((sn) => sn.at > statusSent!.at && sn.at <= statusReply!.at && sn.workers.some((w) => w.delivered))
+      : false
 
     // Never sent: the run ended before any worker was running (or none ever started).
     const statusSkipped = c.status && !statusSent ? (everRunning ? "worker finished before the question was sent" : "no worker started") : null
     const final = await counters(s)
     const finalWorkers = await workersOf(s, roomId)
+    const noteSentAt = note && note.before ? note.at : null
+    const statusCalls = statusSent ? callsIn(samples, statusSent.at, noteSentAt ?? endAt) : null
+    const afterNoteCalls = noteSentAt !== null ? callsIn(samples, noteSentAt, endAt) : null
     const statusNote = statusSent
       ? {
           wording: wording.text,
+          sentAt: statusSent.at,
+          turnStartAt: statusReply?.turnStart ?? null,
+          turnEndAt: statusReply?.at ?? null,
+          noteSentAt,
           replyMs: statusReply ? statusReply.at - statusSent.at : null,
           runningAtSend: statusSent.workersAtSend.length,
           workersAtSend: statusSent.workersAtSend.map(brief),
           workersAtReply: statusReply?.workersAtReply.map(brief) ?? null,
+          workerDeliveredInTurn: workerDelivered,
           talkerDuring: statusReply ? pick(diff(statusSent.before, statusReply.after), "tool.talker.") : null,
-          workerDuring: statusReply ? pick(diff(statusSent.before, statusReply.after), "tool.worker.") : null,
-          steerWorkDuring: statusReply ? (diff(statusSent.before, statusReply.after)["tool.talker.steer_work"] ?? 0) : null,
-          stopWorkDuring: statusReply ? (diff(statusSent.before, statusReply.after)["tool.talker.stop_work"] ?? 0) : null,
-          reply: replies.find((r) => r.at > statusSent!.at)?.text ?? null,
-          repliesAfterSend: replies.filter((r) => r.at > statusSent!.at).map((r) => r.text),
+          steerInWindow: statusCalls?.steer ?? null,
+          stopInWindow: statusCalls?.stop ?? null,
+          steerAfterNote: afterNoteCalls?.steer ?? null,
+          stopAfterNote: afterNoteCalls?.stop ?? null,
+          reply: answer.length ? answer.map((r) => r.text).join(" / ") : null,
+          answerMessages: answer.map((r) => ({ at: r.at, text: r.text })),
         }
       : null
     const noteOut = note && note.before
@@ -200,6 +245,7 @@ async function runCase(c: Case, wording: Wording, rep: number) {
       rep,
       send: c.send,
       sentAt,
+      endAt,
       timedOut: doneAt === null,
       doneMs: doneAt,
       firstReplyMs: replies[0]?.at ?? null,
@@ -214,12 +260,14 @@ async function runCase(c: Case, wording: Wording, rep: number) {
       status: statusNote,
       note: noteOut,
       replies,
+      statuses,
+      samples,
       bubbles: seen(room).live.map((m) => m.text),
     }
     const tag = String(c.id).padStart(2, "0")
     await writeFile(`${dir}/case-${tag}.json`, `${JSON.stringify(result, null, 2)}\n`)
-    await writeFile(`${dir}/case-${tag}.frames.json`, `${JSON.stringify({ statuses, snapshots, final }, null, 2)}\n`)
-    console.log(`${wording.tag}-${rep} case ${c.id} ${c.name}: start_work=${result.startWorkCalls} talker_calls=${result.talkerToolCalls} worker_calls=${result.workerToolCalls} turns=${result.modelTurns} first_reply=${result.firstReplyMs} done=${result.doneMs} timed_out=${result.timedOut} status_skipped=${statusSkipped}`)
+    await writeFile(`${dir}/case-${tag}.frames.json`, `${JSON.stringify({ snapshots, final }, null, 2)}\n`)
+    console.log(`${wording.tag}-${rep} case ${c.id} ${c.name}: start_work=${result.startWorkCalls} talker_calls=${result.talkerToolCalls} worker_calls=${result.workerToolCalls} turns=${result.modelTurns} done=${result.doneMs} timed_out=${result.timedOut} status_skipped=${statusSkipped} steer_in_window=${statusNote?.steerInWindow ?? "-"} stop_in_window=${statusNote?.stopInWindow ?? "-"}`)
     return result
   } finally {
     v.closeAll()
@@ -227,7 +275,7 @@ async function runCase(c: Case, wording: Wording, rep: number) {
 }
 
 await mkdir(DIR, { recursive: true })
-const rows: string[] = ["wording\trep\tcase\tname\trunning_at_send\tstatus_skipped\tstatus_reply_s\tsteer_work\tstop_work\tstatus_reply\tnote_steer_calls\tnote_stop_calls\ttimed_out"]
+const rows: string[] = ["wording\trep\tcase\tname\trunning_at_send\tstatus_skipped\tturn_ms\tsteer_in_window\tstop_in_window\tsteer_after_note\tstop_after_note\tworker_delivered_in_turn\tstatus_reply\tnote_steer_calls\tnote_stop_calls\ttimed_out"]
 const sec = (ms: number | null | undefined) => (ms === null || ms === undefined ? "-" : (ms / 1000).toFixed(1))
 for (const wording of WORDINGS) {
   if (!ONLY_WORDING.split(",").includes(wording.tag)) continue
@@ -238,8 +286,9 @@ for (const wording of WORDINGS) {
       const st = r.status
       const no = r.note
       rows.push([
-        wording.tag, rep, r.case, r.name, st?.runningAtSend ?? "-", r.statusSkipped ?? "-", sec(st?.replyMs), st?.steerWorkDuring ?? "-", st?.stopWorkDuring ?? "-",
-        JSON.stringify(st?.reply ?? null), no && "steerCalls" in no ? no.steerCalls : "-", no && "stopCalls" in no ? no.stopCalls : "-", r.timedOut,
+        wording.tag, rep, r.case, r.name, st?.runningAtSend ?? "-", r.statusSkipped ?? "-", sec(st?.replyMs), st?.steerInWindow ?? "-", st?.stopInWindow ?? "-",
+        st?.steerAfterNote ?? "-", st?.stopAfterNote ?? "-", st?.workerDeliveredInTurn ?? "-", JSON.stringify(st?.reply ?? null),
+        no && "steerCalls" in no ? no.steerCalls : "-", no && "stopCalls" in no ? no.stopCalls : "-", r.timedOut,
       ].join("\t"))
       await writeFile(`${DIR}/summary.tsv`, `${rows.join("\n")}\n`)
     }
