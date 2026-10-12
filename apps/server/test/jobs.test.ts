@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test"
 import { consume, DEAD_LETTER_QUEUE, retryDelay } from "../src/jobs/consumer"
 
-const deletion = { kind: "delete-account", userId: "u1", roomId: null } as const
+const deletion = { kind: "delete-account", userId: "u1", roomId: null, generation: 1 } as const
 
 function fakeEnv(failures = 0) {
 	const seen = { wipes: 0, sent: [] as unknown[] }
 	const user = {
+		deletionCurrent: async () => true,
 		deleteAll: async () => {
 			seen.wipes++
 			if (seen.wipes <= failures) throw new Error("the object is busy")
