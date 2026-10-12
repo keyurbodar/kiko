@@ -3,10 +3,12 @@
 // are cached by apps/server/scripts/test-each.ts, so a second run on an unchanged tree is fast.
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
+import { flakyLines } from "./flaky.ts"
 
 const root = join(import.meta.dir, "..")
 // `last` steps run after the rest, alone: their tests assert wall-clock budgets that fail when typecheck holds the CPUs.
-// `test` steps that fail get one rerun alone after the wave. They pass if the rerun passes, and the line says so.
+// `test` steps that fail get one rerun alone after the wave. They pass if the rerun passes, and the line says so,
+// with the first run's failing files and their first assertion under it (the rerun only reruns the failed files).
 // `advisory` steps print their result but never fail the run.
 type Step = { name: string; cmd: string[]; cwd: string; last?: boolean; test?: boolean; advisory?: boolean }
 
@@ -60,6 +62,7 @@ for (const r of results) {
     r.code = 0
     r.flaky = true
     console.log(`pass  ${r.step.name.padEnd(28)} ${again.seconds}s  flaky, passed on rerun`)
+    for (const line of flakyLines(r.output)) console.log(line)
   } else {
     r.output = again.output
     console.log(`FAIL  ${r.step.name.padEnd(28)} ${again.seconds}s  failed on rerun too`)
