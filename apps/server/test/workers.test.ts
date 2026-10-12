@@ -23,7 +23,7 @@ afterAll(async () => {
 
 type Hangs = { started: number; aborted: number; waiting: number }
 type Status = { tasks: number; submissions: number; opens: number }
-type Row = { id: string; task: string; status: string; step: string | null; delivered: boolean }
+type Row = { id: string; task: string; status: string; step: string | null; changed: string[]; delivered: boolean }
 type Request = { worker: boolean; roles: string[]; users: string[] }
 
 async function agent() {
@@ -147,7 +147,7 @@ test("a worker that outlives five restarts reports failed once, and the agent ke
   await a.call({ op: "crash" }).catch(() => {})
   const posts = await a.posts()
   expect(posts.filter((t) => t.startsWith("reported w1")).length).toBe(1)
-  expect(posts.find((t) => t.startsWith("reported w1"))).toBe("reported w1 failed: it stopped after repeated restarts.")
+  expect(posts.find((t) => t.startsWith("reported w1"))).toBe("reported w1 failed: it stopped after repeated restarts. changed: no files.")
   await a.say("still there?")
   await until(a.posts, (p) => p.includes("reply to: still there?"))
   expect((await a.transcript()).users[0]).toContain("START find the flights")
@@ -182,3 +182,16 @@ test("(g) a human message during a run that already posted a bubble steers, neve
   expect(decide({ bubblePosted: true, toolStarted: false, toolRunning: false, queued: false, restarts: 0 }, { kind: "human" })).toBe("steer")
   expect(decide({ bubblePosted: true, toolStarted: true, toolRunning: false, queued: false, restarts: 0 }, { kind: "human" })).toBe("steer")
 })
+
+test("(h) a worker that wrote two files and is stopped names both in the lead's note and in its report", async () => {
+  const a = await agent()
+  await a.say("START WRITE two files")
+  await until(a.hangs, (h) => h.waiting === 1)
+  await until(a.workers, (w) => w[0]?.changed.length === 2)
+  await a.say("are you there?")
+  await until(a.posts, (p) => p.includes("reply to: are you there?"))
+  expect((await a.transcript()).users.join("\n")).toContain("- w1 (running, 3 steps): WRITE two files. changed: /a.txt, /b.txt.")
+  await a.say("STOP")
+  const posts = await until(a.posts, (p) => p.some((t) => t.startsWith("reported w1 stopped")))
+  expect(posts.find((t) => t.startsWith("reported w1 stopped"))).toBe("reported w1 stopped: stopped before it finished. changed: /a.txt, /b.txt.")
+}, 30_000)

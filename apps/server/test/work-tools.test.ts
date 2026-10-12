@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
-import { Harness, MemoryStorage } from "@earendil-works/pi-durable"
+import { type ConversationId, Harness, MemoryStorage } from "@earendil-works/pi-durable"
 import type { Envelope } from "@yuki/agent/envelope"
 import { Workers } from "@yuki/agent/workers"
 import type { MemoryPort } from "@yuki/memory/tools"
@@ -13,6 +13,7 @@ import type { MessagingPort } from "../src/agent/extensions/messaging"
 import type { RemindersPort } from "../src/agent/extensions/reminders"
 import type { WorkspacePort } from "../src/agent/extensions/workspace"
 import { buildAgent } from "../src/agent/factory"
+import { touchedPaths } from "../src/agent/extensions/work"
 import type { ScriptPorts } from "@yuki/sandbox/compile"
 import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
 import type { FsEntry } from "../src/room/files"
@@ -259,4 +260,25 @@ test("two workers that read a file and both rewrite it: the second is refused, s
   const kept = out.find((r) => !r[1]!.includes("changed since"))!
   expect(kept[1]).not.toContain("changed")
   expect(["task a", "task b"]).toContain(files.get("copy.md")!)
+})
+
+test("a path a worker's file tools touch twice is listed once", () => {
+  const { workers } = registry()
+  const work = workers.reserve("task-1", "tidy the folder")!
+  const conversation = 1 as ConversationId
+  workers.placed(work.id, conversation)
+  workers.touched(conversation, ["/a.txt", "/b.txt"])
+  workers.touched(conversation, ["/a.txt"])
+  expect(workers.get(work.id)!.changed).toEqual(["/a.txt", "/b.txt"])
+})
+
+test("the file tools name the paths they change, and bash and reads name none", () => {
+  expect(touchedPaths("write", { path: "/notes/a.md", content: "x" })).toEqual(["/notes/a.md"])
+  expect(touchedPaths("edit", { path: "b.md", edits: [] })).toEqual(["/b.md"])
+  expect(touchedPaths("rm", { paths: ["/x", "/y"] })).toEqual(["/x", "/y"])
+  expect(touchedPaths("mv", { from: "/a", to: "/b" })).toEqual(["/a", "/b"])
+  expect(touchedPaths("cp", { from: "/a", to: "/c" })).toEqual(["/c"])
+  expect(touchedPaths("mkdir", { path: "/d" })).toEqual(["/d"])
+  expect(touchedPaths("bash", { command: "echo hi > /a" })).toEqual([])
+  expect(touchedPaths("read", { path: "/a" })).toEqual([])
 })

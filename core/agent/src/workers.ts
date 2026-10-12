@@ -9,6 +9,8 @@ const context = BACKGROUND_CONTEXT
 export const MAX_WORKERS = 3
 // The inbox refuses an entry over 128 KB.
 export const REPORT_CHARS = 16_000
+// How many changed paths a note or a report names before it says "and N more".
+export const LISTED_PATHS = 20
 const KEEP_DELIVERED_MS = 7 * 86_400_000
 export const MAX_WORKER_RESUMES = 3
 const GAVE_UP = "it stopped after repeated restarts."
@@ -22,6 +24,8 @@ export type Work = {
   submissionId: SubmissionId | null
   status: WorkStatus
   step: string | null
+  steps: number
+  changed: string[]
   delivered: boolean
   origin: Origin
   startedAt: number
@@ -35,6 +39,8 @@ type Row = {
   submission_id: number | null
   status: WorkStatus
   step: string | null
+  steps: number
+  changed: string
   delivered: number
   origin: Origin
   started_at: number
@@ -48,6 +54,8 @@ const toWork = (r: Row): Work => ({
   submissionId: r.submission_id as SubmissionId | null,
   status: r.status,
   step: r.step,
+  steps: r.steps,
+  changed: JSON.parse(r.changed) as string[],
   delivered: r.delivered === 1,
   origin: r.origin,
   startedAt: r.started_at,
@@ -83,6 +91,8 @@ export class Workers {
       submission_id INTEGER,
       status TEXT NOT NULL,
       step TEXT,
+      steps INTEGER NOT NULL DEFAULT 0,
+      changed TEXT NOT NULL DEFAULT '[]',
       delivered INTEGER NOT NULL DEFAULT 0,
       origin TEXT NOT NULL,
       started_at INTEGER NOT NULL,
@@ -140,9 +150,19 @@ export class Workers {
   }
 
   step(conversationId: ConversationId, step: string): boolean {
-    const cursor = this.sql.exec("UPDATE workers SET step = ?, updated_at = ? WHERE conversation_id = ? AND status = 'running'", step, this.now(), conversationId)
+    const cursor = this.sql.exec("UPDATE workers SET step = ?, steps = steps + 1, updated_at = ? WHERE conversation_id = ? AND status = 'running'", step, this.now(), conversationId)
     cursor.toArray()
     return cursor.rowsWritten > 0
+  }
+
+  // A path is kept once, so a replayed tool result adds nothing. Ends with the run, so a write that lands during a stop is kept too.
+  touched(conversationId: ConversationId, paths: readonly string[]): void {
+    const row = this.sql.exec<{ id: string; changed: string }>("SELECT id, changed FROM workers WHERE conversation_id = ?", conversationId).toArray()[0]
+    if (!row) return
+    const known = JSON.parse(row.changed) as string[]
+    const next = [...new Set([...known, ...paths])]
+    if (next.length === known.length) return
+    this.sql.exec("UPDATE workers SET changed = ? WHERE id = ?", JSON.stringify(next), row.id)
   }
 
   stop(id: string): Work | null {
@@ -200,7 +220,7 @@ export class Workers {
   note(): string | undefined {
     const live = this.list().filter((w) => !w.delivered && w.conversationId)
     if (!live.length) return undefined
-    const lines = live.map((w) => `- ${w.id} (${w.status}): ${clip(w.task, 160)}${w.step ? `. last step: ${clip(w.step, 100)}` : ""}`)
+    const lines = live.map((w) => `- ${w.id} (${w.status}, ${w.steps} ${w.steps === 1 ? "step" : "steps"}): ${clip(w.task, 160)}. changed: ${listed(w.changed)}.${w.step ? ` last step: ${clip(w.step, 100)}` : ""}`)
     return `your workers:\n${lines.join("\n")}`
   }
 
@@ -251,7 +271,9 @@ export class Workers {
     const now = this.get(id)
     if (harness !== this.harness || !now || now.delivered || now.submissionId !== submissionId) return
     this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ?", status, this.now(), id)
-    await this.options.deliver(workEnvelope(now, submissionId, status, report))
+    // A done worker's report is its own words. A worker that ended early says what it left behind.
+    const text = status === "done" ? report : `${report} changed: ${listed(now.changed)}.`
+    await this.options.deliver(workEnvelope(now, submissionId, status, text))
     this.sql.exec("UPDATE workers SET delivered = 1, resumes = 0 WHERE id = ? AND submission_id = ?", id, submissionId)
     // After the report is in the inbox, so the agent does not show idle before the run that tells the human.
     if (now.status === "running") this.changed()
@@ -270,6 +292,12 @@ export class Workers {
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
+
+const listed = (paths: readonly string[]) => {
+  if (!paths.length) return "no files"
+  const shown = paths.slice(0, LISTED_PATHS).join(", ")
+  return paths.length > LISTED_PATHS ? `${shown} and ${paths.length - LISTED_PATHS} more` : shown
+}
 
 export function workEnvelope(work: Pick<Work, "id" | "origin">, submissionId: SubmissionId, status: WorkStatus, report: string): Envelope {
   return {

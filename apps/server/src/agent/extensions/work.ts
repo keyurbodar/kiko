@@ -26,6 +26,19 @@ function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
   return { model: agent.model ?? null, thinkingLevel: agent.thinkingLevel, extensions: forWorker(all), instructions: WORKER_PROMPT }
 }
 
+// The paths a file tool's arguments name, read only after the tool succeeded. bash is not here: it saves per space,
+// and its result names the spaces, not the paths.
+const TOUCHED: Record<string, (args: Record<string, unknown>) => string[]> = {
+  write: (a) => [a.path as string],
+  edit: (a) => [a.path as string],
+  mkdir: (a) => [a.path as string],
+  rm: (a) => a.paths as string[],
+  mv: (a) => [a.from as string, a.to as string],
+  cp: (a) => [a.to as string],
+}
+
+export const touchedPaths = (name: string, args: Record<string, unknown>): string[] => (TOUCHED[name]?.(args) ?? []).map((p) => (p.startsWith("/") ? p : `/${p}`))
+
 const brief = (args: unknown) => {
   const text = JSON.stringify(args ?? {})
   return text === "{}" ? "" : ` ${text.length > 80 ? `${text.slice(0, 79)}…` : text}`
@@ -98,6 +111,10 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
           beforeTool: async (call, api) => {
             const worker = workers.step(api.conversationId, `${call.name}${brief(call.arguments)}`)
             count(`tool.${worker ? "worker" : "talker"}.${call.name}`)
+            return undefined
+          },
+          afterTool: async (call, result, api) => {
+            if (!result.isError) workers.touched(api.conversationId, touchedPaths(call.name, call.arguments as Record<string, unknown>))
             return undefined
           },
         }),

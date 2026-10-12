@@ -97,6 +97,16 @@ export class T extends AgentDO {
         },
       }),
     )
+    const write = declareEffect(
+      "write",
+      defineTool({
+        name: "write",
+        description: "writes a file.",
+        parameters: Type.Object({ path: Type.String(), content: Type.String() }),
+        replay: "safe",
+        execute: async (args) => ({ content: [{ type: "text", text: `wrote ${args.path}` }] }),
+      }),
+    )
     const step = (request: { messages: readonly unknown[] }) => {
       const all = request.messages as Msg[]
       const talker = JSON.stringify(all.filter((m) => m.role === "system")).includes('"start_work"')
@@ -105,7 +115,11 @@ export class T extends AgentDO {
       this.table().exec("INSERT INTO t_requests (worker, roles, users) VALUES (?, ?, ?)", talker ? 0 : 1, JSON.stringify(messages.map((m) => m.role)), JSON.stringify(users))
       const last = messages.at(-1)
       if (!talker) {
-        if (!messages.some((m) => m.role === "toolResult")) return fauxAssistantMessage(fauxToolCall("hang", {}), { stopReason: "toolUse" })
+        // A task that says WRITE writes two files first, then hangs.
+        const writes = users[0]?.includes("WRITE") ? ["/a.txt", "/b.txt"] : []
+        const calls = messages.filter((m) => m.role === "toolResult").length
+        if (calls < writes.length) return fauxAssistantMessage(fauxToolCall("write", { path: writes[calls]!, content: "x" }), { stopReason: "toolUse" })
+        if (calls === writes.length) return fauxAssistantMessage(fauxToolCall("hang", {}), { stopReason: "toolUse" })
         return fauxAssistantMessage(`worker answer; heard=${users.join(" | ")}`)
       }
       if (last?.role === "toolResult") {
@@ -127,7 +141,7 @@ export class T extends AgentDO {
     faux.setResponses(Array.from({ length: 300 }, () => step))
     const models = createModels()
     models.setProvider(faux.provider)
-    const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, work: this.host.workers, testExtensions: [defineExtension({ name: "test-hang", tools: [hang] })] })
+    const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, work: this.host.workers, testExtensions: [defineExtension({ name: "test-hang", tools: [hang, write] })] })
     return { models, ...built, beginRun: async () => true }
   }
 
