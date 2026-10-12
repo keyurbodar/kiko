@@ -260,6 +260,11 @@ describe("extension_check", () => {
     files: {},
   })
 
+  test("refuses a DTSTART line in a trigger rule", async () => {
+    const report = await checkExtension(trigger("DTSTART:20261101T090000\nRRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0"), wasm, new Map())
+    expect(report.ok).toBe(false)
+  })
+
   test("refuses the trigger rate install refuses", async () => {
     const every10 = "FREQ=HOURLY;BYMINUTE=0,10,20,30,40,50"
     const report = await checkExtension(trigger(every10), wasm, new Map())

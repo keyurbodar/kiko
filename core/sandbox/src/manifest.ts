@@ -83,7 +83,7 @@ const SECTION = /^[a-z][a-z0-9-]{1,31}$/
 const SECRET = /^[A-Z][A-Z0-9_]{0,31}$/
 const HOST = /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 const PATH = /^(?:[a-z0-9_-][a-z0-9._-]{0,63}\/){0,3}[a-z0-9_-][a-z0-9._-]{0,63}\.(?:js|mjs|json|md|txt)$/i
-const RRULE = /^(?:DTSTART[^\n]*\n)?(?:RRULE:)?FREQ=(?:MINUTELY|HOURLY|DAILY|WEEKLY|MONTHLY|YEARLY)(?:;[A-Z]+=[A-Z0-9,+-]+)*$/
+const RRULE = /^(?:RRULE:)?FREQ=(?:MINUTELY|HOURLY|DAILY|WEEKLY|MONTHLY|YEARLY)(?:;[A-Z]+=[A-Z0-9,+-]+)*$/
 
 export const PROTECTED_SECTIONS: readonly string[] = ["yuki", "reactions", "role"]
 

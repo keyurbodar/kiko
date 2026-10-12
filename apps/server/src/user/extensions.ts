@@ -69,7 +69,7 @@ export async function bundleHash(bundle: ExtensionBundle): Promise<string> {
 }
 
 export class ExtensionStore {
-  private readonly scheduled = new Map<string, Promise<void>>()
+  private readonly scheduled = new Map<string, Promise<unknown>>()
 
   constructor(
     private readonly sql: SqlStorage,
@@ -236,11 +236,15 @@ export class ExtensionStore {
   }
 
   // Each rewrite of one extension's triggers waits for the one before it, so a quick toggle never
-  // reads a switch that a later toggle has already changed.
-  private scheduleTriggers(name: string): Promise<void> {
-    const run = (this.scheduled.get(name) ?? Promise.resolve()).then(() => this.rewriteTriggers(name))
+  // reads a switch that a later toggle has already changed. Uninstall waits in the same line.
+  private chain<T>(name: string, step: () => Promise<T>): Promise<T> {
+    const run = (this.scheduled.get(name) ?? Promise.resolve()).then(step)
     this.scheduled.set(name, run.catch(() => {}))
     return run
+  }
+
+  private scheduleTriggers(name: string): Promise<void> {
+    return this.chain(name, () => this.rewriteTriggers(name))
   }
 
   private async rewriteTriggers(name: string): Promise<void> {
@@ -261,6 +265,7 @@ export class ExtensionStore {
     const target = r.by ?? fallback?.target
     if (!roomId || !target) return
     for (const t of m.triggers) {
+      if (this.row(name)?.enabled !== 1) return
       try {
         await this.triggers.create({ text: `[${name}] ${t.send}`, rrule: t.rrule, roomId, target, createdBy: by })
       } catch (e) {
@@ -308,11 +313,13 @@ export class ExtensionStore {
 
   async uninstall(name: string): Promise<void> {
     if (!this.row(name)) throw new ExtensionError(`no extension named ${name}`)
-    await this.triggers.cancelBy(`ext:${name}`)
-    this.sql.exec("DELETE FROM extensions WHERE name = ?", name)
-    this.sql.exec("DELETE FROM extension_secrets WHERE extension = ?", name)
-    this.sql.exec("DELETE FROM extension_state WHERE extension = ?", name)
-    this.commit({ t: "extension_removed", name })
+    await this.chain(name, async () => {
+      await this.triggers.cancelBy(`ext:${name}`)
+      this.sql.exec("DELETE FROM extensions WHERE name = ?", name)
+      this.sql.exec("DELETE FROM extension_secrets WHERE extension = ?", name)
+      this.sql.exec("DELETE FROM extension_state WHERE extension = ?", name)
+      this.commit({ t: "extension_removed", name })
+    })
   }
 
   setError(name: string, hash: string, error: string): void {
