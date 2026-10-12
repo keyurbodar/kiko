@@ -1,3 +1,4 @@
+import { idles } from "../kit"
 import { newRoomId, type RoomToClient } from "@yuki/protocol"
 import { connectTestModel, type Verifier, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -30,11 +31,6 @@ async function chat(v: Pick<Verifier, "url" | "as">, mode: "classic" | "memory")
   await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
   const room = await s.room(roomId)
   if (mode === "classic") await dev(v.url, s.cookie, "classic", { roomId })
-  const idles = () =>
-    room.raw.log.filter((e) => {
-      const f = e.frame
-      return e.dir === "in" && typeof f === "object" && f !== null && "t" in f && f.t === "status" && "state" in f && f.state === "idle"
-    }).length
   const answers = () => {
     const out: string[] = []
     for (const e of room.raw.log) {
@@ -44,10 +40,10 @@ async function chat(v: Pick<Verifier, "url" | "as">, mode: "classic" | "memory")
     return out
   }
   const send = async (text: string) => {
-    const before = idles()
+    const before = idles(room)
     room.send(text)
     const end = Date.now() + 90_000
-    while (idles() <= before) {
+    while (idles(room) <= before) {
       if (Date.now() > end) throw new VerifyError(`${mode}: no answer to ${JSON.stringify(text)}`)
       await Bun.sleep(300)
     }

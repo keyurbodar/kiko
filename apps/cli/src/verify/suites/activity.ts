@@ -1,8 +1,8 @@
+import { newRoom, poll } from "../kit"
 import { type Chat, humanHandle, type MessageId, type RoomToClient, type UserToClient } from "@yuki/protocol"
 import type { UserChannel } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { newRoom, until } from "./mid-run"
 
 function rowOf(user: UserChannel, roomId: string): Chat | undefined {
   let row: Chat | undefined
@@ -22,7 +22,7 @@ const suite: Suite = {
     const handle = humanHandle(s.name)
     const user = await s.user()
     const { roomId, room } = await newRoom(s, "activity")
-    const res = await fetch(new URL("api/dev/agent/fake", v.url.endsWith("/") ? v.url : `${v.url}/`), {
+    const res = await fetch(new URL("api/dev/agent/fake", v.url), {
       method: "POST",
       headers: { "content-type": "application/json", cookie: s.cookie },
       body: JSON.stringify({ roomId, slugs: ["yuki", "ada"] }),
@@ -35,7 +35,7 @@ const suite: Suite = {
     }
     const step = (what: string) => console.log(`  ok ${what}`)
     const wait = (what: string, test: (c: Chat) => boolean, ms = 15_000) =>
-      until(what, () => {
+      poll(what, () => {
         const row = rowOf(user, roomId)
         return !!row && test(row)
       }, ms)

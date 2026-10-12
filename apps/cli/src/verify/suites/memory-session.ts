@@ -1,3 +1,4 @@
+import { idles } from "../kit"
 import type { RoomToClient } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -26,17 +27,16 @@ const suite: Suite = {
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "memory session" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
-    const idles = () => room.raw.log.filter((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as { state: string }).state === "idle").length
     const answers = () =>
       room.raw.log.flatMap((e) => {
         const f = e.frame as RoomToClient
         return e.dir === "in" && f.t === "events" ? f.events.flatMap((ev) => (ev.t === "message" && ev.from.kind === "agent" ? [ev.text] : [])) : []
       })
     for (const text of TURNS) {
-      const before = idles()
+      const before = idles(room)
       room.send(text)
       const end = Date.now() + 90_000
-      while (idles() <= before) {
+      while (idles(room) <= before) {
         if (Date.now() > end) throw new VerifyError(`no answer to ${JSON.stringify(text)}`)
         await Bun.sleep(300)
       }

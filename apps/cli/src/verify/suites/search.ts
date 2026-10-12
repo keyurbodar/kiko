@@ -45,7 +45,7 @@ const suite: Suite = {
 		expectEqual(page.results[0]?.snippet, `the \u0002${word}\u0003 in the first chat`, "a marked snippet")
 		expectEqual(page.results[0]?.from, { kind: "human" }, "the sender")
 
-		const res = await fetch(new URL(`api/search?q=${encodeURIComponent(word)}`, v.url.endsWith("/") ? v.url : `${v.url}/`), {
+		const res = await fetch(new URL(`api/search?q=${encodeURIComponent(word)}`, v.url), {
 			headers: { cookie: s.cookie },
 			signal: AbortSignal.timeout(10_000),
 		})

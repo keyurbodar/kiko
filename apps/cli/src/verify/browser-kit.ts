@@ -1,7 +1,7 @@
+import { newRoom } from "./kit"
 import type { RoomToClient } from "@yuki/protocol"
 import { connectTestModel, type RoomHandle, type Session, type Verifier, VerifyError } from "./client"
 import { api } from "./routine-kit"
-import { newRoom } from "./suites/mid-run"
 
 const KERNEL = "https://api.onkernel.com"
 export const BROWSER_MODEL = process.env.YUKI_BROWSER_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
@@ -16,10 +16,28 @@ export function kernelKey(): string {
   return key
 }
 
+export async function kernel<T>(method: string, path: string, body?: unknown): Promise<{ status: number; json: T }> {
+  const res = await fetch(`${KERNEL}${path}`, {
+    method,
+    headers: { authorization: `Bearer ${kernelKey()}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  const text = await res.text()
+  return { status: res.status, json: (text ? JSON.parse(text) : null) as T }
+}
+
 export async function activeBrowsers(): Promise<string[]> {
-  const res = await fetch(`${KERNEL}/browsers?status=active`, { headers: { authorization: `Bearer ${kernelKey()}` }, signal: AbortSignal.timeout(30_000) })
-  if (!res.ok) throw new VerifyError(`Kernel answered ${res.status} to the active list`)
-  return ((await res.json()) as { session_id: string }[]).map((b) => b.session_id)
+  const out = await kernel<{ session_id: string }[]>("GET", "/browsers?status=active")
+  if (out.status !== 200) throw new VerifyError(`Kernel answered ${out.status} to the active list`)
+  return out.json.map((b) => b.session_id)
+}
+
+/** Waits until Kernel lists no active browser on this key, so a run starts from a clean account. */
+export async function waitForNoBrowsers(): Promise<void> {
+  for (const start = Date.now(); (await activeBrowsers()).length; await Bun.sleep(5_000)) {
+    if (Date.now() - start > 150_000) throw new VerifyError("Kernel still has active browsers on this key after 150 s. Close them first")
+  }
 }
 
 export async function browserUser(v: Verifier, name: string, jev: boolean): Promise<Session> {

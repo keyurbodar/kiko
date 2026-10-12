@@ -11,7 +11,7 @@ type Frame<T extends UserToClient["t"]> = Extract<UserToClient, { t: T }>
 const suite: Suite = {
   name: "provider-login",
   async run(v) {
-    const base = v.url.endsWith("/") ? v.url : `${v.url}/`
+    const base = v.url
     const s = await v.as("provider-login-alice")
     const credentials = async (method = "GET", path = "") => {
       const res = await fetch(new URL(`api/credentials${path}`, base), {

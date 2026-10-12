@@ -1,8 +1,8 @@
+import { newRoom } from "../kit"
 import type { ClientToUser, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, type RoomHandle, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
-import { newRoom } from "./mid-run"
 
 
 const USER = "fanout-alice"

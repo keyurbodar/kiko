@@ -1,10 +1,10 @@
+import { newRoom } from "../kit"
 import type { ClientToUser, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, expectEqual, type RoomHandle, VerifyError } from "../client"
 import { dev, inSeconds, ok, runsOf } from "../routine-kit"
 import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
 import { must } from "../must"
-import { newRoom } from "./mid-run"
 
 
 const USER = "composio-alice"

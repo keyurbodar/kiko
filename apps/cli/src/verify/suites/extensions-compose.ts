@@ -1,11 +1,12 @@
+import { messages, newRoom, poll, seen } from "../kit"
 import type { ExtensionOp, ExtensionResult } from "@yuki/protocol"
 import type { RoomHandle, Session } from "../client"
 import { VerifyError } from "../client"
 import { dev, toolLine } from "../routine-kit"
 import type { Suite } from "../runner"
 import { must as mustPresent } from "../must"
-import { fake, newRoom, seen, send, until } from "./mid-run"
-import { messages, team } from "./team-loops"
+import { fake, send } from "./mid-run"
+import { team } from "./team-loops"
 
 
 const probe = (id: string, verdict: "VERIFIED" | "NOT VERIFIED" | "INCONCLUSIVE", evidence: string) => console.log(`  PROBE ${id} ${verdict}: ${evidence}`)
@@ -42,13 +43,12 @@ function asker(room: RoomHandle) {
   return async (text: string) => {
     const before = seen(room).live.length
     await send(room, text)
-    await until(`an answer to ${text.slice(0, 40)}`, () => seen(room).live.length > before, 30_000)
+    await poll(`an answer to ${text.slice(0, 40)}`, () => seen(room).live.length > before, 30_000)
     await Bun.sleep(1_500)
     return seen(room).live.slice(before).map((m) => m.text).join("\n")
   }
 }
 
-const base = (url: string) => (url.endsWith("/") ? url : `${url}/`)
 
 async function p1(v: { url: string }, s: Session, install: Awaited<ReturnType<typeof installer>>) {
   const { roomId, room } = await newRoom(s, "compose: hook bypass")
@@ -88,8 +88,8 @@ async function p3(v: { url: string }, s: Session, install: Awaited<ReturnType<ty
   )
   const before = messages(room).length
   await send(room, "@ana [ws ping_mate {}]")
-  await until("ana's answer", () => messages(room).some((m) => m.from.kind === "agent" && m.text.includes("sent to")), 30_000).catch(() => {})
-  await until("ben to receive it", () => messages(room).slice(before).some((m) => m.text.includes("pinged by the extension")), 30_000).catch(() => {})
+  await poll("ana's answer", () => messages(room).some((m) => m.from.kind === "agent" && m.text.includes("sent to")), 30_000).catch(() => {})
+  await poll("ben to receive it", () => messages(room).slice(before).some((m) => m.text.includes("pinged by the extension")), 30_000).catch(() => {})
   const log = messages(room).slice(before).map((m) => `${m.from.kind === "agent" ? `@${m.from.slug}` : m.from.kind}: ${m.text}`)
   const delivered = log.some((l) => l.includes("pinged by the extension") && l.startsWith("@ana"))
   const status = (await dev(v.url, s, "status", { roomId, slug: "ben" })) as { inbox: { waiting: number; claimed: number; submitted: number } }
@@ -97,7 +97,7 @@ async function p3(v: { url: string }, s: Session, install: Awaited<ReturnType<ty
   probe("P3a", delivered && received > 0 ? "VERIFIED" : "NOT VERIFIED", `message tool -> send_message: room log has it from ana: ${delivered}; ben's inbox holds ${received} envelope(s). log ${short(log.join(" | "))}`)
   const mark = messages(room).length
   await send(room, "@ana [ws peek_mate {}]")
-  await until("ana's answer to the read tool", () => messages(room).slice(mark).some((m) => m.from.kind === "agent" && m.text.length > 0), 30_000).catch(() => {})
+  await poll("ana's answer to the read tool", () => messages(room).slice(mark).some((m) => m.from.kind === "agent" && m.text.length > 0), 30_000).catch(() => {})
   const after = messages(room).slice(mark).map((m) => m.text)
   const refused = after.some((t) => /read" and cannot call send_message/.test(t))
   const leaked = after.some((t) => t.includes("from a read tool") && !/cannot call/.test(t))
@@ -109,7 +109,7 @@ const suite: Suite = {
   name: "extensions-compose",
   async run(v) {
     const s = await v.as(`ext-compose-${Date.now()}`)
-    await fetch(new URL("api/me", base(v.url)), { headers: { cookie: s.cookie } })
+    await fetch(new URL("api/me", v.url), { headers: { cookie: s.cookie } })
     const install = await installer(s)
     for (const [id, run] of [["P1", p1], ["P3", p3]] as const) {
       try {

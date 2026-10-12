@@ -1,8 +1,8 @@
+import { poll } from "../kit"
 import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { until } from "./mid-run"
-import { dev, } from "./team-loops"
+import { dev,  } from "./team-loops"
 import { must } from "../must"
 
 
@@ -47,11 +47,11 @@ const suite: Suite = {
       }
       return out
     }
-    await until("/walk.md", () => files().has("walk.md"), 240_000)
-    await until("yuki says it's done", () => messages().some((m) => m.from.kind === "agent" && m.from.slug === "yuki" && m.seq > (files().get("walk.md")?.at ?? 0)), 120_000).catch(() => {})
+    await poll("/walk.md", () => files().has("walk.md"), 240_000)
+    await poll("yuki says it's done", () => messages().some((m) => m.from.kind === "agent" && m.from.slug === "yuki" && m.seq > (files().get("walk.md")?.at ?? 0)), 120_000).catch(() => {})
     await Bun.sleep(5_000)
     const file = must(files().get("walk.md"), "walk.md")
-    const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
+    const base = new URL(`api/files/${roomId}/`, v.url)
     const text = (await (await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })).text()).toLowerCase()
     console.log(`  /walk.md after ${Math.round((Date.now() - t0) / 1000)} s: ${JSON.stringify(text)}`)
     for (const m of messages().filter((m) => m.from.kind === "agent")) console.log(`    @${(m.from as { slug: string }).slug}: ${m.text.replace(/\s+/g, " ").slice(0, 160)}`)

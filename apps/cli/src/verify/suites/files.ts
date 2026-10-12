@@ -1,3 +1,4 @@
+import { newRoomId } from "@yuki/protocol"
 import { createHash } from "node:crypto"
 import type { RoomToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
@@ -8,16 +9,6 @@ const SIZE = 30_000_000
 const PART = 10 * 1024 * 1024
 const RANGE = [15_000_000, 15_065_535] as const
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-	let time = Date.now()
-	let head = ""
-	for (let i = 0; i < 10; i++) {
-		head = CROCKFORD[time % 32] + head
-		time = Math.floor(time / 32)
-	}
-	return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 function randomBytes(size: number): Uint8Array<ArrayBuffer> {
 	const out = new Uint8Array(size)
@@ -32,8 +23,8 @@ const suite: Suite = {
 	async run(v) {
 		const alice = await v.as("files-alice")
 		const bob = await v.as("files-bob")
-		const roomId = ulid()
-		const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
+		const roomId = newRoomId()
+		const base = new URL(`api/files/${roomId}/`, v.url)
 		const call = async (path: string, init: RequestInit & { as?: typeof alice } = {}) => {
 			const res = await fetch(new URL(path, base), {
 				...init,

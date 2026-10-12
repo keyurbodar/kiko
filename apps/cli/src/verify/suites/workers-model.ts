@@ -1,7 +1,8 @@
+import { newRoom, poll, seen } from "../kit"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
-import { newRoom, seen, send, until } from "./mid-run"
+import { send } from "./mid-run"
 
 
 type Work = { id: string; status: string; delivered: boolean }
@@ -19,7 +20,7 @@ const suite: Suite = {
     await connectTestModel(s)
     const { roomId, room } = await newRoom(s, "workers model check")
     const list = async (): Promise<Work[]> => {
-      const res = await fetch(new URL(`api/dev/agent/workers?roomId=${roomId}`, v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } })
+      const res = await fetch(new URL(`api/dev/agent/workers?roomId=${roomId}`, v.url), { headers: { cookie: s.cookie } })
       if (!res.ok) throw new VerifyError(`the workers route answered ${res.status}. start the Worker with NODE_ENV=development`)
       return ((await res.json()) as { workers: Work[] }).workers
     }
@@ -28,11 +29,11 @@ const suite: Suite = {
     try {
       await resetStats(v, s)
       await send(room, `look up these six wikipedia pages and give me one line on each language or tool. ${PAGES.join(" ")}`)
-      await until("the agent's first bubble", () => texts().length > 0, 60_000)
+      await poll("the agent's first bubble", () => texts().length > 0, 60_000)
       const before = texts().length
       const asked = performance.now()
       await send(room, "what is 6 times 7?")
-      await until(`an answer to 6 times 7 within ${ANSWER_MS / 1000} s`, () => texts().slice(before).some((t) => /\b42\b/.test(t)), ANSWER_MS)
+      await poll(`an answer to 6 times 7 within ${ANSWER_MS / 1000} s`, () => texts().slice(before).some((t) => /\b42\b/.test(t)), ANSWER_MS)
       const answeredMs = Math.round(performance.now() - asked)
       const works = await list()
       if (!works.length) throw new VerifyError(`the agent never started a worker: ${JSON.stringify(texts())}`)

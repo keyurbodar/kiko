@@ -1,21 +1,12 @@
+import { poll } from "../kit"
+import { newRoomId } from "@yuki/protocol"
 import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import { must } from "../must"
 import type { Suite } from "../runner"
-import { until } from "./mid-run"
 
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-const ulid = () => {
-  let t = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[t % 32] + head
-    t = Math.floor(t / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 function seen(room: RoomHandle): { messages: Message[]; files: Map<string, FileRef> } {
   const messages = new Map<string, Message>()
@@ -53,16 +44,16 @@ const suite: Suite = {
     const user = await s.user()
     const ada = { id: `agent-ada-${Date.now()}`, name: "ada", slug: "ada" as never, prompt: "you write copy.", model: "" }
     user.send({ t: "agent", op: { op: "create", agent: ada } })
-    const roomId = ulid()
+    const roomId = newRoomId()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "notes", agents: ["yuki", ada.id] } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
     const t0 = Date.now()
     room.send("@all both of you, right now: add one line to /notes.md saying your own name and one food you like. create the file if it's not there. keep the other's line.")
-    await until("a write to /notes.md", () => seen(room).files.has("notes.md"), 120_000)
+    await poll("a write to /notes.md", () => seen(room).files.has("notes.md"), 120_000)
     await quiet(room, 10_000, 180_000)
     const file = must(seen(room).files.get("notes.md"), "the notes.md file")
-    const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
+    const base = new URL(`api/files/${roomId}/`, v.url)
     const text = (await (await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })).text()).toLowerCase()
     console.log(`  /notes.md after ${Date.now() - t0} ms: ${JSON.stringify(text)}`)
     for (const m of seen(room).messages.filter((m) => m.from.kind === "agent")) console.log(`    @${(m.from as { slug: string }).slug}: ${m.text.replace(/\s+/g, " ").slice(0, 140)}`)

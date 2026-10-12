@@ -1,8 +1,9 @@
 
+import { agentTexts, newRoom, poll } from "../kit"
 import { connectTestModel, type RoomHandle, type Session, VerifyError } from "../client"
-import { agentTexts, dev, eventually, inSeconds, ok, type Routine, routines, waitRuns } from "../routine-kit"
+import { dev, inSeconds, ok, type Routine, routines, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
-import { newRoom, send } from "./mid-run"
+import { send } from "./mid-run"
 
 
 const N = Number(process.env.ROUTINES_MODEL_N ?? 3)
@@ -17,7 +18,7 @@ async function spent(url: string, s: Session, roomId: string): Promise<number> {
 async function ask(room: RoomHandle, text: string, ms = 120_000): Promise<string[]> {
   const before = agentTexts(room).length
   await send(room, text)
-  await eventually(`an answer to ${JSON.stringify(text.slice(0, 40))}`, () => agentTexts(room).length > before, ms)
+  await poll(`an answer to ${JSON.stringify(text.slice(0, 40))}`, () => agentTexts(room).length > before, ms)
   let count = agentTexts(room).length
   for (;;) {
     await Bun.sleep(4_000)

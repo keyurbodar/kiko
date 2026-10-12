@@ -1,8 +1,9 @@
+import { newRoom } from "../kit"
 import { type Session, VerifyError } from "../client"
 import { must } from "../must"
 import { ok, type Routine, runsOf } from "../routine-kit"
 import type { Suite } from "../runner"
-import { fake, newRoom } from "./mid-run"
+import { fake } from "./mid-run"
 
 
 const N = Number(process.env.ROUTINES_SCALE_N ?? 300)

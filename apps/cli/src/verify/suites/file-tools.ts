@@ -1,3 +1,5 @@
+import { agentText } from "../kit"
+import { newRoomId } from "@yuki/protocol"
 import { createHash } from "node:crypto"
 import type { RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
@@ -8,31 +10,10 @@ import { must } from "../must"
 
 const TURN_MS = 90_000
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-  let time = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[time % 32] + head
-    time = Math.floor(time / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 const word = (prefix: string) => `${prefix}${Math.random().toString(36).slice(2, 8)}`
 
 type FileRef = { id: string; name: string; size: number; type: string }
-
-function agentText(room: RoomHandle, from: number): string {
-  return room.raw.log
-    .slice(from)
-    .flatMap((entry) => {
-      const frame = entry.frame as RoomToClient
-      if (entry.dir !== "in" || frame.t !== "events") return []
-      return frame.events.flatMap((e) => (e.t === "message" && e.from.kind === "agent" ? [e.text] : []))
-    })
-    .join("\n")
-}
 
 function filesNow(room: RoomHandle): Map<string, FileRef> {
   const byId = new Map<string, FileRef>()
@@ -80,8 +61,8 @@ const suite: Suite = {
     try {
       const s = await v.as(`file-tools-${Date.now().toString(36)}`)
       await connectTestModel(s)
-      const roomId = ulid()
-      const base = new URL(`api/files/${roomId}/`, v.url.endsWith("/") ? v.url : `${v.url}/`)
+      const roomId = newRoomId()
+      const base = new URL(`api/files/${roomId}/`, v.url)
       const user = await s.user()
       user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "file tools" } })
       await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
@@ -157,7 +138,7 @@ const suite: Suite = {
         return entry.dir === "in" && f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "system" && /saved \/home\/plan\.md/.test(e.text))
       })
       if (!noticed) throw new VerifyError("no line in the chat says the agent saved /home/plan.md")
-      const home = await fetch(new URL("api/files/home/", v.url.endsWith("/") ? v.url : `${v.url}/`), { headers: { cookie: s.cookie } }).catch(() => null)
+      const home = await fetch(new URL("api/files/home/", v.url), { headers: { cookie: s.cookie } }).catch(() => null)
       void home
       console.log(`  turn four: copied to /home/plan.md in ${Date.now() - t0} ms, and the chat said so`)
       user.send({ t: "chat", op: { op: "delete", roomId: roomId as never } })

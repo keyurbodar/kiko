@@ -1,7 +1,8 @@
 import type { Message, RoomToClient } from "@yuki/protocol"
 import { VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { fake, newRoom, send, until } from "./mid-run"
+import { newRoom, poll } from "../kit"
+import { fake, send } from "./mid-run"
 
 
 const suite: Suite = {
@@ -9,7 +10,7 @@ const suite: Suite = {
   async run(v) {
     const s = await v.as(`limits-${Date.now().toString(36)}`)
     const setLimits = async (limits: Record<string, unknown>) => {
-      const res = await fetch(new URL("api/dev/agent/limits", v.url.endsWith("/") ? v.url : `${v.url}/`), {
+      const res = await fetch(new URL("api/dev/agent/limits", v.url), {
         method: "POST",
         headers: { "content-type": "application/json", cookie: s.cookie },
         body: JSON.stringify({ limits }),
@@ -31,15 +32,15 @@ const suite: Suite = {
     const limitLines = () => messages().filter((m) => m.from.kind === "system" && /today's 2 replies/.test(m.text))
     for (const [i, text] of ["one.", "two.", "three."].entries()) {
       await send(room, `[reply] ${text}`)
-      if (i < 2) await until(`reply ${i + 1}`, () => agentReplies() === i + 1, 20_000)
+      if (i < 2) await poll(`reply ${i + 1}`, () => agentReplies() === i + 1, 20_000)
     }
-    await until("the limit line", () => limitLines().length === 1, 20_000)
+    await poll("the limit line", () => limitLines().length === 1, 20_000)
     await Bun.sleep(3_000)
     if (agentReplies() !== 2) throw new VerifyError(`the third burst got a reply: ${agentReplies()} replies`)
     console.log(`  ok the third burst got: ${JSON.stringify(limitLines()[0]?.text)} and no run`)
     await setLimits({ turnsPerDay: 10 })
     await send(room, "[reply] four.")
-    await until("the reply after raising the limit", () => agentReplies() === 3, 20_000)
+    await poll("the reply after raising the limit", () => agentReplies() === 3, 20_000)
     console.log("  ok raising the record let the next burst through")
     room.raw.close()
   },

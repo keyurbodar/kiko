@@ -1,3 +1,4 @@
+import { activeBrowsers as active, kernel, kernelKey, waitForNoBrowsers } from "../browser-kit"
 import type { BrowserState, UserToClient } from "@yuki/protocol"
 import { expectEqual, VerifyError } from "../client"
 import { api } from "../routine-kit"
@@ -5,7 +6,6 @@ import type { Suite } from "../runner"
 import { must } from "../must"
 
 
-const KERNEL = "https://api.onkernel.com"
 const USER = "takeover-alice"
 const COOKIE = "yuki_probe"
 const AGENT = "room-a/ada"
@@ -17,26 +17,8 @@ const suite: Suite = {
   name: "browser-takeover",
   human: true,
   async run(v) {
-    const key = process.env.KERNEL_API_KEY
-    if (!key) throw new VerifyError("KERNEL_API_KEY is not set in this shell")
-    const kernel = async <T>(method: string, path: string, body?: unknown): Promise<{ status: number; json: T }> => {
-      const res = await fetch(`${KERNEL}${path}`, {
-        method,
-        headers: { authorization: `Bearer ${key}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        signal: AbortSignal.timeout(60_000),
-      })
-      const text = await res.text()
-      return { status: res.status, json: (text ? JSON.parse(text) : null) as T }
-    }
-    const active = async () => {
-      const out = await kernel<{ session_id: string }[]>("GET", "/browsers?status=active")
-      if (out.status !== 200) throw new VerifyError(`Kernel answered ${out.status} to the active list`)
-      return out.json.map((b) => b.session_id)
-    }
-    for (const start = Date.now(); (await active()).length; await Bun.sleep(5_000)) {
-      if (Date.now() - start > 150_000) throw new VerifyError("Kernel still has active browsers on this key after 150 s. Close them first")
-    }
+    const key = kernelKey()
+    await waitForNoBrowsers()
 
     const s = await v.as(USER)
     const user = await s.user()
