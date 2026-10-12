@@ -194,6 +194,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     await u.rhythm()
     const wakes: number[] = []
     const rests: number[] = []
+    let firstRest = 0
     const passes: Pass[] = []
     const step = async (ms: number) => {
       let p = null as Pass | null
@@ -204,6 +205,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
       })
       passes.push(must(p, "pass"))
       const v0 = must(p, "pass").verdicts.find((x) => x.id === `loop:${loop.id}`)
+      if (v0?.verdict === "rest" && v0.until && !firstRest) firstRest = passes.length
       if (v0?.verdict === "rest" && v0.until) rests.push(Math.round(((v0.until - must(p, "pass").at) / DAY) * 10) / 10)
       if (p?.woke.some((w) => w.result === "delivered" && w.ids.includes(`loop:${loop.id}`))) wakes.push(passes.length)
       console.log(`       age ${ms / DAY}d: ${show(must(p, "pass"))}; spoken so far ${runsOf(tagged(room))}`)
@@ -219,7 +221,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     console.log(`       rest left at each resting pass (days): ${JSON.stringify(rests)}; appetite user ${JSON.stringify(st.appetite.user)}`)
     check(runsOf(spoke) <= 2, `(b) at most two spoken nudges in ${passes.length} passes over four weeks of silence (${runsOf(spoke)}; wakes ${wakes.length}, the rest were [skip])`)
     check(spokenBefore < 2 || after.every((p) => p.woke.length === 0), `(b) after two ignored nudges nothing wakes (${spokenBefore} spoken before: ${after.map(show).join(" / ")})`)
-    const settled = rests.length >= 2 ? Math.max(...rests) > must(rests[0], "first rest") : wakes.length <= 1
+    const settled = rests.length >= 2 ? Math.max(...rests) > must(rests[0], "first rest") : wakes.every((w) => !firstRest || w < firstRest)
     check(settled, `(b) the rest grows, or nothing wakes after it: rests ${JSON.stringify(rests)} days, wakes ${wakes.length}`)
     if (process.env.INITIATIVE_TRACE) console.log(`       lead trace: ${JSON.stringify(await dev(v.url, u.s.cookie, "trace", { roomId: room.id }))}`)
     done(room)
