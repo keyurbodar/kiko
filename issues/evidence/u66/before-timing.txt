@@ -1,0 +1,12 @@
+regular-keen     shipped   n=279 wait h p25 0.4 median 0.7 p75 1.3 p90 20.5 | nudge local hours 8h:178 10h:60 12h:18 11h:10 9h:5
+regular-keen     24        n=300 wait h p25 0.6 median 1.0 p75 4.5 p90 20.3 | nudge local hours 8h:192 20h:93 12h:14 10h:1
+regular-keen     nosmooth  n=280 wait h p25 0.4 median 0.7 p75 1.3 p90 20.5 | nudge local hours 8h:180 10h:60 12h:17 11h:10 9h:5
+regular-keen     raw       n=279 wait h p25 0.4 median 0.7 p75 1.3 p90 20.5 | nudge local hours 8h:178 10h:60 12h:18 11h:10 9h:5
+irregular-keen   shipped   n=223 wait h p25 2.8 median 7.3 p75 22.1 p90 36.0 | nudge local hours 7h:37 8h:31 9h:27 14h:21 11h:18
+irregular-keen   24        n=262 wait h p25 3.2 median 9.3 p75 25.3 p90 45.9 | nudge local hours 7h:66 8h:38 15h:24 18h:20 21h:19
+irregular-keen   nosmooth  n=232 wait h p25 2.8 median 6.8 p75 21.4 p90 36.0 | nudge local hours 7h:37 8h:30 9h:27 14h:22 10h:19
+irregular-keen   raw       n=223 wait h p25 2.8 median 7.3 p75 22.1 p90 36.0 | nudge local hours 7h:37 8h:31 9h:27 14h:21 11h:18
+weekday-weekend  shipped   n=228 wait h p25 0.5 median 1.0 p75 1.1 p90 1.6 | nudge local hours 21h:127 7h:45 12h:42 22h:9 15h:3
+weekday-weekend  24        n=242 wait h p25 0.3 median 0.9 p75 6.1 p90 15.0 | nudge local hours 7h:164 21h:78
+weekday-weekend  nosmooth  n=219 wait h p25 0.7 median 1.0 p75 1.2 p90 6.3 | nudge local hours 21h:130 7h:42 12h:37 22h:6 13h:2
+weekday-weekend  raw       n=228 wait h p25 0.5 median 1.0 p75 1.1 p90 1.6 | nudge local hours 21h:127 7h:45 12h:42 22h:9 15h:3

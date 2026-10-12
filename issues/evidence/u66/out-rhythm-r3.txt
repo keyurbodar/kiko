@@ -1,0 +1,43 @@
+
+== open loop: rhythm (rooms=3) — final 168-slot histogram vs alternatives ==
+  regular-keen       activeNow differs in 14.1% of week slots; at shipped passes 7.7% | next moment differs >1h 27.9% (other day 0.0%) | ignore deadline differs >6h 35.0%
+  regular-ignorer    activeNow differs in 14.2% of week slots; at shipped passes 14.1% | next moment differs >1h 27.1% (other day 0.0%) | ignore deadline differs >6h 33.6%
+  irregular-keen     activeNow differs in 28.9% of week slots; at shipped passes 30.1% | next moment differs >1h 33.6% (other day 0.7%) | ignore deadline differs >6h 35.0%
+  irregular-ignorer  activeNow differs in 29.1% of week slots; at shipped passes 26.7% | next moment differs >1h 37.1% (other day 1.4%) | ignore deadline differs >6h 37.9%
+  kind-split         activeNow differs in 13.8% of week slots; at shipped passes 9.2% | next moment differs >1h 25.7% (other day 0.0%) | ignore deadline differs >6h 37.1%
+  weekday-weekend    activeNow differs in 20.9% of week slots; at shipped passes 37.1% | next moment differs >1h 28.6% (other day 0.0%) | ignore deadline differs >6h 26.4%
+  hoarder            activeNow differs in 14.2% of week slots; at shipped passes 7.2% | next moment differs >1h 26.4% (other day 0.0%) | ignore deadline differs >6h 33.6%
+
+== closed loop: rhythm (rooms=3, 10 seeds x 8 weeks) ==
+ variant 24-slot hour of day
+   regular-keen       base nudges  279 | dropped  39.4% added  49.8% moved>1h  39.8% | welcome: base 219/279 (78.5%) variant 236/308 (76.6%)
+   regular-ignorer    base nudges  262 | dropped  48.1% added  46.2% moved>1h  29.4% | welcome: base 30/262 (11.5%) variant 29/257 (11.3%)
+   irregular-keen     base nudges  244 | dropped  62.3% added  65.2% moved>1h  23.0% | welcome: base 175/244 (71.7%) variant 188/251 (74.9%)
+   irregular-ignorer  base nudges  185 | dropped  71.9% added  89.2% moved>1h  18.4% | welcome: base 34/186 (18.3%) variant 39/217 (18.0%)
+   kind-split         base nudges  352 | dropped  47.4% added  53.4% moved>1h  25.3% | welcome: base 201/352 (57.1%) variant 211/373 (56.6%)
+   weekday-weekend    base nudges  265 | dropped  51.3% added  63.8% moved>1h  37.4% | welcome: base 144/265 (54.3%) variant 156/298 (52.3%)
+   hoarder            base nudges  667 | dropped  75.0% added  67.0% moved>1h  15.7% | welcome: base 274/667 (41.1%) variant 249/614 (40.6%)
+ variant 168 no pooling
+   regular-keen       base nudges  279 | dropped   0.4% added   0.4% moved>1h   0.0% | welcome: base 219/279 (78.5%) variant 219/279 (78.5%)
+   regular-ignorer    base nudges  262 | dropped   3.4% added   4.6% moved>1h   0.0% | welcome: base 30/262 (11.5%) variant 31/265 (11.7%)
+   irregular-keen     base nudges  244 | dropped   0.4% added   1.2% moved>1h   1.6% | welcome: base 175/244 (71.7%) variant 177/246 (72.0%)
+   irregular-ignorer  base nudges  185 | dropped   2.7% added   3.2% moved>1h   1.6% | welcome: base 34/186 (18.3%) variant 34/187 (18.2%)
+   kind-split         base nudges  352 | dropped   6.5% added   5.4% moved>1h   1.4% | welcome: base 201/352 (57.1%) variant 197/348 (56.6%)
+   weekday-weekend    base nudges  265 | dropped   4.5% added   3.8% moved>1h   0.0% | welcome: base 144/265 (54.3%) variant 143/263 (54.4%)
+   hoarder            base nudges  667 | dropped  15.6% added  16.3% moved>1h   0.0% | welcome: base 274/667 (41.1%) variant 282/672 (42.0%)
+ variant 168 no smoothing
+   regular-keen       base nudges  279 | dropped  17.6% added  20.8% moved>1h   5.0% | welcome: base 219/279 (78.5%) variant 227/288 (78.8%)
+   regular-ignorer    base nudges  262 | dropped  19.1% added  24.0% moved>1h   1.9% | welcome: base 30/262 (11.5%) variant 32/275 (11.6%)
+   irregular-keen     base nudges  244 | dropped  45.5% added  54.9% moved>1h  21.7% | welcome: base 175/244 (71.7%) variant 192/267 (71.9%)
+   irregular-ignorer  base nudges  185 | dropped  47.0% added  64.3% moved>1h  13.5% | welcome: base 34/186 (18.3%) variant 36/217 (16.6%)
+   kind-split         base nudges  352 | dropped  30.7% added  29.8% moved>1h   4.8% | welcome: base 201/352 (57.1%) variant 208/349 (59.6%)
+   weekday-weekend    base nudges  265 | dropped  35.8% added  37.4% moved>1h   5.3% | welcome: base 144/265 (54.3%) variant 145/269 (53.9%)
+   hoarder            base nudges  667 | dropped  58.8% added  50.1% moved>1h   1.6% | welcome: base 274/667 (41.1%) variant 256/609 (42.0%)
+ variant 168 raw (neither)
+   regular-keen       base nudges  279 | dropped  14.7% added  17.6% moved>1h   5.0% | welcome: base 219/279 (78.5%) variant 226/287 (78.7%)
+   regular-ignorer    base nudges  262 | dropped  14.5% added  20.2% moved>1h   1.9% | welcome: base 30/262 (11.5%) variant 33/277 (11.9%)
+   irregular-keen     base nudges  244 | dropped  46.3% added  54.1% moved>1h  21.3% | welcome: base 175/244 (71.7%) variant 190/263 (72.2%)
+   irregular-ignorer  base nudges  185 | dropped  47.0% added  63.8% moved>1h  13.5% | welcome: base 34/186 (18.3%) variant 36/216 (16.7%)
+   kind-split         base nudges  352 | dropped  25.9% added  22.2% moved>1h   4.8% | welcome: base 201/352 (57.1%) variant 201/339 (59.3%)
+   weekday-weekend    base nudges  265 | dropped  28.7% added  27.2% moved>1h   6.0% | welcome: base 144/265 (54.3%) variant 142/261 (54.4%)
+   hoarder            base nudges  667 | dropped  46.9% added  44.2% moved>1h   1.3% | welcome: base 274/667 (41.1%) variant 271/649 (41.8%)

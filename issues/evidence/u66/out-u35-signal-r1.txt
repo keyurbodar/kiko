@@ -1,0 +1,24 @@
+rooms=1
+  regular-keen       meant-reply  177 recorded-engaged  97% | meant-ignore   55 recorded-engaged  27% | meant-stop 2 recorded-dismissed 100%
+  regular-ignorer    meant-reply   15 recorded-engaged  87% | meant-ignore  103 recorded-engaged  19% | meant-stop 7 recorded-dismissed 100%
+  irregular-keen     meant-reply  137 recorded-engaged  74% | meant-ignore   55 recorded-engaged   9% | meant-stop 1 recorded-dismissed 100%
+  irregular-ignorer  meant-reply   14 recorded-engaged  64% | meant-ignore   70 recorded-engaged   4% | meant-stop 6 recorded-dismissed 50%
+  kind-split         meant-reply  164 recorded-engaged  99% | meant-ignore   79 recorded-engaged  25% | meant-stop 2 recorded-dismissed 100%
+  weekday-weekend    meant-reply  110 recorded-engaged  99% | meant-ignore   93 recorded-engaged  14% | meant-stop 4 recorded-dismissed 100%
+  hoarder            meant-reply  146 recorded-engaged  97% | meant-ignore  188 recorded-engaged  31% | meant-stop 10 recorded-dismissed 90%
+rooms=3
+  regular-keen       meant-reply  214 recorded-engaged  97% | meant-ignore   54 recorded-engaged  17% | meant-stop 2 recorded-dismissed 100%
+  regular-ignorer    meant-reply    6 recorded-engaged  83% | meant-ignore   79 recorded-engaged   9% | meant-stop 6 recorded-dismissed 100%
+  irregular-keen     meant-reply  153 recorded-engaged  76% | meant-ignore   62 recorded-engaged   6% | meant-stop 1 recorded-dismissed 0%
+  irregular-ignorer  meant-reply   15 recorded-engaged  80% | meant-ignore   73 recorded-engaged   3% | meant-stop 5 recorded-dismissed 60%
+  kind-split         meant-reply  182 recorded-engaged  98% | meant-ignore   82 recorded-engaged  12% | meant-stop 2 recorded-dismissed 100%
+  weekday-weekend    meant-reply  127 recorded-engaged  99% | meant-ignore  103 recorded-engaged  13% | meant-stop 5 recorded-dismissed 100%
+  hoarder            meant-reply  136 recorded-engaged  96% | meant-ignore  188 recorded-engaged  15% | meant-stop 9 recorded-dismissed 100%
+rooms=8
+  regular-keen       meant-reply  192 recorded-engaged  97% | meant-ignore   61 recorded-engaged  13% | meant-stop 2 recorded-dismissed 100%
+  regular-ignorer    meant-reply    8 recorded-engaged  88% | meant-ignore   88 recorded-engaged  10% | meant-stop 5 recorded-dismissed 100%
+  irregular-keen     meant-reply  157 recorded-engaged  73% | meant-ignore   65 recorded-engaged   5% | meant-stop 1 recorded-dismissed 0%
+  irregular-ignorer  meant-reply   12 recorded-engaged  67% | meant-ignore   64 recorded-engaged   0% | meant-stop 4 recorded-dismissed 50%
+  kind-split         meant-reply  167 recorded-engaged  98% | meant-ignore   86 recorded-engaged  10% | meant-stop 2 recorded-dismissed 100%
+  weekday-weekend    meant-reply  116 recorded-engaged 100% | meant-ignore   99 recorded-engaged  10% | meant-stop 5 recorded-dismissed 100%
+  hoarder            meant-reply  121 recorded-engaged  98% | meant-ignore  178 recorded-engaged  10% | meant-stop 6 recorded-dismissed 100%
