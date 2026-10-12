@@ -71,6 +71,9 @@ run_one() {
   mkdir -p "$dir"
   tmp="$(mktemp -d)"
   export YUKI_SESSION_FILE="$tmp/session.json"
+  # Miniflare leaves a directory in the temp dir on every start. Keep it inside $tmp so cleanup removes it.
+  mkdir -p "$tmp/os"
+  export TMPDIR="$tmp/os"
 
   if [ -n "$(listeners "$port")" ]; then
     echo "[$suite] port $port already in use; not touching it"
