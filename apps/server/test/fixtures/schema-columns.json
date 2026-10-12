@@ -3710,6 +3710,7 @@
       "indexes": [
         "reminders_due",
         "reminders_fired",
+        "reminders_hook",
         "sqlite_autoindex_reminders_1"
       ]
     },
