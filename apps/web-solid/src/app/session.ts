@@ -170,7 +170,10 @@ export async function signInWithAccessCode(name: string, code: string): Promise<
     const { message } = res ? ((await res.json().catch(() => ({}))) as { message?: string }) : {}
     throw new Error(message ?? "Could not sign in. Try again")
   }
-  location.assign("/")
+  // The cookie is set. Read the user back and show the shell without a reload.
+  const me = await fetch("/api/me")
+  if (!me.ok) throw new Error("Could not sign in. Try again")
+  signedIn(((await me.json()) as { user: SessionUser }).user)
 }
 
 /** Development Workers only. Mints a session for a test user, then reads it back. */
