@@ -27,7 +27,7 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 | Model catalog | `@earendil-works/pi-ai` 1.0.0. Providers, models, context limits, pricing | an endpoint that serves the catalog to the settings screen |
 | Provider API keys | `Models.getAuth` reads a `CredentialStore` interface | the `CredentialStore` itself, per user, encrypted |
 | Provider sign-in | each provider exposes `login(interaction)`, `refresh`, `toAuth` | the web bridge for `interaction.prompt` and `interaction.notify` |
-| User accounts | nothing. Pi has one local user and no accounts | Better Auth on Workers and D1 |
+| User accounts | nothing. Pi has one local user and no accounts | one owner, signed in with an access code (section 10) |
 | Cloudflare hosting | nothing. No Durable Object class, no alarm code, no transport | the Durable Object classes, a `SqliteDatabase` facade over `ctx.storage.sql`, alarm-driven `resume()`, WebSockets |
 | Client transport | nothing usable in a browser. `pi-protocol` ships a Unix-socket transport only | a WebSocket protocol with resume by sequence number |
 | Skills | in `pi-coding-agent` only, tied to a filesystem | a port backed by Durable Object storage |
@@ -43,8 +43,8 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 
 | Package | What it holds | May import |
 | --- | --- | --- |
-| `@yuki/durable` | the multiplexed alarm, the hello deadline, storage wipe, `safeFetch`, sealed secrets, HTML to text | nothing from yuki |
-| `@yuki/agent` | the `pi-durable` host, inbox, mid-run rules, effects, the run's origin, ask waiters, the SQLite facade, coalesced storage, and a structural `Envelope` | `@yuki/durable` |
+| `@yuki/durable` | the multiplexed alarm, the hello deadline, `safeFetch`, sealed secrets, HTML to text | nothing from yuki |
+| `@yuki/agent` | the `pi-durable` host, inbox, mid-run rules, effects, ask waiters, the SQLite facade, coalesced storage, and a structural `Envelope` | `@yuki/durable` |
 | `@yuki/memory` | the OptMem tree, the life log, the judge and capture, the open loops, and the `recall`, `zoom`, and `note` tools | `@yuki/agent` |
 | `@yuki/sandbox` | the QuickJS VM, the manifest format and its checks, the bridge compiler, the bundle checker, and the recurrence rule (`rrule`) | `@yuki/agent` |
 
@@ -54,23 +54,22 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 
 ## 3. System overview
 
-One Cloudflare Worker serves the static client and the API from one origin. Three Durable Object classes hold all per-user state.
+One Cloudflare Worker serves the static client and the API from one origin. Three Durable Object classes hold all of the owner's state.
 
 ```text
 browser (SolidJS)
   |  static assets (free, cached forever)
-  |  HTTPS  /api/*      auth, uploads, downloads, model catalog
+  |  HTTPS  /api/*      sign-in, uploads, downloads, model catalog
   |  WebSocket /api/ws/user         one per device, always on
   |  WebSocket /api/ws/room/:id     one per visible chat
   v
 Worker "yuki" (stateless)
-  |- Better Auth  -> D1 (users, sessions, accounts)
+  |- access code and session cookie (HMAC, signed with SESSION_SECRET)
   |- uploads, downloads -> R2
-  |- queue consumer <- Queues (account deletion)
   v
-UserDO   user:<userId>                    credentials, life log, reminders, chat index, skills, limits
-RoomDO   room:<userId>:<roomId>           chat log and its memory tree, members, debounce, fan-out, task board, file index
-AgentDO  agent:<userId>:<roomId>:<slug>   pi-durable harness, inbox, private notes, status
+UserDO   user:owner                       credentials, life log, reminders, chat index, skills
+RoomDO   room:owner:<roomId>              chat log and its memory tree, members, debounce, fan-out, task board, file index
+AgentDO  agent:owner:<roomId>:<slug>      pi-durable harness, inbox, private notes, status
 ```
 
 **Decision.** One Worker, one origin. The client, the API, and the WebSockets share a hostname.
@@ -83,7 +82,7 @@ AgentDO  agent:<userId>:<roomId>:<slug>   pi-durable harness, inbox, private not
 
 | Class | One per | Owns | WebSockets |
 | --- | --- | --- | --- |
-| `UserDO` | user | encrypted credentials, provider settings, the life log, reminders, chat index, skills, limits, the sealed Composio key | yes, hibernatable |
+| `UserDO` | user | encrypted credentials, provider settings, the life log, reminders, chat index, skills, the sealed Composio key | yes, hibernatable |
 | `RoomDO` | chat | message log, reactions, members, pending human burst, loop counters, task board, the memory tree, file index | yes, hibernatable |
 | `AgentDO` | agent in a chat | the `pi-durable` storage for that agent, inbox, private notes | no |
 
@@ -91,7 +90,7 @@ Every chat is a room. A chat with one agent is a room with one member. There is 
 
 ### 4.2 Names
 
-Every Durable Object is addressed with `idFromName`. Every name starts with the user id.
+Every Durable Object is addressed with `idFromName`. Every name starts with the owner id.
 
 ```text
 user:<userId>
@@ -99,11 +98,13 @@ room:<userId>:<roomId>
 agent:<userId>:<roomId>:<slug>
 ```
 
-- `userId` comes from the Better Auth session, never from the request body.
+- `userId` is the owner id from the session cookie. In production it is the constant `owner` (`PRODUCTION_OWNER`), never a value from the request body. A dev session can name another owner, so each verify suite has its own data.
 - `roomId` is a lowercase UUIDv7 that the client generates with the `uuid` package, so a new chat exists locally before the server hears of it. Rooms made before UUIDv7 keep their ULID, and `isRoomId` accepts both. Only lowercase is accepted, so one room never gets two object names.
 - `slug` is the agent's name in the room, lowercase, matching `^[a-z0-9-]{1,32}$`. The team id in the spec's `"<teamId>:ada"` example is the `roomId`.
 
-**Reasoning.** The Worker builds the `user:` and `room:` names from the authenticated session. A `RoomDO` builds `agent:` names from its own name plus a slug from its own member table. An `AgentDO` can reach its own room and its own user object, and nothing else, because those are the only two names it can construct from its own name. No code path accepts a full Durable Object name from a client or from model output, so an agent cannot address another user's objects.
+**Reasoning.** The Worker builds the `user:` and `room:` names from the session. A `RoomDO` builds `agent:` names from its own name plus a slug from its own member table. An `AgentDO` can reach its own room and its own user object, and nothing else, because those are the only two names it can construct from its own name. No code path accepts a full Durable Object name from a client or from model output.
+
+A routine's webhook has no session. The Worker finds the routine by its token hash and sends the call to `user:owner`, which checks the token itself (section 25.4).
 
 ### 4.3 The room and the workspace are one class
 
@@ -133,8 +134,6 @@ A Durable Object has one alarm. Each class multiplexes it with a small shared he
 `pi-durable` keeps retry and polling timers with in-process `setTimeout` (`src/harness/scheduler.ts`). A timer does not wake a Durable Object that was evicted. While any task is unfinished, `AgentDO` keeps a heartbeat alarm at most 30 seconds ahead. The alarm handler opens the harness if needed and calls `harness.resume()`. An alarm handler may run for 15 minutes at most (Cloudflare docs), so a long run continues across heartbeats and never depends on one handler invocation. After a restart, a run would wait for the next heartbeat, up to 30 seconds. So `RoomDO` stores a `live:<slug>` marker while an agent's status is not idle, and the first socket of a new room process calls `AgentDO.wake()` for each marked agent. `wake()` moves a pending heartbeat to now and returns, like `receive()`. Measured with `bun yuki verify latency`: the agent came back after 24.5 s at p50 before, 58 ms after.
 
 Alarms deliver at least once. Every alarm handler in yuki is idempotent: it reads what is due from a table, acts with a stable id, and marks the row done in the same transaction.
-
-Wipe. A deleted object writes one stored wipe order in `core/durable` (U33) before its shutdown awaits. Every entry point refuses work once it is set, including an alarm that fires during deletion. DEVIATION (U33): `AgentDO.receive` throws `this agent was deleted` instead of returning a `Refusal`. The room reads a refusal as a refused message and posts a notice, which would write rows into a deleted room.
 
 ## 5. Hand-rolled Durable Objects, not the Agents SDK
 
@@ -182,7 +181,7 @@ The debounce window uses the human's typing signal, which the room already recei
 
 ASSUMPTION: these numbers, and the word list of `isFragment` in `room/burst.ts`. They are constants in one file and a per-user "reply speed" setting can override them later. A short complete reply ("yes", "do it", "sounds good") is not a fragment, so it waits the plain 1000 ms. Fragment detection used to treat any message of three words or fewer as unfinished, so a quick "yes" waited 2.5 s.
 
-The room reads the chat row from `UserDO` first, and charges the day's turn only when the chat exists. It keeps the chat's title in its own meta, so agent mail and wakes never read the chat row again. A delivered flush ends with a mail drain; a held or failed flush returns first, and the room's alarm handler drains queued mail after every wakeup. A held burst waits for the reset and does not count as pending, so agent mail to its recipients goes on meanwhile. Its alarm fires at the reset, so the human never sends again. The limit notice's id is the reset time, so a retry posts it once. Mail held behind a refused burst used to wait for some later event.
+The room reads the chat row from `UserDO` first. It keeps the chat's title in its own meta, so agent mail and wakes never read the chat row again. A flush ends with a mail drain, and a failed flush returns first. The room's alarm handler drains queued mail after every wakeup.
 
 **DEVIATION in placement.** The spec puts the pending queue "in the DO". Yuki puts the human burst in `RoomDO`, not in each `AgentDO`. The room is the only object that sees typing pings, one alarm serves every recipient, and a burst of four messages costs one delivery per agent, not four. Each `AgentDO` still has the inbox and alarm from spec section 4.4 for everything that reaches it.
 
@@ -207,9 +206,9 @@ The table is `decide()` in `core/agent/src/mid-run.ts`, and `AgentHost.drain()` 
 
 - ASSUMPTION: only a human message interrupts. An agent or system message is queued.
 - DEVIATION: a human message used to wait for a running tool to finish. A read or `bash` is now stopped, as AGENTS.md rule 4 asks. A write, a message, or an outside call still runs to its end.
-- A human message never waits for a run to end. It steers whenever the run cannot restart. DEVIATION: a finished tool round with bubbles used to queue the burst as a follow-up (owner directive 2026-10-11, section 8).
+- A human message never waits for a run to end. It steers whenever the run cannot restart. DEVIATION: a finished tool round with bubbles does not queue the burst as a follow-up, so the human's message reaches the run at once (section 8).
 - When inputs already wait in the conversation's queue, or the cap is reached, a human message steers instead of restarting, because a restart's abort would withdraw the waiting inputs. With no tool round, a steer is placed when the run answers. UNVERIFIED: stopping a tool does not withdraw queued inputs. The `abortTask` comment names only the tool task, so an interrupt is used whenever a tool runs.
-- Stop does not drop the room's pending burst. A message sent just before stop goes out after the stop, as the human sent it. Stop used to clear the window, which lost the message.
+- Stop does not drop the room's pending burst. A message sent just before stop goes out after the stop, as the human sent it.
 
 **Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). A steer never rewrites bubbles the human has already read: it joins after the current tool round, or when the run answers. Slow work runs in workers (section 8), so a run that holds the human up is short. An interrupt stops a slow read or `bash` at once, so the steer lands sooner. A write, a message, or an outside call is never stopped mid-call, because a half-finished effect is worse than a late answer. `bash` is the exception among writes: it saves nothing it did not finish.
 
@@ -260,10 +259,9 @@ type Envelope = {
 	hop: number               // 0 for human and scheduled messages
 	rootId: string            // the human message or schedule that started this chain
 	seq: number               // room sequence of the stored message
-	origin?: Origin           // section 25.3. who started the chain
 }
-type SystemReason = "task_unblocked" | "reminder" | "run_budget"
-	| "limit" | "files" | "created" | "routine" | "stalled" | "initiative"   // section 25, 26
+type SystemReason = "task_unblocked" | "reminder" | "files" | "created"
+	| "routine" | "stalled" | "initiative"   // section 25, 26
 ```
 
 `from` is set by the room from the authenticated WebSocket or from the calling agent's own Durable Object name. Message text cannot change it.
@@ -326,7 +324,7 @@ The `ask` wait is a bounded tool wait, not scheduled work: a crash during it rep
 
 **DEVIATION.** The spec lets an agent reach another agent directly with `idFromName` and RPC. In yuki every agent-to-agent message goes through `RoomDO`.
 
-**Reasoning.** One place enforces the hop limit and the budgets. One log holds every message, so the human can read what agents said to each other, as in a Telegram group. Ordering is the room's sequence. The cost is one extra request per agent message. Direct calls would need the limits enforced in every agent and would hide traffic from the human.
+**Reasoning.** One place enforces the hop and root limits. One log holds every message, so the human can read what agents said to each other, as in a Telegram group. Ordering is the room's sequence. The cost is one extra request per agent message. Direct calls would need the limits enforced in every agent and would hide traffic from the human.
 
 Agent mail is queued in the room's `mail_queue` table in the same transaction that records the send, one row per recipient, and drained in order for each recipient (`room/mail.ts`). A send that fails after it is recorded is already queued, so the agent's retry of the same send delivers it once. The sender's `send_message` returns once the mail is stored; it never waits for another agent's inbox. A broadcast reaches every recipient at once. A failed delivery or a full inbox stays queued and the alarm tries again, so a crash in the middle of a broadcast loses nothing. A repeat delivers the same envelope ids, which the inboxes ignore. Mail to a member the open human burst addresses waits for that burst. Mail to anyone else goes at once (section 7.8).
 
@@ -342,24 +340,23 @@ Task status is one of `todo`, `doing`, `blocked`, `review`, `done`, `cancelled`.
 
 When a task becomes `done`, `RoomDO` finds each task whose dependencies are now all `done` and delivers a `task_unblocked` system envelope to its owner. The delivery id is `unblocked:<taskId>`, so the wake happens once.
 
-A task keeps the chain it was made on: the root, the hop, and the origin of the work its maker was doing (section 25.3). A task the human makes carries the human's origin. Its wake and its stall nudges carry that chain, so a project the human asked for keeps the human's origin and its loop limits, instead of starting a new `auto` chain. A reminder an agent sets keeps its chain the same way. A one-off reminder keeps the root and hop; a recurring one starts its own root at each occurrence, so occurrences never add up against one root's limit. A root the human stopped starts over.
+A task keeps the chain it was made on: the root and the hop. Its wake and its stall nudges carry that chain, so a project the human asked for keeps the human's loop limits. A reminder an agent sets keeps its chain the same way. A one-off reminder keeps the root and hop; a recurring one starts its own root at each occurrence, so occurrences never add up against one root's limit. A root the human stopped starts over.
 
 The lead reviews work by moving a task from `review` to `done` or back to `doing` with a note.
 
 ### 7.7 Loop protection
 
-Four limits apply, all enforced in `RoomDO`. ASSUMPTION: the default numbers.
+Three limits apply, all enforced in `RoomDO`. ASSUMPTION: the default numbers.
 
 | Limit | Default | When it trips |
 | --- | --- | --- |
 | Hop count | 8 | the room rejects the send. The tool returns an error that tells the agent to summarize for the human |
 | Agent deliveries per human message (`rootId`) | 40 | the same, plus a system event in the chat |
 | Members per room | 8 | `spawn_agent` fails |
-| Autonomous runs per room per UTC day | 50 | scheduled and task-triggered wakes are held until the next day or the next human message |
 
-An envelope carries `hop` and `rootId`. A message sent during a run inherits the run's `rootId` and carries `hop + 1`. The room records each member's chain from what it delivers. Agent or system mail delivered to a busy member waits in its inbox for the next run, so its chain waits too and takes over when the run ends: held mail never rewrites the root, hop, or origin of the run in flight. A human message sets the chain at once, since it joins the run or starts the next one.
+An envelope carries `hop` and `rootId`. A message sent during a run inherits the run's `rootId` and carries `hop + 1`. The room records each member's chain from what it delivers. Agent or system mail delivered to a busy member waits in its inbox for the next run, so its chain waits too and takes over when the run ends. A human message sets the chain at once, since it joins the run or starts the next one.
 
-`agent_sends`, `root_counts`, and `stopped_roots` are pruned once a row is a week old. A replayed send comes within minutes. Reactions never start a run. The lifetime count per root and the daily budget are borrowed from the Lightspeed project (`smartcomputer-ai/lightspeed`, `docs/documentation/using-lightspeed/subagents-and-federation.md`), which bounds its delegation tree the same way. The rest of Lightspeed (Rust, Temporal, Postgres, attached VMs) does not transfer to Workers.
+`agent_sends` and `root_counts` are pruned once a row is a week old. A replayed send comes within minutes. Reactions never start a run. The lifetime count per root is borrowed from the Lightspeed project (`smartcomputer-ai/lightspeed`, `docs/documentation/using-lightspeed/subagents-and-federation.md`), which bounds its delegation tree the same way.
 
 ### 7.8 Human priority and interruption
 
@@ -371,17 +368,13 @@ An envelope carries `hop` and `rootId`. A message sent during a run inherits the
 
 ### 7.9 Where Queues are used
 
-**Decision.** Cloudflare Queues carry work that starts in the stateless Worker or must retry outside a Durable Object. Agent turns do not go through a queue.
+**Decision.** Yuki uses no queues. Work that must retry runs as an alarm in a Durable Object, and agent turns run in `AgentDO` as well.
 
-| Job | Why a queue |
-| --- | --- |
-| account deletion fan-out | must reach every Durable Object of a user and survive partial failure |
+**Reasoning.** A turn is latency-sensitive and a queue adds batching delay. A Durable Object alarm already retries with backoff and survives eviction, and `pi-durable` already checkpoints. With one owner there is no fan-out job that needs a queue's partial-failure handling.
 
-DEVIATION (2026-10-09): the attachment job (dimensions, thumbhash, and stills) and its `WorkDO` are removed. The owner chose t3code's simpler attachments: a file the human attaches is a workspace file under `attachments/` and the message keeps its `FileRef`, with nothing computed afterwards. The `v3` migration in `wrangler.jsonc` deletes the `WorkDO` class. A leftover attachment job on the queue is no known job and is dropped.
+Attachments are plain workspace files under `attachments/`. The message keeps its `FileRef`, and nothing is computed afterwards.
 
-An agent deleted in the middle of a run aborts the run and closes its harness before its storage goes. A harness left running on deleted tables kept the whole isolate busy, so the local server answered nothing more.
-
-**Reasoning.** A turn is latency-sensitive and a queue adds batching delay. A Durable Object alarm already retries with backoff and survives eviction, and `pi-durable` already checkpoints. The Free plan allows 10,000 queue operations a day, and one message costs about three operations, so queues are kept for jobs that need them.
+An agent that is deleted in the middle of a run aborts the run and closes its harness before its storage goes. A harness left running on deleted tables would keep the isolate busy.
 
 ### 7.10 Souls and the chat file
 
@@ -497,7 +490,7 @@ The client holds one WebSocket to `UserDO` and one to the `RoomDO` of the visibl
 
 The Worker authenticates the upgrade request with the session cookie, builds the Durable Object name from the session's user id, and forwards the upgrade. A client cannot name a Durable Object.
 
-The upgrade is one hop. The session check reads only the signed cookie cache; Better Auth's schema check is off, because the D1 migrations own the schema and each request builds a new instance that would otherwise read the schema from D1. The deleted-account tombstone is read from D1 once per user per isolate every 30 seconds. A room records itself in the user's ledger on its first socket, not on every upgrade, so the Worker forwards straight to the room. Once deletion begins, `UserDO` refuses the user socket and any room that was never recorded, and the deletion job closes the rest. `UserDO` reads the tombstone fresh only while its deletion mark is set, and a mark with no tombstone is a rolled-back start: the next socket, alarm, or room clears it. The tombstone is read first because a rollback restores the account before it clears the mark, so queued jobs from that start stop even when the clear failed.
+The upgrade is one hop. The session check reads only the signed cookie, so the Worker makes no storage call to check it, and it forwards the upgrade straight to the room.
 
 A socket can die without a close event, after a laptop sleeps or the network changes, and the chat would sit stale. The client sends a bare `ping` after 25 seconds of silence, and at once when the tab returns or the network comes back. Both objects answer `pong` with `setWebSocketAutoResponse`, which never wakes them. Any frame counts as life. A socket silent for 8 seconds after a ping is dropped and reconnected at once.
 
@@ -528,7 +521,7 @@ type RoomToClient =
 	| { t: "status"; slug: string; state: AgentState }            // not stored
 ```
 
-On connect the client sends `hello`. The room answers with the events after `lastSeq`, or with `reset` if the gap exceeds 500 events. Messages are JSON. The room keeps the newest 1,000 events (twice the replay window) and trims the rest in steps of 100. The `messages` table keeps the history, so a trimmed event only repeated what a snapshot carries. An index on `(kind, seq)` finds the newest event of one kind without reading the log. Two partial indexes on `messages` hold only agent messages, so the chat row's unread count and mention scan never read the human's own messages. One send costs the same in a chat of 70 events and one of 1,500 messages: about 20 rows read.
+On connect the client sends `hello`. The room answers with the events after `lastSeq`, or with `reset` if the gap exceeds 500 events. Messages are JSON. The room keeps the newest 1,000 events (twice the replay window) and trims the rest in steps of 100. The `messages` table keeps the history, so a trimmed event only repeated what a snapshot carries. An index on `(kind, seq)` finds the newest event of one kind without reading the log. Two partial indexes on `messages` hold only agent messages, so the chat row's unread count and mention scan never read the human's own messages. A room send at 3,000 messages reads 157 rows, down from 5,958 before the indexes.
 
 **Reasoning.** `pi-durable` says "a client that joins late or reconnects starts from the current view; nothing is replayed". That is not enough for a chat client on a bad network, so the room keeps its own log. The room log is what the human sees (bubbles, reactions, replies, files). The `pi-durable` transcript is what a model sees (tool calls, briefs, other agents' messages). One room maps to several transcripts, so the two logs have different shapes and neither can stand in for the other.
 
@@ -569,17 +562,14 @@ Every client action is applied locally first. The client keeps a list of pending
 
 ## 10. Accounts and sessions
 
-**Decision.** Better Auth 1.7 runs in the Worker with its built-in D1 adapter. D1 holds users, sessions, and linked accounts and nothing else.
+**Decision.** One Worker serves one owner. Sign-in is an access code. There is no account store.
 
-- Sign-in methods are Google and GitHub. ASSUMPTION: social sign-in only, because email codes need a mail-sending service that the spec does not include. Passkeys can be added with `@better-auth/passkey`.
-- The session cookie cache is on, so most requests verify a signed cookie and do not read D1.
-- The auth instance is created per request from `env`. The Worker needs the `nodejs_compat` flag for `AsyncLocalStorage`.
-- `bunx auth init` is a real command, but it scaffolds Next.js and SQLite only (Better Auth docs). The plan runs it for the reference config and adapts the result by hand. Migrations are generated as SQL and applied with `wrangler d1 migrations apply`.
-- A dev-only Better Auth plugin serves `POST /api/auth/dev/session` with `{ "name" }` and mints a session for `<name>@dev.yuki.test`. It is selected only when `process.env.NODE_ENV === "development"`, which wrangler sets at bundle time ("production" for deploy). A production bundle does not contain it, and the route also refuses any host that is not local. `apps/server/src/lib/dev-guard.ts` is the only module that reads `NODE_ENV`, and `scripts/check-rules.ts` enforces that. Bundling folds a check only inside the module that holds it, so the dev routes load by dynamic import. `yuki login --dev` and the server tests use it.
-- A Google or GitHub provider is on only when both of its env values are set, so local runs need no OAuth clients.
-- An access code signs in without Google or GitHub. When the Worker has the `ACCESS_CODE` secret, `POST /api/auth/access-code` with `{ code, name }` mints a session for `<name>@code.yuki`, so each name is its own account. A wrong code answers 401 after the same hash-and-compare work as a right one, and without the secret the route answers 404 and `/api/providers` says `code: false`.
+- `POST /api/auth/access-code` with the code checks it against the `ACCESS_CODE` secret, and on a match sets a session cookie for the owner `owner`. The cookie is an HMAC signed with `SESSION_SECRET`. `POST /api/auth/sign-out` clears it.
+- A wrong code answers 401 after the same hash-and-compare work as a right one. Without the `ACCESS_CODE` secret the route answers 404.
+- The Worker checks the cookie on each request. It reads no storage to do so.
+- The dev-only route `/api/auth/dev/session?name=<name>` mints a session for a named dev owner. `dev-guard` loads it only in a development build, and it refuses any host that is not local. Each verify suite uses its own name. `apps/server/src/lib/dev-guard.ts` is the only module that reads `NODE_ENV`, and `scripts/check-rules.ts` enforces that.
 
-**Reasoning.** Pi has no user accounts, so yuki needs them. The spec names Better Auth. D1 is the right store for data that is global and tiny. All per-user data lives in that user's Durable Objects, so D1 never becomes a bottleneck.
+**Reasoning.** Yuki has one user. A sign-in provider, an account table, and its migrations would only add moving parts. The access code keeps the app private, and the signed cookie needs no lookup. A second owner means a second deployment.
 
 ## 11. Provider credentials
 
@@ -596,26 +586,25 @@ data key  = HKDF-SHA256(CREDENTIALS_KEK, salt = userId, info = "kiko-cred-v1")
 record    = AES-256-GCM(data key, iv = 12 random bytes, aad = userId || providerId)
 ```
 
-`CREDENTIALS_KEK` is a Worker secret. Each record stores `kek_version`, so the secret can rotate. The plaintext exists only in memory inside `UserDO` and inside the `AgentDO` that is making a model request. Yuki never logs a key and never sends one to the client. The client receives the provider id, the kind of credential, and the last four characters.
+`CREDENTIALS_KEK` is a Worker secret. There is no rotation: changing the secret makes the stored keys unreadable, so the owner keeps it. The plaintext exists only in memory inside `UserDO` and inside the `AgentDO` that is making a model request. Yuki never logs a key and never sends one to the client. The client receives the provider id, the kind of credential, and the last four characters.
 
 - The code is `core/durable/src/crypto.ts` and `apps/server/src/user/credentials.ts`. `UserDO` takes its user id from `ctx.id.name`.
-- Rotation: move the old secret to `CREDENTIALS_KEK_PREVIOUS`, set the new `CREDENTIALS_KEK`, and add 1 to `CREDENTIALS_KEK_VERSION` (default 1). A row sealed with the old secret is re-sealed on its next read.
 - ASSUMPTION: the additional data is `userId:providerId`. A user id cannot contain ":", so no two pairs share bytes.
 - DEVIATION: the RPC methods are `connectProvider`, `disconnectProvider`, and `listProviders`. `connect` is the `DurableObject` handler for TCP sockets, so that name cannot be used.
 - HTTP: `GET /api/credentials`, `PUT /api/credentials/<provider>` with `{ apiKey }`, and `DELETE /api/credentials/<provider>`. None returns a key.
 
 ### 11.3 Use during a run
 
-At the start of a run, `AgentDO` calls `UserDO.turnContext(provider, slug)` once. The call returns the request auth for that provider, the timezone, the limits, and the agent's extension versions and soul. The life log is read only by a run that starts fresh (section 13.4). The auth is kept in memory for that run only.
+At the start of a run, `AgentDO` calls `UserDO.turnContext(provider, slug)` once. The call returns the request auth for that provider, the timezone, and the agent's extension versions and soul. The life log is read only by a run that starts fresh (section 13.4). The auth is kept in memory for that run only.
 
 Disconnecting a provider deletes its rows in `UserDO` at once. A run already in flight finishes its current model request with the auth it holds. The next request fails with a clear error and the chat shows the connect prompt.
 
 How yuki does it:
 
-- `UserDO.turnContext(provider)` (`apps/server/src/user/turn-context.ts`) resolves the auth with pi-ai's `Models.getAuth` over the vault, so an OAuth token is refreshed and written back inside `UserDO`. It also returns the timezone (setting `timezone`, ASSUMPTION: default UTC) and the limits (setting `limits` over the section 7.7 defaults). Memory joins the same call later.
+- `UserDO.turnContext(provider)` (`apps/server/src/user/turn-context.ts`) resolves the auth with pi-ai's `Models.getAuth` over the vault, so an OAuth token is refreshed and written back inside `UserDO`. It also returns the timezone (setting `timezone`, ASSUMPTION: default UTC). Memory joins the same call later.
 - The host calls the setup's `beginRun` before a batch starts a new run, never for a batch that steers or queues into a live one. No auth means no submit: the batch is dropped and `RoomDO.noProvider` stores one `no_provider` room event per agent and input. The human's messages stay in the log.
-- DEVIATION: the harness keeps one `Models` per process, because pi-durable takes it at open. Its providers (all of pi-ai's built-in ones) read auth only from the run's held `turnContext` answer, never from env or files. A run resumed after an eviction calls `turnContext` again. With every provider bundled, `wrangler deploy --dry-run` reports 8157 KiB, 1313 KiB gzip.
-- DEVIATION: a run that is already going when the user disconnects keeps its held auth until it ends, not only for its current request. The next run gets `no_provider`.
+- DEVIATION: the harness keeps one `Models` per process, because pi-durable takes it at open. Its providers (all of pi-ai's built-in ones) read auth only from the run's `turnContext` answer, never from env or files. A run resumed after an eviction calls `turnContext` again. With every provider bundled, `wrangler deploy --dry-run` reports 8157 KiB, 1313 KiB gzip.
+- DEVIATION: a run that is already going when the owner disconnects keeps its auth until it ends, not only for its current request. The next run gets `no_provider`.
 - The chosen model lives in each `AgentDO` (one per room and agent), set by the `setModel` RPC and applied with `configure` at the next run start. ASSUMPTION: without a choice, the model is the test model of section 11.6.
 
 ### 11.4 Sign-in flows
@@ -633,14 +622,14 @@ How yuki does it:
 How yuki runs them (`apps/server/src/user/provider-login.ts`):
 
 - The client sends `login.start`, gets `login.notify` and `login.prompt` frames, answers with `login.answer`, and ends with `login.done` or `login.error`. A sign-in opens its own user socket.
-- A login lives in `UserDO` memory, tied to its socket. It ends when the credential is stored, the flow fails, the user cancels, the socket closes, or a 10-minute wakeup fires. Each ending removes all of its state. A login does not survive an eviction; the client hears `unknown` and starts again.
+- A login lives in `UserDO` memory, tied to its socket. It ends when the credential is stored, the flow fails, the user cancels, or the socket closes. Each ending removes all of its state. A login does not survive an eviction; the client hears `unknown` and starts again.
 - pi-ai loads flow modules with a computed `import()` that a Worker bundle cannot follow. `registerBunOAuthFlows()` from `@earendil-works/pi-ai/bun-oauth` fills pi-ai's loader table with the bundled flows instead. ASSUMPTION: the helper is named for Bun binaries but does only that. The token refresh depends on it too.
-- Every enabled flow is a subscription flow, so all of them need `PROVIDER_OAUTH=on`. A development bundle also offers the `yuki-fake` provider for `bun yuki verify provider-login --fake`.
+- Subscription sign-in is always available. A development bundle also offers the `yuki-fake` provider for `bun yuki verify provider-login --fake`.
 - UNVERIFIED: pi-ai's device-code polling waits with `setTimeout` between `fetch` calls. Whether a deployed Durable Object stays awake through a long poll has not been measured.
 
-Two cautions for the owner to decide on.
+A caution for the owner.
 
-- The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. A hosted multi-user service that signs users in with that client id may break the provider's terms. The plan ships API keys first and puts subscription sign-in behind a flag that is off by default.
+- The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. Using it may break the provider's terms. The owner decides whether to use that flow. API keys work for every provider.
 - pi-ai's published npm package contains the generated model catalog as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5).
 
 ### 11.5 Model catalog for the client
@@ -655,28 +644,24 @@ Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The k
 
 ## 12. Composio integration
 
-**Decision.** Composio is yuki's one integration. Each user brings one key: their Composio project API key (`ak_...`). `UserDO` uses it to create a Composio session for the user with `POST https://backend.composio.dev/api/v3.1/tool_router/session`, and every agent of that user talks MCP to the session's url, `https://backend.composio.dev/tool_router/<session>/mcp`, with the key in `x-api-key`. Every agent gets the tools the session lists. All Composio code sits in `apps/server/src/integrations/composio/`.
-
-DEVIATION from the first version, which took a consumer key (`ck_...`) for Composio's hosted MCP server at `https://connect.composio.dev/mcp`, plus an optional developer key (`ak_...`) for catalog lookups. On 2026-10-11 the owner said there is only one key: the project key from the Composio dashboard. The hosted server refuses that key, and a session made with it serves the same meta tools. So the consumer key, the developer key, the `setComposioDeveloperKey` frame, and the second settings field are gone. A store from before holds a key with no session, so `ComposioStore` drops it on start and the user pastes the one key again.
-
-Executor Cloud was an earlier integration and was removed on 2026-10-10: Composio's workbench covers code over the user's apps, and one integration path is simpler than two.
+**Decision.** Composio is yuki's one integration. The owner brings a Composio key. There are two kinds, and both work: a project key (`ak_...`) or a Connect key (`ck_...`). `UserDO` uses a project key to create a Composio session with `POST https://backend.composio.dev/api/v3.1/tool_router/session`, and every agent talks MCP to the session's url, `https://backend.composio.dev/tool_router/<session>/mcp`, with the key in `x-api-key`. Every agent gets the tools the session lists. All Composio code sits in `apps/server/src/integrations/composio/`.
 
 **Reasons.**
 
 - The session's MCP server needs no `initialize` and no `Mcp-Session-Id`: `tools/list` and `tools/call` work with a bare POST (checked 2026-10-11). The session id is stored with the key, so nothing is lost when `UserDO` is evicted.
-- One key does everything: the session, its tools, and the catalog lookups in section 12.3.
-- Tools are typed. `COMPOSIO_MULTI_EXECUTE_TOOL` batches slowly: measured 2026-10-11, 5 tools took 4.8 s against 2.1 s as 5 separate calls, and 30 tools took 15.2 s against 2.8 to 6.8 s as 30 separate concurrent calls. Separate concurrent `tools/call` requests returned 200 at 30 and at 60, with no 429. So an agent issues independent calls separately, and the tool description says so. Each connection runs at most 40 calls at once, and a read-only call retries on 429, 502, 503, and 504 (`integrations/composio/limit.ts`).
+- One project key does everything: the session, its tools, and the catalog lookups in section 12.3.
+- Tools are typed. `COMPOSIO_MULTI_EXECUTE_TOOL` batches slowly: measured 2026-10-11, 5 tools took 4.8 s against 2.1 s as 5 separate calls, and 30 tools took 15.2 s against 2.8 to 6.8 s as 30 separate concurrent calls. Separate concurrent `tools/call` requests returned 200 at 30 and at 60, with no 429. So an agent issues independent calls separately, and the tool description says so.
 - Connections live in the user's own Composio account. Yuki never holds an app token.
 
 ### 12.1 Connecting
 
 A user can save either kind of Composio key. A Platform project key (`ak_`) makes a session for that yuki user on `backend.composio.dev`, so apps are connected per yuki user. A Composio Connect key (`ck_`) is the person's own Composio account: yuki talks to `https://connect.composio.dev/mcp` with the `x-consumer-api-key` header, needs no session, and sees the apps already connected in that account. A Connect key has no catalog access, so its learned tools stay `external` (`apps/server/src/integrations/composio/client.ts`).
 
-A user pastes the key in settings. `UserDO` checks it with `GET /api/v3.1/toolkits?limit=1`, creates a session with `user_id` set to `composioUserId` from `src/lib/names.ts` (a hash of the yuki user id, stable and not the id itself), and lists the session's tools. Only then does it store the key, sealed with the same keyring as provider credentials and AAD `composio/key`, with the session id and url beside it. A key Composio refuses stores nothing. A session url off `https://backend.composio.dev` is refused, so the key never goes elsewhere. The key never goes to the client or a log. Users never cross. Apps are connected in the user's Composio project, or through `COMPOSIO_MANAGE_CONNECTIONS`, which returns a link the agent passes on; the agent never asks for a secret.
+A user pastes the key in settings. `UserDO` checks it with `GET /api/v3.1/toolkits?limit=1`, creates a session with `user_id` set to `composioUserId` from `src/lib/names.ts` (a hash of the yuki user id, stable and not the id itself), and lists the session's tools. Only then does it store the key, sealed with the same keyring as provider credentials and AAD `composio/key`, with the session id and url beside it. A key Composio refuses stores nothing. A session url off `https://backend.composio.dev` is refused, so the key never goes elsewhere. The key never goes to the client or a log. Apps are connected in the user's Composio project, or through `COMPOSIO_MANAGE_CONNECTIONS`, which returns a link the agent passes on; the agent never asks for a secret.
 
 When Composio answers a session request with 404 or 410, the session is gone. `UserDO` creates a new one once, stores it, and runs the request again; calls that find the same session gone share that one renewal. A deleted session answers 404 with body `{"error":{"message":"Tool router session with ID ... not found","code":4331,"status":404}}` on its MCP url (checked by curl and by `verify composio` part five, which deletes the live session and asks a new question, 2026-10-11). UNVERIFIED: how long Composio keeps an idle session. The renewal covers expiry either way.
 
-Disconnect deletes every Composio row at once, then deletes the session at Composio with `DELETE /api/v3.1/tool_router/session/<id>` behind the answer, best effort. Reconnecting deletes the old session the same way. Account deletion does the same before it wipes `UserDO`.
+Disconnect deletes every Composio row at once, then deletes the session at Composio with `DELETE /api/v3.1/tool_router/session/<id>` behind the answer, best effort. Reconnecting deletes the old session the same way.
 
 ### 12.2 Nothing hardcoded
 
@@ -711,7 +696,7 @@ User extensions (section 24) do run QuickJS inside the agent's object, through `
 
 ### 12.5 Risks
 
-- Composio keeps tool payloads for up to a year. The owner accepted this on 2026-10-10.
+- Composio keeps tool payloads for up to a year. The owner accepts this.
 - UNVERIFIED: that every app tool run through `COMPOSIO_MULTI_EXECUTE_TOOL` honors read-only intent. It is classed `external` for that reason, so a replay never runs it twice.
 - Composio does not pause a call for a person, and neither does yuki (section 16).
 - The MCP contract is Composio's and may change. `bun yuki verify composio` checks it against the real server.
@@ -893,7 +878,7 @@ The list is part of the system prompt and changes rarely, so it stays in the cac
 
 ## 16. Agents act without asking
 
-The owner removed approvals and prompt-injection gating on 2026-10-11. Agents work like pi's coding agent: no permission gate, no "ask first", no taint, and no wrapping of outside content.
+Yuki has no approvals and no prompt-injection gating. Agents work like pi's coding agent: no permission gate, no "ask first", no taint, and no wrapping of outside content.
 
 - Every tool runs when the model calls it, in any run: the human's, a routine's, a reminder's, a task wake, or a nudge.
 - A tool result reaches the model as it is. Nothing marks or escapes it.
@@ -919,32 +904,33 @@ Measured on a deployed Worker, mean of 5 runs, with the model answering for abou
 | Rows written by `RoomDO` and `UserDO` | 25 | ASSUMPTION, carried from the first estimate. Those objects are not built yet |
 | Rows written, as shipped | 742 | the two lines above |
 | Rows written, coalesced | 135 | ASSUMPTION, derived. Partial commits at 2 s instead of 100 ms leave about 8 commits at 4 rows, plus the 77 rows that are not partials (measured 717 minus 640) |
-| Rows read by `AgentDO` | 996 | measured. Not a limit on any plan |
+| Rows read by `AgentDO` | 264 | measured after the indexes on the hot paths. Not a limit on any plan |
 | Wall time of `AgentDO` | 16.2 s | measured |
 | CPU of `AgentDO` | 1.5 s | measured, in one RPC invocation. See section 17.3 |
 | Duration | 4.2 GB-s | `AgentDO` awake 16.2 s, `RoomDO` counted awake 16.2 s as a worst case, `UserDO` 1 s, all at 128 MB |
 | Durable Object requests | 13 | ASSUMPTION, carried from the first estimate: 9 socket frames at 20 to 1 (0.45), debounce alarm (1), delivery (1), inbox alarm (1), `turnContext` (1), posts and status from the agent (6), memory tool call (1), chat index update (1), heartbeat (0.5). Measured so far: the agent side is 1 RPC call per turn |
 
-Per user per day, with 30 turns plus sockets and background jobs: 420 requests, 126 GB-s, 22,260 rows written as shipped, 4,050 coalesced, 30,000 rows read.
+Idle costs are near zero. A WebSocket ping is answered by hibernation auto-response and costs 0 rows. An idle alarm writes 0 rows. Reopening the same chat writes nothing.
+
+The owner's day, at 30 turns: about 22,260 rows written as shipped, or about 4,050 coalesced, and about 7,900 rows read, from 264 rows a turn.
 
 ### 17.3 Free plan
 
-| Limit per day | Allowance | Users as shipped | Users coalesced |
-| --- | --- | --- | --- |
-| Durable Object rows written | 100,000 | **4** | **24** |
-| Durable Object duration | 13,000 GB-s | 103 | 103 |
-| Durable Object requests | 100,000 | 238 | 238 |
-| Durable Object rows read | 5,000,000 | 166 | 166 |
-| Worker requests (about 60 per user) | 100,000 | 1,600 | 1,600 |
+| Limit per day | Allowance | One owner at 30 turns |
+| --- | --- | --- |
+| Durable Object rows written | 100,000 | about 4,050 coalesced, 22,260 as shipped |
+| Durable Object rows read | 5,000,000 | about 7,900 |
+| Durable Object duration | 13,000 GB-s | about 126 GB-s |
+| Durable Object requests | 100,000 | about 420 |
 
-The Free plan supports about 4 daily users as shipped and about 24 with coalesced writes. The next ceiling is duration, at about 100. Other Free limits that bind early are Queues (10,000 operations a day), and 5 GB of total Durable Object storage.
+Rows written is the limit that binds first, and a single owner uses a small part of it. The write numbers rest on the derived coalesced count in section 17.2 (ASSUMPTION) and on the as-shipped count, which section 17.5 measured. Other Free limits that could bind are the 5 GB of total Durable Object storage and the 100,000 Worker requests a day.
 
 CPU. One turn uses about 1.5 s of CPU in one invocation. The Durable Objects limits page gives an object 30 s of CPU per incoming request or WebSocket message, reset by each one, on every plan. The Workers limits page gives a Free Worker 10 ms per request, with "some built-in flexibility" for infrequent overruns. Measured on 2026-10-04 on this Free account (the API refuses `limits.cpu_ms` with "CPU limits are not supported for the Free plan"):
 
 - A Durable Object ran 9.9 s of CPU in one call, and six 3.5 s calls in a row, all passing. A turn fits.
 - A plain Worker request is stopped with `exceededCpu` at random once it spends real CPU: 3 of 20 requests at about 0.15 s, 1 of 10 at 1.3 s, and every one at 2.1 s.
 
-So every CPU-heavy step runs inside a Durable Object, and Worker request handlers and the queue consumer stay light. The image decode of the attachment job once ran in `WorkDO` for this reason. Both were removed on 2026-10-09 (section 7.9), so no job does CPU-heavy work today; a new one would go in a Durable Object the same way.
+So every CPU-heavy step runs inside a Durable Object, and Worker request handlers stay light. A new heavy job goes in a Durable Object the same way.
 
 Subrequests. A Free invocation may make 50 outside requests, and it is enforced inside Durable Objects too, including work that keeps running after the request returned, which is how an agent's run continues after its alarm. Measured: the 51st fetch fails with "Too many subrequests by single Worker invocation", in a request and in the background. RPC calls to Durable Objects do not count against the 50 (120 calls passed), and a fetch made inside an RPC call, even one an object makes to itself, gets that call's own budget (150 background fetches passed that way). So `AgentDO` sends every model request and every `web_fetch` through its own stub (`egress`), and each one is its own invocation. `safeFetch` keeps DNS answers for their TTL (30 s to 5 minutes), so a fetch to a recently seen host costs one subrequest instead of three. pi-ai's Google adapters refuse a custom fetch, so their model requests keep the global one and still count against the run's 50.
 
@@ -961,24 +947,6 @@ SQL. A query binds at most 100 values. A list of ids is passed as one JSON value
 Memory. An isolate has 128 MB, shared by every object in it. Extension VMs are released when the agent goes idle, and a VM whose wasm memory grew past 8 MB is retired after its call (section 24.3).
 
 Risk: these are measured behaviors, not documented guarantees, and Cloudflare could change them. Workers Paid lifts both: 30 s to 5 minutes of CPU per request, and 10,000 subrequests.
-
-### 17.4 Workers Paid, 5 dollars a month
-
-| Resource | Included per month | Users covered | Price beyond | Cost per extra user per month |
-| --- | --- | --- | --- | --- |
-| Requests | 1M | 79 | $0.15 per M | $0.002 |
-| Duration | 400,000 GB-s | 105 | $12.50 per M GB-s | $0.047 |
-| Rows written, as shipped | 50M | 75 | $1.00 per M | $0.67 |
-| Rows written, coalesced | 50M | 411 | $1.00 per M | $0.12 |
-
-The flat 5 dollars covers about 75 daily users as shipped and about 80 coalesced, where requests bind. Past that, a user costs about $0.72 a month as shipped and about $0.17 coalesced.
-
-| Daily users | As shipped | Coalesced |
-| --- | --- | --- |
-| 75 | $5 | $5 |
-| 1,000 | about $665 | about $120 |
-
-Model cost is the user's own and is not in these numbers. A team turn that wakes k agents multiplies the agent side of the table by k.
 
 ### 17.5 Write coalescing
 
@@ -1009,9 +977,9 @@ DEVIATION: the `Storage` contract says a seq is strictly increasing per commit. 
 - The session check reads a signed cookie, not D1.
 - The debounce adds 1.5 seconds before the model starts. That delay is the product behavior the spec asks for. The typing indicator shows during it.
 
-### 17.7 Path to paid plans
+### 17.7 Caps that remain
 
-Per-user limits are one record in `UserDO`, returned by `turnContext()`. `RoomDO` and `AgentDO` enforce them. A subscription changes the record. No billing code is planned now.
+Yuki has no per-user limits record and no daily run budget. The caps are the hop and root limits (section 7.7), the 100 open reminders a chat holds (section 14), and the four summaries a user runs at once (section 13.3). A model's own rate limit is the owner's to manage with their provider.
 
 ## 18. Files and attachments
 
@@ -1104,11 +1072,11 @@ Each file space's writes are atomic on their own. A command that changes both th
 
 **Limits.** A room folder named `tmp` or `dev` is hidden from the shell. just-bash adds about 2 MB to the uncompressed Worker (11.7 MB to 13.7 MB, 2.37 MB to 2.80 MB gzipped, measured with `wrangler deploy --dry-run`). The limit is 64 MiB uncompressed on both plans, with no compressed limit (Cloudflare's Workers limits page, read 2026-10-05). A bigger bundle can start slower.
 
-### 18.2 Link previews (removed)
+### 18.2 Fetching outside pages
 
-DEVIATION (2026-10-09): link previews are removed: the `/api/preview` and `/api/preview-image` routes, the room's card on a message's first link, the `PREVIEWS` KV namespace, and the client's preview cache. The owner chose t3code's model, where a link is a link. Old messages keep their stored card in the `messages.preview` column, which nothing reads.
+A link is a link. Yuki fetches nothing on its own for a URL in a message.
 
-The safe fetcher the previews used stays for `web_fetch` and watch routines (`core/durable/src/safe-fetch.ts`). It allows `http` and `https` only, rejects IP literals and private, loopback, link-local, and metadata hosts, uses `redirect: "manual"`, rechecks every hop, follows 3 redirects at most, and times out after 3 seconds. On a development server, a host named `fixture-<port>.preview.test` reaches `localhost:<port>` (`lib/dev-fixture-fetch.ts`), so a verify suite can serve a page.
+The safe fetcher is used by `web_fetch` and watch routines (`core/durable/src/safe-fetch.ts`). It allows `http` and `https` only, rejects IP literals and private, loopback, link-local, and metadata hosts, uses `redirect: "manual"`, rechecks every hop, follows 3 redirects at most, and times out after 3 seconds. On a development server, a host named `fixture-<port>.preview.test` reaches `localhost:<port>` (`lib/dev-fixture-fetch.ts`), so a verify suite can serve a page.
 
 UNVERIFIED: whether Workers `fetch` itself refuses private addresses. Cloudflare's docs do not say. The fetcher validates on its own and does not rely on the platform.
 
@@ -1301,14 +1269,14 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | D6 | CodeMirror 6 as the text editor | CodeMirror in the file viewer only | 19.3 |
 | D7 | Rolldown or Vite, Bun | Vite, with Bun as the package manager and test runner | 19.3 |
 | D8 | memory records, a profile, and a nightly tidy | log memory after OptMem, with four departures from OptMem itself | 13 |
-| D9 | the Worker builds an object name only from the session's user id (AGENTS.md rule 5) | a webhook builds it from the user id in a D1 row that UserDO wrote when the routine was made | 25.4 |
+| D9 | the Worker builds an object name only from the session's owner id (AGENTS.md rule 5) | a webhook goes to `user:owner`, which checks the routine's token | 25.3 |
 
 ### Assumptions
 
 | # | Assumption | Section |
 | --- | --- | --- |
 | A1 | debounce is 1000 ms, 2500 ms while typing, 8000 ms cap (lowered from 1500 ms so a reply starts sooner) | 6.1 |
-| A2 | loop limits are 8 hops, 40 deliveries per root, 8 members, 50 autonomous runs a day per room (100 per user, section 25.5) | 7.7 |
+| A2 | loop limits are 8 hops, 40 deliveries per root, 8 members | 7.7 |
 | A3 | sign-in is Google and GitHub only | 10 |
 | A4 | subscription sign-in for model providers is off by default | 11.4 |
 | A5 | a chat is quiet after 6 hours and rolls up into the life log | 13.2 |
@@ -1316,7 +1284,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | A7 | kat's hue with one chroma token is the "yuki orange", and dark ships first | 19.8 |
 | A8 | terminal and browser slots become board and memory | product.md |
 | A9 | a 24/7 user has 30 turns a day | 17.1 |
-| A10 | routines: a 30-minute minimum schedule (15 for a watch), a 10 minute run budget, 3 failures pause, a missed run within an hour still runs, a 60 s event window, 100 runs a day per user without a human, 7 days away holds them | 25 |
+| A10 | routines: a 30-minute minimum schedule (15 for a watch), a 10 minute run limit, 3 failures pause, a missed run within an hour still runs, a 60 s event window, 7 days away pauses them | 25 |
 
 ### Spec claims corrected by the source
 
@@ -1461,20 +1429,20 @@ Work that starts without a human message: routines on a schedule or an event, re
 
 - **No model runs on a timer.** Every autonomous run starts from a wake, and every wake is a system envelope on the agent's existing inbox (section 7.3).
 - **One scheduler.** A routine is a row of the `reminders` table (section 14) with instructions for an agent and a trigger. The same alarm fires it.
-- **A model call only when something changed.** Event filters, a watch's fingerprint, the event window, the away pause, and the day's budget all cost no model call. A run with nothing to report answers `[skip]` and posts nothing.
-- **Every run may act.** A run nobody asked for uses any tool, like the human's own run. Every envelope carries an origin, which only sets the run's time budget (25.2).
+- **A model call only when something changed.** Event filters, a watch's fingerprint, the event window, and the away pause all cost no model call. A run with nothing to report answers `[skip]` and posts nothing.
+- **Every run may act.** A run nobody asked for uses any tool, like the human's own run.
 
-**Reasoning.** Both vendors start work from a small set of wakes and let the agent judge what to do at each one. On the Free plan a model run writes about 135 rows (section 17.2), so a wake that calls the model for nothing is the most expensive mistake available. Dots keeps its background research read-only; yuki does not, since the owner removed approvals on 2026-10-11 (section 16).
+**Reasoning.** Both vendors start work from a small set of wakes and let the agent judge what to do at each one. On the Free plan a model run writes about 135 rows (section 17.2), so a wake that calls the model for nothing is the most expensive mistake available. Yuki does not keep background research read-only: agents act without asking (section 16).
 
-| Wake | `SystemReason` | Starts in | `rootId` | `origin` | Budget | Held |
-| --- | --- | --- | --- | --- | --- | --- |
-| a routine's time, a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` | `routine` | `user` when the human made it, else `room` | recorded `held` |
-| a routine's "run now" | `routine` | the human's route or an agent's tool | `routine:<id>:test:<time>:<n>` | `routine` | `paid` when the human pressed it, else as above | recorded `held` |
-| the initiative pass (section 26.6): an open loop, a stalled task, a routine in trouble | `initiative` | `UserDO` `initiative_pass` wakeup, through `RoomDO.initiativeWake` | `initiative:<candidate>#<surfaced>.<ignored>` | `auto` | `room` | not held: the next pass decides again |
-| a task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | the task's chain, else `unblocked:<taskId>` | the task's chain | `room` | the room's outbox |
-| an agent's reminder (section 14) | `reminder` | `UserDO` alarm | the chain that made it; a recurring one its own | the origin of the chain that made it | `user` when the human set it, else `room` | the room's outbox |
+| Wake | `SystemReason` | Starts in | `rootId` |
+| --- | --- | --- | --- |
+| a routine's time, a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` |
+| a routine's "run now" | `routine` | the human's route or an agent's tool | `routine:<id>:test:<time>:<n>` |
+| the initiative pass (section 26.6): an open loop, a stalled task, a routine in trouble | `initiative` | `UserDO` `initiative_pass` wakeup, through `RoomDO.initiativeWake` | `initiative:<candidate>#<surfaced>.<ignored>` |
+| a task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | the task's chain, else `unblocked:<taskId>` |
+| an agent's reminder (section 14) | `reminder` | `UserDO` alarm | the chain that made it; a recurring one its own |
 
-Every one of these is a `Wake` (`room/wake.ts`) and goes through `RoomDO.wake`, the only code that takes the budgets (25.5), holds, hands the agent its envelope, and records the chain.
+Every one of these is a `Wake` (`room/wake.ts`) and goes through `RoomDO.wake`, which checks the away pause (25.5), hands the agent its envelope, and records the chain.
 
 ### 25.2 Routines
 
@@ -1483,7 +1451,7 @@ Every one of these is a `Wake` (`room/wake.ts`) and goes through `RoomDO.wake`, 
 ```sql
 reminders(..., name, trigger, fails, watch_state, hook_hash, chain)
 routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- newest 20 per routine
--- status: running | ok | quiet | failed | held | timeout
+-- status: running | ok | quiet | failed | timeout
 ```
 
 `trigger` is the protocol's `Trigger` (`core/protocol/src/routines.ts`): `time` (`at` plus an RRULE), `task`, `message`, `file`, `webhook`, or `watch`. A `time` or `watch` routine has a due time; an event or webhook routine has `due_utc` 0 and is fired by the room or the hook route.
@@ -1492,7 +1460,7 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 
 - The run starts from memory like any run (section 13.4). The answer posts as ordinary bubbles.
 - The room follows a run before handing it over, and marks it started when the agent next goes from idle to busy. When that run ends (`RoomDO.endRun`), it reports `ok` when the agent posted after the delivery, else `quiet`. A run that never started because the agent has no credential, or was dropped by the crash breaker, is `failed`. One the human stopped is `quiet`. A run whose report never arrives counts as `failed` after two hours.
-- **Time budget.** A run whose origin is not `human` gets 10 minutes (`AUTO_RUN_BUDGET_MS`). Past it, the heartbeat steers once: "time is up for this run. post what you have now in one short message, and stop." At twice the budget the host aborts it and the run is `timeout`.
+- **Time limit.** A routine's run gets 10 minutes (`AUTO_RUN_BUDGET_MS`). Past it, the heartbeat steers once: "time is up for this run. post what you have now in one short message, and stop." At twice that time the host aborts it and the run is `timeout`.
 - **Breaker.** Three `failed` or `timeout` runs in a row pause the routine, and its chat says so.
 - **Missed times.** A routine runs its newest missed occurrence once when it is less than an hour late, and skips older ones.
 - **Limits.** 50 routines per agent per chat, 100 reminders per chat, a time at most a year away (new reminders, routines, and snoozes alike), 10 watches per user, 20 runs kept, a schedule no more often than every 30 minutes (every reminder too, the human's included, and a row stored before that rule never fires sooner; a watch every 15, since its checks call no model), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
@@ -1509,21 +1477,7 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 
 An agent reaches only its own chat's reminders and routines, whatever id it passes. The human has the same through `GET` and `POST /api/routines`, `POST /api/routines/<id>`, and `POST /api/routines/<id>/run`; a routine the human makes there is active at once.
 
-### 25.3 Origin
-
-```ts
-type Origin = "human" | "routine" | "auto"
-// Envelope gains: origin?: Origin
-```
-
-- The room stamps every envelope: `human` on a burst, `routine` on a routine run, `auto` on everything else. `agent_chains` keeps the origin of each member's chain, so a message an agent sends inherits it.
-- The agent host keeps the origin of the run in flight in `run_origin`. A batch that starts a run sets it; a batch that joins combines with it (`joinOrigin` in `core/agent/src/envelope.ts`): a human anywhere makes it the human's, otherwise `auto` wins over `routine`. It is cleared when the harness goes idle. With no record, as after a crash, the run counts as `auto`.
-- An envelope stored before origins counts as `human` when a human wrote it, else `auto`.
-- The origin only sets the time budget of 25.2. No origin gates a tool (section 16).
-- A reminder keeps the chain of the run that made it, origin included. A task keeps the chain it was made on (section 7.6).
-- Changed on 2026-10-11: routine grants, taint, and the "ask the human first" refusal are gone. The owner removed approvals (section 16).
-
-### 25.4 Triggers
+### 25.3 Triggers
 
 **Signals.** One bus carries what happened: `Signal` in `room/signals.ts`, an Effect Schema union of `burst` (a human message), `agent_final` (a message an agent posted), `task`, `file`, and `routine_result`. Each says who did it. A room sends its signals to `UserDO.signals` in batches. Event routines consume it; anything that later starts work on its own subscribes there.
 
@@ -1536,31 +1490,26 @@ type Origin = "human" | "routine" | "auto"
 
 **Webhooks.** `POST /api/hooks/<token>`, at most 64 KB.
 
-- The Worker hashes the token and reads one D1 row, `hooks(token_hash -> user_id, routine_id)`, then calls `UserDO.routineHook`, which checks the token against the routine's own hash, matches the JSON body against at most 8 conditions (`matchWebhook`), and fires the routine. The Worker parses nothing.
-- **DEVIATION D9** from AGENTS.md rule 5: a webhook has no session, so the Worker builds the object name from a user id in a D1 row that `UserDO` wrote when the human's routine was made. The request never supplies an id.
-- **DEVIATION, dev only** from AGENTS.md rule 5: the dev residue and rerun routes in `auth/account-route.ts` take the session's user. Without a session, they accept the path id only when `deleted_user` holds it, because deletion revokes the sessions and wipes the objects, so the path reaches nothing live.
-- **No token rotation.** ASSUMPTION: there is no rotate action. `updateRoutine` mints a token only when a routine becomes a webhook, and editing a webhook keeps its token, because a new token would break a URL the human already shared (U33).
+- The Worker hashes the token and finds the routine by that hash in its own row (`reminders_hook` index). It then calls `UserDO.routineHook` on `user:owner`, which checks the token against the routine's hash, matches the JSON body against at most 8 conditions (`matchWebhook`), and fires the routine. The Worker parses nothing.
+- **DEVIATION D9** from AGENTS.md rule 5: a webhook has no session, so the Worker sends the call to the owner's object, `user:owner`. The request never supplies an id.
+- **No token rotation.** ASSUMPTION: there is no rotate action. `updateRoutine` mints a token only when a routine becomes a webhook, and editing a webhook keeps its token, because a new token would break a URL the human already shared.
 - A sender's own delivery id (`x-github-delivery`, `idempotency-key`, `x-request-id`), or else the body's hash within the same minute, makes a retried post run once. The body is read with a 64 KB cap, so a chunked post cannot grow past it.
 - The run gets the post's text after its instructions.
-- The token is returned once, to the agent's tool result or the human's API call. Cancelling the routine deletes the D1 row.
+- The token is returned once, to the agent's tool result or the human's API call. Cancelling the routine removes its hash.
 
 **Watches.** A `watch` routine is due every `everyMinutes` (at least 15). `UserDO` fetches the page with no model: a public GET through `safeFetch`, or through an installed extension's `fetch` when the routine names one, so its egress and `{{secret.NAME}}` headers apply (section 24.7). HTML becomes text (`core/durable/src/html-text.ts`), and its SHA-256 is the fingerprint. The first check records it; a later one that differs runs the routine with the start of the new page. The new fingerprint is save...
 
 DEVIATION from the first plan: watches do not run extension code from an alarm. Fetching in `UserDO` reuses the extension's egress and secrets with no new `yuki.*` power and no VM outside a run.
 
-### 25.5 The budget and the away pause
+### 25.5 The away pause
 
 `RoomDO.wake(w)`, for every wake in the table of 25.1, in this order:
 
-1. **Once.** A wake id the delivery ledger has, delivered or refused, is a duplicate. One already held is held.
-2. **The room's budget,** for a `room` wake. 50 runs a UTC day (section 7.7), reset by a human message, taken in one transaction and paid once per wake id (`auto_taken`).
-3. **The user's budget,** for a `room` or `user` wake. `UserDO.takeAutonomous(id)`: `limits.autonomousRunsPerDay` (100) across every chat, paid once per wake id (`charged_today`, which also holds the day's human burst ids for `takeTurn`), and nothing while the human has been away `limits.awayDays` (7). `last_seen` is stamped on each user socket hello, at most once an hour. When it refuses, the room's run is refunded.
-4. **The hand-over.** A refused delivery refunds both budgets and is recorded in the ledger. A full inbox throws with the budgets kept; the retry carries the same id and pays nothing more.
-5. **Held.** A wake that may retry (a reminder, a task wake) waits in `held_wakes`, the room's outbox. It is retried, oldest first and ten a pass, on the next UTC midnight (the `held_wakes` wakeup) and after every human burst the room delivers, after that burst. One held for a week is dropped (ASSUMPTION). A routine's held run is recorded `held` instead, and a watch keeps its old fingerprint (25.4).
+1. **Once.** A wake id the delivery ledger has is a duplicate and does nothing. Every wake id is stable, so a retried alarm delivers once.
+2. **The away pause.** The owner's `last_seen` is stamped on each user socket hello, at most once an hour. When the owner has been away for 7 days (a constant, `awayDays`), routines and follow-ups stop. A routine's run is recorded and the agent is not woken. A watch fetches nothing.
+3. **Hand-over.** A full inbox throws, and the retry carries the same id.
 
-The chat says once a day that the budget is out, and the yuki chat says once per absence: "i paused your routines and follow-ups while you were away. they start again when you open yuki." While the human is away, watches fetch nothing; every other wake asks `RoomDO.wake`, which holds it.
-
-DEVIATION from the first version: `UserDO` took the user's budget before it called the room, so a run the room then held or the agent refused was never refunded, and a held reminder or task wake was marked done and lost. Every path now goes through `wake`.
+The yuki chat says once per absence: "i paused your routines and follow-ups while you were away. they start again when you open yuki." While the owner is away, watches fetch nothing. ASSUMPTION: a reminder for the owner still posts while they are away, because the owner set it.
 
 ### 25.6 Stalled tasks
 
@@ -1586,20 +1535,20 @@ The third line was measured: before it named reports, the real model skipped a d
 
 ### 25.9 What the human sees
 
-Yuki sends no notifications. A routine's run answers in its chat as bubbles; an agent that wants a routine on its own asks in chat; the budget, the away pause, and a paused routine each post one line. The client's schedule section is not built yet; until then the human manages routines by asking any agent and through `/api/routines`.
+Yuki sends no notifications. A routine's run answers in its chat as bubbles; an agent that wants a routine on its own asks in chat; the away pause and a paused routine each post one line. The client's schedule section is not built yet; until then the human manages routines by asking any agent and through `/api/routines`.
 
 ### 25.10 Effect v4 at the edges
 
-`core/protocol/src/schema.ts` has `Origin`, `Trigger`, and `WebhookMatch`, checked against their types. `create_routine`, `update_routine`, and `/api/routines` decode the trigger with `Schema.decodeUnknownSync(Trigger)`, so a bad trigger is one line the model or the client can fix. pi-durable validates tool arguments with TypeBox, so the tools keep a loose TypeBox shape and decode the trigger themselves. Inside the objects, yuki keeps pure functions over SQL, as before; no Effect runtime runs in an a...
+`core/protocol/src/schema.ts` has `Trigger` and `WebhookMatch`, checked against their types. `create_routine`, `update_routine`, and `/api/routines` decode the trigger with `Schema.decodeUnknownSync(Trigger)`, so a bad trigger is one line the model or the client can fix. pi-durable validates tool arguments with TypeBox, so the tools keep a loose TypeBox shape and decode the trigger themselves. Inside the objects, yuki keeps pure functions over SQL, as before; no Effect runtime runs in an a...
 
 ### 25.11 Verification
 
 | Check | Proves |
 | --- | --- |
-| `test/routines.test.ts` | origin combining, the trigger schema, webhook and signal matching, one run per batch, the watch grid, the budget and away rules |
-| `test/room-wake-delivery.test.ts` | with the real `UserDO` and `RoomDO`: a reminder and a task wake held by the budget reach the agent once the human is back; a refused run gives its budget back; an agent's reminder on the human's chain wakes as the human's |
-| `test/reminder-rules.test.ts` | a held watch run keeps the old fingerprint; a reminder for the human repeats at most every 30 minutes, even one stored before the rule |
-| `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for makes a routine; a routine run uses an outside tool; the user's budget holds the third run with one line; a stuck run is stopped and recorded as a timeout; three failures pause |
+| `test/routines.test.ts` | the trigger schema, webhook and signal matching, one run per batch, the watch grid, and the away rule |
+| `test/room-wake-delivery.test.ts` | with the real `UserDO` and `RoomDO`: a wake delivers once, and a retried wake with the same id does not run twice |
+| `test/reminder-rules.test.ts` | a reminder for the human repeats at most every 30 minutes, even one stored before the rule |
+| `bun yuki verify routines` | a human's ask makes a routine at once and it runs once; `[skip]` is quiet; a run nobody asked for makes a routine; a routine run uses an outside tool; a stuck run is stopped and recorded as a timeout; three failures pause |
 | `bun yuki verify routine-triggers` | three task changes make one run; the agent's own messages never fire its routine; uploads fire by path; a webhook runs once per post, only on a match, and its run uses an outside tool; a watch wakes only on change |
 | `bun yuki verify proactive` | a task untouched for two days wakes its owner once through the initiative pass, and the answer carries its reason; away 8 days holds runs with one line and a hello resumes; no check-in routine is made; overview reads across chats |
 | `test/recurrence.test.ts` | `ruleProblem` passes the rule shapes people ask for and refuses, in microseconds, every shape `rrule` could loop on |
@@ -1650,7 +1599,7 @@ Initiative `off` gives a run no lines.
 
 ### 26.6 The attention pass
 
-`apps/server/src/initiative/engine.ts`, in `UserDO`, over the attention module (`initiative/attention/`). Fixed code is kept only for safety: initiative off, the human away (the seven-day rule), the budget, and the human busy in that room. Everything else is learned.
+`apps/server/src/initiative/engine.ts`, in `UserDO`, over the attention module (`initiative/attention/`). Fixed code is kept only for safety: initiative off, the human away (the seven-day rule), and the human busy in that room. Everything else is learned.
 
 **Signals.** `RoomDO` now keeps every human message in its signal window (25.4), besides what event routines match. A human message that quotes an initiative bubble carries that bubble's seq (`answers`). `UserDO.signals` hands each batch to the engine first:
 
@@ -1674,13 +1623,13 @@ A private, temporary, or deleted chat has no candidates. A loop of no chat belon
 
 - `rest` while an item rests after a nudge or a [skip]: one cycle, doubled for each ignore or [skip], at most three doublings, so eight cycles at most. ASSUMPTION: the cap, `MAX_DOUBLINGS`, since ten ignores once rested an item for about 1,024 days (U25). Until 2026-10-12 a kind factor, `0.5 / p`, also lengthened the rest as the kind's welcome fell, to about 200 cycles at its floor. The kind gate already closes such a kind, so U66 removed the factor;
 - `brief` when initiative is `off` or `chat`, the rhythm is unknown, the human is away or busy in that room, the item was said less than half a cycle ago and is not due, it is tentative and there is no judge, the kind's appetite is closed and there is no Jev verdict for the item, its worth is under one half, or it is not the human's usual moment;
-- `nudge` for the most worthwhile items, at most one per room, no more than the appetite allows and the budget holds, and one per pass at `digest`.
+- `nudge` for the most worthwhile items, at most one per room, no more than the appetite allows, and one per pass at `digest`.
 
 The score is a noisy-or of due urgency in the human's own cycles (weight 1) and an agent's own promise near its date (weight 0.5). Items with equal scores rank by the oldest sighting first, so the score orders Jev's ten and the brief's `on their plate` lines. Mentions, staleness, and age were dropped on 2026-10-11 (U34); the candidate has no mention count at all (U66). The appetite is a Beta posterior per user and per kind over "a nudge of this kind is welcome" (`appetite.ts`): a new user gets one nudge a pass, two ignores in a row give none, a dismissal weighs five ignores for its kind, a [skip] counts one against its kind only (it never reached the human), and outcomes fade with a two-week half-life.
 
 **Jev.** With a judge key, and only when a nudge could go out at all, Jev's `worthNow` reads the ten highest-scoring candidates past their rest (ties by oldest sighting) in one batched call. Its probability replaces the score in `worth`, and it gates: an item it did not read wakes nobody that pass. It reads what the woken agent will read, in plain words: whose item it is, the due time and last mention relative to now, how often it was raised, let pass, or declined by the agent, how many nudges the human answered or let pass lately, and the agent's own rule. Without Jev the score decides, and the kind's appetite gates it. The worth is the score itself, with no multiplier by the kind's welcome (U66). With Jev the kind gate is skipped: Jev decides, and the user's allowance is the volume brake. Either way the engine is the one decider, and the agent is told to raise the item, not asked whether to. UNVERIFIED: Jev's recall of about 0.8 has not been measured on real traffic (U35).
 
-**The wake.** `RoomDO.initiativeWake` is one wake (25.5) about one item: origin `auto`, the room's budget, never held. The room answers `busy` while a burst gathers or the human typed in the last two minutes. The target is the owner for an agent's own commitment or task, else the room's lead, which may hand it to a teammate with `send_message`. The body states the item, why now, and the rule: one short message in your own words, at most two sentences, with no text around tool calls, after moving its own work on if it can; [skip] only when the chat shows it is already handled; close a loop as dropped when the human no longer wants it. An agent's own promise is kept in that one message.
+**The wake.** `RoomDO.initiativeWake` is one wake (25.5) about one item: origin `auto`, never held. The room answers `busy` while a burst gathers or the human typed in the last two minutes. The target is the owner for an agent's own commitment or task, else the room's lead, which may hand it to a teammate with `send_message`. The body states the item, why now, and the rule: one short message in your own words, at most two sentences, with no text around tool calls, after moving its own work on if it can; [skip] only when the chat shows it is already handled; close a loop as dropped when the human no longer wants it. An agent's own promise is kept in that one message.
 
 **One message.** A nudge run may use any tool, like every run (section 16). Changed on 2026-10-11: the nudge gate that allowed only `read` and `message` tools is gone.
 
@@ -1690,9 +1639,9 @@ The score is a noisy-or of due urgency in the human's own cycles (weight 1) and 
 
 **Cost.** Without Jev the engine calls no model; the only spend is the agent run of a nudge, at most one a pass at `digest`, and none while the appetite is closed. With Jev, one batched `worthNow` call per pass that could nudge. A [skip] costs a run, which is why it teaches the kind and why Jev reads past skips.
 
-### 26.7 What is gone
+### 26.7 Stalled tasks and check-ins
 
-The daily check-in routine and its fingerprint gate (25.7), the stall sweep (25.6), and `gate.unchanged` in `Reminders.run`. `overview` stays.
+The initiative pass covers what a daily check-in or a stall sweep would have looked for: stalled tasks (25.6), failed or paused routines, and open loops. Yuki runs no check-in on a fixed clock (25.7). `overview` answers when the human asks what is open.
 
 ### 26.8 Verification
 
@@ -1753,7 +1702,7 @@ A switch to the other mode deletes the browser, waits for the profile save, and 
 
 Known gap (U21): two agents on one browser can still pass the tab cap together, because an agent's opens in flight are not visible to another agent until it touches the lease. Closing it needs a reservation in the UserDO lease.
 
-### 27.3 The reaper and the wipe
+### 27.3 The reaper
 
 The reaper is the wakeup `kernel_reap` in `alarm.ts`. It is set when a browser is made and moved only when it fires, so a touch writes one row and no alarm. `reapDecision` is one pure table.
 
@@ -1765,8 +1714,7 @@ The reaper is the wakeup `kernel_reap` in `alarm.ts`. It is set when a browser i
 | idle for 5 min, or 30 min old | delete |
 | otherwise | keep until the earlier of those two times |
 
-A delete that finds a 404 counts as done. Any other failure keeps the row and the wakeup retries. Kernel deletes a browser on its own after 600 s without activity and saves the profile then too, which is the net if a wakeup is missed. Account deletion deletes the browser and then the profile before the object's storage goes (`UserDO.deleteAll`, in the wipe's shutdown step, because the lease is read from those rows). It runs only when the jobs finish, never on a start that is rolled back. A Kernel failure there is logged and does not stop the deletion.
-
+A delete that finds a 404 counts as done. Any other failure keeps the row and the wakeup retries. Kernel deletes a browser on its own after 600 s without activity and saves the profile then too, which is the net if a wakeup is missed. Account deletion deletes the browser and then the profile before the object's storage goes (`UserDO.deleteAll`, in the wipe's shutdown step, because the lease is read from those rows). It runs only when the jobs finish, never on a start that is rolled back. 
 ### 27.4 Connecting
 
 `connectKernel { apiKey }` checks the key with `GET /browsers?status=active` and stores it only when Kernel answers 200. It first closes any browser made with the old key. `disconnectKernel` closes the browser and deletes the rows. It keeps the Kernel profile, which is the user's own. `kernelStatus` and the other sockets' push carry `{ connected, broken, browser: { mode, tabs per agent } | null }`. No URL, no key.
@@ -1788,7 +1736,7 @@ Measured 2026-10-10 with `wrangler deploy --dry-run` on the server bundle, with 
 
 | Check | Proves |
 | --- | --- |
-| `test/kernel-lease.test.ts` | the reaper table, single-flight, switch order (delete before create, never two live), the profile made once, dead replacement, 429, 529, and 401 handling, wipe order |
+| `test/kernel-lease.test.ts` | the reaper table, single-flight, switch order (delete before create, never two live), the profile made once, dead replacement, 429, 529, and 401 handling |
 | `bun yuki verify kernel` (needs `KERNEL_API_KEY`) | a bad key is refused and nothing is stored; two concurrent leases get one headless session; a cookie set through Kernel's execute endpoint survives the reaper, a switch to headful and back, and a replacement after a dead socket; account deletion removes the browser and the profile; no frame to the client holds the key or a URL; Kernel's active list ends empty |
 
 The dev route `POST /api/dev/agent/browser` (development only) leases, touches, kills, ages (moves last use back), reaps, and switches the user's browser, and never returns a CDP URL. The suite waits for browsers that other runs on the same key still have, since it asserts the list ends empty.

@@ -1,6 +1,6 @@
 # yuki
 
-Yuki is a general-purpose AI chat web app that feels like Telegram. People text one agent or a team of agents. It runs on Cloudflare Workers and Durable Objects, with a SolidJS client. Every user brings their own model keys.
+Yuki is a general-purpose AI chat web app that feels like Telegram. People text one agent or a team of agents. It runs on Cloudflare Workers and Durable Objects, with a SolidJS client. Yuki is self-deployed: one Worker serves one owner, who brings their own model keys.
 
 Read `docs/overview.md` before your first task. `docs/architecture.md` has every decision and its reason. Follow it, or change it in the same pull request and say why.
 
@@ -12,7 +12,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 2. **Optimistic.** Every user action applies locally before the server answers.
 3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles.
 4. **The human outranks every agent.** A human message is handled first and can interrupt work.
-5. **Users never cross.** Only the Worker builds a Durable Object name, through `apps/server/src/lib/names.ts`, always from the session's user id. The one exception is a routine's webhook, which has no session: the Worker uses the user id its D1 row names (architecture D9).
+5. **One owner per Worker.** Only the Worker builds a Durable Object name, through `apps/server/src/lib/names.ts`, always from the session's owner id (`"owner"` in production). A routine's webhook has no session, so the Worker sends it to the owner's object (architecture D9).
 6. **Keys stay on the server.** A credential is encrypted in `UserDO`, never logged, and never sent to the client.
 7. **Sentence case.** Interface strings are sentence case, as in monocode and t3code: "Accent color", "Sign out". Names keep their own casing: Yuki, Anthropic, Claude Opus 4.6, Open VSX.
 
@@ -33,12 +33,12 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 
 - **`pi-durable` is an npm dependency.** Extend it through its extension points only.
 - **Do not wait on another Durable Object inside `receive()`.** Store, set an alarm, return. Two agents that wait on each other deadlock.
-- **Do not do CPU-heavy work in a Worker handler or the queue consumer.** On the Free plan they are stopped at random from about 0.15 s of CPU. Put it in a Durable Object, which has 30 s per request. Architecture section 17.3.
+- **Do not do CPU-heavy work in a Worker handler.** On the Free plan they are stopped at random from about 0.15 s of CPU. Put it in a Durable Object, which has 30 s per request. Architecture section 17.3.
 - **Do not fetch the outside from an agent's run except through `egress`.** A run's work belongs to one invocation, and Free allows 50 subrequests per invocation. Model requests and `web_fetch` already go through `AgentDO.egress`.
 - **Do not bind one SQL value per item of a list.** A query binds at most 100. Pass the list as one JSON value and read it with `json_each(?)`.
 - **Do not add a table anywhere but its object's step list.** Every table is one versioned step at the end of the list in `schema.ts`, run by `migrate` in `core/durable/src/migrate.ts`. Appended, never edited or moved, and safe on a table that already exists.
 - **Do not use `setTimeout` to schedule work in a Durable Object.** It does not survive eviction and it blocks hibernation. Use `alarm.ts`.
-- **Do not write a handler that is unsafe to run twice.** Alarms and queues deliver at least once. Give every delivery and post a stable id.
+- **Do not write a handler that is unsafe to run twice.** Alarms deliver at least once. Give every delivery and post a stable id.
 - **Do not add a tool without an effect.** Every tool declares `read`, `write`, `message`, or `external`.
 - **Do not build an agent outside `factory.ts`.** It is the one place that selects extensions.
 - **Do not give an extension script a way out except the bridge in `core/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `yuki.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
@@ -49,6 +49,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Do not add a model list, a provider adapter, or a Composio tool name.** Those come from `pi-ai` and from Composio at run time.
 - **Do not commit a secret.** Keys live in `.dev.vars` and in CI secrets. `OPENCODE_API_KEY` is read from the environment.
 - **Do not build** notifications, share links, a terminal, a browser panel, or anything on Convex.
+- **Do not add a second owner.** No sign-up, no accounts for other people, and no database for accounts. The access code and the owner's session are the whole access model.
 
 ## Dev servers
 
@@ -61,6 +62,8 @@ bun dev:web           # the client on localhost:5173, proxying /api to the serve
 Wrangler signs in and stores the session with `wrangler login`. Use `localhost`, not `127.0.0.1`, for the client.
 
 Several sessions run dev servers at once. Never `pkill` or `killall` wrangler, workerd, or vite: it stops other sessions' servers mid-run. Start yours on a free port (`bun run --cwd apps/server dev --port <n>`, then `bun yuki verify <suite> --url http://localhost:<n>`) and stop only its PID.
+
+Dev-only sign-in: `/api/auth/dev/session?name=<name>` mints a session for a named dev owner. `dev-guard` loads it only in a development build, and it refuses any host that is not local. Each verify suite uses its own name, so its data stays apart.
 
 Dev keys live in `~/.config/yuki/dev.vars`. Every worktree's `apps/server/.dev.vars` links to it; a git hook adds the link to a new worktree. Never ask the owner to paste a key. The CLI reads keys from the shell: `set -a; . apps/server/.dev.vars; set +a`.
 
@@ -126,6 +129,7 @@ apps/
     src/warm/           IndexedDB
     src/app/            shell, routes, rail, tab strip
   server/               the Worker
+    src/auth/           the access code, the session cookie, the dev-only session
     src/user/           UserDO: credentials, memory, reminders
     src/room/           RoomDO: log, burst, delivery, workspace
     src/room/wake.ts    the wake path a routine or a nudge uses to start one agent run
@@ -139,13 +143,13 @@ packages/
   ui/                   @yuki/ui: Kobalte and Corvu wrappers, kat.css
 core/
   protocol/             @yuki/protocol: wire types shared by all three apps
-  durable/              @yuki/durable: alarm, safe-fetch, crypto, wipe
+  durable/              @yuki/durable: alarm, safe-fetch, crypto
   agent/                @yuki/agent: pi-durable host, inbox, effects
   memory/               @yuki/memory: OptMem tree, life log, memory tools, open loops (loops.ts, loop-tool.ts)
   sandbox/              @yuki/sandbox: QuickJS VM, manifest, compiler, checker
   browser/              @yuki/browser: browser session and tools
 docs/
-  overview.md  product.md  architecture.md  subagents.md
+  overview.md  product.md  architecture.md  self-deploy.md  subagents.md
   reference/            code to port, kept unchanged
 .cursor/skills/         verification skills
 ```

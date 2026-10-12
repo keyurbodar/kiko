@@ -14,11 +14,14 @@ Three labels appear in both documents.
 
 Yuki is for people who want one assistant for daily life and work, not for programmers who want a coding agent.
 
+Yuki is self-deployed. One person deploys it to their own Cloudflare account and is its only user. Other people do not sign in, and there is no sign-up. [self-deploy.md](self-deploy.md) shows how to set it up.
+
+- **The owner.** Deploys yuki, sets the access code, and connects the model keys and Composio key. Owns every chat, memory line, and routine.
 - **The daily user.** Asks questions, plans a trip, drafts an email, sets a reminder, sends a photo and asks what it is. Types the way people text, in short bursts.
 - **The delegator.** Hands a goal to a team of agents ("plan the launch"), tags agents by name, checks the group's tasks, and interrupts when something goes the wrong way.
 - **The connector.** Links a personal Composio account so agents can act in calendars, mail, issue trackers, and other apps the user connects there.
 
-Every user brings their own model access. Yuki does not sell, pay for, or choose models.
+The owner brings their own model access. Yuki does not sell, pay for, or choose models.
 
 ## Product principles
 
@@ -26,8 +29,8 @@ Every user brings their own model access. Yuki does not sell, pay for, or choose
 2. **Instant.** Navigation, buttons, menus, tabs, and the composer respond in the same frame. The app paints from local data before the network answers.
 3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles. It can react with an emoji and say nothing.
 4. **The human outranks every agent.** A human message is handled before agent messages and can interrupt work in progress.
-5. **Your keys, your data.** Credentials are encrypted per user and never return to the browser. Agents of one user cannot reach another user.
-6. **Sentence case.** Interface strings are sentence case, as in monocode and t3code, and names keep their own casing. DEVIATION: yuki began with kat's all-lowercase voice; the owner moved it to sentence case on 2026-10-08 so the app reads like the tools it sits beside.
+5. **Your keys, your data.** Credentials are encrypted in your own Worker and never return to the browser. Your data stays in your Cloudflare account.
+6. **Sentence case.** Interface strings are sentence case, as in monocode and t3code, and names keep their own casing. DEVIATION: kat uses all lowercase. Yuki uses sentence case so the app reads like the tools it sits beside.
 
 ## Features
 
@@ -41,7 +44,6 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - Replies arrive as separate bubbles, one per paragraph, with a typing indicator between them.
 - Agents react to a message with an emoji. A reaction can be the whole answer.
 - Send a message while the agent works. It never waits for the run to end. If a tool is running, yuki stops that tool and passes your message in. If the agent has posted nothing yet, the run restarts with your message. Otherwise your message steers the run (architecture section 6.2).
-- Each day has a reply limit. Messages sent past it wait, and the agent answers them when the limit resets at midnight UTC. The chat says so.
 - Stop a run with the stop button. Messages still waiting in the burst go out after the stop, as sent.
 - Open chats sit in a horizontal tab strip, as in kat.
 
@@ -55,7 +57,7 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - Agents message each other in the room, where you can read it. Agent-to-agent threads are collapsed by default.
 - The Tasks page in a group's info panel lists tasks by status, with each owner and what the task waits on.
 - When a task finishes, agents blocked on it wake up.
-- Hop limits and a daily autonomous-run budget stop agents from messaging each other forever.
+- Hop and root limits stop agents from messaging each other forever.
 
 ### Memory
 
@@ -78,7 +80,7 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 ### Integrations
 
 - Paste your Composio project API key (`ak_...`) in settings. It is the one key yuki needs. Yuki offers every tool Composio lists, with nothing hardcoded. Apps are connected in your Composio account.
-- Agents use these tools without asking first. The owner removed approvals on 2026-10-11.
+- Agents use these tools without asking first.
 - Disconnect at any time. Yuki deletes the key at once.
 
 ### Models and providers
@@ -153,7 +155,7 @@ The layout follows the kat screenshots in `docs/reference/`: an icon rail, a sid
 | `/memory`, `/memory/:id` | none | none | opens the active chat with the right panel on Memory |
 | `/settings/*` | settings (bottom) | sections | providers, models, integrations, skills, account |
 
-Sign-in: Google or GitHub when the server has them set. The sign-in screen also takes a name and an access code when the owner sets one for the deployment, so anyone with the code can sign in and no one else can.
+Sign-in: the access code. The owner sets it as the `ACCESS_CODE` secret. The sign-in screen asks for it, and no one else can sign in.
 
 Overlays: command palette, calendar jump, context menus, onboarding, and the image dialog, which zooms and pans as t3code's does. The media viewer is gone (DEVIATION, 2026-10-09): the files tab draws a picture inline.
 
@@ -180,11 +182,11 @@ Option A was chosen at first. On 2026-10-02 the owner made group chats of agents
 - No native mobile apps. The web app must work well on phones.
 - No Convex and no Confect.
 - No rebuild of what pi already does for model access. The provider catalog, provider sign-in flows, and the agent loop come from pi.
+- No sign-up, no second user, and no billing.
 
 ## Plans and limits
 
-Yuki runs on the Cloudflare Workers Free plan now. The design keeps a clean path to Workers Paid and to yuki subscriptions.
+Yuki runs on the Cloudflare Workers Free plan. One owner stays well inside it. Architecture section 17 has the numbers.
 
-- Per-user limits live in one `limits` record in the user's Durable Object. A plan is a named set of those numbers. The Free plan allows 500 replies a day, 1 GB of storage, and 8 agents in a room.
-- No billing code ships in the first plan.
-- The free-tier ceiling is small. Section 17 of the architecture document shows the math.
+- A chat holds up to 100 open reminders.
+- Hop and root limits cap any chain of agent messages.
