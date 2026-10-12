@@ -533,6 +533,7 @@ export class AgentDO extends DurableObject<Env> {
   async egress(request: EgressRequest): Promise<Response> {
     await this.refuseIfDeleted()
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+    // check-rules: allow egress the one outside request, made in this object's own invocation, which is the point of egress
     return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
   }
 
