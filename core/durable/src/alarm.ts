@@ -1,3 +1,5 @@
+import type { Step } from "./migrate"
+
 export const MAX_WAKEUPS = 1_000
 
 export class WakeupLimitError extends Error {
@@ -13,9 +15,11 @@ export interface Alarms {
   dueWakeups(now: number): Promise<string[]>
 }
 
+// Every object that calls createAlarms spreads this into its schema list.
+export const ALARM_STEPS: Step[] = ["CREATE TABLE IF NOT EXISTS wakeups (key TEXT PRIMARY KEY, at INTEGER NOT NULL)"]
+
 export function createAlarms(ctx: DurableObjectState): Alarms {
   const sql = ctx.storage.sql
-  sql.exec("CREATE TABLE IF NOT EXISTS wakeups (key TEXT PRIMARY KEY, at INTEGER NOT NULL)")
 
   // Points the alarm at the earliest row. Skips setAlarm when it is already right,
   // because every setAlarm call is a billed row write.
