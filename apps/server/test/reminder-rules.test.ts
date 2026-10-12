@@ -8,7 +8,7 @@ const ROOM = "01J0000000000000000000000R" as RoomId
 const MIN = 60_000
 const DAY = 86_400_000
 
-function setup(results: RunDelivery[] = [], pages: string[] = [], deliverFails = false) {
+function setup(results: RunDelivery[] = [], pages: string[] = [], deliverFails = false, runFails = false) {
   const sql = sqlStorage()
   sql.exec("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   sql.exec("CREATE TABLE chats (room_id TEXT PRIMARY KEY)")
@@ -20,6 +20,7 @@ function setup(results: RunDelivery[] = [], pages: string[] = [], deliverFails =
   const notices: string[] = []
   const deliverRun: DeliverRun = async ({ deliveryId, body }) => {
     runs.push({ deliveryId, body })
+    if (runFails) throw new Error("room unreachable")
     return results.shift() ?? "delivered"
   }
   const reminders = new Reminders(sql, alarms, async (id: string, _r: Reminder) => {
@@ -95,6 +96,29 @@ test("a refused routine run counts toward auto-pause", async () => {
   const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
   for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id, true)
   expect(reminders.get(routine.id)?.status).toBe("paused")
+})
+
+test("a routine whose delivery throws counts toward auto-pause, like a refused run", async () => {
+  const { clock, reminders, notices } = setup([], [], false, true)
+  const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id, true)
+  expect(reminders.get(routine.id)?.status).toBe("paused")
+  expect(notices.length).toBe(1)
+})
+
+test("a chat holds at most 100 reminders, and a full chat refuses one more", async () => {
+  const { clock, reminders } = setup()
+  const at = new Date(clock.now + DAY).toISOString()
+  for (let i = 0; i < 100; i++) await reminders.create("u", { text: `note ${i}`, time: at, tz: "UTC", roomId: ROOM })
+  await expect(reminders.create("u", { text: "one too many", time: at, tz: "UTC", roomId: ROOM })).rejects.toThrow("this chat already has 100 reminders. cancel one first.")
+})
+
+test("a time more than a year away is refused for a reminder and for a snooze", async () => {
+  const { clock, reminders } = setup()
+  const far = "9999-12-31T00:00:00Z"
+  await expect(reminders.create("u", { text: "far", time: far, tz: "UTC", roomId: ROOM })).rejects.toThrow("more than a year away")
+  const near = await reminders.create("u", { text: "near", time: new Date(clock.now + 300 * DAY).toISOString(), tz: "UTC", roomId: ROOM })
+  await expect(reminders.snooze(near.id, far)).rejects.toThrow("more than a year away")
 })
 
 test("a one-off reminder that keeps failing is marked failed after three tries, and the human is told once", async () => {

@@ -15,8 +15,7 @@ import type { ComposioCallResult, ComposioTool } from "../integrations/composio/
 import { checkAgentId, kernelErrorText } from "../integrations/kernel/connect"
 import { basenameOf, decodeBase64, encodeBase64, FETCH_BODY_CAP, FETCH_METHODS, FILE_CAP, URL_CAP } from "../integrations/kernel/files"
 import { KernelError } from "../integrations/kernel/client"
-import type { FetchRequest, FetchResult } from "../agent/browser/lease"
-import type { Mode } from "../integrations/kernel/client"
+import type { FetchRequest, FetchResult, Lease } from "../agent/browser/lease"
 import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
 import { yukiChatOps, yukiChatRoom, markYukiChat, movesYukiChat } from "./yuki-chat"
@@ -645,7 +644,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** The user's browser for `agentId`, headless unless the human asked to watch. Creates it when there is none. */
-  async browserLease(agentId: string): Promise<{ cdpUrl: string; mode: Mode; restarted: boolean; reopen: string[] }> {
+  async browserLease(agentId: string): Promise<Lease> {
     return this.#kr.lease(agentId)
   }
 

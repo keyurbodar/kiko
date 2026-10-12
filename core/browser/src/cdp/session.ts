@@ -85,6 +85,7 @@ export async function openSession(url: string, options: SessionOptions = {}): Pr
   }
 
   const acquire = Effect.callback<WebSocket, CdpError>((resume) => {
+    // A long-lived lease socket, not a per-run fetch, so it sits outside AgentDO.egress on purpose. See architecture 17.3.
     const ws = new WebSocket(url)
     ws.addEventListener("open", () => resume(Effect.succeed(ws)), { once: true })
     ws.addEventListener("error", () => resume(Effect.fail(new CdpError("closed", "The CDP socket failed to open"))), { once: true })

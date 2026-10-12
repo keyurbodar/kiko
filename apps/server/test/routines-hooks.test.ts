@@ -54,7 +54,16 @@ function timedRoutines(failInserts = false) {
   return { sql, reminders, wiring, db, hookRows, hookHash }
 }
 
-const timed = { on: "time" as const, at: "2030-01-01T09:00:00Z" }
+const timed = { on: "time" as const, at: new Date(Date.now() + 86_400_000).toISOString() }
+
+test("deleting a chat drops its webhook lookup rows, so the token stops working", async () => {
+  const t = timedRoutines()
+  const made = await t.wiring.createRoutine("u", { name: "hook", instructions: "say hi", trigger: { on: "webhook" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  if (!made.ok) throw new Error(made.error)
+  expect(t.hookRows()).toEqual([{ routine_id: made.routine.id }])
+  await t.wiring.cancelRoom(ROOM)
+  expect(t.hookRows()).toEqual([])
+})
 
 test("a routine that becomes a webhook is unchanged when its lookup row cannot be stored", async () => {
   const t = timedRoutines(true)
