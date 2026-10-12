@@ -4,7 +4,8 @@ import { type AttendContext, attend, rankOrder, score } from "../src/initiative/
 import { emptyRhythm, ignoreDeadline, nextMoment, type Rhythm, record, slotOf, view } from "../src/initiative/attention/rhythm"
 import { AttentionStore } from "../src/initiative/attention/store"
 import type { Candidate, Signal } from "../src/initiative/attention/types"
-import { sqlStorage } from "./sql-shim"
+import { USER_STEPS } from "../src/user/schema"
+import { sqlWith } from "./sql-shim"
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -249,7 +250,7 @@ function keenAppetite(): Appetite {
 
 describe("store", () => {
   test("a redelivered batch counts once, and outcomes survive a new object", () => {
-    const sql = sqlStorage()
+    const sql = sqlWith(USER_STEPS)
     const store = new AttentionStore(sql)
     const batch: Signal[] = Array.from({ length: 12 }, (_, i) => ({ kind: "burst", id: `b${i}`, room: "r1", at: MON + i * DAY + 9 * HOUR }))
     store.observe(batch, MON + 12 * DAY, NY)

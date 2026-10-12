@@ -1,7 +1,8 @@
 import type { AgentSlug } from "@yuki/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { RoomLog } from "../src/room/log"
-import { migrate } from "../src/room/schema"
+import { ROOM_STEPS } from "../src/room/schema"
+import { migrate } from "@yuki/durable/migrate"
 import { RoomWorkspace, runCall, type WorkspaceCall } from "../src/room/workspace"
 
 const MEMBERS = ["bob", "ada", "cy"] as AgentSlug[]
@@ -10,7 +11,7 @@ export class WorkspaceDO extends DurableObject {
 	private ws: RoomWorkspace
 	constructor(ctx: DurableObjectState, env: unknown) {
 		super(ctx, env as never)
-		migrate(ctx.storage)
+		migrate(ctx.storage, ROOM_STEPS)
 		this.ws = new RoomWorkspace(ctx.storage, new RoomLog(ctx.storage))
 	}
 	async call(slug: AgentSlug, lead: boolean, call: WorkspaceCall) {
