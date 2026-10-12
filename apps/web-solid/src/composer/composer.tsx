@@ -179,7 +179,8 @@ export function Composer(props: ComposerProps) {
     if (!textFits(text)) {
       sendWhenReady = true
       void controller.addAttachments([textFile(text)])
-      return void store.reset()
+      // Only the text leaves the box: the pictures already there go with the send.
+      return void store.setText("")
     }
     // Every attachment is already uploaded: the send names the uploads, and the message shows
     // the blob URLs until the room's copy arrives.
