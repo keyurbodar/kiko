@@ -7,8 +7,9 @@ Suite: `fanout`. Flags: `model: true`, `human: true`.
 ## Sub-features
 
 - A warm-up turn runs one search so later timings are not skewed by cold start.
-- A fan turn asks for at least 15 topics (for example "latest stable Bun version", "latest Rust stable release") in one message. The suite counts calls and measures wall time against the sum of call times.
-- Pass: `calls >= 15`, `wall/sum <= 0.6` (calls overlapped), and wall time under 60 s for the fan.
+- Two fan turns, one with 20 topics and one with 30. Calls are counted from `composio.call.composio_search_*`, excluding `search_tools`. The warm-up is printed but not asserted.
+- Pass for each fan: `calls >= 15`, `wall/sum < 0.6` (calls overlapped), wall time under 60 s, and no composio or tool error counter.
+- Cleanup deletes the rooms and disconnects Composio.
 
 ## How to get to it (user POV)
 
@@ -22,7 +23,7 @@ Suite: `fanout`. Flags: `model: true`, `human: true`.
 bun yuki verify fanout --url http://localhost:8787
 ```
 
-Required in the shell: `COMPOSIO_API_KEY`, and optionally `YUKI_COMPOSIO_MODEL` (defaults to `opencode-go/muse-spark-1.3-contributor`). `human: true`, so it runs only by name. It spends real Composio and model quota; say so before running it.
+Required in the shell: `COMPOSIO_API_KEY` and `OPENCODE_API_KEY`, and optionally `YUKI_COMPOSIO_MODEL` (defaults to `opencode-go/muse-spark-1.3-contributor`). `human: true`, so it runs only by name. It spends real Composio and model quota; say so before running it.
 
 ## Gotchas
 

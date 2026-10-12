@@ -3,15 +3,14 @@ import type { AgentSlug, Sender } from "@yuki/protocol"
 import { ancestors, region, ROOM_SHAPE } from "@yuki/memory/optmem"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
-import { migrate } from "../src/room/schema"
-import { Life, MAX_PINS } from "@yuki/memory/life"
+import { ROOM_STEPS } from "../src/room/schema"
+import { Life, LIFE_STEPS, MAX_PINS } from "@yuki/memory/life"
 import { MemoryNaps } from "../src/room/memory-naps"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
 
 function room() {
-  const sql = sqlStorage()
+  const sql = sqlWith(ROOM_STEPS)
   const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-  migrate(storage)
   let clock = Date.UTC(2026, 8, 1)
   const log = new RoomLog(storage, () => (clock += 60_000))
   const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) })
@@ -130,7 +129,7 @@ test("a settled stretch of eight pages rolls up into the user's life once", asyn
 })
 
 function life() {
-  const sql = sqlStorage()
+  const sql = sqlWith(LIFE_STEPS)
   const settings = new Map<string, string>()
   return new Life(sql, (fn) => fn(), { get: (k) => settings.get(k) ?? null, set: (k, v) => void settings.set(k, v) })
 }

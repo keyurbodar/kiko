@@ -4,13 +4,12 @@ import { region, ROOM_SHAPE } from "@yuki/memory/optmem"
 import { hitId, mergeRecall, tagHits } from "../src/agent/recall"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"
-import { migrate } from "../src/room/schema"
-import { sqlStorage } from "./sql-shim"
+import { ROOM_STEPS } from "../src/room/schema"
+import { sqlWith } from "./sql-shim"
 
 function room() {
-  const sql = sqlStorage()
+  const sql = sqlWith(ROOM_STEPS)
   const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
-  migrate(storage)
   let clock = Date.UTC(2026, 8, 1)
   const log = new RoomLog(storage, () => (clock += 60_000))
   const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) })

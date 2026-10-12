@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test"
 import { applyOps, candidates, captureActive, captureQuestions, captureWithJudge, DEFAULT_POLICY, mergePolicy, parseCapture } from "@yuki/memory/capture"
 import type { Answer, Judge, Question } from "@yuki/memory/judge"
-import { CARD_MAX, Life } from "@yuki/memory/life"
-import { sqlStorage } from "./sql-shim"
+import { CARD_MAX, LIFE_STEPS, Life } from "@yuki/memory/life"
+import { sqlWith } from "./sql-shim"
 
-function life(sql = sqlStorage()) {
+function life(sql = sqlWith(LIFE_STEPS)) {
   const settings = new Map<string, string>()
   return new Life(sql, (fn) => fn(), { get: (k) => settings.get(k) ?? null, set: (k, v) => void settings.set(k, v) })
 }

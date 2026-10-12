@@ -7,14 +7,14 @@ Suites: `files` (upload and dedupe), `file-tools` (agent reads and writes files)
 ## Sub-features
 
 - **files**: alice uploads `notes/a.txt` and the room gets a file event with the uploaded id. Uploading the same bytes again to the same path yields a new event only when the content hash differs; the repeat upload emits nothing (`expectNone`). The suite's size constant is 30,000,000 bytes.
-- **file-tools**: the agent's file tools read and write files in a room. The suite is `model: true`.
-- **attachments**: an upload is pending until a message sends it. The dev sweep at `api/dev/agent/pending` (cutoff 25 hours) removes stale pending uploads; a swept upload answers 404 and a sent attachment still answers 200.
+- **file-tools**: the agent's file tools read, write, edit, list, move, copy, and remove files in a room, and fetch web pages into the chat. It also checks that a copy to `/home` is reported saved. The suite is `model: true` and needs `OPENCODE_API_KEY`.
+- **attachments**: an upload is pending until a message sends it. The dev sweep at `api/dev/agent/pending` ages uploads past the 24 hour TTL (the suite ages them 25 hours) and removes stale pending uploads; a swept upload answers 404 and a sent attachment still answers 200.
 
 ## How to get to it (user POV)
 
 1. Open a chat and attach a small text file. It appears in the composer.
 2. Send. The file appears in the chat.
-3. Attach the same bytes again. Nothing new is posted for the repeat.
+3. Attach the same bytes again. A new message posts with a new copy. Dedupe by content hash applies only to uploads to the same path, not to chat attachments.
 4. Leave an attachment unsent for a long time. It is cleared; the message you sent keeps its file.
 
 ## Driving it with the yuki CLI

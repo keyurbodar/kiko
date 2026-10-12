@@ -4,13 +4,11 @@ import { INITIATIVE_RUN, InitiativeEngine, REMINDER_RUN, type WakeInput } from "
 import { slotOf } from "../src/initiative/attention/rhythm"
 import type { SignalBatch } from "../src/room/signals"
 import type { WakeResult } from "../src/room/wake"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
+import { USER_STEPS } from "../src/user/schema"
 
 function world(answer: WakeResult = "delivered") {
-  const sql = sqlStorage()
-  sql.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-  sql.exec("CREATE TABLE IF NOT EXISTS chat_tasks (room_id TEXT PRIMARY KEY, tasks TEXT NOT NULL)")
-  sql.exec("CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, status TEXT NOT NULL, last_fired INTEGER)")
+  const sql = sqlWith(USER_STEPS)
   const loops = new Loops(sql, (fn) => fn())
   const wakes: WakeInput[] = []
   const counts: Record<string, number> = {}
@@ -74,7 +72,7 @@ test("a promise whose reminder just fired is not nudged until that run reports, 
   const opened = loops.open({ kind: "commitment", owner: "ada", source: "tool", certainty: "explicit", text: "bring the passport checklist", room: "r1", due: new Date(Date.now() - 3_600_000).toISOString() })
   if (!opened.ok) throw new Error("open failed")
   engine.link("rem1", opened.id)
-  sql.exec("INSERT INTO reminders (id, status, last_fired) VALUES ('rem1', 'done', ?)", Date.now())
+  sql.exec("INSERT INTO reminders (id, text, due_utc, tz, room_id, target, created_by, status, last_fired, created_at) VALUES ('rem1', 'taxes', 0, 'UTC', 'r1', 'yuki', 'human', 'done', ?, 0)", Date.now())
   engine.devAge(86_400_000)
   engine.devRhythm("now")
   await engine.pass()
@@ -88,7 +86,7 @@ test("a promise whose reminder just fired is not nudged until that run reports, 
   const kept = loops.open({ kind: "commitment", owner: "ada", source: "tool", certainty: "explicit", text: "send the dentist list", room: "r1" })
   if (!kept.ok) throw new Error("open failed")
   engine.link("rem2", kept.id)
-  sql.exec("INSERT INTO reminders (id, status, last_fired) VALUES ('rem2', 'done', ?)", Date.now())
+  sql.exec("INSERT INTO reminders (id, text, due_utc, tz, room_id, target, created_by, status, last_fired, created_at) VALUES ('rem2', 'taxes', 0, 'UTC', 'r1', 'yuki', 'human', 'done', ?, 0)", Date.now())
   await engine.signals({ ...result("ok"), signals: [{ ...result("ok").signals[0]!, occurrence: "rem2" }] })
   expect(loops.get(kept.id)!.status).toBe("done")
 })

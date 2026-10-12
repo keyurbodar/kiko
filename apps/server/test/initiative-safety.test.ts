@@ -4,12 +4,13 @@ import { Loops } from "@yuki/memory/loops"
 import { INITIATIVE_RUN, InitiativeEngine, type WakeInput } from "../src/initiative/engine"
 import { Initiative } from "../src/initiative/initiative"
 import type { Level } from "../src/initiative/attention/types"
-import { sqlStorage } from "./sql-shim"
+import { sqlWith } from "./sql-shim"
+import { USER_STEPS } from "../src/user/schema"
 
 const base = { kind: "intention" as const, owner: "human", source: "tool" as const }
 
 function world(opts: { level?: Level; titles?: Record<string, string | null>; judged?: boolean } = {}) {
-  const sql = sqlStorage()
+  const sql = sqlWith(USER_STEPS)
   sql.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   sql.exec("CREATE TABLE IF NOT EXISTS chat_tasks (room_id TEXT PRIMARY KEY, tasks TEXT NOT NULL)")
   sql.exec("CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, status TEXT NOT NULL, last_fired INTEGER)")

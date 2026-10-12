@@ -36,14 +36,6 @@ export class Mail {
 		private readonly now: () => number = Date.now,
 	) {
 		this.sql = storage.sql
-		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_chains (slug TEXT PRIMARY KEY, root_id TEXT NOT NULL, hop INTEGER NOT NULL, next_root_id TEXT, next_hop INTEGER, origin TEXT, next_origin TEXT)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS root_counts (root_id TEXT PRIMARY KEY, deliveries INTEGER NOT NULL, tripped INTEGER NOT NULL DEFAULT 0, at INTEGER)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS agent_sends (id TEXT PRIMARY KEY, send TEXT NOT NULL, at INTEGER)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS autonomous_runs (id INTEGER PRIMARY KEY CHECK (id = 1), day TEXT NOT NULL, runs INTEGER NOT NULL)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS stopped_roots (root_id TEXT PRIMARY KEY, at INTEGER)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_refused (id TEXT PRIMARY KEY, at INTEGER NOT NULL)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS auto_taken (id TEXT PRIMARY KEY, day TEXT NOT NULL)")
-		this.sql.exec("CREATE TABLE IF NOT EXISTS mail_queue (n INTEGER PRIMARY KEY, sender TEXT NOT NULL, send TEXT NOT NULL, recipient TEXT)")
 	}
 
 	pending(): QueuedMail[] {

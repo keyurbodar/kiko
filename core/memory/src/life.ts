@@ -1,4 +1,4 @@
-import { type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, region, type Span, Tree } from "./optmem"
+import { type Item, LIFE_SHAPE, LINE_BYTES, napPrompt, region, type Span, type Step, Tree, treeSteps } from "./optmem"
 
 export const MAX_PINS = 10
 export const CARD_MAX = 12
@@ -33,6 +33,28 @@ export const norm = (text: string) =>
 
 export const keywords = (text: string): string[] => [...new Set(norm(text).split(" ").filter((w) => w.length >= 3 && !STOP.has(w)))]
 
+const LIFE_TREE = "life_tree"
+
+// The life log's tables, with its tree's. Its object's schema list spreads these.
+export const LIFE_STEPS: Step[] = [
+  `CREATE TABLE IF NOT EXISTS life (
+    pos INTEGER PRIMARY KEY,
+    at INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    norm TEXT NOT NULL,
+    pinned INTEGER NOT NULL DEFAULT 0,
+    redacted INTEGER NOT NULL DEFAULT 0,
+    ref TEXT NOT NULL DEFAULT '',
+    superseded_by INTEGER,
+    card TEXT
+  )`,
+  "CREATE INDEX IF NOT EXISTS life_norm ON life (norm)",
+  "CREATE INDEX IF NOT EXISTS life_ref ON life (ref)",
+  "CREATE VIRTUAL TABLE IF NOT EXISTS life_fts USING fts5(text)",
+  ...treeSteps(LIFE_TREE),
+]
+
 export class Life {
   readonly tree: Tree
 
@@ -41,22 +63,7 @@ export class Life {
     private readonly transaction: <T>(fn: () => T) => T,
     private readonly settings: { get(key: string): string | null; set(key: string, value: string): void },
   ) {
-    sql.exec(`CREATE TABLE IF NOT EXISTS life (
-      pos INTEGER PRIMARY KEY,
-      at INTEGER NOT NULL,
-      text TEXT NOT NULL,
-      source TEXT NOT NULL DEFAULT '',
-      norm TEXT NOT NULL,
-      pinned INTEGER NOT NULL DEFAULT 0,
-      redacted INTEGER NOT NULL DEFAULT 0,
-      ref TEXT NOT NULL DEFAULT '',
-      superseded_by INTEGER,
-      card TEXT
-    )`)
-    sql.exec("CREATE INDEX IF NOT EXISTS life_norm ON life (norm)")
-    sql.exec("CREATE INDEX IF NOT EXISTS life_ref ON life (ref)")
-    sql.exec("CREATE VIRTUAL TABLE IF NOT EXISTS life_fts USING fts5(text)")
-    this.tree = new Tree(sql, "life_tree", LIFE_SHAPE, (lo, hi) => this.items(lo, hi))
+    this.tree = new Tree(sql, LIFE_TREE, LIFE_SHAPE, (lo, hi) => this.items(lo, hi))
   }
 
   count(): number {

@@ -31,9 +31,7 @@ export type SoulWrite = { ok: true; soul: Soul } | { ok: false; code: "conflict"
 type Row = { body: string; sha: string; at: number }
 
 export class Souls {
-  constructor(private readonly sql: SqlStorage) {
-    sql.exec("CREATE TABLE IF NOT EXISTS souls (slug TEXT PRIMARY KEY, body TEXT NOT NULL, sha TEXT NOT NULL, at INTEGER NOT NULL)")
-  }
+  constructor(private readonly sql: SqlStorage) {}
 
   private row(slug: string): Row | null {
     return this.sql.exec<Row>("SELECT body, sha, at FROM souls WHERE slug = ?", slug).toArray()[0] ?? null

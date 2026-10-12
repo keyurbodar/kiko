@@ -76,14 +76,6 @@ export class Outbox {
     private readonly now: () => number = Date.now,
   ) {
     this.sql = storage.sql
-    this.sql.exec(`CREATE TABLE IF NOT EXISTS outbox (
-      run_id TEXT PRIMARY KEY,
-      attempt INTEGER NOT NULL,
-      cursor INTEGER NOT NULL,
-      blocks TEXT NOT NULL,
-      posted INTEGER NOT NULL,
-      ended INTEGER NOT NULL DEFAULT 0
-    ) STRICT`)
   }
 
   private nextQuiet = false

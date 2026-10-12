@@ -6,7 +6,7 @@ Suites: `room-sync` (room sockets, hibernation, resume), `user-sync` (user socke
 
 ## Sub-features
 
-- **room-sync**: a room socket hibernates after about 12 s idle (`YUKI_HIBERNATE_MS`, default 12000); sockets stay open. A laptop reconnects with `lastSeq` and receives only later events. A `read` at seq 6 is sent.
+- **room-sync**: a repeated send returns the same ack, and edit and react broadcast. The suite then idles 12 s (`YUKI_HIBERNATE_MS` changes only this wait; the server sets no idle timer, and workerd evicts after about 10 s) and checks the sockets still deliver. A laptop reconnects with `lastSeq` and receives only later events. A `read` at seq 6 is sent. A `hello` with `lastSeq` ahead of the log gets a full snapshot instead of a replay.
 - **user-sync**: two devices (`a`, `b`) for one user. A chat created on `a` appears on `b`. A reconnect with a recent `lastSeq` replays the events after it. Deleting the two chats emits `chat_removed` on `b`.
 
 ## How to get to it (user POV)
@@ -24,10 +24,11 @@ bun yuki verify room-sync --url http://localhost:8787
 bun yuki verify user-sync --url http://localhost:8787
 ```
 
-Neither suite is `model: true`. Set `YUKI_HIBERNATE_MS` only when debugging; the default is the real eviction window.
+Neither suite is `model: true` or `human: true`. Both need a dev session. `YUKI_HIBERNATE_MS` changes only the suite's idle wait, not the server.
 
 ## Gotchas
 
 - `room-sync` depends on workerd evicting an idle object. If the runtime keeps it awake, the hibernate check passes without proving hibernation. Say so in the evidence.
 - The resumed socket uses `lastSeq: 4`. A replay that returns everything, not just events after 4, is a fail.
-- `user-sync` waits for two `chat_removed` events. A missing one times out with the event kinds seen so far.
+- `user-sync` waits for two `chat_removed` events. A missing one times out naming the match it waited for, not the event kinds it saw.
+- A reconnect that is more than 500 events behind, or ahead of the log, gets a snapshot, not a replay. The suite checks the ahead case.

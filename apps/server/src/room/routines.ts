@@ -11,7 +11,6 @@ export class RoomRoutines {
 		private readonly sql: SqlStorage,
 		private readonly meta: { get(key: string): string | null; set(key: string, value: string): void },
 	) {
-		sql.exec("CREATE TABLE IF NOT EXISTS routine_inflight (routine_id TEXT NOT NULL, occurrence TEXT NOT NULL, slug TEXT NOT NULL, seq INTEGER NOT NULL, started INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (routine_id, occurrence))")
 	}
 
 	set(list: readonly RoomRoutine[]): void {

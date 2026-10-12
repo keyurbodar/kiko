@@ -11,8 +11,6 @@ const under = (path: string, p: string) => path === p || path.startsWith(`${p}/`
 
 export class Team {
   constructor(private readonly sql: SqlStorage) {
-    sql.exec("CREATE TABLE IF NOT EXISTS team_doing (slug TEXT PRIMARY KEY, doing TEXT NOT NULL, at INTEGER NOT NULL)")
-    sql.exec("CREATE TABLE IF NOT EXISTS team_leases (path TEXT PRIMARY KEY, slug TEXT NOT NULL, at INTEGER NOT NULL)")
   }
 
   doing(slug: AgentSlug, text: string, now: number): void {

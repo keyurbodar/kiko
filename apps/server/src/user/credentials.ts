@@ -39,18 +39,6 @@ function last4(credential: Credential): string {
   return credential.key.slice(-4)
 }
 
-function migrate(sql: SqlStorage): void {
-  sql.exec(`CREATE TABLE IF NOT EXISTS credentials (
-    provider_id TEXT PRIMARY KEY,
-    kind TEXT NOT NULL,
-    last4 TEXT NOT NULL,
-    kek_version INTEGER NOT NULL,
-    iv BLOB NOT NULL,
-    ciphertext BLOB NOT NULL,
-    updated_at INTEGER NOT NULL
-  )`)
-}
-
 type Row = { kind: string; kek_version: number; iv: ArrayBuffer; ciphertext: ArrayBuffer }
 
 export class CredentialVault implements CredentialStore {
@@ -61,7 +49,6 @@ export class CredentialVault implements CredentialStore {
     private readonly keyring: Keyring,
     private readonly userId: string,
   ) {
-    migrate(sql)
   }
 
   async read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {

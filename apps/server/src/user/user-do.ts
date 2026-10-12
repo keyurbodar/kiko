@@ -36,7 +36,8 @@ import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
 import { roomRoutine, type RoutineResult } from "./routines"
-import { migrate } from "./schema"
+import { migrate } from "@yuki/durable/migrate"
+import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, roomStub } from "../lib/names"
@@ -84,7 +85,7 @@ export class UserDO extends DurableObject<Env> {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
     this.sql = ctx.storage.sql
     void ctx.blockConcurrencyWhile(async () => {
-      migrate(this.sql)
+      migrate(ctx.storage, USER_STEPS)
       this.alarms = createAlarms(ctx)
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
       this.souls = new Souls(this.sql)
@@ -852,7 +853,6 @@ export class UserDO extends DurableObject<Env> {
     await this.ctx.storage.put(DELETING, generation)
     await this.ctx.storage.deleteAlarm()
     closeSockets(this.ctx)
-    this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
     this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) SELECT room_id FROM chats UNION SELECT room_id FROM rooms")
     const rooms = this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms ORDER BY room_id").toArray().map((r) => r.room_id)
     return { generation, rooms }
@@ -874,7 +874,6 @@ export class UserDO extends DurableObject<Env> {
 
   async roomDeleted(roomId: RoomId): Promise<number> {
     if (await isWiped(this.ctx.storage)) return 0
-    this.sql.exec("CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)")
     this.sql.exec("DELETE FROM deletion_rooms WHERE room_id = ?", roomId)
     return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM deletion_rooms").one().n
   }
