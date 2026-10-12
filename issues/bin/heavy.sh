@@ -4,6 +4,12 @@
 # two machine-wide slots is free. Every unit and the landing lane share the same two slots, so
 # at most two builds run at once and the machine never stalls. A slot is held at most HEAVY_MAX_S
 # seconds (default two hours), so a forgotten sleep or server cannot hold it for good.
+# /tmp is a small tmpfs. A full one breaks every build with ENOSPC, so refuse early and say why.
+free_kb=$(df -Pk /tmp | awk 'NR==2 {print $4}')
+if [ "${free_kb:-0}" -lt 1048576 ]; then
+  echo "heavy.sh: /tmp has less than 1 GB free. Find the biggest entries with: du -sh /tmp/* | sort -h | tail" >&2
+  exit 75
+fi
 dir="${XDG_RUNTIME_DIR:-/tmp}/yuki-heavy"
 mkdir -p "$dir"
 while :; do
