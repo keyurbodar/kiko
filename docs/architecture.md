@@ -1520,6 +1520,7 @@ type Origin = "human" | "routine" | "auto"
 
 - The Worker hashes the token and reads one D1 row, `hooks(token_hash -> user_id, routine_id)`, then calls `UserDO.routineHook`, which checks the token against the routine's own hash, matches the JSON body against at most 8 conditions (`matchWebhook`), and fires the routine. The Worker parses nothing.
 - **DEVIATION D9** from AGENTS.md rule 5: a webhook has no session, so the Worker builds the object name from a user id in a D1 row that `UserDO` wrote when the human's routine was made. The request never supplies an id.
+- **DEVIATION, dev only** from AGENTS.md rule 5: the dev residue and rerun routes in `auth/account-route.ts` take the session's user. Without a session, they accept the path id only when `deleted_user` holds it, because deletion revokes the sessions and wipes the objects, so the path reaches nothing live.
 - **No token rotation.** ASSUMPTION: there is no rotate action. `updateRoutine` mints a token only when a routine becomes a webhook, and editing a webhook keeps its token, because a new token would break a URL the human already shared (U33).
 - A sender's own delivery id (`x-github-delivery`, `idempotency-key`, `x-request-id`), or else the body's hash within the same minute, makes a retried post run once. The body is read with a 64 KB cap, so a chunked post cannot grow past it.
 - The run gets the post's text after its instructions.
@@ -1746,7 +1747,7 @@ The reaper is the wakeup `kernel_reap` in `alarm.ts`. It is set when a browser i
 | idle for 5 min, or 30 min old | delete |
 | otherwise | keep until the earlier of those two times |
 
-A delete that finds a 404 counts as done. Any other failure keeps the row and the wakeup retries. Kernel deletes a browser on its own after 600 s without activity and saves the profile then too, which is the net if a wakeup is missed. Account deletion deletes the browser and then the profile before the object's storage goes (`beginDeletion`). A Kernel failure there is logged and does not stop the deletion.
+A delete that finds a 404 counts as done. Any other failure keeps the row and the wakeup retries. Kernel deletes a browser on its own after 600 s without activity and saves the profile then too, which is the net if a wakeup is missed. Account deletion deletes the browser and then the profile before the object's storage goes (`UserDO.deleteAll`, in the wipe's shutdown step, because the lease is read from those rows). It runs only when the jobs finish, never on a start that is rolled back. A Kernel failure there is logged and does not stop the deletion.
 
 ### 27.4 Connecting
 
