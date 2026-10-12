@@ -10,10 +10,10 @@ export type CapturePolicy = { idleMs: number; jevDelayMs: number; capture: Captu
 export const DEFAULT_POLICY: CapturePolicy = { idleMs: 60_000, jevDelayMs: 3_000, capture: "auto" }
 
 // How sure the judge must be. Scores are probabilities.
-export const WORTH_MIN = 0.6
-export const PRIVATE_MAX = 0.5
-export const CARD_MIN = 0.7
-export const RELATION_MIN = 0.5
+const WORTH_MIN = 0.6
+const PRIVATE_MAX = 0.5
+const CARD_MIN = 0.7
+const RELATION_MIN = 0.5
 export const RERANK_MIN = 0.3
 export const RECALL_MAX = 6
 

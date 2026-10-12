@@ -88,7 +88,7 @@ test("deleting an old message rebuilds only the summaries above its turn", async
   const before = prompts.length
   log.deleteMessages([first.id], human)
   await napAll()
-  const above = 4 // the nodes above one turn: 8, 16, 32 and 64 turns
+  const above = 3 // the nodes above one turn: 16, 32 and 64 turns
   expect(prompts.length - before).toBe(above)
   expect(prompts.at(-above)).not.toContain("passport")
 })

@@ -105,6 +105,7 @@ export type HostOptions = {
   progress?: () => RunProgress | null
   onIdle?: () => void
   onTimeout?: () => void | Promise<void>
+  heartbeatMs?: number
   shortBrief?: (brief: string) => string
   onReset?: () => void
   autoBudgetMs?: () => Promise<number>
@@ -159,6 +160,7 @@ export class AgentHost {
   readonly workers: Workers
   private readonly alarms: Alarms
   private opened?: Promise<Opened>
+  private readonly heartbeatMs: number
   private failures = 0
   private watchingIdle = false
   private resumed = false
@@ -169,6 +171,7 @@ export class AgentHost {
     private readonly ctx: DurableObjectState,
     private readonly options: HostOptions,
   ) {
+    this.heartbeatMs = Math.min(options.heartbeatMs ?? HEARTBEAT_MS, HEARTBEAT_MS)
     this.inbox = new Inbox(ctx.storage)
     this.workers = new Workers(ctx.storage, { deliver: (envelope) => this.receive([envelope], ""), origin: () => this.origin(), onChange: (running) => options.onWorkers?.(running, this.inbox.hasOpen()) })
     this.alarms = createAlarms(ctx)
@@ -207,7 +210,7 @@ export class AgentHost {
         this.failures = 0
       }
       this.inbox.release()
-      const delay = Math.min(RETRY_MS * 2 ** (this.failures - 1), HEARTBEAT_MS)
+      const delay = Math.min(RETRY_MS * 2 ** (this.failures - 1), this.heartbeatMs)
       await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + delay)
     }
   }
@@ -485,7 +488,7 @@ export class AgentHost {
       if (this.inbox.hasOpen()) await this.alarms.setWakeup(INBOX_WAKEUP, Date.now())
       return
     }
-    await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + HEARTBEAT_MS)
+    await this.alarms.setWakeup(HEARTBEAT_WAKEUP, Date.now() + this.heartbeatMs)
     if (talking) this.watchIdle(harness, root)
   }
 

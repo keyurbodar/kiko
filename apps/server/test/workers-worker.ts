@@ -71,6 +71,7 @@ type Body =
 
 export class T extends AgentDO {
   protected override readonly hostOptions: Partial<HostOptions> = {
+    heartbeatMs: 500,
     onOpen: async () => {
       await this.ctx.storage.put("opens", ((await this.ctx.storage.get<number>("opens")) ?? 0) + 1)
     },
