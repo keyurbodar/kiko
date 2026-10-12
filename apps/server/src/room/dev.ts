@@ -9,7 +9,8 @@ export class RoomDev {
 	constructor(private readonly d: DevDeps) {}
 
 	private impl(): Promise<RoomDevImpl> {
-		return (this.#impl ??= loadRoomDev().then((m) => new m.RoomDev(this.d)))
+		if (!this.#impl) this.#impl = loadRoomDev().then((m) => new m.RoomDev(this.d))
+		return this.#impl
 	}
 
 	async seed(turns: { from: string; text: string }[]): Promise<number> {

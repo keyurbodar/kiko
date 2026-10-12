@@ -1,4 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
+import type { Harness } from "@earendil-works/pi-durable"
 import type { Opened } from "@yuki/agent/host"
 import type { Work } from "@yuki/agent/workers"
 import { isWiped } from "@yuki/durable/wipe"
@@ -9,13 +10,13 @@ import { DEV_BUDGET_KEY, DEV_CLASSIC_KEY, DEV_FAKE_KEY, DEV_INITIATIVE_KEY } fro
 
 export type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number }
 
-// What a dev method needs from AgentDO. The object passes a small adapter, since its storage, host, and
-// home are reachable only from inside it.
+// What a dev method needs from AgentDO. AgentDO exposes the Durable Object state and its own helpers here,
+// so the bodies can live in this dev-only module.
 export interface AgentDevHost {
   storage: DurableObjectStorage
   home(): AgentHome | null
-  open(): Promise<Opened>
-  usageOf(harness: Opened["harness"]): Promise<Usage>
+  opened(): Promise<Opened>
+  usageOf(harness: Harness): Promise<Usage>
   carried(): Promise<Usage>
   workers(): Work[]
 }
@@ -25,14 +26,10 @@ export async function devInitiative(host: AgentDevHost): Promise<string | null> 
   return (await host.storage.get<string>(DEV_INITIATIVE_KEY)) ?? null
 }
 
-export async function devClassic(host: AgentDevHost): Promise<void> {
-  await host.storage.put(DEV_CLASSIC_KEY, true)
-}
-
 export async function devUsage(host: AgentDevHost): Promise<Usage> {
   if (await isWiped(host.storage)) throw new Error("this agent was deleted")
   if (!host.home()) return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-  const { harness } = await host.open()
+  const { harness } = await host.opened()
   const now = await host.usageOf(harness)
   const carried = await host.carried()
   return { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite }
@@ -41,7 +38,7 @@ export async function devUsage(host: AgentDevHost): Promise<Usage> {
 export async function devTrace(host: AgentDevHost): Promise<{ kind: string; tool?: string; chars: number; text?: string }[]> {
   if (await isWiped(host.storage)) throw new Error("this agent was deleted")
   if (!host.home()) return []
-  const { root } = await host.open()
+  const { root } = await host.opened()
   const view = await root.context(BACKGROUND_CONTEXT)
   return view.entries.map((e) => {
     const m = e.model?.[0] as { content?: string | { type: string; text?: string; name?: string; thinking?: string }[] } | undefined
@@ -50,6 +47,10 @@ export async function devTrace(host: AgentDevHost): Promise<{ kind: string; tool
     const text = parts.map((p) => p.text ?? "").join("").slice(0, 300)
     return { kind: e.kind, ...(tool ? { tool } : {}), chars: parts.reduce((n, p) => n + (p.text?.length ?? 0) + (p.thinking?.length ?? 0), 0), ...(text ? { text } : {}) }
   })
+}
+
+export async function devClassic(host: AgentDevHost): Promise<void> {
+  await host.storage.put(DEV_CLASSIC_KEY, true)
 }
 
 export async function devBudget(host: AgentDevHost, ms: number): Promise<void> {
