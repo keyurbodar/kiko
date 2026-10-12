@@ -1,6 +1,5 @@
 import { ALARM_STEPS } from "@yuki/durable/alarm"
 import { addColumn, type Step } from "@yuki/durable/migrate"
-import { fileIndexSteps, ROOM_TABLES } from "../files/file-index"
 import { treeSteps } from "@yuki/memory/optmem"
 
 // The room's tables, in one list. An object at version N runs only the steps after the first N. A step is
@@ -198,6 +197,7 @@ export const ROOM_STEPS: Step[] = [
 	...treeSteps("mem_tree"),
 	"CREATE TABLE IF NOT EXISTS team_doing (slug TEXT PRIMARY KEY, doing TEXT NOT NULL, at INTEGER NOT NULL)",
 	"CREATE TABLE IF NOT EXISTS team_leases (path TEXT PRIMARY KEY, slug TEXT NOT NULL, at INTEGER NOT NULL)",
-	...fileIndexSteps(ROOM_TABLES),
+	// ws_files is in version 1 above. The index needs only its directory table here.
+	"CREATE TABLE IF NOT EXISTS ws_dirs (path TEXT PRIMARY KEY)",
 	...ALARM_STEPS,
 ]

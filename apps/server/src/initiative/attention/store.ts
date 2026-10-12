@@ -5,10 +5,7 @@ import type { Kind, Signal } from "./types"
 const SEEN_FOR = 7 * 86_400_000
 
 export class AttentionStore {
-  constructor(private readonly sql: SqlStorage) {
-    sql.exec("CREATE TABLE IF NOT EXISTS attention (name TEXT PRIMARY KEY, value TEXT NOT NULL)")
-    sql.exec("CREATE TABLE IF NOT EXISTS attention_seen (id TEXT PRIMARY KEY, at INTEGER NOT NULL)")
-  }
+  constructor(private readonly sql: SqlStorage) {}
 
   rhythm(): Rhythm {
     return this.#get("rhythm") ?? emptyRhythm()

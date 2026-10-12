@@ -133,6 +133,14 @@ export const USER_STEPS: Step[] = [
     PRIMARY KEY (extension, secret)
   )`,
   "CREATE TABLE IF NOT EXISTS deletion_rooms (room_id TEXT PRIMARY KEY)",
+  // The attention and initiative tables, created on demand by initiative/ before they joined this list.
+  "CREATE TABLE IF NOT EXISTS attention (name TEXT PRIMARY KEY, value TEXT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS attention_seen (id TEXT PRIMARY KEY, at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS initiative_marks (id TEXT PRIMARY KEY, surfaced INTEGER NOT NULL DEFAULT 0, ignored INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, last_at INTEGER)",
+  "CREATE TABLE IF NOT EXISTS initiative_wakes (id TEXT PRIMARY KEY, room TEXT NOT NULL, slug TEXT NOT NULL, kind TEXT NOT NULL, ids TEXT NOT NULL, at INTEGER NOT NULL, status TEXT NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS initiative_rooms (room_id TEXT PRIMARY KEY, human_at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS loop_reminders (reminder_id TEXT PRIMARY KEY, loop_id INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS initiative_briefed (loop_id INTEGER PRIMARY KEY, at INTEGER NOT NULL)",
   `CREATE TABLE IF NOT EXISTS composio (
     name TEXT PRIMARY KEY,
     kek_version INTEGER,
