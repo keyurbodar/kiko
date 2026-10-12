@@ -1,6 +1,6 @@
 import type { ComposioStatus } from "@yuki/protocol"
 import { CredentialError, checkApiKey } from "../../user/credentials"
-import { count } from "../../lib/dev-stats"
+import { count } from "../../lib/dev-guard"
 import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkKey, createSession, deleteSession, learnedSignature, listTools, sessionGone, type Target } from "./client"
 import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded } from "./learn"
 import type { ComposioStore, StoredTarget } from "./store"

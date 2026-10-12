@@ -1,7 +1,7 @@
 import { connect } from "@yuki/browser/cdp/browser"
 import { BROWSER } from "@yuki/browser/config"
 import type { BrowserSession, Tab } from "@yuki/browser/page/types"
-import { count } from "../../lib/dev-stats"
+import { count } from "../../lib/dev-guard"
 import type { LeasePort } from "./lease"
 
 export const IDLE_CLOSE_MS = 15_000

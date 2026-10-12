@@ -39,14 +39,13 @@ import { AgentHost, type AgentSetup, AUTO_RUN_BUDGET_MS, HEARTBEAT_WAKEUP, type 
 import type { Batch } from "@yuki/agent/inbox"
 import type { Work } from "@yuki/agent/workers"
 import { isWiped, storedRows, wipeStorage } from "@yuki/durable/wipe"
-import { count, instrument } from "../lib/dev-stats"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { jevPort, modelPort, pickDecider } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
 import { findProvider, pickJudge } from "../user/turn-context"
 
-import { DEV, loadAgentDev } from "../lib/dev-guard"
+import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
 

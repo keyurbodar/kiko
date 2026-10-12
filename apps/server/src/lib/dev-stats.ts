@@ -1,6 +1,5 @@
 // Under `wrangler dev` every object of one Worker shares one isolate, so this module-level table sees them all.
 
-import { DEV, devRequest, instrumentDev } from "./dev-guard"
 import type { DevCounterPort } from "./dev-stats-patch"
 
 const counters = new Map<string, number>()
@@ -27,12 +26,9 @@ const port: DevCounterPort = {
   },
 }
 
-export function instrument(ctx: DurableObjectState, kind: string): void {
-  instrumentDev(ctx, kind, port)
-}
+export { bump, port }
 
-export function rpc<T extends object>(stub: T, target: string): T {
-  if (!DEV) return stub
+export function proxyRpc<T extends object>(stub: T, target: string): T {
   return new Proxy(stub, {
     get(obj, key, receiver) {
       const value = Reflect.get(obj, key, receiver)
@@ -45,15 +41,10 @@ export function rpc<T extends object>(stub: T, target: string): T {
   })
 }
 
-export function count(key: string, n = 1): void {
-  if (DEV) bump(key, n)
-}
-
 const live = new Map<string, number>()
 
 // Records the most calls of one key running at once, as a counter that holds the peak until the next reset.
-export async function inFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
-  if (!DEV) return run()
+export async function trackInFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
   const now = (live.get(key) ?? 0) + 1
   live.set(key, now)
   counters.set(key, Math.max(counters.get(key) ?? 0, now))
@@ -64,10 +55,10 @@ export async function inFlight<T>(key: string, run: () => Promise<T>): Promise<T
   }
 }
 
-export function devStatsRoute(request: Request): Response | null {
+export function devStatsRoute(request: Request, local: boolean): Response | null {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/dev/stats")) return null
-  if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
+  if (!local) return Response.json({ error: "not found" }, { status: 404 })
   if (url.pathname === "/api/dev/stats/reset" && request.method === "POST") {
     settle()
     counters.clear()

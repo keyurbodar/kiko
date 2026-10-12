@@ -6,7 +6,7 @@ import { modelDecider } from "@yuki/browser/decide/model"
 import type { JevPort, ModelPort } from "@yuki/browser/decide/ports"
 import type { Decider } from "@yuki/browser/decide/types"
 import { jevRanker, lexicalRanker, type Ranker } from "@yuki/browser/plan/rank"
-import { count } from "../../lib/dev-stats"
+import { count } from "../../lib/dev-guard"
 
 /**
  * A decision is one option key, but Muse Spark thinks about 140 tokens even at minimal, and at 256 about 1 answer
