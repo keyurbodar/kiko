@@ -1021,6 +1021,8 @@
       ],
       "indexes": [
         "pending_at",
+        "pending_held",
+        "pending_seq",
         "sqlite_autoindex_pending_1"
       ]
     },

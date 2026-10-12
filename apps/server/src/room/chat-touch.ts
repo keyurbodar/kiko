@@ -65,12 +65,7 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 	}
 
 	const readSeq = log.readSeq()
-	const { unread } = sql
-		.exec<{ unread: number }>(
-			"SELECT count(*) AS unread FROM messages WHERE deleted_at IS NULL AND seq > ? AND json_extract(sender, '$.kind') != 'human'",
-			readSeq,
-		)
-		.one()
+	const unread = log.unread()
 	const stored = log.meta(HUMAN_HANDLE)
 	const handle = stored && !names.has(stored) ? stored : null
 	const mentions = sql

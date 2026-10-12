@@ -200,4 +200,8 @@ export const ROOM_STEPS: Step[] = [
 	// ws_files is in version 1 above. The index needs only its directory table here.
 	"CREATE TABLE IF NOT EXISTS ws_dirs (path TEXT PRIMARY KEY)",
 	...ALARM_STEPS,
+	// Every human send reads the burst window in send order (warnBusyAgents), so the window needs the seq index
+	// to stop at its first few rows, not sort every row. The start of the window needs held_until before at.
+	"CREATE INDEX IF NOT EXISTS pending_seq ON pending (seq)",
+	"CREATE INDEX IF NOT EXISTS pending_held ON pending (held_until, at)",
 ]
