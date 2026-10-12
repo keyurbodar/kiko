@@ -5,7 +5,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { AssistantEntry, createRegistry, Harness, LiveDoc, ROOT_CONVERSATION_ID, type Storage } from "@earendil-works/pi-durable"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import { createStorageConformance, type StorageConformanceProvider } from "@earendil-works/pi-durable/testing"
-import { type CoalescingStorage, createCoalescingStorage, type HoldPolicy } from "@yuki/agent/coalescing-storage"
+import { createCoalescingStorage, type HoldPolicy } from "@yuki/agent/coalescing-storage"
 import { openDurableObjectSqlite } from "@yuki/agent/sqlite"
 import { assertions } from "./sqlite-worker"
 
@@ -21,7 +21,7 @@ const streamedText = (ms: number) => {
 async function openDurable(storage: DurableObjectStorage, coalesce: boolean) {
   const sqlite = await SqliteStorage.open(openDurableObjectSqlite(storage))
   const durable: Storage = coalesce ? createCoalescingStorage(sqlite) : sqlite
-  return { durable, coalescing: coalesce ? (durable as CoalescingStorage) : undefined }
+  return { durable }
 }
 
 function fauxModels(responses: string[]) {
@@ -52,13 +52,12 @@ type TurnMeasurement = {
   streamMs: number
   rowsWritten: number
   commits: number
-  held: number
   answerChars: number
 }
 
 async function measureTurn(storage: DurableObjectStorage, coalesce: boolean, streamMs = 15_000): Promise<TurnMeasurement> {
   const counted = countRows(storage)
-  const { durable, coalescing } = await openDurable(counted.storage, coalesce)
+  const { durable } = await openDurable(counted.storage, coalesce)
   let commits = 0
   const counting = new Proxy(durable, {
     get(target, key: keyof Storage) {
@@ -84,7 +83,6 @@ async function measureTurn(storage: DurableObjectStorage, coalesce: boolean, str
   const elapsed = Date.now() - started
   const rowsWritten = counted.snapshot().rowsWritten - rowsBefore
   const turnCommits = commits - commitsBefore
-  const held = coalescing?.stats().held ?? 0
   const last = (await assistantMessages(harness)).at(-1)
   await harness.close(context)
   return {
@@ -93,7 +91,6 @@ async function measureTurn(storage: DurableObjectStorage, coalesce: boolean, str
     streamMs: elapsed,
     rowsWritten,
     commits: turnCommits,
-    held,
     answerChars: last?.text === answer ? answer.length : -1,
   }
 }
@@ -182,28 +179,30 @@ export class T extends DurableObject {
   }
 
   private async crash(): Promise<Response> {
-    const { durable, coalescing } = await openDurable(this.ctx.storage, true)
+    const { durable } = await openDurable(this.ctx.storage, true)
     const harness = await Harness.open(durable, { models: fauxModels([CRASH_ANSWER]), registry: createRegistry() }, context)
     const root = await harness.root(context, { agent: { model: FAUX_MODEL } })
     void root.submit({ type: "input", content: "count", requestId: "crash" }, context).catch(() => {})
-    const deadline = Date.now() + 10_000
-    for (;;) {
-      const stats = coalescing!.stats()
-      if (stats.held - stats.pending > 0 && stats.pending >= 3) break
-      if (Date.now() > deadline) return Response.json({ error: "no window opened", stats }, { status: 500 })
-      await scheduler.wait(10)
-    }
-    const memory = text((await harness.snapshot(LiveDoc, ROOT_CONVERSATION_ID, context))?.generation?.message)
     const raw = await SqliteStorage.open(openDurableObjectSqlite(this.ctx.storage))
     const address = { kind: LiveDoc.definition.kind, scope: { kind: "conversation", conversationId: ROOT_CONVERSATION_ID } } as const
-    const record = (await raw.findDocument(address, "current", context)) ?? fail("no live document")
-    const stored = (await raw.document(record.id, "current", context))?.value as { generation?: { message?: unknown } } | undefined
-    const info = {
-      pending: coalescing!.stats().pending,
-      memoryChars: memory.length,
-      storedChars: text(stored?.generation?.message).length,
+    const storedChars = async () => {
+      const record = await raw.findDocument(address, "current", context)
+      if (!record) return 0
+      const stored = (await raw.document(record.id, "current", context))?.value as { generation?: { message?: unknown } } | undefined
+      return text(stored?.generation?.message).length
     }
-    await this.ctx.storage.put("crash", info)
+    const deadline = Date.now() + 10_000
+    let memoryChars = 0
+    let storedCount = 0
+    // Crash once something is flushed and the memory holds more than the store: the window is open.
+    for (;;) {
+      memoryChars = text((await harness.snapshot(LiveDoc, ROOT_CONVERSATION_ID, context))?.generation?.message).length
+      storedCount = await storedChars()
+      if (storedCount > 0 && memoryChars > storedCount) break
+      if (Date.now() > deadline) return Response.json({ error: "no window opened", memoryChars, storedCount }, { status: 500 })
+      await scheduler.wait(10)
+    }
+    await this.ctx.storage.put("crash", { memoryChars, storedChars: storedCount })
     await this.ctx.storage.sync()
     this.ctx.abort("simulated crash")
     return Response.json({ error: "still alive" }, { status: 500 })

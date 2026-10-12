@@ -7,6 +7,7 @@ import type { FsEntry } from "../../room/files"
 import { baseName } from "../../room/files"
 import { DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S } from "../../files/bash"
 import { filesOf } from "../../files/room-fs"
+import { encodeBase64 } from "../../integrations/kernel/files"
 import { declareEffect } from "@yuki/agent/effects"
 
 export const FILES = "files"
@@ -50,12 +51,6 @@ type Saved = { changed: string[] }
 const roomPathOf = (api: Pick<ToolExecutionApi, "env">, path: string) => `/${getOrThrow(filesOf(api).roomPath(path))}`
 
 
-function base64(bytes: Uint8Array): string {
-  let binary = ""
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-  return btoa(binary)
-}
-
 export function size(bytes: number): string {
   if (bytes < 1024) return `${bytes} b`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kb`
@@ -95,7 +90,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
           if (entry.size > MAX_IMAGE_BYTES) return refused(`${args.path} is an image of ${size(entry.size)}, over the ${size(MAX_IMAGE_BYTES)} limit`)
           const bytes = await fs.bytesOf(entry)
           if (!bytes) return refused(`no file at ${args.path}`)
-          return { content: [{ type: "image" as const, data: base64(bytes), mimeType: entry.type }] }
+          return { content: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: entry.type }] }
         }
         if (entry.type === "application/pdf" || entry.path.toLowerCase().endsWith(".pdf")) {
           if (entry.size > MAX_PDF_BYTES) return refused(`${args.path} is a pdf of ${size(entry.size)}, over the ${size(MAX_PDF_BYTES)} limit`)

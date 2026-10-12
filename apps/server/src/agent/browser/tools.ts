@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai"
+import { Type, type Static } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ModelRef, section } from "@earendil-works/pi-durable"
 import { declareEffect } from "@yuki/agent/effects"
 import { BROWSER } from "@yuki/browser/config"
@@ -9,6 +9,7 @@ import { rankPassages, type Ranker } from "@yuki/browser/plan/rank"
 import { summarize } from "@yuki/browser/plan/summary"
 import { runTasks } from "@yuki/browser/worker/run"
 import type { Task, TaskResult } from "@yuki/browser/worker/types"
+import { encodeBase64 } from "../../integrations/kernel/files"
 import { count } from "../../lib/dev-guard"
 import type { BrowserConnection } from "./connection"
 import type { LeasePort } from "./lease"
@@ -38,12 +39,21 @@ export type BrowserToolDeps = {
 }
 
 export type TextResult = { content: { type: "text"; text: string }[]; isError: boolean }
-export type CallWrapper = (tool: string, run: (signal: AbortSignal) => Promise<string>) => (signal: AbortSignal | undefined) => Promise<TextResult>
 
 export const text = (value: string, isError = false): TextResult => ({ content: [{ type: "text", text: value }], isError })
 
 const StepSchema = Type.Object({
-  op: Type.Union(["click", "type", "select", "press", "scroll", "back", "hover", "wait", "upload"].map((op) => Type.Literal(op))),
+  op: Type.Union([
+    Type.Literal("click"),
+    Type.Literal("type"),
+    Type.Literal("select"),
+    Type.Literal("press"),
+    Type.Literal("scroll"),
+    Type.Literal("back"),
+    Type.Literal("hover"),
+    Type.Literal("wait"),
+    Type.Literal("upload"),
+  ]),
   id: Type.Optional(Type.Number({ description: "the control id, for click, type, select, hover, and upload" })),
   text: Type.Optional(Type.String({ description: "for type: the text to type. for wait: text that should appear on the page" })),
   gone: Type.Optional(Type.String({ description: "for wait: text that should disappear from the page" })),
@@ -56,19 +66,7 @@ const StepSchema = Type.Object({
   paths: Type.Optional(Type.Array(Type.String(), { description: "for upload: VM file paths from browser_files upload" })),
 })
 
-export type StepArgs = {
-  op: string
-  id?: number
-  text?: string
-  gone?: string
-  ms?: number
-  navigation?: boolean
-  submit?: boolean
-  option?: string
-  key?: string
-  direction?: "up" | "down"
-  paths?: string[]
-}
+export type StepArgs = Static<typeof StepSchema>
 
 export function toStep(s: StepArgs): Step | string {
   const needId = (make: (id: number) => Step) => (typeof s.id === "number" ? make(s.id) : `${s.op} needs a control id`)
@@ -232,7 +230,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
     replay: "unsafe",
     execute: (args, _api, ctx) =>
       call(deps, "browser_act", async () => {
-        const steps = args.steps.slice(0, BROWSER.stepsPerAct).map((s) => toStep(s as StepArgs))
+        const steps = args.steps.slice(0, BROWSER.stepsPerAct).map((s) => toStep(s))
         const bad = steps.findIndex((s) => typeof s === "string")
         if (bad >= 0) return `step ${bad + 1}: ${steps[bad]}. nothing was done.`
         const tab = await deps.connection().currentTab()
@@ -328,9 +326,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
             const tab = await deps.connection().currentTab()
             if (!tab) return text("you have no tab open yet. call browse with a url first.")
             const bytes = await tab.screenshot({ fullPage: args.fullPage === true })
-            let binary = ""
-            for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-            return { content: [{ type: "image" as const, data: btoa(binary), mimeType: "image/jpeg" }] }
+            return { content: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: "image/jpeg" }] }
           })
         } catch (e) {
           return text(e instanceof Error ? e.message : String(e), true)

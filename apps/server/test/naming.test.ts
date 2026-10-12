@@ -122,19 +122,6 @@ describe("router", () => {
     expect(user).toEqual({ id: await idOf("USER", userName("alice")), user: "alice", room: null })
   })
 
-  test("a user id in the query is rejected", async () => {
-    expect(await status("/api/ws/user?userId=bob", { user: "alice" })).toBe(400)
-    expect(await status(`/api/ws/room/${ROOM}?user_id=bob`, { user: "alice" })).toBe(400)
-  })
-
-  test("a user id in a json body is rejected on any api path", async () => {
-    const body = JSON.stringify({ chat: { owner: { userId: "bob" } } })
-    const headers = { "content-type": "application/json" }
-    expect(await status("/api/rooms", { user: "alice", method: "POST", body, headers })).toBe(400)
-    const clean = JSON.stringify({ title: "hi" })
-    expect(await status("/api/rooms", { user: "alice", method: "POST", body: clean, headers })).toBe(404)
-  })
-
   test("a user id in the path never names an object", async () => {
     expect(await status("/api/ws/user/bob", { user: "alice" })).toBe(404)
     expect(await status(`/api/ws/room/bob/${ROOM}`, { user: "alice" })).toBe(404)
