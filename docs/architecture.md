@@ -1324,7 +1324,7 @@ Yuki copies four patterns:
 
 - Wakeups are claimed in one transaction, capped per object, and keep a short history (Rivet `actor/schedule.rs`).
 - An inbox entry is marked in flight when a run takes it and is reclaimed after a timeout, completing it twice is a no-op, and the inbox has a size cap (Rivet `actor/queue.rs`).
-- Schema migration runs inside `blockConcurrencyWhile` on every start, before any other work. Each object's `schema.ts` holds one versioned list. Version 1 is the current shape of every table, and a change appends an entry. Nothing is deployed yet, so the earlier ALTER steps were folded into version 1 (U07).
+- Schema migration runs inside `blockConcurrencyWhile` on every start, before any other work. `migrate` in `core/durable/src/migrate.ts` runs one list per object in one transaction and records how many steps ran. Each object has one list in its `schema.ts`: `ROOM_STEPS`, `USER_STEPS`, and `AGENT_STEPS`. Core packages export the statements of the tables they own (`ALARM_STEPS`, `HOST_STEPS`, `LIFE_STEPS`, `LOOPS_STEPS`, `treeSteps`, `fileIndexSteps`), and the object's list spreads them in. A list only grows at its end, and a step is never edited. An object with no recorded version runs every step from 0, so each step must be safe on a table that already exists: `CREATE ... IF NOT EXISTS`, or `addColumn`, which adds a column only when the table lacks it. An added column sits at the end of its table, so an upgraded table matches a fresh one by column name, not by position (`schema-upgrade.test.ts`). (U58)
 - The Worker's socket upgrade and the first `hello` frame have a hard timeout.
 
 How they are built:
