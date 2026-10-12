@@ -3,6 +3,7 @@ import { Database } from "bun:sqlite"
 import { migrate } from "@yuki/durable/migrate"
 import { AGENT_STEPS } from "../src/agent/schema"
 import { ROOM_STEPS } from "../src/room/schema"
+import { USER_STEPS } from "../src/user/schema"
 import { sqlStorage } from "./sql-shim"
 
 // A table's columns as a set, and its indexes. SQLite appends an added column at the end, so an upgraded
@@ -61,4 +62,24 @@ test("an agent with a workers table from before the step count upgrades to the t
   const fresh = new Database(":memory:")
   migrate(storageOn(fresh), AGENT_STEPS)
   expect(schemaOf(old)).toEqual(schemaOf(fresh))
+})
+
+test("a user object from before the list upgrades in place: rows stay, and the tables match a fresh user", () => {
+  const old = new Database(":memory:")
+  // Before this change a user object had no version table. It kept its version in settings, and its tables were
+  // created on demand by the same statements the list now holds. So it starts from step 0 and must survive the rerun.
+  for (const step of USER_STEPS) if (typeof step === "string") old.exec(step)
+  old.exec("INSERT INTO settings (key, value) VALUES ('schema_version', '1'), ('theme', 'dark')")
+  old.exec("INSERT INTO chats (room_id, title, updated_at) VALUES ('r1', 'plans', 5)")
+  old.exec("INSERT INTO reminders (id, text, due_utc, tz, room_id, target, created_by, status, created_at) VALUES ('rem1', 'taxes', 9, 'UTC', 'r1', 'yuki', 'human', 'active', 0)")
+
+  migrate(storageOn(old), USER_STEPS)
+
+  const fresh = new Database(":memory:")
+  migrate(storageOn(fresh), USER_STEPS)
+  expect(schemaOf(old)).toEqual(schemaOf(fresh))
+  expect(old.query("SELECT title FROM chats").all()).toEqual([{ title: "plans" }])
+  expect(old.query("SELECT text FROM reminders").all()).toEqual([{ text: "taxes" }])
+  expect(old.query("SELECT value FROM settings WHERE key = 'theme'").get()).toEqual({ value: "dark" })
+  expect(old.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({ value: String(USER_STEPS.length) })
 })

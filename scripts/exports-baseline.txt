@@ -34,7 +34,6 @@ apps/server/src/auth/auth.ts:LIVE_USER_TTL_MS
 apps/server/src/auth/dev-session.ts:DEV_SESSION_PATH
 apps/server/src/files/download.ts:parseRange
 apps/server/src/files/file-index.ts:FileRow
-apps/server/src/files/file-index.ts:Tables
 apps/server/src/files/file-index.ts:toRef
 apps/server/src/files/room-fs.ts:BatchResult
 apps/server/src/files/room-fs.ts:MAX_WRITE_BYTES
@@ -58,15 +57,12 @@ apps/server/src/lib/dev-fixture-fetch.ts:devFixtureFetcher
 apps/server/src/room/asks.ts:KEEP_ASKS_MS
 apps/server/src/room/asks.ts:Unanswered
 apps/server/src/room/brief.ts:BriefView
-apps/server/src/room/burst-flush.ts:BurstDeps
 apps/server/src/room/burst.ts:AFTER_FRAGMENT_MS
 apps/server/src/room/burst.ts:AFTER_MESSAGE_MS
 apps/server/src/room/burst.ts:AFTER_TYPING_MS
 apps/server/src/room/burst.ts:MAX_BURST_MS
 apps/server/src/room/burst.ts:MAX_DELIVERY_BYTES
 apps/server/src/room/burst.ts:isFragment
-apps/server/src/room/deliver.ts:attachedLine
-apps/server/src/room/dev.ts:DevDeps
 apps/server/src/room/limits.ts:MAX_AUTONOMOUS_RUNS_PER_DAY
 apps/server/src/room/limits.ts:MAX_DELIVERIES_PER_ROOT
 apps/server/src/room/limits.ts:MAX_HOP
@@ -77,7 +73,6 @@ apps/server/src/room/log.ts:SNAPSHOT_MESSAGES
 apps/server/src/room/mail-drain.ts:MailDeps
 apps/server/src/room/mail-drain.ts:MailOutcome
 apps/server/src/room/mail.ts:KEEP_SENDS_MS
-apps/server/src/room/mail.ts:SendOutcome
 apps/server/src/room/mail.ts:StoredSend
 apps/server/src/room/members.ts:MemberResult
 apps/server/src/room/members.ts:RESERVED_SLUGS
@@ -85,12 +80,10 @@ apps/server/src/room/memory-naps.ts:MemoryNapsDeps
 apps/server/src/room/memory.ts:Compress
 apps/server/src/room/memory.ts:Rollup
 apps/server/src/room/pending.ts:PendingRow
-apps/server/src/room/pending.ts:attachmentPath
 apps/server/src/room/pending.ts:safeName
 apps/server/src/room/proposals.ts:ProposalsDeps
 apps/server/src/room/reactions.ts:ReactionNote
 apps/server/src/room/reactions.ts:defaultTarget
-apps/server/src/room/recipients.ts:RecipientMessage
 apps/server/src/room/reports.ts:ReportsDeps
 apps/server/src/room/search-route.ts:MAX_ROOMS
 apps/server/src/room/socket.ts:BAD_FRAME
@@ -98,7 +91,6 @@ apps/server/src/room/socket.ts:MAX_HISTORY
 apps/server/src/room/team.ts:Holder
 apps/server/src/room/team.ts:LEASE_MS
 apps/server/src/room/wake-delivery.ts:WakeDeps
-apps/server/src/room/workspace.ts:MAX_TASKS
 apps/server/src/room/workspace.ts:Workspace
 apps/server/src/skills/registry.ts:MAX_DESCRIPTION
 apps/server/src/skills/registry.ts:SkillSource
