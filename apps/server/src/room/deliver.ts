@@ -1,6 +1,7 @@
 import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@yuki/protocol"
 import type { RoomLog } from "./log"
 import type { Chain } from "./mail"
+import type { Pending } from "./burst"
 import { type RecipientMember, resolveRecipients } from "./recipients"
 
 export function attachedLine(files: readonly FileRef[]): string {
@@ -9,14 +10,14 @@ export function attachedLine(files: readonly FileRef[]): string {
 }
 
 export function route(
-	envelopes: readonly Envelope[],
+	pending: readonly Pending[],
 	members: readonly RecipientMember[],
 	replyAuthor: (messageId: string) => AgentSlug | undefined,
 ): Map<AgentSlug, Envelope[]> {
 	const out = new Map<AgentSlug, Envelope[]>()
-	for (const e of envelopes) {
+	for (const { envelope: e, mentions } of pending) {
 		const replyToAgent = e.replyTo ? replyAuthor(e.replyTo) : undefined
-		for (const slug of resolveRecipients({ text: e.body, ...(replyToAgent ? { replyToAgent } : {}) }, members)) {
+		for (const slug of resolveRecipients({ mentions, ...(replyToAgent ? { replyToAgent } : {}) }, members)) {
 			out.set(slug, [...(out.get(slug) ?? []), e])
 		}
 	}

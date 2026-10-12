@@ -2,9 +2,8 @@ import type { AgentSlug, Chat, Envelope, RoomId } from "@yuki/protocol"
 import type { Alarms } from "@yuki/durable/alarm"
 import { agentStub, userStub } from "../lib/names"
 import { route } from "./deliver"
-import { BURST_WAKEUP, deliverable, MAX_DELIVERY_ENVELOPES, type Burst } from "./burst"
+import { BURST_WAKEUP, deliverable, MAX_DELIVERY_ENVELOPES, type Burst, type Pending } from "./burst"
 import { receive, type ReceiveDeps } from "./receive"
-import { resolveRecipients } from "./recipients"
 import { HELD_WAKEUP, type HeldWakes } from "./wake"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
@@ -33,14 +32,16 @@ export class BurstFlush {
 		const home = this.d.home()
 		if (!home) return
 		const pending = this.d.burst.envelopes(home.roomId, MAX_DELIVERY_ENVELOPES + 1)
-		const envelopes = deliverable(pending)
-		if (!envelopes.length) return
+		const batch = deliverable(pending)
+		if (!batch.length) return
 		let reached: Set<AgentSlug>
 		try {
-			const out = await this.deliverBurst(home, envelopes)
+			const out = await this.deliverBurst(home, batch)
+			// A held window set its own wakeup for the reset. A retry now would spin until then.
+			if (out === "held") return
 			if (out === "full") return await this.d.burst.retry(DELIVERY_RETRY_MS)
 			reached = out
-			if (envelopes.length < pending.length) return await this.d.burst.retry(0)
+			if (batch.length < pending.length) return await this.d.burst.retry(0)
 		} catch (error) {
 			console.error(`burst delivery failed: ${error instanceof Error ? error.message : String(error)}`)
 			return await this.d.burst.retry(DELIVERY_RETRY_MS)
@@ -55,8 +56,13 @@ export class BurstFlush {
 		}
 	}
 
-	private async deliverBurst(home: Home, envelopes: Envelope[]): Promise<Set<AgentSlug> | "full"> {
-		const first = envelopes[0]
+	private replyAuthor(id: string): AgentSlug | undefined {
+		const from = this.d.log.message(id)?.from
+		return from?.kind === "agent" ? from.slug : undefined
+	}
+
+	private async deliverBurst(home: Home, batch: Pending[]): Promise<Set<AgentSlug> | "full" | "held"> {
+		const first = batch[0]?.envelope
 		if (!first) throw new Error("deliverBurst: empty burst")
 		const burstId = first.id
 		const takeTurn = () => userStub(this.d.env.USER, home.userId).takeTurn(burstId)
@@ -67,20 +73,17 @@ export class BurstFlush {
 			return new Set()
 		}
 		if (!turn.ok) {
-			// Held, not dropped: the burst stays pending and the alarm for the reset delivers it. The notice's id is the reset, so a retry posts nothing twice.
+			// Held, not dropped: the window waits for the reset, and the alarm for the reset delivers it. The notice's id is the reset, so a retry posts nothing twice.
 			const at = new Date(turn.resetAt).toISOString().slice(11, 16)
 			const event = this.d.deliveries.notice(`limit:${turn.resetAt}`, `you've used today's ${turn.limit} replies. your messages are held and answered at ${at} utc.`, "limit")
 			if (event) this.d.publish([event])
+			this.d.burst.hold(turn.resetAt)
 			await this.d.alarms.setWakeup(BURST_WAKEUP, turn.resetAt)
-			return new Set()
+			return "held"
 		}
 		await this.d.seedMembers(home, chat)
 		const members = this.d.members.list()
-		const replyAuthor = (id: string) => {
-			const from = this.d.log.message(id)?.from
-			return from?.kind === "agent" ? from.slug : undefined
-		}
-		const routes = route(envelopes, members, replyAuthor)
+		const routes = route(batch, members, (id) => this.replyAuthor(id))
 		const results = await Promise.allSettled(
 			[...routes].map(async ([slug, mine]) => {
 				const member = members.find((m) => m.slug === slug)
@@ -91,6 +94,7 @@ export class BurstFlush {
 		const failed = results.find((r) => r.status === "rejected")
 		if (failed) throw failed.reason
 		if (results.some((r) => r.status === "fulfilled" && r.value === "full")) return "full"
+		const envelopes = batch.map((p) => p.envelope)
 		this.d.burst.delivered(envelopes)
 		if (this.d.log.meta("private") !== "1") await this.captureHuman(home, envelopes)
 		return new Set(routes.keys())
@@ -122,15 +126,12 @@ export class BurstFlush {
 		this.#warned.clear()
 	}
 
-	async warnBusyAgents(messages: readonly { text: string; replyTo?: string }[]): Promise<void> {
+	/** Warns the busy agents the window's messages are addressed to. Routing reads the staged mentions, so the whole text counts. */
+	async warnBusyAgents(): Promise<void> {
 		const home = this.d.home()
 		if (!home) return
 		const members = this.d.members.list()
-		const to = new Set<AgentSlug>()
-		for (const m of messages) {
-			const from = m.replyTo ? this.d.log.message(m.replyTo)?.from : undefined
-			for (const slug of resolveRecipients({ text: m.text, ...(from?.kind === "agent" ? { replyToAgent: from.slug } : {}) }, members)) to.add(slug)
-		}
+		const to = new Set(route(this.d.burst.envelopes(home.roomId), members, (id) => this.replyAuthor(id)).keys())
 		const busy = members.filter((m) => to.has(m.slug) && m.status !== "idle")
 		for (const m of busy) this.#warned.add(m.slug)
 		await Promise.allSettled(busy.map((m) => agentStub(this.d.env.AGENT, home.userId, home.roomId, m.slug).humanComing()))

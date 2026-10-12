@@ -169,7 +169,7 @@ A human message takes this path.
 1. The client renders the bubble at once and sends `send {clientId, text, replyTo, files}` on the room WebSocket.
 2. `RoomDO` stores the message, assigns the next `seq`, acknowledges, and broadcasts. `clientId` has a unique index, so a resend after a reconnect stores nothing twice.
 3. `RoomDO` adds the message to the `pending` burst and sets the debounce wakeup.
-4. When the wakeup fires with no newer message, `RoomDO` resolves the recipients (section 7.2) and delivers the whole burst to each one in a single `receive()` call.
+4. When the wakeup fires with no newer message, `RoomDO` resolves the recipients (section 7.2) and delivers the whole burst to each one in a single `receive()` call. Recipients come from the mentions of each message's whole text, which the row keeps at send time, so a mention past the bubble limit still routes.
 
 The debounce window uses the human's typing signal, which the room already receives.
 
@@ -182,7 +182,7 @@ The debounce window uses the human's typing signal, which the room already recei
 
 ASSUMPTION: these numbers, and the word list of `isFragment` in `room/burst.ts`. They are constants in one file and a per-user "reply speed" setting can override them later. A short complete reply ("yes", "do it", "sounds good") is not a fragment, so it waits the plain 1000 ms. Fragment detection used to treat any message of three words or fewer as unfinished, so a quick "yes" waited 2.5 s.
 
-The room gets both things a flush needs from `UserDO` (the chat row and the day's turn) in one parallel step, and keeps the chat's title in its own meta, so agent mail and wakes never read the chat row again. A flush ends with a mail drain whatever happened to the burst: delivered, or held by the day's limit. A held burst stays pending and its alarm fires at the reset, so the human never sends again. The limit notice's id is the reset time, so a retry posts it once. Mail held behind a refused burst used to wait for some later event.
+The room gets both things a flush needs from `UserDO` (the chat row and the day's turn) in one parallel step, and keeps the chat's title in its own meta, so agent mail and wakes never read the chat row again. A flush ends with a mail drain whatever happened to the burst: delivered, or held by the day's limit. A held burst waits for the reset and does not count as pending, so agent mail to its recipients goes on meanwhile. Its alarm fires at the reset, so the human never sends again. The limit notice's id is the reset time, so a retry posts it once. Mail held behind a refused burst used to wait for some later event.
 
 **DEVIATION in placement.** The spec puts the pending queue "in the DO". Yuki puts the human burst in `RoomDO`, not in each `AgentDO`. The room is the only object that sees typing pings, one alarm serves every recipient, and a burst of four messages costs one delivery per agent, not four. Each `AgentDO` still has the inbox and alarm from spec section 4.4 for everything that reaches it.
 
@@ -209,7 +209,7 @@ The table is `decide()` in `core/agent/src/mid-run.ts`, and `AgentHost.drain()` 
 - DEVIATION: a human message used to wait for a running tool to finish. A read, `bash`, or `ask` is now stopped, as AGENTS.md rule 4 asks. A write, a message, or an outside call still runs to its end.
 - A human message never waits for a run to end. It steers whenever the run cannot restart. DEVIATION: a finished tool round with bubbles used to queue the burst as a follow-up (owner directive 2026-10-11, section 8).
 - When inputs already wait in the conversation's queue, or the cap is reached, a human message steers instead of restarting, because a restart's abort would withdraw the waiting inputs. With no tool round, a steer is placed when the run answers. UNVERIFIED: stopping a tool does not withdraw queued inputs. The `abortTask` comment names only the tool task, so an interrupt is used whenever a tool runs.
-- ASSUMPTION: stop also drops the room's pending burst, so a message sent just before stop starts no run. The messages stay in the log.
+- Stop does not drop the room's pending burst. A message sent just before stop goes out after the stop, as the human sent it. Stop used to clear the window, which lost the message.
 
 **Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). A steer never rewrites bubbles the human has already read: it joins after the current tool round, or when the run answers. Slow work runs in workers (section 8), so a run that holds the human up is short. An interrupt stops a slow read, `bash`, or `ask` at once, so the steer lands sooner. A write, a message, or an outside call is never stopped mid-call, because a half-finished effect is worse than a late answer. `bash` is the exception among writes: it saves nothing it did not finish.
 

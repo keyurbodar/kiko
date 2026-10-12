@@ -261,6 +261,16 @@ test("a long human message resent with its client id stores one message and one 
 	c.close()
 })
 
+test("a long message refused by its attachments leaves no whole-text object behind", async () => {
+	const room = fresh()
+	const c = await Client.open(room)
+	const before = await keys(room)
+	c.send({ t: "send", clientId: "long3", text: "x".repeat(20_000), attachments: [{ pendingId: crypto.randomUUID(), name: "gone.txt", type: "text/plain", size: 3 }] })
+	expect((await c.next((f) => f.t === "send_refused")).t).toBe("send_refused")
+	expect(await keys(room)).toEqual(before)
+	c.close()
+})
+
 test("two sends from one socket keep their order when the first one waits on R2", async () => {
 	const room = fresh()
 	const c = await Client.open(room)

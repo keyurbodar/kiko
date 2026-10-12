@@ -6,9 +6,10 @@ import { briefTasks } from "./workspace"
 const MAX_LINE = 400
 /**
  * The most of the board one brief carries. A human message rides with its brief in one inbox entry
- * of 128 KB, and a human message is at most 96 KB of JSON, so 32 KB keeps the entry under the cap.
+ * of 128 KB. Its bubble is at most 64 KB of JSON (`whole-text.ts`), so the board takes 24 KB and the
+ * rest of the brief and the envelope share the other 40 KB. The worst case is tested in `human-delivery.test.ts`.
  */
-export const MAX_BOARD_BYTES = 32 * 1024
+export const MAX_BOARD_BYTES = 24 * 1024
 
 export type BriefView = {
 	goal: string
