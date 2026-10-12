@@ -79,6 +79,7 @@ if (!document.body || document.readyState === "loading") {
   const until = performance.now() + ${BROWSER.loadMs};
   while ((!document.body || document.readyState === "loading") && performance.now() < until) {
     const { promise, resolve } = Promise.withResolvers();
+    // check-rules: allow no-timer-in-do page script text the browser runs, not the Durable Object
     setTimeout(resolve, 50);
     await promise;
   }
@@ -263,12 +264,14 @@ export const settleScript = (menu: boolean) => `new Promise((done) => {
     const look = () => {
       const m = document.querySelector("[role=listbox],[role=menu]");
       if ((m && m.getBoundingClientRect().height > 0) || performance.now() - start > ${BROWSER.menuSettleMs}) return done(true);
+      // check-rules: allow no-timer-in-do page script text the browser runs, not the Durable Object
       setTimeout(look, 16);
     };
     look();
   };
   let finished = false;
   const once = () => { if (!finished) { finished = true; finish(); } };
+  // check-rules: allow no-timer-in-do page script text the browser runs, not the Durable Object
   setTimeout(once, ${BROWSER.settleMs});
   const tick = () => { if (++frames >= 2) once(); else requestAnimationFrame(tick); };
   requestAnimationFrame(tick);

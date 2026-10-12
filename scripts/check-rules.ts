@@ -14,7 +14,9 @@ type Rule = {
 }
 
 const ROOT = join(import.meta.dir, "..")
-const SERVER_AND_CORE = ["apps/server/src", "core/agent/src", "core/memory/src", "core/sandbox/src", "core/durable/src"]
+// `core/browser/src` runs inside a Durable Object: apps/server/src/agent/browser/connection.ts imports it, so its
+// timers count too.
+const SERVER_AND_CORE = ["apps/server/src", "core/agent/src", "core/memory/src", "core/sandbox/src", "core/durable/src", "core/browser/src"]
 const ALL_SRC = ["apps/server/src", ...["agent", "browser", "durable", "memory", "protocol", "sandbox"].map((p) => `core/${p}/src`)]
 const isTest = (path: string) => /(^|\/)test\/|\.test\.tsx?$/.test(path)
 
@@ -23,7 +25,8 @@ export const RULES: readonly Rule[] = [
     id: "no-timer-in-do",
     description: "setTimeout and setInterval do not survive eviction. Use alarm.ts.",
     roots: SERVER_AND_CORE,
-    match: (line) => /(?<![\w.])(setTimeout|setInterval)\(/.test(line),
+    skip: (path) => path === "core/durable/src/bounded-wait.ts",
+    match: (line) => /(?<![\w.])(setTimeout|setInterval)\s*\(/.test(line) || /globalThis\.(setTimeout|setInterval)\s*\(/.test(line),
     enforce: true,
   },
   {
@@ -31,7 +34,7 @@ export const RULES: readonly Rule[] = [
     description: "Only apps/server/src/lib/names.ts builds a Durable Object name.",
     roots: ALL_SRC,
     skip: (path) => path === "apps/server/src/lib/names.ts" || isTest(path),
-    match: (line) => /\.(idFromName|idFromString)\(/.test(line),
+    match: (line) => /\.(idFromName|idFromString|getByName)\(/.test(line),
     enforce: true,
   },
   {
@@ -39,15 +42,19 @@ export const RULES: readonly Rule[] = [
     description: "process.env.NODE_ENV is read in one dev guard module only.",
     roots: ALL_SRC,
     skip: (path) => path === "apps/server/src/lib/dev-guard.ts",
-    match: (line) => line.includes("process.env.NODE_ENV"),
+    match: (line) => /process\.env/.test(line) && /\bNODE_ENV\b/.test(line),
     enforce: true,
   },
   {
     id: "egress",
     description: "A bare fetch( call goes through safe-fetch or AgentDO.egress.",
     roots: ALL_SRC,
-    skip: (path) => path === "core/durable/src/safe-fetch.ts" || path === "apps/server/src/agent/agent-do.ts",
-    match: (line) => /(?<![\w.$])fetch\(/.test(line) && !/\b(async|private|public|static|function)\s+fetch\(/.test(line) && !/^\s*fetch\(.*\)\s*(:[^{]*)?\{\s*$/.test(line),
+    skip: (path) => path === "core/durable/src/safe-fetch.ts",
+    match: (line) => {
+      if (/\b(async|private|public|static|function)\s+fetch\s*\(/.test(line)) return false
+      if (/^\s*fetch\s*\(.*\)\s*(:[^{]*)?\{\s*$/.test(line)) return false
+      return /(?<![\w.$])fetch\s*\(/.test(line) || /globalThis\.fetch\s*\(/.test(line)
+    },
     enforce: true,
   },
   {
@@ -55,7 +62,7 @@ export const RULES: readonly Rule[] = [
     description: "Do not bind one SQL value per list item. Pass one JSON value and read it with json_each(?).",
     roots: ALL_SRC,
     skip: isTest,
-    match: (line) => /\.map\(\(\s*[\w_]*\s*\)\s*=>\s*["'`]\?["'`]\)|["'`]\?,["'`]\.repeat\(|["'`]\?["'`]\.repeat\(|\.fill\(["'`]\?["'`]\)/.test(line),
+    match: (line) => (/["'`]\?["'`]/.test(line) && /\.(map|fill)\(|Array\.from\(/.test(line)) || /["'`]\?[^"'`]*["'`]\.repeat\(/.test(line),
     enforce: true,
   },
 ]

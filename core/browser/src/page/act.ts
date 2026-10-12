@@ -94,6 +94,7 @@ async function back(page: PageState): Promise<StepResult> {
   return { ok: true }
 }
 
+// check-rules: allow no-timer-in-do a bounded wait inside one request; core/browser may not import @yuki/durable, so it keeps its own timer
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 async function bodyText(page: PageState): Promise<string | undefined> {
