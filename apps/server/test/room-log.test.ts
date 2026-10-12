@@ -234,7 +234,7 @@ test.each([
 	["not json", "{"],
 	["an unknown frame", { t: "nope" }],
 	["an empty send", { t: "send", clientId: "e", text: "  " }],
-	["a send that is too long", { t: "send", clientId: "l", text: "a".repeat(16_001) }],
+	["a send past the frame", { t: "send", clientId: "l", text: "a".repeat(600_000) }],
 	["a negative lastSeq", { t: "hello", lastSeq: -1 }],
 ])("%s closes the socket and stores nothing", async (_, frame) => {
 	const room = fresh()
