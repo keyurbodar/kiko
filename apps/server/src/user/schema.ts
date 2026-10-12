@@ -1,4 +1,5 @@
-import { ALARM_STEPS, type Step } from "@yuki/durable/alarm"
+import { ALARM_STEPS } from "@yuki/durable/alarm"
+import type { Step } from "@yuki/durable/migrate"
 import { fileIndexSteps, HOME_TABLES } from "../files/file-index"
 import { LIFE_STEPS } from "@yuki/memory/life"
 import { LOOPS_STEPS } from "@yuki/memory/loops"
