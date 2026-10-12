@@ -70,9 +70,17 @@ export async function clearWarmTier(userId: string): Promise<void> {
   )
 }
 
+/** A sign-in redirect lands with this query, so its first frame waits on `/api/me` instead of showing sign-in. */
+export const SIGNED_IN_PARAM = "signed-in"
+
+/*
+ * A signed-in browser always has the cached flag, so no flag means sign-in shows on the first frame.
+ * Only a fresh sign-in redirect, which has the cookie but not yet the flag, waits for `/api/me`.
+ */
 const cached = readFlag()
+const returning = typeof location !== "undefined" && new URLSearchParams(location.search).has(SIGNED_IN_PARAM)
 const [state, setState] = createSignal<SessionState>(
-  cached ? { status: "signed-in", user: cached } : { status: "unknown" },
+  cached ? { status: "signed-in", user: cached } : returning ? { status: "unknown" } : { status: "signed-out" },
 )
 
 export const session = state
@@ -150,7 +158,7 @@ export async function signInWithProvider(provider: "google" | "github"): Promise
   const res = await fetch("/api/auth/sign-in/social", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ provider, callbackURL: "/chat" }),
+    body: JSON.stringify({ provider, callbackURL: `/chat?${SIGNED_IN_PARAM}=1` }),
   })
   const { url } = (await res.json()) as { url?: string }
   if (!url) throw new Error("no sign-in url")
