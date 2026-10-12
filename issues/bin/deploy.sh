@@ -12,6 +12,5 @@ bun install --frozen-lockfile >/dev/null 2>&1
 set -a; . "$HOME/.config/yuki/cloudflare.env"; set +a
 "$root/issues/bin/heavy.sh" bun run --cwd apps/web-solid build >/dev/null
 cd apps/server
-bunx wrangler d1 migrations apply kiko-auth --remote 2>&1 | grep -E "No migrations|✅" | tail -1
 bun run deploy 2>&1 | grep -E "Uploaded kiko|Total Upload|Startup Time|Version ID|https://"
 cd "$root" && git worktree remove --force "$dir"
