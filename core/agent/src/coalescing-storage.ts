@@ -10,20 +10,11 @@ type Delta = Extract<StorageWrite, { readonly type: "document.change" }> & {
 export type HoldPolicy = (write: Delta, kind: string) => boolean
 
 export type CoalescingOptions = {
-  readonly intervalMs?: number
-  readonly now?: () => number
   readonly holds?: HoldPolicy
-}
-
-export type CoalescingStats = {
-  readonly held: number
-  readonly written: number
-  readonly pending: number
 }
 
 export type CoalescingStorage = Storage & {
   flush(): Promise<void>
-  stats(): CoalescingStats
 }
 
 const GENERATION = "generation"
@@ -54,21 +45,17 @@ type Known = { readonly kind: string; readonly version: number; readonly current
 type Window = {
   readonly seq: Seq
   readonly openedAt: number
-  readonly count: number
   readonly deltas: Map<DocumentId, { readonly version: number; readonly ops: Op[] }>
 }
 
 // No timer: a Durable Object must not schedule work with setTimeout (AGENTS.md). The stream always
 // ends in a commit that is not held, so the window never outlives it.
 export function createCoalescingStorage(inner: Storage, options: CoalescingOptions = {}): CoalescingStorage {
-  const intervalMs = options.intervalMs ?? 2000
-  const now = options.now ?? Date.now
   const holds = options.holds ?? holdsPartialOutput
+  const intervalMs = 2000
 
   let lastSeq: Seq | undefined
   let window: Window | undefined
-  let held = 0
-  let written = 0
   const known = new Map<DocumentId, Known>()
 
   let tail: Promise<unknown> = Promise.resolve()
@@ -80,7 +67,6 @@ export function createCoalescingStorage(inner: Storage, options: CoalescingOptio
 
   const write = async (writes: readonly StorageWrite[], context: Context) => {
     const seq = await inner.commit(writes, context)
-    written++
     lastSeq = seq
     return seq
   }
@@ -129,7 +115,7 @@ export function createCoalescingStorage(inner: Storage, options: CoalescingOptio
         }
         return write(writes, context)
       }
-      const open: Window = window ?? { seq: ((lastSeq as number) + 1) as Seq, openedAt: now(), count: 0, deltas: new Map() }
+      const open: Window = window ?? { seq: ((lastSeq as number) + 1) as Seq, openedAt: Date.now(), deltas: new Map() }
       const entry = open.deltas.get(delta.id) ?? { version: delta.content.version, ops: [] }
       // Storage keeps detached values, so the caller may reuse its batch. A batch that starts with
       // `r` replaces the whole value, and Chord allows `r` only at index 0, so it drops the ops before it.
@@ -137,9 +123,8 @@ export function createCoalescingStorage(inner: Storage, options: CoalescingOptio
       if (ops[0]?.[0] === "r") entry.ops.length = 0
       entry.ops.push(...ops)
       open.deltas.set(delta.id, entry)
-      window = { ...open, count: open.count + 1 }
-      held++
-      if (now() - open.openedAt >= intervalMs) await flushNow(context)
+      window = open
+      if (Date.now() - open.openedAt >= intervalMs) await flushNow(context)
       return open.seq
     })
 
@@ -175,6 +160,5 @@ export function createCoalescingStorage(inner: Storage, options: CoalescingOptio
         }
       }),
     flush: () => serial(() => flushNow(BACKGROUND_CONTEXT)),
-    stats: () => ({ held, written, pending: window?.count ?? 0 }),
   }
 }

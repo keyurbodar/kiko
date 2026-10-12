@@ -1,15 +1,10 @@
-import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
+import { error, signedIn } from "../lib/route"
 import { userStub } from "../lib/names"
-import { originAllowed, type SessionLookup } from "../router"
 import { checkApiKey, CredentialError, isProviderId } from "./credentials"
 
 const PREFIX = "/api/credentials"
 const MAX_BODY = 16_384
-
-function error(status: number, message: string): Response {
-  return Response.json({ error: message }, { status })
-}
 
 async function readApiKey(request: Request): Promise<string> {
   if (!request.headers.get("content-type")?.includes("json")) throw new CredentialError("expected a json body")
@@ -24,16 +19,11 @@ async function readApiKey(request: Request): Promise<string> {
   return checkApiKey((body as { apiKey?: unknown } | null)?.apiKey)
 }
 
-export async function credentialsRoute(
-  request: Request,
-  env: Env,
-  lookup: SessionLookup = getSessionUser,
-): Promise<Response | null> {
+export async function credentialsRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   if (url.pathname !== PREFIX && !url.pathname.startsWith(`${PREFIX}/`)) return null
-  if (!originAllowed(request, url, env)) return error(403, "forbidden origin")
-  const user = await lookup(request, env)
-  if (!user) return error(401, "unauthorized")
+  const user = await signedIn(request, env)
+  if (user instanceof Response) return user
   const stub = userStub(env.USER, user.id)
 
   if (url.pathname === PREFIX) {

@@ -8,47 +8,39 @@ import { MAX_MEMBERS } from "../room/members"
 
 const PREFIX = "/api/dev/agent/"
 
+const slugOf = (body: { slug?: unknown } | null) => (typeof body?.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT)
+
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
   if (!["fake", "status", "workers", "limits", "seed", "memory", "classic", "usage", "trace", "budget", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention", "composio", "browser"].includes(action ?? "")) return null
   if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
+  const user = await getSessionUser(request, env)
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
   if (action === "limits") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const body = (await request.json().catch(() => null)) as { limits?: Record<string, unknown> } | null
     return Response.json({ limits: await userStub(env.USER, user.id).setLimits(body?.limits ?? {}) })
   }
   if (action === "policy") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const body = (await request.json().catch(() => null)) as { policy?: unknown } | null
     if (!body?.policy || typeof body.policy !== "object") return Response.json({ error: "bad policy" }, { status: 400 })
     await userStub(env.USER, user.id).devSetting("memory_policy", JSON.stringify(body.policy))
     return Response.json({ ok: true })
   }
   if (action === "composio") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     return Response.json({ session: await userStub(env.USER, user.id).devComposioSession() })
   }
   if (action === "due") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const body = (await request.json().catch(() => null)) as { id?: unknown } | null
     await userStub(env.USER, user.id).devDue(String(body?.id ?? ""))
     return Response.json({ ok: true })
   }
   if (action === "seen") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const body = (await request.json().catch(() => null)) as { ago?: unknown } | null
     await userStub(env.USER, user.id).devSeen(Number(body?.ago ?? 0))
     return Response.json({ ok: true })
   }
   if (action === "browser") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const body = (await request.json().catch(() => null)) as { action?: unknown; agentId?: unknown; mode?: unknown; ms?: unknown } | null
     const known = ["lease", "touch", "dead", "age", "reap", "switch", "state"] as const
     const op = known.find((k) => k === body?.action)
@@ -60,8 +52,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     }
   }
   if (action === "attention") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const body = (await request.json().catch(() => null)) as { action?: unknown; ms?: unknown; mode?: unknown } | null
     const op =
       body?.action === "age"
@@ -74,8 +64,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     return Response.json(await userStub(env.USER, user.id).devInitiative(op))
   }
   if (action === "loops") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const body = (await request.json().catch(() => null)) as { open?: { roomId?: unknown; text?: unknown; due?: unknown } } | null
     const open = body?.open
     if (open && typeof open.roomId === "string" && isRoomId(open.roomId) && typeof open.text === "string") {
@@ -84,15 +72,11 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     return Response.json({ loops: await userStub(env.USER, user.id).loopList({ status: ["open", "done", "dropped", "snoozed"], limit: 200 }) })
   }
   if (action === "workers") {
-    const user = await getSessionUser(request, env)
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
     const roomId = url.searchParams.get("roomId") ?? ""
     if (!isRoomId(roomId)) return Response.json({ error: "bad room id" }, { status: 400 })
     return Response.json({ workers: await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devWorkers() })
   }
   if (request.method !== "POST") return Response.json({ error: "method not allowed" }, { status: 405 })
-  const user = await getSessionUser(request, env)
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
   const body = (await request.json().catch(() => null)) as { roomId?: unknown; slugs?: unknown; slug?: unknown; turns?: unknown } | null
   if (typeof body?.roomId !== "string" || !isRoomId(body.roomId)) return Response.json({ error: "bad room id" }, { status: 400 })
   const roomId = body.roomId
@@ -111,16 +95,16 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   if (action === "pending") return Response.json({ pending: await roomStub(env.ROOM, user.id, roomId).devAgePending(Number((body as { ms?: unknown }).ms ?? 0)) })
   if (action === "age") return Response.json({ open: await roomStub(env.ROOM, user.id, roomId).devAge(Number((body as { ms?: unknown }).ms ?? 0)) })
   if (action === "budget") {
-    const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
+    const slug = slugOf(body)
     await agentStub(env.AGENT, user.id, roomId, slug).devBudget(Number((body as { ms?: unknown }).ms ?? 0))
     return Response.json({ ok: true })
   }
   if (action === "usage") {
-    const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
+    const slug = slugOf(body)
     return Response.json({ agent: await agentStub(env.AGENT, user.id, roomId, slug).devUsage(), memory: await userStub(env.USER, user.id).memoryUsage() })
   }
   if (action === "initiative") {
-    const slug = typeof body.slug === "string" && isAgentSlug(body.slug) ? body.slug : DEFAULT_AGENT
+    const slug = slugOf(body)
     return Response.json({ text: await agentStub(env.AGENT, user.id, roomId, slug).devInitiative() })
   }
   if (action === "trace") return Response.json(await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devTrace())

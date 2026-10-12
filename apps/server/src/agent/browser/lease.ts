@@ -1,18 +1,15 @@
+import type { CurlRequest, CurlResponse } from "../../integrations/kernel/client"
+import type { LeaseInfo } from "../../integrations/kernel/lease"
 import type { UserDO } from "../../user/user-do"
 
-export type Lease = { sessionId: string; cdpUrl: string; mode: "headless" | "headful"; restarted: boolean; reopen: string[] }
+export type Lease = LeaseInfo
 
 export type BrowserState = { connected: boolean; takeover: boolean; tabs: Record<string, number> }
 
-export type FetchRequest = {
-  url: string
-  method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE"
-  headers?: Record<string, string>
-  body?: string
-  timeoutMs?: number
-}
+export type FetchRequest = CurlRequest
 
-export type FetchResult = { status: number; headers: Record<string, string>; body: string; truncated: boolean }
+export type FetchResult = CurlResponse
+
 export class BrowserNotConnected extends Error {
   constructor() {
     super("no browser: the human has not connected a Kernel key in settings")

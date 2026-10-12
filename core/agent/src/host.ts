@@ -117,14 +117,8 @@ export type HostOptions = {
 export type Opened = {
   harness: Harness
   root: Conversation
-  registry: AgentSetup["registry"]
   storage: CoalescingStorage
-  beginRun?: AgentSetup["beginRun"]
-  joinRun?: AgentSetup["joinRun"]
-  inputContext?: AgentSetup["inputContext"]
-  inputMemory?: AgentSetup["inputMemory"]
-  beforeCompact?: AgentSetup["beforeCompact"]
-  stale?: AgentSetup["stale"]
+  setup: AgentSetup
 }
 
 export type HostStatus = {
@@ -241,9 +235,9 @@ export class AgentHost {
 
   private async current(): Promise<Opened> {
     const opened = await this.open()
-    if (!opened.stale || !this.inbox.hasOpen()) return opened
+    if (!opened.setup.stale || !this.inbox.hasOpen()) return opened
     const live = await opened.harness.inspect(context)
-    if (live.tasks.length || live.submissions.length || !(await opened.stale())) return opened
+    if (live.tasks.length || live.submissions.length || !(await opened.setup.stale())) return opened
     await this.drop()
     return this.open()
   }
@@ -253,7 +247,7 @@ export class AgentHost {
     const env = setup.env
     const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, context)
     const root = await harness.root(context, { agent: setup.agent })
-    return { harness, root, registry: setup.registry, storage, beginRun: setup.beginRun, joinRun: setup.joinRun, inputContext: setup.inputContext, inputMemory: setup.inputMemory, beforeCompact: setup.beforeCompact, stale: setup.stale }
+    return { harness, root, storage, setup }
   }
 
   private async crashLooping({ harness, root }: Opened): Promise<boolean> {
@@ -291,7 +285,7 @@ export class AgentHost {
     const opened = await this.open()
     const live = await opened.harness.inspect(context)
     if (live.tasks.length || live.submissions.length) return
-    await opened.beforeCompact?.(opened.harness)
+    await opened.setup.beforeCompact?.(opened.harness)
     await this.drop()
     this.reset(false)
     await this.ctx.storage.put(RUNS_KEY, 0)
@@ -306,7 +300,8 @@ export class AgentHost {
     return { open: true, inbox, tasks: live.tasks.length, submissions: live.submissions.length }
   }
 
-  private async drain({ harness, root, registry, storage, beginRun, joinRun, inputContext, inputMemory }: Opened): Promise<void> {
+  private async drain({ harness, root, storage, setup }: Opened): Promise<void> {
+    const { registry, beginRun, joinRun, inputContext, inputMemory } = setup
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
       this.workers.stopAll()
       await root.abort(context)

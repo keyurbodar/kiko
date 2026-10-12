@@ -2,7 +2,6 @@ apps/server/src/agent/browser/connection.ts:ConnectionDeps
 apps/server/src/agent/browser/connection.ts:IdleTimer
 apps/server/src/agent/browser/deciders.ts:JevKey
 apps/server/src/agent/browser/lease.ts:BrowserNotConnected
-apps/server/src/agent/browser/tools.ts:CallWrapper
 apps/server/src/agent/browser/tools.ts:StepArgs
 apps/server/src/agent/browser/tools.ts:TextResult
 apps/server/src/agent/browser/tools.ts:dialogNote
@@ -41,7 +40,6 @@ apps/server/src/files/room-fs.ts:SOUL_PATH
 apps/server/src/files/upload.ts:MAX_FILE_BYTES
 apps/server/src/files/upload.ts:STORAGE_LIMIT_BYTES
 apps/server/src/integrations/composio/client.ts:ComposioResultBlock
-apps/server/src/integrations/composio/client.ts:composioRpc
 apps/server/src/integrations/composio/store.ts:SavedListing
 apps/server/src/integrations/composio/tools.ts:fillFlags
 apps/server/src/integrations/composio/tools.ts:relaxSchema
@@ -58,7 +56,6 @@ apps/server/src/room/asks.ts:KEEP_ASKS_MS
 apps/server/src/room/asks.ts:Unanswered
 apps/server/src/room/brief.ts:BriefView
 apps/server/src/room/burst.ts:AFTER_FRAGMENT_MS
-apps/server/src/room/burst.ts:AFTER_MESSAGE_MS
 apps/server/src/room/burst.ts:AFTER_TYPING_MS
 apps/server/src/room/burst.ts:MAX_BURST_MS
 apps/server/src/room/burst.ts:MAX_DELIVERY_BYTES
@@ -97,7 +94,6 @@ apps/server/src/skills/registry.ts:SkillSource
 apps/server/src/user/extensions.ts:TriggerPort
 apps/server/src/user/extensions.ts:bundleHash
 apps/server/src/user/hooks-route.ts:MAX_HOOK_BYTES
-apps/server/src/user/initiative-loops.ts:LoopsDeps
 apps/server/src/user/memory-capture.ts:MemoryDeps
 apps/server/src/user/provider-login.ts:LoginDeps
 apps/server/src/user/provider-login.ts:MAX_LOGINS
@@ -118,7 +114,6 @@ apps/server/src/user/theme.ts:THEME_KEY
 apps/server/src/user/theme.ts:THEME_MAX_CHARS
 apps/server/src/user/theme.ts:isStorableTheme
 core/agent/src/coalescing-storage.ts:CoalescingOptions
-core/agent/src/coalescing-storage.ts:CoalescingStats
 core/agent/src/coalescing-storage.ts:holdsPartialOutput
 core/agent/src/effects.ts:EFFECTS
 core/agent/src/host.ts:COMPACT_EVERY_RUNS

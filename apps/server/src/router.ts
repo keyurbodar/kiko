@@ -4,15 +4,12 @@ import { humanHandle } from "@yuki/protocol"
 import { boundedWait } from "@yuki/durable/bounded-wait"
 import { DEV } from "./lib/dev-guard"
 import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, roomStub, USER_ID_HEADER, userStub } from "./lib/names"
-import { readCapped } from "./lib/read-capped"
 
 export type SessionLookup = (request: Request, env: AuthEnv) => Promise<{ id: string; name?: string } | null>
 
 type Target = { kind: "user" } | { kind: "room"; roomId: string }
 
 const ROOM_PATH = /^\/api\/ws\/room\/([^/]+)$/
-const USER_ID_KEY = /^user[_-]?id$/i
-const MAX_SCANNED_BODY = 1_000_000
 
 function match(pathname: string): Target | null {
   if (pathname === "/api/ws/user") return { kind: "user" }
@@ -25,27 +22,6 @@ function error(status: number, message: string): Response {
   return Response.json({ error: message }, { status })
 }
 
-function hasUserIdKey(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some(hasUserIdKey)
-  if (value === null || typeof value !== "object") return false
-  return Object.entries(value).some(([key, inner]) => USER_ID_KEY.test(key) || hasUserIdKey(inner))
-}
-
-// A body over the cap is refused, not read whole: the content-length header answers first,
-// and a missing header is caught by the bounded read.
-async function carriesUserId(request: Request, url: URL): Promise<boolean | "too_large"> {
-  for (const key of url.searchParams.keys()) if (USER_ID_KEY.test(key)) return true
-  if (!request.body || !request.headers.get("content-type")?.includes("json")) return false
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_SCANNED_BODY) return "too_large"
-  const text = await readCapped(request.clone(), MAX_SCANNED_BODY)
-  if (text === null) return "too_large"
-  try {
-    return hasUserIdKey(JSON.parse(text))
-  } catch {
-    return false
-  }
-}
-
 // A browser sends cookies on a cross-site socket upgrade, so a page on another origin could
 // open a socket as the user. A request without an Origin header is not from a browser page.
 export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean {
@@ -56,21 +32,12 @@ export function originAllowed(request: Request, url: URL, env: AuthEnv): boolean
   return DEV && /^http:\/\/localhost(:\d+)?$/.test(origin)
 }
 
-export async function route(
-  request: Request,
-  env: Env,
-  lookup: SessionLookup = getSessionUser,
-  timeoutMs = UPGRADE_TIMEOUT_MS,
-): Promise<Response | null> {
+export async function route(request: Request, env: Env, lookup: SessionLookup = getSessionUser): Promise<Response | null> {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/") || url.pathname.startsWith("/api/auth/")) return null
-  const scan = await carriesUserId(request, url)
-  if (scan === "too_large") return error(413, "the body is larger than 1 mb")
-  if (scan) return error(400, "a user id comes from the session, not the request")
-
   const target = match(url.pathname)
   if (!target) return null
-  return within(timeoutMs, upgrade(request, env, url, target, lookup))
+  return within(UPGRADE_TIMEOUT_MS, upgrade(request, env, url, target, lookup))
 }
 
 export const UPGRADE_TIMEOUT_MS = 5_000

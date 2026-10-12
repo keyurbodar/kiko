@@ -42,7 +42,6 @@ const globalFetcher: Fetcher = (url, init) => fetch(url, init)
 
 export type SafeFetchOptions = {
   maxBytes?: number
-  stop?: (chunk: Uint8Array) => boolean
   userAgent?: string
   timeoutMs?: number
   dnsCache?: boolean
@@ -147,19 +146,14 @@ async function read(
   const max = options.maxBytes ?? MAX_BYTES
   const chunks: Uint8Array[] = []
   let size = 0
-  let stopped = false
   const reader = response.body?.getReader()
   while (reader && size <= max) {
     const { done, value } = await untilAbort(reader.read(), signal)
     if (done) break
     chunks.push(value)
     size += value.byteLength
-    if (options.stop?.(value)) {
-      stopped = true
-      break
-    }
   }
-  const truncated = stopped || size > max
+  const truncated = size > max
   if (truncated) discard(reader?.cancel())
 
   const body = new Uint8Array(Math.min(size, max))

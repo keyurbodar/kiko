@@ -141,14 +141,13 @@ describe("wakeups", () => {
 describe("the worker's upgrade checks", () => {
   test("a session check that hangs answers 504 at the deadline", async () => {
     const { route, UPGRADE_TIMEOUT_MS } = await import("../src/router")
-    expect(UPGRADE_TIMEOUT_MS).toBe(5_000)
     const hang = () => new Promise<null>(() => {})
     const request = new Request("http://yuki.test/api/ws/user", { headers: { upgrade: "websocket" } })
     const start = Date.now()
-    const response = await route(request, {} as never, hang, 100)
+    const response = await route(request, {} as never, hang)
     expect(response?.status).toBe(504)
-    expect(Date.now() - start).toBeLessThan(1_000)
-  })
+    expect(Date.now() - start).toBeGreaterThanOrEqual(UPGRADE_TIMEOUT_MS - 200)
+  }, 15_000)
 })
 
 type Opened = { ws: WebSocket; closed: Promise<{ code: number; reason: string; afterMs: number }> }

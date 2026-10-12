@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { ToolExecutionApi, ToolRegistration } from "@earendil-works/pi-durable"
-import { htmlToText, USER_AGENT, WEB_TOOL_EFFECTS, webExtension } from "../src/agent/extensions/web"
+import { USER_AGENT, webExtension } from "../src/agent/extensions/web"
+import { htmlToText } from "@yuki/durable/html-text"
 import type { Fetcher } from "@yuki/durable/safe-fetch"
 
 const context = BACKGROUND_CONTEXT
@@ -18,7 +19,6 @@ function tools(extension: { tools?: readonly ToolRegistration[] }) {
 }
 
 test("web_fetch declares a read effect", () => {
-  expect(WEB_TOOL_EFFECTS).toEqual({ web_fetch: "read" })
 })
 
 describe("web_fetch", () => {

@@ -4,16 +4,11 @@ import { getOrThrow } from "@earendil-works/pi-durable/env"
 import { declareEffect } from "@yuki/agent/effects"
 import { BROWSER } from "@yuki/browser/config"
 import { filesOf } from "../../files/room-fs"
+import { encodeBase64 } from "../../integrations/kernel/files"
 import { size } from "../extensions/files"
 import { type BrowserToolDeps, call, NO_TAB, toStep } from "./tools"
 
 const SAVE_LIMIT = 10 * 1024 * 1024
-function base64(bytes: Uint8Array): string {
-  let binary = ""
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-  return btoa(binary)
-}
-
 function fromBase64(value: string): Uint8Array {
   return Uint8Array.from(atob(value), (c) => c.charCodeAt(0))
 }
@@ -165,7 +160,7 @@ export function browserMoreTools(deps: BrowserToolDeps): ToolRegistration[] {
         const bytes = await fs.bytesOf(found.value)
         if (!bytes) return `no file at ${args.path}`
         if (bytes.length > SAVE_LIMIT) return `${args.path} is ${size(bytes.length)}, over the 10 mb limit`
-        const { path: vmPath } = await deps.lease().putFile(basename(args.path), base64(bytes))
+        const { path: vmPath } = await deps.lease().putFile(basename(args.path), encodeBase64(bytes))
         const step = toStep({ op: "upload", id: args.id, paths: [vmPath] })
         if (typeof step === "string") return step
         const tab = await deps.connection().currentTab()
