@@ -613,3 +613,4 @@ env.COMPOSIO_DEVELOPER_KEY ("(hidden)")      Environment Variable      local
 [wrangler:info] GET /api/dev/agent/workers 200 OK (7ms)
 [wrangler:info] GET /api/dev/stats 200 OK (2ms)
 [wrangler:info] GET /api/dev/agent/workers 200 OK (4ms)
+🪵  Logs were written to "/home/keyur/.config/.wrangler/logs/wrangler-2026-10-12_01-11-06_295.log"
