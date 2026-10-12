@@ -1,7 +1,8 @@
+import { newRoom, poll, seen } from "../kit"
 import type { RoomEvent } from "@yuki/protocol"
 import { expectEqual, type Session, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { fake, newRoom, seen, until } from "./mid-run"
+import { fake } from "./mid-run"
 
 // A human message past the bubble limit: the room shows the first 16,000 characters and stores the
 // whole text as a file. The file's bytes come back whole, and the agent's transcript takes the message.
@@ -21,7 +22,7 @@ async function mentionPastBubble(v: { url: string }, alice: Session): Promise<vo
 	room.raw.send({ t: "send", clientId, text })
 	const ack = await room.expect((f) => (f.t === "ack" || f.t === "send_refused") && f.clientId === clientId, 10_000)
 	if (ack.t !== "ack") throw new VerifyError(`the send was refused: ${ack.t === "send_refused" ? ack.reason : ""}`)
-	await until("ada's answer", () => seen(room).all.some((m) => m.from.kind === "agent" && m.from.slug === "ada"), 20_000)
+	await poll("ada's answer", () => seen(room).all.some((m) => m.from.kind === "agent" && m.from.slug === "ada"), 20_000)
 	await Bun.sleep(2_000)
 	expectEqual(
 		// The reply's text is "got it" and the attached line the envelope adds after it.
@@ -51,7 +52,7 @@ const suite: Suite = {
 		expectEqual(files.map((f) => [f.size, f.type]), [[40_000, "text/plain"]], "the message's files")
 		const file = files[0]
 		if (!file || !/^attachments\/[0-9a-z]+-message\.txt$/.test(file.name)) throw new VerifyError(`the file is at ${file?.name}`)
-		const base = v.url.endsWith("/") ? v.url : `${v.url}/`
+		const base = v.url
 		const download = await fetch(new URL(`api/files/${roomId}/${file.id}`, base), { headers: { cookie: alice.cookie } })
 		expectEqual(await download.text(), text, "the file's bytes")
 

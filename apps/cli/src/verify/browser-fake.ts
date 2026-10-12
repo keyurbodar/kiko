@@ -1,8 +1,9 @@
+import { agentTexts, newRoom, poll, seen } from "./kit"
 import { activeBrowsers, closeBrowser, connectKernel } from "./browser-kit"
 import { type RoomHandle, type Session, type Verifier, VerifyError } from "./client"
-import { agentTexts, api, eventually, inSeconds, ok, type Routine, toolLine } from "./routine-kit"
+import { api, inSeconds, ok, type Routine, toolLine } from "./routine-kit"
 import { readStats, resetStats } from "./suites/latency"
-import { fake, newRoom, seen, send, until } from "./suites/mid-run"
+import { fake, send } from "./suites/mid-run"
 
 const HN = "https://news.ycombinator.com"
 const TABS = 8
@@ -15,7 +16,7 @@ const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
 async function ask(room: RoomHandle, text: string, ms = 40_000): Promise<string> {
   const before = texts(room).length
   await send(room, text)
-  await until(`an answer to ${text.slice(0, 40)}`, () => texts(room).length > before, ms)
+  await poll(`an answer to ${text.slice(0, 40)}`, () => texts(room).length > before, ms)
   return texts(room).at(-1) ?? ""
 }
 
@@ -54,7 +55,7 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
 
     const bad = opened.findIndex((got) => !got.includes("Example Domain"))
     if (bad >= 0) throw new VerifyError(`tab ${bad + 3} did not open example.com: ${JSON.stringify(opened[bad]?.slice(0, 200))}`)
-    await eventually("the routine's answer", () => agentTexts(r.room).some((t) => t.includes("/newest")), 40_000)
+    await poll("the routine's answer", () => agentTexts(r.room).some((t) => t.includes("/newest")), 40_000)
     await note()
     const tabs = held(await api<State>(v.url, s, "dev/agent/browser", { action: "state" }))
     if (tabs < TABS) throw new VerifyError(`expected ${TABS} open tabs before the ninth, the lease counts ${tabs}`)
@@ -73,7 +74,7 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
     if (leaked.length) throw new VerifyError(`the talker has browser tools: ${leaked.join(", ")}`)
     const mark = texts(a.room).length
     await send(a.room, toolLine("start_work", { task: "[tools]" }))
-    await until("the worker's tool list", () => texts(a.room).slice(mark).some((t) => /report w\d+ done: tools: /.test(t)), 40_000)
+    await poll("the worker's tool list", () => texts(a.room).slice(mark).some((t) => /report w\d+ done: tools: /.test(t)), 40_000)
     const viaWorker = texts(a.room).slice(mark).find((t) => /report w\d+ done: tools: /.test(t)) ?? ""
     const listed = /tools: ([\w,]+)/.exec(viaWorker)?.[1]?.split(",")
     if (!listed?.length) throw new VerifyError(`the worker did not list its tools: ${JSON.stringify(viaWorker.slice(0, 300))}`)

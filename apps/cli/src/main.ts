@@ -8,6 +8,8 @@ import { ws } from "./commands/ws"
 
 export const defaultUrl = process.env.YUKI_URL ?? "http://localhost:8787"
 
+const withSlash = (url: string) => (url.endsWith("/") ? url : `${url}/`)
+
 export class CliError extends Error {}
 
 export interface Context {
@@ -52,7 +54,7 @@ export async function main(argv: string[]): Promise<number> {
     const idle = Number(values.idle)
     if (!Number.isFinite(idle) || idle < 0) throw new CliError(`bad --idle: ${values.idle}`)
     console.error(`yuki: target ${values.url}`)
-    await run({ url: values.url, json: values.json, args, idle, dev: values.dev, name: values.name, list: values.list, noModel: values["no-model"], fake: values.fake, runs: values.runs, tail: values.tail })
+    await run({ url: withSlash(values.url), json: values.json, args, idle, dev: values.dev, name: values.name, list: values.list, noModel: values["no-model"], fake: values.fake, runs: values.runs, tail: values.tail })
     return 0
   } catch (e) {
     console.error(`yuki: ${e instanceof Error ? e.message : String(e)}`)

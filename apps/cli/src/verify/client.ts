@@ -233,10 +233,11 @@ export async function devSession(url: string, name: string): Promise<{ cookie: s
   return { cookie, userId: user.id }
 }
 
-export function createVerifier(url: string, options: { fake?: boolean } = {}): Verifier {
+export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}): Verifier {
+  const url = withSlash(baseUrl)
   const open: { close(): void }[] = []
   async function credentials(cookie: string, method: "PUT" | "DELETE", provider: string, body?: unknown): Promise<void> {
-    const res = await fetch(new URL(`api/credentials/${provider}`, withSlash(url)), {
+    const res = await fetch(new URL(`api/credentials/${provider}`, url), {
       method,
       headers: body === undefined ? { cookie } : { cookie, "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -245,7 +246,7 @@ export function createVerifier(url: string, options: { fake?: boolean } = {}): V
     if (!res.ok) throw new VerifyError(`${method} api/credentials/${provider} answered ${res.status}`)
   }
   const wsUrl = (path: string) => {
-    const u = new URL(path, withSlash(url))
+    const u = new URL(path, url)
     u.protocol = u.protocol === "https:" ? "wss:" : "ws:"
     return u
   }
@@ -297,7 +298,7 @@ export function createVerifier(url: string, options: { fake?: boolean } = {}): V
           await credentials(cookie, "DELETE", provider)
         },
         putFile(roomId, path, body, options = {}) {
-          return fetch(new URL(`api/files/${roomId}?path=${encodeURIComponent(path)}`, withSlash(url)), {
+          return fetch(new URL(`api/files/${roomId}?path=${encodeURIComponent(path)}`, url), {
             method: "PUT",
             headers: { cookie, "content-type": options.type ?? "text/plain", "x-yuki-if-sha256": options.expect ?? "none" },
             body,

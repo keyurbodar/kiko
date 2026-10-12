@@ -1,9 +1,10 @@
+import { agentTexts, messages, newRoom, poll } from "../kit"
 import type { AgentSlug, UserToClient } from "@yuki/protocol"
 import { VerifyError } from "../client"
-import { agentTexts, dev, eventually, inSeconds, messages, ok, type Routine, routines, systemTexts, toolLine, waitRuns } from "../routine-kit"
+import { dev, inSeconds, ok, type Routine, routines, systemTexts, toolLine, waitRuns } from "../routine-kit"
 import { must } from "../must"
 import type { Suite } from "../runner"
-import { fake, newRoom, send } from "./mid-run"
+import { fake, send } from "./mid-run"
 
 
 const suite: Suite = {
@@ -17,7 +18,7 @@ const suite: Suite = {
       const { roomId, room } = await newRoom(s, "proactive: stalls")
       await fake(v, s, roomId)
       await send(room, "[reply] ok")
-      await eventually("the first answer", () => agentTexts(room).length >= 1, 20_000)
+      await poll("the first answer", () => agentTexts(room).length >= 1, 20_000)
       room.raw.send({ t: "task", op: { op: "create", id: "stuck", title: "write the launch post", owner: "yuki" as AgentSlug } })
       room.raw.send({ t: "task", op: { op: "update", id: "stuck", status: "doing" } })
       await Bun.sleep(1_000)
@@ -26,7 +27,7 @@ const suite: Suite = {
       await dev(url, s, "age", { roomId, ms: 2 * 86_400_000 })
       await dev(url, s, "attention", { action: "age", ms: 10 * 60_000 })
       const pass = await dev(url, s, "attention", { action: "pass" })
-      await eventually("the woken owner's answer", () => agentTexts(room).length > before, 30_000).catch((e: Error) => {
+      await poll("the woken owner's answer", () => agentTexts(room).length > before, 30_000).catch((e: Error) => {
         throw new VerifyError(`${e.message}: ${JSON.stringify(pass)}`)
       })
       const answer = must(messages(room).filter((m) => m.from.kind === "agent").at(-1), "the woken owner's answer")
@@ -52,7 +53,7 @@ const suite: Suite = {
         await dev(url, a, "attention", { action: "age", ms: days * 86_400_000 })
         const before = agentTexts(room).length
         const p = (await dev(url, a, "attention", { action: "pass" })) as P
-        if (p.woke.some((w) => w.result === "delivered")) await eventually("the nudge", () => agentTexts(room).length > before, 20_000)
+        if (p.woke.some((w) => w.result === "delivered")) await poll("the nudge", () => agentTexts(room).length > before, 20_000)
         await Bun.sleep(2_000)
         const v0 = must(p.verdicts[0], "a verdict")
         return { woke: p.woke.filter((w) => w.result === "delivered").length, verdict: `${v0.verdict}${v0.reason ? `:${v0.reason}` : ""}${v0.until ? ` ${((v0.until - p.at) / 86_400_000).toFixed(1)}d` : ""}` }
@@ -95,7 +96,7 @@ const suite: Suite = {
       const { routine } = await ok<{ routine: Routine }>(url, a, "routines", { roomId, name: "while away", instructions: "[reply] ran", trigger: { on: "time", at: inSeconds(3) } })
       const held = await waitRuns(url, a, routine.id, "a held run", (rs) => rs.length > 0, 40_000)
       if (held[0]?.status !== "held") throw new VerifyError(`a run started while the human was away: ${JSON.stringify(held)}`)
-      await eventually("the away line", () => systemTexts(kroom).some((t) => t.includes("while you were away")), 10_000)
+      await poll("the away line", () => systemTexts(kroom).some((t) => t.includes("while you were away")), 10_000)
       if (agentTexts(room).length) throw new VerifyError("an agent answered while the human was away")
       await dev(url, a, "seen", { ago: 2 * 3_600_000 })
       ;(await a.user()).send({ t: "hello", lastSeq: 0 })
@@ -117,7 +118,7 @@ const suite: Suite = {
       room.raw.send({ t: "task", op: { op: "create", id: "open-1", title: "book the venue" } })
       await Bun.sleep(1_500)
       await send(room, toolLine("overview", {}))
-      await eventually("the overview result", () => agentTexts(room).some((t) => t.includes("chats, newest first")), 20_000)
+      await poll("the overview result", () => agentTexts(room).some((t) => t.includes("chats, newest first")), 20_000)
       const text = must(agentTexts(room).find((t) => t.includes("chats, newest first")), "the overview result")
       if (!text.includes("proactive: overview") || !text.includes("open task")) throw new VerifyError(`the overview missed something: ${text.slice(0, 600)}`)
       console.log(`  ok no check-in routine; overview lists chats and open tasks (${text.length} chars)`)

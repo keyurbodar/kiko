@@ -1,8 +1,9 @@
+
+import { newRoomId } from "@yuki/protocol"
 import type { RoomToClient } from "@yuki/protocol"
 import type { RoomHandle, Session, UserChannel, Verifier } from "../client"
 import { VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { ulid } from "./mid-run"
 import { must } from "../must"
 
 const BURST_MS = 1_000
@@ -45,7 +46,7 @@ function lastFrameBytes(room: RoomHandle): number {
 }
 
 async function call(v: Verifier, s: Session, path: string, body?: unknown): Promise<Response> {
-  const res = await fetch(new URL(path, v.url.endsWith("/") ? v.url : `${v.url}/`), {
+  const res = await fetch(new URL(path, v.url), {
     method: body === undefined ? "GET" : "POST",
     headers: { "content-type": "application/json", cookie: s.cookie },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -74,7 +75,7 @@ export function cost(c: Record<string, number>): Record<string, number> {
 }
 
 async function openRoom(s: Session, user: UserChannel, title: string, samples?: Samples) {
-  const roomId = ulid()
+  const roomId = newRoomId()
   user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title } })
   await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
   const t0 = now()

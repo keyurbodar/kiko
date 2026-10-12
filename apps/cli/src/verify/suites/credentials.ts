@@ -9,7 +9,7 @@ type Answer = { status: number; text: string; body: unknown }
 const suite: Suite = {
   name: "credentials",
   async run(v) {
-    const base = v.url.endsWith("/") ? v.url : `${v.url}/`
+    const base = v.url
     const key = `sk-verify-${crypto.randomUUID().replaceAll("-", "")}`
 
     async function call(cookie: string | null, method: string, path: string, body?: unknown, origin?: string): Promise<Answer> {

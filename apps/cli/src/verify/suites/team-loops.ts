@@ -1,24 +1,22 @@
-import type { Agent, AgentSlug, Message, RoomEvent, RoomId, RoomToClient } from "@yuki/protocol"
+import { messages, poll } from "../kit"
+import { newRoomId } from "@yuki/protocol"
+import type { Agent, AgentSlug, RoomId, } from "@yuki/protocol"
 import type { RoomHandle, Session } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { send, ulid, until } from "./mid-run"
+import { send } from "./mid-run"
 
 
 const agentOf = (slug: string): Agent => ({ id: `team-loops-${slug}`, name: slug, slug: slug as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
-const base = (url: string) => (url.endsWith("/") ? url : `${url}/`)
 
 export async function dev(url: string, cookie: string, path: string, body: unknown): Promise<unknown> {
-  const res = await fetch(new URL(`api/dev/agent/${path}`, base(url)), { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) })
+  const res = await fetch(new URL(`api/dev/agent/${path}`, url), { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) })
   if (!res.ok) throw new VerifyError(`the dev agent route answered ${res.status}. start the Worker with NODE_ENV=development`)
   return res.json()
 }
 
 type Status = { inbox: { waiting: number; claimed: number; submitted: number } }
 
-const events = (room: RoomHandle): RoomEvent[] =>
-  room.raw.log.flatMap((e) => (e.dir === "in" && (e.frame as RoomToClient).t === "events" ? [...(e.frame as Extract<RoomToClient, { t: "events" }>).events] : []))
-export const messages = (room: RoomHandle): Message[] => events(room).flatMap((e) => (e.t === "message" ? [e as Message] : []))
 export const agentSends = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent" && !m.run)
 export const bubbles = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "agent" && m.run)
 export const notices = (room: RoomHandle) => messages(room).filter((m) => m.from.kind === "system" && m.from.reason === "run_budget")
@@ -26,7 +24,7 @@ export const notices = (room: RoomHandle) => messages(room).filter((m) => m.from
 export async function team(v: { url: string }, s: Session, slugs: string[], title: string) {
   const user = await s.user()
   for (const slug of slugs) user.send({ t: "agent", op: { op: "create", agent: agentOf(slug) } })
-  const roomId = ulid() as RoomId
+  const roomId = newRoomId() as RoomId
   user.send({ t: "chat", op: { op: "create", roomId, title, agents: slugs.map((n) => agentOf(n).id) } })
   await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
   const room = await s.room(roomId)
@@ -66,7 +64,7 @@ const suite: Suite = {
     {
       const { room, received } = await team(v, s, ["ana", "ben"], "echo forever")
       await send(room, "@ana [send ben] [echo]")
-      await until("the loop notice", () => notices(room).length > 0, 60_000)
+      await poll("the loop notice", () => notices(room).length > 0, 60_000)
       await settle(() => messages(room).length, 4_000, 30_000)
       const sends = agentSends(room)
       expectEqual(
@@ -81,7 +79,7 @@ const suite: Suite = {
       console.log(`  ok echo: 8 hops sent, hop 9 refused; notice: ${JSON.stringify(notices(room)[0]?.text)}`)
 
       await send(room, "@ana [team]")
-      await until("ana's look at the team", () => bubbles(room).some((m) => m.text.startsWith("heard: @ana [team]") && m.text.includes("@ben:")), 15_000)
+      await poll("ana's look at the team", () => bubbles(room).some((m) => m.text.startsWith("heard: @ana [team]") && m.text.includes("@ben:")), 15_000)
       await Bun.sleep(1_500)
       expectEqual(await received(), 10, "envelopes after team (only the human's)")
       console.log("  ok team: read what ben is doing, woke nobody")
@@ -91,7 +89,7 @@ const suite: Suite = {
     {
       const { room, received, members } = await team(v, s, ["cat", "dov", "eli", "fay", "gus"], "shout forever")
       await send(room, "@cat [shout]")
-      await until("the loop notice", () => notices(room).length > 0, 90_000)
+      await poll("the loop notice", () => notices(room).length > 0, 90_000)
       await settle(() => messages(room).length, 5_000, 60_000)
       const deliveries = agentSends(room).length * (members.length - 1)
       const stored = (await received()) - 1

@@ -1,8 +1,9 @@
+import { messages, poll } from "../kit"
 import type { AgentSlug, Message, RoomToClient } from "@yuki/protocol"
 import { expectEqual, type Session, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { send, until } from "./mid-run"
-import { agentSends, bubbles, messages, team } from "./team-loops"
+import { send } from "./mid-run"
+import { agentSends, bubbles, team } from "./team-loops"
 
 
 const slugOf = (m: Message) => (m.from.kind === "agent" ? m.from.slug : "")
@@ -18,8 +19,8 @@ async function batch(v: { url: string }, s: Session) {
 	await send(room, "@ben [send ana] alpha")
 	await send(room, "@cy [send ana] bravo")
 	await send(room, "@yuki [send ana] charlie")
-	await until("all three messages to ana", () => agentSends(room).length >= 3, 30_000)
-	await until("ana's answer to the three", () => runsOf(room, "ana").some((t) => t.includes("charlie") || t.includes("alpha") || t.includes("bravo")), 30_000)
+	await poll("all three messages to ana", () => agentSends(room).length >= 3, 30_000)
+	await poll("ana's answer to the three", () => runsOf(room, "ana").some((t) => t.includes("charlie") || t.includes("alpha") || t.includes("bravo")), 30_000)
 	await Bun.sleep(3_000)
 	const answering = runsOf(room, "ana").filter((t) => /alpha|bravo|charlie/.test(t))
 	expectEqual(answering.length, 1, "ana's runs that read her teammates' messages")
@@ -31,11 +32,11 @@ async function batch(v: { url: string }, s: Session) {
 async function ask(v: { url: string }, s: Session) {
 	const { room } = await team(v, s, ["ana", "ben", "cy"], "plain answer")
 	await send(room, "@ana [ask ben] [slow] how big is it")
-	await until("ben at work on the question", () => agentSends(room).some((m) => slugOf(m) === "ana"), 20_000)
+	await poll("ben at work on the question", () => agentSends(room).some((m) => slugOf(m) === "ana"), 20_000)
 	await Bun.sleep(1_500)
 	await send(room, "@cy [reply] hi cy")
-	await until("cy's reply", () => bubbles(room).some((m) => slugOf(m) === "cy" && m.text === "hi cy"), 20_000)
-	await until("ana's reply", () => bubbles(room).some((m) => slugOf(m) === "ana"), 30_000)
+	await poll("cy's reply", () => bubbles(room).some((m) => slugOf(m) === "cy" && m.text === "hi cy"), 20_000)
+	await poll("ana's reply", () => bubbles(room).some((m) => slugOf(m) === "ana"), 30_000)
 	const reply = runsOf(room, "ana")
 	expectEqual(reply.length, 1, "ana's runs")
 	if (!reply[0]?.includes("@ben answered: slow words")) throw new VerifyError(`ana's reply does not carry ben's plain answer: ${JSON.stringify(reply[0])}`)
@@ -47,7 +48,7 @@ async function cross(v: { url: string }, s: Session) {
 	const { room } = await team(v, s, ["ana", "ben"], "crossed asks")
 	const started = Date.now()
 	await send(room, "@ana [ask ben] [ask ana] which one?")
-	await until("both replies", () => runsOf(room, "ana").length >= 1 && runsOf(room, "ben").length >= 1, 30_000)
+	await poll("both replies", () => runsOf(room, "ana").length >= 1 && runsOf(room, "ben").length >= 1, 30_000)
 	const took = Date.now() - started
 	const [ana] = runsOf(room, "ana")
 	const [ben] = runsOf(room, "ben")
@@ -60,7 +61,7 @@ async function cross(v: { url: string }, s: Session) {
 
 async function refused(v: { url: string }, s: Session) {
 	const { room } = await team(v, s, ["ana", "ben"], "refused burst")
-	const res = await fetch(new URL("api/dev/agent/limits", v.url.endsWith("/") ? v.url : `${v.url}/`), {
+	const res = await fetch(new URL("api/dev/agent/limits", v.url), {
 		method: "POST",
 		headers: { "content-type": "application/json", cookie: s.cookie },
 		body: JSON.stringify({ limits: { turnsPerDay: 1 } }),
@@ -69,7 +70,7 @@ async function refused(v: { url: string }, s: Session) {
 	await send(room, "@ana [later ben] hello ben.")
 	const status = (slug: string, state: string) => () =>
 		room.raw.log.some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).slug === slug && (e.frame as Extract<RoomToClient, { t: "status" }>).state === state)
-	await until("ana at work", status("ana", "working"), 15_000)
+	await poll("ana at work", status("ana", "working"), 15_000)
 	await send(room, "@ben [reply] no,")
 	const sentAt = () => agentSends(room).some((m) => slugOf(m) === "ana")
 	const end = Date.now() + 7_000
@@ -78,8 +79,8 @@ async function refused(v: { url: string }, s: Session) {
 		await Bun.sleep(700)
 	}
 	if (!sentAt()) throw new VerifyError("ana's message to ben never came while the burst was open")
-	await until("the limit line", () => messages(room).some((m) => m.from.kind === "system" && /today's 1 replies/.test(m.text)), 15_000)
-	await until("ben's answer to ana's mail", () => runsOf(room, "ben").some((t) => t.includes("hello ben")), 15_000)
+	await poll("the limit line", () => messages(room).some((m) => m.from.kind === "system" && /today's 1 replies/.test(m.text)), 15_000)
+	await poll("ben's answer to ana's mail", () => runsOf(room, "ben").some((t) => t.includes("hello ben")), 15_000)
 	if (runsOf(room, "ben").some((t) => t.includes("no,"))) throw new VerifyError("the refused burst reached ben")
 	console.log("  ok refused: mail held behind a refused burst reached ben")
 	room.raw.close()
@@ -90,9 +91,9 @@ async function taskWake(v: { url: string }, s: Session) {
 	room.raw.send({ t: "task", op: { op: "create", id: "t1", title: "first", owner: "ana" as AgentSlug } })
 	const t2 = JSON.stringify({ title: "[call fake_send] ship it", owner: "ben", depends_on: ["t1"] })
 	await send(room, `@yuki [ws create_task ${t2}]`)
-	await until("yuki's reply", () => runsOf(room, "yuki").length >= 1, 20_000)
+	await poll("yuki's reply", () => runsOf(room, "yuki").length >= 1, 20_000)
 	room.raw.send({ t: "task", op: { op: "update", id: "t1", status: "done" } })
-	await until("ben's run on the wake", () => runsOf(room, "ben").length >= 1, 20_000)
+	await poll("ben's run on the wake", () => runsOf(room, "ben").length >= 1, 20_000)
 	await Bun.sleep(1_500)
 	const [ben] = runsOf(room, "ben")
 	if (!ben?.includes("fake_send ran")) throw new VerifyError(`ben's wake did not do the task: ${JSON.stringify(ben)}`)

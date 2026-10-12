@@ -1,8 +1,9 @@
+
+import { newRoomId } from "@yuki/protocol"
 import type { RoomToClient, UserToClient } from "@yuki/protocol"
 import { type RoomHandle, type Session, type Verifier, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { fake, readStats, resetStats, Samples } from "./latency"
-import { ulid } from "./mid-run"
 import { must } from "../must"
 
 
@@ -35,7 +36,7 @@ const suite: Suite = {
     const s = await v.as("overhead")
     v0 = v
     s0 = s
-    const base = v.url.endsWith("/") ? v.url : `${v.url}/`
+    const base = v.url
     const samples = new Samples()
     const get = async (path: string) => {
       const t0 = now()
@@ -67,7 +68,7 @@ const suite: Suite = {
     const ahead = await user.expect((f) => f.t === "reset")
     if (ahead.t === "reset") snapshot = ahead.snapshot
 
-    const roomId = ulid()
+    const roomId = newRoomId()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "overhead" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
@@ -122,7 +123,7 @@ const suite: Suite = {
     const got = tail.t === "events" ? tail.events.map((e) => e.seq) : []
     if (JSON.stringify(got) !== JSON.stringify(want)) throw new VerifyError(`resume from ${behind} replayed ${JSON.stringify(got)}, want ${JSON.stringify(want)}`)
 
-    const bigId = ulid()
+    const bigId = newRoomId()
     user.send({ t: "chat", op: { op: "create", roomId: bigId as never, title: "overhead big" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === bigId))
     const big = await s.room(bigId)

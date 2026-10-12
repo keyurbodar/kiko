@@ -1,20 +1,11 @@
+import { poll } from "../kit"
+import { newRoomId } from "@yuki/protocol"
 import type { Message, RoomToClient } from "@yuki/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
-import { until } from "./mid-run"
 
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-const ulid = () => {
-  let t = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[t % 32] + head
-    t = Math.floor(t / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 type Seen = { messages: Message[]; members: string[]; runs: Map<string, number> }
 
@@ -78,11 +69,11 @@ const suite: Suite = {
     const user = await s.user()
     const ada = { id: `agent-ada-${Date.now()}`, name: "ada", slug: "ada" as never, prompt: "you love food and wine and you are a bit witty.", model: "" }
     user.send({ t: "agent", op: { op: "create", agent: ada } })
-    const roomId = ulid()
+    const roomId = newRoomId()
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "dinner crew", agents: ["yuki", ada.id] } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
-    await until("the members", () => seen(room).members.length >= 2, 10_000).catch(() => {})
+    await poll("the members", () => seen(room).members.length >= 2, 10_000).catch(() => {})
     const step = (t: string) => console.log(`  ok ${t}`)
     const fail: string[] = []
 
@@ -92,7 +83,7 @@ const suite: Suite = {
       room.send(text)
       await Bun.sleep(350)
     }
-    await until("the lead's answer", () => agentSays(room, from, "yuki").length > 0, 60_000)
+    await poll("the lead's answer", () => agentSays(room, from, "yuki").length > 0, 60_000)
     const firstLead = Date.now() - t0
     await quiet(room, 6_000, 90_000)
     const leadRuns = seen(room).runs.get("yuki") ?? 0
@@ -105,7 +96,7 @@ const suite: Suite = {
 
     from = lastSeq(room)
     room.send("@ada what wine goes with a mushroom risotto?")
-    await until("ada's answer", () => agentSays(room, from, "ada").length > 0, 60_000)
+    await poll("ada's answer", () => agentSays(room, from, "ada").length > 0, 60_000)
     await quiet(room, 5_000, 60_000)
     print(room, from)
     const adaToYuki = agentSays(room, from, "ada").some((m) => /@yuki\b/.test(m.text))
@@ -114,16 +105,16 @@ const suite: Suite = {
 
     from = lastSeq(room)
     room.send("@yuki please add a new agent to this chat, a designer called nova, and ask nova to suggest 3 colors for the invite card")
-    await until("nova to join", () => seen(room).members.includes("nova"), 90_000)
-    await until("nova to speak", () => agentSays(room, from, "nova").length > 0, 90_000)
+    await poll("nova to join", () => seen(room).members.includes("nova"), 90_000)
+    await poll("nova to speak", () => agentSays(room, from, "nova").length > 0, 90_000)
     await quiet(room, 6_000, 90_000)
     print(room, from)
     step("spawn: the lead added @nova and nova answered")
 
     from = lastSeq(room)
     room.send("@yuki ask ada for one dessert idea, then tell me what she said")
-    await until("an agent-to-agent message", () => after(room, from).some((m) => m.from.kind === "agent" && /@ada\b/.test(m.text) && m.from.slug === "yuki"), 90_000)
-    await until("ada's answer to yuki", () => agentSays(room, from, "ada").length > 0, 90_000)
+    await poll("an agent-to-agent message", () => after(room, from).some((m) => m.from.kind === "agent" && /@ada\b/.test(m.text) && m.from.slug === "yuki"), 90_000)
+    await poll("ada's answer to yuki", () => agentSays(room, from, "ada").length > 0, 90_000)
     await quiet(room, 8_000, 120_000)
     print(room, from)
     const yukiRuns = seen(room).runs.get("yuki") ?? 0
@@ -134,7 +125,7 @@ const suite: Suite = {
     from = lastSeq(room)
     t0 = Date.now()
     room.send("@yuki remind me in 20 seconds to buy candles")
-    await until("the reminder line", () => after(room, from).some((m) => m.from.kind === "system" && /candle/i.test(m.text)), 120_000)
+    await poll("the reminder line", () => after(room, from).some((m) => m.from.kind === "system" && /candle/i.test(m.text)), 120_000)
     const fired = (Date.now() - t0) / 1000
     print(room, from)
     if (fired < 15) fail.push(`reminder: fired after ${fired.toFixed(0)} s, too early`)
@@ -143,9 +134,9 @@ const suite: Suite = {
 
     from = lastSeq(room)
     room.send("@yuki what should the main course be")
-    await until("yuki typing", () => room.raw.log.slice(-40).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).state !== "idle"), 30_000)
+    await poll("yuki typing", () => room.raw.log.slice(-40).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).state !== "idle"), 30_000)
     room.send("@yuki oh and one guest is vegetarian")
-    await until("yuki's answer", () => agentSays(room, from, "yuki").length > 0, 90_000)
+    await poll("yuki's answer", () => agentSays(room, from, "yuki").length > 0, 90_000)
     await quiet(room, 6_000, 90_000)
     print(room, from)
     const answer = agentSays(room, from, "yuki").map((m) => m.text).join(" ")

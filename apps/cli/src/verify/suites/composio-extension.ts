@@ -1,8 +1,8 @@
+import { newRoom } from "../kit"
 import type { ClientToUser, ExtensionOp, ExtensionResult, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, type RoomHandle, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
-import { newRoom } from "./mid-run"
 import { must } from "../must"
 
 const MODEL = "opencode-go/muse-spark-1.3-contributor"

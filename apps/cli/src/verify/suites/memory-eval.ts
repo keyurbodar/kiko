@@ -1,3 +1,4 @@
+import { newRoomId } from "@yuki/protocol"
 import type { RoomId, RoomToClient } from "@yuki/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -54,19 +55,9 @@ export function script(e: Eval): { from: string; text: string }[] {
   return out
 }
 
-const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-function ulid(): string {
-  let time = Date.now()
-  let head = ""
-  for (let i = 0; i < 10; i++) {
-    head = CROCKFORD[time % 32] + head
-    time = Math.floor(time / 32)
-  }
-  return head + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => CROCKFORD[b % 32]).join("")
-}
 
 async function dev<T = unknown>(url: string, cookie: string, path: string, body: unknown): Promise<T> {
-  const res = await fetch(new URL(`api/dev/agent/${path}`, url.endsWith("/") ? url : `${url}/`), {
+  const res = await fetch(new URL(`api/dev/agent/${path}`, url), {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
     body: JSON.stringify(body),
@@ -86,7 +77,7 @@ export const memorySuite = (e: Eval): Suite => ({
     const s = await v.as(`memeval${Date.now()}`)
     await connectTestModel(s)
     const user = await s.user()
-    const roomId = ulid() as RoomId
+    const roomId = newRoomId() as RoomId
     user.send({ t: "chat", op: { op: "create", roomId, title: "japan trip" } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     let room = await s.room(roomId)
