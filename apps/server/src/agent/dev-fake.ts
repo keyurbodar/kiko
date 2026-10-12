@@ -11,7 +11,7 @@ import type { WorkspacePort } from "./extensions/workspace"
 
 export const FAKE_MODEL = { provider: "faux", modelId: "faux-1" } as const
 export const SLOW_TOOL = "slow_tool"
-export const SLOW_WRITE_TOOL = "slow_write"
+const SLOW_WRITE_TOOL = "slow_write"
 export const SLOW_TOOL_MS = 5_000
 const LATER_MS = 3_000
 const TOKENS_PER_SECOND = 25
