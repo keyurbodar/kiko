@@ -30,7 +30,7 @@ export class BurstFlush {
 	async flush(): Promise<void> {
 		const home = this.d.home()
 		if (!home) return
-		const pending = this.d.burst.envelopes(home.roomId, MAX_DELIVERY_ENVELOPES + 1)
+		const pending = this.d.burst.envelopes(home.roomId, MAX_DELIVERY_ENVELOPES + 1, true)
 		const batch = deliverable(pending)
 		if (!batch.length) return
 		let reached: Set<AgentSlug>
