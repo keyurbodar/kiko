@@ -1477,7 +1477,7 @@ routine_runs(routine_id, occurrence, started_at, ended_at, status, seq)   -- new
 - **Time budget.** A run whose origin is not `human` gets 10 minutes (`AUTO_RUN_BUDGET_MS`). Past it, the heartbeat steers once: "time is up for this run. post what you have now in one short message, and stop." At twice the budget the host aborts it and the run is `timeout`.
 - **Breaker.** Three `failed` or `timeout` runs in a row pause the routine, and its chat says so.
 - **Missed times.** A routine runs its newest missed occurrence once when it is less than an hour late, and skips older ones.
-- **Limits.** 50 routines per agent per chat, 10 watches per user, 20 runs kept, a schedule no more often than every 30 minutes (every reminder too, the human's included, and a row stored before that rule never fires sooner; a watch every 15, since its checks call no model), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
+- **Limits.** 50 routines per agent per chat, 100 reminders per chat, a time at most a year away (new reminders, routines, and snoozes alike), 10 watches per user, 20 runs kept, a schedule no more often than every 30 minutes (every reminder too, the human's included, and a row stored before that rule never fires sooner; a watch every 15, since its checks call no model), instructions up to 2,000 characters. An alarm pass delivers at most 10 runs and checks at most 10 watches, then goes on a second later, since each costs subrequests.
 
 **Tools** (`agent/extensions/reminders.ts`).
 
