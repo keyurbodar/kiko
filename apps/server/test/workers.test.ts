@@ -179,6 +179,6 @@ test("(f) a fourth worker at once is refused", async () => {
 }, 30_000)
 
 test("(g) a human message during a run that already posted a bubble steers, never queues", () => {
-  expect(decide({ bubblePosted: true, toolStarted: false, toolRunning: false, queued: false, restarts: 0 }, { kind: "human" })).toBe("steer")
-  expect(decide({ bubblePosted: true, toolStarted: true, toolRunning: false, queued: false, restarts: 0 }, { kind: "human" })).toBe("steer")
+  expect(decide({ bubblePosted: true, toolStarted: false, tools: new Map(), queued: false, restarts: 0 }, { kind: "human" })).toBe("steer")
+  expect(decide({ bubblePosted: true, toolStarted: true, tools: new Map(), queued: false, restarts: 0 }, { kind: "human" })).toBe("steer")
 })

@@ -365,7 +365,7 @@ An envelope carries `hop` and `rootId`. A message sent during a run inherits the
 
 - A human burst is placed before any waiting agent message.
 - A human burst applies section 6.2 to a run that another agent started.
-- A human burst stops a running read, `bash`, or `ask` (section 6.2). The stopped tool returns "aborted", and the answer to the human follows at once.
+- A human burst stops a running read or `bash` (section 6.2). The stopped tool returns "aborted", and the answer to the human follows at once. A tool that writes, messages, or calls out runs to its end. A declared `stoppable: true` on a tool opts it in; reads are stoppable by their effect.
 - When a human message is stored, each busy agent it is for, by the table of section 7.2, is told one is coming. Until it arrives, that agent holds agent and system mail, and a waiting `ask` stops so the run answers the human first. Agents the message is not for keep working. When the burst closes without reaching a warned agent (refused, or routed elsewhere), the room tells it so and its held mail goes at once. Every human message used to warn every busy agent and cancel every open `ask`.
 - The stop button aborts every run in the room and clears agent messages still waiting in inboxes for that `rootId`.
 

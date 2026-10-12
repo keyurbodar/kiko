@@ -3,7 +3,7 @@ import { getCurrentTools, Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import { declareEffect } from "@yuki/agent/effects"
+import { type Effect, declareEffect } from "@yuki/agent/effects"
 import { type BuildAgentInput, buildAgent } from "./factory"
 import type { AgentSetup } from "@yuki/agent/host"
 import type { RoleInput } from "./prompt"
@@ -11,6 +11,7 @@ import type { WorkspacePort } from "./extensions/workspace"
 
 export const FAKE_MODEL = { provider: "faux", modelId: "faux-1" } as const
 export const SLOW_TOOL = "slow_tool"
+export const SLOW_WRITE_TOOL = "slow_write"
 export const SLOW_TOOL_MS = 5_000
 const LATER_MS = 3_000
 const TOKENS_PER_SECOND = 25
@@ -106,6 +107,9 @@ export function fakeReply(transcript: readonly Message[]) {
   if (last?.role === "user" && users.some((u) => u.includes("[tool]")) && results.length === 0) {
     return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, {}), { stopReason: "toolUse" })
   }
+  if (last?.role === "user" && users.some((u) => u.includes("[write]")) && results.length === 0) {
+    return fauxAssistantMessage(fauxToolCall(SLOW_WRITE_TOOL, {}), { stopReason: "toolUse" })
+  }
   const team = last?.role === "user" ? teamCall(textOf(last)) : null
   if (team) return fauxAssistantMessage(team, { stopReason: "toolUse" })
   const calls = fakeCalls(messages)
@@ -158,18 +162,22 @@ function anyToolCall(raw: string) {
   return direct ? fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))) : null
 }
 
-const slowTool = defineTool({
-  name: SLOW_TOOL,
-  description: "waits a few seconds, then says slept.",
-  parameters: Type.Object({ ms: Type.Optional(Type.Number()) }),
-  execute: async (args, _api, context) => {
-    // check-rules: allow no-timer-in-do dev-only fake tool; the wait ends when the run aborts, and a run lives inside one request
-    await awaitWithContext(new Promise((resolve) => setTimeout(resolve, Math.min(args.ms ?? SLOW_TOOL_MS, 300_000))), context)
-    return { content: [{ type: "text", text: "slept" }] }
-  },
-})
+const slowTool = (name: string, effect: Effect) =>
+  declareEffect(
+    effect,
+    defineTool({
+      name,
+      description: "waits a few seconds, then says slept.",
+      parameters: Type.Object({ ms: Type.Optional(Type.Number()) }),
+      execute: async (args, _api, context) => {
+        // check-rules: allow no-timer-in-do dev-only fake tool; the wait ends when the run aborts, and a run lives inside one request
+        await awaitWithContext(new Promise((resolve) => setTimeout(resolve, Math.min(args.ms ?? SLOW_TOOL_MS, 300_000))), context)
+        return { content: [{ type: "text", text: "slept" }] }
+      },
+    }),
+  )
 
-export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [declareEffect("read", slowTool)] })
+export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [slowTool(SLOW_TOOL, "read"), slowTool(SLOW_WRITE_TOOL, "write")] })
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] })
 const page = Type.Object({ page: Type.String() })

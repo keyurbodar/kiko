@@ -211,7 +211,8 @@ export function filesExtension({ acceptsImages }: FilesOptions): Extension {
     declareEffect("write", mv) as ToolRegistration,
     declareEffect("write", cp) as ToolRegistration,
     declareEffect("write", mkdir) as ToolRegistration,
-    declareEffect("write", bash) as ToolRegistration,
+    // A stopped bash call saves none of a command it did not finish, so a human message may stop it.
+    declareEffect("write", bash, { stoppable: true }) as ToolRegistration,
   ]
   return defineExtension({ name: FILES, tools })
 }
