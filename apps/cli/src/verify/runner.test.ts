@@ -38,3 +38,12 @@ test("an unknown suite name is an error", async () => {
     "no suite named nope",
   )
 })
+
+test("a load test never runs against a deployed server, even by name", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "yuki-suites-"))
+  await writeFile(join(dir, "load.ts"), `export default { name: "load", load: true, async run() { throw new Error("ran against a deployed server") } }\n`)
+  const lines: string[] = []
+  const failed = await runSuites({ url: "https://kiko.example.workers.dev", noModel: false, names: ["load"], dir, log: (l) => lines.push(l) })
+  expect(failed).toEqual([])
+  expect(lines.join("\n")).toContain("skip load (a load test")
+})

@@ -6,6 +6,8 @@ export interface Suite {
   name: string
   model?: boolean
   human?: boolean
+  /** A load test: it sends thousands of writes, so it runs only against a local server, never a deployed one. */
+  load?: boolean
   run(v: Verifier): Promise<void>
 }
 
@@ -34,6 +36,8 @@ export interface RunOptions {
   log?: (line: string) => void
 }
 
+export const isLocal = (url: string): boolean => ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname)
+
 export async function runSuites(opts: RunOptions): Promise<string[]> {
   const log = opts.log ?? console.log
   const all = await loadSuites(opts.dir)
@@ -49,6 +53,10 @@ export async function runSuites(opts: RunOptions): Promise<string[]> {
     }
     if (s.human && !opts.names.includes(s.name)) {
       log(`skip ${s.name} (needs a person; run it by name)`)
+      continue
+    }
+    if (s.load && !isLocal(opts.url)) {
+      log(`skip ${s.name} (a load test; it runs only against a local server)`)
       continue
     }
     const v = createVerifier(opts.url, { fake: opts.fake ?? false })
