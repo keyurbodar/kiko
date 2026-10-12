@@ -32,7 +32,7 @@ function setup(refusal: string | null) {
 			get: (name: string) => ({
 				receive: async (envelopes: Envelope[]) => {
 					received.push({ slug: name.split(":").at(-1)!, ids: envelopes.map((e) => e.id) })
-					return { refused: received.length === 1 ? refusal : null }
+					return { refused: refusal }
 				},
 			}),
 		},
@@ -71,6 +71,9 @@ test("a full inbox is no one's final answer: no notice, nothing marked", async (
 test("a refused agent message gives back its hop and tells the sender", async () => {
 	const { deps, mail, received } = setup("too_large")
 	const members2 = [ada, bob]
+	mail.delivered("ada" as AgentSlug, [human("r1")])
+	expect(mail.send("ada" as AgentSlug, { id: "s1", to: "bob" as AgentSlug, text: "hello" }, members2)).toMatchObject({ ok: true })
+	expect(mail.deliveries("r1")).toBe(1)
 	const envelope: Envelope = { id: "agent:m9:bob", roomId: home.roomId, from: { kind: "agent", slug: "ada" as AgentSlug }, body: "x", hop: 1, rootId: "r1", seq: 1 }
 	expect(await receive(deps, home, bob, members2, "t", [envelope])).toBe("refused")
 	expect(received.map((r) => r.slug)).toEqual(["bob", "ada"])
