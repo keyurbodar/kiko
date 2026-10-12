@@ -67,6 +67,18 @@ test("a proposal is not live until install, and install schedules the triggers",
   expect(s.triggers).toEqual(["cancel ext:hook", "create ext:hook FREQ=DAILY;BYHOUR=9;BYMINUTE=0 [hook] good morning"])
 })
 
+test("two quick toggles leave the triggers matching the switch", async () => {
+  const u = fresh()
+  const slow = { manifest: { ...manifest, name: "slow" }, files: bundle.files }
+  const p = await call(u, "propose", { bundle: slow, source: "agent", by: "ada", room: "0190f5e2-7c3a-7b4d-8e9f-0123456789ab" })
+  await call(u, "install", p.value.id)
+  await call(u, "setEnabled", "slow", false)
+  await Promise.all([call(u, "setEnabled", "slow", true), call(u, "setEnabled", "slow", false)])
+  const info = (await call(u, "list")).value.find((e: { name: string }) => e.name === "slow")
+  const log = (await seen(u)).triggers.filter((t) => t.includes("ext:slow"))
+  expect(log.at(-1)?.startsWith("create ")).toBe(info.enabled)
+})
+
 test("a secret is filled in only for its own host, and an echo never hands it back", async () => {
   const u = fresh()
   await installed(u)

@@ -68,6 +68,12 @@ describe("checkBundle", () => {
 		expect(missing.ok ? [] : missing.problems).toContain('the entry module "main.js" is missing')
 	})
 
+	test("the wire schema refuses a trigger rule the install refuses, such as a day no month has", () => {
+		const bad = { ...standup, triggers: [{ id: "never", rrule: "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30", send: "hi" }] }
+		expect(checkBundle({ manifest: bad, files: { "main.js": "" } }).ok).toBe(false)
+		expect(Schema.is(ExtensionBundle)({ manifest: bad, files: { "main.js": "" } })).toBe(false)
+	})
+
 	test("refuses paths that climb out of the bundle", () => {
 		const out = checkBundle({ manifest: standup, files: { "main.js": "", "../x.js": "" } })
 		expect(out.ok).toBe(false)

@@ -23,6 +23,8 @@ export class StoreDO extends DurableObject<Env> {
         cancelBy: async (by) => {
           if (by === "ext:boom") throw new Error("the scheduler is down")
           this.triggers.push(`cancel ${by}`)
+          // Slow enough that two quick toggles overlap inside the trigger rewrite.
+          if (by === "ext:slow") await new Promise((r) => setTimeout(r, 30))
         },
         fallback: () => ({ roomId: "0190f5e2-7c3a-7b4d-8e9f-0123456789ab" as never, target: "yuki" }),
       },
