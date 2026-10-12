@@ -11,7 +11,7 @@ import type { Home } from "./home"
 
 
 /** "full" is the same for every sender: nothing was taken, the caller tries again later. Any other refusal is final and runs the sender's row of `REFUSED`. */
-export type Receipt = "admitted" | "full" | "refused"
+type Receipt = "admitted" | "full" | "refused"
 
 export type ReceiveDeps = {
 	env: Env
