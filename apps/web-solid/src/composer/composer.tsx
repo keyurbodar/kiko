@@ -2,7 +2,7 @@ import { Show, createEffect, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@yuki/ui/v2/toast-v2"
 import type { ComposerProps, MessageFile } from "../lib/types"
-import { isImage } from "../lib/attachments"
+import { isImage, sendRefusal } from "../lib/attachments"
 import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
@@ -188,16 +188,19 @@ export function Composer(props: ComposerProps) {
           if (!props.threadId) return
           const text = draftText()
           const editing = props.editing
+          // Every attachment is already uploaded: the send names the uploads, and the message shows
+          // the blob URLs until the room's copy arrives. The frame's size counts the names too.
+          const parts = boxed()
+          const attachments = readyAttachments(parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size })))
+          // A refused draft stays in the box, untouched, with the reason in a toast.
+          const refusal = sendRefusal(text, !!editing, attachments ?? [])
+          if (refusal) return void showToastV2({ title: refusal, variant: "error" })
           if (editing) {
             if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)
             props.onCancelEdit?.()
             return
           }
           if (runSlash(text)) return void store.reset()
-          // Every attachment is already uploaded: the send names the uploads, and the message shows
-          // the blob URLs until the room's copy arrives.
-          const parts = boxed()
-          const attachments = readyAttachments(parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size })))
           if (!attachments) return
           const files = parts.map((part): MessageFile => ({ name: part.filename, size: part.size, type: part.mime, src: part.blob.url }))
           if (!text.trim() && files.length === 0) return

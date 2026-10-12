@@ -60,11 +60,11 @@ export async function send(room: RoomHandle, text: string): Promise<void> {
 
 const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
 
-export async function fake(v: { url: string }, s: Session, roomId: string): Promise<void> {
+export async function fake(v: { url: string }, s: Session, roomId: string, slugs?: string[]): Promise<void> {
   const res = await fetch(new URL("api/dev/agent/fake", v.url.endsWith("/") ? v.url : `${v.url}/`), {
     method: "POST",
     headers: { "content-type": "application/json", cookie: s.cookie },
-    body: JSON.stringify({ roomId }),
+    body: JSON.stringify({ roomId, ...(slugs ? { slugs } : {}) }),
   })
   if (!res.ok) throw new VerifyError(`the fake agent route answered ${res.status}. start the Worker with NODE_ENV=development`)
 }
