@@ -1,76 +1,33 @@
 import type { FileOp } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { BackIcon, CheckIcon, CodeIcon, CopyIcon, DownloadIcon, EyeIcon, FileAddIcon, FolderAddIcon, TableIcon, WrapTextIcon } from "@kiko/ui/icons"
+import { BackIcon, FileAddIcon, FolderAddIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { useNavigate } from "@solidjs/router"
-import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js"
-import { closeFile, dropOpenFile, fileReveal, moveOpenFile, openFile, openFilePath } from "../chat/info/state"
-import { urls, useApp } from "../lib/store"
-import { createFile, PREVIEW_BYTES, readText, withMade } from "./api"
+import { createEffect, createMemo, createSignal, lazy, on, onCleanup, Show, Suspense } from "solid-js"
+import { closeFile, dropOpenFile, moveOpenFile, openFile, openFilePath } from "../chat/info/state"
+import { useApp } from "../lib/store"
+import { createFile, withMade } from "./api"
 import { FileBreadcrumbs } from "./breadcrumbs"
 import { SUBHEADER, SurfaceAction } from "./chrome"
-import type { EditorState } from "./editor"
-import { RENDERED, TEXT_KINDS, viewerKind, type ViewerKind } from "./kind"
-import { buildIndex } from "./model"
+import { viewerKind, type ViewerKind } from "./kind"
+import { buildIndex, HOME, inHome, strip, where } from "./model"
+import { fullSize, setFullSize } from "./prefs"
+import { FileActions, FileBody } from "./surface"
 import { FileTree } from "./tree"
-import { FileViewer } from "./viewer"
+import { createFileView, setSourceFor } from "./view"
+
+const FileDialog = lazy(() => import("./FileDialog"))
 
 /*
  * The files section of the chat's right panel, after t3code's file preview. One file is open at a
  * time. It shows under a header of a back arrow, crumbs and actions, and the back arrow returns to
- * the room's tree. With no file open the tree is the whole section.
+ * the room's tree. With no file open the tree is the whole section. Opening it full size moves the
+ * same file into a dialog, and the panel waits behind it.
  *
  * The shell loads this module with the panel's files section, never with the chat route.
  */
 
-/** A saved switch. Storage can throw in a private window; the switch then lasts the session. */
-function stored(key: string, fallback: boolean) {
-	let initial = fallback
-	try {
-		const raw = localStorage.getItem(key)
-		if (raw !== null) initial = raw === "1"
-	} catch {}
-	const [get, set] = createSignal(initial)
-	const save = (value: boolean) => {
-		set(value)
-		try {
-			localStorage.setItem(key, value ? "1" : "0")
-		} catch {}
-	}
-	return [get, save] as const
-}
-
-// Reading rendered or as source is a preference, not a property of one file, as in t3code.
-const PREFS = {
-	markdown: stored("kiko:file-render-markdown", false),
-	table: stored("kiko:file-render-table", true),
-	html: stored("kiko:file-render-html", true),
-}
-const [wrap, setWrap] = stored("kiko:file-word-wrap", false)
-
-const RENDERED_LABELS = {
-	markdown: ["Show rendered markdown", "Show markdown source"],
-	table: ["Show table", "Show source"],
-	html: ["Show rendered page", "Show HTML source"],
-} as const
-
 const [newFile, setNewFile] = createSignal(0)
 const [newFolder, setNewFolder] = createSignal(0)
-/** A file made from the header opens as source, because there is nothing to render yet. */
-const [sourceFor, setSourceFor] = createSignal<string | null>(null)
-
-const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
-
-/*
- * The tree shows the user's drive as a top folder, home/, beside the chat's own files. A path
- * under it belongs to the drive: its bytes are served from /api/files/home, and its changes go to
- * the user socket. Moving between the two is refused, as for agents: it is a copy.
- */
-const HOME = "home"
-const inHome = (p: string) => p === HOME || p.startsWith(`${HOME}/`)
-const strip = (p: string) => (p === HOME ? "" : p.slice(HOME.length + 1))
-/** Where a tree path lives: its space (a room id or `home`) and its path there. */
-const where = (chatId: string, p: string) => (inHome(p) ? { space: HOME, path: strip(p) } : { space: chatId, path: p })
 
 /** New file and new folder, drawn in the files section header while the tree shows. */
 export function FilesActions() {
@@ -105,54 +62,11 @@ export default function FilesPane(props: { chatId: string }) {
 		const f = file()
 		return f ? viewerKind(f) : "other"
 	})
-	const [editor, setEditor] = createSignal<EditorState>("clean")
-	createEffect(on(path, () => setEditor("clean")))
-	const unsaved = () => editor() === "dirty" || editor() === "saving" || editor() === "error"
-
-	// A line asked for shows in the source, so it wins over the rendered preference until the reader toggles.
-	const reveal = () => {
-		const p = path()
-		return p ? fileReveal(props.chatId, p) : null
-	}
-	const [seenReveal, setSeenReveal] = createSignal<number | null>(null)
-	const renderedMode = () => (file() ? RENDERED[kind()] : undefined)
-	const rendered = () => {
-		const mode = renderedMode()
-		const r = reveal()
-		return !!mode && sourceFor() !== path() && (!r || seenReveal() === r.n) && PREFS[mode][0]()
-	}
-	const toggleRendered = (mode: keyof typeof PREFS) => {
-		PREFS[mode][1](!rendered())
-		setSourceFor(null)
-		const r = reveal()
-		if (r) setSeenReveal(r.n)
-	}
-
-	const [copied, setCopied] = createSignal(false)
-	let copiedTimer: ReturnType<typeof setTimeout> | undefined
-	onCleanup(() => clearTimeout(copiedTimer))
-	/** Copies the file's text. The clipboard gets a promise, so Safari keeps the click's permission across the fetch. */
-	const copy = () => {
-		const f = file()
-		const p = path()
-		if (!f || !p) return
-		const text = readText(where(props.chatId, p).space, f.id, PREVIEW_BYTES).then((r) => {
-			if (r.kind !== "text") throw new Error(r.kind)
-			return r.text
-		})
-		const write =
-			typeof ClipboardItem !== "undefined" && navigator.clipboard?.write
-				? navigator.clipboard.write([new ClipboardItem({ "text/plain": text.then((t) => new Blob([t], { type: "text/plain" })) })])
-				: text.then((t) => navigator.clipboard.writeText(t))
-		write.then(
-			() => {
-				setCopied(true)
-				clearTimeout(copiedTimer)
-				copiedTimer = setTimeout(() => setCopied(false), 1500)
-			},
-			() => showToastV2({ title: "Could not copy this file", variant: "error" }),
-		)
-	}
+	const view = createFileView(props.chatId, path, file, kind)
+	// A dialog left open with no file would wake on the next file, so closing the file closes it.
+	createEffect(() => {
+		if (!path()) setFullSize(false)
+	})
 
 	/** The extension name when the open file is /extensions/<name>/extension.json in the chat's files. */
 	const extensionAt = (p: string) => /^extensions\/([a-z][a-z0-9-]{1,31})\/extension\.json$/.exec(p)?.[1] ?? null
@@ -184,14 +98,14 @@ export default function FilesPane(props: { chatId: string }) {
 				{(p) => (
 					<div class={SUBHEADER} data-component="file-header">
 						<SurfaceAction label="Back to files" icon={BackIcon} action="close-file" onPress={() => closeFile(props.chatId)} />
-						<FileBreadcrumbs path={p} index={index()} unsaved={unsaved()} onOpen={(to) => openFile(props.chatId, to)} />
+						<FileBreadcrumbs path={p} index={index()} unsaved={view.unsaved()} onOpen={(to) => openFile(props.chatId, to)} />
 						<Show when={!inHome(p) && file() ? extensionAt(p) : null}>
 							{(name) => (
 								<button
 									type="button"
 									class="h-6 shrink-0 rounded-md bg-[var(--accent-fill)] px-2 text-xs text-[var(--on-accent)] disabled:opacity-50"
 									data-action="install-extension-file"
-									disabled={proposing() || unsaved()}
+									disabled={proposing() || view.unsaved()}
 									title="Review and install this extension"
 									onClick={() => void installExtension(name())}
 								>
@@ -199,25 +113,8 @@ export default function FilesPane(props: { chatId: string }) {
 								</button>
 							)}
 						</Show>
-						<Show when={renderedMode()}>
-							{(mode) => (
-								<SurfaceAction
-									label={RENDERED_LABELS[mode()][rendered() ? 1 : 0]}
-									icon={rendered() ? CodeIcon : mode() === "table" ? TableIcon : EyeIcon}
-									action="toggle-rendered"
-									pressed={rendered()}
-									onPress={() => toggleRendered(mode())}
-								/>
-							)}
-						</Show>
-						<Show when={file() && TEXT_KINDS.has(kind()) && !rendered()}>
-							<SurfaceAction label={wrap() ? "Disable word wrap" : "Enable word wrap"} icon={WrapTextIcon} action="toggle-wrap" pressed={wrap()} onPress={() => setWrap(!wrap())} />
-						</Show>
-						<Show when={file() && TEXT_KINDS.has(kind())}>
-							<SurfaceAction label={copied() ? "Copied" : "Copy contents"} icon={copied() ? CheckIcon : CopyIcon} action="copy-file" onPress={copy} />
-						</Show>
-						<Show when={file()}>
-							{(f) => <SurfaceAction label="Save file" icon={DownloadIcon} action="download-file" href={urls.file(where(props.chatId, p).space, f().id)} download={baseName(p)} />}
+						<Show when={file()} keyed>
+							{(f) => <FileActions view={view} chatId={props.chatId} path={p} file={f} kind={kind()} onExpand={() => setFullSize(true)} />}
 						</Show>
 					</div>
 				)}
@@ -225,19 +122,18 @@ export default function FilesPane(props: { chatId: string }) {
 			<div class="flex min-h-0 flex-1 overflow-hidden">
 				<Show when={path()} keyed>
 					{(p) => (
-						<section class="flex min-w-0 flex-1 flex-col" aria-label={baseName(p)} data-component="file-surface">
-							<FileViewer
-								roomId={where(props.chatId, p).space}
-								path={where(props.chatId, p).path}
-								file={file() && { ...file()!, name: where(props.chatId, p).path }}
-								kind={kind()}
-								rendered={rendered()}
-								wrap={wrap()}
-								reveal={reveal()}
-								onEditorState={setEditor}
-							/>
-						</section>
+						<Show
+							when={!fullSize()}
+							fallback={<div class="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-sm text-muted" data-component="file-full-size-note">Open full size. Close it to return here.</div>}
+						>
+							<FileBody chatId={props.chatId} path={p} file={file()} kind={kind()} view={view} />
+						</Show>
 					)}
+				</Show>
+				<Show when={fullSize() && path()}>
+					<Suspense>
+						<FileDialog chatId={props.chatId} path={path()!} file={file()} kind={kind()} />
+					</Suspense>
 				</Show>
 				{/* The tree stays mounted while a file shows, so it keeps its folders and scroll. */}
 				<aside

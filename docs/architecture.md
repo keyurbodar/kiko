@@ -463,7 +463,7 @@ How it works:
 - After an input settles, the watcher checks for a newer live input of the same worker, such as a steer, and waits for that one instead of reporting early.
 - `stop_work` marks the worker stopped and aborts its conversation without waiting, since a tool that ignores its signal must not hold up the talker. The aborted submission settles `unanswered` and the report says `stopped`. The human's stop button stops every worker and sends no report.
 - Each run's input lists the workers that have not reported (id, status, task, last step) inside `<context>`. That is how the talker decides, on a human message, to steer or stop one.
-- Workers never post to the chat. The outbox watches only the root conversation. While a worker runs and the talker is idle, the outbox sets the agent's status to `working`, so the client shows activity with no protocol change.
+- Workers never post to the chat. The outbox watches only the root conversation. While a worker runs and the talker is idle, the outbox sets the agent's status to `working`, so the client shows activity. The outbox reports the worker rows to the room, which shows them as a `background` activity and posts one private system line when a worker starts and one when it ends (section 9.4).
 - Each worker has its own view of the chat's files (section 18.1), so workers that race on one file never overwrite each other unseen.
 - A worker can `recall` and `zoom` the chat's memory, but has no `note`: it cannot judge what is already known (section 13). It starts with no `<memory>` block.
 
@@ -517,6 +517,8 @@ type ClientToRoom =
 	| { t: "task"; op: TaskOp }
 	| { t: "search"; query: string; before?: number; limit?: number }    // section 9.2.2
 	| { t: "history"; seq: number; before: number; after: number }        // section 9.2.2
+	| { t: "answer"; id: string; value: string }                          // section 9.4
+	| { t: "skip"; id: string }                                           // section 9.4
 
 type RoomToClient =
 	| { t: "events"; events: RoomEvent[] }           // each has a seq
@@ -524,7 +526,7 @@ type RoomToClient =
 	| { t: "reset"; snapshot: RoomSnapshot }         // when lastSeq is too old
 	| { t: "typing"; who: string[] }                 // not stored
 	| { t: "draft"; slug: string; runId: string; index: number; text: string }  // not stored
-	| { t: "status"; slug: string; state: AgentState }            // not stored
+	| { t: "status"; slug: string; state: AgentState; doing?: string; activity?: Activity }  // not stored, section 9.4
 ```
 
 On connect the client sends `hello`. The room answers with the events after `lastSeq`, or with `reset` if the gap exceeds 500 events. Messages are JSON. The room keeps the newest 1,000 events (twice the replay window) and trims the rest in steps of 100. The `messages` table keeps the history, so a trimmed event only repeated what a snapshot carries. An index on `(kind, seq)` finds the newest event of one kind without reading the log. Two partial indexes on `messages` hold only agent messages, so the chat row's unread count and mention scan never read the human's own messages. A room send at 3,000 messages reads 157 rows, down from 5,958 before the indexes.
@@ -565,6 +567,50 @@ The overlay (`search/overlay.tsx`) loads on the first modifier press, like the p
 ### 9.3 Optimistic updates
 
 Every client action is applied locally first. The client keeps a list of pending patches over the server state and drops a patch when an event with the matching `clientId` or a `seq` at or past the acknowledged one arrives. Pending sends are also written to IndexedDB, so a reload or a lost connection resends them. The t3code reference uses the same pending-patch list for pin and reorder (`packages/client-runtime/src/state/threadLifecycle.ts`). Kiko uses it for every action, including sending.
+
+### 9.4 Agent activity, system events, and questions for the human
+
+**Decision.** The wire says what an agent is doing as data, not as English, and the room tells the client about delegation, workers and questions with stored events. The client never reads a caption to learn what is happening. Types are in `core/protocol/src/room.ts`; fixtures round-trip in `core/protocol/test`.
+
+**Activity.** A `status` frame is `{slug, state, doing?, activity?}`. `doing` is the caption in words. `activity` is one of:
+
+| `kind` | Fields | When |
+| --- | --- | --- |
+| `writing` | none | the model is producing text |
+| `tool` | `tool` (`read`, `edit`, `search`, `run`, `web`, `other`), `caption` | a tool call, or a file change by a teammate's tool |
+| `waiting` | `on` (an agent slug) | the agent called `ask` and is waiting for that teammate |
+| `failed` | `caption` | the last tool call failed |
+| `background` | `workers` (`WorkerRow[]`) | no run is live and a worker runs |
+
+`presence.ts` turns each tool call into a caption and an activity in one place (`describeCall`), so the two cannot drift. The room stores the activity beside the caption in `team_doing` and clears both when the agent goes idle. A `background` activity is built from the worker rows the agent last reported; it is never stored. `ask` used to be silent, so the agent showed as writing for up to two minutes. It now shows as waiting on its teammate. An idle `status` frame has neither field.
+
+**Reconnect.** `RoomSnapshot.agents` lists every member that is not idle with its `state`, `doing` and `activity`, so a client that reconnects paints the live row without waiting for a frame. `agents` and `asks` are optional in the type because the client builds snapshots too; the server always sends both.
+
+**Workers.** The agent reports its worker rows (`id`, `task`, `status`, `step`, `steps`, `startedAt`; the newest 8) to the room when the set of running workers changes (`Workers.onChange`). It does not report each step, so the frame rate does not follow the worker's tool calls. The room stores the rows in `meta` and, when they changed, posts one system line for each worker that started and one for each that ended (`done`, `failed`, `stopped`). The line has an id from the agent, worker id, start time and state, so a repeated report stores nothing. A steered worker that runs again adds no second start line.
+
+**System events.** A system message may carry `event`, a `SystemEvent`:
+
+| `kind` | Fields | Posted when |
+| --- | --- | --- |
+| `delegated` | `from`, `to`, `title` | the lead adds an agent with `spawn_agent` and hands it a task |
+| `subagent` | `agent`, `state` (`started`, `done`, `failed`, `stopped`), `title`, `private: true` | a worker starts or ends |
+| `routine` | `title` | a routine's notice, such as a failed run |
+| `agent_message` | `from`, `to` | reserved. The client derives the fold from `Message.to` today |
+| `activity` | `count` | reserved |
+
+`event` rides the stored message (one nullable `messages.event` column), so a reload shows the same line. A client ignores an event kind it does not know and draws the message text. The schema decodes an unknown `kind` to `{kind}` and does not throw.
+
+A `private` event belongs to the owner's transcript only. It is in the snapshot, the events and history the owner's socket gets, and nowhere an agent or another surface reads: not the memory view, not message search, not the chat row's preview or unread count, and not as the target of a reply (a reply to it is stored as a plain message). `PUBLIC_MESSAGE` in `room/log.ts` is the one SQL filter. ASSUMPTION: with one owner per Worker, "only the owner's socket" means "no agent and no other surface"; every room socket is the owner's.
+
+**Questions.** An agent calls `ask_human(question, options?)` (effect `message`). The room stores a `human_asks` row, posts the question as the agent's message, and appends an `ask` event (`id`, `from`, `text`, `options?`, `messageId`). The tool then waits up to two minutes, as `ask` does, and returns what the human did:
+
+- The human sends `{t: "answer", id, value}`. The room closes the row, appends `ask_resolved` (`how: "answered"`), and tells the agent. If the tool is waiting, it takes the answer as its result and the room posts the answer as a human message replying to the question, without delivering it again. If the tool already gave up, the answer is an ordinary human message with `replyTo`, so the agent gets it as input.
+- The human sends `{t: "skip", id}`. The room appends `ask_resolved` (`how: "skipped"`) and wakes the tool, which returns that the human skipped. Nothing is posted as the human.
+- The human writes a different message. The wait ends at once, the tool says the human wrote, and the ask stays open for the card.
+
+A second `answer` or `skip` for a closed ask does nothing. `RoomSnapshot.asks` holds the open asks, so a reload shows the card. There is no approval gate in kiko, so there is no approval event.
+
+**Reasoning.** The typing indicator parsed English with two regexes to choose a motion, and a reconnect showed nothing until the next frame. Typed fields cost one function next to the caption and let the client keep a table of cases. Worker rows go on the wire only when the set changes, as the workers design already limits `onChange`. Questions use a stored event and a table, not memory, so a reload or an evicted object cannot lose an open card.
 
 ## 10. Accounts and sessions
 
@@ -878,6 +924,8 @@ The recurrence library is `rrule` 2.8.1 (experiment 10, settled). `rrule` checks
 | Manual use | `/skill:name` | the composer sends `/skill:name` as text, and the agent loads the skill with `read_skill` |
 
 The list is part of the system prompt and changes rarely, so it stays in the cached prefix.
+
+`GET /api/skills` (signed in) answers `{skills: [{name, description, source, disableModelInvocation}]}` for the built-in skills, so the settings page can list them. Room skills are not listed there. The parse is memoized per isolate and small, so it stays in the Worker handler.
 
 ## 16. Agents act without asking
 

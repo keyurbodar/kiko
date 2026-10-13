@@ -85,6 +85,16 @@ const ICONS = {
   table: "Table01Icon",
   "file-add": "FileAddIcon",
   "folder-add": "FolderAddIcon",
+  "file-markdown": "FileTextIcon",
+  "file-json": "FileCodeIcon",
+  "file-csv": "Csv01Icon",
+  "file-html": "HtmlFile01Icon",
+  "file-source": "DocumentCodeIcon",
+  "file-diff": "CodeXmlIcon",
+  "file-image": "FileImageIcon",
+  "file-pdf": "Pdf01Icon",
+  "file-audio": "FileAudioIcon",
+  "file-video": "FileVideoIcon",
 } as const
 
 const SHARED: Record<string, string> = { stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round" }

@@ -9,7 +9,7 @@ import { dropBefore, getLastSeq, newestMessages, putMessages, setLastSeq } from 
 import { outbox } from "../warm/outbox"
 import { createMockRoom, createMockUser, type MockRoomOptions } from "./mock-room"
 import { overlayChats, overlayMessages, type RoomPatch, settleRoom } from "./patches"
-import { applyRoomEvent, createRoomStore, emptyRoom, HISTORY_PAGE, MAX_MESSAGES_IN_MEMORY, type RoomStoreOptions, WINDOW_SLACK } from "./room-store"
+import { applyRoomEvent, applyStatus, createRoomStore, emptyRoom, HISTORY_PAGE, MAX_MESSAGES_IN_MEMORY, type RoomStoreOptions, WINDOW_SLACK } from "./room-store"
 import { backoffDelay, createSyncSocket, parseFrame } from "./socket"
 import { createUserStore, newRoomId, OPEN_DEBOUNCE_MS } from "./user-store"
 import { createUserChannel } from "./user-channel"
@@ -65,6 +65,7 @@ describe("the reducer", () => {
 	test("replaying the fixture events gives the fixture snapshot", () => {
 		const data = { ...emptyRoom(), members: [...fixtures.members] }
 		for (const e of structuredClone(fixtures.roomEvents) as RoomEvent[]) applyRoomEvent(data, e)
+		for (const s of fixtures.agentStatuses) applyStatus(data, s)
 		const { roster, ...rest } = data
 		expect(rest).toEqual({ ...fixtures.roomSnapshot } as never)
 		// cy joins at seq 11 and leaves at 12; the transcript shows both as system lines.

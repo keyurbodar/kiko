@@ -1,4 +1,4 @@
-import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@kiko/protocol"
+import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemEvent, SystemReason } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 import type { Chain } from "./mail"
 import type { Pending } from "./burst"
@@ -86,10 +86,10 @@ export class Deliveries {
 		if (Math.random() < 0.02) this.storage.sql.exec("DELETE FROM deliveries WHERE at < ?", now - 30 * 86_400_000)
 	}
 
-	notice(id: string, text: string, reason: SystemReason = "run_budget"): RoomEvent | null {
+	notice(id: string, text: string, reason: SystemReason = "run_budget", detail?: SystemEvent): RoomEvent | null {
 		return this.storage.transactionSync(() => {
 			if (this.seen(id)) return null
-			const { event } = this.log.addMessage({ from: { kind: "system", reason }, text })
+			const { event } = this.log.addMessage({ from: { kind: "system", reason }, text, ...(detail ? { event: detail } : {}) })
 			this.storage.sql.exec("INSERT INTO deliveries (id, at) VALUES (?, ?)", id, Date.now())
 			return event
 		})

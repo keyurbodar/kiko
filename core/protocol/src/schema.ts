@@ -16,7 +16,7 @@ export const MessageId = opaque<P.MessageId>()
 export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 
-export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "run_budget", "limit", "files", "created", "routine", "stalled", "initiative"])
+export const SystemReason = Schema.Literals(["task_unblocked", "reminder", "run_budget", "limit", "files", "created", "routine", "stalled", "initiative", "work"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })
@@ -69,6 +69,56 @@ export const RichText = blocks
 
 export const AgentState = Schema.Literals(["idle", "typing", "working"])
 
+export const ToolKind = Schema.Literals(["read", "edit", "search", "run", "web", "other"])
+
+export const WorkerRow = Schema.Struct({
+	id: Id,
+	task: Schema.String,
+	status: Schema.Literals(["running", "done", "failed", "stopped"]),
+	step: Schema.NullOr(Schema.String),
+	steps: Count,
+	startedAt: Count,
+})
+
+export const Activity = Schema.Union([
+	Schema.Struct({ kind: Schema.Literal("writing") }),
+	Schema.Struct({ kind: Schema.Literal("tool"), tool: ToolKind, caption: Schema.String }),
+	Schema.Struct({ kind: Schema.Literal("waiting"), on: AgentSlug }),
+	Schema.Struct({ kind: Schema.Literal("failed"), caption: Schema.String }),
+	Schema.Struct({ kind: Schema.Literal("background"), workers: Schema.Array(WorkerRow) }),
+])
+
+export const AgentStatus = Schema.Struct({
+	slug: AgentSlug,
+	state: AgentState,
+	doing: Schema.optionalKey(Schema.String),
+	activity: Schema.optionalKey(Activity),
+})
+
+export const SystemEvent = Schema.Union([
+	Schema.Struct({ kind: Schema.Literal("delegated"), from: AgentSlug, to: AgentSlug, title: Schema.String }),
+	Schema.Struct({
+		kind: Schema.Literal("subagent"),
+		agent: AgentSlug,
+		state: Schema.Literals(["started", "done", "failed", "stopped"]),
+		title: Schema.String,
+		private: Schema.Literal(true),
+	}),
+	Schema.Struct({ kind: Schema.Literal("routine"), title: Schema.String }),
+	Schema.Struct({ kind: Schema.Literal("agent_message"), from: AgentSlug, to: AgentSlug }),
+	Schema.Struct({ kind: Schema.Literal("activity"), count: Count }),
+])
+
+const UnknownSystemEvent = Schema.Struct({ kind: Schema.String })
+
+export const HumanAsk = Schema.Struct({
+	id: Id,
+	from: AgentSlug,
+	text: Schema.String,
+	options: Schema.optionalKey(Schema.Array(Schema.String)),
+	messageId: MessageId,
+})
+
 export const FileRef = Schema.Struct({
 	id: Id,
 	name: Schema.String,
@@ -104,6 +154,7 @@ export const Message = Schema.Struct({
 	quote: Schema.optionalKey(Schema.String),
 	to: Schema.optionalKey(Schema.Union([AgentSlug, Schema.Literal("all")])),
 	initiative: Schema.optionalKey(Schema.Struct({ reason: Schema.String })),
+	event: Schema.optionalKey(Schema.Union([SystemEvent, UnknownSystemEvent])),
 })
 
 export const Member = Schema.Struct({
@@ -206,6 +257,8 @@ export const RoomEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("folders"), folders: Schema.Array(Schema.String) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("no_provider"), slug: AgentSlug, provider: Schema.String }),
+	Schema.Struct({ ...stored, t: Schema.Literal("ask"), ...HumanAsk.fields }),
+	Schema.Struct({ ...stored, t: Schema.Literal("ask_resolved"), id: Id, how: Schema.Literals(["answered", "skipped"]) }),
 ])
 
 export const RoomSnapshot = Schema.Struct({
@@ -216,6 +269,8 @@ export const RoomSnapshot = Schema.Struct({
 	tasks: Schema.Array(Task),
 	files: Schema.Array(FileRef),
 	folders: Schema.Array(Schema.String),
+	agents: Schema.optionalKey(Schema.Array(AgentStatus)),
+	asks: Schema.optionalKey(Schema.Array(HumanAsk)),
 })
 
 const Hello = Schema.Struct({ t: Schema.Literal("hello"), lastSeq: Count })
@@ -255,6 +310,8 @@ export const ClientToRoom = Schema.Union([
 		limit: Schema.optionalKey(Count),
 	}),
 	Schema.Struct({ t: Schema.Literal("history"), seq: Count, before: Count, after: Count }),
+	Schema.Struct({ t: Schema.Literal("answer"), id: Id, value: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("skip"), id: Id }),
 ])
 
 export const RoomToClient = Schema.Union([
@@ -263,7 +320,7 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: RoomSnapshot }),
 	Schema.Struct({ t: Schema.Literal("typing"), who: Schema.Array(AgentSlug) }),
 	Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
-	Schema.Struct({ t: Schema.Literal("status"), slug: AgentSlug, state: AgentState, doing: Schema.optionalKey(Schema.String) }),
+	Schema.Struct({ t: Schema.Literal("status"), ...AgentStatus.fields }),
 	Schema.Struct({
 		t: Schema.Literal("member_refused"),
 		op: MemberOp,

@@ -101,6 +101,7 @@ export class T extends AgentDO {
       },
       draft: async () => {},
       status: async () => {},
+      workers: async () => {},
       endRun: async () => {},
       react: async () => {},
     }

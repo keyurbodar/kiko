@@ -1,6 +1,6 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, wrapSection } from "@earendil-works/pi-durable"
-import { BUILTIN_SKILLS } from "../../skills/builtin.gen"
+import { builtinSkills } from "../../skills/builtin"
 import { formatSkills, parseSkill, resolveSkills, type Skill } from "../../skills/registry"
 import { declareEffect } from "@kiko/agent/effects"
 import type { RoomFs } from "../../files/room-fs"
@@ -9,17 +9,6 @@ import { perRun } from "./self"
 export const SKILLS = "skills"
 const ROOM_PREFIX = "skills"
 const MAX_SKILL_BYTES = 64 * 1024
-
-let parsed: Skill[] | undefined
-const builtin = (): Skill[] =>
-  (parsed ??= BUILTIN_SKILLS.flatMap(([dir, content]) => {
-    const s = parseSkill(content, dir, "builtin")
-    if ("warning" in s) {
-      console.warn(s.warning)
-      return []
-    }
-    return [s]
-  }))
 
 async function roomSkills(fs: RoomFs | undefined): Promise<Skill[]> {
   if (!fs) return []
@@ -39,7 +28,7 @@ async function roomSkills(fs: RoomFs | undefined): Promise<Skill[]> {
 }
 
 export function skillsExtension(files?: RoomFs, stamp?: () => number): Extension {
-  const all = async () => resolveSkills(await roomSkills(files), builtin())
+  const all = async () => resolveSkills(await roomSkills(files), builtinSkills())
   const listed = perRun(async () => formatSkills(await all()), stamp)
   return defineExtension({
     name: SKILLS,

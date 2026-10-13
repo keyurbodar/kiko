@@ -10,9 +10,13 @@ import type {
 	RoomEvent,
 	RoomSnapshot,
 	RunRef,
-	Sender, RoomId } from "@kiko/protocol"
+	Sender,
+	SystemEvent,
+	RoomId } from "@kiko/protocol"
 import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
+import { listAsks } from "./human-asks"
+import { agentStatuses } from "./status"
 import { listTasks } from "./workspace"
 
 export const REPLAY_LIMIT = 500
@@ -21,6 +25,11 @@ const TRIM_EVERY = 100
 export const SNAPSHOT_MESSAGES = 200
 // The meta key of the kept unread count (see RoomLog.unread).
 const UNREAD = "unread"
+
+// A private event is for the owner's transcript only: no agent, memory pass, search or chat preview reads it.
+export const PUBLIC_MESSAGE = "(event IS NULL OR json_extract(event, '$.private') IS NOT 1)"
+
+export const isPrivate = (m: { event?: { kind: string } }): boolean => (m.event as { private?: boolean } | undefined)?.private === true
 
 type Body = RoomEvent extends infer E ? (E extends unknown ? Omit<E, "seq" | "at"> : never) : never
 
@@ -42,6 +51,7 @@ type MessageRow = {
 	quote: string | null
 	addressed: string | null
 	initiative: string | null
+	event: string | null
 }
 
 export type NewMessage = {
@@ -56,6 +66,7 @@ export type NewMessage = {
 	quote?: string
 	to?: AgentSlug | "all"
 	initiative?: { reason: string }
+	event?: SystemEvent
 }
 
 export function actorKey(who: Sender): string {
@@ -127,6 +138,8 @@ export class RoomLog {
 			messages: this.withReactions(rows),
 			tasks: listTasks(this.storage),
 			...listSpace(this.storage, ROOM_TABLES),
+			agents: agentStatuses(this.storage.sql),
+			asks: listAsks(this.storage.sql),
 		}
 	}
 
@@ -247,6 +260,7 @@ export class RoomLog {
 				...(input.quote ? { quote: input.quote } : {}),
 				...(input.to ? { to: input.to } : {}),
 				...(input.initiative ? { initiative: input.initiative } : {}),
+				...(input.event ? { event: input.event } : {}),
 			}
 			const event = this.append(actorKey(input.from), {
 				t: "message",
@@ -254,8 +268,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -271,12 +285,13 @@ export class RoomLog {
 				input.quote ?? null,
 				input.to ?? null,
 				input.initiative?.reason ?? null,
+				input.event ? JSON.stringify(input.event) : null,
 			)
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
 			}
 			// A new message is past the read mark, so it is unread unless the human wrote it.
-			if (input.from.kind !== "human") this.adjustUnread(1)
+			if (input.from.kind !== "human" && !isPrivate(input)) this.adjustUnread(1)
 			return { id, seq: event.seq, event }
 		})
 	}
@@ -315,7 +330,7 @@ export class RoomLog {
 			for (const m of live) {
 				this.sql.exec("UPDATE messages SET deleted_at = ? WHERE id = ?", event.at, m.id)
 				this.sql.exec("DELETE FROM reactions WHERE message_id = ?", m.id)
-				if (m.from.kind !== "human" && m.seq > read) unread++
+				if (m.from.kind !== "human" && !isPrivate(m) && m.seq > read) unread++
 			}
 			this.adjustUnread(-unread)
 			return event
@@ -381,7 +396,7 @@ export class RoomLog {
 	private countNonHuman(after: number, upTo: number): number {
 		return this.sql
 			.exec<{ n: number }>(
-				"SELECT count(*) AS n FROM messages WHERE deleted_at IS NULL AND seq > ? AND seq <= ? AND json_extract(sender, '$.kind') != 'human'",
+				`SELECT count(*) AS n FROM messages WHERE deleted_at IS NULL AND seq > ? AND seq <= ? AND json_extract(sender, '$.kind') != 'human' AND ${PUBLIC_MESSAGE}`,
 				after,
 				upTo,
 			)
@@ -441,6 +456,7 @@ export class RoomLog {
 			...(r.quote ? { quote: r.quote } : {}),
 			...(r.addressed ? { to: r.addressed as AgentSlug | "all" } : {}),
 			...(r.initiative ? { initiative: { reason: r.initiative } } : {}),
+			...(r.event ? { event: JSON.parse(r.event) as SystemEvent } : {}),
 			...(reactions.length ? { reactions } : {}),
 		}
 	}

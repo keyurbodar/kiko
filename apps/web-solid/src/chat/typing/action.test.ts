@@ -17,7 +17,7 @@ describe("how a working agent's dots move", () => {
       ["composio_multi_execute_tool", {}, "orbit"],
       ["some_new_tool", {}, "orbit"],
     ]
-    for (const [name, args, motion] of cases) expect([name, motionOf(describeCall(name, args) ?? undefined)]).toEqual([name, motion])
+    for (const [name, args, motion] of cases) expect([name, motionOf(describeCall(name, args)?.doing)]).toEqual([name, motion])
   })
 
   test("no report, or the reply itself, is kat's wave", () => {

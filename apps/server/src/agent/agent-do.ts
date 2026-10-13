@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
-import type { Envelope, RoomId } from "@kiko/protocol"
+import type { Activity, Envelope, RoomId, WorkerRow } from "@kiko/protocol"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@kiko/agent/answers"
 import { roomStub, userStub } from "../lib/names"
@@ -57,6 +57,7 @@ const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 const BUNDLE_PREFIX = "ext-bundle:"
+const RECENT_WORKERS = 8
 const MODEL_KEY = "model"
 const MODEL_APPLIED_KEY = "model:applied"
 
@@ -86,7 +87,7 @@ export class AgentDO extends DurableObject<Env> {
       shortBrief,
       onReset: () => this.outbox.clear(),
       onIdle: () => this.#userExtensions?.release(),
-      onWorkers: (running, pending) => void this.outbox.background(running > 0, pending).catch(() => undefined),
+      onWorkers: (running, pending) => void this.workersChanged(running, pending),
       waitUntil: (work) => this.ctx.waitUntil(work),
       ...this.hostOptions,
       setup: () => this.setup(),
@@ -101,6 +102,18 @@ export class AgentDO extends DurableObject<Env> {
       },
     })
     return this.hostInstance
+  }
+
+  private async workersChanged(running: number, pending: boolean): Promise<void> {
+    await this.outbox.workers(this.workerRows()).catch(() => undefined)
+    await this.outbox.background(running > 0, pending).catch(() => undefined)
+  }
+
+  private workerRows(): WorkerRow[] {
+    return this.host.workers
+      .list()
+      .slice(-RECENT_WORKERS)
+      .map((w) => ({ id: w.id, task: w.task, status: w.status, step: w.step, steps: w.steps, startedAt: w.startedAt }))
   }
 
   protected get outbox(): Outbox {
@@ -161,7 +174,10 @@ export class AgentDO extends DurableObject<Env> {
     return {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
-      status: (state) => room().setStatus(home.slug, state),
+      status: async (state) => {
+        await room().setStatus(home.slug, state)
+      },
+      workers: (rows) => room().setWorkers(home.slug, rows),
       endRun: async (runId, inputs = [], working = false) => room().endRun(home.slug, runId, await this.heard(inputs).catch(() => []), working),
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
     }
@@ -228,8 +244,8 @@ export class AgentDO extends DurableObject<Env> {
     return out
   }
 
-  async askAnswered(id: string, answer: string): Promise<void> {
-    this.answers.answer(id, answer)
+  async askAnswered(id: string, answer: string): Promise<boolean> {
+    return this.answers.answer(id, answer)
   }
 
   private messagingPort(): MessagingPort | null {
@@ -242,15 +258,17 @@ export class AgentDO extends DurableObject<Env> {
       askState: (id) => room().askState(id),
       waitAnswer: (id, ms, signal) => this.answers.wait(id, ms, signal),
       closeAsk: (id) => room().closeAsk(id),
+      askHuman: (input) => room().askHuman(home.slug, input),
+      humanAskState: (id) => room().humanAskState(id),
       humanWaiting: () => this.host.humanWaiting(),
       spawn: (input) => room().spawnAgent(home.slug, input),
       team: () => room().teamNow(),
     }
   }
 
-  private async report(doing: string): Promise<void> {
+  private async report(doing: string, activity: Activity): Promise<void> {
     const home = this.home()
-    if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportDoing(home.slug, doing)
+    if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportDoing(home.slug, doing, activity)
   }
 
   private chiefPort(): ChiefPort | undefined {
@@ -299,6 +317,7 @@ export class AgentDO extends DurableObject<Env> {
         chief: this.chiefPort(),
         loops: () => this.loopPort(),
         work: this.host.workers,
+        presence: (doing, activity) => this.report(doing, activity),
       })
       return {
         ...fake,
@@ -334,7 +353,7 @@ export class AgentDO extends DurableObject<Env> {
     const browser = browserOn && home
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing) => this.report(doing), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,

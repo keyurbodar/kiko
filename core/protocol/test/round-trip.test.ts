@@ -20,6 +20,8 @@ const cases = [
 	["UserToClient", S.UserToClient, Frames.userToClient],
 	["Envelope", S.Envelope, Frames.envelopes],
 	["RichText", S.RichText, [F.richText]],
+	["Activity", S.Activity, F.activities],
+	["SystemEvent", S.SystemEvent, F.systemEvents],
 ] as const
 
 describe("fixture round trip", () => {
@@ -33,7 +35,7 @@ describe("fixture round trip", () => {
 	test("the fixtures hold every frame and event tag", () => {
 		const tags = (frames: readonly { t: string }[]) => new Set(frames.map((frame) => frame.t))
 		expect(tags(Frames.clientToRoom)).toEqual(
-			new Set(["hello", "send", "react", "edit", "delete", "read", "typing", "stop", "task", "member", "search", "history"]),
+			new Set(["hello", "send", "react", "edit", "delete", "read", "typing", "stop", "task", "member", "search", "history", "answer", "skip"]),
 		)
 		expect(tags(Frames.roomToClient)).toEqual(new Set(["events", "ack", "reset", "typing", "draft", "status", "member_refused", "send_refused", "search", "history"]))
 		expect(tags(F.roomEvents)).toEqual(
@@ -48,12 +50,36 @@ describe("fixture round trip", () => {
 				"task",
 				"task_removed",
 				"file",
+				"ask",
+				"ask_resolved",
 			]),
 		)
 		expect(tags(Frames.clientToUser)).toEqual(new Set(["hello", "chat", "open", "search", "login.start", "login.answer", "login.cancel"]))
 		expect(tags(Frames.userToClient)).toEqual(
 			new Set(["events", "reset", "home_refused", "chat_refused", "search", "login.notify", "login.prompt", "login.done", "login.error"]),
 		)
+	})
+})
+
+describe("system events", () => {
+	const message = F.roomEvents.find((e) => e.t === "message" && e.event?.kind === "subagent")
+
+	test("an unknown event kind decodes without throwing and keeps only its kind", () => {
+		const stored = { ...F.roomSnapshot.messages[0]!, from: { kind: "system", reason: "files" }, event: { kind: "from_a_newer_server", title: "x", count: 3 } }
+		const decoded = Schema.decodeUnknownSync(S.Message)(JSON.parse(JSON.stringify(stored)))
+		expect(decoded.event).toEqual({ kind: "from_a_newer_server" })
+	})
+
+	test("a subagent event stays private in the type and on the wire", () => {
+		expect(message?.t === "message" && message.event).toEqual({ kind: "subagent", agent: F.ada, state: "started", title: "find the three pricing pages", private: true })
+		const unmarked = { kind: "subagent", agent: F.ada, state: "started", title: "x", private: false }
+		expect(() => Schema.decodeUnknownSync(S.SystemEvent)(unmarked)).toThrow()
+	})
+
+	test("an unknown event kind inside a room event frame decodes", () => {
+		const system = F.roomEvents.find((e) => e.t === "message" && e.from.kind === "system")
+		const frame = { t: "events", events: [{ ...system, event: { kind: "later" } }] }
+		expect(() => Schema.decodeUnknownSync(S.RoomToClient)(JSON.parse(JSON.stringify(frame)))).not.toThrow()
 	})
 })
 

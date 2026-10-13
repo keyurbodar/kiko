@@ -2,7 +2,7 @@ import type { Envelope } from "../src/envelope"
 import type { AgentSlug, MessageId, RoomId } from "../src/ids"
 import type { ClientToRoom, RoomToClient } from "../src/room"
 import type { ClientToUser, UserToClient } from "../src/user"
-import { ada, bob, chat, file, otherRoomId, roomEvents, roomId, roomSnapshot } from "../src/fixtures"
+import { activities, ada, agentStatuses, bob, chat, file, otherRoomId, roomEvents, roomId, roomSnapshot } from "../src/fixtures"
 
 const tempRoomId = "01a0fa46-9777-7fdf-871e-3c63e992c708" as RoomId
 const messageId = (n: number) => `m${n}` as MessageId
@@ -30,6 +30,8 @@ export const clientToRoom: readonly ClientToRoom[] = [
 	{ t: "search", query: "protocol" },
 	{ t: "search", query: "protocol", before: 9, limit: 20 },
 	{ t: "history", seq: 9, before: 30, after: 30 },
+	{ t: "answer", id: "ask1", value: "sqlite" },
+	{ t: "skip", id: "ask2" },
 ]
 
 export const roomToClient: readonly RoomToClient[] = [
@@ -42,6 +44,8 @@ export const roomToClient: readonly RoomToClient[] = [
 	{ t: "status", slug: ada, state: "working" },
 	{ t: "draft", slug: ada, runId: "run1", index: 1, text: "a long block that is still gro" },
 	{ t: "status", slug: ada, state: "idle" },
+	...agentStatuses.map((status) => ({ t: "status" as const, ...status })),
+	...activities.map((activity) => ({ t: "status" as const, slug: bob, state: "working" as const, activity })),
 	{ t: "member_refused", op: { op: "add", slug: "cy" as AgentSlug, name: "cy" }, reason: "limit" },
 	{ t: "send_refused", clientId: "c3", reason: "Attachment 'plan.pdf' cannot be sent: attachment not found (removed or expired)." },
 	{ t: "search", query: "protocol", results: [{ id: messageId(1), seq: 1, at: 1, from: { kind: "human" }, snippet: "plan the \u0002protocol\u0003 package" }], next: null },

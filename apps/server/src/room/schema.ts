@@ -214,4 +214,19 @@ export const ROOM_STEPS: Step[] = [
 	"DROP TABLE IF EXISTS held_wakes",
 	"DROP INDEX IF EXISTS pending_held",
 	dropColumn("pending", "held_until"),
+	// A system line's typed event (protocol SystemEvent), as JSON. A private event is never read for an agent, memory or search.
+	addColumn("messages", "event", "TEXT"),
+	// The typed activity of what a member is doing now (protocol Activity), as JSON, beside its doing text.
+	addColumn("team_doing", "activity", "TEXT"),
+	// Questions an agent asked the human with ask_human. The row is the truth the card and the waiting tool both read.
+	`CREATE TABLE IF NOT EXISTS human_asks (
+		id TEXT PRIMARY KEY,
+		asker TEXT NOT NULL,
+		question TEXT NOT NULL,
+		options TEXT,
+		message_id TEXT NOT NULL,
+		at INTEGER NOT NULL,
+		state TEXT NOT NULL CHECK (state IN ('open', 'answered', 'skipped')),
+		answer TEXT
+	) STRICT`,
 ]

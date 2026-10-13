@@ -23,8 +23,10 @@ import type {
 	FileOp,
 	AgentSlug,
 	AgentState,
+	AgentStatus,
 	ClientToRoom,
 	FileRef,
+	HumanAsk,
 	PendingAttachment,
 	Member,
 	MemberOp,
@@ -75,6 +77,8 @@ export type RoomData = {
 	files: FileRef[]
 	/** Every folder, empty ones included. */
 	folders: string[]
+	agents: AgentStatus[]
+	asks: HumanAsk[]
 	/** The newest "no provider" refusal (P4-02), until an agent next speaks. The chat shows a connect notice. */
 	noProvider?: { slug: AgentSlug; provider: string } | null
 	/** Who joined and left, oldest first, for the transcript's system lines. The newest `ROSTER_LIMIT`. */
@@ -102,6 +106,8 @@ export const emptyRoom = (): RoomData => ({
 	tasks: [],
 	files: [],
 	folders: [],
+	agents: [],
+	asks: [],
 	roster: [],
 })
 
@@ -110,10 +116,12 @@ export function fromSnapshot(s: RoomSnapshot): RoomData {
 		seq: s.seq,
 		readSeq: s.readSeq,
 		members: [...s.members],
-		messages: [...s.messages],
+		messages: s.messages.filter((m) => !m.event),
 		tasks: [...s.tasks],
 		files: [...s.files],
 		folders: [...s.folders],
+		agents: [...(s.agents ?? [])],
+		asks: [...(s.asks ?? [])],
 		// A snapshot carries members, not their history. `reset` keeps the lines it already had.
 		roster: [],
 	}
@@ -168,6 +176,8 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 	data.seq = e.seq
 	switch (e.t) {
 		case "message": {
+			// A system event (a worker started, a task handed over) is not a bubble. The later unit that draws them reads them elsewhere.
+			if (e.event) return {}
 			if (e.from.kind === "agent" && data.noProvider) data.noProvider = null
 			const m = toMessage(e)
 			const i = findMessage(data.messages, m.id)
@@ -240,10 +250,22 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			// The full connect card is P4-06. Until then the chat shows a one-line notice from this.
 			data.noProvider = { slug: e.slug, provider: e.provider }
 			return { meta: true }
+		case "ask": {
+			const { t: _, seq: __, at: ___, ...ask } = e
+			upsert(data.asks, ask, (x) => x.id === ask.id)
+			return {}
+		}
+		case "ask_resolved":
+			removeWhere(data.asks, (x) => x.id === e.id)
+			return {}
 		default:
 			// A tag this client does not know, such as a link preview an older room logged. It changes nothing.
 			return {}
 	}
+}
+
+export function applyStatus(data: RoomData, status: AgentStatus): void {
+	upsert(data.agents, status, (x) => x.slug === status.slug)
 }
 
 /** Two oldest-first lists as one, oldest first, one message per seq; `b` wins a tie. */
@@ -400,7 +422,7 @@ export type RoomStore = {
 	close(): void
 }
 
-type RoomMeta = Omit<RoomData, "messages" | "seq">
+type RoomMeta = Omit<RoomData, "messages" | "seq" | "agents" | "asks">
 const metaKey = (roomId: RoomId) => `room:${roomId}`
 
 /**
@@ -650,7 +672,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			trimWindow(true)
 		})
 		clearRoom(warm, roomId)
-		putMessages(warm, roomId, snapshot.messages)
+		putMessages(warm, roomId, data.messages)
 		writeMeta()
 		setLastSeq(warm, roomId, snapshot.seq)
 		kick()
@@ -667,15 +689,16 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		},
 		reset: (f) => reset(f.snapshot),
 		typing: (f) => setState("typing", [...f.who]),
-		status: (f) =>
+		status: ({ t: _, ...f }) =>
 			batch(() => {
 				setState("status", f.slug, f.state)
 				// What the agent is doing now (section 7.12): shown in place of "typing".
 				setState("doing", f.slug, f.state === "idle" ? undefined : f.doing)
+				setState(produce((s) => applyStatus(s, f)))
 			}),
 		// Answers to one socket's questions. Nothing stores them.
 		search: (f) => answer(searchKey(f.query, f.before), { results: f.results, next: f.next }),
-		history: (f) => answer(historyKey(f.seq, f.before, f.after), f.messages),
+		history: (f) => answer(historyKey(f.seq, f.before, f.after), f.messages.filter((m) => !m.event)),
 		// A reply lands as whole bubbles. While a long one grows, its agent shows as typing.
 		draft: () => {},
 		// The room refused a member change: the patch goes at once, so the list rolls back, and the UI says why.
@@ -713,7 +736,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 
 	function onStatus(connection: SocketStatus) {
 		setState("connection", connection)
-		if (connection !== "open") setState({ typing: [], status: {} })
+		if (connection !== "open") setState({ typing: [], status: {}, agents: [] })
 	}
 
 	// Boot.

@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
-import type { AgentState } from "@kiko/protocol"
+import type { AgentState, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
@@ -11,6 +11,7 @@ export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
   status(state: AgentState): Promise<void>
+  workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
 }
@@ -67,7 +68,7 @@ export class Outbox {
   private lastEntry = 0
   private lastDraft = 0
   private state: AgentState = "idle"
-  private workers = false
+  private backgroundRunning = false
 
   constructor(
     storage: DurableObjectStorage,
@@ -95,8 +96,12 @@ export class Outbox {
     })
   }
 
+  async workers(rows: readonly WorkerRow[]): Promise<void> {
+    await this.room()?.workers(rows)
+  }
+
   async background(running: boolean, pending = false): Promise<void> {
-    this.workers = running
+    this.backgroundRunning = running
     // A worker's report waits in the inbox: the run that tells the human comes next, so do not flash idle first.
     if (!this.run && !(pending && !running)) await this.setStatus(running ? "working" : "idle")
   }
@@ -308,12 +313,12 @@ export class Outbox {
       this.save(run)
       await this.flush()
     }
-    const working = this.workers
+    const working = this.backgroundRunning
     await this.room()?.endRun(id, inputs, working)
     this.sql.exec("DELETE FROM outbox WHERE run_id = ?", id)
     if (this.run?.id === id) this.run = null
     this.state = working ? "working" : "idle"
-    if (!this.run) await this.setStatus(this.workers ? "working" : "idle")
+    if (!this.run) await this.setStatus(this.backgroundRunning ? "working" : "idle")
   }
 
   private async setStatus(state: AgentState): Promise<void> {

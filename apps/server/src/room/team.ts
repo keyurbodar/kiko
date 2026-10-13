@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@kiko/protocol"
+import type { Activity, AgentSlug } from "@kiko/protocol"
 
 /** ASSUMPTION: a lease outlives a run that never reported its end by this long. */
 export const LEASE_MS = 10 * 60_000
@@ -13,8 +13,18 @@ export class Team {
   constructor(private readonly sql: SqlStorage) {
   }
 
-  doing(slug: AgentSlug, text: string, now: number): void {
-    this.sql.exec("INSERT INTO team_doing (slug, doing, at) VALUES (?, ?, ?) ON CONFLICT(slug) DO UPDATE SET doing = excluded.doing, at = excluded.at", slug, text, now)
+  doing(slug: AgentSlug, text: string, now: number, activity: Activity): void {
+    this.sql.exec(
+      "INSERT INTO team_doing (slug, doing, at, activity) VALUES (?, ?, ?, ?) ON CONFLICT(slug) DO UPDATE SET doing = excluded.doing, at = excluded.at, activity = excluded.activity",
+      slug,
+      text,
+      now,
+      JSON.stringify(activity),
+    )
+  }
+
+  clearDoing(slug: AgentSlug): void {
+    this.sql.exec("DELETE FROM team_doing WHERE slug = ?", slug)
   }
 
   clear(slug: AgentSlug): void {

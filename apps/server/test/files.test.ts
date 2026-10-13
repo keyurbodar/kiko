@@ -84,6 +84,15 @@ test("a download serves ranges to the owner and 404 to anyone else", async () =>
 	await anon.body?.cancel()
 })
 
+test("a range on an empty file serves the empty body, not 416", async () => {
+	const room = fresh()
+	const { body } = await put(room, "empty.csv", "")
+	const res = await fetch(`${origin}/api/files/${room}/${body.file.id}`, { headers: { ...as("alice"), range: "bytes=0-1048575" } })
+	expect(res.status).toBe(200)
+	expect(res.headers.get("content-range")).toBeNull()
+	expect(await res.text()).toBe("")
+})
+
 test("bad paths and oversized declarations are refused", async () => {
 	const room = fresh()
 	expect((await put(room, "../x", "x")).status).toBe(400)

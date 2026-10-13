@@ -4,6 +4,7 @@ import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
 import { NOT_FOR_WORKERS, workExtensions } from "./extensions/work"
 import type { Workers } from "@kiko/agent/workers"
+import type { Activity } from "@kiko/protocol"
 import { effectTable } from "@kiko/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
 import { WEB, webExtension } from "./extensions/web"
@@ -32,7 +33,7 @@ export type BuildAgentInput = RoleInput & {
   soul?: SoulPort
   runStamp?: () => number
   chief?: ChiefPort
-  presence?: (doing: string) => Promise<unknown>
+  presence?: (doing: string, activity: Activity) => Promise<unknown>
   memory?: MemoryPort
   loops?: () => LoopPort | null
   workspace?: WorkspacePort
