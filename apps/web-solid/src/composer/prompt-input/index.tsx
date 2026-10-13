@@ -1,6 +1,6 @@
-import { createEffect, createMemo, createSignal, getOwner, lazy, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
+import { For, createEffect, createMemo, createSignal, getOwner, lazy, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
-import { ArrowUpIcon, CornerDownLeftIcon, PaperclipIcon, PlusIcon, SquareIcon } from "lucide-solid"
+import { ArrowUpIcon, CornerDownLeftIcon, PaperclipIcon, PlusIcon, SquareIcon, XIcon } from "lucide-solid"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { identityLook } from "../../lib/identity"
@@ -205,6 +205,20 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 onRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
               />
             </Suspense>
+          </Show>
+          <Show when={state.mode === "normal" && props.controller.attachments().some((a) => !isImage({ name: a.filename, type: a.mime }))}>
+            <div class="composer-file-chips" style={{ display: "flex", gap: "6px", "flex-wrap": "wrap", width: "100%" }}>
+              <For each={props.controller.attachments().filter((a) => !isImage({ name: a.filename, type: a.mime }))}>
+                {(attachment) => (
+                  <div class="composer-file-chip" style={{ display: "inline-flex", "align-items": "center", gap: "6px", padding: "4px 8px", "border-radius": "8px", "font-size": "12px", background: "color-mix(in oklab, var(--text) 6%, transparent)" }}>
+                    <span>{attachment.filename}</span>
+                    <button type="button" aria-label={`Remove ${attachment.filename}`} onClick={() => props.controller.removeAttachment(attachment.id)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+                      <XIcon size={12} />
+                    </button>
+                  </div>
+                )}
+              </For>
+            </div>
           </Show>
           <div
             data-component="prompt-input-box"
