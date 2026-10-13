@@ -58,7 +58,7 @@ export interface SidebarProps {
   section: SectionId | null
   collapsed: boolean
   onCollapsedChange: (collapsed: boolean) => void
-  /** The sidebar's own button and `cmd+s` both call this. */
+  /** The sidebar's own button and `Mod+\` both call this. */
   onToggle: () => void
 }
 
@@ -269,7 +269,7 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
         data-component="sidebar-toggle"
         aria-label="Toggle sidebar"
         aria-expanded={props.open}
-        aria-keyshortcuts="Control+S Meta+S"
+        aria-keyshortcuts="Control+\ Meta+\"
         data-hint="view.toggle-sidebar"
         onClick={() => props.onToggle()}
       >

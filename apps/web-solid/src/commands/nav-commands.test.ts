@@ -24,7 +24,6 @@ describe("nav commands", () => {
 
   test("chats, settings and the model have shortcuts, and all work in a text field", () => {
     expect(list.filter((c) => c.shortcut).map((c) => [c.id, c.shortcut, c.global])).toEqual([
-      ["go.chat", "Mod+Shift+C", true],
       ["settings.open", "Mod+,", true],
       ["chat.model", "Mod+Shift+M", true],
     ])

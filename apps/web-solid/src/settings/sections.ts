@@ -19,9 +19,6 @@ export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 /** The section list's groups, in order. */
 export const SETTINGS_GROUPS = ["agents", "you"] as const
 
-/** Every section, for the phone's tab row. */
-export const NAV_SECTIONS = SETTINGS_SECTIONS
-
 /** Sections whose label, hint, or keywords hold every word of the query. Without one, all of them. */
 export function searchSections(query: string): readonly SettingsSection[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)

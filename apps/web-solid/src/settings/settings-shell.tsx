@@ -1,6 +1,5 @@
-import { A } from "@solidjs/router"
-import { Suspense, createEffect, lazy } from "solid-js"
-import { NAV_SECTIONS, SETTINGS_SECTIONS } from "./sections"
+import { Suspense, lazy } from "solid-js"
+import { SETTINGS_SECTIONS } from "./sections"
 import { ModelsPage, ProvidersPage } from "./models"
 import { Integrations } from "./integrations"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
@@ -72,33 +71,8 @@ function section(id: string) {
 
 export function SettingsShell(props: { sectionId: string }) {
   const meta = () => SETTINGS_SECTIONS.find((s) => s.id === props.sectionId)
-  let nav: HTMLElement | undefined
-  // On a phone the tabs scroll sideways, so the open one must be in view after a reload or a deep link.
-  createEffect(() => {
-    props.sectionId
-    queueMicrotask(() => nav?.querySelector("[aria-current=page]")?.scrollIntoView({ inline: "center", block: "nearest" }))
-  })
   return (
-    <div
-      class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-3 md:flex-row md:gap-4 md:px-4 md:pb-4"
-      data-component="settings"
-    >
-      {/* On a phone the sidebar is a drawer, so the sections are a row of tabs here. From 768 px the sidebar lists them. */}
-      <nav
-        ref={nav}
-        class="ml-9 flex shrink-0 gap-1 overflow-x-auto [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
-        aria-label="Settings sections"
-      >
-        {NAV_SECTIONS.map((s) => (
-          <A
-            href={`/settings/${s.id}`}
-            class="flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-[13px] text-muted outline-none hover:bg-[var(--hover-bg)]"
-            activeClass="bg-[var(--selected-bg)] text-text"
-          >
-            {s.label}
-          </A>
-        ))}
-      </nav>
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3 md:px-4 md:pb-4" data-component="settings">
       <div class="@container/settings flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" data-component="settings-body">
         <div class="mx-auto w-full max-w-3xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
           <Page title={meta()?.label ?? "Settings"} description={meta()?.hint}>
