@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { CACHE_KEY, resolveLook, writeCache } from "./apply"
 import { withPalette } from "../scripts/gen-palette"
-import { CODE_FONTS } from "./display"
+import { MONO_STACK, SANS_STACK, fontFamily } from "./display"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
 import { ACCENT_IDS, ACCENTS, DEFAULT_ACCENT, PALETTES, tokensFor } from "./palette"
 
@@ -67,13 +67,13 @@ describe("the palette", () => {
   })
 
   test("contrast scales every neutral", () => {
-    expect(tokensFor("dark", "blush", 150)["--hairline"]).toBe(`color-mix(in oklab, ${PALETTES.dark.text} 12%, transparent)`)
+    expect(tokensFor("dark", "blush", 150)["--hairline"]).toBe(`color-mix(in oklab, ${PALETTES.dark.text} 9%, transparent)`)
   })
 })
 
 describe("the fonts", () => {
   test("the system mono stack names concrete fonts before the generic ui-monospace", () => {
-    const stack = CODE_FONTS.system.family
+    const stack = MONO_STACK
     expect(stack.indexOf("Menlo")).toBeLessThan(stack.indexOf("ui-monospace"))
   })
 })
@@ -161,5 +161,12 @@ describe("the pre-paint script", () => {
     writeCache("text", { ...DEFAULT_LOOK, mode: "dark", accent: "lavender" })
     expect(boot(store[CACHE_KEY]!).style["--accent"]).toBe(ACCENTS.lavender.dark)
     delete (globalThis as { localStorage?: unknown }).localStorage
+  })
+})
+
+describe("the font names", () => {
+  test("a typed name goes first, quoted when it has spaces, and the system stack follows", () => {
+    expect(fontFamily("", SANS_STACK)).toBe(SANS_STACK)
+    expect(fontFamily("Inter, JetBrains Mono", SANS_STACK)).toBe(`Inter, "JetBrains Mono", ${SANS_STACK}`)
   })
 })

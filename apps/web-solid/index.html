@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#1a1917" />
+    <meta name="theme-color" content="#0a0a0a" />
     <title>Kiko</title>
     <link rel="icon" type="image/svg+xml" href="/kiko.svg" />
     <link rel="preload" href="/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -23,14 +23,14 @@
         d.classList.toggle("dark", a === "dark");
         d.style.colorScheme = a;
         if (vars && vars[a]) for (var k in vars[a]) d.style.setProperty(k, vars[a][k]);
-        var bg = a === "light" ? "#f8f5ef" : "#1a1917";
+        var bg = a === "light" ? "#fcfcfc" : "#0a0a0a";
         d.style.setProperty("--boot-bg", bg);
-        d.style.setProperty("--boot-fg", a === "light" ? "#2a2622" : "#ece6dc");
+        d.style.setProperty("--boot-fg", a === "light" ? "#27272a" : "#f5f5f5");
         d.style.backgroundColor = bg;
       })();
     </script>
     <style>
-      html, body { margin: 0; height: 100%; background: var(--boot-bg, #1a1917); color: var(--boot-fg, #ece6dc); }
+      html, body { margin: 0; height: 100%; background: var(--boot-bg, #0a0a0a); color: var(--boot-fg, #f5f5f5); }
       body { font: 14px system-ui, sans-serif; }
       #root { height: 100%; }
       #boot { display: flex; align-items: center; justify-content: center; height: 100%; }
@@ -41,7 +41,7 @@
     </style>
   </head>
   <body>
-    <div id="snap" style="position:fixed;inset:0;z-index:2147483000;overflow:hidden;visibility:hidden;pointer-events:none;background:var(--boot-bg,#1a1917)"></div>
+    <div id="snap" style="position:fixed;inset:0;z-index:2147483000;overflow:hidden;visibility:hidden;pointer-events:none;background:var(--boot-bg,#0a0a0a)"></div>
     <script>
       /* the last screen, painted before any module loads. src/lib/snapshot.ts saves it and removes this layer. */
       (function () {

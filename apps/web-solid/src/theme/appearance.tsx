@@ -5,7 +5,7 @@ import { appearanceOf } from "@kiko/theme/apply"
 import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import { look, updateLook } from "./live"
 import { Select } from "../settings/select"
-import { CHAT_WIDTHS, CODE_FONTS, CONTRAST, DEFAULT_DISPLAY, FONT_SIZES, INTERFACE_FONTS, PROMPT_FONTS, type Display, type FontSizes } from "@kiko/theme/display"
+import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
 import { DEFAULT_LOOK, type Mode } from "@kiko/theme/look"
 import { ACCENT_IDS, ACCENTS } from "@kiko/theme/palette"
 
@@ -60,26 +60,7 @@ function InterfaceGroups(): JSX.Element {
   const d = () => look().display
   const set = (patch: Partial<Display>) => updateLook({ display: { ...d(), ...patch } })
   const reset = <K extends keyof Display>(key: K) => (d()[key] !== DEFAULT_DISPLAY[key] ? () => set({ [key]: DEFAULT_DISPLAY[key] } as Partial<Display>) : undefined)
-  // t3code resets a font row's family and size together.
-  const resetFont = (family: "interfaceFont" | "promptFont" | "codeFont", size: keyof FontSizes) =>
-    d()[family] !== DEFAULT_DISPLAY[family] || d().sizes[size] !== DEFAULT_DISPLAY.sizes[size]
-      ? () => set({ [family]: DEFAULT_DISPLAY[family], sizes: { ...d().sizes, [size]: DEFAULT_DISPLAY.sizes[size] } })
-      : undefined
-  const SizeSelect = (props: { label: string; size: keyof FontSizes }) => {
-    const range = FONT_SIZES[props.size]
-    const steps = Array.from({ length: range.max - range.min + 1 }, (_, i) => range.min + i)
-    return (
-      <Select
-        label={props.label}
-        class="kit-select--size"
-        value={d().sizes[props.size]}
-        options={steps.map((px) => ({ value: px, label: `${px} px` }))}
-        onChange={(px) => set({ sizes: { ...d().sizes, [props.size]: px } })}
-      />
-    )
-  }
-  const options = <T extends string>(table: Record<T, { label: string }>, fallback: T) =>
-    (Object.keys(table) as T[]).map((value) => ({ value, label: value === fallback ? `${table[value].label} (default)` : table[value].label }))
+  const sizes = Array.from({ length: BASE_SIZE.max - BASE_SIZE.min + 1 }, (_, i) => BASE_SIZE.min + i)
   return (
     <>
       <Group title="Interface">
@@ -87,27 +68,18 @@ function InterfaceGroups(): JSX.Element {
           <Slider label="Contrast" value={d().contrast} display={`${d().contrast}%`} min={CONTRAST.min} max={CONTRAST.max} step={CONTRAST.step} onChange={(contrast) => set({ contrast })} />
         </Row>
         <Row label="Chat width" description="How wide messages and the composer can grow on large screens." onReset={reset("chatWidth")}>
-          <Select label="Chat width" value={d().chatWidth} options={options(CHAT_WIDTHS, DEFAULT_DISPLAY.chatWidth)} onChange={(chatWidth) => set({ chatWidth })} />
+          <Select label="Chat width" value={d().chatWidth} options={(Object.keys(CHAT_WIDTHS) as ChatWidth[]).map((value) => ({ value, label: CHAT_WIDTHS[value].label }))} onChange={(chatWidth) => set({ chatWidth })} />
+        </Row>
+        <Row label="Text size" description="The interface text. Chat messages stay one step larger." onReset={reset("baseSize")}>
+          <Select label="Text size" value={d().baseSize} options={sizes.map((px) => ({ value: px, label: `${px} px` }))} onChange={(baseSize) => set({ baseSize })} />
         </Row>
       </Group>
       <Group title="Fonts">
-        <Row label="Interface font" description="Messages and everything outside code blocks." onReset={resetFont("interfaceFont", "interface")}>
-          <div class="flex items-center gap-2">
-            <Select label="Interface font" value={d().interfaceFont} options={options(INTERFACE_FONTS, DEFAULT_DISPLAY.interfaceFont)} onChange={(interfaceFont) => set({ interfaceFont })} />
-            <SizeSelect label="Interface font size" size="interface" />
-          </div>
+        <Row label="Interface font" description="Any font installed on this device. Empty uses the system font." onReset={reset("interfaceFont")}>
+          <input class="kit-field w-56" aria-label="Interface font" placeholder="System" value={d().interfaceFont} onChange={(e) => set({ interfaceFont: e.currentTarget.value.trim() })} />
         </Row>
-        <Row label="Prompt font" description="Only the box you write messages in." onReset={resetFont("promptFont", "prompt")}>
-          <div class="flex items-center gap-2">
-            <Select label="Prompt font" value={d().promptFont} options={options(PROMPT_FONTS, DEFAULT_DISPLAY.promptFont)} onChange={(promptFont) => set({ promptFont })} />
-            <SizeSelect label="Prompt font size" size="prompt" />
-          </div>
-        </Row>
-        <Row label="Code font" description="Code blocks and inline code." onReset={resetFont("codeFont", "code")}>
-          <div class="flex items-center gap-2">
-            <Select label="Code font" value={d().codeFont} options={options(CODE_FONTS, DEFAULT_DISPLAY.codeFont)} onChange={(codeFont) => set({ codeFont })} />
-            <SizeSelect label="Code font size" size="code" />
-          </div>
+        <Row label="Code font" description="Code blocks and inline code. Any installed monospace font, or empty for the system mono." onReset={reset("codeFont")}>
+          <input class="kit-field w-56" aria-label="Code font" placeholder="System mono" value={d().codeFont} onChange={(e) => set({ codeFont: e.currentTarget.value.trim() })} />
         </Row>
         <Row label="Font smoothing" description="Use thinner grayscale text smoothing instead of the system default." onReset={reset("smoothing")}>
           <Toggle label="Font smoothing" on={d().smoothing} onChange={(smoothing) => set({ smoothing })} />

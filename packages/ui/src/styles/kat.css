@@ -21,44 +21,6 @@
       Tailwind utilities registered in section 5, which resolve to these vars.
    ========================================================================== */
 
-/* Sans is Instrument Sans (SIL Open Font License, public/fonts/instrument-sans-OFL.txt),
-   self-hosted as one variable file per script, so first paint never waits on a
-   network font. Mono is self-hosted too. */
-@font-face {
-  font-family: "Instrument Sans";
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url("/fonts/instrument-sans-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: "Instrument Sans";
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url("/fonts/instrument-sans-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-
-@font-face {
-  font-family: "Fantasque Sans Mono";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/Y3td2gRp.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Fantasque Sans Mono";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/fonts/hWqxyCs0.woff2") format("woff2");
-}
-
-
 /* -----------------------------------------------------------------------------
    2. Theme tiers
 
@@ -456,12 +418,8 @@
   --pin-avatar: 26px;
   --row-avatar: 28px;
   --row-avatar-img: 22px;
-  --font-family-sans:
-    "Instrument Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    "Segoe UI", system-ui, sans-serif;
-  --font-family-mono:
-    "Fantasque Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
-    "Liberation Mono", monospace;
+  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-mono: "SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace;
   --font-family-text: var(--font-family-sans);
 }
 
@@ -735,89 +693,89 @@
 
 /* palette:start */
 :root {
-  --bg: #1a1917;
-  --bg-sidebar: #151412;
-  --sidebar-solid: #151412;
-  --text: #ece6dc;
-  --text-muted: #9a9389;
-  --text-faint: #6c665e;
-  --accent: #e2a99b;
-  --accent-fill: #ece6dc;
-  --accent-hover: #d9d2c6;
-  --on-accent: #1a1917;
+  --bg: #0a0a0a;
+  --bg-sidebar: #050505;
+  --sidebar-solid: #050505;
+  --text: #f5f5f5;
+  --text-muted: #818181;
+  --text-faint: #525252;
+  --accent: #346bf1;
+  --accent-fill: #f5f5f5;
+  --accent-hover: #e5e5e5;
+  --on-accent: #0a0a0a;
   --danger: #e5867a;
   --gold: #e1b866;
-  --card: color-mix(in oklab, #ece6dc 3%, transparent);
-  --bg-subtle: color-mix(in oklab, #ece6dc 4%, transparent);
-  --input-bg: color-mix(in oklab, #ece6dc 5%, transparent);
-  --hover-bg: color-mix(in oklab, #ece6dc 5%, transparent);
-  --nav-hover-bg: color-mix(in oklab, #ece6dc 5%, transparent);
-  --selected-bg: color-mix(in oklab, #ece6dc 9%, transparent);
-  --nav-active-bg: color-mix(in oklab, #ece6dc 9%, transparent);
-  --surface-raised: color-mix(in oklab, #ece6dc 11%, transparent);
-  --assistant-bubble: color-mix(in oklab, #ece6dc 6%, transparent);
-  --tint-subtle: color-mix(in oklab, #ece6dc 5%, transparent);
-  --tint: color-mix(in oklab, #ece6dc 8%, transparent);
-  --tint-strong: color-mix(in oklab, #ece6dc 12%, transparent);
-  --hairline: color-mix(in oklab, #ece6dc 8%, transparent);
-  --panel-edge: color-mix(in oklab, #ece6dc 10%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #ece6dc 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #ece6dc 30%, transparent);
-  --kit-border: color-mix(in oklab, #ece6dc 9%, transparent);
-  --kit-input: color-mix(in oklab, #ece6dc 12%, transparent);
-  --kit-input-fill: color-mix(in oklab, #ece6dc 4%, transparent);
-  --kit-card: color-mix(in oklab, #ece6dc 3%, transparent);
-  --kit-hover: color-mix(in oklab, #ece6dc 7%, transparent);
-  --menu-bg: color-mix(in oklab, #ece6dc 5%, #1a1917);
-  --tooltip-bg: color-mix(in oklab, #ece6dc 14%, #1a1917);
-  --tooltip-text: #ece6dc;
-  --user-bubble: color-mix(in oklab, #e2a99b 20%, transparent);
-  --user-bubble-deep: color-mix(in oklab, #e2a99b 20%, transparent);
-  --user-bubble-text: #ece6dc;
-  --accent-wash: color-mix(in oklab, #e2a99b 14%, transparent);
+  --card: color-mix(in oklab, #f5f5f5 3%, transparent);
+  --bg-subtle: color-mix(in oklab, #f5f5f5 3%, transparent);
+  --input-bg: color-mix(in oklab, #f5f5f5 4%, transparent);
+  --hover-bg: color-mix(in oklab, #f5f5f5 4%, transparent);
+  --nav-hover-bg: color-mix(in oklab, #f5f5f5 4%, transparent);
+  --selected-bg: color-mix(in oklab, #f5f5f5 8%, transparent);
+  --nav-active-bg: color-mix(in oklab, #f5f5f5 8%, transparent);
+  --surface-raised: color-mix(in oklab, #f5f5f5 6%, transparent);
+  --assistant-bubble: color-mix(in oklab, #f5f5f5 5%, transparent);
+  --tint-subtle: color-mix(in oklab, #f5f5f5 4%, transparent);
+  --tint: color-mix(in oklab, #f5f5f5 7%, transparent);
+  --tint-strong: color-mix(in oklab, #f5f5f5 11%, transparent);
+  --hairline: color-mix(in oklab, #f5f5f5 6%, transparent);
+  --panel-edge: color-mix(in oklab, #f5f5f5 6%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #f5f5f5 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #f5f5f5 30%, transparent);
+  --kit-border: color-mix(in oklab, #f5f5f5 6%, transparent);
+  --kit-input: color-mix(in oklab, #f5f5f5 8%, transparent);
+  --kit-input-fill: color-mix(in oklab, #f5f5f5 3%, transparent);
+  --kit-card: color-mix(in oklab, #f5f5f5 3%, transparent);
+  --kit-hover: color-mix(in oklab, #f5f5f5 5%, transparent);
+  --menu-bg: color-mix(in oklab, #f5f5f5 5%, #0a0a0a);
+  --tooltip-bg: color-mix(in oklab, #f5f5f5 14%, #0a0a0a);
+  --tooltip-text: #f5f5f5;
+  --user-bubble: color-mix(in oklab, #346bf1 20%, transparent);
+  --user-bubble-deep: color-mix(in oklab, #346bf1 20%, transparent);
+  --user-bubble-text: #f5f5f5;
+  --accent-wash: color-mix(in oklab, #346bf1 14%, transparent);
 }
 
 :root[data-appearance="light"] {
-  --bg: #f8f5ef;
-  --bg-sidebar: #f2eee6;
-  --sidebar-solid: #f2eee6;
-  --text: #2a2622;
-  --text-muted: #7a736a;
-  --text-faint: #a8a196;
-  --accent: #b4665a;
-  --accent-fill: #2a2622;
-  --accent-hover: #3e3934;
-  --on-accent: #f8f5ef;
+  --bg: #fcfcfc;
+  --bg-sidebar: #fafafa;
+  --sidebar-solid: #fafafa;
+  --text: #27272a;
+  --text-muted: #71717a;
+  --text-faint: #a1a1aa;
+  --accent: #1b4ed8;
+  --accent-fill: #27272a;
+  --accent-hover: #3f3f46;
+  --on-accent: #ffffff;
   --danger: #c2453a;
   --gold: #93670f;
-  --card: color-mix(in oklab, #2a2622 3%, transparent);
-  --bg-subtle: color-mix(in oklab, #2a2622 3.5%, transparent);
-  --input-bg: color-mix(in oklab, #2a2622 4%, transparent);
-  --hover-bg: color-mix(in oklab, #2a2622 4.5%, transparent);
-  --nav-hover-bg: color-mix(in oklab, #2a2622 4.5%, transparent);
-  --selected-bg: color-mix(in oklab, #2a2622 7%, transparent);
-  --nav-active-bg: color-mix(in oklab, #2a2622 7%, transparent);
-  --surface-raised: color-mix(in oklab, #2a2622 7%, transparent);
-  --assistant-bubble: color-mix(in oklab, #2a2622 5%, transparent);
-  --tint-subtle: color-mix(in oklab, #2a2622 4%, transparent);
-  --tint: color-mix(in oklab, #2a2622 6%, transparent);
-  --tint-strong: color-mix(in oklab, #2a2622 9%, transparent);
-  --hairline: color-mix(in oklab, #2a2622 9%, transparent);
-  --panel-edge: color-mix(in oklab, #2a2622 11%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #2a2622 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #2a2622 30%, transparent);
-  --kit-border: color-mix(in oklab, #2a2622 10%, transparent);
-  --kit-input: color-mix(in oklab, #2a2622 13%, transparent);
-  --kit-input-fill: color-mix(in oklab, #2a2622 3.5%, transparent);
-  --kit-card: color-mix(in oklab, #2a2622 3%, transparent);
-  --kit-hover: color-mix(in oklab, #2a2622 6%, transparent);
-  --menu-bg: color-mix(in oklab, #ffffff 55%, #f8f5ef);
-  --tooltip-bg: #2a2622;
-  --tooltip-text: #f8f5ef;
-  --user-bubble: color-mix(in oklab, #b4665a 15%, transparent);
-  --user-bubble-deep: color-mix(in oklab, #b4665a 15%, transparent);
-  --user-bubble-text: #2a2622;
-  --accent-wash: color-mix(in oklab, #b4665a 11%, transparent);
+  --card: color-mix(in oklab, #27272a 3%, transparent);
+  --bg-subtle: color-mix(in oklab, #27272a 3.5%, transparent);
+  --input-bg: color-mix(in oklab, #27272a 4%, transparent);
+  --hover-bg: color-mix(in oklab, #27272a 4.5%, transparent);
+  --nav-hover-bg: color-mix(in oklab, #27272a 4.5%, transparent);
+  --selected-bg: color-mix(in oklab, #27272a 7%, transparent);
+  --nav-active-bg: color-mix(in oklab, #27272a 7%, transparent);
+  --surface-raised: color-mix(in oklab, #27272a 7%, transparent);
+  --assistant-bubble: color-mix(in oklab, #27272a 5%, transparent);
+  --tint-subtle: color-mix(in oklab, #27272a 4%, transparent);
+  --tint: color-mix(in oklab, #27272a 6%, transparent);
+  --tint-strong: color-mix(in oklab, #27272a 9%, transparent);
+  --hairline: color-mix(in oklab, #27272a 9%, transparent);
+  --panel-edge: color-mix(in oklab, #27272a 11%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #27272a 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #27272a 30%, transparent);
+  --kit-border: color-mix(in oklab, #27272a 10%, transparent);
+  --kit-input: color-mix(in oklab, #27272a 13%, transparent);
+  --kit-input-fill: color-mix(in oklab, #27272a 3.5%, transparent);
+  --kit-card: color-mix(in oklab, #27272a 3%, transparent);
+  --kit-hover: color-mix(in oklab, #27272a 6%, transparent);
+  --menu-bg: color-mix(in oklab, #ffffff 55%, #fcfcfc);
+  --tooltip-bg: #27272a;
+  --tooltip-text: #fcfcfc;
+  --user-bubble: color-mix(in oklab, #1b4ed8 15%, transparent);
+  --user-bubble-deep: color-mix(in oklab, #1b4ed8 15%, transparent);
+  --user-bubble-text: #27272a;
+  --accent-wash: color-mix(in oklab, #1b4ed8 11%, transparent);
 }
 /* palette:end */
 
@@ -842,8 +800,9 @@
    * use these two, or the `calc(Npx * var(--brm))` idiom. */
   --radius-xs: 4px;
   --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
   --radius-bubble: 16px;
   --radius-pill: 999px;
 }
@@ -1245,7 +1204,7 @@
  * spacing utilities to 0.875x. Root stays at the 16px default; the 14px face
  * belongs on the body, where the type scale actually wants it. */
 body {
-  font-size: var(--font-base);
+  font-size: var(--font-md);
   font-family: var(--font-family-sans);
   cursor: default;
   touch-action: manipulation;
