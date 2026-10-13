@@ -8,13 +8,14 @@ import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
 import { createPromptInputV2Store } from "./prompt-input/store"
 import { blobId, releaseBlobUrl } from "./prompt-input/attachments"
-import { clearDraftFiles, deleteDraftFile, listDraftFiles, putDraftFile } from "./rich/draft-files"
 import type { PromptInputV2Attachment, PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
 import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createImageDialog } from "../chat/ui/image-dialog"
 import { runSlash, slashSuggestions } from "./slash"
 import { forgetUpload, readyAttachments, releaseUpload, startUpload, uploadBlockReason } from "../sync/uploads"
+
+const draftFiles = () => import("./rich/draft-files")
 
 export function Composer(props: ComposerProps) {
   const [persisted, setPersisted] = createStore<PromptInputV2PersistedState>({
@@ -63,7 +64,7 @@ export function Composer(props: ComposerProps) {
       if (now.has(id)) continue
       discard(id, url)
       const key = keptFor.get(id)
-      if (key) void deleteDraftFile(key, id)
+      if (key) void draftFiles().then((m) => m.deleteDraftFile(key, id))
       keptFor.delete(id)
     }
     held = now
@@ -78,7 +79,7 @@ export function Composer(props: ComposerProps) {
     if (boxed().length) store.setPrompt(store.state.prompt.filter((part) => part.type !== "image"))
   }
   const restoreFiles = async (key: string) => {
-    const saved = await listDraftFiles(key)
+    const saved = await draftFiles().then((m) => m.listDraftFiles(key))
     if (props.draftKey !== key) return
     const have = new Set(boxed().map((part) => part.id))
     const parts: PromptInputV2Attachment[] = []
@@ -195,7 +196,7 @@ export function Composer(props: ComposerProps) {
         const key = props.draftKey
         if (!key) return
         keptFor.set(attachment.id, key)
-        void putDraftFile(key, { id: attachment.id, name: attachment.filename, type: attachment.mime, size: attachment.size, blob: file })
+        void draftFiles().then((m) => m.putDraftFile(key, { id: attachment.id, name: attachment.filename, type: attachment.mime, size: attachment.size, blob: file }))
       },
     },
     view: {
@@ -229,7 +230,8 @@ export function Composer(props: ComposerProps) {
           for (const part of parts) forgetUpload(part.id)
           held = new Map()
           keptFor.clear()
-          if (props.draftKey) void clearDraftFiles(props.draftKey)
+          const draftKey = props.draftKey
+          if (draftKey) void draftFiles().then((m) => m.clearDraftFiles(draftKey))
           store.reset()
           props.onSend(files.length ? { body: text, files, attachments } : { body: text })
           props.onClearReply?.()

@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router"
+import { createSignal, onCleanup } from "solid-js"
 import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleFiles, toggleInfo } from "../chat/info/state"
@@ -14,6 +15,7 @@ import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
 const CHAT_PATH = /^\/chat\/([^/]+)$/
+const COMPOSER_FIELD = ".ProseMirror, .composer-link"
 
 /*
  * The router glue, kept apart from the table so the table tests without a
@@ -27,6 +29,17 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
     const id = CHAT_PATH.exec(location.pathname)?.[1]
     return id ? decodeURIComponent(id) : null
   }
+  // A signal, not a read of activeElement: tanstack keeps the `enabled` it was given, so a plain read
+  // would leave the palette off after focus had left the composer.
+  const [inComposer, setInComposer] = createSignal(false)
+  const onFocusIn = (event: FocusEvent) => setInComposer(event.target instanceof Element && event.target.closest(COMPOSER_FIELD) !== null)
+  const onFocusOut = () => setInComposer(false)
+  document.addEventListener("focusin", onFocusIn)
+  document.addEventListener("focusout", onFocusOut)
+  onCleanup(() => {
+    document.removeEventListener("focusin", onFocusIn)
+    document.removeEventListener("focusout", onFocusOut)
+  })
   useCommands(
     katCommands({
       toggleSidebar: deps.toggleSidebar,
@@ -43,7 +56,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         navigate(`/chat/${id}`)
       },
       openPalette: () => openPalette("commands"),
-      inRichEditor: () => !!document.activeElement?.closest(".ProseMirror"),
+      inRichEditor: inComposer,
       openChats: () => openPalette("chats"),
       hasActiveChat: () => activeId() !== null,
       toggleInfo,
