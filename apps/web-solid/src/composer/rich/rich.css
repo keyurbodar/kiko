@@ -140,3 +140,55 @@
     display: inline-flex;
   }
 }
+
+/* Blocks the composer shows as they will read: t3code's headings, rule and task list. */
+.composer-dock .composer-input h1,
+.composer-dock .composer-input h2,
+.composer-dock .composer-input h3,
+.composer-dock .composer-input h4,
+.composer-dock .composer-input h5,
+.composer-dock .composer-input h6 {
+  margin: 0.65rem 0 0.35rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.composer-dock .composer-input > :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+
+.composer-dock .composer-input h1 { font-size: 1.25rem; }
+.composer-dock .composer-input h2 { font-size: 1.125rem; }
+.composer-dock .composer-input h3 { font-size: 1rem; }
+.composer-dock .composer-input :is(h4, h5, h6) { font-size: 0.875rem; }
+
+.composer-dock .composer-input hr {
+  margin: 0.65rem 0;
+  border: 0;
+  border-top: 1px solid color-mix(in oklab, var(--text) 18%, transparent);
+}
+
+.composer-dock .composer-input hr.ProseMirror-selectednode {
+  border-top-color: var(--accent);
+}
+
+.composer-dock .composer-input ul[data-type="taskList"] {
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+.composer-dock .composer-input ul[data-type="taskList"] li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.composer-dock .composer-input ul[data-type="taskList"] li > label {
+  flex: none;
+  user-select: none;
+}
+
+.composer-dock .composer-input ul[data-type="taskList"] li > div {
+  min-width: 0;
+  flex: 1;
+}

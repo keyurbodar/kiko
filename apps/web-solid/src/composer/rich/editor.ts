@@ -1,20 +1,24 @@
 import "./rich.css"
-import { Editor, Extension } from "@tiptap/core"
+import { Editor, Extension, InputRule, wrappingInputRule } from "@tiptap/core"
 import { Blockquote } from "@tiptap/extension-blockquote"
 import { Bold } from "@tiptap/extension-bold"
 import { Code } from "@tiptap/extension-code"
 import { CodeBlock } from "@tiptap/extension-code-block"
 import { Document } from "@tiptap/extension-document"
 import { HardBreak } from "@tiptap/extension-hard-break"
+import { Heading } from "@tiptap/extension-heading"
+import { HorizontalRule } from "@tiptap/extension-horizontal-rule"
 import { Italic } from "@tiptap/extension-italic"
 import { BulletList, ListItem, OrderedList } from "@tiptap/extension-list"
 import { Paragraph } from "@tiptap/extension-paragraph"
 import { Strike } from "@tiptap/extension-strike"
+import { TaskItem } from "@tiptap/extension-task-item"
+import { TaskList } from "@tiptap/extension-task-list"
 import { Text } from "@tiptap/extension-text"
 import { UndoRedo } from "@tiptap/extensions"
 import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model"
-import { EditorState, Plugin, Selection, type Command } from "@tiptap/pm/state"
+import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state"
 import { BINDINGS, LINK_KEY } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { chipExtension, Link, Mention, setChipStatus, type ChipStatus } from "./nodes"
@@ -40,6 +44,78 @@ export type RichOptions = {
 }
 
 export type RichEditor = ReturnType<typeof mountRichEditor>
+
+function hasAncestor($pos: any, name: string): boolean {
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    if ($pos.node(depth).type.name === name) return true
+  }
+  return false
+}
+
+const horizontalRuleInputRule = new InputRule({
+  find: /^(---|\*\*\*|___)\s?$/,
+  handler: ({ state, range, match, chain }) => {
+    const source = match[0] ?? "---"
+    if (!source.startsWith("---") && !/\s$/.test(source)) return null
+    const $from = state.doc.resolve(range.from)
+    if ($from.parent.type.name !== "paragraph" || $from.depth !== 1) return null
+    chain().deleteRange(range).setHorizontalRule().run()
+    return undefined
+  },
+})
+
+const headingInputRule = new InputRule({
+  find: /^(#{1,6})(\s)$/,
+  handler: ({ state, range, match, chain }) => {
+    const $from = state.doc.resolve(range.from)
+    if ($from.parent.type.name !== "paragraph" || $from.depth !== 1) return null
+    chain()
+      .deleteRange(range)
+      .setNode("heading", { level: match[1]?.length ?? 1 })
+      .run()
+    return undefined
+  },
+})
+
+const blockquoteInputRule = new InputRule({
+  find: /^>(\s)$/,
+  handler: ({ state, range, chain }) => {
+    const $from = state.doc.resolve(range.from)
+    if ($from.parent.type.name !== "paragraph" || $from.depth !== 1) return null
+    chain().deleteRange(range).wrapIn("blockquote").run()
+    return undefined
+  },
+})
+
+function listMarkerInputRule(find: RegExp, listType: "bulletList" | "orderedList"): InputRule {
+  return new InputRule({
+    find,
+    handler: ({ state, range, match, chain }) => {
+      const marker = (match.groups?.marker ?? "-") as string
+      const space = (match.groups?.space ?? " ") as string
+      const carried = (match.groups?.carried ?? "") as string
+      const $from = state.doc.resolve(range.from)
+      if ($from.parent.type.name !== "paragraph" || $from.depth !== 1) return null
+      const command = chain().deleteRange(range).wrapInList(listType, listType === "orderedList" ? { start: Number.parseInt(marker, 10) || 1 } : {})
+      if (carried) command.insertContent(carried)
+      command.run()
+      return undefined
+    },
+  })
+}
+
+
+function taskInputRule(type: any): InputRule {
+  const rule = wrappingInputRule({
+    find: /^- \[([ xX])\] $/,
+    type,
+    getAttributes: (match: any) => ({ checked: (match[1] ?? " ").toLowerCase() === "x" }),
+  })
+  return new InputRule({
+    find: rule.find,
+    handler: (props: any) => (props.state.doc.resolve(props.range.from).depth === 1 ? rule.handler(props) : null),
+  })
+}
 
 export function mountRichEditor(options: RichOptions) {
   let previousKind: ChangeKind | null = null
@@ -85,11 +161,38 @@ export function mountRichEditor(options: RichOptions) {
       Italic,
       Strike,
       Code,
-      Blockquote,
+      Blockquote.extend({
+        addInputRules() { return [blockquoteInputRule] },
+      }),
+      Heading.extend({
+        addInputRules() { return [headingInputRule] },
+      }),
+      HorizontalRule.extend({
+        addInputRules() { return [horizontalRuleInputRule] },
+      }),
       CodeBlock,
-      BulletList,
-      OrderedList,
+      BulletList.extend({
+        addInputRules() {
+          return [
+            listMarkerInputRule(/^(?<marker>[*+])(?<space>\s)$/, "bulletList"),
+            listMarkerInputRule(/^(?<marker>-)(?<space>[ \t]+)(?<carried>[^\s\[])$/, "bulletList"),
+          ]
+        },
+      }),
+      OrderedList.extend({
+        addInputRules() {
+          return [
+            listMarkerInputRule(/^(?<marker>\d+[.)])(?<space>\s)$/, "orderedList"),
+          ]
+        },
+      }),
       ListItem,
+      TaskList,
+      TaskItem.configure({ nested: true }).extend({
+        addInputRules() {
+          return [taskInputRule(this.type)]
+        },
+      }),
       UndoRedo.configure({ newGroupDelay: UNDO_GROUP_DELAY }),
       Link,
       Mention,
@@ -275,7 +378,7 @@ export function mountRichEditor(options: RichOptions) {
       const { $from } = editor.state.selection
       for (let depth = $from.depth; depth > 0; depth--) {
         const name = $from.node(depth).type.name
-        if (name === "listItem" || name === "codeBlock") return true
+        if (name === "listItem" || name === "taskItem" || name === "codeBlock") return true
       }
       return false
     },

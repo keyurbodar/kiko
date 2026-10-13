@@ -152,3 +152,6 @@
 .file-chip[data-missing] { border-style: dashed; }
 .file-chip svg { display: block; width: 1.17em; height: 1.17em; flex-shrink: 0; align-self: center; }
 .file-chip-label { display: block; min-width: 0; align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; }
+
+/* t3code's rule: one hairline between blocks, with the block spacing around it. */
+.rich-rule { margin: 0.65rem 0; border: 0; border-top: 1px solid rgb(127 127 127 / 0.3); }

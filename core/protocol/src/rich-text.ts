@@ -22,6 +22,7 @@ export type Block =
 	| { t: "heading"; level: HeadingLevel; children: readonly Inline[] }
 	| { t: "list"; start?: number; items: readonly (readonly Block[])[] }
 	| { t: "quote"; children: readonly Block[] }
+	| { t: "rule" }
 	| { t: "code_block"; lang?: string; text: string }
 	| { t: "table"; align: readonly ColumnAlign[]; head: readonly (readonly Inline[])[]; rows: readonly (readonly (readonly Inline[])[])[] }
 

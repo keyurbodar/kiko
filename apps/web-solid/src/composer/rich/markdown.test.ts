@@ -11,6 +11,8 @@ const para = (...children: object[]) => ({ t: "paragraph", children })
 
 const cases: { name: string; doc: Json; markdown: string; rich: RichText }[] = [
   { name: "paragraph", doc: doc(p(t("hello there"))), markdown: "hello there", rich: [para(text("hello there"))] as RichText },
+  { name: "heading", doc: doc({ type: "heading", attrs: { level: 2 }, content: [t("Title")] }), markdown: "## Title", rich: [{ t: "heading", level: 2, children: [text("Title")] }] as RichText },
+  { name: "rule between paragraphs", doc: doc(p(t("a")), { type: "horizontalRule" }, p(t("b"))), markdown: "a\n\n---\n\nb", rich: [para(text("a")), { t: "rule" }, para(text("b"))] as RichText },
   { name: "two paragraphs", doc: doc(p(t("a")), p(t("b"))), markdown: "a\n\nb", rich: [para(text("a")), para(text("b"))] as RichText },
   { name: "hard break", doc: doc(p(t("a"), { type: "hardBreak" }, t("b"))), markdown: "a\nb", rich: [para(text("a"), text("\n"), text("b"))] as RichText },
   { name: "bold", doc: doc(p(t("bold", "bold"))), markdown: "**bold**", rich: [para({ t: "bold", children: [text("bold")] })] as RichText },
@@ -124,3 +126,32 @@ function normalize(value: Json): Json {
   const { marks, ...rest } = value
   return { ...rest, ...(content ? { content } : {}), ...(marks ? { marks: marks.map((m) => ({ type: m.type, ...(m.attrs ? { attrs: m.attrs } : {}) })) } : {}) }
 }
+
+describe("task lists", () => {
+  const tasks = doc({
+    type: "taskList",
+    content: [
+      { type: "taskItem", attrs: { checked: false }, content: [p(t("todo"))] },
+      { type: "taskItem", attrs: { checked: true }, content: [p(t("done"))] },
+    ],
+  })
+
+  test("a task list is written with its boxes", () => {
+    expect(docToMarkdown(tasks)).toBe("- [ ] todo\n- [x] done")
+  })
+
+  test("the boxes read back as a task list", () => {
+    expect(markdownToDoc("- [ ] todo\n- [x] done")).toEqual(tasks)
+  })
+
+  test("a list that mixes tasks and plain items stays a plain list", () => {
+    const parsed = markdownToDoc("- [ ] todo\n- plain")
+    expect(parsed.content?.[0]?.type).toBe("bulletList")
+    expect(docToMarkdown(parsed)).toBe("- [ ] todo\n- plain")
+  })
+
+  test("a dash line is a rule, and a heading ends the paragraph above it", () => {
+    expect(markdownToDoc("text\n# Head").content?.map((node) => node.type)).toEqual(["paragraph", "heading"])
+    expect(markdownToDoc("---").content?.[0]?.type).toBe("horizontalRule")
+  })
+})

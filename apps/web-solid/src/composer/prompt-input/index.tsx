@@ -182,17 +182,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           if (!props.disabled) props.controller.submit()
         }}
       >
-        <div class="composer-row">
-          {props.reply}
-          <Show when={state.mode === "normal" && props.controller.attachments().some((a) => isImage({ name: a.filename, type: a.mime }))}>
-            <Suspense>
-              <PromptInputV2Attachments
-                attachments={props.controller.attachments()}
-                onImageClick={props.controller.openAttachment}
-                onRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
-              />
-            </Suspense>
-          </Show>
+        <div class="composer-bar">
           <button
             type="button"
             class="composer-attach"
@@ -205,7 +195,17 @@ export function PromptInputV2(props: PromptInputV2Props) {
           >
             <PlusIcon class="size-4" />
           </button>
-
+          <div class="composer-row">
+          {props.reply}
+          <Show when={state.mode === "normal" && props.controller.attachments().some((a) => isImage({ name: a.filename, type: a.mime }))}>
+            <Suspense>
+              <PromptInputV2Attachments
+                attachments={props.controller.attachments()}
+                onImageClick={props.controller.openAttachment}
+                onRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
+              />
+            </Suspense>
+          </Show>
           <div
             data-component="prompt-input-box"
             class="composer-input-wrap"
@@ -262,7 +262,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
                   const prompt = parsePromptInputV2Editor(event.currentTarget)
                   const images = props.controller.parts().filter((part) => part.type === "image")
                   localInput = true
-                  setBlank(!event.currentTarget.textContent)
+                  syncBlank()
                   props.controller.onInput(prompt.map((part) => part.content).join(""), [...prompt, ...images], cursor)
                   shortcodes.sync()
                 }}
@@ -309,6 +309,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             onSubmit={props.controller.submit}
             onStop={props.controller.stop}
           />
+          </div>
         </div>
       </form>
     </div>

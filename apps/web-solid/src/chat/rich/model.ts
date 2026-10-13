@@ -103,6 +103,8 @@ export function block(node: Block): RichNode {
     }
     case "quote":
       return el("blockquote", node.children.map(block))
+    case "rule":
+      return el("hr", [], { class: "rich-rule" })
     case "code_block":
       return { kind: "code", lang: node.lang, text: node.text }
     case "table": {

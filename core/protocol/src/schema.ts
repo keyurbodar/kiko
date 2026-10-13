@@ -55,6 +55,7 @@ export const Block: Schema.Codec<P.Block, unknown> = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("heading"), level: Schema.Literals([1, 2, 3, 4, 5, 6]), children: inlines }),
 	Schema.Struct({ t: Schema.Literal("list"), start: Schema.optionalKey(Count), items: Schema.Array(blocks) }),
 	Schema.Struct({ t: Schema.Literal("quote"), children: blocks }),
+	Schema.Struct({ t: Schema.Literal("rule") }),
 	Schema.Struct({ t: Schema.Literal("code_block"), lang: Schema.optionalKey(Schema.String), text: Schema.String }),
 	Schema.Struct({
 		t: Schema.Literal("table"),

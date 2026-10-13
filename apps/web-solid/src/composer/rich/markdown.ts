@@ -32,6 +32,16 @@ function block(node: Json): string {
   switch (node.type) {
     case "paragraph":
       return inline(children).replace(/\n+$/, "")
+    case "heading": {
+      const level = typeof node.attrs?.level === "number" ? Math.min(6, Math.max(1, node.attrs.level)) : 1
+      return `${"#".repeat(level)} ${inline(children).replace(/\n+$/, "")}`.trimEnd()
+    }
+    case "horizontalRule":
+      return "---"
+    case "taskList":
+      return children
+        .map((item) => prefixLines(itemText(item), item.attrs?.checked ? "- [x] " : "- [ ] ", "  "))
+        .join("\n")
     case "blockquote":
       return prefixLines(blocks(children, "\n\n"), "> ", "> ").replace(/^> $/gm, ">")
     case "bulletList":
@@ -143,6 +153,10 @@ export function markdownToDoc(markdown: string, options: ParseOptions = {}): Jso
 const BULLET = /^( {0,3})([-*+]) (.*)$/
 const ORDERED = /^( {0,3})(\d{1,9})[.)] (.*)$/
 const FENCE = /^( {0,3})(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/
+const RULE = /^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/
+const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/
+const TASK = /^\[([ xX])\] (.*)$/
+const startsBlock = (line: string) => RULE.test(line) || HEADING.test(line) || FENCE.test(line)
 
 function parseBlocks(lines: string[], options: ParseOptions): Json[] {
   const out: Json[] = []
@@ -165,6 +179,18 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
         ...(fence[3] ? { attrs: { language: fence[3] } } : {}),
         ...(body.length ? { content: [{ type: "text", text: body.join("\n") }] } : {}),
       })
+      continue
+    }
+    if (RULE.test(line)) {
+      out.push({ type: "horizontalRule" })
+      at++
+      continue
+    }
+    const heading = HEADING.exec(line)
+    if (heading) {
+      const content = inlines(heading[2]!, options, [])
+      out.push({ type: "heading", attrs: { level: heading[1]!.length }, ...(content.length ? { content } : {}) })
+      at++
       continue
     }
     if (/^ {0,3}>/.test(line)) {
@@ -201,19 +227,35 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
           body.push(next.slice(width))
           at++
         }
-        items.push({ type: "listItem", content: itemBlocks(body, options) })
+        const task = ordered ? null : TASK.exec(body[0]!)
+        if (task) body[0] = task[2]!
+        items.push({ type: task ? "taskItem" : "listItem", ...(task ? { attrs: { checked: task[1] !== " " } } : {}), content: itemBlocks(body, options) })
       }
-      out.push(ordered ? { type: "orderedList", attrs: { start }, content: items } : { type: "bulletList", content: items })
+      const tasks = items.every((item) => item.type === "taskItem")
+      out.push(
+        ordered
+          ? { type: "orderedList", attrs: { start }, content: items }
+          : { type: tasks ? "taskList" : "bulletList", content: tasks ? items : items.map(untask) },
+      )
       continue
     }
     const text: string[] = []
-    while (at < lines.length && lines[at]!.trim() !== "" && !FENCE.test(lines[at]!) && !(text.length > 0 && /^ {0,3}>/.test(lines[at]!))) {
+    while (at < lines.length && lines[at]!.trim() !== "" && !FENCE.test(lines[at]!) && !(text.length > 0 && (/^ {0,3}>/.test(lines[at]!) || startsBlock(lines[at]!)))) {
       if (text.length > 0 && (BULLET.test(lines[at]!) || ORDERED.test(lines[at]!))) break
       text.push(lines[at++]!)
     }
     out.push(paragraph(text, options))
   }
   return out
+}
+
+/** A list that mixes task and plain items stays a plain list, so a task item turns back into text. */
+function untask(item: Json): Json {
+  if (item.type !== "taskItem") return item
+  const [first, ...rest] = item.content ?? []
+  const box = item.attrs?.checked ? "[x] " : "[ ] "
+  const lead = first?.type === "paragraph" ? { ...first, content: [{ type: "text", text: box }, ...(first.content ?? [])] } : first
+  return { type: "listItem", content: [lead ?? { type: "paragraph" }, ...rest] }
 }
 
 function itemBlocks(body: string[], options: ParseOptions): Json[] {

@@ -45,6 +45,8 @@ function toBlock(token: Token): Block | null {
 		}
 		case "blockquote":
 			return { t: "quote", children: blocks((token as Tokens.Blockquote).tokens) }
+		case "hr":
+			return { t: "rule" }
 		case "code": {
 			const t = token as Tokens.Code
 			const lang = t.lang?.trim().split(/\s+/)[0]
@@ -64,7 +66,7 @@ function toBlock(token: Token): Block | null {
 			return text ? { t: "paragraph", children: [{ t: "text", text }] } : null
 		}
 		default:
-			return null // space, hr, def
+			return null // space, def
 	}
 }
 

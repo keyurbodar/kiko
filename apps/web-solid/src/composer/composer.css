@@ -29,6 +29,15 @@
 
 /* `align-items: flex-end` keeps the two buttons on the bottom line as the field grows.
  * `flex-wrap` puts the attachment strip, which takes a whole line, above the field row. */
+/* The attach button stands beside the card, not inside it: a round button, then the card, both
+ * resting on the same bottom line as the card grows. */
+.composer-dock .composer-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0 10px 12px;
+}
+
 /* The card is t3's composer: 24px corners, and an edge so faint it reads as the surface's own
  * boundary. The edge is an inset ring, so it never moves the layout. */
 .composer-dock .composer-row {
@@ -38,7 +47,8 @@
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 6px;
-  margin: 0 10px 12px;
+  min-width: 0;
+  flex: 1;
   padding: 8px;
   background: color-mix(in oklab, var(--text) 4.5%, var(--bg));
   border-radius: 24px;
@@ -77,7 +87,6 @@
 
 /* ===== The buttons -------------------------------------------------- */
 
-.composer-dock .composer-attach,
 .composer-dock .composer-emoji,
 .composer-dock .composer-send {
   display: flex;
@@ -92,26 +101,58 @@
   cursor: pointer;
 }
 
-.composer-dock .composer-attach svg,
 .composer-dock .composer-emoji svg,
 .composer-dock .composer-send svg {
   width: 16px;
   height: 16px;
 }
 
-.composer-dock .composer-attach,
 .composer-dock .composer-emoji {
   background: transparent;
   color: color-mix(in oklab, var(--text) 52%, transparent);
 }
 
-.composer-dock .composer-attach:disabled,
 .composer-dock .composer-emoji:disabled {
   opacity: 0.35;
 }
 
+/* The standalone attach button: a circle as tall as a one-line card, on the card's own surface
+ * and edge, so the pair reads as two pieces of one control. */
+.composer-dock .composer-attach {
+  display: flex;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: color-mix(in oklab, var(--text) 62%, transparent);
+  background: color-mix(in oklab, var(--text) 4.5%, var(--bg));
+  border: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 6%, transparent);
+  cursor: pointer;
+}
+
+.composer-dock .composer-attach svg {
+  width: 18px;
+  height: 18px;
+}
+
+.composer-dock .composer-attach:disabled {
+  opacity: 0.35;
+}
+
+:root:not(.dark) .composer-dock .composer-attach {
+  background: color-mix(in oklab, #ffffff 70%, var(--bg));
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
+}
+
 @media (hover: hover) {
-  .composer-dock .composer-attach:hover:not(:disabled),
+  .composer-dock .composer-attach:hover:not(:disabled) {
+    color: var(--text);
+  }
+
   .composer-dock .composer-emoji:hover:not(:disabled) {
     background: color-mix(in oklab, var(--text) 7%, transparent);
     color: var(--text);
