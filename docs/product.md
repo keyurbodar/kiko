@@ -99,7 +99,7 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - DEVIATION (2026-10-09): there is no media viewer, album, thumbnail, or media and links catalog. The owner chose t3code's simpler attachments.
 - Attaching works as in t3code. The attach button, a paste, or a drop anywhere on the chat adds files to the composer; while files are dragged over the page a dashed overlay says "Drop files to attach". Pictures (GIF, JPEG, PNG, WebP) show as 64 px thumbnails with a remove button on the corner, and a click previews one. Any other file shows as a row with its name, size, and a remove button. Up to 100 files go on one message, any other file up to 50 MB, and pictures up to 80 MB together. A picture over 10 MB is shrunk to fit, and an SVG, a HEIC, or another picture kiko cannot send is refused; a toast says why a file was left out.
 - Each file starts uploading the moment it is picked, as in t3code. A thumbnail shows the percentage along its bottom edge and a file row shows it in place of the size. A failed upload shows a retry button whose tooltip says why, and it is retried when the connection comes back. Send waits, and says why, until every file is up: "Attachment still uploading", or "Retry or remove the failed attachment". Removing a file, or leaving it unsent, deletes its upload.
-- A sent message shows its pictures as a small grid of 4:3 tiles above its text, and its other files as rows with a preview (the files tab when it can show the file, else a new browser tab) and a download button. A message of only files shows only them. A message is shown at once from the local copies and switches to the stored files when the room confirms it. If the room cannot take a file (it expired, or it was removed), the message stays marked failed and a toast says why.
+- A sent message shows its pictures as a small grid of 4:3 tiles above its text, and its other files as one row each, with an icon, the name, and the size. One click opens the file in the files tab when it can show it, else in a new browser tab. Download is in the file's own view. A message of only files shows only them. A message is shown at once from the local copies and switches to the stored files when the room confirms it. If the room cannot take a file (it expired, or it was removed), the message stays marked failed and a toast says why.
 - A picture opens in an image dialog: the picture over a dark backdrop, its name and place (`photo.png (2/3)`) under it, arrows and the arrow keys to move, and Escape or a click outside to close. It opens with no animation. As in t3code, the wheel zooms around the pointer up to 8x, a click or Enter toggles 2x, + - and 0 zoom from the keyboard, and a zoomed picture pans by dragging or with the arrow keys.
 
 ### Skills
@@ -117,12 +117,12 @@ Kiko keeps what already works in `apps/web-solid` and adds or fixes the followin
 | Reply and quote previews | present |
 | Swipe to reply | removed 2026-10-09. On a pointer device, hovering a message shows react, reply and "…" beside the bubble; touch keeps the long-press menu (DEVIATION, the owner's macOS screenshots) |
 | Emoji | the platform's emoji font, kiko's own picker, and `:shortcode` completion in the composer. Twemoji was removed 2026-10-09 |
-| Collapsed long messages ("read more") | present |
+| Long messages | a body taller than 176 px is clamped with a 28 px fade and a "Show full message" text button under it. "Show less" folds it again. Both senders use it, and the reader's place on the page does not move |
 | Markdown and code blocks | present, with a copy button on code |
-| Link previews | removed 2026-10-09. A link is a link (DEVIATION, t3code's model) |
+| Links | underlined text in the bubble's colour, with the full address in the hover title. No preview card, no favicon, and no fetch. Only `https:` and `mailto:` become links. A link whose text names another host opens a warning first (DEVIATION from t3code, which shows a favicon) |
 | Attachments | a picture grid, file rows, and an image dialog, as t3code shows them (DEVIATION, see Files) |
 | Audio and video | native controls only |
-| Date divider, unread rule, system events | present |
+| Date cue, unread rule, system events | one sticky date chip ("Today", "Yesterday", or a short date) shows the day while the thread scrolls. A day change or a gap over 20 minutes leaves a time-only line in the thread. The unread rule and system events are present |
 | Typing indicator | present |
 | Toasts | present |
 | Virtual lists | the chat feed and the sidebar's chat list |

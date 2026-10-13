@@ -1,14 +1,12 @@
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ChevronDownIcon } from "@kiko/ui/icons"
 import { createSignal, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 
 /**
- * "Read more" for a long bubble.
+ * "Show full message" for a long bubble.
  *
  * A body taller than `COLLAPSE_THRESHOLD_PX` is clamped to that height, its
- * last lines faded out by a mask, with a chevron under it. A mask rather than a
+ * last lines faded out by a mask, with a text button under it. A mask rather than a
  * gradient in the bubble's colour: the bubble is translucent over the chat's
  * picture, so a painted fade let the text show through it. Toggling is instant: no
  * transition, no animation. The row's height changes in one frame, `virtua`
@@ -20,8 +18,8 @@ import { cn } from "../lib/cn"
  * It is a session cache: a reload starts everything clamped again.
  */
 
-/** A body past this height is clamped. About 17 lines at the 14px type step. */
-export const COLLAPSE_THRESHOLD_PX = 340
+/** A body past this height is clamped. About nine lines at the 14px type step. */
+export const COLLAPSE_THRESHOLD_PX = 176
 /** Content this close to the threshold is not worth hiding a line or two of. */
 const SLACK_PX = 40
 
@@ -94,7 +92,7 @@ export function Collapsible(props: {
       data-collapsed={clamped() ? "" : undefined}
     >
       <div
-        class={cn(clamped() && "overflow-hidden mask-b-from-[calc(100%-5rem)] mask-b-to-100%")}
+        class={cn(clamped() && "overflow-hidden mask-b-from-[calc(100%-1.75rem)] mask-b-to-100%")}
         style={clamped() ? { "max-height": `${COLLAPSE_THRESHOLD_PX}px` } : undefined}
       >
         <div ref={inner}>{props.children}</div>
@@ -103,13 +101,12 @@ export function Collapsible(props: {
         <button
           ref={button}
           type="button"
-          class="mt-1 flex h-6 w-full cursor-pointer items-center justify-center opacity-70 hover:opacity-100"
+          class="mt-1 cursor-pointer text-xs font-medium opacity-70 hover:opacity-100"
           aria-expanded={!clamped()}
-          aria-label={clamped() ? "Read more" : "Show less"}
           data-component="chat-collapsible-toggle"
           onClick={toggle}
         >
-          <HugeIcon icon={ChevronDownIcon} class={cn("size-4", !clamped() && "rotate-180")} aria-hidden="true" />
+          {clamped() ? "Show full message" : "Show less"}
         </button>
       </Show>
     </div>

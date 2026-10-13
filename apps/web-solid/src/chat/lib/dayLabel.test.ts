@@ -50,20 +50,14 @@ describe("dayChipLabel", () => {
     expect(dayChipLabel(new Date(2024, 4, 14, 0, 0, 0).getTime(), now.getTime())).toBe("Yesterday");
   });
 
-  test("falls through to the weekday once today and yesterday are out of range", () => {
-    // 2024-05-13 is a Monday.
+  test("falls through to a short date once today and yesterday are out of range", () => {
     const now = new Date(2024, 4, 15, 12, 0, 0);
-    expect(dayChipLabel(new Date(2024, 4, 13, 0, 0, 0).getTime(), now.getTime())).toBe("Monday");
+    expect(dayChipLabel(new Date(2024, 4, 13, 0, 0, 0).getTime(), now.getTime())).toBe("May 13");
   });
 
-  test("labels start with a capital whatever the weekday", () => {
+  test("names a day from an earlier year with its year", () => {
     const now = new Date(2024, 4, 15, 12, 0, 0);
-    for (let back = 3; back < 9; back += 1) {
-      const day = new Date(2024, 4, 15 - back, 0, 0, 0).getTime();
-      const label = dayChipLabel(day, now.getTime());
-      expect(label).not.toBe("");
-      expect(label[0]).toBe(label[0]!.toUpperCase());
-    }
+    expect(dayChipLabel(new Date(2023, 11, 31, 0, 0, 0).getTime(), now.getTime())).toBe("Dec 31, 2023");
   });
 
   test("ignores the time of day a day start was handed to it", () => {
