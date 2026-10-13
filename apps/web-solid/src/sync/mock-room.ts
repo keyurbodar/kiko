@@ -212,6 +212,12 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		read(_, f) {
 			if (f.seq > data.readSeq) store({ t: "read", upTo: f.seq })
 		},
+		answer(_, f) {
+			store({ t: "ask_resolved", id: f.id, how: "answered" })
+		},
+		skip(_, f) {
+			store({ t: "ask_resolved", id: f.id, how: "skipped" })
+		},
 		typing() {},
 		stop() {},
 		// A plain substring match stands in for the room's index. Every word must appear.

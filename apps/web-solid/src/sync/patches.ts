@@ -78,6 +78,8 @@ const roomConfirms: Confirms = {
 	edit: (f, e) => e.t === "edit" && e.messageId === f.messageId && e.text === f.text,
 	delete: (f, e) => e.t === "delete" && e.messageIds.includes(f.messageId),
 	read: (f, e) => e.t === "read" && e.upTo >= f.seq,
+	answer: (f, e) => e.t === "ask_resolved" && e.id === f.id,
+	skip: (f, e) => e.t === "ask_resolved" && e.id === f.id,
 	task: (f, e) =>
 		f.op.op === "delete" ? e.t === "task_removed" && e.id === f.op.id : e.t === "task" && e.task.id === f.op.id,
 	member: (f, e) =>
