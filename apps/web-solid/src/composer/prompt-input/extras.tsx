@@ -48,7 +48,7 @@ export function PromptInputV2Attachments(props: {
               <Show when={upload()?.status === "uploading"}>
                 <svg class="composer-picture-ring" viewBox="0 0 36 36" data-slot="upload-progress" aria-label={progressLabel((upload() as { progress: number }).progress)}>
                   <circle cx="18" cy="18" r="15" />
-                  <circle cx="18" cy="18" r="15" stroke-dasharray={RING} stroke-dashoffset={RING * (1 - (upload() as { progress: number }).progress)} />
+                  <circle cx="18" cy="18" r="15" stroke-dasharray={String(RING)} stroke-dashoffset={String(RING * (1 - (upload() as { progress: number }).progress))} />
                 </svg>
               </Show>
               <Show when={failure(upload())}>
