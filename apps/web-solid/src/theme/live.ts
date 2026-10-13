@@ -6,9 +6,9 @@
 import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js"
 import { useApp } from "../lib/store"
 import { type UserChannel, userChannel } from "../sync/user-channel"
-import { applyCommitted, readCache, writeCache } from "./apply"
+import { applyCommitted, readCache, writeCache } from "@kiko/theme/apply"
 import { setBirdPicks } from "../mascot/choices"
-import { formatLook, parseLook, type Look } from "./look"
+import { formatLook, parseLook, type Look } from "@kiko/theme/look"
 
 const cached = readCache()
 const first = parseLook(cached?.text ?? null)

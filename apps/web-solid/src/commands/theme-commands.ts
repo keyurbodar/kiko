@@ -1,4 +1,4 @@
-import type { Mode } from "../theme/look"
+import type { Mode } from "@kiko/theme/look"
 import type { Command } from "./registry"
 
 /*

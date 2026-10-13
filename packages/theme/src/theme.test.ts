@@ -2,11 +2,12 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { CACHE_KEY, resolveLook, writeCache } from "./apply"
-import { withPalette } from "../../scripts/gen-palette"
+import { withPalette } from "../scripts/gen-palette"
+import { CODE_FONTS } from "./display"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
 import { ACCENT_IDS, ACCENTS, PALETTES, tokensFor } from "./palette"
 
-const KAT = readFileSync(join(import.meta.dir, "../../../../packages/ui/src/styles/kat.css"), "utf8")
+const KAT = readFileSync(join(import.meta.dir, "../../ui/src/styles/kat.css"), "utf8")
 
 const luminance = (hex: string) => {
   const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
@@ -36,6 +37,17 @@ describe("the palette", () => {
     for (const token of Object.keys(tokensFor("light", "matcha"))) expect([token, declared.has(token)]).toEqual([token, true])
   })
 
+  test("a palette color is declared only in the first-paint block", () => {
+    const outside = KAT.slice(0, KAT.indexOf("palette:start")) + KAT.slice(KAT.indexOf("palette:end"))
+    for (const token of Object.keys(tokensFor("light"))) expect([token, new RegExp(`^\\s*${token}:`, "m").test(outside)]).toEqual([token, false])
+  })
+
+  test("kat.css declares the radius, type and icon scales", () => {
+    for (const token of ["--radius-xs", "--radius-sm", "--radius-md", "--radius-lg", "--radius-bubble", "--radius-pill", "--font-xs", "--font-sm", "--font-md", "--font-base", "--font-lg", "--icon-xs", "--icon-sm", "--icon-md", "--icon-lg"]) {
+      expect([token, new RegExp(`^\\s*${token}:`, "m").test(KAT)]).toEqual([token, true])
+    }
+  })
+
   test.each(["light", "dark"] as const)("%s text reads on its paper, and so does the action button", (mode) => {
     const p = PALETTES[mode]
     expect(contrast(p.text, p.canvas)).toBeGreaterThan(12)
@@ -56,6 +68,13 @@ describe("the palette", () => {
 
   test("contrast scales every neutral", () => {
     expect(tokensFor("dark", "blush", 150)["--hairline"]).toBe(`color-mix(in oklab, ${PALETTES.dark.text} 12%, transparent)`)
+  })
+})
+
+describe("the fonts", () => {
+  test("the system mono stack names concrete fonts before the generic ui-monospace", () => {
+    const stack = CODE_FONTS.system.family
+    expect(stack.indexOf("Menlo")).toBeLessThan(stack.indexOf("ui-monospace"))
   })
 })
 
@@ -96,7 +115,7 @@ function fakeRoot() {
 }
 
 describe("the pre-paint script", () => {
-  const html = readFileSync(join(import.meta.dir, "../../index.html"), "utf8")
+  const html = readFileSync(join(import.meta.dir, "../../../apps/web-solid/index.html"), "utf8")
   const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!
 
   function boot(stored: string | null, prefersLight = false) {
