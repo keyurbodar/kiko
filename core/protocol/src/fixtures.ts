@@ -151,7 +151,7 @@ export const roomEvents: readonly RoomEvent[] = [
 ]
 
 export const roomSnapshot: RoomSnapshot = {
-	seq: 17,
+	seq: 23,
 	readSeq: 9,
 	members,
 	messages: [
@@ -172,7 +172,7 @@ export const roomSnapshot: RoomSnapshot = {
 	files: [file],
 	folders: [],
 	agents: agentStatuses,
-	asks: [openQuestion],
+	asks: [],
 }
 
 export const chat: Chat = {
