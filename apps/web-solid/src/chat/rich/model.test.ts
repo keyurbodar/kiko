@@ -32,7 +32,7 @@ const cases: [string, Block, string][] = [
   [
     "link opens in a new tab safely",
     { t: "paragraph", children: [{ t: "link", href: "https://example.com", children: [t("go")] }] },
-    '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" title="https://example.com" class="rich-link">go</a></p>',
+    '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" class="rich-link">go</a></p>',
   ],
   [
     "unsafe href is not a link",
@@ -40,7 +40,7 @@ const cases: [string, Block, string][] = [
     "<p><span>go</span></p>",
   ],
   ["inline code that is a path is a file chip", { t: "paragraph", children: [{ t: "code", text: "/plan/route.md" }] }, '<p><file path="plan/route.md">route.md</file></p>'],
-  ["inline code that is a name alone stays code", { t: "paragraph", children: [{ t: "code", text: "notes.md" }] }, '<p><code class="rich-inline-code">notes.md</code></p>'],
+  ["inline code that is a bare file name is a file the chat may resolve", { t: "paragraph", children: [{ t: "code", text: "notes.md" }] }, '<p><file path="notes.md">notes.md</file></p>'],
   [
     "a file link named by its file is the chip alone",
     { t: "paragraph", children: [{ t: "link", href: "/plan/route.md:3", children: [t("route.md")] }] },
@@ -69,12 +69,12 @@ const cases: [string, Block, string][] = [
   [
     "a link whose text names its own host is a link",
     { t: "paragraph", children: [{ t: "link", href: "https://www.example.com/a", children: [t("example.com")] }] },
-    '<p><a href="https://www.example.com/a" target="_blank" rel="noopener noreferrer" title="https://www.example.com/a" class="rich-link">example.com</a></p>',
+    '<p><a href="https://www.example.com/a" target="_blank" rel="noopener noreferrer" class="rich-link">example.com</a></p>',
   ],
   [
     "a link whose text is a sentence is a link",
     { t: "paragraph", children: [{ t: "link", href: "https://example.com", children: [t("read this, then go")] }] },
-    '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" title="https://example.com" class="rich-link">read this, then go</a></p>',
+    '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" class="rich-link">read this, then go</a></p>',
   ],
   ["mention", { t: "paragraph", children: [{ t: "mention", slug: "bob" as never }] }, '<p><mention slug="bob"></p>'],
   ["unordered list", { t: "list", items: [[p("a")], [p("b")]] }, "<ul><li><p>a</p></li><li><p>b</p></li></ul>"],
@@ -119,5 +119,24 @@ describe("rich text tree to DOM", () => {
       expect(out).toContain(tag)
     }
     expect(out).not.toContain("<b>")
+  })
+})
+
+describe("inline code that may name a chat file", () => {
+  const code = (text: string) => richNodes([{ t: "paragraph", children: [{ t: "code", text }] }] as unknown as Block[])[0]
+
+  test("a bare name becomes a file that stays code unless the chat has it", () => {
+    expect(code("panel.tsx")).toEqual({ kind: "el", tag: "p", attrs: {}, children: [{ kind: "file", file: { path: "panel.tsx" }, label: "panel.tsx", bare: true }] })
+  })
+
+  test("a name with spaces and punctuation keeps every character", () => {
+    const node = code("mv6kqxbw-504-WFS Question Bank (Unit 1 to 4).pdf") as { children: RichNode[] }
+    expect(node.children[0]).toMatchObject({ kind: "file", file: { path: "mv6kqxbw-504-WFS Question Bank (Unit 1 to 4).pdf" }, bare: true })
+  })
+
+  test("an identifier that is not a file name stays inline code", () => {
+    const node = code("Promise.all") as { children: RichNode[] }
+    expect(node.children[0]).toMatchObject({ kind: "file", bare: true })
+    expect(code("bun run test")).toEqual({ kind: "el", tag: "p", attrs: {}, children: [{ kind: "el", tag: "code", attrs: { class: "rich-inline-code" }, children: [{ kind: "text", text: "bun run test" }] }] })
   })
 })

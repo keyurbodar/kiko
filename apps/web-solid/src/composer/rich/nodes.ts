@@ -1,5 +1,5 @@
 import { Mark, mergeAttributes, Node } from "@tiptap/core"
-import { FileTextIcon } from "@kiko/ui/icons"
+import { createElement, FileText, X } from "lucide"
 import { identityLook } from "../../lib/identity"
 
 export const Link = Mark.create({
@@ -39,7 +39,7 @@ export function middleTruncate(name: string, max = 36): string {
   return `${stem.slice(0, head)}…${tail > 0 ? stem.slice(-tail) : ""}${extension}`
 }
 
-export function chipExtension(onAction: (id: string) => void) {
+export function chipExtension(onAction: (id: string) => void, onRemove: (id: string) => void) {
   return Node.create({
     name: "fileChip",
     group: "inline",
@@ -53,20 +53,30 @@ export function chipExtension(onAction: (id: string) => void) {
     renderText: () => "",
     addNodeView: () => ({ node }) => {
       const dom = document.createElement("span")
-      dom.className = "composer-chip"
+      dom.className = "file-chip composer-chip"
       dom.contentEditable = "false"
       dom.dataset.chipId = String(node.attrs.id)
-      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg")
-      icon.setAttribute("viewBox", "0 0 24 24")
+      const icon = createElement(FileText)
       icon.setAttribute("aria-hidden", "true")
-      icon.innerHTML = FileTextIcon
       const name = document.createElement("span")
-      name.className = "composer-chip-name"
+      name.className = "file-chip-label"
       name.textContent = middleTruncate(String(node.attrs.name))
       name.title = String(node.attrs.name)
       const status = document.createElement("span")
       status.className = "composer-chip-status"
-      dom.append(icon, name, status)
+      // Removal is a button, not a Backspace guess: it shows on hover, and a touch screen has no hover.
+      const remove = document.createElement("button")
+      remove.type = "button"
+      remove.className = "composer-chip-remove"
+      remove.setAttribute("aria-label", `Remove ${node.attrs.name}`)
+      const removeIcon = createElement(X)
+      removeIcon.setAttribute("aria-hidden", "true")
+      remove.append(removeIcon)
+      remove.addEventListener("click", (event) => {
+        event.stopPropagation()
+        onRemove(String(node.attrs.id))
+      })
+      dom.append(icon, name, status, remove)
       dom.addEventListener("click", () => {
         if (dom.dataset.state === "failed") onAction(String(node.attrs.id))
       })

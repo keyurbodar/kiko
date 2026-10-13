@@ -1,5 +1,4 @@
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { HeartAddIcon, MoreIcon, ReplyIcon } from "@kiko/ui/icons"
+import { EllipsisIcon, ReplyIcon, SmilePlusIcon } from "lucide-solid"
 import { createSignal, lazy, onCleanup, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { warmEmoji } from "../../lib/emoji-data"
@@ -91,10 +90,10 @@ export function MessageActions(props: {
         // A click from Enter or Space has no pointer, so its detail is 0.
         onClick={(event) => show(event.detail === 0)}
       >
-        <HugeIcon icon={HeartAddIcon} size={18} />
+        <SmilePlusIcon size={18} />
       </button>
       <button type="button" class={BUTTON} aria-label="Reply" data-action="reply" onClick={() => props.onReply()}>
-        <HugeIcon icon={ReplyIcon} size={18} />
+        <ReplyIcon size={18} />
       </button>
       <button
         type="button"
@@ -103,7 +102,7 @@ export function MessageActions(props: {
         data-action="more"
         onClick={(event) => props.onMore(event.currentTarget)}
       >
-        <HugeIcon icon={MoreIcon} size={18} />
+        <EllipsisIcon size={18} />
       </button>
       <Show when={open() && react}>
         {(anchor) => (

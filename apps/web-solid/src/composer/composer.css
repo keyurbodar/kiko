@@ -29,8 +29,10 @@
 
 /* `align-items: flex-end` keeps the two buttons on the bottom line as the field grows.
  * `flex-wrap` puts the attachment strip, which takes a whole line, above the field row. */
+/* The card is t3's composer: 24px corners, and an edge so faint it reads as the surface's own
+ * boundary. The edge is an inset ring, so it never moves the layout. */
 .composer-dock .composer-row {
-  --composer-edge: color-mix(in oklab, var(--text) 11%, transparent);
+  --composer-edge: color-mix(in oklab, var(--text) 6%, transparent);
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -39,22 +41,18 @@
   margin: 0 10px 12px;
   padding: 8px;
   background: color-mix(in oklab, var(--text) 4.5%, var(--bg));
-  border-radius: 16px;
+  border-radius: 24px;
   box-shadow:
     inset 0 0 0 1px var(--composer-edge),
-    0 12px 32px oklch(0% 0 none / 0.28);
-}
-
-.composer-dock .composer-row:focus-within {
-  --composer-edge: color-mix(in oklab, var(--text) 20%, transparent);
+    0 8px 24px oklch(0% 0 none / 0.18);
 }
 
 :root:not(.dark) .composer-dock .composer-row {
+  --composer-edge: rgb(0 0 0 / 8%);
   background: color-mix(in oklab, #ffffff 70%, var(--bg));
   box-shadow:
     inset 0 0 0 1px var(--composer-edge),
-    0 10px 30px color-mix(in oklab, var(--text) 8%, transparent),
-    0 1px 3px color-mix(in oklab, var(--text) 6%, transparent);
+    0 8px 24px color-mix(in oklab, var(--text) 6%, transparent);
 }
 
 /* In an empty chat the card holds two lines before it grows. */
@@ -199,12 +197,15 @@
 /* One quiet line above the field, set in the field's own type: a 2px neutral rule, the role and the
  * quoted words both muted. It reaches out over the attach column (32px + 6px gap, less the field's
  * 4px inset) to the box's padding. The accent stays off it, so the bar does not compete with the send button. */
-.composer-dock .reply-bar {
+/* A full-width row at the top of the card, above the field. It takes its own line, so it never
+ * sits over the attach button or the field. */
+.composer-dock .composer-row > .reply-bar {
   display: flex;
+  flex: 0 0 100%;
   align-items: center;
-  align-self: stretch;
-  margin: 0 -34px 6px;
-  padding: 0 4px 0 0;
+  order: -2;
+  min-width: 0;
+  padding: 2px 2px 4px;
   overflow: hidden;
   font-size: var(--font-size-prompt);
   line-height: 20px;
@@ -288,8 +289,9 @@
 
 /* ===== Pictures ----------------------------------------------------------- */
 
-/* A row of 40px tiles above the field. The remove button shows on hover or focus, and always on a
- * touch screen, which has neither. */
+/* A row of 64px tiles above the field, t3code's composer image: 64px square, a 10px radius and a
+ * 1px border. The remove button shows on hover or focus, and always on a touch screen, which has
+ * neither. */
 .composer-dock .composer-pictures {
   display: flex;
   flex: 0 0 100%;
@@ -300,11 +302,11 @@
 
 .composer-dock .composer-picture {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 64px;
+  height: 64px;
   flex-shrink: 0;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
 
@@ -354,7 +356,7 @@
 .composer-dock .composer-picture-remove,
 .composer-dock .composer-picture-retry {
   position: absolute;
-  bottom: 2px;
+  top: 4px;
   display: none;
   width: 20px;
   height: 20px;
@@ -369,11 +371,11 @@
 }
 
 .composer-dock .composer-picture-remove {
-  right: 2px;
+  right: 4px;
 }
 
 .composer-dock .composer-picture-retry {
-  left: 2px;
+  left: 4px;
   display: flex;
 }
 

@@ -1,5 +1,4 @@
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { SearchIcon } from "@kiko/ui/icons"
+import { SearchIcon } from "lucide-solid"
 import { createMemo, createResource, createSelector, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import {
@@ -135,7 +134,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
     >
       <div class="px-2.5 pt-2.5 pb-1">
         <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--input-bg)] px-3 focus-within:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--text)_22%,transparent)]">
-          <HugeIcon icon={SearchIcon} size={16} class="shrink-0 text-weak" />
+          <SearchIcon size={16} class="shrink-0 text-weak" />
           <input
             ref={(element) => queueMicrotask(() => element.focus({ preventScroll: true }))}
             class="min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-weak"

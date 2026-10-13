@@ -1,6 +1,4 @@
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { Icon as IconV2 } from "@kiko/ui/v2/icon"
-import { FileTextIcon } from "@kiko/ui/icons"
+import { FileTextIcon, XIcon } from "lucide-solid"
 import { Show, type JSX } from "solid-js"
 import type { ReplySummary } from "../chat/lib/reply"
 
@@ -19,7 +17,7 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
           when={props.summary.thumb}
           fallback={
             <Show when={props.summary.glyph}>
-              <HugeIcon icon={FileTextIcon} size={14} class="reply-bar-glyph" />
+              <FileTextIcon size={14} class="reply-bar-glyph" />
             </Show>
           }
         >
@@ -29,7 +27,7 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
         <span class="reply-bar-preview">{props.summary.text}</span>
       </button>
       <button class="reply-bar-dismiss" type="button" aria-label="Cancel reply" onClick={() => props.onDismiss()}>
-        <IconV2 name="outline-xmark" size="small" />
+        <XIcon class="size-4" aria-hidden="true" />
       </button>
     </div>
   )

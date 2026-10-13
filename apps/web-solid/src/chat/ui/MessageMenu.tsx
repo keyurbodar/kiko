@@ -1,7 +1,6 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { CopyIcon, EditIcon, ExternalIcon, LinkIcon, PinIcon, PlusIcon, ReplyIcon, ShareIcon, TrashIcon } from "@kiko/ui/icons"
+import { CopyIcon, ExternalLinkIcon, LinkIcon, PencilIcon, PinIcon, ReplyIcon, Share2Icon, SmilePlusIcon, Trash2Icon } from "lucide-solid"
 import { createSignal, For, lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"
@@ -175,7 +174,7 @@ export function MessageMenu(props: MessageMenuProps) {
                   aria-expanded={pickerOpen()}
                   onClick={() => setPickerOpen(true)}
                 >
-                  <HugeIcon icon={PlusIcon} class="size-3.5" aria-hidden="true" />
+                  <SmilePlusIcon class="size-3.5" aria-hidden="true" />
                 </button>
               </div>
               <MenuV2.Separator />
@@ -183,17 +182,17 @@ export function MessageMenu(props: MessageMenuProps) {
                 {(url) => (
                   <>
                     <MenuV2.Item onSelect={openLink}>
-                      <HugeIcon icon={ExternalIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+                      <ExternalLinkIcon class="size-3.5 shrink-0" aria-hidden="true" />
                       Open link
                     </MenuV2.Item>
                     <MenuV2.Item onSelect={() => void copy(url(), "Link copied")}>
-                      <HugeIcon icon={LinkIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+                      <LinkIcon class="size-3.5 shrink-0" aria-hidden="true" />
                       Copy link
                     </MenuV2.Item>
                     {/* Only where the system share sheet exists; elsewhere it would be copy link twice. */}
                     <Show when={canShare}>
                       <MenuV2.Item onSelect={() => void shareLink()}>
-                        <HugeIcon icon={ShareIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+                        <Share2Icon class="size-3.5 shrink-0" aria-hidden="true" />
                         Share link
                       </MenuV2.Item>
                     </Show>
@@ -202,16 +201,16 @@ export function MessageMenu(props: MessageMenuProps) {
                 )}
               </Show>
               <MenuV2.Item onSelect={props.onReply}>
-                <HugeIcon icon={ReplyIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+                <ReplyIcon class="size-3.5 shrink-0" aria-hidden="true" />
                 Reply
               </MenuV2.Item>
               <MenuV2.Item onSelect={() => void copy()}>
-                <HugeIcon icon={CopyIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+                <CopyIcon class="size-3.5 shrink-0" aria-hidden="true" />
                 Copy
               </MenuV2.Item>
               <Show when={props.onTogglePin}>
                 <MenuV2.Item onSelect={props.onTogglePin}>
-                  <HugeIcon icon={PinIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+                  <PinIcon class="size-3.5 shrink-0" aria-hidden="true" />
                   {props.pinned ? "Unpin" : "Pin"}
                 </MenuV2.Item>
               </Show>
@@ -221,7 +220,7 @@ export function MessageMenu(props: MessageMenuProps) {
               </Show>
               <Show when={props.side === "user" && props.onEdit}>
                 <MenuV2.Item onSelect={props.onEdit}>
-                  <HugeIcon icon={EditIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+                  <PencilIcon class="size-3.5 shrink-0" aria-hidden="true" />
                   Edit
                 </MenuV2.Item>
               </Show>
@@ -232,7 +231,7 @@ export function MessageMenu(props: MessageMenuProps) {
                   )}
                   onSelect={props.onDelete}
                 >
-                  <HugeIcon icon={TrashIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+                  <Trash2Icon class="size-3.5 shrink-0" aria-hidden="true" />
                   Delete
                 </MenuV2.Item>
               </Show>

@@ -305,40 +305,42 @@ export default function ChatRoute() {
           data-component="composer-dock"
           data-scrolled={scrolled() ? "true" : undefined}
         >
-          {/* Monocode's TranscriptJumpToBottom: small squares centred over the chat column, 8px above
-              the composer. They show only when there is somewhere to go. */}
-          <Show when={scrolled() || mentions().length > 0}>
-            <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+8px)] z-6 flex justify-center gap-1.5">
-              <Show when={mentions().length}>
-                <button
-                  type="button"
-                  class={`${JUMP_CLASS} text-sm font-medium text-accent`}
-                  data-component="composer-jump-mention"
-                  title="Next mention"
-                  aria-label="Next mention"
-                  onClick={jumpToMention}
+          {/* The mention button keeps its square at the column's right edge, 8px above the composer. */}
+          <Show when={mentions().length > 0}>
+            <div class="pointer-events-none absolute right-3 bottom-[calc(100%+8px)] z-6">
+              <button
+                type="button"
+                class={`${JUMP_CLASS} text-sm font-medium text-accent`}
+                data-component="composer-jump-mention"
+                title="Next mention"
+                aria-label="Next mention"
+                onClick={jumpToMention}
+              >
+                <span aria-hidden="true">@</span>
+                <span
+                  class="absolute -top-1.5 -right-1.5 h-4 min-w-4 rounded-full bg-accent px-1 text-center text-xs leading-4 text-[var(--on-accent)]"
+                  data-component="composer-jump-count"
                 >
-                  <span aria-hidden="true">@</span>
-                  <span
-                    class="absolute -top-1.5 -right-1.5 h-4 min-w-4 rounded-full bg-accent px-1 text-center text-xs leading-4 text-[var(--on-accent)]"
-                    data-component="composer-jump-count"
-                  >
-                    {mentions().length}
-                  </span>
-                </button>
-              </Show>
-              <Show when={scrolled()}>
-                <button
-                  type="button"
-                  class={JUMP_CLASS}
-                  data-component="composer-scroll-down"
-                  title="Jump to latest"
-                  aria-label="Jump to latest"
-                  onClick={toLatest}
-                >
-                  <IconV2 name="chevron-down" />
-                </button>
-              </Show>
+                  {mentions().length}
+                </span>
+              </button>
+            </div>
+          </Show>
+          {/* t3's scroll-to-end pill: centred over the column, a glass capsule with a chevron and its
+              label. Pointer-down is held so the composer keeps its focus. */}
+          <Show when={scrolled()}>
+            <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+6px)] z-6 flex justify-center">
+              <button
+                type="button"
+                class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border border-[color-mix(in_oklab,var(--text)_10%,transparent)] bg-[color-mix(in_oklab,var(--bg)_80%,transparent)] px-2.5 text-xs font-medium text-text shadow-md backdrop-blur-md"
+                data-component="composer-scroll-down"
+                aria-label="Scroll to end"
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={toLatest}
+              >
+                <IconV2 name="chevron-down" class="size-3.5" />
+                Scroll to end
+              </button>
             </div>
           </Show>
           <BrowserChip slugs={[...members().keys()]} />

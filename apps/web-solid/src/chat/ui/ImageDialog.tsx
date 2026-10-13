@@ -1,6 +1,5 @@
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "@kiko/ui/icons"
+import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-solid"
 import { Show, createSignal, createUniqueId, onCleanup, onMount } from "solid-js"
 import { wrapIndex } from "../../lib/attachments"
 import type { DialogImage } from "./image-dialog"
@@ -56,7 +55,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           <ModalV2.Title class="sr-only">Image preview</ModalV2.Title>
           <Show when={count() > 1}>
             <button type="button" class={`${NAV} left-0`} aria-label="Previous image" onClick={() => step(-1)}>
-              <HugeIcon icon={ChevronLeftIcon} size={20} />
+              <ChevronLeftIcon class="size-5" aria-hidden="true" />
             </button>
           </Show>
           {/* Keyed, so a new picture starts fitted. */}
@@ -69,7 +68,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
                   aria-label="Close image preview"
                   onClick={() => props.onClose()}
                 >
-                  <HugeIcon icon={CloseIcon} size={14} />
+                  <XIcon class="size-3.5" aria-hidden="true" />
                 </button>
                 <Show
                   when={failed() !== image.src}
@@ -90,7 +89,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           </Show>
           <Show when={count() > 1}>
             <button type="button" class={`${NAV} right-0`} aria-label="Next image" onClick={() => step(1)}>
-              <HugeIcon icon={ChevronRightIcon} size={20} />
+              <ChevronRightIcon class="size-5" aria-hidden="true" />
             </button>
           </Show>
         </ModalV2.Content>

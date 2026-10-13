@@ -25,18 +25,20 @@ export function Composer(props: ComposerProps) {
   const store = createPromptInputV2Store([persisted, setPersisted])
   // Escape drops the quote, the way it closes a menu. A menu, a dialog or the mention list that
   // wants the key has already used it by the time it reaches the document.
+  // Capture phase: the editor prevents Escape itself before a bubbling listener would see it. A
+  // list, menu or dialog that is open takes the key first, so it is checked here.
   const dropReply = (event: KeyboardEvent) => {
-    if (event.key !== "Escape" || event.defaultPrevented || (!props.replyTo && !props.editing)) return
+    if (event.key !== "Escape" || (!props.replyTo && !props.editing)) return
     const target = event.target
     if (!(target instanceof HTMLElement) || !target.closest('[data-component="composer-dock"]')) return
-    if (document.querySelector('[role="dialog"], [role="menu"]')) return
+    if (document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return
     event.preventDefault()
     if (props.editing) {
       props.onCancelEdit?.()
       store.reset()
     } else props.onClearReply?.()
   }
-  document.addEventListener("keydown", dropReply)
+  document.addEventListener("keydown", dropReply, true)
   // Up in an empty composer edits the last message, as in Telegram. Any text, attachment or open
   // list (the mention menu uses the arrows) leaves the key alone.
   const editLast = (event: KeyboardEvent) => {
@@ -50,7 +52,7 @@ export function Composer(props: ComposerProps) {
   }
   document.addEventListener("keydown", editLast)
   onCleanup(() => document.removeEventListener("keydown", editLast))
-  onCleanup(() => document.removeEventListener("keydown", dropReply))
+  onCleanup(() => document.removeEventListener("keydown", dropReply, true))
   const boxed = () => store.state.prompt.flatMap((part) => (part.type === "image" ? [part] : []))
   let held = new Map<string, string>()
   const keptFor = new Map<string, string>()
@@ -203,7 +205,6 @@ export function Composer(props: ComposerProps) {
       placeholder,
       submit: {
         stopping: () => false,
-        working: () => !!props.busy,
         blocked,
         onSubmit: () => {
           if (props.busy || blocked()) return

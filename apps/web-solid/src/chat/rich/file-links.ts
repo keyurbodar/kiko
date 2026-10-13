@@ -94,6 +94,19 @@ export function inlineCodeFile(code: string): FileTarget | null {
   return target(text)
 }
 
+/**
+ * Inline code that is a bare file name, such as `panel.tsx` or `report 1–13.png`. Names may hold
+ * spaces and punctuation, but never a slash, a backtick or a line break. The caller only makes a
+ * chip when the chat has a file of that name, so `Promise.all` or `node.meta` stays code.
+ */
+export function bareFileName(code: string): FileTarget | null {
+  const text = code.trim()
+  if (!text || /[`/\n]/.test(text)) return null
+  if (!/^[^.].*\.[A-Za-z][A-Za-z0-9_-]{0,9}(?::\d+){0,2}$/.test(text)) return null
+  const { path, line, column } = splitPosition(text)
+  return { path, ...(line ? { line } : {}), ...(column ? { column } : {}) }
+}
+
 /** An absolute path counts when it has an extension or a line, so `/chat/settings` stays a route. */
 function looksLikeFilePath(path: string, authored: string): boolean {
   if (RELATIVE_PREFIX.test(path)) return true

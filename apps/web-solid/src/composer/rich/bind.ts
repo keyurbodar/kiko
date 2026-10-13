@@ -68,6 +68,7 @@ export function bindRich(input: {
     },
     onLink: input.onLink,
     onChipAction: (id) => retryUpload(id),
+    onChipRemove: (id) => controller.removeAttachment(id),
     onFocus: () => {
       controller.dispatch({ type: "focus.editor" })
       input.onFocus()

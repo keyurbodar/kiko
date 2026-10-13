@@ -1,4 +1,6 @@
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js"
+import { CheckIcon, CopyIcon, WrapTextIcon } from "lucide-solid"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 
 /* One highlighted line: tokens as [token type, text]. Built from sugar-high's
  * syntax tree, so the result is rendered as elements and never as markup. */
@@ -22,6 +24,8 @@ export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
   let root!: HTMLDivElement
   const [lines, setLines] = createSignal<Line[] | null>(null)
   const [copied, setCopied] = createSignal(false)
+  // Wrapping is off by default: a long line scrolls sideways, as in t3code's blocks.
+  const [wrap, setWrap] = createSignal(false)
   let timer: ReturnType<typeof setTimeout> | undefined
   let dead = false
 
@@ -59,14 +63,30 @@ export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
   }
 
   return (
-    <div class="rich-code" ref={root}>
+    <div class="rich-code" ref={root} data-component="chat-code-block">
       <div class="rich-code-bar">
-        <span class="rich-code-lang">{props.lang ?? ""}</span>
-        <button type="button" class="rich-code-copy" onClick={copy}>
-          {copied() ? "Copied" : "Copy"}
-        </button>
+        <span class="rich-code-lang">{props.lang || "text"}</span>
+        <div class="rich-code-actions">
+          <TooltipV2 placement="top" value={wrap() ? "Disable line wrap" : "Wrap lines"}>
+            <button
+              type="button"
+              class="rich-code-action"
+              aria-label={wrap() ? "Disable line wrap" : "Wrap lines"}
+              aria-pressed={wrap()}
+              data-active={wrap() ? "" : undefined}
+              onClick={() => setWrap(!wrap())}
+            >
+              <WrapTextIcon class="size-3" aria-hidden="true" />
+            </button>
+          </TooltipV2>
+          <TooltipV2 placement="top" value={copied() ? "Copied" : "Copy code"}>
+            <button type="button" class="rich-code-action" aria-label={copied() ? "Copied" : "Copy code"} onClick={copy}>
+              {copied() ? <CheckIcon class="size-3.5" aria-hidden="true" /> : <CopyIcon class="size-3.5" aria-hidden="true" />}
+            </button>
+          </TooltipV2>
+        </div>
       </div>
-      <pre class="rich-code-pre">
+      <pre class="rich-code-pre" data-wrap={wrap() ? "" : undefined}>
         <code>
           <Show when={lines()} fallback={props.text}>
             {(all) => (

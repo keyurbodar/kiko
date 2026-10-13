@@ -22,7 +22,6 @@ import { Sidebar, SidebarToggle } from "../sidebar";
 import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
-import { TopBar } from "./top-bar";
 import { CHAT_MIN, INFO, initialSizes, readWidth, saveWidth, SIDEBAR } from "./widths";
 
 const fill = (
@@ -293,19 +292,12 @@ export function Shell(props: ParentProps) {
                   />
                 </Show>
                 <Resizable.Panel class="shell-panel" data-component="chat-panel" initialSize={sizes.chat} minSize={`${CHAT_MIN}px`}>
-                  {/* The top bar sits on the shell, and the panel is a pane under it. A section
-                      without a top bar (settings) gets the panel from the top, and the sidebar button
-                      floats over its corner while the sidebar is shut. */}
+                  {/* No bar over the panel. The sidebar button floats over its corner while the sidebar is shut. */}
                   <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
-                    <TopBar sidebarOpen={!closed()} onToggleSidebar={toggle} />
-                    <Show when={closed() && sectionOf(location.pathname) !== "chat"}>
+                    <Show when={closed()}>
                       <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
                     </Show>
-                    <div
-                      class="main-row relative flex min-h-0 min-w-0 flex-1"
-                      data-component="main-row"
-                      data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
-                    >
+                    <div class="main-row relative flex min-h-0 min-w-0 flex-1" data-component="main-row">
                       <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel">
                         <div class="flex min-w-0 flex-1 flex-col">
                           {props.children}

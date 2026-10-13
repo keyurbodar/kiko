@@ -1,7 +1,6 @@
 import { For, Show } from "solid-js"
 import { FileIcon } from "@kiko/ui/file-icon"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { CloseIcon, UndoIcon } from "@kiko/ui/icons"
+import { Undo2Icon, XIcon } from "lucide-solid"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { isImage } from "../../lib/attachments"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
@@ -23,7 +22,7 @@ function RetryButton(props: { name: string; reason: string; onRetry: () => void 
           props.onRetry()
         }}
       >
-        <HugeIcon icon={UndoIcon} size={12} />
+        <Undo2Icon size={12} />
       </button>
     </TooltipV2>
   )
@@ -55,7 +54,7 @@ export function PromptInputV2Attachments(props: {
                 {(reason) => <RetryButton name={attachment.filename} reason={reason()} onRetry={() => retryUpload(attachment.id)} />}
               </Show>
               <button type="button" class="composer-picture-remove" aria-label={`Remove ${attachment.filename}`} onClick={() => props.onRemove(attachment)}>
-                <HugeIcon icon={CloseIcon} size={12} />
+                <XIcon size={12} />
               </button>
             </div>
           )
@@ -85,7 +84,7 @@ export function PromptInputV2Popover(props: {
 }) {
   return (
     <div
-      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-xl bg-v2-background-bg-base p-2 shadow-[var(--v2-elevation-raised)] no-scrollbar"
+      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-xl bg-menu p-2 shadow-[var(--v2-elevation-raised)] no-scrollbar"
       onMouseDown={(event) => event.preventDefault()}
     >
       <Show when={props.search}>

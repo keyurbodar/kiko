@@ -1,6 +1,5 @@
 import { createEventListener } from "@solid-primitives/event-listener"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { SmileIcon } from "@kiko/ui/icons"
+import { SmileIcon } from "lucide-solid"
 import { createEffect, createMemo, createResource, createSignal, For, lazy, on, Show, Suspense, type JSX } from "solid-js"
 import { loadEmoji, recordRecent, searchEmoji, shortcodeQuery, warmEmoji, type EmojiMatch } from "../lib/emoji-data"
 
@@ -212,7 +211,7 @@ export function createComposerEmoji(editor: () => HTMLElement | undefined, disab
         setOpen((value) => !value)
       }}
     >
-      <HugeIcon icon={SmileIcon} size={16} />
+      <SmileIcon size={16} />
     </button>
   )
   const view = (

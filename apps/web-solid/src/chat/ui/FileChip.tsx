@@ -1,6 +1,5 @@
 import { FileIcon } from "@kiko/ui/file-icon"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { CopyIcon, FileIcon as OpenIcon } from "@kiko/ui/icons"
+import { CopyIcon, FileIcon as OpenIcon } from "lucide-solid"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -20,8 +19,10 @@ function find(path: string) {
  * small tinted pill. A click opens it in the files tab. A name the chat has no file for draws
  * a dashed edge and says so on click. A name several files share opens the tree to pick from.
  */
-export function FileChip(props: { file: FileTarget; label: string }): JSX.Element {
+export function FileChip(props: { file: FileTarget; label: string; bare?: boolean }): JSX.Element {
   const full = () => `${props.file.path}${props.file.line ? `:${props.file.line}` : ""}`
+  // A bare name the chat does not have is code, not a missing file, so it does not show a chip.
+  if (props.bare && find(props.file.path).kind === "none") return <code class="rich-inline-code">{full()}</code>
   const chat = () => useApp.activeThreadId()
   const open = () => {
     const id = chat()
@@ -58,11 +59,11 @@ export function FileChip(props: { file: FileTarget; label: string }): JSX.Elemen
         <MenuV2.Context.Portal>
           <MenuV2.Context.Content class="min-w-[160px]">
             <MenuV2.Item onSelect={open}>
-              <HugeIcon icon={OpenIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+              <OpenIcon class="size-3.5 shrink-0" aria-hidden="true" />
               Open
             </MenuV2.Item>
             <MenuV2.Item onSelect={() => void copy()}>
-              <HugeIcon icon={CopyIcon} class="size-3.5 shrink-0" aria-hidden="true" />
+              <CopyIcon class="size-3.5 shrink-0" aria-hidden="true" />
               Copy path
             </MenuV2.Item>
           </MenuV2.Context.Content>

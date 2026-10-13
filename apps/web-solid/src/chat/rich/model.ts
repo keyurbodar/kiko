@@ -1,6 +1,6 @@
 import type { Block, ColumnAlign, Inline, RichText } from "@kiko/protocol"
 import isSuspiciousUrl from "../lib/richtext/suspicious"
-import { chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, type FileTarget } from "./file-links"
+import { bareFileName, chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, type FileTarget } from "./file-links"
 
 /* The rich text tree as plain element data. `RichText.tsx` renders this and
  * nothing else, so the table test covers the whole tree-to-DOM mapping. No node
@@ -9,7 +9,8 @@ export type RichNode =
   | { kind: "text"; text: string }
   | { kind: "code"; lang?: string; text: string }
   | { kind: "mention"; slug: string }
-  | { kind: "file"; file: FileTarget; label: string }
+  /** `bare` is a name, not a path: it shows as code unless the chat has a file of that name. */
+  | { kind: "file"; file: FileTarget; label: string; bare?: true }
   | { kind: "masked"; href: string; children: RichNode[] }
   | { kind: "el"; tag: string; attrs: Record<string, string>; children: RichNode[] }
 
@@ -59,7 +60,10 @@ export function inline(node: Inline): RichNode {
       return el("s", node.children.map(inline))
     case "code": {
       const file = inlineCodeFile(node.text)
-      return file ? fileChip(file) : el("code", [text(node.text)], { class: "rich-inline-code" })
+      if (file) return fileChip(file)
+      const name = bareFileName(node.text)
+      if (name) return { kind: "file", file: name, label: chipLabel(name), bare: true }
+      return el("code", [text(node.text)], { class: "rich-inline-code" })
     }
     case "mention":
       return { kind: "mention", slug: node.slug }
@@ -76,7 +80,6 @@ export function inline(node: Inline): RichNode {
         href: node.href,
         target: "_blank",
         rel: "noopener noreferrer",
-        title: node.href,
         class: "rich-link",
       })
     }

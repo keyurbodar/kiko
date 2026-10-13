@@ -14,7 +14,7 @@ import { Text } from "@tiptap/extension-text"
 import { UndoRedo } from "@tiptap/extensions"
 import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model"
-import { EditorState, Plugin, Selection } from "@tiptap/pm/state"
+import { EditorState, Plugin, Selection, type Command } from "@tiptap/pm/state"
 import { BINDINGS, LINK_KEY } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { chipExtension, Link, Mention, setChipStatus, type ChipStatus } from "./nodes"
@@ -34,6 +34,7 @@ export type RichOptions = {
   onPaste: (event: ClipboardEvent) => boolean
   onLink: (href: string | null) => void
   onChipAction: (id: string) => void
+  onChipRemove: (id: string) => void
   onFocus: () => void
   onBlur: () => void
 }
@@ -57,6 +58,10 @@ export function mountRichEditor(options: RichOptions) {
             options.onLink(currentLink())
             return true
           },
+          // A file chip goes in one press, the way a character does. ProseMirror's own atom
+          // selection did not delete it, so the chip is removed here, from the caret's side.
+          Backspace: removeChipBeside("before"),
+          Delete: removeChipBeside("after"),
         }),
         new Plugin({
           filterTransaction(tr) {
@@ -88,7 +93,7 @@ export function mountRichEditor(options: RichOptions) {
       UndoRedo.configure({ newGroupDelay: UNDO_GROUP_DELAY }),
       Link,
       Mention,
-      chipExtension(options.onChipAction),
+      chipExtension(options.onChipAction, options.onChipRemove),
       Keys,
     ],
     editorProps: {
@@ -122,6 +127,22 @@ export function mountRichEditor(options: RichOptions) {
     onFocus: options.onFocus,
     onBlur: options.onBlur,
   })
+
+  function removeChipBeside(side: "before" | "after"): Command {
+    return (state, dispatch) => {
+      const { selection } = state
+      if (!selection.empty) return false
+      const chip = side === "before" ? selection.$from.nodeBefore : selection.$from.nodeAfter
+      if (chip?.type.name !== "fileChip") return false
+      if (dispatch) {
+        const start = side === "before" ? selection.from - chip.nodeSize : selection.from
+        dispatch(state.tr.delete(start, start + chip.nodeSize))
+      }
+      // Told here, not only through the change callback: the callback did not report this removal.
+      options.onChipRemove(String(chip.attrs.id))
+      return true
+    }
+  }
 
   function snapshot(): Snapshot {
     const { doc, selection } = editor.state
@@ -184,6 +205,8 @@ export function mountRichEditor(options: RichOptions) {
     isFocused: () => editor.isFocused,
     setEditable: (editable: boolean) => editor.setEditable(editable, false),
     isEditable: () => editor.isEditable,
+    // One empty line is the only empty state. A second line, even blank, is text the placeholder must leave.
+    isEmpty: () => editor.isEmpty,
     setMarkdown(markdown: string) {
       const view = editor.view
       const doc = editor.schema.nodeFromJSON(markdownToDoc(markdown, { isMention: options.isMention }))

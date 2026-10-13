@@ -1,10 +1,7 @@
 import { createEffect, createMemo, createSignal, getOwner, lazy, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
-import { Icon } from "@kiko/ui/icon"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { AttachIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, CornerDownLeftIcon, PaperclipIcon, PlusIcon, SquareIcon } from "lucide-solid"
 import { useI18n } from "@kiko/ui/context/i18n"
-import { Icon as IconV2 } from "@kiko/ui/v2/icon"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { identityLook } from "../../lib/identity"
 import { isImage } from "../../lib/attachments"
@@ -50,7 +47,9 @@ export function PromptInputV2(props: PromptInputV2Props) {
   let editor: HTMLDivElement | undefined
   let localInput = false
   const [blank, setBlank] = createSignal(true)
-  const syncBlank = () => setBlank(!(editor?.textContent ?? ""))
+  // textContent drops line breaks, so a new empty line would hide the placeholder only sometimes. The
+  // rich editor knows its own document; the plain field is only the first paint before it mounts.
+  const syncBlank = () => setBlank(binding ? binding.editor.isEmpty() : !(editor?.textContent ?? ""))
   const updateCursor = () => {
     if (!editor || !window.getSelection()?.isCollapsed) return
     props.controller.onCursor(promptInputV2Cursor(editor))
@@ -167,7 +166,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               data-component="composer-drop-overlay"
             >
               <div role="status" class="flex items-center gap-2 rounded-full border border-accent/25 bg-bg/95 px-4 py-2.5 text-sm font-medium text-text shadow-lg">
-                <HugeIcon icon={AttachIcon} class="size-4 text-accent" />
+                <PaperclipIcon class="size-4 text-accent" />
                 {i18n.t("ui.promptInput.dropFiles")}
               </div>
             </div>
@@ -184,6 +183,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
         }}
       >
         <div class="composer-row">
+          {props.reply}
           <Show when={state.mode === "normal" && props.controller.attachments().some((a) => isImage({ name: a.filename, type: a.mime }))}>
             <Suspense>
               <PromptInputV2Attachments
@@ -203,15 +203,13 @@ export function PromptInputV2(props: PromptInputV2Props) {
             aria-label={i18n.t("ui.promptInput.add")}
             onClick={() => props.controller.attach()}
           >
-            <IconV2 name="plus" class="size-4" />
+            <PlusIcon class="size-4" />
           </button>
 
           <div
             data-component="prompt-input-box"
             class="composer-input-wrap"
           >
-            {props.reply}
-
             <Show when={link() !== null}>
               <form
                 class="composer-link"
@@ -474,10 +472,13 @@ export function PromptInputV2SubmitButton(props: {
           props.onSubmit()
         }}
       >
-        <Icon
-          name={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
-          size="small"
-        />
+        {props.stopping ? (
+          <SquareIcon class="size-3 fill-current" aria-hidden="true" />
+        ) : props.mode === "shell" ? (
+          <CornerDownLeftIcon class="size-4" aria-hidden="true" />
+        ) : (
+          <ArrowUpIcon class="size-4" aria-hidden="true" />
+        )}
       </button>
     </TooltipV2>
   )

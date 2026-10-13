@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, resolveFile, type FileTarget } from "./file-links"
+import { bareFileName, chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, resolveFile, type FileTarget } from "./file-links"
 
 describe("inline code that names a file", () => {
   const cases: [string, FileTarget | null][] = [
@@ -110,5 +110,26 @@ describe("finding a named file in the chat", () => {
 
   test("a bare name opens its one match in a folder", () => {
     expect(resolveFile("todo.md", ["work/todo.md"])).toEqual({ kind: "file", path: "work/todo.md" })
+  })
+})
+
+describe("inline code that is a bare file name", () => {
+  const cases: [string, FileTarget | null][] = [
+    ["panel.tsx", { path: "panel.tsx" }],
+    ["mv6jrc7x-robinhood_*.csv", { path: "mv6jrc7x-robinhood_*.csv" }],
+    ["mv6kqxbw-504-WFS Question Bank (Unit 1 to 4).pdf", { path: "mv6kqxbw-504-WFS Question Bank (Unit 1 to 4).pdf" }],
+    ["mv6jrc7x-screenshot 1\u201313.png", { path: "mv6jrc7x-screenshot 1\u201313.png" }],
+    ["panel.tsx:12", { path: "panel.tsx", line: 12 }],
+    // A call, a property read or a path is code or a path, never a bare name.
+    ["Promise.all", { path: "Promise.all" }],
+    ["src/panel.tsx", null],
+    [".env", null],
+    ["bun run test", null],
+    ["", null],
+  ]
+  test.each(cases)("%p", (code, expected) => {
+    const found = bareFileName(code)
+    if (expected === null) expect(found).toBeNull()
+    else expect(found).toEqual(expected)
   })
 })
