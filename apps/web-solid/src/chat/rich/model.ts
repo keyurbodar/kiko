@@ -1,4 +1,5 @@
 import type { Block, ColumnAlign, Inline, RichText } from "@kiko/protocol"
+import isSuspiciousUrl from "../lib/richtext/suspicious"
 import { chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, type FileTarget } from "./file-links"
 
 /* The rich text tree as plain element data. `RichText.tsx` renders this and
@@ -9,6 +10,7 @@ export type RichNode =
   | { kind: "code"; lang?: string; text: string }
   | { kind: "mention"; slug: string }
   | { kind: "file"; file: FileTarget; label: string }
+  | { kind: "masked"; href: string; children: RichNode[] }
   | { kind: "el"; tag: string; attrs: Record<string, string>; children: RichNode[] }
 
 const el = (tag: string, children: RichNode[], attrs: Record<string, string> = {}): RichNode => ({
@@ -27,6 +29,16 @@ const fileChip = (file: FileTarget): RichNode => ({ kind: "file", file, label: c
 
 const plain = (nodes: readonly Inline[]): string =>
   nodes.map((n) => (n.t === "text" || n.t === "code" ? n.text : n.t === "mention" ? `@${n.slug}` : plain(n.children))).join("")
+
+const SHOWN_HOST = /^(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?=[/?#]|$)/i
+const bareHost = (host: string): string => host.toLowerCase().replace(/^www\./, "")
+
+export function maskedLink(href: string, label: string): boolean {
+  if (!/^https?:/i.test(href)) return false
+  if (isSuspiciousUrl(href)) return true
+  const shown = SHOWN_HOST.exec(label.trim())?.[1]
+  return shown !== undefined && bareHost(shown) !== bareHost(new URL(href).hostname)
+}
 
 export function inline(node: Inline): RichNode {
   switch (node.t) {
@@ -53,6 +65,7 @@ export function inline(node: Inline): RichNode {
         if (isFileLabel(plain(node.children), file)) return fileChip(file)
         return el("span", [...node.children.map(inline), text(" "), fileChip(file)])
       }
+      if (maskedLink(node.href, plain(node.children))) return { kind: "masked", href: node.href, children: node.children.map(inline) }
       return el("a", node.children.map(inline), {
         href: node.href,
         target: "_blank",
@@ -97,7 +110,7 @@ export function block(node: Block): RichNode {
 function chips(nodes: readonly RichNode[], out: Extract<RichNode, { kind: "file" }>[] = []) {
   for (const node of nodes) {
     if (node.kind === "file") out.push(node)
-    else if (node.kind === "el") chips(node.children, out)
+    else if (node.kind === "el" || node.kind === "masked") chips(node.children, out)
   }
   return out
 }

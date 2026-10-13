@@ -10,6 +10,7 @@ function html(node: RichNode): string {
   if (node.kind === "text") return esc(node.text)
   if (node.kind === "code") return `<code-block lang="${node.lang ?? ""}">${esc(node.text)}</code-block>`
   if (node.kind === "mention") return `<mention slug="${node.slug}">`
+  if (node.kind === "masked") return `<masked href="${node.href}">${node.children.map(html).join("")}</masked>`
   if (node.kind === "file") return `<file path="${node.file.path}"${node.file.line ? ` line="${node.file.line}"` : ""}>${esc(node.label)}</file>`
   const attrs = Object.entries(node.attrs).map(([k, v]) => ` ${k}="${v}"`).join("")
   return `<${node.tag}${attrs}>${node.children.map(html).join("")}</${node.tag}>`
@@ -54,6 +55,21 @@ const cases: [string, Block, string][] = [
     "a route link is plain text",
     { t: "paragraph", children: [{ t: "link", href: "/chat/settings", children: [t("settings")] }] },
     "<p><span>settings</span></p>",
+  ],
+  [
+    "a link whose text names another host is masked",
+    { t: "paragraph", children: [{ t: "link", href: "https://evil.example/x", children: [t("docs.example.com")] }] },
+    '<p><masked href="https://evil.example/x">docs.example.com</masked></p>',
+  ],
+  [
+    "a link whose text names its own host is a link",
+    { t: "paragraph", children: [{ t: "link", href: "https://www.example.com/a", children: [t("example.com")] }] },
+    '<p><a href="https://www.example.com/a" target="_blank" rel="noopener noreferrer" class="rich-link">example.com</a></p>',
+  ],
+  [
+    "a link whose text is a sentence is a link",
+    { t: "paragraph", children: [{ t: "link", href: "https://example.com", children: [t("read this, then go")] }] },
+    '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" class="rich-link">read this, then go</a></p>',
   ],
   ["mention", { t: "paragraph", children: [{ t: "mention", slug: "bob" as never }] }, '<p><mention slug="bob"></p>'],
   ["unordered list", { t: "list", items: [[p("a")], [p("b")]] }, "<ul><li><p>a</p></li><li><p>b</p></li></ul>"],
