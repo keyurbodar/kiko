@@ -34,16 +34,16 @@ export function katCommands(deps: {
   canMove: () => boolean
 }): Command[] {
   return [
-    { id: "view.toggle-sidebar", title: "Toggle sidebar", group: "view", icon: "menu", shortcut: "Mod+S", global: true, run: deps.toggleSidebar },
-    { id: "chat.new", title: "New chat", group: "chat", icon: "plus", shortcut: "Mod+N", alias: "Mod+T", run: deps.newChat },
+    { id: "view.toggle-sidebar", title: "Toggle sidebar", group: "view", icon: "menu", shortcut: "Mod+\\", global: true, run: deps.toggleSidebar },
+    { id: "chat.new", title: "New chat", group: "chat", icon: "plus", shortcut: "Mod+N", run: deps.newChat },
     { id: "chat.new-group", title: "New group", group: "chat", icon: "plus", run: deps.newGroup },
-    { id: "chat.reopen", title: "Reopen closed chat", group: "chat", icon: "undo", shortcut: "Mod+Shift+T", run: deps.reopenClosed },
+    { id: "chat.reopen", title: "Reopen closed chat", group: "chat", icon: "undo", run: deps.reopenClosed },
     { id: "chat.attach", title: "Attach file…", group: "chat", icon: "attach", shortcut: "Mod+O", when: deps.hasActiveChat, run: deps.attach },
     { id: "chat.rename", title: "Rename chat", group: "chat", icon: "edit", shortcut: "F2", when: deps.hasActiveChat, run: deps.rename },
-    { id: "chat.pin", title: "Pin chat", group: "chat", icon: "pin", shortcut: "Mod+D", when: deps.canMove, run: deps.togglePin },
-    { id: "chat.info", title: "Details", group: "chat", icon: "info", shortcut: "Mod+I", global: true, when: deps.hasActiveChat, run: deps.toggleInfo },
-    { id: "chat.files", title: "Files", group: "chat", icon: "files", shortcut: "Mod+Shift+E", global: true, when: deps.hasActiveChat, run: deps.toggleFiles },
-    { id: "chat.close", title: "Close chat", group: "chat", icon: "close", shortcut: "Mod+W", when: deps.hasActiveChat, run: deps.closeChat },
+    { id: "chat.pin", title: "Pin chat", group: "chat", icon: "pin", when: deps.canMove, run: deps.togglePin },
+    { id: "chat.info", title: "Right panel", group: "chat", icon: "info", shortcut: "Mod+I", global: true, when: deps.hasActiveChat, run: deps.toggleInfo },
+    { id: "chat.files", title: "Files", group: "chat", icon: "files", when: deps.hasActiveChat, run: deps.toggleFiles },
+    { id: "chat.close", title: "Close chat", group: "chat", icon: "close", when: deps.hasActiveChat, run: deps.closeChat },
     { id: "chat.delete", title: "Delete chat", group: "chat", icon: "trash", when: deps.canMove, run: deps.deleteChat },
     { id: "chats.go", title: "Go to chat…", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, run: deps.openChats },
     // ⌘1 to ⌘9 open the sidebar's chats in order, pinned first, as kat does.

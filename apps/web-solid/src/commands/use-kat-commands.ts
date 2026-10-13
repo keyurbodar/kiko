@@ -1,6 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { closeChat, deleteChat, startRename, togglePin } from "../sidebar/actions"
-import { openTabs } from "../app/open-tabs"
+import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleFiles, toggleInfo } from "../chat/info/state"
 import { openModelPicker } from "../settings/model-picker"
@@ -20,12 +19,6 @@ const CHAT_PATH = /^\/chat\/([^/]+)$/
  * The router glue, kept apart from the table so the table tests without a
  * router. Call it once in the shell: kat's map registers for the shell's life.
  */
-/** The sidebar's order: pinned tiles first, then the list. */
-const sidebarOrder = () => {
-  const rows = useApp.bots()
-  return [...rows.filter((r) => r.pinned), ...rows.filter((r) => !r.pinned)]
-}
-
 /** Register kat's map for the life of the calling component. Call it in the shell. */
 export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   const navigate = useNavigate()
@@ -72,7 +65,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       searchChat: () => openSearch("chat"),
       searchAll: () => openSearch("all"),
       reopenClosed: () => {
-        const id = openTabs.takeClosed((id) => !!useApp.chat(id))
+        const id = reopenClosedChat()
         if (id) navigate(`/chat/${id}`)
       },
       attach: () => document.querySelector<HTMLButtonElement>(".composer-attach")?.click(),

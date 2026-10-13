@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Chat, RoomId } from "@kiko/protocol"
-import { agentList, BUILTIN_AGENT, resumeChat, rosterChats } from "./chats"
+import { agentList, BUILTIN_AGENT, chatAfter, resumeChat, rosterChats } from "./chats"
 
 const chat = (roomId: string, over: Partial<Chat> = {}): Chat => ({
   roomId: roomId as RoomId,
@@ -49,3 +49,16 @@ test("kiko is always among the agents, first", () => {
   expect(agentList([{ ...BUILTIN_AGENT }, { id: "a", name: "ada", slug: "ada" as never, prompt: "", model: "" }]).map((a) => a.id)).toEqual(["yuki", "a"])
 })
 
+
+describe("chatAfter", () => {
+  const list = ["a", "b", "c"]
+  test("the chat below takes the place, else the one above", () => {
+    expect(chatAfter(list, "a")).toBe("b")
+    expect(chatAfter(list, "b")).toBe("c")
+    expect(chatAfter(list, "c")).toBe("b")
+  })
+  test("the only chat leaves nothing, and a chat not in the list leaves nothing", () => {
+    expect(chatAfter(["a"], "a")).toBeNull()
+    expect(chatAfter(list, "z")).toBeNull()
+  })
+})

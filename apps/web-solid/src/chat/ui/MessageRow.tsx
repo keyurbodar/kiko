@@ -150,9 +150,9 @@ export function MessageRow(props: {
           </Show>
           <Show when={props.message.body.length > 0}>
             <Collapsible messageId={props.message.id}>
-              {/* An agent's markdown arrives parsed (section 6.4): code, lists, quotes, and inline
-                  formatting draw from the tree. The human's own text stays plain. */}
-              <Show when={!own() && props.message.rich?.length ? props.message.rich : undefined} fallback={<RichText text={props.message.body} />}>
+              {/* Parsed messages (section 6.4) draw from the tree for both senders. A message without
+                  a tree, a human's until the send path stores one, falls back to its plain text. */}
+              <Show when={props.message.rich?.length ? props.message.rich : undefined} fallback={<RichText text={props.message.body} />}>
                 {(tree) => (
                   <Suspense fallback={<RichText text={props.message.body} />}>
                     <RichTree tree={tree()} class="bubble-rich" />

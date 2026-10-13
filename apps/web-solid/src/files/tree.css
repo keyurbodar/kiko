@@ -1,4 +1,4 @@
-/* The file tree in the right panel. Compact like t3code's: 28 px rows, 12 px per
+/* The file tree in the right panel. Compact like t3code's: 24 px rows, 12 px per
  * level, faint indent guides, a 16 px chevron that rotates open, no animation
  * anywhere. Scoped under `.file-tree`. */
 
@@ -59,7 +59,7 @@
   --ft-indent: 12px;
   position: relative;
   display: flex;
-  height: 28px;
+  height: 24px;
   align-items: center;
   gap: 4px;
   padding: 0 8px 0 calc(4px + var(--ft-depth, 0) * var(--ft-indent));
