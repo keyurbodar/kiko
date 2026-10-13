@@ -1,13 +1,13 @@
 // Rewrites kat.css section 4e, Kiko's palette a fresh browser paints before any module
-// loads, from `tokensFor` in src/theme/palette.ts. A theme test fails when the two differ.
+// loads, from `tokensFor` in src/palette.ts. A theme test fails when the two differ.
 //
-//   bun scripts/gen-palette.ts
+//   bun packages/theme/scripts/gen-palette.ts
 
 import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { tokensFor } from "../src/theme/palette"
+import { tokensFor } from "../src/palette"
 
-export const KAT = join(import.meta.dir, "../../../packages/ui/src/styles/kat.css")
+export const KAT = join(import.meta.dir, "../../ui/src/styles/kat.css")
 const START = "/* palette:start */"
 const END = "/* palette:end */"
 

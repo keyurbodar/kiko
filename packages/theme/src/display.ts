@@ -53,7 +53,7 @@ export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = 
 }
 
 const SANS = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif'
-const MONO_SYSTEM = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace'
+const MONO_SYSTEM = 'SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace'
 
 export const INTERFACE_FONTS: Record<InterfaceFont, { label: string; family: string }> = {
   yuki: { label: "Instrument Sans", family: `"Instrument Sans", ${SANS}` },
