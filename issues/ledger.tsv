@@ -44,3 +44,4 @@ U61	Tests that fail when behavior breaks	7	haiku	landed	s/u61-tests	609aa8ca	gat
 U65	Memory capture never stalls on a big batch	7	haiku	landed	s/u65-capture	54d1b6ca	gate-green	main 382f7f06	2026-10-12T05:33:06Z
 U66	Initiative one judge fewer brakes	7	haiku	landed	s/u66-initiative	4ebd265d	gate-green	main e373f60d	2026-10-12T07:06:41Z
 U69	Browser lease, counted tab, documented socket	7	haiku	landed	s/u69-browser	089a1db9	gate-green	main 1809f38d	2026-10-12T05:36:50Z
+K00	Rename yuki to kiko	1	sonnet	running	s/k00-rename	-	-	-	2026-10-13T07:20:44Z
