@@ -9,6 +9,7 @@ const ALLOWED: Record<string, readonly string[]> = {
   sandbox: ["@kiko/agent"],
   protocol: ["@kiko/agent", "@kiko/sandbox"],
   theme: [],
+  avatar: [],
 }
 
 const ROOT = join(import.meta.dir, "..")
@@ -23,7 +24,7 @@ function files(dir: string): string[] {
 
 const problems: string[] = []
 for (const [pkg, allowed] of Object.entries(ALLOWED)) {
-  const home = join(ROOT, pkg === "theme" ? "packages" : "core", pkg)
+  const home = join(ROOT, pkg === "theme" || pkg === "avatar" ? "packages" : "core", pkg)
   for (const file of files(join(home, "src"))) {
     for (const [, spec = ""] of readFileSync(file, "utf8").matchAll(SPECIFIER)) {
       const at = relative(ROOT, file)
