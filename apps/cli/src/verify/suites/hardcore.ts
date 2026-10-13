@@ -1,6 +1,6 @@
 import { poll } from "../kit"
-import { newRoomId } from "@yuki/protocol"
-import type { Message, RoomToClient } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { Message, RoomToClient } from "@kiko/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -99,9 +99,9 @@ const suite: Suite = {
     await poll("ada's answer", () => agentSays(room, from, "ada").length > 0, 60_000)
     await quiet(room, 5_000, 60_000)
     print(room, from)
-    const adaToYuki = agentSays(room, from, "ada").some((m) => /@yuki\b/.test(m.text))
-    if (agentSays(room, from, "yuki").length && !adaToYuki) fail.push("tagged: yuki spoke on a message tagged only for ada")
-    step(`tagged: ada answered${adaToYuki ? " (and messaged yuki, who answered her)" : ", yuki stayed quiet"}`)
+    const adaToKiko = agentSays(room, from, "ada").some((m) => /@yuki\b/.test(m.text))
+    if (agentSays(room, from, "yuki").length && !adaToKiko) fail.push("tagged: kiko spoke on a message tagged only for ada")
+    step(`tagged: ada answered${adaToKiko ? " (and messaged kiko, who answered her)" : ", kiko stayed quiet"}`)
 
     from = lastSeq(room)
     room.send("@yuki please add a new agent to this chat, a designer called nova, and ask nova to suggest 3 colors for the invite card")
@@ -114,13 +114,13 @@ const suite: Suite = {
     from = lastSeq(room)
     room.send("@yuki ask ada for one dessert idea, then tell me what she said")
     await poll("an agent-to-agent message", () => after(room, from).some((m) => m.from.kind === "agent" && /@ada\b/.test(m.text) && m.from.slug === "yuki"), 90_000)
-    await poll("ada's answer to yuki", () => agentSays(room, from, "ada").length > 0, 90_000)
+    await poll("ada's answer to kiko", () => agentSays(room, from, "ada").length > 0, 90_000)
     await quiet(room, 8_000, 120_000)
     print(room, from)
-    const yukiRuns = seen(room).runs.get("yuki") ?? 0
+    const kikoRuns = seen(room).runs.get("yuki") ?? 0
     const answerAt = agentSays(room, from, "ada")[0]?.seq
-    if (!agentSays(room, from, "yuki").some((m) => m.seq > answerAt)) fail.push("a2a: yuki never told the human what ada said")
-    step(`a2a: yuki asked ada, ada answered, and yuki passed it on (yuki runs so far: ${yukiRuns})`)
+    if (!agentSays(room, from, "yuki").some((m) => m.seq > answerAt)) fail.push("a2a: kiko never told the human what ada said")
+    step(`a2a: kiko asked ada, ada answered, and kiko passed it on (kiko runs so far: ${kikoRuns})`)
 
     from = lastSeq(room)
     t0 = Date.now()
@@ -134,9 +134,9 @@ const suite: Suite = {
 
     from = lastSeq(room)
     room.send("@yuki what should the main course be")
-    await poll("yuki typing", () => room.raw.log.slice(-40).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).state !== "idle"), 30_000)
+    await poll("kiko typing", () => room.raw.log.slice(-40).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).state !== "idle"), 30_000)
     room.send("@yuki oh and one guest is vegetarian")
-    await poll("yuki's answer", () => agentSays(room, from, "yuki").length > 0, 90_000)
+    await poll("kiko's answer", () => agentSays(room, from, "yuki").length > 0, 90_000)
     await quiet(room, 6_000, 90_000)
     print(room, from)
     const answer = agentSays(room, from, "yuki").map((m) => m.text).join(" ")

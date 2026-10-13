@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
-import type { Envelope } from "@yuki/protocol"
-import { decide } from "@yuki/agent/mid-run"
+import type { Envelope } from "@kiko/protocol"
+import { decide } from "@kiko/agent/mid-run"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 

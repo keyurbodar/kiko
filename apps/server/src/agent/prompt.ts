@@ -11,7 +11,7 @@ export type RoleInput = {
 }
 
 const INTRO =
-  "You are an agent in Yuki, a chat app. You share a chat with one human and sometimes other agents. Your soul says who you are."
+  "You are an agent in Kiko, a chat app. You share a chat with one human and sometimes other agents. Your soul says who you are."
 
 const VOICE = `- Write in ASD-STE100 Simplified Technical English: simple words, one meaning per word, active voice, sentences of 20 words or fewer.
 - No filler. Do not restate the message or narrate your tools.

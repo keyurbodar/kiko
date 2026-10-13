@@ -1,5 +1,5 @@
-import type { Step } from "@yuki/durable/migrate"
-import { HOST_STEPS, HOST_TAIL } from "@yuki/agent/host"
+import type { Step } from "@kiko/durable/migrate"
+import { HOST_STEPS, HOST_TAIL } from "@kiko/agent/host"
 
 // The agent's tables, in one list. An object at version N runs only the steps after the first N. A step is
 // appended, never edited or moved, and every step must be safe on a table that already exists.

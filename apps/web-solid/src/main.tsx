@@ -7,7 +7,7 @@ import "./styles/app.css";
 import { routes } from "./app/routes";
 import { Shell } from "./app/shell";
 import { loadMotion } from "./lib/motion";
-import { loadOverlaysV2 } from "@yuki/ui/v2/overlays";
+import { loadOverlaysV2 } from "@kiko/ui/v2/overlays";
 import { startSnapshots } from "./lib/snapshot";
 
 const SignIn = lazy(() => import("./app/sign-in"));

@@ -1,11 +1,11 @@
 import { idles } from "../kit"
-import { newRoomId, type RoomToClient } from "@yuki/protocol"
+import { newRoomId, type RoomToClient } from "@kiko/protocol"
 import { connectTestModel, type Verifier, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { dev } from "./team-loops"
 
 
-const TURNS = Number(process.env.YUKI_TOKEN_TURNS ?? 30)
+const TURNS = Number(process.env.KIKO_TOKEN_TURNS ?? 30)
 const CACHE_WEIGHT = 0.1
 
 type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number }
@@ -81,7 +81,7 @@ const suite: Suite = {
   name: "token-cost",
   model: true,
   async run(v) {
-    const modes = (process.env.YUKI_TOKEN_MODES ?? "memory").split(",") as "memory"[]
+    const modes = (process.env.KIKO_TOKEN_MODES ?? "memory").split(",") as "memory"[]
     const results: Partial<Record<"memory", Awaited<ReturnType<typeof chat>>>> = {}
     for (const m of modes) results[m] = await chat(v, m)
     for (const [mode, r] of Object.entries(results) as [string, NonNullable<(typeof results)["memory"]>][]) {

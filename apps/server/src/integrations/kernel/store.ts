@@ -1,4 +1,4 @@
-import { type Keyring, open, seal } from "@yuki/durable/crypto"
+import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import type { Mode } from "./client"
 
 /**

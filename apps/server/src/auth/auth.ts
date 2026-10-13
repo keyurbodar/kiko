@@ -14,7 +14,7 @@ export const PRODUCTION_OWNER = "owner"
 export const OWNER_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/
 
 const AUTH_PATH = "/api/auth"
-const COOKIE = "yuki_session"
+const COOKIE = "kiko_session"
 const ONE_YEAR_S = 365 * 24 * 60 * 60
 
 const encoder = new TextEncoder()

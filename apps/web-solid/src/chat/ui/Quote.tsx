@@ -1,5 +1,5 @@
-import { HugeIcon } from "@yuki/ui/huge-icon"
-import { FileTextIcon } from "@yuki/ui/icons"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { FileTextIcon } from "@kiko/ui/icons"
 import { Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage } from "../../lib/types"

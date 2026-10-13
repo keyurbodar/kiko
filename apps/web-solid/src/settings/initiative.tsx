@@ -1,10 +1,10 @@
-import type { UserSettings } from "@yuki/protocol"
-import { showToastV2 } from "@yuki/ui/v2/toast-v2"
+import type { UserSettings } from "@kiko/protocol"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal, onMount } from "solid-js"
 import { Group, Row, Segmented } from "./kit"
 
 /*
- * Initiative (architecture section 26): how much Yuki may speak up unasked, and whether it writes down
+ * Initiative (architecture section 26): how much Kiko may speak up unasked, and whether it writes down
  * facts it hears. Each choice applies at once and is put back, with a toast, if the server refuses it.
  */
 

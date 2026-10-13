@@ -1,5 +1,5 @@
-import { sha256Stream, toHex } from "@yuki/durable/hash"
-import { attachmentError, attachmentType } from "@yuki/protocol"
+import { sha256Stream, toHex } from "@kiko/durable/hash"
+import { attachmentError, attachmentType } from "@kiko/protocol"
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
 import type { RoomDO } from "../room/room-do"

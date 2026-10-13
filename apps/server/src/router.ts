@@ -1,7 +1,7 @@
 import { type AuthEnv, getSessionUser } from "./auth/auth"
 import type { Env } from "./index"
-import { humanHandle } from "@yuki/protocol"
-import { boundedWait } from "@yuki/durable/bounded-wait"
+import { humanHandle } from "@kiko/protocol"
+import { boundedWait } from "@kiko/durable/bounded-wait"
 import { DEV } from "./lib/dev-guard"
 import { HANDLE_HEADER, NameError, ROOM_ID_HEADER, roomStub, USER_ID_HEADER, userStub } from "./lib/names"
 

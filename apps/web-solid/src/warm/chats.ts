@@ -1,6 +1,6 @@
 // The chat list and the user socket's cursor.
 
-import type { Agent, Chat, ExtensionInfo, ExtensionProposal, RoomId } from "@yuki/protocol"
+import type { Agent, Chat, ExtensionInfo, ExtensionProposal, RoomId } from "@kiko/protocol"
 import type { Warm } from "./db"
 import { clearDraft } from "./drafts"
 import { clearRoom } from "./messages"

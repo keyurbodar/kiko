@@ -1,4 +1,4 @@
-import { sha256Hex } from "@yuki/durable/hash"
+import { sha256Hex } from "@kiko/durable/hash"
 import type { RoomFs } from "../../files/room-fs"
 
 // Big tool output. pi-durable keeps a result to 50 KB and cuts at the last line break that fits, so

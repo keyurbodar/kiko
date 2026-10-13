@@ -1,11 +1,11 @@
 ---
 name: verify-initiative
-description: "Prove Yuki's proactive behavior (reminders, initiative nudges, Jev memory capture, background cost) end to end with REAL models, no fakes: boots wrangler dev, signs in a dev user, stores OpenCode Go and TypeSafe keys through the credentials route, drives the human through the CLI client, and captures evidence. Use for 'verify initiative', 'A/B Jev', 'does the agent follow up', or before claiming proactive work behaves."
+description: "Prove Kiko's proactive behavior (reminders, initiative nudges, Jev memory capture, background cost) end to end with REAL models, no fakes: boots wrangler dev, signs in a dev user, stores OpenCode Go and TypeSafe keys through the credentials route, drives the human through the CLI client, and captures evidence. Use for 'verify initiative', 'A/B Jev', 'does the agent follow up', or before claiming proactive work behaves."
 ---
 
 # Verify initiative
 
-Builds on `verify-yuki-server` (same CLI client and dev server). Real models only: the suites in `apps/cli/src/verify/suites/proactive.ts` use fakes; this skill does not. Spends tokens, so keep scenarios short. Never print or commit a key.
+Builds on `verify-kiko-server` (same CLI client and dev server). Real models only: the suites in `apps/cli/src/verify/suites/proactive.ts` use fakes; this skill does not. Spends tokens, so keep scenarios short. Never print or commit a key.
 
 ## Launch
 
@@ -15,7 +15,7 @@ Builds on `verify-yuki-server` (same CLI client and dev server). Real models onl
 .cursor/skills/verify-initiative/scripts/server.sh stop     # when done
 ```
 
-`start` refuses if something already answers on 8787 (another worktree's server): drive that one or set `YUKI_URL=http://localhost:<your port>`. When `YUKI_URL` is set, every `server.sh` action and every `bun yuki` command targets your own server, and the CLI prints `yuki: target <url>` on its first line. It also needs `apps/server/.dev.vars`, the symlink a git hook adds; it fails without it. Log and pid are in `artifacts/initiative/` (git ignores `artifacts/`). Run `doctor` first whenever anything looks off.
+`start` refuses if something already answers on 8787 (another worktree's server): drive that one or set `KIKO_URL=http://localhost:<your port>`. When `KIKO_URL` is set, every `server.sh` action and every `bun kiko` command targets your own server, and the CLI prints `kiko: target <url>` on its first line. It also needs `apps/server/.dev.vars`, the symlink a git hook adds; it fails without it. Log and pid are in `artifacts/initiative/` (git ignores `artifacts/`). Run `doctor` first whenever anything looks off.
 
 ## Models and keys
 
@@ -40,7 +40,7 @@ Write a scenario in `scripts/` that imports `./kit` (run with `bun`, from the re
 | `age(ctx, room, ms)` / `seen(ctx, ago)` / `due(ctx, id)` | dev routes below |
 | `save(ctx, name, data)` | writes JSON evidence |
 
-Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. `silent-ab.ts <label>` runs the silent-loop measurement the same way. The attention engine has its own suite: `bun yuki verify initiative` (model; `INITIATIVE_MODE=jev|nojev` picks one arm, default both; the Jev arm is skipped without `TYPESAFE_API_KEY`; `INITIATIVE_ONLY=a,b,...` picks scenarios). It prints a `background tokens` line per arm. For an A/B, run the same scenario with and without `--jev` and compare those lines.
+Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. `silent-ab.ts <label>` runs the silent-loop measurement the same way. The attention engine has its own suite: `bun kiko verify initiative` (model; `INITIATIVE_MODE=jev|nojev` picks one arm, default both; the Jev arm is skipped without `TYPESAFE_API_KEY`; `INITIATIVE_ONLY=a,b,...` picks scenarios). It prints a `background tokens` line per arm. For an A/B, run the same scenario with and without `--jev` and compare those lines.
 
 ### Dev routes that exist (NODE_ENV=development, localhost only), all `POST /api/dev/agent/<name>`
 

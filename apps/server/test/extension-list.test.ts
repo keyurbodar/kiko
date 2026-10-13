@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { ExtensionInfo } from "@yuki/protocol"
+import type { ExtensionInfo } from "@kiko/protocol"
 import { extensionLine } from "../src/agent/extensions/builder"
 
 const info = (enabled: boolean) =>

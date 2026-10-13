@@ -95,7 +95,7 @@ export const DEFAULT_RECENTS: readonly string[] = [
   "🙂", "❤️", "😂", "🔥", "😢", "😭", "👍", "🤔", "❤️‍🔥", "🫡", "☹️", "🤥", "💙",
 ]
 
-const RECENTS_KEY = "yuki.emoji.recent"
+const RECENTS_KEY = "kiko.emoji.recent"
 const RECENTS_MAX = 32
 
 /** The list after picking `emoji`: it moves to the front, once, and the list is capped. */

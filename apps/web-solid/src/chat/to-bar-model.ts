@@ -1,4 +1,4 @@
-import type { Agent, Member } from "@yuki/protocol"
+import type { Agent, Member } from "@kiko/protocol"
 import { BUILTIN_AGENT } from "../lib/chats"
 
 /*
@@ -10,18 +10,18 @@ export type ToChip = { slug: string; name: string; removable: boolean }
 
 /**
  * The chips: the room's members, or the agents the chat was made with until the room has
- * seeded them. yuki leads every room and stays in it, so its chip comes off only when it is
+ * seeded them. kiko leads every room and stays in it, so its chip comes off only when it is
  * alone in an empty chat, where taking it off means "a chat with someone else". Another agent
  * comes off while one more stays.
  */
-export function toChips(input: { members: readonly Member[]; chatAgents: readonly string[]; agents: readonly Agent[]; yukiOff: boolean; empty: boolean }): ToChip[] {
+export function toChips(input: { members: readonly Member[]; chatAgents: readonly string[]; agents: readonly Agent[]; kikoOff: boolean; empty: boolean }): ToChip[] {
   const here = input.members.length
     ? input.members.map((m) => ({ slug: m.slug as string, name: m.name }))
     : input.chatAgents.flatMap((id) => {
         const a = input.agents.find((x) => x.id === id)
         return a ? [{ slug: a.slug as string, name: a.name }] : []
       })
-  const shown = input.yukiOff ? here.filter((c) => c.slug !== BUILTIN_AGENT.slug) : here
+  const shown = input.kikoOff ? here.filter((c) => c.slug !== BUILTIN_AGENT.slug) : here
   return shown.map((c) => ({ ...c, removable: c.slug === BUILTIN_AGENT.slug ? input.empty && shown.length === 1 : shown.length > 1 }))
 }
 

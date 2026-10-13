@@ -1,4 +1,4 @@
-import type { AgentSlug, Chat, Envelope, } from "@yuki/protocol"
+import type { AgentSlug, Chat, Envelope, } from "@kiko/protocol"
 import { agentStub, userStub } from "../lib/names"
 import { route } from "./deliver"
 import { deliverable, MAX_DELIVERY_ENVELOPES, type Burst, type Pending } from "./burst"

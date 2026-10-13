@@ -4,16 +4,16 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { type ConversationId, Harness, MemoryStorage } from "@earendil-works/pi-durable"
-import type { Envelope } from "@yuki/agent/envelope"
-import { WORKERS_STEPS, WORKERS_TAIL, Workers } from "@yuki/agent/workers"
-import type { MemoryPort } from "@yuki/memory/tools"
+import type { Envelope } from "@kiko/agent/envelope"
+import { WORKERS_STEPS, WORKERS_TAIL, Workers } from "@kiko/agent/workers"
+import type { MemoryPort } from "@kiko/memory/tools"
 import { sqlWith } from "./sql-shim"
 import { FAKE_TOOLS_EXTENSION } from "../src/agent/dev-fake"
 import type { MessagingPort } from "../src/agent/extensions/messaging"
 import type { RemindersPort } from "../src/agent/extensions/reminders"
 import type { WorkspacePort } from "../src/agent/extensions/workspace"
 import { buildAgent } from "../src/agent/factory"
-import type { ScriptPorts } from "@yuki/sandbox/compile"
+import type { ScriptPorts } from "@kiko/sandbox/compile"
 import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
 import type { FsEntry } from "../src/room/files"
 
@@ -134,7 +134,7 @@ test("an extension whose tools call a talker-only tool keeps them with the talke
   expect(
     built.extensions.sync([
       { name: "dice", hash: "d", bundle: bundle(dice, `export const tools = { roll_dice: async () => "4" }`) },
-      { name: "tell", hash: "t", bundle: bundle(tell, `export const tools = { tell_ana: async (_, yuki) => yuki.call("send_message", { to: "ana", text: "hi" }) }`) },
+      { name: "tell", hash: "t", bundle: bundle(tell, `export const tools = { tell_ana: async (_, kiko) => kiko.call("send_message", { to: "ana", text: "hi" }) }`) },
     ]),
   ).toEqual([])
   const names = (es: { tools?: { name: string }[] }[]) => es.flatMap((e) => (e.tools ?? []).map((t) => t.name))

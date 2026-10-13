@@ -42,7 +42,7 @@ export async function runSuites(opts: RunOptions): Promise<string[]> {
   const log = opts.log ?? console.log
   const all = await loadSuites(opts.dir)
   for (const n of opts.names) {
-    if (!all.some((s) => s.name === n)) throw new VerifyError(`no suite named ${n}. run yuki verify --list`)
+    if (!all.some((s) => s.name === n)) throw new VerifyError(`no suite named ${n}. run kiko verify --list`)
   }
   const chosen = all.filter((s) => !opts.names.length || opts.names.includes(s.name))
   const failed: string[] = []

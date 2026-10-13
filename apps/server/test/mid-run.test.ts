@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { type Arrival, decide, MAX_RESTARTS, type MidRunAction, type RunState } from "@yuki/agent/mid-run"
+import { type Arrival, decide, MAX_RESTARTS, type MidRunAction, type RunState } from "@kiko/agent/mid-run"
 
 const RUNNING = new Map([["call-1", "bash"]])
 const run = ({ toolRunning = false, ...patch }: Partial<RunState> & { toolRunning?: boolean } = {}): RunState => ({

@@ -4,9 +4,9 @@ import {
   pluralCategory,
   pluralKey,
   type UiI18n,
-} from "@yuki/ui/context/i18n";
-import { dict } from "@yuki/ui/i18n/en";
-import { ToastV2 } from "@yuki/ui/v2/toast-v2";
+} from "@kiko/ui/context/i18n";
+import { dict } from "@kiko/ui/i18n/en";
+import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { birdPickerSlug } from "../mascot/picker-state";
 import { createEffect, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { closeInfo, infoOpen, loadInfoPanel } from "../chat/info/state";
@@ -48,7 +48,7 @@ const InfoPanel = lazy(loadInfoPanel);
 const BirdPicker = lazy(() => import("../mascot/picker"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
-const KEY = "yuki:sidebar-collapsed";
+const KEY = "kiko:sidebar-collapsed";
 
 function readCollapsed() {
   try {

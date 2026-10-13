@@ -1,5 +1,5 @@
-import type { AgentSlug, MessageId, RoomEvent } from "@yuki/protocol"
-import { escapeXml } from "@yuki/agent/text"
+import type { AgentSlug, MessageId, RoomEvent } from "@kiko/protocol"
+import { escapeXml } from "@kiko/agent/text"
 import type { RoomLog } from "./log"
 
 const ALLOWED = [

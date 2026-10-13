@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto"
 import { describe, expect, test } from "bun:test"
-import type { AgentSlug, Message, MessageId, RoomEvent, RoomId } from "@yuki/protocol"
-import * as fixtures from "@yuki/protocol/fixtures"
+import type { AgentSlug, Message, MessageId, RoomEvent, RoomId } from "@kiko/protocol"
+import * as fixtures from "@kiko/protocol/fixtures"
 import { IDBFactory } from "fake-indexeddb"
 import { allChats } from "../warm/chats"
 import { openWarm, type Warm } from "../warm/db"
@@ -698,9 +698,9 @@ describe("the user store", () => {
 		await store.ready
 		const id = store.createTemp()
 		expect(store.chats().find((c) => c.roomId === id)).toMatchObject({ title: "New chat", agents: ["yuki"], temp: true })
-		store.keep(id, "yuki, ada", ["yuki", "id-ada"])
+		store.keep(id, "kiko, ada", ["yuki", "id-ada"])
 		const kept = store.chats().find((c) => c.roomId === id)!
-		expect(kept).toMatchObject({ title: "yuki, ada", agents: ["yuki", "id-ada"] })
+		expect(kept).toMatchObject({ title: "kiko, ada", agents: ["yuki", "id-ada"] })
 		expect(kept.temp).toBeUndefined()
 		await until(() => store.state.patches.length === 0)
 		expect(store.state.chats.find((c) => c.roomId === id)?.temp).toBeUndefined()

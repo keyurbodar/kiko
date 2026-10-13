@@ -1,12 +1,12 @@
-import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from "@yuki/protocol"
+import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from "@kiko/protocol"
 import type { AgentDO } from "../agent/agent-do"
 import type { RoomDO } from "../room/room-do"
 import type { UserDO } from "../user/user-do"
 import { rpc } from "./dev-guard"
 
-export const USER_ID_HEADER = "x-yuki-user-id"
-export const HANDLE_HEADER = "x-yuki-handle"
-export const ROOM_ID_HEADER = "x-yuki-room-id"
+export const USER_ID_HEADER = "x-kiko-user-id"
+export const HANDLE_HEADER = "x-kiko-handle"
+export const ROOM_ID_HEADER = "x-kiko-room-id"
 
 export class NameError extends Error {}
 

@@ -15,7 +15,7 @@ export interface SessionUser {
 /** unknown: no cached flag yet, so the first `/api/me` decides. */
 export type SessionState = { status: "unknown" } | { status: "signed-in"; user: SessionUser } | { status: "signed-out" }
 
-const FLAG_KEY = "yuki:session"
+const FLAG_KEY = "kiko:session"
 
 /*
  * ASSUMPTION: the warm tier (P2-05) names each user's database
@@ -88,8 +88,8 @@ async function signedOut(): Promise<void> {
 /** Confirms the cached flag with the server. Call once on boot. */
 export async function bootstrapSession(): Promise<void> {
   try {
-    const early = globalThis.__yukiBoot?.me
-    if (globalThis.__yukiBoot) globalThis.__yukiBoot.me = undefined
+    const early = globalThis.__kikoBoot?.me
+    if (globalThis.__kikoBoot) globalThis.__kikoBoot.me = undefined
     const res = await (early ?? fetch("/api/me"))
     if (res.status === 401) return await signedOut()
     if (!res.ok) throw new Error(String(res.status))
@@ -113,7 +113,7 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 
 export async function signOut(): Promise<void> {
   try {
-    localStorage.removeItem("yuki:snap")
+    localStorage.removeItem("kiko:snap")
   } catch {}
   try {
     await fetch("/api/auth/sign-out", {

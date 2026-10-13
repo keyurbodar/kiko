@@ -1,5 +1,5 @@
 import { agentTexts, messages, newRoom, poll } from "../kit"
-import type { AgentSlug, UserToClient } from "@yuki/protocol"
+import type { AgentSlug, UserToClient } from "@kiko/protocol"
 import { VerifyError } from "../client"
 import { dev, inSeconds, ok, type Routine, routines, systemTexts, toolLine, waitRuns } from "../routine-kit"
 import { must } from "../must"
@@ -70,13 +70,13 @@ const suite: Suite = {
       const a = await v.as(`proactive-away-${run}`)
       await ok(url, a, "me")
       const user = await a.user()
-      const yukiChat = await new Promise<string>((resolve, reject) => {
-        const t = setTimeout(() => reject(new VerifyError("no yuki chat in the snapshot")), 5_000)
+      const kikoChat = await new Promise<string>((resolve, reject) => {
+        const t = setTimeout(() => reject(new VerifyError("no kiko chat in the snapshot")), 5_000)
         const look = () => {
           for (const e of user.log) {
             const f = e.frame as UserToClient
             if (e.dir === "in" && f.t === "reset") {
-              const k = f.snapshot.chats.find((c) => c.yuki)
+              const k = f.snapshot.chats.find((c) => c.kiko)
               if (k) {
                 clearTimeout(t)
                 resolve(k.roomId)
@@ -88,8 +88,8 @@ const suite: Suite = {
         }
         look()
       })
-      const kroom = await a.room(yukiChat)
-      await fake(v, a, yukiChat)
+      const kroom = await a.room(kikoChat)
+      await fake(v, a, kikoChat)
       const { roomId, room } = await newRoom(a, "proactive: away")
       await fake(v, a, roomId)
       await dev(url, a, "seen", { ago: 8 * 86_400_000 })
@@ -103,7 +103,7 @@ const suite: Suite = {
       const { routine: next } = await ok<{ routine: Routine }>(url, a, "routines", { roomId, name: "after return", instructions: "[reply] back", trigger: { on: "time", at: inSeconds(3) } })
       const back = await waitRuns(url, a, next.id, "a run after return", (rs) => rs.some((x) => x.status !== "running"), 40_000)
       if (back[0]?.status !== "ok") throw new VerifyError(`a run after the human came back did not run: ${JSON.stringify(back)}`)
-      console.log("  ok away 8 days: the run was held and the yuki chat said why once; after a hello the next run ran")
+      console.log("  ok away 8 days: the run was held and the kiko chat said why once; after a hello the next run ran")
       room.raw.close()
       kroom.raw.close()
     }

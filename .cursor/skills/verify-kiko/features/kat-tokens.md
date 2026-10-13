@@ -1,0 +1,82 @@
+# Kat token layer
+
+A user who loads Kiko gets a single page, dark by default or light when the person picks it, whose every colour, type step and corner radius comes from one stylesheet. Apart from the look's own tokens, nothing paints this palette at runtime, so this is the first thing a verification run should prove. If a role fails to resolve, the whole app is wrong even when the map looks right.
+
+## Sub-features
+
+- `kat-roles-resolve`: every colour role resolves to a non-empty computed value on the live page, so no slice ever binds to an undefined variable.
+- `kat-roles-derive`: the roles are composed from a split lightness/chroma scale, so one knob (`--hue` = 340, `--cm` = 1) rotates and saturates the whole warm family at once.
+- `kat-tailwind-bridge`: each role is registered as a Tailwind colour, so a utility class in the DOM resolves to the same value the token holds. The vendored v2 set is repointed at the same palette.
+- `kat-type-scale`: the 11/12/13/14px type ladder, a 1.45 line height and the sans/mono families all resolve, and the 14px base face lands on `body`.
+- `kat-radius-roles`: `--radius-bubble` (16px) resolves, and `--brm` is the squircle scale factor. **`--radius-sm` does NOT resolve on `:root`.** See the recipe.
+- `kat-fonts-loaded`: the self-hosted faces are declared, and the ones the page actually uses are `loaded` rather than merely declared.
+- `kat-appearance`: the default root carries `color-scheme: dark`. A light appearance exists: `:root[data-appearance="light"]` in kat.css swaps the lightness scale and the palette, and `apps/web-solid/index.html` sets the attribute from the saved look before first paint.
+- `kat-no-borders`: the border roles are `none`, so a component that asks for a border draws nothing.
+
+## How to get to it (user POV)
+
+- Open `http://localhost:<port>/`. There is no route, menu, or control that reaches this: it is what the user sees the instant the page loads, on every route, forever.
+- Nothing else on the chrome. The appearance is a setting: Settings, then Appearance, picks dark, light or system, and changes the page's colours. A user who goes looking for a switch elsewhere is looking for the wrong place, not a bug.
+
+## Driving it with ego-browser
+
+Preconditions:
+
+- The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/kiko-verify-evidence/vite.pid` names it.
+- `../../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
+- **Use `http://localhost:<port>/`, not `http://127.0.0.1:<port>/`.** The Vite server binds the IPv6 loopback only; `curl` to `127.0.0.1:3017` exits `7` and to `localhost:3017` answers `200`.
+- **Pass `{ waitUntil: "domcontentloaded", timeout: 60000 }` to every `page.goto`.** The transcript's media never finishes loading, so the default `load` does not fire and the default 15s deadline rejects on a healthy page.
+
+- **Load the page.** Open the root URL the way a user's browser does. Run `page.goto("http://localhost:3001/", { waitUntil: "domcontentloaded", timeout: 60000 })` and `page.title()`. The result is `Kiko`, and `loc=css:#root` resolves to exactly one element.
+
+- **Wait for the token layer, not for a delay.** The stylesheet is applied by the entry point's CSS imports, so wait on the condition. Run `page.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() !== "", undefined, { timeout: 15000 })`. It resolves once the role has a computed value.
+
+- **Read the roles the way the app uses them.** Run one `page.evaluate` that loops the role list over `getComputedStyle(document.documentElement).getPropertyValue(name).trim()` and write it to `/tmp/kiko-verify-evidence/kat-tokens.json`. The observed set on this branch, with its resolved value:
+
+  | Role | Resolves to | Role | Resolves to |
+  | --- | --- | --- | --- |
+  | `--bg` | `#1a1917` (dark), `#f8f5ef` (light) | `--text` | the warm off-white (`#ece6dc`) |
+  | `--bg-subtle` | one step up the canvas | `--text-muted` | the three text weights (`#9a9389`) |
+  | `--surface-raised` | a raised fill for menus and cards | `--text-faint` | step down from muted (`#6c665e`) |
+  | `--menu-bg` | `color-mix(in oklab, #ece6dc 5%, #1a1917)`, a raised fill for an open menu | `--assistant-bubble` | `color-mix(in oklab, #ece6dc 6%, transparent)`, the incoming fill |
+  | `--user-bubble` | `color-mix(in oklab, #e2a99b 20%, transparent)`, a dark peach tint | `--user-bubble-text` | the warm bubble text on top of it (`#ece6dc`) |
+  | `--accent` | the peach-rose accent, as text colour (`#e2a99b`) | `--accent-fill` | the same family as a fill |
+  | `--danger` | the semantic rose (`#e5867a`) | `--success` | the semantic green |
+  | `--gold` | the semantic gold (`#e1b866`) | `--font-base` | `14px` |
+  | `--line-height` | `1.45` | `--radius-bubble` | `16px` |
+  | `--content-max-w` | `736px` | `--brm` | `1` on this browser |
+  | `--hue` | `340` | `--cm` | `1` |
+  | `--border`, `--border-dashed`, `--border-heavy`, `--border-heavy-dashed` | all `none` | **`--radius-sm`** | **empty on `:root`** |
+
+  **Every colour role is a non-empty string; the four border roles are the string `none`, which is the correct end state**: that makes the per-component no-border rule in [Chat bubbles](./chat-bubbles.md) provable rather than assumed.
+
+- **`--radius-sm` reads as an empty string, and that is not a missing token.** It is declared inside Tailwind's `@theme` block, which the compiler emits as its own `:root` rule, so `getComputedStyle(document.documentElement).getPropertyValue("--radius-sm")` on the document element returns `""` even though `--radius-bubble`, declared in the same block, returns `16px` on the same read. **Read a radius off a component's computed `border-radius`, not off the root.** A recipe that asserts `--radius-sm` is non-empty on `:root` fails against a correct stylesheet.
+
+- **Prove the Tailwind bridge, not just the variables.** A role that resolves but is never bridged still leaves components colourless. Run `page.evaluate(() => { const shell = document.querySelector(".sidebar-shell"); const cs = getComputedStyle(shell); return { shellBg: cs.backgroundColor, role: getComputedStyle(document.documentElement).getPropertyValue("--bg").trim(), shellColor: cs.color }; })`. The shell is `.sidebar-shell`: the flex row `main.tsx` composes and the scope class for the sidebar's stylesheet. `shellBg` is the same colour as the `--bg` role, `shellColor` the same as `--text`, so the shell's `bg-bg` class is genuinely bridged. A utility class in the shell's class list and a role in the stylesheet reaching the same computed value is what makes this the proof. `.app-shell` no longer exists and returns `null`, which makes this read throw before it can report anything.
+
+- **Prove the vendored v2 set is repointed at the kat palette.** Open a menu and read its fill. Right-click a `[data-component="sidebar-row"]` in the composed app, then run `page.evaluate(() => { const m = document.querySelector("[data-component='menu-v2-content']"); return { found: !!m, bg: m ? getComputedStyle(m).backgroundColor : null, radius: m ? getComputedStyle(m).borderRadius : null, padding: m ? getComputedStyle(m).padding : null }; })`. `found` is `true`, `bg` is the kat `--menu-bg` colour (`color-mix(in oklab, #ece6dc 5%, #1a1917)` on the dark default), **not** the v2 default `rgb(250,250,250)`, and `radius` is `20px` and `padding` is `8px`, which are the utilities the component asked for rather than the library's `6px` and `2px`. That last part is the layer order doing its job. **The menu is selected by `[data-component="menu-v2-content"]`, not by `[data-component="chat-menu"]`**, `MenuV2.Content` overwrites the prop, so the latter matches nothing.
+
+- **Prove the fonts loaded rather than declared.** Run `page.evaluate(async () => { await document.fonts.ready; return { inter: document.fonts.check("14px 'Instrument Sans'"), mono: document.fonts.check("14px 'Fantasque Sans Mono'"), faces: [...document.fonts].map((f) => f.family + "|" + f.style + "|" + f.weight + "|" + f.status) }; })`, then write it to `/tmp/kiko-verify-evidence/font-load.json`. Four faces are declared: `Instrument Sans` at `400 700` (a latin and a latin-ext file), `Fantasque Sans Mono` at `400`, and `Fantasque Sans Mono` at `700`. **`inter` and `mono` are only both `true` on a page that actually uses the mono face.** The chat harness renders its state readout in `font-mono` and reports all four faces with the two in use `loaded`; the composed app at `/` reports `mono: false` with `Fantasque Sans Mono` at both weights `unloaded`, because nothing on that page is set in it yet. **Assert `inter` is `true` at `/` and both are `true` on the harness**, and treat a face listed at `unloaded` as "not yet needed" rather than as a load failure. An `@font-face` rule in the stylesheet proves nothing on its own; a `false` with no `false` in the CSS is a real failure, and its reason is `document.fonts.check`, not the CSS.
+
+- **Confirm the type scale landed on the body.** Run `page.evaluate(() => ({ bodyFontSize: getComputedStyle(document.body).fontSize, bodyLineHeight: getComputedStyle(document.body).lineHeight, bodyFontFamily: getComputedStyle(document.body).fontFamily, rootFontSize: getComputedStyle(document.documentElement).fontSize }))`. `bodyFontSize` is `14px`, `bodyLineHeight` is `20.3px` (14 × 1.45), `bodyFontFamily` names `Instrument Sans`, and `rootFontSize` is the browser default `16px`. A 14px root would rescale every `rem` and shrink Tailwind's spacing utilities to 0.875x, so a 16px root is the correct end state, not a missing declaration.
+
+- **Confirm the appearance and that no media-query light palette is hiding anywhere.** Run one `page.evaluate` that reads `getComputedStyle(document.documentElement).colorScheme` and `document.documentElement.dataset.appearance`, and counts stylesheet rules wrapped in a `prefers-color-scheme` `light` block, guarding each `cssRules` read with a `try` because a cross-origin sheet throws. `colorScheme` matches `dataset.appearance` (`dark` on the default look), and the `lightRules` count is `0`: kat's light palette is keyed on `data-appearance`, not on the media query. Also read `document.documentElement.dataset.themeId ?? null` and `document.documentElement.dataset.theme ?? null`: both are `null`. A non-zero light-rule count or a theme dataset is a defect to report, not a variant to document.
+
+- **Confirm there is no switcher to find.** Run `page.evaluate(() => ({ themeSwitches: document.querySelectorAll("[data-theme-id], [data-kat-theme], [data-theme-switch], [role=switch]").length, htmlClass: document.documentElement.className }))`. `themeSwitches` is `0`. The root carries `class="dark"` only on the dark appearance. `apps/web-solid/index.html` and `src/theme/apply.ts` set it, and no stylesheet reads it: the colours follow `data-appearance` and `color-scheme`, not the class.
+
+- **Confirm the border roles are inert.** Run `page.evaluate(() => ["--border", "--border-dashed", "--border-heavy", "--border-heavy-dashed"].map((n) => [n, getComputedStyle(document.documentElement).getPropertyValue(n).trim()]))`. All four read `"none"`, which is what makes the per-component no-border rule provable rather than inherited. See [Chat bubbles](./chat-bubbles.md) for the per-element check.
+
+- **Proof.** Write `/tmp/kiko-verify-evidence/kat-tokens.json` and `/tmp/kiko-verify-evidence/font-load.json` from the same run, then `page.screenshot({ path: "/tmp/kiko-verify-evidence/app-shell.png" })`. The screenshot shows the dark canvas with the transcript column on it. App identity is proven by `page.title()`, not by the screenshot.
+
+## Gotchas
+
+- **Inline properties are the wrong door.** The look writes its own tokens inline on `<html>` (`apps/web-solid/src/theme/apply.ts`), so `document.documentElement.style` is not where the palette lives, and a token read that returns `""` there is no evidence of a missing palette. Use `getComputedStyle`. The deleted inline engines left behind three assertions that are now false and must never be reinstated: `inlineKikoVars === 57`, `dataset.themeId === "whirl"`, and a non-empty `--kiko-message-surface`. The current regression guard is the inverse: `inlineKikoVars === 0` and `themeId === null`.
+- **The two radius roles are declared in Tailwind's `@theme` block, and the compiler emits that as a real `:root` rule.** They resolve through `getComputedStyle` and a `rounded-bubble` / `rounded-sm` utility, like everything else in the file. But `--radius-sm` specifically reads back as `""` on the document element, while `--radius-bubble` reads `16px` on the same read. Read a radius off a component's computed `border-radius`, never off the root. Radius at a call site is either `rounded-bubble` / `rounded-sm` or the `calc(Npx * var(--brm))` idiom.
+- **`--brm` is conditional.** It is `0.5` by default and `1` under `@supports (corner-shape: squircle)`. **On this machine `CSS.supports("corner-shape", "squircle")` is `true` and `--brm` resolves to `1`**, so a `calc(20px * var(--brm))` radius measures its full 20px and a `calc(18px * var(--brm))` is a true 18px. Assert each component's radius against the token and the browser's own `CSS.supports` answer, not a hard-coded number, so the recipe stays correct on a browser that cannot draw a continuous one.
+- **`--hue` is 340 and `--cm` is 1 in kat.css.** The palette block in kat.css (`/* palette:start */`) sets the default colours as hex and comes later in the cascade, so it overrides the derived roles. `--hue` then moves only the syntax ramp and the roles that block does not set. Do not report that as a broken derivation.
+- **`--border: none` means a border is silently invisible, not loudly absent.** A slice that asks for a border renders nothing and still screenshots cleanly. Assert the per-element `border-width` in the no-border recipe, not the token.
+- **An unlayered rule outranks every `@layer`, and margin was the casualty.** The bare `* { margin: 0 }` in `packages/ui/src/styles/kat.css` used to be outside any layer, and an unlayered rule outranks every layered rule regardless of specificity, so it beat Tailwind's `@layer utilities` and **every margin utility in the app was dead**: `mx-auto` computed to `0px` and the 768px transcript column sat pinned to the left edge of the surface instead of centred, with every width reading correctly. It is now inside `@layer base`, in the same layer as the preflight. Cascade layers beat unlayered rules only by being **later** in the declared order, sitting *outside* `@layer` in the author's stylesheet. **Every recipe in this map goes in a layer**; an unlayered rule outranks every utility silently and the break is invisible until a layout is visibly wrong.
+- **Assert that a margin utility resolves, and never author an unlayered rule in these stylesheets.** Nothing about the failure is visible in the token read: every role still resolves, every width is still right, and `getPropertyValue("--content-max-w")` still says `736px`. The only proof is the computed margin. Confirmed live after the fix (before the default lane changed to 736px): the transcript column is 736px wide at `left: 342` in a 1420px viewport, exactly `(1420 - 736) / 2`, and `div class="mx-auto"` computes to `margin-left: 610px` against a 1420px shell. The rule for anyone editing these stylesheets: a reset belongs in `@layer base`; anything bare outranks utilities invisibly.
+- **The v2 bridge is `:root`-scoped, so the `--v2-*` roles resolve to the kat palette.** The vendored component set's `--v2-*` roles are re-pointed at the kat roles under `:root`, not under `[data-kat-theme]`, so a v2 component *is* themed here. Confirmed live: the open message menu computes the kat `--menu-bg` colour (`color-mix(in oklab, #ece6dc 5%, #1a1917)` on the dark default), rather than the v2 default `rgb(250,250,250)`. **Keep the bridge scoped to `:root`, or to an ancestor that always exists.** Nothing in the app sets `data-kat-theme`, so scoping it to that attribute silently re-opens the gap for every v2 component that is still being built.
+- **The proof is the value on the live page.** Do not import `@kiko/ui/kat.css` into a scratch script and do not read the stylesheet as a substitute for a computed read. A role can be declared in the file and still fail to resolve.
+- **A dev-server hot reload can land mid-run.** If the page reloads under you, re-`goto` and re-read rather than reading a stale value as evidence.

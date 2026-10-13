@@ -1,5 +1,5 @@
-import { newRoomId } from "@yuki/protocol"
-import type { RoomId, RoomToClient } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { RoomId, RoomToClient } from "@kiko/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { must } from "../must"

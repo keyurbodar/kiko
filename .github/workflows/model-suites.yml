@@ -64,7 +64,7 @@ jobs:
         # SUITES is unquoted on purpose so several names become several arguments.
         run: |
           set -o pipefail
-          bun yuki verify $SUITES --url http://localhost:8787 2>&1 | tee "$RUNNER_TEMP/verify.log"
+          bun kiko verify $SUITES --url http://localhost:8787 2>&1 | tee "$RUNNER_TEMP/verify.log"
       - name: upload the last frames
         if: failure()
         uses: actions/upload-artifact@v4

@@ -2,7 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import { AssistantEntry, type ConversationId, type Harness, type SettledSubmissionRecord, type SubmissionId } from "@earendil-works/pi-durable"
 import type { Envelope } from "./envelope"
-import { addColumn, dropColumn, type Step } from "@yuki/durable/migrate"
+import { addColumn, dropColumn, type Step } from "@kiko/durable/migrate"
 
 const context = BACKGROUND_CONTEXT
 

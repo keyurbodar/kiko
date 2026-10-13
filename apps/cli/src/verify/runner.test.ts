@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { runSuites } from "./runner"
 
 async function suitesDir() {
-  const dir = await mkdtemp(join(tmpdir(), "yuki-suites-"))
+  const dir = await mkdtemp(join(tmpdir(), "kiko-suites-"))
   const client = join(import.meta.dir, "client")
   await writeFile(join(dir, "ok.ts"), `export default { name: "ok", async run() {} }\n`)
   await writeFile(
@@ -40,7 +40,7 @@ test("an unknown suite name is an error", async () => {
 })
 
 test("a load test never runs against a deployed server, even by name", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "yuki-suites-"))
+  const dir = await mkdtemp(join(tmpdir(), "kiko-suites-"))
   await writeFile(join(dir, "load.ts"), `export default { name: "load", load: true, async run() { throw new Error("ran against a deployed server") } }\n`)
   const lines: string[] = []
   const failed = await runSuites({ url: "https://kiko.example.workers.dev", noModel: false, names: ["load"], dir, log: (l) => lines.push(l) })

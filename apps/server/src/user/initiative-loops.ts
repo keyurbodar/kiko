@@ -1,8 +1,8 @@
-import type { Alarms } from "@yuki/durable/alarm"
-import type { Life } from "@yuki/memory/life"
-import { type Certainty, type Loop, Loops, type LoopKind, type OpenResult } from "@yuki/memory/loops"
-import type { RoomId } from "@yuki/protocol"
-import { INITIATIVE_LEVELS, type LoopAction, type LoopRow } from "@yuki/protocol/schema"
+import type { Alarms } from "@kiko/durable/alarm"
+import type { Life } from "@kiko/memory/life"
+import { type Certainty, type Loop, Loops, type LoopKind, type OpenResult } from "@kiko/memory/loops"
+import type { RoomId } from "@kiko/protocol"
+import { INITIATIVE_LEVELS, type LoopAction, type LoopRow } from "@kiko/protocol/schema"
 import type { Env } from "../index"
 import { Initiative } from "../initiative/initiative"
 import type { Level } from "../initiative/attention/types"
@@ -14,7 +14,7 @@ import { AWAY_MS, LAST_SEEN } from "./keys"
 import { type MemoryCapture, CAPTURE_TEXT_MAX, CAPTURE_TIMEOUT_MS } from "./memory-capture"
 import type { Reminders } from "./reminders"
 import { DEFAULT_TIMEZONE } from "./turn-context"
-import { yukiChatRoom } from "./yuki-chat"
+import { kikoChatRoom } from "./kiko-chat"
 
 export const LOOPS_WAKEUP = "loops_heard"
 const LOOPS_DELAY_MS = 15_000
@@ -73,7 +73,7 @@ export class InitiativeLoops {
         return last !== null && Date.now() - Number(last) > AWAY_MS
       },
       title: (roomId) => title(roomId, false),
-      home: () => yukiChatRoom(d.sql),
+      home: () => kikoChatRoom(d.sql),
       routines: () => {
         const runs = d.reminders.runs()
         return d.reminders.triggered().map((routine) => ({ routine, last: runs.find((x) => x.routineId === routine.id && x.status !== "running") ?? null }))

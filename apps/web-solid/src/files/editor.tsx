@@ -1,4 +1,4 @@
-import type { FileRef } from "@yuki/protocol"
+import type { FileRef } from "@kiko/protocol"
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js"
 import { PREVIEW_BYTES, putFile, readText, sha256Hex } from "./api"
 import { SurfaceFailure, SurfaceLoading, SurfaceNotice, UNREADABLE } from "./chrome"

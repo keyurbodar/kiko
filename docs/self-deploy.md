@@ -1,6 +1,6 @@
 # Self-deploy
 
-Yuki runs on your own Cloudflare account. One deployment serves one owner. You sign in with an access code that you set.
+Kiko runs on your own Cloudflare account. One deployment serves one owner. You sign in with an access code that you set.
 
 ## What you need
 

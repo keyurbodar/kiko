@@ -1,5 +1,5 @@
 import { messages, poll } from "../kit"
-import type { Message } from "@yuki/protocol"
+import type { Message } from "@kiko/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send } from "./mid-run"

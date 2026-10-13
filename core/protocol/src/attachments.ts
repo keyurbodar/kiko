@@ -51,8 +51,8 @@ export function attachmentType(file: Named): string {
 export const isImageType = (type: string) => IMAGE_TYPES.includes(type.toLowerCase())
 
 /**
- * A picture, any other file, or a picture yuki cannot send (an SVG, a HEIC). t3code converts HEIC
- * to JPEG with a decoder library; yuki does not ship one, so a HEIC is refused like an SVG.
+ * A picture, any other file, or a picture kiko cannot send (an SVG, a HEIC). t3code converts HEIC
+ * to JPEG with a decoder library; kiko does not ship one, so a HEIC is refused like an SVG.
  */
 export function attachmentKind(file: Named): "image" | "file" | "unsupported-image" {
 	const type = attachmentType(file)

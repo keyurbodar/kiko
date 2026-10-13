@@ -1,8 +1,8 @@
-import type { Judge } from "@yuki/memory/judge"
-import { keywords, type Life } from "@yuki/memory/life"
-import { type BurstCheck, type Loop, type Loops, NAP_LOOPS_SYSTEM, napLoopsPrompt, parseNapLoops, sentencesOf } from "@yuki/memory/loops"
-import { escapeXml } from "@yuki/agent/text"
-import { isAgentSlug } from "@yuki/protocol"
+import type { Judge } from "@kiko/memory/judge"
+import { keywords, type Life } from "@kiko/memory/life"
+import { type BurstCheck, type Loop, type Loops, NAP_LOOPS_SYSTEM, napLoopsPrompt, parseNapLoops, sentencesOf } from "@kiko/memory/loops"
+import { escapeXml } from "@kiko/agent/text"
+import { isAgentSlug } from "@kiko/protocol"
 import { day, SHARED_WORDS } from "./engine"
 import { classifyBurst } from "./judge"
 

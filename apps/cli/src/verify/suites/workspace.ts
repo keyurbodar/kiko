@@ -1,6 +1,6 @@
 import { poll } from "../kit"
-import { newRoomId } from "@yuki/protocol"
-import type { Agent, AgentSlug, Message, RoomEvent, RoomId, RoomToClient, Task } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { Agent, AgentSlug, Message, RoomEvent, RoomId, RoomToClient, Task } from "@kiko/protocol"
 import type { RoomHandle } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -57,8 +57,8 @@ const suite: Suite = {
 		await poll("task b", () => tasks(room).size === 2, 15_000)
 		const b = must([...tasks(room).values()].find((t) => t.id !== "task-a"), "task-a's sibling")
 		expectEqual({ owner: b.owner, status: b.status, dependsOn: b.dependsOn }, { owner: "cy", status: "todo", dependsOn: ["task-a"] }, "task b")
-		await poll("yuki's answer", () => bubbles(room, "yuki").length === 1, 15_000)
-		console.log(`  ok board: task-a for ada, ${b.id} for cy after task-a (yuki: ${JSON.stringify(bubbles(room, "yuki")[0])})`)
+		await poll("kiko's answer", () => bubbles(room, "yuki").length === 1, 15_000)
+		console.log(`  ok board: task-a for ada, ${b.id} for cy after task-a (kiko: ${JSON.stringify(bubbles(room, "yuki")[0])})`)
 
 		await send(room, `@cy [ws update_task {"id":"task-a","status":"doing"}]`)
 		await poll("cy's answer", () => bubbles(room, "cy").length === 1, 15_000)

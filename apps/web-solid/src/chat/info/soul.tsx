@@ -1,4 +1,4 @@
-import { showToastV2 } from "@yuki/ui/v2/toast-v2"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createResource, createSignal, Show } from "solid-js"
 import { buttonClass } from "../../settings/kit"
 
@@ -32,7 +32,7 @@ export function SoulCard(props: { slug: string }) {
 			body: JSON.stringify({ body, expectSha: current.sha }),
 		}).catch(() => null)
 		setSaving(false)
-		const out = res ? ((await res.json().catch(() => ({}))) as Partial<Soul> & { error?: string }) : { error: "Could not reach Yuki" }
+		const out = res ? ((await res.json().catch(() => ({}))) as Partial<Soul> & { error?: string }) : { error: "Could not reach Kiko" }
 		if (res?.ok && out.body !== undefined && out.sha) {
 			mutate({ body: out.body, sha: out.sha })
 			setDraft(null)

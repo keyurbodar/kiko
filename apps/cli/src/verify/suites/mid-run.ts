@@ -1,4 +1,4 @@
-import type { RoomToClient } from "@yuki/protocol"
+import type { RoomToClient } from "@kiko/protocol"
 import type { RoomHandle, Session } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import { newRoom, poll, seen, statuses } from "../kit"

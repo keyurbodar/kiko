@@ -1,6 +1,6 @@
 // The flock, drawn in sumi ink. Every bird is a Shima Enaga in one of two shapes: the mochi, a
 // wide soft dome facing you, for every agent; and the loaf, the bird in profile with its long tail
-// held out, for Yuki's own mark. A bird is data (flavor, outfit) and a pure function turns it into
+// held out, for Kiko's own mark. A bird is data (flavor, outfit) and a pure function turns it into
 // SVG, so the avatar, the typing row, the favicon and the picker all draw the same thing.
 //
 // The bird never acts. Its mood shows only in its eyes, and a working bird's ink line boils: the
@@ -30,7 +30,7 @@ type Flavor = {
 }
 
 export const FLAVORS = {
-  yuki: { label: "Yuki", vibe: "warm cream", body: "#F6EDE0", belly: "#F2D8C6", nub: "#B6A28E", tail: "#9C8C7E", ink: null },
+  yuki: { label: "Kiko", vibe: "warm cream", body: "#F6EDE0", belly: "#F2D8C6", nub: "#B6A28E", tail: "#9C8C7E", ink: null },
   matcha: { label: "Matcha", vibe: "whisked green tea", body: "#DDE0BE", top: "#ADB67C", belly: "#F2ECD8", nub: "#949C68", tail: "#868D5E", ink: [0.09, 115] },
   sakura: { label: "Sakura", vibe: "blossom milk", body: "#F4DEDE", top: "#EBB2B8", belly: "#FBEFEA", nub: "#D2989E", tail: "#BE8A90", blush: "#EE8088", beak: "#8A5E62", ink: [0.1, 5] },
   hojicha: { label: "Hojicha", vibe: "roasted tea", body: "#E9D8C4", top: "#BE966F", belly: "#F2E2D0", nub: "#9C7856", tail: "#8C6A4C", ink: [0.08, 60] },
@@ -47,7 +47,7 @@ export const FLAVORS = {
 
 export type FlavorId = keyof typeof FLAVORS
 export const FLAVOR_IDS = Object.keys(FLAVORS) as FlavorId[]
-/** Every flavor but Yuki's own cream: the colors another agent can wear. */
+/** Every flavor but Kiko's own cream: the colors another agent can wear. */
 export const FRIEND_IDS = FLAVOR_IDS.filter((f) => f !== "yuki")
 
 const flower = (x: number, y: number, petal: string, s = 1) =>
@@ -75,7 +75,7 @@ export const OUTFIT_IDS = Object.keys(OUTFITS) as OutfitId[]
 export type BirdSpec = { flavor: FlavorId; outfit: OutfitId }
 
 /** The chief. Its flavor never changes; only what it wears does. */
-export const YUKI_BIRD: BirdSpec = { flavor: "yuki", outfit: "none" }
+export const KIKO_BIRD: BirdSpec = { flavor: "yuki", outfit: "none" }
 
 // --- ids ---------------------------------------------------------------------------
 
@@ -98,9 +98,9 @@ function hash(s: string): number {
 
 const SEED_OUTFITS: OutfitId[] = ["beanie", "beret", "bucket", "phones", "crown", "bow"]
 
-/** The bird a slug wears when nobody picked one. The chief is always Yuki. About a third of the others wear something. */
+/** The bird a slug wears when nobody picked one. The chief is always Kiko. About a third of the others wear something. */
 export function seedBird(slug: string, chief: string): BirdSpec {
-  if (slug === chief) return YUKI_BIRD
+  if (slug === chief) return KIKO_BIRD
   const h = hash(slug)
   const flavor = FRIEND_IDS[h % FRIEND_IDS.length]!
   const outfit = (h >>> 16) % 3 === 0 ? SEED_OUTFITS[(h >>> 20) % SEED_OUTFITS.length]! : "none"
@@ -109,7 +109,7 @@ export function seedBird(slug: string, chief: string): BirdSpec {
 
 // --- color -------------------------------------------------------------------------
 
-/** The color an agent's name and mentions use, readable on both appearances. Yuki uses the theme's accent. */
+/** The color an agent's name and mentions use, readable on both appearances. Kiko uses the theme's accent. */
 export function inkColor(b: BirdSpec): string {
   const ink: Flavor["ink"] = FLAVORS[b.flavor].ink
   if (!ink) return "var(--accent)"

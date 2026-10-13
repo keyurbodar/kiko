@@ -1,7 +1,7 @@
-import { FileIcon } from "@yuki/ui/file-icon"
-import { HugeIcon } from "@yuki/ui/huge-icon"
-import { BackIcon, ChevronRightIcon } from "@yuki/ui/icons"
-import { MenuV2 } from "@yuki/ui/v2/menu-v2"
+import { FileIcon } from "@kiko/ui/file-icon"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { BackIcon, ChevronRightIcon } from "@kiko/ui/icons"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { createSignal, For, Show } from "solid-js"
 import { basename, dirname, ROOT, type TreeIndex } from "./model"
 

@@ -1,5 +1,5 @@
 import { newRoom, poll, seen } from "../kit"
-import type { RoomEvent } from "@yuki/protocol"
+import type { RoomEvent } from "@kiko/protocol"
 import { expectEqual, type Session, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { fake } from "./mid-run"

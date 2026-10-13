@@ -46,7 +46,7 @@ let tmp: string
 
 beforeAll(async () => {
   const script = await bundleWorker(new URL("./naming-worker.ts", import.meta.url), { "process.env.NODE_ENV": '"production"' })
-  tmp = await mkdtemp(join(tmpdir(), "yuki-naming-"))
+  tmp = await mkdtemp(join(tmpdir(), "kiko-naming-"))
   const path = join(tmp, "worker.js")
   await Bun.write(path, script)
   mf = new Miniflare({
@@ -116,9 +116,9 @@ describe("router", () => {
   })
 
   test("a user id header from the client is replaced by the session's", async () => {
-    const echo = await open(`/api/ws/room/${ROOM}`, "alice", { "x-yuki-user-id": "bob", "x-yuki-room-id": "x" })
+    const echo = await open(`/api/ws/room/${ROOM}`, "alice", { "x-kiko-user-id": "bob", "x-kiko-room-id": "x" })
     expect(echo).toEqual({ id: await idOf("ROOM", roomName("alice", ROOM)), user: "alice", room: ROOM })
-    const user = await open("/api/ws/user", "alice", { "x-yuki-user-id": "bob", "x-yuki-room-id": "x" })
+    const user = await open("/api/ws/user", "alice", { "x-kiko-user-id": "bob", "x-kiko-room-id": "x" })
     expect(user).toEqual({ id: await idOf("USER", userName("alice")), user: "alice", room: null })
   })
 

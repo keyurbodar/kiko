@@ -1,6 +1,6 @@
 import { agentText } from "../kit"
-import { newRoomId } from "@yuki/protocol"
-import type { RoomToClient } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { RoomToClient } from "@kiko/protocol"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 

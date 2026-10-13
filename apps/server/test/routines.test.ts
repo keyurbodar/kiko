@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { AgentSlug, RoomEvent } from "@yuki/protocol"
-import { Trigger } from "@yuki/protocol/schema"
+import type { AgentSlug, RoomEvent } from "@kiko/protocol"
+import { Trigger } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import { matches, routineRun, Signal, signalOf, SignalWindow } from "../src/room/signals"
 import { sqlWith } from "./sql-shim"

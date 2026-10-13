@@ -1,4 +1,4 @@
-import type { AgentSlug, RoomEvent, Sender } from "@yuki/protocol"
+import type { AgentSlug, RoomEvent, Sender } from "@kiko/protocol"
 import { openTasks } from "./open-tasks"
 import type { Members } from "./members"
 import type { RoomLog } from "./log"

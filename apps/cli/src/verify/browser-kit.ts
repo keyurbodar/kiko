@@ -1,10 +1,10 @@
 import { newRoom } from "./kit"
-import type { RoomToClient } from "@yuki/protocol"
+import type { RoomToClient } from "@kiko/protocol"
 import { connectTestModel, type RoomHandle, type Session, type Verifier, VerifyError } from "./client"
 import { api } from "./routine-kit"
 
 const KERNEL = "https://api.onkernel.com"
-export const BROWSER_MODEL = process.env.YUKI_BROWSER_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
+export const BROWSER_MODEL = process.env.KIKO_BROWSER_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
 const IDLE_PAST_MS = 6 * 60_000
 
 type Events = Extract<RoomToClient, { t: "events" }>

@@ -1,6 +1,6 @@
 import { poll } from "../kit"
-import { newRoomId } from "@yuki/protocol"
-import type { Agent, AgentSlug, Member, Message, RoomEvent, RoomId, RoomToClient } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { Agent, AgentSlug, Member, Message, RoomEvent, RoomId, RoomToClient } from "@kiko/protocol"
 import type { RoomHandle } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -72,7 +72,7 @@ const suite: Suite = {
     await poll("four members", () => members(room).length === 4, 5_000)
     expectEqual(
       members(room).map((m) => `${m.slug}${m.lead ? " (lead)" : ""}`),
-      ["yuki (lead)", "bob", "ada", "cy"],
+      ["kiko (lead)", "bob", "ada", "cy"],
       "the members seeded from the chat's agents",
     )
     console.log(`  ok members: ${members(room).map((m) => `${m.slug}${m.lead ? " (lead)" : ""}`).join(", ")}`)
@@ -84,11 +84,11 @@ const suite: Suite = {
     }
 
     await send(room, "hello team")
-    await poll("yuki's answer", () => bubbles(room).yuki?.length === 1, 15_000)
+    await poll("kiko's answer", () => bubbles(room).kiko?.length === 1, 15_000)
     await Bun.sleep(2_500)
     expectEqual([await received("bob"), await received("ada"), await received("cy")], [0, 0, 0], "envelopes bob, ada and cy received after an untagged message")
-    expectEqual(bubbles(room), { yuki: ["heard: hello team"], bob: [], ada: [], cy: [] }, "bubbles after an untagged message")
-    console.log("  ok untagged: only yuki, the lead, was woken")
+    expectEqual(bubbles(room), { kiko: ["heard: hello team"], bob: [], ada: [], cy: [] }, "bubbles after an untagged message")
+    console.log("  ok untagged: only kiko, the lead, was woken")
 
     await send(room, "@bob [reply] noted")
     await poll("bob's answer", () => bubbles(room).bob?.length === 1, 15_000)
@@ -110,14 +110,14 @@ const suite: Suite = {
     expectEqual(
       bubbles(room),
       {
-        yuki: ["heard: hello team", "heard: @all ping"],
+        kiko: ["heard: hello team", "heard: @all ping"],
         bob: ["noted", "heard: @all ping"],
         ada: ["heard: @ada [missed] your turn; missed: human: hello team | @yuki: heard: hello team | human: @bob [reply] noted | @bob: noted", "heard: @all ping"],
         cy: ["heard: @all ping"],
       },
       "bubbles after @all",
     )
-    console.log(`  ok @all: yuki, bob, ada, and cy each answered once`)
+    console.log(`  ok @all: kiko, bob, ada, and cy each answered once`)
 
     const from = room.raw.log.length
     const runsSince = () => {

@@ -1,5 +1,5 @@
-import { escapeXml } from "@yuki/agent/text"
-import type { Task } from "@yuki/protocol"
+import { escapeXml } from "@kiko/agent/text"
+import type { Task } from "@kiko/protocol"
 import { MAX_ROLE, type MemberRow } from "./members"
 import { briefTasks } from "./workspace"
 

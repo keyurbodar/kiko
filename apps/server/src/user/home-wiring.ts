@@ -1,4 +1,4 @@
-import type { Actor, FileOp, UserEvent } from "@yuki/protocol"
+import type { Actor, FileOp, UserEvent } from "@kiko/protocol"
 import type { Env } from "../index"
 import type { CommitResult, FileIndex, FsChange, FsEntry, FsFail, IndexChange, NewFile, PutResult } from "../files/file-index"
 import { cleanPath, deleteFiles } from "../files/upload"

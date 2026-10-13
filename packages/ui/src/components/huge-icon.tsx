@@ -4,7 +4,7 @@ import type { Glyph } from "../icons.gen"
 export type { Glyph }
 
 export type HugeIconProps = Omit<ComponentProps<"svg">, "children"> & {
-  /** A glyph from `@yuki/ui/icons`, such as `SearchIcon`. */
+  /** A glyph from `@kiko/ui/icons`, such as `SearchIcon`. */
   icon: Glyph
   /** Pixels. Defaults to 16. */
   size?: number
@@ -12,7 +12,7 @@ export type HugeIconProps = Omit<ComponentProps<"svg">, "children"> & {
   strokeWidth?: number
 }
 
-/** One of yuki's icons. The glyphs are Hugeicons, copied into `icons.gen.ts` by `scripts/gen-icons.ts`. */
+/** One of kiko's icons. The glyphs are Hugeicons, copied into `icons.gen.ts` by `scripts/gen-icons.ts`. */
 export function HugeIcon(props: HugeIconProps) {
   const [own, rest] = splitProps(props, ["icon", "size", "strokeWidth"])
   return (

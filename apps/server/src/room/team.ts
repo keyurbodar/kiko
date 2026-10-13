@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@yuki/protocol"
+import type { AgentSlug } from "@kiko/protocol"
 
 /** ASSUMPTION: a lease outlives a run that never reported its end by this long. */
 export const LEASE_MS = 10 * 60_000

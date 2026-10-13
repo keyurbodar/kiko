@@ -30,7 +30,7 @@ type FileBody = { file: { id: string; name: string; size: number; type: string }
 async function put(room: string, path: string, body: string, expect = "none") {
 	const res = await fetch(`${origin}/api/files/${room}?path=${encodeURIComponent(path)}`, {
 		method: "PUT",
-		headers: { ...as("alice"), "content-type": "text/plain", "x-yuki-if-sha256": expect },
+		headers: { ...as("alice"), "content-type": "text/plain", "x-kiko-if-sha256": expect },
 		body,
 	})
 	return { status: res.status, body: (await res.json()) as FileBody }

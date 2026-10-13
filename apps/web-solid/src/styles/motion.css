@@ -1,4 +1,4 @@
-/* Micro-motion, the only motion Yuki allows outside the typing indicator.
+/* Micro-motion, the only motion Kiko allows outside the typing indicator.
  *
  * Architecture 19.5: navigation, buttons, menus, tabs, the composer, and route
  * changes never animate. Motion is allowed where the user is already waiting:

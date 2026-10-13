@@ -1,6 +1,6 @@
-import { HugeIcon } from "@yuki/ui/huge-icon"
-import { Icon as IconV2 } from "@yuki/ui/v2/icon"
-import { FileTextIcon } from "@yuki/ui/icons"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { Icon as IconV2 } from "@kiko/ui/v2/icon"
+import { FileTextIcon } from "@kiko/ui/icons"
 import { Show, type JSX } from "solid-js"
 import type { ReplySummary } from "../chat/lib/reply"
 

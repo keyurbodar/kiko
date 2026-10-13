@@ -1,4 +1,4 @@
-import { boundedWait } from "@yuki/durable/bounded-wait"
+import { boundedWait } from "@kiko/durable/bounded-wait"
 import { KernelError, type KernelClient, type Mode } from "./client"
 import type { KernelStore, LeaseRow, Tabs } from "./store"
 

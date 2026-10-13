@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
-import type { Sender } from "@yuki/protocol"
-import { region, ROOM_SHAPE } from "@yuki/memory/optmem"
+import type { Sender } from "@kiko/protocol"
+import { region, ROOM_SHAPE } from "@kiko/memory/optmem"
 import { hitId, mergeRecall, tagHits } from "../src/agent/recall"
 import { RoomLog } from "../src/room/log"
 import { RoomMemory } from "../src/room/memory"

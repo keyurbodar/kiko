@@ -1,6 +1,6 @@
 import { messages, poll } from "../kit"
-import { newRoomId } from "@yuki/protocol"
-import type { Agent, AgentSlug, RoomId, } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { Agent, AgentSlug, RoomId, } from "@kiko/protocol"
 import type { RoomHandle, Session } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"

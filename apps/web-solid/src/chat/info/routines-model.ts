@@ -1,4 +1,4 @@
-import type { Trigger } from "@yuki/protocol"
+import type { Trigger } from "@kiko/protocol"
 
 // A chat's routines (architecture section 25), as the panel lists them: what starts each one,
 // in words. Pure, so the table of cases is tested without a DOM.

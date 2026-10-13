@@ -4,7 +4,7 @@
 // disconnects. A request made while the socket is down goes out on connect. No answer in
 // `timeoutMs` is an error.
 
-import type { ClientToUser, ComposioResult, KernelResult, UserToClient } from "@yuki/protocol"
+import type { ClientToUser, ComposioResult, KernelResult, UserToClient } from "@kiko/protocol"
 import { type UserChannel, userChannel } from "../sync/user-channel"
 
 type AskOf<T extends string> = ClientToUser extends infer F ? (F extends { t: T } ? Omit<F, "reqId"> : never) : never
@@ -55,7 +55,7 @@ function createRequestClient<Ask, R extends Result>(type: "composio" | "kernel",
 				const frame = { ...ask, reqId } as unknown as ClientToUser
 				const timer = setTimeout(() => {
 					pending.delete(reqId)
-					resolve({ ok: false, error: "Yuki did not answer." } as unknown as R)
+					resolve({ ok: false, error: "Kiko did not answer." } as unknown as R)
 				}, timeoutMs)
 				pending.set(reqId, { frame, resolve, timer })
 				socket.send(frame)

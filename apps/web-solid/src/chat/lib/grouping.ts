@@ -5,7 +5,7 @@ import { startsTimeBreak } from "./time-label";
 /** Telegram's run window. A gap strictly larger than this splits a run. */
 export const MESSAGE_GROUPING_WINDOW_MS = 300_000;
 
-/** A senderless line in a group: "yuki joined". Placed by the room's `seq`. */
+/** A senderless line in a group: "kiko joined". Placed by the room's `seq`. */
 export type Notice = { key: string; seq: number; at: number; text: string };
 
 export type TimelineItem =

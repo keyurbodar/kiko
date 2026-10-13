@@ -73,17 +73,17 @@ export async function devInitiative(engine: () => InitiativeEngine, reminders: R
 }
 
 // The sign-in test provider. Its flow shows a device code, then asks for it back.
-export const FAKE_PROVIDER = "yuki-fake"
-export const FAKE_CODE = "YUKI-0000"
+export const FAKE_PROVIDER = "kiko-fake"
+export const FAKE_CODE = "KIKO-0000"
 
 export function fakeProvider(id: string): Provider | undefined {
   if (id !== FAKE_PROVIDER) return undefined
   return {
     id: FAKE_PROVIDER,
-    name: "yuki fake",
+    name: "kiko fake",
     auth: {
       oauth: {
-        name: "yuki fake sign-in",
+        name: "kiko fake sign-in",
         async login(interaction): Promise<OAuthCredential> {
           interaction.notify({
             type: "device_code",

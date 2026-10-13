@@ -67,7 +67,7 @@ afterAll(async () => {
   if (tmp) await rm(tmp, { recursive: true, force: true })
 })
 
-const sessionCookie = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith("yuki_session="))
+const sessionCookie = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith("kiko_session="))
 
 describe("with ACCESS_CODE set", () => {
   let origin: string
@@ -103,7 +103,7 @@ describe("with ACCESS_CODE set", () => {
     const cookie = sessionCookie(await signIn(origin, { code: CODE }))!.split(";")[0]!
     const [, value] = cookie.split("=")
     const [id, mac] = value!.split(".")
-    const refused = async (forged: string) => (await fetch(`${origin}/api/me`, { headers: { cookie: `yuki_session=${forged}` } })).status
+    const refused = async (forged: string) => (await fetch(`${origin}/api/me`, { headers: { cookie: `kiko_session=${forged}` } })).status
     expect(await refused(`other.${mac}`)).toBe(401)
     expect(await refused(`${id}.${mac!.replace(/^./, mac![0] === "0" ? "1" : "0")}`)).toBe(401)
     expect(await refused("garbage")).toBe(401)
@@ -112,7 +112,7 @@ describe("with ACCESS_CODE set", () => {
   test("sign out clears the cookie", async () => {
     const res = await fetch(`${origin}/api/auth/sign-out`, { method: "POST" })
     expect(res.status).toBe(200)
-    expect(res.headers.getSetCookie().find((c) => c.startsWith("yuki_session=;"))).toContain("Max-Age=0")
+    expect(res.headers.getSetCookie().find((c) => c.startsWith("kiko_session=;"))).toContain("Max-Age=0")
   })
 })
 

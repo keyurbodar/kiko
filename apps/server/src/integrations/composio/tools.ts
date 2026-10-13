@@ -1,5 +1,5 @@
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
-import { declareEffect } from "@yuki/agent/effects"
+import { declareEffect } from "@kiko/agent/effects"
 import { spill } from "../../agent/extensions/spill"
 import type { RoomFs } from "../../files/room-fs"
 import { count, inFlight } from "../../lib/dev-guard"

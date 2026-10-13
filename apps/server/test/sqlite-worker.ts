@@ -7,7 +7,7 @@ import {
   type StorageConformanceAssertions,
   type StorageConformanceProvider,
 } from "@earendil-works/pi-durable/testing"
-import { openDurableObjectSqlite } from "@yuki/agent/sqlite"
+import { openDurableObjectSqlite } from "@kiko/agent/sqlite"
 
 type Suite = "fresh" | "reopen" | "facade"
 type Case = { name: string; run(): Promise<void> }

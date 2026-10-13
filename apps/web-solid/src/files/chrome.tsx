@@ -1,6 +1,6 @@
-import { HugeIcon, type Glyph } from "@yuki/ui/huge-icon"
-import { DownloadIcon } from "@yuki/ui/icons"
-import { TooltipV2 } from "@yuki/ui/v2/tooltip-v2"
+import { HugeIcon, type Glyph } from "@kiko/ui/huge-icon"
+import { DownloadIcon } from "@kiko/ui/icons"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Show, type JSX } from "solid-js"
 
 /*
@@ -100,7 +100,7 @@ export function SurfaceFailure(props: { message: string; onRetry?: () => void })
 	)
 }
 
-/** A file yuki cannot draw: what it is, and the way to open it elsewhere. */
+/** A file kiko cannot draw: what it is, and the way to open it elsewhere. */
 export function NoPreview(props: { name: string; href: string }) {
 	const ext = () => (props.name.includes(".") ? `.${props.name.split(".").at(-1)}` : "this kind of")
 	return (

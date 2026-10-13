@@ -1,5 +1,5 @@
-import type { AgentSlug, } from "@yuki/protocol"
-import type { Alarms } from "@yuki/durable/alarm"
+import type { AgentSlug, } from "@kiko/protocol"
+import type { Alarms } from "@kiko/durable/alarm"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
 import type { RoomLog } from "./log"

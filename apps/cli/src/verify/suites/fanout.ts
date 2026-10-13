@@ -1,12 +1,12 @@
 import { newRoom } from "../kit"
-import type { ClientToUser, RoomToClient } from "@yuki/protocol"
+import type { ClientToUser, RoomToClient } from "@kiko/protocol"
 import { connectTestModel, type RoomHandle, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
 
 
 const USER = "fanout-alice"
-const MODEL = process.env.YUKI_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
+const MODEL = process.env.KIKO_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
 const TURN_MS = 150_000
 const WALL_LIMIT_MS = 60_000
 const MIN_CALLS = 15

@@ -1,4 +1,4 @@
-import type { Agent, AgentSlug } from "@yuki/protocol"
+import type { Agent, AgentSlug } from "@kiko/protocol"
 
 const MAX_NAME = 60
 const MAX_PROMPT = 2_500

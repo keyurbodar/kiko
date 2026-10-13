@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Trigger } from "@yuki/protocol"
+import type { Trigger } from "@kiko/protocol"
 import { triggerLabel } from "./routines-model"
 
 const at = "2026-10-09T09:00:00Z"

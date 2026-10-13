@@ -1,5 +1,5 @@
 import { agentText, newRoom } from "../kit"
-import type { MemoryOp, MemoryResult, } from "@yuki/protocol"
+import type { MemoryOp, MemoryResult, } from "@kiko/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { must } from "../must"

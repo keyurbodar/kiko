@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { BROWSER } from "@yuki/browser/config"
-import type { BrowserSession, PageView, Step, Tab } from "@yuki/browser/page/types"
+import { BROWSER } from "@kiko/browser/config"
+import type { BrowserSession, PageView, Step, Tab } from "@kiko/browser/page/types"
 import { BrowserConnection, Busy, IDLE_CLOSE_MS, RESTARTED } from "../src/agent/browser/connection"
 import type { BrowserState, Lease, LeasePort } from "../src/agent/browser/lease"
 

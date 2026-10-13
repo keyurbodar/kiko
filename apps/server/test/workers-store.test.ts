@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { Database } from "bun:sqlite"
 import type { ConversationId } from "@earendil-works/pi-durable"
-import { WORKERS_STEPS, WORKERS_TAIL, Workers } from "@yuki/agent/workers"
+import { WORKERS_STEPS, WORKERS_TAIL, Workers } from "@kiko/agent/workers"
 import { sqlWith } from "./sql-shim"
 
 const conversation = 1 as ConversationId

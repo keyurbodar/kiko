@@ -1,6 +1,6 @@
 import { useNavigate } from "@solidjs/router"
 import { Command as Cmdk } from "cmdk-solid"
-import { HugeIcon } from "@yuki/ui/huge-icon"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { For, Show, createEffect, createMemo } from "solid-js"
 import { displayShortcut } from "../commands/hotkeys"

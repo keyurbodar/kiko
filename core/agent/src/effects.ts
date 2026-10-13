@@ -4,7 +4,7 @@ export type Effect = "read" | "write" | "message" | "external"
 
 export const EFFECTS: readonly Effect[] = ["read", "write", "message", "external"]
 
-const DECLARED = Symbol.for("yuki.effect")
+const DECLARED = Symbol.for("kiko.effect")
 
 type Declaration = { effect: Effect; stoppable: boolean }
 

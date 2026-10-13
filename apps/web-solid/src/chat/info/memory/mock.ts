@@ -1,7 +1,7 @@
-// DEV ONLY. A memory server in the browser, for `VITE_YUKI_SYNC=mock`. It answers every op the
+// DEV ONLY. A memory server in the browser, for `VITE_KIKO_SYNC=mock`. It answers every op the
 // way UserDO does, without compression: the view is the pinned lines, then the newest 40.
 
-import type { LifeLine, MemoryModel, MemoryOp, MemoryResult } from "@yuki/protocol"
+import type { LifeLine, MemoryModel, MemoryOp, MemoryResult } from "@kiko/protocol"
 import type { MemoryClient } from "./client"
 
 export function createMockMemory(now: () => number = Date.now): MemoryClient {

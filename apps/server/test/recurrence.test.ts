@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { nextOccurrence, repeatProblem } from "@yuki/sandbox/recurrence";
-import { ruleProblem } from "@yuki/sandbox/rule";
+import { nextOccurrence, repeatProblem } from "@kiko/sandbox/recurrence";
+import { ruleProblem } from "@kiko/sandbox/rule";
 
 const DAILY = "FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0";
 const MONDAY = "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0";

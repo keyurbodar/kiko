@@ -1,4 +1,4 @@
-import { sha256Hex } from "@yuki/durable/hash"
+import { sha256Hex } from "@kiko/durable/hash"
 import type { Context } from "@earendil-works/chord"
 import {
   err,
@@ -13,7 +13,7 @@ import {
   type TextLineReader,
 } from "@earendil-works/pi-durable/env"
 import type { ConversationId, ToolExecutionApi } from "@earendil-works/pi-durable"
-import type { AgentSlug } from "@yuki/protocol"
+import type { AgentSlug } from "@kiko/protocol"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import type { FsChange, FsEntry, FsFail } from "../room/files"

@@ -1,6 +1,6 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
-import { declareEffect } from "@yuki/agent/effects"
+import { declareEffect } from "@kiko/agent/effects"
 
 const LOOPS = "loops"
 

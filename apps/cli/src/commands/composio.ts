@@ -1,9 +1,9 @@
 import { CliError, type Context } from "../main"
 import { askUser } from "./user-socket"
 
-// yuki composio connect | disconnect | status: speaks the user socket frames of the Composio
+// kiko composio connect | disconnect | status: speaks the user socket frames of the Composio
 // integration. `connect` reads the project key from COMPOSIO_API_KEY, so it never lands in shell history.
-// Sign in first with `yuki login --dev`.
+// Sign in first with `kiko login --dev`.
 
 type Result = { ok: true; status: { connected: boolean; rows: number }; tools?: string[] } | { ok: false; error: string }
 
@@ -16,7 +16,7 @@ export async function composio(ctx: Context): Promise<void> {
     frame = { t: "connectComposio", apiKey }
   } else if (sub === "disconnect") frame = { t: "disconnectComposio" }
   else if (sub === "status") frame = { t: "composioStatus", tools: true }
-  else throw new CliError("usage: yuki composio <connect | disconnect | status>")
+  else throw new CliError("usage: kiko composio <connect | disconnect | status>")
   const result = await askUser<Result>(ctx, frame, "composio")
   if (ctx.json) console.log(JSON.stringify(result))
   else if (!result.ok) throw new CliError(result.error)

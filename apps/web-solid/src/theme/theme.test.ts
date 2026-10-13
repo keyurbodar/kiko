@@ -25,7 +25,7 @@ function katRule(selector: string, after: string): Record<string, string> {
 }
 
 describe("the palette", () => {
-  test("kat.css paints Yuki's palette before any module loads", () => {
+  test("kat.css paints Kiko's palette before any module loads", () => {
     expect(withPalette(KAT)).toBe(KAT)
     expect(katRule(":root", "palette:start")).toEqual(tokensFor("dark"))
     expect(katRule(':root[data-appearance="light"]', "palette:start")).toEqual(tokensFor("light"))

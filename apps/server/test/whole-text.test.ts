@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { MAX_MESSAGE_TEXT } from "@yuki/protocol"
+import { MAX_MESSAGE_TEXT } from "@kiko/protocol"
 import { bubbleOf, discardWhole, fileIdOf, MAX_BUBBLE_BYTES, putWhole, WHOLE_TYPE } from "../src/room/whole-text"
 
 const jsonBytes = (s: string) => new TextEncoder().encode(JSON.stringify(s)).length

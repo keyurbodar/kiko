@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#1a1917" />
-    <title>Yuki</title>
-    <link rel="icon" type="image/svg+xml" href="/yuki.svg" />
+    <title>Kiko</title>
+    <link rel="icon" type="image/svg+xml" href="/kiko.svg" />
     <link rel="preload" href="/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <script>
       /* the look before first paint: the appearance, then the palette's tokens for it.
@@ -15,7 +15,7 @@
       (function () {
         var d = document.documentElement, mode = "system", vars = null;
         try {
-          var c = JSON.parse(localStorage.getItem("yuki:look"));
+          var c = JSON.parse(localStorage.getItem("kiko:look"));
           if (c && c.v === 4) { mode = c.mode; vars = c.vars; }
         } catch (e) {}
         var a = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
@@ -47,7 +47,7 @@
       (function () {
         var n = document.getElementById("snap");
         try {
-          var s = JSON.parse(localStorage.getItem("yuki:snap") || "null");
+          var s = JSON.parse(localStorage.getItem("kiko:snap") || "null");
           if (!s || s.v !== 1 || s.path !== location.pathname) return n.remove();
           var h = document.head, w = s.links.length;
           var show = function () {

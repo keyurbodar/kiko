@@ -1,8 +1,8 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
-import { declareEffect } from "@yuki/agent/effects"
-import { htmlToText } from "@yuki/durable/html-text"
-import { type Fetcher, safeFetch } from "@yuki/durable/safe-fetch"
+import { declareEffect } from "@kiko/agent/effects"
+import { htmlToText } from "@kiko/durable/html-text"
+import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
 import { defaultFetcher } from "../../lib/dev-fixture-fetch"
 import type { RoomFs } from "../../files/room-fs"
 import { spill } from "./spill"
@@ -14,7 +14,7 @@ const TEXT_TYPES = /^(text\/|application\/(json|xml|xhtml\+xml|javascript|ld\+js
 const text = (value: string) => [{ type: "text" as const, text: value }]
 
 // Wikipedia and other sites answer 403 to a request with no user agent.
-export const USER_AGENT = "Yuki/1.0 (web_fetch)"
+export const USER_AGENT = "Kiko/1.0 (web_fetch)"
 
 export function webExtension(fetcher?: Fetcher, fs?: RoomFs): Extension {
   const fetch = fetcher ?? defaultFetcher()

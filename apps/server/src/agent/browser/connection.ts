@@ -1,6 +1,6 @@
-import { connect } from "@yuki/browser/cdp/browser"
-import { BROWSER } from "@yuki/browser/config"
-import type { BrowserSession, Tab } from "@yuki/browser/page/types"
+import { connect } from "@kiko/browser/cdp/browser"
+import { BROWSER } from "@kiko/browser/config"
+import type { BrowserSession, Tab } from "@kiko/browser/page/types"
 import { count } from "../../lib/dev-guard"
 import type { LeasePort } from "./lease"
 

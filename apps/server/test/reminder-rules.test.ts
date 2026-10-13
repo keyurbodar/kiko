@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
-import type { RoomId } from "@yuki/protocol"
-import type { Alarms } from "@yuki/durable/alarm"
+import type { RoomId } from "@kiko/protocol"
+import type { Alarms } from "@kiko/durable/alarm"
 import { MAX_FAILS, type DeliverRun, type Reminder, Reminders, type RunDelivery } from "../src/user/reminders"
 import { sqlWith } from "./sql-shim"
 import { USER_STEPS } from "../src/user/schema"

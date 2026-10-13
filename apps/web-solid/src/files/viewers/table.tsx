@@ -1,4 +1,4 @@
-import type { FileRef } from "@yuki/protocol"
+import type { FileRef } from "@kiko/protocol"
 import { For, Show } from "solid-js"
 import { SurfaceNotice } from "../chrome"
 import { parseDelimited } from "../kind"

@@ -1,4 +1,4 @@
-// Rewrites kat.css section 4e, Yuki's palette a fresh browser paints before any module
+// Rewrites kat.css section 4e, Kiko's palette a fresh browser paints before any module
 // loads, from `tokensFor` in src/theme/palette.ts. A theme test fails when the two differ.
 //
 //   bun scripts/gen-palette.ts

@@ -250,12 +250,12 @@ test("an agent is stored once, broadcast to every socket, and the chat keeps the
   late.close()
 })
 
-test("every account has one pinned yuki chat that cannot be deleted or unpinned", async () => {
+test("every account has one pinned kiko chat that cannot be deleted or unpinned", async () => {
   const user = fresh()
   await rpc(user, "ensureHome")
   await rpc(user, "ensureHome")
   const chats = await rpc(user, "listChats")
-  const home = chats.filter((c: { title: string }) => c.title === "Yuki")
+  const home = chats.filter((c: { title: string }) => c.title === "Kiko")
   expect(home).toHaveLength(1)
   expect(home[0]).toMatchObject({ pinned: true, agents: ["yuki"] })
   expect(await rpc(user, "deleteChat", home[0].roomId)).toBe(false)
@@ -263,7 +263,7 @@ test("every account has one pinned yuki chat that cannot be deleted or unpinned"
   expect((await rpc(user, "listChats")).map((c: { roomId: string }) => c.roomId)).toContain(home[0].roomId)
   const ws = await socket(user, 1_000_000)
   const snap = ws.frames.find((f) => f.t === "reset")!.snapshot
-  expect(snap.chats.find((c: { roomId: string }) => c.roomId === home[0].roomId)).toMatchObject({ yuki: true })
+  expect(snap.chats.find((c: { roomId: string }) => c.roomId === home[0].roomId)).toMatchObject({ kiko: true })
   ws.close()
 })
 
@@ -292,27 +292,27 @@ test("a temporary chat stays out of search, is kept as a group, and a kept chat 
   await ws.until(2)
   expect(await rpc(user, "getChat", ROOM_C)).toMatchObject({ temp: true })
   expect(await rpc(user, "searchChats", "new")).toEqual([])
-  ws.send({ t: "chat", op: { op: "keep", roomId: ROOM_C, title: "yuki, ada", agents: ["yuki", "ada"] } })
+  ws.send({ t: "chat", op: { op: "keep", roomId: ROOM_C, title: "kiko, ada", agents: ["yuki", "ada"] } })
   ws.send({ t: "chat", op: { op: "keep", roomId: ROOM_C, title: "again", agents: ["yuki"] } })
   await ws.until(3)
   const kept = await rpc(user, "getChat", ROOM_C)
-  expect(kept).toMatchObject({ title: "yuki, ada", agents: ["yuki", "ada"] })
+  expect(kept).toMatchObject({ title: "kiko, ada", agents: ["yuki", "ada"] })
   expect(kept.temp).toBeUndefined()
   expect(events(await ws.settle()).filter((e) => e.chat?.roomId === ROOM_C)).toHaveLength(2)
   ws.close()
 })
 
-test("the last chat opened comes back in the snapshot, and the yuki chat stands in when it is gone", async () => {
+test("the last chat opened comes back in the snapshot, and the kiko chat stands in when it is gone", async () => {
   const user = fresh()
   await rpc(user, "ensureHome")
-  const yuki = (await rpc(user, "listChats"))[0].roomId
+  const kiko = (await rpc(user, "listChats"))[0].roomId
   await rpc(user, "createChat", ROOM_C, "ada", ["ada"])
   const snap = async () => {
     const ws = await socket(user, 0)
     ws.close()
     return ws.frames[0]!.snapshot.lastChat
   }
-  expect(await snap()).toBe(yuki)
+  expect(await snap()).toBe(kiko)
   const ws = await socket(user, 0)
   ws.send({ t: "open", roomId: ROOM_C })
   await ws.settle(100)
@@ -321,10 +321,10 @@ test("the last chat opened comes back in the snapshot, and the yuki chat stands 
   ws.send({ t: "chat", op: { op: "create", roomId: ROOM_D, title: "new chat", agents: ["yuki"], temp: true } })
   ws.send({ t: "open", roomId: ROOM_D })
   await ws.until(2)
-  expect(await snap()).toBe(yuki)
+  expect(await snap()).toBe(kiko)
   ws.send({ t: "open", roomId: ROOM_C })
   await ws.settle(100)
   expect(await rpc(user, "deleteChat", ROOM_C)).toBe(true)
-  expect(await snap()).toBe(yuki)
+  expect(await snap()).toBe(kiko)
   ws.close()
 })

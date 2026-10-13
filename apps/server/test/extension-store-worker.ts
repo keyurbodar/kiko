@@ -1,8 +1,8 @@
 import { DurableObject } from "cloudflare:workers"
-import { keyringFromEnv } from "@yuki/durable/crypto"
+import { keyringFromEnv } from "@kiko/durable/crypto"
 import { ExtensionError, ExtensionStore } from "../src/user/extensions"
 import { USER_STEPS } from "../src/user/schema"
-import { migrate } from "@yuki/durable/migrate"
+import { migrate } from "@kiko/durable/migrate"
 
 type Env = { STORE: DurableObjectNamespace<StoreDO>; CREDENTIALS_KEK: string }
 

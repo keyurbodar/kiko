@@ -1,5 +1,5 @@
 import { newRoom } from "../kit"
-import type { ClientToUser, ExtensionOp, ExtensionResult, RoomToClient } from "@yuki/protocol"
+import type { ClientToUser, ExtensionOp, ExtensionResult, RoomToClient } from "@kiko/protocol"
 import { connectTestModel, type RoomHandle, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { readStats, resetStats } from "./latency"
@@ -10,8 +10,8 @@ type Events = Extract<RoomToClient, { t: "events" }>
 type Status = Extract<RoomToClient, { t: "status" }>
 
 const WEB = `export const tools = {
-  async web_lookup({ query }, yuki) {
-    const out = await yuki.call("composio_multi_execute_tool", { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: { query } }], sync_response_to_workbench: false, thought: "extension lookup" })
+  async web_lookup({ query }, kiko) {
+    const out = await kiko.call("composio_multi_execute_tool", { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: { query } }], sync_response_to_workbench: false, thought: "extension lookup" })
     return String(out).slice(0, 1500)
   },
 }

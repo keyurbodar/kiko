@@ -1,4 +1,4 @@
-import { sha256Hex } from "@yuki/durable/hash"
+import { sha256Hex } from "@kiko/durable/hash"
 import {
   type AgentSlug,
   checkBundle,
@@ -12,11 +12,11 @@ import {
   isAgentSlug,
   isRoomId,
   type RoomId,
-} from "@yuki/protocol"
-import { type Keyring, open, seal } from "@yuki/durable/crypto"
-import { type Fetcher, safeRequest, type SafeRequest } from "@yuki/durable/safe-fetch"
-import { type GuestRequest, type GuestResponse, guestRequestProblem } from "@yuki/sandbox/compile"
-import { triggerGapProblems } from "@yuki/sandbox/recurrence"
+} from "@kiko/protocol"
+import { type Keyring, open, seal } from "@kiko/durable/crypto"
+import { type Fetcher, safeRequest, type SafeRequest } from "@kiko/durable/safe-fetch"
+import { type GuestRequest, type GuestResponse, guestRequestProblem } from "@kiko/sandbox/compile"
+import { triggerGapProblems } from "@kiko/sandbox/recurrence"
 
 export type ExtensionEvent =
   | { t: "extension"; extension: ExtensionInfo }
@@ -371,7 +371,7 @@ export class ExtensionStore {
 
   state(name: string, scope: string, op: "get" | "set" | "delete" | "list", key: string, value?: unknown): unknown {
     const manifest = this.live(name)
-    if (!manifest.state) throw new ExtensionError(`yuki.state needs "state" in extension.json`)
+    if (!manifest.state) throw new ExtensionError(`kiko.state needs "state" in extension.json`)
     if (key.length > 200) throw new ExtensionError("a state key is at most 200 characters")
     if (op === "get") {
       const r = this.sql.exec<{ value: string }>("SELECT value FROM extension_state WHERE extension = ? AND scope = ? AND key = ?", name, scope, key).toArray()[0]
@@ -439,7 +439,7 @@ export class ExtensionStore {
     if (body?.includes("{{secret.")) body = await fill(body)
 
     const req: SafeRequest = { method: method as SafeRequest["method"], headers, ...(body !== undefined ? { body } : {}) }
-    const out = await safeRequest(filledUrl, req, this.fetcher, { maxBytes: MAX_FETCH_BYTES, timeoutMs: FETCH_TIMEOUT_MS, userAgent: `yuki-extension/${name}` })
+    const out = await safeRequest(filledUrl, req, this.fetcher, { maxBytes: MAX_FETCH_BYTES, timeoutMs: FETCH_TIMEOUT_MS, userAgent: `kiko-extension/${name}` })
     if (!out.ok) throw new ExtensionError(`the request failed: ${out.reason}`)
     const known: [string, string][] = []
     for (const ref of Object.keys(secrets)) {

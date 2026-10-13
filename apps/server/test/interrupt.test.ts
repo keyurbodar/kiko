@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
-import type { Envelope } from "@yuki/protocol"
+import type { Envelope } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
 

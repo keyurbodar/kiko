@@ -4,7 +4,7 @@
  * Architecture 19.3.
  */
 
-const RELOAD_KEY = "yuki:preload-reload";
+const RELOAD_KEY = "kiko:preload-reload";
 
 // Same specifiers as `app/routes.tsx`, so the bundler shares the chunks.
 function firstRouteChunk(path: string): Promise<unknown> {
@@ -32,16 +32,16 @@ window.addEventListener("vite:preloadError", (event) => {
 // The session check and, for a browser with no cached session, the sign-in screen
 // start now, in parallel with the route chunk, instead of one after another.
 declare global {
-  var __yukiBoot: { me?: Promise<Response> } | undefined;
+  var __kikoBoot: { me?: Promise<Response> } | undefined;
 }
 const signedInBefore = (() => {
   try {
-    return localStorage.getItem("yuki:session") !== null;
+    return localStorage.getItem("kiko:session") !== null;
   } catch {
     return false;
   }
 })();
-globalThis.__yukiBoot = { me: fetch("/api/me") };
+globalThis.__kikoBoot = { me: fetch("/api/me") };
 if (!signedInBefore) void import("./app/sign-in").catch(() => {});
 
 const chunk = firstRouteChunk(location.pathname === "/" ? "/chat" : location.pathname);

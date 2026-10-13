@@ -56,7 +56,7 @@ export function saveLook(next: Look): void {
 /** Changes part of the saved look. */
 export const updateLook = (patch: Partial<Look>) => saveLook({ ...look(), ...patch })
 
-const mocked = () => import.meta.env.DEV && import.meta.env.VITE_YUKI_SYNC === "mock"
+const mocked = () => import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock"
 
 /**
  * Starts once per user. The user store keeps what the server said about the look (its catch-up

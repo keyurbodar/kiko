@@ -1,9 +1,9 @@
-import { HugeIcon } from "@yuki/ui/huge-icon"
+import { HugeIcon } from "@kiko/ui/huge-icon"
 import { Moment } from "../mascot/lazy"
-import { FilterIcon, MuteIcon, SearchIcon } from "@yuki/ui/icons"
-import { HoverCardV2 } from "@yuki/ui/v2/hover-card-v2"
-import { MenuV2 } from "@yuki/ui/v2/menu-v2"
-import { TooltipV2 } from "@yuki/ui/v2/tooltip-v2"
+import { FilterIcon, MuteIcon, SearchIcon } from "@kiko/ui/icons"
+import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { openBirdPicker } from "../mascot/picker-state"
 import { useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show, Suspense } from "solid-js"
@@ -63,8 +63,8 @@ function ChatMenuItems(props: { id: string }) {
   return (
     <>
       <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">Rename</MenuV2.Item>
-      {/* The yuki chat is the chief's tile: always pinned, never deleted. */}
-      <Show when={!chat()?.yuki}>
+      {/* The kiko chat is the chief's tile: always pinned, never deleted. */}
+      <Show when={!chat()?.kiko}>
         <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "Unpin" : "Pin"}</MenuV2.Item>
       </Show>
       <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "Unmute" : "Mute"}</MenuV2.Item>
@@ -74,7 +74,7 @@ function ChatMenuItems(props: { id: string }) {
       <MenuV2.Separator />
       <MenuV2.Item onSelect={() => markUnread(props.id)}>Mark as unread</MenuV2.Item>
       <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>Close</MenuV2.Item>
-      <Show when={!chat()?.yuki}>
+      <Show when={!chat()?.kiko}>
         <MenuV2.Separator />
         {/* Deleting cannot be undone, so the first select arms it and the second deletes, as in the info panel.
             The menu never closes on select: Kobalte reads closeOnSelect after onSelect has armed it, and a
@@ -420,7 +420,7 @@ function SearchRow(props: {
 }
 
 /**
- * The chats panel: search, the pinned tiles (the yuki chat always first), then every conversation
+ * The chats panel: search, the pinned tiles (the kiko chat always first), then every conversation
  * in a virtual list. Temporary chats and hidden rooms are left out by `useApp.bots()`. Only the rows in the viewport plus the buffer exist in the DOM.
  *
  * `now` ticks once a minute, the stamps' finest unit, so "now" turns into "1m" without a new message.

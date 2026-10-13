@@ -1,4 +1,4 @@
-import { type MessageId, type Sender, type SearchHit, SNIPPET_CLOSE, SNIPPET_OPEN } from "@yuki/protocol"
+import { type MessageId, type Sender, type SearchHit, SNIPPET_CLOSE, SNIPPET_OPEN } from "@kiko/protocol"
 
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 50

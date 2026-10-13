@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { AgentSlug, Envelope } from "@yuki/protocol"
+import type { AgentSlug, Envelope } from "@kiko/protocol"
 import { Asks } from "../src/room/asks"
 import { Deliveries } from "../src/room/deliver"
 import { RoomLog } from "../src/room/log"

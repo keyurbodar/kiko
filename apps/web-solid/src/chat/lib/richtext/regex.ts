@@ -9,9 +9,9 @@
 //
 // What is NOT verbatim is the entity list. tweb matches Telegram's whole
 // entity vocabulary — linebreaks, bot commands, media timestamps, emoji — in
-// one alternation. yuki keeps four kinds: mention, url/email, and hashtag, plus
+// one alternation. kiko keeps four kinds: mention, url/email, and hashtag, plus
 // plain prose for everything the matcher does not claim. Bot commands and
-// timestamps are Telegram syntax with no meaning in a yuki transcript, and
+// timestamps are Telegram syntax with no meaning in a kiko transcript, and
 // emoji are drawn by `lib/emoji.tsx` off the text itself: an emoji entity here
 // would double-claim characters that `EmojiText` also wants to own.
 //
@@ -91,7 +91,7 @@ const URL_PROTOCOL_REG_EXP_PART = "(?<protocol>(?:https?|ftp)://|mailto:)?"
 //
 // tweb uses its `USERNAME_REG_EXP` here, which is Telegram's handle shape:
 // `[a-zA-Z\d_]{5,32}`, five characters or more because that is the shortest
-// thing a Telegram server will let you claim. A yuki transcript has no server to
+// thing a Telegram server will let you claim. A kiko transcript has no server to
 // arbitrate handles — `@name` is prose somebody typed — and requiring five
 // characters means the mention a reader can see in front of them silently
 // renders as plain text. The lower bound is therefore 2 (a single letter is far
@@ -156,7 +156,7 @@ export const USERNAME_REG_EXP = "[a-zA-Z\\d_]{5,32}"
  * tweb's alternation also accepted `\$[A-Z]{1,8}` — a cashtag — and then threw
  * away every cashtag that was not already uppercase, because `$TON` is the shape
  * of a ticker and `$ton` is the shape of someone typing `$` and a word. Cashtags
- * are not a thing in a yuki transcript, so the second alternative is gone rather
+ * are not a thing in a kiko transcript, so the second alternative is gone rather
  * than half-kept: a `$`-led run now matches nothing at all, which is what the
  * uppercase test was for in the first place.
  *

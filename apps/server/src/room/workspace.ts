@@ -1,4 +1,4 @@
-import type { Actor, AgentSlug, RoomEvent, Task, TaskOp, TaskStatus } from "@yuki/protocol"
+import type { Actor, AgentSlug, RoomEvent, Task, TaskOp, TaskStatus } from "@kiko/protocol"
 import { actorKey, type RoomLog } from "./log"
 import type { Chain } from "./mail"
 

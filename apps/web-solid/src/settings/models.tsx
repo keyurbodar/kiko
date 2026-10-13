@@ -1,7 +1,7 @@
 import { A } from "@solidjs/router"
 import { For, Show, Suspense, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js"
-import { ProviderIcon } from "@yuki/ui/provider-icon"
-import "@yuki/ui/provider-icon.css"
+import { ProviderIcon } from "@kiko/ui/provider-icon"
+import "@kiko/ui/provider-icon.css"
 import { formatContext, loadCatalog, modelRef, type CatalogModel, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
@@ -61,7 +61,7 @@ export function ProvidersPage() {
     }).concat(available().filter(isJudgeOnly).map((provider) => ({ provider, note: JUDGE_NOTE }))),
   )
 
-  // The first provider is the moment yuki starts working, so the birds cheer once. Only a
+  // The first provider is the moment kiko starts working, so the birds cheer once. Only a
   // change seen on this page counts: a list that loads with providers in it is not a moment.
   const [cheer, setCheer] = createSignal(false)
   createEffect(
@@ -176,7 +176,7 @@ function ConnectedRow(props: { provider: CatalogProvider; info: { kind: string; 
   )
 }
 
-const COLLAPSED_KEY = "yuki.models-collapsed"
+const COLLAPSED_KEY = "kiko.models-collapsed"
 
 function readCollapsed(): Record<string, boolean> {
   try {
@@ -425,7 +425,7 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
                   id="provider-key"
                   ref={input}
                   type="password"
-                  name="yuki-provider-secret"
+                  name="kiko-provider-secret"
                   autocomplete="off"
                   autocapitalize="off"
                   spellcheck={false}

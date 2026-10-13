@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai"
-import type { UserToClient } from "@yuki/protocol"
+import type { UserToClient } from "@kiko/protocol"
 import { FAKE_CODE, FAKE_PROVIDER, fakeProvider } from "../src/user/dev"
 import { ProviderLogins } from "../src/user/provider-login"
 

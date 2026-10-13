@@ -1,7 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Harness } from "@earendil-works/pi-durable"
-import type { Opened } from "@yuki/agent/host"
-import type { Work } from "@yuki/agent/workers"
+import type { Opened } from "@kiko/agent/host"
+import type { Work } from "@kiko/agent/workers"
 import type { AgentHome } from "../room/room-do"
 import { DEV_FAKE_KEY, DEV_INITIATIVE_KEY } from "./agent-do"
 

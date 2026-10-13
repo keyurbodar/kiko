@@ -1,5 +1,5 @@
 import { activeBrowsers as active, kernel, kernelKey, waitForNoBrowsers } from "../browser-kit"
-import type { BrowserState, UserToClient } from "@yuki/protocol"
+import type { BrowserState, UserToClient } from "@kiko/protocol"
 import { expectEqual, VerifyError } from "../client"
 import { api } from "../routine-kit"
 import type { Suite } from "../runner"
@@ -7,7 +7,7 @@ import { must } from "../must"
 
 
 const USER = "takeover-alice"
-const COOKIE = "yuki_probe"
+const COOKIE = "kiko_probe"
 const AGENT = "room-a/ada"
 
 type State = Extract<BrowserState, object>

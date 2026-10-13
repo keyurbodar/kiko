@@ -1,5 +1,5 @@
 /* =============================================================================
-   kat.css — Yuki's token system.
+   kat.css — Kiko's token system.
 
    Structure follows kat's `tokens.css` foundation: self-hosted fonts, an OKLCH
    palette split into a lightness/chroma scale, `@property` registrations that
@@ -807,7 +807,7 @@
 /* -----------------------------------------------------------------------------
    4e. The palette
 
-   Yuki's palette, light and dark, on the roles the UI reads. It wins over the
+   Kiko's palette, light and dark, on the roles the UI reads. It wins over the
    derived colors above. The look (apps/web-solid/src/theme) sets the same
    tokens inline on <html>, so an accent or contrast change wins over this. The values come from
    `tokensFor` in theme/palette.ts: `bun scripts/gen-palette.ts` in

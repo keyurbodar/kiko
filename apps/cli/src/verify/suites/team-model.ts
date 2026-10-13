@@ -1,5 +1,5 @@
 import { poll } from "../kit"
-import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
+import type { FileRef, Message, RoomToClient } from "@kiko/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { dev,  } from "./team-loops"
@@ -48,7 +48,7 @@ const suite: Suite = {
       return out
     }
     await poll("/walk.md", () => files().has("walk.md"), 240_000)
-    await poll("yuki says it's done", () => messages().some((m) => m.from.kind === "agent" && m.from.slug === "yuki" && m.seq > (files().get("walk.md")?.at ?? 0)), 120_000).catch(() => {})
+    await poll("kiko says it's done", () => messages().some((m) => m.from.kind === "agent" && m.from.slug === "yuki" && m.seq > (files().get("walk.md")?.at ?? 0)), 120_000).catch(() => {})
     await Bun.sleep(5_000)
     const file = must(files().get("walk.md"), "walk.md")
     const base = new URL(`api/files/${roomId}/`, v.url)
@@ -62,7 +62,7 @@ const suite: Suite = {
     }
     console.log(`  envelopes each agent received: ${JSON.stringify(woken)}`)
     const missing = [PASTRY, MEET].filter((fact) => !text.includes(fact))
-    if (missing.length) throw new VerifyError(`/walk.md lacks ${missing.join(" and ")}: yuki did not get it from its owner`)
+    if (missing.length) throw new VerifyError(`/walk.md lacks ${missing.join(" and ")}: kiko did not get it from its owner`)
     const over = Object.entries(woken).filter(([, n]) => n > 2)
     if (over.length) throw new VerifyError(`too many runs for one request: ${JSON.stringify(woken)}`)
     room.raw.close()

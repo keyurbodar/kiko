@@ -1,5 +1,5 @@
-import type { BrowserState } from "@yuki/protocol"
-import { sha256Hex } from "@yuki/durable/hash"
+import type { BrowserState } from "@kiko/protocol"
+import { sha256Hex } from "@kiko/durable/hash"
 import { CredentialError } from "../../user/credentials"
 import { KernelError } from "./client"
 import { MAX_TABS } from "./lease"
@@ -53,7 +53,7 @@ export function browserState(row: LeaseRow | undefined, switching: boolean, reso
 
 /** Where uploads land on the browser's VM, one directory per session. */
 export const UPLOAD_DIR = "/tmp/kiko-uploads"
-/** `yuki-` and 16 hex characters of the user's id hash. The name never comes from input. */
+/** `kiko-` and 16 hex characters of the user's id hash. The name never comes from input. */
 export async function profileName(userId: string): Promise<string> {
-  return `yuki-${(await sha256Hex(userId)).slice(0, 16)}`
+  return `kiko-${(await sha256Hex(userId)).slice(0, 16)}`
 }

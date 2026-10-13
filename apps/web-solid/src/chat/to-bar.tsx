@@ -1,4 +1,4 @@
-import type { Agent, RoomId } from "@yuki/protocol"
+import type { Agent, RoomId } from "@kiko/protocol"
 import { createEventListener } from "@solid-primitives/event-listener"
 import { useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
@@ -14,7 +14,7 @@ import { pickFor, setPickFor } from "./to-bar-state"
  * The "to:" row of a temporary chat, just above its composer until the first message is sent (architecture section 7.11). A chip for each
  * agent in it, then a round (+) that opens a search of the user's agents. Picking one adds it to
  * the room; with two agents the chat becomes a group and joins the list. In an empty chat the
- * human can take yuki off first, and then picking one agent opens that agent's own chat instead.
+ * human can take kiko off first, and then picking one agent opens that agent's own chat instead.
  *
  *   arrows   move through the results
  *   enter    pick
@@ -25,13 +25,13 @@ export function ToBar(props: { roomId: RoomId }) {
   const [open, setOpen] = createSignal(false)
   const [query, setQuery] = createSignal("")
   const [at, setAt] = createSignal(0)
-  /** yuki taken off an empty chat. Only this bar knows; the room keeps yuki until something is sent. */
-  const [yukiOff, setYukiOff] = createSignal(false)
+  /** kiko taken off an empty chat. Only this bar knows; the room keeps kiko until something is sent. */
+  const [kikoOff, setKikoOff] = createSignal(false)
   createEffect(
     on(
       () => props.roomId,
       (id) => {
-        setYukiOff(false)
+        setKikoOff(false)
         // "new group" asked for the search to be open on arrival.
         setOpen(pickFor() === id)
         if (pickFor() === id) setPickFor(null)
@@ -41,11 +41,11 @@ export function ToBar(props: { roomId: RoomId }) {
 
   const empty = () => useApp.activeMessages().length === 0
   createEffect(() => {
-    if (!empty()) setYukiOff(false)
+    if (!empty()) setKikoOff(false)
   })
   const agents = createMemo(() => agentList(useApp.agents()))
   const chips = createMemo(() =>
-    toChips({ members: useApp.roomMembers(), chatAgents: useApp.chat(props.roomId)?.agents ?? [], agents: agents(), yukiOff: yukiOff(), empty: empty() }),
+    toChips({ members: useApp.roomMembers(), chatAgents: useApp.chat(props.roomId)?.agents ?? [], agents: agents(), kikoOff: kikoOff(), empty: empty() }),
   )
   const results = createMemo(() => pickerMatches(agents(), chips().map((c) => c.slug), query()))
   createEffect(on(results, () => setAt(0)))
@@ -56,23 +56,23 @@ export function ToBar(props: { roomId: RoomId }) {
     setOpen(false)
     setQuery("")
     const others = chips()
-    // yuki is off and nobody else is here: this is a direct chat, and the agent has only one.
-    if (yukiOff() && others.length === 0) {
-      if (agent.id === BUILTIN_AGENT.id) return void setYukiOff(false)
+    // kiko is off and nobody else is here: this is a direct chat, and the agent has only one.
+    if (kikoOff() && others.length === 0) {
+      if (agent.id === BUILTIN_AGENT.id) return void setKikoOff(false)
       const dm = useApp.openDm(agent)
       if (!dm) return
       closeChat(props.roomId, useApp.activeThreadId(), () => {})
       navigate(`/chat/${dm}`)
       return
     }
-    if (agent.id === BUILTIN_AGENT.id && yukiOff()) return void setYukiOff(false)
+    if (agent.id === BUILTIN_AGENT.id && kikoOff()) return void setKikoOff(false)
     useApp.memberOp(addOp(agent))
     const next = [...others.map((c) => ({ id: idOf(c.slug), name: c.name })), { id: agent.id, name: agent.name }]
     if (next.length > 1) useApp.keepChat(props.roomId, groupTitle(next.map((a) => a.name)), next.map((a) => a.id))
   }
 
   function remove(slug: string) {
-    if (slug === BUILTIN_AGENT.slug) setYukiOff(true)
+    if (slug === BUILTIN_AGENT.slug) setKikoOff(true)
     else useApp.memberOp({ op: "remove", slug: slug as never })
   }
 

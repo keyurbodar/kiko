@@ -9,8 +9,8 @@ const sky = (code) => SKY[code] ?? `code ${code}`
 const round = (n) => Math.round(n)
 
 export const tools = {
-  async weather({ place, days = 3 }, yuki) {
-    const geo = await yuki.fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&name=${encodeURIComponent(place)}`)
+  async weather({ place, days = 3 }, kiko) {
+    const geo = await kiko.fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&name=${encodeURIComponent(place)}`)
     const hit = geo.json?.results?.[0]
     if (!hit) return `no place called ${place}`
     const n = Math.min(Math.max(Number(days) || 3, 1), 7)
@@ -20,7 +20,7 @@ export const tools = {
       "daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
       "timezone=auto", `forecast_days=${n}`,
     ].join("&")
-    const forecast = await yuki.fetch(`https://api.open-meteo.com/v1/forecast?${query}`)
+    const forecast = await kiko.fetch(`https://api.open-meteo.com/v1/forecast?${query}`)
     const now = forecast.json?.current
     const daily = forecast.json?.daily
     if (!now || !daily) return "open-meteo did not answer"

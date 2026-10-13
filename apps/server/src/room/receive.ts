@@ -1,4 +1,4 @@
-import type { AgentSlug, Envelope, RoomEvent, } from "@yuki/protocol"
+import type { AgentSlug, Envelope, RoomEvent, } from "@kiko/protocol"
 import type { Env } from "../index"
 import { agentStub } from "../lib/names"
 import type { Deliveries } from "./deliver"

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
-import { Life } from "@yuki/memory/life"
-import { Loops } from "@yuki/memory/loops"
+import { Life } from "@kiko/memory/life"
+import { Loops } from "@kiko/memory/loops"
 import { INITIATIVE_RUN, InitiativeEngine, type WakeInput } from "../src/initiative/engine"
 import { Initiative } from "../src/initiative/initiative"
 import type { Level } from "../src/initiative/attention/types"

@@ -1,4 +1,4 @@
-import type { FileRef } from "@yuki/protocol"
+import type { FileRef } from "@kiko/protocol"
 // ASSUMPTION: a markdown file renders with the same parser the room uses for agent messages, so a
 // file and a message that hold the same markdown look the same. The parser is pure (marked and
 // the protocol types), and this chunk loads only when a markdown file renders, in tier 4.

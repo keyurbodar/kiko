@@ -2,7 +2,7 @@ import { splitProps, type ComponentProps } from "solid-js"
 import { HugeIcon } from "../../components/huge-icon"
 import * as g from "../../icons.gen"
 
-/* The v2 set's names, each drawn by one of yuki's icons. */
+/* The v2 set's names, each drawn by one of kiko's icons. */
 const NAMES = {
   plus: g.PlusIcon,
   "chevron-down": g.ChevronDownIcon,

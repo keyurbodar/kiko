@@ -1,4 +1,4 @@
-import { type Agent, type AgentSlug, isAgentSlug, tagline } from "@yuki/protocol"
+import { type Agent, type AgentSlug, isAgentSlug, tagline } from "@kiko/protocol"
 import { MAX_CHAT } from "../files/room-fs"
 import { MAX_SOUL } from "../user/souls"
 
@@ -54,5 +54,5 @@ export function checkProposal(input: ProposalInput, agents: readonly Agent[]): P
 }
 
 export function introduction(spec: NewAgentSpec): string {
-  return `yuki just made you for the human: ${spec.description}. this is your own chat with them. say hi in a line, in your voice, and ask what to start with.`
+  return `kiko just made you for the human: ${spec.description}. this is your own chat with them. say hi in a line, in your voice, and ask what to start with.`
 }

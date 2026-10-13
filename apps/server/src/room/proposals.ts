@@ -1,9 +1,9 @@
-import type { AgentSlug, RoomEvent, } from "@yuki/protocol"
-import { tagline, type MemberOp } from "@yuki/protocol"
+import type { AgentSlug, RoomEvent, } from "@kiko/protocol"
+import { tagline, type MemberOp } from "@kiko/protocol"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import { CHIEF, checkProposal, introduction, type NewAgentSpec, type Proposal, type ProposalInput } from "./chief"
-import type { Chat } from "@yuki/protocol"
+import type { Chat } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
 import type { Home } from "./home"
@@ -27,7 +27,7 @@ export class Proposals {
 	async propose(slug: AgentSlug, input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
 		const home = this.d.home()
 		if (!home) return { ok: false, error: "this chat is not set up yet" }
-		if (slug !== CHIEF) return { ok: false, error: "only yuki makes agents and groups" }
+		if (slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
 		const checked = checkProposal(input, await userStub(this.d.env.USER, home.userId).listAgents())
 		if ("error" in checked) return { ok: false, error: checked.error }
 		const id = crypto.randomUUID().slice(0, 8)
@@ -55,7 +55,7 @@ export class Proposals {
 
 	async create(slug: AgentSlug, id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
 		const home = this.d.home()
-		if (!home || slug !== CHIEF) return { ok: false, error: "only yuki makes agents and groups" }
+		if (!home || slug !== CHIEF) return { ok: false, error: "only kiko makes agents and groups" }
 		id ||= this.newest() ?? ""
 		const done = this.d.log.meta(`created:${id}`)
 		if (done) return { ok: true, text: done }
@@ -74,7 +74,7 @@ export class Proposals {
 			if (proposal.kind === "agent") {
 				const agent = await make(proposal.agent)
 				const roomId = await user.openChat(agent.name, [agent.id])
-				const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `yuki made @${agent.slug}. say hi in your new chat.`, goto: roomId })
+				const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko made @${agent.slug}. say hi in your new chat.`, goto: roomId })
 				if (event) this.d.publish([event])
 				this.d.ctx.waitUntil(
 					roomStub(this.d.env.ROOM, home.userId, roomId)
@@ -101,7 +101,7 @@ export class Proposals {
 					await this.d.writeChatFile(CHIEF, proposal.chat)
 					this.d.log.setMeta("chat_file", "1")
 					await user.keepChat(home.roomId, proposal.title, [CHIEF, ...members.map((a) => a.id)])
-					const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `yuki started ${proposal.title} with ${members.map((a) => `@${a.slug}`).join(", ")}` })
+					const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title} with ${members.map((a) => `@${a.slug}`).join(", ")}` })
 					if (event) this.d.publish([event])
 					text = `the group is ready, here in this chat, with ${members.map((a) => `@${a.slug}`).join(", ")}. /chat.md holds the plan. kick it off in a line or two.`
 				} else {
@@ -111,7 +111,7 @@ export class Proposals {
 							.startGroup(home.userId, proposal.chat)
 							.catch((e: unknown) => console.error(`start group failed: ${e instanceof Error ? e.message : String(e)}`)),
 					)
-					const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `yuki started ${proposal.title}. open it to begin.`, goto: roomId })
+					const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title}. open it to begin.`, goto: roomId })
 					if (event) this.d.publish([event])
 					text = `the group ${proposal.title} is made, in its own chat. say one short line.`
 				}

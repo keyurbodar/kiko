@@ -1,6 +1,6 @@
 import { createEventListener } from "@solid-primitives/event-listener"
-import { HugeIcon } from "@yuki/ui/huge-icon"
-import { SmileIcon } from "@yuki/ui/icons"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { SmileIcon } from "@kiko/ui/icons"
 import { createEffect, createMemo, createResource, createSignal, For, lazy, on, Show, Suspense, type JSX } from "solid-js"
 import { loadEmoji, recordRecent, searchEmoji, shortcodeQuery, warmEmoji, type EmojiMatch } from "../lib/emoji-data"
 

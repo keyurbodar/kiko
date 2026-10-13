@@ -1,4 +1,4 @@
-import type { Fetcher } from "@yuki/durable/safe-fetch"
+import type { Fetcher } from "@kiko/durable/safe-fetch"
 import { DEV } from "./dev-guard"
 
 // check-rules: allow egress dev-only transport under safeRequest, which checks the host before it calls this fetcher

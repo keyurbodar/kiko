@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { effectOf } from "@yuki/agent/effects"
+import { effectOf } from "@kiko/agent/effects"
 import { callTool, ComposioError, createSession, learnedSignature, listTools, parseRpcResponse, REJECTED } from "../src/integrations/composio/client"
 import { ComposioConnection } from "../src/integrations/composio/connect"
 import { LEARNED_MAX, type LearnedTool, remember } from "../src/integrations/composio/learn"
@@ -162,7 +162,7 @@ describe("composio learned tools", () => {
       state.sent.push(body.params)
       return new Response(text(state.replies.shift()).replace('"__ID__"', String(body.id)), { headers: { "content-type": SSE } })
     }) as unknown as typeof fetch
-    const connection = new ComposioConnection(store as unknown as ComposioStore, async () => "yuki_u1", fetcher, (work) => background.push(work))
+    const connection = new ComposioConnection(store as unknown as ComposioStore, async () => "kiko_u1", fetcher, (work) => background.push(work))
     return { state, connection, background }
   }
   type Tool = { name: string; description: string; execute: (a: unknown, api: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }> }
@@ -215,7 +215,7 @@ describe("composio learned tools", () => {
     const { state, connection, background } = setup()
     await connection.connect("ak_good")
     await Promise.all(background)
-    expect([state.stored, state.session, state.users, state.deleted]).toEqual([true, "trs_new1", ["yuki_u1"], ["trs_1"]])
+    expect([state.stored, state.session, state.users, state.deleted]).toEqual([true, "trs_new1", ["kiko_u1"], ["trs_1"]])
   })
 
   test("a session Composio no longer knows is made again once, and the call goes through", async () => {

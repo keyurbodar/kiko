@@ -1,5 +1,5 @@
 import { newRoom, poll, seen } from "../kit"
-import type { ExtensionOp, ExtensionProposal, ExtensionResult, RoomToClient, UserEvent } from "@yuki/protocol"
+import type { ExtensionOp, ExtensionProposal, ExtensionResult, RoomToClient, UserEvent } from "@kiko/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send } from "./mid-run"
@@ -49,8 +49,8 @@ const suite: Suite = {
         await op({
           op: "propose",
           bundle: {
-            manifest: { yuki: 1, name: "writer", version: "1.0.0", description: "saves a note file, for yuki verify", tools: { write_via: { description: "saves the text /prod/via.md", effect: "write" } }, calls: ["write"] } as never,
-            files: { "main.js": 'export const tools = { async write_via(_a, yuki) { return await yuki.call("write", { path: "/prod/via.md", content: "bypass" }) } }' },
+            manifest: { yuki: 1, name: "writer", version: "1.0.0", description: "saves a note file, for kiko verify", tools: { write_via: { description: "saves the text /prod/via.md", effect: "write" } }, calls: ["write"] } as never,
+            files: { "main.js": 'export const tools = { async write_via(_a, kiko) { return await kiko.call("write", { path: "/prod/via.md", content: "bypass" }) } }' },
           },
         }),
         "propose writer",

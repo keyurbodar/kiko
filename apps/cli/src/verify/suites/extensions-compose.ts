@@ -1,5 +1,5 @@
 import { messages, newRoom, poll, seen } from "../kit"
-import type { ExtensionOp, ExtensionResult } from "@yuki/protocol"
+import type { ExtensionOp, ExtensionResult } from "@kiko/protocol"
 import type { RoomHandle, Session } from "../client"
 import { VerifyError } from "../client"
 import { dev, toolLine } from "../routine-kit"
@@ -55,12 +55,12 @@ async function p1(v: { url: string }, s: Session, install: Awaited<ReturnType<ty
   await fake(v, s, roomId)
   const ask = asker(room)
   await install.bundle(
-    { name: "note-guard", description: "blocks fake_note, for yuki verify", hooks: ["beforeTool"], tools: { guard_ping: { description: "does nothing", effect: "read" } } },
+    { name: "note-guard", description: "blocks fake_note, for kiko verify", hooks: ["beforeTool"], tools: { guard_ping: { description: "does nothing", effect: "read" } } },
     'export const tools = { async guard_ping() { return "guarding" } }\nexport const hooks = { async beforeTool(call) { if (call.name === "fake_note") return { block: "notes are protected" } } }',
   )
   await install.bundle(
-    { name: "writer", description: "writes through yuki.call, for yuki verify", tools: { write_via: { description: "writes a note", effect: "write" } }, calls: ["fake_note"] },
-    'export const tools = { async write_via(_a, yuki) { return await yuki.call("fake_note", {}) } }',
+    { name: "writer", description: "writes through kiko.call, for kiko verify", tools: { write_via: { description: "writes a note", effect: "write" } }, calls: ["fake_note"] },
+    'export const tools = { async write_via(_a, kiko) { return await kiko.call("fake_note", {}) } }',
   )
   const direct = await ask(toolLine("fake_note", {}))
   const via = await ask(toolLine("write_via", {}))
@@ -68,7 +68,7 @@ async function p1(v: { url: string }, s: Session, install: Awaited<ReturnType<ty
   const viaRan = /noted/.test(via) && !/protected/.test(via)
   const evidence = `direct fake_note ${directBlocked ? "blocked" : "NOT blocked"} (${tail(direct)}); write_via answered ${tail(via)}`
   if (!directBlocked) probe("P1", "INCONCLUSIVE", `the control failed, the guard did not block the direct call. ${evidence}`)
-  else probe("P1", viaRan ? "NOT VERIFIED" : "VERIFIED", `${viaRan ? "BYPASS: the guarded tool ran through yuki.call, another extension's beforeTool never saw it. " : "the guard held. "}${evidence}`)
+  else probe("P1", viaRan ? "NOT VERIFIED" : "VERIFIED", `${viaRan ? "BYPASS: the guarded tool ran through kiko.call, another extension's beforeTool never saw it. " : "the guard held. "}${evidence}`)
   room.raw.close()
 }
 
@@ -77,13 +77,13 @@ async function p3(v: { url: string }, s: Session, install: Awaited<ReturnType<ty
   await install.bundle(
     {
       name: "pinger",
-      description: "messages a teammate, for yuki verify",
+      description: "messages a teammate, for kiko verify",
       tools: { ping_mate: { description: "pings ben", effect: "message" }, peek_mate: { description: "tries to message from a read tool", effect: "read" } },
       calls: ["send_message"],
     },
     `export const tools = {
-  async ping_mate(_a, yuki) { return await yuki.call("send_message", { to: "ben", text: "pinged by the extension" }) },
-  async peek_mate(_a, yuki) { return await yuki.call("send_message", { to: "ben", text: "from a read tool" }) },
+  async ping_mate(_a, kiko) { return await kiko.call("send_message", { to: "ben", text: "pinged by the extension" }) },
+  async peek_mate(_a, kiko) { return await kiko.call("send_message", { to: "ben", text: "from a read tool" }) },
 }`,
   )
   const before = messages(room).length

@@ -1,6 +1,6 @@
-import { ALARM_STEPS } from "@yuki/durable/alarm"
-import { addColumn, dropColumn, type Step } from "@yuki/durable/migrate"
-import { treeSteps } from "@yuki/memory/optmem"
+import { ALARM_STEPS } from "@kiko/durable/alarm"
+import { addColumn, dropColumn, type Step } from "@kiko/durable/migrate"
+import { treeSteps } from "@kiko/memory/optmem"
 
 // The room's tables, in one list. An object at version N runs only the steps after the first N. A step is
 // appended, never edited or moved, and every step must be safe on a table that already exists.

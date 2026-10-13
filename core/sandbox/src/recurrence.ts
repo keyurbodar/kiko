@@ -101,7 +101,7 @@ export function repeatProblem(rrule: string, tz: string, from: number): string |
   return gap < MIN_REPEAT_MS ? "a schedule repeats at most every 30 minutes. to notice changes on a page, use a watch trigger instead: it checks every 15 minutes without a model run." : null;
 }
 
-/** The trigger rate rule. It needs rrule, so it stays out of the wire schema in @yuki/protocol. */
+/** The trigger rate rule. It needs rrule, so it stays out of the wire schema in @kiko/protocol. */
 export function triggerGapProblems(bundle: ExtensionBundle): string[] {
   return (bundle.manifest.triggers ?? []).flatMap((t) => {
     const problem = repeatProblem(t.rrule, "UTC", Date.now());

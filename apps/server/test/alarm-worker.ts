@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
-import { ALARM_STEPS, createAlarms, runDue } from "@yuki/durable/alarm"
-import { migrate } from "@yuki/durable/migrate"
+import { ALARM_STEPS, createAlarms, runDue } from "@kiko/durable/alarm"
+import { migrate } from "@kiko/durable/migrate"
 
 export class T extends DurableObject {
   alarms = createAlarms(this.ctx)

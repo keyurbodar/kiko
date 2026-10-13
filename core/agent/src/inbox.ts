@@ -1,5 +1,5 @@
-import { sha256Hex } from "@yuki/durable/hash"
-import type { Step } from "@yuki/durable/migrate"
+import { sha256Hex } from "@kiko/durable/hash"
+import type { Step } from "@kiko/durable/migrate"
 import { escapeAttr, escapeXml } from "./text"
 import type { Envelope, Sender } from "./envelope"
 

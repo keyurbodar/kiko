@@ -5,7 +5,7 @@ import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/provid
 import { defineExtension, Harness, MemoryStorage, wrapSection } from "@earendil-works/pi-durable"
 import { BASE, type BuildAgentInput, buildAgent } from "../src/agent/factory"
 import { WORK, WORK_STEPS } from "../src/agent/extensions/work"
-import type { Workers } from "@yuki/agent/workers"
+import type { Workers } from "@kiko/agent/workers"
 import { WEB } from "../src/agent/extensions/web"
 import { SKILLS } from "../src/agent/extensions/skills"
 import { SECTION_ORDER } from "../src/agent/prompt"

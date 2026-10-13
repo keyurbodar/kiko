@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Agent, AgentSlug, Member } from "@yuki/protocol"
+import type { Agent, AgentSlug, Member } from "@kiko/protocol"
 import { BUILTIN_AGENT } from "../lib/chats"
 import { pickerMatches, toChips } from "./to-bar-model"
 
@@ -10,15 +10,15 @@ const bob = agent("bob")
 const all = [BUILTIN_AGENT, ada, bob]
 
 describe("the to: chips", () => {
-  const chips = (members: string[], over: { yukiOff?: boolean; empty?: boolean; chatAgents?: string[] } = {}) =>
-    toChips({ members: members.map(member), chatAgents: over.chatAgents ?? [], agents: all, yukiOff: over.yukiOff ?? false, empty: over.empty ?? true }).map(
+  const chips = (members: string[], over: { kikoOff?: boolean; empty?: boolean; chatAgents?: string[] } = {}) =>
+    toChips({ members: members.map(member), chatAgents: over.chatAgents ?? [], agents: all, kikoOff: over.kikoOff ?? false, empty: over.empty ?? true }).map(
       (c) => `${c.slug}${c.removable ? " ×" : ""}`,
     )
   test.each<[string, string[], Parameters<typeof chips>[1], string[]]>([
-    ["yuki alone in an empty chat can come off", ["yuki"], {}, ["yuki ×"]],
-    ["yuki alone after a message stays", ["yuki"], { empty: false }, ["yuki"]],
-    ["yuki taken off shows no chips", ["yuki"], { yukiOff: true }, []],
-    ["in a group yuki stays and the others come off", ["yuki", "ada", "bob"], {}, ["yuki", "ada ×", "bob ×"]],
+    ["kiko alone in an empty chat can come off", ["yuki"], {}, ["yuki ×"]],
+    ["kiko alone after a message stays", ["yuki"], { empty: false }, ["yuki"]],
+    ["kiko taken off shows no chips", ["yuki"], { kikoOff: true }, []],
+    ["in a group kiko stays and the others come off", ["yuki", "ada", "bob"], {}, ["yuki", "ada ×", "bob ×"]],
     ["before the room seeds, the chat's agents stand in", [], { chatAgents: ["yuki"] }, ["yuki ×"]],
     ["an agent id the user no longer has is skipped", [], { chatAgents: ["yuki", "id-gone"] }, ["yuki ×"]],
   ])("%s", (_, members, over, expected) => {
@@ -35,7 +35,7 @@ describe("the to: search", () => {
     ["@ searches handles only", [], "@love", []],
     ["@ with a handle", [], "@ada", ["ada"]],
     ["case folded", [], "ADA", ["ada"]],
-    ["yuki comes back when it was taken off", [], "yuki", ["yuki"]],
+    ["kiko comes back when it was taken off", [], "yuki", ["yuki"]],
   ])("%s", (_, inChat, query, expected) => {
     expect(find(inChat, query)).toEqual(expected)
   })

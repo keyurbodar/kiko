@@ -4,10 +4,10 @@ import { dirname, join, relative, resolve } from "node:path"
 const ALLOWED: Record<string, readonly string[]> = {
   durable: [],
   browser: [],
-  agent: ["@yuki/durable"],
-  memory: ["@yuki/agent"],
-  sandbox: ["@yuki/agent"],
-  protocol: ["@yuki/agent", "@yuki/sandbox"],
+  agent: ["@kiko/durable"],
+  memory: ["@kiko/agent"],
+  sandbox: ["@kiko/agent"],
+  protocol: ["@kiko/agent", "@kiko/sandbox"],
 }
 
 const ROOT = join(import.meta.dir, "..")
@@ -28,9 +28,9 @@ for (const [pkg, allowed] of Object.entries(ALLOWED)) {
       const at = relative(ROOT, file)
       if (spec.startsWith(".")) {
         if (relative(home, resolve(dirname(file), spec)).startsWith("..")) problems.push(`${at}: ${spec} leaves core/${pkg}`)
-      } else if (spec.startsWith("@yuki/")) {
+      } else if (spec.startsWith("@kiko/")) {
         const name = spec.split("/").slice(0, 2).join("/")
-        if (name !== `@yuki/${pkg}` && !allowed.includes(name)) problems.push(`${at}: ${name} is not allowed in @yuki/${pkg}`)
+        if (name !== `@kiko/${pkg}` && !allowed.includes(name)) problems.push(`${at}: ${name} is not allowed in @kiko/${pkg}`)
       }
     }
   }

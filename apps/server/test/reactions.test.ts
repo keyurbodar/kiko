@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { partsOf } from "../src/agent/outbox"
-import { escapeXml } from "@yuki/agent/text"
+import { escapeXml } from "@kiko/agent/text"
 import { allowedReaction, MAX_REACTIONS_BYTES, reactionLines } from "../src/room/reactions"
 
 describe("allowedReaction", () => {

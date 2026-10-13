@@ -1,4 +1,4 @@
-import type { UserToClient } from "@yuki/protocol"
+import type { UserToClient } from "@kiko/protocol"
 
 export type Attachment = { ready: boolean; helloBy?: number }
 

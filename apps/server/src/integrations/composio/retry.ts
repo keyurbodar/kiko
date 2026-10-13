@@ -1,4 +1,4 @@
-import { boundedWait } from "@yuki/durable/bounded-wait"
+import { boundedWait } from "@kiko/durable/bounded-wait"
 import { ComposioError } from "./client"
 
 const RETRY_DELAYS_MS = [400, 1200]

@@ -4,7 +4,7 @@
 // http, https, or mailto, or when it names a file (no scheme, or `file:`). The
 // client draws a file href as a chip that opens the files tab, never as a link.
 
-import { isAgentSlug, type Block, type ColumnAlign, type HeadingLevel, type Inline, type RichText } from "@yuki/protocol"
+import { isAgentSlug, type Block, type ColumnAlign, type HeadingLevel, type Inline, type RichText } from "@kiko/protocol"
 import { Lexer, type Token, type Tokens } from "marked"
 
 const SAFE_LINK = /^(https?|mailto|file):/i

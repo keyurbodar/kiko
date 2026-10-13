@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { Loops } from "@yuki/memory/loops"
+import { Loops } from "@kiko/memory/loops"
 import { INITIATIVE_RUN, InitiativeEngine, REMINDER_RUN, type WakeInput } from "../src/initiative/engine"
 import { slotOf } from "../src/initiative/attention/rhythm"
 import type { SignalBatch } from "../src/room/signals"

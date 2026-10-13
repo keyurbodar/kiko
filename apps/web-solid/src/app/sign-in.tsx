@@ -37,7 +37,7 @@ export default function SignIn() {
     <div class="flex h-dvh items-center justify-center bg-bg px-4" data-component="sign-in">
       <div class="flex w-full max-w-72 flex-col items-center gap-3">
         <Bird slug="yuki" size={72} state="wave" />
-        <h1 class="mb-4 mt-1 text-xl font-medium text-text">Sign in to Yuki</h1>
+        <h1 class="mb-4 mt-1 text-xl font-medium text-text">Sign in to Kiko</h1>
         <form class="flex w-full flex-col gap-3" data-component="access-code-form" onSubmit={submitCode}>
           <input
             name="code"

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { AgentSlug } from "@yuki/protocol"
+import type { AgentSlug } from "@kiko/protocol"
 import { DEFAULT_MODEL } from "../src/agent/factory"
 import { type MemberRow, toMember } from "../src/room/members"
 

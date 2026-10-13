@@ -4,11 +4,11 @@ import { dirname, join } from "node:path"
 import { CliError, type Context } from "../main"
 
 // The CLI keeps one cookie header per server origin in a JSON file.
-// YUKI_SESSION_FILE moves it, so tests never touch the real one.
+// KIKO_SESSION_FILE moves it, so tests never touch the real one.
 type Sessions = Record<string, string>
 
 export function sessionFile(): string {
-  return process.env.YUKI_SESSION_FILE ?? join(homedir(), ".config", "yuki", "cli-session.json")
+  return process.env.KIKO_SESSION_FILE ?? join(homedir(), ".config", "yuki", "cli-session.json")
 }
 
 async function readSessions(): Promise<Sessions> {
@@ -45,8 +45,8 @@ async function request(url: URL, init: RequestInit): Promise<Response> {
 
 export async function login(ctx: Context): Promise<void> {
   // A deployed Worker has the access code and no dev route. A local one has the dev route.
-  const code = process.env.YUKI_ACCESS_CODE
-  if (!ctx.dev && !code) throw new CliError("set YUKI_ACCESS_CODE to sign in to a deployed server, or pass --dev for a local one")
+  const code = process.env.KIKO_ACCESS_CODE
+  if (!ctx.dev && !code) throw new CliError("set KIKO_ACCESS_CODE to sign in to a deployed server, or pass --dev for a local one")
   const url = endpoint(ctx, ctx.dev ? "api/auth/dev/session" : "api/auth/access-code")
   const res = await request(url, {
     method: "POST",
@@ -67,10 +67,10 @@ export async function login(ctx: Context): Promise<void> {
 
 export async function whoami(ctx: Context): Promise<void> {
   const cookie = await sessionCookie(ctx.url)
-  if (!cookie) throw new CliError(`not signed in to ${new URL(ctx.url).origin}. run yuki login`)
+  if (!cookie) throw new CliError(`not signed in to ${new URL(ctx.url).origin}. run kiko login`)
   const url = endpoint(ctx, "api/me")
   const res = await request(url, { headers: { cookie } })
-  if (res.status === 401) throw new CliError("the stored session is not valid. run yuki login --dev")
+  if (res.status === 401) throw new CliError("the stored session is not valid. run kiko login --dev")
   if (!res.ok) throw new CliError(`whoami failed: ${url} returned ${res.status}`)
   const { user } = (await res.json()) as { user: { id: string; name: string } }
   console.log(ctx.json ? JSON.stringify(user) : user.id)
