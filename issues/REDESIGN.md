@@ -19,7 +19,7 @@ Kiko has its own identity: calm, modern, minimal, fast. T3 Code level interactio
 9. **Controls.** One primitive per job from Kobalte, Corvu and solid-primitives, wrapped once in `packages/ui`: Select, Combobox, Switch, Slider, SegmentedControl, RadioGroup, Popover, Toast, Skeleton, Tabs (extensions page only). `@solid-primitives/storage` `makePersisted` replaces hand-rolled localStorage. Delete unused `ButtonV2`, `IconButtonV2`, `KeybindV2`, the second icon component and `experiments/`.
 10. **Product gaps.** Skills page lists the built-in skills (needs a server route). Workers and reminders get a surface. A failed load shows an error with retry, not an empty list. Loading shows a skeleton.
 11. **Code style.** No code comments except a non-obvious why. Sentence-case strings. Hugeicons only.
-12. **Verification.** Fast checks only, under 5 minutes. Real browser checks through the `verify-yuki` skill or `refs/agent-browser`, with real model keys from `apps/server/.dev.vars`. No new slow test suites.
+12. **Verification.** Fast checks only, under 5 minutes. Real browser checks through the `verify-kiko` skill or `refs/agent-browser`, with real model keys from `apps/server/.dev.vars`. No new slow test suites.
 
 ## Units
 
