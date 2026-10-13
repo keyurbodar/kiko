@@ -2,6 +2,20 @@
 
 Source: `kat.css` in this folder. Values come from the kat-replica dark tokens and the kat screenshots. The screenshots win. Where kat.css and a screenshot disagree, the entry says DEVIATION.
 
+## Colors, borders and scales
+
+Semantic colors come from `packages/theme/src/palette.ts`. kat.css keeps one first-paint copy of them, in the block between `palette:start` and `palette:end`. `bun packages/theme/scripts/gen-palette.ts` rewrites that block, and a test keeps it equal to the palette. No other file declares a palette color.
+
+Hairlines are for dividers and input outlines only. Every other edge is a fill or a shadow, so a component never draws a border of its own.
+
+| Scale | Tokens |
+| --- | --- |
+| Radius | `--radius-xs` 4px, `--radius-sm` 6px, `--radius-md` 10px, `--radius-lg` 14px, `--radius-bubble` 16px, `--radius-pill` 999px |
+| Type | `--font-xs` 11px, `--font-sm` 12px, `--font-md` 13px, `--font-base` 14px (the interface setting), `--font-lg` 16px |
+| Icon | `--icon-xs` 12px, `--icon-sm` 14px, `--icon-md` 16px, `--icon-lg` 20px |
+
+There is no density setting. Spacing stays on Tailwind's scale.
+
 ## Controls
 
 | Token | Value | Use |

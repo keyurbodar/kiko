@@ -15,8 +15,8 @@
 
    Two rules govern everything below:
 
-   1. No borders. `--border` and its siblings are `none`; separation comes from
-      a shadow or a fill. A component that asks for a border draws nothing.
+   1. Hairlines are for dividers and input outlines only. Everything else
+      separates by a fill or a shadow, so a component never draws a border of its own.
    2. Token names never appear in a class attribute. Components consume the
       Tailwind utilities registered in section 5, which resolve to these vars.
    ========================================================================== */
@@ -185,8 +185,6 @@
   --c-user-bubble-text: var(--c-brand-on);
   --l-on-accent: var(--l-brand-on);
   --c-on-accent: var(--c-brand-on);
-  --radius-row: 10px;
-  --radius-field: 999px;
 }
 
 /* -----------------------------------------------------------------------------
@@ -360,94 +358,18 @@
 :root {
   /* Cards sit into the panel, like kat's lists: darker than it in dark, white in light. */
   --l-card: 0.235;
-  --card: oklch(var(--l-card) calc(var(--c-neutral) * var(--cm)) var(--hue));
   --card-shadow: none;
   --hue: 340;
   --h-text: var(--hue);
   --cm: 1;
 
-  --bg: oklch(var(--l-bg) calc(var(--c-bg) * var(--cm)) var(--hue));
-  --bg-sidebar: oklch(
-    var(--l-bg-sidebar) calc(var(--c-bg-sidebar) * var(--cm)) var(--hue)
-  );
-  --bg-subtle: oklch(
-    var(--l-bg-subtle) calc(var(--c-bg-subtle) * var(--cm)) var(--hue)
-  );
-  --surface-raised: oklch(
-    var(--l-surface-raised) calc(var(--c-surface-raised) * var(--cm)) var(--hue)
-  );
-  --menu-bg: oklch(
-    var(--l-menu-bg) calc(var(--c-menu-bg) * var(--cm)) var(--hue)
-  );
-  --input-bg: oklch(
-    var(--l-input-bg) calc(var(--c-input-bg) * var(--cm)) var(--hue)
-  );
-  --hover-bg: oklch(
-    var(--l-hover-bg) calc(var(--c-hover-bg) * var(--cm)) var(--hue)
-  );
-  --tint-subtle: oklch(
-    var(--l-tint-subtle) calc(var(--c-tint-subtle) * var(--cm)) var(--hue)
-  );
-  --tint: oklch(var(--l-tint) calc(var(--c-tint) * var(--cm)) var(--hue));
-  --tint-strong: oklch(
-    var(--l-tint-strong) calc(var(--c-tint-strong) * var(--cm)) var(--hue)
-  );
-  --tooltip-bg: oklch(
-    var(--l-tooltip-bg) calc(var(--c-tooltip-bg) * var(--cm)) var(--hue)
-  );
-  --scrollbar-thumb: oklch(
-    var(--l-scrollbar-thumb) calc(var(--c-scrollbar-thumb) * var(--cm))
-      var(--hue)
-  );
-  --scrollbar-thumb-hover: oklch(
-    var(--l-scrollbar-thumb-hover)
-      calc(var(--c-scrollbar-thumb-hover) * var(--cm)) var(--hue)
-  );
-  --assistant-bubble: oklch(
-    var(--l-assistant-bubble) calc(var(--c-assistant-bubble) * var(--cm))
-      var(--hue)
-  );
   --assistant-bubble-text: var(--text);
-  --user-bubble: oklch(
-    var(--l-user-bubble) calc(var(--c-user-bubble) * var(--cm))
-      var(--h-brand)
-  );
-  --user-bubble-text: oklch(
-    var(--l-user-bubble-text) calc(var(--c-user-bubble-text) * var(--cm))
-      var(--hue)
-  );
-  --text: oklch(var(--l-text) calc(var(--c-text) * var(--cm)) var(--h-text));
-  --text-muted: oklch(
-    var(--l-text-muted) calc(var(--c-text-muted) * var(--cm)) var(--h-text)
-  );
-  --text-faint: oklch(
-    var(--l-text-faint) calc(var(--c-text-faint) * var(--cm)) var(--h-text)
-  );
   /* status colors. These were registered but never declared, so they rendered transparent. */
-  --danger: oklch(var(--l-danger) calc(var(--c-danger) * var(--cm)) var(--h-danger));
   --success: oklch(var(--l-success) calc(var(--c-success) * var(--cm)) var(--h-success));
-  --gold: oklch(var(--l-gold) calc(var(--c-gold) * var(--cm)) var(--h-gold));
-  --accent: oklch(
-    var(--l-accent) calc(var(--c-accent) * var(--cm)) var(--hue)
-  );
-  --accent-fill: oklch(
-    var(--l-accent-fill) calc(var(--c-accent-fill) * var(--cm)) var(--hue)
-  );
-  --user-bubble-deep: oklch(
-    var(--l-user-bubble-deep) calc(var(--c-user-bubble) * var(--cm))
-      var(--h-brand)
-  );
   --user-bubble-gradient: linear-gradient(
     135deg,
     var(--user-bubble),
     var(--user-bubble-deep)
-  );
-  --on-accent: oklch(
-    var(--l-on-accent) calc(var(--c-on-accent) * var(--cm)) var(--hue)
-  );
-  --accent-hover: oklch(
-    var(--l-brand-hover) calc(var(--c-brand-hover) * var(--cm))
-      var(--hue)
   );
   --out-quote-bg: oklch(0% 0 none / 0.2);
   --out-quote-bar: oklch(from var(--accent) 0.9 0.062 h);
@@ -455,10 +377,8 @@
   --in-quote-bg: var(--menu-bg);
   --in-quote-bar: var(--accent);
   --in-quote-name: var(--accent);
-  --hairline: oklch(var(--l-grey-hairline) var(--c-neutral-raised) var(--hue));
   --btn-bg: oklch(from var(--text) l c h / 7%);
   --btn-bg-hover: oklch(from var(--text) l c h / 11%);
-  --panel-edge: oklch(from var(--text) l c h / 6%);
   --petal: var(--accent);
   --row-shadow: 0 6px 18px oklch(0% 0 none / 0.35);
   --segment-shadow: 0 2px 8px oklch(0% 0 none / 0.35);
@@ -471,20 +391,12 @@
 
   /* Selected follows the accent instead of inventing a second one. It shares
      the accent hue so selected rows and accent marks read as one family. */
-  --selected-bg: oklch(
-    var(--l-selected-bg) calc(var(--c-selected-bg) * var(--cm)) var(--hue)
-  );
-  --nav-active-bg: oklch(
-    var(--l-nav-active-bg) calc(var(--c-nav-active-bg) * var(--cm)) var(--hue)
-  );
-  --nav-hover-bg: oklch(
-    var(--l-nav-hover-bg) calc(var(--c-nav-hover-bg) * var(--cm)) var(--hue)
-  );
 
   /* type scale */
   --font-xs: 11px;
   --font-sm: 12px;
   --font-md: 13px;
+  --font-lg: 16px;
   /* t3code sets reading text at 14px (text-sm). Appearance can change it. */
   --font-base: 14px;
   --font-size-prompt: 14px;
@@ -494,6 +406,10 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
+  --icon-xs: 12px;
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
 
   /* Hairline system: every one of these is `none`, so a component that asks
      for a border draws nothing. Separation is a shadow or a fill — see
@@ -621,10 +537,8 @@
   --count-text: var(--text);
   --count-muted-bg: var(--tint-subtle);
   --count-muted-text: var(--text-faint);
-  --sidebar-solid: var(--bg-sidebar);
 
   /* shared accent mixes, so a component never writes `oklch(from ...)` */
-  --accent-wash: oklch(from var(--accent) l c h / 12%);
   --accent-wash-strong: oklch(from var(--accent) l c h / 22%);
   --accent-wash-faint: oklch(from var(--accent) l c h / 16%);
   --text-wash: oklch(from var(--text) l c h / 6%);
@@ -807,11 +721,11 @@
 /* -----------------------------------------------------------------------------
    4e. The palette
 
-   Kiko's palette, light and dark, on the roles the UI reads. It wins over the
-   derived colors above. The look (apps/web-solid/src/theme) sets the same
+   Kiko's palette, light and dark, on the roles the UI reads. It is the first
+   paint fallback. The look (packages/theme) sets the same
    tokens inline on <html>, so an accent or contrast change wins over this. The values come from
-   `tokensFor` in theme/palette.ts: `bun scripts/gen-palette.ts` in
-   apps/web-solid writes them, and a test keeps the two equal.
+   `tokensFor` in packages/theme/src/palette.ts: `bun packages/theme/scripts/gen-palette.ts`
+   writes them, and a test keeps the two equal.
    -------------------------------------------------------------------------- */
 
 /* palette:start */
@@ -921,10 +835,12 @@
    * ARE the runtime `--radius-*` vars; `rounded-sm` / `rounded-bubble` read
    * them back. Every other `rounded-*` step is still a Tailwind default —
    * use these two, or the `calc(Npx * var(--brm))` idiom. */
-  --radius-sm: 8px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
   --radius-bubble: 16px;
-  --radius-row: 10px;
-  --radius-field: 999px;
+  --radius-pill: 999px;
 }
 
 @theme inline {
@@ -933,6 +849,7 @@
   --text-xs: var(--font-xs);
   --text-sm: var(--font-sm);
   --text-md: var(--font-md);
+  --text-lg: var(--font-lg);
   --text-base: var(--font-base);
   --text-xs--line-height: var(--line-height);
   --text-sm--line-height: var(--line-height);
@@ -1260,8 +1177,8 @@
   }
 }
 
-/* There are no borders in this system, and these are the only elements that
-   ship one from the UA stylesheet.
+/* Hairlines are for dividers and input outlines only. These are the only
+   elements that ship a border from the UA stylesheet.
  *
  * All three of these blocks are inside `@layer base`, and they have to stay
  * there. Unlayered, they outrank every Tailwind utility regardless of
