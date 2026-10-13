@@ -3,22 +3,33 @@ import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 
 // The browser asks the Worker for Open VSX pages and packages, so it never reaches another host.
-// Only open-vsx.org over https, under /api/, and only for a signed-in owner.
+// The request names open-vsx.org under /api/. Package downloads redirect to the Eclipse CDN, the
+// only other host the route follows to. Only for a signed-in owner.
 const PATH = "/api/open-vsx"
 const HOST = "open-vsx.org"
+const CDN_HOST = "openvsx.eclipsecontent.org"
 const MAX_BYTES = 20 * 1024 * 1024
 const TIMEOUT_MS = 15_000
 
-export function openVsxTarget(raw: string | null): string | null {
-  if (!raw || raw.length > 2048) return null
+function secureUrl(raw: string): URL | null {
+  if (raw.length > 2048) return null
   let url: URL
   try {
     url = new URL(raw)
   } catch {
     return null
   }
-  const safe = url.protocol === "https:" && url.hostname === HOST && url.port === "" && !url.username && !url.password
-  return safe && url.pathname.startsWith("/api/") ? url.href : null
+  return url.protocol === "https:" && url.port === "" && !url.username && !url.password ? url : null
+}
+
+export function openVsxTarget(raw: string | null): string | null {
+  const url = raw ? secureUrl(raw) : null
+  return url?.hostname === HOST && url.pathname.startsWith("/api/") ? url.href : null
+}
+
+export const landedOnOpenVsx = (href: string) => {
+  const url = secureUrl(href)
+  return url !== null && (url.hostname === HOST || url.hostname === CDN_HOST)
 }
 
 export async function openVsxRoute(request: Request, env: Env): Promise<Response | null> {
@@ -31,8 +42,7 @@ export async function openVsxRoute(request: Request, env: Env): Promise<Response
   if (!target) return Response.json({ error: "not an Open VSX address" }, { status: 400 })
 
   const result = await safeFetch(target, undefined, { maxBytes: MAX_BYTES, timeoutMs: TIMEOUT_MS, userAgent: "kiko-theme-import" })
-  const landed = result.ok ? openVsxTarget(result.url) : null
-  if (!result.ok || result.truncated || result.status !== 200 || landed === null) {
+  if (!result.ok || result.truncated || result.status !== 200 || !landedOnOpenVsx(result.url)) {
     return Response.json({ error: "Open VSX is unavailable right now." }, { status: 502 })
   }
   return new Response(result.body, {
