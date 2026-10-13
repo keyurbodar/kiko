@@ -3,6 +3,7 @@ import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomE
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
+import { parseRichText } from "./rich-text"
 import type { SearchOptions, SearchPage } from "./search"
 
 export type Attachment = {
@@ -107,7 +108,7 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 			return out.events
 		}
 		case "edit":
-			return log.message(frame.messageId)?.from.kind === "human" ? log.editMessage(frame.messageId, frame.text) : null
+			return log.message(frame.messageId)?.from.kind === "human" ? log.editMessage(frame.messageId, frame.text, parseRichText(frame.text)) : null
 		case "delete":
 			return log.deleteMessages([frame.messageId], human)
 		case "react":

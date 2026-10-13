@@ -284,7 +284,7 @@ export class RoomLog {
 	editMessage(id: MessageId, text: string, rich?: RichText): RoomEvent | null {
 		return this.storage.transactionSync(() => {
 			const current = this.message(id)
-			if (!current || (current.text === text && !rich)) return null
+			if (!current || current.text === text) return null
 			const event = this.append(actorKey(current.from), {
 				t: "edit",
 				messageId: id,
