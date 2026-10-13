@@ -8,8 +8,7 @@ import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
-import { BrandBird } from "../mascot/brand"
-import { HeaderSnow } from "./header-snow"
+import { KIKO } from "@kiko/protocol"
 import { ChatPanel } from "./chat-panel"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import "./sidebar.css"
@@ -81,10 +80,9 @@ export function Sidebar(props: SidebarProps) {
       data-panel={props.section ?? undefined}
       data-collapsed={collapsed() ? "" : undefined}
       >
-      <HeaderSnow />
       <header class="panel-header">
         <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
-          <BrandBird size={22} working={useApp.bots().some((b) => b.presence === "typing" || b.presence === "working")} />
+          <IdentityAvatar seed={KIKO} size={22} />
           <span>Kiko</span>
         </A>
         <span class="flex-1" aria-hidden="true" />
@@ -171,7 +169,7 @@ function Foot(props: { section: SectionId | null }) {
 
 /**
  * The compose button in the panel header. On chat it is a two-item menu: "New chat" (Kiko, the same command
- * as `Mod+N` and the bird in the top bar) and "New group", which opens the same temporary chat
+ * as `Mod+N` and Kiko's avatar in the top bar) and "New group", which opens the same temporary chat
  * with its "to:" search already open. It does not own the sidebar toggle; the rail icon and
  * `cmd+s` do.
  */

@@ -8,14 +8,14 @@ import { session } from "../../app/session"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 import { agentList } from "../../lib/chats"
-import { openBirdPicker } from "../../mascot/picker-state"
+import { openAvatarPicker } from "../../avatar/picker-state"
 import { addable, addOp, refusalText, renameOp, roleLabel } from "./model"
 import { Dialog } from "../../lib/dialog"
 import { Button, fieldClass } from "../../settings/kit"
 
 /*
  * The members section of the chat info panel: the human, then each agent with its role, model,
- * and status. An agent's actions (rename, change bird, remove) are its right-click menu, and add
+ * and status. An agent's actions (rename, change avatar, remove) are its right-click menu, and add
  * is a menu of the agents not here yet. Every change goes out as the
  * room's `member` frame and shows at once; a refusal rolls it back and says why in a toast.
  */
@@ -34,11 +34,6 @@ function useRefusalToasts() {
 
 /** What the agent is doing now: `typing`, `working`, or `idle`. */
 const statusOf = (slug: string) => useApp.memberById(slug)?.presence ?? "idle"
-/** The bird acts out what the agent is doing, and sits still when it is idle. */
-const moodOf = (slug: string) => {
-  const s = statusOf(slug)
-  return s === "working" || s === "typing" ? s : undefined
-}
 
 /** The model's name without its provider, or nothing. */
 const modelName = (ref: string | undefined) => ref?.split("/").slice(1).join("/") || undefined
@@ -101,7 +96,7 @@ function AgentRow(props: { member: Member; canRemove: boolean; onOpen: (slug: st
       <MenuV2.Item onSelect={() => setRenaming(true)} data-action="rename-agent">
         Rename
       </MenuV2.Item>
-      <MenuV2.Item onSelect={() => openBirdPicker(props.member.slug)}>Change bird</MenuV2.Item>
+      <MenuV2.Item onSelect={() => openAvatarPicker(props.member.slug)}>Change avatar</MenuV2.Item>
       <MenuV2.Item onSelect={() => props.onOpen(props.member.slug)}>Open profile</MenuV2.Item>
       <Show when={props.canRemove}>
         <MenuV2.Separator />
@@ -116,7 +111,7 @@ function AgentRow(props: { member: Member; canRemove: boolean; onOpen: (slug: st
       <MenuV2.Context>
         <MenuV2.Context.Trigger class="min-w-0 flex-1">
           <button type="button" class={`${row} pr-9`} onClick={() => props.onOpen(props.member.slug)}>
-            <IdentityAvatar seed={props.member.slug} size={28} state={moodOf(props.member.slug)} />
+            <IdentityAvatar seed={props.member.slug} size={28} />
             <span class="flex min-w-0 flex-1 flex-col">
               <span class="truncate font-medium">{props.member.name}</span>
               <span class="truncate text-[11px] text-weak" data-component="member-facts">

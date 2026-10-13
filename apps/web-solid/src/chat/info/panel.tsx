@@ -3,7 +3,7 @@ import { openTasks, TasksView } from "./tasks"
 import { CollapsibleV2 } from "@kiko/ui/v2/collapsible-v2"
 import { useCommands } from "../../commands/registry"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
-import { openBirdPicker } from "../../mascot/picker-state"
+import { openAvatarPicker } from "../../avatar/picker-state"
 import { useApp } from "../../lib/store"
 import { chatModel } from "../../settings/chat-model"
 import { MemoryError, MemoryList, useMemoryStore } from "./memory/views"
@@ -82,12 +82,12 @@ function AgentPage(props: { slug: string; chatId: string }) {
           <button
             type="button"
             class="rounded-full outline-none"
-            aria-label="Change bird"
-            title="Change bird"
-            data-action="change-bird"
-            onClick={() => openBirdPicker(props.slug)}
+            aria-label="Change avatar"
+            title="Change avatar"
+            data-action="change-avatar"
+            onClick={() => openAvatarPicker(props.slug)}
           >
-            <IdentityAvatar seed={props.slug} size={56} state={status() === "working" ? "working" : status() === "typing" ? "typing" : undefined} />
+            <IdentityAvatar seed={props.slug} size={56} />
           </button>
         }
       >

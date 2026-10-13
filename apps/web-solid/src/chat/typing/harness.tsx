@@ -5,7 +5,6 @@ import { render } from "solid-js/web";
 import "../../styles/app.css";
 import { createTypingPresence } from "./create-typing-presence";
 import { TypingIndicator } from "./TypingIndicator";
-import Moment from "../../mascot/moment";
 
 const ROWS: [string[], (string | undefined)[]][] = [
   [["yuki"], []],
@@ -31,11 +30,6 @@ function Page() {
       ))}
       <TypingIndicator typists={["yuki", "scout", "budget", "lead", "planner"]} doings={["editing /plan.md"]} group />
       <TypingIndicator typists={presence.typists()} />
-      <div style={{ display: "flex", gap: "32px", "align-items": "flex-end" }}>
-        <Moment kind="nothing" />
-        <Moment kind="nest" faces={["planner"]} />
-        <Moment kind="cheer" faces={["yuki", "scout", "budget"]} />
-      </div>
     </div>
   );
 }

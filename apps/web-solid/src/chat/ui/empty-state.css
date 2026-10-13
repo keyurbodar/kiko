@@ -1,4 +1,4 @@
-/* The empty chat's hero: the birds at play, the heading, and who is here. */
+/* The empty chat's hero: the avatars, the heading, and who is here. */
 .chat-empty {
   display: flex;
   flex-direction: column;
@@ -24,8 +24,7 @@
   font-size: 13px;
 }
 
-/* The empty pane: the transcript steps aside, the frosted branch fills the top, and the heading and the
-   composer sit together under it. */
+/* The empty pane: the transcript steps aside, and the hero and the composer sit together. */
 [data-component="chat-shell"] {
   position: relative;
 }
@@ -41,7 +40,7 @@
   display: none;
 }
 
-[data-component="chat-shell"][data-session-empty="true"] > :not(.hoarfrost) {
+[data-component="chat-shell"][data-session-empty="true"] > * {
   position: relative;
   z-index: 1;
 }

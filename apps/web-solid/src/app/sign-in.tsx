@@ -1,5 +1,5 @@
 import { Show, createSignal } from "solid-js"
-import { Bird } from "../mascot/bird"
+import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { signInAsDev, signInWithAccessCode } from "./session"
 
 /*
@@ -36,7 +36,7 @@ export default function SignIn() {
   return (
     <div class="flex h-dvh items-center justify-center bg-bg px-4" data-component="sign-in">
       <div class="flex w-full max-w-72 flex-col items-center gap-3">
-        <Bird slug="yuki" size={72} state="wave" />
+        <IdentityAvatar seed="yuki" size={72} />
         <h1 class="mb-4 mt-1 text-xl font-medium text-text">Sign in to Kiko</h1>
         <form class="flex w-full flex-col gap-3" data-component="access-code-form" onSubmit={submitCode}>
           <input
