@@ -1,7 +1,7 @@
 
 import type { AgentSlug, MessageId, RoomId, UserId } from "./ids"
 import type { RichText } from "./rich-text"
-import type { FileRef, Member, Message, RoomEvent, RoomSnapshot, Task } from "./room"
+import type { Activity, AgentStatus, FileRef, HumanAsk, Member, Message, RoomEvent, RoomSnapshot, SystemEvent, Task, WorkerRow } from "./room"
 import type { Chat } from "./user"
 
 export const userId = "user_fixture" as UserId
@@ -92,6 +92,36 @@ const systemMessage: Message = {
 	text: "reminder: review the plan",
 }
 
+export const worker: WorkerRow = { id: "w1", task: "find the three pricing pages", status: "running", step: "web_fetch", steps: 2, startedAt: at(20) }
+
+export const activities: readonly Activity[] = [
+	{ kind: "writing" },
+	{ kind: "tool", tool: "edit", caption: "editing /plan.md" },
+	{ kind: "tool", tool: "run", caption: "running bun test" },
+	{ kind: "waiting", on: bob },
+	{ kind: "failed", caption: "failed: reading /plan.md (no such file)" },
+	{ kind: "background", workers: [worker] },
+	{ kind: "background", workers: [] },
+]
+
+export const agentStatuses: readonly AgentStatus[] = [
+	{ slug: ada, state: "typing", doing: "editing /plan.md", activity: { kind: "tool", tool: "edit", caption: "editing /plan.md" } },
+	{ slug: bob, state: "working", activity: { kind: "background", workers: [worker] } },
+]
+
+export const systemEvents: readonly SystemEvent[] = [
+	{ kind: "delegated", from: ada, to: bob, title: "write the tests" },
+	{ kind: "subagent", agent: ada, state: "started", title: "find the three pricing pages", private: true },
+	{ kind: "subagent", agent: ada, state: "done", title: "find the three pricing pages", private: true },
+	{ kind: "routine", title: "morning summary" },
+	{ kind: "agent_message", from: ada, to: bob },
+	{ kind: "activity", count: 4 },
+]
+
+export const humanAsk: HumanAsk = { id: "ask1", from: ada, text: "which database should we use?", options: ["sqlite", "postgres"], messageId: messageId(4) }
+
+export const openQuestion: HumanAsk = { id: "ask2", from: bob, text: "what should the project be called?", messageId: messageId(5) }
+
 export const task: Task = { id: "t1", title: "write the types", status: "doing", owner: ada, dependsOn: [] }
 const blockedTask: Task = { id: "t2", title: "test them", status: "blocked", dependsOn: ["t1"], note: "waits on the types" }
 
@@ -112,6 +142,12 @@ export const roomEvents: readonly RoomEvent[] = [
 	{ seq: 14, at: at(14), t: "task", task: blockedTask },
 	{ seq: 15, at: at(15), t: "task_removed", id: "t2" },
 	{ seq: 17, at: at(17), t: "file", file },
+	{ seq: 18, at: at(18), t: "message", id: messageId(6), from: { kind: "system", reason: "files" }, text: "ada started a worker: find the three pricing pages", event: systemEvents[1]! },
+	{ seq: 19, at: at(19), t: "message", id: messageId(7), from: { kind: "system", reason: "files" }, text: "ada handed bob a task: write the tests", event: systemEvents[0]! },
+	{ seq: 20, at: at(20), t: "ask", ...humanAsk },
+	{ seq: 21, at: at(21), t: "ask", ...openQuestion },
+	{ seq: 22, at: at(22), t: "ask_resolved", id: "ask1", how: "answered" },
+	{ seq: 23, at: at(23), t: "ask_resolved", id: "ask2", how: "skipped" },
 ]
 
 export const roomSnapshot: RoomSnapshot = {
@@ -135,6 +171,8 @@ export const roomSnapshot: RoomSnapshot = {
 	tasks: [task],
 	files: [file],
 	folders: [],
+	agents: agentStatuses,
+	asks: [openQuestion],
 }
 
 export const chat: Chat = {

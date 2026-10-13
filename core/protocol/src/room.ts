@@ -5,6 +5,37 @@ import type { RichText } from "./rich-text"
 
 export type AgentState = "idle" | "typing" | "working"
 
+export type ToolKind = "read" | "edit" | "search" | "run" | "web" | "other"
+
+export type WorkerState = "running" | "done" | "failed" | "stopped"
+
+export type WorkerRow = {
+	id: string
+	task: string
+	status: WorkerState
+	step: string | null
+	steps: number
+	startedAt: number
+}
+
+export type Activity =
+	| { kind: "writing" }
+	| { kind: "tool"; tool: ToolKind; caption: string }
+	| { kind: "waiting"; on: AgentSlug }
+	| { kind: "failed"; caption: string }
+	| { kind: "background"; workers: readonly WorkerRow[] }
+
+export type AgentStatus = { slug: AgentSlug; state: AgentState; doing?: string; activity?: Activity }
+
+export type SystemEvent =
+	| { kind: "delegated"; from: AgentSlug; to: AgentSlug; title: string }
+	| { kind: "subagent"; agent: AgentSlug; state: "started" | "done" | "failed" | "stopped"; title: string; private: true }
+	| { kind: "routine"; title: string }
+	| { kind: "agent_message"; from: AgentSlug; to: AgentSlug }
+	| { kind: "activity"; count: number }
+
+export type HumanAsk = { id: string; from: AgentSlug; text: string; options?: readonly string[]; messageId: MessageId }
+
 export type FileRef = {
 	id: string
 	name: string
@@ -39,6 +70,7 @@ export type Message = {
 	quote?: string
 	to?: AgentSlug | "all"
 	initiative?: { reason: string }
+	event?: SystemEvent
 }
 
 export type Member = {
@@ -95,6 +127,8 @@ export type RoomEvent =
 	| (Stored & { t: "file_removed"; ids: readonly string[] })
 	| (Stored & { t: "folders"; folders: readonly string[] })
 	| (Stored & { t: "no_provider"; slug: AgentSlug; provider: string })
+	| (Stored & { t: "ask" } & HumanAsk)
+	| (Stored & { t: "ask_resolved"; id: string; how: "answered" | "skipped" })
 
 export type RoomSnapshot = {
 	seq: number
@@ -104,6 +138,8 @@ export type RoomSnapshot = {
 	tasks: readonly Task[]
 	files: readonly FileRef[]
 	folders: readonly string[]
+	agents?: readonly AgentStatus[]
+	asks?: readonly HumanAsk[]
 }
 
 export type SearchHit = { id: MessageId; seq: number; at: number; from: Sender; snippet: string }
@@ -128,6 +164,8 @@ export type ClientToRoom =
 	| { t: "files"; op: FileOp }
 	| { t: "search"; query: string; before?: number; limit?: number }
 	| { t: "history"; seq: number; before: number; after: number }
+	| { t: "answer"; id: string; value: string }
+	| { t: "skip"; id: string }
 
 export type RoomToClient =
 	| { t: "events"; events: readonly RoomEvent[] }
@@ -139,7 +177,7 @@ export type RoomToClient =
 	 * DEVIATION: `slug` is added to the section 9.2 frame, so the client knows whose bubble it draws.
 	 */
 	| { t: "draft"; slug: AgentSlug; runId: string; index: number; text: string }
-	| { t: "status"; slug: AgentSlug; state: AgentState; doing?: string }
+	| ({ t: "status" } & AgentStatus)
 	/** Not stored. Sent only to the socket whose `member` frame changed nothing, so it can drop its optimistic patch. */
 	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
 	/** Not stored. Sent only to the socket whose `send` stored nothing because its attachments could not be claimed. */
