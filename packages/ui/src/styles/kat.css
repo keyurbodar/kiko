@@ -410,6 +410,11 @@
   --icon-sm: 14px;
   --icon-md: 16px;
   --icon-lg: 20px;
+  /* Control heights at desktop size, from t3code's button, input and toggle sizes. */
+  --control-h-xs: 24px;
+  --control-h-sm: 28px;
+  --control-h: 32px;
+  --field-h: 30px;
 
   /* Hairline system: every one of these is `none`, so a component that asks
      for a border draws nothing. Separation is a shadow or a fill — see
