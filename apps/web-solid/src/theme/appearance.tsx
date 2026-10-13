@@ -1,13 +1,13 @@
 // Settings, appearance: a few titled groups of rows. One theme in light and dark, an accent from
 // the flock, and the interface and font settings.
 import { For, type JSX } from "solid-js"
-import { appearanceOf } from "./apply"
+import { appearanceOf } from "@kiko/theme/apply"
 import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import { look, updateLook } from "./live"
 import { Select } from "../settings/select"
-import { CHAT_WIDTHS, CODE_FONTS, CONTRAST, DEFAULT_DISPLAY, FONT_SIZES, INTERFACE_FONTS, PROMPT_FONTS, type Display, type FontSizes } from "./display"
-import { DEFAULT_LOOK, type Mode } from "./look"
-import { ACCENT_IDS, ACCENTS } from "./palette"
+import { CHAT_WIDTHS, CODE_FONTS, CONTRAST, DEFAULT_DISPLAY, FONT_SIZES, INTERFACE_FONTS, PROMPT_FONTS, type Display, type FontSizes } from "@kiko/theme/display"
+import { DEFAULT_LOOK, type Mode } from "@kiko/theme/look"
+import { ACCENT_IDS, ACCENTS } from "@kiko/theme/palette"
 
 const shown = () => appearanceOf(look().mode)
 

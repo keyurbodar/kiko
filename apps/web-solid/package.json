@@ -17,6 +17,7 @@
     "@corvu/calendar": "0.1.2",
     "@corvu/resizable": "0.2.5",
     "@kiko/protocol": "workspace:*",
+    "@kiko/theme": "workspace:*",
     "@kiko/ui": "workspace:*",
     "@solid-primitives/event-listener": "2.4.5",
     "@solid-primitives/page-visibility": "^2.1.6",

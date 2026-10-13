@@ -8,6 +8,7 @@ const ALLOWED: Record<string, readonly string[]> = {
   memory: ["@kiko/agent"],
   sandbox: ["@kiko/agent"],
   protocol: ["@kiko/agent", "@kiko/sandbox"],
+  theme: [],
   avatar: [],
 }
 
@@ -23,16 +24,16 @@ function files(dir: string): string[] {
 
 const problems: string[] = []
 for (const [pkg, allowed] of Object.entries(ALLOWED)) {
-  const home = join(ROOT, pkg === "avatar" ? "packages" : "core", pkg)
+  const home = join(ROOT, pkg === "theme" || pkg === "avatar" ? "packages" : "core", pkg)
   for (const file of files(join(home, "src"))) {
     for (const [, spec = ""] of readFileSync(file, "utf8").matchAll(SPECIFIER)) {
       const at = relative(ROOT, file)
       if (spec.startsWith(".")) {
-        if (relative(home, resolve(dirname(file), spec)).startsWith("..")) problems.push(`${at}: ${spec} leaves core/${pkg}`)
+        if (relative(home, resolve(dirname(file), spec)).startsWith("..")) problems.push(`${at}: ${spec} leaves ${relative(ROOT, home)}`)
       } else if (spec.startsWith("@kiko/")) {
         const name = spec.split("/").slice(0, 2).join("/")
         if (name !== `@kiko/${pkg}` && !allowed.includes(name)) problems.push(`${at}: ${name} is not allowed in @kiko/${pkg}`)
-      }
+      } else if (pkg === "theme" && spec.startsWith("solid")) problems.push(`${at}: ${spec} is not allowed in @kiko/theme`)
     }
   }
 }
