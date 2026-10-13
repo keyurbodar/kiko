@@ -1,7 +1,7 @@
 import type { FileRef } from "@kiko/protocol"
 import { For, Show } from "solid-js"
 import { SurfaceNotice } from "../chrome"
-import { parseDelimited } from "../kind"
+import { CELL_LIMIT, parseDelimited } from "../delimited"
 import { WithText } from "./with-text"
 
 /** The table draws at most this many rows and columns, as t3code's does. Source shows the rest. */
@@ -13,13 +13,15 @@ export default function TableView(props: { roomId: string; file: FileRef }) {
 	return (
 		<WithText roomId={props.roomId} file={props.file}>
 			{(text) => {
-				const all = parseDelimited(text, /\.tsv$/i.test(props.file.name) ? "\t" : ",", ROWS + 2)
-				const rows = all.slice(0, ROWS + 1).map((row) => row.slice(0, COLUMNS))
-				const cut = all.length > ROWS + 1 || all.some((row) => row.length > COLUMNS)
+				const parsed = parseDelimited(text, /\.tsv$/i.test(props.file.name) ? "\t" : ",", ROWS + 2)
+				const rows = parsed.rows.slice(0, ROWS + 1).map((row) => row.slice(0, COLUMNS))
+				const cut = parsed.cut || parsed.rows.length > ROWS + 1 || parsed.rows.some((row) => row.length > COLUMNS)
 				return (
 					<div class="flex min-h-0 flex-1 flex-col" data-component="file-table">
 						<Show when={cut}>
-							<SurfaceNotice>Table limited to the first {ROWS} rows and {COLUMNS} columns. Switch to source for the rest.</SurfaceNotice>
+							<SurfaceNotice>
+								Table limited to the first {ROWS} rows, {COLUMNS} columns and {CELL_LIMIT.toLocaleString()} characters a cell. Switch to source for the rest.
+							</SurfaceNotice>
 						</Show>
 						<div class="min-h-0 flex-1 overflow-auto">
 							<table class="min-w-full border-separate border-spacing-0 text-xs">

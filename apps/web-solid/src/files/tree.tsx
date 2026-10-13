@@ -87,6 +87,11 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 	const [draft, setDraft] = createSignal<Draft | null>(null)
 	const [menuTarget, setMenuTarget] = createSignal<string | null>(null)
 	const [tick, setTick] = createSignal(0)
+	const [query, setQuery] = createSignal("")
+	const matches = createMemo(() => {
+		const q = query().trim().toLowerCase()
+		return q ? paths().filter((p) => p.toLowerCase().includes(q)).sort((a, b) => a.localeCompare(b)) : null
+	})
 	let scrollEl: HTMLElement | undefined
 
 	const tree = createTree<string>({
@@ -291,6 +296,23 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 
 	return (
 		<div class="file-tree" data-component="filetree" data-room={props.roomId}>
+			<div class="ft-search">
+				<input
+					type="search"
+					class="ft-search-input"
+					aria-label="Search files"
+					placeholder="Search files"
+					spellcheck={false}
+					autocomplete="off"
+					value={query()}
+					onInput={(e) => setQuery(e.currentTarget.value)}
+					onKeyDown={(e) => {
+						if (e.key !== "Escape" || !query()) return
+						e.stopPropagation()
+						setQuery("")
+					}}
+				/>
+			</div>
 			<Show when={!props.newFolderRequests}>
 				<div class="ft-header">
 					<span class="ft-actions">
@@ -309,21 +331,45 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 						setMenuTarget(el?.dataset.path ?? null)
 					}}
 				>
-					<div {...container()} class="ft-list" aria-label="Files">
-						<Show
-							when={rows().length <= VIRTUALIZE_AFTER}
-							fallback={
-								<Virtualizer data={rows()} scrollRef={scrollEl?.parentElement ?? undefined}>
-									{(row) => renderRow(row)}
-								</Virtualizer>
-							}
-						>
-							<For each={rows()}>{renderRow}</For>
-						</Show>
-						<Show when={rows().length === 0}>
-							<div class="ft-empty">No files yet. Agents save what they make here, and + adds one.</div>
-						</Show>
-					</div>
+					<Show
+						when={matches()}
+						fallback={
+							<div {...container()} class="ft-list" aria-label="Files">
+								<Show
+									when={rows().length <= VIRTUALIZE_AFTER}
+									fallback={
+										<Virtualizer data={rows()} scrollRef={scrollEl?.parentElement ?? undefined}>
+											{(row) => renderRow(row)}
+										</Virtualizer>
+									}
+								>
+									<For each={rows()}>{renderRow}</For>
+								</Show>
+								<Show when={rows().length === 0}>
+									<div class="ft-empty">No files yet. Agents save what they make here, and + adds one.</div>
+								</Show>
+							</div>
+						}
+					>
+						{(found) => (
+							<div class="ft-list" aria-label="Matching files">
+								<For each={found()}>
+									{(p) => (
+										<button type="button" class="ft-row ft-match" data-path={p} onClick={() => props.onOpen?.(p)}>
+											<FileIcon node={{ path: p, type: "file" }} />
+											<span class="ft-name">{basename(p)}</span>
+											<Show when={dirname(p)}>
+												<span class="ft-dir">{dirname(p)}</span>
+											</Show>
+										</button>
+									)}
+								</For>
+								<Show when={found().length === 0}>
+									<div class="ft-empty">No files match.</div>
+								</Show>
+							</div>
+						)}
+					</Show>
 				</MenuV2.Context.Trigger>
 				<MenuV2.Context.Portal>
 					<MenuV2.Context.Content>

@@ -74,8 +74,8 @@ export function SurfaceNotice(props: { children: JSX.Element }) {
 
 export function SurfaceLoading() {
 	return (
-		<div role="status" aria-label="Loading file" class="flex min-h-0 flex-1 items-center justify-center text-muted" data-component="file-loading">
-			<span class="motion-spin size-5 rounded-full border-2 border-current border-r-transparent" aria-hidden="true" />
+		<div role="status" class="flex min-h-0 flex-1 items-center justify-center text-xs text-muted" data-component="file-loading">
+			Loading file
 		</div>
 	)
 }

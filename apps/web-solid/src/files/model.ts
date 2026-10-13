@@ -86,3 +86,14 @@ export function saveExpanded(roomId: string, store: KeyValueStore | undefined, e
 
 /** The tree virtualizes past this many visible rows. */
 export const VIRTUALIZE_AFTER = 500
+
+/*
+ * The tree shows the user's drive as a top folder, home/, beside the chat's own files. A path
+ * under it belongs to the drive: its bytes are served from /api/files/home, and its changes go to
+ * the user socket. Moving between the two is refused, as for agents: it is a copy.
+ */
+export const HOME = "home"
+export const inHome = (p: string) => p === HOME || p.startsWith(`${HOME}/`)
+export const strip = (p: string) => (p === HOME ? "" : p.slice(HOME.length + 1))
+/** Where a tree path lives: its space (a room id or `home`) and its path there. */
+export const where = (chatId: string, p: string) => (inHome(p) ? { space: HOME, path: strip(p) } : { space: chatId, path: p })
