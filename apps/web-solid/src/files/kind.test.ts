@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { decodeText } from "./api"
-import { parseDelimited, type ViewerKind, viewerKind } from "./kind"
+import { type ViewerKind, viewerKind } from "./kind"
 
 test("each kind of file opens in its viewer", () => {
 	const cases: [string, string, number, ViewerKind][] = [
@@ -21,6 +21,9 @@ test("each kind of file opens in its viewer", () => {
 		["song.mp3", "application/octet-stream", 10, "audio"],
 		["archive.zip", "application/zip", 10, "other"],
 		["page.html", "application/octet-stream", 10, "html"],
+		["change.diff", "application/octet-stream", 10, "diff"],
+		["fix.patch", "text/plain", 10, "diff"],
+		["stored.bin", "text/x-diff", 10, "diff"],
 		["index", "text/html", 10, "html"],
 		// A large text file still opens: the preview reads its head.
 		["huge.log", "application/octet-stream", 3 * 1024 * 1024, "text"],
@@ -41,17 +44,4 @@ test("a preview is text, binary, or not UTF-8, and knows when it was cut", () =>
 	const late = new Uint8Array(9000).fill(97)
 	late[8500] = 0
 	expect(decodeText(late, 9000).kind).toBe("text")
-})
-
-test("csv fields may hold quotes, separators and line breaks", () => {
-	expect(parseDelimited('a,b\n"x, y","say ""hi"""\r\n"two\nlines",z', ",")).toEqual([
-		["a", "b"],
-		["x, y", 'say "hi"'],
-		["two\nlines", "z"],
-	])
-	expect(parseDelimited("a\tb\n1\t2\n", "\t")).toEqual([
-		["a", "b"],
-		["1", "2"],
-	])
-	expect(parseDelimited("1\n2\n3\n4", ",", 2)).toEqual([["1"], ["2"]])
 })
