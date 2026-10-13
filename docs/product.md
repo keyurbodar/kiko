@@ -127,7 +127,7 @@ Kiko keeps what already works in `apps/web-solid` and adds or fixes the followin
 | Toasts | present |
 | Virtual lists | the chat feed and the sidebar's chat list |
 
-**Note on the typing indicator.** The React reference from spec section 6.6 is saved unchanged at [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx). The Solid port keeps its label rules and its shape: a one-line agent bubble of three dots. The dots say what the agent is doing by how they move: kat's wave while it writes, a scan while it reads, a hop while it edits, an orbit while a tool runs. A slow act adds a muted caption. Each working agent gets its own bubble, and in a group each carries the agent's bird.
+**Note on the typing indicator.** The React reference from spec section 6.6 is saved unchanged at [reference/typing-indicator.react.tsx](reference/typing-indicator.react.tsx). The Solid port keeps its label rules and its shape: a one-line agent bubble of three dots. The dots say what the agent is doing by how they move: kat's wave while it writes, a scan while it reads, a hop while it edits, an orbit while a tool runs. A slow act adds a muted caption. Each working agent gets its own bubble, and in a group each carries the agent's avatar.
 
 ### Suggested additions
 

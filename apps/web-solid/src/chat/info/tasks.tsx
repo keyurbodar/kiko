@@ -1,6 +1,5 @@
 import type { AgentSlug, Task, TaskStatus } from "@kiko/protocol"
-import { Moment } from "../../mascot/lazy"
-import { createMemo, For, Show, Suspense } from "solid-js"
+import { createMemo, For, Show } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 export { openTasks } from "./tasks-model"
@@ -45,9 +44,6 @@ export function TasksView() {
     <div class="flex flex-col gap-4" data-component="info-tasks">
       <For each={groups()} fallback={
           <div class="flex flex-col items-center gap-3 px-2 py-6">
-            <Suspense>
-              <Moment kind="nest" />
-            </Suspense>
             <p class="text-center text-sm text-weak">No tasks yet. The lead puts work here when a job needs splitting up.</p>
           </div>
         }>

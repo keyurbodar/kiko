@@ -7,7 +7,7 @@ import { openPalette } from "../palette/state"
 import { openSearch } from "../search/state"
 import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
-import { openBirdPicker } from "../mascot/picker-state"
+import { openAvatarPicker } from "../avatar/picker-state"
 import { useApp } from "../lib/store"
 import { setPickFor } from "../chat/to-bar-state"
 import { navCommands } from "./nav-commands"
@@ -107,7 +107,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         const faces = id ? useApp.chatFaces(id) : []
         return faces.length === 1 ? faces[0]! : null
       },
-      changeBird: openBirdPicker,
+      changeAvatar: openAvatarPicker,
     }),
   )
 }

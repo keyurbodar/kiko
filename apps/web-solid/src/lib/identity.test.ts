@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
-import { FLAVORS, seedBird } from "../mascot/birds"
+import { setAvatarPicks } from "../avatar/picks"
 import { chatFaces, chatSeed, identityLook } from "./identity"
 
 describe("identity look", () => {
@@ -9,20 +9,20 @@ describe("identity look", () => {
     expect(identityLook("ada")).toEqual(identityLook("ada"))
   })
 
-  test("the chief is Kiko, the cream bird, and wears the theme accent", () => {
-    expect(seedBird("yuki", "yuki").flavor).toBe("yuki")
+  test("the chief is Kiko and wears the theme accent", () => {
     expect(identityLook("yuki").color).toBe("var(--accent)")
-  })
-
-  test("other seeds spread over the flock and never draw Kiko's cream", () => {
-    const flavors = new Set(Array.from({ length: 80 }, (_, i) => seedBird(`agent-${i}`, "yuki").flavor))
-    expect(flavors.has("yuki")).toBe(false)
-    expect(flavors.size).toBeGreaterThanOrEqual(10)
-    expect([...flavors].every((f) => f in FLAVORS)).toBe(true)
   })
 
   test("an agent colour reads on both appearances", () => {
     expect(identityLook("scout").color).toStartWith("light-dark(")
+  })
+
+  test("a flavor the person picks sets the colour everywhere it is read", () => {
+    const before = identityLook("ada").color
+    setAvatarPicks({ ada: { flavour: "ichigo" } })
+    expect(identityLook("ada").color).not.toBe(before)
+    expect(identityLook("ada").color).toContain("light-dark(")
+    setAvatarPicks({})
   })
 })
 

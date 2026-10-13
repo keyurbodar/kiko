@@ -8,7 +8,7 @@ const ALLOWED: Record<string, readonly string[]> = {
   memory: ["@kiko/agent"],
   sandbox: ["@kiko/agent"],
   protocol: ["@kiko/agent", "@kiko/sandbox"],
-  theme: [],
+  theme: ["@kiko/avatar"],
   avatar: [],
 }
 
