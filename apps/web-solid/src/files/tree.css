@@ -9,7 +9,7 @@
   flex-direction: column;
   color: var(--text);
   font-family: var(--font-family-sans);
-  font-size: 13px;
+  font-size: var(--font-md);
 }
 
 .file-tree .ft-header {
@@ -31,7 +31,7 @@
   width: 24px;
   height: 24px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   background: none;
   transition: none;
@@ -63,7 +63,7 @@
   align-items: center;
   gap: 4px;
   padding: 0 8px 0 calc(4px + var(--ft-depth, 0) * var(--ft-indent));
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: default;
   outline: none;
   transition: none;
@@ -145,7 +145,7 @@
   flex: 1;
   height: 22px;
   padding: 0 4px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--input-bg);
   color: inherit;
   font: inherit;

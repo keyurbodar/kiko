@@ -24,26 +24,26 @@ export const PALETTE_KEYS = ["canvas", "sidebar", "text", "muted", "faint", "act
 
 export const PALETTES: Record<ThemeAppearance, Palette> = {
   light: {
-    canvas: "#f8f5ef",
-    sidebar: "#f2eee6",
-    text: "#2a2622",
-    muted: "#7a736a",
-    faint: "#a8a196",
-    action: "#2a2622",
-    actionHover: "#3e3934",
-    onAction: "#f8f5ef",
+    canvas: "#fcfcfc",
+    sidebar: "#fafafa",
+    text: "#27272a",
+    muted: "#71717a",
+    faint: "#a1a1aa",
+    action: "#27272a",
+    actionHover: "#3f3f46",
+    onAction: "#ffffff",
     danger: "#c2453a",
     gold: "#93670f",
   },
   dark: {
-    canvas: "#1a1917",
-    sidebar: "#151412",
-    text: "#ece6dc",
-    muted: "#9a9389",
-    faint: "#6c665e",
-    action: "#ece6dc",
-    actionHover: "#d9d2c6",
-    onAction: "#1a1917",
+    canvas: "#0a0a0a",
+    sidebar: "#050505",
+    text: "#f5f5f5",
+    muted: "#818181",
+    faint: "#525252",
+    action: "#f5f5f5",
+    actionHover: "#e5e5e5",
+    onAction: "#0a0a0a",
     danger: "#e5867a",
     gold: "#e1b866",
   },
@@ -51,6 +51,7 @@ export const PALETTES: Record<ThemeAppearance, Palette> = {
 
 /** The accents, each tuned once per appearance so it reads on paper and on charcoal. Named after the flock. */
 export const ACCENTS = {
+  azure: { label: "Azure", light: "#1b4ed8", dark: "#346bf1" },
   blush: { label: "Blush", light: "#b4665a", dark: "#e2a99b" },
   matcha: { label: "Matcha", light: "#5f7a3c", dark: "#aec08a" },
   ramune: { label: "Ramune", light: "#3f6f98", dark: "#9fc3e0" },
@@ -61,7 +62,7 @@ export const ACCENTS = {
 
 export type AccentId = keyof typeof ACCENTS
 export const ACCENT_IDS = Object.keys(ACCENTS) as AccentId[]
-export const DEFAULT_ACCENT: AccentId = "blush"
+export const DEFAULT_ACCENT: AccentId = "azure"
 export const isAccentId = (v: unknown): v is AccentId => typeof v === "string" && v in ACCENTS
 
 /*
@@ -70,26 +71,26 @@ export const isAccentId = (v: unknown): v is AccentId => typeof v === "string" &
  */
 export const NEUTRALS: ReadonlyArray<readonly [token: string, dark: number, light: number]> = [
   ["--card", 3, 3],
-  ["--bg-subtle", 4, 3.5],
-  ["--input-bg", 5, 4],
-  ["--hover-bg", 5, 4.5],
-  ["--nav-hover-bg", 5, 4.5],
-  ["--selected-bg", 9, 7],
-  ["--nav-active-bg", 9, 7],
-  ["--surface-raised", 11, 7],
-  ["--assistant-bubble", 6, 5],
-  ["--tint-subtle", 5, 4],
-  ["--tint", 8, 6],
-  ["--tint-strong", 12, 9],
-  ["--hairline", 8, 9],
-  ["--panel-edge", 10, 11],
+  ["--bg-subtle", 3, 3.5],
+  ["--input-bg", 4, 4],
+  ["--hover-bg", 4, 4.5],
+  ["--nav-hover-bg", 4, 4.5],
+  ["--selected-bg", 8, 7],
+  ["--nav-active-bg", 8, 7],
+  ["--surface-raised", 6, 7],
+  ["--assistant-bubble", 5, 5],
+  ["--tint-subtle", 4, 4],
+  ["--tint", 7, 6],
+  ["--tint-strong", 11, 9],
+  ["--hairline", 6, 9],
+  ["--panel-edge", 6, 11],
   ["--scrollbar-thumb", 18, 18],
   ["--scrollbar-thumb-hover", 30, 30],
-  ["--kit-border", 9, 10],
-  ["--kit-input", 12, 13],
-  ["--kit-input-fill", 4, 3.5],
+  ["--kit-border", 6, 10],
+  ["--kit-input", 8, 13],
+  ["--kit-input-fill", 3, 3.5],
   ["--kit-card", 3, 3],
-  ["--kit-hover", 7, 6],
+  ["--kit-hover", 5, 6],
 ]
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places

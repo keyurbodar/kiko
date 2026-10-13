@@ -63,7 +63,7 @@
 
 /* The light theme: an agent's bubble is a light fill, so its code takes GitHub's light palette
    on a faint text tint. The human's bubble stays dark in both themes and keeps the dark palette. */
-:root[data-appearance="light"] [data-side="bot"] .rich-code {
+:root:not(.dark) [data-side="bot"] .rich-code {
   --sh-class: #0550ae;
   --sh-identifier: #1f2328;
   --sh-sign: #6e7781;
@@ -74,13 +74,13 @@
   --sh-keyword: #cf222e;
   --sh-comment: #6e7781;
 }
-:root[data-appearance="light"] [data-side="bot"] .bubble-rich .rich-code { background: color-mix(in oklab, var(--text) 6%, transparent); }
+:root:not(.dark) [data-side="bot"] .bubble-rich .rich-code { background: color-mix(in oklab, var(--text) 6%, transparent); }
 
 /* A file the message names, after t3code's mention chip. Its size is in em so it follows the
    text, its tint is one hue mixed into the bubble's own text color, so it reads on the dark
    human bubble and on the agent's bubble in either theme. */
 .rich { --file-chip-accent: oklch(0.62 0.11 215); }
-:root[data-appearance="light"] [data-side="bot"] .rich { --file-chip-accent: oklch(0.55 0.11 215); }
+:root:not(.dark) [data-side="bot"] .rich { --file-chip-accent: oklch(0.55 0.11 215); }
 .file-chip-anchor { display: inline-flex; max-width: 100%; vertical-align: middle; }
 .file-chip {
   display: inline-flex;

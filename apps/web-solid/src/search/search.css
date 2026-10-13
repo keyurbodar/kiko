@@ -18,7 +18,7 @@
   width: min(720px, 100%);
   background: var(--menu-bg);
   color: var(--text);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--menu-shadow);
   overflow: hidden;
 }
@@ -39,25 +39,25 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 15px;
+  font-size: var(--font-base);
 }
 .search-input::placeholder { color: var(--text-faint); }
 .search-scope {
   flex: none;
   display: flex;
   padding: 2px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--tint);
 }
 .search-scope-option {
   height: 28px;
   padding: 0 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--font-md);
   cursor: default;
 }
 .search-scope-option[aria-checked="true"] { background: var(--bg); color: var(--text); }
@@ -70,7 +70,7 @@
 }
 .search-hit {
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: default;
 }
 .search-hit[aria-selected="true"] { background: var(--selected-bg); }
@@ -78,7 +78,7 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--font-md);
 }
 .search-hit-from { font-weight: 600; }
 .search-hit-chat {
@@ -92,12 +92,12 @@
 .search-hit-time {
   margin-left: auto;
   flex: none;
-  font-size: 12px;
+  font-size: var(--font-sm);
   color: var(--text-muted);
 }
 .search-hit-snippet {
   margin-top: 2px;
-  font-size: 13px;
+  font-size: var(--font-md);
   line-height: 1.35;
   overflow: hidden;
   display: -webkit-box;
@@ -108,7 +108,7 @@
 .search-hit-snippet mark {
   background: var(--accent-wash-strong);
   color: var(--text);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 .search-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px; font-size: 13px; color: var(--text-muted); }
 

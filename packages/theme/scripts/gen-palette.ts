@@ -17,7 +17,7 @@ const rule = (selector: string, mode: "light" | "dark") =>
     .join("\n")}\n}`
 
 export function paletteBlock(): string {
-  return `${START}\n${rule(":root", "dark")}\n\n${rule(':root[data-appearance="light"]', "light")}\n${END}`
+  return `${START}\n${rule(":root", "dark")}\n\n${rule(':root:not(.dark)', "light")}\n${END}`
 }
 
 export function withPalette(css: string): string {

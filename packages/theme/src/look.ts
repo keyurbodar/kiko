@@ -27,7 +27,7 @@ export type Look = {
   display: Display
 }
 
-export const DEFAULT_LOOK: Look = { mode: "system", accent: DEFAULT_ACCENT, avatars: {}, display: DEFAULT_DISPLAY }
+export const DEFAULT_LOOK: Look = { mode: "dark", accent: DEFAULT_ACCENT, avatars: {}, display: DEFAULT_DISPLAY }
 
 const MAX_AVATARS = 200
 const SLUG = /^[a-z0-9_-]{1,40}$/

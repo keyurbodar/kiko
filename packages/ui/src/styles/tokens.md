@@ -74,6 +74,19 @@ Light is `:root[data-appearance="light"]` (section 4c of kat.css). It swaps the 
 
 Color tokens have Tailwind utilities (`--color-*`) in section 5 of `kat.css`, for example `bg-tab-active`, `bg-reply-bar`, `bg-accent-wash`. A component uses the utility and never writes a color.
 
+## Choices
+
+- **Neutral palette.** Dark is neutral-950 with white at a few percent for every fill and hairline. Light is zinc paper. The sidebar is one step darker than the panel in both. The palette lives in `packages/theme/src/palette.ts`, and `kat.css` carries one first-paint copy.
+- **Accent.** Azure is the default: T3's `oklch(0.571 0.21 264)` on dark and `oklch(0.488 0.217 264)` on light, converted to hex. The person can pick another accent.
+- **Appearance.** The root element carries a `dark` class. Light is the default selector, and every dark override is `.dark`. `data-appearance` is gone. The dark look is the default for a new user and for a stored look with no mode.
+- **Fonts.** The interface and mono fonts are system stacks. No webfont ships. A family the person types goes first in its stack, so an installed font is used and anything missing falls back.
+- **Type scale.** One base size drives the scale: `--font-xs` is base minus 2, `--font-sm` base minus 1, `--font-md` the base (13 px), and `--font-base` base plus 1 (14 px, chat text). Line height is 1.5.
+- **Control heights.** `--control-h-sm` 28px (buttons), `--control-h` 32px (selects, the sidebar search and settings rows), `--field-h` 30px (text fields), `--control-h-xs` 24px (segment items).
+- **Corners.** The scale is xs 4, sm 6, md 8, lg 10, xl 14, bubble 16, pill. Controls use `md` (8px, T3's control radius). Segment items use `xs`, one step smaller than their track, because the track pads them by 2px. Cards use `lg`.
+- **Motion.** Menus, buttons, navigation and the composer do not animate. Motion stays on the message and attachment surfaces in `styles/motion.css` (architecture 19.5).
+
+Not done yet, so the file still uses Kiko names: the semantic token rename to T3 names (`--background`, `--foreground`, `--primary` and the rest), the single `index.css` in T3's section order, the `html[data-theme-id]` block for imported themes, and the Kobalte primitive recipes. Each is a follow-up. The K12 mapper on `s/k12-openvsx` must write T3 role variables when it lands.
+
 ## Icons
 
 Target: one sprite, `packages/ui/src/icons/sprite.svg`, one `<Icon name>` component, 20 px grid, `currentColor` stroke. Neither is built yet. ASSUMPTION: a later task builds the sprite from the lists below.
