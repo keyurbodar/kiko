@@ -32,6 +32,8 @@ export function katCommands(deps: {
   searchAll: () => void
   /** The open chat may be pinned, unpinned, or deleted: it is not the kiko chat. */
   canMove: () => boolean
+  /** Focus is in the rich composer, which takes Mod+K for its link key. */
+  inRichEditor: () => boolean
 }): Command[] {
   return [
     { id: "view.toggle-sidebar", title: "Toggle sidebar", group: "view", icon: "menu", shortcut: "Mod+\\", global: true, run: deps.toggleSidebar },
@@ -63,6 +65,6 @@ export function katCommands(deps: {
     { id: "chats.next", title: "Next chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowDown", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(1) },
     { id: "chats.search-current", title: "Search messages in this chat", group: "chats", icon: "search", shortcut: "Mod+F", global: true, when: deps.hasActiveChat, run: deps.searchChat },
     { id: "chats.search-all", title: "Search all chats", group: "chats", icon: "search", shortcut: "Mod+Shift+F", global: true, run: deps.searchAll },
-    { id: "palette.open", title: "Open command palette", group: "palette", icon: "command", shortcut: "Mod+K", global: true, run: deps.openPalette },
+    { id: "palette.open", title: "Open command palette", group: "palette", icon: "command", shortcut: "Mod+K", global: true, when: () => !deps.inRichEditor(), run: deps.openPalette },
   ]
 }

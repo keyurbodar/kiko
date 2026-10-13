@@ -154,6 +154,27 @@ test("edit, react, delete, and read are events, and hello replays them in order"
 	b.close()
 })
 
+test("a human message and its edit carry the rich tree", async () => {
+	const room = fresh()
+	const a = await Client.open(room)
+	a.send({ t: "send", clientId: "r1", text: "**bold** and `code`" })
+	const { id } = (await a.next((f) => f.t === "ack")) as { id: string }
+	const [sent] = await a.events()
+	expect(sent).toMatchObject({
+		t: "message",
+		rich: [{ t: "paragraph", children: [{ t: "bold", children: [{ t: "text", text: "bold" }] }, { t: "text", text: " and " }, { t: "code", text: "code" }] }],
+	})
+	a.send({ t: "edit", messageId: id, text: "- one\n- two" })
+	const [edited] = await a.events()
+	expect(edited).toMatchObject({ t: "edit", messageId: id, rich: [{ t: "list" }] })
+	a.close()
+	const b = await Client.open(room, null)
+	b.send({ t: "hello", lastSeq: 0 })
+	const replay = await b.events()
+	expect(replay[0]).toMatchObject({ t: "message", rich: [{ t: "paragraph" }] })
+	b.close()
+})
+
 test("a client too far behind, or ahead of the log, gets a reset snapshot", async () => {
 	const room = fresh()
 	const a = await Client.open(room)

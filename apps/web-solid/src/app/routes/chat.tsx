@@ -11,7 +11,6 @@ import { hasModelProvider } from "../../settings/provider-kinds";
 import { jumpRequest, requestJump } from "../../search/state";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
-
 // Quoting a selection loads after first paint.
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 // The browser chip loads after first paint and shows while one of the room's agents holds a tab.
