@@ -1,6 +1,5 @@
 import type { RoomId } from "@kiko/protocol"
 import { createSignal } from "solid-js"
-import { nextAfterClose, openTabs } from "../app/open-tabs"
 import { useApp } from "../lib/store"
 
 /*
@@ -60,21 +59,43 @@ export function toggleMute(id: string): void {
   if (chat) useApp.user()?.mute(chat.roomId, !chat.muted)
 }
 
+/** The sidebar's order: pinned tiles first, then the list. */
+export function sidebarOrder() {
+  const rows = useApp.bots()
+  return [...rows.filter((r) => r.pinned), ...rows.filter((r) => !r.pinned)]
+}
+
+/** The chat that takes `id`'s place in the sidebar list once it leaves: the one below it, else the one above. */
+export function chatAfter(id: string): string | null {
+  const rest = sidebarOrder().filter((r) => r.id !== id)
+  const at = sidebarOrder().findIndex((r) => r.id === id)
+  return (rest[at] ?? rest[at - 1])?.id ?? null
+}
+
+let lastClosed: string | null = null
+
+/** The chat `closeChat` last left, while it still exists. */
+export function reopenClosedChat(): string | null {
+  const id = lastClosed
+  lastClosed = null
+  return id && useApp.chat(id) ? id : null
+}
+
 /**
- * Closes the chat's tab, and lands on its neighbour when it was the open one. The chat stays in
- * the list, except a temporary chat, which closing deletes (architecture section 7.11).
+ * Leaves the chat, and lands on its neighbour in the list when it was the open one. The chat stays in
+ * the list, except a temporary chat, which leaving deletes (architecture section 7.11).
  */
 export function closeChat(id: string, active: string | null, go: (path: string) => void): void {
-  const next = nextAfterClose(openTabs.ids(), id, active)
-  openTabs.close(id)
+  const next = chatAfter(id)
+  lastClosed = id
   const chat = useApp.chat(id)
   if (chat?.temp) useApp.user()?.remove(chat.roomId)
   if (active === id) go(next ? `/chat/${next}` : "/chat")
 }
 
 export function deleteChat(id: string, active: string | null, go: (path: string) => void): void {
+  const next = chatAfter(id)
   useApp.user()?.remove(id as RoomId)
   clearUnreadMark(id)
-  openTabs.close(id)
-  if (active === id) go("/chat")
+  if (active === id) go(next ? `/chat/${next}` : "/chat")
 }

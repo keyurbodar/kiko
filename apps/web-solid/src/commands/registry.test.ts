@@ -49,7 +49,7 @@ describe("kat commands", () => {
       "Attach file…": "Mod+O",
       "Rename chat": "F2",
       "Pin chat": undefined,
-      "Details": "Mod+I",
+      "Right panel": "Mod+I",
       "Files": undefined,
       "Close chat": undefined,
       "Delete chat": undefined,

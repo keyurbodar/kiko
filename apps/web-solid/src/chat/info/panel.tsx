@@ -1,5 +1,6 @@
-import { createEffect, createMemo, createUniqueId, For, lazy, Match, on, onCleanup, Show, Suspense, Switch } from "solid-js"
+import { createEffect, createMemo, For, lazy, Match, on, onCleanup, Show, Suspense, Switch } from "solid-js"
 import { openTasks, TasksView } from "./tasks"
+import { CollapsibleV2 } from "@kiko/ui/v2/collapsible-v2"
 import { useCommands } from "../../commands/registry"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { openBirdPicker } from "../../mascot/picker-state"
@@ -8,45 +9,37 @@ import { chatModel } from "../../settings/chat-model"
 import { MemoryError, MemoryList, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { BackIcon } from "@kiko/ui/icons"
-import { Card, DangerRow, DeleteChat, EDGE, Header, Members, NavRow, NavRows, Profile, Properties, Property, roomMembers, tabKeys } from "./sections"
+import { BackIcon, ChevronRightIcon } from "@kiko/ui/icons"
+import { Card, DangerRow, DeleteChat, EDGE, Header, NavRow, NavRows, Profile, Properties, Property, roomMembers } from "./sections"
+import { MemberList } from "../members/members"
 import { shortDate, startedAt } from "./format"
 import { loadLoops, PlatePage, loopsOf, refreshLoops } from "./loops"
 import { loadRoutines, RoutinesPage, routinesOf } from "./routines"
 import {
-  closeFile,
   closeInfo,
-  FILE_MIN_WIDTH,
-  fileMaxWidth,
-  fileTabsOf,
-  type InfoTab,
   type InfoView,
   infoDepth,
   infoOpen,
   infoSections,
-  infoTab,
   infoView,
-  MAX_WIDTH,
-  MIN_WIDTH,
   openFilePath,
-  panelWidth,
+  openSections,
   popInfo,
   pushInfo,
-  reopenClosedFile,
   resetInfo,
-  setFileWidth,
-  setInfoTab,
-  setInfoWidth,
+  SECTION_IDS,
+  type SectionId,
+  sectionFocus,
+  setSectionOpen,
+  showSection,
 } from "./state"
 
 const count = (n: number) => (n ? String(n) : "")
 
-// The files tab is its own chunk: the tree and the viewers load when the tab first opens.
+// The files section is its own chunk: the tree and the viewers load when it first opens.
 const loadFiles = () => import("../../files/pane")
 const FilesPane = lazy(loadFiles)
 const FilesActions = lazy(() => loadFiles().then((m) => ({ default: m.FilesActions })))
-const TABS: readonly InfoTab[] = ["info", "files"]
-const TAB_LABELS: Record<InfoTab, string> = { info: "Details", files: "Files" }
 /** "idle" reads "Idle": the status is a wire value, its label is interface. */
 const sentence = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
@@ -69,7 +62,6 @@ const TITLES: Record<InfoView["kind"], string> = {
   soul: "Soul",
   routines: "Routines",
   plate: "On your plate",
-  tasks: "Tasks",
 }
 
 /** A page's title: an agent's page and its soul carry the agent's name. */
@@ -125,11 +117,10 @@ function AgentPage(props: { slug: string; chatId: string }) {
 }
 
 /*
- * The panel's home: who and when, the members, memory, and delete.
- * Each thing has one way in. The model is the chip in the top bar, files are the files tab,
- * and pin, mute and private are the chat's menu in the list.
+ * The context section: who and when, memory, plate, routines, and delete. Each thing has one way
+ * in. The model is the chip in the top bar, and pin, mute and private are the chat's menu in the list.
  */
-function Home(props: { chatId: string }) {
+function ContextBody(props: { chatId: string }) {
   const members = roomMembers
   const memory = useMemoryStore()
   const memoryCount = () => count(memory()?.state.lines.filter((l) => !l.redacted).length ?? 0)
@@ -139,7 +130,7 @@ function Home(props: { chatId: string }) {
   // Routines are fetched each time the front page shows, so a new one an agent made appears.
   void loadRoutines()
   return (
-    <div class="flex min-h-full flex-col" data-component="info-home">
+    <div class="flex flex-col" data-component="info-home">
       <Header chatId={props.chatId} />
       <Properties>
         <Property label="Model" field="model">{(chatModel(props.chatId) ?? lead()?.model)?.split("/").slice(1).join("/") ?? "None"}</Property>
@@ -148,10 +139,7 @@ function Home(props: { chatId: string }) {
         </Show>
         <Show when={started()}>{(at) => <Property label="Started" field="started">{shortDate(at())}</Property>}</Show>
       </Properties>
-      <Members members={members()} />
       <NavRows>
-        {/* The agent's soul, one click from the front page as monocode puts a Mono's. A group's
-            other agents keep theirs on their own pages. */}
         <Show when={lead()}>
           {(m) => (
             <NavRow
@@ -177,9 +165,6 @@ function Home(props: { chatId: string }) {
           count={count(routinesOf(props.chatId)?.filter((r) => r.status === "active").length ?? 0)}
           onClick={() => pushInfo({ kind: "routines" })}
         />
-        <Show when={members().length > 1}>
-          <NavRow id="tasks" label="Tasks" description="Work the lead split up for the team." count={count(openTasks(useApp.room()?.tasks() ?? []).length)} onClick={() => pushInfo({ kind: "tasks" })} />
-        </Show>
       </NavRows>
       <For each={extras()}>
         {(section) => (
@@ -188,10 +173,17 @@ function Home(props: { chatId: string }) {
           </Card>
         )}
       </For>
-      {/* The kiko chat is always there, so it has no delete. */}
       <Show when={!useApp.user()?.chats().find((c) => c.roomId === props.chatId)?.kiko}>
         <DeleteChat chatId={props.chatId} />
       </Show>
+    </div>
+  )
+}
+
+function AgentsBody() {
+  return (
+    <div class="px-2 pb-2" data-component="info-agents">
+      <MemberList members={roomMembers()} onOpen={(slug) => pushInfo({ kind: "agent", slug })} />
     </div>
   )
 }
@@ -215,66 +207,121 @@ function Back() {
 }
 
 
-/**
- * Drag the left edge. Open files have their own, wider width, as t3code's preview panel does, so
- * closing the last restores the narrow one. The line shows on hover and while dragging, like the
- * sidebar's.
- */
-function Resizer(props: { chatId: string }) {
-  const wide = () => infoTab() === "files" && openFilePath(props.chatId) !== null
-  let start: { x: number; width: number; wide: boolean } | null = null
-  const move = (event: PointerEvent) => {
-    if (!start) return
-    // The panel is on the right, so dragging left makes it wider.
-    const next = start.width + (start.x - event.clientX)
-    if (start.wide) setFileWidth(next)
-    else setInfoWidth(next)
-  }
-  const stop = () => {
-    start = null
-    window.removeEventListener("pointermove", move)
-    window.removeEventListener("pointerup", stop)
-  }
-  onCleanup(stop)
+const iconButton = "grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-[var(--hover-bg)] hover:text-text"
+
+const SECTION_TITLES: Record<SectionId, string> = { context: "Context", agents: "Agents", tasks: "Tasks", files: "Files" }
+const SECTION_KEYS: Record<SectionId, string> = { context: "C", agents: "A", tasks: "T", files: "F" }
+const KEY_SECTIONS: Record<string, SectionId> = { c: "context", a: "agents", t: "tasks", f: "files" }
+
+const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
+const OVERLAYS = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"], [role="listbox"]'
+
+/** A letter hint fires only outside text fields and with nothing floating above the panel. */
+function hintTarget(event: KeyboardEvent): SectionId | null {
+  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.isComposing) return null
+  const id = KEY_SECTIONS[event.key.toLowerCase()]
+  if (!id || !infoOpen()) return null
+  const target = event.target instanceof Element ? event.target : null
+  if (target?.closest(TYPING) || document.activeElement?.closest(TYPING)) return null
+  if (document.querySelector(OVERLAYS)) return null
+  return id
+}
+
+function SectionBody(props: { id: SectionId; chatId: string }) {
   return (
-    <div
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize panel"
-      aria-valuemin={wide() ? FILE_MIN_WIDTH : MIN_WIDTH}
-      aria-valuemax={wide() ? fileMaxWidth() : MAX_WIDTH}
-      aria-valuenow={panelWidth(props.chatId)}
-      data-component="info-resizer"
-      class="absolute inset-y-0 left-0 z-20 w-2 cursor-col-resize after:absolute after:inset-y-0 after:left-0 after:w-0.5 after:bg-[color-mix(in_oklab,var(--text)_14%,transparent)] after:opacity-0 after:content-[''] hover:after:opacity-100 active:after:opacity-100"
-      onPointerDown={(event) => {
-        start = { x: event.clientX, width: panelWidth(props.chatId), wide: wide() }
-        window.addEventListener("pointermove", move)
-        window.addEventListener("pointerup", stop)
-        event.preventDefault()
-      }}
-    />
+    <Switch>
+      <Match when={props.id === "context"}>
+        <ContextBody chatId={props.chatId} />
+      </Match>
+      <Match when={props.id === "agents"}>
+        <AgentsBody />
+      </Match>
+      <Match when={props.id === "tasks"}>
+        <div class="px-2.5 pb-3">
+          <TasksView />
+        </div>
+      </Match>
+      <Match when={props.id === "files"}>
+        <Suspense>
+          <FilesPane chatId={props.chatId} />
+        </Suspense>
+      </Match>
+    </Switch>
   )
 }
 
-const iconButton = "grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-[var(--hover-bg)] hover:text-text"
+function Section(props: { id: SectionId; chatId: string }) {
+  const open = () => openSections().has(props.id)
+  const total = () => {
+    if (props.id === "agents") return roomMembers().length + 1
+    if (props.id === "tasks") return openTasks(useApp.room()?.tasks() ?? []).length
+    return 0
+  }
+  return (
+    <CollapsibleV2
+      open={open()}
+      onOpenChange={(value) => setSectionOpen(props.id, value)}
+      class="info-section flex flex-col"
+      classList={{ "min-h-0 flex-1": props.id === "files" && open() }}
+      data-component="info-section"
+      data-section={props.id}
+    >
+      <div class={`flex h-9 shrink-0 items-center border-b ${EDGE} pr-2`}>
+        <CollapsibleV2.Trigger
+          class="flex h-full min-w-0 flex-1 items-center gap-1.5 pr-2 pl-2.5 text-left text-[12px] font-medium text-muted outline-none hover:text-text focus-visible:text-text"
+          data-section-trigger={props.id}
+          aria-keyshortcuts={SECTION_KEYS[props.id]}
+        >
+          <span class="grid size-4 shrink-0 place-items-center" classList={{ "rotate-90": open() }} aria-hidden="true">
+            <HugeIcon icon={ChevronRightIcon} size={14} />
+          </span>
+          <span class="truncate">{SECTION_TITLES[props.id]}</span>
+          <Show when={total() > 0}>
+            <span class="tabular-nums text-faint">{total()}</span>
+          </Show>
+        </CollapsibleV2.Trigger>
+        <Show when={props.id === "files" && open() && !openFilePath(props.chatId)}>
+          <Suspense>
+            <FilesActions />
+          </Suspense>
+        </Show>
+        <kbd class="ml-1 grid h-4 min-w-4 place-items-center rounded-[4px] border border-[var(--panel-edge)] px-1 text-[10px] leading-none text-faint" aria-hidden="true">
+          {SECTION_KEYS[props.id]}
+        </kbd>
+      </div>
+      <CollapsibleV2.Content class={props.id === "files" ? "flex min-h-0 flex-1 flex-col" : undefined}>
+        <SectionBody id={props.id} chatId={props.chatId} />
+      </CollapsibleV2.Content>
+    </CollapsibleV2>
+  )
+}
 
 /*
- * The chat's right panel: two tabs, info and files, after t3code's right panel. The tab row is
- * the top bar's height, so the panel and the transcript line up. The panel is a fill, not a
- * border: kat separates with fill or shadow. Nothing here animates.
+ * The chat's right panel: stacked collapsible sections (context, agents, tasks, files) in one scroll,
+ * after t3code's right panel launcher. Letter keys open them. The header is the top bar's height,
+ * so the panel and the transcript line up. The panel is a fill, not a border. Nothing here animates.
  */
 export default function InfoPanel(props: { chatId: string }) {
-  // Escape closes the panel; its file tabs stay for next time. It is a
-  // command like every shortcut, and a dialog or menu above the panel (the image dialog, a picker,
-  // a crumb's folder menu) keeps its own Escape. Whether one was open is read before anyone handles
-  // the key, because it closes itself on the same keydown, before this command runs.
-  const DIALOG = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], [role="menu"]'
+  // Escape closes the panel. It is a command like every shortcut, and a dialog or menu above the
+  // panel (the image dialog, a picker, a crumb's folder menu) keeps its own Escape. Whether one was
+  // open is read before anyone handles the key, because it closes itself on the same keydown,
+  // before this command runs.
   let dialogOnKey = false
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === "Escape") dialogOnKey = !!document.querySelector(DIALOG)
+    if (e.key === "Escape") dialogOnKey = !!document.querySelector(OVERLAYS)
+  }
+  const onHint = (e: KeyboardEvent) => {
+    const id = hintTarget(e)
+    if (!id) return
+    e.preventDefault()
+    showSection(id)
   }
   window.addEventListener("keydown", onKey, true)
-  onCleanup(() => window.removeEventListener("keydown", onKey, true))
+  window.addEventListener("keydown", onHint)
+  onCleanup(() => {
+    window.removeEventListener("keydown", onKey, true)
+    window.removeEventListener("keydown", onHint)
+  })
   useCommands([
     {
       id: "chat.info-close",
@@ -284,34 +331,14 @@ export default function InfoPanel(props: { chatId: string }) {
       shortcut: "Escape",
       passive: true,
       run: () => {
-        if (dialogOnKey || document.querySelector(DIALOG)) return
+        if (dialogOnKey || document.querySelector(OVERLAYS)) return
         closeInfo()
       },
-    },
-    {
-      id: "files.close-tab",
-      title: "Close file tab",
-      group: "chat",
-      icon: "close",
-      shortcut: "Alt+W",
-      when: () => infoOpen() && infoTab() === "files" && openFilePath(props.chatId) !== null,
-      run: () => closeFile(props.chatId),
-    },
-    {
-      id: "files.reopen-tab",
-      title: "Reopen closed file tab",
-      group: "chat",
-      icon: "undo",
-      shortcut: "Alt+Shift+T",
-      when: () => infoOpen() && infoTab() === "files" && fileTabsOf(props.chatId).closed.length > 0,
-      run: () => void reopenClosedFile(props.chatId),
     },
   ])
   let scroller: HTMLDivElement | undefined
   const key = () => `${props.chatId}:${infoView().kind}`
 
-  // A different chat opens on its home card, at the scroll it was left at. A chat never seen
-  // keeps the scroll the reader already has.
   createEffect(on(() => props.chatId, () => resetInfo(), { defer: true }))
   createEffect(
     on(key, (k) => {
@@ -320,6 +347,16 @@ export default function InfoPanel(props: { chatId: string }) {
         if (!scroller) return
         if (saved !== undefined) scroller.scrollTop = saved
         else if (infoView().kind !== "home") scroller.scrollTop = 0
+      })
+    }),
+  )
+  createEffect(
+    on(sectionFocus, (request) => {
+      if (!request) return
+      queueMicrotask(() => {
+        const trigger = scroller?.querySelector<HTMLElement>(`[data-section-trigger="${request.id}"]`)
+        trigger?.focus()
+        trigger?.scrollIntoView({ block: "nearest" })
       })
     }),
   )
@@ -335,58 +372,17 @@ export default function InfoPanel(props: { chatId: string }) {
       { defer: true },
     ),
   )
-  const ids = createUniqueId()
-  // Beside the chat the panel leaves the chat at least 360 px, as t3code's preview does. Below 760 px it covers the chat instead.
   return (
-    <aside
-      class="info-pane relative flex min-h-0 shrink-0 flex-col overflow-hidden border-l border-[var(--panel-edge)] @min-[761px]/main:max-w-[calc(100%-360px)] @max-[760px]/main:absolute @max-[760px]/main:inset-y-0 @max-[760px]/main:right-0 @max-[760px]/main:z-30 @max-[760px]/main:bg-[var(--sidebar-solid)] @max-[760px]/main:shadow-[var(--popover-shadow)]"
-      style={{ width: `min(${panelWidth(props.chatId)}px, 100%)` }}
-      data-component="info-panel"
-      data-tab={infoTab()}
-      aria-label="Chat panel"
-    >
-      <Resizer chatId={props.chatId} />
-      {/* Monocode's sidebar header: 40px over a hairline. A page inside info replaces it with a back
-          button and the page's title, as a Mono's pages do; the tabs come back with the front page. */}
+    <aside class="info-pane relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden" data-component="info-panel" aria-label="Chat panel">
       <Show
-        when={infoTab() === "info" && infoDepth() > 1}
+        when={infoDepth() > 1}
         fallback={
-          <header class={`flex h-10 shrink-0 items-center gap-0.5 border-b ${EDGE} pr-2 pl-2`}>
-            <div
-              class="flex min-w-0 items-center"
-              role="tablist"
-              aria-label="Panel"
-              data-component="info-tabs"
-              onKeyDown={(event) => tabKeys(event, TABS, infoTab(), setInfoTab)}
-            >
-              <For each={TABS}>
-                {(tab) => (
-                  <button
-                    type="button"
-                    role="tab"
-                    id={`${ids}-tab-${tab}`}
-                    class="h-7 rounded-md px-2 text-md font-medium text-[color-mix(in_oklab,var(--text)_45%,transparent)] hover:text-text aria-selected:text-text"
-                    aria-selected={infoTab() === tab}
-                    aria-controls={`${ids}-panel-${tab}`}
-                    tabIndex={infoTab() === tab ? 0 : -1}
-                    data-tab={tab}
-                    onClick={() => setInfoTab(tab)}
-                  >
-                    {TAB_LABELS[tab]}
-                  </button>
-                )}
-              </For>
-            </div>
-            <span class="flex-1" aria-hidden="true" />
-            <Show when={infoTab() === "files"}>
-              <Suspense>
-                <FilesActions />
-              </Suspense>
-            </Show>
+          <header class={`flex h-[50px] shrink-0 items-center border-b ${EDGE} px-3`}>
+            <h2 class="min-w-0 flex-1 truncate text-sm font-medium text-text" data-component="info-title">Details</h2>
           </header>
         }
       >
-        <header class={`flex h-10 shrink-0 items-center gap-1 border-b ${EDGE} pr-2 pl-2`}>
+        <header class={`flex h-[50px] shrink-0 items-center gap-1 border-b ${EDGE} pr-2 pl-2`}>
           <button type="button" class={iconButton} data-action="back" aria-label="Back" onClick={() => popInfo()}>
             <Back />
           </button>
@@ -395,58 +391,33 @@ export default function InfoPanel(props: { chatId: string }) {
           </h2>
         </header>
       </Show>
-      <Switch>
-        <Match when={infoTab() === "files"}>
-          <div
-            class="flex min-h-0 flex-1 flex-col"
-            role="tabpanel"
-            id={`${ids}-panel-files`}
-            aria-labelledby={`${ids}-tab-files`}
-            data-component="info-files-tab"
-          >
-            <Suspense>
-              <FilesPane chatId={props.chatId} />
-            </Suspense>
-          </div>
-        </Match>
-        <Match when={infoTab() === "info"}>
-          <div
-            ref={scroller}
-            class="min-h-0 flex-1 overflow-y-auto overscroll-none"
-            role="tabpanel"
-            id={`${ids}-panel-info`}
-            aria-labelledby={`${ids}-tab-info`}
-            data-component="info-scroll"
-            onScroll={(event) => scrolls.set(key(), event.currentTarget.scrollTop)}
-          >
-            <Switch>
-              <Match when={view().kind === "home"}>
-                <Home chatId={props.chatId} />
-              </Match>
-              <Match when={view().kind === "memory"}>
-                <MemoryViews />
-              </Match>
-              <Match when={view().kind === "agent"}>
-                <AgentPage slug={(view() as { slug: string }).slug} chatId={props.chatId} />
-              </Match>
-              <Match when={view().kind === "routines"}>
-                <RoutinesPage chatId={props.chatId} />
-              </Match>
-              <Match when={view().kind === "plate"}>
-                <PlatePage chatId={props.chatId} />
-              </Match>
-              <Match when={view().kind === "soul"}>
-                <SoulCard slug={(view() as { slug: string }).slug} />
-              </Match>
-              <Match when={view().kind === "tasks"}>
-                <div class="px-2.5 py-3">
-                  <TasksView />
-                </div>
-              </Match>
-            </Switch>
-          </div>
-        </Match>
-      </Switch>
+      <div
+        ref={scroller}
+        class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none"
+        data-component="info-scroll"
+        onScroll={(event) => scrolls.set(key(), event.currentTarget.scrollTop)}
+      >
+        <Switch>
+          <Match when={view().kind === "home"}>
+            <For each={SECTION_IDS}>{(id) => <Section id={id} chatId={props.chatId} />}</For>
+          </Match>
+          <Match when={view().kind === "memory"}>
+            <MemoryViews />
+          </Match>
+          <Match when={view().kind === "agent"}>
+            <AgentPage slug={(view() as { slug: string }).slug} chatId={props.chatId} />
+          </Match>
+          <Match when={view().kind === "routines"}>
+            <RoutinesPage chatId={props.chatId} />
+          </Match>
+          <Match when={view().kind === "plate"}>
+            <PlatePage chatId={props.chatId} />
+          </Match>
+          <Match when={view().kind === "soul"}>
+            <SoulCard slug={(view() as { slug: string }).slug} />
+          </Match>
+        </Switch>
+      </div>
     </aside>
   )
 }

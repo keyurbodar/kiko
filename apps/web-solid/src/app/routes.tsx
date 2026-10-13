@@ -2,7 +2,6 @@ import { Navigate, type RouteDefinition, useNavigate, useParams } from "@solidjs
 import { createEffect, lazy } from "solid-js"
 import { useApp } from "../lib/store"
 import { openFile, openInfo } from "../chat/info/state"
-import { openTabs } from "./open-tabs"
 import { sectionOf } from "./sections"
 
 /*
@@ -22,8 +21,8 @@ export function preloadRoute(href: string): void {
   if (id) void pages[id].preload()
 }
 
-/** The chat a redirect lands on when the path names none: the last one open, else the first tab. */
-const activeChat = () => useApp.activeThreadId() ?? openTabs.ids()[0] ?? null
+/** The chat a redirect lands on when the path names none: the open one, else the one to resume. */
+const activeChat = () => useApp.activeThreadId() ?? useApp.resumeChat()
 
 /*
  * `/` and `/chat` name no chat, so the app goes back to the one the user was last in (architecture

@@ -1,4 +1,3 @@
-import { createPerPointerListeners } from "@solid-primitives/pointer"
 import { A, useNavigate } from "@solidjs/router"
 import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
@@ -45,19 +44,10 @@ const ACTIONS: Record<SectionId, PanelAction | null> = {
   settings: null,
 }
 
-/** Width is a user decision, so it is clamped rather than free. */
-const MIN_W = 220
-const MAX_W = 420
-/** Mirrors `--sidebar-content-w`; used only until the first drag. */
-const DEFAULT_W = 280
-/** One arrow key press on the resize handle. */
-const KEY_STEP = 16
-
 export interface SidebarProps {
   /** The active section, read from the URL by the shell. */
   section: SectionId | null
   collapsed: boolean
-  onCollapsedChange: (collapsed: boolean) => void
   /** The sidebar's own button and `Mod+\` both call this. */
   onToggle: () => void
 }
@@ -66,7 +56,7 @@ export interface SidebarProps {
  * The one sidebar: the brand and its two actions on top, the section's panel in the middle,
  * and you and settings at the foot. The stylesheet scopes every rule under `.sidebar-shell`,
  * the shell's own class, so nothing here can reach the main panel beside it. Which section it
- * shows, and whether it is collapsed, come from the shell; only its width is its own.
+ * shows, whether it is collapsed, and its width come from the shell.
  *
  * Deliberately NOT `.chat-shell`: that name is already the `data-component`
  * handle for the app's chat pane, and a bare class of it collided with the
@@ -76,186 +66,51 @@ export interface SidebarProps {
  * curve; here the column is either there or it is not, because a panel that
  * takes a quarter second to get out of the way is a panel the user waits on.
  */
-const WIDTH_KEY = "kiko:sidebar-width"
-
-/** The width the reader dragged to, or null for the default. */
-function readWidth(): number | null {
-  try {
-    const value = Number(localStorage.getItem(WIDTH_KEY))
-    return value >= MIN_W && value <= MAX_W ? Math.round(value) : null
-  } catch {
-    return null
-  }
-}
-
-function writeWidth(value: number | null) {
-  try {
-    if (value === null) localStorage.removeItem(WIDTH_KEY)
-    else localStorage.setItem(WIDTH_KEY, String(value))
-  } catch {}
-}
-
 export function Sidebar(props: SidebarProps) {
   const collapsed = () => props.collapsed
-  const setCollapsed = props.onCollapsedChange
-  const [width, setWidth] = createSignal<number | null>(readWidth())
-  const [resizing, setResizing] = createSignal(false)
   const [visited, setVisited] = createSignal<ReadonlySet<SectionId>>(new Set())
   createEffect(() => {
     const id = props.section
     if (id && !visited().has(id)) setVisited((seen) => new Set(seen).add(id))
   })
 
-  let panelEl: HTMLElement | undefined
-  let handleEl: HTMLDivElement | undefined
-
-  /*
-   * Drag to resize. `createPerPointerListeners` follows one pointer from its
-   * `down` to its `up` regardless of where it travels, so a drag that leaves
-   * the 3px handle keeps working — which is the whole reason it is used here
-   * instead of `onPointerMove` on the handle itself.
-   *
-   * The starting width is read from the element rather than from the signal:
-   * before the first drag the signal is null and the live width comes from the
-   * token, and reading the rect is correct in both cases.
-   */
-  createPerPointerListeners({
-    // `createEventListener` attaches only once the accessor resolves, so the
-    // handle is legitimately undefined on the first tick — this primitive's
-    // signature is narrower than its implementation.
-    target: (() => handleEl) as () => EventTarget,
-    passive: false,
-    onDown: (event, onMove, onUp) => {
-      event.preventDefault()
-      /*
-       * The handle is 3px wide and the primitive listens for `pointermove` on
-       * its target, so without capture the pointer leaves the handle on the
-       * first pixel of travel and the drag dies with no move events ever
-       * arriving. Capturing retargets every move back to the handle for the
-       * rest of the gesture, which is what makes a narrow grab bar usable.
-       */
-      handleEl?.setPointerCapture(event.pointerId)
-      const startX = event.clientX
-      // Reads 0 while collapsed, which is exactly the origin a drag back out
-      // should grow from.
-      const startW = panelEl?.getBoundingClientRect().width ?? DEFAULT_W
-      setResizing(true)
-      onMove((move) => {
-        const next = startW + (move.clientX - startX)
-        /*
-         * Past the minimum the panel does not stop at a floor and refuse to
-         * move: it collapses. A floor would leave the panel pinned at 200px
-         * with the pointer somewhere out to its left, which reads as the drag
-         * having broken. Coming back out is the same gesture in reverse, and
-         * `startW` being 0 while collapsed is what makes that work.
-         */
-        if (next < MIN_W) {
-          setCollapsed(true)
-          return
-        }
-        setCollapsed(false)
-        setWidth(Math.min(MAX_W, Math.round(next)))
-      })
-      onUp(() => {
-        handleEl?.releasePointerCapture(event.pointerId)
-        setResizing(false)
-        writeWidth(width())
-      })
-    },
-  })
-
-  // The arrow keys move the edge as a drag does: past the minimum it collapses, and out again it reopens.
-  const nudge = (delta: number) => {
-    if (collapsed()) {
-      if (delta > 0) setCollapsed(false)
-      return
-    }
-    const next = (width() ?? DEFAULT_W) + delta
-    if (next < MIN_W) return setCollapsed(true)
-    setWidth(Math.min(MAX_W, next))
-    writeWidth(width())
-  }
-
   return (
-    <>
-      <aside
-        ref={(el) => (panelEl = el)}
-        class="panel"
-        data-component="sidebar"
-        data-panel={props.section ?? undefined}
-        data-collapsed={collapsed() ? "" : undefined}
-        data-resizing={resizing() ? "" : undefined}
-        /*
-         * The width override goes on the token, not on `width`. Children carry
-         * `min-width: var(--sidebar-content-w)` so they hold their laid-out size
-         * while the column is collapsing instead of reflowing on every frame;
-         * declaring the width directly would leave them fighting it.
-         */
-        style={{ "--sidebar-content-w": width() === null ? undefined : `${width()}px` }}
+    <aside
+      class="panel"
+      data-component="sidebar"
+      data-panel={props.section ?? undefined}
+      data-collapsed={collapsed() ? "" : undefined}
       >
-        <HeaderSnow />
-        <header class="panel-header">
-          <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
-            <BrandBird size={22} working={useApp.bots().some((b) => b.presence === "typing" || b.presence === "working")} />
-            <span>Kiko</span>
-          </A>
-          <span class="flex-1" aria-hidden="true" />
-          <Show when={props.section && ACTIONS[props.section]}>{(action) => <HeaderAction action={action()} />}</Show>
-          <SidebarToggle open onToggle={props.onToggle} />
-        </header>
+      <HeaderSnow />
+      <header class="panel-header">
+        <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
+          <BrandBird size={22} working={useApp.bots().some((b) => b.presence === "typing" || b.presence === "working")} />
+          <span>Kiko</span>
+        </A>
+        <span class="flex-1" aria-hidden="true" />
+        <Show when={props.section && ACTIONS[props.section]}>{(action) => <HeaderAction action={action()} />}</Show>
+        <SidebarToggle open onToggle={props.onToggle} />
+      </header>
 
-        <div class="panel-scroll">
-          <For each={SECTION_IDS}>
-            {(id) => {
-              const Panel = PANELS[id]
-              return (
-                <Show when={id === "chat" || visited().has(id)}>
-                  <div class="panel-slot" data-slot={id} data-hidden={props.section === id ? undefined : ""}>
-                    <Suspense>
-                      <Panel />
-                    </Suspense>
-                  </div>
-                </Show>
-              )
-            }}
-          </For>
-        </div>
-
-        <Foot section={props.section} />
-
-        {/* The handle lives INSIDE the panel, not beside it: the panel is the
-            positioned ancestor, so `right: -1.5px` lands on the panel's edge.
-            As a sibling it resolved against the viewport instead and floated at
-            the far right of the window. The panel's `overflow-clip-margin` is
-            what lets the 1.5px bleed survive its `overflow: clip`.
-            
-            It also stays mounted while collapsed — at width 0 it sits on the
-            rail's edge, which is precisely where a drag back out has to start,
-            so unmounting it would make the collapse one-way. */}
-        <div
-          ref={(el) => (handleEl = el)}
-          class="resize-handle"
-          data-component="sidebar-resize"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize sidebar"
-          tabindex={0}
-          aria-valuemin={MIN_W}
-          aria-valuemax={MAX_W}
-          aria-valuenow={collapsed() ? MIN_W : (width() ?? DEFAULT_W)}
-          aria-valuetext={collapsed() ? "Collapsed" : undefined}
-          onKeyDown={(event) => {
-            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-            event.preventDefault()
-            nudge(event.key === "ArrowRight" ? KEY_STEP : -KEY_STEP)
+      <div class="panel-scroll">
+        <For each={SECTION_IDS}>
+          {(id) => {
+            const Panel = PANELS[id]
+            return (
+              <Show when={id === "chat" || visited().has(id)}>
+                <div class="panel-slot" data-slot={id} data-hidden={props.section === id ? undefined : ""}>
+                  <Suspense>
+                    <Panel />
+                  </Suspense>
+                </div>
+              </Show>
+            )
           }}
-          onDblClick={() => {
-            setCollapsed(false)
-            setWidth(null)
-          }}
-        />
-      </aside>
-    </>
+        </For>
+      </div>
+
+      <Foot section={props.section} />
+    </aside>
   )
 }
 
