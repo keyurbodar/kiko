@@ -83,6 +83,8 @@ export function bindRich(input: {
 
   createEffect(() => {
     const text = markdown()
+    const w = window as any
+    if (text !== w.__k04last) { w.__k04last = text; ((w.__k04 ??= []) as unknown[]).push(["bind", Date.now() % 100000, text.slice(0, 40), editor.snapshot().markdown.slice(0, 40)]) }
     if (text !== editor.snapshot().markdown) {
       placed.clear()
       editor.setMarkdown(text)
