@@ -288,7 +288,6 @@ export default function InfoPanel(props: { chatId: string }) {
         closeInfo()
       },
     },
-    // Mod+W and Mod+Shift+T already close and reopen chats, so file tabs take Alt with the same letters.
     {
       id: "files.close-tab",
       title: "Close file tab",

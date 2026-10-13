@@ -42,7 +42,7 @@ export function katCommands(deps: {
     { id: "chat.rename", title: "Rename chat", group: "chat", icon: "edit", shortcut: "F2", when: deps.hasActiveChat, run: deps.rename },
     { id: "chat.pin", title: "Pin chat", group: "chat", icon: "pin", when: deps.canMove, run: deps.togglePin },
     { id: "chat.info", title: "Details", group: "chat", icon: "info", shortcut: "Mod+I", global: true, when: deps.hasActiveChat, run: deps.toggleInfo },
-    { id: "chat.files", title: "Files", group: "chat", icon: "files", global: true, when: deps.hasActiveChat, run: deps.toggleFiles },
+    { id: "chat.files", title: "Files", group: "chat", icon: "files", when: deps.hasActiveChat, run: deps.toggleFiles },
     { id: "chat.close", title: "Close chat", group: "chat", icon: "close", when: deps.hasActiveChat, run: deps.closeChat },
     { id: "chat.delete", title: "Delete chat", group: "chat", icon: "trash", when: deps.canMove, run: deps.deleteChat },
     { id: "chats.go", title: "Go to chat…", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, run: deps.openChats },

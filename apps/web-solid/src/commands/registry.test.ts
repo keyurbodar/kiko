@@ -87,7 +87,7 @@ describe("kat commands", () => {
     const off = registerCommands(list)
     const ids = shortcuts().map((s) => s.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ids).toContain("chat.close")
+    expect(ids).toContain("view.toggle-sidebar")
     expect(ids).not.toContain("chat.delete")
     off()
   })
