@@ -1,3 +1,4 @@
+import Resizable, { type PanelContextValue } from "@corvu/resizable";
 import { useLocation } from "@solidjs/router";
 import {
   I18nProvider,
@@ -22,6 +23,7 @@ import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
+import { CHAT_MIN, INFO, readWidth, saveWidth, SIDEBAR } from "./widths";
 
 const fill = (
   text: string,
