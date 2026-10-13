@@ -46,7 +46,7 @@ async function start(path: string): Promise<string> {
 
 async function cli(args: string[]) {
   const p = Bun.spawn(["bun", cliEntry, ...args], {
-    env: { ...process.env, YUKI_SESSION_FILE: join(tmp, "cli-session.json") },
+    env: { ...process.env, KIKO_SESSION_FILE: join(tmp, "cli-session.json") },
     stdout: "pipe",
     stderr: "pipe",
   })
@@ -95,7 +95,7 @@ describe("production build", () => {
     expect((await fetch(`${origin}/api/me`)).status).toBe(401)
   })
 
-  test("yuki login --dev fails", async () => {
+  test("kiko login --dev fails", async () => {
     const r = await cli(["login", "--dev", "--url", origin])
     expect(r.code).toBe(1)
     expect(r.err).toContain("no such sign-in route")
@@ -116,7 +116,7 @@ describe("development build", () => {
     expect((await fetch(`${origin}/api/me`)).status).toBe(401)
   })
 
-  test("yuki login --dev stores a session and yuki whoami prints the same user id", async () => {
+  test("kiko login --dev stores a session and kiko whoami prints the same user id", async () => {
     const before = await cli(["whoami", "--url", origin])
     expect(before.code).toBe(1)
 
@@ -138,14 +138,14 @@ describe("development build", () => {
   })
 
   test("a forged cookie is refused", async () => {
-    const me = await fetch(`${origin}/api/me`, { headers: { cookie: `yuki_session=dave.${"0".repeat(64)}` } })
+    const me = await fetch(`${origin}/api/me`, { headers: { cookie: `kiko_session=dave.${"0".repeat(64)}` } })
     expect(me.status).toBe(401)
   })
 
   test("the dev route refuses a host that is not local", async () => {
     const res = await fetch(`${origin}/api/auth/dev/session`, {
       method: "POST",
-      headers: { "content-type": "application/json", host: "yuki.example.com" },
+      headers: { "content-type": "application/json", host: "kiko.example.com" },
       body: JSON.stringify({ name: "erin" }),
     })
     expect(res.status).toBe(404)

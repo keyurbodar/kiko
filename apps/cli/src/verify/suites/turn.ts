@@ -1,13 +1,13 @@
-import { newRoomId } from "@yuki/protocol"
-import type { Message, RoomToClient, UserToClient } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { Message, RoomToClient, UserToClient } from "@kiko/protocol"
 import type { RoomHandle, UserChannel } from "../client"
 import { connectTestModel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { must } from "../must"
 
 
-const RESTART = process.env.YUKI_TURN_RESTART
-const RESTART_AT = process.env.YUKI_TURN_RESTART_AT ?? "start"
+const RESTART = process.env.KIKO_TURN_RESTART
+const RESTART_AT = process.env.KIKO_TURN_RESTART_AT ?? "start"
 const TIMEOUT_MS = RESTART ? 120_000 : 60_000
 const QUIET_MS = 3_000
 

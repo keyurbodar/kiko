@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test"
-import type { Envelope } from "@yuki/protocol"
-import { MEMORY_NOTE, memoryExtensions, parseZoomId } from "@yuki/memory/tools"
+import type { Envelope } from "@kiko/protocol"
+import { MEMORY_NOTE, memoryExtensions, parseZoomId } from "@kiko/memory/tools"
 import { perRun } from "../src/agent/extensions/self"
-import { briefToShow } from "@yuki/agent/host"
-import { renderInput } from "@yuki/agent/inbox"
-import { itemLine } from "@yuki/memory/optmem"
+import { briefToShow } from "@kiko/agent/host"
+import { renderInput } from "@kiko/agent/inbox"
+import { itemLine } from "@kiko/memory/optmem"
 import { buildBrief, shortBrief } from "../src/room/brief"
 import type { MemberRow } from "../src/room/members"
-import { norm } from "@yuki/memory/life"
+import { norm } from "@kiko/memory/life"
 
 const zoomCases: [string, ReturnType<typeof parseZoomId>][] = [
   ["chat:12", { log: "chat", id: "12" }],

@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@yuki/protocol"
+import type { AgentSlug } from "@kiko/protocol"
 
 
 export type AskState = { state: "open" | "answered" | "closed"; answer: string | null }

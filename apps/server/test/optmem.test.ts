@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { capBytes, cleanLine, cover, type Item, isNode, LINE_BYTES, napPrompt, range, region, type Shape, type Span, tile, Tree, treeSteps } from "@yuki/memory/optmem"
+import { capBytes, cleanLine, cover, type Item, isNode, LINE_BYTES, napPrompt, range, region, type Shape, type Span, tile, Tree, treeSteps } from "@kiko/memory/optmem"
 import { sqlWith } from "./sql-shim"
 
 const tiles = (spans: Span[], T: number) => {
@@ -141,7 +141,7 @@ test("a stretch that already fits a line is its own summary, word for word, with
 })
 
 test("a cut verbatim line says it was cut and how to see the rest", async () => {
-  const { itemLine } = await import("@yuki/memory/optmem")
+  const { itemLine } = await import("@kiko/memory/optmem")
   expect(itemLine({ pos: 12, at: 0, text: "short" }, 100)).not.toContain("cut")
   expect(itemLine({ pos: 12, at: 0, text: "long ".repeat(50) }, 100)).toEndWith("… (cut, zoom chat:12)")
 })

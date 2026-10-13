@@ -10,7 +10,7 @@ if [ "${free_kb:-0}" -lt 1048576 ]; then
   echo "heavy.sh: /tmp has less than 1 GB free. Find the biggest entries with: du -sh /tmp/* | sort -h | tail" >&2
   exit 75
 fi
-dir="${XDG_RUNTIME_DIR:-/tmp}/yuki-heavy"
+dir="${XDG_RUNTIME_DIR:-/tmp}/kiko-heavy"
 mkdir -p "$dir"
 while :; do
   for slot in 1 2; do

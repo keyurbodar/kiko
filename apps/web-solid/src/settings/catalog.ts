@@ -43,7 +43,7 @@ export function loadCatalog(): Promise<Catalog> {
     forget = undefined
   }, CATALOG_KEEP_MS)
   cached ??= (async () => {
-    const { default: url } = await import("virtual:yuki-model-catalog")
+    const { default: url } = await import("virtual:kiko-model-catalog")
     const response = await fetch(url)
     if (!response.ok) throw new Error("catalog request failed")
     return (await response.json()) as Catalog

@@ -5,8 +5,8 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { AssistantEntry, createRegistry, Harness, LiveDoc, ROOT_CONVERSATION_ID, type Storage } from "@earendil-works/pi-durable"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import { createStorageConformance, type StorageConformanceProvider } from "@earendil-works/pi-durable/testing"
-import { createCoalescingStorage, type HoldPolicy } from "@yuki/agent/coalescing-storage"
-import { openDurableObjectSqlite } from "@yuki/agent/sqlite"
+import { createCoalescingStorage, type HoldPolicy } from "@kiko/agent/coalescing-storage"
+import { openDurableObjectSqlite } from "@kiko/agent/sqlite"
 import { assertions } from "./sqlite-worker"
 
 const context = BACKGROUND_CONTEXT

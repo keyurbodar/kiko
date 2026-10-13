@@ -1,11 +1,11 @@
-import { LoopAction, UserSettingsPatch } from "@yuki/protocol/schema"
-import { isRoomId } from "@yuki/protocol"
+import { LoopAction, UserSettingsPatch } from "@kiko/protocol/schema"
+import { isRoomId } from "@kiko/protocol"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { error, signedIn } from "../lib/route"
 import { userStub } from "../lib/names"
-import { SNOOZE_MAX_MS } from "@yuki/memory/loops"
-import { validZone } from "@yuki/sandbox/recurrence"
+import { SNOOZE_MAX_MS } from "@kiko/memory/loops"
+import { validZone } from "@kiko/sandbox/recurrence"
 
 const ACTION = /^\/api\/loops\/(\d{1,12})$/
 const decodeAction = Schema.decodeUnknownSync(LoopAction)

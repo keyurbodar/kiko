@@ -6,7 +6,7 @@ import type { Suite } from "../runner"
 
 const USER = "kernel-alice"
 const BAD_KEY = "sk_not_a_real_key_0000"
-const COOKIE = "yuki_probe"
+const COOKIE = "kiko_probe"
 const IDLE_PAST_MS = 6 * 60_000
 
 type Status = { connected: boolean; broken: boolean; browser: { mode: string; tabs: Record<string, number> } | null }

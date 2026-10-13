@@ -1,4 +1,4 @@
-import { boundedWait } from "@yuki/durable/bounded-wait"
+import { boundedWait } from "@kiko/durable/bounded-wait"
 
 export type Answer = string
 

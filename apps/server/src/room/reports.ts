@@ -1,5 +1,5 @@
-import type { AgentSlug, RoomEvent, } from "@yuki/protocol"
-import type { Alarms } from "@yuki/durable/alarm"
+import type { AgentSlug, RoomEvent, } from "@kiko/protocol"
+import type { Alarms } from "@kiko/durable/alarm"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
 import { DELIVERY_RETRY_MS } from "./wake-delivery"

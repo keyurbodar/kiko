@@ -1,4 +1,4 @@
-import type { ExtensionOp, ExtensionResult } from "@yuki/protocol"
+import type { ExtensionOp, ExtensionResult } from "@kiko/protocol"
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
 import { EXTENSION_CATALOG } from "./catalog.gen"

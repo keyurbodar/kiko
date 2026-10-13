@@ -1,5 +1,5 @@
-import { isAgentSlug, isRoomId } from "@yuki/protocol"
-import { Trigger } from "@yuki/protocol/schema"
+import { isAgentSlug, isRoomId } from "@kiko/protocol"
+import { Trigger } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { error, signedIn } from "../lib/route"

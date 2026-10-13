@@ -3,7 +3,7 @@
 // meant little. One process per file is deterministic. Separate processes did not collide when four ran
 // at once (Miniflare picks free ports), so files run in parallel, three at a time by default because
 // the machine's CPUs are shared. `--jobs N` overrides that.
-// A passing file is cached under node_modules/.cache/yuki-tests, keyed by a hash of every source file
+// A passing file is cached under node_modules/.cache/kiko-tests, keyed by a hash of every source file
 // the tests can reach. The key is coarse on purpose: any change to the tree reruns every file.
 // `--no-cache` forces a run. Exit code 1 if any file fails.
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
@@ -13,7 +13,7 @@ import { join, resolve } from "node:path"
 const serverDir = join(import.meta.dir, "..")
 const root = resolve(serverDir, "..", "..")
 const dir = join(serverDir, "test")
-const cacheDir = join(root, "node_modules", ".cache", "yuki-tests")
+const cacheDir = join(root, "node_modules", ".cache", "kiko-tests")
 
 const args = process.argv.slice(2)
 const noCache = args.includes("--no-cache")
@@ -49,7 +49,7 @@ async function runFile(f: string): Promise<Result> {
   // Miniflare leaves a `miniflare-*` directory in the system temp dir for each boot, and it does not
   // remove it on dispose. Pointing TMPDIR at a directory this process owns lets us delete them all
   // when the test process exits. Without it, overnight runs filled a 7.9 GB /tmp with 1,006 dirs.
-  const tmp = mkdtempSync(join(tmpdir(), "yuki-tests-"))
+  const tmp = mkdtempSync(join(tmpdir(), "kiko-tests-"))
   try {
     const proc = Bun.spawn(["bun", "test", "--timeout", "30000", join("test", f)], {
       cwd: serverDir,

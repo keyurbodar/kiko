@@ -78,7 +78,7 @@ test("an action's settle rides in the next read's evaluate, so act then read cos
   fake = fakeCdp({
     "Target.createTarget": () => ({ targetId: "T1" }),
     "Target.attachToTarget": () => ({ sessionId: "S1" }),
-    "Runtime.evaluate": (m) => ({ result: { type: "string", value: String(m.params.expression).includes("data-yuki-id") ? view("https://a.test/") : "" } }),
+    "Runtime.evaluate": (m) => ({ result: { type: "string", value: String(m.params.expression).includes("data-kiko-id") ? view("https://a.test/") : "" } }),
   })
   const browser = await connect(fake.url)
   const tab = await browser.openTab()
@@ -99,7 +99,7 @@ test("a navigation that starts while the read settles waits for load and reads t
     "Target.createTarget": () => ({ targetId: "T1" }),
     "Target.attachToTarget": () => ({ sessionId: "S1" }),
     "Runtime.evaluate": (m, _ws, f) => {
-      if (!String(m.params.expression).includes("data-yuki-id")) return { result: { type: "undefined" } }
+      if (!String(m.params.expression).includes("data-kiko-id")) return { result: { type: "undefined" } }
       reads++
       if (reads === 2) {
         f.emit("Page.frameStartedLoading", { frameId: "T1" }, "S1")
@@ -123,7 +123,7 @@ test("type with submit sends the text and Enter in one round trip, text first", 
     "Target.attachToTarget": () => ({ sessionId: "S1" }),
     "Runtime.evaluate": (m) => {
       const expression = String(m.params.expression)
-      if (expression.includes("data-yuki-id")) return { result: { type: "string", value: view("https://a.test/") } }
+      if (expression.includes("data-kiko-id")) return { result: { type: "string", value: view("https://a.test/") } }
       return { result: { type: "object", value: { status: "ok", x: 5, y: 5, menu: false } } }
     },
     "Input.insertText": (m, ws, f) => {

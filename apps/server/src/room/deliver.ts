@@ -1,4 +1,4 @@
-import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@yuki/protocol"
+import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemReason } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 import type { Chain } from "./mail"
 import type { Pending } from "./burst"

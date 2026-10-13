@@ -1,5 +1,5 @@
 import { newRoom, poll, seen, statuses } from "../kit"
-import type { MessageId, RoomEvent, RoomToClient } from "@yuki/protocol"
+import type { MessageId, RoomEvent, RoomToClient } from "@kiko/protocol"
 import type { RoomHandle } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"

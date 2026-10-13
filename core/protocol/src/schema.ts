@@ -309,7 +309,7 @@ export const Chat = Schema.Struct({
 	unread: Count,
 	updatedAt: Count,
 	agents: Schema.optionalKey(Schema.Array(Schema.String)),
-	yuki: Schema.optionalKey(Schema.Literal(true)),
+	kiko: Schema.optionalKey(Schema.Literal(true)),
 	private: Schema.optionalKey(Schema.Boolean),
 	temp: Schema.optionalKey(Schema.Literal(true)),
 	last: Schema.optionalKey(ChatLast),

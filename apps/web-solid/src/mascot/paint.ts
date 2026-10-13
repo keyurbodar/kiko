@@ -3,7 +3,7 @@
 // knocked-loose snow. Pure markup builders plus two small runtime helpers.
 
 import { onCleanup, onMount } from "solid-js"
-import { birdSvg, VIEWBOX, YUKI_BIRD, type BirdShape } from "./birds"
+import { birdSvg, VIEWBOX, KIKO_BIRD, type BirdShape } from "./birds"
 
 const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
 
@@ -82,7 +82,7 @@ export function birdAt(b: BirdAt): string {
   const t = [b.flip ? `translate(${b.x * 2} 0) scale(-1 1)` : "", b.rotate ? `rotate(${b.rotate} ${b.x} ${b.y})` : ""].join(" ")
   return (
     `<g class="w-perch"${b.id ? ` data-id="${b.id}"` : ""} transform="${t}"><svg class="bird w-bird" data-shape="${shape}" data-expressive=""${b.sleepy ? ` data-face="closed" data-sleepy=""` : ""} x="${f1(b.x - w / 2)}" y="${f1(top)}" width="${f1(w)}" height="${b.size}" viewBox="${vx} ${vy} ${vw} ${vh}" overflow="visible">` +
-    birdSvg(YUKI_BIRD, "idle", { shape, size: b.size, expressive: true }) +
+    birdSvg(KIKO_BIRD, "idle", { shape, size: b.size, expressive: true }) +
     `</svg></g>`
   )
 }

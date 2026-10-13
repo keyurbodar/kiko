@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
-import { Life } from "@yuki/memory/life"
-import type { RoomId } from "@yuki/protocol"
+import { Life } from "@kiko/memory/life"
+import type { RoomId } from "@kiko/protocol"
 import { INITIATIVE_RUN } from "../src/initiative/engine"
 import { InitiativeLoops, type LoopsDeps } from "../src/user/initiative-loops"
 import { USER_STEPS } from "../src/user/schema"

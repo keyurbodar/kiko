@@ -1,5 +1,5 @@
 {
-  "name": "@yuki/agent",
+  "name": "@kiko/agent",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "@earendil-works/chord": "1.0.0",
     "@earendil-works/pi-ai": "^1.0.0",
     "@earendil-works/pi-durable": "^1.0.0",
-    "@yuki/durable": "workspace:*"
+    "@kiko/durable": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260101.0",

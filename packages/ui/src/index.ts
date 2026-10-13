@@ -1,6 +1,6 @@
 // Barrel for the pieces the app composes at the root. Everything else is
-// still imported through its own subpath export (`@yuki/ui/v2/*`,
-// `@yuki/ui/context/*`) so a consumer pulls only what it renders.
+// still imported through its own subpath export (`@kiko/ui/v2/*`,
+// `@kiko/ui/context/*`) so a consumer pulls only what it renders.
 
 export { FileIcon } from "./components/file-icon"
 export { Icon } from "./components/icon"

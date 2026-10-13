@@ -1,5 +1,5 @@
 import { frames, idles, messages, newRoom, poll } from "../kit"
-import type { Agent, AgentSlug, Message, } from "@yuki/protocol"
+import type { Agent, AgentSlug, Message, } from "@kiko/protocol"
 import type { RoomHandle, } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import { ok } from "../routine-kit"

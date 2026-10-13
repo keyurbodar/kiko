@@ -97,7 +97,7 @@ const TABLES_SCRIPT = `(() => {
 const FORMS_SCRIPT = `(() => {
   const clean = (s) => (s || "").replace(/\\s+/g, " ").trim()
   const ids = new Map()
-  const registry = window.__yuki && window.__yuki.els
+  const registry = window.__kiko && window.__kiko.els
   if (registry) for (const [id, ref] of registry) {
     const el = ref.deref && ref.deref()
     if (el) ids.set(el, id)

@@ -1,4 +1,4 @@
-import type { MessageId, RoomId } from "@yuki/protocol"
+import type { MessageId, RoomId } from "@kiko/protocol"
 import { createRoot, createSignal, lazy } from "solid-js"
 
 /*

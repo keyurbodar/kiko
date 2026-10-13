@@ -10,7 +10,7 @@ import type {
 	RoomEvent,
 	RoomSnapshot,
 	RunRef,
-	Sender, RoomId } from "@yuki/protocol"
+	Sender, RoomId } from "@kiko/protocol"
 import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
 import { listTasks } from "./workspace"

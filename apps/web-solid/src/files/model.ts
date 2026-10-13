@@ -65,7 +65,7 @@ export function pathsUnder(paths: Iterable<string>, path: string): string[] {
 
 export type KeyValueStore = Pick<Storage, "getItem" | "setItem">
 
-const expandedKey = (roomId: string) => `yuki:files:expanded:${roomId}`
+const expandedKey = (roomId: string) => `kiko:files:expanded:${roomId}`
 
 export function loadExpanded(roomId: string, store: KeyValueStore | undefined): string[] {
 	try {

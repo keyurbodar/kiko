@@ -21,11 +21,11 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
 
 ## What was changed
 
-- Import specifiers repointed from `@opencode-ai/*` to `@yuki/ui/*`.
+- Import specifiers repointed from `@opencode-ai/*` to `@kiko/ui/*`.
 - `FilePartSource`, previously imported from `@opencode-ai/sdk/v2/client`, is
-  declared locally in `prompt-input/types.ts`. Yuki has no SDK.
-- `composer.tsx` is Yuki-authored. It builds the controller against fixtures and
-  Yuki's frozen contract instead of the opencode SDK.
+  declared locally in `prompt-input/types.ts`. Kiko has no SDK.
+- `composer.tsx` is Kiko-authored. It builds the controller against fixtures and
+  Kiko's frozen contract instead of the opencode SDK.
 - `prompt-input/index.tsx` was restyled to a single-row Discord-like layout:
   controls pinned to the top of the box, a larger type size, and a placeholder
   driven by a local `blank` signal rather than `controller.value()`. The
@@ -37,16 +37,16 @@ upstream commit `7945de208964a49300d7f770d1a71d078db9a4c4` on `sst/opencode`
   unwrapped fallback text changed from the mode-aware
   `ui.promptInput.placeholder.normal` and `.shell` strings to
   `ui.promptInput.label`. The wording is why: upstream's normal-mode string
-  advertises `/` for commands and `@` for context, and Yuki has no commands. A
-  host that passes `view.placeholder` — Yuki does — never reaches that fallback.
+  advertises `/` for commands and `@` for context, and Kiko has no commands. A
+  host that passes `view.placeholder` — Kiko does — never reaches that fallback.
 
 - On 2026-10-09 the attachments moved to t3code's design. `prompt-input/attachments.ts`
-  is now Yuki-authored: it takes any file, applies Yuki's limits, and drops the
+  is now Kiko-authored: it takes any file, applies Kiko's limits, and drops the
   native picker, the clipboard reader and the reorder. The context comments
   (`comment-card-v2.tsx`, `attachment-card-v2.tsx`, `path.ts`, the `context`
   part of the store and the machine's `context.active`) are removed, because
-  nothing in Yuki ever created a comment. The strip in `prompt-input/extras.tsx`
-  is Yuki's.
+  nothing in Kiko ever created a comment. The strip in `prompt-input/extras.tsx`
+  is Kiko's.
 
 The controller, reducer, part store and DOM reconciliation are still upstream's,
 less the parts named above.

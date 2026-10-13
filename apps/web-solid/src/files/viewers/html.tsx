@@ -1,4 +1,4 @@
-import type { FileRef } from "@yuki/protocol"
+import type { FileRef } from "@kiko/protocol"
 import { createMemo, onCleanup } from "solid-js"
 import { WithText } from "./with-text"
 

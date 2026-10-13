@@ -1,14 +1,14 @@
 
-import { newRoomId } from "@yuki/protocol"
-import type { RoomToClient, UserToClient } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { RoomToClient, UserToClient } from "@kiko/protocol"
 import { type RoomHandle, type Session, type Verifier, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { fake, readStats, resetStats, Samples } from "./latency"
 import { must } from "../must"
 
 
-const N = Number(process.env.YUKI_OVERHEAD_RUNS ?? 20)
-const BIG = Number(process.env.YUKI_OVERHEAD_BIG ?? 1500)
+const N = Number(process.env.KIKO_OVERHEAD_RUNS ?? 20)
+const BIG = Number(process.env.KIKO_OVERHEAD_BIG ?? 1500)
 const now = () => performance.now()
 const bytes = (value: unknown) => JSON.stringify(value).length
 

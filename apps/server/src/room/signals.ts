@@ -1,4 +1,4 @@
-import type { RoomEvent } from "@yuki/protocol"
+import type { RoomEvent } from "@kiko/protocol"
 import * as Schema from "effect/Schema"
 import type { RoomRoutine } from "../user/routines"
 

@@ -1,5 +1,5 @@
-import type { AgentSlug, Sender } from "@yuki/protocol"
-import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@yuki/memory/optmem"
+import type { AgentSlug, Sender } from "@kiko/protocol"
+import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@kiko/memory/optmem"
 import { searchMessages } from "./search"
 
 const HUMAN_GAP_MS = 30 * 60_000

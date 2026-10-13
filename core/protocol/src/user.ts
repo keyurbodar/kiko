@@ -15,7 +15,7 @@ export type Chat = {
 	unread: number
 	updatedAt: number
 	agents?: readonly string[]
-	yuki?: true
+	kiko?: true
 	private?: boolean
 	temp?: true
 	last?: ChatLast
@@ -66,7 +66,7 @@ export type UserSnapshot = {
 	agents?: readonly Agent[]
 	theme?: string | null
 	home: { files: readonly FileRef[]; folders: readonly string[] }
-	/** The chat the user was last in, so a new device opens there. The yuki chat when that one is gone. */
+	/** The chat the user was last in, so a new device opens there. The kiko chat when that one is gone. */
 	lastChat?: RoomId
 	extensions?: readonly ExtensionInfo[]
 	proposals?: readonly ExtensionProposal[]
@@ -166,7 +166,7 @@ export type LoginPrompt =
 	| { type: "select"; message: string; options: readonly { id: string; label: string; description?: string }[] }
 
 export type LoginErrorReason =
-	/** The provider has no sign-in flow that yuki runs on Workers. */
+	/** The provider has no sign-in flow that kiko runs on Workers. */
 	| "unsupported"
 	| "disabled"
 	| "unknown"

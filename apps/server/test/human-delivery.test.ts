@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
-import type { AgentSlug, Chat, Envelope, Task } from "@yuki/protocol"
-import { INBOX_STEPS, MAX_ENTRY_BYTES, Inbox } from "@yuki/agent/inbox"
+import type { AgentSlug, Chat, Envelope, Task } from "@kiko/protocol"
+import { INBOX_STEPS, MAX_ENTRY_BYTES, Inbox } from "@kiko/agent/inbox"
 import { BurstFlush, type BurstDeps } from "../src/room/burst-flush"
 import { Burst } from "../src/room/burst"
 import { buildBrief, MAX_BOARD_BYTES } from "../src/room/brief"

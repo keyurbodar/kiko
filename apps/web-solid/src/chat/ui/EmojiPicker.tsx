@@ -1,5 +1,5 @@
-import { HugeIcon } from "@yuki/ui/huge-icon"
-import { SearchIcon } from "@yuki/ui/icons"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { SearchIcon } from "@kiko/ui/icons"
 import { createMemo, createResource, createSelector, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import {

@@ -1,5 +1,5 @@
 import { newRoom } from "../kit"
-import type { ClientToUser, RoomToClient } from "@yuki/protocol"
+import type { ClientToUser, RoomToClient } from "@kiko/protocol"
 import { connectTestModel, expectEqual, type RoomHandle, VerifyError } from "../client"
 import { dev, inSeconds, ok, runsOf } from "../routine-kit"
 import type { Suite } from "../runner"
@@ -8,7 +8,7 @@ import { must } from "../must"
 
 
 const USER = "composio-alice"
-const MODEL = process.env.YUKI_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
+const MODEL = process.env.KIKO_COMPOSIO_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
 const ASK = "Use Composio to search the web: what is the latest stable Bun version? Answer in one line."
 const ASK_AGAIN = "Use Composio to search the web: who maintains the Bun runtime? One line."
 const ROUTINE = "Use Composio to search the web: what is the latest stable Deno version? Answer in one line."

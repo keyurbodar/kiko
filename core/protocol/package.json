@@ -1,5 +1,5 @@
 {
-  "name": "@yuki/protocol",
+  "name": "@kiko/protocol",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@yuki/agent": "workspace:*",
-    "@yuki/sandbox": "workspace:*",
+    "@kiko/agent": "workspace:*",
+    "@kiko/sandbox": "workspace:*",
     "effect": "4.0.0",
     "uuid": "14.0.2"
   },

@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@yuki/protocol"
+import type { AgentSlug } from "@kiko/protocol"
 import type { RoomRoutine } from "../user/routines"
 
 

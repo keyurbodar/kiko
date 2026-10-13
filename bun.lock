@@ -10,12 +10,12 @@
       },
     },
     "apps/cli": {
-      "name": "@yuki/cli",
+      "name": "@kiko/cli",
       "bin": {
-        "yuki": "src/index.ts",
+        "kiko": "src/index.ts",
       },
       "dependencies": {
-        "@yuki/protocol": "workspace:*",
+        "@kiko/protocol": "workspace:*",
         "effect": "4.0.0",
       },
       "devDependencies": {
@@ -24,18 +24,18 @@
       },
     },
     "apps/server": {
-      "name": "@yuki/server",
+      "name": "@kiko/server",
       "dependencies": {
         "@earendil-works/chord": "1.0.0",
         "@earendil-works/pi-ai": "^1.0.0",
         "@earendil-works/pi-durable": "^1.0.0",
+        "@kiko/agent": "workspace:*",
+        "@kiko/browser": "workspace:*",
+        "@kiko/durable": "workspace:*",
+        "@kiko/memory": "workspace:*",
+        "@kiko/protocol": "workspace:*",
+        "@kiko/sandbox": "workspace:*",
         "@onkernel/sdk": "^0.123.0",
-        "@yuki/agent": "workspace:*",
-        "@yuki/browser": "workspace:*",
-        "@yuki/durable": "workspace:*",
-        "@yuki/memory": "workspace:*",
-        "@yuki/protocol": "workspace:*",
-        "@yuki/sandbox": "workspace:*",
         "effect": "4.0.0",
         "just-bash": "3.6.0",
         "marked": "18.0.14",
@@ -62,6 +62,8 @@
         "@codemirror/state": "^6.7.6",
         "@codemirror/view": "^6.43.13",
         "@corvu/calendar": "0.1.2",
+        "@kiko/protocol": "workspace:*",
+        "@kiko/ui": "workspace:*",
         "@solid-primitives/event-listener": "2.4.5",
         "@solid-primitives/page-visibility": "^2.1.6",
         "@solid-primitives/pointer": "0.3.6",
@@ -70,8 +72,6 @@
         "@solidjs/meta": "0.29.4",
         "@solidjs/router": "0.15.4",
         "@tanstack/solid-hotkeys": "^0.12.1",
-        "@yuki/protocol": "workspace:*",
-        "@yuki/ui": "workspace:*",
         "clsx": "^2.1.1",
         "cmdk-solid": "^1.2.0",
         "culori": "4.0.2",
@@ -94,13 +94,13 @@
       },
     },
     "core/agent": {
-      "name": "@yuki/agent",
+      "name": "@kiko/agent",
       "version": "0.0.1",
       "dependencies": {
         "@earendil-works/chord": "1.0.0",
         "@earendil-works/pi-ai": "^1.0.0",
         "@earendil-works/pi-durable": "^1.0.0",
-        "@yuki/durable": "workspace:*",
+        "@kiko/durable": "workspace:*",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260101.0",
@@ -108,7 +108,7 @@
       },
     },
     "core/browser": {
-      "name": "@yuki/browser",
+      "name": "@kiko/browser",
       "version": "0.0.1",
       "dependencies": {
         "effect": "4.0.0",
@@ -121,7 +121,7 @@
       },
     },
     "core/durable": {
-      "name": "@yuki/durable",
+      "name": "@kiko/durable",
       "version": "0.0.1",
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260101.0",
@@ -129,12 +129,12 @@
       },
     },
     "core/memory": {
-      "name": "@yuki/memory",
+      "name": "@kiko/memory",
       "version": "0.0.1",
       "dependencies": {
         "@earendil-works/pi-ai": "^1.0.0",
         "@earendil-works/pi-durable": "^1.0.0",
-        "@yuki/agent": "workspace:*",
+        "@kiko/agent": "workspace:*",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260101.0",
@@ -142,11 +142,11 @@
       },
     },
     "core/protocol": {
-      "name": "@yuki/protocol",
+      "name": "@kiko/protocol",
       "version": "0.0.1",
       "dependencies": {
-        "@yuki/agent": "workspace:*",
-        "@yuki/sandbox": "workspace:*",
+        "@kiko/agent": "workspace:*",
+        "@kiko/sandbox": "workspace:*",
         "effect": "4.0.0",
         "uuid": "14.0.2",
       },
@@ -156,13 +156,13 @@
       },
     },
     "core/sandbox": {
-      "name": "@yuki/sandbox",
+      "name": "@kiko/sandbox",
       "version": "0.0.1",
       "dependencies": {
         "@earendil-works/chord": "1.0.0",
         "@earendil-works/pi-ai": "^1.0.0",
         "@earendil-works/pi-durable": "^1.0.0",
-        "@yuki/agent": "workspace:*",
+        "@kiko/agent": "workspace:*",
         "quickjs-wasi": "3.6.2",
         "rrule": "2.8.1",
       },
@@ -172,7 +172,7 @@
       },
     },
     "packages/ui": {
-      "name": "@yuki/ui",
+      "name": "@kiko/ui",
       "version": "0.0.1",
       "dependencies": {
         "@corvu/calendar": "0.1.2",
@@ -471,6 +471,24 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.9", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.0.3", "@jridgewell/sourcemap-codec": "^1.4.10" } }, "sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ=="],
 
+    "@kiko/agent": ["@kiko/agent@workspace:core/agent"],
+
+    "@kiko/browser": ["@kiko/browser@workspace:core/browser"],
+
+    "@kiko/cli": ["@kiko/cli@workspace:apps/cli"],
+
+    "@kiko/durable": ["@kiko/durable@workspace:core/durable"],
+
+    "@kiko/memory": ["@kiko/memory@workspace:core/memory"],
+
+    "@kiko/protocol": ["@kiko/protocol@workspace:core/protocol"],
+
+    "@kiko/sandbox": ["@kiko/sandbox@workspace:core/sandbox"],
+
+    "@kiko/server": ["@kiko/server@workspace:apps/server"],
+
+    "@kiko/ui": ["@kiko/ui@workspace:packages/ui"],
+
     "@kobalte/core": ["@kobalte/core@0.13.11", "", { "dependencies": { "@floating-ui/dom": "^1.5.1", "@internationalized/date": "^3.4.0", "@internationalized/number": "^3.2.1", "@kobalte/utils": "^0.9.1", "@solid-primitives/props": "^3.1.8", "@solid-primitives/resize-observer": "^2.0.26", "solid-presence": "^0.1.8", "solid-prevent-scroll": "^0.1.4" }, "peerDependencies": { "solid-js": "^1.8.15" } }, "sha512-hK7TYpdib/XDb/r/4XDBFaO9O+3ZHz4ZWryV4/3BfES+tSQVgg2IJupDnztKXB0BqbSRy/aWlHKw1SPtNPYCFQ=="],
 
     "@kobalte/utils": ["@kobalte/utils@0.9.2", "", { "dependencies": { "@solid-primitives/event-listener": "^2.2.14", "@solid-primitives/keyed": "^1.2.0", "@solid-primitives/map": "^0.4.7", "@solid-primitives/media": "^2.2.4", "@solid-primitives/props": "^3.1.8", "@solid-primitives/refs": "^1.0.5", "@solid-primitives/utils": "^6.2.1" }, "peerDependencies": { "solid-js": "^1.8.8" } }, "sha512-jRVXr+zsVHxzDXRoh+CDeXzvCsFJ6uiHhqqNQ26Cw9ZsZ3D6nqPUBt1gGVtj2ZPmRL3a9Uk1v8D1aJ8/I12Dow=="],
@@ -680,24 +698,6 @@
     "@vitest/spy": ["@vitest/spy@4.1.11", "", {}, "sha512-apNa/prQy2qCeywhnixOHPRCgGNhvg7T4Dapfl1GahLp/R+uhBm5cPyFoNVyqsNd2h1nJxL6BqqdIjiABL60YA=="],
 
     "@vitest/utils": ["@vitest/utils@4.1.11", "", { "dependencies": { "@vitest/pretty-format": "4.1.11", "convert-source-map": "^2.0.0", "tinyrainbow": "^3.1.0" } }, "sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ=="],
-
-    "@yuki/agent": ["@yuki/agent@workspace:core/agent"],
-
-    "@yuki/browser": ["@yuki/browser@workspace:core/browser"],
-
-    "@yuki/cli": ["@yuki/cli@workspace:apps/cli"],
-
-    "@yuki/durable": ["@yuki/durable@workspace:core/durable"],
-
-    "@yuki/memory": ["@yuki/memory@workspace:core/memory"],
-
-    "@yuki/protocol": ["@yuki/protocol@workspace:core/protocol"],
-
-    "@yuki/sandbox": ["@yuki/sandbox@workspace:core/sandbox"],
-
-    "@yuki/server": ["@yuki/server@workspace:apps/server"],
-
-    "@yuki/ui": ["@yuki/ui@workspace:packages/ui"],
 
     "agent-base": ["agent-base@9.0.0", "", {}, "sha512-TQf59BsZnytt8GdJKLPfUZ54g/iaUL2OWDSFCCvMOhsHduDQxO8xC4PNeyIkVcA5KwL2phPSv0douC0fgWzmnA=="],
 
@@ -1163,6 +1163,8 @@
 
     "@jridgewell/remapping/@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
+    "@kiko/ui/typescript": ["typescript@5.8.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-aJn6wq13/afZp/jT9QZmwEjDqqvSGp1VT5GVg+f/t6/oVyrgXM6BY1h9BRh/O5p3PlUPAe+WuiEZOmb/49RqoQ=="],
+
     "@solid-primitives/media/@solid-primitives/event-listener": ["@solid-primitives/event-listener@2.4.6", "", { "dependencies": { "@solid-primitives/utils": "^6.4.1" }, "peerDependencies": { "solid-js": "^1.6.12" } }, "sha512-5I0YJcTVYIWoMmgBSROBZGcz+ymhew/pGTg2dHW74BUjFKsV8Li4bOZYl0YAGP4mHw5o4UBd9/BEesqBci3wxw=="],
 
     "@solid-primitives/page-visibility/@solid-primitives/event-listener": ["@solid-primitives/event-listener@2.4.6", "", { "dependencies": { "@solid-primitives/utils": "^6.4.1" }, "peerDependencies": { "solid-js": "^1.6.12" } }, "sha512-5I0YJcTVYIWoMmgBSROBZGcz+ymhew/pGTg2dHW74BUjFKsV8Li4bOZYl0YAGP4mHw5o4UBd9/BEesqBci3wxw=="],
@@ -1182,8 +1184,6 @@
     "@tailwindcss/oxide-wasm32-wasi/@tybys/wasm-util": ["@tybys/wasm-util@0.10.4", "", { "dependencies": { "tslib": "^2.4.0" }, "bundled": true }, "sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A=="],
 
     "@tailwindcss/oxide-wasm32-wasi/tslib": ["tslib@2.8.1", "", { "bundled": true }, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
-
-    "@yuki/ui/typescript": ["typescript@5.8.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-aJn6wq13/afZp/jT9QZmwEjDqqvSGp1VT5GVg+f/t6/oVyrgXM6BY1h9BRh/O5p3PlUPAe+WuiEZOmb/49RqoQ=="],
 
     "babel-plugin-jsx-dom-expressions/@babel/helper-module-imports": ["@babel/helper-module-imports@7.18.6", "", { "dependencies": { "@babel/types": "^7.18.6" } }, "sha512-0NFvs3VkuSYbFi1x2Vd6tKrywq+z/cLeYC/RJNFrIX/30Bf5aiGYbtvGXolEktzJH8o5E5KJ3tT+nkxuuZFVlA=="],
 

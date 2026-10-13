@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { RoomEvent } from "@yuki/protocol"
+import type { RoomEvent } from "@kiko/protocol"
 import { RoomLog } from "../src/room/log"
 import { Reports } from "../src/room/reports"
 import { ROOM_STEPS } from "../src/room/schema"

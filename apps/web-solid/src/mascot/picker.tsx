@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js"
 import { look, saveLook } from "../theme/live"
 import { Bird } from "./bird"
-import { YUKI } from "@yuki/protocol"
+import { KIKO } from "@kiko/protocol"
 import { FLAVORS, FRIEND_IDS, OUTFITS, OUTFIT_IDS, formatBird, type BirdSpec, type BirdState } from "./birds"
 import { birdFor } from "./choices"
 import { birdPickerSlug, closeBirdPicker } from "./picker-state"
@@ -11,7 +11,7 @@ import { Button } from "../settings/kit"
 /*
  * The bird picker: a flavor and what the bird wears, for one agent. The preview acts out every
  * mood the agent can be in, so a person sees the bird thinking and typing before they keep it.
- * Yuki is always the warm cream bird; only its outfit changes.
+ * Kiko is always the warm cream bird; only its outfit changes.
  */
 
 const MOODS: BirdState[] = ["wave", "thinking", "typing", "working", "sending", "sleeping", "idle"]
@@ -25,7 +25,7 @@ function Picker(props: { slug: string }) {
   const [mood, setMood] = createSignal(0)
   const timer = setInterval(() => setMood((m) => (m + 1) % MOODS.length), 1800)
   onCleanup(() => clearInterval(timer))
-  const isYuki = () => props.slug === YUKI
+  const isKiko = () => props.slug === KIKO
   const set = (patch: Partial<BirdSpec>) => setDraft({ ...draft(), ...patch })
   const save = () => {
     saveLook({ ...look(), birds: { ...look().birds, [props.slug]: formatBird(draft()) } })
@@ -42,7 +42,7 @@ function Picker(props: { slug: string }) {
     <Dialog
       open
       onClose={closeBirdPicker}
-      title={isYuki() ? "Yuki, the chief" : `@${props.slug}`}
+      title={isKiko() ? "Kiko, the chief" : `@${props.slug}`}
       data-component="bird-picker"
       footer={
         <>
@@ -66,13 +66,13 @@ function Picker(props: { slug: string }) {
               {FLAVORS[draft().flavor].label}
               {draft().outfit !== "none" ? ` in ${OUTFITS[draft().outfit].label.toLowerCase()}` : ""} · {MOODS[mood()]!.charAt(0).toUpperCase()}{MOODS[mood()]!.slice(1)}
             </p>
-            <Show when={isYuki()}>
-              <p class="text-xs text-muted">Yuki is always the warm cream Shima Enaga.</p>
+            <Show when={isKiko()}>
+              <p class="text-xs text-muted">Kiko is always the warm cream Shima Enaga.</p>
             </Show>
           </div>
         </div>
 
-        <Show when={!isYuki()}>
+        <Show when={!isKiko()}>
           <section class="flex flex-col gap-2">
             <h3 class="text-xs text-muted">Flavor</h3>
             <div class="grid grid-cols-6 gap-1" role="radiogroup" aria-label="Flavor">

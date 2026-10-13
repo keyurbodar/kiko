@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { type Loop, LOOPS_STEPS, loopOps, Loops, parseNapLoops, sentencesOf } from "@yuki/memory/loops"
+import { type Loop, LOOPS_STEPS, loopOps, Loops, parseNapLoops, sentencesOf } from "@kiko/memory/loops"
 import { sqlWith } from "./sql-shim"
 
 const store = () => new Loops(sqlWith(LOOPS_STEPS), (fn) => fn())

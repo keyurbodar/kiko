@@ -1,5 +1,5 @@
 import { idles } from "../kit"
-import type { RoomToClient } from "@yuki/protocol"
+import type { RoomToClient } from "@kiko/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { dev } from "./team-loops"

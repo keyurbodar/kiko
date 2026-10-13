@@ -6,7 +6,7 @@ import { ChatAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { closeChat } from "../sidebar/actions"
 import { openTabs, stepTab } from "./open-tabs"
-import { TooltipV2 } from "@yuki/ui/v2/tooltip-v2"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import "./tab-strip.css"
 
 /*

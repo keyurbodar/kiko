@@ -3,8 +3,8 @@
 // keeps its exact pixels. One over it is decoded and re-encoded, WebP when the browser can and
 // JPEG on white otherwise, down a quality ladder and then at smaller sizes, until it fits.
 //
-// DEVIATION from t3code: no HEIC conversion. t3code loads a HEIC decoder library for it; yuki
-// refuses a HEIC as an unsupported picture (`attachmentKind` in `@yuki/protocol`) and ships no decoder.
+// DEVIATION from t3code: no HEIC conversion. t3code loads a HEIC decoder library for it; kiko
+// refuses a HEIC as an unsupported picture (`attachmentKind` in `@kiko/protocol`) and ships no decoder.
 
 /** The longest edge a re-encoded picture keeps. t3code's number. */
 export const MAX_DIMENSION = 2048

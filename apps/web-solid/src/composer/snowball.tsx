@@ -7,7 +7,7 @@ import "./snowball.css"
  * snowball that slowly grows as it rolls, and at the end of the edge it scoots round behind the
  * ball and pushes it back the other way. When the reply lands the snowball bursts into a puff of
  * snow, the bird beams, and it slips away. After monocode's composer runner (MIT,
- * src/features/sessions/ui/ComposerRunner.tsx), in Yuki's own game. Under reduced motion the
+ * src/features/sessions/ui/ComposerRunner.tsx), in Kiko's own game. Under reduced motion the
  * bird only sits on the edge while the agent works.
  */
 

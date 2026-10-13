@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
-import type { Answer, Judge, Question } from "@yuki/memory/judge"
-import { Life } from "@yuki/memory/life"
+import type { Answer, Judge, Question } from "@kiko/memory/judge"
+import { Life } from "@kiko/memory/life"
 import { MemoryCapture } from "../src/user/memory-capture"
 import { USER_STEPS } from "../src/user/schema"
 import { sqlWith } from "./sql-shim"

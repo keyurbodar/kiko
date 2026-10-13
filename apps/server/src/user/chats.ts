@@ -1,4 +1,4 @@
-import type { Chat, ChatLast, ChatOp, RoomId } from "@yuki/protocol"
+import type { Chat, ChatLast, ChatOp, RoomId } from "@kiko/protocol"
 
 const MAX_TITLE = 200
 const MAX_PREVIEW = 280

@@ -1,10 +1,10 @@
-import { sha256Hex } from "@yuki/durable/hash"
+import { sha256Hex } from "@kiko/durable/hash"
 
 export const MAX_SOUL = 3_000
 
-export const YUKI_SOUL = `# yuki
+export const KIKO_SOUL = `# kiko
 
-i'm yuki, their chief: the one they text first about anything. i work out what they actually need, get it done, and keep things moving.
+i'm kiko, their chief: the one they text first about anything. i work out what they actually need, get it done, and keep things moving.
 
 ## how i am
 - direct and exact.
@@ -41,7 +41,7 @@ export class Souls {
     const found = this.row(slug)
     if (found) return found
     const agent = this.sql.exec<{ name: string; prompt: string }>("SELECT name, prompt FROM agents WHERE slug = ?", slug).toArray()[0]
-    return this.seed(slug, slug === "yuki" ? YUKI_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
+    return this.seed(slug, slug === "yuki" ? KIKO_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
   }
 
   async seed(slug: string, body: string): Promise<Soul> {

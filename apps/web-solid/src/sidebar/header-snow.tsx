@@ -1,6 +1,6 @@
 import { onCleanup, onMount } from "solid-js"
 import { Bird } from "../mascot/bird"
-import { YUKI_BIRD } from "../mascot/birds"
+import { KIKO_BIRD } from "../mascot/birds"
 import { startSnow } from "../mascot/snow"
 import "./header-snow.css"
 
@@ -55,7 +55,7 @@ export function HeaderSnow() {
       <div class="header-snow-light" />
       <canvas ref={snow} class="header-snow-flakes" />
       <span ref={flyer} class="header-snow-flyer">
-        <Bird spec={YUKI_BIRD} shape="loaf" size={13} />
+        <Bird spec={KIKO_BIRD} shape="loaf" size={13} />
       </span>
     </div>
   )

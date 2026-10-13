@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { Database } from "bun:sqlite"
-import type { Sender } from "@yuki/protocol"
+import type { Sender } from "@kiko/protocol"
 import { RoomLog } from "../src/room/log"
 import { ROOM_STEPS } from "../src/room/schema"
 import { sqlWith } from "./sql-shim"

@@ -3,7 +3,7 @@ import { sessionCookie } from "./login"
 
 export async function ws(ctx: Context): Promise<void> {
   const path = ctx.args[0]
-  if (!path) throw new CliError("ws needs a path, for example: yuki ws /api/ws")
+  if (!path) throw new CliError("ws needs a path, for example: kiko ws /api/ws")
   const target = new URL(path, ctx.url)
   target.protocol = target.protocol === "https:" ? "wss:" : "ws:"
 

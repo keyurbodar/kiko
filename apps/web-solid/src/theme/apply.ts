@@ -9,7 +9,7 @@ import { DEFAULT_LOOK, type Look } from "./look"
 import { PALETTES, resolveAppearance, tokensFor, type ThemeAppearance, type ThemeMode } from "./palette"
 
 /** The key the inline script in `index.html` reads. Keep the two in step. */
-export const CACHE_KEY = "yuki:look"
+export const CACHE_KEY = "kiko:look"
 
 /** What the shell paints from: the saved text, the mode, and the tokens for each half. */
 export type Cache = { v: 4; text: string; mode: ThemeMode; vars: Record<ThemeAppearance, Record<string, string>> }

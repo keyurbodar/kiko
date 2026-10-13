@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
-import { candidates, captureQuestions, captureWithJudge, DEFAULT_POLICY, mergePolicy } from "@yuki/memory/capture"
-import type { Answer, Judge, Question } from "@yuki/memory/judge"
-import { CARD_MAX, LIFE_STEPS, LIFE_TRI_STEPS, Life } from "@yuki/memory/life"
+import { candidates, captureQuestions, captureWithJudge, DEFAULT_POLICY, mergePolicy } from "@kiko/memory/capture"
+import type { Answer, Judge, Question } from "@kiko/memory/judge"
+import { CARD_MAX, LIFE_STEPS, LIFE_TRI_STEPS, Life } from "@kiko/memory/life"
 import { sqlWith } from "./sql-shim"
 
 function life(sql = sqlWith([...LIFE_STEPS, ...LIFE_TRI_STEPS])) {

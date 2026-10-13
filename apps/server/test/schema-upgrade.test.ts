@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { Database } from "bun:sqlite"
-import { migrate } from "@yuki/durable/migrate"
+import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "../src/agent/schema"
 import { ROOM_STEPS } from "../src/room/schema"
 import { USER_STEPS } from "../src/user/schema"

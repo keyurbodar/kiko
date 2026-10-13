@@ -1,5 +1,5 @@
-import type { Actor, FileRef } from "@yuki/protocol"
-import type { Step } from "@yuki/durable/migrate"
+import type { Actor, FileRef } from "@kiko/protocol"
+import type { Step } from "@kiko/durable/migrate"
 
 export type FileRow = {
   id: string

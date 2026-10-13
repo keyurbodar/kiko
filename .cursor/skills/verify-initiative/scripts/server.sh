@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Usage: server.sh start|doctor|stop
-# Starts the server's dev script (wrangler dev, NODE_ENV=development) on the port in $YUKI_URL (default localhost:8787) and waits for health.
+# Starts the server's dev script (wrangler dev, NODE_ENV=development) on the port in $KIKO_URL (default localhost:8787) and waits for health.
 # Not `bun dev:server`: the root script pins --port 8787, which collides with other sessions.
 set -u
 ROOT=$(git rev-parse --show-toplevel)
 OUT=${INITIATIVE_OUT:-$ROOT/artifacts/initiative}
 PIDF=$OUT/server.pid
-URL=${YUKI_URL:-http://localhost:8787}
+URL=${KIKO_URL:-http://localhost:8787}
 PORT=$(printf '%s' "$URL" | sed -nE 's#^[a-zA-Z]+://[^/]*:([0-9]+).*#\1#p')
 PORT=${PORT:-80}
 mkdir -p "$OUT"

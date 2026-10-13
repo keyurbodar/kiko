@@ -1,5 +1,5 @@
 import { messages, poll } from "../kit"
-import type { AgentSlug, Message } from "@yuki/protocol"
+import type { AgentSlug, Message } from "@kiko/protocol"
 import { expectEqual, type Session, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send } from "./mid-run"
@@ -64,7 +64,7 @@ async function taskWake(v: { url: string }, s: Session) {
 	room.raw.send({ t: "task", op: { op: "create", id: "t1", title: "first", owner: "ana" as AgentSlug } })
 	const t2 = JSON.stringify({ title: "[call fake_send] ship it", owner: "ben", depends_on: ["t1"] })
 	await send(room, `@yuki [ws create_task ${t2}]`)
-	await poll("yuki's reply", () => runsOf(room, "yuki").length >= 1, 20_000)
+	await poll("kiko's reply", () => runsOf(room, "yuki").length >= 1, 20_000)
 	room.raw.send({ t: "task", op: { op: "update", id: "t1", status: "done" } })
 	await poll("ben's run on the wake", () => runsOf(room, "ben").length >= 1, 20_000)
 	await Bun.sleep(1_500)

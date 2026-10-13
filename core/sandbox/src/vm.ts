@@ -21,7 +21,7 @@ delete globalThis.__host;
 delete globalThis.__hostSync;
 const parse = (s) => (s === undefined ? undefined : JSON.parse(s));
 const ask = (inv, op, args) => host(inv, op, JSON.stringify(args)).then(parse);
-const makeYuki = (inv, env) => Object.freeze({
+const makeKiko = (inv, env) => Object.freeze({
   env: Object.freeze(env),
   callId: env.callId,
   call: (tool, args) => ask(inv, "call", [String(tool), args ?? {}]),
@@ -44,7 +44,7 @@ const pick = (mod, group, name) => {
 globalThis.__invoke = async (mod, inv, group, name, argsText, envText) => {
   const fn = pick(mod, group, name);
   if (typeof fn !== "function") throw new Error(group + " " + name + " is not a function the script exports");
-  const out = await fn(...JSON.parse(argsText), makeYuki(inv, JSON.parse(envText)));
+  const out = await fn(...JSON.parse(argsText), makeKiko(inv, JSON.parse(envText)));
   return out === undefined ? undefined : JSON.stringify(out);
 };
 globalThis.__shape = (mod) => {
@@ -137,7 +137,7 @@ export class ScriptVM {
           holder.vm.enter(() => vm.executePendingJobs())
         }
         if (!bridge) {
-          deferred.reject(vm.newError("this call has ended; yuki is only usable while the function that received it runs"))
+          deferred.reject(vm.newError("this call has ended; kiko is only usable while the function that received it runs"))
           return deferred.handle
         }
         let args: unknown[]
@@ -169,7 +169,7 @@ export class ScriptVM {
       })
       vm.setProp(vm.global, "__hostSync", hostSync)
       hostSync.dispose()
-      vm.evalCode(PRELUDE, "yuki:prelude").dispose()
+      vm.evalCode(PRELUDE, "kiko:prelude").dispose()
       steps = 0
       const promise = vm.evalCode(bundle.files[main] ?? "", main, EvalFlags.TYPE_MODULE)
       vm.executePendingJobs()

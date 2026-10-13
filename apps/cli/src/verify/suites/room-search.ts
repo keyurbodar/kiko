@@ -1,12 +1,12 @@
 
-import { newRoomId } from "@yuki/protocol"
-import type { RoomToClient } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { RoomToClient } from "@kiko/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 
 
-const TOTAL = Number(process.env.YUKI_SEARCH_MESSAGES ?? 20_000)
+const TOTAL = Number(process.env.KIKO_SEARCH_MESSAGES ?? 20_000)
 const BUDGET_MS = 50
 
 type Page = Extract<RoomToClient, { t: "search" }>

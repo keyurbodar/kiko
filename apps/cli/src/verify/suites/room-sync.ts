@@ -1,12 +1,12 @@
-import { newRoomId } from "@yuki/protocol"
-import type { RoomEvent, RoomToClient } from "@yuki/protocol"
-import { ClientToRoom, RoomToClient as RoomToClientSchema } from "@yuki/protocol/schema"
+import { newRoomId } from "@kiko/protocol"
+import type { RoomEvent, RoomToClient } from "@kiko/protocol"
+import { ClientToRoom, RoomToClient as RoomToClientSchema } from "@kiko/protocol/schema"
 import { Channel, expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 
 /** workerd evicts an idle object after about 10 s. The sockets stay open and the room hibernates. */
-const HIBERNATE_MS = Number(process.env.YUKI_HIBERNATE_MS ?? 12_000)
+const HIBERNATE_MS = Number(process.env.KIKO_HIBERNATE_MS ?? 12_000)
 
 
 type In = RoomToClient

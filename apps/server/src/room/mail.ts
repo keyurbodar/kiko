@@ -1,4 +1,4 @@
-import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@yuki/protocol"
+import type { AgentSlug, Envelope, RoomEvent, RoomId } from "@kiko/protocol"
 import { checkSend, type Limit, limitError, limitNotice } from "./limits"
 import type { Asks } from "./asks"
 import type { RoomLog } from "./log"

@@ -1,7 +1,7 @@
-import { escapeXml } from "@yuki/agent/text"
+import { escapeXml } from "@kiko/agent/text"
 import { Type } from "@earendil-works/pi-ai"
 import { type ConversationId, defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
-import { declareEffect } from "@yuki/agent/effects"
+import { declareEffect } from "@kiko/agent/effects"
 
 export const MEMORY = "memory"
 export const MEMORY_NOTE = "memory-note"

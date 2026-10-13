@@ -3,8 +3,8 @@ import type {
   ClientToUser as UserOut,
   RoomToClient as RoomIn,
   UserToClient as UserIn,
-} from "@yuki/protocol"
-import { ClientToRoom, ClientToUser, RoomToClient, UserToClient } from "@yuki/protocol/schema"
+} from "@kiko/protocol"
+import { ClientToRoom, ClientToUser, RoomToClient, UserToClient } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 
 export class VerifyError extends Error {}
@@ -205,11 +205,11 @@ function withSlash(url: string) {
 }
 
 /**
- * Signs a test user in. A deployed Worker has no dev route, so with `YUKI_ACCESS_CODE` in the shell the
+ * Signs a test user in. A deployed Worker has no dev route, so with `KIKO_ACCESS_CODE` in the shell the
  * CLI signs in through the access code instead, as the owner would. Every name then shares the one owner.
  */
 export async function devSession(url: string, name: string): Promise<{ cookie: string; userId: string }> {
-  const code = process.env.YUKI_ACCESS_CODE
+  const code = process.env.KIKO_ACCESS_CODE
   const res = await fetch(new URL(code ? "api/auth/access-code" : "api/auth/dev/session", withSlash(url)), {
     method: "POST",
     headers: { "content-type": "application/json", origin: new URL(url).origin },
@@ -221,7 +221,7 @@ export async function devSession(url: string, name: string): Promise<{ cookie: s
   if (!res.ok) {
     throw new VerifyError(
       code
-        ? `access-code sign-in failed with ${res.status}. check YUKI_ACCESS_CODE`
+        ? `access-code sign-in failed with ${res.status}. check KIKO_ACCESS_CODE`
         : `dev sign-in failed with ${res.status}. start the Worker with NODE_ENV=development`,
     )
   }
@@ -300,7 +300,7 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
         putFile(roomId, path, body, options = {}) {
           return fetch(new URL(`api/files/${roomId}?path=${encodeURIComponent(path)}`, url), {
             method: "PUT",
-            headers: { cookie, "content-type": options.type ?? "text/plain", "x-yuki-if-sha256": options.expect ?? "none" },
+            headers: { cookie, "content-type": options.type ?? "text/plain", "x-kiko-if-sha256": options.expect ?? "none" },
             body,
           })
         },

@@ -15,7 +15,7 @@ const SELECTOR = [
 ].join(",")
 
 const RUNTIME = `
-if (!window.__yuki) {
+if (!window.__kiko) {
   const INPUT_ROLE = { file: "file", checkbox: "checkbox", radio: "radio", submit: "button", button: "button", reset: "button", image: "button", range: "slider", search: "searchbox", email: "textbox", tel: "textbox", url: "textbox", number: "spinbutton" };
   const clip = (s, n) => {
     s = (s || "").replace(/\\s+/g, " ").trim();
@@ -65,7 +65,7 @@ if (!window.__yuki) {
     if (el.checkVisibility && !el.checkVisibility({ visibilityProperty: true, checkVisibilityCSS: true })) return false;
     return true;
   };
-  window.__yuki = { n: 0, els: new Map(), clip, role, label, visible };
+  window.__kiko = { n: 0, els: new Map(), clip, role, label, visible };
 }
 `
 
@@ -83,7 +83,7 @@ if (!document.body || document.readyState === "loading") {
     await promise;
   }
 }
-const Y = window.__yuki;
+const Y = window.__kiko;
 const CAP = ${BROWSER.controlsMax};
 const SELECTOR = ${JSON.stringify(SELECTOR)};
 const found = [];
@@ -156,10 +156,10 @@ const origin = location.origin;
 const controls = [];
 for (const c of kept) {
   const el = c.el;
-  let id = Number(el.getAttribute("data-yuki-id"));
+  let id = Number(el.getAttribute("data-kiko-id"));
   if (!id || Y.els.get(id)?.deref() !== el) {
     id = ++Y.n;
-    el.setAttribute("data-yuki-id", String(id));
+    el.setAttribute("data-kiko-id", String(id));
   }
   Y.els.set(id, new WeakRef(el));
   const role = Y.role(el);
@@ -225,7 +225,7 @@ return new Response(new Blob([json]).stream().pipeThrough(new CompressionStream(
 export const READ_SCRIPT = `(async () => {${RUNTIME}${READ_BODY}})()`
 
 export const guardScript = (id: number, label: string, focus: boolean) => `(() => {
-  const Y = window.__yuki;
+  const Y = window.__kiko;
   const el = Y && Y.els.get(${id})?.deref();
   if (!el || !el.isConnected) return { status: "gone" };
   let rect = el.getBoundingClientRect();
@@ -242,7 +242,7 @@ export const guardScript = (id: number, label: string, focus: boolean) => `(() =
 })()`
 
 export const selectScript = (id: number, option: string) => `(() => {
-  const el = window.__yuki?.els.get(${id})?.deref();
+  const el = window.__kiko?.els.get(${id})?.deref();
   if (!el || !el.isConnected) return "gone";
   if (el.tagName !== "SELECT") return "not a select";
   const want = ${JSON.stringify(option)}.trim().toLowerCase();

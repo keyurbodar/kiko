@@ -2,7 +2,7 @@
 // carry hosts and never a URL. The live view URL comes back once, to the socket that pressed the
 // button, and goes straight into the tab the click opened.
 
-import type { BrowserState } from "@yuki/protocol"
+import type { BrowserState } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { userChannel } from "../sync/user-channel"
 

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { AgentSlug } from "@yuki/protocol"
+import type { AgentSlug } from "@kiko/protocol"
 import { ROOM_STEPS } from "../src/room/schema"
 import { Members } from "../src/room/members"
 import { RoomLog } from "../src/room/log"

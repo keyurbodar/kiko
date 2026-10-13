@@ -5,7 +5,7 @@ import { join } from "node:path"
 /*
  * A bubble's text, its emoji and its mention chips are inline boxes in one span. When a
  * stylesheet elsewhere made that span a flex column (the sidebar's `.chat-text`), every
- * run became its own flex item: "yuki's here" and its emoji, or "@piko" and "thanks",
+ * run became its own flex item: "kiko's here" and its emoji, or "@piko" and "thanks",
  * landed on separate lines. This guards the class names the bubble text uses against any
  * rule in the app that turns them into a flex or grid box.
  */

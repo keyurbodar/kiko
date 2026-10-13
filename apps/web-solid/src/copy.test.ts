@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { dict } from "@yuki/ui/i18n/en"
+import { dict } from "@kiko/ui/i18n/en"
 
 // Placeholders such as {{count}} name a parameter, so their case is not copy.
 const withoutParams = (text: string) => text.replace(/\{\{[^}]*\}\}/g, "").trim()

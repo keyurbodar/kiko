@@ -1,5 +1,5 @@
-import { newRoomId } from "@yuki/protocol"
-import type { Agent, AgentSlug, RoomId, UserEvent, UserToClient } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { Agent, AgentSlug, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { expectEqual } from "../client"
 import type { Suite } from "../runner"
 

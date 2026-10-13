@@ -22,7 +22,7 @@ import {
   wrapTool,
 } from "@earendil-works/pi-durable"
 import { type ExtensionBundle, type ExtensionManifest, type ExtensionStateScope, hostAllowed } from "./manifest"
-import { declareEffect, type Effect, effectOf } from "@yuki/agent/effects"
+import { declareEffect, type Effect, effectOf } from "@kiko/agent/effects"
 import { type Bridge, ScriptError, ScriptVM, type Target } from "./vm"
 
 export type ScriptPorts = {
@@ -47,14 +47,14 @@ export function guestRequestProblem(manifest: ExtensionManifest, request: GuestR
   } catch {
     return "that is not a url"
   }
-  if (url.protocol !== "https:") return "yuki.fetch only reaches https urls"
+  if (url.protocol !== "https:") return "kiko.fetch only reaches https urls"
   const host = url.hostname.toLowerCase()
   if (!hostAllowed(host, manifest.egress ?? [])) return `${host} is not in "egress" in extension.json`
   const method = (request.method ?? (request.body !== undefined || request.json !== undefined ? "POST" : "GET")).toUpperCase()
   if (!METHODS.has(method)) return `method ${method} is not allowed`
   for (const [k, v] of Object.entries(request.headers ?? {})) {
     if (typeof v !== "string" || /[\r\n]/.test(k + v) || !/^[A-Za-z0-9-]{1,64}$/.test(k)) return `header ${k} is not allowed`
-    if (/^(host|cookie|content-length|transfer-encoding|connection)$/i.test(k)) return `header ${k} is set by yuki`
+    if (/^(host|cookie|content-length|transfer-encoding|connection)$/i.test(k)) return `header ${k} is set by kiko`
   }
   const body = request.json !== undefined ? JSON.stringify(request.json) : request.body
   if (body !== undefined && typeof body !== "string") return "body must be text; use json for objects"
@@ -148,9 +148,9 @@ export type CallPort = {
 }
 
 const stateOp = async ({ name, manifest, ports }: BridgeContext, op: string, payload: unknown[], readOnlyFor?: string): Promise<unknown> => {
-  if (!manifest.state) throw new Error(`yuki.state needs "state" in extension.json`)
+  if (!manifest.state) throw new Error(`kiko.state needs "state" in extension.json`)
   const verb = op.slice("state.".length) as "get" | "set" | "delete" | "list"
-  if (readOnlyFor && verb !== "get" && verb !== "list") throw new Error(`${readOnlyFor} can only read yuki.state`)
+  if (readOnlyFor && verb !== "get" && verb !== "list") throw new Error(`${readOnlyFor} can only read kiko.state`)
   return ports.state(name, manifest.state, verb, String(payload[0] ?? ""), payload[1])
 }
 
@@ -172,7 +172,7 @@ export function makeToolBridge(input: ToolBridgeInput): Bridge {
     }
     if (op.startsWith("state.")) return stateOp(input, op, payload, effect === "read" ? `a "read" tool` : undefined)
     if (op === "next") {
-      if (!next) throw new Error("yuki.next only works in a tool wrap")
+      if (!next) throw new Error("kiko.next only works in a tool wrap")
       return next((payload[0] ?? {}) as Record<string, unknown>)
     }
     if (op === "fetch") {
@@ -192,14 +192,14 @@ export function makeToolBridge(input: ToolBridgeInput): Bridge {
       if (!mayCall(effect, declared)) throw new Error(`${self} is "${effect}" and cannot call ${tool}, which is "${declared}"`)
       return calls.run(tool, args ?? {})
     }
-    throw new Error(`yuki.${op} is not available`)
+    throw new Error(`kiko.${op} is not available`)
   }
 }
 
 export const makeQuietBridge = (ctx: BridgeContext, where: string, readOnly: boolean): Bridge => async (op, payload) => {
   if (op === "log") return undefined
   if (op.startsWith("state.")) return stateOp(ctx, op, payload, readOnly ? where : undefined)
-  throw new Error(`${where} can only use yuki.state and yuki.log`)
+  throw new Error(`${where} can only use kiko.state and kiko.log`)
 }
 
 export function compileExtension(installed: Installed, pool: VmPool, ports: ScriptPorts): Extension {

@@ -1,8 +1,8 @@
-import type { AgentSlug } from "@yuki/protocol"
+import type { AgentSlug } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { RoomLog } from "../src/room/log"
 import { ROOM_STEPS } from "../src/room/schema"
-import { migrate } from "@yuki/durable/migrate"
+import { migrate } from "@kiko/durable/migrate"
 import { RoomWorkspace, runCall, type WorkspaceCall } from "../src/room/workspace"
 
 const MEMBERS = ["bob", "ada", "cy"] as AgentSlug[]

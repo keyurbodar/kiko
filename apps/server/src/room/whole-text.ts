@@ -1,5 +1,5 @@
-import { MAX_MESSAGE_TEXT } from "@yuki/protocol"
-import { sha256Hex } from "@yuki/durable/hash"
+import { MAX_MESSAGE_TEXT } from "@kiko/protocol"
+import { sha256Hex } from "@kiko/durable/hash"
 import { deleteFiles, fileKey } from "../files/upload"
 
 // A long message's whole text is stored as this file. The name is what the agent reads in its envelope.

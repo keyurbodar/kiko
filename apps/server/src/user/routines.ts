@@ -1,4 +1,4 @@
-import type { Trigger, WebhookMatch } from "@yuki/protocol"
+import type { Trigger, WebhookMatch } from "@kiko/protocol"
 import { type Reminder, ReminderError } from "./reminders"
 
 export type RoomRoutine = { id: string; target: string; trigger: Extract<Trigger, { on: "task" | "message" | "file" }> }

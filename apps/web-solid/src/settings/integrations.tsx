@@ -1,4 +1,4 @@
-import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@yuki/protocol"
+import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@kiko/protocol"
 import { Show, createSignal, lazy, onCleanup, onMount } from "solid-js"
 import { cn } from "../lib/cn"
 import { Button, Empty, Group, Item, Notice, fieldClass } from "./kit"
@@ -50,7 +50,7 @@ function KeyField(props: { id: string; label: string; placeholder: string; submi
 				id={props.id}
 				ref={input}
 				type="password"
-				name={`yuki-${props.id}-secret`}
+				name={`kiko-${props.id}-secret`}
 				autocomplete="off"
 				autocapitalize="off"
 				spellcheck={false}
@@ -89,7 +89,7 @@ export function Integrations(props: { client?: ComposioClient; kernel?: KernelCl
 
 	onMount(() => {
 		// The dev mock has no Composio account behind it, so it shows the empty state.
-		if (!props.client && import.meta.env.DEV && import.meta.env.VITE_YUKI_SYNC === "mock") {
+		if (!props.client && import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock") {
 			setKernel({ connected: false, broken: false, browser: null })
 			return setStatus({ connected: false, rows: 0 })
 		}

@@ -94,7 +94,7 @@ async function back(page: PageState): Promise<StepResult> {
   return { ok: true }
 }
 
-// check-rules: allow no-timer-in-do a bounded wait inside one request; core/browser may not import @yuki/durable, so it keeps its own timer
+// check-rules: allow no-timer-in-do a bounded wait inside one request; core/browser may not import @kiko/durable, so it keeps its own timer
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 async function bodyText(page: PageState): Promise<string | undefined> {
@@ -133,7 +133,7 @@ async function awaitPage(page: PageState, step: Extract<Step, { op: "wait" }>): 
 }
 
 const fileInputScript = (id: ControlId) =>
-  `(() => { const el = window.__yuki?.els?.get(${id})?.deref?.(); return el && el.tagName === "INPUT" && el.type === "file" ? el : null })()`
+  `(() => { const el = window.__kiko?.els?.get(${id})?.deref?.(); return el && el.tagName === "INPUT" && el.type === "file" ? el : null })()`
 
 async function upload(page: PageState, id: ControlId, paths: string[]): Promise<StepResult> {
   if (paths.length === 0) return { ok: false, reason: "gone", detail: "upload needs at least one file path" }

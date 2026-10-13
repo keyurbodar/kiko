@@ -1,4 +1,4 @@
-import { humanHandle } from "@yuki/protocol"
+import { humanHandle } from "@kiko/protocol"
 import { createContext, Show, useContext, type JSX } from "solid-js"
 import { session } from "../../app/session"
 import { identityLook, identityTint } from "../../lib/identity"

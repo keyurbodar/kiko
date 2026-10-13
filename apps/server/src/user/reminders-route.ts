@@ -1,4 +1,4 @@
-import { isRoomId } from "@yuki/protocol"
+import { isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
 import { DEV } from "../lib/dev-guard"
 import { error, signedIn } from "../lib/route"

@@ -28,7 +28,7 @@ const suite: Suite = {
   model: true,
   human: true,
   async run(v) {
-    const only = process.env.YUKI_BROWSER_DECIDER
+    const only = process.env.KIKO_BROWSER_DECIDER
     const passes = (["model", "jev"] as const).filter((d) => !only || only === d)
     const failures: string[] = []
     for (const decider of passes) {

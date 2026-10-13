@@ -1,9 +1,9 @@
 import { CliError, type Context } from "../main"
 import { askUser } from "./user-socket"
 
-// yuki kernel connect | disconnect | status: speaks the user socket frames of the Kernel browser
+// kiko kernel connect | disconnect | status: speaks the user socket frames of the Kernel browser
 // integration. `connect` reads the key from KERNEL_API_KEY, so it does not land in shell history.
-// Sign in first with `yuki login --dev`.
+// Sign in first with `kiko login --dev`.
 
 type Result = { ok: true; status: { connected: boolean; broken: boolean; browser: { mode: string; tabs: Record<string, number> } | null } } | { ok: false; error: string }
 
@@ -16,7 +16,7 @@ export async function kernel(ctx: Context): Promise<void> {
     frame = { t: "connectKernel", apiKey }
   } else if (sub === "disconnect") frame = { t: "disconnectKernel" }
   else if (sub === "status") frame = { t: "kernelStatus" }
-  else throw new CliError("usage: yuki kernel <connect | disconnect | status>")
+  else throw new CliError("usage: kiko kernel <connect | disconnect | status>")
   const result = await askUser<Result>(ctx, frame, "kernel")
   if (ctx.json) console.log(JSON.stringify(result))
   else if (!result.ok) throw new CliError(result.error)

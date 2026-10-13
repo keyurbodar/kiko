@@ -1,4 +1,4 @@
-import type { Block, ColumnAlign, Inline, RichText } from "@yuki/protocol"
+import type { Block, ColumnAlign, Inline, RichText } from "@kiko/protocol"
 import { chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, type FileTarget } from "./file-links"
 
 /* The rich text tree as plain element data. `RichText.tsx` renders this and

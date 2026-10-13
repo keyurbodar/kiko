@@ -1,5 +1,5 @@
 import { idles, messages, newRoom, poll } from "../kit"
-import type { LifeLine, MemoryOp, MemoryResult, Message, } from "@yuki/protocol"
+import type { LifeLine, MemoryOp, MemoryResult, Message, } from "@kiko/protocol"
 import type { RoomHandle, } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"

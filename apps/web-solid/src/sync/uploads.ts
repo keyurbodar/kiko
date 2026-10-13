@@ -1,4 +1,4 @@
-import type { PendingAttachment } from "@yuki/protocol"
+import type { PendingAttachment } from "@kiko/protocol"
 import { createStore, produce } from "solid-js/store"
 
 /*

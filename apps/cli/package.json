@@ -1,14 +1,14 @@
 {
-  "name": "@yuki/cli",
+  "name": "@kiko/cli",
   "private": true,
   "type": "module",
-  "bin": { "yuki": "src/index.ts" },
+  "bin": { "kiko": "src/index.ts" },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
   "dependencies": {
-    "@yuki/protocol": "workspace:*",
+    "@kiko/protocol": "workspace:*",
     "effect": "4.0.0"
   },
   "devDependencies": {

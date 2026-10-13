@@ -81,7 +81,7 @@ function setup(script: Parameters<typeof fakeKernel>[0] = {}, start = 1_000_000)
   const lease = new KernelLease({
     store,
     client: async () => kernel.client,
-    profile: async () => "yuki-test",
+    profile: async () => "kiko-test",
     wake: { set: async (at) => void wakes.push(at), clear: async () => void wakes.push(null) },
     now: () => clock.now,
     sleep: async (ms) => void (sleeps.push(ms), (clock.now += ms)),
@@ -115,7 +115,7 @@ describe("lease", () => {
     const [a, b] = await Promise.all([t.lease.lease("room/ada"), t.lease.lease("room/bob")])
     expect(a.cdpUrl).toBe(b.cdpUrl)
     expect(a).toMatchObject({ mode: "headless", restarted: false })
-    expect(t.kernel.calls).toEqual(["profile yuki-test", "create headless yuki-test"])
+    expect(t.kernel.calls).toEqual(["profile kiko-test", "create headless kiko-test"])
     expect(t.lease.status()).toEqual({ mode: "headless", tabs: { "room/ada": 0, "room/bob": 0 } })
   })
 
@@ -132,7 +132,7 @@ describe("lease", () => {
     await t.lease.lease("room/ada")
     t.lease.touch("room/ada", { t1: "https://a.test/", t2: "https://b.test/" })
     const switched = await t.lease.switchMode("headful")
-    expect(t.kernel.calls.slice(2)).toEqual(["delete s1", "create headful yuki-test"])
+    expect(t.kernel.calls.slice(2)).toEqual(["delete s1", "create headful kiko-test"])
     expect(t.kernel.maxLive()).toBe(1)
     expect(switched).toEqual({ cdpUrl: "wss://cdp/s2", mode: "headful", tabs: { "room/ada": ["https://a.test/", "https://b.test/"] } })
     expect((await t.lease.lease("room/bob")).mode).toBe("headful")
@@ -143,7 +143,7 @@ describe("lease", () => {
     const t = setup()
     await t.lease.lease("a")
     await t.lease.switchMode("headless")
-    expect(t.kernel.calls.filter((c) => c.startsWith("create") || c.startsWith("delete"))).toEqual(["create headless yuki-test"])
+    expect(t.kernel.calls.filter((c) => c.startsWith("create") || c.startsWith("delete"))).toEqual(["create headless kiko-test"])
   })
 
   test("a switch keeps the human's takeover", async () => {
@@ -163,7 +163,7 @@ describe("lease", () => {
     expect(t.lease.touch("a")).toBe(false)
     const next = await t.lease.lease("a")
     expect(next).toMatchObject({ restarted: true, reopen: ["https://a.test/"], cdpUrl: "wss://cdp/s2" })
-    expect(t.kernel.calls.slice(-2)).toEqual(["delete s1", "create headless yuki-test"])
+    expect(t.kernel.calls.slice(-2)).toEqual(["delete s1", "create headless kiko-test"])
     expect(t.kernel.maxLive()).toBe(1)
   })
 

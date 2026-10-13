@@ -1,4 +1,4 @@
-import { type ChatSearchHit, type ChatSearchPage, mergeHits } from "@yuki/protocol"
+import { type ChatSearchHit, type ChatSearchPage, mergeHits } from "@kiko/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"

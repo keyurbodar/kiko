@@ -144,11 +144,11 @@ test("only hosts in egress, only https, and no secret the human has not set", as
   const u = fresh()
   await installed(u)
   expect(await call(u, "fetch", "hook", { url: "https://evil.test/" })).toMatchObject({ ok: false, error: 'evil.test is not in "egress" in extension.json' })
-  expect(await call(u, "fetch", "hook", { url: "http://api.example.com/" })).toMatchObject({ ok: false, error: "yuki.fetch only reaches https urls" })
+  expect(await call(u, "fetch", "hook", { url: "http://api.example.com/" })).toMatchObject({ ok: false, error: "kiko.fetch only reaches https urls" })
   expect(await call(u, "fetch", "hook", { url: "https://api.example.com/?k={{secret.TOKEN}}" })).toMatchObject({ ok: false })
   expect((await call(u, "fetch", "hook", { url: "https://api.example.com/?k={{secret.TOKEN}}" })).error).toContain("has not set TOKEN")
   expect(await call(u, "fetch", "hook", { url: "https://a.cdn.example.com/" })).toMatchObject({ ok: true })
-  expect(await call(u, "fetch", "hook", { url: "https://api.example.com/", headers: { cookie: "x" } })).toMatchObject({ ok: false, error: "header cookie is set by yuki" })
+  expect(await call(u, "fetch", "hook", { url: "https://api.example.com/", headers: { cookie: "x" } })).toMatchObject({ ok: false, error: "header cookie is set by kiko" })
 })
 
 test("a switched-off extension reaches nothing, and the agent's scope narrows who runs it", async () => {

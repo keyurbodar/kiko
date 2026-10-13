@@ -1,10 +1,10 @@
-import type { UserToClient } from "@yuki/protocol"
+import type { UserToClient } from "@kiko/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 
-const FAKE = "yuki-fake"
-const CODE = "YUKI-0000"
+const FAKE = "kiko-fake"
+const CODE = "KIKO-0000"
 
 type Frame<T extends UserToClient["t"]> = Extract<UserToClient, { t: T }>
 

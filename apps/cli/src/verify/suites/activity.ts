@@ -1,5 +1,5 @@
 import { newRoom, poll } from "../kit"
-import { type Chat, humanHandle, type MessageId, type RoomToClient, type UserToClient } from "@yuki/protocol"
+import { type Chat, humanHandle, type MessageId, type RoomToClient, type UserToClient } from "@kiko/protocol"
 import type { UserChannel } from "../client"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
@@ -65,7 +65,7 @@ const suite: Suite = {
       step(`an inline reply to the human counts: mentions ${current().mentions}`)
       await send(`[reply] hey @${handle} look`)
       await wait("the @handle as a mention", (c) => c.last?.text === `hey @${handle} look` && (c.mentions ?? 0) === before + 2)
-      expectEqual(current().last?.name, "Yuki", "who said it, by name")
+      expectEqual(current().last?.name, "Kiko", "who said it, by name")
       step(`@${handle} counts: mentions ${current().mentions}, line ${JSON.stringify(current().last)}`)
 
       const unreadRow = current()
@@ -82,7 +82,7 @@ const suite: Suite = {
       step(`a reaction is the line: ${JSON.stringify(current().last)}`)
 
       const typing = user.log.flatMap((e) => (e.dir === "in" && (e.frame as UserToClient).t === "typing" ? [e.frame as Extract<UserToClient, { t: "typing" }>] : []))
-      if (!typing.some((f) => f.roomId === roomId && f.names.includes("Yuki"))) throw new VerifyError(`no typing frame named Yuki: ${JSON.stringify(typing)}`)
+      if (!typing.some((f) => f.roomId === roomId && f.names.includes("Kiko"))) throw new VerifyError(`no typing frame named Kiko: ${JSON.stringify(typing)}`)
       if (!typing.some((f) => f.roomId === roomId && f.names.length === 0)) throw new VerifyError("no typing frame ended the typing")
       step(`the user socket said who was typing: ${typing.length} frames`)
     } catch (e) {

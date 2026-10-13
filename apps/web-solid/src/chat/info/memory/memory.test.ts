@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { MemoryOp, MemoryResult } from "@yuki/protocol"
+import type { MemoryOp, MemoryResult } from "@kiko/protocol"
 import type { MemoryClient } from "./client"
 import { replacedMark } from "./views"
 import { createMockMemory } from "./mock"

@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite"
-import { migrate, type Step } from "@yuki/durable/migrate"
+import { migrate, type Step } from "@kiko/durable/migrate"
 
 export function sqlStorage(db = new Database(":memory:")): SqlStorage {
   return {

@@ -1,4 +1,4 @@
-import type { ChatLast, LastKind } from "@yuki/protocol"
+import type { ChatLast, LastKind } from "@kiko/protocol"
 
 // The chat list's second line, worded the way Telegram words it. The room sends the newest
 // activity as data (`ChatLast`); this file is the one place that turns it into words. A DM names

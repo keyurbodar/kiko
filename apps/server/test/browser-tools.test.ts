@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { BrowserSession, PageView, Step, Tab } from "@yuki/browser/page/types"
+import type { BrowserSession, PageView, Step, Tab } from "@kiko/browser/page/types"
 import { BrowserConnection } from "../src/agent/browser/connection"
 import { WORKER_ONLY } from "../src/agent/factory"
 import type { BrowserState, Lease, LeasePort } from "../src/agent/browser/lease"

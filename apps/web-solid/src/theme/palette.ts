@@ -1,4 +1,4 @@
-// Yuki's one palette. Light is washi paper with sumi ink; dark is warm charcoal with cream ink.
+// Kiko's one palette. Light is washi paper with sumi ink; dark is warm charcoal with cream ink.
 // Every fill is the ink at a few percent over the paper, so the whole interface moves together
 // and the contrast setting scales it in one place. The accent is the Shima Enaga's blush unless
 // the person picks another, and it only colors marks: links, mentions, your bubbles, the focus.

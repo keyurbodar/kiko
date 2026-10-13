@@ -1,4 +1,4 @@
-import type { AgentSlug } from "@yuki/protocol"
+import type { AgentSlug } from "@kiko/protocol"
 
 /** `mentions` are the slugs the whole text names, from `tags`, so a long message routes on all of it. */
 export type RecipientMessage = {

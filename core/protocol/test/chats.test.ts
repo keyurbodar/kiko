@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { dmFor, duplicateDm, yukiOnly } from "../src/chats"
+import { dmFor, duplicateDm, kikoOnly } from "../src/chats"
 import type { RoomId } from "../src/ids"
 import type { Chat } from "../src/user"
 
@@ -25,7 +25,7 @@ describe("an agent's one direct chat", () => {
 		["a temporary chat does not count", [ada("t", 9, { temp: true })], "ada", null],
 		["of duplicates, the most recently active", [ada("a", 1), ada("b", 3), ada("c", 2)], "ada", "b"],
 		["a tie goes to the lowest room id", [ada("b", 1), ada("a", 1)], "ada", "a"],
-		["for yuki, the yuki chat wins over a newer yuki room", [chat("k", { agents: ["yuki"], yuki: true }), chat("old", { agents: ["yuki"], updatedAt: 9 })], "yuki", "k"],
+		["for kiko, the kiko chat wins over a newer kiko room", [chat("k", { agents: ["yuki"], kiko: true }), chat("old", { agents: ["yuki"], updatedAt: 9 })], "yuki", "k"],
 	])("%s", (_, chats, agent, expected) => {
 		expect((dmFor(chats, agent)?.roomId ?? null) as string | null).toBe(expected)
 	})
@@ -45,13 +45,13 @@ describe("a create that would make a second direct chat", () => {
 	})
 })
 
-describe("rooms with yuki alone", () => {
+describe("rooms with kiko alone", () => {
 	test.each<[string, Chat, boolean]>([
-		["yuki alone", chat("a", { agents: ["yuki"] }), true],
-		["no agents, which seeds yuki", chat("a"), true],
+		["kiko alone", chat("a", { agents: ["yuki"] }), true],
+		["no agents, which seeds kiko", chat("a"), true],
 		["another agent", chat("a", { agents: ["ada"] }), false],
 		["a group", chat("a", { agents: ["yuki", "ada"] }), false],
 	])("%s", (_, c, expected) => {
-		expect(yukiOnly(c)).toBe(expected)
+		expect(kikoOnly(c)).toBe(expected)
 	})
 })

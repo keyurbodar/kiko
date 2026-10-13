@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { FileOp, FileRef } from "@yuki/protocol"
+import type { FileOp, FileRef } from "@kiko/protocol"
 import { overlayFiles, type RoomPatch } from "./patches"
 
 const file = (name: string): FileRef => ({ id: name, name, size: 1, type: "text/plain" })

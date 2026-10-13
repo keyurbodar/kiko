@@ -1,8 +1,8 @@
-import { ALARM_STEPS } from "@yuki/durable/alarm"
-import { addColumn, type Step } from "@yuki/durable/migrate"
+import { ALARM_STEPS } from "@kiko/durable/alarm"
+import { addColumn, type Step } from "@kiko/durable/migrate"
 import { fileIndexSteps, HOME_TABLES } from "../files/file-index"
-import { LIFE_STEPS, LIFE_TRI_STEPS } from "@yuki/memory/life"
-import { LOOPS_STEPS } from "@yuki/memory/loops"
+import { LIFE_STEPS, LIFE_TRI_STEPS } from "@kiko/memory/life"
+import { LOOPS_STEPS } from "@kiko/memory/loops"
 
 // The user's tables, in one list. An object at version N runs only the steps after the first N. A step is
 // appended, never edited or moved, and every step must be safe on a table that already exists. An object

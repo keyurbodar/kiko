@@ -1,4 +1,4 @@
-import type { AgentSlug, Envelope, SystemReason } from "@yuki/protocol"
+import type { AgentSlug, Envelope, SystemReason } from "@kiko/protocol"
 import type { Chain } from "./mail"
 
 

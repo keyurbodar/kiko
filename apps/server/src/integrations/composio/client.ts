@@ -9,7 +9,7 @@ const SESSION_ORIGIN = "https://backend.composio.dev"
 export const REJECTED = "Composio rejected this key"
 
 /*
- * Composio has two kinds of key. A Platform project key (`ak_`) makes a session per yuki user on
+ * Composio has two kinds of key. A Platform project key (`ak_`) makes a session per kiko user on
  * `backend.composio.dev`. A Composio Connect key (`ck_`) is one person's own account: its apps are
  * connected on Composio's side, and its MCP server is one fixed url with no sessions and no catalog.
  */

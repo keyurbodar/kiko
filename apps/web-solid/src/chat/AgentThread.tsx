@@ -1,10 +1,10 @@
-import { HugeIcon } from "@yuki/ui/huge-icon"
-import { ChevronDownIcon } from "@yuki/ui/icons"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { ChevronDownIcon } from "@kiko/ui/icons"
 import type { JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 
-/** "Yuki and Piko", "Yuki, Piko and Ada". Each name keeps its own casing. */
+/** "Kiko and Piko", "Kiko, Piko and Ada". Each name keeps its own casing. */
 export function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? ""
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`

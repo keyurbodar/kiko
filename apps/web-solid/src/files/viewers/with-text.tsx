@@ -1,4 +1,4 @@
-import type { FileRef } from "@yuki/protocol"
+import type { FileRef } from "@kiko/protocol"
 import { createResource, Match, Show, Switch, type JSX } from "solid-js"
 import { PREVIEW_BYTES, readText } from "../api"
 import { SurfaceFailure, SurfaceLoading, SurfaceNotice, UNREADABLE } from "../chrome"

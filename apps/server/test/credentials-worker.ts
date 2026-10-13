@@ -1,8 +1,8 @@
 import { DurableObject } from "cloudflare:workers"
-import type { Keyring } from "@yuki/durable/crypto"
+import type { Keyring } from "@kiko/durable/crypto"
 import { CredentialVault, userIdFromObjectName } from "../src/user/credentials"
 import { USER_STEPS } from "../src/user/schema"
-import { migrate } from "@yuki/durable/migrate"
+import { migrate } from "@kiko/durable/migrate"
 import { UserDO } from "../src/user/user-do"
 
 export { UserDO }

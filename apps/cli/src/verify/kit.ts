@@ -1,5 +1,5 @@
-import type { Message, RoomToClient } from "@yuki/protocol"
-import { newRoomId } from "@yuki/protocol"
+import type { Message, RoomToClient } from "@kiko/protocol"
+import { newRoomId } from "@kiko/protocol"
 import type { RoomHandle, Session } from "./client"
 import { VerifyError } from "./client"
 

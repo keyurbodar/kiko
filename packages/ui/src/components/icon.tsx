@@ -2,7 +2,7 @@ import { splitProps, type ComponentProps } from "solid-js"
 import { HugeIcon } from "./huge-icon"
 import { ArrowUpIcon, type Glyph, LinkIcon, ReplyIcon, SearchIcon, StopIcon } from "../icons.gen"
 
-/* The older icon names still in use, each drawn by one of yuki's icons. */
+/* The older icon names still in use, each drawn by one of kiko's icons. */
 const NAMES = {
   "arrow-up": ArrowUpIcon,
   stop: StopIcon,

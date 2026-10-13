@@ -1,6 +1,6 @@
-import { newRoomId } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
 import { createHash } from "node:crypto"
-import type { RoomToClient } from "@yuki/protocol"
+import type { RoomToClient } from "@kiko/protocol"
 import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 

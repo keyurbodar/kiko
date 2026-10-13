@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { ToolExecutionApi, ToolRegistration } from "@earendil-works/pi-durable"
 import { USER_AGENT, webExtension } from "../src/agent/extensions/web"
-import { htmlToText } from "@yuki/durable/html-text"
-import type { Fetcher } from "@yuki/durable/safe-fetch"
+import { htmlToText } from "@kiko/durable/html-text"
+import type { Fetcher } from "@kiko/durable/safe-fetch"
 
 const context = BACKGROUND_CONTEXT
 

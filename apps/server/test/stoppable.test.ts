@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { Type } from "@earendil-works/pi-ai"
 import { defineTool } from "@earendil-works/pi-durable"
-import { stoppable } from "@yuki/agent/effects"
+import { stoppable } from "@kiko/agent/effects"
 import { FAKE_TOOLS } from "../src/agent/dev-fake"
 import { filesExtension } from "../src/agent/extensions/files"
 

@@ -1,5 +1,5 @@
-import type { AgentSlug, Chat, Envelope, RoomEvent, } from "@yuki/protocol"
-import type { Alarms } from "@yuki/durable/alarm"
+import type { AgentSlug, Chat, Envelope, RoomEvent, } from "@kiko/protocol"
+import type { Alarms } from "@kiko/durable/alarm"
 import type { Env } from "../index"
 import { INITIATIVE_RUN, REMINDER_RUN } from "../initiative/engine"
 import type { Burst } from "./burst"

@@ -1,8 +1,8 @@
 import { DurableObject } from "cloudflare:workers"
-import type { Envelope } from "@yuki/protocol"
-import { INBOX_STEPS, Inbox } from "@yuki/agent/inbox"
-import { ALARM_STEPS, createAlarms } from "@yuki/durable/alarm"
-import { migrate } from "@yuki/durable/migrate"
+import type { Envelope } from "@kiko/protocol"
+import { INBOX_STEPS, Inbox } from "@kiko/agent/inbox"
+import { ALARM_STEPS, createAlarms } from "@kiko/durable/alarm"
+import { migrate } from "@kiko/durable/migrate"
 
 export class H extends DurableObject {
   clock = 1_000_000

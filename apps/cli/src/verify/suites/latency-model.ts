@@ -1,13 +1,13 @@
 import { poll, seen } from "../kit"
-import { newRoomId } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
 import { connectTestModel } from "../client"
 import type { Suite } from "../runner"
 import { Samples, timedTurn } from "./latency"
 import { send } from "./mid-run"
 
 
-const RUNS = Number(process.env.YUKI_LATENCY_RUNS ?? 10)
-const WEB_RUNS = Number(process.env.YUKI_LATENCY_WEB_RUNS ?? 3)
+const RUNS = Number(process.env.KIKO_LATENCY_RUNS ?? 10)
+const WEB_RUNS = Number(process.env.KIKO_LATENCY_WEB_RUNS ?? 3)
 
 const suite: Suite = {
   name: "latency-model",

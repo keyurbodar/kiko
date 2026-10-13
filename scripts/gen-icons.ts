@@ -1,5 +1,5 @@
 /*
- * Writes packages/ui/src/icons.gen.ts: the Hugeicons glyphs yuki uses, copied as data.
+ * Writes packages/ui/src/icons.gen.ts: the Hugeicons glyphs kiko uses, copied as data.
  * The package exports only its full index, so importing from it would load all 12,000
  * icons in dev. Add a row here, then run `bun scripts/gen-icons.ts`. A row named `chevron-down`
  * is exported as `ChevronDownIcon`.

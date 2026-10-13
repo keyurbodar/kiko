@@ -1,5 +1,5 @@
 import { newRoom, poll } from "../kit"
-import type { Message, RoomToClient } from "@yuki/protocol"
+import type { Message, RoomToClient } from "@kiko/protocol"
 import { connectTestModel, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send } from "./mid-run"
@@ -21,7 +21,7 @@ const suite: Suite = {
       return [...all.values()].map((m) => m.text.toLowerCase())
     }
     await send(room, "write me a haiku about rain please.")
-    await poll("the built-in skill's sign-off", () => texts().some((t) => t.includes("haiku by yuki's haiku skill")), 90_000)
+    await poll("the built-in skill's sign-off", () => texts().some((t) => t.includes("haiku by kiko's haiku skill")), 90_000)
     console.log("  ok the built-in haiku skill was loaded and followed")
 
     room.raw.close()
@@ -40,7 +40,7 @@ const suite: Suite = {
     }
     await send(second.room, "write me a haiku about the sun please.")
     await poll("the room skill's sign-off", () => texts2().some((t) => t.includes("room haiku wins")), 90_000)
-    if (texts2().some((t) => t.includes("haiku by yuki's haiku skill"))) throw new VerifyError("the built-in haiku skill ran in a room that has its own")
+    if (texts2().some((t) => t.includes("haiku by kiko's haiku skill"))) throw new VerifyError("the built-in haiku skill ran in a room that has its own")
     console.log("  ok the room skill named haiku won over the built-in one")
     second.room.raw.close()
   },

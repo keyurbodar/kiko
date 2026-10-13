@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { ClientToUser, ComposioResult, UserToClient } from "@yuki/protocol"
+import type { ClientToUser, ComposioResult, UserToClient } from "@kiko/protocol"
 import { createComposioClient } from "./integrations-client"
 import { createUserChannel } from "../sync/user-channel"
 
@@ -31,7 +31,7 @@ test("a reply with the same reqId answers the request, a push reaches listeners"
 test("no answer is an error, not a hang", async () => {
 	const f = fake()
 	const client = createComposioClient({ channel: f.channel, timeoutMs: 20 })
-	expect(await client.request({ t: "disconnectComposio" })).toEqual({ ok: false, error: "Yuki did not answer." })
+	expect(await client.request({ t: "disconnectComposio" })).toEqual({ ok: false, error: "Kiko did not answer." })
 	client.close()
 })
 

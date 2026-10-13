@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, expect, test } from "bun:test"
-import { safeFetch, type Fetcher } from "@yuki/durable/safe-fetch"
+import { safeFetch, type Fetcher } from "@kiko/durable/safe-fetch"
 
 const MB = 1024 * 1024
 const PUBLIC_V4 = "93.184.216.34"

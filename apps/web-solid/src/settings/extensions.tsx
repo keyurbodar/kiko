@@ -1,4 +1,4 @@
-import { describeManifest, type ExtensionBundle, type ExtensionCatalogEntry, type ExtensionInfo, type ExtensionOp, type ExtensionProposal, type ExtensionResult, type ReviewLine } from "@yuki/protocol"
+import { describeManifest, type ExtensionBundle, type ExtensionCatalogEntry, type ExtensionInfo, type ExtensionOp, type ExtensionProposal, type ExtensionResult, type ReviewLine } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
 import { useApp } from "../lib/store"
@@ -67,11 +67,11 @@ export default function ExtensionsPage() {
     return out
   }
 
-  function askYuki() {
-    const yuki = app.yukiChatId()
-    if (!yuki) return
-    app.drafts()?.save(yuki, { text: "Build me an extension that " })
-    navigate(`/chat/${yuki}`)
+  function askKiko() {
+    const kiko = app.kikoChatId()
+    if (!kiko) return
+    app.drafts()?.save(kiko, { text: "Build me an extension that " })
+    navigate(`/chat/${kiko}`)
   }
 
   return (
@@ -91,8 +91,8 @@ export default function ExtensionsPage() {
         data-component="extensions-installed"
         bare={!extensions().length}
         action={
-          <Button variant="ghost" data-action="ask-yuki" onClick={askYuki}>
-            Build one with Yuki
+          <Button variant="ghost" data-action="ask-kiko" onClick={askKiko}>
+            Build one with Kiko
           </Button>
         }
       >
@@ -376,7 +376,7 @@ function SecretField(props: { extension: ExtensionInfo; name: string; set: boole
             <input
               ref={input}
               type="password"
-              name={`yuki-extension-secret-${props.name}`}
+              name={`kiko-extension-secret-${props.name}`}
               autocomplete="off"
               autocapitalize="off"
               spellcheck={false}

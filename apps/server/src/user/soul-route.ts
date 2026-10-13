@@ -1,4 +1,4 @@
-import { isAgentSlug } from "@yuki/protocol"
+import { isAgentSlug } from "@kiko/protocol"
 import type { Env } from "../index"
 import { error, signedIn } from "../lib/route"
 import { userStub } from "../lib/names"

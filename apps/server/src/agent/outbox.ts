@@ -1,7 +1,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
-import type { AgentState } from "@yuki/protocol"
-import type { RunProgress } from "@yuki/agent/mid-run"
+import type { AgentState } from "@kiko/protocol"
+import type { RunProgress } from "@kiko/agent/mid-run"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
 const context = BACKGROUND_CONTEXT

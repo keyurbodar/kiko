@@ -1,5 +1,5 @@
 import { DEFAULT_MODEL } from "../agent/factory"
-import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent } from "@yuki/protocol"
+import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 
 import { CHIEF } from "./chief"

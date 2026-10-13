@@ -1,4 +1,4 @@
-import type { AgentSlug, RoomId } from "@yuki/protocol"
+import type { AgentSlug, RoomId } from "@kiko/protocol"
 
 export type Home = { userId: string; roomId: RoomId }
 

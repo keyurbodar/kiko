@@ -1,5 +1,5 @@
-import { boolOf, type Judge, type Question } from "@yuki/memory/judge"
-import { type BurstCheck, type LoopOp, loopOps, loopQuestions } from "@yuki/memory/loops"
+import { boolOf, type Judge, type Question } from "@kiko/memory/judge"
+import { type BurstCheck, type LoopOp, loopOps, loopQuestions } from "@kiko/memory/loops"
 
 async function ask(judge: Judge, state: Parameters<Judge>[0], questions: Record<string, Question>) {
   try {

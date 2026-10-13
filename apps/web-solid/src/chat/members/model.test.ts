@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Agent, AgentSlug, Member } from "@yuki/protocol"
+import type { Agent, AgentSlug, Member } from "@kiko/protocol"
 import { addable, addOp, refusalText, renameOp, roleLabel } from "./model"
 
 const agent = (slug: string, extra: Partial<Agent> = {}): Agent => ({ id: `id-${slug}`, name: slug, slug: slug as AgentSlug, prompt: "", model: "", ...extra })

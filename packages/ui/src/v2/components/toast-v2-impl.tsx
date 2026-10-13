@@ -16,7 +16,7 @@ import {
 import "./toast-v2.css"
 
 /*
- * Yuki's toaster, after t3code's (MIT, apps/web/src/components/ui/toast.tsx on Base UI's
+ * Kiko's toaster, after t3code's (MIT, apps/web/src/components/ui/toast.tsx on Base UI's
  * toast): a glass card at the top right under the top bar, a stack of three that fans out on
  * hover or focus, a dismiss orb on the corner, and small toasts anchored to the control that
  * raised them. Alt+T focuses the newest toast and Escape dismisses the focused one.

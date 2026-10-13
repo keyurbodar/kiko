@@ -9,12 +9,12 @@ describe("identity look", () => {
     expect(identityLook("ada")).toEqual(identityLook("ada"))
   })
 
-  test("the chief is Yuki, the cream bird, and wears the theme accent", () => {
+  test("the chief is Kiko, the cream bird, and wears the theme accent", () => {
     expect(seedBird("yuki", "yuki").flavor).toBe("yuki")
     expect(identityLook("yuki").color).toBe("var(--accent)")
   })
 
-  test("other seeds spread over the flock and never draw Yuki's cream", () => {
+  test("other seeds spread over the flock and never draw Kiko's cream", () => {
     const flavors = new Set(Array.from({ length: 80 }, (_, i) => seedBird(`agent-${i}`, "yuki").flavor))
     expect(flavors.has("yuki")).toBe(false)
     expect(flavors.size).toBeGreaterThanOrEqual(10)
@@ -77,7 +77,7 @@ describe("chatFaces", () => {
     ["a group stacks its members, the built-in agent by its slug", { roomId: "r3", agents: ["yuki", "a1", "a2"] }, undefined, ["yuki", "ada", "bo"]],
     ["a group shows at most three", { roomId: "r4", agents: ["yuki", "a1", "a2", "zz"] }, undefined, ["yuki", "ada", "bo"]],
     ["a chat with one picked agent stays one-to-one", { roomId: "r7", agents: ["a2"] }, undefined, ["bo"]],
-    ["a closed group shows yuki as its chief, the faces it has once open", { roomId: "r8", agents: ["a1", "a2"] }, undefined, ["yuki", "ada", "bo"]],
+    ["a closed group shows kiko as its chief, the faces it has once open", { roomId: "r8", agents: ["a1", "a2"] }, undefined, ["yuki", "ada", "bo"]],
     ["opening that group changes nothing", { roomId: "r8", agents: ["a1", "a2"] }, ["yuki", "ada", "bo"], ["yuki", "ada", "bo"]],
     ["the open room's live members win", { roomId: "r5", agents: ["a1", "a2"] }, ["bo", "cy"], ["bo", "cy"]],
     ["a group that lost all but one wears that one's face", { roomId: "r6", agents: ["a1", "a2"] }, ["bo"], ["bo"]],

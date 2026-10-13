@@ -1,4 +1,4 @@
-import type { FileRef } from "@yuki/protocol"
+import type { FileRef } from "@kiko/protocol"
 import { createEffect, createMemo, createSignal, lazy, Match, on, Show, Suspense, Switch, type JSX } from "solid-js"
 import { urls } from "../lib/store"
 import { NoPreview, SurfaceFailure, SurfaceLoading } from "./chrome"

@@ -1,4 +1,4 @@
-import { isAgentSlug, isRoomId } from "@yuki/protocol"
+import { isAgentSlug, isRoomId } from "@kiko/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { devRequest } from "../lib/dev-guard"

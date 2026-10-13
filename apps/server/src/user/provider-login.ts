@@ -14,7 +14,7 @@ import { kimiCodingProvider } from "@earendil-works/pi-ai/providers/kimi-coding"
 import { metaProvider } from "@earendil-works/pi-ai/providers/meta"
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex"
 import { xaiProvider } from "@earendil-works/pi-ai/providers/xai"
-import type { LoginErrorReason, LoginEvent, LoginPrompt, UserToClient } from "@yuki/protocol"
+import type { LoginErrorReason, LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
 import { isProviderId, type ProviderInfo } from "./credentials"
 
 export const MAX_LOGINS = 4
@@ -74,7 +74,7 @@ export class ProviderLogins<Owner> {
     if (this.logins.has(loginId)) return refuse("failed", "this sign-in is already running")
     const provider = await this.provider(providerId)
     const oauth = provider?.auth.oauth
-    if (!provider || !oauth) return refuse("unsupported", "this provider has no sign-in yuki can run. use an api key")
+    if (!provider || !oauth) return refuse("unsupported", "this provider has no sign-in kiko can run. use an api key")
     for (const other of [...this.logins.values()]) {
       if (other.provider === providerId) this.end(other, { reason: "cancelled", message: "a newer sign-in replaced this one" })
     }

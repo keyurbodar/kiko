@@ -1,9 +1,9 @@
 // The human's attachments, as data: which files are pictures, which the composer refuses, and how
 // a message lays its pictures out. The composer and the transcript both read these, so a file is
 // a picture in the box exactly when it is one in the bubble. The limits and their words come from
-// `@yuki/protocol`, which the server enforces too. No Solid and no DOM.
+// `@kiko/protocol`, which the server enforces too. No Solid and no DOM.
 
-import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS, MAX_MESSAGE_TEXT, type PendingAttachment, sendFits } from "@yuki/protocol"
+import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS, MAX_MESSAGE_TEXT, type PendingAttachment, sendFits } from "@kiko/protocol"
 
 export { attachmentType, MAX_ATTACHMENTS }
 
@@ -44,7 +44,7 @@ export function wrapIndex(index: number, count: number): number {
 /**
  * Which of `files` the composer takes when it already holds `held`, the way t3code's composer
  * decides before any await: a picture is taken at any size (the composer shrinks one over 10 MB),
- * a picture yuki cannot send is refused, and any other file must be under its limit. Each file
+ * a picture kiko cannot send is refused, and any other file must be under its limit. Each file
  * taken reserves a slot, so a drop past the 100 files says so. `error` is the last refusal, as
  * t3code shows one line.
  */

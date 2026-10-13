@@ -1,8 +1,8 @@
-import { HugeIcon } from "@yuki/ui/huge-icon"
-import { CheckIcon, CloseIcon, MoonIcon } from "@yuki/ui/icons"
-import { showToastV2 } from "@yuki/ui/v2/toast-v2"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { CheckIcon, CloseIcon, MoonIcon } from "@kiko/ui/icons"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal, For, Show } from "solid-js"
-import type { LoopRow as WireLoop } from "@yuki/protocol"
+import type { LoopRow as WireLoop } from "@kiko/protocol"
 import { shortDate } from "./format"
 
 /*

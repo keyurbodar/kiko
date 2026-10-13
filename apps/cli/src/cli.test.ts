@@ -39,21 +39,21 @@ test("health exits 1 with one line when down", async () => {
   expect(r.code).toBe(1)
   const lines = r.err.trim().split("\n")
   expect(lines).toHaveLength(2)
-  expect(lines[0]).toBe("yuki: target http://localhost:1")
-  expect(lines[1]).toMatch(/^yuki: health failed: cannot reach http:\/\/localhost:1 /)
+  expect(lines[0]).toBe("kiko: target http://localhost:1")
+  expect(lines[1]).toMatch(/^kiko: health failed: cannot reach http:\/\/localhost:1 /)
 })
 
-test("YUKI_URL sets the default target and prints it first", async () => {
-  const r = await run(["health"], "", { YUKI_URL: `http://localhost:${server.port}` })
+test("KIKO_URL sets the default target and prints it first", async () => {
+  const r = await run(["health"], "", { KIKO_URL: `http://localhost:${server.port}` })
   expect(r.code).toBe(0)
-  expect(r.err.split("\n")[0]).toBe(`yuki: target http://localhost:${server.port}`)
+  expect(r.err.split("\n")[0]).toBe(`kiko: target http://localhost:${server.port}`)
   expect(r.out.trim()).toBe("ok")
 })
 
-test("--url overrides YUKI_URL", async () => {
-  const r = await run(["health", "--url", `http://localhost:${server.port}`], "", { YUKI_URL: "http://localhost:1" })
+test("--url overrides KIKO_URL", async () => {
+  const r = await run(["health", "--url", `http://localhost:${server.port}`], "", { KIKO_URL: "http://localhost:1" })
   expect(r.code).toBe(0)
-  expect(r.err.split("\n")[0]).toBe(`yuki: target http://localhost:${server.port}`)
+  expect(r.err.split("\n")[0]).toBe(`kiko: target http://localhost:${server.port}`)
 })
 
 test("health exits 1 on bad status", async () => {

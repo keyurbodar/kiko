@@ -1,5 +1,5 @@
-import { sha256Stream } from "@yuki/durable/hash"
-import { type Actor, isRoomId } from "@yuki/protocol"
+import { sha256Stream } from "@kiko/durable/hash"
+import { type Actor, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import type { SessionLookup } from "../router"
@@ -99,7 +99,7 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	const length = declaredSize(request.headers.get("content-length"))
 	if (length === null) return error(411, "content-length required")
 	if (length > MAX_SINGLE_PUT_BYTES) return error(413, "too large for one request, use a multipart upload")
-	const expectSha256 = expectOf(request.headers.get("x-yuki-if-sha256"))
+	const expectSha256 = expectOf(request.headers.get("x-kiko-if-sha256"))
 	if (!expectSha256) return error(400, EXPECT_ERROR)
 	const refused = refuse(length)
 	if (refused) return refused

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { ExtensionInfo, ExtensionProposal } from "@yuki/protocol"
+import type { ExtensionInfo, ExtensionProposal } from "@kiko/protocol"
 import { applyUserEvent, overlayExtensions, type UserData } from "./user-store"
 
 const manifest = { yuki: 1 as const, name: "tally", version: "1.0.0", description: "counts", secrets: { KEY: { hosts: ["api.example.com"] } }, egress: ["api.example.com"] }

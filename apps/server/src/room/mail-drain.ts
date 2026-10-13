@@ -1,5 +1,5 @@
-import type { AgentSlug } from "@yuki/protocol"
-import type { Alarms } from "@yuki/durable/alarm"
+import type { AgentSlug } from "@kiko/protocol"
+import type { Alarms } from "@kiko/durable/alarm"
 import { agentStub } from "../lib/names"
 import type { Asks } from "./asks"
 import type { Burst } from "./burst"

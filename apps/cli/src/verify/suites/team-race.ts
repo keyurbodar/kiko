@@ -1,6 +1,6 @@
 import { poll } from "../kit"
-import { newRoomId } from "@yuki/protocol"
-import type { FileRef, Message, RoomToClient } from "@yuki/protocol"
+import { newRoomId } from "@kiko/protocol"
+import type { FileRef, Message, RoomToClient } from "@kiko/protocol"
 import type { RoomHandle } from "../client"
 import { connectTestModel, VerifyError } from "../client"
 import { must } from "../must"

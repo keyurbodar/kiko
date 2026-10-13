@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { AgentSlug, MessageId, Reaction as WireReaction, RoomEvent } from "@yuki/protocol"
-import * as fixtures from "@yuki/protocol/fixtures"
+import type { AgentSlug, MessageId, Reaction as WireReaction, RoomEvent } from "@kiko/protocol"
+import * as fixtures from "@kiko/protocol/fixtures"
 import { createMockRoom, createMockUser } from "../sync/mock-room"
 import { createApp, firstUnread, keepNewest, nextReaction, reactionChips, signature, toChatMessage } from "./store"
 

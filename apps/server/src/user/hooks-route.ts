@@ -2,7 +2,7 @@ import { PRODUCTION_OWNER } from "../auth/auth"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
 import { readCapped } from "../lib/read-capped"
-import { sha256Hex } from "@yuki/durable/hash"
+import { sha256Hex } from "@kiko/durable/hash"
 const PATH = /^\/api\/hooks\/([0-9a-f]{48})$/
 export const MAX_HOOK_BYTES = 64 * 1024
 

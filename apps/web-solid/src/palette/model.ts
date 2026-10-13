@@ -1,5 +1,5 @@
-import * as glyphs from "@yuki/ui/icons"
-import type { Glyph } from "@yuki/ui/icons"
+import * as glyphs from "@kiko/ui/icons"
+import type { Glyph } from "@kiko/ui/icons"
 import { commands, isEnabled, type Command, type CommandGroup } from "../commands/registry"
 
 /** The palette's rows: enabled commands in registry order. The palette hides itself. */

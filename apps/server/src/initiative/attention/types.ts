@@ -1,5 +1,5 @@
-import type { LoopKind } from "@yuki/memory/loops"
-import type { UserSettings } from "@yuki/protocol"
+import type { LoopKind } from "@kiko/memory/loops"
+import type { UserSettings } from "@kiko/protocol"
 
 export type Kind = LoopKind | "task" | "routine"
 

@@ -1,7 +1,7 @@
 // Helpers for initiative scenarios with REAL models. Import from a scenario script:
 //   import { setup, openChat, say, lifeLines, usage, setJev, age, seen, save } from "./kit"
 // Keys come from the shell (`set -a; . apps/server/.dev.vars; set +a`). Nothing here prints one.
-import type { LifeLine, MemoryOp, MemoryResult } from "@yuki/protocol"
+import type { LifeLine, MemoryOp, MemoryResult } from "@kiko/protocol"
 import { connectTestModel, type RoomHandle, type Session, type UserChannel, VerifyError, createVerifier, type Verifier } from "../../../../apps/cli/src/verify/client"
 import { agentTexts, dev, eventually, messages, ok, routines } from "../../../../apps/cli/src/verify/routine-kit"
 import { statuses, ulid } from "../../../../apps/cli/src/verify/suites/mid-run"
@@ -15,7 +15,7 @@ for (const line of (await Bun.file(new URL("../../../../apps/server/.dev.vars", 
 
 export { agentTexts, dev, eventually, routines, statuses, VerifyError }
 export const TYPESAFE = "typesafe"
-export const URL_ = process.env.YUKI_URL ?? "http://localhost:8787"
+export const URL_ = process.env.KIKO_URL ?? "http://localhost:8787"
 
 export interface Ctx { v: Verifier; s: Session; user: UserChannel; dir: string; jev: boolean; n: number }
 export type Chat = RoomHandle & { id: string }

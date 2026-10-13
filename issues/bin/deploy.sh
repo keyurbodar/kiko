@@ -1,6 +1,6 @@
 #!/bin/sh
 # Usage: issues/bin/deploy.sh
-# Deploys main to yuki's Cloudflare account from a clean worktree, so the owner's uncommitted files
+# Deploys main to kiko's Cloudflare account from a clean worktree, so the owner's uncommitted files
 # never ship. Reads the account token from ~/.config/yuki/cloudflare.env and prints no secret.
 set -eu
 root="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel)"

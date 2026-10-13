@@ -1,6 +1,6 @@
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
-import { HugeIcon } from "@yuki/ui/huge-icon"
-import { ChevronDownIcon } from "@yuki/ui/icons"
+import { HugeIcon } from "@kiko/ui/huge-icon"
+import { ChevronDownIcon } from "@kiko/ui/icons"
 import { createSignal, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 

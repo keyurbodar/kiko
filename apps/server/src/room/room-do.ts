@@ -1,10 +1,10 @@
-import { isAgentSlug, tagline } from "@yuki/protocol"
-import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp } from "@yuki/protocol"
+import { isAgentSlug, tagline } from "@kiko/protocol"
+import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
-import { type Alarms, createAlarms, runDue } from "@yuki/durable/alarm"
-import { enforceHello, HELLO_WAKEUP, helloBy } from "@yuki/durable/hello-deadline"
+import { type Alarms, createAlarms, runDue } from "@kiko/durable/alarm"
+import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { RoomRoutines } from "./routines"
 import { SignalWindow, SIGNALS_WAKEUP } from "./signals"
 import type { Wake, WakeResult } from "./wake"
@@ -12,7 +12,7 @@ import type { Wake, WakeResult } from "./wake"
 import { chatTasks, openTasks } from "./open-tasks"
 import type { RoomRoutine } from "../user/routines"
 import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
-import { sha256Hex } from "@yuki/durable/hash"
+import { sha256Hex } from "@kiko/durable/hash"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
@@ -33,7 +33,7 @@ import { agentReact, reactionBrief } from "./reactions"
 import { attachmentPath, claim, ClaimRefused, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
 import { bubbleOf, discardWhole, putWhole, WHOLE_NAME, WHOLE_TYPE, type WholeText } from "./whole-text"
 import { tags } from "./recipients"
-import { migrate } from "@yuki/durable/migrate"
+import { migrate } from "@kiko/durable/migrate"
 import { ROOM_STEPS } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
@@ -49,7 +49,7 @@ import { MAIL_WAKEUP, RoomMail } from "./mail-drain"
 import { BurstFlush } from "./burst-flush"
 
 export const DEFAULT_AGENT = "yuki" as AgentSlug
-const CHIEF_NAME = "Yuki"
+const CHIEF_NAME = "Kiko"
 export type { AgentHome }
 
 
@@ -65,7 +65,7 @@ const SPAWN_REFUSAL: Record<MemberRefusal, string> = {
 	unknown: "no such agent.",
 	last: "the room needs at least one agent.",
 	reserved: "that handle is reserved. pick another.",
-	chief: "yuki leads this room and cannot be removed.",
+	chief: "kiko leads this room and cannot be removed.",
 }
 
 export class RoomDO extends DurableObject<Env> implements SocketRoom {

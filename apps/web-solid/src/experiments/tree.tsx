@@ -1,6 +1,6 @@
 import { For } from "solid-js";
 import { render } from "solid-js/web";
-import { createTree } from "@yuki/ui/v2/tree/create-tree";
+import { createTree } from "@kiko/ui/v2/tree/create-tree";
 
 /*
  * Experiment 9: a 1,000-node tree on the Solid binding. 10 roots, 9 folders in

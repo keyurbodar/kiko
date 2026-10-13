@@ -1,10 +1,10 @@
-# yuki
+# kiko
 
-Yuki is a general-purpose AI chat web app that feels like Telegram. People text one agent or a team of agents. It runs on Cloudflare Workers and Durable Objects, with a SolidJS client. Yuki is self-deployed: one Worker serves one owner, who brings their own model keys.
+Kiko is a general-purpose AI chat web app that feels like Telegram. People text one agent or a team of agents. It runs on Cloudflare Workers and Durable Objects, with a SolidJS client. Kiko is self-deployed: one Worker serves one owner, who brings their own model keys.
 
 Read `docs/overview.md` before your first task. `docs/architecture.md` has every decision and its reason. Follow it, or change it in the same pull request and say why.
 
-## What makes yuki special
+## What makes kiko special
 
 These are not negotiable. A change that breaks one is wrong even if it works.
 
@@ -14,7 +14,7 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 4. **The human outranks every agent.** A human message is handled first and can interrupt work.
 5. **One owner per Worker.** Only the Worker builds a Durable Object name, through `apps/server/src/lib/names.ts`, always from the session's owner id (`"owner"` in production). A routine's webhook has no session, so the Worker sends it to the owner's object (architecture D9).
 6. **Keys stay on the server.** A credential is encrypted in `UserDO`, never logged, and never sent to the client.
-7. **Sentence case.** Interface strings are sentence case, as in monocode and t3code: "Accent color", "Sign out". Names keep their own casing: Yuki, Anthropic, Claude Opus 4.6, Open VSX.
+7. **Sentence case.** Interface strings are sentence case, as in monocode and t3code: "Accent color", "Sign out". Names keep their own casing: Kiko, Anthropic, Claude Opus 4.6, Open VSX.
 
 ## Glossary
 
@@ -41,9 +41,9 @@ These are not negotiable. A change that breaks one is wrong even if it works.
 - **Do not write a handler that is unsafe to run twice.** Alarms deliver at least once. Give every delivery and post a stable id.
 - **Do not add a tool without an effect.** Every tool declares `read`, `write`, `message`, or `external`.
 - **Do not build an agent outside `factory.ts`.** It is the one place that selects extensions.
-- **Do not give an extension script a way out except the bridge in `core/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `yuki.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
+- **Do not give an extension script a way out except the bridge in `core/sandbox/src/compile.ts`.** The VM has no I/O by design. A new `kiko.*` power is a manifest permission, a check in the bridge, a line in `describeManifest`, and a test.
 - **Do not let anything but the human's socket install an extension.** Agents and the catalog only propose.
-- **Do not import `apps/` or `@yuki/protocol` from `core/durable`, `browser`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass yuki's behavior in as an option. `scripts/check-imports.ts` fails the build.
+- **Do not import `apps/` or `@kiko/protocol` from `core/durable`, `browser`, `agent`, `memory`, or `sandbox`.** They are reusable. Pass kiko's behavior in as an option. `scripts/check-imports.ts` fails the build.
 - **Do not read `process.env.NODE_ENV` outside `apps/server/src/lib/dev-guard.ts`.** Dev-only code loads through that module, so a production build drops it. `bun run --cwd apps/server deploy` forces `NODE_ENV=production`.
 - **Do not import Effect, CodeMirror, or a markdown parser into client tiers 1 to 3.** The budget script fails the build.
 - **Do not add a model list, a provider adapter, or a Composio tool name.** Those come from `pi-ai` and from Composio at run time.
@@ -61,11 +61,11 @@ bun dev:web           # the client on localhost:5173, proxying /api to the serve
 
 Wrangler signs in and stores the session with `wrangler login`. Use `localhost`, not `127.0.0.1`, for the client.
 
-Several sessions run dev servers at once. Never `pkill` or `killall` wrangler, workerd, or vite: it stops other sessions' servers mid-run. Start yours on a free port (`bun run --cwd apps/server dev --port <n>`, then `bun yuki verify <suite> --url http://localhost:<n>`) and stop only its PID.
+Several sessions run dev servers at once. Never `pkill` or `killall` wrangler, workerd, or vite: it stops other sessions' servers mid-run. Start yours on a free port (`bun run --cwd apps/server dev --port <n>`, then `bun kiko verify <suite> --url http://localhost:<n>`) and stop only its PID.
 
 Dev-only sign-in: `/api/auth/dev/session?name=<name>` mints a session for a named dev owner. `dev-guard` loads it only in a development build, and it refuses any host that is not local. Each verify suite uses its own name, so its data stays apart.
 
-Dev keys live in `~/.config/yuki/dev.vars`. Every worktree's `apps/server/.dev.vars` links to it; a git hook adds the link to a new worktree. Never ask the owner to paste a key. The CLI reads keys from the shell: `set -a; . apps/server/.dev.vars; set +a`.
+Dev keys live in `~/.config/yuki/dev.vars`. The directory keeps its old name, and so does `~/.config/yuki/cli-session.json`. Every worktree's `apps/server/.dev.vars` links to it; a git hook adds the link to a new worktree. Never ask the owner to paste a key. The CLI reads keys from the shell: `set -a; . apps/server/.dev.vars; set +a`.
 
 ## Verifying
 
@@ -76,17 +76,17 @@ bun run check                     # the one gate: typecheck, backend lint, impor
 bun run typecheck
 bun run test                      # every package's tests: client, cli, server, core/browser, core/protocol (a bare `bun test` at the root fails)
 bun run --cwd apps/server test    # server: one process per file, each boots its own workerd
-bun yuki verify --list            # backend suites
-bun yuki verify <suite> --url http://localhost:<n>   # one suite; or set YUKI_URL (the default port 8787 belongs to other sessions)
-bun yuki verify --no-model --url http://localhost:<n> # everything that needs no model key
+bun kiko verify --list            # backend suites
+bun kiko verify <suite> --url http://localhost:<n>   # one suite; or set KIKO_URL (the default port 8787 belongs to other sessions)
+bun kiko verify --no-model --url http://localhost:<n> # everything that needs no model key
 bun scripts/bundle-budget.ts      # client tier sizes
 bun scripts/check-imports.ts      # packages import only the packages below them
 ```
 
 - `bun run check` is the gate a change must pass before it lands. `scripts/check-rules.ts` enforces the rules under "Ways to hurt yourself" (`no-timer-in-do`, `egress`, `dev-guard`, `do-names`, `sql-list-binds`). A reasoned exception goes on the line above the code as `// check-rules: allow <rule> <reason>`.
-- Wrap every heavy command (the gate, a test run, a typecheck, a dev server, `bun yuki verify`) in `issues/bin/heavy.sh`. The machine has 4 CPUs, and at most two heavy commands run at once (issues/STANDING.md).
-- Backend work is verified through the yuki CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
-- Frontend work is verified with the `verify-yuki` skill, which drives a real browser. Use it for checks that matter, not for every change.
+- Wrap every heavy command (the gate, a test run, a typecheck, a dev server, `bun kiko verify`) in `issues/bin/heavy.sh`. The machine has 4 CPUs, and at most two heavy commands run at once (issues/STANDING.md).
+- Backend work is verified through the kiko CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
+- Frontend work is verified with the `verify-kiko` skill, which drives a real browser. Use it for checks that matter, not for every change.
 - Team and loop behavior is tested with fake agents first, so tests are deterministic and cost no tokens.
 - Keep a check under 5 minutes: run only the suites the change touches. Suites that reset and read the server's dev counters clobber each other, so run those one at a time or on separate servers.
 - Do not write a test that only proves the code runs. A test must fail when the behavior breaks.
@@ -116,7 +116,7 @@ Pick the model with [`docs/subagents.md`](docs/subagents.md). Run every subagent
 
 ## Where code lives
 
-Reusable backend packages live in `core/` (`@yuki/*`, importable by apps and by each other by layer), `packages/` holds frontend-only packages (`@yuki/ui`), and `apps/` holds the deployables.
+Reusable backend packages live in `core/` (`@kiko/*`, importable by apps and by each other by layer), `packages/` holds frontend-only packages (`@kiko/ui`), and `apps/` holds the deployables.
 
 ```text
 apps/
@@ -135,19 +135,19 @@ apps/
     src/room/wake.ts    the wake path a routine or a nudge uses to start one agent run
     src/room/signals.ts the signal window: human messages and task changes for routines and the engine
     src/initiative/     open loops wiring: attention (learned moment and appetite), engine, judge
-    src/agent/          AgentDO: factory, outbox, yuki's extensions
+    src/agent/          AgentDO: factory, outbox, kiko's extensions
     catalog/            extensions reviewed upstream, bundled by apps/server/scripts/gen-catalog.ts
     src/lib/            names, dev stats
-  cli/                  the yuki verification CLI
+  cli/                  the kiko verification CLI
 packages/
-  ui/                   @yuki/ui: Kobalte and Corvu wrappers, kat.css
+  ui/                   @kiko/ui: Kobalte and Corvu wrappers, kat.css
 core/
-  protocol/             @yuki/protocol: wire types shared by all three apps
-  durable/              @yuki/durable: alarm, safe-fetch, crypto
-  agent/                @yuki/agent: pi-durable host, inbox, effects
-  memory/               @yuki/memory: OptMem tree, life log, memory tools, open loops (loops.ts, loop-tool.ts)
-  sandbox/              @yuki/sandbox: QuickJS VM, manifest, compiler, checker
-  browser/              @yuki/browser: browser session and tools
+  protocol/             @kiko/protocol: wire types shared by all three apps
+  durable/              @kiko/durable: alarm, safe-fetch, crypto
+  agent/                @kiko/agent: pi-durable host, inbox, effects
+  memory/               @kiko/memory: OptMem tree, life log, memory tools, open loops (loops.ts, loop-tool.ts)
+  sandbox/              @kiko/sandbox: QuickJS VM, manifest, compiler, checker
+  browser/              @kiko/browser: browser session and tools
 docs/
   overview.md  product.md  architecture.md  self-deploy.md  subagents.md
   reference/            code to port, kept unchanged
@@ -157,7 +157,7 @@ docs/
 ## Taste
 
 - Prefer deleting to adding. Prefer one code path to two.
-- Use Kobalte, Corvu, `@yuki/ui`, and solid-primitives before writing a component.
+- Use Kobalte, Corvu, `@kiko/ui`, and solid-primitives before writing a component.
 - Put validation at the edge: the socket, the HTTP route, the tool arguments. Trust types inside.
 - Model state as data. A pure function with a table of cases beats scattered conditions.
 - Match the kat screenshots in `docs/reference/` exactly. When the replica and the screenshots disagree, the screenshots win.

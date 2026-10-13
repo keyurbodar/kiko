@@ -1,13 +1,13 @@
-import type { RoomId, RoutineRunStatus, Trigger } from "@yuki/protocol"
+import type { RoomId, RoutineRunStatus, Trigger } from "@kiko/protocol"
 import type { Env } from "../index"
-import type { Alarms } from "@yuki/durable/alarm"
+import type { Alarms } from "@kiko/durable/alarm"
 import { roomStub } from "../lib/names"
 import type { Chain } from "../room/mail"
 import { RRule } from "rrule"
-import { sha256Hex, toHex } from "@yuki/durable/hash"
+import { sha256Hex, toHex } from "@kiko/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
-import { nextOccurrence, repeatProblem, validZone } from "@yuki/sandbox/recurrence"
-import { MIN_REPEAT_MS, ruleProblem } from "@yuki/sandbox/rule"
+import { nextOccurrence, repeatProblem, validZone } from "@kiko/sandbox/recurrence"
+import { MIN_REPEAT_MS, ruleProblem } from "@kiko/sandbox/rule"
 
 export const REMINDERS_WAKEUP = "reminders"
 export const MAX_ROUTINES = 50

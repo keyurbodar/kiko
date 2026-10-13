@@ -193,7 +193,7 @@ export function checkManifest(value: unknown): ManifestCheck {
 			if (w.tools !== undefined && !isStringArray(w.tools)) bad(`"wraps.tools" must be a list of tool names`)
 			if (isStringArray(w.tools)) for (const t of w.tools) if (toolNames.has(t)) bad(`wraps: "${t}" is this extension's own tool; change it in the script instead`)
 			if (w.sections !== undefined && !isStringArray(w.sections)) bad(`"wraps.sections" must be a list of section keys`)
-			if (isStringArray(w.sections)) for (const s of w.sections) if (PROTECTED_SECTIONS.includes(s)) bad(`wraps: section "${s}" holds yuki's safety rules and cannot be wrapped`)
+			if (isStringArray(w.sections)) for (const s of w.sections) if (PROTECTED_SECTIONS.includes(s)) bad(`wraps: section "${s}" holds kiko's safety rules and cannot be wrapped`)
 		}
 	}
 
@@ -295,9 +295,9 @@ export function checkBundle(value: unknown): BundleCheck {
 
 const EFFECT_WORDS: Record<ExtensionEffect, string> = {
 	read: "only reads",
-	write: "changes things in yuki",
+	write: "changes things in kiko",
 	message: "messages your agents",
-	external: "acts outside yuki",
+	external: "acts outside kiko",
 }
 
 const HOOK_WORDS: Record<ExtensionHook, string> = {

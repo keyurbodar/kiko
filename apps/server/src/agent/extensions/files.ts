@@ -8,7 +8,7 @@ import { baseName } from "../../room/files"
 import { DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S } from "../../files/bash"
 import { filesOf } from "../../files/room-fs"
 import { encodeBase64 } from "../../integrations/kernel/files"
-import { declareEffect } from "@yuki/agent/effects"
+import { declareEffect } from "@kiko/agent/effects"
 
 export const FILES = "files"
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024

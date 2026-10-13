@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { Block } from "@yuki/protocol"
-import { richText } from "@yuki/protocol/fixtures"
+import type { Block } from "@kiko/protocol"
+import { richText } from "@kiko/protocol/fixtures"
 import { block, richNodes, type RichNode } from "./model"
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")

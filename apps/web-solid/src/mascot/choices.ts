@@ -1,4 +1,4 @@
-import { YUKI } from "@yuki/protocol"
+import { KIKO } from "@kiko/protocol"
 import { createRoot, createSignal } from "solid-js"
 import { formatBird, parseBird, seedBird, type BirdSpec } from "./birds"
 
@@ -15,9 +15,9 @@ export const setBirdPicks = setPicks
 export function birdFor(slug: string): BirdSpec {
   const picked = picks()[slug]
   const spec = picked ? parseBird(picked) : null
-  // Yuki may change what it wears, never what it is.
-  if (slug === YUKI) return { ...(spec ?? seedBird(slug, YUKI)), flavor: "yuki" }
-  return spec ?? seedBird(slug, YUKI)
+  // Kiko may change what it wears, never what it is.
+  if (slug === KIKO) return { ...(spec ?? seedBird(slug, KIKO)), flavor: "yuki" }
+  return spec ?? seedBird(slug, KIKO)
 }
 
 export const birdIdFor = (slug: string) => formatBird(birdFor(slug))
