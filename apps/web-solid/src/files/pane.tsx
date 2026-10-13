@@ -5,7 +5,7 @@ import { useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, lazy, onCleanup, Show, Suspense } from "solid-js"
 import { dropFileSurfaces, moveFileSurfaces, openFile } from "../chat/side/surfaces"
 import { useApp } from "../lib/store"
-import { createFile, withMade } from "./api"
+import { createFile, forgetMade, withMade } from "./api"
 import { FileBreadcrumbs } from "./breadcrumbs"
 import { SUBHEADER, SurfaceAction } from "./chrome"
 import { viewerKind, type ViewerKind } from "./kind"
@@ -82,10 +82,14 @@ export function FilesTree(props: { chatId: string }) {
 				onRename={(from, to) => {
 					op({ op: "mv", from, to })
 					moveFileSurfaces(props.chatId, from, to)
+					const at = where(props.chatId, from)
+					forgetMade(at.space, at.path)
 				}}
 				onDelete={(p, paths) => {
 					op({ op: "rm", paths: [p], recursive: paths.length !== 1 || paths[0] !== p })
 					dropFileSurfaces(props.chatId, p)
+					const at = where(props.chatId, p)
+					forgetMade(at.space, at.path)
 				}}
 			/>
 		</aside>

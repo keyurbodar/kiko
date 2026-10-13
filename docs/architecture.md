@@ -390,7 +390,7 @@ An agent that is deleted in the middle of a run aborts the run and closes its ha
 | --- | --- | --- | --- | --- |
 | the core prompt (`prompt.ts`) | voice and judgment every agent shares: how to talk, how to decide, the chat's rules | code | kiko | about 600 tokens |
 | `/me/soul.md` | who this agent is and how it works with this human | `UserDO` (`souls.ts`), so it is the same agent in every chat | the agent, quietly, and the human in the agent's info view | 3,000 characters |
-| `/chat.md` | what this chat is for: the goal, who does what, decisions | the room's files, a normal file | the team, and the human in the files panel | 3,000 bytes |
+| `/chat.md` | what this chat is for: the goal, who does what, decisions | the room's files, a normal file | the team, and the human in the sidecar's Files tab | 3,000 bytes |
 
 The human's own profile stays in memory (section 13), so nothing is stored twice.
 
@@ -1173,8 +1173,8 @@ Each stored value carries a schema version. A version mismatch drops the warm ti
 | --- | --- | --- |
 | 1 | HTML shell. Inline critical CSS, the app icon, a script that sets theme variables. Target 10 to 20 KB | first response |
 | 2 | Solid runtime, router, stores, sync client, sidebar, transcript, bubbles, plain composer | at once, after the shell |
-| 3 | rich text renderer and sugar-high, emoji picker, calendar, command palette, context menus | on idle or on intent |
-| 4 | the right panel's files tab with headless-tree, its lazy viewers (CodeMirror 6, the markdown parser, table, html, pdf), and settings | on route or tab intent |
+| 3 | rich text renderer and sugar-high, emoji picker, calendar, command palette, context menus, the right sidecar with its tabs and files tree (2026-10-13) | on idle or on intent |
+| 4 | the file viewers (CodeMirror 6, the markdown parser, table, html, pdf), and settings | on route or tab intent |
 
 Routing uses `@solidjs/router` with lazy routes. Intent means pointer hover for 80 ms, pointer down, or keyboard focus on a link or a chat row. Intent preloads the route chunk and warms the chat from IndexedDB. solid-primitives has no intent-prefetch package, so kiko composes one from `@solid-primitives/event-listener` and `@solid-primitives/scheduled`.
 
@@ -1182,12 +1182,12 @@ The build stays on Vite, now Vite 8 (8.3.2, Rolldown-based) with `@tailwindcss/v
 
 Menus, tooltips, hover cards, dialogs and the dismissable layer are Kobalte, and they load after first paint in one chunk (`@kiko/ui/v2/overlays`). Until it lands, each part renders what it renders while closed: a root renders its children, a trigger renders its element, and a portal renders nothing. The toaster, `motion`, and icon glyphs not shown at rest load the same way. Tier 2 was 231.9 KB gzip before this and 142.5 KB after.
 
-**DEVIATION.** The spec names CodeMirror 6 as the text editor. Kiko uses it for the file viewer in the right panel's files tab only. The composer keeps the existing `contenteditable` input, because the composer is in tier 2 and CodeMirror would be most of that tier's bytes.
+**DEVIATION.** The spec names CodeMirror 6 as the text editor. Kiko uses it for the file viewer in the sidecar's files tab only. The composer keeps the existing `contenteditable` input, because the composer is in tier 2 and CodeMirror would be most of that tier's bytes.
 
-**DEVIATION.** Files are not a rail section. They live in the chat's right panel, on a files tab beside the info tab, after t3code's right panel and file preview (2026-10-09). `/files/<room>/<path>` redirects to the chat with that file open.
+**DEVIATION.** Files are not a rail section. They live in the chat's sidecar, on a Files tab, after t3code's right panel and file preview (2026-10-09). `/files/<room>/<path>` opens the chat with that file's tab open.
 
-- Each open file is a tab, per chat (`chat/info/state.ts`). Opening a file adds or activates its tab; closing one activates its right neighbour, else its left, and the closed ones reopen newest first. Every tab shows its close button, and a middle click closes it. Alt+W closes the active tab and Alt+Shift+T reopens one while the files tab is open, because Mod+W and Mod+Shift+T already close and reopen chats. Tabs and the active one are saved in `localStorage` per chat; the closed list lasts the session. Escape closes the panel and keeps the tabs.
-- With tabs open the panel is t3code's preview width: 540 px by default, at least 360, at most 70 percent of the window, and it leaves the chat at least 360 px. With none it is the info width.
+- Each open file is a tab, per chat (`chat/side/surfaces.ts`). Opening a file adds or activates its tab, and closing one activates its right neighbour, else its left. Every tab shows its close button, and a middle click closes it. The tabs and the active one are saved in `localStorage` per chat, under `kiko:sidecar:v1`.
+- The sidecar is one width, saved as `kiko:info-width`: 340 px by default, 280 to 560 px, and it leaves the chat at least 360 px (`app/widths.ts`). The preview width of 2026-10-09 is gone with the info column.
 - The active file shows under a header (`files/chrome.tsx`): crumbs whose folders open a menu of that folder, then icon actions with tooltips: rendered or source, word wrap, copy contents, save file, the file explorer, and close. The explorer is the tree beside the file, and its switch is saved. With no file open the tree is the whole tab.
 - The viewer follows t3code's kinds: text and code, markdown, CSV and TSV, HTML, PDF, picture, video, sound, and no preview. Text reads at most the first 1 MB with a Range request; a longer file shows that head read only under a notice. A zero byte in the first 8 KB means binary, and bytes that are not UTF-8 say so; neither is shown as text. Markdown opens as source and CSV and HTML open rendered, and each choice is a saved preference. A table draws at most 100 rows and 30 columns. HTML renders in a frame from a blob URL, sandboxed to scripts, forms and popups, because the file route sends a sandbox CSP. Pictures draw inline; video and sound use the browser's own elements.
 - The source view is CodeMirror with line numbers, as t3code shows a file. ASSUMPTION: it stays editable, because agents and the human share the workspace. It saves itself 700 ms after the last keystroke, on blur, and when it closes, against the SHA-256 it started from; the crumbs show a dot while a save is pending. A line asked for by `openFile` scrolls into view and is selected, and it wins over the rendered preference until the reader switches.
@@ -1246,7 +1246,15 @@ Icons, default avatars, emoji data, theme tokens, the model catalog, and built-i
 
 Kat's top bar shows "notifications off" and share icons. Kiko omits both, because the spec excludes notifications and share links. The bar holds Kiko's avatar at the far left, the chat tabs, and the model chip. A tab is an icon and a title that fades at its max width; only the active tab has a fill, and its close button shows on hover or when active. The strip has no scrollbar, scrolls with the wheel, and fades only the edge with more tabs. The chat's name and member count are not repeated beside the tabs.
 
-The chat info panel gives each thing one way in: the header (avatar, name, start date), members with add, one memory row (and tasks in a group), and delete. Pin, mute and private live in the chat's menu, the model in the top bar chip, and files in the panel's files tab. Shared files are not listed in the info tab, because every attachment is a workspace file and the files tab already shows them. DEVIATION (2026-10-09): the media and links tabs are removed with the media catalog (section 18.1); attachments are found in the files tab under `attachments/`.
+**DEVIATION (2026-10-13): three zones.** The chat info column is replaced by three zones, and each thing has one place.
+
+- **The left sidebar** says which chat is open. It is unchanged.
+- **The chat card** floats over the thread, under the top bar (`chat/side/Card.tsx`, `card/CardView.tsx`). It is read-mostly: who is here, what is coming up, the chat's recent files and memory, and quick actions for agents, routines, and plate items. It opens from the top bar's Details button or Mod+I, and closes on a pointer down outside it, Escape, a route change, or focus moving into the composer. It never changes the layout, and nothing animates.
+- **The sidecar** is a tabbed workspace on the right (`chat/side/Sidecar.tsx`). Each surface is one tab: a file (`file:<path>`), Files, Memory, On your plate, Routines, Tasks (group chats only), or an agent's page. The tabs are kept per chat under `kiko:sidecar:v1` (`chat/side/surfaces.ts`). With no tab open, the sidecar shows a launcher.
+
+ASSUMPTION (2026-10-13): the launcher's letter keys are F for Files, M for Memory, P for On your plate, R for Routines, and T for Tasks. A letter opens its row while no field has focus. Arrow keys, Home, and End move between open tabs. The spec does not name these keys.
+
+Pin, mute and private live in the chat's menu, and the model in the top bar chip. Shared files are not listed in a tab of their own, because every attachment is a workspace file and the Files tab already shows them. DEVIATION (2026-10-09): the media and links tabs are removed with the media catalog (section 18.1); attachments are found in the Files tab under `attachments/`.
 
 ### 19.9 Components to reuse
 
@@ -1719,7 +1727,7 @@ A loop message's first bubble is back near a plain one, and plain prompt tokens 
 
 ### 26.9 Client surfaces and routes
 
-The details panel has an On your plate page (`apps/web-solid/src/chat/info/loops.tsx`). It lists the chat's open loops with done, tomorrow, and drop. Each action applies at once and is put back with a toast if the server refuses. The list stays in memory, so a reopened panel paints at once. It is fetched again when the panel opens, when the page shows, and, debounced, when the room gets a message or an agent's status changes. Settings has an Initiative page (`settings/initiative.tsx`) for the level and the memory capture mode. Saves apply at once, and a failed save puts back only a field that no newer save touched. The client takes its types from `@kiko/protocol` (`LoopRow`, `UserSettings`), types only.
+The sidecar has an On your plate tab (`apps/web-solid/src/chat/info/loops.tsx`). It lists the chat's open loops with done, tomorrow, and drop. Each action applies at once and is put back with a toast if the server refuses. The list stays in memory, so a reopened tab paints at once. It is fetched again when the tab opens, when the page shows, and, debounced, when the room gets a message or an agent's status changes. Settings has an Initiative page (`settings/initiative.tsx`) for the level and the memory capture mode. Saves apply at once, and a failed save puts back only a field that no newer save touched. The client takes its types from `@kiko/protocol` (`LoopRow`, `UserSettings`), types only.
 
 Routes, all from the session's user:
 

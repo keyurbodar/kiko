@@ -55,7 +55,7 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - Any agent can hand slow work to its own background workers and keep talking while they run. An agent runs up to three at once. One worker takes a whole job and runs its parts together.
 - Ask for status while work runs. The lead reports each running worker and its step. A status question does not stop or redirect a worker.
 - Agents message each other in the room, where you can read it. Agent-to-agent threads are collapsed by default.
-- The Tasks page in a group's info panel lists tasks by status, with each owner and what the task waits on.
+- The Tasks tab in a group's sidecar lists tasks by status, with each owner and what the task waits on.
 - When a task finishes, agents blocked on it wake up.
 - Hop and root limits stop agents from messaging each other forever.
 
@@ -95,7 +95,7 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 
 - Each chat has one file space, rooted at `/`. What you attach lands under `attachments/`. Agents write their files anywhere in the space.
 - A message keeps the files the human attached, and agents read them. Agents attach nothing: they name a path in their text, as t3code's assistant does.
-- The Files tab in a chat's right panel shows a file tree that looks and behaves like kat's tree. Open files are tabs, as in t3code's right panel, and each shows under its path and actions: rendered or source, word wrap, copy, save, the tree, and close. Text and code show their source with line numbers and stay editable; markdown, CSV and HTML can render; pictures, PDFs, video and sound show in the panel. A text file past 1 MB shows its first 1 MB, read only.
+- The Files tab in a chat's sidecar shows a file tree that looks and behaves like kat's tree. Open files are tabs, as in t3code's right panel, and each shows under its path and actions: rendered or source, word wrap, copy, save, the tree, and close. Text and code show their source with line numbers and stay editable; markdown, CSV and HTML can render; pictures, PDFs, video and sound show in the panel. A text file past 1 MB shows its first 1 MB, read only.
 - DEVIATION (2026-10-09): there is no media viewer, album, thumbnail, or media and links catalog. The owner chose t3code's simpler attachments.
 - Attaching works as in t3code. The attach button, a paste, or a drop anywhere on the chat adds files to the composer; while files are dragged over the page a dashed overlay says "Drop files to attach". Pictures (GIF, JPEG, PNG, WebP) show as 64 px thumbnails with a remove button on the corner, and a click previews one. Any other file shows as a row with its name, size, and a remove button. Up to 100 files go on one message, any other file up to 50 MB, and pictures up to 80 MB together. A picture over 10 MB is shrunk to fit, and an SVG, a HEIC, or another picture kiko cannot send is refused; a toast says why a file was left out.
 - Each file starts uploading the moment it is picked, as in t3code. A thumbnail shows the percentage along its bottom edge and a file row shows it in place of the size. A failed upload shows a retry button whose tooltip says why, and it is retried when the connection comes back. Send waits, and says why, until every file is up: "Attachment still uploading", or "Retry or remove the failed attachment". Removing a file, or leaving it unsent, deletes its upload.
@@ -150,9 +150,9 @@ The layout follows the kat screenshots in `docs/reference/`: an icon rail, a sid
 
 | Route | Rail icon | Sidebar | Main panel |
 | --- | --- | --- | --- |
-| `/`, `/chat`, `/chat/:id` | chat | pinned tiles and chat list | tab strip, transcript, composer. The right panel holds details, members, memory, tasks, and routines |
-| `/files`, `/files/:chatId/*path` | none | none | opens the chat with the right panel on Files, on the file if one is named |
-| `/memory`, `/memory/:id` | none | none | opens the active chat with the right panel on Memory |
+| `/`, `/chat`, `/chat/:id` | chat | pinned tiles and chat list | tab strip, transcript, composer. The chat card floats over the thread. The sidecar holds one tab per surface: files, memory, on your plate, routines, tasks, and agents |
+| `/files`, `/files/:chatId/*path` | none | none | opens the chat with the sidecar on Files, on the file if one is named |
+| `/memory`, `/memory/:id` | none | none | opens the active chat with the sidecar on Memory |
 | `/settings/*` | settings (bottom) | sections | providers, models, integrations, skills, account |
 
 Sign-in: the access code. The owner sets it as the `ACCESS_CODE` secret. The sign-in screen asks for it, and no one else can sign in.
@@ -169,7 +169,7 @@ Kat has four rail items: chat, terminal, code, browser. Kiko has no terminal and
 | B | activity (live agent log) | integrations | rejected. Activity alone is thin, and integrations are visited once |
 | C | schedule (calendar of reminders) | memory | rejected. A schedule tab inside the board covers it |
 
-Option A was chosen at first. On 2026-10-02 the owner made group chats of agents, laid out like Telegram groups, the center of team work. A separate board then duplicates the chat, so it was dropped. The same day the owner asked to fold memory into a per-chat info panel opened from the chat's name, as Telegram and kat do. DEVIATION from option A: the rail has chat and settings only. Memory, files, tasks, and routines live in each chat's right panel. Kat's code slot became the Files tab in that panel.
+Option A was chosen at first. On 2026-10-02 the owner made group chats of agents, laid out like Telegram groups, the center of team work. A separate board then duplicates the chat, so it was dropped. The same day the owner asked to fold memory into a per-chat info panel opened from the chat's name, as Telegram and kat do. DEVIATION from option A: the rail has chat and settings only. Memory, files, tasks, and routines live in each chat's right panel. Kat's code slot became the Files tab in that panel. On 2026-10-13 that panel became a tabbed sidecar, and the chat's details moved to a card over the thread (DEVIATION, 2026-10-13).
 
 ## Non-goals
 

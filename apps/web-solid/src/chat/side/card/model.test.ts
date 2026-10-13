@@ -3,7 +3,7 @@ import { type FileRef, KIKO, type LifeLine, type Member } from "@kiko/protocol"
 import type { BotPresence } from "../../../lib/types"
 import type { PlateLoop } from "../../info/loops"
 import type { Routine } from "../../info/routines"
-import { agentRows, comingUp, liveLine, memoryPick, recentFiles, since, statusChip, workingLine } from "./model"
+import { agentRows, comingUp, fileList, liveLine, memoryPick, since, statusChip, workingLine } from "./model"
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -107,16 +107,19 @@ describe("comingUp", () => {
   })
 })
 
-describe("recentFiles", () => {
+describe("fileList", () => {
   const names = (n: number) => Array.from({ length: n }, (_, i) => file(`f${i + 1}.md`))
   const cases: [number, string[]][] = [
     [0, []],
-    [3, ["f3.md", "f2.md", "f1.md"]],
-    [5, ["f5.md", "f4.md", "f3.md", "f2.md", "f1.md"]],
-    [7, ["f7.md", "f6.md", "f5.md", "f4.md", "f3.md"]],
+    [3, ["f1.md", "f2.md", "f3.md"]],
+    [5, ["f1.md", "f2.md", "f3.md", "f4.md", "f5.md"]],
+    [7, ["f1.md", "f2.md", "f3.md", "f4.md", "f5.md"]],
   ]
-  test.each(cases)("%p files show the newest five at most, newest first", (count, shown) => {
-    expect(recentFiles(names(count)).map((f) => f.name)).toEqual(shown)
+  test.each(cases)("%p files show five at most, by name", (count, shown) => {
+    expect(fileList(names(count)).map((f) => f.name)).toEqual(shown)
+  })
+  test("the order the room listed them in does not change which show", () => {
+    expect(fileList([file("b.md"), file("c.md"), file("a.md")]).map((f) => f.name)).toEqual(["a.md", "b.md", "c.md"])
   })
 })
 

@@ -137,16 +137,6 @@ export const URL_REG_EXP =
   // `see https://example.com.` from linking the full stop.
   "(?:/(?:\\S{0,255}[^\\s.;,!?:(\\[\\]{}<>\"'])?)?"
 
-/**
- * Whether a string already spells its own protocol, anchored at the start.
- *
- * Anchored, and anchored on the TEXT rather than on a parsed URL: see
- * `normalizeUrlProtocol` for why the difference matters. tweb builds this by
- * slicing the last character off the optional-protocol fragment; here the
- * fragment is spliced whole, so this compiles and names the same group.
- */
-export const URL_PROTOCOL_REG_EXP = new RegExp("^" + URL_PROTOCOL_REG_EXP_PART, "i")
-
 /** Telegram's handle shape, kept for the `@username` suffix of a chat tag. */
 export const USERNAME_REG_EXP = "[a-zA-Z\\d_]{5,32}"
 

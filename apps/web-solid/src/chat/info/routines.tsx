@@ -17,6 +17,8 @@ export type Routine = { id: string; name: string; roomId: string; status: "activ
 
 const [all, setAll] = createSignal<readonly Routine[] | undefined>(undefined)
 const [started, setStarted] = createSignal<ReadonlySet<string>>(new Set())
+/** Whether this session has just started the routine. The card shows the same state as the routines page. */
+export const ranNow = (id: string): boolean => started().has(id)
 
 /** Only what the panel draws, from the wire's reminder rows: a routine has a trigger and is live. */
 function read(value: unknown): Routine[] {

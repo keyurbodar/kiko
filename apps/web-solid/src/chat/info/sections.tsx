@@ -1,9 +1,6 @@
-import type { Chat, Member } from "@kiko/protocol"
-import { useNavigate } from "@solidjs/router"
-import { createSignal, type JSX, Show } from "solid-js"
-import { ChatAvatar } from "../../lib/IdentityAvatar"
+import type { Member } from "@kiko/protocol"
+import type { JSX } from "solid-js"
 import { useApp } from "../../lib/store"
-import { deleteChat } from "../../sidebar/actions"
 
 /*
  * The parts of the panel, after monocode's Mono details (features/monos/ui/monoPanelParts.tsx and
@@ -69,74 +66,4 @@ const DEFAULT_MEMBER = { slug: "yuki" as Member["slug"], name: "Kiko", lead: tru
 export function roomMembers(): readonly Member[] {
   const members = useApp.roomMembers()
   return members.length ? members : [DEFAULT_MEMBER]
-}
-
-/** The chat as the user list holds it. Undefined until the list loads or when the chat is gone. */
-export function chatOf(chatId: string): Chat | undefined {
-  return useApp.user()?.chats().find((c) => c.roomId === chatId)
-}
-
-export function Header(props: { chatId: string }) {
-  const [editing, setEditing] = createSignal(false)
-  const title = () => chatOf(props.chatId)?.title ?? useApp.chatById(props.chatId)?.name ?? ""
-  const commit = (value: string) => {
-    setEditing(false)
-    const next = value.trim()
-    const user = useApp.user()
-    if (next && next !== title() && user) user.rename(props.chatId as never, next)
-  }
-  return (
-    <Profile face={<ChatAvatar faces={useApp.chatFaces(props.chatId)} size={56} />}>
-      <Show
-        when={editing()}
-        fallback={
-          <button
-            type="button"
-            class="max-w-full truncate rounded-md px-2 py-0.5 text-[15px] font-semibold text-text hover:bg-hover"
-            data-component="info-name"
-            aria-label="Rename chat"
-            onClick={() => setEditing(true)}
-          >
-            {title() || "New chat"}
-          </button>
-        }
-      >
-        <input
-          class="h-8 w-full rounded-md bg-input px-3 text-center text-[15px] font-semibold text-text outline-none"
-          data-component="info-name-input"
-          aria-label="Chat name"
-          value={title()}
-          ref={(el) => queueMicrotask(() => (el.focus(), el.select()))}
-          onBlur={(e) => commit(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur()
-            else if (e.key === "Escape") {
-              // Escape cancels the edit and nothing else.
-              e.stopPropagation()
-              setEditing(false)
-            }
-          }}
-        />
-      </Show>
-    </Profile>
-  )
-}
-
-/** Delete chat on its own, in red. Asks once. */
-export function DeleteChat(props: { chatId: string }) {
-  const navigate = useNavigate()
-  const [sure, setSure] = createSignal(false)
-  const remove = () => {
-    if (!sure()) return setSure(true)
-    deleteChat(props.chatId, props.chatId, navigate)
-  }
-  return (
-    <DangerRow
-      action="delete-chat"
-      label={sure() ? "Delete chat?" : "Delete chat"}
-      description={sure() ? "Click again to delete it for good" : "Remove this chat and its messages"}
-      onClick={remove}
-      onBlur={() => setSure(false)}
-    />
-  )
 }

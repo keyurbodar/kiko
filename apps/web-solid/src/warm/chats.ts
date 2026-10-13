@@ -18,8 +18,6 @@ export async function allChats(warm: Warm): Promise<Chat[]> {
 	return chats.sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
 }
 
-export const getChat = (warm: Warm, roomId: RoomId) => warm.get<Chat>("chats", roomId)
-
 /** Removes the chat with its messages, cursor, and draft. */
 export function removeChat(warm: Warm, roomId: RoomId) {
 	warm.delete("chats", roomId)

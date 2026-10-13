@@ -31,5 +31,4 @@ const [providers, actions] = createRoot(() => {
 
 export const connectedProviders = (): ProviderInfo[] => providers() ?? []
 export const refreshConnected = () => actions.refetch()
-export const setConnected = actions.mutate
 export const connectedReady = () => providers.state === "ready"

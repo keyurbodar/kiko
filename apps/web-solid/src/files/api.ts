@@ -84,6 +84,11 @@ export function withMade(roomId: string, indexed: readonly FileRef[]): FileRef[]
 	return [...indexed, ...made().filter((f) => f.roomId === roomId && !have.has(f.name))]
 }
 
+/** Drops the made files at `path` or under it. A rename or delete calls it, or the old name would stay in the tree. */
+export function forgetMade(roomId: string, path: string) {
+	setMade((list) => list.filter((f) => f.roomId !== roomId || (f.name !== path && !f.name.startsWith(`${path}/`))))
+}
+
 /** Makes an empty file. True when it was made, false when the path already holds one or the call failed. */
 export async function createFile(roomId: string, path: string): Promise<boolean> {
 	const res = await putFile(roomId, path, "", "text/plain", "none")

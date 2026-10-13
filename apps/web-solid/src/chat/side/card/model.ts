@@ -68,9 +68,12 @@ export function comingUp(routines: readonly Routine[], loops: readonly PlateLoop
   }
 }
 
-/** The room sends no modified time, so "newest" is the last listed, shown first. */
-export function recentFiles(files: readonly FileRef[], n = 5): FileRef[] {
-  return files.slice(-n).reverse()
+/**
+ * The room sends no modified time, and its list is by path on load but appends live files, so the
+ * card cannot tell which file changed last. It shows the first few by name, which is stable.
+ */
+export function fileList(files: readonly FileRef[], n = 5): FileRef[] {
+  return [...files].sort((a, b) => a.name.localeCompare(b.name)).slice(0, n)
 }
 
 /** The newest lines that are not removed, newest first. */

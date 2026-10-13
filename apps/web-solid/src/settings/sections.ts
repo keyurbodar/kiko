@@ -13,7 +13,6 @@ export const SETTINGS_SECTIONS = [
   { id: "account", group: "you", label: "Account", hint: undefined, keywords: "sign out profile leave" },
 ] as const
 
-export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"]
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 
 /** The section list's groups, in order. */
