@@ -75,7 +75,11 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
                   data-hint="chat.info"
                   data-hint-label="Details"
                   onPointerEnter={() => void loadCard()}
-                  onClick={toggleCard}
+                  onClick={() => {
+                    const id = chatId()
+                    if (id && !sidecarOpen(id)) toggleSidecar(id)
+                    toggleCard()
+                  }}
                 >
                   <PanelTop size={15} strokeWidth={1.75} aria-hidden="true" />
                 </button>

@@ -263,7 +263,7 @@ export function CardView(props: { chatId: string; onClose: () => void }) {
       ref={root}
       tabIndex={-1}
       data-no-focus-ring
-      class="absolute top-2 right-3 z-30 flex max-h-[calc(100%-24px)] w-[300px] flex-col overflow-hidden rounded-[20px] bg-[var(--menu-bg)] shadow-[0_12px_40px_rgba(0,0,0,.45)] ring-1 ring-[var(--hairline)] ring-inset"
+      class="relative z-10 flex max-h-[40dvh] w-[300px] shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--menu-bg)] shadow-[0_12px_40px_rgba(0,0,0,.45)] ring-1 ring-[var(--hairline)] ring-inset"
       data-component="chat-card"
     >
       <header class="flex items-center gap-3 px-4 pt-4 pb-3">

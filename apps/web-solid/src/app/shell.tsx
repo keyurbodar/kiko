@@ -10,7 +10,7 @@ import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { avatarPickerSlug } from "../avatar/picker-state";
 import { createEffect, createMemo, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
-import { cardOpen, loadCard } from "../chat/side/card-state";
+import { cardOpen, closeCard, loadCard } from "../chat/side/card-state";
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { snapshotAfterRoute } from "../lib/snapshot";
@@ -320,13 +320,7 @@ export function Shell(props: ParentProps) {
                         <div class="flex min-w-0 flex-1 flex-col">
                           {props.children}
                         </div>
-                        <Show when={cardOpen() ? sideChat() : null} keyed>
-                          {(id) => (
-                            <Suspense>
-                              <Card chatId={id} />
-                            </Suspense>
-                          )}
-                        </Show>
+                        {/* The card now travels as the top item in the side panel, not as a floating over the chat. */}
                       </div>
                       <Show when={searchScope()}>
                         <Suspense>
@@ -361,7 +355,14 @@ export function Shell(props: ParentProps) {
                     <Show when={dockedSide()}>
                       {(chatId) => (
                         <Suspense>
-                          <Sidecar chatId={chatId()} />
+                          <div class="flex h-full min-h-0 flex-col">
+                            <Show when={cardOpen()}>
+                              <Card chatId={chatId()} />
+                            </Show>
+                            <div class="min-h-0 flex-1">
+                              <Sidecar chatId={chatId()} />
+                            </div>
+                          </div>
                         </Suspense>
                       )}
                     </Show>
@@ -377,7 +378,14 @@ export function Shell(props: ParentProps) {
               <div class="drawer-scrim sidecar-scrim" data-component="sidecar-scrim" aria-hidden="true" onPointerDown={closeSide} />
               <div class="sidecar-overlay" data-component="sidecar-overlay">
                 <Suspense>
-                  <Sidecar chatId={chatId()} />
+                  <div class="flex h-full w-full min-h-0 flex-col">
+                    <Show when={cardOpen()}>
+                      <Card chatId={chatId()} />
+                    </Show>
+                    <div class="min-h-0 flex-1">
+                      <Sidecar chatId={chatId()} />
+                    </div>
+                  </div>
                 </Suspense>
               </div>
             </>
