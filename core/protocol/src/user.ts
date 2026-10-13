@@ -174,6 +174,6 @@ export type LoginErrorReason =
 	| "timeout"
 	| "failed"
 
-export type SkillSummary = { name: string; description: string; source: "builtin" | "room"; disableModelInvocation: boolean }
+type SkillSummary = { name: string; description: string; source: "builtin" | "room"; disableModelInvocation: boolean }
 
 export type SkillList = { skills: readonly SkillSummary[] }

@@ -7,7 +7,7 @@ export type AgentState = "idle" | "typing" | "working"
 
 export type ToolKind = "read" | "edit" | "search" | "run" | "web" | "other"
 
-export type WorkerState = "running" | "done" | "failed" | "stopped"
+type WorkerState = "running" | "done" | "failed" | "stopped"
 
 export type WorkerRow = {
 	id: string

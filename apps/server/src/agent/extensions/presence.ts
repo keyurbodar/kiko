@@ -13,7 +13,7 @@ function command(args: Record<string, unknown>): string {
   return `running ${line.length > COMMAND_CHARS ? `${line.slice(0, COMMAND_CHARS - 1)}…` : line}`
 }
 
-export type Described = { doing: string; activity: Activity }
+type Described = { doing: string; activity: Activity }
 
 const KINDS: Readonly<Record<string, ToolKind>> = { read: "read", ls: "search", write: "edit", edit: "edit", bash: "run", web_fetch: "web" }
 

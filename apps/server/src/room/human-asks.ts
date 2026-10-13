@@ -1,10 +1,10 @@
 import type { AgentSlug, HumanAsk, MessageId } from "@kiko/protocol"
 
 export const MAX_QUESTION = 2_000
-export const MAX_OPTIONS = 8
-export const MAX_OPTION = 120
+const MAX_OPTIONS = 8
+const MAX_OPTION = 120
 
-export type HumanAskState = { state: "open" | "answered" | "skipped"; answer: string | null }
+type HumanAskState = { state: "open" | "answered" | "skipped"; answer: string | null }
 
 type Row = { id: string; asker: string; question: string; options: string | null; message_id: string }
 

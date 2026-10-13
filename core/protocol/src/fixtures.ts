@@ -118,9 +118,9 @@ export const systemEvents: readonly SystemEvent[] = [
 	{ kind: "activity", count: 4 },
 ]
 
-export const humanAsk: HumanAsk = { id: "ask1", from: ada, text: "which database should we use?", options: ["sqlite", "postgres"], messageId: messageId(4) }
+const humanAsk: HumanAsk = { id: "ask1", from: ada, text: "which database should we use?", options: ["sqlite", "postgres"], messageId: messageId(4) }
 
-export const openQuestion: HumanAsk = { id: "ask2", from: bob, text: "what should the project be called?", messageId: messageId(5) }
+const openQuestion: HumanAsk = { id: "ask2", from: bob, text: "what should the project be called?", messageId: messageId(5) }
 
 export const task: Task = { id: "t1", title: "write the types", status: "doing", owner: ada, dependsOn: [] }
 const blockedTask: Task = { id: "t2", title: "test them", status: "blocked", dependsOn: ["t1"], note: "waits on the types" }
