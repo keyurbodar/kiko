@@ -1,5 +1,5 @@
 import { isAgentSlug, oneLine, tagline } from "@kiko/protocol"
-import type { Activity, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemEvent, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
+import type { Activity, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"

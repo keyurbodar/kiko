@@ -315,6 +315,7 @@ export class AgentDO extends DurableObject<Env> {
         chief: this.chiefPort(),
         loops: () => this.loopPort(),
         work: this.host.workers,
+        presence: (doing, activity) => this.report(doing, activity),
       })
       return {
         ...fake,
