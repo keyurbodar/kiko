@@ -196,9 +196,9 @@
 
 /* ===== Reply bar -------------------------------------------------------- */
 
-/* One quiet line above the field, set in the field's own type: a 2px accent rule, the role in the
- * accent, the quoted words muted. It reaches out over the attach column (32px + 6px gap, less the
- * field's 4px inset) to the box's padding. The rule matches the in-bubble quote (chat/ui/Quote.tsx). */
+/* One quiet line above the field, set in the field's own type: a 2px neutral rule, the role and the
+ * quoted words both muted. It reaches out over the attach column (32px + 6px gap, less the field's
+ * 4px inset) to the box's padding. The accent stays off it, so the bar does not compete with the send button. */
 .composer-dock .reply-bar {
   display: flex;
   align-items: center;
@@ -233,15 +233,14 @@
   bottom: 1px;
   left: 2px;
   width: 2px;
-  background: var(--accent);
+  background: color-mix(in oklab, var(--text) 25%, transparent);
   border-radius: 1px;
   content: "";
 }
 
 .composer-dock .reply-bar-role {
   flex-shrink: 0;
-  color: var(--accent);
-  font-weight: var(--font-weight-bold);
+  color: var(--text-muted);
 }
 
 .composer-dock .reply-bar-preview {
@@ -383,7 +382,7 @@
   display: flex;
 }
 
-@media (hover: none) {
+@media (pointer: coarse) {
   .composer-dock .composer-picture-remove {
     display: flex;
   }
