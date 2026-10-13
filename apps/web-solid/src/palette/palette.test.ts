@@ -19,7 +19,7 @@ const deps = (over: { newChat?: () => void } = {}) => ({
   rename() {},
   togglePin() {},
   deleteChat() {},
-  canMove: () => false, goToChat() {}, stepChat() {}, chatCount: () => 0, searchChat() {}, searchAll() {},
+  canMove: () => false, goToChat() {}, stepChat() {}, chatCount: () => 0, searchChat() {}, searchAll() {}, inRichEditor: () => false,
 })
 
 describe("palette rows", () => {
@@ -40,7 +40,7 @@ describe("palette rows", () => {
   })
 
   test("palette.open and chats.go are enabled", () => {
-    expect(list.find((c) => c.id === "palette.open")?.when).toBeUndefined()
+    expect(list.find((c) => c.id === "palette.open")?.when!()).toBe(true)
     expect(list.find((c) => c.id === "chats.go")?.when).toBeUndefined()
   })
 })

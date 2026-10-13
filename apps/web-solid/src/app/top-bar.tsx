@@ -1,7 +1,8 @@
 import { useLocation } from "@solidjs/router"
 import { Show } from "solid-js"
 import { runCommand } from "../commands/registry"
-import { BrandBird } from "../mascot/brand"
+import { KIKO } from "@kiko/protocol"
+import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { ModelPickerButton } from "../settings/model-picker"
 import { sectionOf } from "./sections"
 import { preloadSearch } from "../search/state"
@@ -13,9 +14,9 @@ import { useApp } from "../lib/store"
 import { closeInfo, infoOpen, loadInfoPanel, openInfo } from "../chat/info/state"
 
 /*
- * The 50 px bar over the main panel, laid out as kat's: the bird at the far left, the open chat's
+ * The 50 px bar over the main panel, laid out as kat's: the avatar at the far left, the open chat's
  * title, and quiet controls on the right: the chat's model, message search, and the details panel.
- * The bird is the new chat button. Every button is the sidebar's icon button, under a tooltip.
+ * The avatar is the new chat button. Every button is the sidebar's icon button, under a tooltip.
  * Other sections have no bar: the sidebar already names them, and their panel starts at the top.
  */
 export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => void }) {
@@ -37,7 +38,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
         </Show>
         <TooltipV2 placement="bottom" openDelay={400} value="New chat">
           <button type="button" class="top-bar-button" aria-label="New chat" data-action="logo-new-chat" onClick={() => runCommand("chat.new")}>
-            <BrandBird size={24} />
+            <IdentityAvatar seed={KIKO} size={24} />
           </button>
         </TooltipV2>
         <h1 class="min-w-0 flex-1 truncate px-1 text-sm font-medium text-text" data-component="top-bar-title">

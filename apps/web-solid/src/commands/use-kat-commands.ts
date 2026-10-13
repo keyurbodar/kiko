@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router"
+import { createSignal, onCleanup } from "solid-js"
 import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleFiles, toggleInfo } from "../chat/info/state"
@@ -7,13 +8,14 @@ import { openPalette } from "../palette/state"
 import { openSearch } from "../search/state"
 import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
-import { openBirdPicker } from "../mascot/picker-state"
+import { openAvatarPicker } from "../avatar/picker-state"
 import { useApp } from "../lib/store"
 import { setPickFor } from "../chat/to-bar-state"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
 const CHAT_PATH = /^\/chat\/([^/]+)$/
+const COMPOSER_FIELD = ".ProseMirror, .composer-link"
 
 /*
  * The router glue, kept apart from the table so the table tests without a
@@ -27,6 +29,17 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
     const id = CHAT_PATH.exec(location.pathname)?.[1]
     return id ? decodeURIComponent(id) : null
   }
+  // A signal, not a read of activeElement: tanstack stores the `enabled` it was given and refreshes it
+  // only when a signal it read changes, so focus has to be a signal for Mod+K to follow it.
+  const [inComposer, setInComposer] = createSignal(false)
+  const onFocusIn = (event: FocusEvent) => setInComposer(event.target instanceof Element && event.target.closest(COMPOSER_FIELD) !== null)
+  const onFocusOut = () => setInComposer(false)
+  document.addEventListener("focusin", onFocusIn)
+  document.addEventListener("focusout", onFocusOut)
+  onCleanup(() => {
+    document.removeEventListener("focusin", onFocusIn)
+    document.removeEventListener("focusout", onFocusOut)
+  })
   useCommands(
     katCommands({
       toggleSidebar: deps.toggleSidebar,
@@ -43,6 +56,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         navigate(`/chat/${id}`)
       },
       openPalette: () => openPalette("commands"),
+      inRichEditor: inComposer,
       openChats: () => openPalette("chats"),
       hasActiveChat: () => activeId() !== null,
       toggleInfo,
@@ -107,7 +121,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         const faces = id ? useApp.chatFaces(id) : []
         return faces.length === 1 ? faces[0]! : null
       },
-      changeBird: openBirdPicker,
+      changeAvatar: openAvatarPicker,
     }),
   )
 }

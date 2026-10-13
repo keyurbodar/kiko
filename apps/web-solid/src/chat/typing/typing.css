@@ -94,11 +94,6 @@
     animation: typing-fade 200ms ease-out backwards;
   }
 
-  /* The bird looks about now and then, so it reads as awake without fidgeting. */
-  .typing-bird .bird-body {
-    animation: typing-peek 2.8s ease-in-out infinite;
-  }
-
   .typing-dot {
     animation: var(--dot-anim, typing-wave) var(--typing-period) var(--dot-ease, linear) infinite;
   }
@@ -201,20 +196,6 @@
 @keyframes typing-turn {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes typing-peek {
-  0%,
-  72%,
-  100% {
-    transform: rotate(0);
-  }
-  80% {
-    transform: rotate(-8deg);
-  }
-  90% {
-    transform: rotate(4deg);
   }
 }
 

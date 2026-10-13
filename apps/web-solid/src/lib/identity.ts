@@ -1,5 +1,6 @@
-import { inkColor } from "../mascot/birds"
-import { birdFor } from "../mascot/choices"
+import { FLAVOURS, resolve } from "@kiko/avatar"
+import { KIKO } from "@kiko/protocol"
+import { pinsFor } from "../avatar/picks"
 
 /*
  * One source of truth for how an identity looks. The seed is the agent's slug
@@ -7,22 +8,28 @@ import { birdFor } from "../mascot/choices"
  * display name, an index, a random value, or a chat title: those change, and
  * then the same bot looks different in each place that draws it.
  *
- * The face is a bird from the flock (`src/mascot`), seeded by the same string
- * unless the person picked one. An agent's colour is its bird's body colour,
- * kept readable on both appearances, so its name, its mention chips and its
- * reply quotes match its face. The kiko agent's colour is the theme accent.
+ * The face is an avatar from `@kiko/avatar`, drawn from the same seed unless the
+ * person picked one. An agent's colour comes from its flavor, kept readable on
+ * both appearances, so its name, its mention chips and its reply quotes match
+ * its face. Kiko's colour is the theme accent.
  */
 
 export type IdentityLook = {
-  /** The seed the bird is chosen from. */
+  /** The seed the avatar is drawn from. */
   seed: string
-  /** A CSS colour: the bird's body colour, readable as text on the current appearance. */
+  /** A CSS colour: the flavor's colour, readable as text on the current appearance. */
   color: string
 }
 
-/** Reactive: a bird the person picks changes the colour everywhere it is read. */
+/** Reactive: a choice the person makes changes the colour everywhere it is read. */
 export function identityLook(seed: string): IdentityLook {
-  return { seed, color: inkColor(birdFor(seed)) }
+  return { seed, color: inkColor(seed) }
+}
+
+function inkColor(seed: string): string {
+  if (seed === KIKO) return "var(--accent)"
+  const grain = FLAVOURS[resolve(seed, pinsFor(seed)).flavour].grain
+  return `light-dark(color-mix(in oklch, ${grain}, #000 45%), color-mix(in oklch, ${grain}, #fff 30%))`
 }
 
 /** An identity's colour mixed into transparency, for a chip or a quote background. */

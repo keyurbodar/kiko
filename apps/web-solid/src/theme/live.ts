@@ -7,7 +7,7 @@ import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js
 import { useApp } from "../lib/store"
 import { type UserChannel, userChannel } from "../sync/user-channel"
 import { applyCommitted, readCache, writeCache } from "@kiko/theme/apply"
-import { setBirdPicks } from "../mascot/choices"
+import { setAvatarPicks } from "../avatar/picks"
 import { formatLook, parseLook, type Look } from "@kiko/theme/look"
 
 const cached = readCache()
@@ -15,7 +15,7 @@ const first = parseLook(cached?.text ?? null)
 // The inline script already painted these variables. This tells `apply.ts` what "saved" is,
 // so a cancelled preview goes back to it.
 applyCommitted(first)
-setBirdPicks(first.birds)
+setAvatarPicks(first.avatars)
 const [saved, setSaved] = createSignal<string | null>(cached?.text ?? null)
 
 /** The saved look. The default until the person picks something. Reactive. */
@@ -35,7 +35,7 @@ let outbox: string | null | undefined
 function adopt(text: string | null): void {
   const next = parseLook(text)
   applyCommitted(next)
-  setBirdPicks(next.birds)
+  setAvatarPicks(next.avatars)
   writeCache(text, next)
   if (text !== saved()) setSaved(text)
 }

@@ -7,13 +7,15 @@ import "./composer.css"
 import { PromptInputV2 } from "./prompt-input"
 import { createPromptInputV2Controller } from "./prompt-input/interaction"
 import { createPromptInputV2Store } from "./prompt-input/store"
-import { releaseBlobUrl } from "./prompt-input/attachments"
-import type { PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
+import { blobId, releaseBlobUrl } from "./prompt-input/attachments"
+import type { PromptInputV2Attachment, PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
 import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createImageDialog } from "../chat/ui/image-dialog"
 import { runSlash, slashSuggestions } from "./slash"
-import { forgetUpload, moveUpload, readyAttachments, releaseUpload, startUpload, uploadBlockReason } from "../sync/uploads"
+import { forgetUpload, readyAttachments, releaseUpload, startUpload, uploadBlockReason } from "../sync/uploads"
+
+const draftFiles = () => import("./rich/draft-files")
 
 export function Composer(props: ComposerProps) {
   const [persisted, setPersisted] = createStore<PromptInputV2PersistedState>({
@@ -49,36 +51,51 @@ export function Composer(props: ComposerProps) {
   document.addEventListener("keydown", editLast)
   onCleanup(() => document.removeEventListener("keydown", editLast))
   onCleanup(() => document.removeEventListener("keydown", dropReply))
-  /*
-   * Each attachment uploads from the moment it is picked (`sync/uploads.ts`). One that leaves the
-   * box unsent, by its remove button, a slash command, an edit, or the composer going away, has
-   * its upload stopped and deleted and its object URL freed. A sent one belongs to its message:
-   * the send forgets it first, so nothing here touches it.
-   */
   const boxed = () => store.state.prompt.flatMap((part) => (part.type === "image" ? [part] : []))
   let held = new Map<string, string>()
+  const keptFor = new Map<string, string>()
   const discard = (id: string, url: string) => {
     releaseUpload(id)
     releaseBlobUrl(url)
   }
   createEffect(() => {
     const now = new Map(boxed().map((part) => [part.id, part.blob.url]))
-    for (const [id, url] of held) if (!now.has(id)) discard(id, url)
+    for (const [id, url] of held) {
+      if (now.has(id)) continue
+      discard(id, url)
+      const key = keptFor.get(id)
+      if (key) void draftFiles().then((m) => m.deleteDraftFile(key, id))
+      keptFor.delete(id)
+    }
     held = now
   })
   onCleanup(() => {
     for (const [id, url] of held) discard(id, url)
   })
-  // The uploads go to the open chat. Attachments that stay in the box across a switch upload again there.
-  createEffect(
-    on(
-      () => props.threadId,
-      (roomId) => {
-        if (roomId) for (const part of boxed()) moveUpload(part.id, roomId)
-      },
-      { defer: true },
-    ),
-  )
+  const leaveChat = () => {
+    for (const [id, url] of held) discard(id, url)
+    held = new Map()
+    keptFor.clear()
+    if (boxed().length) store.setPrompt(store.state.prompt.filter((part) => part.type !== "image"))
+  }
+  const restoreFiles = async (key: string) => {
+    const saved = await draftFiles().then((m) => m.listDraftFiles(key))
+    if (props.draftKey !== key) return
+    const have = new Set(boxed().map((part) => part.id))
+    const parts: PromptInputV2Attachment[] = []
+    for (const entry of saved) {
+      if (have.has(entry.id)) continue
+      const file = new File([entry.blob], entry.name, { type: entry.type })
+      parts.push({ type: "image", id: entry.id, filename: entry.name, mime: entry.type, size: entry.size, blob: { id: await blobId(file), url: URL.createObjectURL(file) } })
+      keptFor.set(entry.id, key)
+      startUpload(entry.id, key, file, entry.name, entry.type)
+    }
+    if (props.draftKey !== key) return releaseAll(parts)
+    if (parts.length) store.setPrompt([...store.state.prompt, ...parts], store.state.cursor)
+  }
+  const releaseAll = (parts: PromptInputV2Attachment[]) => {
+    for (const part of parts) discard(part.id, part.blob.url)
+  }
   const blocked = () => uploadBlockReason(boxed().map((part) => part.id))
   const draftText = () =>
     store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
@@ -95,6 +112,7 @@ export function Composer(props: ComposerProps) {
       () => props.draftKey ?? "",
       (key) => {
         filledFor = ""
+        leaveChat()
         if (!key) return
         const text = props.draftFor?.(key) ?? ""
         if (text !== draftText()) {
@@ -102,6 +120,7 @@ export function Composer(props: ComposerProps) {
           else store.reset()
         }
         filledFor = key
+        void restoreFiles(key)
       },
     ),
   )
@@ -174,6 +193,10 @@ export function Composer(props: ComposerProps) {
       },
       onAdded: (attachment, file) => {
         if (props.threadId) startUpload(attachment.id, props.threadId, file, attachment.filename, attachment.mime)
+        const key = props.draftKey
+        if (!key) return
+        keptFor.set(attachment.id, key)
+        void draftFiles().then((m) => m.putDraftFile(key, { id: attachment.id, name: attachment.filename, type: attachment.mime, size: attachment.size, blob: file }))
       },
     },
     view: {
@@ -206,6 +229,9 @@ export function Composer(props: ComposerProps) {
           if (!text.trim() && files.length === 0) return
           for (const part of parts) forgetUpload(part.id)
           held = new Map()
+          keptFor.clear()
+          const draftKey = props.draftKey
+          if (draftKey) void draftFiles().then((m) => m.clearDraftFiles(draftKey))
           store.reset()
           props.onSend(files.length ? { body: text, files, attachments } : { body: text })
           props.onClearReply?.()
@@ -252,7 +278,7 @@ export function Composer(props: ComposerProps) {
 
   return (
     <>
-      <PromptInputV2 controller={controller} disabled={!!props.busy} reply={above} />
+      <PromptInputV2 controller={controller} disabled={!!props.busy} reply={above} isMention={(slug) => props.bots.some((bot) => bot.id === slug)} />
       {viewer.view}
     </>
   )

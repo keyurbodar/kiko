@@ -2,7 +2,7 @@ import "fake-indexeddb/auto"
 import { describe, expect, test } from "bun:test"
 import type { MessageId } from "@kiko/protocol"
 import { IDBFactory } from "fake-indexeddb"
-import { openWarm } from "./db"
+import { openWarm, SCHEMA_VERSION } from "./db"
 import { createDraftBook } from "./drafts"
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -41,5 +41,19 @@ describe("draft book", () => {
 		expect(book.has("A")).toBe(false)
 		await wait(120)
 		expect(await warm.get("drafts", "A")).toBeUndefined()
+	})
+
+	test("a markdown draft comes back byte for byte, and the warm schema did not change", async () => {
+		const idb = new IDBFactory()
+		const markdown = "**bold** and `code`\n\n- one\n- two\n\n> quoted\n\n```ts\nconst a = 1\n```"
+		const warm = await openWarm({ userId: "u1", idb })
+		const book = createDraftBook(warm, 20)
+		book.save("A", { text: markdown })
+		await book.flush()
+		warm.close()
+		const again = createDraftBook(await openWarm({ userId: "u1", idb }), 20)
+		await wait(30)
+		expect(again.get("A")?.text).toBe(markdown)
+		expect(SCHEMA_VERSION).toBe(3)
 	})
 })

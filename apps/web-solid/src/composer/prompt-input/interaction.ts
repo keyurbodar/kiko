@@ -13,7 +13,7 @@ import type {
 } from "./types"
 import {
   createPromptInputV2InteractionState,
-  transitionPromptInputV2,
+  reducePromptInputV2,
   type PromptInputV2InteractionCommand,
   type PromptInputV2InteractionEvent,
 } from "./machine"
@@ -51,6 +51,11 @@ export type PromptInputV2ViewConfig = {
   onPaste?: (event: ClipboardEvent) => void
 }
 
+export type PromptInputV2Rich = {
+  insertText: (text: string) => void
+  insertMention: (slug: string) => void
+}
+
 export function createPromptInputV2State() {
   return createStore(createPromptInputV2InteractionState())
 }
@@ -70,6 +75,7 @@ export function createPromptInputV2Controller(input: {
   attachments?: PromptInputV2AttachmentConfig
 }) {
   let editor: HTMLElement | undefined
+  let rich: PromptInputV2Rich | undefined
   let fileInput: HTMLInputElement | undefined
   const draft = createPromptInputV2Store(input.store)
   const [state, setState] = input.state ?? createPromptInputV2State()
@@ -78,6 +84,10 @@ export function createPromptInputV2Controller(input: {
   }
   function addPart(part: PromptInputV2PersistedState["prompt"][number]) {
     if (part.type === "image") return false
+    if (rich) {
+      rich.insertText(part.type === "text" ? part.content : `${part.content} `)
+      return true
+    }
     if (part.type === "file" || part.type === "agent") {
       draft.addMention(part)
       return true
@@ -146,7 +156,11 @@ export function createPromptInputV2Controller(input: {
       return
     }
     if (command.type === "mention.add") {
-      if (command.item.mention) draft.addMention(command.item.mention)
+      const mention = command.item.mention
+      if (!mention) return
+      if (!rich) draft.addMention(mention)
+      else if (mention.type === "agent") rich.insertMention(mention.name)
+      else rich.insertText(`${mention.content} `)
       return
     }
     if (command.type === "popover.filter") {
@@ -163,7 +177,7 @@ export function createPromptInputV2Controller(input: {
 
   function dispatch(event: PromptInputV2InteractionEvent) {
     const mode = state.mode
-    const result = transitionPromptInputV2(state, event, draft.state)
+    const result = reducePromptInputV2(state, event, draft.state)
     const action = event.type === "popover.select" ? input.onSuggestionSelect?.(event.item) : undefined
     if (event.type === "popover.select") {
       if (!action || state.popover.type !== "command-menu") result.commands.forEach(execute)
@@ -322,6 +336,9 @@ export function createPromptInputV2Controller(input: {
     setEditor(element: HTMLElement) {
       editor = element
       input.onEditor?.(element)
+    },
+    setRich(handle: PromptInputV2Rich | undefined) {
+      rich = handle
     },
     restoreFocus,
     onInput(value: string, prompt?: PromptInputV2PersistedState["prompt"], cursor?: number) {
