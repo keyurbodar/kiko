@@ -29,8 +29,8 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
     const id = CHAT_PATH.exec(location.pathname)?.[1]
     return id ? decodeURIComponent(id) : null
   }
-  // A signal, not a read of activeElement: tanstack keeps the `enabled` it was given, so a plain read
-  // would leave the palette off after focus had left the composer.
+  // A signal, not a read of activeElement: tanstack stores the `enabled` it was given and refreshes it
+  // only when a signal it read changes, so focus has to be a signal for Mod+K to follow it.
   const [inComposer, setInComposer] = createSignal(false)
   const onFocusIn = (event: FocusEvent) => setInComposer(event.target instanceof Element && event.target.closest(COMPOSER_FIELD) !== null)
   const onFocusOut = () => setInComposer(false)
