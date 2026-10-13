@@ -34,6 +34,9 @@ export type SystemEvent =
 	| { kind: "agent_message"; from: AgentSlug; to: AgentSlug }
 	| { kind: "activity"; count: number }
 
+/** An event kind a newer server sent. Only its kind is kept. */
+export type UnknownSystemEvent = { kind: string }
+
 export type HumanAsk = { id: string; from: AgentSlug; text: string; options?: readonly string[]; messageId: MessageId }
 
 export type FileRef = {
@@ -70,7 +73,7 @@ export type Message = {
 	quote?: string
 	to?: AgentSlug | "all"
 	initiative?: { reason: string }
-	event?: SystemEvent
+	event?: SystemEvent | UnknownSystemEvent
 }
 
 export type Member = {

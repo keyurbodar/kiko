@@ -68,7 +68,7 @@ export class Outbox {
   private lastEntry = 0
   private lastDraft = 0
   private state: AgentState = "idle"
-  private workers = false
+  private backgroundRunning = false
 
   constructor(
     storage: DurableObjectStorage,
@@ -101,7 +101,7 @@ export class Outbox {
   }
 
   async background(running: boolean, pending = false): Promise<void> {
-    this.workers = running
+    this.backgroundRunning = running
     // A worker's report waits in the inbox: the run that tells the human comes next, so do not flash idle first.
     if (!this.run && !(pending && !running)) await this.setStatus(running ? "working" : "idle")
   }
@@ -313,12 +313,12 @@ export class Outbox {
       this.save(run)
       await this.flush()
     }
-    const working = this.workers
+    const working = this.backgroundRunning
     await this.room()?.endRun(id, inputs, working)
     this.sql.exec("DELETE FROM outbox WHERE run_id = ?", id)
     if (this.run?.id === id) this.run = null
     this.state = working ? "working" : "idle"
-    if (!this.run) await this.setStatus(this.workers ? "working" : "idle")
+    if (!this.run) await this.setStatus(this.backgroundRunning ? "working" : "idle")
   }
 
   private async setStatus(state: AgentState): Promise<void> {
