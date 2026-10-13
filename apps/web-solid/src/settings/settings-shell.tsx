@@ -74,7 +74,7 @@ export function SettingsShell(props: { sectionId: string }) {
   return (
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3 md:px-4 md:pb-4" data-component="settings">
       <div class="@container/settings flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" data-component="settings-body">
-        <div class="mx-auto w-full max-w-3xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
+        <div class="mx-auto w-full max-w-3xl px-5 py-6 pb-16 max-[767px]:pt-14 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
           <Page title={meta()?.label ?? "Settings"} description={meta()?.hint}>
             {section(props.sectionId)}
           </Page>

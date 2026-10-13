@@ -9,7 +9,7 @@ import { chatModel } from "../../settings/chat-model"
 import { MemoryError, MemoryList, useMemoryStore } from "./memory/views"
 import { SoulCard } from "./soul"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { BackIcon, ChevronRightIcon } from "@kiko/ui/icons"
+import { BackIcon, ChevronRightIcon, CloseIcon } from "@kiko/ui/icons"
 import { Card, DangerRow, DeleteChat, EDGE, Header, NavRow, NavRows, Profile, Properties, Property, roomMembers } from "./sections"
 import { MemberList } from "../members/members"
 import { shortDate, startedAt } from "./format"
@@ -379,6 +379,9 @@ export default function InfoPanel(props: { chatId: string }) {
         fallback={
           <header class={`flex h-[50px] shrink-0 items-center border-b ${EDGE} px-3`}>
             <h2 class="min-w-0 flex-1 truncate text-sm font-medium text-text" data-component="info-title">Details</h2>
+            <button type="button" class={iconButton} data-action="close-panel" aria-label="Close panel" onClick={() => closeInfo()}>
+              <HugeIcon icon={CloseIcon} size={16} />
+            </button>
           </header>
         }
       >

@@ -1,5 +1,6 @@
 import type { RoomId } from "@kiko/protocol"
 import { createSignal } from "solid-js"
+import { chatAfter } from "../lib/chats"
 import { useApp } from "../lib/store"
 
 /*
@@ -65,13 +66,6 @@ export function sidebarOrder() {
   return [...rows.filter((r) => r.pinned), ...rows.filter((r) => !r.pinned)]
 }
 
-/** The chat that takes `id`'s place in the sidebar list once it leaves: the one below it, else the one above. */
-export function chatAfter(id: string): string | null {
-  const rest = sidebarOrder().filter((r) => r.id !== id)
-  const at = sidebarOrder().findIndex((r) => r.id === id)
-  return (rest[at] ?? rest[at - 1])?.id ?? null
-}
-
 let lastClosed: string | null = null
 
 /** The chat `closeChat` last left, while it still exists. */
@@ -86,7 +80,7 @@ export function reopenClosedChat(): string | null {
  * the list, except a temporary chat, which leaving deletes (architecture section 7.11).
  */
 export function closeChat(id: string, active: string | null, go: (path: string) => void): void {
-  const next = chatAfter(id)
+  const next = chatAfter(sidebarOrder().map((r) => r.id), id)
   lastClosed = id
   const chat = useApp.chat(id)
   if (chat?.temp) useApp.user()?.remove(chat.roomId)
@@ -94,7 +88,7 @@ export function closeChat(id: string, active: string | null, go: (path: string) 
 }
 
 export function deleteChat(id: string, active: string | null, go: (path: string) => void): void {
-  const next = chatAfter(id)
+  const next = chatAfter(sidebarOrder().map((r) => r.id), id)
   useApp.user()?.remove(id as RoomId)
   clearUnreadMark(id)
   if (active === id) go(next ? `/chat/${next}` : "/chat")
