@@ -11,7 +11,7 @@ const APP_ENTRY = "src/main.tsx";
 
 const TIER3 = [
   "src/palette/palette.tsx",
-  "src/chat/info/panel.tsx",
+  "src/chat/side/Sidecar.tsx",
   "src/chat/ui/DateCalendar.tsx",
   "../../packages/ui/src/v2/components/overlays-impl.ts",
   "../../packages/ui/src/v2/components/toast-v2-impl.tsx",
@@ -23,7 +23,7 @@ const TIER3 = [
   "src/chat/ui/ReactionPopover.tsx",
   "src/chat/ui/SuspiciousLinkDialog.tsx",
 ];
-const TIER4 = ["src/files/pane.tsx", "src/app/routes/settings.tsx"];
+const TIER4 = ["src/app/routes/settings.tsx"];
 
 const RECORDED: Record<string, number> = {
   "tier 1 shell js": 1993, // Boot prefetch (2026-10-12): the entry starts /api/me, and for a browser with no cached session /api/providers and the sign-in chunk, in parallel with the route chunk (+101 B). It removes two serial round trips before sign-in shows. Before that, t3code attachments (2026-10-09): the entry's list of lazy chunks names the image dialog and a few shared chunks Rolldown split differently (+57 B over main's 1835, which was 2 B under the old limit). Before: 1750. First-paint pass: re-recorded at the measured size. P8-08: the sidebar lazy-loads the files panel, which adds one dynamic import to the entry.

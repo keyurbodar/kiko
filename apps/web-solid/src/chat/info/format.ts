@@ -1,8 +1,3 @@
-import { roomIdTime } from "@kiko/protocol"
-
-/** The moment a chat was made, read from the time part of its room id (a UUIDv7, or an older ULID). Null when the id is neither. */
-export const startedAt = (roomId: string): number | null => roomIdTime(roomId)
-
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 /** `Oct 2, 2026`, in the reader's time zone. */

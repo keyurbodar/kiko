@@ -1,7 +1,7 @@
 import type { FileRef } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createEffect, createSignal, on, onCleanup } from "solid-js"
-import { fileReveal } from "../chat/info/state"
+import { fileReveal } from "../chat/side/surfaces"
 import { PREVIEW_BYTES, readText } from "./api"
 import type { EditorState } from "./editor"
 import { where } from "./model"
@@ -27,7 +27,8 @@ export function createFileView(chatId: string, path: () => string | null, file: 
 	// A line asked for shows in the source, so it wins over the rendered preference until the reader toggles.
 	const reveal = () => {
 		const p = path()
-		return p ? fileReveal(chatId, p) : null
+		const r = p ? fileReveal(chatId, p) : null
+		return r && r.line !== null ? { line: r.line, n: r.n } : null
 	}
 	const [seenReveal, setSeenReveal] = createSignal<number | null>(null)
 	const mode = () => (file() ? RENDERED[kind()] : undefined)

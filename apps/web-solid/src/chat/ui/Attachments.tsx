@@ -3,7 +3,7 @@ import { FileIcon } from "@kiko/ui/file-icon"
 import { cn } from "../../lib/cn"
 import { splitFiles, tileSpan } from "../../lib/attachments"
 import type { MessageFile } from "../../lib/types"
-import { openFile } from "../info/state"
+import { openFile } from "../side/surfaces"
 import { formatBytes } from "../info/format"
 import type { DialogImage } from "./image-dialog"
 

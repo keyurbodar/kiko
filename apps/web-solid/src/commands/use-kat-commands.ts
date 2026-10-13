@@ -2,7 +2,8 @@ import { useLocation, useNavigate } from "@solidjs/router"
 import { createSignal, onCleanup } from "solid-js"
 import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
-import { toggleFiles, toggleInfo } from "../chat/info/state"
+import { toggleCard } from "../chat/side/card-state"
+import { fixedSurface, openSurface } from "../chat/side/surfaces"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
 import { openSearch } from "../search/state"
@@ -59,8 +60,11 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       inRichEditor: inComposer,
       openChats: () => openPalette("chats"),
       hasActiveChat: () => activeId() !== null,
-      toggleInfo,
-      toggleFiles,
+      toggleCard,
+      openFiles: () => {
+        const id = activeId()
+        if (id) openSurface(id, fixedSurface("files"))
+      },
       closeChat: () => {
         const id = activeId()
         if (id) closeChat(id, id, navigate)

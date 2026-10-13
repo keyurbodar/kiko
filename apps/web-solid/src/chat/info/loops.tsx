@@ -56,7 +56,7 @@ export function tomorrow(from = new Date()): number {
 const post = (id: number, body: unknown) =>
   fetch(`/api/loops/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.ok).catch(() => false)
 
-async function act(loop: PlateLoop, body: { action: "done" | "drop" } | { action: "snooze"; until: number }, failed: string): Promise<void> {
+export async function act(loop: PlateLoop, body: { action: "done" | "drop" } | { action: "snooze"; until: number }, failed: string): Promise<void> {
   setAll((list) => (body.action === "snooze" ? list?.map((l) => (l.id === loop.id ? { ...l, snoozedUntil: body.until } : l)) : list?.filter((l) => l.id !== loop.id)))
   if (!(await post(loop.id, body))) {
     setAll((list) => (list?.some((l) => l.id === loop.id) ? list.map((l) => (l.id === loop.id ? loop : l)) : [loop, ...(list ?? [])]))

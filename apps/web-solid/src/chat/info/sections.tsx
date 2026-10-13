@@ -1,8 +1,6 @@
 import type { Chat, Member } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
 import { createSignal, type JSX, Show } from "solid-js"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ChevronRightIcon } from "@kiko/ui/icons"
 import { ChatAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 import { deleteChat } from "../../sidebar/actions"
@@ -16,19 +14,6 @@ import { deleteChat } from "../../sidebar/actions"
 
 /** The hairline monocode draws between the parts (`border-stroke`). */
 export const EDGE = "border-[var(--panel-edge)]"
-
-/** A section: a hairline above, a small uppercase label, and its content. */
-export function Card(props: { id: string; title: string; action?: JSX.Element; children: JSX.Element }) {
-  return (
-    <section class={`border-t ${EDGE} px-2 pt-3 pb-4`} data-component="info-card" data-card={props.id}>
-      <div class="flex items-center justify-between px-2 pb-2">
-        <h3 class="text-[11px] font-medium tracking-wide text-[color-mix(in_oklab,var(--text)_40%,transparent)] uppercase">{props.title}</h3>
-        {props.action}
-      </div>
-      {props.children}
-    </section>
-  )
-}
 
 /** The facts: a label column and a value column, 12px, as monocode lists a Mono's model. */
 export function Properties(props: { children: JSX.Element }) {
@@ -56,34 +41,6 @@ export function Profile(props: { face: JSX.Element; children: JSX.Element }) {
   )
 }
 
-/** A row that opens a page: its name, a line about it, a count, and a chevron. */
-export function NavRow(props: { id: string; label: string; description: string; count?: string | number; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-[color-mix(in_oklab,var(--text)_5%,transparent)]"
-      data-action={`open-${props.id}`}
-      data-card={props.id}
-      onClick={() => props.onClick()}
-    >
-      <span class="flex min-w-0 flex-1 flex-col">
-        <span class="text-[13px] leading-5 text-[color-mix(in_oklab,var(--text)_90%,transparent)]">{props.label}</span>
-        <span class="line-clamp-1 text-[12px] leading-5 text-[color-mix(in_oklab,var(--text)_40%,transparent)]">{props.description}</span>
-      </span>
-      <Show when={props.count !== undefined && props.count !== ""}>
-        <span class="shrink-0 text-[12px] leading-5 tabular-nums text-[color-mix(in_oklab,var(--text)_40%,transparent)]">{props.count}</span>
-      </Show>
-      <span class="shrink-0 text-[color-mix(in_oklab,var(--text)_30%,transparent)]">
-        <Chevron />
-      </span>
-    </button>
-  )
-}
-
-export function NavRows(props: { children: JSX.Element }) {
-  return <nav class={`flex flex-col gap-px border-t ${EDGE} p-2`} data-component="info-rows">{props.children}</nav>
-}
-
 /** The destructive row, alone at the bottom: red name, quiet line under it. */
 export function DangerRow(props: { action: string; label: string; description: string; onClick: () => void; onBlur?: () => void }) {
   return (
@@ -100,10 +57,6 @@ export function DangerRow(props: { action: string; label: string; description: s
       </button>
     </div>
   )
-}
-
-export function Chevron() {
-  return <HugeIcon icon={ChevronRightIcon} size={14} />
 }
 
 /*

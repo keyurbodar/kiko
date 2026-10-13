@@ -6,7 +6,7 @@ import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import type { JSX } from "solid-js"
 import { useApp } from "../../lib/store"
-import { openFile } from "../info/state"
+import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { basename, resolveFile, type FileTarget } from "../rich/file-links"
 
 /** Where a named file is: the chat's own files first, then the user's home drive. */
@@ -28,7 +28,7 @@ export function FileChip(props: { file: FileTarget; label: string }): JSX.Elemen
     if (!id) return
     const found = find(props.file.path)
     if (found.kind === "file") return openFile(id, found.path, props.file.line)
-    if (found.kind === "many") return openFile(id, null)
+    if (found.kind === "many") return openSurface(id, fixedSurface("files"))
     showToastV2({ title: `No file named ${basename(props.file.path)} in this chat`, variant: "error" })
   }
   const copy = async () => {

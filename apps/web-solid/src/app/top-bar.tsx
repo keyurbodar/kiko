@@ -8,14 +8,16 @@ import { sectionOf } from "./sections"
 import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
+import { SearchIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { PanelRight, PanelTop } from "lucide-solid"
 import { useApp } from "../lib/store"
-import { closeInfo, infoOpen, loadInfoPanel, openInfo } from "../chat/info/state"
+import { cardOpen, loadCard, toggleCard } from "../chat/side/card-state"
+import { loadSidecar, sidecarOpen, toggleSidecar } from "../chat/side/surfaces"
 
 /*
  * The 50 px bar over the main panel, laid out as kat's: the avatar at the far left, the open chat's
- * title, and quiet controls on the right: the chat's model, message search, and the details panel.
+ * title, and quiet controls on the right: the chat's model, message search, the chat card, and the side panel.
  * The avatar is the new chat button. Every button is the sidebar's icon button, under a tooltip.
  * Other sections have no bar: the sidebar already names them, and their panel starts at the top.
  */
@@ -59,23 +61,40 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
             <HugeIcon icon={SearchIcon} size={16} />
           </button>
         </TooltipV2>
-        {/* Monocode's panel toggle, at the bar's right edge: shows and hides the chat's details. */}
+        {/* The card and the side panel sit at the bar's right edge. Both need a chat. */}
         <Show when={chatId()}>
-          <TooltipV2 placement="bottom" openDelay={400} value={infoOpen() ? "Hide details" : "Show details"}>
-            <button
-              type="button"
-              class="top-bar-button"
-              aria-label={infoOpen() ? "Hide details" : "Show details"}
-              aria-pressed={infoOpen()}
-              data-action="toggle-details"
-              data-hint="chat.info"
-              data-hint-label="Details"
-              onPointerEnter={() => void loadInfoPanel()}
-              onClick={() => (infoOpen() ? closeInfo() : openInfo())}
-            >
-              <HugeIcon icon={SidebarRightIcon} size={16} />
-            </button>
-          </TooltipV2>
+          {(id) => (
+            <>
+              <TooltipV2 placement="bottom" openDelay={400} value={cardOpen() ? "Hide chat card" : "Show chat card"}>
+                <button
+                  type="button"
+                  class="top-bar-button"
+                  aria-label={cardOpen() ? "Hide chat card" : "Show chat card"}
+                  aria-pressed={cardOpen()}
+                  data-action="toggle-card"
+                  data-hint="chat.info"
+                  data-hint-label="Details"
+                  onPointerEnter={() => void loadCard()}
+                  onClick={toggleCard}
+                >
+                  <PanelTop size={15} strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              </TooltipV2>
+              <TooltipV2 placement="bottom" openDelay={400} value={sidecarOpen(id()) ? "Hide side panel" : "Show side panel"}>
+                <button
+                  type="button"
+                  class="top-bar-button"
+                  aria-label={sidecarOpen(id()) ? "Hide side panel" : "Show side panel"}
+                  aria-pressed={sidecarOpen(id())}
+                  data-action="toggle-sidecar"
+                  onPointerEnter={() => void loadSidecar()}
+                  onClick={() => toggleSidecar(id())}
+                >
+                  <PanelRight size={15} strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              </TooltipV2>
+            </>
+          )}
         </Show>
       </header>
     </Show>

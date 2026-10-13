@@ -24,7 +24,7 @@ import { Button, fieldClass } from "../../settings/kit"
 const row = "flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-[13px] text-text outline-none hover:bg-[var(--hover-bg)] focus-visible:bg-[var(--hover-bg)] data-[expanded]:bg-[var(--selected-bg)]"
 
 /** Toasts each refusal from the open room while the section is on screen. */
-function useRefusalToasts() {
+export function useRefusalToasts() {
   createEffect(() => {
     if (!useApp.room()) return
     const off = useApp.onMemberRefused((op, reason) => showToastV2({ title: refusalText(op, reason), variant: "error" }))
