@@ -7,10 +7,11 @@ type Span = { start: number; end: number }
 
 export function parseRange(header: string | null, size: number): Span | null | "bad" {
 	const m = header ? /^bytes=(\d*)-(\d*)$/.exec(header.trim()) : null
-	if (!m || (m[1] === "" && m[2] === "")) return null
+	// An empty file has no bytes to range over. Serving it whole lets a viewer read a new file.
+	if (!m || (m[1] === "" && m[2] === "") || size === 0) return null
 	if (m[1] === "") {
 		const suffix = Number(m[2])
-		if (suffix === 0 || size === 0) return "bad"
+		if (suffix === 0) return "bad"
 		return { start: Math.max(0, size - suffix), end: size - 1 }
 	}
 	const start = Number(m[1])
