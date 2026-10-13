@@ -15,6 +15,7 @@ import { remindersRoute } from "./user/reminders-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
 import { skillsRoute } from "./skills/route"
+import { openVsxRoute } from "./themes/open-vsx-route"
 import { setScriptWasm } from "@kiko/sandbox/wasm"
 import quickjsWasm from "quickjs-wasi/quickjs.wasm"
 
@@ -55,6 +56,8 @@ export default {
     if (searched) return searched
     const skills = await skillsRoute(request, env)
     if (skills) return skills
+    const themed = await openVsxRoute(request, env)
+    if (themed) return themed
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
     const dev = await devResponse(request, env)

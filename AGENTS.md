@@ -84,7 +84,7 @@ bun scripts/check-imports.ts      # packages import only the packages below them
 ```
 
 - `bun run check` is the gate a change must pass before it lands. `scripts/check-rules.ts` enforces the rules under "Ways to hurt yourself" (`no-timer-in-do`, `egress`, `dev-guard`, `do-names`, `sql-list-binds`). A reasoned exception goes on the line above the code as `// check-rules: allow <rule> <reason>`.
-- Wrap every heavy command (the gate, a test run, a typecheck, a dev server, `bun kiko verify`) in `issues/bin/heavy.sh`. The machine has 4 CPUs, and at most two heavy commands run at once (issues/STANDING.md).
+- Wrap every heavy command (the gate, a test run, a typecheck, a dev server, `bun kiko verify`) in `issues/bin/heavy.sh`. The machine has 4 CPUs, and at most eight heavy commands run at once (issues/STANDING.md).
 - Backend work is verified through the kiko CLI, which speaks the same protocol as the client. Add or extend a suite in the same pull request as the feature.
 - Frontend work is verified with the `verify-kiko` skill, which drives a real browser. Use it for checks that matter, not for every change.
 - Team and loop behavior is tested with fake agents first, so tests are deterministic and cost no tokens.

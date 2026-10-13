@@ -1,28 +1,26 @@
+import { cachedUri } from "@kiko/avatar/uri"
 import { For, Show } from "solid-js"
-import { Bird } from "../mascot/bird"
-import type { BirdState } from "../mascot/birds"
+import { pinsFor } from "../avatar/picks"
 import { identityLook } from "./identity"
 
 /*
- * The only component that draws a bot or a chat: its bird, on nothing. Still by default:
- * a list of moving avatars is motion where nobody is waiting for anything. A `state` makes
- * the bird act out what the agent is doing. `size` is in pixels. Omit it to size by class.
+ * The only component that draws a bot or a chat: its avatar, on nothing. Still: an avatar
+ * never moves. `size` is in pixels. Omit it to size by class.
  */
-export function IdentityAvatar(props: { seed: string; size?: number; class?: string; state?: BirdState }) {
-  const look = () => identityLook(props.seed)
+export function IdentityAvatar(props: { seed: string; size?: number; class?: string }) {
   return (
     <span
       class={`inline-flex shrink-0 align-middle ${props.class ?? ""}`}
       style={{
         width: props.size ? `${props.size}px` : undefined,
         height: props.size ? `${props.size}px` : undefined,
-        "--identity-color": look().color,
+        "--identity-color": identityLook(props.seed).color,
       }}
       data-component="identity-avatar"
       data-seed={props.seed}
       aria-hidden="true"
     >
-      <Bird slug={look().seed} state={props.state} size={props.size} class="size-full" />
+      <img src={cachedUri(props.seed, pinsFor(props.seed))} alt="" draggable={false} class="size-full" />
     </span>
   )
 }
@@ -52,7 +50,7 @@ const BODY = { cx: 0.553, cy: 0.5, rx: 0.39, ry: 0.25 }
 
 /**
  * The mask that cuts a 2 px ring out of a face wherever a face stacked above it sits on it, so
- * each bird reads on its own, as stacked avatars do in Telegram. The ring follows the bird's
+ * each avatar reads on its own, as stacked avatars do in Telegram. The ring follows the avatar's
  * wide body, not its square box. A cut, not a painted ring, so the gap shows whatever surface is
  * behind: a row, a hovered row, a tab, or the panel.
  */
@@ -76,10 +74,10 @@ function cutout(spots: readonly Spot[], index: number): Record<string, string> {
  * A chat's avatar: its one agent's face, or for a group a stack of up to three member faces.
  * `faces` comes from `useApp.chatFaces`. Sized like `IdentityAvatar`: by `size` or by `class`.
  */
-export function ChatAvatar(props: { faces: readonly string[]; size?: number; class?: string; state?: BirdState }) {
+export function ChatAvatar(props: { faces: readonly string[]; size?: number; class?: string }) {
   const layout = () => LAYOUT[Math.min(props.faces.length, 3)]
   return (
-    <Show when={layout()} fallback={<IdentityAvatar seed={props.faces[0] ?? ""} size={props.size} class={props.class} state={props.state} />}>
+    <Show when={layout()} fallback={<IdentityAvatar seed={props.faces[0] ?? ""} size={props.size} class={props.class} />}>
       {(spots) => (
         <span
           class={`relative inline-block shrink-0 align-middle leading-none ${props.class ?? ""}`}

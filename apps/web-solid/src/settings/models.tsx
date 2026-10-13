@@ -1,11 +1,10 @@
 import { A } from "@solidjs/router"
-import { For, Show, Suspense, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js"
+import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { formatContext, loadCatalog, modelRef, type CatalogModel, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
-import { Moment } from "../mascot/lazy"
 import { connectProvider, disconnectProvider } from "./credentials"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
 import { Button, fieldClass, Group, Hint, IconButton, Item, muted, Notice, Pill, Row, Toggle } from "./kit"
@@ -61,7 +60,7 @@ export function ProvidersPage() {
     }).concat(available().filter(isJudgeOnly).map((provider) => ({ provider, note: JUDGE_NOTE }))),
   )
 
-  // The first provider is the moment kiko starts working, so the birds cheer once. Only a
+  // The first provider connects the agents, so the notice shows once. Only a
   // change seen on this page counts: a list that loads with providers in it is not a moment.
   const [cheer, setCheer] = createSignal(false)
   createEffect(
@@ -80,9 +79,6 @@ export function ProvidersPage() {
     <div class="flex flex-col gap-8" data-component="providers-page">
       <Show when={cheer()}>
         <div class="flex items-center gap-3 rounded-lg bg-[var(--accent-wash)] px-4 py-2.5" data-component="first-provider-cheer" role="status">
-          <Suspense>
-            <Moment kind="cheer" faces={["yuki", "scout", "budget"]} />
-          </Suspense>
           <p class="text-[13px] text-text">Connected. Your agents can reply now.</p>
         </div>
       </Show>

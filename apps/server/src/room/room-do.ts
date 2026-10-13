@@ -37,6 +37,7 @@ import { agentReact, reactionBrief } from "./reactions"
 import { attachmentPath, claim, ClaimRefused, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
 import { bubbleOf, discardWhole, putWhole, WHOLE_NAME, WHOLE_TYPE, type WholeText } from "./whole-text"
 import { tags } from "./recipients"
+import { parseRichText } from "./rich-text"
 import { migrate } from "@kiko/durable/migrate"
 import { ROOM_STEPS } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
@@ -608,6 +609,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const stored = this.log.addMessage({
 					from: { kind: "human" },
 					text,
+					rich: parseRichText(text),
 					clientId: frame.clientId,
 					...(replyTo ? { replyTo } : {}),
 					...(replyTo && frame.quote?.trim() ? { quote: frame.quote.trim() } : {}),

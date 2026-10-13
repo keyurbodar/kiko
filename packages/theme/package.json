@@ -9,6 +9,8 @@
     "./look": "./src/look.ts",
     "./display": "./src/display.ts",
     "./apply": "./src/apply.ts",
+    "./imported": "./src/imported.ts",
+    "./open-vsx": "./src/open-vsx.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -17,6 +19,11 @@
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
+    "@types/culori": "4.0.1",
     "typescript": "5.8.2"
+  },
+  "dependencies": {
+    "@kiko/avatar": "workspace:*",
+    "culori": "4.0.2"
   }
 }

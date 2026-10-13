@@ -1,6 +1,5 @@
 import { A } from "@solidjs/router"
-import { Moment } from "../../mascot/lazy"
-import { createSignal, For, Show, Suspense } from "solid-js"
+import { createSignal, For, Show } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, IntegrationsIcon, KeyIcon, ModelIcon, SearchIcon, SettingsIcon, SkillsIcon, UserIcon } from "@kiko/ui/icons"
 import { SETTINGS_GROUPS, searchSections, type SettingsSection } from "../../settings/sections"
@@ -68,9 +67,6 @@ export default function SettingsSidebar() {
         when={rows().length}
         fallback={
           <div class="flex flex-col items-center gap-2 py-6">
-            <Suspense>
-              <Moment kind="nothing" />
-            </Suspense>
             <p class="settings-empty">Nothing matches</p>
           </div>
         }

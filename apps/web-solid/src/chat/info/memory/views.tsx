@@ -1,7 +1,6 @@
 import type { LifeLine } from "@kiko/protocol"
 import { createResource, createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { session } from "../../../app/session"
-import { Moment } from "../../../mascot/lazy"
 import { memoryFor } from "./instance"
 import type { MemoryStore } from "./store"
 
@@ -198,17 +197,11 @@ export function MemoryList(props: { store: MemoryStore }) {
 			</Show>
 			<Show when={s().loaded && query().trim() && !shown().length}>
 				<div class="flex flex-col items-center gap-2 px-2 py-6">
-					<Suspense>
-						<Moment kind="nothing" />
-					</Suspense>
 					<p class="text-center text-sm text-weak">Nothing matches "{query().trim()}"</p>
 				</div>
 			</Show>
 			<Show when={s().loaded && !query().trim() && !s().lines.length}>
 				<div class="flex flex-col items-center gap-1 px-6 py-8 text-center">
-					<Suspense>
-						<Moment kind="nest" />
-					</Suspense>
 					<p class="mt-2 text-sm text-text">Nothing remembered yet</p>
 					<p class="text-xs text-weak">Talk to Kiko about people, places, and how you like things done. It keeps the lasting parts here.</p>
 				</div>

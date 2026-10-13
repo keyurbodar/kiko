@@ -21,6 +21,8 @@ Kiko has its own identity: calm, modern, minimal, fast. T3 Code level interactio
 11. **Code style.** No code comments except a non-obvious why. Sentence-case strings. Hugeicons only.
 12. **Verification.** Fast checks only, under 5 minutes. Real browser checks through the `verify-kiko` skill or `refs/agent-browser`, with real model keys from `apps/server/.dev.vars`. No new slow test suites.
 
+13. **Default appearance is dark.** A new user, and anyone who has not chosen, gets the dark theme, as in t3code. "System" stays an option but is not the default. Light remains fully supported and is checked in every screenshot pass. `DEFAULT_LOOK.mode` is `"dark"` and the first paint in `index.html` agrees.
+
 ## Units
 
 Landing is local (`issues/bin/land.sh`, no remote). One writer per worktree.
