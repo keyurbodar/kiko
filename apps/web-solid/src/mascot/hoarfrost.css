@@ -16,7 +16,7 @@
   mask-image: linear-gradient(to bottom, #000 66%, transparent);
 }
 
-:root[data-appearance="dark"] .hoarfrost {
+:root.dark .hoarfrost {
   --hf-snow: #e9e2d6;
   --hf-frost: rgb(236 230 220 / 0.6);
   --hf-bokeh: #ece6dc;

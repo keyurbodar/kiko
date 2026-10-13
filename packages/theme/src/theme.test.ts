@@ -29,7 +29,7 @@ describe("the palette", () => {
   test("kat.css paints Kiko's palette before any module loads", () => {
     expect(withPalette(KAT)).toBe(KAT)
     expect(katRule(":root", "palette:start")).toEqual(tokensFor("dark"))
-    expect(katRule(':root[data-appearance="light"]', "palette:start")).toEqual(tokensFor("light"))
+    expect(katRule(':root:not(.dark)', "palette:start")).toEqual(tokensFor("light"))
   })
 
   test("every token the palette sets is one kat.css declares, so it reaches the UI", () => {
@@ -127,7 +127,7 @@ describe("the pre-paint script", () => {
     const { root, style, classes, dataset } = fakeRoot()
     const storage = { getItem: (k: string) => (k === CACHE_KEY ? stored : null) }
     new Function("document", "localStorage", "matchMedia", script)({ documentElement: root }, storage, () => ({ matches: prefersLight }))
-    return { style, classes, dataset }
+    return { style, classes, dataset: { appearance: classes.has("dark") ? "dark" : "light" } }
   }
   const cacheOf = (look: Look) => JSON.stringify({ v: 4, text: "x", mode: look.mode, vars: resolveLook(look) })
 

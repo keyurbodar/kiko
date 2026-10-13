@@ -19,7 +19,6 @@
           if (c && c.v === 4) { mode = c.mode || "dark"; vars = c.vars; }
         } catch (e) {}
         var a = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
-        d.dataset.appearance = a;
         d.classList.toggle("dark", a === "dark");
         d.style.colorScheme = a;
         if (vars && vars[a]) for (var k in vars[a]) d.style.setProperty(k, vars[a][k]);

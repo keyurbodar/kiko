@@ -6,7 +6,7 @@
    make the roles interpolable, a derived layer that recomposes each role, the
    Tailwind bridge, and a base reset.
 
-   `:root` is the dark appearance. `:root[data-appearance="light"]` (section
+   `:root` is the dark appearance. `:root:not(.dark)` (section
    4b) swaps the lightness scale for the light one. A preset changes only the
    brand hue and chroma, so every preset works in both appearances. Greys carry
    no chroma: the brand colour lives on the own bubble and the marks.
@@ -606,7 +606,7 @@
    a light twin for free. The own bubble stays mid-tone so white text reads.
    -------------------------------------------------------------------------- */
 
-:root[data-appearance="light"] {
+:root:not(.dark) {
   color-scheme: light;
   /* Porcelain, the solid light: paper greys. The tint carries the hue here too. */
   --l-grey-hairline: 0.89;
@@ -735,7 +735,7 @@
   --accent-wash: color-mix(in oklab, #346bf1 14%, transparent);
 }
 
-:root[data-appearance="light"] {
+:root:not(.dark) {
   --bg: #fcfcfc;
   --bg-sidebar: #fafafa;
   --sidebar-solid: #fafafa;

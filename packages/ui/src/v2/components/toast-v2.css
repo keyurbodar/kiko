@@ -16,7 +16,7 @@
 }
 
 /* Light mode's popover is the menu surface, opaque. */
-:root[data-appearance="light"] :is(.toast-v2-region, .toast-v2-anchors) {
+:root:not(.dark) :is(.toast-v2-region, .toast-v2-anchors) {
   --toast-solid: var(--menu-bg);
 }
 

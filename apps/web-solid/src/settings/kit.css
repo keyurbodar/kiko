@@ -13,7 +13,7 @@
   --kit-raised: 0 1px 2px rgb(0 0 0 / 0.12);
 }
 
-:root[data-appearance="light"] {
+:root:not(.dark) {
   --kit-bevel: inset 0 -1px 0 rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.05);
   --kit-raised: 0 1px 2px rgb(0 0 0 / 0.1);
 }
@@ -181,7 +181,7 @@
   box-shadow: var(--kit-raised);
 }
 
-:root[data-appearance="light"] .kit-seg-item[aria-checked="true"] {
+:root:not(.dark) .kit-seg-item[aria-checked="true"] {
   background: var(--bg);
 }
 

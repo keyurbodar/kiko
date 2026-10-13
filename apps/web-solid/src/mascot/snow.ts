@@ -122,7 +122,7 @@ export function startSnow(canvas: HTMLCanvasElement, opts: SnowOptions): () => v
   seen.observe(canvas)
   // A theme change recolors the snow.
   const retheme = new MutationObserver(() => (recolor(), draw(last)))
-  retheme.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "data-appearance", "class"] })
+  retheme.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] })
 
   return () => {
     cancelAnimationFrame(raf)

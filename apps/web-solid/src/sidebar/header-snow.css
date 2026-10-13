@@ -34,7 +34,7 @@
   color: color-mix(in oklab, var(--text) 75%, #ffffff);
 }
 
-:root[data-appearance="light"] .header-snow-flakes {
+:root:not(.dark) .header-snow-flakes {
   color: #ffffff;
 }
 

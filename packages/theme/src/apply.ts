@@ -1,4 +1,4 @@
-// Turns a look into CSS on the root element: `data-appearance` picks kat.css's light or dark
+// Turns a look into CSS on the root element: the `dark` class picks kat.css's light or dark
 // scale, and the palette's tokens for that half layer on top. It also keeps the cache the HTML
 // shell reads before first paint, so the app opens in the right look with no flash.
 //
@@ -36,7 +36,6 @@ function paint(look: Look): void {
   for (const name of applied) if (!(name in next)) root.style.removeProperty(name)
   for (const [name, value] of Object.entries(next)) root.style.setProperty(name, value)
   applied = new Set(Object.keys(next))
-  root.dataset.appearance = appearance
   root.classList.toggle("dark", appearance === "dark")
   root.style.colorScheme = appearance
   // The boot screen and the overscroll area follow the canvas.

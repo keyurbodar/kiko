@@ -49,7 +49,7 @@
   --composer-edge: color-mix(in oklab, var(--text) 20%, transparent);
 }
 
-:root[data-appearance="light"] .composer-dock .composer-row {
+:root:not(.dark) .composer-dock .composer-row {
   background: color-mix(in oklab, #ffffff 70%, var(--bg));
   box-shadow:
     inset 0 0 0 1px var(--composer-edge),
