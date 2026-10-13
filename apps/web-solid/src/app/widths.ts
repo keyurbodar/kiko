@@ -21,3 +21,16 @@ export function saveWidth(rule: Rule, panelId: string) {
     localStorage.setItem(rule.key, String(Math.min(rule.max, width)))
   } catch {}
 }
+
+/**
+ * The three columns as fractions of the window, for Corvu's first layout. A collapsed or absent
+ * column is 0, and the chat takes the rest. A column gives way before the chat drops under 360 px.
+ */
+export function initialSizes(width: number, sidebar: number | null, info: number | null) {
+  let side = sidebar ?? 0
+  let right = info ?? 0
+  const room = Math.max(0, width - CHAT_MIN)
+  if (right > 0) right = Math.max(INFO.min, Math.min(right, room - side))
+  if (side > 0 && side + right > room) side = Math.max(SIDEBAR.min, room - right)
+  return { sidebar: side / width, info: right / width, chat: 1 - side / width - right / width }
+}

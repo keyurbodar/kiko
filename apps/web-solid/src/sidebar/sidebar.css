@@ -713,6 +713,10 @@
   }
 }
 
+.sidebar-shell .resize-handle[disabled] {
+  display: none;
+}
+
 .sidebar-shell .resize-handle:focus-visible::after,
 .sidebar-shell .resize-handle[data-dragging]::after {
   opacity: 1;
@@ -770,6 +774,10 @@
 
 /* Where the chat cannot keep its width beside the info pane, the pane covers it instead, opaque, so
  * the transcript never shows through. */
+.sidebar-shell .info-scrim {
+  inset-inline-start: 0;
+}
+
 .sidebar-shell .info-overlay {
   position: absolute;
   z-index: 30;

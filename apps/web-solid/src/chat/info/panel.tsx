@@ -261,8 +261,8 @@ function Section(props: { id: SectionId; chatId: string }) {
     <CollapsibleV2
       open={open()}
       onOpenChange={(value) => setSectionOpen(props.id, value)}
-      class="info-section flex flex-col"
-      classList={{ "min-h-0 flex-1": props.id === "files" && open() }}
+      class="info-section flex shrink-0 flex-col"
+      classList={{ "min-h-80 flex-1": props.id === "files" && open() }}
       data-component="info-section"
       data-section={props.id}
     >
