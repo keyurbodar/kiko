@@ -10,13 +10,13 @@
     <link rel="preload" href="/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <script>
       /* the look before first paint: the appearance, then the palette's tokens for it.
-         src/theme/apply.ts writes this cache under the same key. Without it, the system
-         appearance picks kat.css's paper or charcoal palette. */
+         src/theme/apply.ts writes this cache under the same key. Without it, the dark
+         default paints kat.css's charcoal palette, the same as DEFAULT_LOOK. */
       (function () {
-        var d = document.documentElement, mode = "system", vars = null;
+        var d = document.documentElement, mode = "dark", vars = null;
         try {
           var c = JSON.parse(localStorage.getItem("kiko:look"));
-          if (c && c.v === 4) { mode = c.mode; vars = c.vars; }
+          if (c && c.v === 4) { mode = c.mode || "dark"; vars = c.vars; }
         } catch (e) {}
         var a = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
         d.dataset.appearance = a;

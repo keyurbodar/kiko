@@ -17,7 +17,7 @@ export type Look = {
   display: Display
 }
 
-export const DEFAULT_LOOK: Look = { mode: "system", accent: DEFAULT_ACCENT, birds: {}, display: DEFAULT_DISPLAY }
+export const DEFAULT_LOOK: Look = { mode: "dark", accent: DEFAULT_ACCENT, birds: {}, display: DEFAULT_DISPLAY }
 
 const MAX_BIRDS = 200
 const BIRD_ID = /^[a-z0-9.-]{1,48}$/

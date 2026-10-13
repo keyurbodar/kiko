@@ -5,7 +5,7 @@ import { CACHE_KEY, resolveLook, writeCache } from "./apply"
 import { withPalette } from "../scripts/gen-palette"
 import { CODE_FONTS } from "./display"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
-import { ACCENT_IDS, ACCENTS, PALETTES, tokensFor } from "./palette"
+import { ACCENT_IDS, ACCENTS, DEFAULT_ACCENT, PALETTES, tokensFor } from "./palette"
 
 const KAT = readFileSync(join(import.meta.dir, "../../ui/src/styles/kat.css"), "utf8")
 
@@ -83,6 +83,11 @@ describe("the look record", () => {
     for (const text of [null, "", "{ nope", JSON.stringify({ kind: "other" })]) expect(parseLook(text)).toEqual(DEFAULT_LOOK)
   })
 
+  test("the default appearance is dark, and a stored look with no mode reads as dark", () => {
+    expect(DEFAULT_LOOK.mode).toBe("dark")
+    expect(parseLook(JSON.stringify({ kind: "look", version: 2, accent: DEFAULT_ACCENT })).mode).toBe("dark")
+  })
+
   test("a look survives the round trip", () => {
     const look: Look = { ...DEFAULT_LOOK, mode: "dark", accent: "yuzu", birds: { ada: "matcha.none" } }
     expect(parseLook(formatLook(look))).toEqual(look)
@@ -131,11 +136,19 @@ describe("the pre-paint script", () => {
     expect([style["--accent"], style["--boot-bg"], dataset.appearance, classes.has("dark")]).toEqual([ACCENTS.matcha.light, PALETTES.light.canvas, "light", false])
   })
 
-  test("with no cache, or a broken or old one, it follows the system on the paper or charcoal", () => {
-    expect([boot(null, true).dataset.appearance, boot(null, true).style["--boot-bg"]]).toEqual(["light", PALETTES.light.canvas])
+  test("with no cache, or a broken or old one, it paints the dark default whatever the system says", () => {
+    expect([boot(null, true).dataset.appearance, boot(null, true).style["--boot-bg"]]).toEqual(["dark", PALETTES.dark.canvas])
     expect([boot(null, false).dataset.appearance, boot(null, false).style["--boot-bg"]]).toEqual(["dark", PALETTES.dark.canvas])
-    expect(boot("{ not json", true).dataset.appearance).toBe("light")
+    expect(boot("{ not json", true).dataset.appearance).toBe("dark")
     expect("--bg" in boot(JSON.stringify({ v: 3, mode: "dark", vars: { dark: { "--bg": "#000" } } })).style).toBe(false)
+  })
+
+  test("a cache with no mode paints dark", () => {
+    expect(boot(JSON.stringify({ v: 4, text: "x", vars: resolveLook(DEFAULT_LOOK) }), true).dataset.appearance).toBe("dark")
+  })
+
+  test("the static theme color is the dark canvas", () => {
+    expect(html).toContain(`<meta name="theme-color" content="${PALETTES.dark.canvas}" />`)
   })
 
   test("reads what writeCache writes", () => {
