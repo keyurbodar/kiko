@@ -11,7 +11,7 @@
   width: min(560px, calc(100vw - 32px));
   background: var(--menu-bg);
   color: var(--text);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--menu-shadow);
   overflow: hidden;
 }
@@ -25,7 +25,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 15px;
+  font-size: var(--font-base);
 }
 .palette-input::placeholder { color: var(--text-faint); }
 .palette-list {

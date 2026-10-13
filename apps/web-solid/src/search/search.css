@@ -18,7 +18,7 @@
   width: min(720px, 100%);
   background: var(--menu-bg);
   color: var(--text);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--menu-shadow);
   overflow: hidden;
 }
@@ -39,7 +39,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 15px;
+  font-size: var(--font-base);
 }
 .search-input::placeholder { color: var(--text-faint); }
 .search-scope {
@@ -108,7 +108,7 @@
 .search-hit-snippet mark {
   background: var(--accent-wash-strong);
   color: var(--text);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 .search-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px; font-size: 13px; color: var(--text-muted); }
 

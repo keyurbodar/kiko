@@ -74,6 +74,17 @@ Light is `:root[data-appearance="light"]` (section 4c of kat.css). It swaps the 
 
 Color tokens have Tailwind utilities (`--color-*`) in section 5 of `kat.css`, for example `bg-tab-active`, `bg-reply-bar`, `bg-accent-wash`. A component uses the utility and never writes a color.
 
+## Choices
+
+- **Neutral default.** The kat palette stays. Its greys are neutral (`--tinge: 0`) and the sidebar is one step darker than the panel. DEVIATION from the brief's "choose a better neutral": no palette change in this unit. A new palette needs its own screenshot review, and it belongs in `packages/theme`. UNVERIFIED: that kat's light surface reads softer than t3code's; this is a judgment from the before and after screenshots, not a measurement.
+- **UI font.** Instrument Sans, self-hosted in two subsets, so the first paint never waits on a network font. The system stack is the fallback.
+- **Mono font.** Fantasque Sans Mono, self-hosted, with the system mono stack as fallback.
+- **Font smoothing.** `--font-smoothing` is unset by default, so the browser's own smoothing applies. Set it only where a screenshot needs it.
+- **Control heights.** Desktop sizes from t3code: `--control-h-sm` 28px (buttons), `--control-h` 32px (selects, the sidebar search and settings rows), `--field-h` 30px (text fields), `--control-h-xs` 24px (segment items).
+- **Corners.** Controls (buttons, selects, fields, segment track, sidebar rows) use `--radius-sm`. A segment item uses `--radius-xs`, one step smaller than its track, because the track pads it by 2px. Cards use `--radius-lg`. t3code uses 8px for controls, which falls between the 6px and 10px steps. DEVIATION: Kiko takes 6px to stay on the named scale.
+- **Type sizes.** Literal font sizes map to the scale: 11, 12, 13, and 14 (13.5 and 14 both become `--font-base`), and 16. t3code's 12.5px segment label becomes 12px.
+- **Motion.** Menus, buttons, navigation and the composer do not animate. Motion stays on the message and attachment surfaces in `styles/motion.css` (architecture 19.5).
+
 ## Icons
 
 Target: one sprite, `packages/ui/src/icons/sprite.svg`, one `<Icon name>` component, 20 px grid, `currentColor` stroke. Neither is built yet. ASSUMPTION: a later task builds the sprite from the lists below.

@@ -535,7 +535,7 @@
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  border-radius: 9px;
+  border-radius: var(--radius-pill);
 }
 
 .sidebar-shell .chat-count {
