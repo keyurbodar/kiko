@@ -1,3 +1,4 @@
+import Resizable, { type PanelContextValue } from "@corvu/resizable";
 import { useLocation } from "@solidjs/router";
 import {
   I18nProvider,
@@ -8,7 +9,7 @@ import {
 import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { birdPickerSlug } from "../mascot/picker-state";
-import { createEffect, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
+import { createEffect, createMemo, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { closeInfo, infoOpen, loadInfoPanel } from "../chat/info/state";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { snapshotAfterRoute } from "../lib/snapshot";
@@ -22,6 +23,7 @@ import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
+import { CHAT_MIN, INFO, initialSizes, readWidth, saveWidth, SIDEBAR } from "./widths";
 
 const fill = (
   text: string,
@@ -58,6 +60,13 @@ function readCollapsed() {
   }
 }
 
+/** Hands the enclosing Corvu panel's controls to the shell. */
+function GrabPanel(props: { onGrab: (panel: PanelContextValue | undefined) => void }) {
+  props.onGrab(Resizable.usePanelContext())
+  onCleanup(() => props.onGrab(undefined))
+  return null
+}
+
 function writeCollapsed(value: boolean) {
   try {
     localStorage.setItem(KEY, value ? "1" : "0");
@@ -78,6 +87,16 @@ export function Shell(props: ParentProps) {
   // is never saved, so the saved wide-screen preference does not bury the chat on a phone.
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined;
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false);
+  // The right panel sits beside the chat only where the chat keeps its 360 px. Below that it covers the chat.
+  const compactQuery = typeof matchMedia === "function" ? matchMedia("(width < 960px)") : undefined
+  const [compact, setCompact] = createSignal(compactQuery?.matches ?? false)
+  onMount(() => {
+    const on = () => setCompact(compactQuery!.matches)
+    compactQuery?.addEventListener("change", on)
+    onCleanup(() => compactQuery?.removeEventListener("change", on))
+  })
+  let sidebarPanel: PanelContextValue | undefined
+  const [infoPanel, setInfoPanel] = createSignal<PanelContextValue | undefined>();
   const drawer = drawerOpen;
   const setDrawer = setDrawerOpen;
   // Keyboard intent for focus rings: a real navigation key turns rings on, a pointer turns them
@@ -139,11 +158,17 @@ export function Shell(props: ParentProps) {
   });
   const closed = () => (narrow() ? !drawer() : collapsed());
   const setAndSave = (value: boolean) => {
-    if (narrow()) return setDrawer(!value);
     setCollapsed(value);
     writeCollapsed(value);
   };
-  const toggle = () => setAndSave(!closed());
+  const toggle = () => {
+    if (narrow()) return setDrawer(!drawer());
+    if (!sidebarPanel) return;
+    if (sidebarPanel.collapsed()) {
+      sidebarPanel.expand();
+      sidebarPanel.resize(`${readWidth(SIDEBAR)}px`);
+    } else sidebarPanel.collapse();
+  };
   // Going anywhere closes the drawer, so picking a chat shows it.
   createEffect((prev: string | undefined) => {
     const path = location.pathname;
@@ -181,19 +206,54 @@ export function Shell(props: ParentProps) {
     window.addEventListener("keydown", on, true);
     onCleanup(() => window.removeEventListener("keydown", on, true));
   });
+  const sidebar = createMemo(() => (
+    <Sidebar section={sectionOf(location.pathname)} collapsed={closed()} onToggle={toggle} />
+  ));
+  const dockedInfo = () => (compact() || !infoOpen() ? null : infoChat());
+  // The docked column is always in the layout and opens and closes as the sidebar does, so Corvu
+  // moves the width between it and the chat and the other columns stay put.
+  createEffect(() => {
+    const panel = infoPanel();
+    if (!panel) return;
+    if (dockedInfo()) {
+      if (!panel.collapsed()) return;
+      panel.expand();
+      panel.resize(`${readWidth(INFO)}px`);
+    } else if (!panel.collapsed()) panel.collapse();
+  });
+  // Corvu keeps each column a share of the window, so a window resize would carry a column past its
+  // limits. The saved widths are put back, and Corvu clamps them against the chat's floor.
+  onMount(() => {
+    let frame = 0;
+    let last = window.innerWidth;
+    const on = () => {
+      if (window.innerWidth === last) return;
+      last = window.innerWidth;
+      cancelAnimationFrame(frame);
+      // Corvu learns the new window width from a ResizeObserver, which runs after the first frame.
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          if (sidebarPanel && !sidebarPanel.collapsed()) sidebarPanel.resize(`${readWidth(SIDEBAR)}px`);
+          const info = infoPanel();
+          if (info && !info.collapsed()) info.resize(`${readWidth(INFO)}px`);
+        });
+      });
+    };
+    window.addEventListener("resize", on);
+    onCleanup(() => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", on);
+    });
+  });
+  const overlaidInfo = () => (compact() && infoOpen() ? infoChat() : null);
   return (
     <I18nProvider value={i18n}>
       <div
-        class="sidebar-shell flex h-dvh overflow-hidden bg-[var(--shell-bg)]"
+        class="sidebar-shell relative flex h-dvh overflow-hidden bg-[var(--shell-bg)]"
         data-component="app-shell"
         data-section={sectionOf(location.pathname) ?? undefined}
       >
-        <Sidebar
-          section={sectionOf(location.pathname)}
-          collapsed={closed()}
-          onCollapsedChange={setAndSave}
-          onToggle={toggle}
-        />
+        <Show when={narrow()}>{sidebar()}</Show>
         <Show when={narrow() && drawer()}>
           <div
             class="drawer-scrim"
@@ -202,39 +262,110 @@ export function Shell(props: ParentProps) {
             onPointerDown={() => setDrawer(false)}
           />
         </Show>
-        {/* The top bar sits on the shell, and the panel is a rounded pane under it. A section
-            without a top bar (settings) gets the panel from the top, and the sidebar button
-            floats over its corner while the sidebar is shut. */}
-        <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
-          <TopBar sidebarOpen={!closed()} onToggleSidebar={toggle} />
-          <Show when={closed() && sectionOf(location.pathname) !== "chat"}>
-            <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
-          </Show>
-          <div
-            class="main-row @container/main relative flex min-h-0 min-w-0 flex-1"
-            data-component="main-row"
-            data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
-          >
-            <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel">
-              <div class="flex min-w-0 flex-1 flex-col">
-                {props.children}
-              </div>
-            </div>
-            {/* The info panel is a second pane beside the chat. Message search sits over both. */}
-            <Show when={infoOpen() ? infoChat() : null}>
-              {(chatId) => (
+        <Show when={narrow() ? "narrow" : compact() ? "compact" : "wide"} keyed>
+          {(_mode) => {
+            const sizes = initialSizes(window.innerWidth, narrow() ? null : collapsed() ? 0 : readWidth(SIDEBAR), compact() ? null : dockedInfo() ? readWidth(INFO) : 0);
+            return (
+              <Resizable class="min-w-0 flex-1" keyboardDelta="16px" data-component="app-panels">
+                <Show when={!narrow()}>
+                  <Resizable.Panel
+                    panelId="kiko-sidebar-panel"
+                    class="shell-panel"
+                    data-component="sidebar-panel"
+                    initialSize={sizes.sidebar}
+                    minSize={`${SIDEBAR.min}px`}
+                    maxSize={`${SIDEBAR.max}px`}
+                    collapsible
+                    collapsedSize={0}
+                    onCollapse={() => setAndSave(true)}
+                    onExpand={() => setAndSave(false)}
+                  >
+                    <GrabPanel onGrab={(panel) => (sidebarPanel = panel)} />
+                    {sidebar()}
+                  </Resizable.Panel>
+                  <Resizable.Handle
+                    class="resize-handle"
+                    data-component="sidebar-resize"
+                    aria-label="Resize sidebar"
+                    altKey={false}
+                    onHandleDragEnd={() => saveWidth(SIDEBAR, "kiko-sidebar-panel")}
+                    onKeyUp={() => saveWidth(SIDEBAR, "kiko-sidebar-panel")}
+                  />
+                </Show>
+                <Resizable.Panel class="shell-panel" data-component="chat-panel" initialSize={sizes.chat} minSize={`${CHAT_MIN}px`}>
+                  {/* The top bar sits on the shell, and the panel is a pane under it. A section
+                      without a top bar (settings) gets the panel from the top, and the sidebar button
+                      floats over its corner while the sidebar is shut. */}
+                  <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
+                    <TopBar sidebarOpen={!closed()} onToggleSidebar={toggle} />
+                    <Show when={closed() && sectionOf(location.pathname) !== "chat"}>
+                      <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
+                    </Show>
+                    <div
+                      class="main-row relative flex min-h-0 min-w-0 flex-1"
+                      data-component="main-row"
+                      data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
+                    >
+                      <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel">
+                        <div class="flex min-w-0 flex-1 flex-col">
+                          {props.children}
+                        </div>
+                      </div>
+                      <Show when={searchScope()}>
+                        <Suspense>
+                          <SearchOverlay />
+                        </Suspense>
+                      </Show>
+                    </div>
+                  </main>
+                </Resizable.Panel>
+                <Show when={!compact()}>
+                  <Resizable.Handle
+                    class="resize-handle"
+                    data-component="info-resize"
+                    aria-label="Resize panel"
+                    altKey={false}
+                    disabled={!dockedInfo()}
+                    onHandleDragEnd={() => saveWidth(INFO, "kiko-info-panel")}
+                    onKeyUp={() => saveWidth(INFO, "kiko-info-panel")}
+                  />
+                  <Resizable.Panel
+                    panelId="kiko-info-panel"
+                    class="shell-panel"
+                    data-component="info-column"
+                    initialSize={sizes.info}
+                    minSize={`${INFO.min}px`}
+                    maxSize={`${INFO.max}px`}
+                    collapsible
+                    collapsedSize={0}
+                    onCollapse={() => dockedInfo() && closeInfo()}
+                  >
+                    <GrabPanel onGrab={setInfoPanel} />
+                    <Show when={dockedInfo()}>
+                      {(chatId) => (
+                        <Suspense>
+                          <InfoPanel chatId={chatId()} />
+                        </Suspense>
+                      )}
+                    </Show>
+                  </Resizable.Panel>
+                </Show>
+              </Resizable>
+            );
+          }}
+        </Show>
+        <Show when={overlaidInfo()}>
+          {(chatId) => (
+            <>
+              <div class="drawer-scrim info-scrim" data-component="info-scrim" aria-hidden="true" onPointerDown={closeInfo} />
+              <div class="info-overlay" data-component="info-overlay">
                 <Suspense>
                   <InfoPanel chatId={chatId()} />
                 </Suspense>
-              )}
-            </Show>
-            <Show when={searchScope()}>
-              <Suspense>
-                <SearchOverlay />
-              </Suspense>
-            </Show>
-          </div>
-        </main>
+              </div>
+            </>
+          )}
+        </Show>
         <Palette />
         <Show when={hintsShown()}>
           <Suspense>

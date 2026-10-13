@@ -3,11 +3,9 @@ import { useNavigate } from "@solidjs/router"
 import { createSignal, type JSX, Show } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { ChevronRightIcon } from "@kiko/ui/icons"
-import { nextAfterClose, openTabs } from "../../app/open-tabs"
 import { ChatAvatar } from "../../lib/IdentityAvatar"
-import { MemberList } from "../members/members"
 import { useApp } from "../../lib/store"
-import { pushInfo } from "./state"
+import { deleteChat } from "../../sidebar/actions"
 
 /*
  * The parts of the panel, after monocode's Mono details (features/monos/ui/monoPanelParts.tsx and
@@ -18,19 +16,6 @@ import { pushInfo } from "./state"
 
 /** The hairline monocode draws between the parts (`border-stroke`). */
 export const EDGE = "border-[var(--panel-edge)]"
-
-/**
- * A tab row's arrow keys. Only the selected tab is in the tab order, so ArrowLeft and ArrowRight
- * select the neighbouring tab, wrapping at the ends, and move focus to it.
- */
-export function tabKeys<T>(event: KeyboardEvent, tabs: readonly T[], current: T, select: (tab: T) => void) {
-  const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0
-  if (step === 0 || tabs.length === 0) return
-  event.preventDefault()
-  const next = (tabs.indexOf(current) + step + tabs.length) % tabs.length
-  select(tabs[next]!)
-  ;(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus()
-}
 
 /** A section: a hairline above, a small uppercase label, and its content. */
 export function Card(props: { id: string; title: string; action?: JSX.Element; children: JSX.Element }) {
@@ -184,25 +169,13 @@ export function Header(props: { chatId: string }) {
   )
 }
 
-/** The members card. Its list, with add, rename, and remove, is the group chat's (`chat/members/`). */
-export function Members(props: { members: readonly Member[] }) {
-  return (
-    <Card id="members" title="Members">
-      <MemberList members={props.members} onOpen={(slug) => pushInfo({ kind: "agent", slug })} />
-    </Card>
-  )
-}
-
 /** Delete chat on its own, in red. Asks once. */
 export function DeleteChat(props: { chatId: string }) {
   const navigate = useNavigate()
   const [sure, setSure] = createSignal(false)
   const remove = () => {
     if (!sure()) return setSure(true)
-    const next = nextAfterClose(openTabs.ids(), props.chatId, props.chatId)
-    openTabs.close(props.chatId)
-    useApp.user()?.remove(props.chatId as never)
-    navigate(next ? `/chat/${next}` : "/chat")
+    deleteChat(props.chatId, props.chatId, navigate)
   }
   return (
     <DangerRow

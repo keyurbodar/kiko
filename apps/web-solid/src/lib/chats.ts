@@ -47,5 +47,12 @@ export function resumeChat(chats: readonly Chat[], loaded: boolean, wanted: read
   return chats.find((c) => c.kiko)?.roomId ?? null
 }
 
+/** The chat that takes `id`'s place in a list once it leaves: the one below it, else the one above, else none. */
+export function chatAfter(ids: readonly string[], id: string): string | null {
+  const at = ids.indexOf(id)
+  const rest = ids.filter((other) => other !== id)
+  return rest[at] ?? rest[at - 1] ?? null
+}
+
 /** The title a temporary chat gets when it becomes a group: its agents' names. */
 export const groupTitle = (names: readonly string[]): string => names.join(", ")

@@ -1,11 +1,10 @@
 import type { FileOp } from "@kiko/protocol"
-import { FileIcon } from "@kiko/ui/file-icon"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { CheckIcon, CloseIcon, CodeIcon, CopyIcon, DownloadIcon, EyeIcon, FileAddIcon, FolderAddIcon, FolderTreeIcon, TableIcon, WrapTextIcon } from "@kiko/ui/icons"
+import { BackIcon, CheckIcon, CodeIcon, CopyIcon, DownloadIcon, EyeIcon, FileAddIcon, FolderAddIcon, TableIcon, WrapTextIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { useNavigate } from "@solidjs/router"
-import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
-import { closeFile, dropFileTabs, fileReveal, fileTabsOf, moveFileTabs, openFile, openFilePath, setActiveFile } from "../chat/info/state"
+import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js"
+import { closeFile, dropOpenFile, fileReveal, moveOpenFile, openFile, openFilePath } from "../chat/info/state"
 import { urls, useApp } from "../lib/store"
 import { createFile, PREVIEW_BYTES, readText, withMade } from "./api"
 import { FileBreadcrumbs } from "./breadcrumbs"
@@ -17,11 +16,11 @@ import { FileTree } from "./tree"
 import { FileViewer } from "./viewer"
 
 /*
- * The files tab of the chat's right panel, after t3code's file preview. Open files are tabs. The
- * active one shows under a header of crumbs and actions, with the room's tree beside it when the
- * explorer is open. With no file open the tree is the whole tab.
+ * The files section of the chat's right panel, after t3code's file preview. One file is open at a
+ * time. It shows under a header of a back arrow, crumbs and actions, and the back arrow returns to
+ * the room's tree. With no file open the tree is the whole section.
  *
- * The shell loads this module with the panel's files tab, never with the chat route.
+ * The shell loads this module with the panel's files section, never with the chat route.
  */
 
 /** A saved switch. Storage can throw in a private window; the switch then lasts the session. */
@@ -48,7 +47,6 @@ const PREFS = {
 	html: stored("kiko:file-render-html", true),
 }
 const [wrap, setWrap] = stored("kiko:file-word-wrap", false)
-const [explorer, setExplorer] = stored("kiko:file-explorer-open", true)
 
 const RENDERED_LABELS = {
 	markdown: ["Show rendered markdown", "Show markdown source"],
@@ -74,12 +72,12 @@ const strip = (p: string) => (p === HOME ? "" : p.slice(HOME.length + 1))
 /** Where a tree path lives: its space (a room id or `home`) and its path there. */
 const where = (chatId: string, p: string) => (inHome(p) ? { space: HOME, path: strip(p) } : { space: chatId, path: p })
 
-/** New file and new folder, drawn in the panel header while the files tab is open. They show the tree. */
+/** New file and new folder, drawn in the files section header while the tree shows. */
 export function FilesActions() {
 	return (
 		<>
-			<SurfaceAction label="New file" icon={FileAddIcon} action="new-file" onPress={() => (setExplorer(true), setNewFile((n) => n + 1))} />
-			<SurfaceAction label="New folder" icon={FolderAddIcon} action="new-folder" onPress={() => (setExplorer(true), setNewFolder((n) => n + 1))} />
+			<SurfaceAction label="New file" icon={FileAddIcon} action="new-file" onPress={() => setNewFile((n) => n + 1)} />
+			<SurfaceAction label="New folder" icon={FolderAddIcon} action="new-folder" onPress={() => setNewFolder((n) => n + 1)} />
 		</>
 	)
 }
@@ -101,7 +99,6 @@ export default function FilesPane(props: { chatId: string }) {
 	const files = createMemo(() => [...withMade(props.chatId, useApp.activeFiles()), ...home()])
 	const folders = createMemo(() => [...useApp.activeFolders(), HOME, ...useApp.homeFolders().map((f) => `${HOME}/${f}`)])
 	const index = createMemo(() => buildIndex(files().map((f) => f.name), folders()))
-	const tabs = () => fileTabsOf(props.chatId).tabs
 	const path = () => openFilePath(props.chatId)
 	const file = createMemo(() => files().find((f) => f.name === path()))
 	const kind = createMemo<ViewerKind>(() => {
@@ -181,75 +178,12 @@ export default function FilesPane(props: { chatId: string }) {
 		})
 	}
 
-	let tabStrip: HTMLDivElement | undefined
-	// The active tab scrolls into view when it changes.
-	createEffect(on(path, () => tabStrip?.querySelector("[data-active]")?.scrollIntoView({ block: "nearest", inline: "nearest" })))
-	/** Left and right move between tabs, as in any tab list. */
-	const tabKeys = (event: KeyboardEvent) => {
-		if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
-		const list = tabs()
-		const at = list.indexOf(path() ?? "")
-		const next = list[(at + (event.key === "ArrowLeft" ? -1 : 1) + list.length) % list.length]
-		if (!next) return
-		event.preventDefault()
-		setActiveFile(props.chatId, next)
-		tabStrip?.querySelector<HTMLElement>(`[data-path="${CSS.escape(next)}"] [role="tab"]`)?.focus()
-	}
-
 	return (
 		<div class="flex min-h-0 flex-1 flex-col" data-component="files-pane" data-open={path() ? "" : undefined}>
-			<Show when={tabs().length}>
-				<div
-					ref={tabStrip}
-					class="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--panel-edge)] px-2 [scrollbar-width:none]"
-					role="tablist"
-					aria-label="Open files"
-					data-component="file-tabs"
-					onKeyDown={tabKeys}
-				>
-					<For each={tabs()}>
-						{(p) => {
-							const active = () => p === path()
-							return (
-								<div
-									class={`flex h-6 max-w-36 shrink-0 items-center gap-0.5 rounded-md pr-0.5 pl-1.5 text-xs ${active() ? "bg-selected text-text" : "text-muted hover:bg-hover hover:text-text"}`}
-									title={p}
-									data-component="file-tab"
-									data-path={p}
-									data-active={active() ? "" : undefined}
-									// A middle click closes the tab, and must not start the browser's autoscroll.
-									onMouseDown={(event) => event.button === 1 && event.preventDefault()}
-									onAuxClick={(event) => event.button === 1 && closeFile(props.chatId, p)}
-								>
-									<button
-										type="button"
-										role="tab"
-										class="flex min-w-0 items-center gap-1 outline-none focus-visible:underline"
-										aria-selected={active()}
-										tabIndex={active() ? 0 : -1}
-										onClick={() => setActiveFile(props.chatId, p)}
-									>
-										<FileIcon node={{ path: p, type: "file" }} class="shrink-0" />
-										<span class="truncate">{baseName(p)}</span>
-									</button>
-									<button
-										type="button"
-										class="grid size-4 shrink-0 place-items-center rounded-sm text-muted hover:bg-hover hover:text-text"
-										aria-label={`Close ${baseName(p)}`}
-										data-action="close-tab"
-										onClick={() => closeFile(props.chatId, p)}
-									>
-										<HugeIcon icon={CloseIcon} size={12} />
-									</button>
-								</div>
-							)
-						}}
-					</For>
-				</div>
-			</Show>
 			<Show when={path()} keyed>
 				{(p) => (
 					<div class={SUBHEADER} data-component="file-header">
+						<SurfaceAction label="Back to files" icon={BackIcon} action="close-file" onPress={() => closeFile(props.chatId)} />
 						<FileBreadcrumbs path={p} index={index()} unsaved={unsaved()} onOpen={(to) => openFile(props.chatId, to)} />
 						<Show when={!inHome(p) && file() ? extensionAt(p) : null}>
 							{(name) => (
@@ -285,14 +219,6 @@ export default function FilesPane(props: { chatId: string }) {
 						<Show when={file()}>
 							{(f) => <SurfaceAction label="Save file" icon={DownloadIcon} action="download-file" href={urls.file(where(props.chatId, p).space, f().id)} download={baseName(p)} />}
 						</Show>
-						<SurfaceAction
-							label={explorer() ? "Hide file explorer" : "Show file explorer"}
-							icon={FolderTreeIcon}
-							action="toggle-explorer"
-							pressed={explorer()}
-							onPress={() => setExplorer(!explorer())}
-						/>
-						<SurfaceAction label="Close file" icon={CloseIcon} action="close-file" onPress={() => closeFile(props.chatId, p)} />
 					</div>
 				)}
 			</Show>
@@ -313,9 +239,9 @@ export default function FilesPane(props: { chatId: string }) {
 						</section>
 					)}
 				</Show>
-				{/* The tree stays mounted while hidden, so it keeps its folders and scroll. */}
+				{/* The tree stays mounted while a file shows, so it keeps its folders and scroll. */}
 				<aside
-					class={`min-h-0 flex-col px-2 pt-1 pb-2 ${path() ? "w-[min(22rem,46%)] min-w-64 shrink-0 border-l border-[var(--panel-edge)]" : "min-w-0 flex-1"} ${path() && !explorer() ? "hidden" : "flex"}`}
+					class={`min-h-0 min-w-0 flex-1 flex-col px-2 pt-1 pb-2 ${path() ? "hidden" : "flex"}`}
 					aria-label="File explorer"
 					data-component="file-explorer"
 				>
@@ -331,12 +257,11 @@ export default function FilesPane(props: { chatId: string }) {
 						onNewFile={make}
 						onRename={(from, to) => {
 							op({ op: "mv", from, to })
-							// Open tabs follow their move.
-							moveFileTabs(props.chatId, from, to)
+							moveOpenFile(props.chatId, from, to)
 						}}
 						onDelete={(p, paths) => {
 							op({ op: "rm", paths: [p], recursive: paths.length !== 1 || paths[0] !== p })
-							dropFileTabs(props.chatId, p)
+							dropOpenFile(props.chatId, p)
 						}}
 					/>
 				</aside>

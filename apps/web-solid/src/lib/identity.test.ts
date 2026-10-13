@@ -43,7 +43,7 @@ describe("render sites", () => {
   })
 
   test("every chat render site draws a group's stacked faces", () => {
-    for (const site of ["sidebar/chat-panel.tsx", "app/tab-strip.tsx", "palette/palette.tsx"]) {
+    for (const site of ["sidebar/chat-panel.tsx", "palette/palette.tsx"]) {
       expect(files.find((f) => f.path.endsWith(site))?.text).toContain("<ChatAvatar faces={useApp.chatFaces(")
     }
   })

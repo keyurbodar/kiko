@@ -4,17 +4,17 @@ import { runCommand } from "../commands/registry"
 import { BrandBird } from "../mascot/brand"
 import { ModelPickerButton } from "../settings/model-picker"
 import { sectionOf } from "./sections"
-import { TabStrip } from "./tab-strip"
 import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { useApp } from "../lib/store"
 import { closeInfo, infoOpen, loadInfoPanel, openInfo } from "../chat/info/state"
 
 /*
- * The 50 px bar over the main panel, laid out as kat's: the bird at the far left, the chat tabs,
- * and quiet controls on the right: the chat's model, message search, and the details panel.
+ * The 50 px bar over the main panel, laid out as kat's: the bird at the far left, the open chat's
+ * title, and quiet controls on the right: the chat's model, message search, and the details panel.
  * The bird is the new chat button. Every button is the sidebar's icon button, under a tooltip.
  * Other sections have no bar: the sidebar already names them, and their panel starts at the top.
  */
@@ -24,6 +24,10 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
   const chatId = () => {
     const id = /^\/chat\/([^/]+)$/.exec(location.pathname)?.[1]
     return id ? decodeURIComponent(id) : null
+  }
+  const title = () => {
+    const id = chatId()
+    return (id && useApp.chatById(id)?.name) || "New chat"
   }
   return (
     <Show when={section() === "chat"}>
@@ -36,8 +40,9 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
             <BrandBird size={24} />
           </button>
         </TooltipV2>
-        <TabStrip />
-        <span class="flex-1" aria-hidden="true" />
+        <h1 class="min-w-0 flex-1 truncate px-1 text-sm font-medium text-text" data-component="top-bar-title">
+          {title()}
+        </h1>
         <ModelPickerButton chatId={chatId()} />
         <TooltipV2 placement="bottom" openDelay={400} value="Search messages">
           <button

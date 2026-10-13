@@ -228,11 +228,7 @@ function probe(): ChatProbe {
     // The chip is a button; its label is its own text, so read the button
     // rather than reaching for a divider label that is not inside it.
     dateChip: text("[data-component='chat-date-chip'] .chat-chip"),
-    // The day divider's label is `[data-component='chat-day-label']`, not a
-    // `chat-divider__label` class: this read used to target a class the
-    // transcript never renders, so `dayLabels` reported an empty array for
-    // every state and a recipe keyed on it could not fail.
-    dayLabels: qa("[data-component='chat-day-label']").map((node) => node.textContent?.trim() ?? ""),
+    dayLabels: qa("[data-component='chat-divider']").map((node) => node.textContent?.trim() ?? ""),
     unreadRule: qa("[data-component='chat-unread-rule']").length > 0,
     runs: bubbles.filter((node) => node.getAttribute("data-run") === "start").length,
     typing: qa("[data-component='chat-typing-row']").length > 0,

@@ -77,9 +77,6 @@ const LANDING_MS = 1200
  */
 const SCROLL_LATEST_MS = 180
 
-/** How far down from the top an inline day pill hides the floating date chip. */
-const DIVIDER_ZONE_PX = 48
-
 /** A row whose height changed under the reader's eyes, and where to undo it. */
 type DriftAnchor = { readonly element: HTMLElement; readonly top: number }
 
@@ -325,24 +322,10 @@ export function VirtualThread(props: {
 
   /**
    * The chip is the sticky day label: whenever there is a day at the top of
-   * the viewport, it names that day and opens the calendar on click. It used
-   * to show only over today, which meant the one thing it exists for - telling
-   * a reader who has scrolled back which day they are in - never happened.
-   *
-   * A day divider in the top 48px already names the day under the chip, so the
-   * chip steps aside instead of showing the same pill twice. Only the dividers
-   * the virtualizer has rendered are measured, once per scroll state.
+   * the viewport, it names that day and opens the calendar on click. It is the
+   * only day cue in the transcript, so the in-flow dividers carry a time alone.
    */
-  const dividerAtTop = createMemo(() => {
-    if (!scrollState() || !scrollElement) return false
-    const top = scrollElement.getBoundingClientRect().top
-    for (const pill of scrollElement.querySelectorAll('[data-component="chat-day-label"]')) {
-      const box = pill.getBoundingClientRect()
-      if (box.bottom > top && box.top < top + DIVIDER_ZONE_PX) return true
-    }
-    return false
-  })
-  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined && !dividerAtTop())
+  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined)
 
   /**
    * Which message the last reply-quote jump landed on.
@@ -820,21 +803,10 @@ export function VirtualThread(props: {
 
   const renderItem = (item: TimelineItem): JSX.Element => {
     if (item.kind === "day-divider") {
-      // Monocode's day separator (AgentTranscript.tsx `DaySeparator`): a soft pill, the day
-      // strong and the time faint. Its row keeps the rhythm of SystemMessage.tsx.
-      const parts = () => dividerParts(item.firstSentAt, now())
       return (
-        <div
-          class="flex items-center justify-center px-4 py-3 text-sm"
-          role="separator"
-          aria-label={dividerLabel(item.firstSentAt, now())}
-          data-component="chat-divider"
-        >
-          <span class="rounded-full bg-[color-mix(in_oklab,var(--text)_7%,transparent)] px-3 py-1 leading-4" data-component="chat-day-label">
-            <span class="font-semibold text-[color-mix(in_oklab,var(--text)_75%,transparent)]">{parts().day}</span>{" "}
-            <span class="text-[color-mix(in_oklab,var(--text)_45%,transparent)]">{parts().time}</span>
-          </span>
-        </div>
+        <SystemMessage variant="divider" label={dividerLabel(item.firstSentAt, now())} data-component="chat-divider">
+          {dividerParts(item.firstSentAt, now()).time}
+        </SystemMessage>
       )
     }
     if (item.kind === "notice") {

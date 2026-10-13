@@ -42,16 +42,16 @@ describe("kat commands", () => {
   test("matches kat's map and leaves share out", () => {
     const map = Object.fromEntries(list.filter((c) => !c.unlisted).map((c) => [c.title, c.shortcut]))
     expect(map).toEqual({
-      "Toggle sidebar": "Mod+S",
+      "Toggle sidebar": "Mod+\\",
       "New chat": "Mod+N",
       "New group": undefined,
-      "Reopen closed chat": "Mod+Shift+T",
+      "Reopen closed chat": undefined,
       "Attach file…": "Mod+O",
       "Rename chat": "F2",
-      "Pin chat": "Mod+D",
-      "Details": "Mod+I",
-      "Files": "Mod+Shift+E",
-      "Close chat": "Mod+W",
+      "Pin chat": undefined,
+      "Right panel": "Mod+I",
+      "Files": undefined,
+      "Close chat": undefined,
       "Delete chat": undefined,
       "Go to chat…": "Mod+P",
       "Previous chat": "Alt+ArrowUp",
@@ -64,13 +64,13 @@ describe("kat commands", () => {
     for (const c of list) expect(c.title).toMatch(/^[A-Z][^:A-Z]*$/)
   })
 
-  test("new chat answers to Mod+N and keeps Mod+T as an alias", () => {
+  test("new chat answers to Mod+N and has no alias", () => {
     const c = list.find((x) => x.id === "chat.new")!
-    expect([c.shortcut, c.alias]).toEqual(["Mod+N", "Mod+T"])
+    expect([c.shortcut, c.alias]).toEqual(["Mod+N", undefined])
   })
 
-  test("the sidebar toggle, chat info and files, chat stepping, search, and the palette are global", () => {
-    expect(list.filter((c) => c.global && !c.unlisted).map((c) => c.id).sort()).toEqual(["chat.files", "chat.info", "chats.go", "chats.next", "chats.previous", "chats.search-all", "chats.search-current", "palette.open", "view.toggle-sidebar"])
+  test("the sidebar toggle, chat info, chat stepping, search, and the palette are global", () => {
+    expect(list.filter((c) => c.global && !c.unlisted).map((c) => c.id).sort()).toEqual(["chat.info", "chats.go", "chats.next", "chats.previous", "chats.search-all", "chats.search-current", "palette.open", "view.toggle-sidebar"])
   })
 
   test("non-global shortcuts ignore text fields, global ones do not", () => {
@@ -87,7 +87,7 @@ describe("kat commands", () => {
     const off = registerCommands(list)
     const ids = shortcuts().map((s) => s.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ids).toContain("chat.close")
+    expect(ids).toContain("view.toggle-sidebar")
     expect(ids).not.toContain("chat.delete")
     off()
   })
