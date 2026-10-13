@@ -369,7 +369,7 @@
   background: var(--selected-bg);
 }
 
-/* A bird is its own shape: no disc behind it and nothing clipping its crest. */
+/* An avatar is its own shape: no disc behind it and nothing clipping it. */
 .sidebar-shell .chat-avatar,
 .sidebar-shell .pin-tile-avatar {
   display: block;

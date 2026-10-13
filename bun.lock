@@ -63,6 +63,7 @@
         "@codemirror/view": "^6.43.13",
         "@corvu/calendar": "0.1.2",
         "@corvu/resizable": "0.2.5",
+        "@kiko/avatar": "workspace:*",
         "@kiko/protocol": "workspace:*",
         "@kiko/theme": "workspace:*",
         "@kiko/ui": "workspace:*",
@@ -202,6 +203,7 @@
       "name": "@kiko/theme",
       "version": "0.0.1",
       "dependencies": {
+        "@kiko/avatar": "workspace:*",
         "culori": "4.0.2",
       },
       "devDependencies": {

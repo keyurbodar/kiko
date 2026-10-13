@@ -1,19 +1,17 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { Moment } from "../mascot/lazy"
 import { FilterIcon, MuteIcon, SearchIcon } from "@kiko/ui/icons"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { openBirdPicker } from "../mascot/picker-state"
+import { openAvatarPicker } from "../avatar/picker-state"
 import { useNavigate } from "@solidjs/router"
-import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show, Suspense } from "solid-js"
+import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, Show } from "solid-js"
 import { VList } from "virtua/solid"
 import { useCommands, type Command } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
 import { useApp } from "../lib/store"
 import type { BotPresence, RosterBot } from "../lib/types"
-import type { BirdState } from "../mascot/birds"
 import {
   cancelRename,
   clearUnreadMark,
@@ -29,8 +27,6 @@ import {
 } from "./actions"
 import { filterRows } from "./filter"
 
-/** A chat's bird shows what its agent is doing: busy eyes and a boiling ink line while it works. */
-const MOOD: Record<BotPresence, BirdState | undefined> = { idle: undefined, typing: "typing", working: "working", sleeping: "sleeping" }
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -69,7 +65,7 @@ function ChatMenuItems(props: { id: string }) {
       </Show>
       <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "Unmute" : "Mute"}</MenuV2.Item>
       <Show when={useApp.chatFaces(props.id).length === 1}>
-        <MenuV2.Item onSelect={() => openBirdPicker(useApp.chatFaces(props.id)[0]!)}>Change bird</MenuV2.Item>
+        <MenuV2.Item onSelect={() => openAvatarPicker(useApp.chatFaces(props.id)[0]!)}>Change avatar</MenuV2.Item>
       </Show>
       <MenuV2.Separator />
       <MenuV2.Item onSelect={() => markUnread(props.id)}>Mark as unread</MenuV2.Item>
@@ -306,7 +302,7 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
           </HoverCardV2.Portal>
         </HoverCardV2>
 
-        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="chat-avatar" state={MOOD[props.bot.presence]} />
+        <ChatAvatar faces={useApp.chatFaces(props.bot.id)} class="chat-avatar" />
 
         <span class="chat-text">
           <span class="chat-line">
@@ -471,9 +467,6 @@ export function ChatPanel() {
       </Show>
       <Show when={shown().length === 0 && (query() !== "" || unreadOnly())}>
         <div class="flex flex-col items-center gap-2 py-6" data-component="sidebar-empty">
-          <Suspense>
-            <Moment kind="nothing" />
-          </Suspense>
           <p class="text-xs text-weak">No chats match</p>
         </div>
       </Show>

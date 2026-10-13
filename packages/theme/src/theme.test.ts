@@ -89,13 +89,39 @@ describe("the look record", () => {
   })
 
   test("a look survives the round trip", () => {
-    const look: Look = { ...DEFAULT_LOOK, mode: "dark", accent: "yuzu", birds: { ada: "matcha.none" } }
+    const look: Look = { ...DEFAULT_LOOK, mode: "dark", accent: "yuzu", avatars: { ada: { flavour: "matcha", charm: "beret", outfit: "none" } } }
     expect(parseLook(formatLook(look))).toEqual(look)
   })
 
-  test("a record from the old theme system keeps its mode and birds and drops the rest", () => {
+  test("a record from the old theme system keeps its mode and avatars and drops the rest", () => {
     const old = JSON.stringify({ version: 1, kind: "look", mode: "light", light: "grove", dark: null, themes: [], tint: { hue: 10 }, accent: "#ec4899", birds: { bo: "ramune.none" } })
-    expect(parseLook(old)).toEqual({ ...DEFAULT_LOOK, mode: "light", birds: { bo: "ramune.none" } })
+    expect(parseLook(old)).toEqual({ ...DEFAULT_LOOK, mode: "light", avatars: { bo: { flavour: "ramune" } } })
+  })
+
+  test("a version 2 bird record converts once to avatar pins, and the next save writes version 3", () => {
+    const v2 = JSON.stringify({
+      version: 2, kind: "look", mode: "dark", accent: "yuzu",
+      birds: { yuki: "yuki.beret", ada: "peach.momiji", bo: "lavender.bucket", cy: "mintchoco.nightcap", di: "nope.none", ed: "matcha.phones" },
+      display: DEFAULT_LOOK.display,
+    })
+    const look = parseLook(v2)
+    expect(look.avatars).toEqual({
+      yuki: { flavour: "hatsuyuki", charm: "beret" },
+      ada: { flavour: "momo", leaf: "momiji" },
+      bo: { flavour: "ajisai" },
+      cy: { flavour: "chocomint" },
+      ed: { flavour: "matcha", charm: "headphones" },
+    })
+    expect(JSON.parse(formatLook(look))).toMatchObject({ version: 3, avatars: look.avatars })
+    expect(JSON.parse(formatLook(look))).not.toHaveProperty("birds")
+  })
+
+  test("a version 3 record drops values the library does not have, and an entry with none left", () => {
+    const v3 = JSON.stringify({
+      version: 3, kind: "look", mode: "system", accent: DEFAULT_LOOK.accent, display: DEFAULT_LOOK.display,
+      avatars: { ada: { flavour: "matcha", charm: "crown", eye: "kuromame" }, bo: { flavour: "dragon", leaf: "nope" }, "Bad Slug": { flavour: "matcha" } },
+    })
+    expect(parseLook(v3).avatars).toEqual({ ada: { flavour: "matcha", eye: "kuromame" } })
   })
 })
 

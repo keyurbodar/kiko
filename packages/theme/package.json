@@ -23,6 +23,7 @@
     "typescript": "5.8.2"
   },
   "dependencies": {
+    "@kiko/avatar": "workspace:*",
     "culori": "4.0.2"
   }
 }

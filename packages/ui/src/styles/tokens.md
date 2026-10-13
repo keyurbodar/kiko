@@ -101,7 +101,7 @@ The one sprite holds the glyphs in `icons.gen.ts` and the five names in `icon.ts
 
 ## Known gaps
 
-- Literal `rgb()` values in four web-solid CSS files: `chat/rich/rich.css`, `composer/snowball.css`, `settings/kit.css`, `mascot/hoarfrost.css`. Use the wash and scrim tokens where one fits.
+- Literal `rgb()` values in two web-solid CSS files: `chat/rich/rich.css`, `settings/kit.css`. Use the wash and scrim tokens where one fits.
 - `lib/fixtures.ts` holds four hex avatar colors. They are fixture data.
 
 Done on main: no component file uses `oklch(from var(--accent) ...)` any more. The washes live in kat.css. `chat/media/mediaViewer.css` and `sidebar/icons.tsx` are gone. `lucide-solid` is no longer imported.

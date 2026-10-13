@@ -1,7 +1,6 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js";
-import { Bird } from "../../mascot/bird";
+import { IdentityAvatar } from "../../lib/IdentityAvatar";
 import { motionOf, type Motion } from "./action";
-import type { BirdState } from "../../mascot/birds";
 import { describe } from "./create-typing-presence";
 import "./typing.css";
 
@@ -10,17 +9,16 @@ import "./typing.css";
  * the reader sees of a run until a bubble arrives. The three dots say what the agent is doing
  * by how they move: kat's wave while it writes, a scan while it reads, a hop while it edits, an
  * orbit while a tool runs. A slow act also gets a muted caption. In a group each row carries
- * the agent's bird in the avatar gutter, the same bird as on its messages, acting out the same
- * act: pecking while it writes, its head tilted while it reads, busy while it edits or runs a tool.
+ * the agent's avatar in the gutter, the same avatar as on its messages.
  */
 
 export interface TypingIndicatorProps {
   typists: string[];
-  /** The typists' slugs, in the same order, so each bird is the agent's own. */
+  /** The typists' slugs, in the same order, so each avatar is the agent's own. */
   seeds?: readonly string[];
   /** What each typist is doing, in the same order, such as "editing /hello.html". */
   doings?: readonly (string | undefined)[];
-  /** A group chat: each row carries its agent's bird, as its messages do. */
+  /** A group chat: each row carries its agent's avatar, as its messages do. */
   group?: boolean;
   max?: number;
   announceAfter?: number;
@@ -29,7 +27,6 @@ export interface TypingIndicatorProps {
 
 const ROWS = 3;
 
-const MOOD: Record<Motion, BirdState> = { wave: "typing", scan: "thinking", hop: "working", orbit: "working" };
 /** How long an act runs before its caption shows, so a quick tool call never flashes words. */
 const CAPTION_AFTER_MS = 2000;
 
@@ -53,7 +50,7 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
   return (
     <div class="typing" data-component="typing-row" data-motion={motion()}>
       <Show when={props.group}>
-        <Bird slug={props.seed} size={32} state={MOOD[motion()]} class="typing-bird" />
+        <IdentityAvatar seed={props.seed} size={32} class="typing-bird" />
       </Show>
       <div class="typing-bubble" aria-hidden="true">
         <span class="typing-dots">
