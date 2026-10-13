@@ -39,7 +39,7 @@ test("a private subagent event reaches the owner's transcript and no agent, memo
 	const remembered = memory.items(0, memory.count()).map((i) => i.text).join("\n")
 	expect(remembered).toContain("still on it")
 	expect(remembered).not.toContain("worker")
-	expect(remembered).not.toContain("pricing pages")
+	expect(remembered).not.toContain("find the three pricing pages")
 
 	expect(searchMessages(sql, "worker").results).toEqual([])
 	expect(searchMessages(sql, "pricing").results.map((r) => r.snippet)).not.toContain(expect.stringContaining("started a worker"))

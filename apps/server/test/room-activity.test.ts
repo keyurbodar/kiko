@@ -41,8 +41,8 @@ async function open(room: string, lastSeq = 0) {
 		throw new Error(`no frame. have ${JSON.stringify(frames)}`)
 	}
 	ws.send(JSON.stringify({ t: "hello", lastSeq }))
-	await take((f) => f.t === "events" || f.t === "reset")
-	return { ws, frames, take, send: (frame: unknown) => ws.send(JSON.stringify(frame)), close: () => ws.close() }
+	const first = await take((f) => f.t === "events" || f.t === "reset")
+	return { ws, frames, first, take, send: (frame: unknown) => ws.send(JSON.stringify(frame)), close: () => ws.close() }
 }
 
 type Client = Awaited<ReturnType<typeof open>>
@@ -54,7 +54,7 @@ const rpc = async (room: string, method: string, ...args: unknown[]) => {
 
 async function snapshot(room: string): Promise<RoomSnapshot> {
 	const c = await open(room, 1_000_000)
-	const reset = c.frames.find((f) => f.t === "reset")
+	const reset = c.first
 	c.close()
 	if (!reset || reset.t !== "reset") throw new Error("no snapshot")
 	return reset.snapshot

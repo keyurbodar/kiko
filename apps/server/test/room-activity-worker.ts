@@ -55,7 +55,7 @@ export default {
 		if (kind === "rpc") {
 			const args = (await request.json()) as unknown[]
 			const call = (stub as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[slug!]
-			return Response.json((await call!.call(stub, ...args)) ?? null)
+			return Response.json((await call!(...args)) ?? null)
 		}
 		if (kind === "agent") {
 			const agent = env.AGENT.get(env.AGENT.idFromName(`agent:alice:${roomId}:${slug}`))

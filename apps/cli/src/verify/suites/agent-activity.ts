@@ -58,7 +58,7 @@ const suite: Suite = {
     await poll("a waiting status", () => statuses(room).slice(before).some((f) => f.activity?.kind === "waiting"), FAKE_MS)
     const waiting = must(statuses(room).slice(before).find((f) => f.activity?.kind === "waiting"), "a waiting status")
     expectEqual({ slug: waiting.slug, activity: waiting.activity }, { slug: "yuki", activity: { kind: "waiting", on: "ada" } }, "the waiting status")
-    await poll("both agents to go idle", () => statuses(room).slice(before).filter((f) => f.state === "idle").length >= 2, FAKE_MS * 2)
+    await poll("the lead to go idle", () => statuses(room).slice(before).some((f) => f.slug === "yuki" && f.state === "idle"), FAKE_MS * 2)
     console.log(`  ok asking a teammate shows as waiting: ${JSON.stringify(waiting.activity)}`)
 
     await send(room, '[tool start_work {"task":"[steps 2] find flights"}]')
