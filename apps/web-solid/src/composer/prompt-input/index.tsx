@@ -240,56 +240,58 @@ export function PromptInputV2(props: PromptInputV2Props) {
               </form>
             </Show>
             <div ref={richHost} class="composer-rich" />
-            <div
-              ref={(element) => {
-                editor = element
-                props.controller.setEditor(element)
-                renderPromptInputV2Editor(element, props.controller.parts())
-              }}
-              data-component="prompt-input"
-              role="textbox"
-              aria-multiline="true"
-              aria-label={i18n.t("ui.promptInput.label")}
-              contenteditable={!props.disabled && !props.readOnly}
-              autocapitalize={state.mode === "normal" ? "sentences" : "off"}
-              autocorrect={state.mode === "normal" ? "on" : "off"}
-              spellcheck={state.mode === "normal"}
-              // @ts-expect-error
-              autocomplete="off"
-              class="composer-input focus:outline-none empty:before:content-['\200B'] [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
-              classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled, hidden: rich() }}
-              onInput={(event) => {
-                const cursor = promptInputV2Cursor(event.currentTarget)
-                const prompt = parsePromptInputV2Editor(event.currentTarget)
-                const images = props.controller.parts().filter((part) => part.type === "image")
-                localInput = true
-                setBlank(!event.currentTarget.textContent)
-                props.controller.onInput(prompt.map((part) => part.content).join(""), [...prompt, ...images], cursor)
-                shortcodes.sync()
-              }}
-              onKeyDown={(event) => {
-                if (shortcodes.onKeyDown(event)) return
-                if (props.controller.onKeyDown(event)) return
-                if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-                  event.preventDefault()
-                  if (event.repeat) return
-                  props.controller.submit()
-                }
-              }}
-              onKeyUp={(event) => {
-                syncBlank()
-                updateCursor()
-                if (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "Home" || event.key === "End") shortcodes.sync()
-              }}
-              onPointerUp={() => {
-                syncBlank()
-                updateCursor()
-                shortcodes.sync()
-              }}
-              onBlur={shortcodes.close}
-              onPaste={props.controller.onPaste}
-              onFocus={() => props.controller.dispatch({ type: "focus.editor" })}
-            />
+            <Show when={!rich()}>
+              <div
+                ref={(element) => {
+                  editor = element
+                  props.controller.setEditor(element)
+                  renderPromptInputV2Editor(element, props.controller.parts())
+                }}
+                data-component="prompt-input"
+                role="textbox"
+                aria-multiline="true"
+                aria-label={i18n.t("ui.promptInput.label")}
+                contenteditable={!props.disabled && !props.readOnly}
+                autocapitalize={state.mode === "normal" ? "sentences" : "off"}
+                autocorrect={state.mode === "normal" ? "on" : "off"}
+                spellcheck={state.mode === "normal"}
+                // @ts-expect-error
+                autocomplete="off"
+                class="composer-input focus:outline-none empty:before:content-['\200B'] [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
+                classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
+                onInput={(event) => {
+                  const cursor = promptInputV2Cursor(event.currentTarget)
+                  const prompt = parsePromptInputV2Editor(event.currentTarget)
+                  const images = props.controller.parts().filter((part) => part.type === "image")
+                  localInput = true
+                  setBlank(!event.currentTarget.textContent)
+                  props.controller.onInput(prompt.map((part) => part.content).join(""), [...prompt, ...images], cursor)
+                  shortcodes.sync()
+                }}
+                onKeyDown={(event) => {
+                  if (shortcodes.onKeyDown(event)) return
+                  if (props.controller.onKeyDown(event)) return
+                  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+                    event.preventDefault()
+                    if (event.repeat) return
+                    props.controller.submit()
+                  }
+                }}
+                onKeyUp={(event) => {
+                  syncBlank()
+                  updateCursor()
+                  if (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "Home" || event.key === "End") shortcodes.sync()
+                }}
+                onPointerUp={() => {
+                  syncBlank()
+                  updateCursor()
+                  shortcodes.sync()
+                }}
+                onBlur={shortcodes.close}
+                onPaste={props.controller.onPaste}
+                onFocus={() => props.controller.dispatch({ type: "focus.editor" })}
+              />
+            </Show>
             <Show when={blank()}>
               <div class="composer-placeholder" classList={{ "font-mono!": state.mode === "shell" }}>
                 {view.placeholder?.() ?? i18n.t("ui.promptInput.label")}

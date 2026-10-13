@@ -181,7 +181,8 @@ export function mountRichEditor(options: RichOptions) {
     snapshot,
     focus: () => editor.commands.focus("end", { scrollIntoView: false }),
     isFocused: () => editor.isFocused,
-    setEditable: (editable: boolean) => editor.setEditable(editable),
+    setEditable: (editable: boolean) => editor.setEditable(editable, false),
+    isEditable: () => editor.isEditable,
     setMarkdown(markdown: string) {
       const view = editor.view
       const doc = editor.schema.nodeFromJSON(markdownToDoc(markdown, { isMention: options.isMention }))
