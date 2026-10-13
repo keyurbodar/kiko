@@ -13,7 +13,7 @@ import { Strike } from "@tiptap/extension-strike"
 import { Text } from "@tiptap/extension-text"
 import type { Node } from "@tiptap/pm/model"
 import { EditorState, Selection, TextSelection, type Transaction } from "@tiptap/pm/state"
-import { BINDINGS } from "./keymap"
+import { BINDINGS, LINK_KEY } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { Link, Mention } from "./nodes"
 
@@ -53,6 +53,11 @@ describe("the formatting keys", () => {
   test("every chord in the keymap has a row in the table", () => {
     expect(BINDINGS.map((b) => b.key).sort()).toEqual(table.map((r) => r.key).sort())
     expect(BINDINGS.map((b) => b.label)).toEqual(table.map((r) => r.label))
+  })
+
+  test("Mod+K is the link key, kept apart from the formatting table", () => {
+    expect(LINK_KEY).toBe("Mod-k")
+    expect(BINDINGS.map((b) => b.key)).not.toContain(LINK_KEY)
   })
 
   const off: [string, string, "all" | "caret", string][] = [

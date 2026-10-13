@@ -43,6 +43,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         navigate(`/chat/${id}`)
       },
       openPalette: () => openPalette("commands"),
+      inRichEditor: () => !!document.activeElement?.closest(".ProseMirror"),
       openChats: () => openPalette("chats"),
       hasActiveChat: () => activeId() !== null,
       toggleInfo,

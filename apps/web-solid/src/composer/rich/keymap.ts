@@ -5,6 +5,9 @@ import type { Command, EditorState } from "@tiptap/pm/state"
 
 export type Binding = { key: string; label: string; command: (schema: Schema) => Command }
 
+/** Opens the link input. It is not a table command because it needs the editor's `onLink`. */
+export const LINK_KEY = "Mod-k"
+
 export const BINDINGS: readonly Binding[] = [
   { key: "Mod-b", label: "bold", command: (s) => toggleMark(s.marks.bold!) },
   { key: "Mod-i", label: "italic", command: (s) => toggleMark(s.marks.italic!) },

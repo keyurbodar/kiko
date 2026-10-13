@@ -14,7 +14,7 @@ import { UndoRedo } from "@tiptap/extensions"
 import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model"
 import { EditorState, Plugin, Selection } from "@tiptap/pm/state"
-import { BINDINGS } from "./keymap"
+import { BINDINGS, LINK_KEY } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { chipExtension, Link, Mention, setChipStatus, type ChipStatus } from "./nodes"
 import { groupUndoByChangeKind, UNDO_GROUP_DELAY, type ChangeKind } from "./undo-grouping"
@@ -52,7 +52,7 @@ export function mountRichEditor(options: RichOptions) {
       return [
         keymap({
           ...bindings,
-          "Mod-k": () => {
+          [LINK_KEY]: () => {
             options.onLink(currentLink())
             return true
           },
@@ -156,10 +156,10 @@ export function mountRichEditor(options: RichOptions) {
     return new Slice(Fragment.from(nodes), 0, 0)
   }
 
-  function currentLink(): string | null {
+  function currentLink(): string {
     const { $from } = editor.state.selection
     const mark = editor.state.schema.marks.link!.isInSet($from.marks())
-    return mark ? String(mark.attrs.href) : null
+    return mark ? String(mark.attrs.href) : ""
   }
 
   function linkRange() {
