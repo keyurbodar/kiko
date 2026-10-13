@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, lazy, onMount, Show, Suspense, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, getOwner, lazy, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
 import { Icon } from "@kiko/ui/icon"
 import { HugeIcon } from "@kiko/ui/huge-icon"
@@ -7,9 +7,11 @@ import { useI18n } from "@kiko/ui/context/i18n"
 import { Icon as IconV2 } from "@kiko/ui/v2/icon"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { identityLook } from "../../lib/identity"
+import { isImage } from "../../lib/attachments"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 import type { PromptInputV2Interaction } from "./interaction"
 import { createComposerEmoji, createShortcodes } from "../emoji"
+import type { RichBinding } from "../rich/bind"
 
 export type {
   PromptInputV2Attachment,
@@ -37,6 +39,8 @@ export type PromptInputV2Props = {
   attachShortcut?: string
   /** Optional bar rendered at the top of the input surface, e.g. an active reply-to chip. */
   reply?: JSX.Element
+  /** The slugs `@name` turns into a mention for. */
+  isMention?: (slug: string) => boolean
 }
 
 export function PromptInputV2(props: PromptInputV2Props) {
@@ -61,16 +65,43 @@ export function PromptInputV2(props: PromptInputV2Props) {
     return { top: `${box.top + 8}px`, left: `${box.left + 8}px`, width: `${box.width - 16}px`, height: `${box.height - 16}px` }
   })
   const emoji = createComposerEmoji(() => editor, () => !!props.disabled || !!props.readOnly)
+  let richHost: HTMLDivElement | undefined
+  let binding: RichBinding | undefined
+  const [rich, setRich] = createSignal(false)
+  const [link, setLink] = createSignal<string | null>(null)
+  const owner = getOwner()
 
   // The first attachment or popover should not wait on the network.
   onMount(() => {
     if ("requestIdleCallback" in window) requestIdleCallback(() => void extras(), { timeout: 2000 })
     else setTimeout(() => void extras(), 300)
+    void import("../rich/bind").then(({ bindRich }) => {
+      if (!richHost || !owner) return
+      const typing = document.activeElement === editor
+      binding = runWithOwner(owner, () =>
+        bindRich({
+          host: richHost!,
+          controller: props.controller,
+          label: i18n.t("ui.promptInput.label"),
+          isMention: (slug) => props.isMention?.(slug) ?? false,
+          disabled: () => !!props.disabled || !!props.readOnly,
+          shortcodes,
+          onEdit: syncBlank,
+          onLink: setLink,
+          onFocus: () => {},
+        }),
+      )
+      if (!binding) return
+      editor = binding.editor.dom as HTMLDivElement
+      setRich(true)
+      syncBlank()
+      if (typing) binding.editor.focus()
+    })
   })
 
   createEffect(() => {
     const parts = props.controller.parts()
-    if (!editor) return
+    if (!editor || rich()) return
     if (localInput) {
       localInput = false
       syncBlank()
@@ -153,7 +184,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
         }}
       >
         <div class="composer-row">
-          <Show when={state.mode === "normal" && props.controller.attachments().length > 0}>
+          <Show when={state.mode === "normal" && props.controller.attachments().some((a) => isImage({ name: a.filename, type: a.mime }))}>
             <Suspense>
               <PromptInputV2Attachments
                 attachments={props.controller.attachments()}
@@ -181,6 +212,34 @@ export function PromptInputV2(props: PromptInputV2Props) {
           >
             {props.reply}
 
+            <Show when={link() !== null}>
+              <form
+                class="composer-link"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const value = new FormData(event.currentTarget).get("href")
+                  binding?.editor.setLink(typeof value === "string" ? value.trim() || null : null)
+                  setLink(null)
+                }}
+              >
+                <input
+                  name="href"
+                  type="url"
+                  value={link() ?? ""}
+                  placeholder="Link address"
+                  aria-label="Link address"
+                  ref={(element) => requestAnimationFrame(() => element.focus())}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setLink(null)
+                    binding?.editor.focus()
+                  }}
+                />
+              </form>
+            </Show>
+            <div ref={richHost} class="composer-rich" />
             <div
               ref={(element) => {
                 editor = element
@@ -198,7 +257,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               // @ts-expect-error
               autocomplete="off"
               class="composer-input focus:outline-none empty:before:content-['\200B'] [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
-              classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
+              classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled, hidden: rich() }}
               onInput={(event) => {
                 const cursor = promptInputV2Cursor(event.currentTarget)
                 const prompt = parsePromptInputV2Editor(event.currentTarget)

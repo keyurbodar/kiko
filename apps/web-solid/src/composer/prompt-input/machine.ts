@@ -54,7 +54,7 @@ export function createPromptInputV2InteractionState(): PromptInputV2InteractionS
   }
 }
 
-export function transitionPromptInputV2(
+export function reducePromptInputV2(
   state: PromptInputV2InteractionState,
   event: PromptInputV2InteractionEvent,
   persisted: PromptInputV2PersistedState,

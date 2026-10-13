@@ -17,6 +17,7 @@ const TIER3 = [
   "../../packages/ui/src/v2/components/toast-v2-impl.tsx",
   "../../node_modules/.bun/motion@12.34.5/node_modules/motion/dist/es/index.mjs",
   "src/composer/prompt-input/extras.tsx",
+  "src/composer/rich/bind.ts",
   "src/chat/ui/ImageDialog.tsx",
   "src/chat/ui/EmojiPicker.tsx",
   "src/chat/ui/ReactionPopover.tsx",
