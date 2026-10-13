@@ -1,3 +1,4 @@
+import "./rich.css"
 import { Editor, Extension } from "@tiptap/core"
 import { Blockquote } from "@tiptap/extension-blockquote"
 import { Bold } from "@tiptap/extension-bold"
