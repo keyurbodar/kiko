@@ -8,6 +8,7 @@ import { Select } from "../settings/select"
 import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
 import { DEFAULT_LOOK, type Mode } from "@kiko/theme/look"
 import { ACCENT_IDS, ACCENTS } from "@kiko/theme/palette"
+import { OpenVsxThemes } from "./open-vsx-themes"
 
 const shown = () => appearanceOf(look().mode)
 
@@ -93,6 +94,7 @@ export default function Appearance(): JSX.Element {
   return (
     <div class="flex flex-col gap-8" data-component="appearance" data-appearance-now={shown()}>
       <ColorGroup />
+      <OpenVsxThemes />
       <InterfaceGroups />
       <div class="flex justify-end">
         <button type="button" class={buttonClass()} data-action="restore-appearance" onClick={() => updateLook({ mode: DEFAULT_LOOK.mode, accent: DEFAULT_LOOK.accent, display: DEFAULT_DISPLAY })}>

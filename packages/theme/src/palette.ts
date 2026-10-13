@@ -20,6 +20,8 @@ export type Palette = Readonly<{
   gold: string
 }>
 
+export const PALETTE_KEYS = ["canvas", "sidebar", "text", "muted", "faint", "action", "actionHover", "onAction", "danger", "gold"] as const satisfies readonly (keyof Palette)[]
+
 export const PALETTES: Record<ThemeAppearance, Palette> = {
   light: {
     canvas: "#fcfcfc",
@@ -94,9 +96,9 @@ export const NEUTRALS: ReadonlyArray<readonly [token: string, dark: number, ligh
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
 
 /** The CSS variables one appearance paints. `contrast` is a percent that scales every neutral. */
-export function tokensFor(mode: ThemeAppearance, accentId: AccentId = DEFAULT_ACCENT, contrast = 100): Record<string, string> {
-  const p = PALETTES[mode]
-  const accent = ACCENTS[accentId][mode]
+export function tokensFor(mode: ThemeAppearance, accentId: AccentId = DEFAULT_ACCENT, contrast = 100, imported?: { palette: Palette; accent: string }): Record<string, string> {
+  const p = imported?.palette ?? PALETTES[mode]
+  const accent = imported?.accent ?? ACCENTS[accentId][mode]
   // The percent is computed here, never with calc() inside color-mix, which some browsers drop.
   const ink = (share: number) => `color-mix(in oklab, ${p.text} ${Math.min(100, round((share * contrast) / 100, 2))}%, transparent)`
   const vars: Record<string, string> = {

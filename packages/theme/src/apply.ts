@@ -5,6 +5,7 @@
 // Every function here is a no-op without a DOM, so tests can import it.
 
 import { displayVars } from "./display"
+import { formatImported, IMPORTED_KEY, parseImported, themeFor, type Imported } from "./imported"
 import { DEFAULT_LOOK, type Look } from "./look"
 import { PALETTES, resolveAppearance, tokensFor, type ThemeAppearance, type ThemeMode } from "./palette"
 
@@ -19,10 +20,33 @@ const systemDark = () => typeof matchMedia !== "function" || !matchMedia("(prefe
 
 export const appearanceOf = (mode: ThemeMode): ThemeAppearance => resolveAppearance(mode, systemDark())
 
-const half = (look: Look, h: ThemeAppearance) => ({ ...tokensFor(h, look.accent, look.display.contrast), ...displayVars(look.display) })
+let imported: Imported = parseImported(storedImported())
+
+function storedImported(): string | null {
+  try {
+    return localStorage.getItem(IMPORTED_KEY)
+  } catch {
+    return null
+  }
+}
+
+const half = (look: Look, h: ThemeAppearance) => ({ ...tokensFor(h, look.accent, look.display.contrast, themeFor(imported, h)), ...displayVars(look.display) })
 
 /** The tokens each half paints. */
 export const resolveLook = (look: Look): Record<ThemeAppearance, Record<string, string>> => ({ light: half(look, "light"), dark: half(look, "dark") })
+
+export const importedThemes = (): Imported => imported
+
+/** Saves the imported themes and repaints. The boot cache follows when there is one. */
+export function saveImported(next: Imported): void {
+  imported = next
+  try {
+    localStorage.setItem(IMPORTED_KEY, formatImported(next))
+  } catch {}
+  const cached = readCache()
+  if (cached) writeCache(cached.text, committed)
+  paint(committed)
+}
 
 let applied = new Set<string>()
 let committed: Look = DEFAULT_LOOK

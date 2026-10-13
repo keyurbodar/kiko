@@ -7,7 +7,7 @@
  * `.reply-bar*`) are generic enough to collide with the sidebar and the
  * transcript, and this file ships alongside both in one global namespace.
  *
- * The only motion is the send button's press. The field grows instantly. */
+ * Nothing here moves. The field grows instantly. */
 
 /* ===== Dock ------------------------------------------------------------ */
 
@@ -126,10 +126,6 @@
   color: var(--on-accent);
 }
 
-.composer-dock .composer-send:active:not(:disabled) {
-  transform: scale(0.92);
-}
-
 .composer-dock .composer-send:disabled {
   background: color-mix(in oklab, var(--text) 9%, transparent);
   color: color-mix(in oklab, var(--text) 35%, transparent);
@@ -176,7 +172,7 @@
 
 .composer-dock .composer-input,
 .composer-dock .composer-placeholder {
-  font-family: var(--font-family-prompt, var(--font-family-sans));
+  font-family: var(--font-family-sans);
   font-size: var(--font-size-prompt);
   line-height: 20px;
 }
@@ -200,18 +196,18 @@
 
 /* ===== Reply bar -------------------------------------------------------- */
 
-/* The reply bar is set above the field the way monocode sets attachments: a block inside the
- * box with no fill and no border. It reaches out over the attach and send columns (26px + 6px
- * gap, plus the field's 2px inset) to the box's padding. Its accent mark lines up with the
- * attach button. The mark's width and corner match the in-bubble quote (chat/ui/Quote.tsx). */
+/* One quiet line above the field, set in the field's own type: a 2px neutral rule, the role and the
+ * quoted words both muted. It reaches out over the attach column (32px + 6px gap, less the field's
+ * 4px inset) to the box's padding. The accent stays off it, so the bar does not compete with the send button. */
 .composer-dock .reply-bar {
   display: flex;
+  align-items: center;
   align-self: stretch;
-  margin: 0 -34px 12px;
-  padding: 2px 4px 0 0;
+  margin: 0 -34px 6px;
+  padding: 0 4px 0 0;
   overflow: hidden;
-  color: var(--text);
-  font-size: var(--font-sm);
+  font-size: var(--font-size-prompt);
+  line-height: 20px;
   cursor: default;
 }
 
@@ -221,6 +217,7 @@
   min-width: 0;
   flex: 1;
   align-items: center;
+  gap: 6px;
   padding: 0 0 0 12px;
   color: inherit;
   background: none;
@@ -236,54 +233,42 @@
   bottom: 1px;
   left: 2px;
   width: 2px;
-  background: var(--accent);
+  background: color-mix(in oklab, var(--text) 25%, transparent);
   border-radius: 1px;
   content: "";
 }
 
-.composer-dock .reply-bar-text {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
+.composer-dock .reply-bar-role {
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
-.composer-dock .reply-bar-role,
 .composer-dock .reply-bar-preview {
-  display: block;
+  min-width: 0;
   overflow: hidden;
+  color: var(--text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.composer-dock .reply-bar-role {
-  color: var(--accent);
-  font-size: var(--font-xs);
-  font-weight: var(--font-weight-bold);
-  line-height: 15px;
+.composer-dock .reply-bar-thumb {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
 }
 
-.composer-dock .reply-bar-preview {
-  color: var(--text-muted);
-  font-size: var(--font-sm);
-  line-height: 16px;
-}
-
-.composer-dock .reply-bar-thumb,
 .composer-dock .reply-bar-glyph {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  margin-right: 6px;
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .composer-dock .reply-bar-dismiss {
   display: flex;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
-  align-self: center;
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -299,4 +284,142 @@
     background: color-mix(in oklab, var(--text) 8%, transparent);
     color: var(--text);
   }
+}
+
+/* ===== Pictures ----------------------------------------------------------- */
+
+/* A row of 40px tiles above the field. The remove button shows on hover or focus, and always on a
+ * touch screen, which has neither. */
+.composer-dock .composer-pictures {
+  display: flex;
+  flex: 0 0 100%;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px 2px;
+}
+
+.composer-dock .composer-picture {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+.composer-dock .composer-picture[data-state="failed"] {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.composer-dock .composer-picture-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: zoom-in;
+}
+
+.composer-dock .composer-picture-open img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.composer-dock .composer-picture-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 7px;
+  background: color-mix(in oklab, var(--bg) 55%, transparent);
+  fill: none;
+  stroke-width: 3;
+  pointer-events: none;
+  transform: rotate(-90deg);
+}
+
+.composer-dock .composer-picture-ring circle:first-child {
+  stroke: color-mix(in oklab, var(--text) 20%, transparent);
+}
+
+.composer-dock .composer-picture-ring circle:last-child {
+  stroke: var(--text);
+  stroke-linecap: round;
+}
+
+.composer-dock .composer-picture-remove,
+.composer-dock .composer-picture-retry {
+  position: absolute;
+  bottom: 2px;
+  display: none;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text);
+  background: color-mix(in oklab, var(--bg) 85%, transparent);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.composer-dock .composer-picture-remove {
+  right: 2px;
+}
+
+.composer-dock .composer-picture-retry {
+  left: 2px;
+  display: flex;
+}
+
+.composer-dock .composer-picture:hover .composer-picture-remove,
+.composer-dock .composer-picture:focus-within .composer-picture-remove {
+  display: flex;
+}
+
+@media (pointer: coarse) {
+  .composer-dock .composer-picture-remove {
+    display: flex;
+  }
+}
+
+/* ===== The rich field ------------------------------------------------------ */
+
+.composer-dock .composer-rich {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.composer-dock .composer-rich:empty {
+  display: none;
+}
+
+.composer-dock .composer-input [data-mention] {
+  font-weight: 500;
+}
+
+.composer-dock .composer-link {
+  display: flex;
+  margin: 0 0 6px;
+  padding: 0 4px;
+}
+
+.composer-dock .composer-link input {
+  min-width: 0;
+  flex: 1;
+  padding: 4px 8px;
+  color: var(--text);
+  background: color-mix(in oklab, var(--text) 6%, transparent);
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: var(--font-size-prompt);
+  outline: none;
 }
