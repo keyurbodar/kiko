@@ -22,7 +22,7 @@ import {
 
 /*
  * The file tree in the chat's right panel. It draws the room's file index as a tree, the way kat's
- * code panel does: 30 px rows, 16 px per level, a rotating chevron, no
+ * code panel does: 24 px rows, 12 px per level, a rotating chevron, no
  * animation. The index is the only source of files. A write by an agent lands
  * as a `file` event, the room store updates `files`, and the tree rebuilds.
  *

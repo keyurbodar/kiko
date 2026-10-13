@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { newRoomId } from "../../sync/user-store"
 import { formatBytes, shortDate, startedAt } from "./format"
-import { clampWidth, closeFile, closeInfo, DEFAULT_WIDTH, dropFileTabs, FILE_DEFAULT_WIDTH, fileReveal, fileTabsOf, infoOpen, infoSections, infoTab, infoView, moveFileTabs, openFile, openFilePath, openInfo, panelWidth, popInfo, pushInfo, registerInfoSection, reopenClosedFile, setActiveFile, toggleFiles, toggleInfo } from "./state"
+import { closeFile, closeInfo, dropOpenFile, fileReveal, infoOpen, infoSections, infoView, moveOpenFile, openFile, openFilePath, openInfo, openSections, popInfo, pushInfo, registerInfoSection, setSectionOpen, showSection, toggleFiles, toggleInfo } from "./state"
 
 describe("header text", () => {
   test("a room id carries its start time", () => {
@@ -23,14 +23,14 @@ describe("header text", () => {
 })
 
 describe("panel state", () => {
-  test("opens on home, a card pushes a list, back pops it, and the width is clamped", () => {
+  test("opens on home, a row pushes a list, back pops it", () => {
     closeInfo()
     expect(infoOpen()).toBe(false)
     toggleInfo()
     expect(infoOpen()).toBe(true)
     expect(infoView().kind).toBe("home")
-    pushInfo({ kind: "tasks" })
-    expect(infoView().kind).toBe("tasks")
+    pushInfo({ kind: "plate" })
+    expect(infoView().kind).toBe("plate")
     popInfo()
     popInfo()
     expect(infoView().kind).toBe("home")
@@ -38,71 +38,48 @@ describe("panel state", () => {
     expect(infoView().kind).toBe("memory")
     popInfo()
     expect(infoView().kind).toBe("home")
-    expect([clampWidth(10), clampWidth(400), clampWidth(9999)]).toEqual([280, 400, 560])
     closeInfo()
   })
 
-  test("cmd+i and cmd+shift+e switch tabs, and close the panel only from their own tab", () => {
+  test("showing a section opens it, pops a page, and the files command closes the panel when files already shows", () => {
+    closeInfo()
+    setSectionOpen("agents", false)
+    openInfo({ kind: "memory" })
+    showSection("agents")
+    expect([infoOpen(), infoView().kind, openSections().has("agents")]).toEqual([true, "home", true])
+    setSectionOpen("agents", false)
+    expect(openSections().has("agents")).toBe(false)
     closeInfo()
     toggleFiles()
-    expect([infoOpen(), infoTab()]).toEqual([true, "files"])
-    toggleInfo()
-    expect([infoOpen(), infoTab()]).toEqual([true, "info"])
-    toggleInfo()
-    expect(infoOpen()).toBe(false)
-    toggleFiles()
+    expect([infoOpen(), openSections().has("files")]).toEqual([true, true])
     toggleFiles()
     expect(infoOpen()).toBe(false)
   })
 
-  test("open files widen the panel for their chat only, and closing the last restores the width", () => {
+  test("one file is open per chat, the back arrow returns to the tree, and another file replaces it", () => {
     closeInfo()
     openFile("room-a", "notes/plan.md")
-    expect([infoOpen(), infoTab(), openFilePath("room-a"), openFilePath("room-b")]).toEqual([true, "files", "notes/plan.md", null])
-    expect([panelWidth("room-a"), panelWidth("room-b")]).toEqual([FILE_DEFAULT_WIDTH, DEFAULT_WIDTH])
-    openInfo()
-    expect(panelWidth("room-a")).toBe(DEFAULT_WIDTH)
-    // No path opens the files tab and leaves the tabs alone.
+    expect([infoOpen(), openSections().has("files"), openFilePath("room-a"), openFilePath("room-b")]).toEqual([true, true, "notes/plan.md", null])
+    openFile("room-a", "notes/other.md")
+    expect(openFilePath("room-a")).toBe("notes/other.md")
     openFile("room-a", null)
-    expect([infoTab(), openFilePath("room-a")]).toEqual(["files", "notes/plan.md"])
+    expect(openFilePath("room-a")).toBe("notes/other.md")
     closeFile("room-a")
-    expect([infoOpen(), openFilePath("room-a"), panelWidth("room-a")]).toEqual([true, null, DEFAULT_WIDTH])
+    expect([infoOpen(), openFilePath("room-a")]).toEqual([true, null])
     closeInfo()
   })
 
-  test("each file is one tab, closing activates a neighbour, and closed tabs reopen newest first", () => {
-    const chat = "room-tabs"
-    openFile(chat, "a.ts")
-    openFile(chat, "b.md")
-    openFile(chat, "c.csv")
-    openFile(chat, "a.ts")
-    expect(fileTabsOf(chat).tabs).toEqual(["a.ts", "b.md", "c.csv"])
-    expect(openFilePath(chat)).toBe("a.ts")
-    setActiveFile(chat, "b.md")
-    closeFile(chat)
-    // The right neighbour takes over, then the left one at the end of the row.
-    expect([fileTabsOf(chat).tabs, openFilePath(chat)]).toEqual([["a.ts", "c.csv"], "c.csv"])
-    closeFile(chat, "c.csv")
-    expect(openFilePath(chat)).toBe("a.ts")
-    expect(reopenClosedFile(chat)).toBe(true)
-    expect([fileTabsOf(chat).tabs, openFilePath(chat)]).toEqual([["a.ts", "c.csv"], "c.csv"])
-    expect(reopenClosedFile(chat)).toBe(true)
-    expect(fileTabsOf(chat).tabs).toEqual(["a.ts", "c.csv", "b.md"])
-    expect(reopenClosedFile(chat)).toBe(false)
-    closeInfo()
-  })
-
-  test("a rename moves the tabs under it, and a delete closes them for good", () => {
+  test("a rename moves the open file under it, and a delete closes it", () => {
     const chat = "room-moves"
-    openFile(chat, "docs/a.md")
     openFile(chat, "docs/deep/b.md")
-    openFile(chat, "top.txt")
-    moveFileTabs(chat, "docs", "notes")
-    expect(fileTabsOf(chat).tabs).toEqual(["notes/a.md", "notes/deep/b.md", "top.txt"])
-    setActiveFile(chat, "notes/deep/b.md")
-    dropFileTabs(chat, "notes/deep")
-    expect([fileTabsOf(chat).tabs, openFilePath(chat)]).toEqual([["notes/a.md", "top.txt"], "top.txt"])
-    expect(reopenClosedFile(chat)).toBe(false)
+    moveOpenFile(chat, "docs", "notes")
+    expect(openFilePath(chat)).toBe("notes/deep/b.md")
+    moveOpenFile(chat, "other", "x")
+    expect(openFilePath(chat)).toBe("notes/deep/b.md")
+    dropOpenFile(chat, "notes/other")
+    expect(openFilePath(chat)).toBe("notes/deep/b.md")
+    dropOpenFile(chat, "notes/deep")
+    expect(openFilePath(chat)).toBeNull()
     closeInfo()
   })
 
