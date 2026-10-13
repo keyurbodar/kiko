@@ -31,13 +31,19 @@ const plain = (nodes: readonly Inline[]): string =>
   nodes.map((n) => (n.t === "text" || n.t === "code" ? n.text : n.t === "mention" ? `@${n.slug}` : plain(n.children))).join("")
 
 const SHOWN_HOST = /^(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?=[/?#]|$)/i
+const EMBEDDED_HOST = /(?:https?:\/\/|\bwww\.)((?:[a-z0-9-]+\.)+[a-z]{2,})(?=[/?#\s,;:!?)]|$)/gi
 const bareHost = (host: string): string => host.toLowerCase().replace(/^www\./, "")
+
+const shownHosts = (label: string): string[] => {
+  const whole = SHOWN_HOST.exec(label.trim())?.[1]
+  return whole ? [whole] : Array.from(label.matchAll(EMBEDDED_HOST), (m) => m[1]!)
+}
 
 export function maskedLink(href: string, label: string): boolean {
   if (!/^https?:/i.test(href)) return false
   if (isSuspiciousUrl(href)) return true
-  const shown = SHOWN_HOST.exec(label.trim())?.[1]
-  return shown !== undefined && bareHost(shown) !== bareHost(new URL(href).hostname)
+  const real = bareHost(new URL(href).hostname)
+  return shownHosts(label).some((shown) => bareHost(shown) !== real)
 }
 
 export function inline(node: Inline): RichNode {

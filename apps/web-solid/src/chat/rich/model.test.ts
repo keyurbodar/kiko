@@ -62,6 +62,11 @@ const cases: [string, Block, string][] = [
     '<p><masked href="https://evil.example/x">docs.example.com</masked></p>',
   ],
   [
+    "a link whose sentence names another host by its address is masked",
+    { t: "paragraph", children: [{ t: "link", href: "https://evil.example/x", children: [t("see https://github.com/acme for docs")] }] },
+    '<p><masked href="https://evil.example/x">see https://github.com/acme for docs</masked></p>',
+  ],
+  [
     "a link whose text names its own host is a link",
     { t: "paragraph", children: [{ t: "link", href: "https://www.example.com/a", children: [t("example.com")] }] },
     '<p><a href="https://www.example.com/a" target="_blank" rel="noopener noreferrer" class="rich-link">example.com</a></p>',
