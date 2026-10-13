@@ -32,7 +32,7 @@ const cases: [string, Block, string][] = [
   [
     "link opens in a new tab safely",
     { t: "paragraph", children: [{ t: "link", href: "https://example.com", children: [t("go")] }] },
-    '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" class="rich-link">go</a></p>',
+    '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" title="https://example.com" class="rich-link">go</a></p>',
   ],
   [
     "unsafe href is not a link",
@@ -69,12 +69,12 @@ const cases: [string, Block, string][] = [
   [
     "a link whose text names its own host is a link",
     { t: "paragraph", children: [{ t: "link", href: "https://www.example.com/a", children: [t("example.com")] }] },
-    '<p><a href="https://www.example.com/a" target="_blank" rel="noopener noreferrer" class="rich-link">example.com</a></p>',
+    '<p><a href="https://www.example.com/a" target="_blank" rel="noopener noreferrer" title="https://www.example.com/a" class="rich-link">example.com</a></p>',
   ],
   [
     "a link whose text is a sentence is a link",
     { t: "paragraph", children: [{ t: "link", href: "https://example.com", children: [t("read this, then go")] }] },
-    '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" class="rich-link">read this, then go</a></p>',
+    '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" title="https://example.com" class="rich-link">read this, then go</a></p>',
   ],
   ["mention", { t: "paragraph", children: [{ t: "mention", slug: "bob" as never }] }, '<p><mention slug="bob"></p>'],
   ["unordered list", { t: "list", items: [[p("a")], [p("b")]] }, "<ul><li><p>a</p></li><li><p>b</p></li></ul>"],

@@ -76,6 +76,7 @@ export function inline(node: Inline): RichNode {
         href: node.href,
         target: "_blank",
         rel: "noopener noreferrer",
+        title: node.href,
         class: "rich-link",
       })
     }
