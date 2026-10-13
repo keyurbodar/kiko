@@ -43,7 +43,7 @@ export class RoomMemory {
     return this.storage.transactionSync(() => {
       const synced = Number(this.meta.get(SYNCED) ?? 0)
       const rows = this.sql
-        .exec<{ seq: number; at: number; sender: string; run_id: string | null; id: string }>("SELECT seq, at, sender, run_id, id FROM messages WHERE seq > ? ORDER BY seq LIMIT 5000", synced)
+        .exec<{ seq: number; at: number; sender: string; run_id: string | null; id: string }>("SELECT seq, at, sender, run_id, id FROM messages WHERE seq > ? AND (event IS NULL OR json_extract(event, '$.private') IS NOT 1) ORDER BY seq LIMIT 5000", synced)
         .toArray()
       let last = this.sql.exec<TurnRow>("SELECT * FROM mem_turns ORDER BY pos DESC LIMIT 1").toArray()[0] ?? null
       for (const row of rows) {
@@ -136,7 +136,7 @@ export class RoomMemory {
     const rows = this.sql
       .exec<{ pos: number; at: number; trace: string | null; seq: number | null; id: string | null; sender: string | null; text: string | null; files: string | null; deleted_at: number | null; key: string }>(
         `SELECT t.pos, t.at, t.trace, t.key, m.seq, m.id, m.sender, m.text, m.files, m.deleted_at
-         FROM mem_turns t LEFT JOIN messages m ON m.seq BETWEEN t.first_seq AND t.last_seq
+         FROM mem_turns t LEFT JOIN messages m ON m.seq BETWEEN t.first_seq AND t.last_seq AND (m.event IS NULL OR json_extract(m.event, '$.private') IS NOT 1)
          WHERE t.pos >= ? AND t.pos < ? ORDER BY t.pos, m.seq`,
         lo,
         hi,

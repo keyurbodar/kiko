@@ -119,6 +119,7 @@ export class T extends AgentDO {
 			},
 			draft: async () => {},
 			status: async () => {},
+			workers: async () => {},
 			// The real endRun reads the human messages a run answered; keep that read, drop the RPC.
 			endRun: async (_runId, inputs = []) => {
 				await (this as unknown as { heard(i: readonly never[]): Promise<string[]> }).heard(inputs as never[])

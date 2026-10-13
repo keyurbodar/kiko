@@ -34,7 +34,7 @@ export function searchMessages(sql: SqlStorage, query: string, options: SearchOp
 		.exec<{ id: string; seq: number; at: number; sender: string; snippet: string }>(
 			`SELECT m.id, m.seq, m.at, m.sender, snippet(messages_fts, 0, ?, ?, '…', 16) AS snippet
 			 FROM messages_fts JOIN messages m ON m.rowid = messages_fts.rowid
-			 WHERE messages_fts MATCH ? AND messages_fts.rowid < ? AND m.at < ?
+			 WHERE messages_fts MATCH ? AND messages_fts.rowid < ? AND m.at < ? AND (m.event IS NULL OR json_extract(m.event, '$.private') IS NOT 1)
 			 ORDER BY messages_fts.rowid DESC LIMIT ?`,
 			SNIPPET_OPEN,
 			SNIPPET_CLOSE,

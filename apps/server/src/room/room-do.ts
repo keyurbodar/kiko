@@ -1,5 +1,5 @@
-import { isAgentSlug, tagline } from "@kiko/protocol"
-import type { AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp } from "@kiko/protocol"
+import { isAgentSlug, oneLine, tagline } from "@kiko/protocol"
+import type { Activity, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemEvent, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
@@ -27,7 +27,11 @@ import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
 import { CHIEF, type ProposalInput } from "./chief"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
-import { RoomLog } from "./log"
+import { isPrivate, RoomLog } from "./log"
+import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
+import { readWorkers, statusOf, workersKey } from "./status"
+import { workerMessages } from "./work-events"
+import { parseRichText } from "./rich-text"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, reactionBrief } from "./reactions"
 import { attachmentPath, claim, ClaimRefused, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
@@ -47,6 +51,10 @@ import type { AgentHome, Home } from "./home"
 import { RoomWakes, WAKES_WAKEUP } from "./wake-delivery"
 import { MAIL_WAKEUP, RoomMail } from "./mail-drain"
 import { BurstFlush } from "./burst-flush"
+
+const MAX_DOING = 160
+const DELEGATED_TITLE = 100
+const edit = (caption: string): Activity => ({ kind: "tool", tool: "edit", caption })
 
 export const DEFAULT_AGENT = "yuki" as AgentSlug
 const CHIEF_NAME = "Kiko"
@@ -80,6 +88,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private memoryNaps!: MemoryNaps
 	private proposals!: Proposals
 	private asks!: Asks
+	private humanAsks!: HumanAsks
 	members!: Members
 	files!: FileIndex<RoomEvent>
 	team!: Team
@@ -373,6 +382,59 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.asks.close(id)
 	}
 
+	async askHuman(slug: AgentSlug, input: { id: string; question: string; options?: readonly string[] }): Promise<{ ok: true } | { ok: false; error: string }> {
+		if (!this.members.get(slug)) return { ok: false, error: "you are not a member of this room" }
+		const text = input.question.trim().slice(0, MAX_QUESTION)
+		if (!text) return { ok: false, error: "the question is empty" }
+		const options = cleanOptions(input.options)
+		const events = this.ctx.storage.transactionSync((): RoomEvent[] => {
+			if (this.humanAsks.get(input.id)) return []
+			const posted = this.log.addMessage({ from: { kind: "agent", slug }, text, rich: parseRichText(text), clientId: `ask:${input.id}` })
+			const ask = { id: input.id, from: slug, text, ...(options.length ? { options } : {}), messageId: posted.id }
+			this.humanAsks.create(ask, Date.now())
+			return [...(posted.event ? [posted.event] : []), this.log.append(`agent:${slug}`, { t: "ask", ...ask })]
+		})
+		this.publish(events)
+		return { ok: true }
+	}
+
+	async humanAskState(id: string): Promise<{ state: "open" | "answered" | "skipped"; answer: string | null } | null> {
+		const ask = this.humanAsks.get(id)
+		return ask ? { state: ask.state, answer: ask.answer } : null
+	}
+
+	async answerAsk(id: string, value: string): Promise<void> {
+		const text = value.trim()
+		const ask = this.humanAsks.get(id)
+		if (!ask || ask.state !== "open" || !text) return
+		const event = this.resolveAsk(id, "answered", text)
+		if (!event) return
+		this.publish([event])
+		const home = this.home()
+		const heard = home ? await agentStub(this.env.AGENT, home.userId, home.roomId, ask.from).askAnswered(id, text).catch(() => false) : false
+		if (heard) {
+			const { event: message } = this.log.addMessage({ from: { kind: "human" }, text, replyTo: ask.messageId, clientId: `answer:${id}` })
+			if (message) this.publish([message], { deliver: false })
+			return
+		}
+		const out = await this.humanSend({ t: "send", clientId: `answer:${id}`, text, replyTo: ask.messageId })
+		if ("events" in out) this.publish(out.events)
+	}
+
+	async skipAsk(id: string): Promise<void> {
+		const ask = this.humanAsks.get(id)
+		if (!ask || ask.state !== "open") return
+		const event = this.resolveAsk(id, "skipped", null)
+		if (!event) return
+		this.publish([event])
+		const home = this.home()
+		if (home) await agentStub(this.env.AGENT, home.userId, home.roomId, ask.from).askAnswered(id, "").catch(() => false)
+	}
+
+	private resolveAsk(id: string, how: "answered" | "skipped", answer: string | null): RoomEvent | null {
+		return this.ctx.storage.transactionSync(() => (this.humanAsks.resolve(id, how, answer) ? this.log.append("human", { t: "ask_resolved", id, how }) : null))
+	}
+
 	async memoryView(seqs: number[]): Promise<{ text: string; count: number }> {
 		const out = this.memoryNaps.view(seqs)
 		await this.memoryNaps.arm()
@@ -433,14 +495,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	publish(events: readonly RoomEvent[], { touch = true }: { touch?: boolean } = {}): void {
+	publish(events: readonly RoomEvent[], { touch = true, deliver = true }: { touch?: boolean; deliver?: boolean } = {}): void {
 		if (!events.length) return
 		this.broadcast({ t: "events", events })
 		if (touch && events.some((e) => ROW_EVENTS.has(e.t))) this.touchSoon()
 		this.reports.gather(events)
 		if (events.some((e) => e.t === "edit" || e.t === "delete")) this.ctx.waitUntil(this.memoryNaps.forget())
 		if (events.some((e) => e.t === "task" || e.t === "task_removed")) this.ctx.waitUntil(this.tasksChanged())
-		const human = events.flatMap((e) => (e.t === "message" && e.from.kind === "human" ? [e.text] : []))
+		const human = deliver ? events.flatMap((e) => (e.t === "message" && e.from.kind === "human" ? [e.text] : [])) : []
 		const last = human.at(-1)
 		if (last !== undefined) {
 			this.ctx.waitUntil(this.burst.arm(last))
@@ -503,7 +565,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async systemNotice(id: string, text: string, reason: SystemReason = "run_budget"): Promise<void> {
-		const event = this.deliveries.notice(id, text, reason)
+		const event = this.deliveries.notice(id, text, reason, reason === "routine" ? { kind: "routine", title: oneLine(text, DELEGATED_TITLE) } : undefined)
 		if (event) this.publish([event])
 	}
 
@@ -540,7 +602,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 					: null
 				if (filed && (!filed.file || filed.refused || filed.drop)) throw new ClaimRefused("The message's text could not be stored as a file.")
 				const refs = [...claimed.refs, ...(filed?.file ? [filed.file] : [])]
-				const replyTo = frame.replyTo && this.log.message(frame.replyTo) ? frame.replyTo : undefined
+				const target = frame.replyTo ? this.log.message(frame.replyTo) : null
+				const replyTo = target && !isPrivate(target) ? target.id : undefined
 				const stored = this.log.addMessage({
 					from: { kind: "human" },
 					text,
@@ -599,7 +662,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			if (held) return { file: null, drop: input.r2Key, refused: held, entry: null }
 		}
 		const { events, ...result } = this.files.put(input)
-		if (by && result.file && !result.conflict && !result.refused) this.working(by, [input.path], `editing /${input.path}`)
+		if (by && result.file && !result.conflict && !result.refused) this.working(by, [input.path], `editing /${input.path}`, edit(`editing /${input.path}`))
 		if (events.length) this.publish(events)
 		return { ...result, entry: result.file && !result.conflict ? this.files.stat(input.path) : null }
 	}
@@ -627,7 +690,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const out = this.files.commit(changes, { kind: "agent", slug })
 		if (!out.ok) return out
 		this.applyFs({ ok: true, events: out.events, drop: out.drop, changed: changes.length })
-		if (paths.length) this.working(slug, paths, `editing /${paths[0]}${paths.length > 1 ? ` and ${paths.length - 1} more` : ""}`)
+		if (paths.length) {
+			const doing = `editing /${paths[0]}${paths.length > 1 ? ` and ${paths.length - 1} more` : ""}`
+			this.working(slug, paths, doing, edit(doing))
+		}
 		return { ok: true, events: [], drop: [] }
 	}
 
@@ -645,26 +711,28 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return h ? { ok: false, code: "invalid", message: Team.refusal(h) } : null
 	}
 
-	private working(slug: AgentSlug, paths: readonly string[], doing: string): void {
+	private working(slug: AgentSlug, paths: readonly string[], doing: string, activity: Activity): void {
 		const now = Date.now()
 		this.team.take(slug, paths, now)
 		this.memory.did(slug, doing, now)
 		if (this.team.now(slug) === doing) return
-		this.team.doing(slug, doing, now)
+		this.team.doing(slug, doing, now, activity)
 		const member = this.members.list().find((m) => m.slug === slug)
-		if (member) this.broadcast({ t: "status", slug, state: member.status === "idle" ? "working" : member.status, doing })
+		if (member) this.broadcast({ t: "status", slug, state: member.status === "idle" ? "working" : member.status, doing, activity })
 	}
 
 	private guarded<T extends FsChange<RoomEvent> | FsFail>(slug: AgentSlug, paths: readonly string[], doing: string, act: () => T): T | FsFail {
 		const held = this.held(slug, paths)
 		if (held) return held
 		const out = this.applyFs(act())
-		if (out.ok) this.working(slug, paths, doing)
+		if (out.ok) this.working(slug, paths, doing, edit(doing))
 		return out
 	}
 
-	async reportDoing(slug: AgentSlug, doing: string): Promise<void> {
-		if (this.members.list().some((m) => m.slug === slug)) this.working(slug, [], doing.slice(0, 160))
+	async reportDoing(slug: AgentSlug, doing: string, activity: Activity): Promise<void> {
+		if (!this.members.list().some((m) => m.slug === slug)) return
+		const caption = doing.slice(0, MAX_DOING)
+		this.working(slug, [], caption, "caption" in activity ? { ...activity, caption } : activity)
 	}
 
 	async teamNow(): Promise<{ slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]> {
@@ -746,6 +814,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			if (refused) return { ok: false, error: SPAWN_REFUSAL[refused] }
 		}
 		await this.workspaceCall(by, { op: "create_task", id: `spawn-${input.id}`.slice(0, 64), title: input.task.slice(0, 140), owner: slug })
+		const title = oneLine(input.task, DELEGATED_TITLE)
+		const handed = this.log.addMessage({ from: { kind: "system", reason: "work" }, text: `@${by} handed @${slug} a task: ${title}`, clientId: `delegated:${input.id}`, event: { kind: "delegated", from: by, to: slug, title } })
+		if (handed.event) this.publish([handed.event])
 		const sent = await this.agentMessage(by, { id: `spawn:${input.id}`, to: slug, text: input.task })
 		return sent.ok ? { ok: true, slug } : sent
 	}
@@ -826,18 +897,41 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.broadcast({ t: "draft", slug, runId, index, text: replyTag(text).text })
 	}
 
-	async setStatus(slug: AgentSlug, state: AgentState): Promise<void> {
+	async setStatus(slug: AgentSlug, state: AgentState): Promise<boolean> {
 		if (state === "idle") {
 			this.team.clear(slug)
 			this.reports.run(this.routines.ended(slug), "ended")
 		}
 		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
-		if (!this.members.setStatus(slug, state)) return
-		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now())
-		this.broadcast({ t: "status", slug, state, ...(state === "idle" ? {} : { doing: this.team.now(slug) ?? undefined }) })
+		if (!this.members.setStatus(slug, state)) return false
+		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
+		this.broadcastStatus(slug)
 		await this.setTyping(slug, state !== "idle")
 		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
 		else if (this.log.meta(`live:${slug}`) === null) this.log.setMeta(`live:${slug}`, String(this.log.lastSeq()))
+		return true
+	}
+
+	private broadcastStatus(slug: AgentSlug): void {
+		const status = statusOf(this.ctx.storage.sql, slug)
+		if (status) this.broadcast({ t: "status", ...status })
+	}
+
+	async setWorkers(slug: AgentSlug, rows: readonly WorkerRow[]): Promise<void> {
+		const member = this.members.get(slug)
+		if (!member) return
+		const next = JSON.stringify(rows)
+		if (this.log.meta(workersKey(slug)) === next) return
+		const before = readWorkers(this.ctx.storage.sql, slug)
+		const events = this.ctx.storage.transactionSync(() => {
+			this.log.setMeta(workersKey(slug), next)
+			return workerMessages(slug, before, rows).flatMap((m) => {
+				const { event } = this.log.addMessage(m)
+				return event ? [event] : []
+			})
+		})
+		this.publish(events)
+		if (member.status !== "idle") this.broadcastStatus(slug)
 	}
 
 	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false): Promise<void> {
@@ -850,7 +944,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.mailer.answerAsks(home, slug, runId, heard)
 		}
 		this.mail.runEnded(slug)
-		await this.setStatus(slug, working ? "working" : "idle")
+		if (working) this.team.clearDoing(slug)
+		const changed = await this.setStatus(slug, working ? "working" : "idle")
+		if (working && !changed) this.broadcastStatus(slug)
 		if (!home || !first) return
 		await this.captureAnswer(home, slug, runId)
 		await this.memoryNaps.arm()

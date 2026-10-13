@@ -36,7 +36,10 @@ export class RoomMail {
 		const members = this.d.members.list()
 		if (!home || !members.some((m) => m.slug === slug)) return { ok: false, error: "not sent: you are not a member of this room." }
 		const out = this.d.mail.send(slug, send, members, askId)
-		if (out.ok) this.d.team.doing(slug, `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`, Date.now())
+		if (out.ok) {
+			const doing = askId && send.to !== "all" ? `waiting on @${send.to}` : `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`
+			this.d.team.doing(slug, doing, Date.now(), askId && send.to !== "all" ? { kind: "waiting", on: send.to } : { kind: "tool", tool: "other", caption: doing })
+		}
 		this.d.publish(out.events)
 		if (!out.ok) return out
 		if (out.answered) this.answer(home, send.to as AgentSlug, out.answered, out.send.text)

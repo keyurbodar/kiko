@@ -15,6 +15,8 @@ export type MessagingPort = {
   askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
   waitAnswer(id: string, ms: number, signal?: AbortSignal): Promise<Answer | null>
   closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
+  askHuman(input: { id: string; question: string; options?: string[] }): Promise<{ ok: true } | { ok: false; error: string }>
+  humanAskState(id: string): Promise<{ state: "open" | "answered" | "skipped"; answer: string | null } | null>
   humanWaiting(): boolean
   team(): Promise<{ slug: AgentSlug; name: string; status: string; doing: string | null; holds: string[] }[]>
 }
@@ -84,10 +86,39 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
     }),
   )
 
+  const askHuman = declareEffect(
+    "message",
+    defineTool({
+      name: "ask_human",
+      description:
+        "ask the human one question and wait for the answer, which comes back as this tool's result. the human sees your question in the chat and a card over the message box where they pick one of your options, type an answer, or skip. use it only when you cannot go on without their choice. it waits up to two minutes, and stops at once if the human writes something else; a late answer reaches you as a message.",
+      parameters: Type.Object({
+        question: Type.String({ description: "one short question, written to the human" }),
+        options: Type.Optional(Type.Array(Type.String(), { maxItems: 8, description: "the answers to offer, each a few words. leave out for a free answer" })),
+      }),
+      replay: "safe",
+      execute: async ({ question, options }, api, context) => {
+        const id = `${api.conversationId}:${api.callId}`
+        const asked = await room().askHuman({ id, question, ...(options?.length ? { options } : {}) })
+        if (!asked.ok) return { content: text(asked.error), isError: true }
+        const settled = (s: { state: string; answer: string | null } | null) =>
+          s?.state === "answered" ? { content: text(`the human answered: ${s.answer ?? ""}`) } : s?.state === "skipped" ? { content: text("the human skipped the question. go on without an answer, or ask in your own words later.") } : null
+        const stored = settled(await room().humanAskState(id))
+        if (stored) return stored
+        if (!room().humanWaiting()) await room().waitAnswer(id, ASK_WAIT_MS, context.abortSignal)
+        const last = settled(await room().humanAskState(id))
+        if (last) return last
+        const why = room().humanWaiting() ? "the human wrote something else, so answer them first" : "the human has not answered yet"
+        return { content: text(`${why}. the question stays open, and an answer will reach you as a message; go on with what you can.`) }
+      },
+    }),
+  )
+
   return defineExtension({
     name: MESSAGING,
     tools: [
       ask,
+      askHuman,
       ...(lead ? [spawnTool] : []),
       declareEffect(
         "message",

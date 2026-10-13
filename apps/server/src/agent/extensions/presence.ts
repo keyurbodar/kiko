@@ -1,4 +1,5 @@
 import { defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable"
+import type { Activity, AgentSlug, ToolKind } from "@kiko/protocol"
 
 export const PRESENCE = "presence"
 
@@ -12,39 +13,50 @@ function command(args: Record<string, unknown>): string {
   return `running ${line.length > COMMAND_CHARS ? `${line.slice(0, COMMAND_CHARS - 1)}…` : line}`
 }
 
-export function describeCall(name: string, args: Record<string, unknown>): string | null {
+export type Described = { doing: string; activity: Activity }
+
+const KINDS: Readonly<Record<string, ToolKind>> = { read: "read", ls: "search", write: "edit", edit: "edit", bash: "run", web_fetch: "web" }
+
+const tool = (name: string, doing: string): Described => ({ doing, activity: { kind: "tool", tool: KINDS[name] ?? "other", caption: doing } })
+
+export function describeCall(name: string, args: Record<string, unknown>): Described | null {
   if (name.startsWith("memory_") || name === "read_skill") return null
   switch (name) {
     case "read":
-      return `reading${path(args)}`
+      return tool(name, `reading${path(args)}`)
     case "ls":
-      return `looking through${path(args) || " the files"}`
+      return tool(name, `looking through${path(args) || " the files"}`)
     case "write":
     case "edit":
-      return `editing${path(args)}`
+      return tool(name, `editing${path(args)}`)
     case "bash":
-      return command(args)
+      return tool(name, command(args))
     case "web_fetch":
-      return "reading a web page"
+      return tool(name, "reading a web page")
     case "start_work":
-      return "starting background work"
+      return tool(name, "starting background work")
     case "create_reminder":
     case "list_reminders":
     case "cancel_reminder":
-      return "handling a reminder"
+      return tool(name, "handling a reminder")
     case "propose_agent":
     case "propose_group":
     case "create":
-      return "setting up agents"
+      return tool(name, "setting up agents")
+    case "ask": {
+      const to = typeof args.to === "string" ? args.to.replace(/^@/, "").toLowerCase() : ""
+      return to ? { doing: `waiting on @${to}`, activity: { kind: "waiting", on: to as AgentSlug } } : null
+    }
+    case "ask_human":
+      return tool(name, "asking the human")
     case "team":
     case "list_agents":
     case "send_message":
-    case "ask":
     case "steer_work":
     case "stop_work":
       return null
     default:
-      return `using ${name.replace(/_/g, " ")}`
+      return tool(name, `using ${name.replace(/_/g, " ")}`)
   }
 }
 
@@ -55,19 +67,27 @@ export function failed(doing: string, content: readonly { type: string; text?: s
   return `failed: ${doing}${error ? ` (${error.length > ERROR_CHARS ? `${error.slice(0, ERROR_CHARS - 1)}…` : error})` : ""}`
 }
 
-export function presenceExtension(report: (doing: string) => Promise<unknown>): Extension {
+export function failedCall(described: Described, content: readonly { type: string; text?: string }[] | undefined): Described {
+  const caption = failed(described.doing, content)
+  return { doing: caption, activity: { kind: "failed", caption } }
+}
+
+export function presenceExtension(report: (doing: string, activity: Activity) => Promise<unknown>): Extension {
   return defineExtension({
     name: PRESENCE,
     hooks: [
       hook(ToolTask, {
         beforeTool: async (call) => {
-          const doing = describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>)
-          if (doing) void report(doing).catch(() => undefined)
+          const described = describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>)
+          if (described) void report(described.doing, described.activity).catch(() => undefined)
           return undefined
         },
         afterTool: async (call, result) => {
-          const doing = result.isError ? describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>) : null
-          if (doing) void report(failed(doing, result.content)).catch(() => undefined)
+          const described = result.isError ? describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>) : null
+          if (described) {
+            const out = failedCall(described, result.content)
+            void report(out.doing, out.activity).catch(() => undefined)
+          }
           return undefined
         },
       }),

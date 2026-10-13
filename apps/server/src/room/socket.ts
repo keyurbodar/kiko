@@ -21,6 +21,8 @@ export interface SocketRoom {
 	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<{ ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }>
 	taskOp(op: TaskOp): void
 	setModel(ref: string, slug?: AgentSlug): void
+	answerAsk(id: string, value: string): Promise<void>
+	skipAsk(id: string): Promise<void>
 }
 
 export const BAD_FRAME = 1008
@@ -68,6 +70,8 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 		case "edit":
 			// An edit cannot carry a file, so it stays within the bubble limit.
 			return frame.text.length <= MAX_MESSAGE_TEXT && sendFits(frame.text) && frame.text.trim() !== "" ? frame : null
+		case "answer":
+			return frame.value.length <= MAX_MESSAGE_TEXT && sendFits(frame.value) && frame.value.trim() !== "" ? frame : null
 		case "react":
 			return frame.emoji === null || (frame.emoji.length > 0 && frame.emoji.length <= MAX_EMOJI && !/\s/.test(frame.emoji))
 				? frame
@@ -132,6 +136,12 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 			return null
 		case "model":
 			room.setModel(frame.ref, frame.slug)
+			return null
+		case "answer":
+			await room.answerAsk(frame.id, frame.value)
+			return null
+		case "skip":
+			await room.skipAsk(frame.id)
 			return null
 		case "member": {
 			const refused = room.memberOp(frame.op)

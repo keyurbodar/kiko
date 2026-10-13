@@ -29,10 +29,12 @@ export class AnswerWaiters {
     })
   }
 
-  answer(id: string, answer: Answer): void {
+  // True when a tool was waiting on it.
+  answer(id: string, answer: Answer): boolean {
     const settle = this.waiting.get(id)
     if (settle) settle(answer)
     else this.early.set(id, answer)
+    return settle !== undefined
   }
 
   interrupt(): void {

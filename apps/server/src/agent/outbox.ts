@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
-import type { AgentState } from "@kiko/protocol"
+import type { AgentState, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
@@ -11,6 +11,7 @@ export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
   status(state: AgentState): Promise<void>
+  workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
 }
@@ -93,6 +94,10 @@ export class Outbox {
     stream.start(async (events) => {
       for (const event of events) await this.guard(() => this.apply(event))
     })
+  }
+
+  async workers(rows: readonly WorkerRow[]): Promise<void> {
+    await this.room()?.workers(rows)
   }
 
   async background(running: boolean, pending = false): Promise<void> {

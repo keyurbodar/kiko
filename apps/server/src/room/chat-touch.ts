@@ -1,6 +1,6 @@
 import { type ChatLast, messageLast, mentionsHuman, oneLine } from "@kiko/protocol"
 import type { FileRef, Sender } from "@kiko/protocol"
-import type { RoomLog } from "./log"
+import { PUBLIC_MESSAGE, type RoomLog } from "./log"
 
 export type Touch = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions: number; group: boolean }
 
@@ -21,7 +21,7 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 
 	const message = sql
 		.exec<{ seq: number; at: number; sender: string; text: string; files: string | null }>(
-			"SELECT seq, at, sender, text, files FROM messages WHERE deleted_at IS NULL ORDER BY seq DESC LIMIT 1",
+			`SELECT seq, at, sender, text, files FROM messages WHERE deleted_at IS NULL AND ${PUBLIC_MESSAGE} ORDER BY seq DESC LIMIT 1`,
 		)
 		.toArray()[0]
 	if (message) {

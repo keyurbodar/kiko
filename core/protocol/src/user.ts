@@ -173,3 +173,7 @@ export type LoginErrorReason =
 	| "cancelled"
 	| "timeout"
 	| "failed"
+
+export type SkillSummary = { name: string; description: string; source: "builtin" | "room"; disableModelInvocation: boolean }
+
+export type SkillList = { skills: readonly SkillSummary[] }

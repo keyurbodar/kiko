@@ -14,6 +14,7 @@ import { routinesRoute } from "./user/routines-route"
 import { remindersRoute } from "./user/reminders-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
+import { skillsRoute } from "./skills/route"
 import { setScriptWasm } from "@kiko/sandbox/wasm"
 import quickjsWasm from "quickjs-wasi/quickjs.wasm"
 
@@ -52,6 +53,8 @@ export default {
     if (soul) return soul
     const searched = await searchRoute(request, env)
     if (searched) return searched
+    const skills = await skillsRoute(request, env)
+    if (skills) return skills
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
     const dev = await devResponse(request, env)
