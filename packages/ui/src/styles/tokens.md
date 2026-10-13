@@ -76,14 +76,16 @@ Color tokens have Tailwind utilities (`--color-*`) in section 5 of `kat.css`, fo
 
 ## Choices
 
-- **Neutral default.** The kat palette stays. Its greys are neutral (`--tinge: 0`) and the sidebar is one step darker than the panel. DEVIATION from the brief's "choose a better neutral": no palette change in this unit. A new palette needs its own screenshot review, and it belongs in `packages/theme`. UNVERIFIED: that kat's light surface reads softer than t3code's; this is a judgment from the before and after screenshots, not a measurement.
-- **UI font.** Instrument Sans, self-hosted in two subsets, so the first paint never waits on a network font. The system stack is the fallback.
-- **Mono font.** Fantasque Sans Mono, self-hosted, with the system mono stack as fallback.
-- **Font smoothing.** `--font-smoothing` is unset by default, so the browser's own smoothing applies. Set it only where a screenshot needs it.
-- **Control heights.** Desktop sizes from t3code: `--control-h-sm` 28px (buttons), `--control-h` 32px (selects, the sidebar search and settings rows), `--field-h` 30px (text fields), `--control-h-xs` 24px (segment items).
-- **Corners.** Controls (buttons, selects, fields, segment track, sidebar rows) use `--radius-sm`. A segment item uses `--radius-xs`, one step smaller than its track, because the track pads it by 2px. Cards use `--radius-lg`. t3code uses 8px for controls, which falls between the 6px and 10px steps. DEVIATION: Kiko takes 6px to stay on the named scale.
-- **Type sizes.** Literal font sizes map to the scale: 11, 12, 13, and 14 (13.5 and 14 both become `--font-base`), and 16. t3code's 12.5px segment label becomes 12px.
+- **Neutral palette.** Dark is neutral-950 with white at a few percent for every fill and hairline. Light is zinc paper. The sidebar is one step darker than the panel in both. The palette lives in `packages/theme/src/palette.ts`, and `kat.css` carries one first-paint copy.
+- **Accent.** Azure is the default: T3's `oklch(0.571 0.21 264)` on dark and `oklch(0.488 0.217 264)` on light, converted to hex. The person can pick another accent.
+- **Appearance.** The root element carries a `dark` class. Light is the default selector, and every dark override is `.dark`. `data-appearance` is gone. The dark look is the default for a new user and for a stored look with no mode.
+- **Fonts.** The interface and mono fonts are system stacks. No webfont ships. A family the person types goes first in its stack, so an installed font is used and anything missing falls back.
+- **Type scale.** One base size drives the scale: `--font-xs` is base minus 2, `--font-sm` base minus 1, `--font-md` the base (13 px), and `--font-base` base plus 1 (14 px, chat text). Line height is 1.5.
+- **Control heights.** `--control-h-sm` 28px (buttons), `--control-h` 32px (selects, the sidebar search and settings rows), `--field-h` 30px (text fields), `--control-h-xs` 24px (segment items).
+- **Corners.** The scale is xs 4, sm 6, md 8, lg 10, xl 14, bubble 16, pill. Controls use `md` (8px, T3's control radius). Segment items use `xs`, one step smaller than their track, because the track pads them by 2px. Cards use `lg`.
 - **Motion.** Menus, buttons, navigation and the composer do not animate. Motion stays on the message and attachment surfaces in `styles/motion.css` (architecture 19.5).
+
+Not done yet, so the file still uses Kiko names: the semantic token rename to T3 names (`--background`, `--foreground`, `--primary` and the rest), the single `index.css` in T3's section order, the `html[data-theme-id]` block for imported themes, and the Kobalte primitive recipes. Each is a follow-up. The K12 mapper on `s/k12-openvsx` must write T3 role variables when it lands.
 
 ## Icons
 
