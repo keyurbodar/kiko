@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import type { MemoryOp, MemoryResult } from "@kiko/protocol"
 import type { MemoryClient } from "./client"
-import { replacedMark } from "./views"
+import { replacedMark } from "./lines"
 import { createMockMemory } from "./mock"
 import { createMemoryStore } from "./store"
 

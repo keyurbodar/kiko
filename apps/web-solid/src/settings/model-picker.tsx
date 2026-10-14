@@ -69,7 +69,7 @@ export function ModelList(props: { current?: string; onPick: (ref: string) => vo
         when={connectedIds().size > 0}
         fallback={
           <div class="p-4 text-sm text-muted-foreground" data-component="model-empty">
-            No provider is connected. <A href="/settings/providers" class="underline">Connect one</A> to pick a model.
+            No provider is connected. <A href="/settings/models" class="underline">Connect one</A> to pick a model.
           </div>
         }
       >

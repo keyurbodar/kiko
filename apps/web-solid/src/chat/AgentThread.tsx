@@ -22,7 +22,7 @@ export function AgentThread(props: {
     <div class="mx-auto flex w-full max-w-(--chat-content-max-width) px-4 pt-(--run-gap) pb-(--row-gap)" data-component="chat-agent-thread">
       <button
         type="button"
-        class="flex min-w-0 cursor-pointer items-center gap-2 rounded-full bg-muted-foreground py-1 ps-1.5 pe-3 text-xs text-muted-foreground hover:text-foreground"
+        class="flex min-w-0 cursor-pointer items-center gap-2 rounded-full bg-card py-1 ps-1.5 pe-3 text-xs text-muted-foreground hover:text-foreground"
         aria-expanded={props.expanded}
         onClick={() => props.onToggle()}
       >

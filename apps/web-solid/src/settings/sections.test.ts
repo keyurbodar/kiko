@@ -10,15 +10,15 @@ describe("settings sections", () => {
 
   test("search keeps a section only when every word is in its label, hint, or keywords", () => {
     expect(searchSections("").map((s) => s.id)).toEqual(SETTINGS_SECTIONS.map((s) => s.id))
-    expect(searchSections("api key").map((s) => s.id)).toEqual(["providers"])
-    expect(searchSections("sign out").map((s) => s.id)).toEqual(["account"])
-    expect(searchSections("wallpaper").map((s) => s.id)).toEqual(["appearance"])
+    expect(searchSections("api key").map((s) => s.id)).toEqual(["models"])
+    expect(searchSections("sign out").map((s) => s.id)).toEqual(["general"])
+    expect(searchSections("open vsx").map((s) => s.id)).toEqual(["appearance"])
     expect(searchSections("nothing like this")).toEqual([])
   })
 
   test("search ignores case, so a sentence-case label still matches", () => {
     expect(searchSections("models").map((s) => s.id)).toEqual(["models"])
-    expect(searchSections("Composio").map((s) => s.id)).toEqual(["integrations"])
+    expect(searchSections("Composio").map((s) => s.id)).toEqual(["tools"])
     expect(searchSections("APPEARANCE").map((s) => s.id)).toEqual(["appearance"])
   })
 })

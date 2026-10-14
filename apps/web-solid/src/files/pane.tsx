@@ -92,7 +92,7 @@ export function FileSurface(props: { chatId: string; path: string }) {
 		const out = await proposeFromFiles(props.chatId, name, useApp.activeFiles())
 		setProposing(false)
 		if (!out.ok) return showToastV2({ title: `${out.error}${out.problems?.length ? `: ${out.problems.slice(0, 3).join("; ")}` : ""}`, variant: "error" })
-		navigate("/settings/extensions")
+		navigate("/settings/tools/extensions")
 	}
 
 	return (

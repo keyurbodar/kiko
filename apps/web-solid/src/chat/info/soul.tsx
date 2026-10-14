@@ -60,7 +60,7 @@ export function SoulCard(props: { slug: string }) {
 					>
 						<div class="flex flex-col gap-2 px-2 py-1">
 							<textarea
-								class="min-h-72 w-full resize-y rounded-lg bg-muted-foreground p-2 font-mono text-[13px] text-foreground outline-none"
+								class="min-h-72 w-full resize-y rounded-lg bg-card p-2 font-mono text-[13px] text-foreground outline-none"
 								value={draft() ?? ""}
 								maxLength={MAX_SOUL}
 								data-component="soul-editor"

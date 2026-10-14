@@ -55,7 +55,7 @@ export default function InitiativePage() {
   })
   return (
     <div class="flex flex-col gap-8" data-component="initiative-settings">
-        <Group title="Speaking up">
+        <Group title="Agents">
           <Row label="Initiative" id="initiative" description="Off: no initiative and no background judge cost. In chat only: brings things up only inside replies. Daily digest: at most one message a day. Active: a few, learned from how you respond.">
             <Segmented<Level>
               label="Initiative"
@@ -69,8 +69,6 @@ export default function InitiativePage() {
               onChange={(initiative) => void save({ initiative })}
             />
           </Row>
-        </Group>
-        <Group title="Memory">
           <Row label="Memory capture" id="capture" description="Auto captures facts when you have saved a judge key. Off never captures.">
             <Segmented<Capture>
               label="Memory capture"

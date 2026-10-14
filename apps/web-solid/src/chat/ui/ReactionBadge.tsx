@@ -25,7 +25,7 @@ export function ReactionStack(props: ReactionStackProps) {
             <button
               class={cn(
                 "pointer-events-auto relative inline-flex h-7 min-w-7 items-center justify-center rounded-full p-0 text-[15px] leading-none",
-                "bg-muted-foreground text-foreground shadow-[0_0_0_2px_var(--background)]",
+                "bg-card text-foreground shadow-[0_0_0_2px_var(--background)]",
                 "active:scale-[0.92]",
                 reaction.count > 1 && "px-2",
                 reaction.viewerReacted

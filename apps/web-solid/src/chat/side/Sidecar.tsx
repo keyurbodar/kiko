@@ -1,6 +1,6 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Bot, Brain, CircleCheck, FileText, FolderOpen, ListChecks, PanelRightClose, Plus, Repeat, X, type LucideProps } from "lucide-solid"
+import { Bot, Brain, CircleCheck, FileText, FolderOpen, LayoutGrid, ListChecks, PanelRightClose, Plus, Repeat, X, type LucideProps } from "lucide-solid"
 import { type Component, createEffect, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
 import { EntryIcon } from "../../files/entry-icon"
 import { FileSurface, FilesTree } from "../../files/pane"
@@ -11,6 +11,7 @@ import { MemoryError, MemoryList, useMemoryStore } from "../info/memory/views"
 import { loadRoutines, RoutinesPage } from "../info/routines"
 import { TasksView } from "../info/tasks"
 import { AgentPage } from "./agent"
+import { Overview } from "./overview"
 import {
   activateSurface,
   activeSurface,
@@ -20,11 +21,12 @@ import {
   closeSurface,
   closeToRight,
   fixedSurface,
+  type FixedKind,
   LAUNCHER,
-  type LauncherItem,
   launcherEntries,
   openSurface,
   sidecarOpen,
+  showOverview,
   sidecarSurfaces,
   type Surface,
 } from "./surfaces"
@@ -136,41 +138,12 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
   )
 }
 
-function LauncherRow(props: { chatId: string; entry: LauncherItem }) {
-  const Glyph = ICON[props.entry.kind]
-  return (
-    <button
-      type="button"
-      class="flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-base text-foreground outline-none hover:bg-[var(--accent)] focus-visible:bg-[var(--accent)]"
-      data-action={`open-${props.entry.kind}`}
-      onClick={() => openSurface(props.chatId, fixedSurface(props.entry.kind))}
-    >
-      <Glyph size={16} strokeWidth={1.75} class="shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span class="min-w-0 flex-1 truncate">{props.entry.label}</span>
-      <kbd class="grid h-5 min-w-5 place-items-center rounded bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] px-1 font-sans text-sm font-medium leading-none text-muted-foreground">
-        {props.entry.key}
-      </kbd>
-    </button>
-  )
-}
-
-function Launcher(props: { chatId: string }) {
-  return (
-    <div class="flex min-h-0 flex-1 items-center justify-center p-6" data-component="sidecar-launcher">
-      <div class="flex w-full max-w-xs flex-col gap-0.5 py-6">
-        <h3 class="mb-3 text-center text-base font-medium text-foreground">Open a surface</h3>
-        <For each={launcherEntries(roomMembers().length > 1)}>{(entry) => <LauncherRow chatId={props.chatId} entry={entry} />}</For>
-      </div>
-    </div>
-  )
-}
-
 function MemoryBody() {
   const store = useMemoryStore()
   return (
-    <Show when={store()} fallback={<p class="p-2 text-sm text-muted-foreground">Loading</p>}>
+    <Show when={store()}>
       {(s) => (
-        <div class="flex flex-col gap-3 px-2.5 py-3" data-component="info-memory">
+        <div class="flex flex-col gap-3 px-2.5 pb-3" data-component="info-memory">
           <MemoryError store={s()} />
           <MemoryList store={s()} />
         </div>
@@ -249,8 +222,8 @@ export default function Sidecar(props: { chatId: string }) {
     if (!sidecarOpen(props.chatId)) return
     const entry = launcherEntries(group()).find((item) => item.key === e.key.toUpperCase())
     if (!entry) return
-    const target = e.target instanceof Element ? e.target : null
-    if (target?.closest(TYPING) || document.activeElement?.closest(TYPING)) return
+    const target = e.composedPath()[0]
+    if (target instanceof Element && target.closest(TYPING)) return
     if (document.querySelector(OVERLAYS)) return
     e.preventDefault()
     openSurface(props.chatId, fixedSurface(entry.kind))
@@ -292,6 +265,18 @@ export default function Sidecar(props: { chatId: string }) {
           ref={strip}
           class="flex min-w-0 flex-1 snap-x snap-proximity items-center gap-1 overflow-x-auto scroll-px-2 [mask-image:linear-gradient(to_right,#000_calc(100%-20px),transparent)] [scrollbar-width:none]"
         >
+          <TooltipV2 placement="bottom" openDelay={400} value="Overview">
+            <button
+              type="button"
+              class={`${ICON_BUTTON} ${active() ? "" : "bg-accent-strong text-foreground"}`}
+              aria-label="Overview"
+              aria-pressed={!active()}
+              data-action="sidecar-overview"
+              onClick={() => showOverview(props.chatId)}
+            >
+              <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          </TooltipV2>
           <div class="contents" role="tablist" aria-label="Open surfaces" aria-orientation="horizontal" onKeyDown={onTablistKey}>
             <For each={surfaces()}>
               {(surface, i) => (
@@ -335,7 +320,7 @@ export default function Sidecar(props: { chatId: string }) {
           </button>
         </TooltipV2>
       </header>
-      <Show when={active()} keyed fallback={<Launcher chatId={props.chatId} />}>
+      <Show when={active()} keyed fallback={<Overview chatId={props.chatId} icons={ICON as Record<FixedKind, Icon>} />}>
         {(surface) => <SurfaceBody chatId={props.chatId} surface={surface} />}
       </Show>
     </aside>

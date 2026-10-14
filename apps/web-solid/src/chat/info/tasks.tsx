@@ -18,8 +18,8 @@ function StatusChip(props: { task: Task }) {
   return (
     <button
       type="button"
-      class="shrink-0 rounded-full px-2.5 py-1 text-xs hover:brightness-125"
-      style={{ background: `oklch(0.62 0.13 ${HUE[props.task.status]} / 0.18)`, color: `oklch(0.8 0.13 ${HUE[props.task.status]})` }}
+      class="h-5 shrink-0 rounded-full px-2 text-xs hover:brightness-125"
+      style={{ background: `oklch(0.62 0.13 ${HUE[props.task.status]} / 0.16)`, color: `oklch(from var(--foreground) l 0.12 ${HUE[props.task.status]})` }}
       title={`Mark ${LABEL[NEXT[props.task.status]].toLowerCase()}`}
       data-action="task-status"
       onClick={set}
@@ -34,7 +34,7 @@ export function TasksView() {
   const groups = createMemo(() => groupTasks(tasks()))
   const title = (id: string) => tasks().find((t) => t.id === id)?.title ?? id
   return (
-    <div class="flex flex-col gap-4" data-component="info-tasks">
+    <div class="flex flex-col gap-3" data-component="info-tasks">
       <For each={groups()} fallback={
           <div class="flex flex-col items-center gap-3 px-2 py-6">
             <p class="text-center text-sm text-muted-foreground">No tasks yet. The lead puts work here when a job needs splitting up.</p>
@@ -42,19 +42,19 @@ export function TasksView() {
         }>
         {(g) => (
           <section class="flex flex-col gap-1" data-status={g.status}>
-            <h3 class="flex items-baseline gap-1.5 px-2.5 text-xs font-medium text-muted-foreground">
+            <h3 class="flex items-baseline gap-1.5 px-2 text-xs font-medium text-muted-foreground">
               {LABEL[g.status]}
               <span class="text-secondary-label">{g.tasks.length}</span>
             </h3>
-            <div class="flex flex-col rounded-2xl bg-muted-foreground p-1">
+            <div class="flex flex-col">
               <For each={g.tasks}>
                 {(t) => (
-                  <div class="flex items-center gap-3 rounded-xl px-2.5 py-2" data-component="info-task" data-id={t.id}>
-                    <Show when={t.owner} fallback={<span class="size-7 shrink-0 rounded-full bg-control" aria-hidden="true" />}>
-                      {(owner) => <IdentityAvatar seed={owner() as AgentSlug} size={28} />}
+                  <div class="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent" data-component="info-task" data-id={t.id}>
+                    <Show when={t.owner} fallback={<span class="size-6 shrink-0 rounded-full bg-control" aria-hidden="true" />}>
+                      {(owner) => <IdentityAvatar seed={owner() as AgentSlug} size={24} />}
                     </Show>
                     <span class="min-w-0 flex-1">
-                      <span class={`block truncate text-[15px] ${t.status === "done" ? "text-muted-foreground line-through" : "text-foreground"}`}>{t.title}</span>
+                      <span class={`block truncate text-md ${t.status === "done" ? "text-muted-foreground line-through" : "text-foreground"}`}>{t.title}</span>
                       <span class="block truncate text-xs text-muted-foreground">
                         {t.owner ? `@${t.owner}` : "Unassigned"}
                         <Show when={t.dependsOn.length}> · waits on {t.dependsOn.map(title).join(", ")}</Show>

@@ -1,7 +1,7 @@
 import { A } from "@solidjs/router"
 import { createSignal, For, Show } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, IntegrationsIcon, KeyIcon, ModelIcon, SearchIcon, SettingsIcon, SkillsIcon, UserIcon } from "@kiko/ui/icons"
+import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, ModelIcon, SearchIcon, SettingsIcon } from "@kiko/ui/icons"
 import { SETTINGS_GROUPS, searchSections, type SettingsSection } from "../../settings/sections"
 import { useApp } from "../../lib/store"
 
@@ -13,17 +13,12 @@ import { useApp } from "../../lib/store"
 
 /** By section id. A section without an entry gets the gear. */
 const ICON: Record<string, Glyph> = {
-  providers: KeyIcon,
   models: ModelIcon,
-  integrations: IntegrationsIcon,
-  extensions: ExtensionsIcon,
-  skills: SkillsIcon,
+  tools: ExtensionsIcon,
   appearance: AppearanceIcon,
-  account: UserIcon,
+  general: SettingsIcon,
 }
 
-/** The group headings, by group id. */
-const GROUP_LABEL: Record<string, string> = { agents: "Agents", you: "You" }
 
 export default function SettingsSidebar() {
   const [query, setQuery] = createSignal("")
@@ -34,7 +29,7 @@ export default function SettingsSidebar() {
       <HugeIcon icon={ICON[s.id] ?? SettingsIcon} size={16} />
       <span class="settings-row-label">{s.label}</span>
       {/* Installs that wait for the human: a count, so an agent's proposal is never missed. */}
-      <Show when={s.id === "extensions" && (useApp.user()?.proposals().length ?? 0) > 0}>
+      <Show when={s.id === "tools" && (useApp.user()?.proposals().length ?? 0) > 0}>
         <span class="ml-auto min-w-5 rounded-full bg-[var(--count-bg)] px-1.5 text-center text-[11px] leading-5 font-medium text-[var(--count-text)]" data-component="proposals-count">
           {useApp.user()?.proposals().length}
         </span>
@@ -74,9 +69,6 @@ export default function SettingsSidebar() {
         <For each={groups()}>
           {(group) => (
             <div class="settings-group" data-group={group.name ?? "results"}>
-              <Show when={group.name}>
-                <div class="settings-group-label">{GROUP_LABEL[group.name!]}</div>
-              </Show>
               <For each={group.rows}>{row}</For>
             </div>
           )}

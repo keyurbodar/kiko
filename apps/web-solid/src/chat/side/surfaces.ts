@@ -147,7 +147,12 @@ export function closeToRight(chatId: string, id: string) {
   })
 }
 
-/** Closes every tab and keeps the sidecar open, on the launcher. */
+/** Shows the overview, the sidecar's home, and keeps the tabs. */
+export function showOverview(chatId: string) {
+  edit(chatId, (s) => (s.active === null && s.open ? s : { ...s, open: true, active: null }))
+}
+
+/** Closes every tab and keeps the sidecar open, on the overview. */
 export function closeAll(chatId: string) {
   edit(chatId, (s) => ({ ...s, surfaces: [], active: null }))
 }

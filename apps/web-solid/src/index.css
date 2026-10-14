@@ -303,6 +303,7 @@
   --in-quote-name: var(--ring);
 
 
+  --rule: color-mix(in oklab, var(--foreground) 14%, transparent);
   --ring-wash-strong: color-mix(in oklab, var(--ring) 22%, transparent);
   --ring-wash-faint: color-mix(in oklab, var(--ring) 16%, transparent);
   --error-surface: color-mix(in oklab, var(--error) 12%, transparent);

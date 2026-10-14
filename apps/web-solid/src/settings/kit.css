@@ -16,15 +16,15 @@
 
 .kit-btn {
   display: inline-flex;
-  height: var(--control-h-sm);
+  height: 26px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   padding: 0 9px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  font-size: var(--font-base);
+  font-size: var(--font-sm);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -112,13 +112,13 @@
   display: inline-flex;
   min-width: 9rem;
   max-width: 14rem;
-  min-height: var(--control-h);
+  min-height: 26px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 0 10px 0 11px;
   color: var(--foreground);
-  font-size: var(--font-base);
+  font-size: var(--font-sm);
   text-align: left;
   background: var(--muted);
   border: 1px solid var(--input);
@@ -276,24 +276,20 @@
 
 
 .kit-value {
-  min-width: 3rem;
-  padding: 4px 8px;
-  color: var(--foreground);
-  font-family: var(--font-family-mono, ui-monospace, monospace);
+  min-width: 2.5rem;
+  color: var(--muted-foreground);
   font-size: var(--font-sm);
   font-variant-numeric: tabular-nums;
-  text-align: center;
-  background: color-mix(in oklab, var(--ring) 18%, transparent);
-  border-radius: var(--radius-md);
+  text-align: right;
 }
 
 
 .kit-field {
-  height: var(--field-h);
+  height: 28px;
   min-width: 0;
-  padding: 0 11px;
+  padding: 0 10px;
   color: var(--foreground);
-  font-size: var(--font-base);
+  font-size: var(--font-md);
   background: var(--muted);
   border: 1px solid var(--input);
   border-radius: var(--radius-md);
@@ -316,7 +312,6 @@
   background: var(--muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
 }
 
 

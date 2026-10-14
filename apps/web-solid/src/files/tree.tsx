@@ -149,9 +149,10 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 				onRename: (event) => {
 					const from = plain(event.sourcePath)
 					const to = plain(event.destinationPath)
-					const kind = pending.get(event.sourcePath)
+					const key = pending.has(event.sourcePath) ? event.sourcePath : asFolder(from)
+					const kind = pending.get(key)
 					if (kind) {
-						pending.delete(event.sourcePath)
+						pending.delete(key)
 						if (kind === "folder") props.onNewFolder?.(to)
 						else props.onNewFile?.(to)
 						return

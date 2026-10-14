@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { type FileRef, KIKO, type LifeLine, type Member } from "@kiko/protocol"
-import type { BotPresence } from "../../../lib/types"
-import type { PlateLoop } from "../../info/loops"
-import type { Routine } from "../../info/routines"
-import { agentRows, comingUp, fileList, liveLine, memoryPick, since, statusChip, workingLine } from "./model"
+import type { BotPresence } from "../../lib/types"
+import type { PlateLoop } from "../info/loops"
+import type { Routine } from "../info/routines"
+import { agentRows, comingUp, fileList, liveLine, memoryPick, since, statusChip, workingLine } from "./overview-model"
 
 const MIN = 60_000
 const HOUR = 60 * MIN

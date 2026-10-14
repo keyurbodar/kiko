@@ -10,9 +10,8 @@ import { SidebarToggle } from "../sidebar"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { SearchIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { PanelRight, PanelTop } from "lucide-solid"
+import { PanelRight } from "lucide-solid"
 import { useApp } from "../lib/store"
-import { cardOpen, loadCard, toggleCard } from "../chat/side/card-state"
 import { loadSidecar, sidecarOpen, toggleSidecar } from "../chat/side/surfaces"
 
 export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => void }) {
@@ -59,22 +58,6 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
         <Show when={chatId()}>
           {(id) => (
             <>
-              <TooltipV2 placement="bottom" openDelay={400} value={cardOpen() ? "Hide chat card" : "Show chat card"}>
-                <button
-                  type="button"
-                  class="top-bar-button"
-                  aria-label={cardOpen() ? "Hide chat card" : "Show chat card"}
-                  aria-pressed={cardOpen()}
-                  data-action="toggle-card"
-                  data-hint="chat.info"
-                  data-hint-label="Details"
-                  onPointerEnter={() => void loadCard()}
-                  onClick={toggleCard}
-                >
-                  <PanelTop size={15} strokeWidth={1.75} aria-hidden="true" />
-                </button>
-              </TooltipV2>
-
               <Show when={!sidecarOpen(id())}>
               <TooltipV2 placement="bottom" openDelay={400} value="Show side panel">
                 <button
@@ -83,6 +66,8 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
                   aria-label="Show side panel"
                   aria-pressed={false}
                   data-action="toggle-sidecar"
+                  data-hint="chat.info"
+                  data-hint-label="Details"
                   onPointerEnter={() => void loadSidecar()}
                   onClick={() => toggleSidecar(id())}
                 >

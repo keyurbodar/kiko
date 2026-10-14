@@ -6,7 +6,7 @@
     position: fixed;
     inset: 0;
     z-index: 70;
-    background: color-mix(in oklab, var(--background) 60%, transparent);
+    background: oklch(0% 0 none / 0.4);
   }
 
   [data-component="modal-v2-content"] {

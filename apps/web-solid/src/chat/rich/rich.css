@@ -1,17 +1,9 @@
 
 :root {
-  --rich-border: #e4e4e7;
-  --rich-input: #d4d4d8;
-  --rich-surface: #fafafa;
-  --rich-accent: #f4f4f5;
-  --rich-muted: #71717a;
-}
-:root.dark {
-  --rich-border: rgb(255 255 255 / 6%);
-  --rich-input: rgb(255 255 255 / 8%);
-  --rich-surface: rgb(255 255 255 / 3%);
-  --rich-accent: rgb(255 255 255 / 4%);
-  --rich-muted: #818181;
+  --rich-border: var(--border);
+  --rich-surface: var(--muted);
+  --rich-accent: var(--accent);
+  --rich-muted: var(--muted-foreground);
 }
 .rich { min-width: 0; overflow-wrap: anywhere; }
 
@@ -159,7 +151,7 @@
 
 
 
-.rich-rule { margin: 0; border: 0; border-top: 1px solid currentColor; }
+.rich-rule { margin: 1rem 0; border: 0; border-top: 1px solid var(--rule); }
 
 
 
@@ -168,4 +160,4 @@
 [data-side="bot"] .rich { color: color-mix(in srgb, var(--foreground) 80%, transparent); }
 
 
-:root.dark .rich-code { border-color: transparent; background: color-mix(in srgb, var(--rich-input) 32%, transparent); }
+:root.dark .rich-code { border-color: transparent; background: var(--muted); }

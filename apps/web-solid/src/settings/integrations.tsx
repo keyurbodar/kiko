@@ -1,7 +1,7 @@
 import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@kiko/protocol"
-import { Show, createSignal, lazy, onCleanup, onMount } from "solid-js"
+import { Show, createSignal, lazy, onCleanup, onMount, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
-import { Button, Empty, Group, Item, Notice, fieldClass } from "./kit"
+import { Button, Group, Hint, Notice, fieldClass } from "./kit"
 import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
 
 export const COMPOSIO_PLATFORM = "https://platform.composio.dev"
@@ -121,73 +121,84 @@ export function Integrations(props: { client?: ComposioClient; kernel?: KernelCl
 	}
 
 	return (
-		<div class="flex flex-col gap-8" data-component="integrations">
-			<Group title="Connected apps" data-component="composio">
-				<Show when={status()} fallback={<Empty>Loading</Empty>}>
-					<Item
-						data-state={status()?.connected ? "connected" : "empty"}
+		<div class="flex flex-col gap-6" data-component="integrations">
+			<div class="grid grid-cols-1 gap-2 @min-[560px]/settings:grid-cols-2">
+				<Show when={status()} fallback={<Hint>Loading</Hint>}>
+					<AppCard
+						component="composio"
+						state={status()?.connected ? "connected" : "empty"}
 						icon={<GridIcon />}
-						title="Composio"
-						meta={<span data-field="composio-status">{status()?.connected ? "Connected" : "Not connected"}</span>}
-						actions={
-							<Show when={status()?.connected}>
-								<Button variant="danger" data-action="composio-disconnect" disabled={busy()} onClick={() => void run(async () => client?.request({ t: "disconnectComposio" }))}>
+						name="Composio"
+						status={<span data-field="composio-status">{status()?.connected ? "Connected" : "Not connected"}</span>}
+						description="Connect your apps through your own Composio account."
+						error={errorAt("app")}
+					>
+						<Show
+							when={!status()?.connected}
+							fallback={
+								<Button variant="ghost" data-action="composio-disconnect" disabled={busy()} onClick={() => void run(async () => client?.request({ t: "disconnectComposio" }))}>
 									Disconnect
 								</Button>
-							</Show>
-						}
-					>
-						<p class="mb-2 text-[13px] text-muted-foreground">Connect your apps through your own Composio account.</p>
-						<Show when={!status()?.connected}>
+							}
+						>
 							<KeyField id="composio-key" label="Composio API key" placeholder="ak_..." submit="Connect" busy={busy()} data-action="composio-connect" onKey={(apiKey) => void run(async () => client?.request({ t: "connectComposio", apiKey }))} />
-							<p class="mt-2 text-[13px] text-muted-foreground">
-								Copy your project API key from{" "}
-								<a class="underline" href={COMPOSIO_PLATFORM} target="_blank" rel="noreferrer" data-component="composio-link">
-									{COMPOSIO_PLATFORM}
-								</a>
-								, under Settings, then API keys.
-							</p>
+							<a class="text-sm text-muted-foreground underline hover:text-foreground" href={COMPOSIO_PLATFORM} target="_blank" rel="noreferrer" data-component="composio-link">
+								Get a key at platform.composio.dev
+							</a>
 						</Show>
-						<Show when={errorAt("app")}>
-							<Notice data-component="composio-error">{errorAt("app")}</Notice>
-						</Show>
-					</Item>
+					</AppCard>
 				</Show>
 				<Show when={kernel()}>
-					<Item
-						data-state={kernel()?.broken ? "broken" : kernel()?.connected ? "connected" : "empty"}
-						data-component="kernel"
+					<AppCard
+						component="kernel"
+						state={kernel()?.broken ? "broken" : kernel()?.connected ? "connected" : "empty"}
 						icon={<GlobeIcon />}
-						title="Kernel browser"
-						meta={<span data-field="kernel-status">{kernel()?.broken ? "Key rejected" : kernel()?.connected ? "Connected" : "Not connected"}</span>}
-						actions={
-							<Show when={kernel()?.connected}>
-								<Button variant="danger" data-action="kernel-disconnect" disabled={busy()} onClick={() => void runKernel(async () => kernelClient?.request({ t: "disconnectKernel" }))}>
+						name="Kernel browser"
+						status={<span data-field="kernel-status">{kernel()?.broken ? "Key rejected" : kernel()?.connected ? "Connected" : "Not connected"}</span>}
+						description="Lets your agents use a real browser, in your own Kernel account."
+						error={errorAt("kernel")}
+					>
+						<Show
+							when={!kernel()?.connected || kernel()?.broken}
+							fallback={
+								<Button variant="ghost" data-action="kernel-disconnect" disabled={busy()} onClick={() => void runKernel(async () => kernelClient?.request({ t: "disconnectKernel" }))}>
 									Disconnect
 								</Button>
-							</Show>
-						}
-					>
-						<p class="mb-2 text-[13px] text-muted-foreground">Lets your agents use a real browser, in your own Kernel account.</p>
-						<Show when={!kernel()?.connected || kernel()?.broken}>
+							}
+						>
 							<KeyField id="kernel-key" label="Kernel browser" placeholder="sk_..." submit="Connect" busy={busy()} data-action="kernel-connect" onKey={(apiKey) => void runKernel(async () => kernelClient?.request({ t: "connectKernel", apiKey }))} />
-							<p class="mt-2 text-[13px] text-muted-foreground">
-								Create a key at{" "}
-								<a class="underline" href={KERNEL_HOME} target="_blank" rel="noreferrer" data-component="kernel-link">
-									{KERNEL_HOME}
-								</a>
-								, under API keys.
-							</p>
+							<a class="text-sm text-muted-foreground underline hover:text-foreground" href={KERNEL_HOME} target="_blank" rel="noreferrer" data-component="kernel-link">
+								Get a key at dashboard.onkernel.com
+							</a>
 						</Show>
-						<Show when={errorAt("kernel")}>
-							<Notice data-component="kernel-error">{errorAt("kernel")}</Notice>
-						</Show>
-					</Item>
-					<Show when={kernel()?.connected}>
-						<LiveBrowser icon={<GlobeIcon />} />
-					</Show>
+					</AppCard>
 				</Show>
-			</Group>
+			</div>
+			<Show when={kernel()?.connected}>
+				<Group title="Live browser">
+					<LiveBrowser icon={<GlobeIcon />} />
+				</Group>
+			</Show>
 		</div>
+	)
+}
+
+function AppCard(props: { component: string; state: string; icon: JSX.Element; name: string; status: JSX.Element; description: string; error?: string; children: JSX.Element }) {
+	return (
+		<article class="flex flex-col gap-2 rounded-lg border border-border bg-muted p-3" data-component={props.component} data-state={props.state}>
+			<div class="flex items-center gap-2.5">
+				<span class="grid size-7 shrink-0 place-items-center rounded-md bg-control text-muted-foreground">{props.icon}</span>
+				<div class="flex min-w-0 flex-1 flex-col">
+					<span class="truncate text-md font-medium text-foreground">{props.name}</span>
+					<span class={cn("flex items-center gap-1.5 text-sm", props.state === "connected" ? "text-success" : props.state === "broken" ? "text-error" : "text-muted-foreground")}>
+						<span class="size-1.5 rounded-full bg-current" aria-hidden="true" />
+						{props.status}
+					</span>
+				</div>
+			</div>
+			<p class="text-sm leading-relaxed text-muted-foreground">{props.description}</p>
+			<div class="mt-auto flex flex-col items-start gap-1.5 [&>form]:w-full">{props.children}</div>
+			<Show when={props.error}>{(text) => <Notice>{text()}</Notice>}</Show>
+		</article>
 	)
 }

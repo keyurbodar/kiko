@@ -1,146 +1,155 @@
-// Settings, Open VSX: search the Open VSX registry for color themes, install one as Kiko's palette,
-// apply it, or remove it. The importer loads on the first search, so the settings route does not
-// carry it.
-import { createSignal, For, Show, type JSX } from "solid-js"
+// Settings, themes: the installed VS Code themes, which one each appearance uses, and the Open VSX
+// browser. The importer loads on the first search, so the settings route does not carry it.
+import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { appearanceOf, importedThemes, saveImported } from "@kiko/theme/apply"
-import { MAX_IMPORTED, themeFor, type Imported, type ImportedTheme } from "@kiko/theme/imported"
+import { MAX_IMPORTED, type Imported, type ImportedTheme } from "@kiko/theme/imported"
 import type { OpenVsxItem } from "@kiko/theme/open-vsx"
-import { buttonClass, Empty, Group, Item, Notice, Pill } from "../settings/kit"
+import { Dialog } from "../lib/dialog"
+import { Button, IconButton, Notice } from "../settings/kit"
 import { look, updateLook } from "./live"
 
 const importer = () => import("@kiko/theme/open-vsx")
+export const DEFAULT = ""
 
-export function OpenVsxThemes(): JSX.Element {
+const [state, setState] = createSignal<Imported>(importedThemes())
+
+/** The installed themes and which one each appearance uses. */
+export const themes = state
+
+function commit(next: Imported) {
+  saveImported(next)
+  setState(next)
+}
+
+export function choose(appearance: "light" | "dark", id: string) {
+  const active = { ...state().active }
+  if (id === DEFAULT) delete active[appearance]
+  else active[appearance] = id
+  commit({ ...state(), active })
+}
+
+export function remove(theme: ImportedTheme) {
+  const active = { ...state().active }
+  for (const appearance of ["light", "dark"] as const) if (active[appearance] === theme.id) delete active[appearance]
+  commit({ themes: state().themes.filter((other) => other.id !== theme.id), active })
+}
+
+export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
   const [query, setQuery] = createSignal("")
   const [results, setResults] = createSignal<OpenVsxItem[] | null>(null)
-  const [busy, setBusy] = createSignal<string | null>(null)
-  const [error, setError] = createSignal<{ message: string; retry: () => void } | null>(null)
-  const [state, setState] = createSignal<Imported>(importedThemes())
+  const [searching, setSearching] = createSignal(false)
+  const [installing, setInstalling] = createSignal<string | null>(null)
+  const [error, setError] = createSignal<string | null>(null)
 
-  const commit = (next: Imported) => {
-    saveImported(next)
-    setState(next)
-  }
-  const useTheme = (theme: ImportedTheme) => {
-    commit({ ...state(), active: { ...state().active, [theme.appearance]: theme.id } })
-    updateLook({ mode: theme.appearance })
-  }
-  const failWith = (cause: unknown, retry: () => void) =>
-    setError({ message: cause instanceof Error ? cause.message : "Something went wrong.", retry })
+  createEffect(
+    on(query, (text) => {
+      const q = text.trim()
+      if (!q) {
+        setResults(null)
+        return
+      }
+      const abort = new AbortController()
+      const timer = setTimeout(async () => {
+        setSearching(true)
+        setError(null)
+        try {
+          const found = await (await importer()).searchThemes(q, abort.signal)
+          if (!abort.signal.aborted) setResults(found)
+        } catch (cause) {
+          if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : "The search failed.")
+        } finally {
+          if (!abort.signal.aborted) setSearching(false)
+        }
+      }, 250)
+      onCleanup(() => {
+        clearTimeout(timer)
+        abort.abort()
+      })
+    }),
+  )
 
-  async function search() {
-    const text = query().trim()
-    if (!text) return
-    setBusy("search")
-    setError(null)
-    try {
-      setResults(await (await importer()).searchThemes(text))
-    } catch (cause) {
-      failWith(cause, search)
-    } finally {
-      setBusy(null)
-    }
-  }
+  const keyOf = (item: OpenVsxItem) => `${item.namespace}.${item.name}`
+  const installed = (item: OpenVsxItem) => state().themes.some((t) => t.source === keyOf(item))
 
   async function install(item: OpenVsxItem) {
-    setBusy(`${item.namespace}.${item.name}`)
+    setInstalling(keyOf(item))
     setError(null)
     try {
       const themes = await (await importer()).installTheme(item)
       const kept = state().themes.filter((theme) => !themes.some((added) => added.id === theme.id))
       commit({ ...state(), themes: [...kept, ...themes].slice(-MAX_IMPORTED) })
-      useTheme(themes.find((theme) => theme.appearance === appearanceOf(look().mode)) ?? themes[0]!)
+      const theme = themes.find((t) => t.appearance === appearanceOf(look().mode)) ?? themes[0]!
+      choose(theme.appearance, theme.id)
+      updateLook({ mode: theme.appearance })
     } catch (cause) {
-      failWith(cause, () => install(item))
+      setError(cause instanceof Error ? cause.message : "The install failed.")
     } finally {
-      setBusy(null)
+      setInstalling(null)
     }
   }
 
-  function remove(theme: ImportedTheme) {
-    const active = { ...state().active }
-    for (const appearance of ["light", "dark"] as const) if (active[appearance] === theme.id) delete active[appearance]
-    commit({ themes: state().themes.filter((other) => other.id !== theme.id), active })
+  const close = () => {
+    setQuery("")
+    setError(null)
+    props.onClose()
   }
 
   return (
-    <Group title="Open VSX" description="Install a VS Code color theme. Its colors become Kiko's palette, and the layout stays the same.">
-      <form
-        class="flex items-center gap-2 px-4 py-3"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void search()
-        }}
-      >
-        <input
-          class="kit-field min-w-0 flex-1"
-          type="search"
-          aria-label="Search themes"
-          placeholder="Search themes"
-          value={query()}
-          onInput={(event) => setQuery(event.currentTarget.value)}
-        />
-        <button type="submit" class={buttonClass("secondary")} disabled={busy() !== null || query().trim() === ""}>
-          Search
-        </button>
-      </form>
-      <Show when={error()}>
-        {(failure) => (
-          <div class="px-4 pb-3">
-            <Notice tone="danger">
-              {failure().message}{" "}
-              <button type="button" class={buttonClass("ghost")} onClick={() => failure().retry()}>
-                Try again
-              </button>
-            </Notice>
-          </div>
-        )}
-      </Show>
-      <Show when={results()}>
-        {(found) => (
-          <Show when={found().length > 0} fallback={<Empty>No color themes match.</Empty>}>
-            <For each={found()}>
+    <Dialog open={props.open} onClose={close} title="Themes" size="md" class="h-[min(560px,86dvh)]" bodyClass="flex flex-col gap-2 overflow-hidden px-3" data-component="theme-browser">
+      <input
+        type="search"
+        class="kit-field mx-2"
+        placeholder="Search Open VSX"
+        aria-label="Search Open VSX"
+        autocomplete="off"
+        value={query()}
+        ref={(el) => requestAnimationFrame(() => el.focus())}
+        onInput={(e) => setQuery(e.currentTarget.value)}
+      />
+      <Show when={error()}>{(message) => <div class="px-2"><Notice>{message()}</Notice></div>}</Show>
+      <ul class="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <Show
+          when={results()}
+          fallback={
+            <>
+              <li class="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">Installed</li>
+              <For each={state().themes} fallback={<li class="px-2 py-1 text-sm text-muted-foreground">None yet. Search for one above.</li>}>
+                {(theme) => (
+                  <li class="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-accent" data-theme={theme.id}>
+                    <span class="min-w-0 flex-1 truncate text-md text-foreground">{theme.name}</span>
+                    <span class="shrink-0 text-xs text-muted-foreground">{theme.appearance === "dark" ? "Dark" : "Light"}</span>
+                    <IconButton label={`Remove ${theme.name}`} danger onClick={() => remove(theme)}>
+                      <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                        <path d="M4 4l8 8M12 4l-8 8" />
+                      </svg>
+                    </IconButton>
+                  </li>
+                )}
+              </For>
+            </>
+          }
+        >
+          {(found) => (
+            <For each={found()} fallback={<li class="px-2 py-1 text-sm text-muted-foreground">{searching() ? "Searching" : "No color themes match."}</li>}>
               {(item) => (
-                <Item
-                  title={item.displayName}
-                  meta={`${item.namespace} · ${item.downloadCount.toLocaleString()} installs`}
-                  actions={
-                    <button type="button" class={buttonClass("secondary")} disabled={busy() !== null} onClick={() => void install(item)}>
-                      {busy() === `${item.namespace}.${item.name}` ? "Installing" : "Install"}
-                    </button>
-                  }
-                />
+                <li class="flex min-h-11 items-center gap-3 rounded-md px-2 hover:bg-accent" data-item={keyOf(item)}>
+                  <div class="flex min-w-0 flex-1 flex-col">
+                    <span class="truncate text-md text-foreground">{item.displayName}</span>
+                    <span class="truncate text-xs text-muted-foreground">
+                      {item.namespace} · {item.downloadCount.toLocaleString()} installs
+                    </span>
+                  </div>
+                  <Show when={!installed(item)} fallback={<span class="shrink-0 text-xs text-muted-foreground">Installed</span>}>
+                    <Button disabled={installing() !== null} onClick={() => void install(item)}>
+                      {installing() === keyOf(item) ? "Installing" : "Install"}
+                    </Button>
+                  </Show>
+                </li>
               )}
             </For>
-          </Show>
-        )}
-      </Show>
-      <For each={state().themes}>
-        {(theme) => (
-          <Item
-            title={theme.name}
-            meta={theme.source}
-            actions={
-              <div class="flex items-center gap-2">
-                <Pill tone="muted">{theme.appearance === "dark" ? "Dark" : "Light"}</Pill>
-                <Show
-                  when={themeFor(state(), theme.appearance)?.id === theme.id}
-                  fallback={
-                    <button type="button" class={buttonClass("secondary")} onClick={() => useTheme(theme)}>
-                      Apply
-                    </button>
-                  }
-                >
-                  <Pill tone="accent">Applied</Pill>
-                </Show>
-                <button type="button" class={buttonClass("ghost")} onClick={() => remove(theme)}>
-                  Remove
-                </button>
-              </div>
-            }
-          />
-        )}
-      </For>
-    </Group>
+          )}
+        </Show>
+      </ul>
+    </Dialog>
   )
 }

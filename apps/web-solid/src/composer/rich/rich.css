@@ -1,11 +1,4 @@
 
-.composer-dock {
-  --composer-rule: rgb(255 255 255 / 6%);
-}
-
-:root:not(.dark) .composer-dock {
-  --composer-rule: #e4e4e7;
-}
 
 .composer-dock .composer-input p {
   margin: 0;
@@ -41,7 +34,7 @@
 .composer-dock .composer-input blockquote {
   margin: 0.65rem 0;
   padding-inline-start: 0.8rem;
-  border-inline-start: 2px solid var(--composer-rule);
+  border-inline-start: 2px solid var(--rule);
   color: var(--foreground);
 }
 
@@ -219,7 +212,7 @@
 .composer-dock .composer-input hr {
   margin: 0.65rem 0;
   border: 0;
-  border-top: 1px solid var(--composer-rule);
+  border-top: 1px solid var(--rule);
 }
 
 .composer-dock .composer-input hr.ProseMirror-selectednode {

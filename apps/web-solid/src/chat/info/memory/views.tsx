@@ -1,57 +1,54 @@
 import type { LifeLine } from "@kiko/protocol"
+import { ChevronDown, Pin, PinOff, Plus, Search, Trash2 } from "lucide-solid"
 import { createResource, createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { session } from "../../../app/session"
 import { memoryFor } from "./instance"
+import { ago, replacedMark } from "./lines"
 import type { MemoryStore } from "./store"
 
 const ModelList = lazy(() => import("../../../settings/model-picker").then((m) => ({ default: m.ModelList })))
 
-const quiet = "rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-sidebar-row-hover hover:text-foreground"
-
-export function ago(at: number, now = Date.now()): string {
-	const s = Math.max(0, (now - at) / 1000)
-	if (s < 60) return "now"
-	if (s < 3600) return `${Math.floor(s / 60)}m`
-	if (s < 86400) return `${Math.floor(s / 3600)}h`
-	if (s < 7 * 86400) return `${Math.floor(s / 86400)}d`
-	return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-}
-
-export function replacedMark(l: Pick<LifeLine, "supersededBy">): string | null {
-	return l.supersededBy != null ? "Replaced" : null
-}
+const quiet = "rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+const icon = "grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent-strong hover:text-foreground"
 
 function Line(props: { line: LifeLine; store: MemoryStore }) {
 	const l = () => props.line
 	const [sure, setSure] = createSignal(false)
 	return (
-		<div class="flex flex-col gap-0.5 rounded-xl px-2.5 py-2 hover:bg-sidebar-row-hover" data-component="memory-line" data-pos={l().pos} data-pinned={l().pinned ? "" : undefined}>
+		<div class="group/line flex items-start gap-2 rounded-md px-2 py-1.5 hover:bg-accent" data-component="memory-line" data-pos={l().pos} data-pinned={l().pinned ? "" : undefined}>
 			<Show when={!l().redacted} fallback={<span class="text-sm text-secondary-label">Removed</span>}>
-				<span class={`text-[15px] leading-snug ${replacedMark(l()) ? "text-muted-foreground" : "text-foreground"}`}>{l().text}</span>
-				<span class="flex items-center gap-1 text-xs text-secondary-label">
-					<span>{l().source || "Kiko"}</span>
-					<span>·</span>
-					<span>{ago(l().at)}</span>
-					<Show when={replacedMark(l())}>
-						{(mark) => <span>· {mark()}</span>}
-					</Show>
-					<span class="ml-auto flex gap-1">
-						<Show when={l().pos >= 0}>
-							<button type="button" class={quiet} data-action="pin" onClick={() => props.store.pin(l().pos, !l().pinned)}>
-								{l().pinned ? "Unpin" : "Pin"}
-							</button>
-							<button
-								type="button"
-								class={quiet}
-								data-action="redact"
-								onClick={() => (sure() ? props.store.redact(l().pos) : setSure(true))}
-								onBlur={() => setSure(false)}
-							>
-								{sure() ? "Remove for good" : "Remove"}
-							</button>
+				<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+					<span class={`text-md leading-snug ${replacedMark(l()) ? "text-muted-foreground line-through" : "text-foreground"}`}>{l().text}</span>
+					<span class="flex items-center gap-1 text-xs text-secondary-label">
+						<Show when={l().pinned}>
+							<Pin size={11} strokeWidth={2} class="text-muted-foreground" aria-label="Pinned" />
 						</Show>
+						{l().source || "Kiko"} · {ago(l().at)}
+						<Show when={replacedMark(l())}>{(mark) => <> · {mark()}</>}</Show>
 					</span>
-				</span>
+				</div>
+				<Show when={l().pos >= 0}>
+					<div class="flex shrink-0 gap-0.5 opacity-0 group-hover/line:opacity-100 group-focus-within/line:opacity-100 [@media(hover:none)]:opacity-100">
+						<button type="button" class={icon} aria-label={l().pinned ? "Unpin" : "Pin"} title={l().pinned ? "Unpin" : "Pin"} data-action="pin" onClick={() => props.store.pin(l().pos, !l().pinned)}>
+							<Show when={l().pinned} fallback={<Pin size={13} strokeWidth={1.75} />}>
+								<PinOff size={13} strokeWidth={1.75} />
+							</Show>
+						</button>
+						<button
+							type="button"
+							class={sure() ? `${quiet} text-error hover:text-error` : icon}
+							aria-label="Remove"
+							title="Remove"
+							data-action="redact"
+							onClick={() => (sure() ? props.store.redact(l().pos) : setSure(true))}
+							onBlur={() => setSure(false)}
+						>
+							<Show when={sure()} fallback={<Trash2 size={13} strokeWidth={1.75} />}>
+								Remove for good
+							</Show>
+						</button>
+					</div>
+				</Show>
 			</Show>
 		</div>
 	)
@@ -62,8 +59,8 @@ function ViewLine(props: { text: string; store: MemoryStore }) {
 	const opened = () => (id() ? props.store.state.opened[id()!] : undefined)
 	return (
 		<div class="flex flex-col">
-			<Show when={id()} fallback={<span class="py-0.5 text-[13px] leading-snug text-muted-foreground">{props.text}</span>}>
-				<button type="button" class="py-0.5 text-left text-[13px] leading-snug text-muted-foreground hover:text-foreground" data-component="memory-summary" onClick={() => void props.store.zoom(id()!)}>
+			<Show when={id()} fallback={<span class="py-0.5 text-sm leading-snug text-muted-foreground">{props.text}</span>}>
+				<button type="button" class="py-0.5 text-left text-sm leading-snug text-muted-foreground hover:text-foreground" data-component="memory-summary" onClick={() => void props.store.zoom(id()!)}>
 					{props.text}
 				</button>
 				<Show when={opened()}>
@@ -76,23 +73,14 @@ function ViewLine(props: { text: string; store: MemoryStore }) {
 	)
 }
 
-function SearchIcon() {
-	return (
-		<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-			<circle cx="7" cy="7" r="4.75" />
-			<path d="M10.5 10.5L14 14" />
-		</svg>
-	)
-}
-
 function MemoryModelRow(props: { store: MemoryStore }) {
 	const [open, setOpen] = createSignal(false)
 	const current = () => props.store.state.model
 	return (
-		<section class="flex flex-col gap-2" data-component="memory-model">
-			<button type="button" class="flex items-center gap-2 rounded-xl px-2.5 py-2 text-left hover:bg-sidebar-row-hover" onClick={() => setOpen(!open())}>
-				<span class="flex-1 text-sm text-foreground">Summaries written by</span>
-				<span class="truncate text-sm text-muted-foreground">{current() ? `${current()!.provider}/${current()!.modelId}` : "Default model"}</span>
+		<section class="flex flex-col gap-1" data-component="memory-model">
+			<button type="button" class="flex h-8 items-center gap-2 rounded-md px-2 text-left hover:bg-accent" onClick={() => setOpen(!open())}>
+				<span class="flex-1 text-sm text-muted-foreground">Summaries written by</span>
+				<span class="truncate text-sm text-foreground">{current() ? `${current()!.provider}/${current()!.modelId}` : "Default model"}</span>
 			</button>
 			<Show when={open()}>
 				<div class="flex max-h-80 flex-col">
@@ -119,85 +107,101 @@ function MemoryModelRow(props: { store: MemoryStore }) {
 
 export function MemoryList(props: { store: MemoryStore }) {
 	const [query, setQuery] = createSignal("")
-	const [draft, setDraft] = createSignal("")
+	const [adding, setAdding] = createSignal(false)
 	const [reading, setReading] = createSignal(false)
 	const s = () => props.store.state
 	const shown = () => (query().trim() ? (s().results ?? []) : s().lines)
+	const search = (value: string) => {
+		setQuery(value)
+		void props.store.search(value)
+	}
 	return (
-		<nav class="flex flex-col gap-4" aria-label="Memory" data-component="memory-list">
-			<label class="sticky top-0 z-10 flex h-9 items-center gap-2 rounded-xl bg-secondary px-3 text-muted-foreground focus-within:text-foreground">
-				<SearchIcon />
-				<input
-					type="search"
-					class="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-					placeholder="Search memory"
-					aria-label="Search memory"
-					value={query()}
-					onInput={(e) => {
-						setQuery(e.currentTarget.value)
-						void props.store.search(e.currentTarget.value)
+		<nav class="flex flex-col gap-3" aria-label="Memory" data-component="memory-list">
+			<div class="sticky top-0 z-10 flex items-center gap-1 bg-background pb-1">
+				<label class="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-secondary px-2.5 text-muted-foreground focus-within:text-foreground">
+					<Search size={14} strokeWidth={1.75} aria-hidden="true" />
+					<input
+						type="search"
+						class="h-full min-w-0 flex-1 bg-transparent text-md text-foreground outline-none placeholder:text-muted-foreground"
+						placeholder="Search memory"
+						aria-label="Search memory"
+						value={query()}
+						onInput={(e) => search(e.currentTarget.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Escape" && query()) {
+								e.stopPropagation()
+								search("")
+							}
+						}}
+					/>
+				</label>
+				<button type="button" class={`${icon} size-8`} aria-label="Add a memory" title="Add a memory" aria-pressed={adding()} data-action="memory-add" onClick={() => setAdding(!adding())}>
+					<Plus size={15} strokeWidth={1.75} />
+				</button>
+			</div>
+			<Show when={adding()}>
+				<form
+					class="flex flex-col gap-2 rounded-md bg-secondary p-2"
+					data-component="memory-note"
+					onSubmit={(e) => {
+						e.preventDefault()
+						const input = e.currentTarget.elements.namedItem("note") as HTMLInputElement
+						if (!input.value.trim()) return
+						void props.store.note(input.value)
+						input.value = ""
+						setAdding(false)
 					}}
-					onKeyDown={(e) => {
-						if (e.key === "Escape" && query()) {
+				>
+					<input
+						name="note"
+						class="h-7 min-w-0 bg-transparent px-1 text-md text-foreground outline-none placeholder:text-muted-foreground"
+						placeholder="Tell Kiko something to remember"
+						aria-label="Add a memory"
+						maxLength={280}
+						autofocus
+						ref={(el) => queueMicrotask(() => el.focus())}
+						onKeyDown={(e) => {
+							if (e.key !== "Escape") return
 							e.stopPropagation()
-							setQuery("")
-							void props.store.search("")
-						}
-					}}
-				/>
-			</label>
-			<form
-				class="flex items-center gap-2"
-				data-component="memory-note"
-				onSubmit={(e) => {
-					e.preventDefault()
-					const text = draft()
-					setDraft("")
-					void props.store.note(text)
-				}}
-			>
-				<input
-					class="h-9 min-w-0 flex-1 rounded-xl bg-secondary px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-					placeholder="Tell Kiko something to remember"
-					aria-label="Add a memory"
-					maxLength={280}
-					value={draft()}
-					onInput={(e) => setDraft(e.currentTarget.value)}
-				/>
-			</form>
-			<Show when={!query().trim() && s().view.length}>
-				<section class="flex flex-col gap-1" data-component="memory-view">
-					<button type="button" class="flex items-baseline gap-1.5 px-2.5 text-left text-xs font-medium text-muted-foreground" onClick={() => setReading(!reading())}>
-						What every agent reads
-						<span class="text-secondary-label">{reading() ? "Hide" : `${s().view.length} lines`}</span>
-					</button>
-					<Show when={reading()}>
-						<div class="flex flex-col rounded-2xl bg-muted-foreground px-3 py-2">
-							<For each={s().view}>{(t) => <ViewLine text={t} store={props.store} />}</For>
-						</div>
-					</Show>
-				</section>
+							setAdding(false)
+						}}
+					/>
+				</form>
 			</Show>
-			<div class="flex flex-col rounded-2xl bg-muted-foreground p-1">
+			<div class="flex flex-col">
 				<For each={shown()}>{(l) => <Line line={l} store={props.store} />}</For>
 			</div>
 			<Show when={!query().trim() && s().next !== null}>
 				<button type="button" class={`${quiet} self-center`} onClick={() => void props.store.more()}>
-					Older
+					Show older
 				</button>
 			</Show>
 			<Show when={s().loaded && query().trim() && !shown().length}>
-				<div class="flex flex-col items-center gap-2 px-2 py-6">
-					<p class="text-center text-sm text-muted-foreground">Nothing matches "{query().trim()}"</p>
-				</div>
+				<p class="px-2 py-6 text-center text-sm text-muted-foreground">Nothing matches "{query().trim()}"</p>
 			</Show>
 			<Show when={s().loaded && !query().trim() && !s().lines.length}>
-				<div class="flex flex-col items-center gap-1 px-6 py-8 text-center">
-					<p class="mt-2 text-sm text-foreground">Nothing remembered yet</p>
-					<p class="text-xs text-muted-foreground">Talk to Kiko about people, places, and how you like things done. It keeps the lasting parts here.</p>
+				<div class="flex flex-col gap-1 px-6 py-8 text-center">
+					<p class="text-md text-foreground">Nothing remembered yet</p>
+					<p class="text-sm text-muted-foreground">Talk to Kiko about people, places, and how you like things done. It keeps the lasting parts here.</p>
 				</div>
 			</Show>
-			<MemoryModelRow store={props.store} />
+			<div class="flex flex-col gap-1 border-t border-border pt-2">
+				<Show when={!query().trim() && s().view.length}>
+					<section class="flex flex-col" data-component="memory-view">
+						<button type="button" class="flex h-8 items-center gap-2 rounded-md px-2 text-left hover:bg-accent" aria-expanded={reading()} onClick={() => setReading(!reading())}>
+							<span class="flex-1 text-sm text-muted-foreground">What every agent reads</span>
+							<span class="text-sm text-foreground">{s().view.length} lines</span>
+							<ChevronDown size={13} strokeWidth={1.75} class={`text-muted-foreground ${reading() ? "rotate-180" : ""}`} />
+						</button>
+						<Show when={reading()}>
+							<div class="flex flex-col px-2 py-1">
+								<For each={s().view}>{(t) => <ViewLine text={t} store={props.store} />}</For>
+							</div>
+						</Show>
+					</section>
+				</Show>
+				<MemoryModelRow store={props.store} />
+			</div>
 		</nav>
 	)
 }
@@ -205,7 +209,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 export function MemoryError(props: { store: MemoryStore }) {
 	return (
 		<Show when={props.store.state.error}>
-			<p class="rounded-lg bg-muted-foreground px-3 py-2 text-sm text-[var(--error)]" role="alert" data-component="memory-error">
+			<p class="rounded-md bg-error-surface px-3 py-2 text-sm text-error" role="alert" data-component="memory-error">
 				{props.store.state.error}{" "}
 				<button type="button" class="underline" onClick={() => props.store.dismissError()}>
 					Dismiss

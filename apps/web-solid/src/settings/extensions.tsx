@@ -2,6 +2,7 @@ import { describeManifest, type ExtensionBundle, type ExtensionCatalogEntry, typ
 import { useNavigate } from "@solidjs/router"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
 import { useApp } from "../lib/store"
+import { Dialog } from "../lib/dialog"
 import { lineDiff } from "./line-diff"
 import { reviewChange, type ReviewChange } from "./review-diff"
 import { cn } from "../lib/cn"
@@ -37,7 +38,7 @@ const Initial = (props: { name: string }) => <span class="text-[13px] font-semib
 
 const LEVEL_ORDER: Record<ReviewLine["level"], number> = { warning: 0, notice: 1, info: 2 }
 
-export default function ExtensionsPage() {
+export default function ExtensionsPage(props: { view: "installed" | "catalog" }) {
   const navigate = useNavigate()
   const [error, setError] = createSignal<string | null>(null)
   const extensions = () => app.user()?.extensions() ?? []
@@ -67,35 +68,51 @@ export default function ExtensionsPage() {
         <Notice data-component="extensions-error">{error()!}</Notice>
       </Show>
 
-      <Show when={proposals().length}>
-        <Group title="Waiting for you" data-component="extension-proposals">
-          <For each={proposals()}>{(p) => <ProposalCard proposal={p} installed={extensions().find((x) => x.name === p.name)} run={run} />}</For>
-        </Group>
+      <Show when={props.view === "installed"}>
+        <Show when={proposals().length}>
+          <Group title="Waiting for you" data-component="extension-proposals">
+            <For each={proposals()}>{(p) => <ProposalCard proposal={p} installed={extensions().find((x) => x.name === p.name)} run={run} />}</For>
+          </Group>
+        </Show>
+        <Show
+          when={extensions().length}
+          fallback={
+            <Show when={!proposals().length}>
+              <div class="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-6 py-10 text-center" data-component="extensions-empty">
+                <p class="text-md text-foreground">No extensions yet</p>
+                <p class="max-w-sm text-sm text-muted-foreground">An extension gives your agents a new tool, instruction, or schedule. Add one from the catalog, or describe one and Kiko builds it.</p>
+                <div class="flex gap-2">
+                  <Button onClick={() => navigate("/settings/tools/catalog")}>Browse catalog</Button>
+                  <Button variant="ghost" data-action="ask-kiko" onClick={askKiko}>Build one with Kiko</Button>
+                </div>
+              </div>
+            </Show>
+          }
+        >
+          <Group
+            title="Installed"
+            data-component="extensions-installed"
+            action={
+              <Button variant="ghost" data-action="ask-kiko" onClick={askKiko}>
+                Build one with Kiko
+              </Button>
+            }
+          >
+            <For each={extensions()}>{(x) => <InstalledRow extension={x} run={run} />}</For>
+          </Group>
+        </Show>
       </Show>
 
-      <Group
-        title="Installed"
-        data-component="extensions-installed"
-        bare={!extensions().length}
-        action={
-          <Button variant="ghost" data-action="ask-kiko" onClick={askKiko}>
-            Build one with Kiko
-          </Button>
-        }
-      >
-        <For each={extensions()} fallback={<Hint data-component="extensions-empty">No extensions installed.</Hint>}>
-          {(x) => <InstalledRow extension={x} run={run} />}
-        </For>
-      </Group>
-
-      <Group title="Catalog" data-component="extension-catalog" bare={!entries().length}>
-        <For
-          each={entries()}
-          fallback={<Hint>{catalog.error ? "The catalog did not load. Reload to try again." : catalog.loading ? "Loading the catalog" : "The catalog is empty"}</Hint>}
-        >
-          {(entry) => <CatalogCard entry={entry} installed={installedNames().has(entry.name)} waiting={waitingNames().has(entry.name)} run={run} />}
-        </For>
-      </Group>
+      <Show when={props.view === "catalog"}>
+        <div class="grid grid-cols-1 gap-2 @min-[560px]/settings:grid-cols-2" data-component="extension-catalog">
+          <For
+            each={entries()}
+            fallback={<Hint>{catalog.error ? "The catalog did not load. Reload to try again." : catalog.loading ? "Loading the catalog" : "The catalog is empty"}</Hint>}
+          >
+            {(entry) => <CatalogCard entry={entry} installed={installedNames().has(entry.name)} waiting={waitingNames().has(entry.name)} run={run} />}
+          </For>
+        </div>
+      </Show>
     </div>
   )
 }
@@ -389,23 +406,28 @@ function CatalogCard(props: { entry: ExtensionCatalogEntry; installed: boolean; 
     setBusy(false)
   }
   return (
-    <Item
-      data-catalog={props.entry.name}
-      title={props.entry.name}
-      meta={sentence(props.entry.description)}
-      actions={
-        <>
-          <DetailsButton open={open()} onToggle={() => setOpen(!open())} data-action="catalog-details" />
-          <Show when={!props.installed} fallback={<Pill tone="success" data-component="catalog-installed">Installed</Pill>}>
-            <Button disabled={busy() || props.waiting} data-action="add-from-catalog" onClick={() => void add()}>
-              {props.waiting ? "Review above" : busy() ? "Adding" : "Add"}
-            </Button>
-          </Show>
-        </>
-      }
-    >
-      {open() && <Review lines={describeManifest(props.entry.bundle.manifest)} />}
-    </Item>
+    <article class="flex min-h-32 flex-col gap-1.5 rounded-lg border border-border bg-muted p-3" data-catalog={props.entry.name}>
+      <div class="flex items-center gap-2">
+        <span class="grid size-6 shrink-0 place-items-center rounded-md bg-control">
+          <Initial name={props.entry.name} />
+        </span>
+        <h3 class="min-w-0 flex-1 truncate text-md font-medium text-foreground">{props.entry.name}</h3>
+      </div>
+      <p class={cn("line-clamp-2 flex-1 text-sm leading-relaxed", muted)}>{sentence(props.entry.description)}</p>
+      <div class="flex items-center justify-between gap-2">
+        <Button variant="ghost" class="-ml-2" data-action="catalog-details" onClick={() => setOpen(true)}>
+          Details
+        </Button>
+        <Show when={!props.installed} fallback={<span class="text-sm text-muted-foreground" data-component="catalog-installed">Installed</span>}>
+          <Button disabled={busy() || props.waiting} data-action="add-from-catalog" onClick={() => void add()}>
+            {props.waiting ? "Waiting for review" : busy() ? "Adding" : "Add"}
+          </Button>
+        </Show>
+      </div>
+      <Dialog open={open()} onClose={() => setOpen(false)} title={props.entry.name} description={sentence(props.entry.description)} size="md">
+        <Review lines={describeManifest(props.entry.bundle.manifest)} />
+      </Dialog>
+    </article>
   )
 }
 

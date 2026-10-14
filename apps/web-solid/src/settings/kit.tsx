@@ -56,10 +56,10 @@ export const fieldClass = "kit-field"
 export function Page(props: { title: string; description?: string; children: JSX.Element }): JSX.Element {
   return (
     <div class="flex flex-col" data-component="settings-page">
-      <header class="pb-4">
-        <h1 class="text-[18px] font-semibold leading-tight text-foreground">{props.title}</h1>
+      <header class="pb-5">
+        <h1 class="text-lg font-semibold leading-tight text-foreground">{props.title}</h1>
         <Show when={props.description}>
-          <p class={cn("mt-1.5 max-w-xl text-[13px] leading-relaxed", muted)}>{props.description}</p>
+          <p class={cn("mt-1 max-w-xl text-md leading-relaxed", muted)}>{props.description}</p>
         </Show>
       </header>
       {props.children}
@@ -72,13 +72,13 @@ export function Group(props: { title?: JSX.Element; description?: JSX.Element; a
   return (
     <section class={local.class} data-setting-group={local.id} {...rest}>
       <Show when={local.title || local.action}>
-        <div class="flex items-end gap-4 px-1 pb-2.5">
+        <div class="flex items-end gap-4 px-1 pb-2">
           <div class="min-w-0 flex-1">
             <Show when={local.title}>
-              <h2 class="text-[14px] font-normal text-[color-mix(in_oklab,var(--foreground)_70%,transparent)]">{local.title}</h2>
+              <h2 class="text-sm font-medium text-muted-foreground">{local.title}</h2>
             </Show>
             <Show when={local.description}>
-              <div class={cn("mt-1 text-[12px] leading-relaxed", muted)}>{local.description}</div>
+              <div class={cn("mt-0.5 text-sm leading-relaxed", muted)}>{local.description}</div>
             </Show>
           </div>
           <Show when={local.action}>
@@ -99,9 +99,9 @@ export function Row(props: { label: JSX.Element; description?: JSX.Element; id?:
   const [local, rest] = splitProps(props, ["label", "description", "id", "onReset", "details", "class", "children"])
   return (
     <div class={cn("px-4", rowLine, local.class)} data-setting={local.id} {...rest}>
-    <div class="settings-row flex items-center gap-8 py-3">
+    <div class="settings-row flex items-center gap-6 py-2.5">
       <div class="min-w-0 flex-1">
-        <div class="flex min-h-5 items-center gap-1.5 text-[14px] font-medium leading-5 text-foreground">
+        <div class="flex min-h-5 items-center gap-1.5 text-md font-medium leading-5 text-foreground">
           {local.label}
 
           <Show when={local.onReset}>
@@ -121,7 +121,7 @@ export function Row(props: { label: JSX.Element; description?: JSX.Element; id?:
           </Show>
         </div>
         <Show when={local.description}>
-          <div class={cn("mt-0.5 max-w-xl text-[12px] leading-normal", muted)}>{local.description}</div>
+          <div class={cn("mt-0.5 max-w-xl text-sm leading-normal", muted)}>{local.description}</div>
         </Show>
       </div>
       <Show when={local.children}>
@@ -148,23 +148,23 @@ export function Item(props: {
   const [local, rest] = splitProps(props, ["icon", "title", "meta", "trouble", "actions", "children", "class"])
   return (
     <div
-      class={cn("grid items-center gap-x-3 px-4 py-2.5", local.icon ? "grid-cols-[auto_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]", rowLine, local.class)}
+      class={cn("grid items-center gap-x-3 px-4 py-2", local.icon ? "grid-cols-[auto_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]", rowLine, local.class)}
       {...rest}
     >
       <Show when={local.icon}>
-        <span class="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)] text-[color-mix(in_oklab,var(--foreground)_60%,transparent)] ring-1 ring-inset ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)]">
+        <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-control text-muted-foreground">
           {local.icon}
         </span>
       </Show>
       <div class="flex min-h-7 min-w-0 flex-col justify-center">
-        <div class="flex items-center gap-1.5 truncate text-[13px] font-medium text-foreground">
+        <div class="flex items-center gap-1.5 truncate text-md font-medium text-foreground">
           {local.title}
           <Show when={local.trouble}>
             <span class="size-1.5 shrink-0 rounded-full bg-[var(--error)]" aria-hidden="true" />
           </Show>
         </div>
         <Show when={local.meta}>
-          <div class={cn("mt-0.5 text-[12px] leading-snug", muted)}>{local.meta}</div>
+          <div class={cn("text-sm leading-snug", muted)}>{local.meta}</div>
         </Show>
       </div>
       <div class="flex shrink-0 items-center gap-1.5">{local.actions}</div>
@@ -178,7 +178,7 @@ export function Item(props: {
 export function Hint(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["children"])
   return (
-    <p class={cn("text-[13px] leading-relaxed", muted)} {...rest}>
+    <p class={cn("text-md leading-relaxed", muted)} {...rest}>
       {local.children}
     </p>
   )
@@ -187,7 +187,7 @@ export function Hint(props: { children: JSX.Element; [data: `data-${string}`]: s
 export function Empty(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["children"])
   return (
-    <div class={cn("px-4 py-3.5 text-[13px]", muted, rowLine)} {...rest}>
+    <div class={cn("px-4 py-3 text-md", muted, rowLine)} {...rest}>
       {local.children}
     </div>
   )
@@ -196,7 +196,7 @@ export function Empty(props: { children: JSX.Element; [data: `data-${string}`]: 
 export function Notice(props: { tone?: "danger" | "muted"; children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["tone", "children"])
   return (
-    <p role="alert" class={cn("text-[12px] leading-relaxed", local.tone === "muted" ? muted : "text-[color-mix(in_oklab,var(--error)_90%,transparent)]")} {...rest}>
+    <p role="alert" class={cn("text-sm leading-relaxed", local.tone === "muted" ? muted : "text-[color-mix(in_oklab,var(--error)_90%,transparent)]")} {...rest}>
       {local.children}
     </p>
   )
@@ -272,5 +272,49 @@ export function Toggle(props: { label: string; on: boolean; disabled?: boolean; 
     <button type="button" role="switch" aria-label={local.label} aria-checked={local.on} disabled={local.disabled} class="kit-switch" onClick={() => local.onChange(!local.on)} {...rest}>
       <span aria-hidden="true" />
     </button>
+  )
+}
+
+export type TabItem = { id: string; label: string; count?: number }
+
+/** A page's sub-sections, as a row of tabs under its title. Arrow keys move between them. */
+export function Tabs(props: { label: string; items: readonly TabItem[]; value: string; onChange: (id: string) => void }): JSX.Element {
+  const step = (event: KeyboardEvent) => {
+    const n = props.items.length
+    const at = props.items.findIndex((t) => t.id === props.value)
+    const delta = { ArrowRight: 1, ArrowLeft: -1 }[event.key]
+    const next = event.key === "Home" ? 0 : event.key === "End" ? n - 1 : delta === undefined ? -1 : (Math.max(at, 0) + delta + n) % n
+    if (next < 0) return
+    event.preventDefault()
+    props.onChange(props.items[next]!.id)
+    ;(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("[role=tab]")[next]?.focus()
+  }
+  return (
+    <div role="tablist" aria-label={props.label} class="flex items-center gap-1 border-b border-border" data-component="settings-tabs" onKeyDown={step}>
+      <For each={props.items}>
+        {(tab) => {
+          const on = () => tab.id === props.value
+          return (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={on()}
+              tabindex={on() ? 0 : -1}
+              data-tab={tab.id}
+              class={cn(
+                "-mb-px flex h-8 items-center gap-1.5 border-b-2 px-2 text-md font-medium",
+                on() ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => props.onChange(tab.id)}
+            >
+              {tab.label}
+              <Show when={tab.count}>
+                <span class="min-w-4 rounded-full bg-ring px-1 text-center text-xs leading-4 text-primary-foreground">{tab.count}</span>
+              </Show>
+            </button>
+          )
+        }}
+      </For>
+    </div>
   )
 }

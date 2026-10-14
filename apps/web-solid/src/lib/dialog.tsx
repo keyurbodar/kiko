@@ -35,13 +35,13 @@ export function Dialog(props: {
       <ModalV2.Portal>
         <ModalV2.Overlay class="animate-none" />
         <ModalV2.Content
-          class={cn("max-h-[calc(100dvh-32px)] animate-none flex-col overflow-hidden rounded-2xl bg-popover text-foreground shadow-popover", WIDTH[props.size ?? "sm"], props.class)}
+          class={cn("max-h-[calc(100dvh-32px)] animate-none flex-col overflow-hidden rounded-xl border border-border bg-popover text-foreground shadow-popover", WIDTH[props.size ?? "sm"], props.class)}
           aria-describedby={props.description ? describedBy : undefined}
         >
 
           <div class="relative flex min-h-0 flex-1 flex-col" data-component={props["data-component"]}>
             <header class="shrink-0 px-5 pt-4 pr-12 pb-4">
-              <ModalV2.Title class="text-[15px] font-semibold leading-snug text-foreground">{props.title}</ModalV2.Title>
+              <ModalV2.Title class="text-base font-semibold leading-snug text-foreground">{props.title}</ModalV2.Title>
               <Show when={props.description}>
                 <p id={describedBy} class="mt-1 text-[13px] leading-relaxed text-[var(--kit-meta)]">
                   {props.description}

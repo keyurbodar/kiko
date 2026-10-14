@@ -16,7 +16,7 @@ import { Paragraph } from "@tiptap/extension-paragraph"
 import { Strike } from "@tiptap/extension-strike"
 import { Text } from "@tiptap/extension-text"
 import { UndoRedo } from "@tiptap/extensions"
-import { chainCommands, newlineInCode } from "@tiptap/pm/commands"
+import { chainCommands, newlineInCode, setBlockType, splitBlock } from "@tiptap/pm/commands"
 import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode, type NodeType } from "@tiptap/pm/model"
 import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state"
@@ -24,7 +24,7 @@ import type { EditorView } from "@tiptap/pm/view"
 import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, selectionInOneCodeBlock, shiftEnterInCode, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
 import { BINDINGS, LINK_KEY } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
-import { chipExtension, Link, Mention, setChipStatus, type ChipStatus } from "./nodes"
+import { Link, Mention } from "./nodes"
 import { markdownSlice } from "./paste"
 import { groupUndoByChangeKind, UNDO_GROUP_DELAY, type ChangeKind } from "./undo-grouping"
 
@@ -37,12 +37,9 @@ export type RichOptions = {
   isMention: (slug: string) => boolean
   onChange: (snapshot: Snapshot) => void
   onCursor: (cursor: number) => void
-  onChips: (ids: string[]) => void
   onKeyDown: (event: KeyboardEvent) => boolean
   onPaste: (event: ClipboardEvent) => boolean
   onLink: (href: string | null) => void
-  onChipAction: (id: string) => void
-  onChipRemove: (id: string) => void
   onFocus: () => void
   onBlur: () => void
 }
@@ -134,9 +131,18 @@ function taskInputRule(type: NodeType): InputRule {
   })
 }
 
+/** A new line after a heading is a paragraph, as in t3code. A line break would keep it a heading. */
+const leaveHeading: Command = (state, dispatch) => state.selection.$from.parent.type.name === "heading" && splitBlock(state, dispatch)
+
+/** Backspace at the start of a heading turns it back into a paragraph, so `# ` can be undone. */
+const unsetHeadingAtStart: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection
+  if (!empty || $from.parentOffset !== 0 || $from.parent.type.name !== "heading") return false
+  return setBlockType(state.schema.nodes.paragraph!)(state, dispatch)
+}
+
 export function mountRichEditor(options: RichOptions) {
   let previousKind: ChangeKind | null = null
-  let ids = ""
 
   const Keys = Extension.create({
     name: "composerKeys",
@@ -148,13 +154,16 @@ export function mountRichEditor(options: RichOptions) {
         keymap({
           ...bindings,
           "Shift-Enter": (state, dispatch) =>
-            splitOrLeaveListItem(state, dispatch) || leaveEmptyQuote(state, dispatch) || shiftEnterInCode(state, dispatch),
+            splitOrLeaveListItem(state, dispatch) ||
+            leaveEmptyQuote(state, dispatch) ||
+            shiftEnterInCode(state, dispatch) ||
+            leaveHeading(state, dispatch),
           [LINK_KEY]: () => {
             options.onLink(currentLink())
             return true
           },
-          Backspace: chainCommands(removeChipBeside("before"), backspaceAcrossList, unwrapCodeBlockAtStart),
-          Delete: chainCommands(removeChipBeside("after"), deleteAcrossList),
+          Backspace: chainCommands(backspaceAcrossList, unwrapCodeBlockAtStart, unsetHeadingAtStart),
+          Delete: deleteAcrossList,
         }),
         new Plugin({
           filterTransaction(tr) {
@@ -231,7 +240,6 @@ export function mountRichEditor(options: RichOptions) {
       }),
       Link,
       Mention,
-      chipExtension(options.onChipAction, options.onChipRemove),
       Keys,
     ],
     editorProps: {
@@ -288,48 +296,16 @@ export function mountRichEditor(options: RichOptions) {
     },
     onUpdate: () => {
       options.onChange(snapshot())
-      reportChips()
     },
     onSelectionUpdate: () => options.onCursor(snapshot().cursor),
     onFocus: options.onFocus,
     onBlur: options.onBlur,
   })
 
-  function removeChipBeside(side: "before" | "after"): Command {
-    return (state, dispatch) => {
-      const { selection } = state
-      if (!selection.empty) return false
-      const chip = side === "before" ? selection.$from.nodeBefore : selection.$from.nodeAfter
-      if (chip?.type.name !== "fileChip") return false
-      if (dispatch) {
-        const start = side === "before" ? selection.from - chip.nodeSize : selection.from
-        dispatch(state.tr.delete(start, start + chip.nodeSize))
-      }
-      options.onChipRemove(String(chip.attrs.id))
-      return true
-    }
-  }
-
   function snapshot(): Snapshot {
     const { doc, selection } = editor.state
     const plain = (end: number) => doc.textBetween(0, end, "\n", (leaf) => (leaf.type.name === "mention" ? `@${leaf.attrs.slug}` : ""))
     return { markdown: docToMarkdown(doc.toJSON() as Json), plain: plain(doc.content.size), cursor: plain(selection.from).length }
-  }
-
-  function chipIds(): string[] {
-    const found: string[] = []
-    editor.state.doc.descendants((node) => {
-      if (node.type.name === "fileChip") found.push(String(node.attrs.id))
-    })
-    return found
-  }
-
-  function reportChips() {
-    const now = chipIds()
-    const key = now.join("\n")
-    if (key === ids) return
-    ids = key
-    options.onChips(now)
   }
 
   function sliceOf(state: EditorState, text: string): Slice {
@@ -395,27 +371,6 @@ export function mountRichEditor(options: RichOptions) {
       view.dispatch(state.tr.replaceWith(from, state.selection.from, [mention, state.schema.text(" ")]).scrollIntoView())
       editor.commands.focus(undefined, { scrollIntoView: false })
     },
-    addChip(attrs: { id: string; name: string }) {
-      const { view } = editor
-      const { state } = view
-      const chip = state.schema.nodes.fileChip!.create(attrs)
-      const end = Selection.atEnd(state.doc).from
-      const tr = state.tr.insert(end, chip).setMeta("addToHistory", false)
-      view.dispatch(tr)
-    },
-    chips: chipIds,
-    keepChips(keep: Set<string>) {
-      const { state } = editor
-      const gone: number[] = []
-      state.doc.descendants((node, pos) => {
-        if (node.type.name === "fileChip" && !keep.has(String(node.attrs.id))) gone.push(pos)
-      })
-      if (!gone.length) return
-      const tr = state.tr.setMeta("addToHistory", false)
-      for (const pos of gone.reverse()) tr.delete(pos, pos + 1)
-      editor.view.dispatch(tr)
-    },
-    chipStatus: (id: string, status: ChipStatus) => setChipStatus(editor.view.dom as HTMLElement, id, status),
     setLink(href: string | null) {
       const { view } = editor
       const { state } = view

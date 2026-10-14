@@ -1,8 +1,8 @@
 import { type FileRef, KIKO, type LifeLine, type Member } from "@kiko/protocol"
-import type { BotPresence } from "../../../lib/types"
-import { typingLine } from "../../../sidebar/activity"
-import type { PlateLoop } from "../../info/loops"
-import type { Routine } from "../../info/routines"
+import type { BotPresence } from "../../lib/types"
+import { typingLine } from "../../sidebar/activity"
+import type { PlateLoop } from "../info/loops"
+import type { Routine } from "../info/routines"
 
 /*
  * The chat card's rules, as pure functions: which rows appear, what each chip says, which files and

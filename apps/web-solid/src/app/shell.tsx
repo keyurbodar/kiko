@@ -10,8 +10,6 @@ import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { avatarPickerSlug } from "../avatar/picker-state";
 import { createEffect, createMemo, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
-import { cardInline, cardOpen, currentPlacement, loadCard, setCardPanelWidth } from "../chat/side/card-state";
-import { CARD_SHIFT } from "../chat/side/card/placement";
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { snapshotAfterRoute } from "../lib/snapshot";
@@ -45,7 +43,6 @@ const i18n: UiI18n = {
 };
 
 const Sidecar = lazy(loadSidecar);
-const Card = lazy(loadCard);
 const AvatarPicker = lazy(() => import("../avatar/picker"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
@@ -228,15 +225,6 @@ export function Shell(props: ParentProps) {
     });
   });
   const overlaidSide = () => (compact() && sideOpen() ? sideChat() : null);
-  const [mainPanel, setMainPanel] = createSignal<HTMLElement>();
-  createEffect(() => {
-    const panel = mainPanel();
-    if (!panel) return;
-    const observer = new ResizeObserver(([entry]) => setCardPanelWidth(entry?.contentRect.width ?? 0));
-    observer.observe(panel);
-    onCleanup(() => observer.disconnect());
-  });
-  const inlineCard = () => sideChat() !== null && cardInline();
   return (
     <I18nProvider value={i18n}>
       <div
@@ -295,17 +283,8 @@ export function Shell(props: ParentProps) {
                       data-component="main-row"
                       data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
                     >
-                      <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel" ref={setMainPanel}>
-                        <div class="flex min-w-0 flex-1 flex-col" style={{ "padding-right": inlineCard() ? `${CARD_SHIFT}px` : undefined }}>
-                          {props.children}
-                        </div>
-                        <Show when={cardOpen() ? sideChat() : null} keyed>
-                          {(id) => (
-                            <Suspense>
-                              <Card chatId={id} placement={currentPlacement()} />
-                            </Suspense>
-                          )}
-                        </Show>
+                      <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel">
+                        <div class="flex min-w-0 flex-1 flex-col">{props.children}</div>
                       </div>
                       <Show when={searchScope()}>
                         <Suspense>

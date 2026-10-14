@@ -142,13 +142,13 @@ function Foot(props: { section: SectionId | null }) {
   const waiting = () => (useApp.user()?.proposals().length ?? 0) > 0
   return (
     <footer class="panel-foot" data-component="sidebar-foot">
-      <A href="/settings/account" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="Account">
+      <A href="/settings/general" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="Account">
         <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
         <span class="panel-me-name">{user()?.name ?? "You"}</span>
       </A>
       <TooltipV2 placement="top" openDelay={400} value="Settings">
         <A
-          href={waiting() ? "/settings/extensions" : "/settings"}
+          href={waiting() ? "/settings/tools/extensions" : "/settings"}
           class="panel-icon-button relative"
           data-component="sidebar-settings"
           data-hint="settings.open"

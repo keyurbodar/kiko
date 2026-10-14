@@ -79,7 +79,6 @@ const cases: { name: string; doc: Json; markdown: string; rich: RichText }[] = [
     rich: [{ t: "code_block", lang: "ts", text: "const a = 1\n\nlet b" }] as RichText,
   },
   { name: "code block with fence inside", doc: doc({ type: "codeBlock", attrs: { language: "", fence: "````", close: "\n````" }, content: [t("```\nx\n```")] }), markdown: "````\n```\nx\n```\n````", rich: [{ t: "code_block", text: "```\nx\n```" }] as RichText },
-  { name: "file chip leaves no text", doc: doc(p(t("see "), { type: "fileChip", attrs: { id: "1", name: "a.pdf" } })), markdown: "see", rich: [para(text("see"))] as RichText },
 ]
 
 describe("serializer", () => {
@@ -98,7 +97,7 @@ describe("serializer", () => {
 
 describe("parser", () => {
   const known = (slug: string) => slug === "ada"
-  for (const c of cases.filter((x) => x.name !== "file chip leaves no text" && x.name !== "whitespace stays outside a mark")) {
+  for (const c of cases.filter((x) => x.name !== "whitespace stays outside a mark")) {
     test(`${c.name}: markdown back to the same document`, () => {
       const back = markdownToDoc(c.markdown, { isMention: known })
       expect(docToMarkdown(back)).toBe(c.markdown)

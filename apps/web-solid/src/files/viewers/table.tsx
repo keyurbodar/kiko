@@ -26,7 +26,7 @@ export default function TableView(props: { roomId: string; file: FileRef }) {
 								<thead class="sticky top-0 z-10">
 									<tr>
 										<For each={rows[0] ?? []}>
-											{(cell) => <th class="max-w-80 border-b border-[var(--border)] bg-muted-foreground px-3 py-1.5 text-left align-bottom font-medium break-words whitespace-pre-wrap">{cell}</th>}
+											{(cell) => <th class="max-w-80 border-b border-[var(--border)] bg-card px-3 py-1.5 text-left align-bottom font-medium break-words whitespace-pre-wrap">{cell}</th>}
 										</For>
 									</tr>
 								</thead>

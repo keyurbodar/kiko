@@ -1,13 +1,12 @@
-import { A } from "@solidjs/router"
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
-import { formatContext, loadCatalog, modelRef, type CatalogModel, type CatalogProvider, type ConnectMethod } from "./catalog"
+import { formatContext, loadCatalog, modelRef, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
 import { connectProvider, disconnectProvider } from "./credentials"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
-import { Button, fieldClass, Group, Hint, IconButton, Item, muted, Notice, Pill, Row, Toggle } from "./kit"
+import { Button, Empty, fieldClass, Group, Hint, muted, Notice, rowLine, Toggle } from "./kit"
 import { Dialog } from "../lib/dialog"
 import { hiddenModels, setHidden } from "./model-prefs"
 import { cn } from "../lib/cn"
@@ -28,18 +27,12 @@ const POPULAR: readonly { id: string; note: string }[] = [
   { id: "github-copilot", note: "The models in your Copilot plan." },
 ]
 
-function useProviders() {
+type Pick = { kind: "all" } | { kind: "provider"; id: string }
+
+export function ModelsPage() {
   const [catalog] = createResource(loadCatalog)
   const saved = (id: string) => connectedProviders().find((p) => p.provider === id)
   const connected = createMemo(() => (catalog()?.providers ?? []).filter((p) => saved(p.id)))
-  const modelConnected = createMemo(() => connected().filter((p) => p.models.length > 0))
-  return { catalog, saved, connected, modelConnected }
-}
-
-export function ProvidersPage() {
-  const { catalog, saved, connected } = useProviders()
-  const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
-  const [browsing, setBrowsing] = createSignal(false)
   const available = createMemo(() => (catalog()?.providers ?? []).filter((p) => !saved(p.id)))
   const popular = createMemo(() =>
     POPULAR.flatMap(({ id, note }) => {
@@ -47,6 +40,27 @@ export function ProvidersPage() {
       return provider ? [{ provider, note }] : []
     }).concat(available().filter(isJudgeOnly).map((provider) => ({ provider, note: JUDGE_NOTE }))),
   )
+  const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
+  const [browsing, setBrowsing] = createSignal(false)
+  const [pick, setPick] = createSignal<Pick>({ kind: "all" })
+  const [query, setQuery] = createSignal("")
+  const hidden = createMemo(() => new Set(hiddenModels()))
+
+  const current = () => {
+    const p = pick()
+    return p.kind === "provider" ? connected().find((c) => c.id === p.id) : undefined
+  }
+  const rows = createMemo(() => {
+    const words = query().toLowerCase().split(/\s+/).filter(Boolean)
+    const from = current() ? [current()!] : connected()
+    return from.flatMap((provider) =>
+      provider.models
+        .filter((m) => words.every((w) => `${provider.name} ${m.name} ${m.id}`.toLowerCase().includes(w)))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((model) => ({ provider, model, ref: modelRef(provider.id, model.id) })),
+    )
+  })
+  const shownCount = () => rows().filter((r) => !hidden().has(r.ref)).length
 
   const [cheer, setCheer] = createSignal(false)
   createEffect(
@@ -60,59 +74,157 @@ export function ProvidersPage() {
       },
     ),
   )
+  createEffect(() => {
+    const p = pick()
+    if (p.kind === "provider" && connectedReady() && !connected().some((c) => c.id === p.id)) setPick({ kind: "all" })
+  })
+
+  const railRow = (active: boolean) =>
+    cn("flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-md outline-none", active ? "bg-accent-strong text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")
 
   return (
-    <div class="flex flex-col gap-8" data-component="providers-page">
+    <div class="flex flex-col gap-6" data-component="models-page">
       <Show when={cheer()}>
-        <div class="flex items-center gap-3 rounded-lg bg-[var(--ring-wash)] px-4 py-2.5" data-component="first-provider-cheer" role="status">
-          <p class="text-[13px] text-foreground">Connected. Your agents can reply now.</p>
-        </div>
+        <p class="rounded-md bg-ring-wash px-3 py-2 text-md text-foreground" data-component="first-provider-cheer" role="status">
+          Connected. Your agents can reply now.
+        </p>
       </Show>
       <Show when={catalog.error}>
         <Notice data-component="catalog-error">The model catalog did not load. Reload to try again.</Notice>
       </Show>
 
-      <Show when={connected().length}>
-        <Group title="Connected">
-          <For each={connected()}>{(provider) => <ConnectedRow provider={provider} info={saved(provider.id)!} />}</For>
-        </Group>
-      </Show>
-      <Group
-        title={connected().length ? "Add another" : "Popular"}
-        data-component="provider-add"
-        bare={!popular().length}
-        action={
-          <Button variant="ghost" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
-            View all providers
-          </Button>
+      <Show
+        when={connected().length}
+        fallback={
+          <Group title="Connect a provider" data-component="provider-add" bare action={<Button variant="ghost" data-action="view-all-providers" onClick={() => setBrowsing(true)}>All providers</Button>}>
+            <div class="grid grid-cols-1 gap-2 @min-[560px]/settings:grid-cols-2">
+              <For each={popular()} fallback={<Hint>{catalog.loading ? "Loading" : "No providers found."}</Hint>}>
+                {({ provider, note }) => (
+                  <button
+                    type="button"
+                    class="flex items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent"
+                    data-provider={provider.id}
+                    data-action="connect"
+                    onClick={() => setDialog(provider)}
+                  >
+                    <ProviderIcon id={provider.id} width="16" height="16" />
+                    <span class="flex min-w-0 flex-col">
+                      <span class="truncate text-md font-medium text-foreground">{provider.name}</span>
+                      <span class="truncate text-sm text-muted-foreground">{note}</span>
+                    </span>
+                  </button>
+                )}
+              </For>
+            </div>
+          </Group>
         }
       >
-        <For
-          each={popular()}
-          fallback={
-            <Show when={!catalog.error}>
-              <Hint data-component="no-provider">{catalog.loading ? "Loading" : "Every popular provider is connected."}</Hint>
+        <div class="grid grid-cols-1 gap-4 @min-[560px]/settings:grid-cols-[180px_minmax(0,1fr)]">
+          <nav class="flex flex-col gap-0.5" aria-label="Providers" data-component="provider-rail">
+            <button type="button" class={railRow(pick().kind === "all")} aria-current={pick().kind === "all" ? "true" : undefined} onClick={() => setPick({ kind: "all" })}>
+              <span class="min-w-0 flex-1 truncate">All models</span>
+            </button>
+            <For each={connected()}>
+              {(provider) => {
+                const info = () => saved(provider.id)
+                const on = () => current()?.id === provider.id
+                return (
+                  <button
+                    type="button"
+                    class={railRow(on())}
+                    aria-current={on() ? "true" : undefined}
+                    data-provider={provider.id}
+                    data-connected="true"
+                    data-refused={info()?.refused ? "true" : undefined}
+                    onClick={() => setPick({ kind: "provider", id: provider.id })}
+                  >
+                    <ProviderIcon id={provider.id} width="14" height="14" />
+                    <span class="min-w-0 flex-1 truncate">{provider.name}</span>
+                    <Show when={info()?.refused} fallback={<span class="shrink-0 text-xs tabular-nums text-secondary-label">{provider.models.length || ""}</span>}>
+                      <span class="size-1.5 shrink-0 rounded-full bg-error" aria-label="Key refused" />
+                    </Show>
+                  </button>
+                )
+              }}
+            </For>
+            <button type="button" class={cn(railRow(false), "mt-1")} data-action="view-all-providers" onClick={() => setBrowsing(true)}>
+              <svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                <path d="M8 3.5v9M3.5 8h9" />
+              </svg>
+              <span class="min-w-0 flex-1 truncate">Add provider</span>
+            </button>
+          </nav>
+
+          <section class="flex min-w-0 flex-col gap-2" data-component="model-list">
+            <Show when={current()}>
+              {(provider) => (
+                <div class="flex items-center gap-3 px-1" data-component="provider-detail" data-provider={provider().id}>
+                  <div class="flex min-w-0 flex-1 flex-col">
+                    <span class="truncate text-md font-medium text-foreground">{provider().name}</span>
+                    <span class={cn("truncate text-sm", saved(provider().id)?.refused ? "text-error" : muted)}>
+                      {saved(provider().id)?.refused ? "Key refused. Connect again with a new key." : saved(provider().id)?.kind === "api_key" ? `API key ••${saved(provider().id)?.last4}` : "Signed in"}
+                    </span>
+                  </div>
+                  <Show when={saved(provider().id)?.refused}>
+                    <Button data-action="reconnect" onClick={() => setDialog(provider())}>Reconnect</Button>
+                  </Show>
+                  <DisconnectButton id={provider().id} />
+                </div>
+              )}
             </Show>
-          }
-        >
-          {({ provider, note }) => (
-            <Item
-              data-provider={provider.id}
-              icon={<ProviderIcon id={provider.id} width="16" height="16" />}
-              title={provider.name}
-              meta={note}
-              actions={
-                <Button data-action="connect" onClick={() => setDialog(provider)}>
-                  <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-                    <path d="M8 3.5v9M3.5 8h9" />
-                  </svg>
-                  Connect
+            <div class="flex items-center gap-2">
+              <input
+                type="search"
+                class={cn(fieldClass, "min-w-0 flex-1")}
+                placeholder="Search models"
+                aria-label="Search models"
+                spellcheck={false}
+                autocomplete="off"
+                value={query()}
+                onInput={(e) => setQuery(e.currentTarget.value)}
+                data-component="model-search"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-2 px-1 text-sm text-muted-foreground">
+              <span class="tabular-nums">
+                {shownCount()} of {rows().length} in the picker
+              </span>
+              <span class="flex gap-1">
+                <Button variant="ghost" disabled={shownCount() === rows().length} onClick={() => setHidden(rows().map((r) => r.ref), false)}>
+                  Show all
                 </Button>
-              }
-            />
-          )}
-        </For>
-      </Group>
+                <Button variant="ghost" disabled={shownCount() === 0} onClick={() => setHidden(rows().map((r) => r.ref), true)}>
+                  Hide all
+                </Button>
+              </span>
+            </div>
+            <div class="kit-card" data-component="models-provider">
+              <For each={rows()} fallback={<Empty>{query().trim() ? `No models match "${query().trim()}"` : "This provider has no chat models."}</Empty>}>
+                {(r) => (
+                  <label
+                    class={cn("flex h-9 cursor-pointer items-center gap-2.5 px-3 hover:bg-accent", rowLine)}
+                    style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 36px" }}
+                    data-model={r.ref}
+                  >
+                    <Show when={!current()}>
+                      <ProviderIcon id={r.provider.id} width="14" height="14" />
+                    </Show>
+                    <span class="min-w-0 flex-1 truncate text-md text-foreground" title={r.model.id}>
+                      {r.model.name}
+                    </span>
+                    <Show when={r.model.reasoning}>
+                      <span class="shrink-0 text-xs text-secondary-label">Reasoning</span>
+                    </Show>
+                    <span class="w-12 shrink-0 text-right text-xs tabular-nums text-secondary-label">{formatContext(r.model.contextWindow)}</span>
+                    <Toggle label={`Show ${r.model.name} in the model picker`} on={!hidden().has(r.ref)} onChange={(on) => setHidden([r.ref], !on)} />
+                  </label>
+                )}
+              </For>
+            </div>
+          </section>
+        </div>
+      </Show>
+
       <AddProviderDialog
         open={browsing()}
         loading={catalog.loading}
@@ -128,150 +240,23 @@ export function ProvidersPage() {
   )
 }
 
-function ConnectedRow(props: { provider: CatalogProvider; info: { kind: string; last4: string; refused?: boolean } }) {
+function DisconnectButton(props: { id: string }) {
   const [removing, setRemoving] = createSignal(false)
+  const [sure, setSure] = createSignal(false)
   async function remove() {
     setRemoving(true)
     try {
-      await disconnectProvider(props.provider.id)
+      await disconnectProvider(props.id)
     } finally {
       setRemoving(false)
+      setSure(false)
       await refreshConnected()
     }
   }
   return (
-    <Item
-      data-provider={props.provider.id}
-      data-connected="true"
-      icon={<ProviderIcon id={props.provider.id} width="16" height="16" />}
-      title={props.provider.name}
-      meta={props.info.refused ? "Key refused" : props.info.kind === "api_key" ? `API key ••${props.info.last4}` : "Signed in"}
-      trouble={props.info.refused}
-      data-refused={props.info.refused ? "true" : undefined}
-      actions={
-        <Button variant="danger" data-action="disconnect" disabled={removing()} onClick={() => void remove()}>
-          Disconnect
-        </Button>
-      }
-    />
-  )
-}
-
-const COLLAPSED_KEY = "kiko.models-collapsed"
-
-function readCollapsed(): Record<string, boolean> {
-  try {
-    const value = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "{}")
-    return value && typeof value === "object" ? value : {}
-  } catch {
-    return {}
-  }
-}
-
-export function ModelsPage() {
-  const { catalog, modelConnected: connected } = useProviders()
-  const [query, setQuery] = createSignal("")
-  const [collapsed, setCollapsed] = createSignal<Record<string, boolean>>(readCollapsed())
-  const fold = (id: string, value: boolean) => {
-    const next = { ...collapsed(), [id]: value }
-    setCollapsed(next)
-    try {
-      localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next))
-    } catch {}
-  }
-  const groups = createMemo(() => {
-    const words = query().toLowerCase().split(/\s+/).filter(Boolean)
-    return connected()
-      .map((provider) => ({
-        provider,
-        models: provider.models
-          .filter((m) => words.every((w) => `${provider.name} ${m.name} ${m.id}`.toLowerCase().includes(w)))
-          .sort((a, b) => a.name.localeCompare(b.name)),
-      }))
-      .filter((g) => g.models.length > 0)
-  })
-  const searching = () => query().trim().length > 0
-
-  return (
-    <div class="flex flex-col gap-8" data-component="models-page">
-      <Show
-        when={connected().length}
-        fallback={
-          <Hint>
-            {catalog.loading ? "Loading" : "No providers connected. "}
-            <Show when={!catalog.loading}>
-              <A href="/settings/providers" class="text-[var(--ring)] hover:underline">
-                Connect one
-              </A>{" "}
-              to see its models here.
-            </Show>
-          </Hint>
-        }
-      >
-        <input
-          type="search"
-          class={cn(fieldClass, "w-full")}
-          placeholder="Search models"
-          aria-label="Search models"
-          spellcheck={false}
-          autocomplete="off"
-          value={query()}
-          onInput={(e) => setQuery(e.currentTarget.value)}
-          data-component="model-search"
-        />
-        <For each={groups()} fallback={<Hint>No models match "{query()}"</Hint>}>
-          {(group) => {
-            const open = () => searching() || !collapsed()[group.provider.id]
-            return (
-              <Group
-                data-component="models-provider"
-                data-provider={group.provider.id}
-                data-expanded={open() ? "" : undefined}
-                bare={!open()}
-                title={
-                  <span class="flex items-center gap-2">
-                    <ProviderIcon id={group.provider.id} width="16" height="16" />
-                    {group.provider.name}
-                    <span class={cn("tabular-nums", muted)}>{group.models.length}</span>
-                  </span>
-                }
-                action={
-                  <IconButton label={open() ? `Hide ${group.provider.name} models` : `Show ${group.provider.name} models`} aria-expanded={open()} disabled={searching()} onClick={() => fold(group.provider.id, open())}>
-                    <svg class={cn("size-3.5", !open() && "-rotate-90")} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                  </IconButton>
-                }
-              >
-                <Show when={open()}>
-                  <For each={group.models}>
-                    {(m) => {
-                      const ref = modelRef(group.provider.id, m.id)
-                      return (
-                        <Row
-                          data-model={ref}
-                          label={
-                            <>
-                              <span class="truncate">{m.name}</span>
-                              <Show when={m.reasoning}>
-                                <Pill>Reasoning</Pill>
-                              </Show>
-                            </>
-                          }
-                          description={`${formatContext(m.contextWindow)} context`}
-                        >
-                          <Toggle label={`Show ${m.name} in the model picker`} on={!hiddenModels().includes(ref)} onChange={(on) => setHidden([ref], !on)} />
-                        </Row>
-                      )
-                    }}
-                  </For>
-                </Show>
-              </Group>
-            )
-          }}
-        </For>
-      </Show>
-    </div>
+    <Button variant={sure() ? "danger" : "ghost"} data-action="disconnect" disabled={removing()} onBlur={() => setSure(false)} onClick={() => (sure() ? void remove() : setSure(true))}>
+      {sure() ? "Disconnect for good" : "Disconnect"}
+    </Button>
   )
 }
 

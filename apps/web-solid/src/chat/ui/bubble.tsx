@@ -64,7 +64,7 @@ const VARIANTS: Record<BubbleVariant, string> = {
     "[&>[data-slot=bubble-content]]:bg-message-user [&>[data-slot=bubble-content]]:text-message-user-foreground",
   secondary:
     "[&>[data-slot=bubble-content]]:bg-message-assistant [&>[data-slot=bubble-content]]:text-message-assistant-foreground",
-  muted: "[&>[data-slot=bubble-content]]:bg-muted-foreground [&>[data-slot=bubble-content]]:text-foreground",
+  muted: "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground",
   tinted: "[&>[data-slot=bubble-content]]:bg-control [&>[data-slot=bubble-content]]:text-foreground",
   outline:
     "[&>[data-slot=bubble-content]]:bg-card [&>[data-slot=bubble-content]]:text-foreground [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--border)]",
