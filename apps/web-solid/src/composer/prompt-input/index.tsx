@@ -9,7 +9,7 @@ import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 import type { PromptInputV2Interaction } from "./interaction"
 import { createComposerEmoji, createShortcodes } from "../emoji"
 import type { RichBinding } from "../rich/bind"
-import { composingKey } from "../ime"
+import { composingKey, enterIsNewline } from "../ime"
 
 export type {
   PromptInputV2Attachment,
@@ -277,7 +277,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 onKeyDown={(event) => {
                   if (shortcodes.onKeyDown(event)) return
                   if (props.controller.onKeyDown(event)) return
-                  if (event.key === "Enter" && !event.shiftKey && !composingKey(event)) {
+                  if (event.key === "Enter" && !event.shiftKey && !composingKey(event) && !enterIsNewline(event)) {
                     event.preventDefault()
                     if (event.repeat) return
                     props.controller.submit()
