@@ -183,12 +183,25 @@
   cursor: text;
 }
 
-/* The editor is a contenteditable div and its own scroller. */
+/* The field holds the editor and its placeholder, so the placeholder shares the editor's origin at any
+ * height. The reply bar is outside it. */
+.composer-dock .composer-field {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+/* The editor is a contenteditable div and its own scroller. t3code's box: a 0.25rem pad, pulled out by
+ * the same margin so the text stays where it sat, a 4.875rem floor and a 13rem ceiling, then it scrolls. */
 .composer-dock .composer-input {
   min-width: 0;
-  min-height: 18px;
-  max-height: 160px;
-  overflow: hidden auto;
+  min-height: 4.875rem;
+  max-height: 13rem;
+  margin: -0.25rem;
+  padding: 0.25rem;
+  overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   color: var(--text);
   cursor: text;
@@ -196,16 +209,24 @@
   white-space: pre-wrap;
 }
 
-/* The placeholder is a sibling overlay, not a `::before` on the editor: the editor carries a
- * zero-width space in its own `::before` so it never collapses, so `:empty` is not the hook it
- * looks like. It is anchored from the bottom, because the top of the wrap is the reply bar when
- * one is armed. It shows only while the editor is empty, so it is always one line. */
+/* t3code draws the caret and the selection in the browser's own colors, not the accent kat sets app-wide. */
+.composer-dock .composer-input {
+  caret-color: auto;
+}
+
+.composer-dock .composer-input::selection,
+.composer-dock .composer-input ::selection {
+  background: Highlight;
+  color: HighlightText;
+}
+
+/* The placeholder is an overlay on the field's top-left, not a `::before` on the editor: the editor
+ * carries a zero-width space in its own `::before` so it never collapses, so `:empty` is not the hook it
+ * looks like. It shows only while the editor is empty. t3code's `text-placeholder/75`. */
 .composer-dock .composer-placeholder {
   position: absolute;
-  right: 4px;
-  bottom: 7px;
-  left: 4px;
-  color: color-mix(in oklab, var(--text) 35%, transparent);
+  inset: 0 0 auto;
+  color: color-mix(in oklab, var(--text-muted) 75%, transparent);
   pointer-events: none;
 }
 
@@ -213,15 +234,7 @@
 .composer-dock .composer-placeholder {
   font-family: var(--font-family-sans);
   font-size: var(--font-size-prompt);
-  line-height: 20px;
-}
-
-/* An empty chat's two-line card reads from the top. */
-[data-session-empty="true"] .composer-dock .composer-placeholder {
-  top: 4px;
-  right: 6px;
-  bottom: auto;
-  left: 6px;
+  line-height: 1.625;
 }
 
 /* iOS zooms the page when a field under 16px takes focus, and it does not zoom back. On a touch
@@ -415,6 +428,14 @@
   right: 4px;
 }
 
+/* The 20px glyph keeps its look; the target reaches 4px past it. */
+.composer-dock .composer-picture-remove::before,
+.composer-dock .composer-picture-retry::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
 .composer-dock .composer-picture-retry {
   left: 4px;
   display: flex;
@@ -444,8 +465,15 @@
   display: none;
 }
 
+/* The composer's @ token matches the sent one (chat/ui/Mention.tsx): a soft tint of the agent's color, a pill. */
 .composer-dock .composer-input [data-mention] {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0 0.4em;
+  border-radius: 999px;
   font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .composer-dock .composer-link {

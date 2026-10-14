@@ -1,27 +1,31 @@
 import "./rich.css"
-import { Editor, Extension, InputRule, wrappingInputRule } from "@tiptap/core"
+import { Editor, Extension, InputRule, mergeAttributes, wrappingInputRule } from "@tiptap/core"
 import { Blockquote } from "@tiptap/extension-blockquote"
-import { Bold } from "@tiptap/extension-bold"
 import { Code } from "@tiptap/extension-code"
 import { CodeBlock } from "@tiptap/extension-code-block"
-import { Document } from "@tiptap/extension-document"
-import { HardBreak } from "@tiptap/extension-hard-break"
 import { Heading } from "@tiptap/extension-heading"
 import { HorizontalRule } from "@tiptap/extension-horizontal-rule"
-import { Italic } from "@tiptap/extension-italic"
 import { BulletList, ListItem, OrderedList } from "@tiptap/extension-list"
-import { Paragraph } from "@tiptap/extension-paragraph"
-import { Strike } from "@tiptap/extension-strike"
 import { TaskItem } from "@tiptap/extension-task-item"
 import { TaskList } from "@tiptap/extension-task-list"
+import { Bold } from "@tiptap/extension-bold"
+import { Document } from "@tiptap/extension-document"
+import { HardBreak } from "@tiptap/extension-hard-break"
+import { Italic } from "@tiptap/extension-italic"
+import { Paragraph } from "@tiptap/extension-paragraph"
+import { Strike } from "@tiptap/extension-strike"
 import { Text } from "@tiptap/extension-text"
 import { UndoRedo } from "@tiptap/extensions"
+import { chainCommands } from "@tiptap/pm/commands"
 import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model"
 import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state"
+import type { EditorView } from "@tiptap/pm/view"
+import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, indentInCode, leaveEmptyQuote, openFenceOnEnter, shiftEnterInCode, splitOrLeaveListItem } from "./keys"
 import { BINDINGS, LINK_KEY } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { chipExtension, Link, Mention, setChipStatus, type ChipStatus } from "./nodes"
+import { markdownSlice } from "./paste"
 import { groupUndoByChangeKind, UNDO_GROUP_DELAY, type ChangeKind } from "./undo-grouping"
 
 export type Snapshot = { markdown: string; plain: string; cursor: number }
@@ -44,13 +48,6 @@ export type RichOptions = {
 }
 
 export type RichEditor = ReturnType<typeof mountRichEditor>
-
-function hasAncestor($pos: any, name: string): boolean {
-  for (let depth = $pos.depth; depth > 0; depth -= 1) {
-    if ($pos.node(depth).type.name === name) return true
-  }
-  return false
-}
 
 const horizontalRuleInputRule = new InputRule({
   find: /^(---|\*\*\*|___)\s?$/,
@@ -87,16 +84,22 @@ const blockquoteInputRule = new InputRule({
   },
 })
 
+/**
+ * `- ` or `3) ` at a top-level paragraph starts a list, and the item keeps the marker as typed. A dash
+ * waits for the first character after its space, which it carries, so `- [ ] ` reaches the task rule.
+ */
 function listMarkerInputRule(find: RegExp, listType: "bulletList" | "orderedList"): InputRule {
   return new InputRule({
     find,
     handler: ({ state, range, match, chain }) => {
       const marker = (match.groups?.marker ?? "-") as string
-      const space = (match.groups?.space ?? " ") as string
       const carried = (match.groups?.carried ?? "") as string
       const $from = state.doc.resolve(range.from)
       if ($from.parent.type.name !== "paragraph" || $from.depth !== 1) return null
-      const command = chain().deleteRange(range).wrapInList(listType, listType === "orderedList" ? { start: Number.parseInt(marker, 10) || 1 } : {})
+      const command = chain()
+        .deleteRange(range)
+        .wrapInList(listType, listType === "orderedList" ? { start: Number.parseInt(marker, 10) || 1 } : {})
+        .updateAttributes("listItem", { marker })
       if (carried) command.insertContent(carried)
       command.run()
       return undefined
@@ -104,7 +107,29 @@ function listMarkerInputRule(find: RegExp, listType: "bulletList" | "orderedList
   })
 }
 
+/**
+ * `[ ] ` at the start of an existing bullet item turns it into a task, for an item that was already a
+ * list when the box was wanted. Any dash, star or plus converts; an ordered item does not.
+ */
+const bulletToTaskInputRule = new InputRule({
+  find: /^\[([ xX])\] $/,
+  handler: ({ state, range, match, chain }) => {
+    const $from = state.doc.resolve(range.from)
+    const item = $from.node(-1)
+    if ($from.parent.type.name !== "paragraph" || item?.type.name !== "listItem") return null
+    if (!["-", "*", "+"].includes(String(item.attrs.marker))) return null
+    const checked = (match[1] ?? " ").toLowerCase() === "x"
+    chain()
+      .command(({ tr }) => {
+        bulletItemToTask(tr, range.from, range.to, checked)
+        return true
+      })
+      .run()
+    return undefined
+  },
+})
 
+/** `- [ ] ` or `- [x] ` at a top-level paragraph, typed whole. */
 function taskInputRule(type: any): InputRule {
   const rule = wrappingInputRule({
     find: /^- \[([ xX])\] $/,
@@ -130,14 +155,17 @@ export function mountRichEditor(options: RichOptions) {
       return [
         keymap({
           ...bindings,
+          // Enter sends, so Shift+Enter carries the line breaks a list or quote needs, as in t3code.
+          "Shift-Enter": (state, dispatch) =>
+            splitOrLeaveListItem(state, dispatch) || leaveEmptyQuote(state, dispatch) || shiftEnterInCode(state, dispatch),
           [LINK_KEY]: () => {
             options.onLink(currentLink())
             return true
           },
           // A file chip goes in one press, the way a character does. ProseMirror's own atom
           // selection did not delete it, so the chip is removed here, from the caret's side.
-          Backspace: removeChipBeside("before"),
-          Delete: removeChipBeside("after"),
+          Backspace: chainCommands(removeChipBeside("before"), backspaceAcrossList),
+          Delete: chainCommands(removeChipBeside("after"), deleteAcrossList),
         }),
         new Plugin({
           filterTransaction(tr) {
@@ -153,6 +181,10 @@ export function mountRichEditor(options: RichOptions) {
     element: options.element,
     content: markdownToDoc(options.markdown, { isMention: options.isMention }),
     extensions: [
+      // The base nodes are the ones t3code's StarterKit loads, with the block nodes it replaces below.
+      // The list keymap is off: list Backspace and Delete are the composer's own, through `ListItem`.
+      // StarterKit itself is not used, because its barrel loads Link, Underline and the cursors this
+      // composer turns off, and that is more than the client's bundle budget allows.
       Document,
       Paragraph,
       Text,
@@ -160,7 +192,9 @@ export function mountRichEditor(options: RichOptions) {
       Bold,
       Italic,
       Strike,
-      Code,
+      // Marks may not nest inside code, and code may not hold a second mark: Tiptap's own rule drops
+      // `**`x`**`, which markdown writes. Code excludes only itself, as in t3code.
+      Code.extend({ excludes: "code", exitable: false }),
       Blockquote.extend({
         addInputRules() { return [blockquoteInputRule] },
       }),
@@ -170,7 +204,11 @@ export function mountRichEditor(options: RichOptions) {
       HorizontalRule.extend({
         addInputRules() { return [horizontalRuleInputRule] },
       }),
-      CodeBlock,
+      // A fence opens on Enter at a line of backticks, not on a space, as in t3code.
+      CodeBlock.extend({
+        addInputRules() { return [] },
+      }),
+      UndoRedo.configure({ newGroupDelay: UNDO_GROUP_DELAY }),
       BulletList.extend({
         addInputRules() {
           return [
@@ -181,19 +219,27 @@ export function mountRichEditor(options: RichOptions) {
       }),
       OrderedList.extend({
         addInputRules() {
-          return [
-            listMarkerInputRule(/^(?<marker>\d+[.)])(?<space>\s)$/, "orderedList"),
-          ]
+          return [listMarkerInputRule(/^(?<marker>\d+[.)])(?<space>\s)$/, "orderedList")]
         },
       }),
-      ListItem,
+      // The item keeps the marker it was typed or parsed with, so the draft and the list numbers match the source.
+      ListItem.extend({
+        addAttributes() {
+          return { marker: { default: "-", rendered: false } }
+        },
+        addInputRules() {
+          return [bulletToTaskInputRule]
+        },
+        renderHTML({ node, HTMLAttributes }) {
+          return ["li", mergeAttributes(HTMLAttributes, { "data-marker": node.attrs.marker }), 0]
+        },
+      }),
       TaskList,
       TaskItem.configure({ nested: true }).extend({
         addInputRules() {
           return [taskInputRule(this.type)]
         },
       }),
-      UndoRedo.configure({ newGroupDelay: UNDO_GROUP_DELAY }),
       Link,
       Mention,
       chipExtension(options.onChipAction, options.onChipRemove),
@@ -210,16 +256,41 @@ export function mountRichEditor(options: RichOptions) {
         autocapitalize: "sentences",
         autocorrect: "on",
       },
-      handleKeyDown: (_view, event) => options.onKeyDown(event),
+      handleKeyDown: (view, event) => {
+        // The fence and indent keys belong to the code, so they run before sending or the menus.
+        if (event.key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          if (indentInCode(view.state, event.shiftKey, view.dispatch)) {
+            event.preventDefault()
+            return true
+          }
+        }
+        if (event.key === "Enter" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && !event.isComposing) {
+          if (openFenceOnEnter(view.state, view.dispatch)) {
+            event.preventDefault()
+            return true
+          }
+        }
+        return options.onKeyDown(event)
+      },
       handlePaste: (view, event) => {
         if (options.onPaste(event)) return true
         const text = event.clipboardData?.getData("text/plain")
         if (!text) return true
         event.preventDefault()
-        const tr = view.state.tr.replaceSelection(sliceOf(view.state, text)).scrollIntoView().setMeta("uiEvent", "paste")
-        view.dispatch(tr)
+        const { state } = view
+        // Code takes the paste verbatim; anywhere else the text is read as markdown, as it is sent.
+        const slice = state.selection.$from.parent.type.spec.code
+          ? sliceOf(state, text)
+          : markdownSlice(state.schema, text, { isMention: options.isMention })
+        view.dispatch(state.tr.replaceSelection(slice).scrollIntoView().setMeta("uiEvent", "paste"))
         return true
       },
+      // Copy and cut write the source the composer sends, so a copied **bold** or mention keeps its
+      // markers. Inside code the text is copied as it is.
+      clipboardTextSerializer: (slice, view) =>
+        view.state.selection.$from.parent.type.spec.code
+          ? slice.content.textBetween(0, slice.content.size, "\n")
+          : docToMarkdown({ type: "doc", content: slice.content.toJSON() ?? [] }),
       handleDrop: (_view, event) => !!event.dataTransfer?.types.includes("Files"),
     },
     onUpdate: () => {
@@ -374,14 +445,8 @@ export function mountRichEditor(options: RichOptions) {
       const { doc, selection } = editor.state
       return doc.textBetween(selection.from, selection.to)
     },
-    inListOrCode: () => {
-      const { $from } = editor.state.selection
-      for (let depth = $from.depth; depth > 0; depth--) {
-        const name = $from.node(depth).type.name
-        if (name === "listItem" || name === "taskItem" || name === "codeBlock") return true
-      }
-      return false
-    },
+    // Enter in a fence is a line of code. Everywhere else, including a list or a quote, Enter sends.
+    inCode: () => editor.state.selection.$from.parent.type.name === "codeBlock",
     destroy: () => editor.destroy(),
   }
 }

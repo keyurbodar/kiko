@@ -99,16 +99,18 @@ export function createPromptInputV2Attachments(
     put()
   }
   const handleDrop = async (event: DragEvent) => {
-    event.preventDefault()
     input.setDragging(false)
     const plainText = event.dataTransfer?.getData("text/plain")
+    const files = event.dataTransfer?.files
+    // Only a file or a file mention is ours. Text dropped anywhere else keeps its own drop, such as a text field.
+    if (!files?.length && !plainText?.startsWith("file:")) return
+    event.preventDefault()
     if (plainText?.startsWith("file:")) {
       const path = plainText.slice("file:".length)
       input.focusEditor()
       input.addPart({ type: "file", path, content: `@${path}`, start: 0, end: 0 })
       return
     }
-    const files = event.dataTransfer?.files
     if (files?.length) await addAttachments(Array.from(files))
   }
 

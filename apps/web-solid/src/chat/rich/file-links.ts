@@ -11,6 +11,7 @@ const RELATIVE_PREFIX = /^(~\/|\.{1,2}\/)/
 const RELATIVE_FILE_PATH = /^(?:[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*\/)+[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*(?::\d+){0,2}$/
 const RELATIVE_FILE_NAME = /^[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*\.[A-Za-z0-9_-]+(?::\d+){0,2}$/
 const SCHEME = /^([A-Za-z][A-Za-z0-9+.-]*):(.*)$/
+const URL_PREFIX = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//
 const POSITION = /:\d+(?::\d+)?$/
 const POSITION_CAPTURE = /:(\d+)(?::(\d+))?$/
 const POSITION_HASH = /^#L(\d+)(?:C(\d+))?$/i
@@ -82,6 +83,8 @@ function target(path: string, hash = ""): FileTarget | null {
 export function inlineCodeFile(code: string): FileTarget | null {
   const text = code.trim()
   if (!text || /[\s`]/.test(text)) return null
+  // A URL such as `https://example.com/index.html` is a link, not a file.
+  if (URL_PREFIX.test(text)) return null
   const hasPosition = POSITION.test(text)
   if (!hasPosition && !text.includes("/")) return null
   if (!RELATIVE_PREFIX.test(text) && !text.startsWith("/")) {
@@ -143,6 +146,8 @@ export function hrefFile(href: string): FileTarget | null {
   const scheme = path.match(SCHEME)
   if (!path || (scheme && (scheme[2]!.startsWith("//") || !POSITION_ONLY.test(scheme[2]!)))) return null
   const { path: bare } = splitPosition(path, hash)
+  // A web address written without a scheme, such as `example.com`, is a link, not a file.
+  if (!RELATIVE_PREFIX.test(bare) && !bare.startsWith("/") && looksLikeHostname(bare.split("/")[0]!, true)) return null
   return looksLikeFilePath(bare, path) ? target(path, hash) : null
 }
 

@@ -4,7 +4,8 @@ import { splitFiles } from "../../lib/attachments";
 export type ReplySummary = {
   text: string;
   thumb?: string;
-  glyph?: "document";
+  /** The first file's name: its icon stands in for the thumbnail. */
+  glyph?: string;
 };
 
 const REPLY_QUOTE_MAX_CHARS = 140;
@@ -52,7 +53,7 @@ export function replySummary(message: ChatMessage): ReplySummary {
   const text = body !== "" ? replyQuoteText(body) : images.length + others.length > 0 ? filesLabel(images.length, others) : "";
   const summary: ReplySummary = { text };
   if (images[0]) summary.thumb = images[0].src;
-  else if (others.length > 0) summary.glyph = "document";
+  else if (others.length > 0) summary.glyph = others[0]!.name;
   return summary;
 }
 

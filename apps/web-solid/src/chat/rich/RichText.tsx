@@ -1,5 +1,6 @@
-import { For, Match, Suspense, Switch, createSignal, lazy, onCleanup, Show, type JSX } from "solid-js"
-import { CheckIcon, CopyIcon, Maximize2Icon } from "lucide-solid"
+import { For, Match, Suspense, Switch, createSignal, lazy, onCleanup, onMount, Show, type JSX } from "solid-js"
+import { CheckIcon, CopyIcon, Maximize2Icon, Minimize2Icon } from "lucide-solid"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Dynamic } from "solid-js/web"
 import type { RichText as RichTextTree } from "@kiko/protocol"
@@ -7,7 +8,7 @@ import { EmojiText } from "../../lib/emoji"
 import { FileChip } from "../ui/FileChip"
 import { Mention } from "../ui/Mention"
 import { CodeBlock } from "./CodeBlock"
-import { richNodes, type RichNode } from "./model"
+import { richNodes, type RichNode, type TableCopy } from "./model"
 import "./rich.css"
 
 const SuspiciousLinkDialog = lazy(() => import("../ui/SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })))
@@ -47,7 +48,7 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
         {(n) => {
           const e = () => n() as Extract<RichNode, { kind: "el" }>
           const children = () => <For each={e().children}>{(child) => <Node node={child} onMasked={props.onMasked} />}</For>
-          if (e().attrs.class === "rich-table-scroll") return <RichTable>{children()}</RichTable>
+          if (e().attrs.class === "rich-table-scroll") return <RichTable copy={e().copy}>{children()}</RichTable>
           if (e().tag === "a") {
             // The URL shows on hover, as t3code's link does, so the link itself carries no native title.
             return (
@@ -58,8 +59,10 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
               </TooltipV2>
             )
           }
+          // t3code widens an ol's gutter so a wide marker ("10.") is not clipped by the bubble.
+          const style = () => (e().tag === "ol" ? orderedGutter(e().attrs.start, e().children.length) : undefined)
           return (
-            <Dynamic component={e().tag} {...e().attrs}>
+            <Dynamic component={e().tag} {...e().attrs} style={style()}>
               {children()}
             </Dynamic>
           )
@@ -69,13 +72,38 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
   )
 }
 
-/** A table with t3code's footer: a toggle that wraps or truncates its cells, and a copy of its rows as tab-separated text. */
-function RichTable(props: { children: JSX.Element }): JSX.Element {
-  const [expanded, setExpanded] = createSignal(false)
+/** The gutter for an ordered list whose widest marker has more than one digit, as t3code's ol does. */
+function orderedGutter(start: string | undefined, count: number): { "--list-gutter": string } | undefined {
+  const first = Number.parseInt(start ?? "1", 10)
+  if (!Number.isSafeInteger(first) || count < 1) return undefined
+  const width = Math.max(String(first).length, String(first + count - 1).length)
+  return width <= 1 ? undefined : { "--list-gutter": `${width + 2}ch` }
+}
+
+/**
+ * A table with t3code's footer: a toggle that wraps or truncates its cells, and a menu that copies
+ * the rows as Markdown or CSV. Cells wrap by default, as t3code's wordWrap setting does.
+ */
+function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Element {
+  const [expanded, setExpanded] = createSignal(true)
   const [copied, setCopied] = createSignal(false)
   let root: HTMLDivElement | undefined
+  let scroller: HTMLDivElement | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(timer))
+
+  // t3code's scroll fade: an edge fades only where the table overflows that way, over 1.5rem.
+  const fade = () => {
+    if (!scroller) return
+    scroller.style.setProperty("--overflow-start", `${scroller.scrollLeft}px`)
+    scroller.style.setProperty("--overflow-end", `${Math.max(0, scroller.scrollWidth - scroller.clientWidth - scroller.scrollLeft)}px`)
+  }
+  onMount(() => {
+    fade()
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(fade)
+    if (scroller) observer?.observe(scroller)
+    onCleanup(() => observer?.disconnect())
+  })
 
   // Wrapping cells would narrow the columns, so pin each header cell to its current width first, as t3code does.
   const toggle = () => {
@@ -89,10 +117,9 @@ function RichTable(props: { children: JSX.Element }): JSX.Element {
     }
     setExpanded(!expanded())
   }
-  const copy = async () => {
-    const table = root?.querySelector("table")
-    if (!table) return
-    const text = [...table.rows].map((row) => [...row.cells].map((cell) => cell.textContent ?? "").join("\t")).join("\n")
+  // The text comes from the source cells, so bold, code and links survive a Copy as Markdown.
+  const copy = async (text: string | undefined) => {
+    if (text === undefined) return
     try {
       await navigator.clipboard.writeText(text)
     } catch {
@@ -104,7 +131,9 @@ function RichTable(props: { children: JSX.Element }): JSX.Element {
   }
   return (
     <div class="rich-table" ref={root} data-expanded={expanded() ? "true" : "false"} data-component="chat-table">
-      <div class="rich-table-scroll">{props.children}</div>
+      <div class="rich-table-scroll" ref={scroller} onScroll={fade}>
+        {props.children}
+      </div>
       <div class="rich-table-footer">
         <TooltipV2 placement="top" value={expanded() ? "Collapse table cells" : "Expand table cells"}>
           <button
@@ -115,14 +144,22 @@ function RichTable(props: { children: JSX.Element }): JSX.Element {
             aria-label={expanded() ? "Collapse table cells" : "Expand table cells"}
             onClick={toggle}
           >
-            <Maximize2Icon class="size-3.5" aria-hidden="true" />
+            {expanded() ? <Minimize2Icon class="size-3" aria-hidden="true" /> : <Maximize2Icon class="size-3" aria-hidden="true" />}
           </button>
         </TooltipV2>
-        <TooltipV2 placement="top" value={copied() ? "Copied" : "Copy table"}>
-          <button type="button" class="rich-table-action" aria-label={copied() ? "Copied" : "Copy table"} onClick={copy}>
-            {copied() ? <CheckIcon class="size-3.5" aria-hidden="true" /> : <CopyIcon class="size-3.5" aria-hidden="true" />}
-          </button>
-        </TooltipV2>
+        <MenuV2 gutter={4} placement="bottom-end">
+          <TooltipV2 placement="top" value={copied() ? "Copied" : "Copy table"}>
+            <MenuV2.Trigger class="rich-table-action" aria-label={copied() ? "Copied" : "Copy table"}>
+              {copied() ? <CheckIcon class="size-3" aria-hidden="true" /> : <CopyIcon class="size-3" aria-hidden="true" />}
+            </MenuV2.Trigger>
+          </TooltipV2>
+          <MenuV2.Portal>
+            <MenuV2.Content class="min-w-40">
+              <MenuV2.Item onSelect={() => copy(props.copy?.markdown)}>Copy as Markdown</MenuV2.Item>
+              <MenuV2.Item onSelect={() => copy(props.copy?.csv)}>Copy as CSV</MenuV2.Item>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
       </div>
     </div>
   )

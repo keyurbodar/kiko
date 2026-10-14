@@ -14,6 +14,7 @@ import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createImageDialog } from "../chat/ui/image-dialog"
 import { runSlash, slashSuggestions } from "./slash"
 import { forgetUpload, readyAttachments, releaseUpload, startUpload, uploadBlockReason } from "../sync/uploads"
+import { createDraftRestore } from "./draft-restore"
 
 const draftFiles = () => import("./rich/draft-files")
 
@@ -80,24 +81,25 @@ export function Composer(props: ComposerProps) {
     keptFor.clear()
     if (boxed().length) store.setPrompt(store.state.prompt.filter((part) => part.type !== "image"))
   }
-  const restoreFiles = async (key: string) => {
-    const saved = await draftFiles().then((m) => m.listDraftFiles(key))
-    if (props.draftKey !== key) return
-    const have = new Set(boxed().map((part) => part.id))
-    const parts: PromptInputV2Attachment[] = []
-    for (const entry of saved) {
-      if (have.has(entry.id)) continue
+  // Saved files come back as chips. The restore is raced by chat switches, so it is built in draft-restore.ts.
+  const restoreFiles = createDraftRestore<{ id: string; part: PromptInputV2Attachment; file: File }>({
+    list: (key) => draftFiles().then((m) => m.listDraftFiles(key)),
+    current: () => props.draftKey,
+    inBox: () => new Set(boxed().map((part) => part.id)),
+    build: async (entry) => {
       const file = new File([entry.blob], entry.name, { type: entry.type })
-      parts.push({ type: "image", id: entry.id, filename: entry.name, mime: entry.type, size: entry.size, blob: { id: await blobId(file), url: URL.createObjectURL(file) } })
-      keptFor.set(entry.id, key)
-      startUpload(entry.id, key, file, entry.name, entry.type)
-    }
-    if (props.draftKey !== key) return releaseAll(parts)
-    if (parts.length) store.setPrompt([...store.state.prompt, ...parts], store.state.cursor)
-  }
-  const releaseAll = (parts: PromptInputV2Attachment[]) => {
-    for (const part of parts) discard(part.id, part.blob.url)
-  }
+      const part: PromptInputV2Attachment = { type: "image", id: entry.id, filename: entry.name, mime: entry.type, size: entry.size, blob: { id: await blobId(file), url: URL.createObjectURL(file) } }
+      return { id: entry.id, part, file }
+    },
+    release: ({ part }) => releaseBlobUrl(part.blob.url),
+    apply: (key, items) => {
+      for (const { part, file } of items) {
+        keptFor.set(part.id, key)
+        startUpload(part.id, key, file, part.filename, part.mime)
+      }
+      store.setPrompt([...store.state.prompt, ...items.map((item) => item.part)], store.state.cursor)
+    },
+  })
   const blocked = () => uploadBlockReason(boxed().map((part) => part.id))
   const draftText = () =>
     store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")

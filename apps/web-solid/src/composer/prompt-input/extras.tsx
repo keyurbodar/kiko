@@ -1,10 +1,12 @@
 import { For, Show } from "solid-js"
-import { FileIcon } from "@kiko/ui/file-icon"
+import { FolderIcon } from "lucide-solid"
 import { Undo2Icon, XIcon } from "lucide-solid"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { isImage } from "../../lib/attachments"
+import { EntryIcon } from "../../lib/EntryIcon"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { progressLabel, retryUpload, uploadState } from "../../sync/uploads"
+import { middleTruncate } from "../rich/nodes"
 import type { PromptInputV2Attachment, PromptInputV2Suggestion } from "./types"
 
 const RING = 2 * Math.PI * 15
@@ -45,7 +47,7 @@ export function PromptInputV2Attachments(props: {
                 <img src={attachment.blob.url} alt={attachment.filename} draggable={false} />
               </button>
               <Show when={upload()?.status === "uploading"}>
-                <svg class="composer-picture-ring" viewBox="0 0 36 36" data-slot="upload-progress" aria-label={progressLabel((upload() as { progress: number }).progress)}>
+                <svg class="composer-picture-ring" viewBox="0 0 36 36" role="img" data-slot="upload-progress" aria-label={progressLabel((upload() as { progress: number }).progress)}>
                   <circle cx="18" cy="18" r="15" />
                   <circle cx="18" cy="18" r="15" stroke-dasharray={String(RING)} stroke-dashoffset={String(RING * (1 - (upload() as { progress: number }).progress))} />
                 </svg>
@@ -66,6 +68,71 @@ export function PromptInputV2Attachments(props: {
 
 function failure(upload: ReturnType<typeof uploadState>) {
   return upload?.status === "failed" ? upload.reason : null
+}
+
+/**
+ * The files that are not pictures, as the inline chip the message draws (`composer-chip`): the
+ * file's icon, its name, and an upload status. A failed upload says Retry and tries again; the
+ * remove button shows on hover or focus, and always on a touch screen.
+ */
+export function PromptInputV2FileChips(props: {
+  attachments: PromptInputV2Attachment[]
+  onRemove: (attachment: PromptInputV2Attachment) => void
+}) {
+  const files = () => props.attachments.filter((a) => !isImage({ name: a.filename, type: a.mime }))
+  return (
+    <Show when={files().length > 0}>
+      <div class="composer-file-chips" data-component="composer-file-chips" data-slot="prompt-file-chips">
+        <For each={files()}>
+          {(attachment) => {
+            const upload = () => uploadState(attachment.id)
+            const status = () => {
+              const state = upload()
+              if (state?.status === "uploading") return progressLabel(state.progress)
+              return state?.status === "failed" ? "Retry" : ""
+            }
+            return (
+              <span
+                class="file-chip composer-chip composer-file-chip"
+                data-component="composer-attachment"
+                data-id={attachment.id}
+                data-state={upload()?.status}
+                title={failure(upload()) ?? attachment.filename}
+              >
+                <EntryIcon path={attachment.filename} />
+                <span class="file-chip-label">{middleTruncate(attachment.filename)}</span>
+                <Show when={status()}>
+                  {(label) =>
+                    upload()?.status === "failed" ? (
+                      <button
+                        type="button"
+                        class="composer-chip-status"
+                        data-action="retry-upload"
+                        aria-label={`Retry upload for ${attachment.filename}`}
+                        onClick={() => retryUpload(attachment.id)}
+                      >
+                        {label()}
+                      </button>
+                    ) : (
+                      <span class="composer-chip-status">{label()}</span>
+                    )
+                  }
+                </Show>
+                <button
+                  type="button"
+                  class="composer-chip-remove"
+                  aria-label={`Remove ${attachment.filename}`}
+                  onClick={() => props.onRemove(attachment)}
+                >
+                  <XIcon aria-hidden="true" />
+                </button>
+              </span>
+            )
+          }}
+        </For>
+      </div>
+    </Show>
+  )
 }
 
 export function PromptInputV2Popover(props: {
@@ -140,10 +207,6 @@ function PromptInputV2SuggestionIcon(props: { item: PromptInputV2Suggestion }) {
   if (props.item.kind === "agent" && props.item.mention?.type === "agent")
     return <IdentityAvatar seed={props.item.mention.name} size={18} />
   if (props.item.kind === "command") return null
-  return (
-    <FileIcon
-      node={{ path: props.item.path ?? props.item.label, type: props.item.kind === "reference" ? "directory" : "file" }}
-      class="size-4 shrink-0"
-    />
-  )
+  if (props.item.kind === "reference") return <FolderIcon class="size-4 shrink-0" aria-hidden="true" />
+  return <EntryIcon path={props.item.path ?? props.item.label} />
 }

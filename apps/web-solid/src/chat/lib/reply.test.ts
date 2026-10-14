@@ -15,12 +15,12 @@ describe("replySummary", () => {
     expect(replySummary({ ...base, files: [img("/1.jpg"), img("/2.jpg"), img("/3.jpg")] })).toEqual({ text: "3 photos", thumb: "/1.jpg" });
   });
 
-  test("a file with a caption keeps the caption and gets the document glyph", () => {
-    expect(replySummary({ ...base, body: "Q3 report", files: [doc("q3.pdf")] })).toEqual({ text: "Q3 report", glyph: "document" });
+  test("a file with a caption keeps the caption and gets the file's icon", () => {
+    expect(replySummary({ ...base, body: "Q3 report", files: [doc("q3.pdf")] })).toEqual({ text: "Q3 report", glyph: "q3.pdf" });
   });
 
   test("files without a caption name the first and count the rest", () => {
-    expect(replySummary({ ...base, files: [doc("a.pdf"), doc("b.pdf")] })).toEqual({ text: "a.pdf and 1 more", glyph: "document" });
+    expect(replySummary({ ...base, files: [doc("a.pdf"), doc("b.pdf")] })).toEqual({ text: "a.pdf and 1 more", glyph: "a.pdf" });
   });
 
   test("a picture beside a file shows the picture", () => {

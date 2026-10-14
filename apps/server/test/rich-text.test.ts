@@ -30,10 +30,14 @@ const cases: [string, string, unknown][] = [
 	["raw html block", '<div onclick="x()">hi</div>', [p(text('<div onclick="x()">hi</div>'))]],
 	["raw html inline", "a <b>x</b> b", [p(text("a "), text("<b>"), text("x"), text("</b>"), text(" b"))]],
 	["image becomes alt text", "![cat](https://a.com/c.png)", [p(text("cat"))]],
-	["hr dropped", "a\n\n---\n\nb", [p(text("a")), p(text("b"))]],
+	["a rule between blocks", "a\n\n---\n\nb", [p(text("a")), { t: "rule" }, p(text("b"))]],
 	["a single newline is a line break", "a\nb", [p(text("a"), text("\n"), text("b"))]],
 	["quote keeps its lines", "> a\n> b", [{ t: "quote", children: [p(text("a"), text("\n"), text("b"))] }]],
 	["task items show their box", "- [ ] a\n- [x] b", [{ t: "list", items: [[p(text("☐ "), text("a"))], [p(text("☑ "), text("b"))]] }]],
+	["a task item after a nested item drops its marker text", "- one\n- two\n  - nested\n\n- [ ] todo", [{ t: "list", loose: true, items: [[p(text("one"))], [p(text("two")), { t: "list", items: [[p(text("nested"))]] }], [p(text("☐ "), text("todo"))]] }]],
+	["a list with no blank line between items is tight", "- a\n- b", [{ t: "list", items: [[p(text("a"))], [p(text("b"))]] }]],
+	["a list with a blank line between items is loose", "- a\n\n- b", [{ t: "list", loose: true, items: [[p(text("a"))], [p(text("b"))]] }]],
+	["an ordered loose list keeps its start", "3. a\n\n4. b", [{ t: "list", start: 3, loose: true, items: [[p(text("a"))], [p(text("b"))]] }]],
 	["empty", "", []],
 ]
 
@@ -41,7 +45,7 @@ test.each(cases)("%s", (_name, input, expected) => {
 	expect(parseRichText(input) as unknown).toEqual(expected)
 })
 
-const NODE_TYPES = new Set(["paragraph", "heading", "list", "quote", "code_block", "table", "text", "bold", "italic", "strike", "code", "link", "mention"])
+const NODE_TYPES = new Set(["paragraph", "heading", "list", "quote", "rule", "code_block", "table", "text", "bold", "italic", "strike", "code", "link", "mention"])
 
 test("no input yields a node type outside the protocol", () => {
 	const seen = new Set<string>()

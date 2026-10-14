@@ -24,8 +24,8 @@ export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
   let root!: HTMLDivElement
   const [lines, setLines] = createSignal<Line[] | null>(null)
   const [copied, setCopied] = createSignal(false)
-  // Wrapping is off by default: a long line scrolls sideways, as in t3code's blocks.
-  const [wrap, setWrap] = createSignal(false)
+  // t3code's wordWrap setting defaults on, so a block wraps its long lines until the reader turns it off.
+  const [wrap, setWrap] = createSignal(true)
   let timer: ReturnType<typeof setTimeout> | undefined
   let dead = false
 
@@ -81,7 +81,7 @@ export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
           </TooltipV2>
           <TooltipV2 placement="top" value={copied() ? "Copied" : "Copy code"}>
             <button type="button" class="rich-code-action" aria-label={copied() ? "Copied" : "Copy code"} onClick={copy}>
-              {copied() ? <CheckIcon class="size-3.5" aria-hidden="true" /> : <CopyIcon class="size-3.5" aria-hidden="true" />}
+              {copied() ? <CheckIcon class="size-3" aria-hidden="true" /> : <CopyIcon class="size-3" aria-hidden="true" />}
             </button>
           </TooltipV2>
         </div>
