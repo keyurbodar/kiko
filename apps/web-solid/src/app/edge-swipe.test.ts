@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { SWIPE_PX, swipeAction } from "./edge-swipe"
 
-const shut = { drawer: false, info: false }
+const shut = { drawer: false, sidecar: false }
 const far = SWIPE_PX + 10
 
 describe("phone swipes", () => {
@@ -13,17 +13,18 @@ describe("phone swipes", () => {
   })
 
   test("leftward on the open drawer or its scrim closes it", () => {
-    const open = { drawer: true, info: false }
+    const open = { drawer: true, sidecar: false }
     expect(swipeAction(open, "drawer", -far, 0)).toBe("close-drawer")
     expect(swipeAction(open, "scrim", -far, 0)).toBe("close-drawer")
     expect(swipeAction(open, "drawer", far, 0)).toBeNull()
   })
 
-  test("rightward on the open info panel closes it", () => {
-    const open = { drawer: false, info: true }
-    expect(swipeAction(open, "info", far, 0)).toBe("close-info")
-    expect(swipeAction(open, "info", -far, 0)).toBeNull()
+  test("rightward on the open sidecar closes it", () => {
+    const open = { drawer: false, sidecar: true }
+    expect(swipeAction(open, "sidecar", far, 0)).toBe("close-sidecar")
+    expect(swipeAction(open, "sidecar", -far, 0)).toBeNull()
     expect(swipeAction(open, "other", far, 0)).toBeNull()
+    expect(swipeAction(shut, "sidecar", far, 0)).toBeNull()
   })
 
   test("a short or mostly vertical move is a tap or a scroll", () => {

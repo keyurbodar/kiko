@@ -1,7 +1,7 @@
 import { Navigate, type RouteDefinition, useNavigate, useParams } from "@solidjs/router"
 import { createEffect, lazy } from "solid-js"
 import { useApp } from "../lib/store"
-import { openFile, openInfo } from "../chat/info/state"
+import { fixedSurface, openFile, openSurface } from "../chat/side/surfaces"
 import { sectionOf } from "./sections"
 
 /*
@@ -40,11 +40,11 @@ function Resume() {
 
 /*
  * Memory is part of a chat now. `/memory` (and the old `/memory/:id`) open the active chat with the
- * panel on memory.
+ * side panel on memory.
  */
 function MemoryRedirect() {
   const chat = activeChat()
-  openInfo({ kind: "memory" })
+  if (chat) openSurface(chat, fixedSurface("memory"))
   return <Navigate href={chat ? `/chat/${chat}` : "/chat"} />
 }
 
@@ -63,7 +63,7 @@ function FilesRedirect() {
       path = params.path
     }
   }
-  if (chat) openFile(chat, path)
+  if (chat) path ? openFile(chat, path) : openSurface(chat, fixedSurface("files"))
   return <Navigate href={chat ? `/chat/${chat}` : "/chat"} />
 }
 

@@ -37,7 +37,7 @@ describe("registry", () => {
 })
 
 describe("kat commands", () => {
-  const list = katCommands({ toggleSidebar() {}, newChat() {}, newGroup() {}, closeChat() {}, hasActiveChat: () => false, toggleInfo() {}, toggleFiles() {}, openPalette() {}, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, goToChat() {}, stepChat() {}, chatCount: () => 0, searchChat() {}, searchAll() {}, inRichEditor: () => false })
+  const list = katCommands({ toggleSidebar() {}, newChat() {}, newGroup() {}, closeChat() {}, hasActiveChat: () => false, toggleCard() {}, openFiles() {}, openPalette() {}, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, goToChat() {}, stepChat() {}, chatCount: () => 0, searchChat() {}, searchAll() {}, inRichEditor: () => false })
 
   test("matches kat's map and leaves share out", () => {
     const map = Object.fromEntries(list.filter((c) => !c.unlisted).map((c) => [c.title, c.shortcut]))
@@ -49,7 +49,7 @@ describe("kat commands", () => {
       "Attach file…": "Mod+O",
       "Rename chat": "F2",
       "Pin chat": undefined,
-      "Right panel": "Mod+I",
+      "Chat details": "Mod+I",
       "Files": undefined,
       "Close chat": undefined,
       "Delete chat": undefined,
@@ -95,7 +95,7 @@ describe("kat commands", () => {
 
 describe("the palette steps aside for the rich editor's link key", () => {
   const kat = (inRichEditor: boolean, openPalette: () => void) =>
-    katCommands({ toggleSidebar() {}, newChat() {}, newGroup() {}, closeChat() {}, hasActiveChat: () => false, toggleInfo() {}, toggleFiles() {}, openPalette, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, goToChat() {}, stepChat() {}, chatCount: () => 0, searchChat() {}, searchAll() {}, inRichEditor: () => inRichEditor })
+    katCommands({ toggleSidebar() {}, newChat() {}, newGroup() {}, closeChat() {}, hasActiveChat: () => false, toggleCard() {}, openFiles() {}, openPalette, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, goToChat() {}, stepChat() {}, chatCount: () => 0, searchChat() {}, searchAll() {}, inRichEditor: () => inRichEditor })
 
   test("Mod+K does not open the palette while focus is in the composer", () => {
     let opened = 0
@@ -117,7 +117,7 @@ describe("the palette steps aside for the rich editor's link key", () => {
 describe("numbered chat jumps", () => {
   test("Mod+1 to Mod+9 open the sidebar's chats in order, only as many as there are", () => {
     const went: number[] = []
-    const jumps = katCommands({ toggleSidebar() {}, newChat() {}, newGroup() {}, closeChat() {}, hasActiveChat: () => false, toggleInfo() {}, toggleFiles() {}, openPalette() {}, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, goToChat: (n) => went.push(n), stepChat() {}, chatCount: () => 2, searchChat() {}, searchAll() {}, inRichEditor: () => false }).filter((c) => c.id.startsWith("chats.go-"))
+    const jumps = katCommands({ toggleSidebar() {}, newChat() {}, newGroup() {}, closeChat() {}, hasActiveChat: () => false, toggleCard() {}, openFiles() {}, openPalette() {}, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, goToChat: (n) => went.push(n), stepChat() {}, chatCount: () => 2, searchChat() {}, searchAll() {}, inRichEditor: () => false }).filter((c) => c.id.startsWith("chats.go-"))
     expect(jumps.map((c) => c.shortcut)).toEqual(["Mod+1", "Mod+2", "Mod+3", "Mod+4", "Mod+5", "Mod+6", "Mod+7", "Mod+8", "Mod+9"])
     expect(jumps.map((c) => c.when!())).toEqual([true, true, false, false, false, false, false, false, false])
     jumps[1]!.run()

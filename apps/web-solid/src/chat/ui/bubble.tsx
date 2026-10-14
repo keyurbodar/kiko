@@ -41,14 +41,6 @@ export type BubbleVariant =
 
 export type BubbleAlign = "start" | "end"
 
-type BubbleGroupProps = ComponentProps<"div">
-
-/** Consecutive bubbles from one sender, set closer together than two runs. */
-export function BubbleGroup(props: BubbleGroupProps) {
-  const [local, others] = splitProps(props, ["class"])
-  return <div data-slot="bubble-group" class={cn("flex min-w-0 flex-col gap-2", local.class)} {...others} />
-}
-
 export type BubblePosition = "only" | "first" | "middle" | "last"
 
 export type BubbleProps = ComponentProps<"div"> & {

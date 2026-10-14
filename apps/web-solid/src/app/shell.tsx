@@ -10,7 +10,9 @@ import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { avatarPickerSlug } from "../avatar/picker-state";
 import { createEffect, createMemo, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
-import { closeInfo, infoOpen, loadInfoPanel } from "../chat/info/state";
+import { cardInline, cardOpen, currentPlacement, loadCard, setCardPanelWidth } from "../chat/side/card-state";
+import { CARD_SHIFT } from "../chat/side/card/placement";
+import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
@@ -22,6 +24,7 @@ import { Sidebar, SidebarToggle } from "../sidebar";
 import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
+import { TopBar } from "./top-bar";
 import { CHAT_MIN, INFO, initialSizes, readWidth, saveWidth, SIDEBAR } from "./widths";
 
 const fill = (
@@ -43,8 +46,9 @@ const i18n: UiI18n = {
     }),
 };
 
-// The info panel loads on the first open, or on idle after the first paint. The chat route does not carry it.
-const InfoPanel = lazy(loadInfoPanel);
+// The sidecar loads on the first open, or on idle after the first paint. The chat route does not carry it.
+const Sidecar = lazy(loadSidecar);
+const Card = lazy(loadCard);
 // The first-run look screen and the avatar picker each load on their own, off the first paint.
 const AvatarPicker = lazy(() => import("../avatar/picker"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
@@ -95,7 +99,7 @@ export function Shell(props: ParentProps) {
     onCleanup(() => compactQuery?.removeEventListener("change", on))
   })
   let sidebarPanel: PanelContextValue | undefined
-  const [infoPanel, setInfoPanel] = createSignal<PanelContextValue | undefined>();
+  const [sidePanel, setSidePanel] = createSignal<PanelContextValue | undefined>();
   const drawer = drawerOpen;
   const setDrawer = setDrawerOpen;
   // Keyboard intent for focus rings: a real navigation key turns rings on, a pointer turns them
@@ -130,7 +134,7 @@ export function Shell(props: ParentProps) {
     window.addEventListener("keydown", on);
     onCleanup(() => window.removeEventListener("keydown", on));
   });
-  // Phone swipes for the drawer and the info panel (edge-swipe.ts). Touch events, not pointer
+  // Phone swipes for the drawer and the sidecar (edge-swipe.ts). Touch events, not pointer
   // events: a pointer is cancelled once the browser starts panning, and the end is what decides.
   createEffect(() => {
     if (!narrow()) return;
@@ -142,11 +146,11 @@ export function Shell(props: ParentProps) {
     const up = (e: TouchEvent) => {
       const t = e.changedTouches[0];
       if (!start || !t) return;
-      const action = swipeAction({ drawer: drawer(), info: infoOpen() }, start.region, t.clientX - start.x, t.clientY - start.y);
+      const action = swipeAction({ drawer: drawer(), sidecar: sideOpen() }, start.region, t.clientX - start.x, t.clientY - start.y);
       start = null;
       if (action === "open-drawer") setDrawer(true);
       else if (action === "close-drawer") setDrawer(false);
-      else if (action === "close-info") closeInfo();
+      else if (action === "close-sidecar") closeSide();
     };
     window.addEventListener("touchstart", down, { passive: true });
     window.addEventListener("touchend", up, { passive: true });
@@ -176,10 +180,18 @@ export function Shell(props: ParentProps) {
     if (prev !== path) snapshotAfterRoute();
     return path;
   });
-  /** The chat the panel describes: the one named by the URL. */
-  const infoChat = () => {
+  /** The chat the sidecar shows: the one named by the URL. */
+  const sideChat = () => {
     const id = CHAT_PATH.exec(location.pathname)?.[1];
     return id && id !== "new" ? decodeURIComponent(id) : null;
+  };
+  const sideOpen = () => {
+    const id = sideChat();
+    return id !== null && sidecarOpen(id);
+  };
+  const closeSide = () => {
+    const id = sideChat();
+    if (id) closeSidecar(id);
   };
   useKatCommands({ toggleSidebar: toggle });
   // The hotkey library loads right after first paint. Shortcuts are keyboard only, so nothing waits on it.
@@ -189,8 +201,8 @@ export function Shell(props: ParentProps) {
   });
   onMount(() => {
     const idle = (globalThis as { requestIdleCallback?: (run: () => void) => number }).requestIdleCallback;
-    if (infoOpen()) void loadInfoPanel();
-    else if (idle) idle(() => void loadInfoPanel());
+    if (sideOpen()) void loadSidecar();
+    else if (idle) idle(() => void loadSidecar());
   });
   onMount(() => onCleanup(watchHold()));
   // Preload tier 3 on the first modifier key so the palette opens in one frame.
@@ -208,13 +220,13 @@ export function Shell(props: ParentProps) {
   const sidebar = createMemo(() => (
     <Sidebar section={sectionOf(location.pathname)} collapsed={closed()} onToggle={toggle} />
   ));
-  const dockedInfo = () => (compact() || !infoOpen() ? null : infoChat());
+  const dockedSide = () => (compact() || !sideOpen() ? null : sideChat());
   // The docked column is always in the layout and opens and closes as the sidebar does, so Corvu
   // moves the width between it and the chat and the other columns stay put.
   createEffect(() => {
-    const panel = infoPanel();
+    const panel = sidePanel();
     if (!panel) return;
-    if (dockedInfo()) {
+    if (dockedSide()) {
       if (!panel.collapsed()) return;
       panel.expand();
       panel.resize(`${readWidth(INFO)}px`);
@@ -233,8 +245,8 @@ export function Shell(props: ParentProps) {
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
           if (sidebarPanel && !sidebarPanel.collapsed()) sidebarPanel.resize(`${readWidth(SIDEBAR)}px`);
-          const info = infoPanel();
-          if (info && !info.collapsed()) info.resize(`${readWidth(INFO)}px`);
+          const side = sidePanel();
+          if (side && !side.collapsed()) side.resize(`${readWidth(INFO)}px`);
         });
       });
     };
@@ -244,7 +256,19 @@ export function Shell(props: ParentProps) {
       window.removeEventListener("resize", on);
     });
   });
-  const overlaidInfo = () => (compact() && infoOpen() ? infoChat() : null);
+  const overlaidSide = () => (compact() && sideOpen() ? sideChat() : null);
+  // The card's placement follows the chat panel's width, so it watches the panel itself. The panel
+  // is remounted when the layout mode changes, so the observer follows the element, not the mount.
+  const [mainPanel, setMainPanel] = createSignal<HTMLElement>();
+  createEffect(() => {
+    const panel = mainPanel();
+    if (!panel) return;
+    const observer = new ResizeObserver(([entry]) => setCardPanelWidth(entry?.contentRect.width ?? 0));
+    observer.observe(panel);
+    onCleanup(() => observer.disconnect());
+  });
+  // An inline card sits in the chat's own column, so the chat gives up the card's width on that side.
+  const inlineCard = () => sideChat() !== null && cardInline();
   return (
     <I18nProvider value={i18n}>
       <div
@@ -263,7 +287,7 @@ export function Shell(props: ParentProps) {
         </Show>
         <Show when={narrow() ? "narrow" : compact() ? "compact" : "wide"} keyed>
           {(_mode) => {
-            const sizes = initialSizes(window.innerWidth, narrow() ? null : collapsed() ? 0 : readWidth(SIDEBAR), compact() ? null : dockedInfo() ? readWidth(INFO) : 0);
+            const sizes = initialSizes(window.innerWidth, narrow() ? null : collapsed() ? 0 : readWidth(SIDEBAR), compact() ? null : dockedSide() ? readWidth(INFO) : 0);
             return (
               <Resizable class="min-w-0 flex-1" keyboardDelta="16px" data-component="app-panels">
                 <Show when={!narrow()}>
@@ -292,16 +316,30 @@ export function Shell(props: ParentProps) {
                   />
                 </Show>
                 <Resizable.Panel class="shell-panel" data-component="chat-panel" initialSize={sizes.chat} minSize={`${CHAT_MIN}px`}>
-                  {/* No bar over the panel. The sidebar button floats over its corner while the sidebar is shut. */}
+                  {/* The top bar sits on the shell, and the panel is a pane under it. A section
+                      without a top bar (settings) gets the panel from the top, and the sidebar button
+                      floats over its corner while the sidebar is shut. */}
                   <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
-                    <Show when={closed()}>
+                    <TopBar sidebarOpen={!closed()} onToggleSidebar={toggle} />
+                    <Show when={closed() && sectionOf(location.pathname) !== "chat"}>
                       <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
                     </Show>
-                    <div class="main-row relative flex min-h-0 min-w-0 flex-1" data-component="main-row">
-                      <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel">
-                        <div class="flex min-w-0 flex-1 flex-col">
+                    <div
+                      class="main-row relative flex min-h-0 min-w-0 flex-1"
+                      data-component="main-row"
+                      data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
+                    >
+                      <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel" ref={setMainPanel}>
+                        <div class="flex min-w-0 flex-1 flex-col" style={{ "padding-right": inlineCard() ? `${CARD_SHIFT}px` : undefined }}>
                           {props.children}
                         </div>
+                        <Show when={cardOpen() ? sideChat() : null} keyed>
+                          {(id) => (
+                            <Suspense>
+                              <Card chatId={id} placement={currentPlacement()} />
+                            </Suspense>
+                          )}
+                        </Show>
                       </div>
                       <Show when={searchScope()}>
                         <Suspense>
@@ -314,29 +352,29 @@ export function Shell(props: ParentProps) {
                 <Show when={!compact()}>
                   <Resizable.Handle
                     class="resize-handle"
-                    data-component="info-resize"
-                    aria-label="Resize panel"
+                    data-component="sidecar-resize"
+                    aria-label="Resize side panel"
                     altKey={false}
-                    disabled={!dockedInfo()}
-                    onHandleDragEnd={() => saveWidth(INFO, "kiko-info-panel")}
-                    onKeyUp={() => saveWidth(INFO, "kiko-info-panel")}
+                    disabled={!dockedSide()}
+                    onHandleDragEnd={() => saveWidth(INFO, "kiko-sidecar-panel")}
+                    onKeyUp={() => saveWidth(INFO, "kiko-sidecar-panel")}
                   />
                   <Resizable.Panel
-                    panelId="kiko-info-panel"
+                    panelId="kiko-sidecar-panel"
                     class="shell-panel"
-                    data-component="info-column"
+                    data-component="sidecar-column"
                     initialSize={sizes.info}
                     minSize={`${INFO.min}px`}
                     maxSize={`${INFO.max}px`}
                     collapsible
                     collapsedSize={0}
-                    onCollapse={() => dockedInfo() && closeInfo()}
+                    onCollapse={() => dockedSide() && closeSide()}
                   >
-                    <GrabPanel onGrab={setInfoPanel} />
-                    <Show when={dockedInfo()}>
+                    <GrabPanel onGrab={setSidePanel} />
+                    <Show when={dockedSide()}>
                       {(chatId) => (
                         <Suspense>
-                          <InfoPanel chatId={chatId()} />
+                          <Sidecar chatId={chatId()} />
                         </Suspense>
                       )}
                     </Show>
@@ -346,13 +384,13 @@ export function Shell(props: ParentProps) {
             );
           }}
         </Show>
-        <Show when={overlaidInfo()}>
+        <Show when={overlaidSide()}>
           {(chatId) => (
             <>
-              <div class="drawer-scrim info-scrim" data-component="info-scrim" aria-hidden="true" onPointerDown={closeInfo} />
-              <div class="info-overlay" data-component="info-overlay">
+              <div class="drawer-scrim sidecar-scrim" data-component="sidecar-scrim" aria-hidden="true" onPointerDown={closeSide} />
+              <div class="sidecar-overlay" data-component="sidecar-overlay">
                 <Suspense>
-                  <InfoPanel chatId={chatId()} />
+                  <Sidecar chatId={chatId()} />
                 </Suspense>
               </div>
             </>

@@ -17,6 +17,8 @@ export type Routine = { id: string; name: string; roomId: string; status: "activ
 
 const [all, setAll] = createSignal<readonly Routine[] | undefined>(undefined)
 const [started, setStarted] = createSignal<ReadonlySet<string>>(new Set())
+/** Whether this session has just started the routine. The card shows the same state as the routines page. */
+export const ranNow = (id: string): boolean => started().has(id)
 
 /** Only what the panel draws, from the wire's reminder rows: a routine has a trigger and is live. */
 function read(value: unknown): Routine[] {
@@ -41,7 +43,7 @@ export const routinesOf = (chatId: string): readonly Routine[] | undefined => al
 const post = (path: string, body: unknown) =>
   fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.ok).catch(() => false)
 
-async function setStatus(routine: Routine, status: Routine["status"]): Promise<void> {
+export async function setStatus(routine: Routine, status: Routine["status"]): Promise<void> {
   const put = (s: Routine["status"]) => setAll((list) => list?.map((r) => (r.id === routine.id ? { ...r, status: s } : r)))
   put(status)
   if (!(await post(`/api/routines/${routine.id}`, { status }))) {
@@ -50,7 +52,7 @@ async function setStatus(routine: Routine, status: Routine["status"]): Promise<v
   }
 }
 
-async function runNow(routine: Routine): Promise<void> {
+export async function runNow(routine: Routine): Promise<void> {
   setStarted((s) => new Set(s).add(routine.id))
   if (!(await post(`/api/routines/${routine.id}/run`, {}))) {
     setStarted((s) => {

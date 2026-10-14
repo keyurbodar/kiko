@@ -86,8 +86,6 @@ export function createPromptInputV2Store(input: PromptInputV2StoreInput) {
   }
 }
 
-export type PromptInputV2Store = ReturnType<typeof createPromptInputV2Store>
-
 function insertText(prompt: PromptInputV2Prompt, cursor: number, content: string): PromptInputV2Prompt {
   let position = 0
   let inserted = false

@@ -767,18 +767,18 @@
   box-shadow: inset 1px 0 0 var(--hairline), inset 0 1px 0 var(--hairline);
 }
 
-.sidebar-shell .info-pane {
+.sidebar-shell [data-component="sidecar"] {
   background: var(--panel);
   box-shadow: inset 1px 0 0 var(--hairline);
 }
 
-/* Where the chat cannot keep its width beside the info pane, the pane covers it instead, opaque, so
+/* Where the chat cannot keep its width beside the sidecar, the sidecar covers it instead, opaque, so
  * the transcript never shows through. */
-.sidebar-shell .info-scrim {
+.sidebar-shell .sidecar-scrim {
   inset-inline-start: 0;
 }
 
-.sidebar-shell .info-overlay {
+.sidebar-shell .sidecar-overlay {
   position: absolute;
   z-index: 30;
   top: 0;
@@ -791,7 +791,7 @@
   box-shadow: var(--popover-shadow);
 }
 
-.sidebar-shell .info-overlay .info-pane {
+.sidebar-shell .sidecar-overlay [data-component="sidecar"] {
   background: transparent;
   box-shadow: none;
 }

@@ -5,7 +5,7 @@ import { useApp } from "../../lib/store"
 export { openTasks } from "./tasks-model"
 
 /*
- * A group's tasks, inside the chat info panel (P6-09). There is no board section: the team's work
+ * A group's tasks, in the sidecar's Tasks tab (P6-09). There is no board section: the team's work
  * shows where the team talks. Grouped by status, each with its owner's face and what it waits on.
  * A click on the status moves it forward, applied at once through the room socket.
  */
