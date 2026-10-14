@@ -185,7 +185,6 @@ export function Shell(props: ParentProps) {
     const idle = (globalThis as { requestIdleCallback?: (run: () => void) => number }).requestIdleCallback;
     if (sideOpen()) void loadSidecar();
     const warm = () => {
-      void loadSidecar();
       preloadRoute("/settings");
       preloadRoute("/chat");
     };

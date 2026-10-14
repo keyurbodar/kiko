@@ -6,7 +6,6 @@ import { bootstrapSession, session } from "./app/session";
 import "./index.css";
 import { routes } from "./app/routes";
 import { Shell } from "./app/shell";
-import { loadMotion } from "./lib/motion";
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays";
 import { startSnapshots } from "./lib/snapshot";
 
@@ -55,7 +54,6 @@ export function start(): void {
 
 function preload(): void {
   void loadOverlaysV2();
-  void loadMotion();
 }
 
 function whenIdle(task: () => void): void {

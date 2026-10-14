@@ -17,7 +17,6 @@ import { buildTimelineItems, dayStartOf, keepUnchanged, type Notice, type Timeli
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
 import { dividerLabel, dividerParts } from "./lib/time-label"
-import { animate } from "../lib/motion"
 import { jumboEmojiClass } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"
@@ -47,7 +46,6 @@ const PIN_SETTLE_MS = 400
 
 const LANDING_MS = 1200
 
-const SCROLL_LATEST_MS = 180
 
 type DriftAnchor = { readonly element: HTMLElement; readonly top: number }
 
@@ -186,8 +184,6 @@ export function VirtualThread(props: {
 
   const [landed, setLanded] = createSignal<string | undefined>()
   let landingGeneration = 0
-  let scrollControls: { stop: () => void } | undefined
-  onCleanup(() => scrollControls?.stop())
   onCleanup(() => {
     landingGeneration += 1
   })
@@ -300,16 +296,7 @@ export function VirtualThread(props: {
   }
 
   const scrollToLatest = () => {
-    if (!scrollElement) return
-    const element = scrollElement
-    scrollControls?.stop()
-    scrollControls = animate(element.scrollTop, Math.max(0, element.scrollHeight - element.clientHeight), {
-      duration: SCROLL_LATEST_MS / 1000,
-      ease: [0.23, 1, 0.32, 1],
-      onUpdate: (value) => {
-        element.scrollTop = value
-      },
-    })
+    if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
   }
 
   let anchor: DriftAnchor | undefined
