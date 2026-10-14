@@ -1,33 +1,19 @@
 import type { FileRef } from "@kiko/protocol"
-import { FileIcon } from "@kiko/ui/file-icon"
-import { createTree } from "@kiko/ui/v2/tree/create-tree"
-import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import type { SolidTree } from "@kiko/ui/v2/tree/create-tree"
-import { createComputed, createEffect, createMemo, createSignal, For, on, Show, type JSX } from "solid-js"
-import { Virtualizer } from "virtua/solid"
-import "@kiko/ui/file-icon.css"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { FileTree as Pierre, type ContextMenuItem as FileTreeContextMenuItem, type ContextMenuOpenContext as FileTreeContextMenuOpenContext } from "@pierre/trees"
+import { ChevronsDownUp, ChevronsUpDown, FilePlus, FolderPlus, Search } from "lucide-solid"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import "./tree.css"
-import {
-	basename,
-	buildIndex,
-	dirname,
-	isHidden,
-	join,
-	loadExpanded,
-	pathsUnder,
-	ROOT,
-	saveExpanded,
-	VIRTUALIZE_AFTER,
-} from "./model"
+import { dirname, HOME, join, loadExpanded, pathsUnder, ROOT, saveExpanded } from "./model"
 
 /*
- * The file tree in the chat's right panel. It draws the room's file index as a tree, the way kat's
- * code panel does: 24 px rows, 12 px per level, a rotating chevron, no
- * animation. The index is the only source of files. A write by an agent lands
- * as a `file` event, the room store updates `files`, and the tree rebuilds.
+ * The file tree in the chat's side panel, drawn by `@pierre/trees`, the tree t3code uses. The room's
+ * file index is the only source of files: a write by an agent lands as a `file` event, the room
+ * store updates `files`, and the tree is told what was added or removed. Folders are the room's own,
+ * empty ones included, and a folder's path ends with a slash for the tree.
  *
- * Nothing here writes a file. New, rename, and delete call back, so the route
- * decides what they mean. Folders are the room's own, empty ones included.
+ * Nothing here writes a file. New, rename, and delete call back, so the route decides what they mean.
  */
 
 export type FileTreeProps = {
@@ -38,14 +24,10 @@ export type FileTreeProps = {
 	folders?: readonly string[]
 	/** A new folder was named. */
 	onNewFolder?: (path: string) => void
-	/** The open file, drawn as the selected row. When given, it is the only selected row. */
+	/** The open file, drawn as the selected row. */
 	active?: string | null
 	/** A file was opened, by click or Enter. */
 	onOpen?: (path: string) => void
-	/** Bumps when something outside the tree asks for a new file. */
-	newFileRequests?: () => number
-	/** Bumped by a "new folder" button outside the tree. When given, the tree draws no header of its own. */
-	newFolderRequests?: () => number
 	/** A new, empty file was named. */
 	onNewFile?: (path: string) => void
 	/** A folder was renamed or a file moved. `paths` are the files it changes. */
@@ -54,26 +36,275 @@ export type FileTreeProps = {
 	onDelete?: (path: string, paths: string[]) => void
 }
 
-type Draft = { kind: "file" | "folder"; parent: string } | { kind: "rename"; path: string }
-/** The draft sentinel is one value, so `For` keeps every real row mounted. */
-type ItemInstance<T> = ReturnType<SolidTree<T>["items"]>[number]
-const DRAFT = "draft"
-type Row = ItemInstance<string> | typeof DRAFT
+const asFolder = (path: string) => `${path.replace(/\/+$/, "")}/`
+const plain = (path: string) => path.replace(/\/+$/, "")
 
-const Chevron = () => (
-	<svg class="ft-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-		<path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-	</svg>
-)
+/** Shadow-root styles that make the tree read as part of the panel. */
+const TREE_CSS = `
+	:host {
+		--trees-bg-override: transparent;
+		--trees-fg-override: var(--text);
+		--trees-selected-bg-override: var(--selected-bg);
+		--trees-hover-bg-override: var(--hover-bg);
+		--trees-border-color-override: var(--hairline);
+		--trees-font-family-override: inherit;
+		--trees-font-size-override: var(--font-md);
+	}
+	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-md); }
+`
 
-const NewFolderIcon = () => (
-	<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-		<path d="M2.5 4.5A1.5 1.5 0 0 1 4 3h2.2l1.3 1.5H12A1.5 1.5 0 0 1 13.5 6v5.5A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5v-7Z" stroke="currentColor" />
-		<path d="M8 7v3M6.5 8.5h3" stroke="currentColor" stroke-linecap="round" />
-	</svg>
-)
+export function FileTree(props: FileTreeProps): JSX.Element {
+	let host!: HTMLDivElement
+	let tree: Pierre | undefined
+	let syncing = false
+	/** Rows added for a name that has not been given yet, by the path they hold now. */
+	const pending = new Map<string, "file" | "folder">()
+	const [query, setQuery] = createSignal("")
 
-const storage = () => {
+	const filePaths = createMemo(() => props.files.map((f) => f.name.replace(/^\/+/, "")))
+	const folderPaths = createMemo(() => (props.folders ?? []).map((f) => plain(f.replace(/^\/+/, ""))).filter(Boolean))
+	/** The paths the tree should hold. A folder ends with a slash. */
+	const wanted = createMemo(() => [...filePaths(), ...folderPaths().map(asFolder)])
+	let held = new Set<string>()
+
+	const selectedPath = () => tree?.getSelectedPaths().at(-1) ?? null
+
+	/** A new item goes in the selected folder, or beside the selected file. */
+	const parentForNew = () => {
+		const path = selectedPath()
+		if (!path) return ROOT
+		return path.endsWith("/") ? plain(path) : dirname(path)
+	}
+
+	const freshName = (parent: string, kind: "file" | "folder") => {
+		const taken = new Set(wanted().map(plain))
+		for (let n = 1; ; n++) {
+			const name = kind === "folder" ? (n === 1 ? "new folder" : `new folder ${n}`) : n === 1 ? "untitled" : `untitled ${n}`
+			if (!taken.has(join(parent, name))) return name
+		}
+	}
+
+	const startNew = (kind: "file" | "folder") => {
+		if (!tree) return
+		const parent = parentForNew()
+		if (parent !== ROOT) {
+			const dir = tree.getItem(asFolder(parent))
+			if (dir?.isDirectory() && "expand" in dir) dir.expand()
+		}
+		const path = join(parent, freshName(parent, kind))
+		const id = kind === "folder" ? asFolder(path) : path
+		pending.set(id, kind)
+		tree.add(id)
+		if (!tree.startRenaming(id, { removeIfCanceled: true })) pending.delete(id)
+	}
+
+	const remove = (path: string) => {
+		if (!tree) return
+		const under = pathsUnder(filePaths(), plain(path))
+		tree.remove(path, { recursive: true })
+		props.onDelete?.(plain(path), under)
+	}
+
+	const menu = (item: FileTreeContextMenuItem, ctx: FileTreeContextMenuOpenContext): HTMLElement => {
+		const root = document.createElement("div")
+		root.className = "kt-menu"
+		root.setAttribute("role", "menu")
+		root.dataset.fileTreeContextMenuRoot = "true"
+		const add = (label: string, run: () => void) => {
+			const button = document.createElement("button")
+			button.type = "button"
+			button.className = "kt-menu-item"
+			button.setAttribute("role", "menuitem")
+			button.textContent = label
+			button.addEventListener("click", () => {
+				ctx.close({ restoreFocus: false })
+				run()
+			})
+			root.append(button)
+		}
+		const sep = () => {
+			const line = document.createElement("div")
+			line.className = "kt-menu-sep"
+			root.append(line)
+		}
+		const isHome = plain(item.path) === HOME
+		if (item.kind === "directory") {
+			add("New file", () => {
+				tree?.getItem(item.path)?.select()
+				startNew("file")
+			})
+			add("New folder", () => {
+				tree?.getItem(item.path)?.select()
+				startNew("folder")
+			})
+			if (!isHome) sep()
+		}
+		if (!isHome) {
+			add("Rename", () => void tree?.startRenaming(item.path))
+			add("Delete", () => remove(item.path))
+		}
+		return root
+	}
+
+	onMount(() => {
+		const expanded = loadExpanded(props.roomId, storage()).map(asFolder)
+		const instance = new Pierre({
+			paths: wanted(),
+			icons: { set: "complete", colored: true },
+			density: "compact",
+			flattenEmptyDirectories: true,
+			initialExpansion: "closed",
+			initialExpandedPaths: expanded,
+			fileTreeSearchMode: "hide-non-matches",
+			search: false,
+			dragAndDrop: false,
+			renaming: {
+				canRename: (item) => plain(item.path) !== HOME,
+				onError: (error) => showToastV2({ title: error, variant: "error" }),
+				onRename: (event) => {
+					const from = plain(event.sourcePath)
+					const to = plain(event.destinationPath)
+					const kind = pending.get(event.sourcePath)
+					if (kind) {
+						pending.delete(event.sourcePath)
+						if (kind === "folder") props.onNewFolder?.(to)
+						else props.onNewFile?.(to)
+						return
+					}
+					if (from === to) return
+					props.onRename?.(from, to, pathsUnder(filePaths(), from))
+				},
+			},
+			composition: { contextMenu: { triggerMode: "right-click", render: menu } },
+			onSelectionChange: (selected) => {
+				if (syncing) return
+				const path = selected.at(-1)
+				if (path && !path.endsWith("/")) props.onOpen?.(path)
+			},
+			unsafeCSS: TREE_CSS,
+		})
+		tree = instance
+		held = new Set(wanted())
+		instance.render({ containerWrapper: host })
+
+		// The open directories are saved a moment after the tree settles, one set per room.
+		let timer: ReturnType<typeof setTimeout> | undefined
+		const stop = instance.subscribe(() => {
+			clearTimeout(timer)
+			timer = setTimeout(() => {
+				const open: string[] = []
+				for (const dir of folderSet()) {
+					const item = instance.getItem(asFolder(dir))
+					if (item?.isDirectory() && "isExpanded" in item && item.isExpanded()) open.push(dir)
+				}
+				saveExpanded(props.roomId, storage(), open)
+			}, 250)
+		})
+		onCleanup(() => {
+			stop()
+			clearTimeout(timer)
+			instance.unmount()
+			tree = undefined
+		})
+	})
+
+	/** Every folder the file paths imply, plus the room's own. */
+	const folderSet = () => {
+		const out = new Set(folderPaths())
+		for (const path of filePaths()) for (let dir = dirname(path); dir !== ROOT; dir = dirname(dir)) out.add(dir)
+		return out
+	}
+
+	// The index changed: add what is new and remove what is gone, so open folders stay open.
+	createEffect(
+		on(wanted, (next) => {
+			if (!tree) return
+			const target = new Set(next)
+			const ops: Parameters<Pierre["batch"]>[0][number][] = []
+			for (const path of target) if (!held.has(path)) ops.push({ type: "add", path })
+			for (const path of held) if (!target.has(path) && !pending.has(path)) ops.push({ type: "remove", path, recursive: true })
+			held = target
+			if (ops.length) tree.batch(ops)
+		}),
+	)
+
+	createEffect(
+		on(
+			() => props.active,
+			(path) => {
+				const item = path ? tree?.getItem(path) : null
+				if (!item || item.isSelected()) return
+				syncing = true
+				item.select()
+				syncing = false
+			},
+		),
+	)
+
+	createEffect(() => {
+		const q = query().trim()
+		tree?.setSearch(q || null)
+	})
+
+	const [allOpen, setAllOpen] = createSignal(false)
+	const toggleAll = () => {
+		const open = !allOpen()
+		for (const dir of folderSet()) {
+			const item = tree?.getItem(asFolder(dir))
+			if (item?.isDirectory() && "expand" in item) open ? item.expand() : item.collapse()
+		}
+		setAllOpen(open)
+	}
+
+	return (
+		<div class="kt-root" data-component="file-tree">
+			<div class="kt-bar">
+				<label class="kt-field">
+					<Search size={14} strokeWidth={1.75} aria-hidden="true" />
+					<input
+						type="search"
+						aria-label="Search files"
+						placeholder="Search files"
+						spellcheck={false}
+						autocomplete="off"
+						value={query()}
+						onInput={(e) => setQuery(e.currentTarget.value)}
+						onKeyDown={(e) => {
+							if (e.key !== "Escape" || !query()) return
+							e.stopPropagation()
+							setQuery("")
+						}}
+					/>
+				</label>
+				<TooltipV2 placement="bottom" openDelay={400} value="New file">
+					<button type="button" class="kt-btn" aria-label="New file" data-action="new-file" onClick={() => startNew("file")}>
+						<FilePlus size={15} strokeWidth={1.75} aria-hidden="true" />
+					</button>
+				</TooltipV2>
+				<TooltipV2 placement="bottom" openDelay={400} value="New folder">
+					<button type="button" class="kt-btn" aria-label="New folder" data-action="new-folder" onClick={() => startNew("folder")}>
+						<FolderPlus size={15} strokeWidth={1.75} aria-hidden="true" />
+					</button>
+				</TooltipV2>
+				<Show when={folderSet().size > 0}>
+					<TooltipV2 placement="bottom" openDelay={400} value={allOpen() ? "Collapse all folders" : "Expand all folders"}>
+						<button type="button" class="kt-btn" aria-label={allOpen() ? "Collapse all folders" : "Expand all folders"} onClick={toggleAll}>
+							<Show when={allOpen()} fallback={<ChevronsUpDown size={15} strokeWidth={1.75} aria-hidden="true" />}>
+								<ChevronsDownUp size={15} strokeWidth={1.75} aria-hidden="true" />
+							</Show>
+						</button>
+					</TooltipV2>
+				</Show>
+			</div>
+			<div class="kt-host" ref={host} aria-label="Files" />
+			<Show when={wanted().length === 0}>
+				<div class="kt-empty">No files yet. Agents save what they make here, and + adds one.</div>
+			</Show>
+		</div>
+	)
+}
+
+function storage() {
 	try {
 		return globalThis.localStorage
 	} catch {
@@ -81,312 +312,3 @@ const storage = () => {
 	}
 }
 
-export function FileTree(props: FileTreeProps): JSX.Element {
-	const paths = createMemo(() => props.files.map((f) => f.name))
-	const index = createMemo(() => buildIndex(paths(), props.folders ?? []))
-	const [draft, setDraft] = createSignal<Draft | null>(null)
-	const [menuTarget, setMenuTarget] = createSignal<string | null>(null)
-	const [tick, setTick] = createSignal(0)
-	const [query, setQuery] = createSignal("")
-	const matches = createMemo(() => {
-		const q = query().trim().toLowerCase()
-		return q ? paths().filter((p) => p.toLowerCase().includes(q)).sort((a, b) => a.localeCompare(b)) : null
-	})
-	let scrollEl: HTMLElement | undefined
-
-	const tree = createTree<string>({
-		rootItemId: ROOT,
-		getItem: (id) => id,
-		getChildren: (id) => index().children.get(id) ?? [],
-		getItemName: (item) => basename(item.getId()),
-		isItemFolder: (item) => index().folders.has(item.getId()),
-		initialExpanded: loadExpanded(props.roomId, storage()),
-	})
-
-	// The index changed: tell the core, then re-read the visible rows.
-	createComputed(
-		on(index, () => {
-			tree.core.rebuildTree()
-			setTick((n) => n + 1)
-		}, { defer: true }),
-	)
-
-	// One expanded set per room.
-	createEffect(on(() => props.roomId, (id) => saveExpanded(id, storage(), tree.expanded()), { defer: true }))
-	createEffect(() => saveExpanded(props.roomId, storage(), tree.expanded()))
-
-	const items = createMemo(() => {
-		tick()
-		tree.items()
-		return [...tree.core.getItems()]
-	})
-
-	const rows = createMemo<Row[]>(() => {
-		const d = draft()
-		const list: Row[] = [...items()]
-		if (!d || d.kind === "rename") return list
-		const at = d.parent === ROOT ? -1 : list.findIndex((r) => r !== DRAFT && r.getId() === d.parent)
-		list.splice(at + 1, 0, DRAFT)
-		return list
-	})
-
-	const selectedPath = () => tree.selected()[0] ?? tree.focused() ?? null
-	const isFolder = (path: string) => index().folders.has(path)
-	const depthOf = (path: string) => (path === ROOT ? 0 : path.split("/").length)
-
-	/** A new item goes in the selected folder, or beside the selected file. */
-	const parentForNew = () => {
-		const path = menuTarget() ?? selectedPath()
-		if (!path) return ROOT
-		return isFolder(path) ? path : dirname(path)
-	}
-
-	const startNew = (kind: "file" | "folder", parent = parentForNew()) => {
-		if (parent !== ROOT) tree.core.getItemInstance(parent).expand()
-		setDraft({ kind, parent })
-	}
-
-	const startRename = (path: string) => setDraft({ kind: "rename", path })
-
-	const remove = (path: string) => {
-		const under = pathsUnder(paths(), path)
-		props.onDelete?.(path, under)
-	}
-
-	const commit = (value: string) => {
-		const d = draft()
-		setDraft(null)
-		const name = value.trim().replace(/\/+$/, "")
-		if (!d || !name) return
-		if (d.kind === "rename") {
-			// A name with a slash moves: "/x/y" from the root, "x/y" from the current folder, as mv does.
-			const to = name.startsWith("/") ? name.replace(/^\/+/, "") : join(dirname(d.path), name)
-			if (!to || to.split("/").some((part) => part === "" || part === "." || part === "..")) return
-			if (to === d.path) return
-			const under = pathsUnder(paths(), d.path)
-			props.onRename?.(d.path, to, under)
-			return
-		}
-		if (name.includes("/")) return
-		const path = join(d.parent, name)
-		if (d.kind === "folder") {
-			props.onNewFolder?.(path)
-			tree.core.rebuildTree()
-			if (d.parent !== ROOT) tree.core.getItemInstance(d.parent).expand()
-		} else {
-			props.onNewFile?.(path)
-		}
-	}
-
-	let seen = props.newFileRequests?.() ?? 0
-	createEffect(() => {
-		const n = props.newFileRequests?.() ?? 0
-		if (n === seen) return
-		seen = n
-		startNew("file")
-	})
-
-	let seenFolder = props.newFolderRequests?.() ?? 0
-	createEffect(() => {
-		const n = props.newFolderRequests?.() ?? 0
-		if (n === seenFolder) return
-		seenFolder = n
-		startNew("folder")
-	})
-
-	const container = () => {
-		const p = tree.containerProps() as { ref: (el: HTMLElement | null) => void; onKeyDown?: (e: KeyboardEvent) => void }
-		return {
-			...p,
-			ref: (el: HTMLElement | null) => {
-				scrollEl = el ?? undefined
-				p.ref(el)
-			},
-			// F2 and Delete belong to the tree while it has focus. The tree's own keys
-			// (arrows, Home, End) come from the core.
-			onKeyDown: (e: KeyboardEvent) => {
-				if ((e.target as HTMLElement).tagName === "INPUT") return
-				const focused = tree.focused()
-				if (focused && e.key === "F2") {
-					e.preventDefault()
-					startRename(focused)
-				} else if (focused && (e.key === "Delete" || e.key === "Backspace") && !e.metaKey) {
-					e.preventDefault()
-					remove(focused)
-				} else if (focused && e.key === "Enter" && !isFolder(focused)) {
-					props.onOpen?.(focused)
-				} else p.onKeyDown?.(e)
-			},
-		}
-	}
-
-	const NameInput = (p: { initial: string; depth: number; folder: boolean; icon?: JSX.Element }) => (
-		<div class="ft-row ft-row--edit" style={{ "--ft-depth": p.depth }}>
-			<span class="ft-caret" />
-			{p.icon ?? <FileIcon node={{ path: p.initial || "untitled", type: p.folder ? "directory" : "file" }} />}
-			<input
-				class="ft-input"
-				value={p.initial}
-				spellcheck={false}
-				autocomplete="off"
-				ref={(el) =>
-					queueMicrotask(() => {
-						el.focus()
-						el.setSelectionRange(0, p.initial.includes(".") ? p.initial.lastIndexOf(".") : p.initial.length)
-					})
-				}
-				onKeyDown={(e) => {
-					e.stopPropagation()
-					if (e.key === "Enter") commit(e.currentTarget.value)
-					else if (e.key === "Escape") setDraft(null)
-				}}
-				onBlur={(e) => (draft() ? commit(e.currentTarget.value) : undefined)}
-			/>
-		</div>
-	)
-
-	const renderRow = (row: Row): JSX.Element => {
-		if (row === DRAFT) {
-			const d = draft() as Extract<Draft, { parent: string }> | null
-			if (!d) return null
-			return <NameInput initial="" depth={depthOf(d.parent)} folder={d.kind === "folder"} />
-		}
-		const item = row
-		const id = item.getId()
-		const folder = () => isFolder(id)
-		const open = () => tree.expanded().includes(id)
-		const renaming = () => {
-			const d = draft()
-			return d?.kind === "rename" && d.path === id
-		}
-		return (
-			<Show
-				when={!renaming()}
-				fallback={<NameInput initial={basename(id)} depth={item.getItemMeta().level} folder={folder()} />}
-			>
-				<div
-					{...tree.itemProps(item)}
-					class="ft-row"
-					data-path={id}
-					data-folder={folder() ? "" : undefined}
-					data-open={open() ? "" : undefined}
-					data-hidden={isHidden(id) ? "" : undefined}
-					data-selected={(props.active !== undefined ? props.active === id : tree.selected().includes(id)) ? "" : undefined}
-					data-focused={tree.focused() === id ? "" : undefined}
-					style={{ "--ft-depth": item.getItemMeta().level }}
-					onClick={(e: MouseEvent) => {
-						const handler = (tree.itemProps(item) as { onClick?: (e: MouseEvent) => void }).onClick
-						// The core's click focuses, selects, and toggles a folder. A file also opens.
-						handler?.(e)
-						if (!folder()) props.onOpen?.(id)
-					}}
-					onDblClick={() => startRename(id)}
-				>
-					<span class="ft-caret">
-						<Show when={folder()}>
-							<Chevron />
-						</Show>
-					</span>
-					<FileIcon node={{ path: id, type: folder() ? "directory" : "file" }} expanded={open()} />
-					<span class="ft-name">{basename(id)}</span>
-				</div>
-			</Show>
-		)
-	}
-
-	return (
-		<div class="file-tree" data-component="filetree" data-room={props.roomId}>
-			<div class="ft-search">
-				<input
-					type="search"
-					class="ft-search-input"
-					aria-label="Search files"
-					placeholder="Search files"
-					spellcheck={false}
-					autocomplete="off"
-					value={query()}
-					onInput={(e) => setQuery(e.currentTarget.value)}
-					onKeyDown={(e) => {
-						if (e.key !== "Escape" || !query()) return
-						e.stopPropagation()
-						setQuery("")
-					}}
-				/>
-			</div>
-			<Show when={!props.newFolderRequests}>
-				<div class="ft-header">
-					<span class="ft-actions">
-						<button type="button" class="ft-btn" aria-label="New folder" title="New folder" onClick={() => startNew("folder")}>
-							<NewFolderIcon />
-						</button>
-					</span>
-				</div>
-			</Show>
-			<MenuV2.Context>
-				<MenuV2.Context.Trigger
-					as="div"
-					class="ft-scroll"
-					onContextMenu={(e: MouseEvent) => {
-						const el = (e.target as HTMLElement).closest<HTMLElement>("[data-path]")
-						setMenuTarget(el?.dataset.path ?? null)
-					}}
-				>
-					<Show
-						when={matches()}
-						fallback={
-							<div {...container()} class="ft-list" aria-label="Files">
-								<Show
-									when={rows().length <= VIRTUALIZE_AFTER}
-									fallback={
-										<Virtualizer data={rows()} scrollRef={scrollEl?.parentElement ?? undefined}>
-											{(row) => renderRow(row)}
-										</Virtualizer>
-									}
-								>
-									<For each={rows()}>{renderRow}</For>
-								</Show>
-								<Show when={rows().length === 0}>
-									<div class="ft-empty">No files yet. Agents save what they make here, and + adds one.</div>
-								</Show>
-							</div>
-						}
-					>
-						{(found) => (
-							<div class="ft-list" aria-label="Matching files">
-								<For each={found()}>
-									{(p) => (
-										<button type="button" class="ft-row ft-match" data-path={p} onClick={() => props.onOpen?.(p)}>
-											<FileIcon node={{ path: p, type: "file" }} />
-											<span class="ft-name">{basename(p)}</span>
-											<Show when={dirname(p)}>
-												<span class="ft-dir">{dirname(p)}</span>
-											</Show>
-										</button>
-									)}
-								</For>
-								<Show when={found().length === 0}>
-									<div class="ft-empty">No files match.</div>
-								</Show>
-							</div>
-						)}
-					</Show>
-				</MenuV2.Context.Trigger>
-				<MenuV2.Context.Portal>
-					<MenuV2.Context.Content>
-						<Show when={menuTarget()}>
-							{(path) => (
-								<>
-									<MenuV2.Item onSelect={() => startRename(path())}>Rename</MenuV2.Item>
-									<MenuV2.Item onSelect={() => remove(path())}>Delete</MenuV2.Item>
-									<MenuV2.Separator />
-								</>
-							)}
-						</Show>
-						<MenuV2.Item onSelect={() => startNew("file")}>New file</MenuV2.Item>
-						<MenuV2.Item onSelect={() => startNew("folder")}>New folder</MenuV2.Item>
-					</MenuV2.Context.Content>
-				</MenuV2.Context.Portal>
-			</MenuV2.Context>
-		</div>
-	)
-}

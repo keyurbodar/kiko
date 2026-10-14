@@ -1,216 +1,114 @@
-/* The file tree in the right panel. Compact like t3code's: 24 px rows, 12 px per
- * level, faint indent guides, a 16 px chevron that rotates open, no animation
- * anywhere. Scoped under `.file-tree`. */
-
-.file-tree {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-  color: var(--text);
-  font-family: var(--font-family-sans);
-  font-size: var(--font-md);
+/* The file tree's frame. The rows are drawn by @pierre/trees inside its own shadow root; its look is set in tree.tsx. */
+.kt-root {
+	display: flex;
+	min-height: 0;
+	min-width: 0;
+	flex: 1;
+	flex-direction: column;
+	gap: 0;
 }
 
-.file-tree .ft-search {
-  flex: none;
-  padding: 0 4px 6px;
+.kt-bar {
+	display: flex;
+	height: 40px;
+	flex: none;
+	align-items: center;
+	gap: 2px;
+	padding: 0 8px;
+}
+.kt-field {
+	display: flex;
+	height: 28px;
+	min-width: 0;
+	flex: 1;
+	align-items: center;
+	gap: 6px;
+	padding: 0 8px;
+	border-radius: var(--radius-md);
+	background: var(--input-bg);
+	color: var(--text-muted);
+}
+.kt-field:focus-within {
+	box-shadow: 0 0 0 1px var(--accent);
+}
+.kt-field input {
+	min-width: 0;
+	flex: 1;
+	border: 0;
+	background: transparent;
+	color: var(--text);
+	font: inherit;
+	font-size: var(--font-md);
+	outline: none;
+}
+.kt-field input::placeholder {
+	color: var(--text-faint);
+}
+.kt-btn {
+	display: grid;
+	width: 28px;
+	height: 28px;
+	flex: none;
+	place-items: center;
+	border: 0;
+	border-radius: var(--radius-md);
+	background: transparent;
+	color: var(--text-muted);
+}
+.kt-btn:hover,
+.kt-btn:focus-visible {
+	background: var(--hover-bg);
+	color: var(--text);
+	outline: none;
 }
 
-.file-tree .ft-search-input {
-  width: 100%;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: var(--radius-md);
-  background: var(--input-bg);
-  color: inherit;
-  font: inherit;
-  outline: none;
+.kt-host {
+	display: flex;
+	min-height: 0;
+	flex: 1;
+	flex-direction: column;
+	overflow: hidden;
+}
+.kt-host > * {
+	min-height: 0;
+	flex: 1;
 }
 
-.file-tree .ft-search-input:focus-visible {
-  box-shadow: inset 0 0 0 1px oklch(from var(--text) l c h / 0.25);
+.kt-empty {
+	padding: 8px 12px;
+	font-size: var(--font-sm);
+	color: var(--text-muted);
 }
 
-.file-tree .ft-match {
-  width: 100%;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
+/* The context menu is placed by the tree and lives in this document, so these rules style it. */
+.kt-menu {
+	min-width: 160px;
+	padding: 4px;
+	border-radius: var(--radius-xl);
+	background: var(--menu-bg);
+	box-shadow: 0 8px 28px rgb(0 0 0 / 0.4), 0 0 0 1px var(--hairline);
+	color: var(--text);
 }
-
-.file-tree .ft-match .ft-name {
-  flex: none;
+.kt-menu-item {
+	display: block;
+	width: 100%;
+	padding: 6px 10px;
+	border: 0;
+	border-radius: var(--radius-md);
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-size: var(--font-md);
+	text-align: left;
+	cursor: default;
 }
-
-.file-tree .ft-dir {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  color: var(--text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.kt-menu-item:hover,
+.kt-menu-item:focus-visible {
+	background: var(--selected-bg);
+	outline: none;
 }
-
-.file-tree .ft-header {
-  display: flex;
-  height: 40px;
-  flex: none;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0 12px 0 16px;
-}
-
-.file-tree .ft-actions {
-  display: flex;
-  gap: 2px;
-}
-
-.file-tree .ft-btn {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  background: none;
-  transition: none;
-}
-
-.file-tree .ft-btn:hover {
-  background: var(--hover-bg);
-  color: var(--text);
-}
-
-.file-tree .ft-scroll {
-  min-height: 0;
-  flex: 1;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.file-tree .ft-list {
-  position: relative;
-  outline: none;
-  user-select: none;
-}
-
-.file-tree .ft-row {
-  --ft-indent: 12px;
-  position: relative;
-  display: flex;
-  height: 24px;
-  align-items: center;
-  gap: 4px;
-  padding: 0 8px 0 calc(4px + var(--ft-depth, 0) * var(--ft-indent));
-  border-radius: var(--radius-sm);
-  cursor: default;
-  outline: none;
-  transition: none;
-}
-
-.file-tree .ft-row:hover {
-  background: var(--hover-bg);
-}
-
-.file-tree .ft-row[data-selected] {
-  background: var(--selected-bg);
-}
-
-.file-tree .ft-row[data-focused]:focus-visible {
-  box-shadow: inset 0 0 0 1px oklch(from var(--text) l c h / 0.25);
-}
-
-/* Dot files recede until hovered or selected. */
-.file-tree .ft-row[data-hidden] {
-  opacity: 0.5;
-}
-
-.file-tree .ft-row[data-hidden]:hover,
-.file-tree .ft-row[data-hidden][data-selected] {
-  opacity: 1;
-}
-
-.file-tree .ft-caret {
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-}
-
-.file-tree .ft-chevron {
-  transition: none;
-}
-
-.file-tree .ft-row[data-open] .ft-chevron {
-  transform: rotate(90deg);
-}
-
-.file-tree .ft-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Indent guides: one 1 px line per ancestor level, faint, and stronger while hovering. */
-.file-tree .ft-row::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 4px;
-  width: calc(var(--ft-depth, 0) * var(--ft-indent));
-  background: repeating-linear-gradient(
-    to right,
-    oklch(from var(--text) l c h / 0.12) 0 1px,
-    transparent 1px var(--ft-indent)
-  );
-  background-position: 8px 0;
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.file-tree .ft-list:hover .ft-row::before {
-  opacity: 1;
-}
-
-.file-tree .ft-row--edit {
-  background: var(--selected-bg);
-}
-
-.file-tree .ft-input {
-  min-width: 0;
-  flex: 1;
-  height: 22px;
-  padding: 0 4px;
-  border-radius: var(--radius-sm);
-  background: var(--input-bg);
-  color: inherit;
-  font: inherit;
-  outline: none;
-}
-
-.file-tree .ft-empty {
-  padding: 8px;
-  color: var(--text-muted);
-}
-
-/* Touch targets: 30 px rows and 24 px buttons are below what a thumb can hit. */
-@media (width < 768px) {
-  .file-tree .ft-row {
-    height: 40px;
-  }
-  .file-tree .ft-btn {
-    width: 36px;
-    height: 36px;
-  }
-}
-
-.file-tree .ft-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+.kt-menu-sep {
+	height: 1px;
+	margin: 4px 6px;
+	background: var(--hairline);
 }

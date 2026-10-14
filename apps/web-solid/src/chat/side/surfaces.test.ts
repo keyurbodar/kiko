@@ -232,17 +232,9 @@ describe("saved state", () => {
 })
 
 describe("launcher", () => {
-  test("Tasks is disabled in a single chat and enabled in a group", () => {
-    const single = launcherEntries(false)
-    const group = launcherEntries(true)
-    expect(single.map((e) => [e.key, e.disabled])).toEqual([
-      ["F", undefined],
-      ["M", undefined],
-      ["P", undefined],
-      ["R", undefined],
-      ["T", "Only in group chats"],
-    ])
-    expect(group.find((e) => e.key === "T")!.disabled).toBeUndefined()
+  test("Tasks shows only in a group chat", () => {
+    expect(launcherEntries(false).map((e) => e.key)).toEqual(["F", "M", "P", "R"])
+    expect(launcherEntries(true).map((e) => e.key)).toEqual(["F", "M", "P", "R", "T"])
   })
 
   test("the launcher rows, in order, with their letter keys", () => {

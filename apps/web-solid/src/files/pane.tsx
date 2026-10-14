@@ -7,7 +7,7 @@ import { dropFileSurfaces, moveFileSurfaces, openFile } from "../chat/side/surfa
 import { useApp } from "../lib/store"
 import { createFile, forgetMade, withMade } from "./api"
 import { FileBreadcrumbs } from "./breadcrumbs"
-import { SUBHEADER, SurfaceAction } from "./chrome"
+import { SUBHEADER } from "./chrome"
 import { viewerKind, type ViewerKind } from "./kind"
 import { buildIndex, HOME, inHome, strip, where } from "./model"
 import { fullSize, setFullSize } from "./prefs"
@@ -22,19 +22,6 @@ const FileDialog = lazy(() => import("./FileDialog"))
  * `FileSurface` is one file. Each is its own tab or section, so a file never lives inside the tree.
  * Opening it full size moves the same file into a dialog.
  */
-
-const [newFile, setNewFile] = createSignal(0)
-const [newFolder, setNewFolder] = createSignal(0)
-
-/** New file and new folder, drawn above the tree. */
-export function FilesActions() {
-	return (
-		<>
-			<SurfaceAction label="New file" icon={FileAddIcon} action="new-file" onPress={() => setNewFile((n) => n + 1)} />
-			<SurfaceAction label="New folder" icon={FolderAddIcon} action="new-folder" onPress={() => setNewFolder((n) => n + 1)} />
-		</>
-	)
-}
 
 /** The files a chat can see: its own, then the home drive, with the folders and an index of both. */
 function useChatFiles(chatId: string) {
@@ -75,8 +62,6 @@ export function FilesTree(props: { chatId: string }) {
 				files={files()}
 				folders={folders()}
 				onNewFolder={(p) => op({ op: "mkdir", path: p })}
-				newFileRequests={newFile}
-				newFolderRequests={newFolder}
 				onOpen={(p) => openFile(props.chatId, p)}
 				onNewFile={make}
 				onRename={(from, to) => {

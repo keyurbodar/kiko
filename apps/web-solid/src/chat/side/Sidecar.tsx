@@ -1,8 +1,8 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Bot, Brain, CircleCheck, FileText, FolderOpen, ListChecks, PanelRightClose, Plus, Repeat, X, type LucideProps } from "lucide-solid"
-import { type Component, createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
-import { FilesActions, FileSurface, FilesTree } from "../../files/pane"
+import { type Component, createEffect, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
+import { FileSurface, FilesTree } from "../../files/pane"
 import { useApp } from "../../lib/store"
 import { roomMembers } from "../info/sections"
 import { loadLoops, PlatePage, refreshLoops } from "../info/loops"
@@ -20,7 +20,7 @@ import {
   closeToRight,
   fixedSurface,
   LAUNCHER,
-  type LauncherEntry,
+  type LauncherItem,
   launcherEntries,
   openSurface,
   showLauncher,
@@ -57,14 +57,6 @@ const ICON_BUTTON =
 /** The scroll of each body, by chat and tab, so a tab comes back where it was left. */
 const scrolls = new Map<string, number>()
 
-/** A mask that fades the edges the strip is cut at. Inline, because the stops come from state. */
-const fadeStyle = (f: { start: boolean; end: boolean }) => {
-  if (!f.start && !f.end) return undefined
-  const start = f.start ? "transparent, #000 20px" : "#000"
-  const end = f.end ? "#000 calc(100% - 20px), transparent" : "#000"
-  return { "mask-image": `linear-gradient(to right, ${start}, ${end})` }
-}
-
 const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 /** Ids are read by the tab's `aria-controls` and the panel's `aria-labelledby`, so they hold no spaces. */
 const tabId = (surface: Surface) => `sidecar-tab-${encodeURIComponent(surface.id)}`
@@ -93,7 +85,7 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
         aria-selected={props.active}
         aria-controls={panelId(props.surface)}
         tabIndex={props.tabbable ? 0 : -1}
-        class={`group flex h-8 min-w-0 max-w-48 shrink-0 cursor-default items-center gap-1 rounded-[10px] pr-1 pl-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+        class={`group flex h-8 min-w-0 max-w-48 shrink-0 snap-start cursor-default items-center gap-1 rounded-[10px] pr-1 pl-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
           props.active ? "bg-[var(--selected-bg)] text-text" : "text-muted hover:bg-[var(--hover-bg)] hover:text-text"
         }`}
         title={props.surface.kind === "file" ? props.surface.path : undefined}
@@ -141,41 +133,25 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
   )
 }
 
-/** One launcher row. A disabled row is muted and says why in a tooltip. */
-function LauncherRow(props: { chatId: string; entry: LauncherEntry }) {
+/** One launcher row. */
+function LauncherRow(props: { chatId: string; entry: LauncherItem }) {
   const Glyph = ICON[props.entry.kind]
-  const row = (
+  return (
     <button
       type="button"
-      aria-disabled={props.entry.disabled ? "true" : undefined}
-      class={`flex h-10 w-full items-center gap-3 rounded-[10px] px-3 text-left text-sm outline-none ${
-        props.entry.disabled ? "cursor-default text-muted" : "text-text hover:bg-[var(--hover-bg)] focus-visible:bg-[var(--hover-bg)]"
-      }`}
+      class="flex h-10 w-full items-center gap-3 rounded-[10px] px-3 text-left text-sm text-text outline-none hover:bg-[var(--hover-bg)] focus-visible:bg-[var(--hover-bg)]"
       data-action={`open-${props.entry.kind}`}
-      onClick={() => {
-        if (!props.entry.disabled) openSurface(props.chatId, fixedSurface(props.entry.kind))
-      }}
+      onClick={() => openSurface(props.chatId, fixedSurface(props.entry.kind))}
     >
       <Glyph size={16} strokeWidth={1.75} class="shrink-0 text-muted" aria-hidden="true" />
       <span class="min-w-0 flex-1 truncate">{props.entry.label}</span>
       <kbd
-        class={`grid h-5 min-w-5 place-items-center rounded-[5px] bg-[var(--selected-bg)] px-1.5 text-xs font-medium leading-none ${
-          props.entry.disabled ? "text-muted" : "text-text"
-        }`}
+        class="grid h-5 min-w-5 place-items-center rounded-[5px] bg-[color-mix(in_oklab,var(--text)_14%,transparent)] px-1.5 font-sans text-[13px] font-medium leading-none text-text"
         aria-hidden="true"
       >
         {props.entry.key}
       </kbd>
     </button>
-  )
-  return (
-    <Show when={props.entry.disabled} fallback={row}>
-      {(reason) => (
-        <TooltipV2 placement="bottom" openDelay={400} value={reason()}>
-          {row}
-        </TooltipV2>
-      )}
-    </Show>
   )
 }
 
@@ -240,9 +216,6 @@ function SurfaceBody(props: { chatId: string; surface: Surface }) {
     >
       <Switch>
         <Match when={props.surface.kind === "files"}>
-          <div class="flex h-12 shrink-0 items-end justify-end gap-1 px-3 pb-1">
-            <FilesActions />
-          </div>
           <FilesTree chatId={props.chatId} />
         </Match>
         <Match when={props.surface.kind === "file"}>
@@ -281,7 +254,7 @@ export default function Sidecar(props: { chatId: string }) {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.isComposing) return
     if (!sidecarOpen(props.chatId)) return
     const entry = launcherEntries(group()).find((item) => item.key === e.key.toUpperCase())
-    if (!entry || entry.disabled) return
+    if (!entry) return
     const target = e.target instanceof Element ? e.target : null
     if (target?.closest(TYPING) || document.activeElement?.closest(TYPING)) return
     if (document.querySelector(OVERLAYS)) return
@@ -295,33 +268,25 @@ export default function Sidecar(props: { chatId: string }) {
   const onTablistKey = (e: KeyboardEvent) => {
     const list = surfaces()
     if (list.length === 0) return
-    const at = Math.max(0, list.findIndex((s) => s.id === active()?.id))
+    // Move from the tab that has focus, which is the active one unless focus has been moved by hand.
+    const focused = (e.target as Element).closest('[role="tab"]')?.id
+    const from = list.findIndex((s) => tabId(s) === focused)
+    const at = from >= 0 ? from : Math.max(0, list.findIndex((s) => s.id === active()?.id))
     const to = { ArrowRight: (at + 1) % list.length, ArrowLeft: (at - 1 + list.length) % list.length, Home: 0, End: list.length - 1 }[e.key]
     if (to === undefined) return
     e.preventDefault()
     activateSurface(props.chatId, list[to]!.id)
-    document.getElementById(tabId(list[to]!))?.focus()
+    // Focus waits a frame: the body swap in the same tick takes focus again if the tab gets it first.
+    requestAnimationFrame(() => document.getElementById(tabId(list[to]!))?.focus())
   }
 
-  // The strip fades the edge a tab is cut at, so a tab that is off screen shows it scrolls.
-  let strip: HTMLDivElement | undefined
-  const [fade, setFade] = createSignal({ start: false, end: false })
-  const measure = () => {
-    if (!strip) return
-    const { scrollLeft, scrollWidth, clientWidth } = strip
-    setFade({ start: scrollLeft > 1, end: scrollLeft + clientWidth < scrollWidth - 1 })
-  }
   // A resize can cut the active tab off, so the strip brings it back, as a tab does when it turns active.
-  const onResize = () => {
-    measure()
-    strip?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" })
-  }
+  let strip: HTMLDivElement | undefined
   onMount(() => {
-    const observer = new ResizeObserver(onResize)
+    const observer = new ResizeObserver(() => strip?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" }))
     if (strip) observer.observe(strip)
     onCleanup(() => observer.disconnect())
   })
-  createEffect(on(surfaces, () => queueMicrotask(measure), { defer: true }))
 
   // A plate or routines tab fetches its list when it shows, and the plate again when the room moves.
   createEffect(on(() => [props.chatId, kind()] as const, ([, k]) => {
@@ -335,12 +300,10 @@ export default function Sidecar(props: { chatId: string }) {
       <header class="flex h-[50px] shrink-0 items-center gap-1 pr-2 pl-2">
         <div
           ref={strip}
-          class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]"
-          style={fadeStyle(fade())}
+          class="flex min-w-0 flex-1 snap-x snap-proximity items-center gap-1 overflow-x-auto scroll-px-2 [scrollbar-width:none]"
           role="tablist"
           aria-label="Open surfaces"
           aria-orientation="horizontal"
-          onScroll={measure}
           onKeyDown={onTablistKey}
         >
           <For each={surfaces()}>

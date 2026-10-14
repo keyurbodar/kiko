@@ -220,7 +220,6 @@ export function fileReveal(chatId: string, path: string): { line: number | null;
 }
 
 export type LauncherItem = { kind: FixedKind; label: string; key: string; group?: true }
-export type LauncherEntry = LauncherItem & { disabled?: string }
 
 /** The "Open a surface" rows, in order. The letter is the key that opens the row. */
 export const LAUNCHER: readonly LauncherItem[] = [
@@ -231,7 +230,7 @@ export const LAUNCHER: readonly LauncherItem[] = [
   { kind: "tasks", label: "Tasks", key: "T", group: true },
 ]
 
-/** The launcher rows for a chat. Group-only rows are disabled in a single chat, with the reason. */
-export function launcherEntries(group: boolean): LauncherEntry[] {
-  return LAUNCHER.map((item) => (item.group && !group ? { ...item, disabled: "Only in group chats" } : item))
+/** The launcher rows for a chat. Group-only rows are left out of a single chat. */
+export function launcherEntries(group: boolean): LauncherItem[] {
+  return LAUNCHER.filter((item) => group || !item.group)
 }

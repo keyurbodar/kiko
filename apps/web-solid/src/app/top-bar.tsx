@@ -80,12 +80,14 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
                   <PanelTop size={15} strokeWidth={1.75} aria-hidden="true" />
                 </button>
               </TooltipV2>
-              <TooltipV2 placement="bottom" openDelay={400} value={sidecarOpen(id()) ? "Hide side panel" : "Show side panel"}>
+              {/* An open sidecar carries its own close button in its tab strip, so the bar shows this one only while it is shut. */}
+              <Show when={!sidecarOpen(id())}>
+              <TooltipV2 placement="bottom" openDelay={400} value="Show side panel">
                 <button
                   type="button"
                   class="top-bar-button"
-                  aria-label={sidecarOpen(id()) ? "Hide side panel" : "Show side panel"}
-                  aria-pressed={sidecarOpen(id())}
+                  aria-label="Show side panel"
+                  aria-pressed={false}
                   data-action="toggle-sidecar"
                   onPointerEnter={() => void loadSidecar()}
                   onClick={() => toggleSidecar(id())}
@@ -93,6 +95,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
                   <PanelRight size={15} strokeWidth={1.75} aria-hidden="true" />
                 </button>
               </TooltipV2>
+              </Show>
             </>
           )}
         </Show>
