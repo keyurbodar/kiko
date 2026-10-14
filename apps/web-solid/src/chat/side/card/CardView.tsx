@@ -26,7 +26,7 @@ import { type AgentRow, type Chip, agentRows, comingUp, fileList, isGroup, liveL
  */
 
 /** Pointer downs here do not close the card: its toggle, and the menus and dialogs it opens. */
-const KEEP_OPEN = '[data-action="toggle-card"], [role="menu"], [role="dialog"]'
+const KEEP_OPEN = '[data-action="toggle-card"], [data-action="toggle-sidecar"], [data-component="sidecar"], [data-component="sidecar-overlay"], [data-component="top-bar"], [role="menu"], [role="dialog"]'
 
 const faint = "text-[var(--text-faint)]"
 const row = "group/row flex min-h-9 items-center gap-2.5 rounded-[10px] px-2 hover:bg-[var(--hover-bg)] focus-within:bg-[var(--hover-bg)]"
