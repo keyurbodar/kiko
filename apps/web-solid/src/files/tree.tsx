@@ -49,6 +49,12 @@ const TREE_CSS = `
 		--trees-border-color-override: var(--hairline);
 		--trees-font-family-override: inherit;
 		--trees-font-size-override: var(--font-md);
+		--trees-fg-muted-override: var(--text-muted);
+		--trees-focus-ring-width-override: 1px;
+		--trees-focus-ring-offset-override: -1px;
+		--trees-focus-ring-color-override: color-mix(in oklab, var(--accent) 55%, transparent);
+		--trees-selected-focused-border-color-override: transparent;
+		--trees-padding-inline-override: 4px;
 	}
 	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-md); }
 `
@@ -179,7 +185,8 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			onSelectionChange: (selected) => {
 				if (syncing) return
 				const path = selected.at(-1)
-				if (path && !path.endsWith("/")) props.onOpen?.(path)
+				// A row waiting for its name is selected too, and is not a file yet.
+				if (path && !path.endsWith("/") && !pending.has(path) && filePaths().includes(path)) props.onOpen?.(path)
 			},
 			unsafeCSS: TREE_CSS,
 		})
