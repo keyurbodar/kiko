@@ -300,7 +300,7 @@ export default function Sidecar(props: { chatId: string }) {
       <header class="flex h-[50px] shrink-0 items-center gap-1 pr-2 pl-2">
         <div
           ref={strip}
-          class="flex min-w-0 flex-1 snap-x snap-proximity items-center gap-1 overflow-x-auto scroll-px-2 [scrollbar-width:none]"
+          class="flex min-w-0 flex-1 snap-x snap-proximity items-center gap-1 overflow-x-auto scroll-px-2 [mask-image:linear-gradient(to_right,#000_calc(100%-20px),transparent)] [scrollbar-width:none]"
           role="tablist"
           aria-label="Open surfaces"
           aria-orientation="horizontal"
