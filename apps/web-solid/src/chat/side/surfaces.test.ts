@@ -11,7 +11,6 @@ import {
   fileSurface,
   fixedSurface,
   launcherEntries,
-  showLauncher,
   dropFileSurfaces,
   moveFileSurfaces,
   moveSurface,
@@ -249,14 +248,6 @@ describe("launcher", () => {
 })
 
 describe("the launcher and file tabs", () => {
-  test("showLauncher clears the active tab and keeps the tabs", () => {
-    const chat = "chat-launcher"
-    openSurface(chat, memory)
-    openSurface(chat, plate)
-    showLauncher(chat)
-    expect([ids(chat), activeSurface(chat), sidecarOpen(chat)]).toEqual([["memory", "plate"], null, true])
-  })
-
   test("a rename moves the file tabs under it, keeps the active one, and leaves others alone", () => {
     const chat = "chat-rename"
     openFile(chat, "docs/a.md")

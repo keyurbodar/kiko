@@ -171,11 +171,6 @@ export function closeSidecar(chatId: string) {
   edit(chatId, (s) => (s.open ? { ...s, open: false } : s))
 }
 
-/** Shows the launcher with the tabs still open. */
-export function showLauncher(chatId: string) {
-  edit(chatId, (s) => (s.active === null ? s : { ...s, active: null }))
-}
-
 /** A rename moves the file tabs under `from` to their new paths, and keeps the active one. */
 export function moveFileSurfaces(chatId: string, from: string, to: string) {
   edit(chatId, (s) => {

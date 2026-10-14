@@ -1,7 +1,8 @@
 import type { Agent, Member } from "@kiko/protocol"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useLocation, useNavigate } from "@solidjs/router"
-import { Check, Clock, Ellipsis, FileText, Moon, Pause, Play, Plus, Sparkles, X, Zap } from "lucide-solid"
+import { EntryIcon } from "../../../files/entry-icon"
+import { Check, Clock, Ellipsis, Moon, Pause, Play, Plus, Sparkles, X, Zap } from "lucide-solid"
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { Dialog } from "../../../lib/dialog"
 import { agentList } from "../../../lib/chats"
@@ -322,7 +323,7 @@ export function CardView(props: { chatId: string; placement: Placement; onClose:
                 {(file) => (
                   <li>
                     <button type="button" class={`${row} w-full text-left`} data-file={file.name} onClick={() => openFileRow(file.name)}>
-                      <FileText size={16} strokeWidth={1.75} class="shrink-0 text-[var(--text-muted)]" />
+                      <EntryIcon path={file.name} />
                       <span class="min-w-0 flex-1 truncate text-[13px] text-[var(--text)]">{file.name}</span>
                     </button>
                   </li>

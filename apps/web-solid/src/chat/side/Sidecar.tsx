@@ -2,6 +2,7 @@ import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Bot, Brain, CircleCheck, FileText, FolderOpen, ListChecks, PanelRightClose, Plus, Repeat, X, type LucideProps } from "lucide-solid"
 import { type Component, createEffect, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
+import { EntryIcon } from "../../files/entry-icon"
 import { FileSurface, FilesTree } from "../../files/pane"
 import { useApp } from "../../lib/store"
 import { roomMembers } from "../info/sections"
@@ -23,7 +24,6 @@ import {
   type LauncherItem,
   launcherEntries,
   openSurface,
-  showLauncher,
   sidecarOpen,
   sidecarSurfaces,
   type Surface,
@@ -98,7 +98,9 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
           activate()
         }}
       >
-        <Glyph size={16} strokeWidth={1.75} class="shrink-0" aria-hidden="true" />
+        <Show when={props.surface.kind === "file" ? (props.surface as FileTab).path : null} fallback={<Glyph size={16} strokeWidth={1.75} class="shrink-0" aria-hidden="true" />}>
+          {(path) => <EntryIcon path={path()} />}
+        </Show>
         <span class="min-w-0 truncate">{label()}</span>
         <button
           type="button"
@@ -117,7 +119,7 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
         </button>
       </MenuV2.Context.Trigger>
       <MenuV2.Context.Portal>
-        <MenuV2.Context.Content data-component="sidecar-tab-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+        <MenuV2.Context.Content class="outline-none" data-component="sidecar-tab-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
           <MenuV2.Item onSelect={() => closeSurface(props.chatId, props.surface.id)}>Close</MenuV2.Item>
           <MenuV2.Item disabled={props.count < 2} onSelect={() => closeOthers(props.chatId, props.surface.id)}>
             Close others
@@ -319,11 +321,29 @@ export default function Sidecar(props: { chatId: string }) {
             )}
           </For>
         </div>
-        <TooltipV2 placement="bottom" openDelay={400} value="Open a surface">
-          <button type="button" class={ICON_BUTTON} aria-label="Open a surface" data-action="open-launcher" onClick={() => showLauncher(props.chatId)}>
-            <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        </TooltipV2>
+        <MenuV2 gutter={6} placement="bottom-end">
+          <TooltipV2 placement="bottom" openDelay={400} value="Open a surface">
+            <MenuV2.Trigger class={ICON_BUTTON} aria-label="Open a surface" data-action="open-launcher">
+              <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
+            </MenuV2.Trigger>
+          </TooltipV2>
+          <MenuV2.Portal>
+            <MenuV2.Content class="min-w-[220px] outline-none" data-component="sidecar-add-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
+              <For each={launcherEntries(group())}>
+                {(entry) => {
+                  const Glyph = ICON[entry.kind]
+                  return (
+                    <MenuV2.Item data-action={`open-${entry.kind}`} onSelect={() => openSurface(props.chatId, fixedSurface(entry.kind))}>
+                      <Glyph size={16} strokeWidth={1.75} class="shrink-0 text-muted" aria-hidden="true" />
+                      <span class="min-w-0 flex-1 truncate">{entry.label}</span>
+                      <kbd class="ml-6 font-sans text-xs text-muted">{entry.key}</kbd>
+                    </MenuV2.Item>
+                  )
+                }}
+              </For>
+            </MenuV2.Content>
+          </MenuV2.Portal>
+        </MenuV2>
         <TooltipV2 placement="bottom" openDelay={400} value="Close sidecar">
           <button type="button" class={ICON_BUTTON} aria-label="Close sidecar" data-action="close-sidecar" onClick={() => closeSidecar(props.chatId)}>
             <PanelRightClose size={16} strokeWidth={1.75} aria-hidden="true" />
