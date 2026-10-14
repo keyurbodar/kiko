@@ -30,96 +30,40 @@ const loadCatalog = () => {
 
 const focus = "outline-none"
 
-const sentence = (text: string) => text.replace(/(^|[.!?]\s+)([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase())
+export const sentence = (text: string) => text.replace(/(^|[.!?]\s+)([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase())
 
-const origin = (x: { source: string; by?: string | null }) => (x.source === "catalog" ? "From the catalog" : x.by ? `Written by @${x.by}` : "From your files")
+export const origin = (x: { source: string; by?: string | null }) => (x.source === "catalog" ? "From the catalog" : x.by ? `Written by @${x.by}` : "From your files")
 
 const Initial = (props: { name: string }) => <span class="text-[13px] font-semibold text-foreground">{props.name.slice(0, 1)}</span>
 
 const LEVEL_ORDER: Record<ReviewLine["level"], number> = { warning: 0, notice: 1, info: 2 }
 
-export default function ExtensionsPage(props: { view: "installed" | "catalog" }) {
+/** Installed extensions, the proposals waiting for the human, the catalog, and the one way to change them. */
+export function useExtensions() {
   const navigate = useNavigate()
   const [error, setError] = createSignal<string | null>(null)
   const extensions = () => app.user()?.extensions() ?? []
   const proposals = () => app.user()?.proposals() ?? []
   const [catalog] = createResource(loadCatalog)
-  const installedNames = createMemo(() => new Set(extensions().map((x) => x.name)))
-  const waitingNames = createMemo(() => new Set(proposals().map((p) => p.name)))
   const entries = () => (catalog.error ? [] : (catalog() ?? []))
-
   async function run(op: ExtensionOp) {
     setError(null)
     const out = await send(op)
     if (!out.ok) setError(`${out.error}${out.problems?.length ? `: ${out.problems.join("; ")}` : ""}`)
     return out
   }
-
   function askKiko() {
     const kiko = app.kikoChatId()
     if (!kiko) return
     app.drafts()?.save(kiko, { text: "Build me an extension that " })
     navigate(`/chat/${kiko}`)
   }
-
-  return (
-    <div class="flex flex-col gap-8" data-component="extensions-page">
-      <Show when={error()}>
-        <Notice data-component="extensions-error">{error()!}</Notice>
-      </Show>
-
-      <Show when={props.view === "installed"}>
-        <Show when={proposals().length}>
-          <Group title="Waiting for you" data-component="extension-proposals">
-            <For each={proposals()}>{(p) => <ProposalCard proposal={p} installed={extensions().find((x) => x.name === p.name)} run={run} />}</For>
-          </Group>
-        </Show>
-        <Show
-          when={extensions().length}
-          fallback={
-            <Show when={!proposals().length}>
-              <div class="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-6 py-10 text-center" data-component="extensions-empty">
-                <p class="text-md text-foreground">No extensions yet</p>
-                <p class="max-w-sm text-sm text-muted-foreground">An extension gives your agents a new tool, instruction, or schedule. Add one from the catalog, or describe one and Kiko builds it.</p>
-                <div class="flex gap-2">
-                  <Button onClick={() => navigate("/settings/tools/catalog")}>Browse catalog</Button>
-                  <Button variant="ghost" data-action="ask-kiko" onClick={askKiko}>Build one with Kiko</Button>
-                </div>
-              </div>
-            </Show>
-          }
-        >
-          <Group
-            title="Installed"
-            data-component="extensions-installed"
-            action={
-              <Button variant="ghost" data-action="ask-kiko" onClick={askKiko}>
-                Build one with Kiko
-              </Button>
-            }
-          >
-            <For each={extensions()}>{(x) => <InstalledRow extension={x} run={run} />}</For>
-          </Group>
-        </Show>
-      </Show>
-
-      <Show when={props.view === "catalog"}>
-        <div class="grid grid-cols-1 gap-2 @min-[560px]/settings:grid-cols-2" data-component="extension-catalog">
-          <For
-            each={entries()}
-            fallback={<Hint>{catalog.error ? "The catalog did not load. Reload to try again." : catalog.loading ? "Loading the catalog" : "The catalog is empty"}</Hint>}
-          >
-            {(entry) => <CatalogCard entry={entry} installed={installedNames().has(entry.name)} waiting={waitingNames().has(entry.name)} run={run} />}
-          </For>
-        </div>
-      </Show>
-    </div>
-  )
+  return { error, extensions, proposals, catalog, entries, run, askKiko }
 }
 
-type Run = (op: ExtensionOp) => Promise<ExtensionResult>
+export type Run = (op: ExtensionOp) => Promise<ExtensionResult>
 
-function ProposalCard(props: { proposal: ExtensionProposal; installed?: ExtensionInfo; run: Run }) {
+export function ProposalDetail(props: { proposal: ExtensionProposal; installed?: ExtensionInfo; run: Run }) {
   const p = () => props.proposal
   const m = () => p().bundle.manifest
   const [code, setCode] = createSignal(false)
@@ -131,12 +75,6 @@ function ProposalCard(props: { proposal: ExtensionProposal; installed?: Extensio
     },
   )
   return (
-    <Item
-      data-extension-proposal={p().name}
-      icon={<Initial name={p().name} />}
-      title={p().name}
-      meta={`${props.installed ? `${props.installed.version} → ${p().version}` : p().version} · ${origin(p())}`}
-    >
       <div class="flex flex-col gap-3">
         <p class={cn("text-[13px] leading-relaxed", muted)}>{sentence(m().description)}</p>
         <Show when={props.installed} fallback={<Review lines={describeManifest(m())} />}>
@@ -159,7 +97,6 @@ function ProposalCard(props: { proposal: ExtensionProposal; installed?: Extensio
           <CodeView bundle={p().bundle} before={props.installed ? (before() ?? undefined) : undefined} />
         </Show>
       </div>
-    </Item>
   )
 }
 
@@ -201,9 +138,8 @@ function UpdateReview(props: { change: ReviewChange }) {
   )
 }
 
-function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
+export function InstalledDetail(props: { extension: ExtensionInfo; run: Run }) {
   const x = () => props.extension
-  const [open, setOpen] = createSignal(false)
   const [code, setCode] = createSignal(false)
   const [confirm, setConfirm] = createSignal(false)
   const [source] = createResource(
@@ -216,35 +152,11 @@ function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
   const missing = () => x().secrets.filter((s) => !s.set).length
   const tools = () => Object.keys(x().manifest.tools ?? {})
   return (
-    <Item
-      data-extension={x().name}
-      data-enabled={String(x().enabled)}
-      icon={<Initial name={x().name} />}
-      title={
-        <>
-          <span class="truncate">{x().name}</span>
-          <span class={cn("shrink-0 text-[12px] font-normal", muted)}>{x().version}</span>
-          <Show when={x().error}>
-            <Pill tone="danger" data-component="extension-has-error">
-              Error
-            </Pill>
-          </Show>
-          <Show when={missing()}>
-            <Pill data-component="extension-needs-secret">Needs {missing() === 1 ? "a secret" : `${missing()} secrets`}</Pill>
-          </Show>
-        </>
-      }
-      meta={sentence(x().description)}
-      actions={
-        <>
-          <Toggle label={`Enable ${x().name}`} on={x().enabled} data-action="toggle-extension" onChange={(on) => void props.run({ op: "enable", name: x().name, enabled: on })} />
-          <DetailsButton open={open()} onToggle={() => setOpen(!open())} data-action="open-extension" />
-        </>
-      }
-    >
-
-      {open() && (
         <div class="flex flex-col gap-4" data-component="extension-detail">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-md text-foreground">Enabled</span>
+            <Toggle label={`Enable ${x().name}`} on={x().enabled} data-action="toggle-extension" onChange={(on) => void props.run({ op: "enable", name: x().name, enabled: on })} />
+          </div>
           <Show when={x().error}>
             <p class="font-mono text-[12px] leading-relaxed break-words text-[var(--error)]">{x().error}</p>
           </Show>
@@ -293,8 +205,6 @@ function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
             </Show>
           </Show>
         </div>
-      )}
-    </Item>
   )
 }
 
@@ -397,8 +307,7 @@ function SecretField(props: { extension: ExtensionInfo; name: string; set: boole
   )
 }
 
-function CatalogCard(props: { entry: ExtensionCatalogEntry; installed: boolean; waiting: boolean; run: Run }) {
-  const [open, setOpen] = createSignal(false)
+export function CatalogDetail(props: { entry: ExtensionCatalogEntry; installed: boolean; waiting: boolean; run: Run }) {
   const [busy, setBusy] = createSignal(false)
   async function add() {
     setBusy(true)
@@ -406,28 +315,16 @@ function CatalogCard(props: { entry: ExtensionCatalogEntry; installed: boolean; 
     setBusy(false)
   }
   return (
-    <article class="flex min-h-32 flex-col gap-1.5 rounded-lg border border-border bg-muted p-3" data-catalog={props.entry.name}>
-      <div class="flex items-center gap-2">
-        <span class="grid size-6 shrink-0 place-items-center rounded-md bg-control">
-          <Initial name={props.entry.name} />
-        </span>
-        <h3 class="min-w-0 flex-1 truncate text-md font-medium text-foreground">{props.entry.name}</h3>
-      </div>
-      <p class={cn("line-clamp-2 flex-1 text-sm leading-relaxed", muted)}>{sentence(props.entry.description)}</p>
-      <div class="flex items-center justify-between gap-2">
-        <Button variant="ghost" class="-ml-2" data-action="catalog-details" onClick={() => setOpen(true)}>
-          Details
-        </Button>
+    <div class="flex flex-col gap-4">
+      <Review lines={describeManifest(props.entry.bundle.manifest)} />
+      <div class="flex justify-end">
         <Show when={!props.installed} fallback={<span class="text-sm text-muted-foreground" data-component="catalog-installed">Installed</span>}>
-          <Button disabled={busy() || props.waiting} data-action="add-from-catalog" onClick={() => void add()}>
-            {props.waiting ? "Waiting for review" : busy() ? "Adding" : "Add"}
+          <Button variant="primary" disabled={busy() || props.waiting} data-action="add-from-catalog" onClick={() => void add()}>
+            {props.waiting ? "Waiting for your review" : busy() ? "Adding" : "Add"}
           </Button>
         </Show>
       </div>
-      <Dialog open={open()} onClose={() => setOpen(false)} title={props.entry.name} description={sentence(props.entry.description)} size="md">
-        <Review lines={describeManifest(props.entry.bundle.manifest)} />
-      </Dialog>
-    </article>
+    </div>
   )
 }
 

@@ -1,6 +1,6 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Bot, Brain, CircleCheck, FileText, FolderOpen, LayoutGrid, ListChecks, PanelRightClose, Plus, Repeat, X, type LucideProps } from "lucide-solid"
+import { Bot, Brain, CircleCheck, FileText, FolderOpen, ListChecks, PanelRightClose, Plus, Repeat, X, type LucideProps } from "lucide-solid"
 import { type Component, createEffect, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
 import { EntryIcon } from "../../files/entry-icon"
 import { FileSurface, FilesTree } from "../../files/pane"
@@ -11,7 +11,6 @@ import { MemoryError, MemoryList, useMemoryStore } from "../info/memory/views"
 import { loadRoutines, RoutinesPage } from "../info/routines"
 import { TasksView } from "../info/tasks"
 import { AgentPage } from "./agent"
-import { Overview } from "./overview"
 import {
   activateSurface,
   activeSurface,
@@ -21,12 +20,10 @@ import {
   closeSurface,
   closeToRight,
   fixedSurface,
-  type FixedKind,
   LAUNCHER,
   launcherEntries,
   openSurface,
   sidecarOpen,
-  showOverview,
   sidecarSurfaces,
   type Surface,
 } from "./surfaces"
@@ -135,6 +132,33 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
         </MenuV2.Context.Content>
       </MenuV2.Context.Portal>
     </MenuV2.Context>
+  )
+}
+
+function Launcher(props: { chatId: string }) {
+  return (
+    <div class="flex min-h-0 flex-1 items-center justify-center p-6" data-component="sidecar-launcher">
+      <div class="flex w-full max-w-60 flex-col gap-0.5">
+        <h3 class="mb-3 text-center text-base font-medium text-foreground">Open a surface</h3>
+        <For each={launcherEntries(roomMembers().length > 1)}>
+          {(entry) => {
+            const Glyph = ICON[entry.kind]
+            return (
+              <button
+                type="button"
+                class="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-md text-foreground hover:bg-accent"
+                data-action={`open-${entry.kind}`}
+                onClick={() => openSurface(props.chatId, fixedSurface(entry.kind))}
+              >
+                <Glyph size={16} strokeWidth={1.75} class="shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span class="min-w-0 flex-1 truncate">{entry.label}</span>
+                <kbd class="grid h-5 min-w-5 place-items-center rounded bg-control px-1 font-sans text-xs text-muted-foreground">{entry.key}</kbd>
+              </button>
+            )
+          }}
+        </For>
+      </div>
+    </div>
   )
 }
 
@@ -265,18 +289,6 @@ export default function Sidecar(props: { chatId: string }) {
           ref={strip}
           class="flex min-w-0 flex-1 snap-x snap-proximity items-center gap-1 overflow-x-auto scroll-px-2 [mask-image:linear-gradient(to_right,#000_calc(100%-20px),transparent)] [scrollbar-width:none]"
         >
-          <TooltipV2 placement="bottom" openDelay={400} value="Overview">
-            <button
-              type="button"
-              class={`${ICON_BUTTON} ${active() ? "" : "bg-accent-strong text-foreground"}`}
-              aria-label="Overview"
-              aria-pressed={!active()}
-              data-action="sidecar-overview"
-              onClick={() => showOverview(props.chatId)}
-            >
-              <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" />
-            </button>
-          </TooltipV2>
           <div class="contents" role="tablist" aria-label="Open surfaces" aria-orientation="horizontal" onKeyDown={onTablistKey}>
             <For each={surfaces()}>
               {(surface, i) => (
@@ -320,7 +332,7 @@ export default function Sidecar(props: { chatId: string }) {
           </button>
         </TooltipV2>
       </header>
-      <Show when={active()} keyed fallback={<Overview chatId={props.chatId} icons={ICON as Record<FixedKind, Icon>} />}>
+      <Show when={active()} keyed fallback={<Launcher chatId={props.chatId} />}>
         {(surface) => <SurfaceBody chatId={props.chatId} surface={surface} />}
       </Show>
     </aside>

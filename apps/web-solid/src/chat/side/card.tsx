@@ -1,0 +1,110 @@
+import { Brain, ChevronRight, CircleCheck, FolderOpen, ListChecks, Repeat, Sparkles, type LucideProps } from "lucide-solid"
+import { type Component, For, onMount, Show } from "solid-js"
+import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
+import { useApp } from "../../lib/store"
+import { loadLoops, loopsOf } from "../info/loops"
+import { useMemoryStore } from "../info/memory/views"
+import { loadRoutines, routinesOf } from "../info/routines"
+import { triggerLabel } from "../info/routines-model"
+import { isGroup, liveLine, statusChip, workingLine } from "./overview-model"
+import { agentSurface, type FixedKind, fixedSurface, openSurface } from "./surfaces"
+
+/** An upload is stored as `attachments/<stamp>-<name>`. The card shows the name the human picked. */
+const shownName = (path: string) => {
+  const base = path.slice(path.lastIndexOf("/") + 1)
+  return path.startsWith("attachments/") ? base.replace(/^[a-z0-9]{6,10}-(?=.)/, "") : base
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+function Row(props: { icon: Component<LucideProps>; label: string; meta?: string; kind: FixedKind; chatId: string }) {
+  return (
+    <button
+      type="button"
+      class="group/row flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left hover:bg-accent"
+      data-action={`open-${props.kind}`}
+      onClick={() => openSurface(props.chatId, fixedSurface(props.kind))}
+    >
+      <props.icon size={15} strokeWidth={1.75} class="shrink-0 text-muted-foreground" />
+      <span class="shrink-0 text-md text-foreground">{props.label}</span>
+      <span class="min-w-0 flex-1 truncate text-right text-sm text-muted-foreground">{props.meta}</span>
+      <ChevronRight size={13} strokeWidth={1.75} class="shrink-0 text-secondary-label opacity-0 group-hover/row:opacity-100" />
+    </button>
+  )
+}
+
+/** The chat card beside the transcript: who is here and what they are doing, then one row per surface. */
+export default function ChatCard(props: { chatId: string }) {
+  const memory = useMemoryStore()
+  onMount(() => {
+    void loadRoutines()
+    void loadLoops()
+  })
+  const members = () => useApp.roomMembers()
+  const chat = () => useApp.chatById(props.chatId)
+  const working = () => {
+    const doings = useApp.typingDoings()
+    return workingLine(
+      useApp.typingNames().map((name, i) => ({ name, doing: doings[i] })),
+      isGroup(members()),
+    )
+  }
+  const busy = () => statusChip(chat()?.presence).tone === "working" || working() !== null
+  const files = () => useApp.activeFiles()
+  const routines = () => routinesOf(props.chatId) ?? []
+  const loops = () => loopsOf(props.chatId) ?? []
+  const tasks = () => useApp.room()?.tasks() ?? []
+  const open = () => tasks().filter((t) => t.status !== "done" && t.status !== "cancelled").length
+  const next = () => routines().find((r) => r.status === "active")
+
+  return (
+    <aside class="flex w-full flex-col rounded-2xl border border-border bg-popover p-1.5 shadow-card" data-component="chat-card" aria-label="This chat">
+      <div class="flex items-center gap-3 px-2.5 pt-2 pb-2.5">
+        <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={32} />
+        <div class="flex min-w-0 flex-1 flex-col">
+          <span class="truncate text-md font-medium text-foreground" data-component="card-name">
+            {chat()?.name ?? "New chat"}
+          </span>
+          <span class={`flex items-center gap-1 truncate text-xs ${busy() ? "text-ring" : "text-muted-foreground"}`} data-component="card-live">
+            <Show when={busy()}>
+              <Sparkles size={11} strokeWidth={2} class="shrink-0" />
+            </Show>
+            {liveLine(working(), chat()?.updatedAt, Date.now())}
+          </span>
+        </div>
+      </div>
+      <Show when={isGroup(members())}>
+        <div class="flex flex-wrap gap-1 px-2.5 pb-2.5" data-component="card-agents">
+          <For each={members()}>
+            {(m) => (
+              <button
+                type="button"
+                class="flex h-7 items-center gap-1.5 rounded-full bg-accent py-0.5 pr-2.5 pl-0.5 text-sm text-foreground hover:bg-accent-strong"
+                data-member={m.slug}
+                onClick={() => openSurface(props.chatId, agentSurface(m.slug))}
+              >
+                <IdentityAvatar seed={m.slug} size={22} />
+                {m.name}
+              </button>
+            )}
+          </For>
+        </div>
+      </Show>
+      <div class="flex flex-col border-t border-border pt-1.5">
+        <Row
+          icon={FolderOpen}
+          label="Files"
+          kind="files"
+          chatId={props.chatId}
+          meta={files().length ? `${files().slice(-2).map((f) => shownName(f.name)).join(", ")}${files().length > 2 ? ` +${files().length - 2}` : ""}` : "None yet"}
+        />
+        <Row icon={Brain} label="Memory" kind="memory" chatId={props.chatId} meta={memory()?.state.lines.length ? plural(memory()!.state.lines.length, "note") : "Empty"} />
+        <Row icon={Repeat} label="Routines" kind="routines" chatId={props.chatId} meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"} />
+        <Row icon={CircleCheck} label="On your plate" kind="plate" chatId={props.chatId} meta={loops().length ? plural(loops().length, "item") : "Clear"} />
+        <Show when={isGroup(members())}>
+          <Row icon={ListChecks} label="Tasks" kind="tasks" chatId={props.chatId} meta={tasks().length ? `${open()} open` : "None"} />
+        </Show>
+      </div>
+    </aside>
+  )
+}

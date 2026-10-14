@@ -1,5 +1,5 @@
 import "./rich.css"
-import { Editor, Extension, InputRule, mergeAttributes, wrappingInputRule, type ExtendedRegExpMatchArray } from "@tiptap/core"
+import { Editor, Extension, InputRule, markInputRule, mergeAttributes, wrappingInputRule, type ExtendedRegExpMatchArray } from "@tiptap/core"
 import { Blockquote } from "@tiptap/extension-blockquote"
 import { Code } from "@tiptap/extension-code"
 import { CodeBlock } from "@tiptap/extension-code-block"
@@ -20,9 +20,9 @@ import { chainCommands, newlineInCode, setBlockType, splitBlock } from "@tiptap/
 import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode, type NodeType } from "@tiptap/pm/model"
 import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state"
-import type { EditorView } from "@tiptap/pm/view"
+import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
 import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, selectionInOneCodeBlock, shiftEnterInCode, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
-import { BINDINGS, LINK_KEY } from "./keymap"
+import { BINDINGS } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { Link, Mention } from "./nodes"
 import { markdownSlice } from "./paste"
@@ -39,7 +39,6 @@ export type RichOptions = {
   onCursor: (cursor: number) => void
   onKeyDown: (event: KeyboardEvent) => boolean
   onPaste: (event: ClipboardEvent) => boolean
-  onLink: (href: string | null) => void
   onFocus: () => void
   onBlur: () => void
 }
@@ -131,6 +130,53 @@ function taskInputRule(type: NodeType): InputRule {
   })
 }
 
+const MARKER: Record<string, string> = { bold: "**", italic: "_", strike: "~~", code: "`" }
+
+/** Each run of one mark inside a text block, as document positions. */
+function styledRanges(doc: PMNode): { from: number; to: number; text: string }[] {
+  const ranges: { from: number; to: number; text: string }[] = []
+  doc.descendants((block, start) => {
+    if (!block.isTextblock || block.type.spec.code) return true
+    const open = new Map<string, number>()
+    let pos = start + 1
+    const close = (name: string, at: number) => {
+      ranges.push({ from: open.get(name)!, to: at, text: MARKER[name]! })
+      open.delete(name)
+    }
+    block.forEach((child) => {
+      const names = new Set(child.marks.map((m) => m.type.name).filter((n) => n in MARKER))
+      for (const name of [...open.keys()]) if (!names.has(name)) close(name, pos)
+      for (const name of names) if (!open.has(name)) open.set(name, pos)
+      pos += child.nodeSize
+    })
+    for (const name of [...open.keys()]) close(name, pos)
+    return false
+  })
+  return ranges
+}
+
+/** t3code's marker reveal: the Markdown markers of the styled text under the caret show, faintly. */
+const markers = new Plugin({
+  props: {
+    decorations(state) {
+      const { from, to, empty } = state.selection
+      const widgets: Decoration[] = []
+      for (const range of styledRanges(state.doc)) {
+        const on = empty ? from >= range.from && from <= range.to : from < range.to && to > range.from
+        if (!on) continue
+        for (const [at, side] of [[range.from, -1], [range.to, 1]] as const) {
+          const mark = document.createElement("span")
+          mark.className = "composer-rich-marker"
+          mark.textContent = range.text
+          mark.setAttribute("aria-hidden", "true")
+          widgets.push(Decoration.widget(at, mark, { side, key: `${at}${side}${range.text}` }))
+        }
+      }
+      return DecorationSet.create(state.doc, widgets)
+    },
+  },
+})
+
 /** A new line after a heading is a paragraph, as in t3code. A line break would keep it a heading. */
 const leaveHeading: Command = (state, dispatch) => state.selection.$from.parent.type.name === "heading" && splitBlock(state, dispatch)
 
@@ -158,13 +204,10 @@ export function mountRichEditor(options: RichOptions) {
             leaveEmptyQuote(state, dispatch) ||
             shiftEnterInCode(state, dispatch) ||
             leaveHeading(state, dispatch),
-          [LINK_KEY]: () => {
-            options.onLink(currentLink())
-            return true
-          },
           Backspace: chainCommands(backspaceAcrossList, unwrapCodeBlockAtStart, unsetHeadingAtStart),
           Delete: deleteAcrossList,
         }),
+        markers,
         new Plugin({
           filterTransaction(tr) {
             previousKind = groupUndoByChangeKind(tr, previousKind)
@@ -186,7 +229,14 @@ export function mountRichEditor(options: RichOptions) {
       Bold,
       Italic,
       Strike,
-      Code.extend({ excludes: "code", exitable: false }),
+      Code.extend({
+        excludes: "code",
+        exitable: false,
+        // Tiptap's rule, except the code must hold more than spaces, so a stray pair never wraps a blank.
+        addInputRules() {
+          return [markInputRule({ find: /(^|[^`])`([^`]*[^`\s][^`]*)`(?!`)$/, type: this.type })]
+        },
+      }),
       Blockquote.extend({
         addInputRules() { return [blockquoteInputRule] },
       }),
@@ -320,26 +370,6 @@ export function mountRichEditor(options: RichOptions) {
     return new Slice(Fragment.from(nodes), 0, 0)
   }
 
-  function currentLink(): string {
-    const { $from } = editor.state.selection
-    const mark = editor.state.schema.marks.link!.isInSet($from.marks())
-    return mark ? String(mark.attrs.href) : ""
-  }
-
-  function linkRange() {
-    const { $from } = editor.state.selection
-    const type = editor.state.schema.marks.link!
-    const start = $from.parent.childAfter($from.parentOffset)
-    const mark = type.isInSet($from.marks())
-    if (!mark) return null
-    let from = $from.start() + start.offset
-    let to = from + start.node!.nodeSize
-    const before = $from.parent.childBefore($from.parentOffset)
-    if (before.node && type.isInSet(before.node.marks)) from = $from.start() + before.offset
-    if (!start.node || !type.isInSet(start.node.marks)) to = $from.pos
-    return { from, to }
-  }
-
   return {
     dom: editor.view.dom as HTMLElement,
     snapshot,
@@ -347,7 +377,10 @@ export function mountRichEditor(options: RichOptions) {
     isFocused: () => editor.isFocused,
     setEditable: (editable: boolean) => editor.setEditable(editable, false),
     isEditable: () => editor.isEditable,
-    isEmpty: () => editor.isEmpty,
+    isEmpty: () => {
+      const { doc } = editor.state
+      return doc.childCount === 1 && doc.firstChild!.type.name === "paragraph" && doc.firstChild!.content.size === 0
+    },
     setMarkdown(markdown: string) {
       const view = editor.view
       const doc = editor.schema.nodeFromJSON(markdownToDoc(markdown, { isMention: options.isMention }))
@@ -369,22 +402,6 @@ export function mountRichEditor(options: RichOptions) {
       const from = $from.start() + (at < 0 ? $from.parentOffset : at)
       const mention = state.schema.nodes.mention!.create({ slug })
       view.dispatch(state.tr.replaceWith(from, state.selection.from, [mention, state.schema.text(" ")]).scrollIntoView())
-      editor.commands.focus(undefined, { scrollIntoView: false })
-    },
-    setLink(href: string | null) {
-      const { view } = editor
-      const { state } = view
-      const type = state.schema.marks.link!
-      const range = linkRange() ?? (state.selection.empty ? null : { from: state.selection.from, to: state.selection.to })
-      let tr = state.tr
-      if (!href) {
-        if (range) tr = tr.removeMark(range.from, range.to, type)
-      } else if (range) {
-        tr = tr.removeMark(range.from, range.to, type).addMark(range.from, range.to, type.create({ href }))
-      } else {
-        tr = tr.replaceSelectionWith(state.schema.text(href, [type.create({ href })]), false)
-      }
-      view.dispatch(tr)
       editor.commands.focus(undefined, { scrollIntoView: false })
     },
     selectionText: () => {

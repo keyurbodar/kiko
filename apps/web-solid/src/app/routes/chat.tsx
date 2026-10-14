@@ -3,6 +3,7 @@ import { A, useNavigate, useParams } from "@solidjs/router";
 import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
+import { ModelPickerButton } from "../../settings/model-picker";
 import { useApp } from "../../lib/store";
 import type { MessageId, RoomId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
@@ -295,6 +296,7 @@ export default function ChatRoute() {
             )}
           </Show>
           <Composer
+            tray={<ModelPickerButton chatId={params.id ?? null} />}
             threadId={useApp.activeThreadId() ?? ""}
             title={isTemp() ? useApp.members().map((m) => m.name).join(", ") || "Kiko" : useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}

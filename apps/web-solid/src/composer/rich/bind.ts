@@ -17,7 +17,6 @@ export function bindRich(input: {
   disabled: () => boolean
   shortcodes: { sync: () => void; onKeyDown: (event: KeyboardEvent) => boolean; close: () => void }
   onEdit: () => void
-  onLink: (href: string | null) => void
   onFocus: () => void
 }): RichBinding {
   const { controller } = input
@@ -59,7 +58,6 @@ export function bindRich(input: {
       controller.onPaste(event)
       return true
     },
-    onLink: input.onLink,
     onFocus: () => {
       controller.dispatch({ type: "focus.editor" })
       input.onFocus()

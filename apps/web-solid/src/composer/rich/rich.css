@@ -4,6 +4,14 @@
   margin: 0;
 }
 
+.composer-dock .composer-input > :first-child {
+  margin-top: 0;
+}
+
+.composer-dock .composer-input > :last-child {
+  margin-bottom: 0;
+}
+
 .composer-dock .composer-input ul,
 .composer-dock .composer-input ol {
   margin: 0.65rem 0;
@@ -77,112 +85,6 @@
   padding: 0;
   background: none;
   font-size: inherit;
-}
-
-.composer-dock .composer-chip {
-  margin: 0 1px;
-  cursor: default;
-}
-
-.composer-dock .composer-chip svg:not(.entry-icon) {
-  fill: none;
-  stroke: currentcolor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.75;
-}
-
-.composer-dock .composer-chip-status {
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
-
-.composer-dock .composer-chip-status:empty {
-  display: none;
-}
-
-.composer-dock .composer-file-chips {
-  display: flex;
-  flex: 0 0 100%;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 2px 2px;
-}
-
-.composer-dock .composer-file-chip {
-  max-width: 100%;
-  margin: 0;
-}
-
-.composer-dock button.composer-chip-status {
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-
-.composer-dock .composer-chip[data-state="failed"] {
-  color: var(--error);
-  border-color: color-mix(in oklab, var(--error) 35%, transparent);
-  background: color-mix(in oklab, var(--error) 8%, transparent);
-  cursor: pointer;
-}
-
-.composer-dock .composer-chip[data-state="failed"] .composer-chip-status {
-  color: var(--error);
-}
-
-.composer-dock .composer-chip.ProseMirror-selectednode {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-
-.composer-dock .composer-chip-remove {
-  position: relative;
-  display: none;
-  width: 1.17em;
-  height: 1.17em;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--muted-foreground);
-  background: none;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.composer-dock .composer-chip-remove::before {
-  content: "";
-  position: absolute;
-  inset: -6px;
-}
-
-.composer-dock .composer-chip-remove svg {
-  width: 100%;
-  height: 100%;
-  fill: none;
-  stroke: currentcolor;
-  stroke-linecap: round;
-  stroke-width: 2;
-}
-
-.composer-dock .composer-chip-remove:hover {
-  color: var(--foreground);
-}
-
-.composer-dock .composer-chip:hover .composer-chip-remove,
-.composer-dock .composer-chip-remove:focus-visible {
-  display: inline-flex;
-}
-
-@media (hover: none) {
-  .composer-dock .composer-chip-remove {
-    display: inline-flex;
-  }
 }
 
 .composer-dock .composer-input h1,
@@ -261,4 +163,14 @@
 
 .composer-dock .composer-input ul[data-type="taskList"] li > div > p {
   margin: 0;
+}
+
+.composer-dock .composer-rich-marker {
+  color: var(--muted-foreground);
+  opacity: 0.75;
+  font-weight: 400;
+  font-style: normal;
+  text-decoration: none;
+  user-select: none;
+  pointer-events: none;
 }

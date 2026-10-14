@@ -1,7 +1,7 @@
 import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@kiko/protocol"
-import { Show, createSignal, lazy, onCleanup, onMount, type JSX } from "solid-js"
+import { Show, createSignal, lazy, onCleanup, onMount } from "solid-js"
 import { cn } from "../lib/cn"
-import { Button, Group, Hint, Notice, fieldClass } from "./kit"
+import { Button, Notice, fieldClass } from "./kit"
 import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
 
 export const COMPOSIO_PLATFORM = "https://platform.composio.dev"
@@ -58,7 +58,8 @@ function KeyField(props: { id: string; label: string; placeholder: string; submi
 	)
 }
 
-export function Integrations(props: { client?: ComposioClient; kernel?: KernelClient }) {
+/** Composio and Kernel: their status, pushed live, and the calls that connect and disconnect them. */
+export function useIntegrations(props: { client?: ComposioClient; kernel?: KernelClient } = {}) {
 	const [status, setStatus] = createSignal<ComposioStatus | null>(null)
 	const [error, setError] = createSignal<{ where: Where; text: string } | null>(null)
 	const [busy, setBusy] = createSignal(false)
@@ -120,85 +121,70 @@ export function Integrations(props: { client?: ComposioClient; kernel?: KernelCl
 		}
 	}
 
-	return (
-		<div class="flex flex-col gap-6" data-component="integrations">
-			<div class="grid grid-cols-1 gap-2 @min-[560px]/settings:grid-cols-2">
-				<Show when={status()} fallback={<Hint>Loading</Hint>}>
-					<AppCard
-						component="composio"
-						state={status()?.connected ? "connected" : "empty"}
-						icon={<GridIcon />}
-						name="Composio"
-						status={<span data-field="composio-status">{status()?.connected ? "Connected" : "Not connected"}</span>}
-						description="Connect your apps through your own Composio account."
-						error={errorAt("app")}
-					>
-						<Show
-							when={!status()?.connected}
-							fallback={
-								<Button variant="ghost" data-action="composio-disconnect" disabled={busy()} onClick={() => void run(async () => client?.request({ t: "disconnectComposio" }))}>
-									Disconnect
-								</Button>
-							}
-						>
-							<KeyField id="composio-key" label="Composio API key" placeholder="ak_..." submit="Connect" busy={busy()} data-action="composio-connect" onKey={(apiKey) => void run(async () => client?.request({ t: "connectComposio", apiKey }))} />
-							<a class="text-sm text-muted-foreground underline hover:text-foreground" href={COMPOSIO_PLATFORM} target="_blank" rel="noreferrer" data-component="composio-link">
-								Get a key at platform.composio.dev
-							</a>
-						</Show>
-					</AppCard>
-				</Show>
-				<Show when={kernel()}>
-					<AppCard
-						component="kernel"
-						state={kernel()?.broken ? "broken" : kernel()?.connected ? "connected" : "empty"}
-						icon={<GlobeIcon />}
-						name="Kernel browser"
-						status={<span data-field="kernel-status">{kernel()?.broken ? "Key rejected" : kernel()?.connected ? "Connected" : "Not connected"}</span>}
-						description="Lets your agents use a real browser, in your own Kernel account."
-						error={errorAt("kernel")}
-					>
-						<Show
-							when={!kernel()?.connected || kernel()?.broken}
-							fallback={
-								<Button variant="ghost" data-action="kernel-disconnect" disabled={busy()} onClick={() => void runKernel(async () => kernelClient?.request({ t: "disconnectKernel" }))}>
-									Disconnect
-								</Button>
-							}
-						>
-							<KeyField id="kernel-key" label="Kernel browser" placeholder="sk_..." submit="Connect" busy={busy()} data-action="kernel-connect" onKey={(apiKey) => void runKernel(async () => kernelClient?.request({ t: "connectKernel", apiKey }))} />
-							<a class="text-sm text-muted-foreground underline hover:text-foreground" href={KERNEL_HOME} target="_blank" rel="noreferrer" data-component="kernel-link">
-								Get a key at dashboard.onkernel.com
-							</a>
-						</Show>
-					</AppCard>
-				</Show>
-			</div>
-			<Show when={kernel()?.connected}>
-				<Group title="Live browser">
-					<LiveBrowser icon={<GlobeIcon />} />
-				</Group>
-			</Show>
-		</div>
-	)
+	return {
+		status,
+		kernel,
+		busy,
+		errorAt,
+		connectComposio: (apiKey: string) => void run(async () => client?.request({ t: "connectComposio", apiKey })),
+		disconnectComposio: () => void run(async () => client?.request({ t: "disconnectComposio" })),
+		connectKernel: (apiKey: string) => void runKernel(async () => kernelClient?.request({ t: "connectKernel", apiKey })),
+		disconnectKernel: () => void runKernel(async () => kernelClient?.request({ t: "disconnectKernel" })),
+	}
 }
 
-function AppCard(props: { component: string; state: string; icon: JSX.Element; name: string; status: JSX.Element; description: string; error?: string; children: JSX.Element }) {
+export type Integrations = ReturnType<typeof useIntegrations>
+
+export const APPS = {
+	composio: { name: "Composio", description: "Connect your apps through your own Composio account.", home: COMPOSIO_PLATFORM, placeholder: "ak_...", icon: GridIcon },
+	kernel: { name: "Kernel browser", description: "Lets your agents use a real browser, in your own Kernel account.", home: KERNEL_HOME, placeholder: "sk_...", icon: GlobeIcon },
+} as const
+
+export type AppId = keyof typeof APPS
+
+export function appState(api: Integrations, id: AppId): "connected" | "broken" | "empty" {
+	if (id === "composio") return api.status()?.connected ? "connected" : "empty"
+	const k = api.kernel()
+	return k?.broken ? "broken" : k?.connected ? "connected" : "empty"
+}
+
+/** One app's settings: its key while it is not connected, and Disconnect once it is. */
+export function AppDetail(props: { id: AppId; api: Integrations }) {
+	const app = () => APPS[props.id]
+	const state = () => appState(props.api, props.id)
+	const where = () => (props.id === "composio" ? "app" : "kernel") as Where
 	return (
-		<article class="flex flex-col gap-2 rounded-lg border border-border bg-muted p-3" data-component={props.component} data-state={props.state}>
-			<div class="flex items-center gap-2.5">
-				<span class="grid size-7 shrink-0 place-items-center rounded-md bg-control text-muted-foreground">{props.icon}</span>
-				<div class="flex min-w-0 flex-1 flex-col">
-					<span class="truncate text-md font-medium text-foreground">{props.name}</span>
-					<span class={cn("flex items-center gap-1.5 text-sm", props.state === "connected" ? "text-success" : props.state === "broken" ? "text-error" : "text-muted-foreground")}>
-						<span class="size-1.5 rounded-full bg-current" aria-hidden="true" />
-						{props.status}
-					</span>
+		<div class="flex flex-col gap-3" data-component={props.id} data-state={state()}>
+			<Show
+				when={state() === "connected"}
+				fallback={
+					<>
+						<KeyField
+							id={`${props.id}-key`}
+							label={`${app().name} API key`}
+							placeholder={app().placeholder}
+							submit="Connect"
+							busy={props.api.busy()}
+							data-action={`${props.id}-connect`}
+							onKey={props.id === "composio" ? props.api.connectComposio : props.api.connectKernel}
+						/>
+						<a class="text-sm text-muted-foreground underline hover:text-foreground" href={app().home} target="_blank" rel="noreferrer">
+							Get a key at {app().home.replace(/^https:\/\//, "")}
+						</a>
+					</>
+				}
+			>
+				<div class="flex items-center justify-between gap-3">
+					<span class="text-md text-success">Connected</span>
+					<Button variant="danger" data-action={`${props.id}-disconnect`} disabled={props.api.busy()} onClick={props.id === "composio" ? props.api.disconnectComposio : props.api.disconnectKernel}>
+						Disconnect
+					</Button>
 				</div>
-			</div>
-			<p class="text-sm leading-relaxed text-muted-foreground">{props.description}</p>
-			<div class="mt-auto flex flex-col items-start gap-1.5 [&>form]:w-full">{props.children}</div>
-			<Show when={props.error}>{(text) => <Notice>{text()}</Notice>}</Show>
-		</article>
+				<Show when={props.id === "kernel"}>
+					<LiveBrowser icon={<GlobeIcon />} />
+				</Show>
+			</Show>
+			<Show when={props.api.errorAt(where())}>{(text) => <Notice>{text()}</Notice>}</Show>
+		</div>
 	)
 }

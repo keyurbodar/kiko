@@ -2,7 +2,8 @@ import { useLocation, useNavigate } from "@solidjs/router"
 import { createSignal, onCleanup } from "solid-js"
 import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
-import { activeSurface, closeSidecar, fixedSurface, openSurface, showOverview, sidecarOpen } from "../chat/side/surfaces"
+import { toggleCard } from "../chat/side/card-state"
+import { fixedSurface, openSurface } from "../chat/side/surfaces"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
 import { openSearch } from "../search/state"
@@ -15,7 +16,7 @@ import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
 const CHAT_PATH = /^\/chat\/([^/]+)$/
-const COMPOSER_FIELD = ".ProseMirror, .composer-link"
+const COMPOSER_FIELD = ".ProseMirror"
 
 /*
  * The router glue, kept apart from the table so the table tests without a
@@ -59,12 +60,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       inRichEditor: inComposer,
       openChats: () => openPalette("chats"),
       hasActiveChat: () => activeId() !== null,
-      toggleCard: () => {
-        const id = activeId()
-        if (!id) return
-        if (sidecarOpen(id) && !activeSurface(id)) closeSidecar(id)
-        else showOverview(id)
-      },
+      toggleCard,
       openFiles: () => {
         const id = activeId()
         if (id) openSurface(id, fixedSurface("files"))
@@ -90,7 +86,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         const id = reopenClosedChat()
         if (id) navigate(`/chat/${id}`)
       },
-      attach: () => document.querySelector<HTMLButtonElement>(".composer-attach")?.click(),
+      attach: () => document.querySelector<HTMLButtonElement>("[data-hint=\"chat.attach\"]")?.click(),
       rename: () => {
         const id = activeId()
         if (id) startRename(id)

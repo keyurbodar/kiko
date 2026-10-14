@@ -38,3 +38,27 @@ export function setHidden(refs: readonly string[], hide: boolean) {
     localStorage.setItem(KEY, JSON.stringify({ hidden: next }))
   } catch {}
 }
+
+const FAVORITES_KEY = "kiko.model-favorites"
+
+function readFavorites(): readonly string[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(FAVORITES_KEY) ?? "[]")
+    return Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : []
+  } catch {
+    return []
+  }
+}
+
+const [favorites, setFavorites] = createSignal<readonly string[]>(readFavorites())
+
+/** The models starred in the picker, shown first. */
+export const favoriteModels = favorites
+
+export function toggleFavorite(ref: string) {
+  const next = favorites().includes(ref) ? favorites().filter((r) => r !== ref) : [...favorites(), ref]
+  setFavorites(next)
+  try {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(next))
+  } catch {}
+}

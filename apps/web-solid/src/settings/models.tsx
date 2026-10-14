@@ -6,7 +6,8 @@ import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
 import { connectProvider, disconnectProvider } from "./credentials"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
-import { Button, Empty, fieldClass, Group, Hint, muted, Notice, rowLine, Toggle } from "./kit"
+import { Button, Empty, fieldClass, Group, Hint, muted, Notice, Toggle } from "./kit"
+import { VList } from "virtua/solid"
 import { Dialog } from "../lib/dialog"
 import { hiddenModels, setHidden } from "./model-prefs"
 import { cn } from "../lib/cn"
@@ -198,14 +199,10 @@ export function ModelsPage() {
                 </Button>
               </span>
             </div>
-            <div class="kit-card" data-component="models-provider">
-              <For each={rows()} fallback={<Empty>{query().trim() ? `No models match "${query().trim()}"` : "This provider has no chat models."}</Empty>}>
+            <Show when={rows().length} fallback={<div class="kit-card"><Empty>{query().trim() ? `No models match "${query().trim()}"` : "This provider has no chat models."}</Empty></div>}>
+              <VList class="kit-card" style={{ height: `${Math.min(rows().length * 36, 540)}px` }} data={rows()} itemSize={36}>
                 {(r) => (
-                  <label
-                    class={cn("flex h-9 cursor-pointer items-center gap-2.5 px-3 hover:bg-accent", rowLine)}
-                    style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 36px" }}
-                    data-model={r.ref}
-                  >
+                  <label class="flex h-9 cursor-pointer items-center gap-2.5 border-b border-border px-3 hover:bg-accent" data-model={r.ref}>
                     <Show when={!current()}>
                       <ProviderIcon id={r.provider.id} width="14" height="14" />
                     </Show>
@@ -219,8 +216,8 @@ export function ModelsPage() {
                     <Toggle label={`Show ${r.model.name} in the model picker`} on={!hidden().has(r.ref)} onChange={(on) => setHidden([r.ref], !on)} />
                   </label>
                 )}
-              </For>
-            </div>
+              </VList>
+            </Show>
           </section>
         </div>
       </Show>

@@ -281,7 +281,7 @@ export function Composer(props: ComposerProps) {
 
   return (
     <>
-      <PromptInputV2 controller={controller} disabled={!!props.busy} reply={above} isMention={(slug) => props.bots.some((bot) => bot.id === slug)} />
+      <PromptInputV2 controller={controller} disabled={!!props.busy} reply={above} tray={props.tray} isMention={(slug) => props.bots.some((bot) => bot.id === slug)} />
       {viewer.view}
     </>
   )

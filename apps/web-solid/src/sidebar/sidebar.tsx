@@ -148,7 +148,7 @@ function Foot(props: { section: SectionId | null }) {
       </A>
       <TooltipV2 placement="top" openDelay={400} value="Settings">
         <A
-          href={waiting() ? "/settings/tools/extensions" : "/settings"}
+          href={waiting() ? "/settings/tools" : "/settings"}
           class="panel-icon-button relative"
           data-component="sidebar-settings"
           data-hint="settings.open"

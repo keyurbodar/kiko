@@ -1,3 +1,4 @@
+import type { JSX } from "solid-js"
 // The view types the components draw. The data behind them is the protocol:
 // `Message`, `Member`, and `Chat` from `@kiko/protocol`, held by the sync
 // stores. `lib/store.ts` turns each protocol value into one of these shapes in
@@ -129,6 +130,7 @@ export interface OutgoingMessage {
 }
 
 export interface ComposerProps {
+  tray?: JSX.Element
   /** Conversation a sent message lands in. */
   threadId: string;
   /** The chat's name. The placeholder reads `message <title>`, the way kat's reads `message kat`. */

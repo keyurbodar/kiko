@@ -1,149 +1,258 @@
+import { ProviderIcon } from "@kiko/ui/provider-icon"
+import "@kiko/ui/provider-icon.css"
 import { A } from "@solidjs/router"
-import { For, Show, createEffect, createMemo, createResource, createSignal, createUniqueId, on } from "solid-js"
-import { Dialog } from "../lib/dialog"
+import { createEffect, createMemo, createResource, createSignal, createUniqueId, For, on, onCleanup, Show, type JSX } from "solid-js"
+import { Portal } from "solid-js/web"
+import { VList, type VListHandle } from "virtua/solid"
+import { loadCatalog, modelRef, searchModels, type ModelRow } from "./catalog"
 import { chatModel, setChatModel } from "./chat-model"
-import { formatContext, formatPrice, loadCatalog, modelRef, searchModels } from "./catalog"
 import { connectedProviders } from "./connected"
+import { favoriteModels, hiddenModels, toggleFavorite } from "./model-prefs"
 import { hasModelProvider, modelProviders } from "./provider-kinds"
-import { hiddenModels } from "./model-prefs"
 
-const MAX_ROWS = 150
+const ROW_H = 44
+const FAVORITES = "favorites"
 
-export function ModelList(props: { current?: string; onPick: (ref: string) => void; autofocus?: boolean }) {
-  const [catalog] = createResource(loadCatalog)
-  const [query, setQuery] = createSignal("")
-  const connectedIds = createMemo(() => new Set(modelProviders(connectedProviders()).map((p) => p.provider)))
-  const rows = createMemo(() => {
-    const providers = catalog()?.providers.filter((p) => connectedIds().has(p.id)) ?? []
-    const off = new Set(hiddenModels())
-    return searchModels(providers, query()).filter((r) => {
-      const ref = modelRef(r.provider.id, r.model.id)
-      return !off.has(ref) || ref === props.current
-    })
-  })
-  const shown = () => rows().slice(0, MAX_ROWS)
-  const id = createUniqueId()
-  const [at, setAt] = createSignal(0)
-  let list: HTMLDivElement | undefined
-  createEffect(on(query, () => setAt(0), { defer: true }))
-  const move = (index: number) => {
-    setAt(index)
-    list?.querySelector(`#${CSS.escape(`${id}-${index}`)}`)?.scrollIntoView({ block: "nearest" })
-  }
-  const onKeyDown = (event: KeyboardEvent) => {
-    const last = shown().length - 1
-    if (event.key === "ArrowDown") move(Math.min(last, at() + 1))
-    else if (event.key === "ArrowUp") move(Math.max(0, at() - 1))
-    else if (event.key === "Enter") {
-      const row = shown()[at()]
-      if (row) props.onPick(modelRef(row.provider.id, row.model.id))
-    } else return
-    event.preventDefault()
-  }
+const [pickerOpen, setPickerOpen] = createSignal(false)
+/** Opens the composer's model picker, from the palette or Mod+Shift+M. */
+export const openModelPicker = () => setPickerOpen(true)
+
+function Star(props: { on: boolean }) {
   return (
-    <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="model-list">
-      <Show when={connectedIds().size > 0}>
-        <label class="flex h-9 shrink-0 items-center gap-2 rounded-full bg-[var(--secondary)] px-3.5 text-muted-foreground focus-within:bg-[var(--sidebar-row-hover)]">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-            <circle cx="7" cy="7" r="4.75" />
-            <path d="M10.5 10.5L14 14" />
-          </svg>
-          <input
-            type="search"
-            class="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            placeholder="Search models"
-            aria-label="Search models"
-            role="combobox"
-            aria-expanded="true"
-            aria-controls={id}
-            aria-activedescendant={shown().length ? `${id}-${at()}` : undefined}
-            autofocus={props.autofocus}
-            onKeyDown={onKeyDown}
-            value={query()}
-            onInput={(e) => setQuery(e.currentTarget.value)}
-            data-component="model-search"
-          />
-        </label>
-      </Show>
-      <Show
-        when={connectedIds().size > 0}
-        fallback={
-          <div class="p-4 text-sm text-muted-foreground" data-component="model-empty">
-            No provider is connected. <A href="/settings/models" class="underline">Connect one</A> to pick a model.
-          </div>
-        }
-      >
-        <Show when={shown().length} fallback={<p class="p-4 text-sm text-muted-foreground">{catalog.loading ? "Loading models" : "No models match"}</p>}>
-        <div ref={list} id={id} class="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Models" data-component="model-rows">
-          <For each={shown()}>
-            {({ provider, model }, i) => {
-              const ref = modelRef(provider.id, model.id)
-              return (
-                <div
-                  id={`${id}-${i()}`}
-                  role="option"
-                  aria-selected={props.current === ref}
-                  class="model-row flex cursor-pointer items-center justify-between gap-3 rounded-[10px] px-3 py-2 aria-selected:bg-[var(--tab-bg-active)] data-[active]:bg-[var(--tab-bg-hover)]"
-                  style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 48px" }}
-                  data-model={ref}
-                  data-active={at() === i() ? "" : undefined}
-                  onPointerMove={() => setAt(i())}
-                  onClick={() => props.onPick(ref)}
-                >
-                  <span class="min-w-0">
-                    <span class="block truncate text-sm text-[var(--tab-text-active)]">{model.name}</span>
-                    <span class="block truncate text-xs text-muted-foreground">{provider.name}</span>
-                  </span>
-                  <span class="shrink-0 text-right text-xs text-muted-foreground">
-                    <span class="block" data-field="context">{formatContext(model.contextWindow)} context</span>
-                    <span class="block" data-field="price">{formatPrice(model.pricing)}</span>
-                  </span>
-                </div>
-              )
-            }}
-          </For>
-        </div>
-        </Show>
-      </Show>
-    </div>
+    <svg class="size-3.5" viewBox="0 0 16 16" fill={props.on ? "currentColor" : "none"} stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">
+      <path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
+    </svg>
   )
 }
 
-const [pickerOpen, setPickerOpen] = createSignal(false)
-export const openModelPicker = () => setPickerOpen(true)
+/**
+ * The model picker: a rail of providers with favorites first, a search across all of them, and
+ * one virtual list, so a hundred providers with a thousand models each still open at once.
+ */
+export function ModelPicker(props: { current?: string; onPick: (ref: string) => void; open: boolean; onOpenChange: (open: boolean) => void; children: JSX.Element; class?: string; title?: string }) {
+  const [catalog] = createResource(() => props.open || undefined, loadCatalog)
+  const providers = createMemo(() => {
+    const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
+    return catalog()?.providers.filter((p) => ids.has(p.id)) ?? []
+  })
+  const [rail, setRail] = createSignal<string>(FAVORITES)
+  const [query, setQuery] = createSignal("")
+  const [at, setAt] = createSignal(0)
+  const [place, setPlace] = createSignal<JSX.CSSProperties>({})
+  const [handle, setHandle] = createSignal<VListHandle>()
+  const id = createUniqueId()
+  let trigger: HTMLButtonElement | undefined
+  let panel: HTMLDivElement | undefined
 
-export function ModelPickerButton(props: { chatId: string | null }) {
-  const current = () => chatModel(props.chatId)
-  const ready = () => hasModelProvider(connectedProviders())
+  const rows = createMemo((): ModelRow[] => {
+    const hidden = new Set(hiddenModels())
+    const visible = (r: ModelRow) => {
+      const ref = modelRef(r.provider.id, r.model.id)
+      return !hidden.has(ref) || ref === props.current
+    }
+    if (query().trim()) return searchModels(providers(), query()).filter(visible)
+    if (rail() === FAVORITES) {
+      const starred = new Set(favoriteModels())
+      return searchModels(providers(), "").filter((r) => starred.has(modelRef(r.provider.id, r.model.id)))
+    }
+    return searchModels(
+      providers().filter((p) => p.id === rail()),
+      "",
+    ).filter(visible)
+  })
+
+  createEffect(
+    on(
+      () => props.open,
+      (open) => {
+        if (!open || !trigger) return
+        const r = (trigger.closest(".composer-form") ?? trigger).getBoundingClientRect()
+        setPlace({ left: `${Math.max(8, Math.min(r.left + 18, window.innerWidth - 428))}px`, bottom: `${window.innerHeight - r.top + 8}px` })
+        setQuery("")
+        const currentProvider = props.current?.split("/")[0]
+        setRail(favoriteModels().length ? FAVORITES : (currentProvider ?? providers()[0]?.id ?? FAVORITES))
+        setAt(0)
+      },
+    ),
+  )
+  createEffect(on([query, rail], () => setAt(0), { defer: true }))
+  createEffect(() => {
+    if (!props.open) return
+    const outside = (e: PointerEvent) => {
+      const t = e.target as Node
+      if (!panel?.contains(t) && !trigger?.contains(t)) props.onOpenChange(false)
+    }
+    document.addEventListener("pointerdown", outside, true)
+    onCleanup(() => document.removeEventListener("pointerdown", outside, true))
+  })
+
+  const move = (index: number) => {
+    setAt(index)
+    handle()?.scrollToIndex(index, { align: "nearest" })
+  }
+  const pick = (row: ModelRow | undefined) => {
+    if (!row) return
+    props.onPick(modelRef(row.provider.id, row.model.id))
+    close()
+  }
+  const close = () => {
+    props.onOpenChange(false)
+    trigger?.focus()
+  }
+  const onKeyDown = (event: KeyboardEvent) => {
+    const last = rows().length - 1
+    if (event.key === "ArrowDown") move(Math.min(last, at() + 1))
+    else if (event.key === "ArrowUp") move(Math.max(0, at() - 1))
+    else if (event.key === "Enter") pick(rows()[at()])
+    else if (event.key === "Escape") close()
+    else return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const railButton = (active: boolean) =>
+    `relative grid size-9 shrink-0 place-items-center rounded-lg ${active ? "bg-accent-strong text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`
+
   return (
     <>
-      <Show when={ready()}>
-        <button
-          type="button"
-          class="flex h-7 max-w-[200px] shrink-0 items-center gap-1 rounded-[9px] px-2 text-xs text-muted-foreground outline-none hover:bg-[var(--tab-bg-hover)] hover:text-foreground"
-          data-component="model-picker-button"
-          data-hint="chat.model"
-          data-hint-label="Model"
-          aria-label="Choose model"
-          title="Choose model"
-          onClick={() => setPickerOpen(true)}
-        >
-          <span class="truncate">{current()?.split("/").slice(1).join("/") ?? "Choose model"}</span>
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 opacity-70" aria-hidden="true">
-            <path d="M3 4.5L6 7.5l3-3" />
-          </svg>
-        </button>
+      <button
+        ref={trigger}
+        type="button"
+        class={props.class}
+        aria-haspopup="dialog"
+        aria-expanded={props.open}
+        title={props.title}
+        data-component="model-picker-button"
+        onClick={() => props.onOpenChange(!props.open)}
+      >
+        {props.children}
+      </button>
+      <Show when={props.open}>
+        <Portal>
+          <div
+            ref={panel}
+            class="fixed z-50 flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-xl border border-border bg-popover shadow-popover"
+            style={place()}
+            data-component="model-picker"
+          >
+            <Show
+              when={providers().length || catalog.loading}
+              fallback={
+                <p class="m-auto px-6 text-center text-md text-muted-foreground" data-component="model-empty">
+                  No provider is connected. <A href="/settings/models" class="text-foreground underline" onClick={() => props.onOpenChange(false)}>Connect one</A> to pick a model.
+                </p>
+              }
+            >
+              <nav class="flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border py-2 [scrollbar-width:none]" aria-label="Providers">
+                <button type="button" class={railButton(rail() === FAVORITES && !query())} title="Favorites" aria-label="Favorites" onClick={() => setRail(FAVORITES)}>
+                  <Star on={rail() === FAVORITES} />
+                </button>
+                <span class="my-0.5 h-px w-6 shrink-0 bg-border" aria-hidden="true" />
+                <For each={providers()}>
+                  {(provider) => (
+                    <button type="button" class={railButton(rail() === provider.id && !query())} title={provider.name} aria-label={provider.name} data-provider={provider.id} onClick={() => setRail(provider.id)}>
+                      <ProviderIcon id={provider.id} width="16" height="16" />
+                    </button>
+                  )}
+                </For>
+              </nav>
+              <div class="flex min-w-0 flex-1 flex-col">
+                <label class="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 text-muted-foreground">
+                  <svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="7" cy="7" r="4.75" />
+                    <path d="M10.5 10.5L14 14" />
+                  </svg>
+                  <input
+                    ref={(el) => requestAnimationFrame(() => el.focus())}
+                    type="search"
+                    class="h-full min-w-0 flex-1 bg-transparent text-md text-foreground outline-none placeholder:text-muted-foreground"
+                    placeholder="Search models"
+                    aria-label="Search models"
+                    role="combobox"
+                    aria-expanded="true"
+                    aria-controls={id}
+                    aria-activedescendant={rows().length ? `${id}-${at()}` : undefined}
+                    value={query()}
+                    onInput={(e) => setQuery(e.currentTarget.value)}
+                    onKeyDown={onKeyDown}
+                    data-component="model-search"
+                  />
+                </label>
+                <Show
+                  when={rows().length}
+                  fallback={
+                    <p class="p-4 text-md text-muted-foreground">
+                      {catalog.loading ? "Loading models" : query().trim() ? "No models match" : rail() === FAVORITES ? "Star a model to keep it here." : "No models"}
+                    </p>
+                  }
+                >
+                  <VList ref={setHandle} id={id} role="listbox" aria-label="Models" class="min-h-0 flex-1 p-1" data={rows()} itemSize={ROW_H}>
+                    {(row, i) => {
+                      const ref = modelRef(row.provider.id, row.model.id)
+                      const starred = () => favoriteModels().includes(ref)
+                      return (
+                        <div
+                          id={`${id}-${i()}`}
+                          role="option"
+                          aria-selected={props.current === ref}
+                          class="group/model flex h-11 cursor-pointer items-center gap-2 rounded-lg px-2.5"
+                          classList={{ "bg-accent": at() === i(), "bg-accent-strong": props.current === ref }}
+                          data-model={ref}
+                          onPointerMove={() => setAt(i())}
+                          onClick={() => pick(row)}
+                        >
+                          <span class="flex min-w-0 flex-1 flex-col">
+                            <span class="truncate text-md text-foreground">{row.model.name}</span>
+                            <span class="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                              <ProviderIcon id={row.provider.id} width="11" height="11" />
+                              {row.provider.name}
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            class={`grid size-7 shrink-0 place-items-center rounded-md hover:bg-accent-strong ${starred() ? "text-warning" : "text-secondary-label opacity-0 group-hover/model:opacity-100"}`}
+                            aria-label={starred() ? `Unstar ${row.model.name}` : `Star ${row.model.name}`}
+                            aria-pressed={starred()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleFavorite(ref)
+                            }}
+                          >
+                            <Star on={starred()} />
+                          </button>
+                        </div>
+                      )
+                    }}
+                  </VList>
+                </Show>
+              </div>
+            </Show>
+          </div>
+        </Portal>
       </Show>
-      <Dialog open={pickerOpen()} onClose={() => setPickerOpen(false)} title="Choose a model" size="md" class="h-[min(560px,80dvh)]" bodyClass="flex flex-col px-3 pb-3" data-component="model-picker">
-        <ModelList
-          autofocus
-          current={current()}
-          onPick={(ref) => {
-            setChatModel(props.chatId, ref)
-            setPickerOpen(false)
-          }}
-        />
-      </Dialog>
     </>
+  )
+}
+
+/** The composer's model control: the chat's model, and the picker above it. */
+export function ModelPickerButton(props: { chatId: string | null }) {
+  const current = () => chatModel(props.chatId)
+  return (
+    <Show when={hasModelProvider(connectedProviders())}>
+      <ModelPicker
+        current={current()}
+        open={pickerOpen()}
+        onOpenChange={setPickerOpen}
+        onPick={(ref) => setChatModel(props.chatId, ref)}
+        title="Choose model"
+        class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
+      >
+        <Show when={current()?.split("/")[0]}>{(provider) => <ProviderIcon id={provider()} width="13" height="13" />}</Show>
+        <span class="truncate">{current()?.split("/").slice(1).join("/") ?? "Choose model"}</span>
+        <svg class="size-2.5 shrink-0 opacity-70" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 4.5L6 7.5l3-3" />
+        </svg>
+      </ModelPicker>
+    </Show>
   )
 }

@@ -4,9 +4,6 @@ import type { Command } from "@tiptap/pm/state"
 
 export type Binding = { key: string; label: string; command: (schema: Schema) => Command }
 
-/** Opens the link input. It is not a table command because it needs the editor's `onLink`. */
-export const LINK_KEY = "Mod-k"
-
 /**
  * The marks t3code's composer toggles. Lists, quotes and fences have no chord here: t3code removes
  * Tiptap's block chords because a chord run inside a quote writes a block the draft cannot hold.

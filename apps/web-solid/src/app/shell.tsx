@@ -11,6 +11,8 @@ import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { avatarPickerSlug } from "../avatar/picker-state";
 import { createEffect, createMemo, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces";
+import { preloadRoute } from "./routes";
+import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../chat/side/card-state";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
@@ -43,6 +45,12 @@ const i18n: UiI18n = {
 };
 
 const Sidecar = lazy(loadSidecar);
+const ChatCard = lazy(loadCard);
+const watchPanel = (el: HTMLElement) => {
+  const observer = new ResizeObserver(([entry]) => setCardRoom(entry?.contentRect.width ?? 0));
+  observer.observe(el);
+  onCleanup(() => observer.disconnect());
+};
 const AvatarPicker = lazy(() => import("../avatar/picker"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
@@ -176,7 +184,13 @@ export function Shell(props: ParentProps) {
   onMount(() => {
     const idle = (globalThis as { requestIdleCallback?: (run: () => void) => number }).requestIdleCallback;
     if (sideOpen()) void loadSidecar();
-    else if (idle) idle(() => void loadSidecar());
+    const warm = () => {
+      void loadSidecar();
+      preloadRoute("/settings");
+      preloadRoute("/chat");
+    };
+    if (idle) idle(warm);
+    else setTimeout(warm, 300);
   });
   onMount(() => onCleanup(watchHold()));
   onMount(() => {
@@ -283,8 +297,19 @@ export function Shell(props: ParentProps) {
                       data-component="main-row"
                       data-top={sectionOf(location.pathname) === "chat" ? undefined : ""}
                     >
-                      <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel">
-                        <div class="flex min-w-0 flex-1 flex-col">{props.children}</div>
+                      <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel" ref={watchPanel}>
+                        <div class="flex min-w-0 flex-1 flex-col" style={{ "padding-right": sideChat() !== null && cardBeside() ? `${CARD_WIDTH + 24}px` : undefined }}>
+                          {props.children}
+                        </div>
+                        <Show when={cardShown() ? sideChat() : null} keyed>
+                          {(id) => (
+                            <div class="absolute top-2 right-3 z-30 flex max-h-[calc(100%-16px)] flex-col" style={{ width: `${CARD_WIDTH}px` }}>
+                              <Suspense>
+                                <ChatCard chatId={id} />
+                              </Suspense>
+                            </div>
+                          )}
+                        </Show>
                       </div>
                       <Show when={searchScope()}>
                         <Suspense>

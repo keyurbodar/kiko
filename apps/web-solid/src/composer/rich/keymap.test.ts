@@ -13,7 +13,7 @@ import { Strike } from "@tiptap/extension-strike"
 import { Text } from "@tiptap/extension-text"
 import type { Node } from "@tiptap/pm/model"
 import { EditorState, Selection, TextSelection, type Transaction } from "@tiptap/pm/state"
-import { BINDINGS, LINK_KEY } from "./keymap"
+import { BINDINGS } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { Link, Mention } from "./nodes"
 
@@ -62,10 +62,5 @@ describe("the formatting keys", () => {
     expect(BINDINGS.map((b) => b.key)).not.toContain("Mod-Shift-7")
     expect(BINDINGS.map((b) => b.key)).not.toContain("Mod-Shift-b")
     expect(BINDINGS.map((b) => b.key)).not.toContain("Mod-Alt-c")
-  })
-
-  test("Mod+K is the link key, kept apart from the formatting table", () => {
-    expect(LINK_KEY).toBe("Mod-k")
-    expect(BINDINGS.map((b) => b.key)).not.toContain(LINK_KEY)
   })
 })
