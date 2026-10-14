@@ -17,16 +17,17 @@ import { addable, addOp } from "../../members/model"
 import { useRefusalToasts } from "../../members/members"
 import { fixedSurface, openFile, openSurface } from "../surfaces"
 import { type AgentRow, type Chip, agentRows, comingUp, fileList, isGroup, liveLine, memoryPick, statusChip, workingLine } from "./model"
+import type { Placement } from "./placement"
 
 /*
- * The chat card: a popover over the thread, under the top bar. It shows who is here, what is coming
- * up, and this chat's recent files and memory. It never changes the chat's layout. It closes on a
- * pointer down outside it (not on its own toggle), Escape, a route change, and focus moving into the
- * composer. Nothing animates.
+ * The chat card: who is here, what is coming up, and this chat's recent files and memory. Inline, it
+ * is pinned at the top right and the chat column makes room for it. As a popover, it floats over the
+ * thread and closes on a pointer down outside it (not on its own toggle), Escape, a route change, and
+ * focus moving into the composer. Nothing animates.
  */
 
-/** Pointer downs here do not close the card: its toggle, and the menus and dialogs it opens. */
-const KEEP_OPEN = '[data-action="toggle-card"], [data-action="toggle-sidecar"], [data-component="sidecar"], [data-component="sidecar-overlay"], [data-component="top-bar"], [role="menu"], [role="dialog"]'
+/** Pointer downs here do not close the popover: its toggle, and the menus and dialogs it opens. */
+const KEEP_OPEN = '[data-action="toggle-card"], [role="menu"], [role="dialog"]'
 
 const faint = "text-[var(--text-faint)]"
 const row = "group/row flex min-h-9 items-center gap-2.5 rounded-[10px] px-2 hover:bg-[var(--hover-bg)] focus-within:bg-[var(--hover-bg)]"
@@ -187,7 +188,7 @@ function LoopLine(props: { loop: PlateLoop; chatId: string; close: () => void })
  * The chat card for `chatId`. It loads its routines and plate once per open, and it closes itself
  * through `onClose`; the parent decides whether it is shown.
  */
-export function CardView(props: { chatId: string; onClose: () => void }) {
+export function CardView(props: { chatId: string; placement: Placement; onClose: () => void }) {
   let root: HTMLDivElement | undefined
   let returnTo: Element | null = null
   const location = useLocation()
@@ -213,13 +214,16 @@ export function CardView(props: { chatId: string; onClose: () => void }) {
     if (e.target instanceof Element && e.target.closest('[data-component="composer-dock"]')) props.onClose()
   }
 
+  // An inline card stays put: only a popover closes on outside, Escape, focus or a route change.
+  const popover = props.placement === "popover"
   onMount(() => {
+    void loadRoutines()
+    void loadLoops()
+    if (!popover) return
     // Focus moves into the card so Tab reaches its rows. The composer comes earlier in the page, and
     // focus landing there closes the card, so a keyboard user could not get in any other way.
     returnTo = document.activeElement
     root?.focus({ preventScroll: true })
-    void loadRoutines()
-    void loadLoops()
     document.addEventListener("pointerdown", outside)
     document.addEventListener("keydown", keys)
     document.addEventListener("focusin", focus)
@@ -229,7 +233,7 @@ export function CardView(props: { chatId: string; onClose: () => void }) {
       document.removeEventListener("focusin", focus)
     })
   })
-  createEffect(on(() => location.pathname, () => props.onClose(), { defer: true }))
+  createEffect(on(() => location.pathname, () => popover && props.onClose(), { defer: true }))
   useRefusalToasts()
 
   const working = () => {
@@ -263,7 +267,7 @@ export function CardView(props: { chatId: string; onClose: () => void }) {
       ref={root}
       tabIndex={-1}
       data-no-focus-ring
-      class="absolute top-2 right-3 z-30 flex max-h-[calc(100%-24px)] w-[300px] flex-col overflow-hidden rounded-[20px] bg-[var(--menu-bg)] shadow-[0_12px_40px_rgba(0,0,0,.45)] ring-1 ring-[var(--hairline)] ring-inset"
+      class="absolute top-3 right-3 z-30 flex max-h-[calc(100%-24px)] w-[300px] flex-col overflow-hidden rounded-[20px] bg-[var(--menu-bg)] shadow-[0_12px_40px_rgba(0,0,0,.45)] ring-1 ring-[var(--hairline)] ring-inset"
       data-component="chat-card"
     >
       <header class="flex items-center gap-3 px-4 pt-4 pb-3">
