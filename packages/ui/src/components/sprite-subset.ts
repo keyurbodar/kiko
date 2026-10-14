@@ -31,14 +31,14 @@ function host(): SVGSVGElement | null {
   return svg
 }
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
 /**
  * One symbol of `text` with its id set to `id` and every inner id prefixed with `id-`.
  * Null when the sprite has no such symbol. Exported for the tests.
  */
 export function copySymbol(text: string, name: string, id: string): string | null {
-  const open = new RegExp(`<symbol[^>]*\\sid="${escape(name)}"`).exec(text)
+  const open = new RegExp(`<symbol[^>]*\\sid="${escapeRe(name)}"`).exec(text)
   if (!open) return null
   const start = open.index
   const end = text.indexOf("</symbol>", start)
@@ -49,7 +49,7 @@ export function copySymbol(text: string, name: string, id: string): string | nul
   for (const m of symbol.matchAll(/ id="([^"]+)"/g)) if (` id="${m[1]}"` !== own) inner.add(m[1]!)
   let out = symbol.replace(own, ` id="${id}"`)
   for (const x of inner) {
-    const e = escape(x)
+    const e = escapeRe(x)
     out = out
       .replace(new RegExp(` id="${e}"`, "g"), ` id="${id}-${x}"`)
       .replace(new RegExp(`url\\(#${e}\\)`, "g"), `url(#${id}-${x})`)

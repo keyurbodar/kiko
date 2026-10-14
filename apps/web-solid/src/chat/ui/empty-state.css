@@ -1,4 +1,4 @@
-/* The empty chat's hero: the avatars, the heading, and who is here. */
+
 .chat-empty {
   display: flex;
   flex-direction: column;
@@ -11,7 +11,7 @@
 
 .chat-empty-title {
   margin: 0;
-  color: var(--text);
+  color: var(--foreground);
   font-size: 22px;
   font-weight: 500;
   line-height: 1.25;
@@ -20,16 +20,16 @@
 
 .chat-empty-who {
   margin: 0;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 13px;
 }
 
-/* The empty pane: the transcript steps aside, and the hero and the composer sit together. */
+
 [data-component="chat-shell"] {
   position: relative;
 }
 
-/* `safe` keeps the composer reachable on a short window: the pane scrolls instead of clipping. */
+
 [data-component="chat-shell"][data-session-empty="true"] {
   justify-content: safe center;
   padding-top: 18vh;

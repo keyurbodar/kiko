@@ -4,15 +4,10 @@ import { session } from "../../../app/session"
 import { memoryFor } from "./instance"
 import type { MemoryStore } from "./store"
 
-// Architecture section 13. The memory screen: the user's life log, newest first. What kiko knows comes
-// from agents' notes and from every chat's history, a line at a time. The human pins what matters, so
-// it heads what every agent reads, redacts what should be gone, and adds a line of their own.
-
 const ModelList = lazy(() => import("../../../settings/model-picker").then((m) => ({ default: m.ModelList })))
 
-const quiet = "rounded-md px-1.5 py-0.5 text-xs text-weak hover:bg-nav-hover hover:text-text"
+const quiet = "rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-sidebar-row-hover hover:text-foreground"
 
-/** `now`, `5m`, `3h`, `2d`, then a short date. */
 export function ago(at: number, now = Date.now()): string {
 	const s = Math.max(0, (now - at) / 1000)
 	if (s < 60) return "now"
@@ -22,7 +17,6 @@ export function ago(at: number, now = Date.now()): string {
 	return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
-/** The mark on a line that a later fact corrected, or null. */
 export function replacedMark(l: Pick<LifeLine, "supersededBy">): string | null {
 	return l.supersededBy != null ? "Replaced" : null
 }
@@ -31,10 +25,10 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 	const l = () => props.line
 	const [sure, setSure] = createSignal(false)
 	return (
-		<div class="flex flex-col gap-0.5 rounded-xl px-2.5 py-2 hover:bg-nav-hover" data-component="memory-line" data-pos={l().pos} data-pinned={l().pinned ? "" : undefined}>
-			<Show when={!l().redacted} fallback={<span class="text-sm text-faint">Removed</span>}>
-				<span class={`text-[15px] leading-snug ${replacedMark(l()) ? "text-weak" : "text-text"}`}>{l().text}</span>
-				<span class="flex items-center gap-1 text-xs text-faint">
+		<div class="flex flex-col gap-0.5 rounded-xl px-2.5 py-2 hover:bg-sidebar-row-hover" data-component="memory-line" data-pos={l().pos} data-pinned={l().pinned ? "" : undefined}>
+			<Show when={!l().redacted} fallback={<span class="text-sm text-secondary-label">Removed</span>}>
+				<span class={`text-[15px] leading-snug ${replacedMark(l()) ? "text-muted-foreground" : "text-foreground"}`}>{l().text}</span>
+				<span class="flex items-center gap-1 text-xs text-secondary-label">
 					<span>{l().source || "Kiko"}</span>
 					<span>·</span>
 					<span>{ago(l().at)}</span>
@@ -63,14 +57,13 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 	)
 }
 
-/** One line of what agents read. A summary line (`#64-127 …`) opens into its halves. */
 function ViewLine(props: { text: string; store: MemoryStore }) {
 	const id = () => /^#(\d+-\d+) /.exec(props.text)?.[1]
 	const opened = () => (id() ? props.store.state.opened[id()!] : undefined)
 	return (
 		<div class="flex flex-col">
-			<Show when={id()} fallback={<span class="py-0.5 text-[13px] leading-snug text-weak">{props.text}</span>}>
-				<button type="button" class="py-0.5 text-left text-[13px] leading-snug text-weak hover:text-text" data-component="memory-summary" onClick={() => void props.store.zoom(id()!)}>
+			<Show when={id()} fallback={<span class="py-0.5 text-[13px] leading-snug text-muted-foreground">{props.text}</span>}>
+				<button type="button" class="py-0.5 text-left text-[13px] leading-snug text-muted-foreground hover:text-foreground" data-component="memory-summary" onClick={() => void props.store.zoom(id()!)}>
 					{props.text}
 				</button>
 				<Show when={opened()}>
@@ -92,15 +85,14 @@ function SearchIcon() {
 	)
 }
 
-/** Which model writes the summary lines. The human picks; nothing picks for them. */
 function MemoryModelRow(props: { store: MemoryStore }) {
 	const [open, setOpen] = createSignal(false)
 	const current = () => props.store.state.model
 	return (
 		<section class="flex flex-col gap-2" data-component="memory-model">
-			<button type="button" class="flex items-center gap-2 rounded-xl px-2.5 py-2 text-left hover:bg-nav-hover" onClick={() => setOpen(!open())}>
-				<span class="flex-1 text-sm text-text">Summaries written by</span>
-				<span class="truncate text-sm text-weak">{current() ? `${current()!.provider}/${current()!.modelId}` : "Default model"}</span>
+			<button type="button" class="flex items-center gap-2 rounded-xl px-2.5 py-2 text-left hover:bg-sidebar-row-hover" onClick={() => setOpen(!open())}>
+				<span class="flex-1 text-sm text-foreground">Summaries written by</span>
+				<span class="truncate text-sm text-muted-foreground">{current() ? `${current()!.provider}/${current()!.modelId}` : "Default model"}</span>
 			</button>
 			<Show when={open()}>
 				<div class="flex max-h-80 flex-col">
@@ -125,7 +117,6 @@ function MemoryModelRow(props: { store: MemoryStore }) {
 	)
 }
 
-/** The whole screen: search, add a line, what agents read, then every line newest first. */
 export function MemoryList(props: { store: MemoryStore }) {
 	const [query, setQuery] = createSignal("")
 	const [draft, setDraft] = createSignal("")
@@ -134,11 +125,11 @@ export function MemoryList(props: { store: MemoryStore }) {
 	const shown = () => (query().trim() ? (s().results ?? []) : s().lines)
 	return (
 		<nav class="flex flex-col gap-4" aria-label="Memory" data-component="memory-list">
-			<label class="sticky top-0 z-10 flex h-9 items-center gap-2 rounded-xl bg-input px-3 text-weak focus-within:text-text">
+			<label class="sticky top-0 z-10 flex h-9 items-center gap-2 rounded-xl bg-secondary px-3 text-muted-foreground focus-within:text-foreground">
 				<SearchIcon />
 				<input
 					type="search"
-					class="h-full min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-weak"
+					class="h-full min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
 					placeholder="Search memory"
 					aria-label="Search memory"
 					value={query()}
@@ -166,7 +157,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 				}}
 			>
 				<input
-					class="h-9 min-w-0 flex-1 rounded-xl bg-input px-3 text-sm text-text outline-none placeholder:text-weak"
+					class="h-9 min-w-0 flex-1 rounded-xl bg-secondary px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
 					placeholder="Tell Kiko something to remember"
 					aria-label="Add a memory"
 					maxLength={280}
@@ -176,18 +167,18 @@ export function MemoryList(props: { store: MemoryStore }) {
 			</form>
 			<Show when={!query().trim() && s().view.length}>
 				<section class="flex flex-col gap-1" data-component="memory-view">
-					<button type="button" class="flex items-baseline gap-1.5 px-2.5 text-left text-xs font-medium text-weak" onClick={() => setReading(!reading())}>
+					<button type="button" class="flex items-baseline gap-1.5 px-2.5 text-left text-xs font-medium text-muted-foreground" onClick={() => setReading(!reading())}>
 						What every agent reads
-						<span class="text-faint">{reading() ? "Hide" : `${s().view.length} lines`}</span>
+						<span class="text-secondary-label">{reading() ? "Hide" : `${s().view.length} lines`}</span>
 					</button>
 					<Show when={reading()}>
-						<div class="flex flex-col rounded-2xl bg-bg-subtle px-3 py-2">
+						<div class="flex flex-col rounded-2xl bg-muted-foreground px-3 py-2">
 							<For each={s().view}>{(t) => <ViewLine text={t} store={props.store} />}</For>
 						</div>
 					</Show>
 				</section>
 			</Show>
-			<div class="flex flex-col rounded-2xl bg-bg-subtle p-1">
+			<div class="flex flex-col rounded-2xl bg-muted-foreground p-1">
 				<For each={shown()}>{(l) => <Line line={l} store={props.store} />}</For>
 			</div>
 			<Show when={!query().trim() && s().next !== null}>
@@ -197,13 +188,13 @@ export function MemoryList(props: { store: MemoryStore }) {
 			</Show>
 			<Show when={s().loaded && query().trim() && !shown().length}>
 				<div class="flex flex-col items-center gap-2 px-2 py-6">
-					<p class="text-center text-sm text-weak">Nothing matches "{query().trim()}"</p>
+					<p class="text-center text-sm text-muted-foreground">Nothing matches "{query().trim()}"</p>
 				</div>
 			</Show>
 			<Show when={s().loaded && !query().trim() && !s().lines.length}>
 				<div class="flex flex-col items-center gap-1 px-6 py-8 text-center">
-					<p class="mt-2 text-sm text-text">Nothing remembered yet</p>
-					<p class="text-xs text-weak">Talk to Kiko about people, places, and how you like things done. It keeps the lasting parts here.</p>
+					<p class="mt-2 text-sm text-foreground">Nothing remembered yet</p>
+					<p class="text-xs text-muted-foreground">Talk to Kiko about people, places, and how you like things done. It keeps the lasting parts here.</p>
 				</div>
 			</Show>
 			<MemoryModelRow store={props.store} />
@@ -214,7 +205,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 export function MemoryError(props: { store: MemoryStore }) {
 	return (
 		<Show when={props.store.state.error}>
-			<p class="rounded-lg bg-bg-subtle px-3 py-2 text-sm text-[var(--danger)]" role="alert" data-component="memory-error">
+			<p class="rounded-lg bg-muted-foreground px-3 py-2 text-sm text-[var(--error)]" role="alert" data-component="memory-error">
 				{props.store.state.error}{" "}
 				<button type="button" class="underline" onClick={() => props.store.dismissError()}>
 					Dismiss
@@ -224,7 +215,6 @@ export function MemoryError(props: { store: MemoryStore }) {
 	)
 }
 
-/** The memory store for the signed-in user, loaded once the panel needs it. */
 export function useMemoryStore() {
 	const [store] = createResource(
 		() => {

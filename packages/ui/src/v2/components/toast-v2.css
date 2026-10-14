@@ -1,28 +1,23 @@
-/*
- * t3code's toasts (MIT, apps/web/src/components/ui/toast.tsx, index.css `dropdown-glass`) in
- * kiko's tokens. The stack sits at the top right, under the top bar, 16px in from the edge
- * on a phone and 32px from 640px. Each card is the popover glass: the surface at 84% over a
- * 12px saturated blur, a 10% text hairline, and Tailwind's shadow-xl at 25% black.
- */
+
 .toast-v2-region,
 .toast-v2-anchors {
-  --toast-solid: color-mix(in oklab, var(--text) 3%, var(--bg));
+  --toast-solid: color-mix(in oklab, var(--foreground) 3%, var(--background));
   --toast-glass: color-mix(in oklab, var(--toast-solid) 84%, transparent);
-  --toast-edge: color-mix(in oklab, var(--text) 10%, transparent);
-  --toast-muted: color-mix(in oklab, var(--text) 62%, transparent);
+  --toast-edge: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --toast-muted: color-mix(in oklab, var(--foreground) 62%, transparent);
   --toast-shadow:
     0 0 0 1px var(--toast-edge), 0 20px 25px -5px oklch(0% 0 none / 0.25), 0 8px 10px -6px oklch(0% 0 none / 0.25);
   --toast-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Light mode's popover is the menu surface, opaque. */
+
 :root:not(.dark) :is(.toast-v2-region, .toast-v2-anchors) {
-  --toast-solid: var(--menu-bg);
+  --toast-solid: var(--popover);
 }
 
 .toast-v2-region {
   --toast-inset: 16px;
-  /* The top bar is 50px (app/top-bar.tsx), so a toast never covers its buttons. */
+
   --toast-header-offset: 50px;
   --toast-gap: 12px;
   --toast-peek: 12px;
@@ -56,10 +51,7 @@
   list-style: none;
 }
 
-/*
- * Collapsed, the cards behind the front one shrink by a tenth each and peek 12px below it.
- * Expanded on hover or focus, each sits under the one before it with a 12px gap.
- */
+
 .toast-v2 {
   --toast-scale: max(0, 1 - var(--toast-index) * 0.1);
   --toast-y: calc(var(--toast-index) * var(--toast-peek) + (1 - var(--toast-scale)) * var(--toast-front-height));
@@ -71,7 +63,7 @@
   box-sizing: border-box;
   width: 100%;
   border-radius: 10px;
-  color: var(--text);
+  color: var(--foreground);
   background: var(--toast-glass);
   -webkit-backdrop-filter: blur(12px) saturate(1.14);
   backdrop-filter: blur(12px) saturate(1.14);
@@ -93,13 +85,7 @@
     transform: translateX(calc(var(--toast-outward) * (100% + var(--toast-inset))));
   }
 
-  &:focus-visible {
-    box-shadow:
-      var(--toast-shadow),
-      0 0 0 2px var(--accent);
-  }
 
-  /* Fills the gap under a card, so moving between cards keeps the stack open. */
   &::after {
     content: "";
     position: absolute;
@@ -153,7 +139,7 @@
   }
 }
 
-/* t3code's inline layout: the text on the left, actions on the right, room for the orb. */
+
 .toast-v2-content {
   display: flex;
   align-items: center;
@@ -231,15 +217,15 @@
 }
 
 .toast-v2[data-variant="error"] .toast-v2-icon {
-  color: var(--danger);
+  color: var(--error);
 }
 
 .toast-v2[data-variant="warning"] .toast-v2-icon {
-  color: var(--gold);
+  color: var(--warning);
 }
 
 .toast-v2[data-variant="info"] .toast-v2-icon {
-  color: var(--accent);
+  color: var(--ring);
 }
 
 .toast-v2[data-variant="loading"] .toast-v2-icon {
@@ -256,7 +242,7 @@
   }
 }
 
-/* t3code's dismiss orb on the corner, as an iOS notification has. */
+
 .toast-v2-close {
   position: absolute;
   z-index: 1;
@@ -268,7 +254,7 @@
   width: 24px;
   height: 24px;
   padding: 0;
-  border: 1px solid color-mix(in oklab, var(--text) 9%, transparent);
+  border: 1px solid color-mix(in oklab, var(--foreground) 9%, transparent);
   border-radius: 999px;
   color: var(--toast-muted);
   background: color-mix(in oklab, var(--toast-solid) 92%, transparent);
@@ -279,12 +265,8 @@
   outline: none;
 
   &:hover {
-    color: var(--text);
+    color: var(--foreground);
     background: var(--toast-solid);
-  }
-
-  &:focus-visible {
-    box-shadow: 0 0 0 2px var(--accent);
   }
 
   > svg {
@@ -309,7 +291,7 @@
   gap: 6px;
 }
 
-/* t3code's Button at size xs: 24px tall, 12px medium text, 8px corners. */
+
 .toast-v2-action {
   display: inline-flex;
   flex-shrink: 0;
@@ -330,36 +312,32 @@
     transform: scale(0.97);
   }
 
-  &:focus-visible {
-    box-shadow: 0 0 0 2px var(--accent);
-  }
 
-  /* t3code's default variant: the accent, solid, with a light top edge. */
   &[data-variant="primary"] {
-    color: var(--on-accent);
-    background: var(--accent-fill);
+    color: var(--primary-foreground);
+    background: var(--primary);
     box-shadow:
       inset 0 1px 0 oklch(100% 0 none / 0.16),
       0 1px 2px oklch(0% 0 none / 0.12);
   }
 
   &[data-variant="primary"]:hover {
-    background: color-mix(in oklab, var(--accent-fill) 90%, transparent);
+    background: color-mix(in oklab, var(--primary) 90%, transparent);
   }
 
-  /* t3code's outline variant: the input border over a faint fill. */
+
   &[data-variant="secondary"] {
-    color: var(--text);
-    background: color-mix(in oklab, var(--text) 4%, transparent);
-    border-color: color-mix(in oklab, var(--text) 12%, transparent);
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--foreground) 4%, transparent);
+    border-color: color-mix(in oklab, var(--foreground) 12%, transparent);
   }
 
   &[data-variant="secondary"]:hover {
-    background: color-mix(in oklab, var(--text) 7%, transparent);
+    background: color-mix(in oklab, var(--foreground) 7%, transparent);
   }
 }
 
-/* t3code's anchored toast in its tooltip style: one line of 12px text, 4px off the control. */
+
 .toast-v2-anchored {
   position: fixed;
   z-index: 1000;
@@ -368,7 +346,7 @@
   border-radius: 8px;
   font-size: 12px;
   line-height: 16px;
-  color: var(--text);
+  color: var(--foreground);
   background: var(--toast-glass);
   -webkit-backdrop-filter: blur(12px) saturate(1.14);
   backdrop-filter: blur(12px) saturate(1.14);

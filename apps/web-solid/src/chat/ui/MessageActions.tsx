@@ -3,26 +3,18 @@ import { createSignal, lazy, onCleanup, Show, Suspense, type JSX } from "solid-j
 import { cn } from "../../lib/cn"
 import { warmEmoji } from "../../lib/emoji-data"
 
-/* The popover and its picker load on the first hover of a react button. */
 const popoverModule = () => import("./ReactionPopover")
 const ReactionPopover = lazy(() => popoverModule().then((m) => ({ default: m.ReactionPopover })))
 
-/** Hover this long on the react button before the popover opens. */
 const OPEN_DELAY = 120
-/** The pointer has this long to cross from the button into the popover. */
 const CLOSE_DELAY = 200
 
 const BUTTON = cn(
-  "grid size-8 shrink-0 cursor-default place-items-center rounded-full p-0 text-muted",
-  "hover:bg-[var(--selected-bg)] hover:text-text focus-visible:bg-[var(--selected-bg)] focus-visible:text-text",
-  "data-[open]:bg-[var(--selected-bg)] data-[open]:text-text",
+  "grid size-8 shrink-0 cursor-default place-items-center rounded-full p-0 text-muted-foreground",
+  "hover:bg-[var(--accent-strong)] hover:text-foreground focus-visible:bg-[var(--accent-strong)] focus-visible:text-foreground",
+  "data-[open]:bg-[var(--accent-strong)] data-[open]:text-foreground",
 )
 
-/**
- * React, reply and more, beside a bubble while the pointer is over its row or
- * the row holds keyboard focus. Pointer devices only: touch keeps the long
- * press menu. They sit right of an agent's bubble and left of the human's.
- */
 export function MessageActions(props: {
   side: "user" | "bot"
   onReact: (emoji: string) => void
@@ -31,7 +23,6 @@ export function MessageActions(props: {
 }): JSX.Element {
   let react: HTMLButtonElement | undefined
   const [open, setOpen] = createSignal(false)
-  /** Opened from the keyboard: the popover takes focus. */
   const [keyed, setKeyed] = createSignal(false)
   let openTimer: ReturnType<typeof setTimeout> | undefined
   let closeTimer: ReturnType<typeof setTimeout> | undefined
@@ -87,7 +78,6 @@ export function MessageActions(props: {
           if (open()) leave()
           else clearTimeout(openTimer)
         }}
-        // A click from Enter or Space has no pointer, so its detail is 0.
         onClick={(event) => show(event.detail === 0)}
       >
         <SmilePlusIcon size={18} />

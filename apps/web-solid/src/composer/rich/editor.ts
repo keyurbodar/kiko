@@ -1,5 +1,5 @@
 import "./rich.css"
-import { Editor, Extension, InputRule, mergeAttributes, wrappingInputRule } from "@tiptap/core"
+import { Editor, Extension, InputRule, mergeAttributes, wrappingInputRule, type ExtendedRegExpMatchArray } from "@tiptap/core"
 import { Blockquote } from "@tiptap/extension-blockquote"
 import { Code } from "@tiptap/extension-code"
 import { CodeBlock } from "@tiptap/extension-code-block"
@@ -16,12 +16,12 @@ import { Paragraph } from "@tiptap/extension-paragraph"
 import { Strike } from "@tiptap/extension-strike"
 import { Text } from "@tiptap/extension-text"
 import { UndoRedo } from "@tiptap/extensions"
-import { chainCommands } from "@tiptap/pm/commands"
+import { chainCommands, newlineInCode } from "@tiptap/pm/commands"
 import { keymap } from "@tiptap/pm/keymap"
-import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model"
+import { Fragment, Slice, type Node as PMNode, type NodeType } from "@tiptap/pm/model"
 import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state"
 import type { EditorView } from "@tiptap/pm/view"
-import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, indentInCode, leaveEmptyQuote, openFenceOnEnter, shiftEnterInCode, splitOrLeaveListItem } from "./keys"
+import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, selectionInOneCodeBlock, shiftEnterInCode, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
 import { BINDINGS, LINK_KEY } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { chipExtension, Link, Mention, setChipStatus, type ChipStatus } from "./nodes"
@@ -84,10 +84,6 @@ const blockquoteInputRule = new InputRule({
   },
 })
 
-/**
- * `- ` or `3) ` at a top-level paragraph starts a list, and the item keeps the marker as typed. A dash
- * waits for the first character after its space, which it carries, so `- [ ] ` reaches the task rule.
- */
 function listMarkerInputRule(find: RegExp, listType: "bulletList" | "orderedList"): InputRule {
   return new InputRule({
     find,
@@ -107,10 +103,6 @@ function listMarkerInputRule(find: RegExp, listType: "bulletList" | "orderedList
   })
 }
 
-/**
- * `[ ] ` at the start of an existing bullet item turns it into a task, for an item that was already a
- * list when the box was wanted. Any dash, star or plus converts; an ordered item does not.
- */
 const bulletToTaskInputRule = new InputRule({
   find: /^\[([ xX])\] $/,
   handler: ({ state, range, match, chain }) => {
@@ -129,16 +121,16 @@ const bulletToTaskInputRule = new InputRule({
   },
 })
 
-/** `- [ ] ` or `- [x] ` at a top-level paragraph, typed whole. */
-function taskInputRule(type: any): InputRule {
+function taskInputRule(type: NodeType): InputRule {
   const rule = wrappingInputRule({
     find: /^- \[([ xX])\] $/,
     type,
-    getAttributes: (match: any) => ({ checked: (match[1] ?? " ").toLowerCase() === "x" }),
+    getAttributes: (match: ExtendedRegExpMatchArray) => ({ checked: (match[1] ?? " ").toLowerCase() === "x" }),
   })
   return new InputRule({
     find: rule.find,
-    handler: (props: any) => (props.state.doc.resolve(props.range.from).depth === 1 ? rule.handler(props) : null),
+    handler: (props: Parameters<InputRule["handler"]>[0]) =>
+      (props.state.doc.resolve(props.range.from).depth === 1 ? rule.handler(props) : null),
   })
 }
 
@@ -155,16 +147,13 @@ export function mountRichEditor(options: RichOptions) {
       return [
         keymap({
           ...bindings,
-          // Enter sends, so Shift+Enter carries the line breaks a list or quote needs, as in t3code.
           "Shift-Enter": (state, dispatch) =>
             splitOrLeaveListItem(state, dispatch) || leaveEmptyQuote(state, dispatch) || shiftEnterInCode(state, dispatch),
           [LINK_KEY]: () => {
             options.onLink(currentLink())
             return true
           },
-          // A file chip goes in one press, the way a character does. ProseMirror's own atom
-          // selection did not delete it, so the chip is removed here, from the caret's side.
-          Backspace: chainCommands(removeChipBeside("before"), backspaceAcrossList),
+          Backspace: chainCommands(removeChipBeside("before"), backspaceAcrossList, unwrapCodeBlockAtStart),
           Delete: chainCommands(removeChipBeside("after"), deleteAcrossList),
         }),
         new Plugin({
@@ -181,10 +170,6 @@ export function mountRichEditor(options: RichOptions) {
     element: options.element,
     content: markdownToDoc(options.markdown, { isMention: options.isMention }),
     extensions: [
-      // The base nodes are the ones t3code's StarterKit loads, with the block nodes it replaces below.
-      // The list keymap is off: list Backspace and Delete are the composer's own, through `ListItem`.
-      // StarterKit itself is not used, because its barrel loads Link, Underline and the cursors this
-      // composer turns off, and that is more than the client's bundle budget allows.
       Document,
       Paragraph,
       Text,
@@ -192,8 +177,6 @@ export function mountRichEditor(options: RichOptions) {
       Bold,
       Italic,
       Strike,
-      // Marks may not nest inside code, and code may not hold a second mark: Tiptap's own rule drops
-      // `**`x`**`, which markdown writes. Code excludes only itself, as in t3code.
       Code.extend({ excludes: "code", exitable: false }),
       Blockquote.extend({
         addInputRules() { return [blockquoteInputRule] },
@@ -204,16 +187,23 @@ export function mountRichEditor(options: RichOptions) {
       HorizontalRule.extend({
         addInputRules() { return [horizontalRuleInputRule] },
       }),
-      // A fence opens on Enter at a line of backticks, not on a space, as in t3code.
       CodeBlock.extend({
         addInputRules() { return [] },
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            language: { default: "" },
+            fence: { default: "```", rendered: false },
+            close: { default: "\n```", rendered: false },
+          }
+        },
       }),
       UndoRedo.configure({ newGroupDelay: UNDO_GROUP_DELAY }),
       BulletList.extend({
         addInputRules() {
           return [
             listMarkerInputRule(/^(?<marker>[*+])(?<space>\s)$/, "bulletList"),
-            listMarkerInputRule(/^(?<marker>-)(?<space>[ \t]+)(?<carried>[^\s\[])$/, "bulletList"),
+            listMarkerInputRule(/^(?<marker>-)(?<space>[ \t]+)(?<carried>[^\s[])$/, "bulletList"),
           ]
         },
       }),
@@ -222,7 +212,6 @@ export function mountRichEditor(options: RichOptions) {
           return [listMarkerInputRule(/^(?<marker>\d+[.)])(?<space>\s)$/, "orderedList")]
         },
       }),
-      // The item keeps the marker it was typed or parsed with, so the draft and the list numbers match the source.
       ListItem.extend({
         addAttributes() {
           return { marker: { default: "-", rendered: false } }
@@ -257,15 +246,22 @@ export function mountRichEditor(options: RichOptions) {
         autocorrect: "on",
       },
       handleKeyDown: (view, event) => {
-        // The fence and indent keys belong to the code, so they run before sending or the menus.
         if (event.key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey) {
           if (indentInCode(view.state, event.shiftKey, view.dispatch)) {
             event.preventDefault()
             return true
           }
         }
-        if (event.key === "Enter" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && !event.isComposing) {
-          if (openFenceOnEnter(view.state, view.dispatch)) {
+        if (event.key === "Enter" && !event.metaKey && !event.ctrlKey && !event.isComposing) {
+          if (selectionInOneCodeBlock(view.state)) {
+            event.preventDefault()
+            exitCodeBlockOnClosingFence(view.state, view.dispatch) ||
+              exitCodeBlockOnTrailingBlankLines(view) ||
+              indentedNewlineInCodeBlock(view.state, view.dispatch) ||
+              newlineInCode(view.state, view.dispatch)
+            return true
+          }
+          if (!event.shiftKey && openFenceOnEnter(view.state, view.dispatch)) {
             event.preventDefault()
             return true
           }
@@ -278,15 +274,12 @@ export function mountRichEditor(options: RichOptions) {
         if (!text) return true
         event.preventDefault()
         const { state } = view
-        // Code takes the paste verbatim; anywhere else the text is read as markdown, as it is sent.
         const slice = state.selection.$from.parent.type.spec.code
           ? sliceOf(state, text)
           : markdownSlice(state.schema, text, { isMention: options.isMention })
         view.dispatch(state.tr.replaceSelection(slice).scrollIntoView().setMeta("uiEvent", "paste"))
         return true
       },
-      // Copy and cut write the source the composer sends, so a copied **bold** or mention keeps its
-      // markers. Inside code the text is copied as it is.
       clipboardTextSerializer: (slice, view) =>
         view.state.selection.$from.parent.type.spec.code
           ? slice.content.textBetween(0, slice.content.size, "\n")
@@ -312,7 +305,6 @@ export function mountRichEditor(options: RichOptions) {
         const start = side === "before" ? selection.from - chip.nodeSize : selection.from
         dispatch(state.tr.delete(start, start + chip.nodeSize))
       }
-      // Told here, not only through the change callback: the callback did not report this removal.
       options.onChipRemove(String(chip.attrs.id))
       return true
     }
@@ -379,7 +371,6 @@ export function mountRichEditor(options: RichOptions) {
     isFocused: () => editor.isFocused,
     setEditable: (editable: boolean) => editor.setEditable(editable, false),
     isEditable: () => editor.isEditable,
-    // One empty line is the only empty state. A second line, even blank, is text the placeholder must leave.
     isEmpty: () => editor.isEmpty,
     setMarkdown(markdown: string) {
       const view = editor.view
@@ -445,7 +436,6 @@ export function mountRichEditor(options: RichOptions) {
       const { doc, selection } = editor.state
       return doc.textBetween(selection.from, selection.to)
     },
-    // Enter in a fence is a line of code. Everywhere else, including a list or a quote, Enter sends.
     inCode: () => editor.state.selection.$from.parent.type.name === "codeBlock",
     destroy: () => editor.destroy(),
   }

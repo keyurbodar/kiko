@@ -17,13 +17,6 @@ import { createFileView, setSourceFor } from "./view"
 
 const FileDialog = lazy(() => import("./FileDialog"))
 
-/*
- * The files of a chat, after t3code's file tree and file preview. `FilesTree` is the room's tree and
- * `FileSurface` is one file. Each is its own tab or section, so a file never lives inside the tree.
- * Opening it full size moves the same file into a dialog.
- */
-
-/** The files a chat can see: its own, then the home drive, with the folders and an index of both. */
 function useChatFiles(chatId: string) {
 	const home = createMemo(() => withMade(HOME, useApp.homeFiles()).map((f) => ({ ...f, name: `${HOME}/${f.name}` })))
 	const files = createMemo(() => [...withMade(chatId, useApp.activeFiles()), ...home()])
@@ -33,10 +26,8 @@ function useChatFiles(chatId: string) {
 }
 
 export function FilesTree(props: { chatId: string }) {
-	// Bound to the open room, so it follows a chat switch.
 	createEffect(() => onCleanup(useApp.onFilesRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
 	createEffect(() => onCleanup(useApp.onHomeRefused((_, reason) => showToastV2({ title: reason, variant: "error" }))))
-	/** One file op, sent to the space its paths live in. */
 	const op = (o: FileOp) => {
 		const paths = o.op === "rm" ? o.paths : o.op === "mv" ? [o.from, o.to] : [o.path]
 		const home = paths.map(inHome)
@@ -81,10 +72,8 @@ export function FilesTree(props: { chatId: string }) {
 	)
 }
 
-/** The extension name when the path is /extensions/<name>/extension.json in the chat's files. */
 const extensionAt = (p: string) => /^extensions\/([a-z][a-z0-9-]{1,31})\/extension\.json$/.exec(p)?.[1] ?? null
 
-/** One file: its crumbs and actions in a header, then its viewer. */
 export function FileSurface(props: { chatId: string; path: string }) {
 	const { files, index } = useChatFiles(props.chatId)
 	const file = createMemo(() => files().find((f) => f.name === props.path))
@@ -93,15 +82,12 @@ export function FileSurface(props: { chatId: string; path: string }) {
 		return f ? viewerKind(f) : "other"
 	})
 	const view = createFileView(props.chatId, () => props.path, file, kind)
-	// A full-size dialog belongs to this file, so it closes with the tab.
 	onCleanup(() => setFullSize(false))
 
 	const navigate = useNavigate()
 	const [proposing, setProposing] = createSignal(false)
-	/** Sends the open extension folder as a waiting install, then opens its review. */
 	const installExtension = async (name: string) => {
 		setProposing(true)
-		// The bundler for an extension folder loads on the click, so the files tab stays as small as before.
 		const { proposeFromFiles } = await import("./extension-install")
 		const out = await proposeFromFiles(props.chatId, name, useApp.activeFiles())
 		setProposing(false)
@@ -117,7 +103,7 @@ export function FileSurface(props: { chatId: string; path: string }) {
 					{(name) => (
 						<button
 							type="button"
-							class="h-6 shrink-0 rounded-md bg-[var(--accent-fill)] px-2 text-xs text-[var(--on-accent)] disabled:opacity-50"
+							class="h-6 shrink-0 rounded-md bg-[var(--primary)] px-2 text-xs text-[var(--primary-foreground)] disabled:opacity-50"
 							data-action="install-extension-file"
 							disabled={proposing() || view.unsaved()}
 							title="Review and install this extension"
@@ -134,7 +120,7 @@ export function FileSurface(props: { chatId: string; path: string }) {
 			<div class="flex min-h-0 flex-1 overflow-hidden">
 				<Show
 					when={!fullSize()}
-					fallback={<div class="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-sm text-muted" data-component="file-full-size-note">Open full size. Close it to return here.</div>}
+					fallback={<div class="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground" data-component="file-full-size-note">Open full size. Close it to return here.</div>}
 				>
 					<FileBody chatId={props.chatId} path={props.path} file={file()} kind={kind()} view={view} />
 				</Show>

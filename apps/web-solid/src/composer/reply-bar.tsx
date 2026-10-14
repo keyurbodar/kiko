@@ -5,7 +5,7 @@ import { EntryIcon } from "../lib/EntryIcon"
 
 export interface ReplyBarProps {
   summary: ReplySummary
-  role: string
+  label: string
   onJump: () => void
   onDismiss: () => void
 }
@@ -24,7 +24,7 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
         >
           {(thumb) => <img class="reply-bar-thumb" src={thumb()} alt="" />}
         </Show>
-        <span class="reply-bar-role">{props.role}</span>
+        <span class="reply-bar-role">{props.label}</span>
         <span class="reply-bar-preview">{props.summary.text}</span>
       </button>
       <button class="reply-bar-dismiss" type="button" aria-label="Cancel reply" onClick={() => props.onDismiss()}>

@@ -5,19 +5,10 @@ import { createSignal, For, Show } from "solid-js"
 import type { LoopRow as WireLoop } from "@kiko/protocol"
 import { shortDate } from "./format"
 
-/*
- * "On your plate" (architecture section 26): the human's open loops, one list per chat, in the same
- * shape as the routines list. An agent opens a loop when you state a goal, a plan or a deadline; here
- * you mark it done, push it to tomorrow, or drop it. Each change applies at once and is put back, with
- * a toast, if the server refuses it. The list stays in memory, so a reopened panel paints at once and
- * the fetch only corrects it.
- */
-
 export type PlateLoop = Pick<WireLoop, "id" | "room" | "text" | "due" | "snoozedUntil">
 
 const [all, setAll] = createSignal<readonly PlateLoop[] | undefined>(undefined)
 
-/** Only what the panel draws. A row without an id, a chat, and words is dropped. */
 export function readLoops(value: unknown): PlateLoop[] {
   const rows = (value as { loops?: unknown })?.loops
   if (!Array.isArray(rows)) return []
@@ -35,17 +26,14 @@ export async function loadLoops(): Promise<void> {
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined
-/** A cheap refetch after a burst of room events. The cached list stays painted meanwhile. */
 export function refreshLoops(delay = 1200): void {
   clearTimeout(refreshTimer)
   refreshTimer = setTimeout(() => void loadLoops(), delay)
 }
 
-/** A chat's loops that are not snoozed past now. */
 export const loopsOf = (chatId: string, now = Date.now()): readonly PlateLoop[] | undefined =>
   all()?.filter((l) => l.room === chatId && (l.snoozedUntil === null || l.snoozedUntil <= now))
 
-/** Tomorrow at 9:00 in the human's time zone. */
 export function tomorrow(from = new Date()): number {
   const d = new Date(from)
   d.setDate(d.getDate() + 1)
@@ -64,9 +52,9 @@ export async function act(loop: PlateLoop, body: { action: "done" | "drop" } | {
   }
 }
 
-const faint = "text-[color-mix(in_oklab,var(--text)_40%,transparent)]"
+const faint = "text-[color-mix(in_oklab,var(--foreground)_40%,transparent)]"
 const tool =
-  "grid size-7 shrink-0 place-items-center rounded-md text-[color-mix(in_oklab,var(--text)_45%,transparent)] hover:bg-[color-mix(in_oklab,var(--text)_8%,transparent)] hover:text-text"
+  "grid size-7 shrink-0 place-items-center rounded-md text-[color-mix(in_oklab,var(--foreground)_45%,transparent)] hover:bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] hover:text-foreground"
 
 function dueLabel(due: string | null): string {
   if (!due) return ""
@@ -76,9 +64,9 @@ function dueLabel(due: string | null): string {
 
 function LoopRow(props: { loop: PlateLoop }) {
   return (
-    <li class="flex items-center gap-1 rounded-md pr-1 hover:bg-[color-mix(in_oklab,var(--text)_5%,transparent)]" data-loop={props.loop.id}>
+    <li class="flex items-center gap-1 rounded-md pr-1 hover:bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)]" data-loop={props.loop.id}>
       <div class="flex min-w-0 flex-1 flex-col px-2 py-2">
-        <span class="text-[12px] leading-5 text-[color-mix(in_oklab,var(--text)_85%,transparent)]" data-component="loop-text">{props.loop.text}</span>
+        <span class="text-[12px] leading-5 text-[color-mix(in_oklab,var(--foreground)_85%,transparent)]" data-component="loop-text">{props.loop.text}</span>
         <Show when={dueLabel(props.loop.due)}>{(label) => <span class={`text-[11px] leading-4 ${faint}`}>{label()}</span>}</Show>
       </div>
       <button type="button" class={tool} aria-label="Done" title="Done" data-action="loop-done" onClick={() => void act(props.loop, { action: "done" }, "Could not mark that done")}>

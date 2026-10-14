@@ -7,7 +7,6 @@ import type { ChatMessage } from "../../lib/types"
 import { recentEmoji, recordRecent, warmEmoji } from "../../lib/emoji-data"
 import { richTextSegments } from "../lib/richtext/segments"
 
-/* The picker loads when a menu opens, not with the transcript. */
 const pickerModule = () => import("./EmojiPicker")
 const EmojiPicker = lazy(() => pickerModule().then((m) => ({ default: m.EmojiPicker })))
 const preloadEmojiPicker = () => {
@@ -18,14 +17,10 @@ const preloadEmojiPicker = () => {
 export interface MessageMenuOptions {
   message: ChatMessage
   side: "user" | "bot"
-  /** True when the message is pinned; the row reads `unpin` instead of `pin`. */
   pinned?: boolean
   onOpenChange?: (open: boolean) => void
   onReply: () => void
-  /** Omitted while there is no store mutation behind it; the item is then not
-   *  rendered at all, because a menu entry that swallows a click is a lie. */
   onTogglePin?: () => void
-  /** Never rendered for the agent's messages. */
   onEdit?: () => void
   onDelete?: () => void
   onReact: (emoji: string) => void
@@ -33,33 +28,19 @@ export interface MessageMenuOptions {
 
 export interface MessageMenuProps extends MessageMenuOptions {
   ref?: (element: HTMLElement) => void
-  /**
-   * Where the zero-size trigger sits. It is never seen and never hit: it only
-   * receives the replayed event, and the menu is positioned from that event's
-   * coordinates rather than from the trigger's box.
-   */
   style?: JSX.CSSProperties
 }
 
 export interface MessageMenuController {
-  /** Wire this to Bubble's `onContextMenu`. */
   onContextMenu: (event: MouseEvent) => void
-  /** Opens the menu for a message at a point, as the hover actions' "…" does. */
   openAt: (messageId: string, x: number, y: number) => void
-  /** Render this once, anywhere in the tree. */
   view: JSX.Element
 }
 
-/** The menu's quick strip: the five most recent reactions, as the hover popover shows them. */
 const QUICK_COUNT = 5
 
-/**
- * The message menu, identical for the viewer's and the agent's messages apart
- * from `edit`, which the agent's never offers.
- */
 export function MessageMenu(props: MessageMenuProps) {
   const [pickerOpen, setPickerOpen] = createSignal(false)
-  // The message's first link, as the transcript draws links. A masked one (its text names another host) is skipped.
   const link = () => richTextSegments(props.message.body).find((s) => s.kind === "url" && !s.suspicious && s.href)?.href ?? null
   const openLink = () => {
     const url = link()
@@ -72,7 +53,6 @@ export function MessageMenu(props: MessageMenuProps) {
     try {
       await navigator.share({ url })
     } catch {
-      // The reader closed the share sheet.
     }
   }
   const copy = async (text = props.message.body, done = "Copied") => {
@@ -92,8 +72,6 @@ export function MessageMenu(props: MessageMenuProps) {
     <MenuV2.Context
       gutter={8}
       onOpenChange={(open) => {
-        // A reader who has just opened the menu is deciding what to react with,
-        // so this is the moment to start pulling the picker's module and data.
         if (open) preloadEmojiPicker()
         props.onOpenChange?.(open)
       }}
@@ -106,25 +84,12 @@ export function MessageMenu(props: MessageMenuProps) {
       <MenuV2.Context.Portal>
         <MenuV2.Context.Content
           class={cn(
-            // `chat-menu` is a QA handle as well as the surface: the verify
-            // skill scopes the quick strip by it.
-            //
-            // These sizes only take effect because the vendored menu stylesheet
-            // sits in `@layer v2`, below `utilities` - unlayered it beat every
-            // one of them and the menu rendered at the library's 2px padding,
-            // 6px radius and 13px rows instead.
-            // Monocode's menu: a 12px glass frame, 4px in, rows 30px tall at 13px with a
-            // quiet leading glyph. The frame and its glass come from the shared menu
-            // surface, so this only sets the rhythm.
-            "chat-menu min-w-[184px] rounded-xl p-1 text-text",
-            // The picker brings its own 20px panel, so the menu gives up its frame.
+            "chat-menu min-w-[184px] rounded-xl p-1 text-foreground",
             pickerOpen() && "rounded-[20px] p-0",
-            // The row itself is `data-component`, NOT `data-slot` - only the inner
-            // content span is a slot.
             "[&_[data-component=menu-v2-item]]:h-[30px]",
             "[&_[data-slot=menu-v2-item-content]]:text-[13px]",
             "[&_[data-slot=menu-v2-item-content]]:gap-2.5",
-            "[&_[data-component=menu-v2-item]_svg]:text-muted",
+            "[&_[data-component=menu-v2-item]_svg]:text-muted-foreground",
           )}
           data-component="chat-menu"
         >
@@ -138,16 +103,10 @@ export function MessageMenu(props: MessageMenuProps) {
                     <button
                       type="button"
                       class={cn(
-                        // `text-inherit` is NOT here on purpose: `cn` merges by
-                        // Tailwind's font-size group, so it and `text-[22px]` were
-                        // treated as one property and the size utility was dropped,
-                        // leaving every emoji at the inherited 14px. Preflight
-                        // already gives a button `color: inherit`.
                         "chat-menu__emoji flex size-8 items-center justify-center rounded-lg p-0 font-emoji text-[20px] leading-none",
                         "cursor-default border-none bg-transparent",
-                        "hover:bg-[var(--selected-bg)]",
-                        "focus-visible:bg-[var(--selected-bg)]",
-                        // One of the three permitted motions.
+                        "hover:bg-[var(--accent-strong)]",
+                        "focus-visible:bg-[var(--accent-strong)]",
                         "active:scale-[0.92]",
                       )}
                       data-emoji={emoji}
@@ -165,10 +124,10 @@ export function MessageMenu(props: MessageMenuProps) {
                   type="button"
                   class={cn(
                     "chat-menu__more ml-auto flex size-8 items-center justify-center rounded-lg p-0",
-                    "cursor-default border-none bg-transparent text-weak",
-                    "hover:bg-[var(--selected-bg)]",
-                    "hover:text-text focus-visible:bg-[var(--selected-bg)]",
-                    "focus-visible:text-text",
+                    "cursor-default border-none bg-transparent text-muted-foreground",
+                    "hover:bg-[var(--accent-strong)]",
+                    "hover:text-foreground focus-visible:bg-[var(--accent-strong)]",
+                    "focus-visible:text-foreground",
                   )}
                   aria-label="More emoji"
                   aria-expanded={pickerOpen()}
@@ -189,7 +148,7 @@ export function MessageMenu(props: MessageMenuProps) {
                       <LinkIcon class="size-3.5 shrink-0" aria-hidden="true" />
                       Copy link
                     </MenuV2.Item>
-                    {/* Only where the system share sheet exists; elsewhere it would be copy link twice. */}
+
                     <Show when={canShare}>
                       <MenuV2.Item onSelect={() => void shareLink()}>
                         <Share2Icon class="size-3.5 shrink-0" aria-hidden="true" />
@@ -214,7 +173,7 @@ export function MessageMenu(props: MessageMenuProps) {
                   {props.pinned ? "Unpin" : "Pin"}
                 </MenuV2.Item>
               </Show>
-              {/* The divider only appears when something follows it. */}
+
               <Show when={props.onEdit !== undefined || props.onDelete !== undefined}>
                 <MenuV2.Separator />
               </Show>
@@ -227,7 +186,7 @@ export function MessageMenu(props: MessageMenuProps) {
               <Show when={props.onDelete}>
                 <MenuV2.Item
                   class={cn(
-                    "chat-menu__danger text-danger [&_svg]:!text-[var(--danger)]",
+                    "chat-menu__danger text-error [&_svg]:!text-[var(--error)]",
                   )}
                   onSelect={props.onDelete}
                 >
@@ -238,13 +197,7 @@ export function MessageMenu(props: MessageMenuProps) {
             </>
           }
         >
-          {/* The picker takes the WHOLE surface. The quick strip and the actions
-              are inside the fallback above rather than beside this, because kat's
-              picker replaces the menu outright: leaving the five quick emoji
-              stacked above it reads as two half-panels, and the reader who opened
-              the picker to browse has already decided against the quick five.
-              Escape and an outside click close the menu, so there is no way back
-              and none is needed. */}
+
           <div class="chat-menu__picker">
             <Suspense>
               <EmojiPicker
@@ -263,20 +216,6 @@ export function MessageMenu(props: MessageMenuProps) {
   )
 }
 
-/**
- * Owns the menu's open state for a row that only forwards its `contextmenu`
- * event. Kobalte's context menu is uncontrolled — it opens when a real
- * `contextmenu` event reaches its trigger and takes the anchor rect off that
- * event — so the integration is to park a zero-size trigger somewhere inert
- * and replay the row's event onto it at the pointer's coordinates.
- *
- * The `targetId` is the message id of the row that was actually under the
- * pointer when the menu opened, and it is written HERE, at open time — not at
- * render time. The option callbacks close over whatever message was current
- * when the row rendered, and under a virtualizer that row's DOM is recycled
- * into a different message by the time the click lands, so anything but the
- * opened-on id names the wrong row.
- */
 export function createMessageMenu(
   options: Omit<MessageMenuOptions, "message"> & { messageFor: (messageId: string) => ChatMessage },
 ): MessageMenuController & { targetId: () => string | null } {
@@ -287,9 +226,6 @@ export function createMessageMenu(
     const id = targetId()
     return { ...options, message: id === null ? fallback : options.messageFor(id) } as MessageMenuProps
   }
-  // Nothing is built until the first right-click. Setting the target mounts the menu, and its
-  // trigger, in the same update, so the replayed event below finds it. A transcript of rows
-  // used to build a whole menu root per row that nobody opened.
   const view = (
     <Show when={targetId()}>
       <MessageMenu {...liveProps()} ref={setTrigger} />

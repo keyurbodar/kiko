@@ -23,7 +23,7 @@ A user who opens Kiko gets one page: a full-height flex row with the conversatio
 Preconditions:
 
 - The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/kiko-verify-evidence/vite.pid` names it.
-- `../../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
+- `../../SKILL.md` **Doctor** reports `ok: true`.
 - **Use `http://localhost:<port>/`, not `http://127.0.0.1:<port>/`.** The server binds IPv6 loopback only and `127.0.0.1` is refused. Measured, `curl` exits `7` there and answers `200` on `localhost`.
 - **Every `page.goto` passes `{ waitUntil: "domcontentloaded" }` with an explicit `timeout: 60000`.** The default `load` never fires on this app because its media does not finish, so a default `goto` rejects with `PageNavigationTimeoutError` on a perfectly healthy page.
 
@@ -47,13 +47,13 @@ Preconditions:
 
 ## Gotchas
 
-- **The router redirects.** `/` and `/chat` resume the last chat, so a `waitForURL` on `/` never fires; wait for `/chat/` instead. An unknown path goes to `/chat`. The chat harness at `/src/chat/harness.html` is a separate Vite multi-page entry, not a route of this one.
+- **The router redirects.** `/` and `/chat` resume the last chat, so a `waitForURL` on `/` never fires; wait for `/chat/` instead. An unknown path goes to `/chat`.
 - **`127.0.0.1` is refused; use `localhost`.** The Vite server binds the IPv6 loopback only. A recipe pointing at `127.0.0.1` fails at the connection with no page at all, which reads like a dead server rather than a wrong address.
 - **The default `goto` wait state times out here.** The transcript's media never finishes loading, so `load` does not fire. The error text names `domcontentloaded` even when you did not ask for it: that is the driver's phrasing, and the navigation did commit. Pass `{ waitUntil: "domcontentloaded", timeout: 60000 }` and then wait on the condition you care about.
 - **`page.on` does not exist.** Console and uncaught-error capture goes through `page.cdp("Page.addScriptToEvaluateOnNewDocument", …)` registered before navigation; see the recipe above.
-- **Two elements once shared the class `.chat-shell`.** The app's pane and the transcript's scroller were both a bare `.chat-shell`, defined independently with conflicting `overflow` and layout: the pane clips, the scroller scrolls. The pane is now the `data-component="chat-shell"` element under `.sidebar-shell` and the scroller is `[data-component="chat-scroll"]`. Always disambiguate by attribute; a bare `.chat-shell` in a selector is a bug, not a shorthand. **The harness does not mount the pane at all.** `[data-component="chat-shell"]` is `0` there, so this is a `/`-only recipe.
+- **Two elements once shared the class `.chat-shell`.** The app's pane and the transcript's scroller were both a bare `.chat-shell`, defined independently with conflicting `overflow` and layout: the pane clips, the scroller scrolls. The pane is now the `data-component="chat-shell"` element under `.sidebar-shell` and the scroller is `[data-component="chat-scroll"]`. Always disambiguate by attribute; a bare `.chat-shell` in a selector is a bug, not a shorthand.
 - **`.app-shell` and `.app-pane` are gone.** `shell.tsx` composes the sidebar and the main column directly inside `.sidebar-shell`, so both of those classes resolve to `null` and a recipe that reads a computed style off either throws before it can report anything. The shell is `.sidebar-shell`, the transcript pane is `[data-component="chat-shell"]`, and the sidebar is `[data-component="sidebar"]`.
 - **`page.snapshot()` captures the current viewport only.** The transcript is virtualized and the shell is one screen tall, so `scope: "full_page"` adds nothing. Leave it off.
 - **The dev server hot-reloads.** If an edit lands mid-run the page reloads under you; re-`goto` and re-snapshot rather than reading a stale snapshot as evidence.
 - **`page.evaluate` has no timeout.** Keep each call bounded: one `evaluate` per assertion, not a loop that waits inside the page.
-- **The app is not mounted to a real backend.** Everything rendered comes from local fixtures through `useApp`, so every state is reachable by URL and no proof here depends on a network call succeeding.
+- **The app talks to the dev Worker.** `/api/auth/dev/session` mints a real owner session and `/` renders that owner's rooms over the wire, so a missing backend shows as an empty shell rather than fixture content. For a backend-free run, `VITE_KIKO_SYNC=mock` swaps in `sync/mock-room.ts`.

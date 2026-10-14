@@ -8,9 +8,9 @@ import { VirtualThread, type VirtualThreadState } from "./VirtualThread"
  * The transcript surface.
  *
  * Deliberately the same props as `VirtualThread`, passed straight through: a
- * second signature here would be a second place for the harness and the app to
- * disagree about what a thread needs. What this adds is the name the rest of
- * the app imports — `VirtualThread` is the implementation, this is the surface.
+ * second signature here would be a second place to disagree about what a
+ * thread needs. What this adds is the name the rest of the app imports —
+ * `VirtualThread` is the implementation, this is the surface.
  */
 export function MessageList(props: {
   messages: readonly ChatMessage[]
@@ -40,8 +40,7 @@ export function MessageList(props: {
   /**
    * Controlled reply target. When this prop is supplied the transcript stops
    * owning the reply and renders whatever the parent says; `null` means no
-   * reply. Leave it out and the transcript keeps its internal signal, which is
-   * what the harness relies on.
+   * reply. Leave it out and the transcript keeps its internal signal.
    */
   replyTarget?: string | null
   /** The reader reached the oldest rows held: page in older ones. */

@@ -70,11 +70,6 @@ function failure(upload: ReturnType<typeof uploadState>) {
   return upload?.status === "failed" ? upload.reason : null
 }
 
-/**
- * The files that are not pictures, as the inline chip the message draws (`composer-chip`): the
- * file's icon, its name, and an upload status. A failed upload says Retry and tries again; the
- * remove button shows on hover or focus, and always on a touch screen.
- */
 export function PromptInputV2FileChips(props: {
   attachments: PromptInputV2Attachment[]
   onRemove: (attachment: PromptInputV2Attachment) => void
@@ -151,7 +146,7 @@ export function PromptInputV2Popover(props: {
 }) {
   return (
     <div
-      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-xl bg-menu p-2 shadow-[var(--v2-elevation-raised)] no-scrollbar"
+      class="absolute inset-x-0 -top-2 z-40 flex max-h-80 -translate-y-full flex-col overflow-auto rounded-xl bg-popover p-2 shadow-[0 1px 2px oklch(0% 0 none / 0.3)] no-scrollbar"
       onMouseDown={(event) => event.preventDefault()}
     >
       <Show when={props.search}>
@@ -162,7 +157,7 @@ export function PromptInputV2Popover(props: {
               value={search().value}
               aria-label={search().label}
               placeholder={search().placeholder}
-              class="w-full bg-transparent text-[13px] leading-5 text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
+              class="w-full bg-transparent text-[13px] leading-5 text-foreground outline-none placeholder:text-secondary-label"
               onInput={(event) => search().onValueChange(event.currentTarget.value)}
               onKeyDown={(event) => search().onKeyDown(event)}
               onMouseDown={(event) => event.stopPropagation()}
@@ -172,27 +167,27 @@ export function PromptInputV2Popover(props: {
       </Show>
       <Show
         when={props.items.length > 0}
-        fallback={<div class="px-2 py-1 text-v2-text-text-muted">{props.emptyLabel}</div>}
+        fallback={<div class="px-2 py-1 text-muted-foreground">{props.emptyLabel}</div>}
       >
         <For each={props.items}>
           {(item) => (
             <button
               type="button"
               data-suggestion-id={item.id}
-              class="flex w-full items-center gap-2 rounded-md px-2 py-1 text-start hover:bg-v2-overlay-simple-overlay-hover"
-              classList={{ "bg-v2-overlay-simple-overlay-hover": props.activeID === item.id }}
+              class="flex w-full items-center gap-2 rounded-md px-2 py-1 text-start hover:bg-control"
+              classList={{ "bg-control": props.activeID === item.id }}
               onPointerMove={() => props.onActiveChange(item)}
               onClick={() => props.onSelect(item)}
             >
               <div class="flex min-w-0 flex-1 items-center gap-2">
                 <PromptInputV2SuggestionIcon item={item} />
-                <span class="shrink-0 text-v2-text-text-base">{item.label}</span>
+                <span class="shrink-0 text-foreground">{item.label}</span>
                 <Show when={item.description}>
-                  <span class="min-w-0 truncate text-v2-text-text-muted">{item.description}</span>
+                  <span class="min-w-0 truncate text-muted-foreground">{item.description}</span>
                 </Show>
               </div>
               <Show when={item.keybind?.length}>
-                <span class="shrink-0 text-v2-text-text-muted">{item.keybind?.join("+")}</span>
+                <span class="shrink-0 text-muted-foreground">{item.keybind?.join("+")}</span>
               </Show>
             </button>
           )}
@@ -203,7 +198,6 @@ export function PromptInputV2Popover(props: {
 }
 
 function PromptInputV2SuggestionIcon(props: { item: PromptInputV2Suggestion }) {
-  // An agent wears its own face, so the list reads like the transcript. The mention's name is the slug.
   if (props.item.kind === "agent" && props.item.mention?.type === "agent")
     return <IdentityAvatar seed={props.item.mention.name} size={18} />
   if (props.item.kind === "command") return null

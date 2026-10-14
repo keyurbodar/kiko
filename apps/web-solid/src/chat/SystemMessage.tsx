@@ -1,23 +1,10 @@
 import { Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 
-/**
- * The one component behind every centred, senderless line in the transcript.
- *
- * - `default` is a live inline event ("agent joined"): `role="status"`, so a
- *   screen reader announces it as it arrives.
- * - `divider` is structure, not news: `role="separator"`, named by `label`.
- *   The date divider and the unread divider are both this variant. Announcing
- *   every date divider in a long transcript would be noise, so neither is a
- *   status.
- * - `tone="accent"` is the unread divider: a hairline either side of the
- *   label, both the accent at 45%, and an accent label.
- */
 export function SystemMessage(props: {
   variant?: "default" | "divider"
   tone?: "plain" | "accent"
   icon?: JSX.Element
-  /** Accessible name for a divider, since its children may be two spans. */
   label?: string
   class?: string
   children: JSX.Element
@@ -36,23 +23,27 @@ export function SystemMessage(props: {
   return (
     <div
       class={cn(
-        // The day divider in VirtualThread.tsx keeps the same 12px rhythm and 12px text.
         "chat-system-message flex items-baseline justify-center gap-1.5 px-4 py-3 text-center text-sm leading-4",
         accent()
           ? [
-              "mx-auto w-full max-w-(--content-max-w) items-center gap-2.5 text-accent",
-              "before:h-px before:grow before:bg-[color-mix(in_oklch,var(--accent)_45%,transparent)]",
-              "after:h-px after:grow after:bg-[color-mix(in_oklch,var(--accent)_45%,transparent)]",
+              "mx-auto w-full max-w-(--chat-content-max-width) items-center gap-2.5 text-ring",
+              "before:h-px before:grow before:bg-[color-mix(in_oklch,var(--ring)_45%,transparent)]",
+              "after:h-px after:grow after:bg-[color-mix(in_oklch,var(--ring)_45%,transparent)]",
             ]
-          : "text-weak",
+          : "text-muted-foreground",
         local.class,
       )}
       data-component={rest["data-component"] ?? "chat-system-message"}
       data-variant={local.variant ?? "default"}
       role={divider() ? "separator" : "status"}
-      aria-label={divider() ? local.label : undefined}
     >
-      <span class={cn("inline-flex items-baseline gap-1.5", accent() && "shrink-0 font-medium")}>
+      <Show when={divider() && local.label}>
+        <span class="sr-only">{local.label}</span>
+      </Show>
+      <span
+        class={cn("inline-flex items-baseline gap-1.5", accent() && "shrink-0 font-medium")}
+        aria-hidden={divider() && local.label ? "true" : undefined}
+      >
         <Show when={local.icon}>
           <span class="inline-flex shrink-0 self-center" aria-hidden="true">
             {local.icon}

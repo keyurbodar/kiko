@@ -2,27 +2,18 @@ import { For, createSignal, onMount } from "solid-js"
 import { displayShortcut } from "./hotkeys"
 import { findCommand, isEnabled } from "./registry"
 
-/*
- * The shortcut pills shown while the command key is held (see `hints.ts`). Each pill sits beside
- * the control that carries `data-hint`. The layer draws them hidden, measures their real sizes, and
- * then places them: whole pills on screen, and no pill over another (`place`). Nothing animates and
- * nothing here takes the pointer.
- */
 export type Side = "bottom" | "top" | "left" | "right"
 export type Box = { x: number; y: number; w: number; h: number }
 type Pill = { key: string; label: string; keys: string; anchor: DOMRect; side: Side }
 
 const GAP = 6
 const EDGE = 8
-/** Space kept between two pills. */
 const SPACE = 4
 
-/** A command title "Attach file…" reads as "Attach file" on a pill. */
 export function pillLabel(title: string): string {
   return title.replace(/…$/, "")
 }
 
-/** Where a pill of size w x h goes beside `a` on `side`, before clamping. */
 function beside(a: { left: number; top: number; right: number; bottom: number; width: number; height: number }, side: Side, w: number, h: number): Box {
   const cx = a.left + a.width / 2 - w / 2
   const cy = a.top + a.height / 2 - h / 2
@@ -41,11 +32,6 @@ const clamp = (box: Box, vw: number, vh: number): Box => ({
   y: Math.min(Math.max(box.y, EDGE), vh - EDGE - box.h),
 })
 
-/**
- * Final boxes for pills wanted at `boxes` on `sides`, in order. Each is kept inside the viewport,
- * and one that lands on an earlier pill moves on, away from its control along its own side, until
- * it is clear. Pure, so the placement tests without a DOM.
- */
 export function place(boxes: readonly Box[], sides: readonly Side[], vw: number, vh: number): Box[] {
   const placed: Box[] = []
   boxes.forEach((wanted, i) => {
@@ -60,7 +46,6 @@ export function place(boxes: readonly Box[], sides: readonly Side[], vw: number,
         : side === "top" ? { ...box, y: hit.y - SPACE - box.h }
         : { ...box, y: hit.y + hit.h + SPACE }
       const clamped = clamp(next, vw, vh)
-      // Pinned against an edge: step the other way along the free axis instead.
       box = clamped.x === box.x && clamped.y === box.y
         ? clamp(side === "left" || side === "right" ? { ...box, y: hit.y + hit.h + SPACE } : { ...box, x: hit.x + hit.w + SPACE }, vw, vh)
         : clamped
@@ -70,11 +55,6 @@ export function place(boxes: readonly Box[], sides: readonly Side[], vw: number,
   return placed
 }
 
-/**
- * Whether the reader can see the control now. A sidebar panel for another section stays mounted
- * with `visibility: hidden` to keep its scroll, so a size alone is not enough; and a control under
- * a dialog or a panel is covered, so the point at its centre has to be the control itself.
- */
 function onScreen(el: HTMLElement, r: DOMRect): boolean {
   if (r.width === 0 || r.height === 0 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return false
   if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false
@@ -107,7 +87,6 @@ export default function HintLayer() {
   const pills = collect()
   const els: HTMLElement[] = []
   const [boxes, setBoxes] = createSignal<Box[] | null>(null)
-  // Measured before the first paint, so the pills appear once, already in place.
   onMount(() => {
     const wanted = pills.map((p, i) => beside(p.anchor, p.side, els[i]!.offsetWidth, els[i]!.offsetHeight))
     setBoxes(place(wanted, pills.map((p) => p.side), innerWidth, innerHeight))
@@ -118,14 +97,14 @@ export default function HintLayer() {
         {(pill, i) => (
           <span
             ref={(el) => (els[i()] = el)}
-            class="absolute top-0 left-0 flex h-6 items-center gap-1.5 rounded-[8px] bg-menu px-2 text-[12px] whitespace-nowrap text-text shadow-menu"
+            class="absolute top-0 left-0 flex h-6 items-center gap-1.5 rounded-[8px] bg-popover px-2 text-[12px] whitespace-nowrap text-foreground shadow-menu"
             style={{
               visibility: boxes() ? "visible" : "hidden",
               transform: boxes() ? `translate(${boxes()![i()]!.x}px, ${boxes()![i()]!.y}px)` : undefined,
             }}
           >
             {pill.label}
-            <kbd class="rounded-[5px] bg-btn px-1 font-sans text-[11px] text-weak">{pill.keys}</kbd>
+            <kbd class="rounded-[5px] bg-control px-1 font-sans text-[11px] text-muted-foreground">{pill.keys}</kbd>
           </span>
         )}
       </For>

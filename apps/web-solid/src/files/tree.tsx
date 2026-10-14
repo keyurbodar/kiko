@@ -7,52 +7,34 @@ import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, t
 import "./tree.css"
 import { dirname, HOME, join, loadExpanded, pathsUnder, ROOT, saveExpanded } from "./model"
 
-/*
- * The file tree in the chat's side panel, drawn by `@pierre/trees`, the tree t3code uses. The room's
- * file index is the only source of files: a write by an agent lands as a `file` event, the room
- * store updates `files`, and the tree is told what was added or removed. Folders are the room's own,
- * empty ones included, and a folder's path ends with a slash for the tree.
- *
- * Nothing here writes a file. New, rename, and delete call back, so the route decides what they mean.
- */
-
 export type FileTreeProps = {
 	roomId: string
-	/** The room's file index. `name` is the full path. */
 	files: readonly FileRef[]
-	/** The room's folders, empty ones included. */
 	folders?: readonly string[]
-	/** A new folder was named. */
 	onNewFolder?: (path: string) => void
-	/** The open file, drawn as the selected row. */
 	active?: string | null
-	/** A file was opened, by click or Enter. */
 	onOpen?: (path: string) => void
-	/** A new, empty file was named. */
 	onNewFile?: (path: string) => void
-	/** A folder was renamed or a file moved. `paths` are the files it changes. */
 	onRename?: (from: string, to: string, paths: string[]) => void
-	/** A file or a folder was deleted. `paths` are the files it removes. */
 	onDelete?: (path: string, paths: string[]) => void
 }
 
 const asFolder = (path: string) => `${path.replace(/\/+$/, "")}/`
 const plain = (path: string) => path.replace(/\/+$/, "")
 
-/** Shadow-root styles that make the tree read as part of the panel. */
 const TREE_CSS = `
 	:host {
 		--trees-bg-override: transparent;
-		--trees-fg-override: var(--text);
-		--trees-selected-bg-override: var(--selected-bg);
-		--trees-hover-bg-override: var(--hover-bg);
-		--trees-border-color-override: var(--hairline);
+		--trees-fg-override: var(--foreground);
+		--trees-selected-bg-override: var(--accent-strong);
+		--trees-hover-bg-override: var(--accent);
+		--trees-border-color-override: var(--border);
 		--trees-font-family-override: inherit;
 		--trees-font-size-override: var(--font-md);
-		--trees-fg-muted-override: var(--text-muted);
+		--trees-fg-muted-override: var(--muted-foreground);
 		--trees-focus-ring-width-override: 1px;
 		--trees-focus-ring-offset-override: -1px;
-		--trees-focus-ring-color-override: color-mix(in oklab, var(--accent) 55%, transparent);
+		--trees-focus-ring-color-override: color-mix(in oklab, var(--ring) 55%, transparent);
 		--trees-selected-focused-border-color-override: transparent;
 		--trees-padding-inline-override: 4px;
 	}
@@ -63,19 +45,16 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 	let host!: HTMLDivElement
 	let tree: Pierre | undefined
 	let syncing = false
-	/** Rows added for a name that has not been given yet, by the path they hold now. */
 	const pending = new Map<string, "file" | "folder">()
 	const [query, setQuery] = createSignal("")
 
 	const filePaths = createMemo(() => props.files.map((f) => f.name.replace(/^\/+/, "")))
 	const folderPaths = createMemo(() => (props.folders ?? []).map((f) => plain(f.replace(/^\/+/, ""))).filter(Boolean))
-	/** The paths the tree should hold. A folder ends with a slash. */
 	const wanted = createMemo(() => [...filePaths(), ...folderPaths().map(asFolder)])
 	let held = new Set<string>()
 
 	const selectedPath = () => tree?.getSelectedPaths().at(-1) ?? null
 
-	/** A new item goes in the selected folder, or beside the selected file. */
 	const parentForNew = () => {
 		const path = selectedPath()
 		if (!path) return ROOT
@@ -185,7 +164,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			onSelectionChange: (selected) => {
 				if (syncing) return
 				const path = selected.at(-1)
-				// A row waiting for its name is selected too, and is not a file yet.
 				if (path && !path.endsWith("/") && !pending.has(path) && filePaths().includes(path)) props.onOpen?.(path)
 			},
 			unsafeCSS: TREE_CSS,
@@ -194,7 +172,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		held = new Set(wanted())
 		instance.render({ containerWrapper: host })
 
-		// The open directories are saved a moment after the tree settles, one set per room.
 		let timer: ReturnType<typeof setTimeout> | undefined
 		const stop = instance.subscribe(() => {
 			clearTimeout(timer)
@@ -215,14 +192,12 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		})
 	})
 
-	/** Every folder the file paths imply, plus the room's own. */
 	const folderSet = () => {
 		const out = new Set(folderPaths())
 		for (const path of filePaths()) for (let dir = dirname(path); dir !== ROOT; dir = dirname(dir)) out.add(dir)
 		return out
 	}
 
-	// The index changed: add what is new and remove what is gone, so open folders stay open.
 	createEffect(
 		on(wanted, (next) => {
 			if (!tree) return
@@ -303,7 +278,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 					</TooltipV2>
 				</Show>
 			</div>
-			<div class="kt-host" ref={host} aria-label="Files" />
+			<div class="kt-host" ref={host} role="region" aria-label="Files" />
 			<Show when={wanted().length === 0}>
 				<div class="kt-empty">No files yet. Agents save what they make here, and + adds one.</div>
 			</Show>
@@ -318,4 +293,3 @@ function storage() {
 		return undefined
 	}
 }
-

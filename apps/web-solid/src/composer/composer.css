@@ -1,36 +1,23 @@
-/* Chat composer: one soft paper card, 16px corners, a hairline that darkens on focus and a quiet
- * shadow under it. The attachment strip sits on top, a whole line. Below it is one row: a 32px
- * attach button, the field, a 32px emoji button, and the 32px ink send button. In an empty chat
- * the card is taller, because it is the middle of the screen.
- *
- * Every selector is scoped under `.composer-dock`. The names here (`.composer-row`,
- * `.reply-bar*`) are generic enough to collide with the sidebar and the
- * transcript, and this file ships alongside both in one global namespace.
- *
- * Nothing here moves. The field grows instantly. */
 
-/* ===== Dock ------------------------------------------------------------ */
 
-/* The dock is a plain block at the bottom of the chat pane's column, in flow. Nothing scrolls
- * under it, so it needs no fade or shadow above it. `relative` gives `z-index` something to
- * resolve against and anchors the jump buttons above it. */
+
+
+
 .composer-dock {
   position: relative;
   z-index: 5;
   width: 100%;
-  max-width: var(--content-max-w);
+  max-width: var(--chat-content-max-width);
   margin-right: auto;
   margin-left: auto;
-  /* Opaque by declaration, so it covers rather than fades if it ever becomes an overlay. */
+
   background: var(--dock-bg);
 }
 
-/* ===== The box ---------------------------------------------------------- */
 
-/* `align-items: flex-end` keeps the two buttons on the bottom line as the field grows.
- * `flex-wrap` puts the attachment strip, which takes a whole line, above the field row. */
-/* The attach button stands beside the card, not inside it: a round button, then the card, both
- * resting on the same bottom line as the card grows. */
+
+
+
 .composer-dock .composer-bar {
   display: flex;
   align-items: flex-end;
@@ -38,10 +25,9 @@
   margin: 0 10px 12px;
 }
 
-/* The card is t3's composer: 24px corners, and an edge so faint it reads as the surface's own
- * boundary. The edge is an inset ring, so it never moves the layout. */
+
 .composer-dock .composer-row {
-  --composer-edge: color-mix(in oklab, var(--text) 6%, transparent);
+  --composer-edge: color-mix(in oklab, var(--foreground) 6%, transparent);
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -50,7 +36,7 @@
   min-width: 0;
   flex: 1;
   padding: 8px;
-  background: color-mix(in oklab, var(--text) 4.5%, var(--bg));
+  background: color-mix(in oklab, var(--foreground) 4.5%, var(--background));
   border-radius: 24px;
   box-shadow:
     inset 0 0 0 1px var(--composer-edge),
@@ -59,13 +45,13 @@
 
 :root:not(.dark) .composer-dock .composer-row {
   --composer-edge: rgb(0 0 0 / 8%);
-  background: color-mix(in oklab, #ffffff 70%, var(--bg));
+  background: color-mix(in oklab, #ffffff 70%, var(--background));
   box-shadow:
     inset 0 0 0 1px var(--composer-edge),
-    0 8px 24px color-mix(in oklab, var(--text) 6%, transparent);
+    0 8px 24px color-mix(in oklab, var(--foreground) 6%, transparent);
 }
 
-/* In an empty chat the card holds two lines before it grows. */
+
 [data-session-empty="true"] .composer-dock .composer-row {
   padding: 10px;
 }
@@ -74,18 +60,11 @@
   min-height: 46px;
 }
 
-/* The field spans the card; the buttons sit on a row under it, attach on the left, the rest right. */
 [data-session-empty="true"] .composer-dock .composer-input-wrap {
-  order: -1;
-  flex: 1 1 100%;
   padding: 4px 6px 2px;
 }
 
-[data-session-empty="true"] .composer-dock .composer-emoji {
-  margin-left: auto;
-}
 
-/* ===== The buttons -------------------------------------------------- */
 
 .composer-dock .composer-emoji,
 .composer-dock .composer-send {
@@ -108,16 +87,16 @@
 }
 
 .composer-dock .composer-emoji {
+  margin-left: auto;
   background: transparent;
-  color: color-mix(in oklab, var(--text) 52%, transparent);
+  color: color-mix(in oklab, var(--foreground) 52%, transparent);
 }
 
 .composer-dock .composer-emoji:disabled {
   opacity: 0.35;
 }
 
-/* The standalone attach button: a circle as tall as a one-line card, on the card's own surface
- * and edge, so the pair reads as two pieces of one control. */
+
 .composer-dock .composer-attach {
   display: flex;
   width: 48px;
@@ -126,11 +105,11 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: color-mix(in oklab, var(--text) 62%, transparent);
-  background: color-mix(in oklab, var(--text) 4.5%, var(--bg));
+  color: color-mix(in oklab, var(--foreground) 62%, transparent);
+  background: color-mix(in oklab, var(--foreground) 4.5%, var(--background));
   border: none;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 6%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 6%, transparent);
   cursor: pointer;
 }
 
@@ -144,47 +123,47 @@
 }
 
 :root:not(.dark) .composer-dock .composer-attach {
-  background: color-mix(in oklab, #ffffff 70%, var(--bg));
+  background: color-mix(in oklab, #ffffff 70%, var(--background));
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
 }
 
 @media (hover: hover) {
   .composer-dock .composer-attach:hover:not(:disabled) {
-    color: var(--text);
+    color: var(--foreground);
   }
 
   .composer-dock .composer-emoji:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--text) 7%, transparent);
-    color: var(--text);
+    background: color-mix(in oklab, var(--foreground) 7%, transparent);
+    color: var(--foreground);
   }
 }
 
-/* Monocode's primary action: the solid fill, and at 30% while there is nothing to send. */
+
 .composer-dock .composer-send {
-  background: var(--accent-fill);
-  color: var(--on-accent);
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .composer-dock .composer-send:disabled {
-  background: color-mix(in oklab, var(--text) 9%, transparent);
-  color: color-mix(in oklab, var(--text) 35%, transparent);
+  background: color-mix(in oklab, var(--foreground) 9%, transparent);
+  color: color-mix(in oklab, var(--foreground) 35%, transparent);
 }
 
-/* ===== The field -------------------------------------------------------- */
+
+
 
 .composer-dock .composer-input-wrap {
   position: relative;
   display: flex;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 100%;
   flex-direction: column;
   align-items: stretch;
   padding: 7px 4px;
   cursor: text;
 }
 
-/* The field holds the editor and its placeholder, so the placeholder shares the editor's origin at any
- * height. The reply bar is outside it. */
+
 .composer-dock .composer-field {
   position: relative;
   display: flex;
@@ -192,8 +171,7 @@
   flex-direction: column;
 }
 
-/* The editor is a contenteditable div and its own scroller. t3code's box: a 0.25rem pad, pulled out by
- * the same margin so the text stays where it sat, a 4.875rem floor and a 13rem ceiling, then it scrolls. */
+
 .composer-dock .composer-input {
   min-width: 0;
   min-height: 4.875rem;
@@ -203,13 +181,13 @@
   overflow-y: auto;
   overflow-x: hidden;
   flex: 1;
-  color: var(--text);
+  color: var(--foreground);
   cursor: text;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-/* t3code draws the caret and the selection in the browser's own colors, not the accent kat sets app-wide. */
+
 .composer-dock .composer-input {
   caret-color: auto;
 }
@@ -220,13 +198,11 @@
   color: HighlightText;
 }
 
-/* The placeholder is an overlay on the field's top-left, not a `::before` on the editor: the editor
- * carries a zero-width space in its own `::before` so it never collapses, so `:empty` is not the hook it
- * looks like. It shows only while the editor is empty. t3code's `text-placeholder/75`. */
+
 .composer-dock .composer-placeholder {
   position: absolute;
   inset: 0 0 auto;
-  color: color-mix(in oklab, var(--text-muted) 75%, transparent);
+  color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
   pointer-events: none;
 }
 
@@ -237,8 +213,7 @@
   line-height: 1.625;
 }
 
-/* iOS zooms the page when a field under 16px takes focus, and it does not zoom back. On a touch
- * screen the editor and its placeholder are 16px. */
+
 @media (pointer: coarse) {
   .composer-dock .composer-input,
   .composer-dock .composer-placeholder {
@@ -246,13 +221,10 @@
   }
 }
 
-/* ===== Reply bar -------------------------------------------------------- */
 
-/* One quiet line above the field, set in the field's own type: a 2px neutral rule, the role and the
- * quoted words both muted. It reaches out over the attach column (32px + 6px gap, less the field's
- * 4px inset) to the box's padding. The accent stays off it, so the bar does not compete with the send button. */
-/* A full-width row at the top of the card, above the field. It takes its own line, so it never
- * sits over the attach button or the field. */
+
+
+
 .composer-dock .composer-row > .reply-bar {
   display: flex;
   flex: 0 0 100%;
@@ -288,20 +260,20 @@
   bottom: 1px;
   left: 2px;
   width: 2px;
-  background: color-mix(in oklab, var(--text) 25%, transparent);
+  background: color-mix(in oklab, var(--foreground) 25%, transparent);
   border-radius: 1px;
   content: "";
 }
 
 .composer-dock .reply-bar-role {
   flex-shrink: 0;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .composer-dock .reply-bar-preview {
   min-width: 0;
   overflow: hidden;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -316,7 +288,7 @@
 
 .composer-dock .reply-bar-glyph {
   flex-shrink: 0;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .composer-dock .reply-bar-dismiss {
@@ -327,7 +299,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   background: none;
   border: none;
   border-radius: 6px;
@@ -336,16 +308,14 @@
 
 @media (hover: hover) {
   .composer-dock .reply-bar-dismiss:hover {
-    background: color-mix(in oklab, var(--text) 8%, transparent);
-    color: var(--text);
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+    color: var(--foreground);
   }
 }
 
-/* ===== Pictures ----------------------------------------------------------- */
 
-/* A row of 64px tiles above the field, t3code's composer image: 64px square, a 10px radius and a
- * 1px border. The remove button shows on hover or focus, and always on a touch screen, which has
- * neither. */
+
+
 .composer-dock .composer-pictures {
   display: flex;
   flex: 0 0 100%;
@@ -361,11 +331,11 @@
   flex-shrink: 0;
   overflow: hidden;
   border-radius: 10px;
-  box-shadow: inset 0 0 0 1px var(--hairline);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .composer-dock .composer-picture[data-state="failed"] {
-  box-shadow: inset 0 0 0 1px var(--danger);
+  box-shadow: inset 0 0 0 1px var(--error);
 }
 
 .composer-dock .composer-picture-open {
@@ -391,7 +361,7 @@
   width: 100%;
   height: 100%;
   padding: 7px;
-  background: color-mix(in oklab, var(--bg) 55%, transparent);
+  background: color-mix(in oklab, var(--background) 55%, transparent);
   fill: none;
   stroke-width: 3;
   pointer-events: none;
@@ -399,11 +369,11 @@
 }
 
 .composer-dock .composer-picture-ring circle:first-child {
-  stroke: color-mix(in oklab, var(--text) 20%, transparent);
+  stroke: color-mix(in oklab, var(--foreground) 20%, transparent);
 }
 
 .composer-dock .composer-picture-ring circle:last-child {
-  stroke: var(--text);
+  stroke: var(--foreground);
   stroke-linecap: round;
 }
 
@@ -417,8 +387,8 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  color: var(--text);
-  background: color-mix(in oklab, var(--bg) 85%, transparent);
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--background) 85%, transparent);
   border: 0;
   border-radius: 6px;
   cursor: pointer;
@@ -428,7 +398,7 @@
   right: 4px;
 }
 
-/* The 20px glyph keeps its look; the target reaches 4px past it. */
+
 .composer-dock .composer-picture-remove::before,
 .composer-dock .composer-picture-retry::before {
   content: "";
@@ -452,7 +422,7 @@
   }
 }
 
-/* ===== The rich field ------------------------------------------------------ */
+
 
 .composer-dock .composer-rich {
   display: flex;
@@ -465,7 +435,7 @@
   display: none;
 }
 
-/* The composer's @ token matches the sent one (chat/ui/Mention.tsx): a soft tint of the agent's color, a pill. */
+
 .composer-dock .composer-input [data-mention] {
   display: inline-flex;
   align-items: baseline;
@@ -486,8 +456,8 @@
   min-width: 0;
   flex: 1;
   padding: 4px 8px;
-  color: var(--text);
-  background: color-mix(in oklab, var(--text) 6%, transparent);
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
   border: 0;
   border-radius: 6px;
   font: inherit;

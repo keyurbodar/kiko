@@ -29,8 +29,8 @@ A user who opens Kiko sees the conversation list before they see any conversatio
 Preconditions:
 
 - The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/kiko-verify-evidence/vite.pid` names it.
-- `../../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
-- **Every recipe here is a composed-app recipe.** The chat harness mounts `MessageList` alone, so `[data-component="sidebar"]` is `0` there: measured on a harness page.
+- `../../SKILL.md` **Doctor** reports `ok: true`.
+- **Every recipe here is a composed-app recipe.** The sidebar mounts only in the composed app at `/`, signed in through `/api/auth/dev/session?name=<suite>`.
 - **Use `http://localhost:<port>/`, not `http://127.0.0.1:<port>/`.** The server binds IPv6 loopback only; `curl` to `127.0.0.1:3017` exits `7` (connection refused) while `localhost:3017` answers `200`.
 - **Every `page.goto` passes `{ waitUntil: "domcontentloaded", timeout: 60000 }`.** The transcript's media never finishes loading, so the default `load` wait never fires and the driver's default deadline rejects on a healthy page.
 
@@ -86,7 +86,7 @@ Selectors this feature relies on:
 
 ## Gotchas
 
-- **The sidebar exists only in the composed app.** Measured on a harness page: `[data-component="sidebar"]` is `0`. Every recipe here is a `/` recipe, and the chat harness is the wrong entry point for all of them.
+- **The sidebar exists only in the composed app.** Every recipe here is a `/` recipe.
 - **The panel's class is `panel`, and the row is a `div`: not `aside` and not a `li`.** The `<aside>` is the panel wrapper; its class list is `panel`. A recipe that reaches for `nav aside li` finds the panel and nothing else. Scope by `data-component`.
 - **A collapsed panel is `0px` wide, not unmounted.** Measured: `data-collapsed` is the empty string, the width is `0`, and the panel, the handle and all four rows are still in the DOM. **Assert the handle is still mounted.** That is what makes the collapse reversible. Do not report "the rows are still there" as a bug.
 - **The handle is `role="separator"` with `aria-valuenow` / `aria-valuemin` / `aria-valuemax`,** set to `280` / `220` / `420`, and labelled `Resize sidebar`. Assert the `valuenow` against the panel's own measured width; that pairing is the live proof the clamp is wired, and it moves as you drag.
@@ -96,6 +96,6 @@ Selectors this feature relies on:
 - **The compose button is labelled `New chat`, and its menu on chat holds `New chat` and `New group`.** Collapse lives on the header toggle, not under the compose button.
 - **The hover card portals outside the panel.** Scope it by `[data-component="hover-card-v2-content"]`, never by a row ancestor, and give it ~800ms: it is a delayed hover, not an instant one, so a read immediately after the pointer lands sees nothing.
 - **The sidebar's animations are the typing dots and the header band.** The dots are `animation-name: sidebar-typing-dot` on the three `.chat-typing-dot` elements of a typing row; the band is `header-snow-flap` in `header-snow.css`. Nothing else in the sidebar carries an `animation-name` or a non-zero `transition-duration`. Everything else easing is a defect.
-- **The chat transcript's no-animation probe is scoped to the transcript and excludes the sidebar.** The sidebar mounts in the composed app and the chat fixtures drive the harness, so a sidebar element in that violation list means the scope leaked.
+- **The chat transcript's no-animation probe is scoped to the transcript and excludes the sidebar.** The sidebar mounts beside the transcript in the same composed app, so a sidebar element in that violation list means the scope leaked.
 - **`.sidebar-shell` is the scope class for the whole stylesheet.** It is the flex row `app/shell.tsx` composes and the ancestor every rule in `sidebar/sidebar.css` hangs under, and its two children are the sidebar and the transcript pane. The transcript has its own stylesheet, `chat/ui/bubble.css`; see [Chat bubbles](./chat-bubbles.md).
 - **A written `scrollTop` is not a user scroll.** Where a recipe is about scroll-derived state, use `page.mouse.wheel` over `[data-component="chat-scroll"]`, and confirm the move with the pane's `data-range` attribute.

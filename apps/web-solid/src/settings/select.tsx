@@ -1,14 +1,3 @@
-// The settings select, t3code's (MIT, apps/web/src/components/ui/select.tsx): a bevelled trigger
-// with the value and a faded chevron, opening a short list where the chosen option has a check in
-// a fixed gutter on the left. The list is in a portal so no card clips it, under the trigger's
-// right edge or above it when the window has no room below. An option may carry an icon before
-// its name and buttons after it, always shown.
-//
-// The keyboard is a listbox's: the list takes focus with the chosen option active, the arrows,
-// Home and End move, a letter jumps to the next option starting with it, Enter or Space picks,
-// and Escape closes. Tab walks to the option buttons, and out of the panel it closes. Every
-// close puts focus back on the trigger. The buttons sit in their own column beside the listbox,
-// so the listbox holds only options.
 import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
 import { For, Show, createSignal, createUniqueId, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
@@ -18,9 +7,7 @@ export type SelectOption<T> = {
   value: T
   label: string
   icon?: JSX.Element
-  /** A muted word after the name. */
   note?: string
-  /** Buttons after the option, such as export and remove. */
   actions?: JSX.Element
 }
 
@@ -51,8 +38,6 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
   const close = () => {
     setOpen(false)
     trigger?.focus()
-    // An outside click on nothing focusable drops focus on the body after this, so it comes back.
-    // A click on another control keeps that control's focus.
     requestAnimationFrame(() => {
       if (!document.activeElement || document.activeElement === document.body) trigger?.focus()
     })
@@ -79,7 +64,6 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
       if (option) pick(option.value)
     } else if (key === "Escape") close()
     else if (key.length === 1 && /\S/.test(key) && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      // The next option after the active one whose name starts with the letter, wrapping round.
       const letter = key.toLowerCase()
       for (let step = 1; step <= n; step += 1) {
         const index = (at + step) % n
@@ -93,7 +77,6 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
     event.stopPropagation()
   }
 
-  // Tab out of the panel, either way, closes it.
   const onPanelKey = (event: KeyboardEvent) => {
     if (event.key !== "Tab") return
     const stops = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("[role=listbox], button")]
@@ -136,7 +119,7 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="bg-menu fixed z-50 flex max-h-[320px] max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-xl p-1 shadow-popover"
+            class="bg-popover fixed z-50 flex max-h-[320px] max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-xl p-1 shadow-popover"
             style={place()}
             onKeyDown={onPanelKey}
           >
@@ -150,7 +133,7 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
               }}
               id={id}
               role="listbox"
-              tabindex="0"
+              tabIndex={0}
               aria-label={props.label}
               aria-activedescendant={`${id}-${active()}`}
               class="kit-listbox flex min-w-0 flex-1 flex-col"
@@ -164,8 +147,8 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={selected()}
-                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-lg pr-2 pl-1.5 text-[13.5px] text-text"
-                      classList={{ "bg-[color-mix(in_oklab,var(--text)_8%,transparent)]": active() === i() }}
+                      class="flex h-8 min-w-0 cursor-pointer items-center gap-2 rounded-lg pr-2 pl-1.5 text-[13.5px] text-foreground"
+                      classList={{ "bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)]": active() === i() }}
                       data-option={String(option.value)}
                       onPointerMove={() => setActive(i())}
                       onClick={() => pick(option.value)}

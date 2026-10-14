@@ -7,15 +7,6 @@ import { reviewChange, type ReviewChange } from "./review-diff"
 import { cn } from "../lib/cn"
 import { Button, DetailsButton, fieldClass, Group, Hint, Item, line, muted, Notice, Pill, Row, Toggle } from "./kit"
 
-/*
- * Settings, extensions (architecture section 24). Three lists, in the order the human needs them:
- * installs waiting for review, what is installed, and the catalog. Every change is optimistic: the
- * user store lays it over the server's lists at once and rolls it back when the server says no.
- *
- * The review is the manifest's powers in plain lines, worst first, then the code. An update shows
- * what changed against the installed version. Nothing installs without the human pressing install.
- */
-
 const app = useApp
 
 async function send(op: ExtensionOp): Promise<ExtensionResult> {
@@ -24,7 +15,6 @@ async function send(op: ExtensionOp): Promise<ExtensionResult> {
   return store.extensionOp(op)
 }
 
-/** One catalog read per page load; the catalog only changes with a deploy. */
 let catalogCache: Promise<readonly ExtensionCatalogEntry[]> | null = null
 const loadCatalog = () => {
   catalogCache ??= send({ op: "catalog" }).then((r) => {
@@ -39,14 +29,11 @@ const loadCatalog = () => {
 
 const focus = "outline-none"
 
-/** Manifests and review lines are written in lower case; the interface starts each sentence with a capital. */
 const sentence = (text: string) => text.replace(/(^|[.!?]\s+)([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase())
 
-/** Where an extension came from, as its meta line says it. */
 const origin = (x: { source: string; by?: string | null }) => (x.source === "catalog" ? "From the catalog" : x.by ? `Written by @${x.by}` : "From your files")
 
-/** The first letter of the name, in the item's icon tile. */
-const Initial = (props: { name: string }) => <span class="text-[13px] font-semibold text-text">{props.name.slice(0, 1)}</span>
+const Initial = (props: { name: string }) => <span class="text-[13px] font-semibold text-foreground">{props.name.slice(0, 1)}</span>
 
 const LEVEL_ORDER: Record<ReviewLine["level"], number> = { warning: 0, notice: 1, info: 2 }
 
@@ -115,7 +102,6 @@ export default function ExtensionsPage() {
 
 type Run = (op: ExtensionOp) => Promise<ExtensionResult>
 
-/** An install that waits: who asked, what it can do, the code, and install or decline. */
 function ProposalCard(props: { proposal: ExtensionProposal; installed?: ExtensionInfo; run: Run }) {
   const p = () => props.proposal
   const m = () => p().bundle.manifest
@@ -160,7 +146,6 @@ function ProposalCard(props: { proposal: ExtensionProposal; installed?: Extensio
   )
 }
 
-/** The powers, riskiest first, as plain lines. A warning has a red dot, a notice an accent one, an info a faint one. */
 function Review(props: { lines: ReviewLine[] }) {
   const sorted = () => [...props.lines].sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level])
   return (
@@ -169,10 +154,10 @@ function Review(props: { lines: ReviewLine[] }) {
         {(entry) => (
           <li class="flex items-start gap-2 text-[13px] leading-relaxed" data-level={entry.level}>
             <span
-              class={`mt-[8px] size-1.5 shrink-0 rounded-full ${entry.level === "warning" ? "bg-[var(--danger)]" : entry.level === "notice" ? "bg-[var(--accent)]" : "bg-[var(--text-faint)]"}`}
+              class={`mt-[8px] size-1.5 shrink-0 rounded-full ${entry.level === "warning" ? "bg-[var(--error)]" : entry.level === "notice" ? "bg-[var(--ring)]" : "bg-[var(--secondary-label)]"}`}
               aria-hidden="true"
             />
-            <span class={entry.level === "warning" ? "text-text" : muted}>{sentence(entry.text)}</span>
+            <span class={entry.level === "warning" ? "text-foreground" : muted}>{sentence(entry.text)}</span>
           </li>
         )}
       </For>
@@ -180,7 +165,6 @@ function Review(props: { lines: ReviewLine[] }) {
   )
 }
 
-/** An update's powers: what this version adds or drops, and how many stay the same. */
 function UpdateReview(props: { change: ReviewChange }) {
   const c = () => props.change
   return (
@@ -200,7 +184,6 @@ function UpdateReview(props: { change: ReviewChange }) {
   )
 }
 
-/** One installed extension: the switch, and on open its powers, agents, secrets, code, and remove. */
 function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
   const x = () => props.extension
   const [open, setOpen] = createSignal(false)
@@ -242,16 +225,16 @@ function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
         </>
       }
     >
-      {/* An expression, not a Show: the item draws its details row only while there is something in it. */}
+
       {open() && (
         <div class="flex flex-col gap-4" data-component="extension-detail">
           <Show when={x().error}>
-            <p class="font-mono text-[12px] leading-relaxed break-words text-[var(--danger)]">{x().error}</p>
+            <p class="font-mono text-[12px] leading-relaxed break-words text-[var(--error)]">{x().error}</p>
           </Show>
           <Review lines={describeManifest(x().manifest)} />
           <Show when={tools().length}>
             <p class={cn("text-[13px]", muted)}>
-              Tools: <span class="font-mono text-text">{tools().join(", ")}</span>
+              Tools: <span class="font-mono text-foreground">{tools().join(", ")}</span>
             </p>
           </Show>
           <AgentScope extension={x()} run={props.run} />
@@ -298,7 +281,6 @@ function InstalledRow(props: { extension: ExtensionInfo; run: Run }) {
   )
 }
 
-/** Every agent, or only the ones picked. Each is a button that stays pressed while it is picked. */
 function AgentScope(props: { extension: ExtensionInfo; run: Run }) {
   const agents = () => app.agents()
   const scope = () => props.extension.agents
@@ -320,7 +302,6 @@ function AgentScope(props: { extension: ExtensionInfo; run: Run }) {
   )
 }
 
-/** A kit button that toggles: pressed, it fills with the accent and leads with a check. */
 function Chip(props: { on: boolean; label: string; onClick: () => void }) {
   return (
     <Button aria-pressed={props.on} onClick={props.onClick}>
@@ -334,10 +315,6 @@ function Chip(props: { on: boolean; label: string; onClick: () => void }) {
   )
 }
 
-/*
- * The value lives in the field and in the one frame. The field is cleared before the frame leaves,
- * so a secret never outlives the click.
- */
 function SecretField(props: { extension: ExtensionInfo; name: string; set: boolean; run: Run }) {
   const [editing, setEditing] = createSignal(!props.set)
   let input: HTMLInputElement | undefined
@@ -403,11 +380,9 @@ function SecretField(props: { extension: ExtensionInfo; name: string; set: boole
   )
 }
 
-/** A catalog entry: what it is, a "details" button for its powers, and "add" to review it above. */
 function CatalogCard(props: { entry: ExtensionCatalogEntry; installed: boolean; waiting: boolean; run: Run }) {
   const [open, setOpen] = createSignal(false)
   const [busy, setBusy] = createSignal(false)
-  // Add puts it with the other installs that wait, so every install goes through the same review.
   async function add() {
     setBusy(true)
     await props.run({ op: "propose_catalog", name: props.entry.name })
@@ -434,7 +409,6 @@ function CatalogCard(props: { entry: ExtensionCatalogEntry; installed: boolean; 
   )
 }
 
-/** The bundle's files as tabs. With `before`, each file shows its changes against the installed version. */
 function CodeView(props: { bundle: ExtensionBundle; before?: ExtensionBundle }) {
   const files = createMemo(() => {
     const manifest = `${JSON.stringify(props.bundle.manifest, null, 2)}\n`
@@ -454,24 +428,24 @@ function CodeView(props: { bundle: ExtensionBundle; before?: ExtensionBundle }) 
               type="button"
               role="tab"
               aria-selected={i() === active()}
-              class={cn("h-7 shrink-0 rounded-md px-2 font-mono text-xs", focus, i() === active() ? "bg-[var(--selected-bg)] text-text" : "text-muted hover:text-text")}
+              class={cn("h-7 shrink-0 rounded-md px-2 font-mono text-xs", focus, i() === active() ? "bg-[var(--accent-strong)] text-foreground" : "text-muted-foreground hover:text-foreground")}
               onClick={() => setActive(i())}
             >
               {f.name}
               <Show when={f.changed}>
-                <span class="ml-1 text-[var(--accent)]">{f.was === undefined ? "New" : f.now === undefined ? "Gone" : "Changed"}</span>
+                <span class="ml-1 text-[var(--ring)]">{f.was === undefined ? "New" : f.now === undefined ? "Gone" : "Changed"}</span>
               </Show>
             </button>
           )}
         </For>
       </div>
-      <pre class="max-h-[420px] overflow-auto p-3 font-mono text-xs leading-[1.55] text-muted" data-component="extension-code-body">
+      <pre class="max-h-[420px] overflow-auto p-3 font-mono text-xs leading-[1.55] text-muted-foreground" data-component="extension-code-body">
         <Show when={props.before && file()?.changed} fallback={<code>{file()?.now ?? ""}</code>}>
           <code>
             <For each={lineDiff(file()?.was ?? "", file()?.now ?? "")}>
               {(line) => (
                 <span
-                  class={`block ${line.kind === "add" ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-text" : line.kind === "del" ? "bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-weak line-through" : ""}`}
+                  class={`block ${line.kind === "add" ? "bg-[color-mix(in_oklch,var(--ring)_14%,transparent)] text-foreground" : line.kind === "del" ? "bg-[color-mix(in_oklch,var(--error)_12%,transparent)] text-muted-foreground line-through" : ""}`}
                 >
                   {line.kind === "add" ? "+ " : line.kind === "del" ? "- " : "  "}
                   {line.text}

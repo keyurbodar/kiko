@@ -3,7 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "sideEffects": ["**/*.css"],
+  "sideEffects": [
+    "**/*.css"
+  ],
   "files": [
     "src/**/*.ts",
     "src/**/*.tsx",
@@ -13,7 +15,6 @@
   ],
   "exports": {
     ".": "./src/index.ts",
-    "./kat.css": "./src/styles/kat.css",
     "./file-icon.css": "./src/components/file-icon.css",
     "./icon.css": "./src/components/icon.css",
     "./icon": "./src/components/icon.tsx",
@@ -25,7 +26,6 @@
     "./hooks": "./src/hooks/index.ts",
     "./context/*": "./src/context/*.tsx",
     "./i18n/*": "./src/i18n/*.ts",
-    "./v2/styles/*": "./src/v2/styles/*",
     "./v2/*.css": "./src/v2/components/*.css",
     "./v2/tree/create-tree": "./src/v2/components/tree/create-tree.ts",
     "./v2/*": "./src/v2/components/*.tsx",

@@ -18,17 +18,6 @@ const METHOD_LABEL: Record<ConnectMethod, string> = {
   paste_code: "Browser sign-in",
 }
 
-
-/*
- * Settings, providers and models, after opencode's settings (MIT, packages/app/src/components/
- * settings-v2/providers.tsx, models.tsx). Providers: the connected ones, each with how it is
- * connected and a way out, then a few popular ones to connect and a way to see them all. Models:
- * a search, then each connected provider's models in a group that folds, each with one switch
- * for whether the chat's model picker offers it. There is no default model to set: a new chat
- * starts on the model picked last.
- */
-
-/** Popular providers, in the order offered, with one line each. Only those in the catalog show. */
 const POPULAR: readonly { id: string; note: string }[] = [
   { id: "opencode-go", note: "Low-cost open models from OpenCode." },
   { id: "opencode", note: "Models picked and tested by the OpenCode team." },
@@ -39,7 +28,6 @@ const POPULAR: readonly { id: string; note: string }[] = [
   { id: "github-copilot", note: "The models in your Copilot plan." },
 ]
 
-/** The catalog and who is connected, shared by both pages. */
 function useProviders() {
   const [catalog] = createResource(loadCatalog)
   const saved = (id: string) => connectedProviders().find((p) => p.provider === id)
@@ -60,8 +48,6 @@ export function ProvidersPage() {
     }).concat(available().filter(isJudgeOnly).map((provider) => ({ provider, note: JUDGE_NOTE }))),
   )
 
-  // The first provider connects the agents, so the notice shows once. Only a
-  // change seen on this page counts: a list that loads with providers in it is not a moment.
   const [cheer, setCheer] = createSignal(false)
   createEffect(
     on(
@@ -78,14 +64,14 @@ export function ProvidersPage() {
   return (
     <div class="flex flex-col gap-8" data-component="providers-page">
       <Show when={cheer()}>
-        <div class="flex items-center gap-3 rounded-lg bg-[var(--accent-wash)] px-4 py-2.5" data-component="first-provider-cheer" role="status">
-          <p class="text-[13px] text-text">Connected. Your agents can reply now.</p>
+        <div class="flex items-center gap-3 rounded-lg bg-[var(--ring-wash)] px-4 py-2.5" data-component="first-provider-cheer" role="status">
+          <p class="text-[13px] text-foreground">Connected. Your agents can reply now.</p>
         </div>
       </Show>
       <Show when={catalog.error}>
         <Notice data-component="catalog-error">The model catalog did not load. Reload to try again.</Notice>
       </Show>
-      {/* With nothing connected the page opens on the popular ones; an empty card would say nothing. */}
+
       <Show when={connected().length}>
         <Group title="Connected">
           <For each={connected()}>{(provider) => <ConnectedRow provider={provider} info={saved(provider.id)!} />}</For>
@@ -142,7 +128,6 @@ export function ProvidersPage() {
   )
 }
 
-/** A connected provider: its name, how it is connected, and a way to disconnect it. */
 function ConnectedRow(props: { provider: CatalogProvider; info: { kind: string; last4: string; refused?: boolean } }) {
   const [removing, setRemoving] = createSignal(false)
   async function remove() {
@@ -215,7 +200,7 @@ export function ModelsPage() {
           <Hint>
             {catalog.loading ? "Loading" : "No providers connected. "}
             <Show when={!catalog.loading}>
-              <A href="/settings/providers" class="text-[var(--accent)] hover:underline">
+              <A href="/settings/providers" class="text-[var(--ring)] hover:underline">
                 Connect one
               </A>{" "}
               to see its models here.
@@ -290,10 +275,6 @@ export function ModelsPage() {
   )
 }
 
-/**
- * Adding a provider, after t3code's add-provider dialog: a search over every provider not yet
- * connected and one list of them. Choosing one goes straight to its connect step.
- */
 function AddProviderDialog(props: { open: boolean; loading: boolean; providers: readonly CatalogProvider[]; onClose: () => void; onPick: (provider: CatalogProvider) => void }) {
   const [query, setQuery] = createSignal("")
   const shown = createMemo(() => {
@@ -340,12 +321,12 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
             <li data-provider={provider.id}>
               <button
                 type="button"
-                class="flex h-10 w-full cursor-pointer items-center gap-3 rounded-lg px-2 text-left outline-none hover:bg-[var(--kit-hover)] focus-visible:bg-[var(--kit-hover)]"
+                class="flex h-10 w-full cursor-pointer items-center gap-3 rounded-lg px-2 text-left outline-none hover:bg-[var(--accent)] focus-visible:bg-[var(--accent)]"
                 data-action="connect"
                 onClick={() => props.onPick(provider)}
               >
                 <ProviderIcon id={provider.id} width="16" height="16" />
-                <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-text">{provider.name}</span>
+                <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{provider.name}</span>
                 <span class={cn("shrink-0 text-[12px] tabular-nums", muted)}>{provider.models.length} {provider.models.length === 1 ? "model" : "models"}</span>
               </button>
             </li>
@@ -356,11 +337,6 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
   )
 }
 
-/*
- * The key lives in this component's form field and in the one PUT body. The
- * field is cleared before the request leaves, so a failure shows the error and
- * asks for the key again instead of holding on to it.
- */
 function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () => void }) {
   const [error, setError] = createSignal<string | null>(null)
   const [busy, setBusy] = createSignal(false)
@@ -414,7 +390,7 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
           {(method) =>
             method === "api_key" ? (
               <form id="provider-key-form" class="flex flex-col gap-2" onSubmit={submit} data-method="api_key">
-                <label class="text-[13px] font-medium text-text" for="provider-key">
+                <label class="text-[13px] font-medium text-foreground" for="provider-key">
                   API key
                 </label>
                 <input
@@ -453,11 +429,6 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
   )
 }
 
-/*
- * One sign-in method in the connect dialog. The server runs the flow and this
- * shows what it sends: a device code or a sign-in link, a progress line, and a
- * question to answer. Closing the dialog ends the sign-in.
- */
 function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: () => void }) {
   const [state, setState] = createSignal<SignIn | null>(null)
   let handle: SignInHandle | undefined
@@ -486,7 +457,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
   return (
     <div class="flex flex-col gap-2" data-method={props.method} data-sign-in={state()?.status ?? "idle"}>
       <div class="flex items-center justify-between gap-2">
-        <span class="text-[13px] text-text">{METHOD_LABEL[props.method]}</span>
+        <span class="text-[13px] text-foreground">{METHOD_LABEL[props.method]}</span>
         <Show
           when={running()}
           fallback={
@@ -514,12 +485,12 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
               {(code) => (
                 <div class="flex flex-col gap-1" data-component="device-code">
                   <span class={cn("text-[12px]", muted)}>Enter this code at the provider</span>
-                  <span class="select-all font-mono text-lg tracking-widest text-text">{code().userCode}</span>
+                  <span class="select-all font-mono text-lg tracking-widest text-foreground">{code().userCode}</span>
                   <a
                     href={code().verificationUri}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="truncate text-xs text-[var(--accent)]"
+                    class="truncate text-xs text-[var(--ring)]"
                   >
                     Open {code().verificationUri.replace(/^https?:\/\//, "")}
                   </a>
@@ -532,7 +503,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
                   <Show when={link().instructions}>
                     <span class={cn("text-[12px]", muted)}>{link().instructions}</span>
                   </Show>
-                  <a href={link().url} target="_blank" rel="noopener noreferrer" class="text-[13px] text-[var(--accent)]">
+                  <a href={link().url} target="_blank" rel="noopener noreferrer" class="text-[13px] text-[var(--ring)]">
                     Open the sign-in page
                   </a>
                 </div>

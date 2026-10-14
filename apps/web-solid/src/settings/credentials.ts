@@ -14,19 +14,19 @@ export interface ProviderInfo {
   judge?: boolean
 }
 
-async function request(path: string, init?: RequestInit): Promise<any> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/credentials${path}`, { credentials: "same-origin", ...init })
-  const body = await response.json().catch(() => ({}))
+  const body = (await response.json().catch(() => ({}))) as T & { error?: unknown }
   if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "Request failed.")
   return body
 }
 
 export async function listProviders(): Promise<ProviderInfo[]> {
-  return (await request("")).providers
+  return (await request<{ providers: ProviderInfo[] }>("")).providers
 }
 
 export async function connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
-  const body = await request(`/${encodeURIComponent(provider)}`, {
+  const body = await request<{ provider: ProviderInfo }>(`/${encodeURIComponent(provider)}`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ apiKey }),

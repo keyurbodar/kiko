@@ -17,17 +17,39 @@ export function docToMarkdown(doc: Json): string {
 function blocks(nodes: Json[], gap: string): string {
   const parts: string[] = []
   let previous: Json | undefined
-  for (const node of nodes) {
-    const text = block(node)
-    if (text === "") continue
+  nodes.forEach((node, index) => {
+    const followed = nodes.slice(index + 1).some((later) => later.type === "codeBlock" || block(later) !== "")
+    const text = block(node, followed)
+    if (text === "") return
     if (previous) parts.push(previous.type.endsWith("List") && node.type.endsWith("List") ? "\n\n" : gap)
     parts.push(text)
     previous = node
-  }
+  })
   return parts.join("")
 }
 
-function block(node: Json): string {
+export function isClosingFence(line: string, fence: string): boolean {
+  const match = /^(`{3,}|~{3,})[ \t]*$/.exec(line)
+  if (!match) return false
+  const run = match[1]!
+  return run[0] === fence[0] && run.length >= fence.length
+}
+
+function fenceSource(node: Json, followed: boolean): string {
+  const body = (node.content ?? []).map((child) => child.text ?? "").join("")
+  let fence = typeof node.attrs?.fence === "string" && node.attrs.fence ? node.attrs.fence : "```"
+  const language = typeof node.attrs?.language === "string" ? node.attrs.language : ""
+  let close = typeof node.attrs?.close === "string" ? node.attrs.close : `\n${fence}`
+  const longest = Math.max(0, ...body.split("\n").filter((line) => isClosingFence(line, fence)).map((line) => /^[`~]+/.exec(line)![0].length))
+  if (longest > 0) {
+    fence = fence[0]!.repeat(longest + 1)
+    if (close) close = `\n${fence}`
+  }
+  if (!close && followed) close = `\n${fence}`
+  return `${fence}${language}${body ? "\n" : ""}${body}${close}`
+}
+
+function block(node: Json, followed = false): string {
   const children = node.content ?? []
   switch (node.type) {
     case "paragraph":
@@ -44,36 +66,25 @@ function block(node: Json): string {
         .join("\n")
     case "blockquote":
       return prefixLines(blocks(children, "\n\n"), "> ", "> ").replace(/^> $/gm, ">")
-    // An item writes the marker it was typed or parsed with. Numbers are not recounted: `1.` `1.` stays so.
     case "bulletList":
       return children.map((item) => listLine(item, "-")).join("\n")
     case "orderedList": {
       const start = typeof node.attrs?.start === "number" ? node.attrs.start : 1
       return children.map((item, index) => listLine(item, `${start + index}.`)).join("\n")
     }
-    case "codeBlock": {
-      const body = children.map((child) => child.text ?? "").join("")
-      const longest = Math.max(2, ...(body.match(/`{3,}/g) ?? []).map((run) => run.length))
-      const fence = "`".repeat(longest + 1)
-      const language = typeof node.attrs?.language === "string" ? node.attrs.language : ""
-      return `${fence}${language}\n${body}\n${fence}`
-    }
+    case "codeBlock":
+      return fenceSource(node, followed)
     default:
       return ""
   }
 }
 
-/** One item as its source line: the marker the item carries, a space, then the item's text. */
 function listLine(item: Json, fallback: string): string {
   const marker = typeof item.attrs?.marker === "string" && item.attrs.marker ? item.attrs.marker : fallback
   const lead = `${marker} `
   return prefixLines(itemText(item), lead, " ".repeat(lead.length))
 }
 
-/**
- * The ordered marker after `3.` or `09)`: one higher, the delimiter and zero padding kept. A number too
- * large to count stays as it is. Shared by the editor's Shift+Enter, so a new item counts the way it was typed.
- */
 export function nextOrderedMarker(marker: string): string {
   const digits = marker.slice(0, -1)
   const number = Number.parseInt(digits, 10)
@@ -165,7 +176,6 @@ export function markdownToDoc(markdown: string, options: ParseOptions = {}): Jso
 }
 
 const BULLET = /^( {0,3})([-*+]) (.*)$/
-// Both list kinds capture their marker in group 2 and the item text in group 3.
 const ORDERED = /^( {0,3})(\d{1,9}[.)]) (.*)$/
 const FENCE = /^( {0,3})(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/
 const RULE = /^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/
@@ -188,10 +198,11 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
       const body: string[] = []
       at++
       while (at < lines.length && !closes(lines[at]!, marker)) body.push(lines[at++]!)
-      at++
+      const closed = at < lines.length
+      if (closed) at++
       out.push({
         type: "codeBlock",
-        ...(fence[3] ? { attrs: { language: fence[3] } } : {}),
+        attrs: { language: fence[3] ?? "", fence: marker, close: closed ? `\n${lines[at - 1]!.trim()}` : "" },
         ...(body.length ? { content: [{ type: "text", text: body.join("\n") }] } : {}),
       })
       continue
@@ -265,7 +276,6 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
   return out
 }
 
-/** A list that mixes task and plain items stays a plain list, so a task item turns back into text. */
 function untask(item: Json): Json {
   if (item.type !== "taskItem") return item
   const [first, ...rest] = item.content ?? []

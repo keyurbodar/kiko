@@ -7,14 +7,6 @@ import { openFile } from "../side/surfaces"
 import { formatBytes } from "../info/format"
 import type { DialogImage } from "./image-dialog"
 
-/*
- * A message's attachments, after t3code's user message: its pictures as a small grid of 4:3
- * tiles that open the image dialog, then its other files as rows. A row is one button that
- * opens the file. Download lives in the file's own view. A file's type decides which it is,
- * so a message stored with the old media draws the same way.
- */
-
-/** A stored file opens in the files tab, which says so when it cannot draw it. One still uploading opens in a new tab. */
 function preview(roomId: string, file: MessageFile) {
   if (file.path) openFile(roomId, file.path)
   else window.open(file.src, "_blank", "noopener")
@@ -36,7 +28,7 @@ export function MessageAttachments(props: {
               <button
                 type="button"
                 class={cn(
-                  "block aspect-[4/3] cursor-zoom-in overflow-hidden rounded-lg border border-hairline/80 bg-bg/70",
+                  "block aspect-[4/3] cursor-zoom-in overflow-hidden rounded-lg border border-border/80 bg-background/70",
                   tileSpan(split().images.length) === 2 && "col-span-2",
                 )}
                 aria-label={`Preview ${file.name}`}
@@ -62,7 +54,7 @@ export function MessageAttachments(props: {
               >
                 <EntryIcon path={file.name} />
                 <span class="min-w-0 flex-1 truncate">{file.name}</span>
-                <span class="shrink-0 text-xs text-weak">{formatBytes(file.size)}</span>
+                <span class="shrink-0 text-xs text-muted-foreground">{formatBytes(file.size)}</span>
               </button>
             )}
           </For>

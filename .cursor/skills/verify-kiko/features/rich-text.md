@@ -15,7 +15,7 @@ A message body is not one string: it is a run of prose with urls, emails, mentio
 
 ## How to get to it (user POV)
 
-- Open the chat harness at `http://localhost:<port>/src/chat/harness.html?state=rich-text` and read the single body it holds. It is written to contain every case at once.
+- Send a message whose body exercises every case at once — a bare url, a scheme-less host, a mention, a hashtag, punctuation hugging a url — then read the rendered bubble.
 - Click a url to open it. Click a mention or a hashtag and nothing happens: they are not links.
 - Send a message with a look-alike host to see it render as inert text and open the confirm on click.
 - Type a long unbroken url into the composer and watch the bubble stop growing at its cap.
@@ -25,10 +25,10 @@ A message body is not one string: it is a run of prose with urls, emails, mentio
 Preconditions:
 
 - The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/kiko-verify-evidence/vite.pid` names it.
-- `../../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
+- `../../SKILL.md` **Doctor** reports `ok: true`.
 - **Use `http://localhost:<port>/`, not `http://127.0.0.1:<port>/`.** The server binds IPv6 loopback only; `curl` to `127.0.0.1:3017` exits `7` (connection refused) while `localhost:3017` answers `200`.
 - **Every `page.goto` passes `{ waitUntil: "domcontentloaded", timeout: 60000 }`; a cold Vite module graph has been observed to need 90s on this page.** So on a first load pass a longer timeout and then wait on the condition.
-- The homograph case needs a **real** mixed-script host. The `rich-text` fixture does not produce one: see the recipe and the gotchas.
+- The homograph case needs a **real** mixed-script host. A body that only claims one does not produce it: see the recipe and the gotchas.
 
 Selectors this feature relies on:
 
@@ -82,7 +82,7 @@ Selectors this feature relies on:
 - **An email is a `mailto:` anchor.** So it appears in the same `querySelectorAll("a")` list as the urls with a different scheme. Filter on the scheme when counting "urls".
 - **`foo.zzz` staying prose is the TLD gate, not a parser miss.** A dotted word that is not a url must not become navigation; if a run is linked on a last label that is not a real TLD, that is a defect.
 - **The body is a `<span>`, not a `div`.** A recipe that reaches for `[data-component="chat-text"]` finds nothing. The handle is the `bubble-text` class, and it is a QA handle rather than a style hook.
-- **Sending is a composed-app-only path.** The harness mounts `MessageList` alone, so `[data-component="prompt-input"]` is `0` there. See [Composer](./composer.md).
+- **Sending is a composed-app-only path.** The composer mounts only at `/`; see [Composer](./composer.md).
 
 ## Agent file chips
 

@@ -4,30 +4,20 @@ import { session } from "../../app/session"
 import { identityLook, identityTint } from "../../lib/identity"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 
-/**
- * Who a mention names. The transcript provides the open room's members, so a bubble never
- * reads the store. A slug that is not a member renders as plain `@text`.
- */
 export const MentionLookup = createContext<(slug: string) => { name: string } | undefined>(() => undefined)
 
-/**
- * An `@mention` of a member, inline in a bubble: the agent's small face and `@name` on a soft
- * tint of its colour, with no border (`docs/reference/group-chat/01.png`). It stays an
- * inline box, so it flows with the words around it and never takes a line of its own.
- */
 export function Mention(props: { slug: string; text?: string }): JSX.Element {
   const lookup = useContext(MentionLookup)
   const member = () => lookup(props.slug)
-  /* The reader's own handle (`humanHandle`), unless an agent here holds the same slug. */
   const self = () => {
     const s = session()
     return s.status === "signed-in" && humanHandle(s.user.name) === props.slug
   }
   const plain = () => (
     <Show when={self()} fallback={<span class="font-medium">{props.text ?? `@${props.slug}`}</span>}>
-      {/* A mention of you, as tweb marks one: accent text on a soft accent tint. */}
+
       <span
-        class="inline-flex items-baseline rounded-full px-[0.4em] align-baseline font-medium leading-[1.3] whitespace-nowrap text-[var(--accent)] bg-[oklch(from_var(--accent)_l_c_h_/_14%)]"
+        class="inline-flex items-baseline rounded-full px-[0.4em] align-baseline font-medium leading-[1.3] whitespace-nowrap text-[var(--ring)] bg-[oklch(from_var(--ring)_l_c_h_/_14%)]"
         data-component="chat-mention"
         data-self=""
         data-slug={props.slug}

@@ -5,13 +5,8 @@ import { chatModel } from "../../settings/chat-model"
 import { DangerRow, Profile, Properties, Property, roomMembers } from "../info/sections"
 import { SoulCard } from "../info/soul"
 
-/** "idle" reads "Idle": the status is a wire value, its label is interface. */
 const sentence = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
-/*
- * One agent, as monocode shows a Mono: its face and name, its facts, its soul, and remove at the
- * bottom. The soul sits under the facts, so there is no page to push to.
- */
 export function AgentPage(props: { slug: string; chatId: string; onRemoved: () => void }) {
   const member = () => roomMembers().find((m) => m.slug === props.slug)
   const status = () => useApp.room()?.state.status[props.slug as never] ?? "idle"
@@ -31,7 +26,7 @@ export function AgentPage(props: { slug: string; chatId: string; onRemoved: () =
           </button>
         }
       >
-        <h2 class="text-[15px] font-semibold text-text">{member()?.name ?? props.slug}</h2>
+        <h2 class="text-[15px] font-semibold text-foreground">{member()?.name ?? props.slug}</h2>
       </Profile>
       <Properties>
         <Property label="Role" field="role">{member()?.lead ? "Lead" : "Agent"}</Property>

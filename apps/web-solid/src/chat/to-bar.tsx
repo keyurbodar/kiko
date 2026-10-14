@@ -10,29 +10,17 @@ import { addOp } from "./members/model"
 import { pickerMatches, toChips } from "./to-bar-model"
 import { pickFor, setPickFor } from "./to-bar-state"
 
-/*
- * The "to:" row of a temporary chat, just above its composer until the first message is sent (architecture section 7.11). A chip for each
- * agent in it, then a round (+) that opens a search of the user's agents. Picking one adds it to
- * the room; with two agents the chat becomes a group and joins the list. In an empty chat the
- * human can take kiko off first, and then picking one agent opens that agent's own chat instead.
- *
- *   arrows   move through the results
- *   enter    pick
- *   escape   close the search
- */
 export function ToBar(props: { roomId: RoomId }) {
   const navigate = useNavigate()
   const [open, setOpen] = createSignal(false)
   const [query, setQuery] = createSignal("")
   const [at, setAt] = createSignal(0)
-  /** kiko taken off an empty chat. Only this bar knows; the room keeps kiko until something is sent. */
   const [kikoOff, setKikoOff] = createSignal(false)
   createEffect(
     on(
       () => props.roomId,
       (id) => {
         setKikoOff(false)
-        // "new group" asked for the search to be open on arrival.
         setOpen(pickFor() === id)
         if (pickFor() === id) setPickFor(null)
       },
@@ -56,7 +44,6 @@ export function ToBar(props: { roomId: RoomId }) {
     setOpen(false)
     setQuery("")
     const others = chips()
-    // kiko is off and nobody else is here: this is a direct chat, and the agent has only one.
     if (kikoOff() && others.length === 0) {
       if (agent.id === BUILTIN_AGENT.id) return void setKikoOff(false)
       const dm = useApp.openDm(agent)
@@ -98,16 +85,16 @@ export function ToBar(props: { roomId: RoomId }) {
 
   return (
     <div class="relative flex h-9 items-center gap-2 px-1 text-sm" data-component="to-bar" ref={(el) => (root = el)}>
-      <span class="text-weak">To:</span>
+      <span class="text-muted-foreground">To:</span>
       <For each={chips()}>
         {(chip) => (
-          <span class="flex h-7 items-center gap-1.5 rounded-full bg-btn py-0 pr-1 pl-1 text-text" data-component="to-chip" data-slug={chip.slug}>
+          <span class="flex h-7 items-center gap-1.5 rounded-full bg-control py-0 pr-1 pl-1 text-foreground" data-component="to-control" data-slug={chip.slug}>
             <IdentityAvatar seed={chip.slug} size={20} />
             <span class="max-w-[160px] truncate">{chip.name}</span>
             <Show when={chip.removable} fallback={<span class="w-1" />}>
               <button
                 type="button"
-                class="grid size-5 place-items-center rounded-full text-weak hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)] hover:text-text"
+                class="grid size-5 place-items-center rounded-full text-muted-foreground hover:bg-[oklch(from_var(--ring)_l_c_h_/_12%)] hover:text-foreground"
                 aria-label={`Remove ${chip.name}`}
                 data-action="to-remove"
                 onClick={() => remove(chip.slug)}
@@ -122,7 +109,7 @@ export function ToBar(props: { roomId: RoomId }) {
       </For>
       <button
         type="button"
-        class="grid size-7 place-items-center rounded-full bg-btn text-text hover:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]"
+        class="grid size-7 place-items-center rounded-full bg-control text-foreground hover:bg-[oklch(from_var(--ring)_l_c_h_/_12%)]"
         aria-label="Add someone"
         aria-expanded={open()}
         data-action="to-add"
@@ -133,21 +120,21 @@ export function ToBar(props: { roomId: RoomId }) {
         </svg>
       </button>
       <Show when={chips().length === 0}>
-        <span class="text-weak">Add someone to message</span>
+        <span class="text-muted-foreground">Add someone to message</span>
       </Show>
       <Show when={open()}>
         <div
-          class="absolute bottom-full left-0 z-30 mb-1 flex w-[380px] max-w-[calc(100vw-32px)] flex-col gap-1 rounded-[calc(20px*var(--brm))] bg-menu p-3 shadow-menu"
+          class="absolute bottom-full left-0 z-30 mb-1 flex w-[380px] max-w-[calc(100vw-32px)] flex-col gap-1 rounded-[calc(20px*var(--radius-mult))] bg-popover p-3 shadow-menu"
           data-component="to-picker"
         >
-          <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--input-bg)] px-3 focus-within:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--text)_22%,transparent)]">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="shrink-0 text-weak" aria-hidden="true">
+          <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--secondary)] px-3 focus-within:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_22%,transparent)]">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="shrink-0 text-muted-foreground" aria-hidden="true">
               <circle cx="7" cy="7" r="4.5" />
               <path d="M10.5 10.5L14 14" />
             </svg>
             <input
               ref={(el) => queueMicrotask(() => el.focus())}
-              class="min-w-0 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-weak"
+              class="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               placeholder="Name, @username"
               aria-label="Search your agents"
               autocomplete="off"
@@ -158,13 +145,13 @@ export function ToBar(props: { roomId: RoomId }) {
               data-component="to-search"
             />
           </label>
-          <ul class="flex max-h-[320px] flex-col overflow-y-auto" role="listbox" aria-label="Agents">
+          <div class="flex max-h-[320px] flex-col overflow-y-auto" role="listbox" aria-label="Agents">
             <For each={results()}>
               {(agent, i) => (
-                <li
+                <div
                   role="option"
                   aria-selected={at() === i()}
-                  class="flex cursor-default items-center gap-3 rounded-xl px-2 py-1.5 data-[active]:bg-[oklch(from_var(--accent)_l_c_h_/_12%)]"
+                  class="flex cursor-default items-center gap-3 rounded-xl px-2 py-1.5 data-[active]:bg-[oklch(from_var(--ring)_l_c_h_/_12%)]"
                   data-active={at() === i() ? "" : undefined}
                   data-component="to-result"
                   data-slug={agent.slug}
@@ -173,14 +160,14 @@ export function ToBar(props: { roomId: RoomId }) {
                 >
                   <IdentityAvatar seed={agent.slug} size={36} />
                   <span class="flex min-w-0 flex-col">
-                    <span class="truncate font-medium text-text">{agent.name}</span>
-                    <span class="truncate text-xs text-weak">@{agent.slug}</span>
+                    <span class="truncate font-medium text-foreground">{agent.name}</span>
+                    <span class="truncate text-xs text-muted-foreground">@{agent.slug}</span>
                   </span>
-                </li>
+                </div>
               )}
             </For>
-          </ul>
-          <p class="px-2 py-3 text-center text-xs text-weak" data-component="to-hint">
+          </div>
+          <p class="px-2 py-3 text-center text-xs text-muted-foreground" data-component="to-hint">
             {query().trim() && results().length === 0 ? "No one by that name" : "Search by name or @username"}
           </p>
         </div>

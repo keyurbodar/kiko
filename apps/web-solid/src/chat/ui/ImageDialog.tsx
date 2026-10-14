@@ -172,6 +172,7 @@ function ZoomableImage(props: { src: string; name: string; onError: () => void; 
         role="region"
         aria-label={`${props.name}, zoomable image`}
         aria-describedby={hint}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region takes focus so the keyboard can scroll it
         tabIndex={0}
         class="max-w-[calc(92vw-96px)] overflow-auto overscroll-contain rounded-lg border border-white/15 shadow-2xl outline-none focus-visible:ring-2 focus-visible:ring-white max-sm:max-w-[92vw]"
         style={{

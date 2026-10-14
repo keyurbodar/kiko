@@ -2,12 +2,6 @@ import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createResource, createSignal, Show } from "solid-js"
 import { buttonClass } from "../../settings/kit"
 
-/*
- * An agent's soul (architecture section 8.4): who it is and how it works with you, in every chat.
- * The agent keeps it current itself; here the human reads it and can rewrite it. A save that lost a
- * race with the agent's own edit shows the newer text instead of overwriting it.
- */
-
 const MAX_SOUL = 3_000
 type Soul = { body: string; sha: string }
 
@@ -49,13 +43,13 @@ export function SoulCard(props: { slug: string }) {
 
 	return (
 		<div class="flex flex-col gap-2 px-2 py-3" data-card="agent-soul">
-			<Show when={soul()} fallback={<p class="px-2 py-1 text-[13px] text-weak">{soul.loading ? "Loading" : "Could not load"}</p>}>
+			<Show when={soul()} fallback={<p class="px-2 py-1 text-[13px] text-muted-foreground">{soul.loading ? "Loading" : "Could not load"}</p>}>
 				{(s) => (
 					<Show
 						when={draft() !== null}
 						fallback={
 							<div class="flex flex-col gap-2 px-2 py-1">
-								<pre class="whitespace-pre-wrap font-sans text-[13px] leading-5 text-text" data-component="soul-text">
+								<pre class="whitespace-pre-wrap font-sans text-[13px] leading-5 text-foreground" data-component="soul-text">
 									{s().body}
 								</pre>
 								<button type="button" class={buttonClass("secondary", "self-start")} data-action="edit-soul" onClick={() => setDraft(s().body)}>
@@ -66,7 +60,7 @@ export function SoulCard(props: { slug: string }) {
 					>
 						<div class="flex flex-col gap-2 px-2 py-1">
 							<textarea
-								class="min-h-72 w-full resize-y rounded-lg bg-bg-subtle p-2 font-mono text-[13px] text-text outline-none"
+								class="min-h-72 w-full resize-y rounded-lg bg-muted-foreground p-2 font-mono text-[13px] text-foreground outline-none"
 								value={draft() ?? ""}
 								maxLength={MAX_SOUL}
 								data-component="soul-editor"
@@ -79,7 +73,7 @@ export function SoulCard(props: { slug: string }) {
 								<button type="button" class={buttonClass("ghost")} onClick={() => setDraft(null)}>
 									Cancel
 								</button>
-								<span class="ml-auto text-xs text-faint">
+								<span class="ml-auto text-xs text-secondary-label">
 									{draft()?.length ?? 0}/{MAX_SOUL}
 								</span>
 							</div>

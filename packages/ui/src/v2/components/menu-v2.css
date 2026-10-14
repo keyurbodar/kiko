@@ -1,11 +1,6 @@
-/* In `@layer v2`, declared by the app's `styles/app.css` ahead of Tailwind's
- * `utilities` layer. Unlayered, this file outranked every utility a consumer
- * aimed at the menu, so a consumer's own padding, radius and width were
- * silently discarded - a chat menu asking for `p-1.5`, `rounded-2xl` and
- * `min-w-[120px]` computed to `2px` / `6px` / `160px`. See the layer statement
- * in `styles/app.css` for the whole story. */
+
 @layer v2 {
-  /* Above modal dialogs (z-index 50); matches select-v2-content. */
+
   [data-popper-positioner]:has([data-component="menu-v2-content"]) {
     z-index: 60;
   }
@@ -20,10 +15,10 @@
     z-index: 60;
     pointer-events: auto;
 
-    background: var(--popover-bg);
+    background: var(--popover);
     -webkit-backdrop-filter: var(--popover-blur);
     backdrop-filter: var(--popover-blur);
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     box-shadow: var(--popover-edge), var(--menu-shadow);
 
     outline: none;
@@ -33,9 +28,7 @@
     text-rendering: geometricPrecision;
 
     transform-origin: var(--kb-menu-content-transform-origin);
-    /* No entrance animation, deliberately. The vendored default faded and
-     * scaled in over 120ms; this app opens instantly everywhere, and a menu is
-     * the last place a reader wants to wait on a transition. */
+
 
     &:focus-visible {
       outline: none;
@@ -43,14 +36,13 @@
   }
 
   [data-component="menu-v2-item"] {
-    --menu-v2-fg: var(--v2-text-text-base);
-    --menu-v2-fg-muted: var(--v2-text-text-faint);
-    --menu-v2-fg-subtle: var(--v2-text-text-muted);
-    --menu-v2-icon: var(--v2-icon-icon-base);
-    --menu-v2-accent: var(--v2-text-text-accent);
-    --menu-v2-badge-bg: var(--v2-background-bg-layer-02);
-    --menu-v2-badge-border: var(--v2-border-border-base);
-    --menu-v2-hover: var(--v2-overlay-simple-overlay-hover);
+    --menu-v2-fg: var(--foreground);
+    --menu-v2-fg-muted: var(--secondary-label);
+    --menu-v2-fg-subtle: var(--muted-foreground);
+    --menu-v2-icon: var(--foreground);
+    --menu-v2-accent: var(--ring);
+    --menu-v2-badge-bg: var(--muted);
+    --menu-v2-badge-border: color-mix(in oklab, var(--foreground) 8%, transparent);
 
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -64,7 +56,7 @@
     height: 28px;
     padding: 0 8px;
     background: transparent;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     outline: none;
     cursor: default;
     user-select: none;
@@ -81,8 +73,8 @@
       gap: 8px;
       min-width: 0;
 
-      font-size: 13px;
-      font-weight: 440;
+      font-size: var(--font-md);
+      font-weight: var(--font-weight-regular);
       line-height: 100%;
       letter-spacing: -0.04px;
       color: var(--menu-v2-fg);
@@ -94,8 +86,8 @@
       flex: none;
       height: 11px;
 
-      font-size: 11px;
-      font-weight: 530;
+      font-size: var(--font-xs);
+      font-weight: var(--font-weight-medium);
       line-height: 100%;
       letter-spacing: 0.05px;
       color: var(--menu-v2-fg-muted);
@@ -117,8 +109,8 @@
       border: 0.5px solid var(--menu-v2-badge-border);
       border-radius: 2px;
 
-      font-size: 11px;
-      font-weight: 530;
+      font-size: var(--font-xs);
+      font-weight: var(--font-weight-medium);
       line-height: 100%;
       letter-spacing: 0.05px;
       color: var(--menu-v2-fg-subtle);
@@ -147,11 +139,11 @@
     }
 
     &[data-highlighted] {
-      background: var(--menu-v2-hover);
+      background: var(--accent);
     }
 
     &[data-checked] [data-slot="menu-v2-item-content"] {
-      font-weight: 530;
+      font-weight: var(--font-weight-medium);
       color: var(--menu-v2-accent);
     }
 
@@ -164,13 +156,13 @@
       opacity: 0.5;
     }
 
-    /* A destructive item. Set here because this rule outranks a utility class. */
-    &.text-danger {
-      color: var(--danger);
+
+    &.text-error {
+      color: var(--error);
     }
 
-    &.text-danger[data-highlighted] {
-      background: var(--danger-wash);
+    &.text-error[data-highlighted] {
+      background: var(--error-surface);
     }
   }
 
@@ -178,7 +170,7 @@
     height: 1px;
     width: calc(100% - 8px);
     margin: 4px 4px;
-    background: var(--v2-border-border-muted);
+    background: var(--border);
     border: none;
   }
 
@@ -189,11 +181,11 @@
     height: 28px;
     padding: 0 12px;
 
-    font-size: 11px;
-    font-weight: 530;
+    font-size: var(--font-xs);
+    font-weight: var(--font-weight-medium);
     line-height: 100%;
     letter-spacing: 0.05px;
-    color: var(--v2-text-text-faint);
+    color: var(--secondary-label);
     user-select: none;
     font-variant-numeric: tabular-nums;
   }

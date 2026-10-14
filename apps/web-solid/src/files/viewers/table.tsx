@@ -4,11 +4,9 @@ import { SurfaceNotice } from "../chrome"
 import { CELL_LIMIT, parseDelimited } from "../delimited"
 import { WithText } from "./with-text"
 
-/** The table draws at most this many rows and columns, as t3code's does. Source shows the rest. */
 const ROWS = 100
 const COLUMNS = 30
 
-/** A CSV or TSV file as a table. The first row is the header. */
 export default function TableView(props: { roomId: string; file: FileRef }) {
 	return (
 		<WithText roomId={props.roomId} file={props.file}>
@@ -28,16 +26,16 @@ export default function TableView(props: { roomId: string; file: FileRef }) {
 								<thead class="sticky top-0 z-10">
 									<tr>
 										<For each={rows[0] ?? []}>
-											{(cell) => <th class="max-w-80 border-b border-[var(--panel-edge)] bg-bg-subtle px-3 py-1.5 text-left align-bottom font-medium break-words whitespace-pre-wrap">{cell}</th>}
+											{(cell) => <th class="max-w-80 border-b border-[var(--border)] bg-muted-foreground px-3 py-1.5 text-left align-bottom font-medium break-words whitespace-pre-wrap">{cell}</th>}
 										</For>
 									</tr>
 								</thead>
 								<tbody>
 									<For each={rows.slice(1)}>
 										{(row) => (
-											<tr class="even:bg-hover">
+											<tr class="even:bg-accent">
 												<For each={row}>
-													{(cell) => <td class="max-w-80 border-b border-[var(--panel-edge)] px-3 py-1.5 align-top break-words whitespace-pre-wrap tabular-nums">{cell}</td>}
+													{(cell) => <td class="max-w-80 border-b border-[var(--border)] px-3 py-1.5 align-top break-words whitespace-pre-wrap tabular-nums">{cell}</td>}
 												</For>
 											</tr>
 										)}

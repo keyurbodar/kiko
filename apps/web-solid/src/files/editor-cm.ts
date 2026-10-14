@@ -1,9 +1,3 @@
-// The CodeMirror editor for one file. This file is the only importer of CodeMirror here, and
-// `editor.tsx` loads it with a dynamic import, so the library sits in its own chunk and loads
-// when a text file opens (architecture 19.3, tier 4). Only the extensions the file viewer uses.
-//
-// Highlighting reuses sugar-high, the highlighter the chat's code blocks already load, so the
-// app has one tokenizer and no CodeMirror language packages.
 
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands"
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search"
@@ -28,36 +22,33 @@ export type Mounted = {
 	setValue(text: string): void
 	setReadOnly(readOnly: boolean): void
 	setWrap(wrap: boolean): void
-	/** Scrolls line `n` (from 1) to the middle and selects it. */
 	revealLine(n: number): void
 	focus(): void
 	destroy(): void
 }
 
-// Kat tokens only. The current line is a wash, the gutter is muted.
 const theme = EditorView.theme({
-	"&": { height: "100%", backgroundColor: "transparent", color: "var(--text)", fontSize: "12.5px" },
+	"&": { height: "100%", backgroundColor: "transparent", color: "var(--foreground)", fontSize: "12.5px" },
 	".cm-scroller": { fontFamily: "var(--font-family-mono)", lineHeight: "1.6", overflow: "auto" },
-	".cm-content": { caretColor: "var(--text)", padding: "8px 0" },
+	".cm-content": { caretColor: "var(--foreground)", padding: "8px 0" },
 	"&.cm-focused": { outline: "none" },
-	".cm-cursor": { borderLeftColor: "var(--text)" },
-	".cm-gutters": { backgroundColor: "transparent", color: "var(--text-faint)", border: "none" },
+	".cm-cursor": { borderLeftColor: "var(--foreground)" },
+	".cm-gutters": { backgroundColor: "transparent", color: "var(--secondary-label)", border: "none" },
 	".cm-lineNumbers .cm-gutterElement": { padding: "0 16px 0 8px", minWidth: "40px" },
-	".cm-activeLine": { backgroundColor: "var(--hover-bg)" },
-	".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--text)" },
+	".cm-activeLine": { backgroundColor: "var(--accent)" },
+	".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--foreground)" },
 	"&.cm-readonly .cm-activeLine": { backgroundColor: "transparent" },
 	"&.cm-readonly .cm-cursor": { display: "none" },
-	".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "var(--selected-bg)" },
-	".cm-selectionMatch": { backgroundColor: "var(--selected-bg)" },
-	".cm-searchMatch": { backgroundColor: "var(--accent-wash)", outline: "1px solid var(--accent)" },
-	".cm-panels": { backgroundColor: "var(--input-bg)", color: "var(--text)", fontFamily: "var(--font-family-sans)" },
+	".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "var(--accent-strong)" },
+	".cm-selectionMatch": { backgroundColor: "var(--accent-strong)" },
+	".cm-searchMatch": { backgroundColor: "var(--ring-wash)", outline: "1px solid var(--ring)" },
+	".cm-panels": { backgroundColor: "var(--secondary)", color: "var(--foreground)", fontFamily: "var(--font-family-sans)" },
 	".cm-panels-bottom": { borderTop: "none" },
 	".cm-panel input, .cm-panel button": { font: "inherit", color: "inherit" },
-	".cm-textfield": { backgroundColor: "transparent", border: "none", boxShadow: "inset 0 0 0 1px var(--selected-bg)", borderRadius: "6px" },
-	".cm-button": { backgroundImage: "none", backgroundColor: "var(--hover-bg)", border: "none", borderRadius: "6px" },
+	".cm-textfield": { backgroundColor: "transparent", border: "none", boxShadow: "inset 0 0 0 1px var(--accent-strong)", borderRadius: "6px" },
+	".cm-button": { backgroundImage: "none", backgroundColor: "var(--accent)", border: "none", borderRadius: "6px" },
 })
 
-/** Past this many characters a file is shown plain, so a huge log never stalls a keystroke. */
 const MAX_HIGHLIGHT_CHARS = 200_000
 const PLAIN = new Set(["identifier", "space", "break"])
 const marks = new Map<string, Decoration>()
@@ -67,7 +58,6 @@ const mark = (type: string) => {
 	return m
 }
 
-/** The sugar-high language for a file name, by extension. Undefined means plain text. */
 export function languageOf(path: string) {
 	const ext = /\.([^./]+)$/.exec(path)?.[1]?.toLowerCase()
 	const name = ext ? lang(ext) : undefined
@@ -142,7 +132,6 @@ export function mountEditor(
 	const view = new EditorView({ parent, state: state(doc) })
 	return {
 		value: () => view.state.doc.toString(),
-		// A whole new version. The state is rebuilt, so undo never walks back into the old file.
 		setValue: (text) => view.setState(state(text)),
 		setReadOnly: (value) => {
 			readOnly = value

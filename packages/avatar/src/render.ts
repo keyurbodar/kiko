@@ -46,7 +46,7 @@ function body(v: View): Body {
   for (let i = 0; i < N; i++) {
     const t = (i / N) * 2 * Math.PI, c = Math.cos(t), s = -Math.sin(t);
     const lu = 1 + L * (Math.sin(5 * t) + 0.6 * Math.sin(9 * t));
-    const x = v.cx + v.rx * c * (s > 0 ? lu : 1) * (1 - v.peak * Math.pow(Math.max(0, s), 2.5));
+    const x = v.cx + v.rx * c * (s > 0 ? lu : 1) * (1 - v.peak * Math.max(0, s) ** 2.5);
     const y = s > 0 ? cy - ry * s * lu * (1 + v.asym * -c) : cy - ry * v.flat * s;
     pts.push([x, y]);
   }
@@ -75,7 +75,7 @@ const LEAVES: Record<LeafName, (L: number) => LeafShape> = {
     for (let i = 0; i < 150; i++) {
       const a = (i / 150) * 360 - 180;
       let r = 0.24;
-      for (const [la, k] of lobes) { const d = Math.abs(((a - la + 540) % 360) - 180); r = Math.max(r, 0.24 + 0.76 * k * Math.exp(-Math.pow(d / 16, 2))); }
+      for (const [la, k] of lobes) { const d = Math.abs(((a - la + 540) % 360) - 180); r = Math.max(r, 0.24 + 0.76 * k * Math.exp(-((d / 16) ** 2))); }
       pts.push([Math.cos((a * Math.PI) / 180) * r * R, Math.sin((a * Math.PI) / 180) * r * R + cy]);
     }
     return { d: smooth(pts), vein: `M0 0 L0 ${f1(cy)} L0 ${f1(cy - R * 0.88)} M0 ${f1(cy)} L${f1(R * 0.68)} ${f1(cy - R * 0.5)} M0 ${f1(cy)} L${f1(-R * 0.68)} ${f1(cy - R * 0.5)}`, fill: "#D8572E", veinFill: "#F49A62" };
@@ -286,7 +286,7 @@ function topping(t: Topping, v: View, b: Body, rnd: () => number): string {
     }
     case "dust": {
       let s = "";
-      for (let i = 0; i < 70; i++) s += `<circle cx="${f1(v.cx + (rnd() * 2 - 1) * v.rx)}" cy="${f1(b.top + Math.pow(rnd(), 1.6) * v.H * 0.5)}" r="${f1(0.5 + rnd() * 0.7)}" fill="${t.color}" opacity=".75"/>`;
+      for (let i = 0; i < 70; i++) s += `<circle cx="${f1(v.cx + (rnd() * 2 - 1) * v.rx)}" cy="${f1(b.top + rnd() ** 1.6 * v.H * 0.5)}" r="${f1(0.5 + rnd() * 0.7)}" fill="${t.color}" opacity=".75"/>`;
       return s;
     }
     case "petals":

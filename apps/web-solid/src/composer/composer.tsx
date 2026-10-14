@@ -255,7 +255,7 @@ export function Composer(props: ComposerProps) {
         {(message) => (
           <ReplyBar
             summary={replySummary(message())}
-            role="Edit message"
+            label="Edit message"
             onJump={() => props.onJumpToReply?.(message().id)}
             onDismiss={() => props.onCancelEdit?.()}
           />
@@ -265,7 +265,7 @@ export function Composer(props: ComposerProps) {
         {(message) => (
           <ReplyBar
             summary={props.replyQuote ? quoteSummary(props.replyQuote) : replySummary(message())}
-            role={
+            label={
               message().sender === "user"
                 ? "You"
                 : (botById(message().botId)?.name ?? (props.bots.length === 1 ? props.bots[0]!.name : "Agent"))

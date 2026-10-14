@@ -12,25 +12,24 @@
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  padding: 5px 6px;
+  padding: 4px 8px;
   gap: 6px;
 
-  background: var(--v2-background-bg-layer-01);
-  box-shadow: var(--v2-elevation-floating);
-  border-radius: 4px;
+  background: var(--popover);
+  box-shadow: 0 8px 20px -8px oklch(0% 0 none / 0.4), 0 0 0 0.5px oklch(0% 0 none / 0.35);
+  border-radius: var(--radius-md);
 
   font-style: normal;
-  font-weight: 530;
-  font-size: 11px;
-  line-height: 12px;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-sm);
+  line-height: 1.4;
   letter-spacing: 0.05px;
-  color: var(--v2-text-text-base);
+  color: var(--foreground);
   font-variant-numeric: tabular-nums;
   font-variation-settings: "slnt" 0;
 
   user-select: none;
   pointer-events: none;
 
-  /* No entrance or exit animation: a tooltip appears and goes in one frame. */
-}
 
+}

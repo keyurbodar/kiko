@@ -7,7 +7,6 @@ function minutesOpen(since: number, now: number): string {
 	return m < 1 ? "open for under a minute" : `open for ${m} ${m === 1 ? "minute" : "minutes"}`
 }
 
-/** The user's live browser: its mode, who holds tabs on which site, and how long it has been open. */
 export default function LiveBrowser(props: { icon: JSX.Element }) {
 	onMount(startBrowser)
 	const [now, setNow] = createSignal(Date.now())
@@ -32,13 +31,13 @@ export default function LiveBrowser(props: { icon: JSX.Element }) {
 						</Button>
 					}
 				>
-					<Show when={b().tabs.length} fallback={<p class="text-[13px] text-muted">No tabs open.</p>}>
+					<Show when={b().tabs.length} fallback={<p class="text-[13px] text-muted-foreground">No tabs open.</p>}>
 						<ul class="flex flex-col gap-1 text-[13px]" data-field="browser-tabs">
 							<For each={b().tabs}>
 								{(tab) => (
 									<li class="flex gap-2">
 										<span class="font-medium">{tab.agent}</span>
-										<span class="text-muted">{tab.host}</span>
+										<span class="text-muted-foreground">{tab.host}</span>
 									</li>
 								)}
 							</For>

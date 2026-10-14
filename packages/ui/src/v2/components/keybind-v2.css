@@ -30,7 +30,7 @@
 }
 
 [data-component="keybind-v2"][data-variant="neutral"] [data-slot="keybind-v2-key"] {
-  background: var(--v2-background-bg-layer-03);
+  background: var(--card);
 }
 
 [data-component="keybind-v2"][data-variant="ghost"] [data-slot="keybind-v2-key"] {
@@ -62,9 +62,9 @@
 }
 
 [data-component="keybind-v2"][data-variant="neutral"] [data-slot="keybind-v2-label"] {
-  color: var(--v2-text-text-muted);
+  color: var(--muted-foreground);
 }
 
 [data-component="keybind-v2"][data-variant="ghost"] [data-slot="keybind-v2-label"] {
-  color: var(--v2-text-text-faint);
+  color: var(--secondary-label);
 }

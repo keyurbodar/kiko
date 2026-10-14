@@ -1,15 +1,9 @@
-/*
- * The file chip's shell, shared by a sent message's file (chat/ui/FileChip.tsx) and the composer's
- * chip (composer/rich/nodes.ts). It is imported by both, so the composer draws it even though the
- * chat's rich text stylesheet is not loaded there. Sizes are in em, so a chip follows the text.
- */
-/* A file the message names, after t3code's mention chip. Its size is in em so it follows the
-   text, its tint is one hue mixed into the bubble's own text color, so it reads on the dark
-   human bubble and on the agent's bubble in either theme. */
+
+
 :root { --file-chip-accent: oklch(0.62 0.11 215); }
 :root:not(.dark) [data-side="bot"] .rich { --file-chip-accent: oklch(0.55 0.11 215); }
 .file-chip-anchor { display: inline-flex; max-width: 100%; vertical-align: middle; }
-/* The shell is shared with the composer's chip (composer/rich/rich.css adds the state rules). */
+
 .file-chip {
   display: inline-flex;
   height: 1.41em;
@@ -28,19 +22,19 @@
   vertical-align: middle;
   cursor: pointer;
 }
-/* Hover is for a real button, as t3code's chip: a span that is only a label does not light up. */
+
 button.file-chip:hover {
   border-color: color-mix(in oklab, var(--file-chip-accent) 48%, color-mix(in oklab, currentColor 22%, transparent));
   background: color-mix(in oklab, var(--file-chip-accent) 17%, transparent);
 }
-.file-chip:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
-/* A name the chat has no file for: a dashed edge and neutral text, as t3code's unresolved chip. */
-.file-chip[data-missing] { border-style: dashed; color: var(--text); }
+.file-chip:focus-visible { outline: 2px solid var(--foreground); outline-offset: -2px; }
+
+.file-chip[data-missing] { border-style: dashed; color: var(--foreground); }
 .file-chip svg { display: block; width: 1.17em; height: 1.17em; flex-shrink: 0; align-self: center; }
-/* t3code's file icon colors: one tint for light, one for dark, from the icon's token. */
+
 .entry-icon { color: var(--entry-icon-light); }
 :root.dark .entry-icon { color: var(--entry-icon-dark); }
 .file-chip-label { display: block; min-width: 0; align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; }
 
-/* t3code's file icon: the Pierre svg is sized by its chip, or by 1.17em outside one (the attachment rows). */
+
 .entry-icon { display: block; width: 1.17em; height: 1.17em; flex-shrink: 0; align-self: center; }

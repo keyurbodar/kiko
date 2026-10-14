@@ -74,11 +74,11 @@ const cases: { name: string; doc: Json; markdown: string; rich: RichText }[] = [
   },
   {
     name: "code block",
-    doc: doc({ type: "codeBlock", attrs: { language: "ts" }, content: [t("const a = 1\n\nlet b")] }),
+    doc: doc({ type: "codeBlock", attrs: { language: "ts", fence: "```", close: "\n```" }, content: [t("const a = 1\n\nlet b")] }),
     markdown: "```ts\nconst a = 1\n\nlet b\n```",
     rich: [{ t: "code_block", lang: "ts", text: "const a = 1\n\nlet b" }] as RichText,
   },
-  { name: "code block with fence inside", doc: doc({ type: "codeBlock", content: [t("```\nx\n```")] }), markdown: "````\n```\nx\n```\n````", rich: [{ t: "code_block", text: "```\nx\n```" }] as RichText },
+  { name: "code block with fence inside", doc: doc({ type: "codeBlock", attrs: { language: "", fence: "````", close: "\n````" }, content: [t("```\nx\n```")] }), markdown: "````\n```\nx\n```\n````", rich: [{ t: "code_block", text: "```\nx\n```" }] as RichText },
   { name: "file chip leaves no text", doc: doc(p(t("see "), { type: "fileChip", attrs: { id: "1", name: "a.pdf" } })), markdown: "see", rich: [para(text("see"))] as RichText },
 ]
 

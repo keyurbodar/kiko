@@ -4,20 +4,13 @@ import type { JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 
-/** "Kiko and Piko", "Kiko, Piko and Ada". Each name keeps its own casing. */
 export function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? ""
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
 }
 
-/** "1 message", "3 messages". */
 export const messageCount = (n: number) => `${n} ${n === 1 ? "message" : "messages"}`
 
-/**
- * Agents talking to each other, folded into one muted line with a count. A click opens it in
- * place: the messages follow the line as ordinary bubbles, and the line stays as the way to
- * fold them again. The human reads it when they want to, and the transcript stays theirs.
- */
 export function AgentThread(props: {
   slugs: readonly string[]
   names: readonly string[]
@@ -26,10 +19,10 @@ export function AgentThread(props: {
   onToggle: () => void
 }): JSX.Element {
   return (
-    <div class="mx-auto flex w-full max-w-(--content-max-w) px-4 pt-(--run-gap) pb-(--row-gap)" data-component="chat-agent-thread">
+    <div class="mx-auto flex w-full max-w-(--chat-content-max-width) px-4 pt-(--run-gap) pb-(--row-gap)" data-component="chat-agent-thread">
       <button
         type="button"
-        class="flex min-w-0 cursor-pointer items-center gap-2 rounded-full bg-bg-subtle py-1 ps-1.5 pe-3 text-xs text-weak hover:text-text"
+        class="flex min-w-0 cursor-pointer items-center gap-2 rounded-full bg-muted-foreground py-1 ps-1.5 pe-3 text-xs text-muted-foreground hover:text-foreground"
         aria-expanded={props.expanded}
         onClick={() => props.onToggle()}
       >

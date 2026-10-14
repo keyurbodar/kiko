@@ -1,5 +1,4 @@
-/* Kat's typing bubble: a one-line agent bubble holding three dots. The dots move one way per
-   act (`data-motion`, from action.ts), so the bubble keeps its shape whatever the agent does. */
+
 
 .typing-stack {
   position: relative;
@@ -23,16 +22,16 @@
   flex: none;
   align-items: center;
   padding: var(--bubble-pad-y) var(--bubble-pad-x);
-  /* The one-line pill of bubble.css: half of a 20px line plus the vertical padding. */
+
   border-radius: calc((var(--font-base) + 6px) / 2 + var(--bubble-pad-y));
-  background: var(--assistant-bubble);
-  color: var(--assistant-bubble-text);
+  background: var(--message-assistant);
+  color: var(--message-assistant-foreground);
   font-size: var(--font-base);
   line-height: calc(var(--font-base) + 6px);
   transform-origin: 0 100%;
 }
 
-/* One text line tall, so the bubble is a one-line message bubble's height. */
+
 .typing-dots {
   position: relative;
   display: inline-flex;
@@ -55,19 +54,19 @@
   flex: none;
 }
 
-/* The act in words, only once it has run a while. Plain muted text. */
+
 .typing-doing {
   min-width: 0;
   overflow: hidden;
   padding-bottom: calc(var(--bubble-pad-y) + 1px);
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: var(--font-md);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .typing-more {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: var(--font-md);
 }
 .typing-more[data-group] {
@@ -104,16 +103,16 @@
     animation-delay: calc(var(--typing-period) * var(--dot-step, -0.6667) * 2);
   }
 
-  /* Writing is the default: kat's wave, the leading dot swelling as the one before settles. */
 
-  /* Reading: one bright dot sweeps left to right, a line read and the next begun. */
+
+
   [data-motion="scan"] {
     --typing-period: 1.5s;
     --dot-anim: typing-scan;
     --dot-step: 0.16;
   }
 
-  /* Editing: the dots hop in turn, like pieces set in place. */
+
   [data-motion="hop"] {
     --typing-period: 1.3s;
     --dot-anim: typing-hop;
@@ -121,8 +120,8 @@
     --dot-step: 0.14;
   }
 
-  /* A tool: the three dots turn around one centre. */
-  /* As wide as three dots in a row, so the bubble keeps its size. */
+
+
   [data-motion="orbit"] .typing-dots {
     width: 31px;
     justify-content: center;

@@ -1,4 +1,4 @@
-/* The file tree's frame. The rows are drawn by @pierre/trees inside its own shadow root; its look is set in tree.tsx. */
+
 .kt-root {
 	display: flex;
 	min-height: 0;
@@ -25,24 +25,24 @@
 	gap: 6px;
 	padding: 0 8px;
 	border-radius: var(--radius-md);
-	background: var(--input-bg);
-	color: var(--text-muted);
+	background: var(--secondary);
+	color: var(--muted-foreground);
 }
 .kt-field:focus-within {
-	box-shadow: 0 0 0 1px var(--accent);
+	box-shadow: 0 0 0 1px var(--ring);
 }
 .kt-field input {
 	min-width: 0;
 	flex: 1;
 	border: 0;
 	background: transparent;
-	color: var(--text);
+	color: var(--foreground);
 	font: inherit;
 	font-size: var(--font-md);
 	outline: none;
 }
 .kt-field input::placeholder {
-	color: var(--text-faint);
+	color: var(--secondary-label);
 }
 .kt-btn {
 	display: grid;
@@ -53,12 +53,12 @@
 	border: 0;
 	border-radius: var(--radius-md);
 	background: transparent;
-	color: var(--text-muted);
+	color: var(--muted-foreground);
 }
 .kt-btn:hover,
 .kt-btn:focus-visible {
-	background: var(--hover-bg);
-	color: var(--text);
+	background: var(--accent);
+	color: var(--foreground);
 	outline: none;
 }
 
@@ -77,17 +77,17 @@
 .kt-empty {
 	padding: 8px 12px;
 	font-size: var(--font-sm);
-	color: var(--text-muted);
+	color: var(--muted-foreground);
 }
 
-/* The context menu is placed by the tree and lives in this document, so these rules style it. */
+
 .kt-menu {
 	min-width: 160px;
 	padding: 4px;
 	border-radius: var(--radius-xl);
-	background: var(--menu-bg);
-	box-shadow: 0 8px 28px rgb(0 0 0 / 0.4), 0 0 0 1px var(--hairline);
-	color: var(--text);
+	background: var(--popover);
+	box-shadow: 0 8px 28px rgb(0 0 0 / 0.4), 0 0 0 1px var(--border);
+	color: var(--foreground);
 }
 .kt-menu-item {
 	display: block;
@@ -104,11 +104,11 @@
 }
 .kt-menu-item:hover,
 .kt-menu-item:focus-visible {
-	background: var(--selected-bg);
+	background: var(--accent-strong);
 	outline: none;
 }
 .kt-menu-sep {
 	height: 1px;
 	margin: 4px 6px;
-	background: var(--hairline);
+	background: var(--border);
 }

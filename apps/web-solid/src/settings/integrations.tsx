@@ -4,14 +4,7 @@ import { cn } from "../lib/cn"
 import { Button, Empty, Group, Item, Notice, fieldClass } from "./kit"
 import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
 
-/*
- * The integrations section: Composio with the user's own key. It shows what the server says
- * and names nothing itself. The field is cleared before the request leaves, so a key never
- * outlives the click, and the server never sends the key back, only whether it is connected.
- */
-
 export const COMPOSIO_PLATFORM = "https://platform.composio.dev"
-// The live browser loads with the connected Kernel row, so the settings route does not carry it.
 const LiveBrowser = lazy(() => import("./live-browser"))
 
 export const KERNEL_HOME = "https://dashboard.onkernel.com"
@@ -88,7 +81,6 @@ export function Integrations(props: { client?: ComposioClient; kernel?: KernelCl
 	}
 
 	onMount(() => {
-		// The dev mock has no Composio account behind it, so it shows the empty state.
 		if (!props.client && import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock") {
 			setKernel({ connected: false, broken: false, browser: null })
 			return setStatus({ connected: false, rows: 0 })
@@ -145,10 +137,10 @@ export function Integrations(props: { client?: ComposioClient; kernel?: KernelCl
 							</Show>
 						}
 					>
-						<p class="mb-2 text-[13px] text-muted">Connect your apps through your own Composio account.</p>
+						<p class="mb-2 text-[13px] text-muted-foreground">Connect your apps through your own Composio account.</p>
 						<Show when={!status()?.connected}>
 							<KeyField id="composio-key" label="Composio API key" placeholder="ak_..." submit="Connect" busy={busy()} data-action="composio-connect" onKey={(apiKey) => void run(async () => client?.request({ t: "connectComposio", apiKey }))} />
-							<p class="mt-2 text-[13px] text-muted">
+							<p class="mt-2 text-[13px] text-muted-foreground">
 								Copy your project API key from{" "}
 								<a class="underline" href={COMPOSIO_PLATFORM} target="_blank" rel="noreferrer" data-component="composio-link">
 									{COMPOSIO_PLATFORM}
@@ -176,10 +168,10 @@ export function Integrations(props: { client?: ComposioClient; kernel?: KernelCl
 							</Show>
 						}
 					>
-						<p class="mb-2 text-[13px] text-muted">Lets your agents use a real browser, in your own Kernel account.</p>
+						<p class="mb-2 text-[13px] text-muted-foreground">Lets your agents use a real browser, in your own Kernel account.</p>
 						<Show when={!kernel()?.connected || kernel()?.broken}>
 							<KeyField id="kernel-key" label="Kernel browser" placeholder="sk_..." submit="Connect" busy={busy()} data-action="kernel-connect" onKey={(apiKey) => void runKernel(async () => kernelClient?.request({ t: "connectKernel", apiKey }))} />
-							<p class="mt-2 text-[13px] text-muted">
+							<p class="mt-2 text-[13px] text-muted-foreground">
 								Create a key at{" "}
 								<a class="underline" href={KERNEL_HOME} target="_blank" rel="noreferrer" data-component="kernel-link">
 									{KERNEL_HOME}

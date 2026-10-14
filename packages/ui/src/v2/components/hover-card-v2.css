@@ -1,15 +1,9 @@
-/* In `@layer v2` for the same reason as `menu-v2.css`: unlayered, this file
- * outranked every utility a consumer aimed at the card, so a caller's own
- * padding, radius and width were silently discarded. */
+
 @layer v2 {
-  /* Above the sidebar (`z-index: 20`) and above the resize handle
-   * (`z-index: 21`) - the card opens out of a row the pointer is over, so it
-   * has to clear the panel that row lives in. */
+
   [data-popper-positioner]:has([data-component="hover-card-v2-content"]) {
     z-index: 50;
-    /* The positioner wraps the card and is hit-testable on its own, so it has
-     * to be switched off alongside the content — otherwise the cursor is still
-     * over "the card" and the preview never closes. */
+
     pointer-events: none;
   }
 
@@ -19,25 +13,19 @@
     flex-direction: column;
     align-items: stretch;
     z-index: 50;
-    /* A hover card sizes to whatever the caller previews - a live transcript,
-     * a link, a member row - so the primitive's minimum is wrong here. */
+
     min-width: unset;
-    /* Not interactive, deliberately, and `!important` is load-bearing: Kobalte
-     * writes `pointer-events: auto` into this element's INLINE style, so an
-     * ordinary declaration loses no matter which layer it sits in. A preview is
-     * something to glance at, and an interactive one holds the cursor: the
-     * cursor enters the card, the card counts as hovered, and it stays on
-     * screen after the pointer has left the row it describes. */
+
     pointer-events: none !important;
 
-    background: var(--popover-bg);
+    background: var(--popover);
     -webkit-backdrop-filter: var(--popover-blur);
     backdrop-filter: var(--popover-blur);
     border-radius: 12px;
     box-shadow: var(--popover-edge), var(--menu-shadow);
 
     outline: none;
-    color: var(--v2-text-text-base);
+    color: var(--foreground);
 
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -45,12 +33,9 @@
 
     transform-origin: var(--kb-hovercard-content-transform-origin);
 
-    /* No `text-transform`: the content is caller markup (names, snippets,
-     * transcripts) and lowercasing it here would mangle whatever it holds. */
 
-    /* No entrance animation, for the reason `menu-v2.css` gives: a surface the
-     * reader is about to read is the last place to make them wait on a
-     * transition. The card appears when it appears. */
+
+
 
     &:focus-visible {
       outline: none;

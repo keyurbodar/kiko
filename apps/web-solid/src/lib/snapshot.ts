@@ -92,7 +92,10 @@ export function saveSnapshot(): void {
     const hash = hashText(json)
     if (hash === savedHash) return
     savedHash = hash
-    if (json.length > MAX_BYTES) return localStorage.removeItem(SNAP_KEY)
+    if (json.length > MAX_BYTES) {
+      localStorage.removeItem(SNAP_KEY)
+      return
+    }
     localStorage.setItem(SNAP_KEY, json)
   } catch {
     // A full or blocked storage only costs the instant paint.

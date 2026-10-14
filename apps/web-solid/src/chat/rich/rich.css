@@ -1,22 +1,20 @@
-/* t3code's surfaces at its default contrast settings (index.css): the zinc scale in the light theme,
-   the neutral scale with white alphas in the dark one. kat has no --border or --secondary, so these
-   local names carry the values. */
+
 :root {
-  --rich-border: #e4e4e7; /* zinc-200: --border and --contrast-border */
-  --rich-input: #d4d4d8; /* zinc-300 */
-  --rich-surface: #fafafa; /* zinc-50: --secondary and --muted */
-  --rich-accent: #f4f4f5; /* zinc-100: --accent */
-  --rich-muted: #71717a; /* zinc-500: --muted-foreground */
+  --rich-border: #e4e4e7;
+  --rich-input: #d4d4d8;
+  --rich-surface: #fafafa;
+  --rich-accent: #f4f4f5;
+  --rich-muted: #71717a;
 }
 :root.dark {
   --rich-border: rgb(255 255 255 / 6%);
   --rich-input: rgb(255 255 255 / 8%);
   --rich-surface: rgb(255 255 255 / 3%);
   --rich-accent: rgb(255 255 255 / 4%);
-  --rich-muted: #818181; /* neutral-500 mixed 90% with white */
+  --rich-muted: #818181;
 }
 .rich { min-width: 0; overflow-wrap: anywhere; }
-/* t3code's block spacing: 0.65rem between blocks, none at the bubble's top and bottom. */
+
 .rich > :first-child { margin-top: 0; }
 .rich > :last-child { margin-bottom: 0; }
 .rich p, .rich ul, .rich ol, .rich blockquote, .rich-code, .rich-table { margin: 0.65rem 0; }
@@ -26,7 +24,7 @@
 .rich h3 { font-size: 1rem; }
 .rich h4, .rich h5, .rich h6 { font-size: 0.875rem; }
 .rich h6 { color: var(--rich-muted); }
-/* --list-gutter is reset per list so a nested list does not inherit a widened outer gutter. RichText widens an ol inline when its widest marker has two or more characters. */
+
 .rich ul, .rich ol { --list-gutter: 1.25rem; padding-inline-start: var(--list-gutter); }
 .rich ol > li::marker { font-variant-numeric: tabular-nums; }
 .rich ul { list-style: disc; }
@@ -36,21 +34,21 @@
 .rich ol ol { list-style-type: lower-alpha; }
 .rich ol ol ol { list-style-type: lower-roman; }
 .rich li + li { margin-top: 0.25rem; }
-/* The tree wraps every item's text in a paragraph, loose or not. A tight item's paragraph adds no gap; t3code's tight items have no paragraph. */
+
 .rich li > p { margin: 0; }
 .rich li > p + p { margin-top: 0.65rem; }
-/* A loose list's paragraphs take t3code's block gap on both sides. */
+
 .rich-loose > li > p { margin: 0.65rem 0; }
-/* A tight item's text is a paragraph, which must not add the block gap inside the list. */
-/* t3code's task list: the box replaces the bullet and hangs in the list's gutter. */
+
+
 .rich li.task-list-item { list-style: none; margin-inline-start: -1.25rem; }
 .rich blockquote {
   padding-inline-start: 0.8rem;
   border-inline-start: 2px solid var(--rich-border);
   color: var(--rich-muted);
 }
-/* t3code's link: no underline at rest, a row of dots under it while the pointer is on it. */
-/* t3code's --info-foreground: blue-400 in the dark theme, blue-700 in the light one. */
+
+
 .rich-link { color: oklch(0.707 0.165 254.624); text-decoration: none; }
 :root:not(.dark) .rich-link { color: oklch(0.488 0.243 264.376); }
 .rich-link:hover, .rich-link:focus-visible {
@@ -60,7 +58,7 @@
   background-size: 4px 2px;
 }
 .rich-mention { font-weight: 500; }
-/* t3code's inline code: a hairline frame on a faint tint, with rounded corners. */
+
 .rich-inline-code {
   font-family: var(--font-family-mono);
   font-size: 0.75rem;
@@ -72,9 +70,8 @@
   -webkit-box-decoration-break: clone;
 }
 
-/* t3code's table: row dividers only, no cell borders, a smaller type size, and a fade-free scroll
-   when the columns outgrow the bubble. Collapsed cells truncate; the footer's toggle wraps them. */
-/* t3code's scroll fade: the edge fades over 1.5rem, and only where the table overflows that way. */
+
+
 .rich-table-scroll {
   --fade: 1.5rem;
   max-width: 100%;
@@ -93,21 +90,21 @@
   display: inline-flex; width: 1.5rem; height: 1.5rem; align-items: center; justify-content: center;
   padding: 0; background: none; border: 0; border-radius: 0.5rem; color: var(--rich-muted); cursor: pointer;
 }
-.rich-table-action:hover { color: var(--text); background: var(--rich-accent); }
-.rich-table-action[data-active] { color: var(--text); background: var(--rich-surface); }
+.rich-table-action:hover { color: var(--foreground); background: var(--rich-accent); }
+.rich-table-action[data-active] { color: var(--foreground); background: var(--rich-surface); }
 .rich-table-action:focus-visible, .rich-code-action:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
 
 .rich-code {
-  /* t3code's code block is leading-snug: its lines sit closer than prose. */
+
   line-height: 1.375;
   border: 1px solid color-mix(in srgb, var(--rich-border) 70%, transparent);
   border-radius: var(--radius-lg);
   background: var(--rich-surface);
   overflow: hidden;
-  /* Off-screen blocks skip layout and paint, so 50 blocks scroll cheaply. */
+
   content-visibility: auto;
   contain-intrinsic-size: auto 8em;
-  /* GitHub's dark palette. An agent's bubble in the light theme swaps in GitHub's light one below. */
+
   --sh-class: #79c0ff;
   --sh-identifier: #e6edf3;
   --sh-sign: #8b949e;
@@ -127,8 +124,8 @@
   display: inline-flex; width: 1.5rem; height: 1.5rem; align-items: center; justify-content: center;
   padding: 0; background: none; border: 0; border-radius: 0.5rem; color: var(--rich-muted); cursor: pointer;
 }
-.rich-code-action:hover { color: var(--text); background: var(--rich-accent); }
-.rich-code-action[data-active] { color: var(--text); background: var(--rich-surface); }
+.rich-code-action:hover { color: var(--foreground); background: var(--rich-accent); }
+.rich-code-action[data-active] { color: var(--foreground); background: var(--rich-surface); }
 .rich-code-pre {
   margin: 0;
   padding: 0.8rem 0.9rem;
@@ -139,15 +136,14 @@
   tab-size: 2;
 }
 .rich-code-pre[data-wrap] { white-space: pre-wrap; overflow-wrap: anywhere; }
-/* t3code's code scrollbar: 7px tall, a pill thumb in the border tint. */
+
 .rich-code-pre { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--rich-border) 78%, transparent) transparent; }
 .rich-code-pre::-webkit-scrollbar { height: 7px; }
 .rich-code-pre::-webkit-scrollbar-thumb { border-radius: 999px; background: color-mix(in srgb, var(--rich-border) 78%, transparent); }
 
-/* Inside a chat bubble: the block uses the bubble's width, and a lone block has no extra gap. */
 
-/* The light theme: an agent's bubble is a light fill, so its code takes GitHub's light palette
-   on a faint text tint. The human's bubble stays dark in both themes and keeps the dark palette. */
+
+
 :root:not(.dark) [data-side="bot"] .rich-code {
   --sh-class: #0550ae;
   --sh-identifier: #1f2328;
@@ -161,15 +157,15 @@
 }
 
 
-/* t3code's rule: one hairline between blocks, with the block spacing around it. */
-/* t3code's chat rule: the browser's 1px line in the text color, with no margin of its own. The paragraphs beside it give the space. */
+
+
 .rich-rule { margin: 0; border: 0; border-top: 1px solid currentColor; }
 
-/* t3code line height: prose breathes within a bubble. */
-/* t3code's chat text: text-sm at leading-relaxed, so the agent's prose is 14px on a 1.625 line. */
-.rich { font-size: 0.875rem; line-height: 1.625; word-break: break-word; }
-/* t3code's agent text is foreground at 80%. The human's bubble keeps its own color. */
-[data-side="bot"] .rich { color: color-mix(in srgb, var(--text) 80%, transparent); }
 
-/* t3code's dark code block: no border, and a fill of the input color at 32%. */
+
+.rich { font-size: 0.875rem; line-height: 1.625; word-break: break-word; }
+
+[data-side="bot"] .rich { color: color-mix(in srgb, var(--foreground) 80%, transparent); }
+
+
 :root.dark .rich-code { border-color: transparent; background: color-mix(in srgb, var(--rich-input) 32%, transparent); }

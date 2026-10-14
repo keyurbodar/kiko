@@ -20,7 +20,7 @@ const steps: Step[] = [
 for (const script of ["check-imports", "check-rules", "check-exports"]) {
   steps.push({ name: script, cmd: ["bun", `scripts/${script}.ts`], cwd: root })
 }
-steps.push({ name: "test scripts", cmd: ["bun", "test", "scripts/"], cwd: root })
+steps.push({ name: "test scripts", cmd: ["bun", "test", join(root, "scripts") + "/"], cwd: root })
 for (const group of ["apps", "core", "packages"]) {
   for (const name of readdirSync(join(root, group))) {
     const dir = join(root, group, name)

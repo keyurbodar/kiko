@@ -9,7 +9,6 @@ import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { MessageActions } from "./MessageActions"
 import { RichText } from "./RichText"
-/* The parsed tree's renderer loads after first paint; until it lands a bubble shows its plain text. */
 const RichTree = lazy(() => import("../rich/RichText").then((m) => ({ default: m.RichText })))
 import { Collapsible } from "../Collapsible"
 import { identityLook } from "../../lib/identity"
@@ -29,28 +28,23 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
   return "mid"
 }
 
-/** The quoted message's author. The parent's own author is passed in, so the row never looks up a roster. */
 function quoteSender(message: ChatMessage, parentBot: RosterBot | undefined): string {
   if (message.sender === "user") return "You"
   return parentBot?.name ?? "Bot"
 }
 
-/** Width of the avatar gutter in a group chat: the 32px run avatar and an 8px gap. */
 const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 export function MessageRow(props: {
   message: ChatMessage
   bot: RosterBot | undefined
   parent: ChatMessage | undefined
-  /** The author of `parent`, when an agent wrote it. */
   parentBot?: RosterBot
 
   isRunStart: boolean
   isRunEnd: boolean
-  /** The id of the run's first message. The run avatar measures from that row. */
   runKey?: string
   hasRunGapBefore: boolean
-  /** The room has more than one agent: say who wrote each run. */
   group?: boolean
   replying?: boolean
   highlighted?: boolean
@@ -59,9 +53,7 @@ export function MessageRow(props: {
   onOpenReplyTarget: (messageId: string) => void
   onContextMenu?: (event: MouseEvent) => void
   onReact?: (emoji: string) => void
-  /** Arms a reply to this message, from the hover actions. */
   onReply?: () => void
-  /** Opens the message menu at the hover actions' "…" button. */
   onMore?: (anchor: HTMLElement) => void
   onOpenImages?: (images: readonly DialogImage[], index: number) => void
 }): JSX.Element {
@@ -72,7 +64,7 @@ export function MessageRow(props: {
   return (
     <div
       class={cn(
-        "group/row relative mx-auto flex w-full max-w-(--content-max-w) flex-col items-start",
+        "group/row relative mx-auto flex w-full max-w-(--chat-content-max-width) flex-col items-start",
         "px-4 pb-(--row-gap) contain-layout",
         props.hasRunGapBefore ? "pt-(--run-gap)" : "pt-(--row-gap)",
         grouped() && GROUP_GUTTER,
@@ -109,7 +101,7 @@ export function MessageRow(props: {
             "relative",
             "after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:content-['']",
             "after:rounded-[inherit] after:opacity-0",
-            own() ? "after:bg-message-user-text" : "after:bg-accent",
+            own() ? "after:bg-message-user-foreground" : "after:bg-ring",
             props.highlighted && "after:opacity-[0.22]",
           )}
         >
@@ -150,8 +142,7 @@ export function MessageRow(props: {
           </Show>
           <Show when={props.message.body.length > 0}>
             <Collapsible messageId={props.message.id}>
-              {/* Parsed messages (section 6.4) draw from the tree for both senders. A message without
-                  a tree, a human's until the send path stores one, falls back to its plain text. */}
+
               <Show when={props.message.rich?.length ? props.message.rich : undefined} fallback={<RichText text={props.message.body} />}>
                 {(tree) => (
                   <Suspense fallback={<RichText text={props.message.body} />}>
@@ -164,7 +155,7 @@ export function MessageRow(props: {
           <Show when={props.message.goto}>
             {(to) => (
               <div class="px-3 pb-2">
-                <A href={`/chat/${to()}`} class="inline-flex h-8 items-center rounded-full bg-btn px-3 text-sm text-text" data-action="open-made-chat">
+                <A href={`/chat/${to()}`} class="inline-flex h-8 items-center rounded-full bg-control px-3 text-sm text-foreground" data-action="open-made-chat">
                   Open chat
                 </A>
               </div>

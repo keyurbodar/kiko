@@ -25,7 +25,7 @@ const SKIP_PROTOCOLS: Set<string> = new Set(["javascript:"])
  */
 export function checkBrackets(url: string): string {
   let urlLength = url.length
-  let urlOpenBrackets = url.split("(").length - 1
+  const urlOpenBrackets = url.split("(").length - 1
   let urlCloseBrackets = url.split(")").length - 1
   while (urlCloseBrackets > urlOpenBrackets && url.charAt(urlLength - 1) === ")") {
     url = url.substr(0, urlLength - 1)

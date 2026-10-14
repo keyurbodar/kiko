@@ -20,7 +20,6 @@ export type {
 
 export type PromptInputV2Mode = "normal" | "shell"
 
-/* The attachment strip and the popover show only with content. See extras.tsx. */
 const extras = () => import("./extras")
 const PromptInputV2Attachments = lazy(() => extras().then((m) => ({ default: m.PromptInputV2Attachments })))
 const PromptInputV2FileChips = lazy(() => extras().then((m) => ({ default: m.PromptInputV2FileChips })))
@@ -36,9 +35,7 @@ export type PromptInputV2Props = {
   variantControlVisible?: boolean
   attachKeybind?: string[]
   attachShortcut?: string
-  /** Optional bar rendered at the top of the input surface, e.g. an active reply-to chip. */
   reply?: JSX.Element
-  /** The slugs `@name` turns into a mention for. */
   isMention?: (slug: string) => boolean
 }
 
@@ -49,15 +46,12 @@ export function PromptInputV2(props: PromptInputV2Props) {
   let editor: HTMLDivElement | undefined
   let localInput = false
   const [blank, setBlank] = createSignal(true)
-  // textContent drops line breaks, so a new empty line would hide the placeholder only sometimes. The
-  // rich editor knows its own document; the plain field is only the first paint before it mounts.
   const syncBlank = () => setBlank(binding ? binding.editor.isEmpty() : !(editor?.textContent ?? ""))
   const updateCursor = () => {
     if (!editor || !window.getSelection()?.isCollapsed) return
     props.controller.onCursor(promptInputV2Cursor(editor))
   }
   const shortcodes = createShortcodes(() => editor)
-  // The chat column's box, inset 8px, while files are dragged over the page.
   const dropArea = createMemo(() => {
     if (state.drag !== "active") return null
     const column = editor?.closest('[data-component="chat-shell"]') ?? editor?.closest("form")
@@ -72,32 +66,35 @@ export function PromptInputV2(props: PromptInputV2Props) {
   const [link, setLink] = createSignal<string | null>(null)
   const owner = getOwner()
 
-  // The first attachment or popover should not wait on the network.
   onMount(() => {
     if ("requestIdleCallback" in window) requestIdleCallback(() => void extras(), { timeout: 2000 })
     else setTimeout(() => void extras(), 300)
-    void import("../rich/bind").then(({ bindRich }) => {
-      if (!richHost || !owner) return
-      const typing = document.activeElement === editor
-      binding = runWithOwner(owner, () =>
-        bindRich({
-          host: richHost!,
-          controller: props.controller,
-          label: i18n.t("ui.promptInput.label"),
-          isMention: (slug) => props.isMention?.(slug) ?? false,
-          disabled: () => !!props.disabled || !!props.readOnly,
-          shortcodes,
-          onEdit: syncBlank,
-          onLink: setLink,
-          onFocus: () => {},
-        }),
-      )
-      if (!binding) return
-      editor = binding.editor.dom as HTMLDivElement
-      setRich(true)
-      syncBlank()
-      if (typing) binding.editor.focus()
-    })
+    void import("../rich/bind")
+      .then(({ bindRich }) => {
+        if (!richHost || !owner) return
+        const typing = document.activeElement === editor
+        binding = runWithOwner(owner, () =>
+          bindRich({
+            host: richHost!,
+            controller: props.controller,
+            label: i18n.t("ui.promptInput.label"),
+            isMention: (slug) => props.isMention?.(slug) ?? false,
+            disabled: () => !!props.disabled || !!props.readOnly,
+            shortcodes,
+            onEdit: syncBlank,
+            onLink: setLink,
+            onFocus: () => {},
+          }),
+        )
+        if (!binding) return
+        editor = binding.editor.dom as HTMLDivElement
+        setRich(true)
+        syncBlank()
+        if (typing) binding.editor.focus()
+      })
+      .catch((error: unknown) => {
+        console.error("prompt-input: rich editor failed to load", error)
+      })
   })
 
   createEffect(() => {
@@ -122,13 +119,6 @@ export function PromptInputV2(props: PromptInputV2Props) {
         class="hidden"
         onChange={(event) => {
           const files = Array.from(event.currentTarget.files ?? [])
-          /*
-           * Cleared BEFORE handing the files on. The input keeps its selection
-           * after a change, and a change event only fires when the value
-           * actually differs — so without this, picking the same file twice in
-           * a row does nothing at all and reads as a broken button. The File
-           * objects are already captured above, so clearing loses nothing.
-           */
           event.currentTarget.value = ""
           if (files.length > 0) props.controller.addAttachments(files)
         }}
@@ -157,18 +147,17 @@ export function PromptInputV2(props: PromptInputV2Props) {
           />
         </Suspense>
       </Show>
-      {/* t3code's drop overlay, over the chat column. A drop anywhere attaches. The column is
-          measured once when a drag starts, so the overlay needs no positioned ancestor. */}
+
       <Show when={dropArea()}>
         {(area) => (
           <Portal>
             <div
-              class="pointer-events-none fixed z-40 flex items-center justify-center rounded-2xl border border-dashed border-accent/60 bg-accent/[0.035]"
+              class="pointer-events-none fixed z-40 flex items-center justify-center rounded-2xl border border-dashed border-ring/60 bg-ring/[0.035]"
               style={area()}
               data-component="composer-drop-overlay"
             >
-              <div role="status" class="flex items-center gap-2 rounded-full border border-accent/25 bg-bg/95 px-4 py-2.5 text-sm font-medium text-text shadow-lg">
-                <PaperclipIcon class="size-4 text-accent" />
+              <div role="status" class="flex items-center gap-2 rounded-full border border-ring/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg">
+                <PaperclipIcon class="size-4 text-ring" />
                 {i18n.t("ui.promptInput.dropFiles")}
               </div>
             </div>
@@ -338,7 +327,6 @@ function renderPromptInputV2Editor(editor: HTMLDivElement, prompt: PromptInputV2
         part.type === "file" && part.mime === "application/x-directory" ? "reference" : part.type
       if (part.type === "agent") {
         mention.dataset.name = part.name
-        // The agent's own colour, the one its name and chips wear in the transcript.
         mention.style.color = identityLook(part.name).color
       }
       if (part.type === "file") {
@@ -411,9 +399,6 @@ function parsePromptInputV2Editor(editor: HTMLDivElement) {
     Array.from(node.childNodes).forEach(visit)
   }
 
-  // Each line after the first is a block, and the browser leaves the first line as bare text when
-  // the text was pasted or typed before the first Enter. A block starts a new line after anything
-  // that did not end one, and a block holding only <br> is an empty line, not two.
   const ended = () => {
     const tail = buffer || parts.at(-1)?.content || ""
     return tail === "" || tail.endsWith("\n")
@@ -450,7 +435,6 @@ export function PromptInputV2SubmitButton(props: {
   mode: PromptInputV2Mode
   stopping: boolean
   disabled: boolean
-  /** Why sending waits, in t3code's words. Shown as the button's tooltip and name while it is off. */
   blocked?: string | null
   sendLabel: string
   stopLabel: string

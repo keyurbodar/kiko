@@ -10,12 +10,6 @@ import { setFullSize } from "./prefs"
 import { FileActions, FileBody } from "./surface"
 import { createFileView } from "./view"
 
-/*
- * The open file at full size, in the same header and body as the panel. Escape and a click on the
- * scrim close it, and the panel comes back. Only the panel's editor or this one is mounted at a
- * time, so two editors never edit one file.
- */
-
 export default function FileDialog(props: { chatId: string; path: string; file: FileRef | undefined; kind: ViewerKind }) {
 	const view = createFileView(
 		props.chatId,
@@ -27,14 +21,14 @@ export default function FileDialog(props: { chatId: string; path: string; file: 
 		<ModalV2 open onOpenChange={(open: boolean) => !open && setFullSize(false)}>
 			<ModalV2.Portal>
 				<ModalV2.Overlay />
-				<ModalV2.Content class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-xl bg-bg shadow-2xl" data-component="file-dialog">
+				<ModalV2.Content class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-xl bg-background shadow-2xl" data-component="file-dialog">
 					<div class={`${SUBHEADER} h-11 min-h-11`}>
 						<HugeIcon icon={KIND_ICON[props.kind]} size={14} />
-						<ModalV2.Title class="min-w-0 flex-1 truncate text-sm font-medium text-text">{props.path}</ModalV2.Title>
+						<ModalV2.Title class="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{props.path}</ModalV2.Title>
 						<Show when={props.file} keyed>
 							{(file) => <FileActions view={view} chatId={props.chatId} path={props.path} file={file} kind={props.kind} />}
 						</Show>
-						<ModalV2.Close aria-label="Close full size file" data-action="close-file-dialog" class="grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-hover hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+						<ModalV2.Close aria-label="Close full size file" data-action="close-file-dialog" class="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
 							<HugeIcon icon={CloseIcon} size={14} />
 						</ModalV2.Close>
 					</div>

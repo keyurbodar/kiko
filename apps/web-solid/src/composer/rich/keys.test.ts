@@ -15,26 +15,29 @@ import type { Node } from "@tiptap/pm/model"
 import { EditorState, Selection, TextSelection, type Transaction } from "@tiptap/pm/state"
 import { TaskItem } from "@tiptap/extension-task-item"
 import { TaskList } from "@tiptap/extension-task-list"
-import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, indentInCode, leaveEmptyQuote, openFenceOnEnter, shiftEnterInCode, splitOrLeaveListItem } from "./keys"
+import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, shiftEnterInCode, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
 import { Link, Mention } from "./nodes"
 
-// The composer's list item carries the marker it was typed with, as editor.ts declares it.
 const ListItemWithMarker = ListItem.extend({ addAttributes: () => ({ marker: { default: "-", rendered: false } }) })
 
-const schema = getSchema([Document, Paragraph, Text, HardBreak, Bold, Italic, Strike, Code.extend({ excludes: "code" }), Blockquote, CodeBlock, BulletList, OrderedList, ListItemWithMarker, TaskList, TaskItem.configure({ nested: true }), Link, Mention])
+const FencedCodeBlock = CodeBlock.extend({
+  addAttributes() {
+    return { ...this.parent?.(), language: { default: "" }, fence: { default: "```" }, close: { default: "\n```" } }
+  },
+})
+
+const schema = getSchema([Document, Paragraph, Text, HardBreak, Bold, Italic, Strike, Code.extend({ excludes: "code" }), Blockquote, FencedCodeBlock, BulletList, OrderedList, ListItemWithMarker, TaskList, TaskItem.configure({ nested: true }), Link, Mention])
 
 type Json = { type: string; text?: string; attrs?: Record<string, unknown>; content?: Json[] }
 const text = (value: string): Json => ({ type: "text", text: value })
 const para = (value = ""): Json => (value ? { type: "paragraph", content: [text(value)] } : { type: "paragraph" })
 const item = (value = ""): Json => ({ type: "listItem", content: [para(value)] })
 
-/** A document with the caret at its end, the place a typist is. */
 function stateOf(...content: Json[]): EditorState {
   const doc: Node = schema.nodeFromJSON({ type: "doc", content })
   return EditorState.create({ doc, selection: Selection.atEnd(doc) })
 }
 
-/** Runs a command and returns the resulting document, or null when it did not run. */
 function run(state: EditorState, command: (s: EditorState, d?: (tr: Transaction) => void) => boolean): Node | null {
   let next: Transaction | undefined
   if (!command(state, (tr) => (next = tr))) return null
@@ -92,10 +95,89 @@ describe("Enter on a line of backticks", () => {
     const doc = run(stateOf(para("```ts")), openFenceOnEnter)
     expect(doc?.child(0).type.name).toBe("codeBlock")
     expect(doc?.child(0).attrs.language).toBe("ts")
+    expect(doc?.child(0).attrs.fence).toBe("```")
+    expect(doc?.child(0).attrs.close).toBe("\n```")
+  })
+
+  test("opens a tilde fence", () => {
+    const doc = run(stateOf(para("~~~")), openFenceOnEnter)
+    expect(doc?.child(0).attrs.fence).toBe("~~~")
+  })
+
+  test("a backtick line holding a backtick stays text", () => {
+    expect(run(stateOf(para("``` a`b")), openFenceOnEnter)).toBeNull()
   })
 
   test("a plain line is left for Enter to send", () => {
     expect(run(stateOf(para("word")), openFenceOnEnter)).toBeNull()
+  })
+})
+
+describe("Enter on a closing fence line", () => {
+  const fence = (body: string): Json => ({ type: "codeBlock", attrs: { language: "", fence: "```", close: "" }, content: [text(body)] })
+
+  test("ends the block and leaves a paragraph after it", () => {
+    const doc = run(stateOf(fence("let a = 1\n```")), exitCodeBlockOnClosingFence)
+    expect(doc?.child(0).type.name).toBe("codeBlock")
+    expect(doc?.child(0).textContent).toBe("let a = 1")
+    expect(doc?.child(0).attrs.close).toBe("\n```")
+    expect(doc?.child(1).type.name).toBe("paragraph")
+  })
+
+  test("lines after the closing fence become paragraphs", () => {
+    const doc = schema.nodeFromJSON({ type: "doc", content: [fence("let a = 1\n```\nafter")] })
+    const caret = EditorState.create({ doc, selection: TextSelection.create(doc, 14) })
+    const result = run(caret, exitCodeBlockOnClosingFence)
+    expect(result?.childCount).toBe(3)
+    expect(result?.child(2).textContent).toBe("after")
+  })
+
+  test("a fence line that is too short or the wrong mark is code", () => {
+    expect(run(stateOf(fence("let a = 1\n``")), exitCodeBlockOnClosingFence)).toBeNull()
+    expect(run(stateOf(fence("let a = 1\n~~~")), exitCodeBlockOnClosingFence)).toBeNull()
+  })
+})
+
+describe("Enter at the end of an indented code line", () => {
+  test("carries the indent onto the new line", () => {
+    const doc = run(stateOf({ type: "codeBlock", content: [text("  word")] }), indentedNewlineInCodeBlock)
+    expect(doc?.child(0).textContent).toBe("  word\n  ")
+  })
+
+  test("an unindented line gets the default newline", () => {
+    expect(run(stateOf({ type: "codeBlock", content: [text("word")] }), indentedNewlineInCodeBlock)).toBeNull()
+  })
+})
+
+describe("two blank lines at the end of a fence", () => {
+  function runView(state: EditorState) {
+    let next = state
+    const view = { get state() { return next }, dispatch: (tr: Transaction) => { next = next.apply(tr) } }
+    const handled = exitCodeBlockOnTrailingBlankLines(view as never)
+    return handled ? next.doc : null
+  }
+
+  test("leave the fence for a paragraph after it", () => {
+    const doc = runView(stateOf({ type: "codeBlock", attrs: { close: "" }, content: [text("let a = 1\n\n")] }))
+    expect(doc?.child(0).type.name).toBe("codeBlock")
+    expect(doc?.child(0).textContent).toBe("let a = 1")
+    expect(doc?.child(0).attrs.close).toBe("\n```")
+    expect(doc?.child(1)?.type.name).toBe("paragraph")
+  })
+
+  test("one blank line is still code", () => {
+    expect(runView(stateOf({ type: "codeBlock", content: [text("let a = 1\n")] }))).toBeNull()
+  })
+})
+
+describe("Backspace at the start of a fence", () => {
+  test("unwraps the code into paragraphs and keeps the caret", () => {
+    const doc = schema.nodeFromJSON({ type: "doc", content: [{ type: "codeBlock", content: [text("one\ntwo")] }] })
+    const caret = EditorState.create({ doc, selection: TextSelection.create(doc, 1) })
+    const result = run(caret, unwrapCodeBlockAtStart)
+    expect(result?.childCount).toBe(2)
+    expect(result?.child(0).type.name).toBe("paragraph")
+    expect(result?.child(1).textContent).toBe("two")
   })
 })
 
@@ -172,7 +254,6 @@ describe("task items on Shift+Enter", () => {
 describe("`[ ] ` on a bullet item", () => {
   test("turns the item into a task, with the caret in its text", () => {
     const doc = stateOf({ type: "bulletList", content: [{ type: "listItem", attrs: { marker: "-" }, content: [para("[ ] task")] }] }).doc
-    // Positions: the list opens at 0, the item at 1, the paragraph at 2, its text starts at 3.
     const state = EditorState.create({ doc, selection: TextSelection.create(doc, 3, 7) })
     let next: Transaction | undefined
     bulletItemToTask(state.tr.setSelection(TextSelection.create(state.doc, 3, 7)), 3, 7, true)
@@ -191,7 +272,6 @@ describe("`[ ] ` on a bullet item", () => {
       content: [{ type: "bulletList", content: [item("one"), { type: "listItem", attrs: { marker: "-" }, content: [para("[ ] two")] }, item("three")] }],
     })
     const state = EditorState.create({ doc, selection: Selection.atStart(doc) })
-    // The item "two" starts after "one": list 0, item one 1..., compute from the doc.
     let at = 0
     doc.descendants((node, pos) => {
       if (node.type.name === "paragraph" && node.textContent === "[ ] two") at = pos + 1
@@ -212,7 +292,6 @@ describe("Backspace and Delete across a list", () => {
       type: "doc",
       content: [{ type: "bulletList", content: [{ type: "listItem", attrs: { marker: "-" }, content: [para("one"), { type: "bulletList", content: [item("two")] }] }] }],
     })
-    // "one" fills 3 to 6 and its paragraph closes at 7, so the nested list opens at 7 and its paragraph's text starts at 10.
     const caret = EditorState.create({ doc, selection: TextSelection.create(doc, 10) })
     const result = run(caret, backspaceAcrossList)
     expect(result?.child(0).childCount).toBe(2)
@@ -221,7 +300,6 @@ describe("Backspace and Delete across a list", () => {
 
   test("Backspace at the start of an item lifts it out of the top list", () => {
     const doc = schema.nodeFromJSON({ type: "doc", content: [{ type: "bulletList", content: [item("one"), item("two")] }] })
-    // "one" closes its paragraph at 7 and its item at 8, so "two" starts at 10.
     const caret = EditorState.create({ doc, selection: TextSelection.create(doc, 10) })
     const result = run(caret, backspaceAcrossList)
     expect(result?.child(0).textContent).toBe("one")
@@ -237,7 +315,6 @@ describe("Backspace and Delete across a list", () => {
 
   test("Delete at the end of an item joins the next item's text onto it", () => {
     const doc = schema.nodeFromJSON({ type: "doc", content: [{ type: "bulletList", content: [item("one"), item("two")] }] })
-    // The end of "one": list 0, item 1, paragraph 2, text 3..6, so the caret is at 6.
     const caret = EditorState.create({ doc, selection: TextSelection.create(doc, 6) })
     const result = run(caret, deleteAcrossList)
     expect(result?.child(0).childCount).toBe(1)
@@ -245,9 +322,7 @@ describe("Backspace and Delete across a list", () => {
   })
 })
 
-/** The caret at the end of the first item's text, where a typist presses Shift+Enter. */
 function stateAt(list: Json): EditorState {
   const doc = schema.nodeFromJSON({ type: "doc", content: [list] })
-  // The list opens at 0, its item at 1, the paragraph at 2, so the text starts at 3.
   return EditorState.create({ doc, selection: TextSelection.create(doc, 3 + (list.content?.[0]?.content?.[0]?.content?.[0]?.text?.length ?? 0)) })
 }

@@ -4,15 +4,9 @@ import { createEffect, createMemo, createResource, createSignal, For, lazy, on, 
 import { composingKey } from "./ime"
 import { loadEmoji, recordRecent, searchEmoji, shortcodeQuery, warmEmoji, type EmojiMatch } from "../lib/emoji-data"
 
-/* The picker loads on the first hover or press of the emoji button. */
 const pickerModule = () => import("../chat/ui/EmojiPicker")
 const EmojiPicker = lazy(() => pickerModule().then((m) => ({ default: m.EmojiPicker })))
 
-/**
- * Put text in place of `range` in the editor, as typing would. `insertText`
- * keeps the browser's undo stack and fires the editor's own input event, so the
- * draft updates through the one path typing uses.
- */
 function insertAt(editor: HTMLElement, range: Range, text: string) {
   editor.focus({ preventScroll: true })
   const selection = window.getSelection()
@@ -29,17 +23,12 @@ function insertAt(editor: HTMLElement, range: Range, text: string) {
   editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }))
 }
 
-/** The caret, when it is a collapsed caret inside the editor. */
 function caretIn(editor: HTMLElement): Range | undefined {
   const selection = window.getSelection()
   if (!selection?.rangeCount || !selection.isCollapsed || !editor.contains(selection.anchorNode)) return undefined
   return selection.getRangeAt(0).cloneRange()
 }
 
-/**
- * The `:shortcode` list above the composer. It reads the text node at the caret,
- * so it opens and closes with typing and with caret moves alike.
- */
 export function createShortcodes(editor: () => HTMLElement | undefined) {
   const [typed, setTyped] = createSignal<{ node: Text; start: number; end: number; query: string }>()
   const [active, setActive] = createSignal(0)
@@ -72,7 +61,6 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
     insertAt(root, range, match.entry.emoji)
   }
 
-  /** True when the key was the list's. While it is open, Enter picks rather than sends. */
   const onKeyDown = (event: KeyboardEvent): boolean => {
     if (!open() || composingKey(event)) return false
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -92,11 +80,10 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
   const view = (
     <Show when={open()}>
       <div
-        class="absolute right-0 bottom-full left-0 z-30 mx-1.5 mb-1.5 max-h-[322px] overflow-y-auto rounded-[16px] bg-menu p-1 text-text shadow-popover"
+        class="absolute right-0 bottom-full left-0 z-30 mx-1.5 mb-1.5 max-h-[322px] overflow-y-auto rounded-[16px] bg-popover p-1 text-foreground shadow-popover"
         role="listbox"
         aria-label="Emoji"
         data-component="emoji-shortcodes"
-        // Keep the editor's focus and caret through a click.
         onPointerDown={(event) => event.preventDefault()}
       >
         <For each={matches()}>
@@ -104,7 +91,7 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
             <div
               role="option"
               aria-selected={active() === index()}
-              class="flex h-10 cursor-default items-center gap-3 rounded-[10px] px-2.5 data-[active]:bg-[var(--selected-bg)]"
+              class="flex h-10 cursor-default items-center gap-3 rounded-[10px] px-2.5 data-[active]:bg-[var(--accent-strong)]"
               data-active={active() === index() ? "" : undefined}
               data-component="emoji-shortcode"
               data-emoji={match.entry.emoji}
@@ -130,7 +117,6 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
   return { sync, onKeyDown, view, close: () => setTyped(undefined) }
 }
 
-/** `:shortcode:` with the typed part on an accent wash. */
 function Shortcode(props: { match: EmojiMatch; query: string }): JSX.Element {
   const parts = () => {
     const { shortcode, at } = props.match
@@ -141,19 +127,13 @@ function Shortcode(props: { match: EmojiMatch; query: string }): JSX.Element {
     <>
       :{parts()[0]}
       <Show when={parts()[1]}>
-        <mark class="rounded-[3px] bg-accent-wash-strong text-inherit">{parts()[1]}</mark>
+        <mark class="rounded-[3px] bg-ring-wash-strong text-inherit">{parts()[1]}</mark>
       </Show>
       {parts()[2]}:
     </>
   )
 }
 
-/**
- * The composer's emoji button and its picker. The picker opens above the
- * composer and puts the pick at the caret the editor had when the button was
- * pressed. The two are rendered apart: the picker sits outside the composer
- * box, whose own backdrop blur would otherwise flatten the picker's.
- */
 export function createComposerEmoji(editor: () => HTMLElement | undefined, disabled: () => boolean) {
   const [open, setOpen] = createSignal(false)
   let saved: Range | undefined
@@ -184,7 +164,6 @@ export function createComposerEmoji(editor: () => HTMLElement | undefined, disab
     const target = event.target as Node
     if (open() && !panel?.contains(target) && !button?.contains(target)) setOpen(false)
   })
-  // On the window in the capture phase, so the Escape stops before any document listener sees it.
   createEventListener(window, "keydown", (event) => {
     if (!open() || event.key !== "Escape") return
     event.preventDefault()

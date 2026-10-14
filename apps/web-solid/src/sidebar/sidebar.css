@@ -1,23 +1,13 @@
-/* The sidebar: brand and actions, the section's panel, and you and settings at the foot.
- *
- * Every selector is scoped under `.sidebar-shell`, the shell's own class. Names like
- * `.panel` and the `chat-*` family are generic enough to collide with the transcript.
- *
- * Colours come from `kat.css` tokens only. There are no borders: a surface is told apart by
- * its fill. Collapse, resize and hover are instant. The one animation is the typing pulse,
- * because the reader is waiting on an agent. Sizes follow monocode: 13px rows, 11px meta,
- * 6 to 10px corners. Text is sentence case. */
+
 
 .sidebar-shell {
   display: flex;
   height: 100%;
   min-height: 0;
   flex: 1;
-  color: var(--text);
+  color: var(--foreground);
   font-family: var(--font-family-sans);
 }
-
-/* ===== Panel ---------------------------------------------------------- */
 
 .sidebar-shell .panel {
   position: relative;
@@ -47,13 +37,17 @@
   padding: 0 8px 0 12px;
 }
 
+.sidebar-shell :is(.panel-brand, .chat-row, .pin-tile-slot, .settings-panel-row, .panel-tab) {
+  user-select: none;
+}
+
 .sidebar-shell .panel-brand {
   display: flex;
   height: 32px;
   align-items: center;
   gap: 8px;
   padding: 0 6px 0 2px;
-  color: var(--text);
+  color: var(--foreground);
   font-size: var(--font-base);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.01em;
@@ -63,12 +57,10 @@
 
 @media (hover: hover) {
   .sidebar-shell .panel-brand:hover {
-    background: var(--hover-bg);
+    background: var(--accent);
   }
 }
 
-/* One look for every small square button in the chrome: the header's, the foot's, the chat
- * filter, the top bar's, and the toggle the top bar borrows while the sidebar is shut. */
 .sidebar-shell .panel-icon-button,
 .sidebar-shell .top-bar-button,
 .sidebar-shell .main-sidebar-toggle,
@@ -80,7 +72,7 @@
   flex-shrink: 0;
   place-items: center;
   padding: 0;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   background: none;
   border: none;
   border-radius: var(--radius-md);
@@ -93,20 +85,20 @@
   .sidebar-shell .top-bar-button:hover,
   .sidebar-shell .main-sidebar-toggle:hover,
   .sidebar-shell .chat-filter:hover {
-    color: var(--text);
-    background: var(--hover-bg);
+    color: var(--foreground);
+    background: var(--accent);
   }
 }
 
 .sidebar-shell .panel-icon-button[data-expanded] {
-  color: var(--text);
-  background: var(--hover-bg);
+  color: var(--foreground);
+  background: var(--accent);
 }
 
 .sidebar-shell .panel-icon-button[data-active],
 .sidebar-shell :is(.top-bar-button, .chat-filter)[aria-pressed="true"] {
-  color: var(--text);
-  background: var(--selected-bg);
+  color: var(--foreground);
+  background: var(--accent-strong);
 }
 
 .sidebar-shell .main-sidebar-toggle {
@@ -116,12 +108,11 @@
   left: 10px;
 }
 
-/* The unread dot: 8px on rows, tiles and the settings button. The tab strip's is 6px. */
 .sidebar-shell .unread-dot {
   width: 8px;
   height: 8px;
   flex-shrink: 0;
-  background: var(--accent);
+  background: var(--ring);
   border-radius: 50%;
 }
 
@@ -135,7 +126,7 @@
 .sidebar-shell .panel-scroll {
   flex: 1;
   min-height: 0;
-  /* Every visited panel stays mounted in the same cell, so each keeps its scroll. */
+
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   overflow: hidden;
@@ -171,7 +162,7 @@
   align-items: center;
   gap: 9px;
   padding: 0 8px 0 6px;
-  color: var(--text);
+  color: var(--foreground);
   font-size: var(--font-md);
   font-weight: var(--font-weight-medium);
   text-decoration: none;
@@ -180,12 +171,12 @@
 
 @media (hover: hover) {
   .sidebar-shell .panel-me:hover {
-    background: var(--hover-bg);
+    background: var(--accent);
   }
 }
 
 .sidebar-shell .panel-me-active {
-  background: var(--selected-bg);
+  background: var(--accent-strong);
 }
 
 .sidebar-shell .panel-me-name {
@@ -194,8 +185,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* ===== Search --------------------------------------------------------- */
 
 .sidebar-shell .chat-panel {
   display: flex;
@@ -220,20 +209,20 @@
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  color: var(--text-faint);
-  background: var(--input-bg);
+  color: var(--secondary-label);
+  background: var(--secondary);
   border-radius: var(--radius-md);
 }
 
 .sidebar-shell :is(.chat-search-field, .settings-search):focus-within {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .sidebar-shell :is(.chat-search-input, .settings-search input) {
   min-width: 0;
   flex: 1;
   padding: 0;
-  color: var(--text);
+  color: var(--foreground);
   font: inherit;
   font-size: var(--font-md);
   background: none;
@@ -242,10 +231,8 @@
 }
 
 .sidebar-shell :is(.chat-search-input, .settings-search input)::placeholder {
-  color: var(--text-faint);
+  color: var(--secondary-label);
 }
-
-/* ===== Pinned grid ---------------------------------------------------- */
 
 .sidebar-shell .pinned-grid {
   display: grid;
@@ -271,7 +258,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 2px 7px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-family: inherit;
   background: none;
   border: none;
@@ -282,13 +269,13 @@
 
 @media (hover: hover) {
   .sidebar-shell .pin-tile:hover {
-    background: var(--hover-bg);
+    background: var(--accent);
   }
 }
 
 .sidebar-shell .pin-tile[data-active] {
-  color: var(--text);
-  background: var(--selected-bg);
+  color: var(--foreground);
+  background: var(--accent-strong);
 }
 
 .sidebar-shell .pin-tile-circle {
@@ -309,7 +296,7 @@
   position: absolute;
   top: 2px;
   right: 2px;
-  box-shadow: 0 0 0 2px var(--sidebar-solid);
+  box-shadow: 0 0 0 2px var(--sidebar);
 }
 
 .sidebar-shell .pin-tile-name {
@@ -325,12 +312,9 @@
 }
 
 .sidebar-shell .pin-tile[data-unread] .pin-tile-name {
-  color: var(--text);
+  color: var(--foreground);
 }
 
-/* ===== Chat rows ------------------------------------------------------ */
-
-/* The scroller. virtua owns it, so it only needs a height. Its thumb is the app's thin one. */
 .sidebar-shell .chat-list {
   min-height: 0;
   flex: 1;
@@ -348,7 +332,7 @@
   gap: 10px;
   padding: 0 10px 0 8px;
   overflow: hidden;
-  color: var(--text);
+  color: var(--foreground);
   font-family: inherit;
   text-align: left;
   line-height: 1.3;
@@ -361,15 +345,14 @@
 
 @media (hover: hover) {
   .sidebar-shell .chat-row:hover {
-    background: var(--hover-bg);
+    background: var(--accent);
   }
 }
 
 .sidebar-shell .chat-row[data-active] {
-  background: var(--selected-bg);
+  background: var(--accent-strong);
 }
 
-/* An avatar is its own shape: no disc behind it and nothing clipping it. */
 .sidebar-shell .chat-avatar,
 .sidebar-shell .pin-tile-avatar {
   display: block;
@@ -377,7 +360,6 @@
   overflow: visible;
 }
 
-/* A mochi is wide and low, so its slot is a size up from a round avatar's. */
 .sidebar-shell .chat-avatar {
   width: 36px;
   height: 36px;
@@ -395,7 +377,6 @@
   height: 100%;
 }
 
-/* A group's stacked faces overlap past the circle, so its box neither clips nor stretches them. */
 .sidebar-shell [data-component="chat-avatar-stack"] {
   overflow: visible;
   border-radius: 0;
@@ -436,24 +417,24 @@
 }
 
 .sidebar-shell .chat-row[data-muted] .chat-name {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .sidebar-shell .chat-muted-icon {
   flex-shrink: 0;
-  color: var(--text-faint);
+  color: var(--secondary-label);
 }
 
 .sidebar-shell .chat-time {
   flex-shrink: 0;
-  color: var(--text-faint);
+  color: var(--secondary-label);
   font-size: var(--font-xs);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-time {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .sidebar-shell .chat-preview {
@@ -461,33 +442,30 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--text-faint);
+  color: var(--secondary-label);
   font-size: var(--font-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* A chat with nothing to preview yet: the title alone, centred on the avatar. */
 .sidebar-shell .chat-line:has(> .chat-preview[data-empty]:only-child) {
   display: none;
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-preview {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
-/* Who said the newest line: you, or an agent in a group. A shade stronger than the line. */
 .sidebar-shell .chat-preview-from {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .sidebar-shell .chat-draft {
-  color: var(--danger);
+  color: var(--error);
 }
 
-/* Typing replaces the preview line, where the reader is already looking. */
 .sidebar-shell .chat-preview[data-typing] {
-  color: var(--accent);
+  color: var(--ring);
 }
 
 .sidebar-shell .chat-typing-dot {
@@ -520,8 +498,6 @@
   }
 }
 
-/* The marks at the end of the second line. One height and one corner family, so the count,
- * the @ and the dot read as a set. The accent is for what is about you: the @ and the dot. */
 .sidebar-shell .chat-count,
 .sidebar-shell .chat-mention-badge {
   display: inline-grid;
@@ -550,8 +526,8 @@
 
 .sidebar-shell .chat-mention-badge {
   padding: 0;
-  color: var(--on-accent);
-  background: var(--accent-fill);
+  color: var(--primary-foreground);
+  background: var(--primary);
 }
 
 .sidebar-shell .chat-unread-dot {
@@ -563,14 +539,14 @@
   min-width: 0;
   padding: 0 4px;
   margin: 0 -4px;
-  color: var(--text);
+  color: var(--foreground);
   font: inherit;
   font-size: var(--font-md);
   font-weight: var(--font-weight-medium);
-  background: var(--input-bg);
+  background: var(--secondary);
   border: none;
   border-radius: var(--radius-md);
-  outline: 1px solid var(--accent);
+  outline: 1px solid var(--ring);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -580,11 +556,6 @@
   }
 }
 
-/* ===== Settings list -------------------------------------------------- */
-
-/* monocode's settings rail (app/shell/SettingsRail.tsx): groups 20px apart under a small label,
-   rows on the chat rows' scale, the active row on the selection fill. The search is the chat
-   search's field. */
 .sidebar-shell .settings-panel {
   display: flex;
   min-height: 0;
@@ -611,10 +582,9 @@
   margin-top: 20px;
 }
 
-/* The menu's group label: 11px, medium, faint. */
 .sidebar-shell .settings-group-label {
   padding: 0 8px 4px;
-  color: var(--text-faint);
+  color: var(--secondary-label);
   font-size: var(--font-xs);
   font-weight: var(--font-weight-medium);
 }
@@ -626,7 +596,7 @@
   align-items: center;
   gap: 8px;
   padding: 0 8px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: var(--font-md);
   font-weight: var(--font-weight-medium);
   text-decoration: none;
@@ -639,14 +609,14 @@
 
 @media (hover: hover) {
   .sidebar-shell .settings-panel-row:hover {
-    color: var(--text);
-    background: var(--hover-bg);
+    color: var(--foreground);
+    background: var(--accent);
   }
 }
 
 .sidebar-shell .settings-panel-row-active {
-  color: var(--text);
-  background: var(--selected-bg);
+  color: var(--foreground);
+  background: var(--accent-strong);
 }
 
 .sidebar-shell .settings-row-label {
@@ -659,14 +629,10 @@
 
 .sidebar-shell .settings-empty {
   padding: 12px;
-  color: var(--text-faint);
+  color: var(--secondary-label);
   font-size: var(--font-md);
 }
 
-/* ===== Resize handle -------------------------------------------------- */
-
-/* One handle for every Corvu edge: a zero-width flex item with a 9px grab area centred on the seam,
- * and under the pointer or the keyboard focus a 2px line in the neutral border tone, never the accent. */
 .sidebar-shell .shell-panel {
   display: flex;
   min-width: 0;
@@ -702,7 +668,7 @@
   bottom: 0;
   left: -1px;
   width: 2px;
-  background: color-mix(in oklab, var(--text) 14%, transparent);
+  background: color-mix(in oklab, var(--foreground) 14%, transparent);
   opacity: 0;
   content: "";
 }
@@ -722,10 +688,6 @@
   opacity: 1;
 }
 
-/* ===== Narrow --------------------------------------------------------- */
-
-/* Below 768px the panel is a drawer over the transcript, opaque so the chat never shows
- * through it. The resize handle goes: there is no width to drag. */
 @media (width < 768px) {
   .sidebar-shell {
     position: relative;
@@ -738,7 +700,7 @@
     bottom: 0;
     left: 0;
     width: min(320px, calc(100vw - 24px));
-    background: var(--drawer-bg);
+    background: var(--sidebar);
     -webkit-backdrop-filter: var(--surface-blur);
     backdrop-filter: var(--surface-blur);
     box-shadow: var(--popover-shadow);
@@ -751,29 +713,22 @@
 
 }
 
-/* ===== Main panes ----------------------------------------------------- */
-
-/* The chat pane, and the info pane beside it when it is open. As in monocode, the panes sit
- * flush in the window and are split by hairlines, not floated as rounded cards with gaps. The
- * info pane runs the window's full height, so only its left edge is drawn. */
 .sidebar-shell .main-row {
   gap: 0;
   margin: 0;
 }
 
 .sidebar-shell .main-panel {
-  background: var(--panel);
+  background: var(--background);
   border-radius: 0;
-  box-shadow: inset 1px 0 0 var(--hairline), inset 0 1px 0 var(--hairline);
+  box-shadow: inset 1px 0 0 var(--border), inset 0 1px 0 var(--border);
 }
 
 .sidebar-shell [data-component="sidecar"] {
-  background: var(--panel);
-  box-shadow: inset 1px 0 0 var(--hairline);
+  background: var(--background);
+  box-shadow: inset 1px 0 0 var(--border);
 }
 
-/* Where the chat cannot keep its width beside the sidecar, the sidecar covers it instead, opaque, so
- * the transcript never shows through. */
 .sidebar-shell .sidecar-scrim {
   inset-inline-start: 0;
 }
@@ -785,7 +740,7 @@
   right: 0;
   bottom: 0;
   width: min(24rem, calc(100vw - 24px));
-  background: var(--drawer-bg);
+  background: var(--sidebar);
   -webkit-backdrop-filter: var(--surface-blur);
   backdrop-filter: var(--surface-blur);
   box-shadow: var(--popover-shadow);

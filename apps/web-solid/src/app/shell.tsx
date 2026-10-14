@@ -18,7 +18,6 @@ import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
 import { hintsShown, watchHold } from "../commands/hints";
-// The shortcut pills load on the first modifier press, with the palette, so the hold shows them at once.
 const HintLayer = lazy(() => import("../commands/HintLayer"));
 import { Sidebar, SidebarToggle } from "../sidebar";
 import { drawerOpen, setDrawerOpen } from "./drawer";
@@ -35,7 +34,6 @@ const fill = (
     String(params?.[key] ?? ""),
   );
 
-// The one dictionary holds the final wording, so the shell just looks keys up.
 const i18n: UiI18n = {
   locale: () => "en",
   t: (key, params) => fill(dict[key] ?? String(key), params),
@@ -46,10 +44,8 @@ const i18n: UiI18n = {
     }),
 };
 
-// The sidecar loads on the first open, or on idle after the first paint. The chat route does not carry it.
 const Sidecar = lazy(loadSidecar);
 const Card = lazy(loadCard);
-// The first-run look screen and the avatar picker each load on their own, off the first paint.
 const AvatarPicker = lazy(() => import("../avatar/picker"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
@@ -63,7 +59,6 @@ function readCollapsed() {
   }
 }
 
-/** Hands the enclosing Corvu panel's controls to the shell. */
 function GrabPanel(props: { onGrab: (panel: PanelContextValue | undefined) => void }) {
   props.onGrab(Resizable.usePanelContext())
   onCleanup(() => props.onGrab(undefined))
@@ -76,21 +71,11 @@ function writeCollapsed(value: boolean) {
   } catch {}
 }
 
-/*
- * The frame around every screen: the sidebar column, then the main column with the top bar
- * over a rounded panel. The shell is the router's root, so it never remounts on a route
- * change and the swap is instant.
- *
- * `sidebar-shell` is the flex row the sidebar's stylesheet is scoped under.
- */
 export function Shell(props: ParentProps) {
   const location = useLocation();
   const [collapsed, setCollapsed] = createSignal(readCollapsed());
-  // Below 768 px the sidebar is a drawer over the transcript. It starts closed on every load and
-  // is never saved, so the saved wide-screen preference does not bury the chat on a phone.
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined;
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false);
-  // The right panel sits beside the chat only where the chat keeps its 360 px. Below that it covers the chat.
   const compactQuery = typeof matchMedia === "function" ? matchMedia("(width < 960px)") : undefined
   const [compact, setCompact] = createSignal(compactQuery?.matches ?? false)
   onMount(() => {
@@ -102,8 +87,6 @@ export function Shell(props: ParentProps) {
   const [sidePanel, setSidePanel] = createSignal<PanelContextValue | undefined>();
   const drawer = drawerOpen;
   const setDrawer = setDrawerOpen;
-  // Keyboard intent for focus rings: a real navigation key turns rings on, a pointer turns them
-  // off. Modifiers alone do not count, so pressing Cmd for a shortcut never rings the clicked row.
   onMount(() => {
     const root = document.documentElement;
     const keys = (e: KeyboardEvent) => {
@@ -134,8 +117,6 @@ export function Shell(props: ParentProps) {
     window.addEventListener("keydown", on);
     onCleanup(() => window.removeEventListener("keydown", on));
   });
-  // Phone swipes for the drawer and the sidecar (edge-swipe.ts). Touch events, not pointer
-  // events: a pointer is cancelled once the browser starts panning, and the end is what decides.
   createEffect(() => {
     if (!narrow()) return;
     let start: { x: number; y: number; region: SwipeRegion } | null = null;
@@ -172,15 +153,12 @@ export function Shell(props: ParentProps) {
       sidebarPanel.resize(`${readWidth(SIDEBAR)}px`);
     } else sidebarPanel.collapse();
   };
-  // Going anywhere closes the drawer, so picking a chat shows it.
   createEffect((prev: string | undefined) => {
     const path = location.pathname;
     if (prev !== undefined && prev !== path && narrow()) setDrawer(false);
-    // The startup screen is taken once after each route change, not on a timer.
     if (prev !== path) snapshotAfterRoute();
     return path;
   });
-  /** The chat the sidecar shows: the one named by the URL. */
   const sideChat = () => {
     const id = CHAT_PATH.exec(location.pathname)?.[1];
     return id && id !== "new" ? decodeURIComponent(id) : null;
@@ -194,7 +172,6 @@ export function Shell(props: ParentProps) {
     if (id) closeSidecar(id);
   };
   useKatCommands({ toggleSidebar: toggle });
-  // The hotkey library loads right after first paint. Shortcuts are keyboard only, so nothing waits on it.
   const owner = getOwner();
   onMount(() => {
     void import("../commands/hotkeys").then((m) => runWithOwner(owner, () => m.bindCommandHotkeys()));
@@ -205,7 +182,6 @@ export function Shell(props: ParentProps) {
     else if (idle) idle(() => void loadSidecar());
   });
   onMount(() => onCleanup(watchHold()));
-  // Preload tier 3 on the first modifier key so the palette opens in one frame.
   onMount(() => {
     const on = (e: KeyboardEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
@@ -221,8 +197,6 @@ export function Shell(props: ParentProps) {
     <Sidebar section={sectionOf(location.pathname)} collapsed={closed()} onToggle={toggle} />
   ));
   const dockedSide = () => (compact() || !sideOpen() ? null : sideChat());
-  // The docked column is always in the layout and opens and closes as the sidebar does, so Corvu
-  // moves the width between it and the chat and the other columns stay put.
   createEffect(() => {
     const panel = sidePanel();
     if (!panel) return;
@@ -232,8 +206,6 @@ export function Shell(props: ParentProps) {
       panel.resize(`${readWidth(INFO)}px`);
     } else if (!panel.collapsed()) panel.collapse();
   });
-  // Corvu keeps each column a share of the window, so a window resize would carry a column past its
-  // limits. The saved widths are put back, and Corvu clamps them against the chat's floor.
   onMount(() => {
     let frame = 0;
     let last = window.innerWidth;
@@ -241,7 +213,6 @@ export function Shell(props: ParentProps) {
       if (window.innerWidth === last) return;
       last = window.innerWidth;
       cancelAnimationFrame(frame);
-      // Corvu learns the new window width from a ResizeObserver, which runs after the first frame.
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
           if (sidebarPanel && !sidebarPanel.collapsed()) sidebarPanel.resize(`${readWidth(SIDEBAR)}px`);
@@ -257,8 +228,6 @@ export function Shell(props: ParentProps) {
     });
   });
   const overlaidSide = () => (compact() && sideOpen() ? sideChat() : null);
-  // The card's placement follows the chat panel's width, so it watches the panel itself. The panel
-  // is remounted when the layout mode changes, so the observer follows the element, not the mount.
   const [mainPanel, setMainPanel] = createSignal<HTMLElement>();
   createEffect(() => {
     const panel = mainPanel();
@@ -267,12 +236,11 @@ export function Shell(props: ParentProps) {
     observer.observe(panel);
     onCleanup(() => observer.disconnect());
   });
-  // An inline card sits in the chat's own column, so the chat gives up the card's width on that side.
   const inlineCard = () => sideChat() !== null && cardInline();
   return (
     <I18nProvider value={i18n}>
       <div
-        class="sidebar-shell relative flex h-dvh overflow-hidden bg-[var(--shell-bg)]"
+        class="sidebar-shell relative flex h-dvh overflow-hidden bg-[var(--sidebar)]"
         data-component="app-shell"
         data-section={sectionOf(location.pathname) ?? undefined}
       >
@@ -316,9 +284,7 @@ export function Shell(props: ParentProps) {
                   />
                 </Show>
                 <Resizable.Panel class="shell-panel" data-component="chat-panel" initialSize={sizes.chat} minSize={`${CHAT_MIN}px`}>
-                  {/* The top bar sits on the shell, and the panel is a pane under it. A section
-                      without a top bar (settings) gets the panel from the top, and the sidebar button
-                      floats over its corner while the sidebar is shut. */}
+
                   <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
                     <TopBar sidebarOpen={!closed()} onToggleSidebar={toggle} />
                     <Show when={closed() && sectionOf(location.pathname) !== "chat"}>

@@ -5,9 +5,8 @@
 //
 // DEVIATION: the transcript keeps a message view (`ChatMessage`) instead of
 // reading `Message` directly. Its height model, grouping, quote, and menu all
-// read this shape, and none of those files belongs to P2-07. The view is now
-// derived from `Message` by `toChatMessage`, and only the store and the dev
-// harness fixtures build one.
+// read this shape. The view is derived from `Message` by `toChatMessage`, and
+// only the store builds one.
 
 import type { MessageId, PendingAttachment, RichText } from "@kiko/protocol";
 
@@ -80,7 +79,7 @@ export interface ChatMessage {
   sender: "user" | "bot";
   /** The agent slug when an agent wrote it. Absent on a system message. */
   botId?: string;
-  /** The room's sequence. Absent in harness fixtures and on a pending send. */
+  /** The room's sequence. Absent on a pending send. */
   seq?: number;
   /** Plain text. An agent message also carries `rich`. */
   body: string;

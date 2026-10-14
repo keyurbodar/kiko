@@ -1,4 +1,4 @@
-import { type JSX } from "solid-js"
+import type { JSX } from "solid-js"
 import { Dialog } from "../../lib/dialog"
 import { Button } from "../../settings/kit"
 
@@ -36,7 +36,7 @@ export function SuspiciousLinkDialog(props: { href: string; onClose: () => void 
       }
     >
       <p class="text-[13px] leading-relaxed text-[var(--kit-meta)]">
-        The text of this link does not match its address. It opens <span class="font-mono break-words text-accent">{realHost()}</span>.
+        The text of this link does not match its address. It opens <span class="font-mono break-words text-ring">{realHost()}</span>.
       </p>
     </Dialog>
   )

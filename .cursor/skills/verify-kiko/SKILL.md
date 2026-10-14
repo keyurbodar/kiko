@@ -141,7 +141,6 @@ const font = await page.evaluate(() => ({
   mono: document.fonts.check("14px 'Fantasque Sans Mono'"),
   faces: [...document.fonts].map((f) => f.family + "|" + f.style + "|" + f.weight + "|" + f.status),
 }));
-const harness = await page.fetch("/src/chat/harness.html");
 const empty = Object.entries(roles).filter(([, v]) => v === "");
 const ok =
   empty.length === 0 &&
@@ -151,7 +150,7 @@ const ok =
   page1.colorScheme === page1.appearance &&
   page1.inlineKikoVars === 0 &&
   page1.themeId === null;
-console.log(JSON.stringify({ port, roles, ...page1, font, harnessStatus: harness.status, emptyRoles: empty, ok }));
+console.log(JSON.stringify({ port, roles, ...page1, font, emptyRoles: empty, ok }));
 await task.finish({ keep: [] });
 if (!ok) process.exit(1);
 EOF
@@ -165,7 +164,7 @@ The heredoc delimiter is unquoted so the shell substitutes `$KIKO_PORT` into the
 
 `bodyFontSize` reads `14px`. The 14px face is on `body`, not `:root`: the root stays at the browser default so Tailwind's rem spacing utilities are not rescaled.
 
-- `harnessStatus` is `200`. The chat harness is the entry point for every chat feature recipe; without it the composed app still boots but the transcript fixtures are unreachable. A non-200 here means the chat slice is not on disk, so the chat recipes are pending, not failing.
+- The chat fixture harness (`src/chat/harness.html`) was removed in 2026-11; every recipe runs against the composed app at `/`, signed in with `/api/auth/dev/session`.
 
 ## Drive
 
@@ -185,7 +184,7 @@ await page.cdp("Page.addScriptToEvaluateOnNewDocument", {
     window.addEventListener("unhandledrejection", (e) => window.__errs.push("rejection: " + String(e.reason)));
   `,
 });
-await page.goto("http://localhost:" + port + "/src/chat/harness.html", { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.goto("http://localhost:" + port + "/", { waitUntil: "domcontentloaded", timeout: 60000 });
 // ... drive ...
 const errs = await page.evaluate(() => window.__errs);
 ```
@@ -194,10 +193,9 @@ The script is evaluated on every new document, so it must be registered **before
 
 **2. `page.goto` with the default `waitUntil: "load"` times out on this app.** The transcript's media never finishes loading, so the `load` event does not fire within the driver's 15s default and `goto` rejects with `PageNavigationTimeoutError: page.goto timed out after 15000ms waiting for domcontentloaded; navigation committed`. Note the message names `domcontentloaded` even when you did not ask for it: that is the driver's phrasing, not a report that your option was ignored; the navigation did commit. **Every `goto` in this skill and in `features/` passes `{ waitUntil: "domcontentloaded" }`**, and a recipe that omits it will appear to time out on a perfectly healthy app. `domcontentloaded` alone has still timed out on a cold Vite module graph, so pass an explicit `timeout: 60000` as well and then `waitForFunction` on the condition you actually care about.
 
-### Two entry points
+### One entry point
 
-- **Composed app.** `http://localhost:<port>/`. What a user gets, and the only entry point with the sidebar, the top bar, the router and the composer together. Signed in, `/` redirects to `/chat/<id>` (`src/app/routes.tsx`, `Resume`). It composes the sidebar, the transcript **and the composer**: `[data-component="composer-dock"]` is present on `/chat/<id>`, rendered by `src/app/routes/chat.tsx`, and is the only place it exists. Needs a signed-in session (see Launch).
-- **Chat harness.** `http://localhost:<port>/src/chat/harness.html`. The chat slice's own page, with every fixture state addressable and probes on `window.__chat`. It mounts `MessageList` alone and needs no session: **no composer, no sidebar, no top bar and no send path.** A recipe that needs one of those is a composed-app recipe.
+- **Composed app.** `http://localhost:<port>/`. What a user gets: sidebar, top bar, router, transcript and composer together. Signed in, `/` redirects to `/chat/<id>` (`src/app/routes.tsx`, `Resume`). Needs a session: open `/api/auth/dev/session?name=<suite>` once to mint a dev owner cookie, then `/`. The old fixture harness page and its `window.__chat` probes are gone; drive state the way a user does, through the UI.
 
 ```bash
 KIKO_PORT=3017
@@ -205,97 +203,27 @@ ego-browser nodejs <<EOF
 const port = $KIKO_PORT;
 const task = await taskSpace("kiko chat");
 const page = task.page("p1");
-await page.goto("http://localhost:" + port + "/src/chat/harness.html", { waitUntil: "domcontentloaded", timeout: 60000 });
-await page.waitForFunction(() => typeof window.__chat === "object", undefined, { timeout: 15_000 });
-const probe = await page.evaluate(() => window.__chat.probe());
-console.log({ taskSpaceId: task.spaceId, page: page.label, probe });
+await page.goto("http://localhost:" + port + "/api/auth/dev/session?name=verify", { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.goto("http://localhost:" + port + "/", { waitUntil: "domcontentloaded", timeout: 60000 });
+await page.waitForFunction(() => document.querySelector("[data-component=chat-shell]"), undefined, { timeout: 15_000 });
+console.log({ taskSpaceId: task.spaceId, page: page.label });
 console.log(await page.snapshot());
 await task.finish({ keep: [] });
 EOF
 ```
 
-### `window.__chat` probes
+### Probing the composed app
 
-Every setter drives the same reactive path a user action takes. None is a test-only branch. This is the full surface, read out of `apps/web-solid/src/chat/harness.tsx`: `Object.keys(window.__chat)` returns exactly these thirteen names.
+The `window.__chat` harness probes are gone with the fixture page. Drive state the way a user does: type into `[data-component="prompt-input"]`, right-click a `[data-component="chat-row"]`, hover for the row actions, and read the DOM the recipes name. State that the fixture table used to fabricate — an unread rule, a day divider, a run of grouped messages — is produced by sending or seeding through the dev session's room.
 
-| Probe | Argument | What it does |
-| --- | --- | --- |
-| `states()` | none | The fixture slugs the harness accepts, as shipped |
-| `setState(slug)` | one of the fixture slugs below | Loads that fixture state and re-renders the transcript. Returns the slug it resolved to |
-| `setTyping(names)` | array of names, `[]` to clear | Puts those senders into the typing state, or clears it. Returns the array it resolved to |
-| `setReplyTarget(messageId)` | a message id, or `null` | Arms a reply so the next send quotes that message. Returns the id or `null` |
-| `openMenu(messageId)` | a message id | Dispatches a real `contextmenu` on that row. Returns whether a menu appeared |
-| `openPicker(messageId)` | a message id | Dispatches `pointerdown`+`pointerup`+`click` on the row's add-reaction control. Returns whether a picker appeared |
-| `openMedia(messageId, index = 0)` | a message id and a picture index | Clicks that picture tile. Async: resolves to whether the image dialog appeared within a second (its body loads on first open) |
-| `closeMedia()` | none | Dispatches `Escape` on the document. Returns whether the image dialog went away |
-| `probe()` | none | Returns the whole observation object, below |
-| `state()` | none | The current fixture slug |
-| `messages` | none | The current state's message array |
-| `threadState` | none | The last `{ scrollOffset, scrollSize, viewportSize, rangeStart, rangeEnd }` the transcript reported |
-| `viewerId` | none | The id the composer speaks for, so a probe can tell own rows from the agent's |
+Measurements that still hold from the fixture days, because they are DOM facts, not probe facts:
 
-There is **no `now()` probe.** An earlier version of this map listed one; it does not exist, and `typeof window.__chat.now` is `undefined`. Read the clock through `getComputedStyle` on the rendered chip instead.
-
-`probe()` returns `{ state, rows, bubbles, dateChip, dayLabels, unreadRule, runs, typing, overlay, replyTarget, images, files, viewer, tokens }`:
-
-- `rows`: `[data-component="chat-vrow"]` **in the DOM**, which is the viewport and not the message total.
-- `bubbles`: elements carrying `data-message-id`.
-- `dateChip`: the chip trigger's own text, or `null`. Read the **button** (`[data-component="chat-day-chip"]`), not a divider label, which is not inside it.
-- `dayLabels`: every `[data-component="chat-day-label"]` in the DOM. **It is `[]` for every harness fixture state**, because no single state spans two calendar days: each day-boundary state is a slice that starts on its own day, so `buildTimelineItems` never inserts a divider. A recipe that needs a divider has to read it at `/`, where the active thread does span days. This is not a broken probe: measured `[]` in `three-days-ago`, `yesterday`, `today`, `unread` and `media-card`, and the source comment in `harness.tsx` records that a previous read targeted a `chat-divider__label` class the transcript never renders, which made `dayLabels` silently empty for exactly this reason.
-- `unreadRule`: `[data-component="chat-unread-rule"]` is present.
-- `runs`: bubbles whose `data-run` is **`"start"`**. Note this is a tail fact, not a per-run count: `data-run` is `start` / `mid` / `bot` where `bot` means *last of its run*. A three-message run reports `1`; a run of two reports `1`; a single isolated message reports `0`, because a lone message is both start and end and resolves to `bot`. **Assert run structure on `data-gap` and `padding-top`, not on `runs`**. Measured: `grouped` reports `runs: 1` with rows `start`/`mid`/`bot`, and a three-row `run-gap` also reports `runs: 1` with rows `bot`/`start`/`bot` and two rows carrying `data-gap`.
-- `typing`: `[data-component="chat-typing-row"]` is present.
-- `overlay`: `"menu"`, `"picker"` or `null`.
-- `replyTarget`: the armed reply id or `null`.
-- `images`: `[data-component="chat-attachment-image"]` picture tiles in the DOM, across every message.
-- `files`: `[data-component="chat-attachment-file"]` file rows in the DOM, across every message.
-- `viewer`: `true` while `[data-component="image-dialog"]` is mounted. That handle is on the dialog's inner column, because `ModalV2.Content` overwrites a `data-component` passed to it.
-- `tokens`: the resolved `--user-bubble`, `--assistant-bubble`, `--font-base` and `--radius-bubble`. Measured on the harness after the Sakura theme: `oklch(0.51 0.062 356)`, `oklch(0.278 0 6)`, `14px`, `18px`. Structural backgrounds are chroma 0; mauve appears only on the own bubble and accent marks.
-
-`setState`, `setTyping` and `setReplyTarget` return the value they resolved to, so a caller can assert the result in the same round. `openMenu`, `openPicker`, `openMedia` and `closeMedia` return a boolean saying whether a dialog actually opened: read it, because a stale overlay left on screen makes a no-op look like an open menu. `openMenu` returning `true` is an **observation, not a guarantee**: it tests `[role='menu'], [data-component*='menu']`, which matches the menu's `menu-v2-content`. Measured on `today`: `openMenu` returns `true` for `a-35`, `a-36` and `a-37` with `probe().overlay === "menu"`, but `[data-component="chat-menu"]` is `0` even while the menu is open. See the selector note below.
-
-`openPicker` opens the menu, clicks `.chat-menu__more`, and waits up to 5s for `[data-component='emoji-picker']`. The picker is kiko's own component in the light DOM, drawing system emoji glyphs. On a pointer device the same picker is also reached from a row's hover actions: hover `[data-action="react"]`, then click the popover's `[data-action="more-emoji"]`.
-
-The harness also takes the state in the URL, which is the cheaper way to start a round: `http://localhost:<port>/src/chat/harness.html?state=unread`. An unknown slug falls back to `today` **and says so in the page's own state readout.** `[data-component="harness-state"]` renders `Unknown state: <slug>`, so a typo is visible on the page rather than silent. Read `probe().state` and `[data-component="harness-state"]` before measuring. `?typing=ada,grace` starts a round with those senders already typing.
-
-The harness chrome itself is `harness-root`, `harness-bar`, `harness-title`, `harness-state`, `harness-spacer` and `harness-hint`. It used to be a stylesheet; it is now inline utilities, and the class names survive only so a node is easy to find in devtools. None of those strings selects a descendant.
-
-### Fixture slugs
-
-`Object.keys(FIXTURE_STATES)` returns exactly these thirty-six, and this list is authoritative: read it from `apps/web-solid/src/lib/fixtures.ts` or call `window.__chat.states()`.
-
-| Slug | State |
-| --- | --- |
-| `read-more` | a 3,000 character body between short rows, clamped until expanded |
-| `pause-gap` | a pause over an hour inside one day, which draws a divider; ten minutes does not |
-| `grouped` | three consecutive agent messages, one run |
-| `run-gap` | a run broken by a gap longer than the 300s window |
-| `run-break-reply` | a run broken because the next message replies to something else |
-| `long` | a long multi-paragraph body, so the 80% cap binds |
-| `jumbo-single` | one jumbo-sized pure-emoji body |
-| `jumbo-group` | a run of jumbo emoji |
-| `jumbo-prose` | a jumbo run that also contains prose |
-| `link` | links in the body: the text draws them and nothing else |
-| `reply-text` | a reply to a text message |
-| `reply-image` | a reply to a message with a picture, so the quote carries a thumbnail |
-| `grid-2` / `grid-3` / `grid-4` / `grid-5` | the picture grid at four counts; an odd count leaves one tile on the last row |
-| `grid-shapes` | a pano, a square and a portrait, all cropped to the same 4:3 tile |
-| `picture-only` | a single picture with no body at all; it spans both columns |
-| `picture-caption` | one picture with a line of text under it |
-| `video` | clips, which are file rows like any other file |
-| `picture-link` | a picture and a link in one message |
-| `rich-text` | every run the body parser has to tell apart on one line |
-| `reactions` | a cluster: one chip the viewer has pressed beside a counted chip they are not part of |
-| `edited` | the edited marker on a body that was not rewritten |
-| `pinned` | a pinned message, plus the reply that follows it |
-| `three-days-ago` / `yesterday` / `today` | the day boundaries, for the date chip |
-| `unread` | an unread division with a rule before the first unread incoming message, and rows above **and** below it |
-| `file-single` / `file-group` | one PDF with a caption; three files on an old agent message plus a docx from the viewer |
-| `user-grid-3` / `user-grid-2-reply` / `user-picture` | the viewer's own pictures, pictures sent as a reply, and a lone picture |
-| `link-only` | messages that are only a link; they draw as ordinary bubbles |
-| `grouped-own` | three consecutive viewer messages in one run (ids `run-01`..`run-05`), then a two-message agent run |
-
-A slug that `setState` rejects is a fixture gap to report, not a typo to work around by picking another state.
+- `rows` are `[data-component="chat-vrow"]` elements **in the DOM**, the viewport window, not the message total.
+- `data-run` on a row is `start` / `mid` / `bot` where `bot` means *last of its run*. A single isolated message reports `bot`. **Assert run structure on `data-gap` and `padding-top`, not on run counts.**
+- The open context menu is `[data-component="menu-v2-content"]` with the class `.chat-menu`; `[data-component="chat-menu"]` matches nothing, because `MenuV2.Context.Content` overwrites the prop.
+- The date chip label is read off `[data-component="chat-day-chip"]`, the button, never a divider label.
+- `[data-component="image-dialog"]` is the dialog's inner column: `ModalV2.Content` overwrites a `data-component` passed to it.
+- The emoji picker is `[data-component="emoji-picker"]`, reached in the composed app through a row's context menu `.chat-menu__more` or the hover actions' `[data-action="more-emoji"]`.
 
 ### Selectors you can rely on
 
@@ -306,13 +234,13 @@ These were read out of a live page on both entry points, not inferred from sourc
 - `loc=css:#root`: the mount point from `apps/web-solid/index.html`.
 - `loc=css:.sidebar-shell`: the full-height flex row the app composes, and the class every rule in `apps/web-solid/src/sidebar/sidebar.css` is scoped under. Its children are the sidebar and `main-column`, which holds the top bar and the `main-row` the route renders into. It is **not** `.chat-shell`.
 - `loc=css:html`: carries `class="dark"` and `color-scheme: dark` from `index.html` and the kat base layer.
-- `loc=css:[data-component="chat-shell"]`: the composed app's chat pane, rendered inside `main-row` beside the sidebar. It holds the transcript and the composer dock. **Not present in the harness.**
+- `loc=css:[data-component="chat-shell"]`: the composed app's chat pane, rendered inside `main-row` beside the sidebar. It holds the transcript and the composer dock.
 - `loc=css:[data-component="chat-stage"]`: the positioned sibling of the scroller that hosts the date chip, the jump pill and the scroll fades, so those do not scroll away.
 - `loc=css:[data-component="chat-scroll"]`: the scroller, also `[data-virtual-scroll]`. `window.scrollTo` moves nothing; write `scrollTop` on this element.
 - `loc=css:[data-component="chat-column"]`: the centred content column, also `[data-virtual-column]`.
 - `loc=css:[data-component="chat-vrow"]`: one virtualized row.
 - `loc=css:[data-component="chat-row"]`: one message row, carrying `data-message-id`, `data-side="user|bot"`, `data-run="start|mid|bot"`, `data-gap` on a run start, and `data-replying` on the armed reply target.
-- `loc=css:[data-slot="bubble"]`: the positioned parent of a bubble, carrying `data-variant="default|secondary|ghost"`, `data-align="start|end"` and `data-position="only|first|middle|last"`. It has no padding, no fill and no radius of its own. **The sender-side corners tighten to `--bubble-joint` (6px, set in `chat/ui/bubble.css`) on a grouped run**: measured on harness `grouped`, first is `18/18/18/6`, middle is `6/18/18/6`, last is `6/18/18/18`. `data-run` still reports `start|mid|bot` for compatibility but only `data-position` describes the shape.
+- `loc=css:[data-slot="bubble"]`: the positioned parent of a bubble, carrying `data-variant="default|secondary|ghost"`, `data-align="start|end"` and `data-position="only|first|middle|last"`. It has no padding, no fill and no radius of its own. **The sender-side corners tighten to `--bubble-joint` (6px, set in `chat/ui/bubble.css`) on a grouped run**: measured `18/18/18/6` first, `6/18/18/6` middle, `6/18/18/18` last. `data-run` still reports `start|mid|bot` for compatibility but only `data-position` describes the shape.
 - `loc=css:[data-slot="bubble-content"]`: the painted, clipping surface. **Read padding, radius, fill and font size here**, never off the parent.
 - `loc=css:[data-slot="bubble-reactions"]`: the absolutely positioned reaction row.
 - `loc=css:[data-component="chat-divider"]`: a day-divider row, holding `[data-component="chat-day-label"]` and `[data-component="chat-day-time"]`. **There is no `.chat-divider__label`.**

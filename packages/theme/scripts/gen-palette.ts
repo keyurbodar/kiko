@@ -1,13 +1,9 @@
-// Rewrites kat.css section 4e, Kiko's palette a fresh browser paints before any module
-// loads, from `tokensFor` in src/palette.ts. A theme test fails when the two differ.
-//
-//   bun packages/theme/scripts/gen-palette.ts
 
 import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tokensFor } from "../src/palette"
 
-export const KAT = join(import.meta.dir, "../../ui/src/styles/kat.css")
+export const KAT = join(import.meta.dir, "../../../apps/web-solid/src/index.css")
 const START = "/* palette:start */"
 const END = "/* palette:end */"
 
@@ -23,7 +19,7 @@ export function paletteBlock(): string {
 export function withPalette(css: string): string {
   const a = css.indexOf(START)
   const b = css.indexOf(END)
-  if (a < 0 || b < a) throw new Error("kat.css has no palette markers")
+  if (a < 0 || b < a) throw new Error("index.css has no palette markers")
   return css.slice(0, a) + paletteBlock() + css.slice(b + END.length)
 }
 

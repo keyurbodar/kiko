@@ -9,20 +9,13 @@ import { look, saveLook } from "../theme/live"
 import { pinsFor } from "./picks"
 import { avatarPickerSlug, closeAvatarPicker } from "./picker-state"
 
-/*
- * The avatar picker: a flavor, a charm and an outfit for one agent. Every choice is drawn, so a
- * person sees what it looks like before they keep it. Nothing moves. Kiko keeps its flavor; only
- * what it wears changes.
- */
-
 const CHARMS = ["none", ...CHARM_NAMES] as const
 const OUTFITS = ["none", ...OUTFIT_NAMES] as const
 
 const label = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
 
-// The pick is a filled cell with an accent edge; focus is a plain ring, and only from the keyboard.
 const cell =
-  "grid aspect-square place-items-center rounded-xl outline-none hover:bg-[var(--btn-bg)] aria-checked:bg-[var(--accent-wash)] aria-checked:shadow-[inset_0_0_0_1px_var(--accent)]"
+  "grid aspect-square place-items-center rounded-xl outline-none hover:bg-[var(--control)] aria-checked:bg-[var(--ring-wash)] aria-checked:shadow-[inset_0_0_0_1px_var(--ring)]"
 
 function withPins(avatars: Look["avatars"], slug: string, pins: AvatarPins): Look["avatars"] {
   const { [slug]: _, ...rest } = avatars
@@ -32,7 +25,7 @@ function withPins(avatars: Look["avatars"], slug: string, pins: AvatarPins): Loo
 function Section(props: { title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col gap-2">
-      <h3 class="text-xs text-muted">{props.title}</h3>
+      <h3 class="text-xs text-muted-foreground">{props.title}</h3>
       <div class="grid grid-cols-8 gap-1" role="radiogroup" aria-label={props.title}>
         {props.children}
       </div>
@@ -107,7 +100,6 @@ function Picker(props: { slug: string }) {
   )
 }
 
-/** Mounted once in the shell. Opens for whichever agent `openAvatarPicker` names. */
 export default function AvatarPicker() {
   return <Show when={avatarPickerSlug()}>{(slug) => <Picker slug={slug()} />}</Show>
 }

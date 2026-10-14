@@ -22,7 +22,7 @@ Each file uploads the moment it is picked, as a pending upload (`PUT /api/files/
 ## How to get to it (user POV)
 
 - In the app at `http://localhost:5173/chat/<id>`: press the composer's `+`, pick files, look at the strip, press a thumbnail, then send. Press a tile in the sent bubble to open the dialog; press the eye on a file row to open it in the files tab.
-- In the chat harness at `http://localhost:<port>/src/chat/harness.html?state=grid-3` (also `grid-2`, `grid-4`, `grid-5`, `grid-shapes`, `picture-only`, `picture-caption`, `video`, `picture-link`, `file-single`, `file-group`, `user-grid-3`, `user-grid-2-reply`, `user-picture`). The harness has no composer.
+- The old chat fixture harness is gone (removed 2026-11). To see a sent grid without an upload, seed a room through the mock transport (`VITE_KIKO_SYNC=mock`, `sync/mock-room.ts`); otherwise attach files through the composer's `+` as above.
 
 ## Driving it with agent-browser
 
@@ -47,12 +47,12 @@ Use only `agent-browser --session <name>`. The commands below are what the 2026-
   - **Measured:** text `Drop files to attach`, `border-top: dashed 1px`, `border-radius: 16px`, and a box 8px inside `[data-component="chat-shell"]` on every side. After the drop the overlay is gone and the strip holds `dropped.png`.
 - **Limits.** Upload a `logo.svg` and a 51 MB `big.zip` at once.
   - **Expected:** the strip takes neither, and one toast says `'big.zip' exceeds the 50 MB attachment limit.` (the last refusal). Toasts hide after a few seconds, so read them right after the upload.
-- **The harness probes.** `window.__chat.probe()` has `images`, `files`, and `viewer`; `await window.__chat.openMedia("m-02", 2)` resolves `true` with the caption `tall.png (3/3)`, and `closeMedia()` returns `true`.
+- **DOM reads.** Count `[data-component="chat-attachment-image"]` for pictures and `[data-component="chat-attachment-file"]` for file rows; open the dialog by clicking a tile's `[aria-label="Preview <name>"]` and confirm `[data-component="image-dialog"]` mounts; close with `Escape`.
 - **Proof.** Write tile and row geometry and the dialog's open, step, and close state to `/tmp/kiko-verify-evidence/media.json` in the same run.
 
 ## Gotchas
 
-- **`ModalV2` renders nothing until the overlay chunk loads.** The app loads it on idle; the image dialog also loads it when it opens, so the harness works. A dialog check that runs before the chunk lands waits a moment, which is why `openMedia` is async.
+- **`ModalV2` renders nothing until the overlay chunk loads.** The app loads it on idle; the image dialog also loads it when it opens. A dialog check that runs before the chunk lands waits a moment: wait for `[data-component="image-dialog"]` rather than asserting on the click's tick.
 - **`[data-component="image-dialog"]` is on the dialog's inner column**, not on the modal. `ModalV2.Content` overwrites a `data-component` passed to it.
 - **Clicking a tile through `element.click()` in an `eval` is fine**, but pick the tile by its `aria-label`: the last `[data-component=chat-row]` can be the typing row, not the message.
 - **The tiles and thumbnails carry a 1px border on purpose**, as t3code draws them. They are outside the no-border check in [Chat bubbles](./chat-bubbles.md).

@@ -10,7 +10,7 @@ describe("identity look", () => {
   })
 
   test("the chief is Kiko and wears the theme accent", () => {
-    expect(identityLook("yuki").color).toBe("var(--accent)")
+    expect(identityLook("yuki").color).toBe("var(--ring)")
   })
 
   test("an agent colour reads on both appearances", () => {

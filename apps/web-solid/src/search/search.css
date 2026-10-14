@@ -1,4 +1,4 @@
-/* Message search over the chat panel. No transition anywhere: it opens and closes in one frame. */
+
 .search-overlay {
   position: absolute;
   inset: 0;
@@ -11,13 +11,13 @@
 .search-scrim {
   position: absolute;
   inset: 0;
-  background: var(--v2-overlay-simple-overlay-scrim);
+  background: color-mix(in oklab, var(--background) 60%, transparent);
 }
 .search-panel {
   position: relative;
   width: min(720px, 100%);
-  background: var(--menu-bg);
-  color: var(--text);
+  background: var(--popover);
+  color: var(--foreground);
   border-radius: var(--radius-lg);
   box-shadow: var(--menu-shadow);
   overflow: hidden;
@@ -29,7 +29,7 @@
   height: 48px;
   padding: 0 8px 0 16px;
 }
-.search-glass { flex: none; color: var(--text-faint); }
+.search-glass { flex: none; color: var(--secondary-label); }
 .search-input {
   flex: 1;
   min-width: 0;
@@ -41,13 +41,13 @@
   font: inherit;
   font-size: var(--font-base);
 }
-.search-input::placeholder { color: var(--text-faint); }
+.search-input::placeholder { color: var(--secondary-label); }
 .search-scope {
   flex: none;
   display: flex;
   padding: 2px;
   border-radius: var(--radius-md);
-  background: var(--tint);
+  background: var(--control);
 }
 .search-scope-option {
   height: 28px;
@@ -55,12 +55,12 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font: inherit;
   font-size: var(--font-md);
   cursor: default;
 }
-.search-scope-option[aria-checked="true"] { background: var(--bg); color: var(--text); }
+.search-scope-option[aria-checked="true"] { background: var(--background); color: var(--foreground); }
 .search-scope-option:disabled { opacity: 0.4; }
 .search-results {
   max-height: min(460px, 60dvh);
@@ -73,7 +73,7 @@
   border-radius: var(--radius-sm);
   cursor: default;
 }
-.search-hit[aria-selected="true"] { background: var(--selected-bg); }
+.search-hit[aria-selected="true"] { background: var(--accent-strong); }
 .search-hit-head {
   display: flex;
   align-items: baseline;
@@ -86,14 +86,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 .search-hit-chat::before { content: "in "; }
 .search-hit-time {
   margin-left: auto;
   flex: none;
   font-size: var(--font-sm);
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 .search-hit-snippet {
   margin-top: 2px;
@@ -103,14 +103,14 @@
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  color: var(--text);
+  color: var(--foreground);
 }
 .search-hit-snippet mark {
-  background: var(--accent-wash-strong);
-  color: var(--text);
+  background: var(--ring-wash-strong);
+  color: var(--foreground);
   border-radius: var(--radius-xs);
 }
-.search-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px; font-size: 13px; color: var(--text-muted); }
+.search-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 10px; font-size: 13px; color: var(--muted-foreground); }
 
 @media (width < 768px) {
   .search-overlay { padding: 8px 8px 0; }

@@ -1,6 +1,6 @@
 # Composer
 
-The composer is the dock below the transcript: where a reader types, what they see when they are replying to something, and the send that puts their words into the thread. It is the only surface that changes state, and the only one that lives exclusively in the composed app: the chat harness mounts the transcript alone, so nothing here is reachable from a fixture state.
+The composer is the dock below the transcript: where a reader types, what they see when they are replying to something, and the send that puts their words into the thread. It is the only surface that changes state, and it lives only in the composed app at `/`.
 
 ## Sub-features
 
@@ -27,8 +27,8 @@ The composer is the dock below the transcript: where a reader types, what they s
 Preconditions:
 
 - The dev server is running on the port chosen in `../../SKILL.md` and `/tmp/kiko-verify-evidence/vite.pid` names it.
-- `../../SKILL.md` **Doctor** reports `ok: true` and `harnessStatus: 200`.
-- **This feature is `/`-only.** The chat harness mounts `MessageList` alone, so `[data-component="composer-dock"]` and `[data-component="prompt-input"]` are both `0` there: measured on a harness page. Every recipe below is a composed-app recipe, and a run that reaches for the composer in a fixture state is driving something that is not on the page.
+- `../../SKILL.md` **Doctor** reports `ok: true`.
+- **This feature is `/`-only.** `[data-component="composer-dock"]` and `[data-component="prompt-input"]` mount on `/chat/<id>` in the composed app. Every recipe below is a composed-app recipe, signed in through `/api/auth/dev/session?name=<suite>`.
 - **Use `http://localhost:<port>/`, not `http://127.0.0.1:<port>/`.** The server binds IPv6 loopback only; `curl` to `127.0.0.1:3017` exits `7` (connection refused) while `localhost:3017` answers `200`.
 - **Every `page.goto` passes `{ waitUntil: "domcontentloaded", timeout: 60000 }`.** The transcript's media never finishes loading, so the default `load` wait never fires and the driver's default deadline rejects on a healthy page.
 
@@ -78,7 +78,7 @@ Selectors this feature relies on:
 
 ## Gotchas
 
-- **The composer does not exist in the chat harness.** Measured on a harness page: `[data-component="composer-dock"]` is `0`, `[data-component="prompt-input"]` is `0`, and `setReplyTarget` arms the transcript's `replyTarget` while rendering **no reply bar at all** (`replyBar` is `0` with a target armed, and no row carries `data-replying`). Every composer recipe is a `/` recipe, and the unread rule's *retirement* (which needs a send) is one too.
+- **Every composer recipe is a `/` recipe.** The composer mounts only in the composed app, and the unread rule's *retirement* (which needs a send) is one too.
 - **The input is a `contenteditable` `<div>`, not a `textarea` or an `input`.** Measured `tag: "DIV"`, `contenteditable: "true"`, and **`role="textbox"`**. A recipe that reaches for `textarea` or types into `[data-component="prompt-input"]` with `page.fill` will find neither. Click the element's centre with `page.mouse.click`, then `page.keyboard.type` and `page.keyboard.press("Enter")`.
 - **`page.fill` will not work on it.** The field is not a form control; it is driven by keyboard input into a contenteditable node. Use click-then-type, and read the text back with `textContent`.
 - **The send button is labelled `Send` (capital S), and the buttons beside it carry their own labels.** The composer is not part of the lowercase-chrome pass, which covers the transcript's own labels; a recipe that asserts every button in the app is lowercase will catch the composer's own `aria-label` and report a real thing that is out of scope. Scope the lowercase assertion to the transcript surfaces it names.

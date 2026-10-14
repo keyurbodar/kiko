@@ -15,12 +15,6 @@ import { useApp } from "../lib/store"
 import { cardOpen, loadCard, toggleCard } from "../chat/side/card-state"
 import { loadSidecar, sidecarOpen, toggleSidecar } from "../chat/side/surfaces"
 
-/*
- * The 50 px bar over the main panel, laid out as kat's: the avatar at the far left, the open chat's
- * title, and quiet controls on the right: the chat's model, message search, the chat card, and the side panel.
- * The avatar is the new chat button. Every button is the sidebar's icon button, under a tooltip.
- * Other sections have no bar: the sidebar already names them, and their panel starts at the top.
- */
 export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const location = useLocation()
   const section = () => sectionOf(location.pathname)
@@ -34,7 +28,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
   }
   return (
     <Show when={section() === "chat"}>
-      <header class="flex h-[50px] shrink-0 items-center gap-2 px-3 text-sm font-medium text-muted" data-component="top-bar">
+      <header class="flex h-[50px] shrink-0 items-center gap-2 px-3 text-sm font-medium text-muted-foreground" data-component="top-bar">
         <Show when={!props.sidebarOpen}>
           <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
         </Show>
@@ -43,7 +37,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
             <IdentityAvatar seed={KIKO} size={24} />
           </button>
         </TooltipV2>
-        <h1 class="min-w-0 flex-1 truncate px-1 text-sm font-medium text-text" data-component="top-bar-title">
+        <h1 class="min-w-0 flex-1 truncate px-1 text-sm font-medium text-foreground" data-component="top-bar-title">
           {title()}
         </h1>
         <ModelPickerButton chatId={chatId()} />
@@ -61,7 +55,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
             <HugeIcon icon={SearchIcon} size={16} />
           </button>
         </TooltipV2>
-        {/* The card and the side panel sit at the bar's right edge. Both need a chat. */}
+
         <Show when={chatId()}>
           {(id) => (
             <>
@@ -80,7 +74,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
                   <PanelTop size={15} strokeWidth={1.75} aria-hidden="true" />
                 </button>
               </TooltipV2>
-              {/* An open sidecar carries its own close button in its tab strip, so the bar shows this one only while it is shut. */}
+
               <Show when={!sidecarOpen(id())}>
               <TooltipV2 placement="bottom" openDelay={400} value="Show side panel">
                 <button

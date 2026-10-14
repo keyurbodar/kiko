@@ -7,7 +7,7 @@ import { MONO_STACK, SANS_STACK, fontFamily } from "./display"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
 import { ACCENT_IDS, ACCENTS, DEFAULT_ACCENT, PALETTES, tokensFor } from "./palette"
 
-const KAT = readFileSync(join(import.meta.dir, "../../ui/src/styles/kat.css"), "utf8")
+const KAT = readFileSync(join(import.meta.dir, "../../../apps/web-solid/src/index.css"), "utf8")
 
 const luminance = (hex: string) => {
   const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
@@ -18,7 +18,6 @@ const contrast = (a: string, b: string) => {
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
 }
 
-/** The declarations of one kat.css rule, as a map. */
 function katRule(selector: string, after: string): Record<string, string> {
   const start = KAT.indexOf(`${selector} {`, KAT.indexOf(after))
   const body = KAT.slice(KAT.indexOf("{", start) + 1, KAT.indexOf("\n}", start))
@@ -26,13 +25,13 @@ function katRule(selector: string, after: string): Record<string, string> {
 }
 
 describe("the palette", () => {
-  test("kat.css paints Kiko's palette before any module loads", () => {
+  test("index.css paints Kiko's palette before any module loads", () => {
     expect(withPalette(KAT)).toBe(KAT)
     expect(katRule(":root", "palette:start")).toEqual(tokensFor("dark"))
     expect(katRule(':root:not(.dark)', "palette:start")).toEqual(tokensFor("light"))
   })
 
-  test("every token the palette sets is one kat.css declares, so it reaches the UI", () => {
+  test("every token the palette sets is one index.css declares, so it reaches the UI", () => {
     const declared = new Set([...KAT.matchAll(/^\s*(--[a-z0-9-]+):/gm)].map((m) => m[1]))
     for (const token of Object.keys(tokensFor("light", "matcha"))) expect([token, declared.has(token)]).toEqual([token, true])
   })
@@ -42,7 +41,7 @@ describe("the palette", () => {
     for (const token of Object.keys(tokensFor("light"))) expect([token, new RegExp(`^\\s*${token}:`, "m").test(outside)]).toEqual([token, false])
   })
 
-  test("kat.css declares the radius, type and icon scales", () => {
+  test("index.css declares the radius, type and icon scales", () => {
     for (const token of ["--radius-xs", "--radius-sm", "--radius-md", "--radius-lg", "--radius-bubble", "--radius-pill", "--font-xs", "--font-sm", "--font-md", "--font-base", "--font-lg", "--icon-xs", "--icon-sm", "--icon-md", "--icon-lg"]) {
       expect([token, new RegExp(`^\\s*${token}:`, "m").test(KAT)]).toEqual([token, true])
     }
@@ -61,13 +60,13 @@ describe("the palette", () => {
 
   test("an accent colors the marks and your bubble, never the send button", () => {
     const vars = tokensFor("dark", "ramune")
-    expect(vars["--accent"]).toBe(ACCENTS.ramune.dark)
-    expect(vars["--user-bubble"]).toContain(ACCENTS.ramune.dark)
-    expect(vars["--accent-fill"]).toBe(PALETTES.dark.action)
+    expect(vars["--ring"]).toBe(ACCENTS.ramune.dark)
+    expect(vars["--message-user"]).toContain(ACCENTS.ramune.dark)
+    expect(vars["--primary"]).toBe(PALETTES.dark.action)
   })
 
   test("contrast scales every neutral", () => {
-    expect(tokensFor("dark", "blush", 150)["--hairline"]).toBe(`color-mix(in oklab, ${PALETTES.dark.text} 9%, transparent)`)
+    expect(tokensFor("dark", "blush", 150)["--border"]).toBe(`color-mix(in oklab, ${PALETTES.dark.text} 9%, transparent)`)
   })
 })
 
@@ -155,11 +154,11 @@ describe("the pre-paint script", () => {
     new Function("document", "localStorage", "matchMedia", script)({ documentElement: root }, storage, () => ({ matches: prefersLight }))
     return { style, classes, dataset: { appearance: classes.has("dark") ? "dark" : "light" } }
   }
-  const cacheOf = (look: Look) => JSON.stringify({ v: 4, text: "x", mode: look.mode, vars: resolveLook(look) })
+  const cacheOf = (look: Look) => JSON.stringify({ v: 5, text: "x", mode: look.mode, vars: resolveLook(look) })
 
   test("paints the cached tokens for the saved appearance", () => {
     const { style, dataset, classes } = boot(cacheOf({ ...DEFAULT_LOOK, mode: "light", accent: "matcha" }))
-    expect([style["--accent"], style["--boot-bg"], dataset.appearance, classes.has("dark")]).toEqual([ACCENTS.matcha.light, PALETTES.light.canvas, "light", false])
+    expect([style["--ring"], style["--boot-bg"], dataset.appearance, classes.has("dark")]).toEqual([ACCENTS.matcha.light, PALETTES.light.canvas, "light", false])
   })
 
   test("with no cache, or a broken or old one, it paints the dark default whatever the system says", () => {
@@ -170,7 +169,7 @@ describe("the pre-paint script", () => {
   })
 
   test("a cache with no mode paints dark", () => {
-    expect(boot(JSON.stringify({ v: 4, text: "x", vars: resolveLook(DEFAULT_LOOK) }), true).dataset.appearance).toBe("dark")
+    expect(boot(JSON.stringify({ v: 5, text: "x", vars: resolveLook(DEFAULT_LOOK) }), true).dataset.appearance).toBe("dark")
   })
 
   test("the static theme color is the dark canvas", () => {
@@ -185,7 +184,7 @@ describe("the pre-paint script", () => {
       removeItem: (k: string) => void delete store[k],
     }
     writeCache("text", { ...DEFAULT_LOOK, mode: "dark", accent: "lavender" })
-    expect(boot(store[CACHE_KEY]!).style["--accent"]).toBe(ACCENTS.lavender.dark)
+    expect(boot(store[CACHE_KEY]!).style["--ring"]).toBe(ACCENTS.lavender.dark)
     delete (globalThis as { localStorage?: unknown }).localStorage
   })
 })

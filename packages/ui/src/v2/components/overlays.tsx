@@ -18,10 +18,11 @@ const overlays = deferred<Impl>(() => import("./overlays-impl"))
 export const loadOverlaysV2 = overlays.load
 
 /* A part that renders the Kobalte component once loaded, and `Closed` before. */
-export function part<C>(pick: (impl: Impl) => unknown, Closed: Component<any> = Nothing): C {
+export function part<C>(pick: (impl: Impl) => unknown, Closed: Component<never> = Nothing): C {
+  const Fallback = Closed as Component<Record<string, unknown>>
   return ((props: Record<string, unknown>) => (
-    <Show when={overlays.module()} fallback={<Closed {...props} />}>
-      {(impl) => <Dynamic component={pick(impl()) as Component<any>} {...props} />}
+    <Show when={overlays.module()} fallback={<Fallback {...props} />}>
+      {(impl) => <Dynamic component={pick(impl()) as Component<Record<string, unknown>>} {...props} />}
     </Show>
   )) as C
 }
@@ -36,8 +37,8 @@ export function Children(props: { children?: JSX.Element }): JSX.Element {
 }
 
 /* A closed trigger: its element, with the tag Kobalte would use by default. */
-export function trigger(tag: ValidComponent): Component<any> {
-  return (props: { as?: ValidComponent }) => {
+export function trigger(tag: ValidComponent): Component<{ as?: ValidComponent; [key: string]: unknown }> {
+  return (props: { as?: ValidComponent; [key: string]: unknown }) => {
     const [local, rest] = splitProps(props, ["as"])
     const intent = () => void overlays.load()
     return <Dynamic component={local.as ?? tag} onPointerEnter={intent} onFocusIn={intent} {...rest} />

@@ -9,8 +9,8 @@
 }
 .palette-panel {
   width: min(560px, calc(100vw - 32px));
-  background: var(--menu-bg);
-  color: var(--text);
+  background: var(--popover);
+  color: var(--foreground);
   border-radius: var(--radius-lg);
   box-shadow: var(--menu-shadow);
   overflow: hidden;
@@ -27,7 +27,7 @@
   font: inherit;
   font-size: var(--font-base);
 }
-.palette-input::placeholder { color: var(--text-faint); }
+.palette-input::placeholder { color: var(--secondary-label); }
 .palette-list {
   max-height: 420px;
   overflow-y: auto;
@@ -44,19 +44,19 @@
   font-size: var(--font-md);
   cursor: default;
 }
-.palette-row[data-selected="true"] { background: var(--selected-bg); }
-/* The menu's group label: 11px, medium, faint. */
+.palette-row[data-selected="true"] { background: var(--accent-strong); }
+
 .palette-group [cmdk-group-heading] {
   padding: 8px 10px 4px;
-  color: var(--text-faint);
+  color: var(--secondary-label);
   font-size: var(--font-xs);
   font-weight: var(--font-weight-medium);
 }
 .palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.palette-keys { color: var(--text-muted); font-size: 12px; }
-.palette-empty { padding: 12px 10px; font-size: 13px; color: var(--text-muted); }
+.palette-keys { color: var(--muted-foreground); font-size: var(--font-sm); }
+.palette-empty { padding: 12px 10px; font-size: var(--font-md); color: var(--muted-foreground); }
 
-/* Phones: a thumb-sized row, and the panel sits higher so the keyboard does not cover the list. */
+
 @media (width < 768px) {
   .palette-scrim { padding-top: 8vh; }
   .palette-row { height: 44px; }

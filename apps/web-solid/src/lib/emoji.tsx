@@ -20,7 +20,7 @@ let emojiPattern: RegExp | undefined | null = null
 function pattern(): RegExp | undefined {
   if (emojiPattern === null) {
     try {
-      emojiPattern = new RegExp("\\p{RGI_Emoji}", "gv")
+      emojiPattern = /\p{RGI_Emoji}/gv
     } catch {
       emojiPattern = undefined
     }

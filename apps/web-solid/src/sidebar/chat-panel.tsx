@@ -27,19 +27,12 @@ import {
 } from "./actions"
 import { filterRows } from "./filter"
 
-
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-/** Row height in px. Fixed, so the virtualizer never measures and never shows a blank row. */
 export const ROW_H = 52
 
-/**
- * The stamp at the end of a row's first line. Relative, not a clock time:
- * `updatedAt` is last activity, and the question a list answers at a glance is
- * "how stale is this". Coarse on purpose, so it never needs a ticking timer.
- */
 export function rowStamp(updatedAt: number, now: number): string {
   const delta = now - updatedAt
   if (delta < MINUTE) return "now"
@@ -50,7 +43,6 @@ export function rowStamp(updatedAt: number, now: number): string {
 
 const PRESENCE: Record<BotPresence, string> = { idle: "Idle", typing: "Typing", working: "Working", sleeping: "Sleeping" }
 
-/** What every chat's menu holds, in kat's order (screenshot 16). */
 function ChatMenuItems(props: { id: string }) {
   const navigate = useNavigate()
   const chat = createMemo(() => useApp.user()?.chats().find((c) => c.roomId === props.id))
@@ -59,7 +51,7 @@ function ChatMenuItems(props: { id: string }) {
   return (
     <>
       <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">Rename</MenuV2.Item>
-      {/* The kiko chat is the chief's tile: always pinned, never deleted. */}
+
       <Show when={!chat()?.kiko}>
         <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "Unpin" : "Pin"}</MenuV2.Item>
       </Show>
@@ -72,11 +64,9 @@ function ChatMenuItems(props: { id: string }) {
       <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>Close</MenuV2.Item>
       <Show when={!chat()?.kiko}>
         <MenuV2.Separator />
-        {/* Deleting cannot be undone, so the first select arms it and the second deletes, as in the info panel.
-            The menu never closes on select: Kobalte reads closeOnSelect after onSelect has armed it, and a
-            deleted chat's row takes its menu away with it. */}
+
         <MenuV2.Item
-          class="text-danger"
+          class="text-error"
           closeOnSelect={false}
           onSelect={() => (sure() ? deleteChat(props.id, active(), navigate) : setSure(true))}
         >
@@ -87,11 +77,8 @@ function ChatMenuItems(props: { id: string }) {
   )
 }
 
-/** The one pinned chat whose preview card is open. One at a time: each tile had its own, and quick
- *  moves across the tiles left several open at once. */
 const [openPreview, setOpenPreview] = createSignal<string | null>(null)
 
-/** The pinned block: a circle, a dot when unread, a name clamped to two lines. */
 function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void; hint?: string }) {
   const [menuOpen, setMenuOpen] = createSignal(false)
   const previewOpen = () => openPreview() === props.bot.id
@@ -154,7 +141,6 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void;
   )
 }
 
-/** The row's hover surface: who this is, and the tail of the conversation. */
 function ChatPreview(props: { bot: RosterBot }) {
   const tail = createMemo(() => useApp.messagesFor(props.bot.id).slice(-3))
 
@@ -163,8 +149,8 @@ function ChatPreview(props: { bot: RosterBot }) {
       <div class="flex items-center gap-2.5">
         <ChatAvatar faces={useApp.chatFaces(props.bot.id)} size={32} />
         <div class="min-w-0">
-          <div class="truncate text-[13px] font-semibold text-text">{props.bot.name}</div>
-          <div class="truncate text-[11px] text-weak">{PRESENCE[props.bot.presence]}</div>
+          <div class="truncate text-[13px] font-semibold text-foreground">{props.bot.name}</div>
+          <div class="truncate text-[11px] text-muted-foreground">{PRESENCE[props.bot.presence]}</div>
         </div>
       </div>
 
@@ -172,8 +158,8 @@ function ChatPreview(props: { bot: RosterBot }) {
         <div class="mt-2.5 flex flex-col gap-1.5">
           <For each={tail()}>
             {(message) => (
-              <p class="line-clamp-2 text-[12px] leading-snug text-muted">
-                <span class="font-medium text-weak">{message.sender === "user" ? "You" : (useApp.memberById(message.botId)?.name ?? props.bot.name)}</span>{" "}
+              <p class="line-clamp-2 text-[12px] leading-snug text-muted-foreground">
+                <span class="font-medium text-muted-foreground">{message.sender === "user" ? "You" : (useApp.memberById(message.botId)?.name ?? props.bot.name)}</span>{" "}
                 {message.body}
               </p>
             )}
@@ -184,7 +170,6 @@ function ChatPreview(props: { bot: RosterBot }) {
   )
 }
 
-/** The title, or the field that edits it in place. */
 function RowTitle(props: { id: string; title: string }) {
   let input: HTMLInputElement | undefined
   let done = false
@@ -192,7 +177,6 @@ function RowTitle(props: { id: string; title: string }) {
   createEffect(() => {
     if (!editing()) return
     done = false
-    // After the menu has handed focus back, or the field loses it at once.
     setTimeout(() => {
       input?.focus()
       input?.select()
@@ -227,29 +211,13 @@ function RowTitle(props: { id: string; title: string }) {
   )
 }
 
-/**
- * One conversation as kat lays it out: an avatar, a bold title with the time
- * right-aligned on the same line, and a muted one-line preview. The avatar and
- * type sizes are the hover card's, so the two read as one family. The row IS the context menu's trigger,
- * so Kobalte opens it from the real `contextmenu` event on the real element.
- * The hover preview hangs off an overlay, because an element can only be one
- * primitive's trigger.
- */
 function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: number; hint?: string }) {
-  /*
-   * The preview is nested inside the menu's trigger, so left alone both are
-   * open at once, the preview swallows the Escape that would dismiss the menu,
-   * and the app stays inert. Declarative, so there is no imperative close to
-   * get out of step with Kobalte's own state.
-   */
   const [menuOpen, setMenuOpen] = createSignal(false)
   const [previewOpen, setPreviewOpen] = createSignal(false)
   const navigate = useNavigate()
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
-  /** Unsent text in a chat you are not looking at. The open chat shows it in the composer. */
   const draft = () => {
     const book = useApp.drafts()
-    // `has` is the reactive read. The text itself only changes in the open chat.
     return props.active || !book?.has(props.bot.id) ? "" : (book.get(props.bot.id)?.text.trim() ?? "")
   }
 
@@ -343,7 +311,7 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
                 <i class="chat-typing-dot" aria-hidden="true" />
               </Show>
             </span>
-            {/* tweb's mention badge: a round @ beside the count while a mention of you is unread. */}
+
             <Show when={props.bot.mentions}>
               <i class="chat-mention-badge" data-component="sidebar-mention-badge" role="img" aria-label="You were mentioned">@</i>
             </Show>
@@ -370,7 +338,6 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
   )
 }
 
-/** The search field and the filter button. Typing filters locally. */
 function SearchRow(props: {
   query: string
   onQuery: (query: string) => void
@@ -415,12 +382,6 @@ function SearchRow(props: {
   )
 }
 
-/**
- * The chats panel: search, the pinned tiles (the kiko chat always first), then every conversation
- * in a virtual list. Temporary chats and hidden rooms are left out by `useApp.bots()`. Only the rows in the viewport plus the buffer exist in the DOM.
- *
- * `now` ticks once a minute, the stamps' finest unit, so "now" turns into "1m" without a new message.
- */
 export function ChatPanel() {
   const [now, setNow] = createSignal(Date.now())
   const clock = setInterval(() => setNow(Date.now()), 60_000)
@@ -434,13 +395,11 @@ export function ChatPanel() {
     filterRows(all(), { query: query(), unreadOnly: unreadOnly() }, (row) => row.unread > 0 || markedUnread(row.id)),
   )
   const pinned = createMemo(() => shown().filter((bot) => bot.pinned))
-  /** ⌘1 to ⌘9 go to the chats in the order drawn here, pinned first, counted before any filter. */
   const jumpHint = createMemo(() => {
     const order = [...all().filter((b) => b.pinned), ...all().filter((b) => !b.pinned)].slice(0, 9)
     return new Map(order.map((b, i) => [b.id, `chats.go-${i + 1}`]))
   })
   const rowIds = createMemo(() => shown().filter((bot) => !bot.pinned).map((bot) => bot.id))
-  // Rows are looked up by id so a roster change does not remount the rows that did not change.
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
   const muted = createMemo(() => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
   const active = () => useApp.activeThreadId()
@@ -467,7 +426,7 @@ export function ChatPanel() {
       </Show>
       <Show when={shown().length === 0 && (query() !== "" || unreadOnly())}>
         <div class="flex flex-col items-center gap-2 py-6" data-component="sidebar-empty">
-          <p class="text-xs text-weak">No chats match</p>
+          <p class="text-xs text-muted-foreground">No chats match</p>
         </div>
       </Show>
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">

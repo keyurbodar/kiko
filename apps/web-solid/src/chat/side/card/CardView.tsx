@@ -20,27 +20,18 @@ import { fixedSurface, openFile, openSurface } from "../surfaces"
 import { type AgentRow, type Chip, agentRows, comingUp, fileList, isGroup, liveLine, memoryPick, statusChip, workingLine } from "./model"
 import type { Placement } from "./placement"
 
-/*
- * The chat card: who is here, what is coming up, and this chat's recent files and memory. Inline, it
- * is pinned at the top right and the chat column makes room for it. As a popover, it floats over the
- * thread and closes on a pointer down outside it (not on its own toggle), Escape, a route change, and
- * focus moving into the composer. Nothing animates.
- */
-
-/** Pointer downs here do not close the popover: its toggle, and the menus and dialogs it opens. */
 const KEEP_OPEN = '[data-action="toggle-card"], [role="menu"], [role="dialog"]'
 
-const faint = "text-[var(--text-faint)]"
-const row = "group/row flex min-h-9 items-center gap-2.5 rounded-[10px] px-2 hover:bg-[var(--hover-bg)] focus-within:bg-[var(--hover-bg)]"
-const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--selected-bg)] hover:text-[var(--text)]"
-/** Row buttons appear on hover and when focus is inside the row. Touch has no hover, so they stay visible there. */
+const faint = "text-[var(--secondary-label)]"
+const row = "group/row flex min-h-9 items-center gap-2.5 rounded-[10px] px-2 hover:bg-[var(--accent)] focus-within:bg-[var(--accent)]"
+const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-[var(--muted-foreground)] hover:bg-[var(--accent-strong)] hover:text-[var(--foreground)]"
 const tool = `${iconButton} opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:none)]:opacity-100`
 
 function StatusChip(props: { chip: Chip }) {
   const working = () => props.chip.tone === "working"
   return (
     <span
-      class={`inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] ${working() ? "bg-[var(--tint-subtle)] text-[var(--accent)]" : faint}`}
+      class={`inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] ${working() ? "bg-[var(--secondary)] text-[var(--ring)]" : faint}`}
       data-component="status-chip"
       data-tone={props.chip.tone}
     >
@@ -56,7 +47,7 @@ function Section(props: { title: string; action?: JSX.Element; children: JSX.Ele
   return (
     <section class="px-2 pt-3" data-component="card-section" data-section={props.title}>
       <div class="flex h-6 items-center justify-between px-2">
-        <h3 class="text-[12px] font-medium text-[var(--text-muted)]">{props.title}</h3>
+        <h3 class="text-[12px] font-medium text-[var(--muted-foreground)]">{props.title}</h3>
         {props.action}
       </div>
       {props.children}
@@ -64,7 +55,6 @@ function Section(props: { title: string; action?: JSX.Element; children: JSX.Ele
   )
 }
 
-/** The Add agent menu: the agents not here yet, offered the way the member list offers them. */
 function AddAgent(props: { members: readonly Member[] }) {
   const candidates = (): Agent[] => addable(agentList(useApp.agents()), props.members)
   return (
@@ -76,7 +66,7 @@ function AddAgent(props: { members: readonly Member[] }) {
         <MenuV2.Content class="min-w-[240px] max-w-[300px]">
           <MenuV2.Group>
             <MenuV2.GroupLabel>Add to this chat</MenuV2.GroupLabel>
-            <Show when={candidates().length > 0} fallback={<p class="px-3 pb-2 text-[12px] text-[var(--text-muted)]">Every agent is here. Ask Kiko to make a new one.</p>}>
+            <Show when={candidates().length > 0} fallback={<p class="px-3 pb-2 text-[12px] text-[var(--muted-foreground)]">Every agent is here. Ask Kiko to make a new one.</p>}>
               <For each={candidates()}>
                 {(agent) => (
                   <MenuV2.Item data-action="add-member" data-slug={agent.slug} onSelect={() => useApp.memberOp(addOp(agent))}>
@@ -97,14 +87,14 @@ function AgentLine(props: { agent: AgentRow }) {
   return (
     <li class={`${row} min-h-10`} data-member={props.agent.slug}>
       <IdentityAvatar seed={props.agent.slug} size={28} />
-      <span class="min-w-0 flex-1 truncate text-[13px] text-[var(--text)]">{props.agent.name}</span>
+      <span class="min-w-0 flex-1 truncate text-[13px] text-[var(--foreground)]">{props.agent.name}</span>
       <Show when={props.agent.lead}>
-        <span class="shrink-0 rounded-full bg-[var(--selected-bg)] px-1.5 text-[11px] leading-5 text-[var(--text-muted)]" data-component="lead-chip">
+        <span class="shrink-0 rounded-full bg-[var(--accent-strong)] px-1.5 text-[11px] leading-5 text-[var(--muted-foreground)]" data-component="lead-chip">
           Lead
         </span>
       </Show>
       <StatusChip chip={props.agent.chip} />
-      {/* A fixed slot keeps the status chips in one column whether or not the row can be removed. */}
+
       <Show when={props.agent.removable} fallback={<span class="size-6 shrink-0" aria-hidden="true" />}>
         <MenuV2 gutter={4} placement="bottom-end">
           <MenuV2.Trigger class={tool} aria-label={`${props.agent.name} actions`} data-action="member-actions">
@@ -112,7 +102,7 @@ function AgentLine(props: { agent: AgentRow }) {
           </MenuV2.Trigger>
           <MenuV2.Portal>
             <MenuV2.Content class="min-w-[176px]">
-              <MenuV2.Item class="text-danger" data-action="remove-agent" onSelect={() => useApp.memberOp({ op: "remove", slug: props.agent.slug as Member["slug"] })}>
+              <MenuV2.Item class="text-error" data-action="remove-agent" onSelect={() => useApp.memberOp({ op: "remove", slug: props.agent.slug as Member["slug"] })}>
                 Remove from chat
               </MenuV2.Item>
             </MenuV2.Content>
@@ -133,10 +123,10 @@ function RoutineLine(props: { routine: Routine; chatId: string; close: () => voi
   return (
     <li class={row} data-routine={props.routine.id} data-status={props.routine.status}>
       <button type="button" class="flex min-w-0 flex-1 flex-col py-1.5 text-left" onClick={open}>
-        <span class="truncate text-[13px] text-[var(--text)]">{props.routine.name}</span>
+        <span class="truncate text-[13px] text-[var(--foreground)]">{props.routine.name}</span>
         <span class={`truncate text-[11px] ${faint}`}>{ran() ? "Started just now" : `${active() ? "" : "Paused · "}${triggerLabel(props.routine.trigger, props.routine.tz)}`}</span>
       </button>
-      <button type="button" class={`${tool} disabled:text-[var(--text-faint)]`} aria-label={ran() ? "Started" : "Run now"} title={ran() ? "Started" : "Run now"} disabled={ran()} data-action="routine-run" onClick={() => void runNow(props.routine)}>
+      <button type="button" class={`${tool} disabled:text-[var(--secondary-label)]`} aria-label={ran() ? "Started" : "Run now"} title={ran() ? "Started" : "Run now"} disabled={ran()} data-action="routine-run" onClick={() => void runNow(props.routine)}>
         <Zap size={14} strokeWidth={1.75} />
       </button>
       <button
@@ -162,7 +152,7 @@ function LoopLine(props: { loop: PlateLoop; chatId: string; close: () => void })
   }
   return (
     <li class={row} data-loop={props.loop.id}>
-      <button type="button" class="min-w-0 flex-1 truncate py-1.5 text-left text-[13px] text-[var(--text)]" onClick={open}>
+      <button type="button" class="min-w-0 flex-1 truncate py-1.5 text-left text-[13px] text-[var(--foreground)]" onClick={open}>
         {props.loop.text}
       </button>
       <button type="button" class={tool} aria-label="Done" title="Done" data-action="loop-done" onClick={() => void act(props.loop, { action: "done" }, "Could not mark that done")}>
@@ -185,10 +175,6 @@ function LoopLine(props: { loop: PlateLoop; chatId: string; close: () => void })
   )
 }
 
-/**
- * The chat card for `chatId`. It loads its routines and plate once per open, and it closes itself
- * through `onClose`; the parent decides whether it is shown.
- */
 export function CardView(props: { chatId: string; placement: Placement; onClose: () => void }) {
   let root: HTMLDivElement | undefined
   let returnTo: Element | null = null
@@ -215,14 +201,11 @@ export function CardView(props: { chatId: string; placement: Placement; onClose:
     if (e.target instanceof Element && e.target.closest('[data-component="composer-dock"]')) props.onClose()
   }
 
-  // An inline card stays put: only a popover closes on outside, Escape, focus or a route change.
   const popover = props.placement === "popover"
   onMount(() => {
     void loadRoutines()
     void loadLoops()
     if (!popover) return
-    // Focus moves into the card so Tab reaches its rows. The composer comes earlier in the page, and
-    // focus landing there closes the card, so a keyboard user could not get in any other way.
     returnTo = document.activeElement
     root?.focus({ preventScroll: true })
     document.addEventListener("pointerdown", outside)
@@ -268,16 +251,16 @@ export function CardView(props: { chatId: string; placement: Placement; onClose:
       ref={root}
       tabIndex={-1}
       data-no-focus-ring
-      class="absolute top-3 right-3 z-30 flex max-h-[calc(100%-24px)] w-[300px] flex-col overflow-hidden rounded-[20px] bg-[var(--menu-bg)] shadow-[0_12px_40px_rgba(0,0,0,.45)] ring-1 ring-[var(--hairline)] ring-inset"
+      class="absolute top-3 right-3 z-30 flex max-h-[calc(100%-24px)] w-[300px] flex-col overflow-hidden rounded-[20px] bg-[var(--popover)] shadow-[0_12px_40px_rgba(0,0,0,.45)] ring-1 ring-[var(--border)] ring-inset"
       data-component="chat-card"
     >
       <header class="flex items-center gap-3 px-4 pt-4 pb-3">
         <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={40} />
         <div class="flex min-w-0 flex-1 flex-col">
-          <span class="truncate text-[15px] font-semibold text-[var(--text)]" data-component="card-name">
+          <span class="truncate text-[15px] font-semibold text-[var(--foreground)]" data-component="card-name">
             {chat()?.name ?? "New chat"}
           </span>
-          <span class="truncate text-[12px] text-[var(--text-muted)]" data-component="card-live">
+          <span class="truncate text-[12px] text-[var(--muted-foreground)]" data-component="card-live">
             {liveLine(working(), chat()?.updatedAt, Date.now())}
           </span>
         </div>
@@ -289,7 +272,7 @@ export function CardView(props: { chatId: string; placement: Placement; onClose:
             </MenuV2.Trigger>
             <MenuV2.Portal>
               <MenuV2.Content class="min-w-[176px]">
-                <MenuV2.Item class="text-danger" data-action="delete-chat" onSelect={() => setConfirmDelete(true)}>
+                <MenuV2.Item class="text-error" data-action="delete-chat" onSelect={() => setConfirmDelete(true)}>
                   Delete chat
                 </MenuV2.Item>
               </MenuV2.Content>
@@ -324,7 +307,7 @@ export function CardView(props: { chatId: string; placement: Placement; onClose:
                   <li>
                     <button type="button" class={`${row} w-full text-left`} data-file={file.name} onClick={() => openFileRow(file.name)}>
                       <EntryIcon path={file.name} />
-                      <span class="min-w-0 flex-1 truncate text-[13px] text-[var(--text)]">{file.name}</span>
+                      <span class="min-w-0 flex-1 truncate text-[13px] text-[var(--foreground)]">{file.name}</span>
                     </button>
                   </li>
                 )}
@@ -340,7 +323,7 @@ export function CardView(props: { chatId: string; placement: Placement; onClose:
                 {(line) => (
                   <li>
                     <button type="button" class={`${row} w-full py-1.5 text-left`} data-pos={line.pos} onClick={openMemory}>
-                      <span class="line-clamp-2 text-[13px] leading-snug text-[var(--text-muted)]">{line.text}</span>
+                      <span class="line-clamp-2 text-[13px] leading-snug text-[var(--muted-foreground)]">{line.text}</span>
                     </button>
                   </li>
                 )}
@@ -366,7 +349,7 @@ export function CardView(props: { chatId: string; placement: Placement; onClose:
           </>
         }
       >
-        <p class="text-[13px] text-[var(--text-muted)]">Remove this chat and its messages.</p>
+        <p class="text-[13px] text-[var(--muted-foreground)]">Remove this chat and its messages.</p>
       </Dialog>
     </div>
   )

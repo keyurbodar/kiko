@@ -40,7 +40,7 @@ describe("palette rows", () => {
   })
 
   test("palette.open and chats.go are enabled", () => {
-    expect(list.find((c) => c.id === "palette.open")?.when!()).toBe(true)
+    expect(list.find((c) => c.id === "palette.open")?.when?.()).toBe(true)
     expect(list.find((c) => c.id === "chats.go")?.when).toBeUndefined()
   })
 })

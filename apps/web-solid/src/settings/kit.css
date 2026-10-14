@@ -1,14 +1,9 @@
-/* t3code's control tokens (MIT, apps/web/src/index.css, components/ui/button.tsx, select.tsx,
-   toggle.tsx, switch.tsx, input.tsx, settings/SettingsGroup.tsx), in kiko's colors: t3code's
-   white/N in dark mode is the text color at N% here, so light, dark, and glass themes all work.
-   What makes them feel solid is the 1px bevel: a light edge on top of an outline control in
-   dark mode, a dark edge under it in light mode, plus a faint drop shadow. */
+
 :root {
-  /* --kit-border, --kit-input, --kit-input-fill, --kit-card, and --kit-hover are the theme's
-     (palette.ts NEUTRALS), so the contrast setting scales them with every other neutral. */
-  --kit-muted: color-mix(in oklab, var(--text) 55%, transparent);
-  /* The one muted text color: descriptions, item meta, hints, and empty lines (kit.tsx `muted`). */
-  --kit-meta: color-mix(in oklab, var(--text) 50%, transparent);
+
+  --kit-muted: color-mix(in oklab, var(--foreground) 55%, transparent);
+
+  --kit-meta: color-mix(in oklab, var(--foreground) 50%, transparent);
   --kit-bevel: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.08);
   --kit-raised: 0 1px 2px rgb(0 0 0 / 0.12);
 }
@@ -18,7 +13,7 @@
   --kit-raised: 0 1px 2px rgb(0 0 0 / 0.1);
 }
 
-/* Button, t3code's `sm`: 28px, 8px corners, 14px medium text. */
+
 .kit-btn {
   display: inline-flex;
   height: var(--control-h-sm);
@@ -40,7 +35,7 @@
   transform: scale(0.97);
 }
 
-/* A disabled control keeps the pointer, so it can say no: no hover, a not-allowed cursor. */
+
 .kit-btn:disabled,
 .kit-select:disabled,
 .kit-seg-item:disabled,
@@ -49,65 +44,65 @@
   cursor: not-allowed;
 }
 
-/* The select's list keeps focus while the arrows move a highlighted row, so the row is the mark. */
+
 .kit-listbox,
 .kit-listbox:focus-visible {
   outline: none;
 }
 
-/* t3code's default: the accent, solid, with a light top edge. */
+
 .kit-btn--primary {
-  color: var(--on-accent);
-  background: var(--accent-fill);
+  color: var(--primary-foreground);
+  background: var(--primary);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(0 0 0 / 0.12);
 }
 
 .kit-btn--primary:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--accent-fill) 90%, transparent);
+  background: color-mix(in oklab, var(--primary) 90%, transparent);
 }
 
-/* t3code's outline: the input border over a faint fill, bevelled. */
+
 .kit-btn--secondary,
 .kit-btn--danger {
-  color: var(--text);
-  background: var(--kit-input-fill);
-  border-color: var(--kit-input);
+  color: var(--foreground);
+  background: var(--muted);
+  border-color: var(--input);
   box-shadow: var(--kit-bevel);
 }
 
 .kit-btn--secondary:hover:not(:disabled) {
-  background: var(--kit-hover);
+  background: var(--accent);
 }
 
-/* t3code's destructive-outline: red text always, a red edge under the pointer. */
+
 .kit-btn--danger {
-  color: var(--danger);
+  color: var(--error);
 }
 
 .kit-btn--danger:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--danger) 6%, transparent);
-  border-color: color-mix(in oklab, var(--danger) 32%, transparent);
+  background: color-mix(in oklab, var(--error) 6%, transparent);
+  border-color: color-mix(in oklab, var(--error) 32%, transparent);
 }
 
-/* A toggle button, pressed: the accent's wash and edge. */
+
 .kit-btn--secondary[aria-pressed="true"] {
-  color: var(--text);
-  background: color-mix(in oklab, var(--accent) 12%, transparent);
-  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--ring) 12%, transparent);
+  border-color: color-mix(in oklab, var(--ring) 40%, transparent);
 }
 
-/* t3code's ghost-muted. */
+
 .kit-btn--ghost {
   color: var(--kit-muted);
 }
 
 .kit-btn--ghost:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--kit-hover);
+  color: var(--foreground);
+  background: var(--accent);
 }
 
-/* Select trigger, t3code's: 32px, 8px corners, bevelled, a small faded chevron. */
-/* t3code's px size picker beside a font family (w-22). */
+
+
 .kit-select.kit-select--size {
   min-width: 5.5rem;
   width: 5.5rem;
@@ -122,11 +117,11 @@
   justify-content: space-between;
   gap: 8px;
   padding: 0 10px 0 11px;
-  color: var(--text);
+  color: var(--foreground);
   font-size: var(--font-base);
   text-align: left;
-  background: var(--kit-input-fill);
-  border: 1px solid var(--kit-input);
+  background: var(--muted);
+  border: 1px solid var(--input);
   border-radius: var(--radius-md);
   box-shadow: var(--kit-bevel);
   cursor: pointer;
@@ -134,7 +129,7 @@
 }
 
 .kit-select:hover:not(:disabled) {
-  background: var(--kit-hover);
+  background: var(--accent);
 }
 
 .kit-select > svg:last-child {
@@ -144,14 +139,14 @@
   opacity: 0.5;
 }
 
-/* Segmented, t3code's toggle group: a recessed track, 24px pills, the pressed one raised. */
+
 .kit-seg {
   display: inline-grid;
   max-width: 100%;
   flex-shrink: 0;
   gap: 2px;
   padding: 2px;
-  background: color-mix(in oklab, var(--text) 5%, transparent);
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
   border-radius: var(--radius-md);
 }
 
@@ -171,21 +166,21 @@
 }
 
 .kit-seg-item:hover:not(:disabled) {
-  color: var(--text);
-  background: color-mix(in oklab, var(--text) 4%, transparent);
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 4%, transparent);
 }
 
 .kit-seg-item[aria-checked="true"] {
-  color: var(--text);
-  background: color-mix(in oklab, var(--text) 11%, transparent);
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 11%, transparent);
   box-shadow: var(--kit-raised);
 }
 
 :root:not(.dark) .kit-seg-item[aria-checked="true"] {
-  background: var(--bg);
+  background: var(--background);
 }
 
-/* Switch, t3code's: a 30x18 track, a 14px thumb, the accent when on. */
+
 .kit-switch {
   position: relative;
   display: inline-flex;
@@ -193,14 +188,14 @@
   height: 18px;
   flex-shrink: 0;
   padding: 2px;
-  background: var(--kit-input);
+  background: var(--input);
   border-radius: var(--radius-pill);
   cursor: pointer;
   outline: none;
 }
 
 .kit-switch[aria-checked="true"] {
-  background: var(--accent);
+  background: var(--ring);
 }
 
 .kit-switch:disabled {
@@ -212,7 +207,7 @@
   display: block;
   width: 14px;
   height: 14px;
-  background: var(--bg);
+  background: var(--background);
   border-radius: var(--radius-pill);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
 }
@@ -221,8 +216,7 @@
   transform: translateX(12px);
 }
 
-/* Slider, t3code's settings slider: a 6px track filled with the accent up to the thumb, a 16px
-   thumb ringed in the accent. `--fill` is the filled share, set inline. */
+
 .kit-range {
   height: var(--control-h-xs);
   min-width: 0;
@@ -239,19 +233,19 @@
 .kit-range::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: var(--radius-pill);
-  background: linear-gradient(to right, var(--accent) 0 var(--fill), color-mix(in oklab, var(--text) 14%, transparent) var(--fill) 100%);
+  background: linear-gradient(to right, var(--ring) 0 var(--fill), color-mix(in oklab, var(--foreground) 14%, transparent) var(--fill) 100%);
 }
 
 .kit-range::-moz-range-track {
   height: 4px;
   border-radius: var(--radius-pill);
-  background: color-mix(in oklab, var(--text) 14%, transparent);
+  background: color-mix(in oklab, var(--foreground) 14%, transparent);
 }
 
 .kit-range::-moz-range-progress {
   height: 4px;
   border-radius: var(--radius-pill);
-  background: var(--accent);
+  background: var(--ring);
 }
 
 .kit-range::-webkit-slider-thumb {
@@ -259,7 +253,7 @@
   height: 16px;
   margin-top: -6px;
   background: #fff;
-  border: 1px solid var(--kit-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
   appearance: none;
@@ -269,68 +263,65 @@
   width: 16px;
   height: 16px;
   background: #fff;
-  border: 1px solid var(--kit-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
 }
 
 .kit-range:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
+  outline-offset: -2px;
   border-radius: var(--radius-xs);
 }
 
-/* The value beside a slider, t3code's: a small mono pill. */
+
 .kit-value {
   min-width: 3rem;
   padding: 4px 8px;
-  color: var(--text);
+  color: var(--foreground);
   font-family: var(--font-family-mono, ui-monospace, monospace);
   font-size: var(--font-sm);
   font-variant-numeric: tabular-nums;
   text-align: center;
-  background: color-mix(in oklab, var(--accent) 18%, transparent);
+  background: color-mix(in oklab, var(--ring) 18%, transparent);
   border-radius: var(--radius-md);
 }
 
-/* Field, t3code's input: 30px, 8px corners, bevelled, a ring on focus. */
+
 .kit-field {
   height: var(--field-h);
   min-width: 0;
   padding: 0 11px;
-  color: var(--text);
+  color: var(--foreground);
   font-size: var(--font-base);
-  background: var(--kit-input-fill);
-  border: 1px solid var(--kit-input);
+  background: var(--muted);
+  border: 1px solid var(--input);
   border-radius: var(--radius-md);
   box-shadow: var(--kit-bevel);
   outline: none;
 }
 
 .kit-field::placeholder {
-  color: color-mix(in oklab, var(--text) 40%, transparent);
+  color: color-mix(in oklab, var(--foreground) 40%, transparent);
 }
 
 .kit-field:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 24%, transparent);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 24%, transparent);
 }
 
-/* Card, t3code's SettingsGroup: 14px corners, a soft border, a faint fill and shadow, rows
-   split by a quieter line. */
+
 .kit-card {
   overflow: hidden;
-  background: var(--kit-card);
-  border: 1px solid var(--kit-border);
+  background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
 }
 
-/* monocode's narrow settings pane (styles/index.css): a row stacks, its control under its label,
-   unless the control is only a switch. The settings body is the `settings` container. */
+
 @container settings (width < 560px) {
-  /* Stacked, the label and the control both start at the left edge, as t3code's rows do. A
-     column inherits the row's centering otherwise, and each row lands somewhere else. */
+
   .settings-row {
     flex-direction: column;
     align-items: stretch;

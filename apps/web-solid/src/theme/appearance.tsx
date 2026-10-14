@@ -1,5 +1,3 @@
-// Settings, appearance: a few titled groups of rows. One theme in light and dark, an accent from
-// the flock, and the interface and font settings.
 import { For, type JSX } from "solid-js"
 import { appearanceOf } from "@kiko/theme/apply"
 import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
@@ -24,7 +22,7 @@ function AccentPicker(): JSX.Element {
             aria-label={ACCENTS[id].label}
             title={ACCENTS[id].label}
             data-accent={id}
-            class="grid size-7 cursor-pointer place-items-center rounded-full outline-none [&[aria-checked=true]>span]:shadow-[0_0_0_2px_var(--bg),0_0_0_3px_var(--text)]"
+            class="grid size-7 cursor-pointer place-items-center rounded-full outline-none [&[aria-checked=true]>span]:shadow-[0_0_0_2px_var(--background),0_0_0_3px_var(--foreground)]"
             onClick={() => updateLook({ accent: id })}
           >
             <span class="block size-5 rounded-full" style={{ background: ACCENTS[id][shown()] }} />
