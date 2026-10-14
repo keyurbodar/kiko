@@ -19,64 +19,53 @@ import { Link, Mention } from "./nodes"
 
 const schema = getSchema([Document, Paragraph, Text, HardBreak, Bold, Italic, Strike, Code, Blockquote, CodeBlock, BulletList, OrderedList, ListItem, Link, Mention])
 
-function press(key: string, markdown: string, select: "all" | "caret"): string {
+function press(key: string, markdown: string): string {
   const binding = BINDINGS.find((b) => b.key === key)
   if (!binding) throw new Error(`no binding for ${key}`)
   const doc: Node = schema.nodeFromJSON(markdownToDoc(markdown))
   let state = EditorState.create({ doc })
-  const start = Selection.atStart(state.doc).from
-  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, start, select === "all" ? Selection.atEnd(state.doc).to : start)))
+  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, Selection.atEnd(state.doc).to)))
   let next: Transaction | undefined
   const ran = binding.command(schema)(state, (tr) => (next = tr))
   expect(ran).toBe(true)
   return docToMarkdown((next ? state.apply(next) : state).doc.toJSON() as Json)
 }
 
-const table: { key: string; label: string; markdown: string; select: "all" | "caret"; expected: string }[] = [
-  { key: "Mod-b", label: "bold", markdown: "word", select: "all", expected: "**word**" },
-  { key: "Mod-i", label: "italic", markdown: "word", select: "all", expected: "*word*" },
-  { key: "Mod-Shift-x", label: "strikethrough", markdown: "word", select: "all", expected: "~~word~~" },
-  { key: "Mod-e", label: "inline code", markdown: "word", select: "all", expected: "`word`" },
-  { key: "Mod-Shift-8", label: "bullet list", markdown: "word", select: "caret", expected: "- word" },
-  { key: "Mod-Shift-7", label: "numbered list", markdown: "word", select: "caret", expected: "1. word" },
-  { key: "Mod-Shift-b", label: "quote", markdown: "word", select: "caret", expected: "> word" },
-  { key: "Mod-Alt-c", label: "code block", markdown: "word", select: "caret", expected: "```\nword\n```" },
+const table: { key: string; label: string; markdown: string; expected: string }[] = [
+  { key: "Mod-b", label: "bold", markdown: "word", expected: "**word**" },
+  { key: "Mod-i", label: "italic", markdown: "word", expected: "*word*" },
+  { key: "Mod-Shift-s", label: "strikethrough", markdown: "word", expected: "~~word~~" },
+  { key: "Mod-e", label: "inline code", markdown: "word", expected: "`word`" },
 ]
 
 describe("the formatting keys", () => {
   for (const row of table) {
     test(`${row.key} turns ${row.label} on`, () => {
-      expect(press(row.key, row.markdown, row.select)).toBe(row.expected)
+      expect(press(row.key, row.markdown)).toBe(row.expected)
     })
   }
 
-  test("every chord in the keymap has a row in the table", () => {
+  test("each mark key turns its mark off again", () => {
+    expect(press("Mod-b", "**word**")).toBe("word")
+    expect(press("Mod-i", "*word*")).toBe("word")
+    expect(press("Mod-Shift-s", "~~word~~")).toBe("word")
+    expect(press("Mod-e", "`word`")).toBe("word")
+  })
+
+  test("the keymap holds only t3code's mark chords, and each has a row in the table", () => {
     expect(BINDINGS.map((b) => b.key).sort()).toEqual(table.map((r) => r.key).sort())
     expect(BINDINGS.map((b) => b.label)).toEqual(table.map((r) => r.label))
+  })
+
+  test("the block chords t3code removes are gone", () => {
+    expect(BINDINGS.map((b) => b.key)).not.toContain("Mod-Shift-8")
+    expect(BINDINGS.map((b) => b.key)).not.toContain("Mod-Shift-7")
+    expect(BINDINGS.map((b) => b.key)).not.toContain("Mod-Shift-b")
+    expect(BINDINGS.map((b) => b.key)).not.toContain("Mod-Alt-c")
   })
 
   test("Mod+K is the link key, kept apart from the formatting table", () => {
     expect(LINK_KEY).toBe("Mod-k")
     expect(BINDINGS.map((b) => b.key)).not.toContain(LINK_KEY)
-  })
-
-  const off: [string, string, "all" | "caret", string][] = [
-    ["Mod-b", "**word**", "all", "word"],
-    ["Mod-i", "*word*", "all", "word"],
-    ["Mod-Shift-x", "~~word~~", "all", "word"],
-    ["Mod-e", "`word`", "all", "word"],
-    ["Mod-Shift-8", "- word", "caret", "word"],
-    ["Mod-Shift-7", "1. word", "caret", "word"],
-    ["Mod-Shift-b", "> word", "caret", "word"],
-    ["Mod-Alt-c", "```\nword\n```", "caret", "word"],
-  ]
-  for (const [key, from, select, expected] of off) {
-    test(`${key} turns it off again`, () => {
-      expect(press(key, from, select)).toBe(expected)
-    })
-  }
-
-  test("a bullet list becomes a numbered list under the numbered list key", () => {
-    expect(press("Mod-Shift-7", "- word", "caret")).toBe("1. word")
   })
 })

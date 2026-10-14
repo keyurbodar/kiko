@@ -89,9 +89,9 @@ const cases: [string, Block, string][] = [
   ["code block", { t: "code_block", lang: "ts", text: "a < b" }, '<code-block lang="ts">a &lt; b</code-block>'],
   ["raw html stays text", { t: "code_block", text: "<b>x</b>" }, '<code-block lang="">&lt;b&gt;x&lt;/b&gt;</code-block>'],
   [
-    "table in a scroller with alignment",
+    "table in a scroller; alignment is left whatever the source says, as t3code's cell rule sets it",
     { t: "table", align: ["right", null], head: [[t("a")], [t("b")]], rows: [[[t("1")], []]] },
-    '<div class="rich-table-scroll"><table><thead><tr><th style="text-align:right">a</th><th>b</th></tr></thead><tbody><tr><td style="text-align:right">1</td><td></td></tr></tbody></table></div>',
+    '<div class="rich-table-scroll"><table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td></td></tr></tbody></table></div>',
   ],
 ]
 
@@ -138,5 +138,48 @@ describe("inline code that may name a chat file", () => {
     const node = code("Promise.all") as { children: RichNode[] }
     expect(node.children[0]).toMatchObject({ kind: "file", bare: true })
     expect(code("bun run test")).toEqual({ kind: "el", tag: "p", attrs: {}, children: [{ kind: "el", tag: "code", attrs: { class: "rich-inline-code" }, children: [{ kind: "text", text: "bun run test" }] }] })
+  })
+})
+
+describe("task list items", () => {
+  test("a task item's list item is marked, and a plain item is not", () => {
+    const task = block({ t: "list", items: [[{ t: "paragraph", children: [{ t: "text", text: "☑ " }, { t: "text", text: "done" }] }]] })
+    const plain = block({ t: "list", items: [[{ t: "paragraph", children: [{ t: "text", text: "done" }] }]] })
+    expect(task.kind === "el" && task.children[0]?.kind === "el" && task.children[0].attrs.class).toBe("task-list-item")
+    expect(plain.kind === "el" && plain.children[0]?.kind === "el" && plain.children[0].attrs.class).toBeUndefined()
+  })
+})
+
+describe("loose lists", () => {
+  test("a loose list carries the class that gives its paragraphs the block gap; a tight one does not", () => {
+    const loose = block({ t: "list", loose: true, items: [[p("a")], [p("b")]] })
+    const tight = block({ t: "list", items: [[p("a")], [p("b")]] })
+    expect(loose.kind === "el" && loose.attrs.class).toBe("rich-loose")
+    expect(tight.kind === "el" && tight.attrs.class).toBeUndefined()
+  })
+})
+
+describe("table copy", () => {
+  // The source cells keep their marks: bold, code and a link, plus a pipe that must be escaped.
+  const table = (): Extract<Block, { t: "table" }> => ({
+    t: "table",
+    align: ["left", "right"],
+    head: [[t("name")], [t("value")]],
+    rows: [
+      [[{ t: "bold", children: [t("bold")] }], [{ t: "code", text: "a|b" }]],
+      [[{ t: "link", href: "https://example.com", children: [t("site")] }], [t('say "hi", now')]],
+    ],
+  })
+
+  test("Copy as Markdown writes the cells with their marks, escaped pipes and the alignment row", () => {
+    const node = block(table())
+    expect(node.kind === "el" && node.copy?.markdown).toBe(
+      ["| name | value |", "| --- | ---: |", "| **bold** | `a\\|b` |", "| [site](https://example.com) | say \"hi\", now |"].join("\n"),
+    )
+  })
+
+  test("Copy as CSV writes plain cell text, quoted where a comma or quote needs it", () => {
+    const node = block(table())
+    expect(node.kind === "el" && node.copy?.csv).toBe(["name,value", "bold,a|b", "site,\"say \"\"hi\"\", now\""].join("\n"))
   })
 })

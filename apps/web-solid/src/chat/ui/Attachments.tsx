@@ -1,5 +1,5 @@
 import { For, Show } from "solid-js"
-import { FileIcon } from "@kiko/ui/file-icon"
+import { EntryIcon } from "../../lib/EntryIcon"
 import { cn } from "../../lib/cn"
 import { splitFiles, tileSpan } from "../../lib/attachments"
 import type { MessageFile } from "../../lib/types"
@@ -60,7 +60,7 @@ export function MessageAttachments(props: {
                 data-component="chat-attachment-file"
                 onClick={() => preview(props.roomId, file)}
               >
-                <FileIcon node={{ path: file.name, type: "file" }} class="size-4 shrink-0" />
+                <EntryIcon path={file.name} />
                 <span class="min-w-0 flex-1 truncate">{file.name}</span>
                 <span class="shrink-0 text-xs text-weak">{formatBytes(file.size)}</span>
               </button>

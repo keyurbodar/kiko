@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { RichText } from "@kiko/protocol"
 import { parseRichText } from "../../../../server/src/room/rich-text"
-import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
+import { docToMarkdown, markdownToDoc, nextOrderedMarker, type Json } from "./markdown"
 
 const t = (text: string, ...marks: string[]): Json => ({ type: "text", text, ...(marks.length ? { marks: marks.map((type) => ({ type })) } : {}) })
 const p = (...content: Json[]): Json => ({ type: "paragraph", content })
@@ -46,13 +46,13 @@ const cases: { name: string; doc: Json; markdown: string; rich: RichText }[] = [
   { name: "mention", doc: doc(p(t("hi "), { type: "mention", attrs: { slug: "ada" } })), markdown: "hi @ada", rich: [para(text("hi "), { t: "mention", slug: "ada" })] as RichText },
   {
     name: "bullet list",
-    doc: doc({ type: "bulletList", content: [{ type: "listItem", content: [p(t("one"))] }, { type: "listItem", content: [p(t("two"))] }] }),
+    doc: doc({ type: "bulletList", content: [{ type: "listItem", attrs: { marker: "-" }, content: [p(t("one"))] }, { type: "listItem", attrs: { marker: "-" }, content: [p(t("two"))] }] }),
     markdown: "- one\n- two",
     rich: [{ t: "list", items: [[para(text("one"))], [para(text("two"))]] }] as RichText,
   },
   {
     name: "ordered list",
-    doc: doc({ type: "orderedList", attrs: { start: 3 }, content: [{ type: "listItem", content: [p(t("x"))] }, { type: "listItem", content: [p(t("y"))] }] }),
+    doc: doc({ type: "orderedList", attrs: { start: 3 }, content: [{ type: "listItem", attrs: { marker: "3." }, content: [p(t("x"))] }, { type: "listItem", attrs: { marker: "4." }, content: [p(t("y"))] }] }),
     markdown: "3. x\n4. y",
     rich: [{ t: "list", start: 3, items: [[para(text("x"))], [para(text("y"))]] }] as RichText,
   },
@@ -60,7 +60,7 @@ const cases: { name: string; doc: Json; markdown: string; rich: RichText }[] = [
     name: "nested list",
     doc: doc({
       type: "bulletList",
-      content: [{ type: "listItem", content: [p(t("a")), { type: "orderedList", attrs: { start: 1 }, content: [{ type: "listItem", content: [p(t("b"))] }] }] }],
+      content: [{ type: "listItem", attrs: { marker: "-" }, content: [p(t("a")), { type: "orderedList", attrs: { start: 1 }, content: [{ type: "listItem", attrs: { marker: "1." }, content: [p(t("b"))] }] }] }],
     }),
     markdown: "- a\n  1. b",
     rich: [{ t: "list", items: [[para(text("a")), { t: "list", start: 1, items: [[para(text("b"))]] }]] }] as RichText,
@@ -153,5 +153,25 @@ describe("task lists", () => {
   test("a dash line is a rule, and a heading ends the paragraph above it", () => {
     expect(markdownToDoc("text\n# Head").content?.map((node) => node.type)).toEqual(["paragraph", "heading"])
     expect(markdownToDoc("---").content?.[0]?.type).toBe("horizontalRule")
+  })
+})
+
+describe("list markers", () => {
+  test("an ordered item keeps the delimiter and the number it was typed with", () => {
+    expect(docToMarkdown(markdownToDoc("3) a\n4) b"))).toBe("3) a\n4) b")
+  })
+
+  test("repeated numbers are not recounted", () => {
+    expect(docToMarkdown(markdownToDoc("1. a\n1. b\n1. c"))).toBe("1. a\n1. b\n1. c")
+  })
+
+  test("a bullet keeps its own marker", () => {
+    expect(docToMarkdown(markdownToDoc("* a\n* b"))).toBe("* a\n* b")
+  })
+
+  test("the next ordered marker counts on, keeping the delimiter and padding", () => {
+    expect(nextOrderedMarker("3)")).toBe("4)")
+    expect(nextOrderedMarker("09.")).toBe("10.")
+    expect(nextOrderedMarker("9.")).toBe("10.")
   })
 })

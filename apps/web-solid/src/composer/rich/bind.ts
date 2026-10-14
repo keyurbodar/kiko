@@ -3,6 +3,7 @@ import { progressLabel, retryUpload, uploadState } from "../../sync/uploads"
 import type { PromptInputV2Interaction } from "../prompt-input/interaction"
 import type { PromptInputV2Attachment } from "../prompt-input/types"
 import { isImage } from "../../lib/attachments"
+import { composingKey, enterIsNewline } from "../ime"
 import { mountRichEditor, type RichEditor } from "./editor"
 
 export type RichBinding = {
@@ -52,9 +53,9 @@ export function bindRich(input: {
     onKeyDown: (event) => {
       if (input.shortcodes.onKeyDown(event)) return true
       if (controller.onKeyDown(event)) return true
-      if (event.key !== "Enter" || event.isComposing || event.shiftKey || event.altKey) return false
+      if (event.key !== "Enter" || composingKey(event) || event.shiftKey || event.altKey || enterIsNewline(event)) return false
       const modified = event.metaKey || event.ctrlKey
-      if (!modified && editor.inListOrCode()) return false
+      if (!modified && editor.inCode()) return false
       event.preventDefault()
       if (!event.repeat) controller.submit()
       return true

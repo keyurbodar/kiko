@@ -1,9 +1,9 @@
-import { FileIcon } from "@kiko/ui/file-icon"
 import { CopyIcon, FileIcon as OpenIcon } from "lucide-solid"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import type { JSX } from "solid-js"
+import { Show, type JSX } from "solid-js"
+import { EntryIcon } from "../../lib/EntryIcon"
 import { useApp } from "../../lib/store"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { basename, resolveFile, type FileTarget } from "../rich/file-links"
@@ -22,7 +22,8 @@ function find(path: string) {
 export function FileChip(props: { file: FileTarget; label: string; bare?: boolean }): JSX.Element {
   const full = () => `${props.file.path}${props.file.line ? `:${props.file.line}` : ""}`
   // A bare name the chat does not have is code, not a missing file, so it does not show a chip.
-  if (props.bare && find(props.file.path).kind === "none") return <code class="rich-inline-code">{full()}</code>
+  // It is a reactive check: the chat's file list can arrive after the first paint of a message.
+  const isChip = () => !props.bare || find(props.file.path).kind !== "none"
   const chat = () => useApp.activeThreadId()
   const open = () => {
     const id = chat()
@@ -41,6 +42,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     }
   }
   return (
+    <Show when={isChip()} fallback={<code class="rich-inline-code">{full()}</code>}>
     <TooltipV2 class="file-chip-anchor" placement="top" value={<span class="font-mono">{full()}</span>}>
       <MenuV2.Context gutter={4}>
         <MenuV2.Context.Trigger
@@ -53,7 +55,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
           aria-label={`Open ${full()}`}
           onClick={open}
         >
-          <FileIcon node={{ path: props.file.path, type: "file" }} />
+          <EntryIcon path={props.file.path} />
           <span class="file-chip-label">{props.label}</span>
         </MenuV2.Context.Trigger>
         <MenuV2.Context.Portal>
@@ -70,5 +72,6 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
         </MenuV2.Context.Portal>
       </MenuV2.Context>
     </TooltipV2>
+    </Show>
   )
 }

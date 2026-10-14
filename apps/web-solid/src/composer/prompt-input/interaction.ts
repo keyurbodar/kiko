@@ -3,6 +3,7 @@ import { createStore, reconcile } from "solid-js/store"
 import { useFilteredList } from "@kiko/ui/hooks"
 import { createPromptInputV2Attachments, type PromptInputV2AttachmentConfig } from "./attachments"
 import { createPromptInputV2Store, type PromptInputV2StoreInput } from "./store"
+import { composingKey } from "../ime"
 import type {
   PromptInputV2Attachment,
   PromptInputV2History,
@@ -217,7 +218,7 @@ export function createPromptInputV2Controller(input: {
       type: "key.down",
       key: event.key,
       ctrl: event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey,
-      composing: event.isComposing,
+      composing: composingKey(event),
       ids: suggestions().map((item) => item.id),
       empty: draft.state.prompt.every((part) => !("content" in part) || part.content.length === 0),
     })
@@ -276,8 +277,9 @@ export function createPromptInputV2Controller(input: {
     if (!input.history || !editor) return false
     const selection = window.getSelection()
     if (!selection?.isCollapsed || !editor.contains(selection.anchorNode)) return false
-    const text = draft.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
-    if (!canNavigateHistory(direction, text, editorCursor(editor), state.historyIndex >= 0)) return false
+    // The caret is measured in rendered text, so the length is too. A formatted draft's markdown is longer.
+    const length = editor.textContent?.length ?? 0
+    if (!canNavigateHistory(direction, length, editorCursor(editor), state.historyIndex >= 0)) return false
     const entries = input.history.entries(state.mode)
     if (direction === "up") {
       if (entries.length === 0 || state.historyIndex >= entries.length - 1) return false
@@ -417,11 +419,11 @@ export function createPromptInputV2Controller(input: {
 
 export type PromptInputV2Interaction = ReturnType<typeof createPromptInputV2Controller>
 
-function canNavigateHistory(direction: "up" | "down", text: string, cursor: number, inHistory: boolean) {
-  const position = Math.max(0, Math.min(cursor, text.length))
-  if (inHistory) return position === 0 || position === text.length
-  if (direction === "up") return position === 0 && text.length === 0
-  return position === text.length
+function canNavigateHistory(direction: "up" | "down", length: number, cursor: number, inHistory: boolean) {
+  const position = Math.max(0, Math.min(cursor, length))
+  if (inHistory) return position === 0 || position === length
+  if (direction === "up") return position === 0 && length === 0
+  return position === length
 }
 
 function clonePrompt(prompt: PromptInputV2PersistedState["prompt"]): PromptInputV2PersistedState["prompt"] {

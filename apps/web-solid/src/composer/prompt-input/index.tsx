@@ -1,6 +1,6 @@
 import { For, createEffect, createMemo, createSignal, getOwner, lazy, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
-import { ArrowUpIcon, CornerDownLeftIcon, PaperclipIcon, PlusIcon, SquareIcon, XIcon } from "lucide-solid"
+import { ArrowUpIcon, CornerDownLeftIcon, PaperclipIcon, PlusIcon, SquareIcon } from "lucide-solid"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { identityLook } from "../../lib/identity"
@@ -9,6 +9,7 @@ import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 import type { PromptInputV2Interaction } from "./interaction"
 import { createComposerEmoji, createShortcodes } from "../emoji"
 import type { RichBinding } from "../rich/bind"
+import { composingKey, enterIsNewline } from "../ime"
 
 export type {
   PromptInputV2Attachment,
@@ -22,6 +23,7 @@ export type PromptInputV2Mode = "normal" | "shell"
 /* The attachment strip and the popover show only with content. See extras.tsx. */
 const extras = () => import("./extras")
 const PromptInputV2Attachments = lazy(() => extras().then((m) => ({ default: m.PromptInputV2Attachments })))
+const PromptInputV2FileChips = lazy(() => extras().then((m) => ({ default: m.PromptInputV2FileChips })))
 const PromptInputV2Popover = lazy(() => extras().then((m) => ({ default: m.PromptInputV2Popover })))
 
 export type PromptInputV2Props = {
@@ -206,19 +208,10 @@ export function PromptInputV2(props: PromptInputV2Props) {
               />
             </Suspense>
           </Show>
-          <Show when={state.mode === "normal" && props.controller.attachments().some((a) => !isImage({ name: a.filename, type: a.mime }))}>
-            <div class="composer-file-chips" style={{ display: "flex", gap: "6px", "flex-wrap": "wrap", width: "100%" }}>
-              <For each={props.controller.attachments().filter((a) => !isImage({ name: a.filename, type: a.mime }))}>
-                {(attachment) => (
-                  <div class="composer-file-chip" style={{ display: "inline-flex", "align-items": "center", gap: "6px", padding: "4px 8px", "border-radius": "8px", "font-size": "12px", background: "color-mix(in oklab, var(--text) 6%, transparent)" }}>
-                    <span>{attachment.filename}</span>
-                    <button type="button" aria-label={`Remove ${attachment.filename}`} onClick={() => props.controller.removeAttachment(attachment.id)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
-                      <XIcon size={12} />
-                    </button>
-                  </div>
-                )}
-              </For>
-            </div>
+          <Show when={state.mode === "normal"}>
+            <Suspense>
+              <PromptInputV2FileChips attachments={props.controller.attachments()} onRemove={(attachment) => props.controller.removeAttachment(attachment.id)} />
+            </Suspense>
           </Show>
           <div
             data-component="prompt-input-box"
@@ -251,6 +244,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 />
               </form>
             </Show>
+            <div class="composer-field">
             <div ref={richHost} class="composer-rich" />
             <Show when={!rich()}>
               <div
@@ -283,7 +277,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 onKeyDown={(event) => {
                   if (shortcodes.onKeyDown(event)) return
                   if (props.controller.onKeyDown(event)) return
-                  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+                  if (event.key === "Enter" && !event.shiftKey && !composingKey(event) && !enterIsNewline(event)) {
                     event.preventDefault()
                     if (event.repeat) return
                     props.controller.submit()
@@ -309,6 +303,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 {view.placeholder?.() ?? i18n.t("ui.promptInput.label")}
               </div>
             </Show>
+            </div>
           </div>
 
           {emoji.trigger}

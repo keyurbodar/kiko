@@ -1,4 +1,4 @@
-import type { Block, ColumnAlign, Inline, RichText } from "@kiko/protocol"
+import type { Block, Inline, RichText } from "@kiko/protocol"
 import isSuspiciousUrl from "../lib/richtext/suspicious"
 import { bareFileName, chipLabel, hrefFile, inlineCodeFile, isFileLabel, parentSuffixes, type FileTarget } from "./file-links"
 
@@ -12,7 +12,10 @@ export type RichNode =
   /** `bare` is a name, not a path: it shows as code unless the chat has a file of that name. */
   | { kind: "file"; file: FileTarget; label: string; bare?: true }
   | { kind: "masked"; href: string; children: RichNode[] }
-  | { kind: "el"; tag: string; attrs: Record<string, string>; children: RichNode[] }
+  /** `copy` is set on a table: the Markdown and CSV text its footer copies, read from the source cells. */
+  | { kind: "el"; tag: string; attrs: Record<string, string>; children: RichNode[]; copy?: TableCopy }
+
+export type TableCopy = { markdown: string; csv: string }
 
 const el = (tag: string, children: RichNode[], attrs: Record<string, string> = {}): RichNode => ({
   kind: "el",
@@ -86,8 +89,79 @@ export function inline(node: Inline): RichNode {
   }
 }
 
-const alignAttrs = (align: ColumnAlign | undefined): Record<string, string> =>
-  align ? { style: `text-align:${align}` } : {}
+/** The server draws a task item's box as its first character, `☐ ` or `☑ `. Its list has no bullet. */
+const isTaskItem = (item: readonly Block[]): boolean => {
+  const first = item[0]
+  return first?.t === "paragraph" && first.children[0]?.t === "text" && /^[☐☑] /.test(first.children[0].text)
+}
+
+
+/** A code span's fence: one backtick more than the longest run inside, padded when the code starts or ends with one. */
+function codeSpan(code: string): string {
+  const runs = code.match(/`+/g) ?? []
+  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0)
+  const fence = "`".repeat(longest > 0 ? longest + 1 : 1)
+  const pad = code.startsWith("`") || code.endsWith("`") ? " " : ""
+  return `${fence}${pad}${code}${pad}${fence}`
+}
+
+/** One inline run as Markdown, marks kept, so a pasted cell still reads as the source did. */
+function inlineMarkdown(nodes: readonly Inline[]): string {
+  return nodes
+    .map((node) => {
+      switch (node.t) {
+        case "text":
+          return node.text
+        case "code":
+          return codeSpan(node.text)
+        case "mention":
+          return `@${node.slug}`
+        case "bold":
+          return `**${inlineMarkdown(node.children)}**`
+        case "italic":
+          return `*${inlineMarkdown(node.children)}*`
+        case "strike":
+          return `~~${inlineMarkdown(node.children)}~~`
+        case "link":
+          return `[${inlineMarkdown(node.children)}](${node.href})`
+      }
+    })
+    .join("")
+}
+
+/** One inline run as plain text, for CSV, which carries no marks. */
+function inlinePlain(nodes: readonly Inline[]): string {
+  return nodes
+    .map((node) => {
+      switch (node.t) {
+        case "text":
+        case "code":
+          return node.text
+        case "mention":
+          return `@${node.slug}`
+        default:
+          return inlinePlain(node.children)
+      }
+    })
+    .join("")
+}
+
+/** t3code's cell: one line, and a pipe escaped so it cannot end the cell. */
+const markdownCell = (cell: readonly Inline[]): string => inlineMarkdown(cell).replace(/\n+/g, " ").trim().replaceAll("|", "\\|")
+
+const csvCell = (cell: readonly Inline[]): string => {
+  const value = inlinePlain(cell).replace(/\s+/g, " ").trim()
+  return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
+}
+
+/** The table as t3code's Copy as Markdown and Copy as CSV write it, from the source cells. */
+function tableCopy(node: Extract<Block, { t: "table" }>): TableCopy {
+  const line = (cells: string[]) => `| ${cells.join(" | ")} |`
+  const separator = node.head.map((_, i) => (node.align[i] === "center" ? ":---:" : node.align[i] === "right" ? "---:" : "---"))
+  const markdown = [line(node.head.map(markdownCell)), line(separator), ...node.rows.map((row) => line(row.map(markdownCell)))]
+  const csv = [node.head, ...node.rows].map((row) => row.map(csvCell).join(",")).join("\n")
+  return { markdown: markdown.join("\n"), csv }
+}
 
 export function block(node: Block): RichNode {
   switch (node.t) {
@@ -96,10 +170,12 @@ export function block(node: Block): RichNode {
     case "heading":
       return el(`h${node.level}`, node.children.map(inline))
     case "list": {
-      const items = node.items.map((item) => el("li", item.map(block)))
+      const items = node.items.map((item) => el("li", item.map(block), isTaskItem(item) ? { class: "task-list-item" } : {}))
+      // t3code's loose list: each item's paragraphs take the block gap. A tight item's paragraph has none.
+      const loose: Record<string, string> = node.loose ? { class: "rich-loose" } : {}
       return node.start === undefined
-        ? el("ul", items)
-        : el("ol", items, node.start === 1 ? {} : { start: String(node.start) })
+        ? el("ul", items, loose)
+        : el("ol", items, { ...loose, ...(node.start === 1 ? {} : { start: String(node.start) }) })
     }
     case "quote":
       return el("blockquote", node.children.map(block))
@@ -109,12 +185,14 @@ export function block(node: Block): RichNode {
       return { kind: "code", lang: node.lang, text: node.text }
     case "table": {
       const row = (cells: readonly (readonly Inline[])[], tag: "th" | "td") =>
-        el("tr", cells.map((cell, i) => el(tag, cell.map(inline), alignAttrs(node.align[i]))))
-      return el(
-        "div",
-        [el("table", [el("thead", [row(node.head, "th")]), el("tbody", node.rows.map((cells) => row(cells, "td")))])],
-        { class: "rich-table-scroll" },
-      )
+        el("tr", cells.map((cell, i) => el(tag, cell.map(inline))))
+      return {
+        kind: "el",
+        tag: "div",
+        attrs: { class: "rich-table-scroll" },
+        children: [el("table", [el("thead", [row(node.head, "th")]), el("tbody", node.rows.map((cells) => row(cells, "td")))])],
+        copy: tableCopy(node),
+      }
     }
   }
 }

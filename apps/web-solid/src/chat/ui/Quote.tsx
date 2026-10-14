@@ -1,6 +1,6 @@
-import { FileTextIcon } from "lucide-solid"
 import { Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
+import { EntryIcon } from "../../lib/EntryIcon"
 import type { ChatMessage } from "../../lib/types"
 import type { ReplySummary } from "../lib/reply"
 
@@ -51,9 +51,11 @@ export function Quote(props: {
         when={props.summary.thumb}
         fallback={
           <Show when={props.summary.glyph}>
-            <span class="chat-quote__thumb flex size-8 shrink-0 items-center justify-center rounded-full bg-[oklch(from_currentColor_l_c_h/15%)]">
-              <FileTextIcon class="size-4" />
-            </span>
+            {(name) => (
+              <span class="chat-quote__thumb flex size-8 shrink-0 items-center justify-center rounded-full bg-[oklch(from_currentColor_l_c_h/15%)]">
+                <EntryIcon path={name()} />
+              </span>
+            )}
           </Show>
         }
       >

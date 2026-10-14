@@ -133,3 +133,15 @@ describe("inline code that is a bare file name", () => {
     else expect(found).toEqual(expected)
   })
 })
+
+describe("links and code that are not files", () => {
+  test("a URL in inline code is not a file", () => {
+    expect(inlineCodeFile("https://example.com/docs/index.html")).toBeNull()
+  })
+
+  test("a bare web address is not a file, but a file name still is", () => {
+    expect(hrefFile("example.com")).toBeNull()
+    expect(hrefFile("www.example.com/page")).toBeNull()
+    expect(hrefFile("notes.md")).toEqual({ path: "notes.md" })
+  })
+})

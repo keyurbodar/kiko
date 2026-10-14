@@ -1,6 +1,7 @@
 import { createEventListener } from "@solid-primitives/event-listener"
 import { SmileIcon } from "lucide-solid"
 import { createEffect, createMemo, createResource, createSignal, For, lazy, on, Show, Suspense, type JSX } from "solid-js"
+import { composingKey } from "./ime"
 import { loadEmoji, recordRecent, searchEmoji, shortcodeQuery, warmEmoji, type EmojiMatch } from "../lib/emoji-data"
 
 /* The picker loads on the first hover or press of the emoji button. */
@@ -73,7 +74,7 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
 
   /** True when the key was the list's. While it is open, Enter picks rather than sends. */
   const onKeyDown = (event: KeyboardEvent): boolean => {
-    if (!open() || event.isComposing) return false
+    if (!open() || composingKey(event)) return false
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       const count = matches().length
       setActive((index) => (index + (event.key === "ArrowDown" ? 1 : count - 1)) % count)

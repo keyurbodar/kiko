@@ -44,16 +44,12 @@ function block(node: Json): string {
         .join("\n")
     case "blockquote":
       return prefixLines(blocks(children, "\n\n"), "> ", "> ").replace(/^> $/gm, ">")
+    // An item writes the marker it was typed or parsed with. Numbers are not recounted: `1.` `1.` stays so.
     case "bulletList":
-      return children.map((item) => prefixLines(itemText(item), "- ", "  ")).join("\n")
+      return children.map((item) => listLine(item, "-")).join("\n")
     case "orderedList": {
       const start = typeof node.attrs?.start === "number" ? node.attrs.start : 1
-      return children
-        .map((item, index) => {
-          const marker = `${start + index}. `
-          return prefixLines(itemText(item), marker, " ".repeat(marker.length))
-        })
-        .join("\n")
+      return children.map((item, index) => listLine(item, `${start + index}.`)).join("\n")
     }
     case "codeBlock": {
       const body = children.map((child) => child.text ?? "").join("")
@@ -65,6 +61,24 @@ function block(node: Json): string {
     default:
       return ""
   }
+}
+
+/** One item as its source line: the marker the item carries, a space, then the item's text. */
+function listLine(item: Json, fallback: string): string {
+  const marker = typeof item.attrs?.marker === "string" && item.attrs.marker ? item.attrs.marker : fallback
+  const lead = `${marker} `
+  return prefixLines(itemText(item), lead, " ".repeat(lead.length))
+}
+
+/**
+ * The ordered marker after `3.` or `09)`: one higher, the delimiter and zero padding kept. A number too
+ * large to count stays as it is. Shared by the editor's Shift+Enter, so a new item counts the way it was typed.
+ */
+export function nextOrderedMarker(marker: string): string {
+  const digits = marker.slice(0, -1)
+  const number = Number.parseInt(digits, 10)
+  const next = Number.isSafeInteger(number) ? String(number + 1).padStart(digits.length, "0") : digits
+  return `${next}${marker.slice(-1)}`
 }
 
 function itemText(item: Json): string {
@@ -151,7 +165,8 @@ export function markdownToDoc(markdown: string, options: ParseOptions = {}): Jso
 }
 
 const BULLET = /^( {0,3})([-*+]) (.*)$/
-const ORDERED = /^( {0,3})(\d{1,9})[.)] (.*)$/
+// Both list kinds capture their marker in group 2 and the item text in group 3.
+const ORDERED = /^( {0,3})(\d{1,9}[.)]) (.*)$/
 const FENCE = /^( {0,3})(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/
 const RULE = /^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/
@@ -208,8 +223,8 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
       while (at < lines.length) {
         const head = kind.exec(lines[at]!)
         if (!head) break
-        if (items.length === 0 && ordered) start = Number(head[2])
-        const width = head[1]!.length + (ordered ? head[2]!.length + 2 : 2)
+        if (items.length === 0 && ordered) start = Number.parseInt(head[2]!, 10)
+        const width = head[1]!.length + head[2]!.length + 1
         const body = [head[3]!]
         at++
         while (at < lines.length) {
@@ -229,7 +244,8 @@ function parseBlocks(lines: string[], options: ParseOptions): Json[] {
         }
         const task = ordered ? null : TASK.exec(body[0]!)
         if (task) body[0] = task[2]!
-        items.push({ type: task ? "taskItem" : "listItem", ...(task ? { attrs: { checked: task[1] !== " " } } : {}), content: itemBlocks(body, options) })
+        const content = itemBlocks(body, options)
+        items.push(task ? { type: "taskItem", attrs: { checked: task[1] !== " " }, content } : { type: "listItem", attrs: { marker: head[2]! }, content })
       }
       const tasks = items.every((item) => item.type === "taskItem")
       out.push(
@@ -255,7 +271,7 @@ function untask(item: Json): Json {
   const [first, ...rest] = item.content ?? []
   const box = item.attrs?.checked ? "[x] " : "[ ] "
   const lead = first?.type === "paragraph" ? { ...first, content: [{ type: "text", text: box }, ...(first.content ?? [])] } : first
-  return { type: "listItem", content: [lead ?? { type: "paragraph" }, ...rest] }
+  return { type: "listItem", attrs: { marker: "-" }, content: [lead ?? { type: "paragraph" }, ...rest] }
 }
 
 function itemBlocks(body: string[], options: ParseOptions): Json[] {

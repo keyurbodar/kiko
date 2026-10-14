@@ -11,6 +11,7 @@ const SAFE_LINK = /^(https?|mailto|file):/i
 /** A scheme, as in `javascript:`. `notes.md:3` is a file with a line, not a scheme. */
 const SCHEME = /^[a-z][a-z0-9+.-]*:(?!\d)/i
 const MENTION = /(^|[^\w@/.-])@([a-z0-9-]{1,32})(?![\w-])/g
+const TASK_MARKER = /^\[[ xX]\]\s*/
 
 export function parseRichText(markdown: string): RichText {
 	// `breaks`: a single newline is a line break. In a chat bubble a new line is meant, and
@@ -41,7 +42,8 @@ function toBlock(token: Token): Block | null {
 		case "list": {
 			const t = token as Tokens.List
 			const items = t.items.map((item) => (item.task ? ticked(blocks(item.tokens), item.checked === true) : blocks(item.tokens)))
-			return t.ordered ? { t: "list", start: t.start === "" ? 1 : t.start, items } : { t: "list", items }
+			const loose = t.loose ? { loose: true as const } : {}
+			return t.ordered ? { t: "list", start: t.start === "" ? 1 : t.start, ...loose, items } : { t: "list", ...loose, items }
 		}
 		case "blockquote":
 			return { t: "quote", children: blocks((token as Tokens.Blockquote).tokens) }
@@ -70,11 +72,19 @@ function toBlock(token: Token): Block | null {
 	}
 }
 
-/** A task item's box, drawn as a character at the start of its first line. */
+/**
+ * A task item's box, drawn as a character at the start of its first line. The `[ ]` marker is
+ * already in the item's text, so it is dropped first. The client finds a task item by this box.
+ */
 function ticked(item: Block[], checked: boolean): Block[] {
 	const box: Inline = { t: "text", text: checked ? "☑ " : "☐ " }
 	const [first, ...rest] = item
-	if (first?.t === "paragraph") return [{ ...first, children: [box, ...first.children] }, ...rest]
+	if (first?.t === "paragraph") {
+		const [head, ...tail] = first.children
+		const stripped = head?.t === "text" ? head.text.replace(TASK_MARKER, "") : null
+		const children = stripped === null ? first.children : stripped === "" ? tail : [{ t: "text" as const, text: stripped }, ...tail]
+		return [{ ...first, children: [box, ...children] }, ...rest]
+	}
 	return [{ t: "paragraph", children: [box] }, ...item]
 }
 

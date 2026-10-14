@@ -20,7 +20,7 @@ export type ColumnAlign = "left" | "center" | "right" | null
 export type Block =
 	| { t: "paragraph"; children: readonly Inline[] }
 	| { t: "heading"; level: HeadingLevel; children: readonly Inline[] }
-	| { t: "list"; start?: number; items: readonly (readonly Block[])[] }
+	| { t: "list"; start?: number; loose?: boolean; items: readonly (readonly Block[])[] }
 	| { t: "quote"; children: readonly Block[] }
 	| { t: "rule" }
 	| { t: "code_block"; lang?: string; text: string }

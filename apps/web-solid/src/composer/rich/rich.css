@@ -1,3 +1,12 @@
+/* The rules the editor draws: t3code's contrast border, a dark 6% white and a light zinc-200. */
+.composer-dock {
+  --composer-rule: rgb(255 255 255 / 6%);
+}
+
+:root:not(.dark) .composer-dock {
+  --composer-rule: #e4e4e7;
+}
+
 .composer-dock .composer-input p {
   margin: 0;
 }
@@ -17,6 +26,12 @@
   list-style: decimal;
 }
 
+/* The marker the source has, `3)` or a repeated `1.`, not the browser's count. t3code's `data-marker`. */
+.composer-dock .composer-input ol > li[data-marker]::marker {
+  content: attr(data-marker) " ";
+  font-variant-numeric: tabular-nums;
+}
+
 .composer-dock .composer-input ul ul {
   list-style-type: circle;
 }
@@ -25,15 +40,30 @@
   list-style-type: square;
 }
 
+/* A quote in the composer is text still being written: the border carries it, and the text stays full strength. */
 .composer-dock .composer-input blockquote {
   margin: 0.65rem 0;
   padding-inline-start: 0.8rem;
-  border-inline-start: 2px solid color-mix(in oklab, var(--text) 30%, transparent);
+  border-inline-start: 2px solid var(--composer-rule);
+  color: var(--text);
 }
 
+/* The sent link's color and rest state (chat/rich): blue-400 in the dark theme, blue-700 in the light. */
 .composer-dock .composer-input a {
-  color: inherit;
-  text-decoration: underline;
+  color: oklch(0.707 0.165 254.624);
+  text-decoration: none;
+}
+
+:root:not(.dark) .composer-dock .composer-input a {
+  color: oklch(0.488 0.243 264.376);
+}
+
+.composer-dock .composer-input a:hover,
+.composer-dock .composer-input a:focus-visible {
+  background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
+  background-position: left bottom;
+  background-repeat: repeat-x;
+  background-size: 4px 2px;
 }
 
 .composer-dock .composer-input code {
@@ -67,7 +97,8 @@
   cursor: default;
 }
 
-.composer-dock .composer-chip svg {
+/* The file's own icon keeps its colored fill; only the chip's glyphs are strokes. */
+.composer-dock .composer-chip svg:not(.entry-icon) {
   fill: none;
   stroke: currentcolor;
   stroke-linecap: round;
@@ -84,6 +115,30 @@
   display: none;
 }
 
+/* The strip of files above the field: one row of chips that wraps, and a chip never wider than the row. */
+.composer-dock .composer-file-chips {
+  display: flex;
+  flex: 0 0 100%;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px 2px;
+}
+
+.composer-dock .composer-file-chip {
+  max-width: 100%;
+  margin: 0;
+}
+
+/* A failed upload's Retry is a button, so a keyboard can reach it. It reads as the status text. */
+.composer-dock button.composer-chip-status {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
 /* t3code's invalid chip: the danger hue at 35% on a faint danger tint, with danger text. */
 .composer-dock .composer-chip[data-state="failed"] {
   color: var(--danger);
@@ -96,13 +151,16 @@
   color: var(--danger);
 }
 
+/* t3code's selected chip: a 2px ring drawn inside the chip's edge. */
 .composer-dock .composer-chip.ProseMirror-selectednode {
-  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 /* The remove button sits at the chip's end. It shows on hover and focus, and always on a touch
  * screen, which has neither. */
 .composer-dock .composer-chip-remove {
+  position: relative;
   display: none;
   width: 1.17em;
   height: 1.17em;
@@ -115,6 +173,13 @@
   border: none;
   border-radius: 50%;
   cursor: pointer;
+}
+
+/* The glyph stays 1.17em, but the target reaches about 6px past it on every side. */
+.composer-dock .composer-chip-remove::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
 }
 
 .composer-dock .composer-chip-remove svg {
@@ -148,9 +213,13 @@
 .composer-dock .composer-input h4,
 .composer-dock .composer-input h5,
 .composer-dock .composer-input h6 {
-  margin: 0.65rem 0 0.35rem;
+  margin: 1.25rem 0 0.5rem;
   font-weight: 600;
   line-height: 1.3;
+}
+
+.composer-dock .composer-input h6 {
+  color: var(--text-muted);
 }
 
 .composer-dock .composer-input > :is(h1, h2, h3, h4, h5, h6):first-child {
@@ -165,7 +234,7 @@
 .composer-dock .composer-input hr {
   margin: 0.65rem 0;
   border: 0;
-  border-top: 1px solid color-mix(in oklab, var(--text) 18%, transparent);
+  border-top: 1px solid var(--composer-rule);
 }
 
 .composer-dock .composer-input hr.ProseMirror-selectednode {
@@ -173,22 +242,46 @@
 }
 
 .composer-dock .composer-input ul[data-type="taskList"] {
+  margin: 0;
   padding-inline-start: 0;
   list-style: none;
 }
 
-.composer-dock .composer-input ul[data-type="taskList"] li {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
+.composer-dock .composer-input ul[data-type="taskList"] ul[data-type="taskList"] {
+  padding-inline-start: 1.375rem;
 }
 
+.composer-dock .composer-input ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+/* The box sits on the first line: one line tall, a 0.95rem box, as t3code draws it. */
 .composer-dock .composer-input ul[data-type="taskList"] li > label {
+  display: flex;
   flex: none;
+  align-items: center;
+  height: 1lh;
   user-select: none;
+  cursor: pointer;
+}
+
+.composer-dock .composer-input ul[data-type="taskList"] li > label input[type="checkbox"] {
+  display: block;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  cursor: pointer;
 }
 
 .composer-dock .composer-input ul[data-type="taskList"] li > div {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
+}
+
+.composer-dock .composer-input ul[data-type="taskList"] li > div > p {
+  margin: 0;
 }

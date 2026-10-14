@@ -1,6 +1,7 @@
-import { FileTextIcon, XIcon } from "lucide-solid"
+import { XIcon } from "lucide-solid"
 import { Show, type JSX } from "solid-js"
 import type { ReplySummary } from "../chat/lib/reply"
+import { EntryIcon } from "../lib/EntryIcon"
 
 export interface ReplyBarProps {
   summary: ReplySummary
@@ -17,7 +18,7 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
           when={props.summary.thumb}
           fallback={
             <Show when={props.summary.glyph}>
-              <FileTextIcon size={14} class="reply-bar-glyph" />
+              {(name) => <EntryIcon path={name()} />}
             </Show>
           }
         >
