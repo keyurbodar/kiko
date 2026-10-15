@@ -142,7 +142,7 @@ export function ModelsPage() {
                     <ProviderIcon id={provider.id} width="14" height="14" />
                     <span class="min-w-0 flex-1 truncate">{provider.name}</span>
                     <Show when={info()?.refused} fallback={<span class="shrink-0 text-xs tabular-nums text-secondary-label">{provider.models.length || ""}</span>}>
-                      <span class="size-1.5 shrink-0 rounded-full bg-error" aria-label="Key refused" />
+                      <span class="size-1.5 shrink-0 rounded-full bg-error" role="img" aria-label="Key refused" />
                     </Show>
                   </button>
                 )
@@ -202,7 +202,11 @@ export function ModelsPage() {
             <Show when={rows().length} fallback={<div class="kit-card"><Empty>{query().trim() ? `No models match "${query().trim()}"` : "This provider has no chat models."}</Empty></div>}>
               <VList class="kit-card" style={{ height: `${Math.min(rows().length * 36, 540)}px` }} data={rows()} itemSize={36}>
                 {(r) => (
-                  <label class="flex h-9 cursor-pointer items-center gap-2.5 border-b border-border px-3 hover:bg-accent" data-model={r.ref}>
+                  <div
+                    class="flex h-9 cursor-pointer items-center gap-2.5 border-b border-border px-3 hover:bg-accent"
+                    data-model={r.ref}
+                    onClick={() => setHidden([r.ref], !hidden().has(r.ref))}
+                  >
                     <Show when={!current()}>
                       <ProviderIcon id={r.provider.id} width="14" height="14" />
                     </Show>
@@ -213,8 +217,10 @@ export function ModelsPage() {
                       <span class="shrink-0 text-xs text-secondary-label">Reasoning</span>
                     </Show>
                     <span class="w-12 shrink-0 text-right text-xs tabular-nums text-secondary-label">{formatContext(r.model.contextWindow)}</span>
-                    <Toggle label={`Show ${r.model.name} in the model picker`} on={!hidden().has(r.ref)} onChange={(on) => setHidden([r.ref], !on)} />
-                  </label>
+                    <span onClick={(event) => event.stopPropagation()}>
+                      <Toggle label={`Show ${r.model.name} in the model picker`} on={!hidden().has(r.ref)} onChange={(on) => setHidden([r.ref], !on)} />
+                    </span>
+                  </div>
                 )}
               </VList>
             </Show>

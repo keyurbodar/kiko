@@ -113,7 +113,10 @@ export default function ChatRoute() {
     requestJump(null);
     landing = true;
     void useApp.jumpTo(request.seq).then((found) => {
-      if (!found) return void (landing = false);
+      if (!found) {
+        landing = false
+        return
+      }
       jumpToMessage?.(request.id);
       requestAnimationFrame(() => {
         jumpToMessage?.(request.id);
@@ -168,9 +171,7 @@ export default function ChatRoute() {
   );
 
   return (
-    <>
-
-      <div
+    <div
         class="flex min-h-0 min-w-0 flex-1 flex-col"
         data-component="chat-shell"
         data-session-empty={empty() ? "true" : "false"}
@@ -324,6 +325,5 @@ export default function ChatRoute() {
           />
         </div>
       </div>
-    </>
   );
 }
