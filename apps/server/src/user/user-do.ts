@@ -1,7 +1,9 @@
 import { newRoomId, sameAgentChat } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeInstall, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import { builtinRecipe } from "../recipes/catalog"
+import { findInstall, listInstalls, recipeRule, recipeSkill, recipeWake, saveInstall } from "./recipes"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadUserDev } from "../lib/dev-guard"
@@ -106,6 +108,57 @@ export class UserDO extends DurableObject<Env> {
   async cancelReminder(id: string) { return this.#routines.cancelReminder(id) }
   async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> { return this.#routines.createRoutine(owner, input) }
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> { return this.#routines.updateRoutine(id, patch) }
+
+  async recipeInstalls(): Promise<RecipeInstall[]> {
+    return listInstalls(this.sql)
+  }
+
+  /** Adds a built-in recipe: its routines, its skill file in the chat, and one wake so the agent sets it up. A retry with the same id returns the first install. */
+  async installRecipe(owner: string, input: InstallRecipe): Promise<{ ok: true; install: RecipeInstall } | { ok: false; error: string }> {
+    const done = findInstall(this.sql, input.installId)
+    if (done) return { ok: true, install: done }
+    const recipe = builtinRecipe(input.slug)
+    if (!recipe) return { ok: false, error: `no recipe named ${input.slug}` }
+    let roomId: RoomId
+    let agent: string
+    if ("own" in input) {
+      const made = await this.recipeAgent(recipe.agent.name, recipe.agent.handle, recipe.description)
+      if (!made) return { ok: false, error: `@${recipe.agent.handle} could not be made. pick a chat instead.` }
+      roomId = (await this.openChat(made.name, [made.id])).roomId
+      agent = made.slug
+    } else {
+      roomId = input.roomId
+      agent = input.agent
+    }
+    const tz = (await this.timezone()) ?? "UTC"
+    const at = new Date().toISOString()
+    const routines = []
+    for (const t of recipe.triggers) {
+      const out = await this.#routines.createRoutine(owner, { name: t.name, instructions: t.run, trigger: { on: "time", at, rrule: recipeRule(t.every) }, tz, roomId, target: agent, createdBy: "human" })
+      if (!out.ok) {
+        for (const r of routines) await this.#routines.cancelReminder(r.id)
+        return { ok: false, error: out.error }
+      }
+      routines.push(out.routine)
+    }
+    const woke = await roomStub(this.env.ROOM, owner, roomId).addRecipe(owner, { installId: input.installId, agent: agent as AgentSlug, slug: recipe.slug, title: recipe.title, skill: recipeSkill(recipe), wake: recipeWake(recipe, routines) })
+    if (woke !== "delivered" && woke !== "duplicate") {
+      for (const r of routines) await this.#routines.cancelReminder(r.id)
+      return { ok: false, error: woke === "gone" ? `@${agent} is not in that chat` : "that chat could not take the recipe. try again." }
+    }
+    const install: RecipeInstall = { installId: input.installId, slug: recipe.slug, roomId, agent, at: Date.now() }
+    saveInstall(this.sql, install)
+    return { ok: true, install }
+  }
+
+  /** A new agent for a recipe. A taken handle gets a number, as people do with usernames. */
+  private async recipeAgent(name: string, handle: string, description: string): Promise<Agent | null> {
+    for (const slug of [handle, ...[2, 3, 4, 5].map((n) => `${handle}-${n}`)]) {
+      const agent = await this.makeAgent({ name, slug, description, soul: firstSoul(name, description), model: "" })
+      if (agent) return agent
+    }
+    return null
+  }
 
   async overview(): Promise<string> {
     const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE

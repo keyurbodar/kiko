@@ -213,7 +213,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await this.trySeedChatFile(chat.title)
 	}
 
-	async writeChatFile(author: AgentSlug, text: string): Promise<boolean> {
+	private async writeText(author: AgentSlug, path: string, text: string): Promise<boolean> {
 		const home = this.home()
 		if (!home) return false
 		const body = new TextEncoder().encode(text)
@@ -221,10 +221,19 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const r2Key = fileKey(home.userId, home.roomId, id)
 		const sha256 = await sha256Hex(body)
 		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
-		const { drop, file, events } = this.files.put({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, expectSha256: "none" })
+		const { drop, file, events } = this.files.put({ id, path, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, expectSha256: "none" })
 		if (events.length) this.publish(events)
 		if (drop) await deleteFiles(this.env.FILES, drop)
 		return file !== null
+	}
+
+	/** Puts a recipe in this chat as a skill, says so, and wakes its agent to set it up. Safe to run twice. */
+	async addRecipe(userId: string, input: { installId: string; agent: AgentSlug; slug: string; title: string; skill: string; wake: string }): Promise<WakeResult> {
+		if (!this.adopt(userId)) return "refused"
+		await this.writeText(input.agent, `skills/${input.slug}/SKILL.md`, input.skill)
+		const out = await this.wakes.wake({ id: `recipe:${input.installId}`, to: input.agent, why: "created", body: input.wake, chain: null })
+		if (out === "delivered") await this.systemNotice(`recipe:${input.installId}`, `${input.title} added`, "created")
+		return out
 	}
 
 	async propose(slug: AgentSlug, input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
@@ -254,7 +263,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const chat = await this.chat(home)
 		if (!chat) return
 		await this.seedMembers(home, chat)
-		await this.writeChatFile(CHIEF, chatFile)
+		await this.writeText(CHIEF, CHAT_PATH, chatFile)
 		this.log.setMeta("chat_file", "1")
 	}
 
@@ -281,7 +290,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const team = members.map((m) => `- @${m.slug}: ${[m.lead ? "leads" : "", m.role ?? ""].filter(Boolean).join(". ")}`.trimEnd()).join("\n")
 		const lead = members.find((m) => m.lead) ?? members[0]
 		if (!lead) return
-		await this.writeChatFile(lead.slug, `# ${title || "this chat"}\n\ngoal:\n\n## who does what\n${team}\n\n## decisions\n`)
+		await this.writeText(lead.slug, CHAT_PATH, `# ${title || "this chat"}\n\ngoal:\n\n## who does what\n${team}\n\n## decisions\n`)
 		this.log.setMeta("chat_file", "1")
 	}
 

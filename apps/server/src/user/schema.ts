@@ -193,4 +193,12 @@ export const USER_STEPS: Step[] = [
   "UPDATE initiative_wakes SET ids = json_extract(ids, '$[0]') WHERE ids LIKE '[%'",
   // The per-day charge ids of the retired turn and autonomous-run limits.
   "DROP TABLE IF EXISTS charged_today",
+  // A recipe added to one agent in one chat (user/recipes.ts). The client's install id makes a retry a no-op.
+  `CREATE TABLE IF NOT EXISTS recipe_installs (
+    install_id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL,
+    room_id TEXT NOT NULL,
+    agent TEXT NOT NULL,
+    at INTEGER NOT NULL
+  )`,
 ]

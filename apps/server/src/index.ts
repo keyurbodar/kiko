@@ -15,6 +15,7 @@ import { remindersRoute } from "./user/reminders-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
 import { skillsRoute } from "./skills/route"
+import { recipesRoute } from "./recipes/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
 
 export { AgentDO } from "./agent/agent-do"
@@ -52,6 +53,8 @@ export default {
     if (searched) return searched
     const skills = await skillsRoute(request, env)
     if (skills) return skills
+    const recipes = await recipesRoute(request, env)
+    if (recipes) return recipes
     const themed = await openVsxRoute(request, env)
     if (themed) return themed
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
