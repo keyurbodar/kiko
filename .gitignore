@@ -24,3 +24,6 @@ artifacts/
 .wrangler/
 wrangler.log
 vite.log
+
+# Signed release output from scripts/release.ts.
+dist-release/
