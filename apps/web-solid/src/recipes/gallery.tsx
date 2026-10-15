@@ -1,12 +1,13 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { useNavigate } from "@solidjs/router"
-import { createMemo, createSignal, For, onMount, Show } from "solid-js"
+import { useNavigate, useSearchParams } from "@solidjs/router"
+import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
+import { useApp } from "../lib/store"
 import { cn } from "../lib/cn"
 import { Button, fieldClass, muted, Page } from "../settings/kit"
 import { filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
 import { RecipeIcon } from "./recipe-icon"
 import { RecipeSheet } from "./sheet"
-import { addToKiko, broken, cards, isAdded, refreshListing } from "./state"
+import { addToTarget, broken, cards, isAdded, refreshListing, targetFor, installsFor } from "./state"
 
 /*
  * The recipes page, `/recipes`. It fills the main area the way settings does. A search, a row of
@@ -15,6 +16,10 @@ import { addToKiko, broken, cards, isAdded, refreshListing } from "./state"
  */
 export default function RecipesPage() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const roomId = () => typeof params.room === "string" ? params.room : undefined
+  const target = () => targetFor(roomId())
+  createEffect(() => { const id = roomId(); if (id) useApp.selectThread(id) })
   const go = (to: string) => navigate(to)
   const [query, setQuery] = createSignal("")
   const [tag, setTag] = createSignal<TagFilter>("all")
@@ -75,9 +80,14 @@ export default function RecipesPage() {
                             </span>
                           </Show>
                         </button>
-                        <div class="relative mt-auto flex justify-end">
-                          <Button disabled={isAdded(card.slug)} data-action="add-recipe" onClick={() => addToKiko(card, go)}>
-                            {isAdded(card.slug) ? "Added" : "Add"}
+                        <div class="relative mt-auto flex items-center justify-between gap-2">
+                          <Show when={installsFor(card.slug).length} fallback={<span />}>
+                            <button type="button" class="cursor-pointer text-xs text-muted-foreground" onClick={() => setOpen(card)}>
+                              {`Used in ${installsFor(card.slug).length} ${installsFor(card.slug).length === 1 ? "place" : "places"}`}
+                            </button>
+                          </Show>
+                          <Button data-action="add-recipe" onClick={() => isAdded(card.slug, target()) ? setOpen(card) : addToTarget(card, target(), go)}>
+                            {isAdded(card.slug, target()) ? "Manage" : `Add to ${target()?.name ?? "Kiko"}`}
                           </Button>
                         </div>
                       </article>
@@ -86,7 +96,7 @@ export default function RecipesPage() {
                 </div>
               </Show>
 
-              <Show when={open()}>{(card) => <RecipeSheet recipe={card()} onClose={() => setOpen(null)} />}</Show>
+              <Show when={open()}>{(card) => <RecipeSheet roomId={roomId()} recipe={card()} onClose={() => setOpen(null)} />}</Show>
             </div>
           </Page>
         </div>

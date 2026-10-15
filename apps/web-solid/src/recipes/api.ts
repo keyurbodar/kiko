@@ -38,12 +38,22 @@ export async function fetchListing(): Promise<Listing | null> {
     installs: Array.isArray(body?.installs) ? (body.installs as RecipeInstall[]) : [],
     broken: Array.isArray(body?.broken) ? (body.broken as string[]) : [],
   }
+  cacheListing(next)
+  return next
+}
+
+export function cacheListing(next: Listing): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(next))
   } catch {
     // Storage full or off: the page still works, it just does not paint from cache next time.
   }
-  return next
+}
+
+export async function deleteInstall(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await fetch(`/api/recipes/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => null)
+  if (res?.ok || res?.status === 404) return { ok: true }
+  return { ok: false, error: "Kiko could not remove it. Try again." }
 }
 
 /** Adds a recipe. A retry with the same `installId` is safe: the server answers with the same install. */

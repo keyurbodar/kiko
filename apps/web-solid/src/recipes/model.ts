@@ -34,8 +34,8 @@ export function filterRecipes(cards: readonly RecipeCard[], query: string, tag: 
 }
 
 /** The slugs of the recipes already added, for the "Added" mark. */
-export function installedSlugs(installs: readonly RecipeInstall[]): ReadonlySet<string> {
-  return new Set(installs.map((i) => i.slug))
+export function installedSlugs(installs: readonly RecipeInstall[], target: { roomId: string; agent: string }): ReadonlySet<string> {
+  return new Set(installs.filter((i) => i.roomId === target.roomId && i.agent === target.agent).map((i) => i.slug))
 }
 
 /** The recipes an empty chat offers: the preferred five that the catalog has, filled in order from the rest. */

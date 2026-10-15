@@ -15,6 +15,16 @@ export function findInstall(sql: SqlStorage, installId: string): RecipeInstall |
   return row ? toInstall(row) : null
 }
 
+export function findTarget(sql: SqlStorage, slug: string, roomId: string, agent: string): RecipeInstall | null {
+  const row = sql.exec<Row>("SELECT * FROM recipe_installs WHERE slug = ? AND room_id = ? AND agent = ?", slug, roomId, agent).toArray()[0]
+  return row ? toInstall(row) : null
+}
+
+export function deleteInstall(sql: SqlStorage, installId: string): void {
+  sql.exec("DELETE FROM recipe_routines WHERE install_id = ?", installId)
+  sql.exec("DELETE FROM recipe_installs WHERE install_id = ?", installId)
+}
+
 export function saveInstall(sql: SqlStorage, install: RecipeInstall): void {
   sql.exec("INSERT OR IGNORE INTO recipe_installs (install_id, slug, room_id, agent, at) VALUES (?, ?, ?, ?, ?)", install.installId, install.slug, install.roomId, install.agent, install.at)
 }

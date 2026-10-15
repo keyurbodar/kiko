@@ -21,6 +21,7 @@ import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@kiko/me
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { MessagingPort } from "./extensions/messaging"
 import type { RemindersPort } from "./extensions/reminders"
+import type { RecipesPort } from "./extensions/skills"
 import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
 import { learnedNote } from "../integrations/composio/tools"
 
@@ -174,6 +175,11 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
+  private recipesPort(home: { userId: string; roomId: string; slug: string }): RecipesPort {
+    const user = () => userStub(this.env.USER, home.userId)
+    return { list: () => user().recipeBriefs(home.roomId, home.slug), body: (name) => user().recipeSkillText(name) }
+  }
+
   private remindersPort(): RemindersPort | null {
     const home = this.home()
     if (!home) return null
@@ -206,7 +212,7 @@ export class AgentDO extends DurableObject<Env> {
       origin: () => user().publicOrigin(),
       addRecipe: async (slug) => {
         const out = await user().installRecipe(home.userId, { installId: crypto.randomUUID(), slug, roomId: home.roomId as RoomId, agent: home.slug }, home.slug)
-        return out.ok ? { ok: true, setup: out.setup } : out
+        return out.ok ? { ok: true, setup: out.setup, existed: out.existed } : out
       },
     }
   }
@@ -342,7 +348,7 @@ export class AgentDO extends DurableObject<Env> {
     const browser = browserOn && home
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,

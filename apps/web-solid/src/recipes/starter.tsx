@@ -3,6 +3,7 @@ import { HugeIcon } from "@kiko/ui/huge-icon"
 import { MoreIcon } from "@kiko/ui/icons"
 import { A } from "@solidjs/router"
 import { createSignal, For, onMount, Show } from "solid-js"
+import { useApp } from "../lib/store"
 import { loadCards } from "./api"
 import { starterTiles } from "./model"
 import { RecipeIcon } from "./recipe-icon"
@@ -29,14 +30,14 @@ export default function RecipeStarter() {
             </button>
           )}
         </For>
-        <A href="/recipes" class="flex w-20 flex-col items-center gap-1.5 outline-none" data-action="all-recipes">
+        <A href={`/recipes?room=${useApp.activeThreadId() ?? ""}`} class="flex w-20 flex-col items-center gap-1.5 outline-none" data-action="all-recipes">
           <span class="grid size-14 place-items-center rounded-full bg-control text-muted-foreground">
             <HugeIcon icon={MoreIcon} size={20} />
           </span>
           <span class="text-center text-xs leading-4 text-muted-foreground">All recipes</span>
         </A>
       </div>
-      <Show when={open()}>{(card) => <RecipeSheet recipe={card()} onClose={() => setOpen(null)} />}</Show>
+      <Show when={open()}>{(card) => <RecipeSheet roomId={useApp.activeThreadId()} recipe={card()} onClose={() => setOpen(null)} />}</Show>
     </div>
   )
 }

@@ -14,7 +14,7 @@ import { type LoopPort, loopExtension } from "@kiko/memory/loop-tool"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RemindersPort, remindersExtension } from "./extensions/reminders"
-import { skillsExtension } from "./extensions/skills"
+import { type RecipesPort, skillsExtension } from "./extensions/skills"
 import { selfExtension } from "./extensions/self"
 import { type ChiefPort, chiefExtension } from "./extensions/chief"
 import { presenceExtension } from "./extensions/presence"
@@ -38,6 +38,7 @@ export type BuildAgentInput = RoleInput & {
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
   browser?: BrowserToolDeps
   reminders?: { port: () => RemindersPort | null; tz: () => string }
+  recipes?: RecipesPort
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
   egress?: Fetcher
@@ -62,7 +63,7 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     ...(input.memory ? memoryExtensions(input.memory) : []),
     ...(input.loops ? [loopExtension(input.loops)] : []),
     ...(input.files ? [filesExtension({ acceptsImages: input.files.acceptsImages, touched: (conversationId, paths) => input.work?.touched(conversationId, paths) })] : []),
-    skillsExtension(input.files?.fs, input.runStamp),
+    skillsExtension(input.files?.fs, input.runStamp, input.recipes),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(input.egress, input.files?.fs),
     ...(input.messaging ? [messagingExtension(input.messaging)] : []),

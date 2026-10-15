@@ -201,4 +201,20 @@ export const USER_STEPS: Step[] = [
     agent TEXT NOT NULL,
     at INTEGER NOT NULL
   )`,
+  // One install per recipe, agent, and chat. Rows an earlier build doubled keep the first.
+  "DELETE FROM recipe_installs WHERE rowid NOT IN (SELECT min(rowid) FROM recipe_installs GROUP BY slug, room_id, agent)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS recipe_installs_target ON recipe_installs (slug, room_id, agent)",
+  // The routine each recipe trigger made, with the schedule and text copied from the recipe file and the file's sha at that sync.
+  // A routine the owner tuned no longer matches the copy, and a recipe edit leaves it alone.
+  `CREATE TABLE IF NOT EXISTS recipe_routines (
+    install_id TEXT NOT NULL,
+    idx INTEGER NOT NULL,
+    routine_id TEXT NOT NULL,
+    every TEXT NOT NULL,
+    run TEXT NOT NULL,
+    sha TEXT NOT NULL,
+    paused_missing INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (install_id, idx)
+  )`,
+  "CREATE INDEX IF NOT EXISTS recipe_routines_routine ON recipe_routines (routine_id)",
 ]

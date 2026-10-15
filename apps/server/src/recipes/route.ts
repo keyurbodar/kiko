@@ -5,6 +5,7 @@ import { userStub } from "../lib/names"
 import { error, signedIn } from "../lib/route"
 
 const ID = /^[0-9a-f-]{36}$/
+const INSTALL = /^\/api\/recipes\/([0-9a-f-]{36})$/
 
 function parseInstall(b: unknown): InstallRecipe | null {
   if (!b || typeof b !== "object") return null
@@ -16,10 +17,16 @@ function parseInstall(b: unknown): InstallRecipe | null {
 }
 
 export async function recipesRoute(request: Request, env: Env): Promise<Response | null> {
-  if (new URL(request.url).pathname !== "/api/recipes") return null
+  const { pathname } = new URL(request.url)
+  const one = INSTALL.exec(pathname)
+  if (pathname !== "/api/recipes" && !one) return null
   const user = await signedIn(request, env)
   if (user instanceof Response) return user
   const stub = userStub(env.USER, user.id)
+  if (one) {
+    if (request.method !== "DELETE") return error(405, "method not allowed")
+    return (await stub.uninstallRecipe(one[1] ?? "")) ? Response.json({ ok: true }) : error(404, "no such install")
+  }
   if (request.method === "GET") return Response.json((await stub.recipeList()) satisfies RecipeList)
   if (request.method !== "POST") return error(405, "method not allowed")
   const input = parseInstall(await request.json().catch(() => null))

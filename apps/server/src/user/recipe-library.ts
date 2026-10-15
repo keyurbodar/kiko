@@ -1,9 +1,7 @@
 import { sha256Hex } from "@kiko/durable/hash"
-import type { RecipeCard } from "@kiko/protocol"
 import type { FsEntry, FsFail, NewFile } from "../files/file-index"
-import { fileKey, HOME } from "../files/upload"
+import { deleteFiles, fileKey, HOME } from "../files/upload"
 import { getSetting, setSetting } from "../lib/settings"
-import { recipeCard } from "../recipes/card"
 import { BUILTIN_RECIPES } from "../recipes/catalog.gen"
 import { parseRecipe, type Recipe } from "../recipes/recipe"
 
@@ -18,45 +16,68 @@ type Deps = {
   files: R2Bucket
   userId: () => string
   list: (dir: string, recursive: boolean) => FsEntry[] | FsFail
-  put: (input: NewFile) => { entry: FsEntry | null }
+  put: (input: NewFile) => { entry: FsEntry | null; drop: string | null }
 }
 
-type Library = { recipes: Recipe[]; broken: string[] }
+type Library = { recipes: Recipe[]; broken: string[]; sha: Map<string, string> }
 
 export class RecipeLibrary {
   private readonly parsed = new Map<string, Recipe | string>()
   private seeding: Promise<void> | undefined
+  private seeded = false
 
   constructor(private readonly d: Deps) {}
 
-  /** Copies each built-in recipe into the drive once. One the owner deleted stays deleted; a new built-in arrives on the next visit. */
+  /**
+   * Puts each built-in recipe in the drive. A new one is copied once, and one the owner deleted stays deleted. A built-in we
+   * improved replaces the owner's copy only while that copy is still exactly the version we shipped before.
+   */
   seed(): Promise<void> {
-    this.seeding ??= this.copyBuiltins().finally(() => {
-      this.seeding = undefined
-    })
+    if (this.seeded) return Promise.resolve()
+    this.seeding ??= this.copyBuiltins()
+      .then(() => {
+        this.seeded = true
+      })
+      .finally(() => {
+        this.seeding = undefined
+      })
     return this.seeding
   }
 
   private async copyBuiltins(): Promise<void> {
-    const seeded = new Set<string>(JSON.parse(getSetting(this.d.sql, SEEDED) ?? "[]") as string[])
-    const fresh = BUILTIN_RECIPES.filter(([slug]) => !seeded.has(slug))
-    if (!fresh.length) return
-    for (const [slug, content] of fresh) {
+    const stored = JSON.parse(getSetting(this.d.sql, SEEDED) ?? "{}") as string[] | Record<string, string>
+    // An older build kept only the names, so it cannot say whether a copy was edited. Those never update.
+    const shipped: Record<string, string> = Array.isArray(stored) ? Object.fromEntries(stored.map((slug) => [slug, ""])) : stored
+    let changed = Array.isArray(stored)
+    const here = this.d.list(RECIPES_DIR, true)
+    for (const [slug, content] of BUILTIN_RECIPES) {
       const body = new TextEncoder().encode(content)
+      const sha = await sha256Hex(body)
+      const before = shipped[slug]
+      if (before === sha) continue
+      const path = `${RECIPES_DIR}/${slug}/RECIPE.md`
+      const current = Array.isArray(here) ? here.find((e): e is FsEntry & { kind: "file" } => e.kind === "file" && e.path === path) : undefined
+      if (before === "") {
+        if (current?.sha256 === sha) { shipped[slug] = sha; changed = true }
+        continue
+      }
+      shipped[slug] = sha
+      changed = true
+      if (before === undefined ? !!current : current?.sha256 !== before) continue
       const id = crypto.randomUUID()
       const r2Key = fileKey(this.d.userId(), HOME, id)
       await this.d.files.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
-      this.d.put({ id, path: `${RECIPES_DIR}/${slug}/RECIPE.md`, r2Key, size: body.length, type: "text/markdown", sha256: await sha256Hex(body), author: { kind: "agent", slug: "yuki" as never }, expectSha256: "none" })
-      seeded.add(slug)
+      const put = this.d.put({ id, path, r2Key, size: body.length, type: "text/markdown", sha256: sha, author: { kind: "agent", slug: "yuki" as never }, expectSha256: current?.sha256 ?? "none" })
+      if (put.drop) await deleteFiles(this.d.files, put.drop)
     }
-    setSetting(this.d.sql, SEEDED, JSON.stringify([...seeded]))
+    if (changed) setSetting(this.d.sql, SEEDED, JSON.stringify(shipped))
   }
 
   /** Every recipe file that parses, and the reason each one that does not. Parsed once per file version. */
   async read(): Promise<Library> {
     await this.seed()
     const listed = this.d.list(RECIPES_DIR, true)
-    const out: Library = { recipes: [], broken: [] }
+    const out: Library = { recipes: [], broken: [], sha: new Map() }
     if (!Array.isArray(listed)) return out
     for (const f of listed) {
       const slug = f.kind === "file" ? FILE.exec(f.path)?.[1] : undefined
@@ -67,18 +88,13 @@ export class RecipeLibrary {
         this.parsed.set(`${f.path}:${f.sha256}`, r)
       }
       if (typeof r === "string") out.broken.push(r)
-      else out.recipes.push(r)
+      else {
+        out.recipes.push(r)
+        out.sha.set(slug, f.sha256)
+      }
     }
     out.recipes.sort((a, b) => a.title.localeCompare(b.title))
     return out
-  }
-
-  async get(slug: string): Promise<Recipe | undefined> {
-    return (await this.read()).recipes.find((r) => r.slug === slug)
-  }
-
-  async cards(): Promise<RecipeCard[]> {
-    return (await this.read()).recipes.map(recipeCard)
   }
 
   private async parse(f: FsEntry & { kind: "file" }, slug: string): Promise<Recipe | string> {

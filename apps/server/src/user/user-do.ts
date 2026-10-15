@@ -1,9 +1,9 @@
 import { newRoomId, sameAgentChat } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeInstall, RecipeList, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
-import { findInstall, listInstalls, recipeRule, recipeWake, saveInstall } from "./recipes"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeList, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
+import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
@@ -83,6 +83,7 @@ export class UserDO extends DurableObject<Env> {
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => {
         const event = this.commit(body)
         if (!event) throw new Error("file change produced no event")
+        this.ctx.waitUntil(this.alarms.setWakeup("recipes", Date.now()))
         return event
       }, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()), Date.now, {
@@ -106,76 +107,70 @@ export class UserDO extends DurableObject<Env> {
   private reminders!: Reminders
   async createReminder(owner: string, input: NewReminder) { return asResult(() => this.reminders.create(owner, input)) }
   async listReminders() { return this.reminders.list() }
-  async cancelReminder(id: string) { return this.#routines.cancelReminder(id) }
+  async cancelReminder(id: string) {
+    const out = await this.#routines.cancelReminder(id)
+    if (out.ok || this.reminders.get(id)?.status === "cancelled") this.#recipes.routineGone(id)
+    return out
+  }
   async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> { return this.#routines.createRoutine(owner, input) }
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> { return this.#routines.updateRoutine(id, patch) }
 
   async recipeList(): Promise<RecipeList> {
-    const { recipes, broken } = await this.#library.read()
-    return { cards: recipes.map(recipeCard), installs: listInstalls(this.sql), broken }
+    const { cards, installs, broken } = await this.#recipes.list()
+    return { cards: cards.map(recipeCard), installs, broken }
   }
 
-  #recipeLibrary?: RecipeLibrary
-  get #library(): RecipeLibrary {
-    this.#recipeLibrary ??= new RecipeLibrary({
+  async installRecipe(owner: string, input: InstallRecipe, by?: string) {
+    return this.#recipes.install(input, by)
+  }
+
+  async uninstallRecipe(installId: string): Promise<boolean> {
+    return this.#recipes.uninstall(installId)
+  }
+
+  async recipeBriefs(roomId: string, agent: string) {
+    return this.#recipes.briefs(roomId, agent)
+  }
+
+  async recipeSkillText(slug: string): Promise<string | null> {
+    return this.#recipes.skillText(slug)
+  }
+
+  #recipeService?: RecipeService
+  get #recipes(): RecipeService {
+    if (this.#recipeService) return this.#recipeService
+    const owner = () => userIdFromObjectName(this.ctx.id.name)
+    const library = new RecipeLibrary({
       sql: this.sql,
       files: this.env.FILES,
-      userId: () => userIdFromObjectName(this.ctx.id.name),
+      userId: owner,
       list: (dir, recursive) => this.#homeWiring.list(dir, recursive),
       put: (input) => this.#homeWiring.put(input),
     })
-    return this.#recipeLibrary
-  }
-
-  /**
-   * Adds one of the owner's recipes to a chat: its routines, then one wake so the agent asks the setup questions.
-   * An agent that adds one itself (`by`) gets that text back instead of a wake. A retry with the same id returns the first install.
-   */
-  async installRecipe(owner: string, input: InstallRecipe, by?: string): Promise<{ ok: true; install: RecipeInstall; setup: string } | { ok: false; error: string }> {
-    const done = findInstall(this.sql, input.installId)
-    const recipe = await this.#library.get(done?.slug ?? input.slug)
-    if (done) return { ok: true, install: done, setup: recipe ? recipeWake(recipe, []) : "" }
-    if (!recipe) return { ok: false, error: `no recipe named ${input.slug} in /home/recipes` }
-    let roomId: RoomId
-    let agent: string
-    if ("own" in input) {
-      const made = await this.recipeAgent(recipe.agent.name, recipe.agent.handle, recipe.description)
-      if (!made) return { ok: false, error: `@${recipe.agent.handle} could not be made. pick a chat instead.` }
-      roomId = (await this.openChat(made.name, [made.id])).roomId
-      agent = made.slug
-    } else {
-      roomId = input.roomId
-      agent = input.agent
-    }
-    const tz = (await this.timezone()) ?? "UTC"
-    const at = new Date().toISOString()
-    const routines = []
-    for (const t of recipe.triggers) {
-      const out = await this.#routines.createRoutine(owner, { name: t.name, instructions: t.run, trigger: { on: "time", at, rrule: recipeRule(t.every) }, tz, roomId, target: agent, createdBy: "human" })
-      if (!out.ok) {
-        for (const r of routines) await this.#routines.cancelReminder(r.id)
-        return { ok: false, error: out.error }
-      }
-      routines.push(out.routine)
-    }
-    const setup = recipeWake(recipe, routines)
-    const woke = await roomStub(this.env.ROOM, owner, roomId).addRecipe(owner, { installId: input.installId, agent: agent as AgentSlug, title: recipe.title, wake: by === agent ? null : setup })
-    if (woke !== "delivered" && woke !== "duplicate") {
-      for (const r of routines) await this.#routines.cancelReminder(r.id)
-      return { ok: false, error: woke === "gone" ? `@${agent} is not in that chat` : "that chat could not take the recipe. try again." }
-    }
-    const install: RecipeInstall = { installId: input.installId, slug: recipe.slug, roomId, agent, at: Date.now() }
-    saveInstall(this.sql, install)
-    return { ok: true, install, setup }
-  }
-
-  /** A new agent for a recipe. A taken handle gets a number, as people do with usernames. */
-  private async recipeAgent(name: string, handle: string, description: string): Promise<Agent | null> {
-    for (const slug of [handle, ...[2, 3, 4, 5].map((n) => `${handle}-${n}`)]) {
-      const agent = await this.makeAgent({ name, slug, description, soul: firstSoul(name, description), model: "" })
-      if (agent) return agent
-    }
-    return null
+    this.#recipeService = new RecipeService({
+      sql: this.sql,
+      library,
+      createRoutine: (input) => this.#routines.createRoutine(owner(), input),
+      updateRoutine: (id, patch) => this.#routines.updateRoutine(id, patch),
+      cancelRoutine: (id) => this.cancelReminder(id),
+      routine: (id) => this.reminders.get(id),
+      timezone: () => this.timezone(),
+      makeAgent: async (name, handle, description, model) => {
+        for (const slug of [handle, ...[2, 3, 4, 5].map((n) => `${handle}-${n}`)]) {
+          const agent = await this.makeAgent({ name, slug, description, soul: firstSoul(name, description), model })
+          if (agent) return agent
+        }
+        return null
+      },
+      openChat: async (title, agentIds) => (await this.openChat(title, agentIds)).roomId,
+      chiefModel: async () => {
+        const roomId = kikoChatRoom(this.sql)
+        return roomId ? roomStub(this.env.ROOM, owner(), roomId).modelOf("yuki").catch(() => "") : ""
+      },
+      announce: (roomId, input) => roomStub(this.env.ROOM, owner(), roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
+      notice: (roomId, id, text) => roomStub(this.env.ROOM, owner(), roomId).systemNotice(id, text, "routine"),
+    })
+    return this.#recipeService
   }
 
   async overview(): Promise<string> {
@@ -227,6 +222,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async runRoutine(id: string): Promise<RunDelivery | null> {
+    await this.#recipes.reconcile()
     return this.reminders.runNow(id)
   }
 
@@ -760,7 +756,11 @@ export class UserDO extends DurableObject<Env> {
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
-      [REMINDERS_WAKEUP]: () => this.reminders.fire(),
+      ["recipes"]: () => this.#recipes.reconcile(),
+      [REMINDERS_WAKEUP]: async () => {
+        await this.#recipes.reconcile()
+        await this.reminders.fire()
+      },
       [LIFE_WAKEUP]: () => this.#mem.napLife(),
       [CAPTURE_WAKEUP]: () => this.#mem.captureNow(),
       [LOOPS_WAKEUP]: () => this.#il.now(),
@@ -824,7 +824,7 @@ export class UserDO extends DurableObject<Env> {
 
   async ensureHome(): Promise<void> {
     clearTempMarks(this.sql)
-    this.ctx.waitUntil(this.#library.seed().catch((e: unknown) => console.error(`recipe seed failed: ${e instanceof Error ? e.message : String(e)}`)))
+    this.ctx.waitUntil(this.#recipes.sync().catch((e: unknown) => console.error(`recipe sync failed: ${e instanceof Error ? e.message : String(e)}`)))
     for (const op of kikoChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {

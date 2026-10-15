@@ -3,6 +3,7 @@ import { VerifyError } from "../client"
 import { agentTexts, frames, messages, newRoom, poll } from "../kit"
 import { api, ok, type Routine, toolLine } from "../routine-kit"
 import type { Suite } from "../runner"
+import { team } from "./team-loops"
 import { fake, send } from "./mid-run"
 
 type Full = Routine & { rrule: string | null }
@@ -42,6 +43,8 @@ const suite: Suite = {
 
     const again = await ok<{ install: RecipeInstall }>(url, s, "recipes", body)
     if (again.install.at !== install.at || (await mine()).length !== 1) throw new VerifyError("a retried install made a second routine or a second install")
+    const differentId = await ok<{ install: RecipeInstall }>(url, s, "recipes", { ...body, installId: crypto.randomUUID() })
+    if (differentId.install.installId !== install.installId || (await mine()).length !== 1) throw new VerifyError("a new id duplicated the same recipe, chat, and agent")
     const listed = await ok<{ installs: RecipeInstall[] }>(url, s, "recipes")
     if (listed.installs.filter((i) => i.slug === "morning-briefing").length !== 1) throw new VerifyError(`expected one listed install, got ${JSON.stringify(listed.installs)}`)
     console.log("  ok a retry with the same install id changed nothing")
@@ -65,6 +68,30 @@ const suite: Suite = {
     await Bun.sleep(1500)
     if (teaRoutine?.target !== "yuki" || agentTexts(room).some((t) => t.includes('"Tea time" recipe') && !t.includes("tool: added."))) throw new VerifyError("an agent's own add_recipe should make its routine and not wake the agent again")
     console.log("  ok an agent's add_recipe made the routine and got the setup text as its tool result")
+    const edited = tea.replace("BYHOUR=16;BYMINUTE=0", "BYHOUR=17;BYMINUTE=30")
+    const changed = await s.putFile("home", "recipes/tea-time/RECIPE.md", edited, { expect: new Bun.CryptoHasher("sha256").update(tea).digest("hex"), type: "text/markdown" })
+    if (!changed.ok) throw new VerifyError(`editing the recipe answered ${changed.status}`)
+    await poll("the file edit to update its routine without reopening the gallery", async () => (await mine()).find((r) => r.id === teaRoutine?.id)?.rrule?.includes("BYHOUR=17;BYMINUTE=30;BYSECOND=0"))
+    const user = await s.user()
+    user.send({ t: "home", op: { op: "rm", paths: ["recipes/tea-time/RECIPE.md"] } })
+    await poll("a deleted recipe to pause its routine", async () => (await ok<{ routines: Full[] }>(url, s, "routines")).routines.find((r) => r.id === teaRoutine?.id)?.status === "paused")
+    const removed = await api(url, s, `recipes/${install.installId}`, undefined, "DELETE")
+    if (removed.status !== 200 || (await mine()).some((r) => r.id === routine.id)) throw new VerifyError("removing an install left its routine running")
+    const readded = await ok<{ install: RecipeInstall }>(url, s, "recipes", { ...body, installId: crypto.randomUUID() })
+    await ok(url, s, `reminders/${(await mine()).find((r) => r.name === "morning briefing")?.id}/cancel`, {})
+    if ((await ok<RecipeList>(url, s, "recipes")).installs.some((i) => i.installId === readded.install.installId)) throw new VerifyError("cancelling the last routine left the install behind")
+    console.log("  ok file edits updated the routine, deletion paused it, removal stopped it, and cancellation cleared its install")
+
+    const group = await team(v, s, ["ada", "bea"], "recipe group")
+    const groupInstalls = []
+    for (const agent of ["yuki", "ada", "bea"]) groupInstalls.push((await ok<{ install: RecipeInstall }>(url, s, "recipes", { installId: crypto.randomUUID(), slug: "morning-briefing", roomId: group.roomId, agent })).install)
+    const groupRoutines = () => ok<{ routines: Full[] }>(url, s, "routines").then((x) => x.routines.filter((r) => r.roomId === group.roomId && r.status === "active"))
+    if ((await groupRoutines()).length !== 3) throw new VerifyError("each group member should have one routine")
+    await api(url, s, `recipes/${groupInstalls[1]?.installId}`, undefined, "DELETE")
+    const left = (await groupRoutines()).map((r) => r.target).sort()
+    if (JSON.stringify(left) !== JSON.stringify(["bea", "yuki"])) throw new VerifyError(`removing Ada affected the other agents: ${left}`)
+    console.log("  ok three agents used one recipe in a group; removing Ada left Kiko and Bea running")
+    group.room.raw.close()
     room.raw.close()
   },
 }

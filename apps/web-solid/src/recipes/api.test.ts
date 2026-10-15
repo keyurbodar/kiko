@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test"
 import type { RecipeCard, RoomId } from "@kiko/protocol"
 import { RECIPES } from "./catalog.gen"
-import { fetchListing, loadCards, loadListing, postInstall } from "./api"
+import { fetchListing, loadCards, loadListing, postInstall, deleteInstall } from "./api"
 
 const realFetch = globalThis.fetch
 const store = new Map<string, string>()
@@ -75,4 +75,14 @@ test("a failed request keeps the cached list, and a corrupt cache reads as none 
   store.set("kiko:recipes", "{not json")
   expect(loadListing()).toEqual({ installs: [] })
   expect(loadCards()).toBe(RECIPES)
+})
+
+
+test("removal is scoped to one install and an already removed install succeeds", async () => {
+  let request: unknown
+  globalThis.fetch = (async (url: string, init?: RequestInit) => { request = [url, init?.method]; return json({}, 404) }) as unknown as typeof fetch
+  expect(await deleteInstall("one-install")).toEqual({ ok: true })
+  expect(request).toEqual(["/api/recipes/one-install", "DELETE"])
+  globalThis.fetch = (async () => { throw new TypeError("offline") }) as unknown as typeof fetch
+  expect((await deleteInstall("one-install")).ok).toBe(false)
 })

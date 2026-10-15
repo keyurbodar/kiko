@@ -18,7 +18,7 @@ export type RemindersPort = {
   runRoutine(id: string): Promise<RunDelivery | null>
   runs(id: string): Promise<RoutineRun[]>
   origin(): Promise<string | null>
-  addRecipe(slug: string): Promise<{ ok: true; setup: string } | { ok: false; error: string }>
+  addRecipe(slug: string): Promise<{ ok: true; setup: string; existed: boolean } | { ok: false; error: string }>
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
@@ -186,7 +186,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
           replay: "unsafe",
           execute: async ({ slug }) => {
             const out = await user().addRecipe(slug.trim())
-            return out.ok ? { content: text(`added.\n${out.setup}`) } : { content: text(`not added: ${out.error}`), isError: true }
+            return out.ok ? { content: text(out.existed ? out.setup : `added.\n${out.setup}`) } : { content: text(`not added: ${out.error}`), isError: true }
           },
         }),
       ),

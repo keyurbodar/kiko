@@ -235,6 +235,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out
 	}
 
+	async modelOf(slug: string): Promise<string> {
+		const home = this.home()
+		const member = this.members.list().find((m) => m.slug === slug)
+		if (!home || !member) return ""
+		// Chat model picks live in AgentDO; the member row keeps only its original model.
+		const model = await agentStub(this.env.AGENT, home.userId, home.roomId, member.slug).model()
+		return `${model.provider}/${model.modelId}`
+	}
+
 	async propose(slug: AgentSlug, input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
 		return this.proposals.propose(slug, input)
 	}

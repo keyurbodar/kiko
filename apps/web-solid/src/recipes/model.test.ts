@@ -53,8 +53,10 @@ describe("filtering the gallery", () => {
 describe("installed recipes", () => {
   test("the marks come from the slugs of the installs", () => {
     const install = (slug: string): RecipeInstall => ({ installId: slug, slug, roomId: "r" as RoomId, agent: "yuki", at: 1 })
-    expect([...installedSlugs([install("day-trip")])]).toEqual(["day-trip"])
-    expect(installedSlugs([]).has("day-trip")).toBe(false)
+    expect([...installedSlugs([install("day-trip")], { roomId: "r", agent: "yuki" })]).toEqual(["day-trip"])
+    expect(installedSlugs([], { roomId: "r", agent: "yuki" }).has("day-trip")).toBe(false)
+    expect(installedSlugs([install("day-trip")], { roomId: "r", agent: "ada" }).has("day-trip")).toBe(false)
+    expect(installedSlugs([install("day-trip")], { roomId: "other-chat", agent: "yuki" }).has("day-trip")).toBe(false)
   })
 })
 
