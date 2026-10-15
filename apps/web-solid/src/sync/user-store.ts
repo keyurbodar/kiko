@@ -11,7 +11,7 @@
 import type { Agent, Chat, ChatOp, FileOp, FileRef, RoomId, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
-import { allAgents, allChats, getUserSeq, putAgents, putChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
+import { allAgents, allChats, getHome, getUserSeq, putAgents, putChats, putHome, removeChat, replaceChats, setUserSeq } from "../warm/chats"
 import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
@@ -195,16 +195,19 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			else if (e.t === "chat_removed") removeChat(warm, e.roomId)
 		}
 		if (applied.some((e) => e.t === "agent")) putAgents(warm, unwrap(state.agents))
+		if (applied.some((e) => e.t === "file" || e.t === "file_removed" || e.t === "folders")) putHome(warm, unwrap(state.home))
 		if (applied.length) setUserSeq(warm, state.seq)
 	}
 
 	function reset(snapshot: UserSnapshot) {
 		const agents = [...(snapshot.agents ?? [])]
-		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home: { files: [...snapshot.home.files], folders: [...snapshot.home.folders] }, lastChat: snapshot.lastChat ?? null })
+		const home = { files: [...snapshot.home.files], folders: [...snapshot.home.folders] }
+		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, lastChat: snapshot.lastChat ?? null })
 		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
 		setState("pendingAgents", (list) => list.filter((a) => !agents.some((x) => x.id === a.id)))
 		replaceChats(warm, snapshot.chats, snapshot.seq)
 		putAgents(warm, agents)
+		putHome(warm, home)
 	}
 
 	function onFrame(frame: UserToClient) {
@@ -232,9 +235,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	}
 
 	async function boot() {
-		const [chats, seq, agents] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm)])
+		const [chats, seq, agents, home] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm)])
 		if (closed) return
-		setState({ chats, seq, agents, loaded: true })
+		// A cache with no drive predates the drive cache. Ask for a snapshot, not the events after `seq`.
+		setState({ chats, seq: home ? seq : 0, agents, home: home ?? { files: [], folders: [] }, loaded: true })
 		socket = createSyncSocket<UserToClient>({
 			url: options.url,
 			connect: options.connect,

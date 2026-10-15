@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kiko-installer",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": { "bindings": [{ "name": "INSTALL", "class_name": "InstallDO" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["InstallDO"] }]
+}
