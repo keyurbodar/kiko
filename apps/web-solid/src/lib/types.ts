@@ -30,6 +30,8 @@ export interface RosterBot {
   mentions?: number;
   /** Epoch ms of the last activity; the sidebar renders this relatively. */
   updatedAt: number;
+  /** Who sent the newest message. The card reads an agent's word as a reply and anyone else's as activity. */
+  lastFrom?: "human" | "agent" | "system";
   presence: BotPresence;
   unread: number;
   pinned: boolean;

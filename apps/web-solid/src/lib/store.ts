@@ -162,6 +162,7 @@ export function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRo
     unread: chat.unread,
     pinned: chat.pinned,
   }
+  if (last) row.lastFrom = last.from
   if (line.from) row.previewFrom = line.from
   if (row.presence === "typing") row.typing = typingLine(typing, group)
   if (chat.mentions) row.mentions = chat.mentions

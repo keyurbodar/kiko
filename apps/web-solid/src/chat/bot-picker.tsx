@@ -12,15 +12,16 @@ import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { Button } from "../settings/kit"
 import { closeBotPicker } from "./bot-picker-state"
-import { groupMembers, groupTitle, kikoLocked, togglePick } from "./bot-picker-model"
+import { groupMembers, groupTitle, togglePick } from "./bot-picker-model"
 
 const NEW_AGENT = "new-agent"
 /** What kiko's new agent flow starts from. The human types the purpose after it. */
 const NEW_AGENT_START = "Make me a new agent that "
 
 /*
- * The new chat picker (kat's palette look). One agent opens its chat. Two or more make a group,
- * and kiko joins it. Rows come from the stored agents, kiko first. Lazy: loaded on first use.
+ * The new chat picker (kat's palette look). A row, clicked or entered, always opens that agent's
+ * one chat. The circle, or Space, picks agents for a group, which Kiko leads, so Kiko has no
+ * circle. The list and the footer keep their size, so the dialog never moves. Lazy: loaded on first use.
  */
 export default function BotPicker() {
   const navigate = useNavigate()
@@ -46,15 +47,12 @@ export default function BotPicker() {
     if (ids.length < 2) return
     const existing = sameAgentChat(useApp.user()?.chats() ?? [], ids)
     if (existing) return go(existing.roomId)
-    const names = ids.map((id) => agents().find((a) => a.id === id)?.name ?? id)
-    const roomId = useApp.user()?.createChat(groupTitle(names), ids)
+    const roomId = useApp.user()?.createChat(groupTitle(names(ids)), ids)
     if (roomId) go(roomId)
   }
+  const names = (ids: readonly string[]) => ids.map((id) => agents().find((a) => a.id === id)?.name ?? id)
 
   const pick = (id: string) => setPicked((list) => togglePick(list, id))
-
-  // With nothing picked, a row opens its chat. With something picked, a row joins or leaves the pick.
-  const activate = (agent: Agent) => (picked().length === 0 ? direct(agent) : pick(agent.id))
 
   const newAgent = () => {
     const kiko = useApp.kikoChatId()
@@ -69,7 +67,7 @@ export default function BotPicker() {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault()
       if (members().length >= 2) group()
-    } else if (event.key === " " && query() === "" && highlight() !== "" && highlight() !== NEW_AGENT) {
+    } else if (event.key === " " && query() === "" && highlight() !== "" && highlight() !== NEW_AGENT && highlight() !== KIKO) {
       event.preventDefault()
       pick(highlight())
     }
@@ -79,36 +77,39 @@ export default function BotPicker() {
     <Dialog open onClose={closeBotPicker} title="New chat" size="md" data-component="bot-picker">
       <Cmdk label="Pick an agent" loop value={highlight()} onValueChange={setHighlight} onKeyDown={keys}>
         <Cmdk.Input class="palette-input" placeholder="Search agents" autofocus onValueChange={setQuery} />
-        <Cmdk.List class="palette-list">
+        <Cmdk.List class="palette-list h-[min(320px,50dvh)]">
           <Cmdk.Empty class="palette-empty">No agents match</Cmdk.Empty>
           <For each={agents()}>
             {(agent) => {
-              const on = () => members().includes(agent.id)
-              const locked = () => agent.id === KIKO && kikoLocked(picked())
+              const on = () => picked().includes(agent.id)
               return (
-                <Cmdk.Item class="palette-row" value={agent.id} keywords={[agent.name, agent.slug]} onSelect={() => activate(agent)}>
+                <Cmdk.Item class="palette-row" value={agent.id} keywords={[agent.name, agent.slug]} onSelect={() => direct(agent)}>
                   <IdentityAvatar seed={agent.slug} size={22} />
                   <span class="palette-label">{agent.name}</span>
-                  <Show when={agent.id !== KIKO}>
+                  <Show when={agent.id !== KIKO} fallback={<span class="text-sm text-muted-foreground">Leads every group</span>}>
                     <span class="text-sm text-muted-foreground">@{agent.slug}</span>
-                  </Show>
-                  <span class="relative grid size-4 shrink-0 place-items-center">
-                    <input
-                      type="checkbox"
-                      class="peer absolute inset-0 m-0 size-4 cursor-pointer opacity-0"
-                      aria-label={`Pick ${agent.name}`}
-                      checked={on()}
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={on()}
+                      aria-label={`Pick ${agent.name} for a group`}
+                      class="-m-1.5 grid size-7 shrink-0 place-items-center rounded-full hover:bg-accent-strong"
+                      onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (!locked()) pick(agent.id);
+                        event.preventDefault()
+                        event.stopPropagation()
+                        pick(agent.id)
                       }}
-                    />
-                    <span class="size-4 rounded-full border border-[color-mix(in_oklab,var(--foreground)_30%,transparent)] peer-checked:border-transparent peer-checked:bg-primary" aria-hidden="true" />
-                    <svg class="pointer-events-none absolute size-2.5 text-transparent peer-checked:text-primary-foreground" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M3.5 8.5l3 3 6-7" />
-                    </svg>
-                  </span>
+                    >
+                      <span
+                        class={`grid size-4 place-items-center rounded-full border ${on() ? "border-transparent bg-primary text-primary-foreground" : "border-[color-mix(in_oklab,var(--foreground)_30%,transparent)] text-transparent"}`}
+                      >
+                        <svg class="size-2.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M3.5 8.5l3 3 6-7" />
+                        </svg>
+                      </span>
+                    </button>
+                  </Show>
                 </Cmdk.Item>
               )
             }}
@@ -119,13 +120,12 @@ export default function BotPicker() {
           </Cmdk.Item>
         </Cmdk.List>
       </Cmdk>
-      <Show when={members().length >= 2}>
-        <div class="flex justify-end pt-3">
-          <Button variant="primary" onClick={group}>
-            Start group with {members().length}
-          </Button>
-        </div>
-      </Show>
+      <div class="flex h-11 items-center justify-between gap-3 border-t border-border pt-3 text-sm text-muted-foreground">
+        <span class="min-w-0 truncate">{members().length ? names(members()).join(", ") : "Pick agents with Space to start a group"}</span>
+        <Button variant="primary" disabled={members().length < 2} onClick={group}>
+          Start group
+        </Button>
+      </div>
     </Dialog>
   )
 }

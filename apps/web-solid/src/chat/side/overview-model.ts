@@ -29,11 +29,15 @@ export function since(ms: number): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-/** The line under the chat's name: what the agents are doing, else when the chat last moved, else "Idle". */
-export function liveLine(working: string | null, updatedAt: number | undefined, now: number): string {
+/**
+ * The line under the chat's name. What the agents are doing wins. Otherwise the newest message:
+ * "Replied" when an agent spoke last, "Active" for anyone else, and "No messages yet" when there
+ * is none.
+ */
+export function liveLine(working: string | null, row: { lastFrom?: string; updatedAt: number } | undefined, now: number): string {
   if (working) return working
-  if (updatedAt === undefined) return "Idle"
-  return `Replied ${since(now - updatedAt)}`
+  if (!row?.lastFrom) return "No messages yet"
+  return `${row.lastFrom === "agent" ? "Replied" : "Active"} ${since(now - row.updatedAt)}`
 }
 
 /** What the agents typing now are doing, in words, or null when none is. One agent with a doing reads as "Name is doing". */

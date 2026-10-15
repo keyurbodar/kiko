@@ -46,14 +46,15 @@ describe("since", () => {
 describe("liveLine", () => {
   const now = 10 * HOUR
   test("what the agents are doing wins", () => {
-    expect(liveLine("Ada is editing /a.md", now - MIN, now)).toBe("Ada is editing /a.md")
+    expect(liveLine("Ada is editing /a.md", { lastFrom: "agent", updatedAt: now - MIN }, now)).toBe("Ada is editing /a.md")
   })
-  test("otherwise the chat replied some time ago", () => {
-    expect(liveLine(null, now - 2 * MIN, now)).toBe("Replied 2m ago")
-    expect(liveLine(null, now, now)).toBe("Replied just now")
+  test("an agent's last word reads as a reply, anything else as activity", () => {
+    expect(liveLine(null, { lastFrom: "agent", updatedAt: now - 2 * MIN }, now)).toBe("Replied 2m ago")
+    expect(liveLine(null, { lastFrom: "human", updatedAt: now }, now)).toBe("Active just now")
   })
-  test("no activity at all reads as idle", () => {
-    expect(liveLine(null, undefined, now)).toBe("Idle")
+  test("a chat with no messages says so, not that someone replied", () => {
+    expect(liveLine(null, { updatedAt: now }, now)).toBe("No messages yet")
+    expect(liveLine(null, undefined, now)).toBe("No messages yet")
   })
 })
 

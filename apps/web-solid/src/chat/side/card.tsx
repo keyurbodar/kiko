@@ -64,7 +64,7 @@ export default function ChatCard(props: { chatId: string }) {
             <Show when={busy()}>
               <Sparkles size={11} strokeWidth={2} class="shrink-0" />
             </Show>
-            {liveLine(working(), chat()?.updatedAt, Date.now())}
+            {liveLine(working(), chat(), Date.now())}
           </span>
         </div>
       </div>
