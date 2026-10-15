@@ -13,6 +13,7 @@ import { sectionOf } from "./sections"
 const pages = {
   chat: lazy(() => import("./routes/chat")),
   settings: lazy(() => import("./routes/settings")),
+  recipes: lazy(() => import("../recipes/gallery")),
 }
 
 /** Starts fetching a section's chunk on intent. Safe to repeat: `lazy` loads once. */
@@ -73,6 +74,7 @@ export const routes: RouteDefinition[] = [
   { path: ["/files", "/files/:chatId", "/files/:chatId/*path"], component: FilesRedirect },
   { path: ["/board", "/board/:chatId"], component: () => <Navigate href="/chat" /> },
   { path: ["/memory", "/memory/:id"], component: MemoryRedirect },
+  { path: "/recipes", component: pages.recipes },
   { path: "/settings/*", component: pages.settings },
   { path: "*", component: () => <Navigate href="/chat" /> },
 ]

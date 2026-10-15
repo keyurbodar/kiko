@@ -1,6 +1,8 @@
-import { Show } from "solid-js"
+import { lazy, Show, Suspense } from "solid-js"
 import { ChatAvatar } from "../../lib/IdentityAvatar"
 import "./empty-state.css"
+
+const RecipeStarter = lazy(() => import("../../recipes/starter"))
 
 /*
  * The empty chat, after monocode's empty session: the chat's avatars and a heading sit in the
@@ -19,6 +21,9 @@ export function EmptyState(props: { faces: readonly string[]; names: readonly st
       <Show when={who()}>
         <p class="chat-empty-who">{who()}</p>
       </Show>
+      <Suspense>
+        <RecipeStarter />
+      </Suspense>
     </div>
   )
 }
