@@ -16,6 +16,7 @@ import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
 import { type UserChannelHost, userChannel } from "./user-channel"
+import { APP_VERSION, backendSkew, type Skew } from "../lib/version-skew"
 
 /** The user's drive, /home (architecture section 18.3). */
 export type Home = { files: FileRef[]; folders: string[] }
@@ -49,8 +50,11 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	return true
 }
 
-import { KIKO, newRoomId } from "@kiko/protocol"
+import { KIKO, newRoomId, PROTOCOL } from "@kiko/protocol"
 export { newRoomId }
+
+// The app's own build. The backend's answer is checked against it.
+const clientBuild = () => ({ version: APP_VERSION, protocol: PROTOCOL })
 
 
 export type UserState = UserData & {
@@ -71,6 +75,10 @@ export type UserState = UserData & {
 	refused: Record<string, RoomId>
 	/** The display names typing in each chat, from the `typing` frame. Memory only. */
 	typing: Record<string, readonly string[]>
+	/** Whether the backend can serve this build. Set from the first `hello` reply. Undefined until then. */
+	skew?: Skew
+	/** The backend's version as its `hello` reply said it. Undefined from an older backend. */
+	backendVersion?: string
 }
 
 export type UserStoreOptions = {
@@ -145,6 +153,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	let closed = false
 	let detach = () => {}
 	let expiry: ReturnType<typeof setTimeout> | undefined
+	// True from each `hello` until the first events or reset that answers it. That answer carries the backend's build.
+	let awaitingHello = false
 
 	function transmit(p: UserPatch) {
 		if (!socket?.send({ t: "chat", op: p.op })) return
@@ -203,6 +213,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	function onFrame(frame: UserToClient) {
 		channel.deliver(frame)
 		if (frame.t === "events" || frame.t === "reset") {
+			if (awaitingHello) {
+				awaitingHello = false
+				setState({ skew: backendSkew(clientBuild(), frame), backendVersion: frame.version })
+			}
 			if (frame.t === "events") applyEvents(frame.events)
 			else reset(frame.snapshot)
 			if (!state.synced) setState("synced", true)
@@ -229,7 +243,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			url: options.url,
 			connect: options.connect,
 			backoff: options.backoff,
-			hello: () => ({ t: "hello", lastSeq: state.seq }),
+			hello: () => {
+				awaitingHello = true
+				return { t: "hello", lastSeq: state.seq }
+			},
 			onOpen: () => {
 				for (const p of [...unwrap(state.patches)]) transmit(p)
 				for (const agent of [...unwrap(state.pendingAgents)]) socket?.send({ t: "agent", op: { op: "create", agent } })

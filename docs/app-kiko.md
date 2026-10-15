@@ -214,6 +214,10 @@ Why there is an installer at all: neither `api.cloudflare.com` nor `dash.cloudfl
 
 The bundle in step 5 is the same build `bun run --cwd apps/server deploy` makes today. The installer reads it from our static assets, for example `app.kiko.codes/releases/<version>/worker.js`.
 
+DEVIATION (H05, as built in `apps/installer`): the script is named `kiko`, the bucket `kiko-files`, and the metadata key is `backendUrl`, not `workerUrl`. The Worker handler only checks the Clerk token and the origin. It hands the install to `InstallDO` (one per Clerk user), which builds the multipart upload. The installer reads a signed release (`latest.json`, `<version>/manifest.json`, `manifest.sig`, modules) from `RELEASE_BASE_URL`, not a bare `worker.js`, and refuses any release whose Ed25519 signature or module hash does not match (`scripts/release.ts`, `core/durable/src/release.ts`). If `kiko` already exists and does not answer `/api/version` like kiko, the script is named `kiko-<6 hex of sha256(sub)>`. The secrets go in the upload metadata on first install. An update sends `keep_bindings: ["secret_text"]` and never regenerates `SESSION_SECRET` or `CREDENTIALS_KEK`. It sets `OWNER_ID` and `CF_GRANT` through the secrets endpoint every time, because a secret's value cannot be read back to compare.
+
+UNVERIFIED: Cloudflare documents no prefilled API token URL. `GET /token-link` returns the plain `https://dash.cloudflare.com/profile/api-tokens` page and the permission list to tick. UNVERIFIED: the installer reads the current migration tag from `migration_tag` in the scripts list (`GET /accounts/{id}/workers/scripts`), and detects R2 errors by Cloudflare codes 10004 (exists) and 10042 (R2 not enabled).
+
 ASSUMPTION: the client files are not uploaded into the user's account. The user's Worker is API only. Optionally it can carry the client as a fallback, in case `app.kiko.codes` is ever down.
 
 ## Auth: how a user's backend knows it is them
