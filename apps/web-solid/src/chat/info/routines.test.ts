@@ -43,4 +43,8 @@ describe("a repeating routine's time label", () => {
   ])("%s", (_name, rrule, label) => {
     expect(triggerLabel({ on: "time", at: made, rrule }, "UTC")).toBe(label)
   })
+
+  test("a time with a 2 in it keeps its digits", () => {
+    expect(triggerLabel({ on: "time", at: "2026-10-15T14:20:00Z" }, "UTC")).toBe("Once, Oct 15 at 2:20 PM")
+  })
 })

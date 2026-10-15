@@ -6,7 +6,7 @@ import type { Trigger } from "@kiko/protocol"
 const DAYS: Record<string, string> = { MO: "Mon", TU: "Tue", WE: "Wed", TH: "Thu", FR: "Fri", SA: "Sat", SU: "Sun" }
 
 const clock = (at: number, timeZone?: string) =>
-  new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone }).format(at).replace(/[ {2}]/g, " ")
+  new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone }).format(at).replace(/\s/g, " ")
 
 const date = (at: number, timeZone?: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone }).format(at)
 
