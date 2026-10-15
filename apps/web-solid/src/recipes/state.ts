@@ -1,6 +1,7 @@
 import { KIKO, type RecipeCard, type RecipeInstall } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
+import { openFile } from "../chat/side/surfaces"
 import { useApp } from "../lib/store"
 import { cardsOf, fetchListing, loadListing, type Listing, postInstall } from "./api"
 import { installedSlugs } from "./model"
@@ -27,6 +28,17 @@ export const refreshListing = (): Promise<void> =>
     .finally(() => {
       pending = undefined
     }))
+
+/** Why each recipe file that did not load was refused, so the page can say what to fix. */
+export const broken = (): readonly string[] => listing().broken ?? []
+
+/** Opens a recipe's file in the Kiko chat's files, where the human reads or edits it. */
+export function openRecipeFile(slug: string, navigate: (to: string) => void): void {
+  const roomId = useApp.kikoChatId()
+  if (!roomId) return
+  openFile(roomId, `home/recipes/${slug}/RECIPE.md`)
+  navigate(`/chat/${roomId}`)
+}
 
 export const isAdded = (slug: string): boolean => adding().has(slug) || installedSlugs(listing().installs).has(slug)
 

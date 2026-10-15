@@ -4,7 +4,7 @@ import { Dialog } from "../lib/dialog"
 import { Button, muted } from "../settings/kit"
 import { sheetLine } from "./model"
 import { RecipeIcon } from "./recipe-icon"
-import { addOwnChat, addToKiko, isAdded, isOwning } from "./state"
+import { addOwnChat, addToKiko, isAdded, isOwning, openRecipeFile } from "./state"
 
 /*
  * A recipe's sheet: the icon, the title, what it does, when and with what, and one add. The
@@ -31,6 +31,9 @@ export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void }) 
           onClick={() => addOwnChat(props.recipe, go)}
         >
           {isOwning(props.recipe.slug) ? "Making its chat" : "or give it its own chat"}
+        </button>
+        <button type="button" class="cursor-pointer text-xs text-muted-foreground underline-offset-2 hover:underline" data-action="recipe-file" onClick={() => openRecipeFile(props.recipe.slug, go)}>
+          View or edit its file
         </button>
       </div>
     </Dialog>

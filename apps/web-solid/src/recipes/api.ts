@@ -7,7 +7,7 @@ export type InstallResult = { ok: true; install: RecipeInstall } | { ok: false; 
  * The last list the server sent. `cards` is there only when the server sent it, so a build's
  * catalog is never cached and a new build's cards win at once.
  */
-export type Listing = { cards?: readonly RecipeCard[]; installs: readonly RecipeInstall[] }
+export type Listing = { cards?: readonly RecipeCard[]; installs: readonly RecipeInstall[]; broken?: readonly string[] }
 
 const CACHE_KEY = "kiko:recipes"
 
@@ -32,10 +32,11 @@ export const loadCards = (): readonly RecipeCard[] => cardsOf(loadListing())
 export async function fetchListing(): Promise<Listing | null> {
   const res = await fetch("/api/recipes").catch(() => null)
   if (!res?.ok) return null
-  const body = (await res.json().catch(() => null)) as { cards?: unknown; installs?: unknown } | null
+  const body = (await res.json().catch(() => null)) as { cards?: unknown; installs?: unknown; broken?: unknown } | null
   const next: Listing = {
     cards: Array.isArray(body?.cards) ? (body.cards as RecipeCard[]) : undefined,
     installs: Array.isArray(body?.installs) ? (body.installs as RecipeInstall[]) : [],
+    broken: Array.isArray(body?.broken) ? (body.broken as string[]) : [],
   }
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(next))

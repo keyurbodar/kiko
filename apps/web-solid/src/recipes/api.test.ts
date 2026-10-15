@@ -51,18 +51,18 @@ test("a success returns the install, and the POST carries the install id and the
 })
 
 test("the server's cards win once it sends them, and the list is cached for the next paint", async () => {
-  globalThis.fetch = (async () => json({ cards: [serverCard], installs: [install] })) as unknown as typeof fetch
+  globalThis.fetch = (async () => json({ cards: [serverCard], installs: [install], broken: ["recipe x: description is required"] })) as unknown as typeof fetch
   const next = await fetchListing()
-  expect(next).toEqual({ cards: [serverCard], installs: [install] })
+  expect(next).toEqual({ cards: [serverCard], installs: [install], broken: ["recipe x: description is required"] })
   expect(loadCards()).toEqual([serverCard])
-  expect(loadListing()).toEqual({ cards: [serverCard], installs: [install] })
+  expect(loadListing()).toEqual({ cards: [serverCard], installs: [install], broken: ["recipe x: description is required"] })
 })
 
 test("with no cards in the answer the build's catalog shows, and the catalog is not cached", async () => {
   globalThis.fetch = (async () => json({ installs: [install] })) as unknown as typeof fetch
-  expect(await fetchListing()).toEqual({ cards: undefined, installs: [install] })
+  expect(await fetchListing()).toEqual({ cards: undefined, installs: [install], broken: [] })
   expect(loadCards()).toBe(RECIPES)
-  expect(store.get("kiko:recipes")).toBe(JSON.stringify({ installs: [install] }))
+  expect(store.get("kiko:recipes")).toBe(JSON.stringify({ installs: [install], broken: [] }))
 })
 
 test("a failed request keeps the cached list, and a corrupt cache reads as none installed", async () => {

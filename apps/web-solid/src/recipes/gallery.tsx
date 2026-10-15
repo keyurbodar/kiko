@@ -6,7 +6,7 @@ import { Button, fieldClass, muted, Page } from "../settings/kit"
 import { filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
 import { RecipeIcon } from "./recipe-icon"
 import { RecipeSheet } from "./sheet"
-import { addToKiko, cards, isAdded, refreshListing } from "./state"
+import { addToKiko, broken, cards, isAdded, refreshListing } from "./state"
 
 /*
  * The recipes page, `/recipes`. It fills the main area the way settings does. A search, a row of
@@ -27,7 +27,7 @@ export default function RecipesPage() {
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3 md:px-4 md:pb-4" data-component="recipes-page">
       <div class="@container/recipes flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div class="mx-auto w-full max-w-3xl px-5 py-6 pb-16 max-[767px]:pt-14 @min-[560px]/recipes:px-8 @min-[560px]/recipes:py-8">
-          <Page title="Recipes" description="Ready-made habits for your agents.">
+          <Page title="Recipes" description="Ready-made habits for your agents. Each is a file in home/recipes that you can edit, and any agent can write you a new one.">
             <div class="flex flex-col gap-4" data-component="recipes">
               <div class="flex flex-col gap-3">
                 <input type="search" class={fieldClass} placeholder="Search recipes" aria-label="Search recipes" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
@@ -50,6 +50,12 @@ export default function RecipesPage() {
                   </For>
                 </div>
               </div>
+
+              <Show when={broken().length}>
+                <div class="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground" data-component="recipes-broken">
+                  <For each={broken()}>{(why) => <p>{why}</p>}</For>
+                </div>
+              </Show>
 
               <Show when={shown().length} fallback={<p class={cn("px-4 py-6 text-center text-md", muted)}>Nothing matches.</p>}>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" data-component="recipes-grid">
