@@ -47,10 +47,11 @@ U69	Browser lease, counted tab, documented socket	7	haiku	landed	s/u69-browser	0
 K00	Rename yuki to kiko	1	sonnet	landed	s/k00-rename	4fd81eda	gate-green	main 69082b7c	2026-10-13T07:31:39Z
 H00	Hosted plan spike results	1	opus	landed	plan/hosted-spike	6283a803	gate-green	main d3b180b8	2026-10-15T17:24:00Z
 H01	Backend version and protocol in hello	1	haiku	landed	feat/versions	f4d79ecc	gate-green	main 2a141c51	2026-10-15T18:43:10Z
-H02	Finish yuki to kiko rename, no migration	1	haiku	gate-red	s/h02-rename	014aee50	-	/home/keyur/.cache/splus/H02-check.log	2026-10-15T18:46:13Z
+H02	Finish yuki to kiko rename, no migration	1	haiku	landed	s/h02-rename	0726085e	gate-green	main e009e421	2026-10-15T19:02:19Z
 H03	Cross-origin client and bearer session	2	sonnet	running	s/h03-cross-origin	-	-	-	2026-10-15T18:44:08Z
-H04	Clerk sign-in and account settings	3	haiku	queued	s/h04-clerk	-	-	-	2026-10-15T17:23:30Z
+H04	Clerk sign-in and account settings	3	sonnet	running	s/h04-clerk	-	-	-	2026-10-15T19:00:32Z
 H05	Installer and front door	2	sonnet	landed	s/h05-installer	10be6813	gate-green	main 37488e4b	2026-10-15T18:36:41Z
 H06	One-click signed self-update	4	haiku	queued	s/h06-update	-	-	-	2026-10-15T17:23:30Z
 H07	Astro landing page	1	haiku	landed	s/h07-landing	f464c6af	gate-green	main 0fe37429	2026-10-15T18:14:38Z
 H08	Uninstall backend	5	haiku	queued	s/h08-uninstall	-	-	-	2026-10-15T17:23:30Z
+H10	Onboarding: connect Cloudflare in the app	4	sonnet	queued	s/h10-onboarding	-	-	-	2026-10-15T19:00:32Z
