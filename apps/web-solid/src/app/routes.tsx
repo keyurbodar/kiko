@@ -13,7 +13,7 @@ import { sectionOf } from "./sections"
 const pages = {
   chat: lazy(() => import("./routes/chat")),
   settings: lazy(() => import("./routes/settings")),
-  recipes: lazy(() => import("../recipes/gallery")),
+  recipes: lazy(() => import("../recipes/page")),
 }
 
 /** Starts fetching a section's chunk on intent. Safe to repeat: `lazy` loads once. */

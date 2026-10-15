@@ -62,7 +62,7 @@ test("with no cards in the answer the build's catalog shows, and the catalog is 
   globalThis.fetch = (async () => json({ installs: [install] })) as unknown as typeof fetch
   expect(await fetchListing()).toEqual({ cards: undefined, installs: [install], broken: [] })
   expect(loadCards()).toBe(RECIPES)
-  expect(store.get("kiko:recipes")).toBe(JSON.stringify({ installs: [install], broken: [] }))
+  expect(store.get("kiko:recipes:v2")).toBe(JSON.stringify({ installs: [install], broken: [] }))
 })
 
 test("a failed request keeps the cached list, and a corrupt cache reads as none installed", async () => {
@@ -72,7 +72,7 @@ test("a failed request keeps the cached list, and a corrupt cache reads as none 
   expect(await fetchListing()).toBeNull()
   expect(loadCards()).toEqual([serverCard])
 
-  store.set("kiko:recipes", "{not json")
+  store.set("kiko:recipes:v2", "{not json")
   expect(loadListing()).toEqual({ installs: [] })
   expect(loadCards()).toBe(RECIPES)
 })
