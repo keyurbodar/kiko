@@ -1,7 +1,7 @@
 import { A } from "@solidjs/router"
 import { createSignal, For, Show } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, ModelIcon, SearchIcon, SettingsIcon } from "@kiko/ui/icons"
+import { AppearanceIcon, BackIcon, ExtensionsIcon, type Glyph, ModelIcon, SearchIcon, SettingsIcon, SparklesIcon } from "@kiko/ui/icons"
 import { SETTINGS_GROUPS, searchSections, type SettingsSection } from "../../settings/sections"
 
 /*
@@ -14,6 +14,7 @@ import { SETTINGS_GROUPS, searchSections, type SettingsSection } from "../../set
 const ICON: Record<string, Glyph> = {
   models: ModelIcon,
   tools: ExtensionsIcon,
+  recipes: SparklesIcon,
   appearance: AppearanceIcon,
   general: SettingsIcon,
 }

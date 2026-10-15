@@ -6,6 +6,7 @@ import Appearance from "../theme/appearance"
 import Initiative from "./initiative"
 import { Button, Group, Item, Page } from "./kit"
 import { ModelsPage } from "./models"
+import RecipesPage from "../recipes/gallery"
 import { SETTINGS_SECTIONS } from "./sections"
 import Tools from "./tools"
 
@@ -38,7 +39,7 @@ function General() {
   )
 }
 
-const COMPONENTS: Record<string, () => JSX.Element> = { models: ModelsPage, tools: Tools, appearance: Appearance, general: General }
+const COMPONENTS: Record<string, () => JSX.Element> = { models: ModelsPage, tools: Tools, recipes: RecipesPage, appearance: Appearance, general: General }
 
 export function SettingsShell(props: { sectionId: string }) {
   const meta = () => SETTINGS_SECTIONS.find((s) => s.id === props.sectionId)

@@ -5,6 +5,7 @@
 export const SETTINGS_SECTIONS = [
   { id: "models", group: "all", label: "Models", hint: "Connect providers and pick the models the chat offers.", keywords: "provider key api openai anthropic google opencode connect sign in disconnect model picker hide show" },
   { id: "tools", group: "all", label: "Tools", hint: "Apps your agents can use.", keywords: "integrations composio mcp apps browser kernel tool" },
+  { id: "recipes", group: "all", label: "Recipes", hint: "Ready-made habits for your agents.", keywords: "habit routine schedule morning briefing ready made recipe" },
   { id: "appearance", group: "all", label: "Appearance", hint: undefined, keywords: "theme json dark light font radius spacing colors open vsx accent contrast" },
   { id: "general", group: "all", label: "General", hint: undefined, keywords: "initiative proactive nudge digest speak up memory capture auto off account profile sign out" },
 ] as const
