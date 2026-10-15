@@ -66,7 +66,16 @@ Run against the owner's account with a throwaway Worker. The Worker was deleted 
 ### Clerk sign-in, as built (build item 3)
 
 - **Server.** `POST /api/auth/clerk` is in `apps/server/src/auth/clerk.ts`, with no `@clerk/backend` dependency: the check is RS256 through WebCrypto. `CLERK_JWT_KEY` takes the PEM, or the same key as bare base64 or with `\n` for line breaks, so it passes through `wrangler --var` on one line.
-- **Client.** A build with `VITE_CLERK_PUBLISHABLE_KEY` is hosted. `app/hosted-sign-in.tsx` replaces the access-code screen, and also serves `/sso-callback` and the `/connect` placeholder. `@clerk/clerk-js` (about 570 KB gzip) is its own lazy chunk, reached only from the sign-in screen, the callback, and sign-out. The cached profile is `kiko:profile`.
+- **Client.** A build with `VITE_CLERK_PUBLISHABLE_KEY` is hosted. `app/hosted-sign-in.tsx` replaces the access-code screen, and also serves `/sso-callback`, `/connect`, and `/connect/callback`. `@clerk/clerk-js` (about 570 KB gzip) is its own lazy chunk, reached only from the sign-in screen, the callback, and sign-out. The cached profile is `kiko:profile`.
+
+### Connect Cloudflare, as built (build item 10)
+
+- **Screen.** `app/connect.tsx` (lazy) with pure steps in `app/connect-flow.ts`. The installer base is `VITE_INSTALLER_URL`. It is routed in the signed-out screen and, for "Reconnect Cloudflare" on the Account page (`/connect?reconnect=1`), in the signed-in routes.
+- **OAuth.** The client reads `/oauth/config`, makes a PKCE verifier, S256 challenge and state, keeps verifier and state in `sessionStorage`, and redirects. `/connect/callback` checks state before any request, then posts the grant to `/install`. An OAuth code is single use, so "Try again" after an OAuth failure starts the sign-in over. A token grant retries as is.
+- **Token.** "Use an API token instead" shows the link and permissions from `/token-link`, a password field, and Install.
+- **Success.** `kiko:backend` is stored first. Then a fresh Clerk token (the install outlives the first one) is traded at `/api/auth/clerk`.
+- **Errors.** `r2_disabled` and `no_subdomain` link to the Cloudflare dashboard. The dashboard deep links are ASSUMPTION: UNVERIFIED that `?to=/:account/...` resolves for every account.
+- **Progress.** The four steps are listed as plain text with no per-step timing, because the install is one request.
 - **One sign-out.** `signOut()` in `app/session.ts` ends the Clerk session first, then drops the token, snapshot, warm tier, and profile. `kiko:backend` stays. A 401 alone leaves the Clerk session, so the sign-in screen signs the person back in without a click.
 - **Settings.** Account is its own section, `/settings/account` (the `account` alias to General is gone).
 - **Dev instance.** It has no email identifier, so a test user gets a `username`, which is what a sign-in token needs. `scripts/clerk-dev.ts up|ticket|down` and `bun kiko verify clerk` drive it. A dev build of the client accepts `/?ticket=<sign-in token>` (`app/dev-ticket.ts`, dropped from production builds).

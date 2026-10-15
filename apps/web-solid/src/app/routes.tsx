@@ -14,6 +14,7 @@ const pages = {
   chat: lazy(() => import("./routes/chat")),
   settings: lazy(() => import("./routes/settings")),
   recipes: lazy(() => import("../recipes/page")),
+  connect: lazy(() => import("./connect")),
 }
 
 /** Starts fetching a section's chunk on intent. Safe to repeat: `lazy` loads once. */
@@ -75,6 +76,7 @@ export const routes: RouteDefinition[] = [
   { path: ["/board", "/board/:chatId"], component: () => <Navigate href="/chat" /> },
   { path: ["/memory", "/memory/:id"], component: MemoryRedirect },
   { path: "/recipes", component: pages.recipes },
+  { path: ["/connect", "/connect/callback"], component: pages.connect },
   { path: "/settings/*", component: pages.settings },
   { path: "*", component: () => <Navigate href="/chat" /> },
 ]
