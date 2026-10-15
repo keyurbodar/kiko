@@ -8,7 +8,7 @@ import { BUILTIN_RECIPES } from "../recipes/catalog.gen"
 import { parseRecipe, type Recipe } from "../recipes/recipe"
 
 /** The owner's recipes are files: /home/recipes/<slug>/RECIPE.md. The human and agents read, edit, and delete them there. */
-export const RECIPES_DIR = "recipes"
+const RECIPES_DIR = "recipes"
 const SEEDED = "recipes_seeded"
 const FILE = /^recipes\/([^/]+)\/RECIPE\.md$/
 const MAX_BYTES = 64 * 1024
@@ -21,7 +21,7 @@ type Deps = {
   put: (input: NewFile) => { entry: FsEntry | null }
 }
 
-export type Library = { recipes: Recipe[]; broken: string[] }
+type Library = { recipes: Recipe[]; broken: string[] }
 
 export class RecipeLibrary {
   private readonly parsed = new Map<string, Recipe | string>()
