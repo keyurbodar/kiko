@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { loadRoutines, routinesOf } from "./routines"
+import { triggerLabel } from "./routines-model"
 
 const original = globalThis.fetch
 afterEach(() => {
@@ -25,5 +26,21 @@ describe("a chat's routines", () => {
     expect(routinesOf("room-a")?.map((r) => r.name)).toEqual(["daily standup"])
     expect(routinesOf("room-b")?.map((r) => r.name)).toEqual(["quarterly launch readiness review"])
     expect(routinesOf("room-c")).toEqual([])
+  })
+})
+
+describe("a repeating routine's time label", () => {
+  // `at` is when the routine was made (16:48 UTC). The hours in the rule are wall-clock times in `tz`.
+  const made = "2026-10-15T16:48:00Z"
+  test.each([
+    ["daily at a time set in the rule", "FREQ=DAILY;BYHOUR=7;BYMINUTE=55;BYSECOND=0", "Every day at 7:55 AM"],
+    ["weekdays", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=0", "Weekdays at 9:00 AM"],
+    ["one weekday", "FREQ=WEEKLY;BYDAY=MO;BYHOUR=8;BYMINUTE=30", "Every Mon at 8:30 AM"],
+    ["several times, evenly spaced", "FREQ=DAILY;BYHOUR=8,10,12,14,16,18,20,22;BYMINUTE=0", "Every 2 hours, 8 AM to 10 PM"],
+    ["several times, unevenly spaced", "FREQ=DAILY;BYHOUR=8,13,20;BYMINUTE=0", "Every day at 8 AM, 1 PM, 8 PM"],
+    ["several times with minutes", "FREQ=DAILY;BYHOUR=8,13;BYMINUTE=30", "Every day at 8:30 AM, 1:30 PM"],
+    ["no hour in the rule, so the time of creation", "FREQ=DAILY", "Every day at 4:48 PM"],
+  ])("%s", (_name, rrule, label) => {
+    expect(triggerLabel({ on: "time", at: made, rrule }, "UTC")).toBe(label)
   })
 })
