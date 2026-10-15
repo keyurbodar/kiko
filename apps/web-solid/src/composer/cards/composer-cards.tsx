@@ -20,7 +20,7 @@ function CardSummary(props: { card: ComposerCard; room: RoomStore }) {
   const kind = () => props.card.kind === "ask" ? `Question${props.room.members().length > 1 ? ` · ${name(props.card.ask.from)}` : ""}` : "Tasks"
   return <>
     <CardIcon card={props.card} />
-    <span class="composer-card-title"><span class="composer-card-kind" data-owner={props.room.members().length > 1 && props.card.kind === "ask" ? "true" : undefined}>{kind()}</span><span class="truncate">{taskText(props.card.title, props.room.members())}</span></span>
+    <span class="composer-card-title" data-kind={props.card.kind}><span class="composer-card-kind" data-owner={props.room.members().length > 1 && props.card.kind === "ask" ? "true" : undefined}>{kind()}</span><span class="truncate">{taskText(props.card.title, props.room.members())}</span></span>
     <span class="composer-card-actions">
       <Show when={props.card.kind === "tasks"}>
         <span class="composer-card-progress" data-component="task-progress">{progress().completed}/{progress().total}</span>

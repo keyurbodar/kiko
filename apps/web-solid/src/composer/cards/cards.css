@@ -55,10 +55,16 @@ button.composer-card-row { cursor:pointer; border-radius:6px; }
 
 .composer-card-stack-scroll { display:flex; flex-direction:column; gap:4px; max-height:min(24rem,40dvh); overflow:auto; overscroll-behavior:contain; }
 
-.task-step-title { display:block; white-space:normal; overflow-wrap:anywhere; }
+.task-step-title { display:inline; white-space:normal; overflow-wrap:anywhere; }
 .task-step-content { text-align:start; border-radius:4px; }
-button.task-step-content { cursor:pointer; }
-.task-step-detail { grid-column:2/-1; overflow-wrap:anywhere; padding:4px 4px 6px 0; }
-.task-step-detail p { margin:0 0 4px; font-size:12px; line-height:18px; }
+.task-step-detail { grid-column:2/-1; overflow-wrap:anywhere; padding-top:2px; font-size:11px; line-height:16px; color:var(--secondary-label); }
 
 .composer-task-body { padding:0; }
+
+.composer-card-title[data-kind=tasks] { align-items:baseline; }
+.composer-card-title[data-kind=tasks] > .truncate { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+.composer-card-row:has(.composer-card-title[data-kind=tasks]) { align-items:start; padding-block:4px; }
+.task-step-owner { display:inline-flex; align-items:center; gap:4px; max-width:100%; vertical-align:top; font-size:12px; font-weight:500; color:inherit; }
+.task-step-owner > span:last-child { min-width:0; overflow-wrap:anywhere; }
+
+.composer-card-row:has(.composer-card-title[data-kind=tasks]) > .composer-card-icon { height:16px; }

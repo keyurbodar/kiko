@@ -315,3 +315,24 @@ describe("keepUnchanged", () => {
     expect(rowA2.message.body).toBe("edited");
   });
 });
+
+test("background start and completion do not add rows, dividers or break a reply run", () => {
+  const event = (state: "started" | "done" | "failed"): ChatMessage["event"] => ({ kind: "subagent", agent: "b1" as never, state, title: "Check inbox", private: true });
+  const items = buildTimelineItems([
+    bot("start", at(-86_400_000), { event: event("started") }),
+    bot("a", at(0)),
+    bot("done", at(1_000), { event: event("done") }),
+    bot("b", at(2_000)),
+    bot("failure", at(3_000), { event: event("failed") }),
+  ]);
+  expect(items.map((i) => i.key)).toEqual(["msg:a", "msg:b", "msg:failure"]);
+  expect(messageRows(items).slice(0, 2).map((i) => i.runSize)).toEqual([3, 3]);
+});
+
+
+test("a hidden background event passes the unread divider to the next reply", () => {
+  const background = bot("background", at(0), { event: { kind: "subagent", agent: "b1" as never, state: "done", title: "Check inbox", private: true } });
+  expect(buildTimelineItems([background])).toEqual([]);
+  const items = buildTimelineItems([background, bot("reply", at(1_000)), bot("next", at(2_000))], "background");
+  expect(items.find((i) => i.kind === "unread-divider")?.key).toBe("unread:reply");
+});

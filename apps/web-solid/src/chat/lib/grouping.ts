@@ -95,6 +95,8 @@ type Entry =
 
 const order = (m: ChatMessage) => m.seq ?? Number.POSITIVE_INFINITY;
 
+const visibleMessage = (m: ChatMessage) => m.event?.kind !== "subagent" || !("state" in m.event) || (m.event.state !== "started" && m.event.state !== "done");
+
 /** Messages and notices in `seq` order, with agent-to-agent stretches folded into threads. */
 function entries(messages: readonly ChatMessage[], options: TimelineOptions): Entry[] {
   const notices = [...(options.notices ?? [])].sort((a, b) => a.seq - b.seq);
@@ -149,7 +151,11 @@ export function buildTimelineItems(
   firstUnreadMessageId?: string | null,
   options: TimelineOptions = {},
 ): TimelineItem[] {
-  const list = entries(messages, options);
+  const unreadIndex = messages.findIndex((m) => m.id === firstUnreadMessageId);
+  if (unreadIndex >= 0 && !visibleMessage(messages[unreadIndex])) {
+    firstUnreadMessageId = messages.slice(unreadIndex + 1).find((m) => visibleMessage(m) && m.sender !== "user")?.id;
+  }
+  const list = entries(messages.filter(visibleMessage), options);
   const n = list.length;
   if (n === 0) return [];
 
