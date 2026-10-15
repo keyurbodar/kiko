@@ -1,68 +1,106 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useNavigate } from "@solidjs/router"
 import { createSignal, For, onMount, Show } from "solid-js"
-import { AgentChip } from "../chat/ui/agent-chip"
-import { triggerLabel } from "../chat/info/routines-model"
-import { useApp } from "../lib/store"
 import { Dialog } from "../lib/dialog"
-import { Button, buttonClass, iconButtonClass } from "../settings/kit"
-import { RecipeApps } from "./apps"
-import { RecipeIcon } from "./recipe-icon"
-import { RecipePicker } from "./picker"
-import { openRecipeFile, installsFor, removeInstall, agentName, refreshListing, setRecipeRoutineStatus } from "./state"
+import { buttonClass } from "../settings/kit"
+import { AddPicker } from "./add"
+import { AppLogo, RecipeIcon } from "./icon"
+import { InstallRow } from "./row"
+import { addToTarget, editRecipe, installsFor, isAdded, refreshListing, targetsForChat } from "./state"
 
-export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; roomId?: string | null; mode?: "add" | "details"; agent?: string }) {
+const label = "px-1 text-[11.5px] font-semibold text-muted-foreground"
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+/**
+ * A recipe up close: what it does, the apps it uses, what the agent will ask, and where it runs.
+ * Add swaps the body for the chat picker, or adds at once from a chat with one agent.
+ */
+export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; roomId?: string | null; mode?: "add" | "details" }) {
   const navigate = useNavigate()
-  const go = (to: string) => { props.onClose(); navigate(to) }
+  const go = (to: string) => {
+    props.onClose()
+    navigate(to)
+  }
   const [adding, setAdding] = createSignal(props.mode === "add")
-  const installs = () => installsFor(props.recipe.slug).filter((i) => !props.agent || i.agent === props.agent)
+  const installs = () => installsFor(props.recipe.slug)
+  const here = () => {
+    const targets = props.roomId ? targetsForChat(props.roomId) : []
+    return targets.length === 1 && !isAdded(props.recipe.slug, targets[0]) ? targets[0] : undefined
+  }
   onMount(() => void refreshListing())
   return (
-    <Dialog open onClose={props.onClose} title={adding() ? `Add ${props.recipe.title}` : props.recipe.title} data-component="recipe-sheet">
-      <div class="flex flex-col gap-5">
-        <Show when={!adding()} fallback={<RecipePicker recipe={props.recipe} roomId={props.roomId} navigate={go} />}>
-          <div class="flex items-start gap-3">
-            <RecipeIcon recipe={props.recipe} size={48} />
-            <p class="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">{props.recipe.description}</p>
-          </div>
-          <RecipeApps apps={props.recipe.apps} />
-          <Show when={installs().length} fallback={<p class="text-sm text-muted-foreground">{props.recipe.when}</p>}>
-            <div class="flex flex-col gap-3" data-component="recipe-installs">
-              <For each={installs()}>{(install) => (
-                <section class="flex flex-col gap-3 rounded-lg border border-border p-3" data-install={install.installId}>
-                  <div class="flex items-center gap-2">
-                    <div class="flex min-w-0 flex-1 flex-col items-start gap-1.5">
-                      <span class="text-sm"><AgentChip slug={install.agent} name={agentName(install.agent)} /></span>
-                      <p class="max-w-full truncate text-xs text-muted-foreground">{useApp.chatById(install.roomId)?.name === agentName(install.agent) ? "Personal chat" : useApp.chatById(install.roomId)?.name ?? "Chat"}</p>
-                    </div>
-                    <Button data-action="open-recipe-chat" onClick={() => go(`/chat/${install.roomId}`)}>Open chat</Button>
-                    <MenuV2 gutter={4} placement="bottom-end">
-                      <MenuV2.Trigger class={iconButtonClass} aria-label={`Options for ${agentName(install.agent)}`}><span aria-hidden="true">⋯</span></MenuV2.Trigger>
-                      <MenuV2.Portal><MenuV2.Content class="recipe-menu"><MenuV2.Item onSelect={() => removeInstall(install)}>Remove from {agentName(install.agent)}</MenuV2.Item></MenuV2.Content></MenuV2.Portal>
-                    </MenuV2>
-                  </div>
-                  <Show when={install.routines} fallback={<p class="text-xs text-muted-foreground">Routine details will appear when synced.</p>}>
-                    {(routines) => <Show when={routines().length} fallback={<p class="text-xs text-muted-foreground">No routines for this install.</p>}>
-                      <For each={routines()}>{(routine) => <div class="flex items-center gap-3 border-t border-border pt-3" data-recipe-routine={routine.id} data-status={routine.status}>
-                        <div class="flex min-w-0 flex-1 flex-col gap-1">
-                          <span class="text-sm text-foreground">{triggerLabel(routine.trigger, routine.tz)}</span>
-                          <span class="text-xs text-muted-foreground">{routine.status === "paused" ? "Paused" : "Active"}</span>
-                        </div>
-                        <Button data-action="recipe-routine-toggle" onClick={() => setRecipeRoutineStatus(routine, routine.status === "active" ? "paused" : "active")}>{routine.status === "active" ? "Pause" : "Resume"}</Button>
-                      </div>}</For>
-                    </Show>}
-                  </Show>
-                </section>
-              )}</For>
-            </div>
-          </Show>
-          <div class="flex items-center justify-between gap-3">
-            <button type="button" class={buttonClass("ghost")} data-action="recipe-file" onClick={() => openRecipeFile(props.recipe.slug, go)}>Edit recipe</button>
-            <Button data-action="add-recipe" onClick={() => setAdding(true)}>Add</Button>
-          </div>
+    <Dialog
+      open
+      onClose={props.onClose}
+      data-component="recipe-sheet"
+      class="[--recipe-surface:var(--popover)]"
+      title={
+        <span class="flex items-center gap-3.5 pt-1">
+          <RecipeIcon recipe={props.recipe} size={52} stickers />
+          <span class="flex min-w-0 flex-col gap-0.5 pl-1">
+            <span class="truncate text-[17px] font-semibold tracking-[-0.01em]">{props.recipe.title}</span>
+            <span class="truncate text-[12.5px] font-normal text-muted-foreground">{adding() ? "Choose where it runs" : props.recipe.when}</span>
+          </span>
+        </span>
+      }
+      footer={
+        <Show when={!adding()}>
+          <button type="button" class={buttonClass("ghost", "mr-auto rounded-full")} data-action="recipe-file" onClick={() => void editRecipe(props.recipe.slug, go)}>
+            Edit recipe
+          </button>
+          <button
+            type="button"
+            class={buttonClass("primary", "rounded-full px-4")}
+            data-action="add-recipe"
+            onClick={() => {
+              const target = here()
+              if (target) addToTarget(props.recipe, target, go)
+              else setAdding(true)
+            }}
+          >
+            {here() ? "Add to this chat" : "Add to a chat"}
+          </button>
         </Show>
-      </div>
+      }
+    >
+      <Show when={!adding()} fallback={<AddPicker card={props.recipe} roomId={props.roomId} navigate={go} />}>
+        <div class="flex flex-col gap-5">
+          <p class="text-[14px] leading-relaxed text-foreground/85">{props.recipe.description}</p>
+
+          <Show when={props.recipe.apps.length}>
+            <section class="flex flex-col gap-1.5" data-component="recipe-apps">
+              <h3 class={label}>Uses</h3>
+              <For each={props.recipe.apps}>
+                {(app) => (
+                  <div class="flex items-center gap-3 px-1 py-1" data-app={app.slug}>
+                    <AppLogo app={app} size={26} />
+                    <span class="min-w-0 flex-1 truncate text-sm text-foreground">{app.name}</span>
+                    <Show when={app.connected} fallback={<span class="shrink-0 text-xs text-muted-foreground">Your agent sends the link</span>}>
+                      <span class="shrink-0 text-xs text-[var(--success)]">Connected</span>
+                    </Show>
+                  </div>
+                )}
+              </For>
+            </section>
+          </Show>
+
+          <Show when={props.recipe.setup.length}>
+            <section class="flex flex-col gap-1.5" data-component="recipe-setup">
+              <h3 class={label}>Your agent will ask</h3>
+              <div class="flex flex-col items-start gap-1">
+                <For each={props.recipe.setup}>{(q) => <p class="max-w-[85%] rounded-[14px] rounded-bl-[4px] bg-card px-3 py-2 text-[13.5px] leading-snug text-foreground">{capital(q)}</p>}</For>
+              </div>
+            </section>
+          </Show>
+
+          <Show when={installs().length}>
+            <section class="-mx-2.5 flex flex-col gap-0.5" data-component="recipe-installs">
+              <h3 class={`${label} px-3.5 pb-1`}>Running in</h3>
+              <For each={installs()}>{(install) => <InstallRow install={install} card={props.recipe} lead="chat" navigate={go} />}</For>
+            </section>
+          </Show>
+        </div>
+      </Show>
     </Dialog>
   )
 }

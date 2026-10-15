@@ -4,13 +4,12 @@ import { BackIcon, SparklesIcon } from "@kiko/ui/icons"
 
 export default function RecipesSidebar() {
   const [params] = useSearchParams()
-  const href = (installed: boolean) => `/recipes?${new URLSearchParams({ ...(installed ? { view: "installed" } : {}), ...(typeof params.room === "string" ? { room: params.room } : {}) })}`
+  const href = () => (typeof params.room === "string" ? `/recipes?room=${encodeURIComponent(params.room)}` : "/recipes")
   return (
     <nav class="settings-panel" data-component="recipes-panel" aria-label="Recipes navigation">
       <A href="/chat" class="settings-panel-row"><HugeIcon icon={BackIcon} size={16} /><span class="settings-row-label">Chats</span></A>
       <div class="settings-group">
-        <A href={href(false)} class="settings-panel-row" classList={{ "settings-panel-row-active": params.view !== "installed" }}><HugeIcon icon={SparklesIcon} size={16} /><span class="settings-row-label">All recipes</span></A>
-        <A href={href(true)} class="settings-panel-row" classList={{ "settings-panel-row-active": params.view === "installed" }}><span class="settings-row-label pl-6">In use</span></A>
+        <A href={href()} class="settings-panel-row settings-panel-row-active"><HugeIcon icon={SparklesIcon} size={16} /><span class="settings-row-label">Recipes</span></A>
       </div>
     </nav>
   )
