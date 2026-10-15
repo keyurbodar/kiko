@@ -16,12 +16,12 @@ import { Paragraph } from "@tiptap/extension-paragraph"
 import { Strike } from "@tiptap/extension-strike"
 import { Text } from "@tiptap/extension-text"
 import { UndoRedo } from "@tiptap/extensions"
-import { chainCommands, newlineInCode, setBlockType, splitBlock } from "@tiptap/pm/commands"
+import { chainCommands, newlineInCode, setBlockType, splitBlock, splitBlockKeepMarks } from "@tiptap/pm/commands"
 import { keymap } from "@tiptap/pm/keymap"
 import { Fragment, Slice, type Node as PMNode, type NodeType } from "@tiptap/pm/model"
 import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state"
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
-import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, selectionInOneCodeBlock, shiftEnterInCode, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
+import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, selectionInOneCodeBlock, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
 import { BINDINGS } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { attachmentExtension, type ChipView, Link, Mention } from "./nodes"
@@ -188,6 +188,18 @@ const unsetHeadingAtStart: Command = (state, dispatch) => {
   return setBlockType(state.schema.nodes.paragraph!)(state, dispatch)
 }
 
+/**
+ * A newline starts a new block, as in t3code, rather than a line break: a break would keep the
+ * caret inside the block it came from, so the next line could never become a heading, a rule, a
+ * list or a fence. Marks carry over so bold text continues, and a list, an empty quote and a
+ * heading each leave the block their own way.
+ */
+const newline: Command = (state, dispatch) =>
+  splitOrLeaveListItem(state, dispatch) ||
+  leaveEmptyQuote(state, dispatch) ||
+  leaveHeading(state, dispatch) ||
+  splitBlockKeepMarks(state, dispatch)
+
 export function mountRichEditor(options: RichOptions) {
   let previousKind: ChangeKind | null = null
 
@@ -200,11 +212,7 @@ export function mountRichEditor(options: RichOptions) {
       return [
         keymap({
           ...bindings,
-          "Shift-Enter": (state, dispatch) =>
-            splitOrLeaveListItem(state, dispatch) ||
-            leaveEmptyQuote(state, dispatch) ||
-            shiftEnterInCode(state, dispatch) ||
-            leaveHeading(state, dispatch),
+          "Shift-Enter": newline,
           Backspace: chainCommands(backspaceAcrossList, unwrapCodeBlockAtStart, unsetHeadingAtStart),
           Delete: deleteAcrossList,
         }),
@@ -321,7 +329,7 @@ export function mountRichEditor(options: RichOptions) {
               newlineInCode(view.state, view.dispatch)
             return true
           }
-          if (!event.shiftKey && openFenceOnEnter(view.state, view.dispatch)) {
+          if (openFenceOnEnter(view.state, view.dispatch)) {
             event.preventDefault()
             return true
           }

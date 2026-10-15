@@ -1,4 +1,4 @@
-import { exitCode, joinTextblockBackward, joinTextblockForward, newlineInCode } from "@tiptap/pm/commands"
+import { exitCode, joinTextblockBackward, joinTextblockForward } from "@tiptap/pm/commands"
 import { liftListItem, splitListItem } from "@tiptap/pm/schema-list"
 import { liftTarget } from "@tiptap/pm/transform"
 import { Fragment, type Node, type ResolvedPos } from "@tiptap/pm/model"
@@ -120,10 +120,6 @@ export function leaveEmptyQuote(state: EditorState, dispatch?: Dispatch): boolea
     dispatch(tr.scrollIntoView())
   }
   return true
-}
-
-export function shiftEnterInCode(state: EditorState, dispatch?: Dispatch): boolean {
-  return newlineInCode(state, dispatch)
 }
 
 export function parseOpeningFence(line: string): { fence: string; language: string } | null {

@@ -15,7 +15,7 @@ import type { Node } from "@tiptap/pm/model"
 import { EditorState, Selection, TextSelection, type Transaction } from "@tiptap/pm/state"
 import { TaskItem } from "@tiptap/extension-task-item"
 import { TaskList } from "@tiptap/extension-task-list"
-import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, shiftEnterInCode, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
+import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
 import { Link, Mention } from "./nodes"
 
 const ListItemWithMarker = ListItem.extend({ addAttributes: () => ({ marker: { default: "-", rendered: false } }) })
@@ -80,13 +80,6 @@ describe("Shift+Enter in a quote", () => {
 
   test("a filled line of a quote stays in it", () => {
     expect(run(stateOf({ type: "blockquote", content: [para("one")] }), leaveEmptyQuote)).toBeNull()
-  })
-})
-
-describe("Shift+Enter in a fence", () => {
-  test("inserts a line of code", () => {
-    const doc = run(stateOf({ type: "codeBlock", content: [text("word")] }), shiftEnterInCode)
-    expect(doc?.child(0).textContent).toBe("word\n")
   })
 })
 
