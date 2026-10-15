@@ -10,7 +10,7 @@ export interface ClerkEnv {
 // Clock skew allowed on exp and nbf, in seconds.
 const SKEW_S = 5
 
-export type ClerkVerdict = { ok: true } | { ok: false; status: 401 | 403; message: string }
+type ClerkVerdict = { ok: true } | { ok: false; status: 401 | 403; message: string }
 
 const bad = (message: string): ClerkVerdict => ({ ok: false, status: 401, message })
 
