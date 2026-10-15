@@ -31,7 +31,7 @@ function checkSlug(slug: string): AgentSlug {
 
 export async function composioUserId(userId: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`composio:${checkUser(userId)}`))
-  return `yuki_${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32)}`
+  return `kiko_${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32)}`
 }
 
 export function userName(userId: string): string {

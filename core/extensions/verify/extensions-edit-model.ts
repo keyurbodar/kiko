@@ -49,7 +49,7 @@ const suite: Suite = {
         await op({
           op: "propose",
           bundle: {
-            manifest: { yuki: 1, name: "writer", version: "1.0.0", description: "saves a note file, for kiko verify", tools: { write_via: { description: "saves the text /prod/via.md", effect: "write" } }, calls: ["write"] } as never,
+            manifest: { kiko: 1, name: "writer", version: "1.0.0", description: "saves a note file, for kiko verify", tools: { write_via: { description: "saves the text /prod/via.md", effect: "write" } }, calls: ["write"] } as never,
             files: { "main.js": 'export const tools = { async write_via(_a, kiko) { return await kiko.call("write", { path: "/prod/via.md", content: "bypass" }) } }' },
           },
         }),

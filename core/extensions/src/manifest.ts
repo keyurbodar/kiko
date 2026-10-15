@@ -40,7 +40,7 @@ export type ExtensionTest = {
 }
 
 export type ExtensionManifest = {
-	yuki: typeof EXTENSION_SDK
+	kiko: typeof EXTENSION_SDK
 	name: string
 	version: string
 	description: string
@@ -85,9 +85,9 @@ const HOST = /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 const PATH = /^(?:[a-z0-9_-][a-z0-9._-]{0,63}\/){0,3}[a-z0-9_-][a-z0-9._-]{0,63}\.(?:js|mjs|json|md|txt)$/i
 const RRULE = /^(?:RRULE:)?FREQ=(?:MINUTELY|HOURLY|DAILY|WEEKLY|MONTHLY|YEARLY)(?:;[A-Z]+=[A-Z0-9,+-]+)*$/
 
-export const PROTECTED_SECTIONS: readonly string[] = ["yuki", "reactions", "role"]
+export const PROTECTED_SECTIONS: readonly string[] = ["kiko", "reactions", "role"]
 
-const KEYS = new Set(["$schema", "yuki", "name", "version", "description", "main", "tools", "sections", "hooks", "wraps", "calls", "egress", "secrets", "state", "triggers", "tests"])
+const KEYS = new Set(["$schema", "kiko", "name", "version", "description", "main", "tools", "sections", "hooks", "wraps", "calls", "egress", "secrets", "state", "triggers", "tests"])
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string")
@@ -115,7 +115,7 @@ export function checkManifest(value: unknown): ManifestCheck {
 	const bad = (line: string) => problems.push(line)
 	if (!isObject(value)) return { ok: false, problems: ["the manifest must be a json object"] }
 	for (const key of Object.keys(value)) if (!KEYS.has(key)) bad(`unknown key "${key}"`)
-	if (value.yuki !== EXTENSION_SDK) bad(`"yuki" must be ${EXTENSION_SDK}`)
+	if (value.kiko !== EXTENSION_SDK) bad(`"kiko" must be ${EXTENSION_SDK}`)
 	if (typeof value.name !== "string" || !NAME.test(value.name)) bad(`"name" must be 2 to 32 lowercase letters, digits, or dashes, starting with a letter`)
 	if (typeof value.version !== "string" || !VERSION.test(value.version)) bad(`"version" must look like 1.0.0`)
 	if (typeof value.description !== "string" || !value.description.trim()) bad(`"description" is required`)

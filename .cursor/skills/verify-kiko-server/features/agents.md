@@ -11,9 +11,9 @@ Suites: `agents` (roster sync), `team-ask` (asking another agent a question), `t
 - **team-flow**: a batch of three messages to three agents gets one run; an ask crosses agents, and Ben's own question is not taken as the answer to Ana's ask; a refused burst is refused; a task wakes Ben.
 - **team-routing**: a team of bob, ada, and cy, with the kiko lead added by the dev `fake` call. Routing sends each message to the named agent only, and an untagged message to the lead only.
 - **team-loops**: an echo loop between two agents stops at 8 hops with one notice (9 envelopes). A broadcast is capped at 40 deliveries.
-- **team-model**: the human asks `@yuki` for a one-day walk in `/walk.md`. Kiko must get the pastry stop from `ada` and the meeting point from `bob` before it writes the file. It passes when both facts are in the file and no agent runs more than twice for one request.
+- **team-model**: the human asks `@kiko` for a one-day walk in `/walk.md`. Kiko must get the pastry stop from `ada` and the meeting point from `bob` before it writes the file. It passes when both facts are in the file and no agent runs more than twice for one request.
 - **team-race**: `@all` tells both agents to add their own line to `/notes.md` at once, keeping the other's. The file must hold both names; a lost line fails.
-- **hardcore**: a real model drives a dinner-party room. Five messages sent fast get one lead run, and the lead may hand part of the burst to `ada`, but she must not speak until the lead tags her. Then `@ada` is answered by ada with kiko quiet, `@yuki` adds `nova` who answers, kiko asks ada for a dessert and passes the answer to the human, a reminder fires after at least 15 s, and a second message joins a run in time to change the answer.
+- **hardcore**: a real model drives a dinner-party room. Five messages sent fast get one lead run, and the lead may hand part of the burst to `ada`, but she must not speak until the lead tags her. Then `@ada` is answered by ada with kiko quiet, `@kiko` adds `nova` who answers, kiko asks ada for a dessert and passes the answer to the human, a reminder fires after at least 15 s, and a second message joins a run in time to change the answer.
 
 ## How to get to it (user POV)
 

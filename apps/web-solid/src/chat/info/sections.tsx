@@ -45,7 +45,7 @@ export function DangerRow(props: { action: string; label: string; description: s
   )
 }
 
-const DEFAULT_MEMBER = { slug: "yuki" as Member["slug"], name: "Kiko", lead: true }
+const DEFAULT_MEMBER = { slug: "kiko" as Member["slug"], name: "Kiko", lead: true }
 
 export function roomMembers(): readonly Member[] {
   const members = useApp.roomMembers()

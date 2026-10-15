@@ -2,7 +2,7 @@ import { type Agent, type AgentSlug, isAgentSlug, tagline } from "@kiko/protocol
 import { MAX_CHAT } from "../files/room-fs"
 import { MAX_SOUL } from "../user/souls"
 
-export const CHIEF = "yuki" as AgentSlug
+export const CHIEF = "kiko" as AgentSlug
 
 export type NewAgentSpec = { name: string; handle: string; description: string; soul: string }
 

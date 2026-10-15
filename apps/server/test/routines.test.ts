@@ -32,7 +32,7 @@ describe("triggers (section 25.4)", () => {
 
   const ctx = { roomId: "r1", at: 0, by: { kind: "human" } as const }
   const at = { seq: 1, at: 0 }
-  const r = (trigger: RoomRoutine["trigger"]): RoomRoutine => ({ id: "r", target: "yuki", trigger })
+  const r = (trigger: RoomRoutine["trigger"]): RoomRoutine => ({ id: "r", target: "kiko", trigger })
 
   test("room events match by kind, status, sender, text, and path prefix", () => {
     const task = signalOf({ ...at, t: "task", task: { id: "t", title: "ship", status: "review", dependsOn: [] } } as RoomEvent, ctx)!
@@ -53,7 +53,7 @@ describe("triggers (section 25.4)", () => {
     const agent = (slug: string, eventRun = false) => ({ kind: "agent" as const, slug, name: slug, eventRun })
     const batch = (...signals: Signal[]) => ({ roomId: "r1", openedAt: 0, signals, more: 0 })
     const any = r({ on: "message", from: "any" })
-    expect(routineRun(any, batch(say("mine", agent("yuki")), say("loop", agent("ada", true))))).toBeNull()
+    expect(routineRun(any, batch(say("mine", agent("kiko")), say("loop", agent("ada", true))))).toBeNull()
     expect(routineRun(any, batch(say("hi", { kind: "human" }), say("read a page", agent("ada"))))).toEqual({ body: 'what happened:\n- the human wrote: "hi"\n- @ada wrote: "read a page"' })
     expect(routineRun(any, { ...batch(say("hi", { kind: "human" })), more: 3 })!.body.endsWith("- and more")).toBe(true)
   })

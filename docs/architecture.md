@@ -412,7 +412,7 @@ One chat per agent. A direct chat is a chat that is not temporary and has exactl
 
 The kiko chat is the chief's chat: the first pinned tile, never a list row. UserDO refuses to unpin or delete it. Every other room with kiko alone (old drafts, a second kiko chat, a room made with no agents) is hidden from the list.
 
-The chief is Kiko. Its slug is `yuki`, kept so that stored chats, routines, souls, and extension scopes keep working, so its handle is `@yuki`. Its direct chat is the kiko chat (the `yuki_home` setting).
+The chief is Kiko. Its slug and handle are `kiko` and `@kiko`. Its direct chat is the kiko chat (the `kiko_home` setting).
 
 Resume. The client sends `open { roomId }` two seconds after the user settles in a chat. UserDO stores it in `settings` without an event or a broadcast. A snapshot carries `lastChat`: that chat when it exists and is not temporary, else the kiko chat. A client with nothing (`lastSeq` 0) always gets a snapshot. `/` and `/chat` open this device's last chat (localStorage) at once, else the snapshot's, else the kiko chat.
 

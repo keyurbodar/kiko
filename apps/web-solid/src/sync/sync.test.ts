@@ -723,11 +723,11 @@ describe("the user store", () => {
 	})
 
 	test("a group with the same agents as one there is refused, in any order", async () => {
-		const mock = createMockUser({ chats: [{ ...fixtures.chat, roomId: fixtures.otherRoomId, agents: ["yuki", "id-ada"] }] })
+		const mock = createMockUser({ chats: [{ ...fixtures.chat, roomId: fixtures.otherRoomId, agents: ["kiko", "id-ada"] }] })
 		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
 		await store.ready
 		await until(() => store.state.synced)
-		const again = store.createChat("kiko, ada", ["id-ada", "yuki"])
+		const again = store.createChat("kiko, ada", ["id-ada", "kiko"])
 		await until(() => store.state.refused[again] !== undefined)
 		expect(store.state.refused[again]).toBe(fixtures.otherRoomId)
 		expect(store.chats().map((c) => c.roomId)).toEqual([fixtures.otherRoomId])

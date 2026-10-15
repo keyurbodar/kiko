@@ -19,10 +19,10 @@ const FLAG_KEY = "kiko:session"
 
 /*
  * ASSUMPTION: the warm tier (P2-05) names each user's database
- * `yuki-warm:<userId>`, optionally with more after a second colon. Clearing deletes
+ * `kiko-warm:<userId>`, optionally with more after a second colon. Clearing deletes
  * every database with that name or prefix.
  */
-export const warmDbPrefix = (userId: string) => `yuki:warm:${userId}`
+export const warmDbPrefix = (userId: string) => `kiko:warm:${userId}`
 
 function readFlag(): SessionUser | null {
   try {

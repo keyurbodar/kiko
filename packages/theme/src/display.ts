@@ -45,7 +45,7 @@ export function fontFamily(name: string, stack: string): string {
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const oneOf = <T extends string>(table: Record<T, unknown>, v: unknown, fallback: T): T => (typeof v === "string" && v in table ? (v as T) : fallback)
 
-const PRESET_KEYS = new Set(["yuki", "system", "rounded", "serif", "mono", "fantasque", "interface"])
+const PRESET_KEYS = new Set(["kiko", "system", "rounded", "serif", "mono", "fantasque", "interface"])
 const familyName = (v: unknown): string => {
   if (typeof v !== "string" || PRESET_KEYS.has(v)) return ""
   return v.replace(/["';\\{}<>]/g, "").trim().slice(0, NAME_MAX)

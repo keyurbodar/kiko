@@ -19,7 +19,7 @@ NODE_ENV=development bun run --cwd apps/server dev --port 8787 --inspector-port 
 cd apps/server && bunx wrangler d1 migrations apply kiko-auth --local --persist-to <dir>
 ```
 
-`verify-parallel.sh` runs this against its own state. `apps/server/.dev.vars` is a symlink to `~/.config/yuki/dev.vars`, added by a git hook. If it is missing, link it by hand.
+`verify-parallel.sh` runs this against its own state. `apps/server/.dev.vars` is a symlink to `~/.config/kiko/dev.vars`, added by a git hook. If it is missing, link it by hand.
 
 Set `KIKO_URL=http://localhost:<your port>` to point every command at your own server; the CLI prints `kiko: target <url>` on its first line, and `--url` overrides it per command.
 

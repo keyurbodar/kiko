@@ -70,7 +70,7 @@ const suite: Suite = {
     const ada = { id: `agent-ada-${Date.now()}`, name: "ada", slug: "ada" as never, prompt: "you love food and wine and you are a bit witty.", model: "" }
     user.send({ t: "agent", op: { op: "create", agent: ada } })
     const roomId = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "dinner crew", agents: ["yuki", ada.id] } })
+    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "dinner crew", agents: ["kiko", ada.id] } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
     await poll("the members", () => seen(room).members.length >= 2, 10_000).catch(() => {})
@@ -83,14 +83,14 @@ const suite: Suite = {
       room.send(text)
       await Bun.sleep(350)
     }
-    await poll("the lead's answer", () => agentSays(room, from, "yuki").length > 0, 60_000)
+    await poll("the lead's answer", () => agentSays(room, from, "kiko").length > 0, 60_000)
     const firstLead = Date.now() - t0
     await quiet(room, 6_000, 90_000)
-    const leadRuns = seen(room).runs.get("yuki") ?? 0
+    const leadRuns = seen(room).runs.get("kiko") ?? 0
     print(room, from)
     if (leadRuns !== 1) fail.push(`rapid fire: the lead ran ${leadRuns} times for one burst`)
     // The lead may hand part of the burst to ada; she must not speak before the lead tags her.
-    const leadTagsAda = agentSays(room, from, "yuki").find((m) => /@ada\b/i.test(m.text))?.seq ?? Number.POSITIVE_INFINITY
+    const leadTagsAda = agentSays(room, from, "kiko").find((m) => /@ada\b/i.test(m.text))?.seq ?? Number.POSITIVE_INFINITY
     if (agentSays(room, from, "ada").some((m) => m.seq < leadTagsAda)) fail.push("rapid fire: ada spoke on a message that tagged nobody")
     step(`rapid fire: 5 messages, the lead answered once (first bubble ${firstLead} ms), ada was not woken`)
 
@@ -99,12 +99,12 @@ const suite: Suite = {
     await poll("ada's answer", () => agentSays(room, from, "ada").length > 0, 60_000)
     await quiet(room, 5_000, 60_000)
     print(room, from)
-    const adaToKiko = agentSays(room, from, "ada").some((m) => /@yuki\b/.test(m.text))
-    if (agentSays(room, from, "yuki").length && !adaToKiko) fail.push("tagged: kiko spoke on a message tagged only for ada")
+    const adaToKiko = agentSays(room, from, "ada").some((m) => /@kiko\b/.test(m.text))
+    if (agentSays(room, from, "kiko").length && !adaToKiko) fail.push("tagged: kiko spoke on a message tagged only for ada")
     step(`tagged: ada answered${adaToKiko ? " (and messaged kiko, who answered her)" : ", kiko stayed quiet"}`)
 
     from = lastSeq(room)
-    room.send("@yuki make a new agent called nova, a designer, who suggests 3 colors for an invite card")
+    room.send("@kiko make a new agent called nova, a designer, who suggests 3 colors for an invite card")
     await poll("kiko to make nova in its own chat", () => after(room, from).some((m) => m.goto !== undefined), 120_000)
     await quiet(room, 6_000, 90_000)
     print(room, from)
@@ -112,19 +112,19 @@ const suite: Suite = {
     step("new agent: kiko made @nova in its own chat, and this chat gained no member")
 
     from = lastSeq(room)
-    room.send("@yuki ask ada for one dessert idea, then tell me what she said")
-    await poll("an agent-to-agent message", () => after(room, from).some((m) => m.from.kind === "agent" && /@ada\b/.test(m.text) && m.from.slug === "yuki"), 90_000)
+    room.send("@kiko ask ada for one dessert idea, then tell me what she said")
+    await poll("an agent-to-agent message", () => after(room, from).some((m) => m.from.kind === "agent" && /@ada\b/.test(m.text) && m.from.slug === "kiko"), 90_000)
     await poll("ada's answer to kiko", () => agentSays(room, from, "ada").length > 0, 90_000)
     await quiet(room, 8_000, 120_000)
     print(room, from)
-    const kikoRuns = seen(room).runs.get("yuki") ?? 0
+    const kikoRuns = seen(room).runs.get("kiko") ?? 0
     const answerAt = agentSays(room, from, "ada")[0]?.seq
-    if (!agentSays(room, from, "yuki").some((m) => m.seq > answerAt)) fail.push("a2a: kiko never told the human what ada said")
+    if (!agentSays(room, from, "kiko").some((m) => m.seq > answerAt)) fail.push("a2a: kiko never told the human what ada said")
     step(`a2a: kiko asked ada, ada answered, and kiko passed it on (kiko runs so far: ${kikoRuns})`)
 
     from = lastSeq(room)
     t0 = Date.now()
-    room.send("@yuki remind me in 20 seconds to buy candles")
+    room.send("@kiko remind me in 20 seconds to buy candles")
     await poll("the reminder line", () => after(room, from).some((m) => m.from.kind === "system" && /candle/i.test(m.text)), 120_000)
     const fired = (Date.now() - t0) / 1000
     print(room, from)
@@ -133,13 +133,13 @@ const suite: Suite = {
     await quiet(room, 4_000, 30_000)
 
     from = lastSeq(room)
-    room.send("@yuki what should the main course be")
+    room.send("@kiko what should the main course be")
     await poll("kiko typing", () => room.raw.log.slice(-40).some((e) => e.dir === "in" && (e.frame as RoomToClient).t === "status" && (e.frame as Extract<RoomToClient, { t: "status" }>).state !== "idle"), 30_000)
-    room.send("@yuki oh and one guest is vegetarian")
-    await poll("kiko's answer", () => agentSays(room, from, "yuki").length > 0, 90_000)
+    room.send("@kiko oh and one guest is vegetarian")
+    await poll("kiko's answer", () => agentSays(room, from, "kiko").length > 0, 90_000)
     await quiet(room, 6_000, 90_000)
     print(room, from)
-    const answer = agentSays(room, from, "yuki").map((m) => m.text).join(" ")
+    const answer = agentSays(room, from, "kiko").map((m) => m.text).join(" ")
     if (!/vegetar|veggie|meat-free|plant/i.test(answer)) fail.push("interrupt: the reply ignored the vegetarian guest")
     step("interrupt: the reply took the second message into account")
 

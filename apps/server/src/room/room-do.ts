@@ -56,7 +56,7 @@ const MAX_DOING = 160
 const DELEGATED_TITLE = 100
 const edit = (caption: string): Activity => ({ kind: "tool", tool: "edit", caption })
 
-export const DEFAULT_AGENT = "yuki" as AgentSlug
+export const DEFAULT_AGENT = CHIEF
 const CHIEF_NAME = "Kiko"
 export type { AgentHome }
 

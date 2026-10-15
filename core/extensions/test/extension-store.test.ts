@@ -37,7 +37,7 @@ async function seen(user: string) {
 }
 
 const manifest = {
-  yuki: 1,
+  kiko: 1,
   name: "hook",
   version: "1.0.0",
   description: "posts",

@@ -61,7 +61,7 @@ export const clientToUser: readonly ClientToUser[] = [
 	{ t: "chat", op: { op: "pin", roomId, pinned: true } },
 	{ t: "chat", op: { op: "mute", roomId, muted: true } },
 	{ t: "chat", op: { op: "delete", roomId: otherRoomId } },
-	{ t: "chat", op: { op: "create", roomId: refusedRoomId, title: "kiko, ada", agents: ["yuki", "ada"] } },
+	{ t: "chat", op: { op: "create", roomId: refusedRoomId, title: "kiko, ada", agents: ["kiko", "ada"] } },
 	{ t: "open", roomId: refusedRoomId },
 	{ t: "search", query: "protocol" },
 	{ t: "login.start", loginId: "l1", provider: "github-copilot" },

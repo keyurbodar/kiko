@@ -170,7 +170,7 @@ export class UserDO extends DurableObject<Env> {
       openChat: async (title, agentIds) => (await this.openChat(title, agentIds)).roomId,
       chiefModel: async () => {
         const roomId = kikoChatRoom(this.sql)
-        return roomId ? roomStub(this.env.ROOM, owner(), roomId).modelOf("yuki").catch(() => "") : ""
+        return roomId ? roomStub(this.env.ROOM, owner(), roomId).modelOf("kiko").catch(() => "") : ""
       },
       announce: (roomId, input) => roomStub(this.env.ROOM, owner(), roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
     })
@@ -690,7 +690,7 @@ export class UserDO extends DurableObject<Env> {
     }
     if (frame.t === "hello") {
       this.seen()
-      // The reply says which build answered, so the client can tell it is out of date (versions in docs/app-yuki-codes.md).
+      // The reply says which build answered, so the client can tell it is out of date (versions in docs/app-kiko.md).
       send(ws, { ...this.resume(frame.lastSeq), ...BACKEND })
       // The client starts with no browser, so a hello sends a browser only when there is one.
       const browser = this.#kr.browserState()

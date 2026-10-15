@@ -28,7 +28,7 @@ export async function team(v: { url: string }, s: Session, slugs: string[], titl
   user.send({ t: "chat", op: { op: "create", roomId, title, agents: slugs.map((n) => agentOf(n).id) } })
   await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
   const room = await s.room(roomId)
-  const members = slugs.length > 1 ? ["yuki", ...slugs] : slugs
+  const members = slugs.length > 1 ? ["kiko", ...slugs] : slugs
   await dev(v.url, s.cookie, "fake", { roomId, slugs: members })
   const received = async () => {
     let total = 0

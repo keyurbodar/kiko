@@ -19,7 +19,7 @@ function routines() {
   return { sql, reminders, wiring }
 }
 
-const hook = { name: "hook", instructions: "say hi", trigger: { on: "webhook" as const }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" }
+const hook = { name: "hook", instructions: "say hi", trigger: { on: "webhook" as const }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" }
 const timed = { on: "time" as const, at: new Date(Date.now() + 86_400_000).toISOString() }
 
 test("a webhook token finds its routine by hash, and a wrong token finds none", async () => {

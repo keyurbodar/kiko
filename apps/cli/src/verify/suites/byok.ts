@@ -32,7 +32,7 @@ async function refused(room: RoomHandle, before: number): Promise<void> {
   await send(room, "reply with the single word ok.")
   await poll("a no_provider event", () => noProviders(room).length > before, 15_000)
   const event = must(noProviders(room).at(-1), "no_provider event")
-  expectEqual({ slug: event.slug, provider: event.provider }, { slug: "yuki", provider: TEST_PROVIDER }, "the no_provider event")
+  expectEqual({ slug: event.slug, provider: event.provider }, { slug: "kiko", provider: TEST_PROVIDER }, "the no_provider event")
   const bubbles = seen(room).all.length
   await Bun.sleep(QUIET_MS)
   expectEqual(runSigns(room, from), [], "signs of a run after no_provider")

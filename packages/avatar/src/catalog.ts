@@ -1,9 +1,9 @@
 export const FLAVOUR_NAMES = [
-  "hatsuyuki", "sakura", "ume", "momo", "matcha", "ichigo", "kinako", "hojicha",
+  "fubuki", "sakura", "ume", "momo", "matcha", "ichigo", "kinako", "hojicha",
   "yuzu", "ramune", "ajisai", "suika", "tsukimi", "momiji", "ginkgo", "goma",
   "yomogi", "azuki", "kuri", "fuji", "mikan", "kohi", "anzu", "shio",
   "melon", "budo", "purin", "kabocha", "remon", "chocomint", "sora", "usuzumi",
-  "ringo", "sakuranbo", "mango", "beniimo", "genmai", "kuromitsu", "nashi", "yukimi",
+  "ringo", "sakuranbo", "mango", "beniimo", "genmai", "kuromitsu", "nashi", "mochi",
 ] as const;
 export const LEAF_NAMES = ["camellia", "nandina", "bamboo", "pine", "sakura", "ume", "momiji", "ginkgo", "susuki"] as const;
 export const EYE_NAMES = ["nanten", "kuromame", "kohaku", "blueberry", "ume", "ice"] as const;
@@ -48,7 +48,7 @@ export interface Flavour {
 }
 
 export const FLAVOURS: Record<FlavourName, Flavour> = {
-  hatsuyuki: { label: "Hatsuyuki", note: "first snow", body: "#FBFBF9", shade: "#CFDAE8", grain: "#B7C6D8", leaf: "camellia", eye: "nanten" },
+  fubuki: { label: "Fubuki", note: "first snow", body: "#FBFBF9", shade: "#CFDAE8", grain: "#B7C6D8", leaf: "camellia", eye: "nanten" },
   sakura: { label: "Sakura", note: "spring snow", body: "#FFF5F6", shade: "#EDD3D8", grain: "#DDB5BE", leaf: "sakura", eye: "ume", blush: true, toppings: [{ kind: "petals" }] },
   ume: { label: "Ume", note: "plum blossom", body: "#FFF9F7", shade: "#EADADD", grain: "#D9BEC4", leaf: "ume", eye: "ume", blush: true },
   momo: { label: "Momo", note: "white peach", body: "#FFEFE8", shade: "#F1D3C7", grain: "#E2B4A4", leaf: "nandina", leafColor: ["#78A653", "#B9D98F"], eye: "nanten", blush: true },
@@ -86,7 +86,7 @@ export const FLAVOURS: Record<FlavourName, Flavour> = {
   genmai: { label: "Genmai", note: "roasted rice tea", body: "#F2ECD5", shade: "#D8CDA6", grain: "#C2B484", leaf: "bamboo", eye: "kuromame", toppings: [{ kind: "dust", color: "#9C7B4A" }] },
   kuromitsu: { label: "Kuromitsu", note: "brown sugar syrup", body: "#FBF5EC", shade: "#E4D6C3", grain: "#CBB79E", leaf: "nandina", eye: "kohaku", toppings: [{ kind: "cap", color: "#3E2A20" }] },
   nashi: { label: "Nashi", note: "asian pear", body: "#FBF8E6", shade: "#E6E0B6", grain: "#D2C98E", leaf: "camellia", leafColor: ["#5E8F3A", "#9CC56E"], eye: "kohaku", toppings: [{ kind: "dust", color: "#C4B276" }] },
-  yukimi: { label: "Yukimi", note: "snow daifuku", body: "#FFFFFF", shade: "#D8E2EE", grain: "#C0CFE0", leaf: "ume", eye: "kuromame", blush: true, toppings: [{ kind: "sparkles", color: "#AFC6E3" }] },
+  mochi: { label: "Mochi", note: "snow daifuku", body: "#FFFFFF", shade: "#D8E2EE", grain: "#C0CFE0", leaf: "ume", eye: "kuromame", blush: true, toppings: [{ kind: "sparkles", color: "#AFC6E3" }] },
   shio: { label: "Shio", note: "sea salt", body: "#F4F8FA", shade: "#C9D8E2", grain: "#A9BCC9", leaf: "bamboo", eye: "ice", toppings: [{ kind: "sparkles", color: "#8DBCD6" }] },
 };
 
@@ -100,7 +100,7 @@ export interface Season {
 }
 
 export const SEASONS: readonly Season[] = [
-  { label: "Shōgatsu", flavour: "hatsuyuki", leaf: "pine", charm: "mikan" },
+  { label: "Shōgatsu", flavour: "fubuki", leaf: "pine", charm: "mikan" },
   { label: "Ume", flavour: "ume" },
   { label: "Hina", flavour: "momo", charm: "mizuhiki", outfit: "obi" },
   { label: "Sakura", flavour: "sakura" },
@@ -111,7 +111,7 @@ export const SEASONS: readonly Season[] = [
   { label: "Tsukimi", flavour: "tsukimi" },
   { label: "Momiji", flavour: "momiji", outfit: "scarf" },
   { label: "Ginkgo", flavour: "ginkgo", charm: "beret" },
-  { label: "Hatsuyuki", flavour: "hatsuyuki", charm: "suzu" },
+  { label: "Fubuki", flavour: "fubuki", charm: "suzu" },
 ];
 
 export const SEKKI: readonly (Season & { kanji: string; date: string })[] = [
@@ -135,7 +135,7 @@ export const SEKKI: readonly (Season & { kanji: string; date: string })[] = [
   { label: "Sōkō", kanji: "霜降", date: "Oct 23", flavour: "momiji", outfit: "scarf" },
   { label: "Rittō", kanji: "立冬", date: "Nov 7", flavour: "beniimo", charm: "beret" },
   { label: "Shōsetsu", kanji: "小雪", date: "Nov 22", flavour: "usuzumi", charm: "snowflake" },
-  { label: "Taisetsu", kanji: "大雪", date: "Dec 7", flavour: "hatsuyuki", outfit: "kerchief" },
+  { label: "Taisetsu", kanji: "大雪", date: "Dec 7", flavour: "fubuki", outfit: "kerchief" },
   { label: "Tōji", kanji: "冬至", date: "Dec 22", flavour: "yuzu" },
   { label: "Shōkan", kanji: "小寒", date: "Jan 5", flavour: "azuki", outfit: "obi" },
   { label: "Daikan", kanji: "大寒", date: "Jan 20", flavour: "kuromitsu", outfit: "bib" },
@@ -147,7 +147,7 @@ export interface Festival extends Season {
 }
 
 export const FESTIVALS = {
-  shogatsu: { label: "Shōgatsu", date: "Jan 1", flavour: "hatsuyuki", leaf: "pine", charm: "mikan" },
+  shogatsu: { label: "Shōgatsu", date: "Jan 1", flavour: "fubuki", leaf: "pine", charm: "mikan" },
   setsubun: { label: "Setsubun", date: "Feb 3", flavour: "azuki", charm: "omamori", mood: "pouty" },
   hinamatsuri: { label: "Hinamatsuri", date: "Mar 3", flavour: "momo", charm: "mizuhiki", outfit: "obi" },
   hanami: { label: "Hanami", date: "Apr", flavour: "sakura", charm: "ribbon", pattern: "mizutama", mood: "happy" },
@@ -164,14 +164,14 @@ export type FestivalName = keyof typeof FESTIVALS;
 export const FESTIVAL_NAMES = Object.keys(FESTIVALS) as FestivalName[];
 
 export const COLLECTIONS = {
-  wagashi: ["sakura", "ume", "ichigo", "kinako", "yomogi", "azuki", "kuri", "goma", "momo", "yukimi", "kuromitsu"],
+  wagashi: ["sakura", "ume", "ichigo", "kinako", "yomogi", "azuki", "kuri", "goma", "momo", "mochi", "kuromitsu"],
   kakigori: ["matcha", "ichigo", "ramune", "suika", "melon", "remon", "budo", "mikan"],
   cafe: ["hojicha", "kohi", "purin", "chocomint", "matcha", "kuri", "kinako", "genmai"],
   fruit: ["momo", "yuzu", "mikan", "anzu", "suika", "budo", "remon", "melon", "ringo", "sakuranbo", "mango", "nashi"],
   spring: ["sakura", "ume", "yomogi", "momo", "fuji"],
   summer: ["ramune", "suika", "melon", "ajisai", "remon", "sora"],
   autumn: ["momiji", "ginkgo", "kuri", "kabocha", "tsukimi", "purin", "beniimo", "nashi"],
-  winter: ["hatsuyuki", "mikan", "azuki", "shio", "goma", "usuzumi", "yuzu", "yukimi"],
+  winter: ["fubuki", "mikan", "azuki", "shio", "goma", "usuzumi", "yuzu", "mochi"],
   pastel: ["sakura", "fuji", "sora", "ramune", "momo", "melon", "remon", "ume"],
 } as const satisfies Record<string, readonly FlavourName[]>;
 export type CollectionName = keyof typeof COLLECTIONS;

@@ -1,4 +1,4 @@
-// Tells the owner when the backend is older than this app, or too old to talk to. Build item 1, docs/app-yuki-codes.md.
+// Tells the owner when the backend is older than this app, or too old to talk to. Build item 1, docs/app-kiko.md.
 import { Show } from "solid-js";
 import { Hint, Notice } from "../settings/kit";
 import { useApp } from "../lib/store";
