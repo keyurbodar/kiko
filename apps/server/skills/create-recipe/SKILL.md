@@ -27,4 +27,6 @@ rules
 - apps run through composio. name each app the recipe needs; the steps should say what to read or do in it, and to send the connect link once when it is not connected.
 - a run with nothing to say replies with only [skip]. bubbles stay short.
 - a broken header is not loaded. if add_recipe or the recipes page says why, fix the file.
-- to change a recipe, edit its file; it applies everywhere on the next run. to remove one, rm its folder. its routines stay until cancelled.
+- a built-in recipe has no file in /home/recipes until the human edits it. a file with the same name wins over the built-in. to change a recipe, write its file; the next run uses it.
+- editing a file does not move routines that already run. to change one's time or instructions, use update_routine.
+- to remove a recipe you wrote, rm its folder. a built-in comes back. the routines of an install stay until cancelled.

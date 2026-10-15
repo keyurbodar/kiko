@@ -1,11 +1,12 @@
 import type { ComposioStatus } from "@kiko/protocol"
 import { CredentialError, checkApiKey } from "../../user/credentials"
 import { count } from "../../lib/dev-guard"
-import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkKey, createSession, deleteSession, learnedSignature, listTools, sessionGone, type Target } from "./client"
+import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkKey, connectedAccounts, createSession, deleteSession, learnedSignature, listTools, sessionGone, type Target } from "./client"
 import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded } from "./learn"
 import type { ComposioStore, StoredTarget } from "./store"
 
 const LISTING_FRESH_MS = 10 * 60_000
+const CONNECTED_FRESH_MS = 60_000
 const CANDIDATES_MAX = 200
 
 export function composioErrorText(e: unknown): string {
@@ -17,6 +18,7 @@ export class ComposioConnection {
   private loading: Promise<ComposioTool[]> | undefined
   private readonly candidates = new Map<string, Candidate>()
   private renewing: { gone: string; next: Promise<Target> } | undefined
+  private connected: { at: number; toolkits: ReadonlySet<string> | null } | undefined
 
   private readonly fetcher: typeof fetch
 
@@ -36,6 +38,17 @@ export class ComposioConnection {
         count("composio.httpMs", Math.round(performance.now() - t))
       }
     }
+  }
+
+  /** The toolkits the owner has connected, cached for a minute. Null when Composio is not connected or cannot say. */
+  async connectedToolkits(now = Date.now()): Promise<ReadonlySet<string> | null> {
+    if (!this.store.connected()) return null
+    if (this.connected && now - this.connected.at < CONNECTED_FRESH_MS) return this.connected.toolkits
+    const target = await this.store.target()
+    if (!target) return null
+    const toolkits = await connectedAccounts(target.key, await this.userId(), this.fetcher)
+    this.connected = { at: now, toolkits }
+    return toolkits
   }
 
   async sessionId(): Promise<string | null> {
@@ -61,6 +74,7 @@ export class ComposioConnection {
     await this.store.putKey(key, session, generation)
     this.store.putListing({ at: Date.now(), tools }, generation)
     this.loading = undefined
+    this.connected = undefined
     this.candidates.clear()
     this.dropSession(old)
     return { status: this.status(), tools: tools.map((t) => t.name) }
@@ -69,6 +83,7 @@ export class ComposioConnection {
   disconnect(): number {
     const old = this.store.target()
     this.loading = undefined
+    this.connected = undefined
     this.candidates.clear()
     const removed = this.store.clear()
     this.dropSession(old)

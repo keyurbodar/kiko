@@ -217,4 +217,9 @@ export const USER_STEPS: Step[] = [
     PRIMARY KEY (install_id, idx)
   )`,
   "CREATE INDEX IF NOT EXISTS recipe_routines_routine ON recipe_routines (routine_id)",
+  // An install keeps only the links to its routines. The schedule and text live on the routine, and recipe files never reconcile.
+  "CREATE TABLE IF NOT EXISTS recipe_links (routine_id TEXT PRIMARY KEY, install_id TEXT NOT NULL)",
+  "INSERT OR IGNORE INTO recipe_links (routine_id, install_id) SELECT routine_id, install_id FROM recipe_routines",
+  "DROP TABLE IF EXISTS recipe_routines",
+  "CREATE INDEX IF NOT EXISTS recipe_links_install ON recipe_links (install_id)",
 ]
