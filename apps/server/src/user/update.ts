@@ -28,7 +28,7 @@ export type UpdateDeps = {
   report: (stage: UpdateStage, error?: string) => void
 }
 
-export class UpdateFailure extends Error {}
+class UpdateFailure extends Error {}
 
 const RECONNECT = "Reconnect Cloudflare, then try again."
 

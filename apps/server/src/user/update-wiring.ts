@@ -7,7 +7,7 @@ import { getSetting, setSetting } from "../lib/settings"
 import { openGrant, parseGrant, runUpdate, sealGrant, type UpdateConfig } from "./update"
 
 const GRANT = "cf_grant"
-export const DEV_UPDATE = "dev_update"
+const DEV_UPDATE = "dev_update"
 
 type Dev = Partial<UpdateConfig> & { grant?: string }
 

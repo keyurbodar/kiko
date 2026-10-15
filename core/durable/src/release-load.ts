@@ -3,7 +3,7 @@
 
 import { type ReleaseManifest, parseManifest, verifyModuleHash, verifyRelease } from "./release"
 
-export type ReleaseFetch = (url: string) => Promise<Response>
+type ReleaseFetch = (url: string) => Promise<Response>
 
 export class ReleaseRefused extends Error {
   constructor(
@@ -25,7 +25,7 @@ async function fetchBytes(f: ReleaseFetch, url: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer())
 }
 
-export type LoadedRelease = { manifest: ReleaseManifest; files: Map<string, Uint8Array> }
+type LoadedRelease = { manifest: ReleaseManifest; files: Map<string, Uint8Array> }
 
 /** `version` names an exact release. Without it the release the base calls `latest`. */
 export async function loadVerifiedRelease(

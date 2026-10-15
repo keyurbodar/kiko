@@ -29,7 +29,7 @@ function fakeCloudflare(refresh: { ok: boolean }) {
       if (url.pathname.endsWith("/workers/scripts/kiko") && request.method === "PUT") {
         const form = await request.formData()
         const modules = new Map<string, Uint8Array>()
-        for (const [name, value] of form.entries()) if (name !== "metadata" && typeof value !== "string") modules.set(name, new Uint8Array(await value.arrayBuffer()))
+        for (const [name, value] of form.entries()) if (name !== "metadata" && typeof value !== "string") modules.set(name, new Uint8Array(await (value as File).arrayBuffer()))
         puts.push({ auth: request.headers.get("authorization") ?? "", metadata: JSON.parse(await (form.get("metadata") as File).text()), modules })
         return reply({})
       }
