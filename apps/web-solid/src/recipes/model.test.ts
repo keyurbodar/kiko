@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { RecipeCard, RecipeInstall, RoomId } from "@kiko/protocol"
+import type { RecipeApp, RecipeCard, RecipeInstall, RoomId } from "@kiko/protocol"
 import { filterRecipes, installedSlugs, recipeForRoutine, recipeTags, starterTiles, tagLabel } from "./model"
 
 const card = (slug: string, over: Partial<RecipeCard> = {}): RecipeCard => ({
@@ -8,6 +8,9 @@ const card = (slug: string, over: Partial<RecipeCard> = {}): RecipeCard => ({
   description: `${slug} does a thing`,
   when: "When you ask",
   apps: [],
+  setup: [],
+  agent: { name: "Ada", handle: "ada" },
+  custom: false,
   tags: [],
   icon: "sun",
   glyph: "",
@@ -15,10 +18,12 @@ const card = (slug: string, over: Partial<RecipeCard> = {}): RecipeCard => ({
   ...over,
 })
 
+const app = (name: string): RecipeApp => ({ name, slug: name.toLowerCase().replace(/[^a-z0-9]/g, ""), connected: false })
+
 const cards = [
-  card("morning-briefing", { title: "Morning briefing", when: "Daily at 7:55", apps: ["Gmail", "Google Calendar"], tags: ["mornings", "inbox"] }),
+  card("morning-briefing", { title: "Morning briefing", when: "Daily at 7:55", apps: [app("Gmail"), app("Google Calendar")], tags: ["mornings", "inbox"] }),
   card("daily-weather", { title: "Daily weather", tags: ["mornings"] }),
-  card("expense-log", { title: "Expense log", apps: ["Google Sheets"], tags: ["money"] }),
+  card("expense-log", { title: "Expense log", apps: [app("Google Sheets")], tags: ["money"] }),
   card("day-trip", { title: "Day trip", tags: ["travel", "fun"] }),
 ]
 
@@ -52,7 +57,7 @@ describe("filtering the gallery", () => {
 
 describe("installed recipes", () => {
   test("the marks come from the slugs of the installs", () => {
-    const install = (slug: string): RecipeInstall => ({ installId: slug, slug, roomId: "r" as RoomId, agent: "kiko", at: 1 })
+    const install = (slug: string): RecipeInstall => ({ installId: slug, slug, roomId: "r" as RoomId, agent: "kiko", at: 1, routines: [] })
     expect([...installedSlugs([install("day-trip")], { roomId: "r", agent: "kiko" })]).toEqual(["day-trip"])
     expect(installedSlugs([], { roomId: "r", agent: "kiko" }).has("day-trip")).toBe(false)
     expect(installedSlugs([install("day-trip")], { roomId: "r", agent: "ada" }).has("day-trip")).toBe(false)

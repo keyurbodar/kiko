@@ -175,6 +175,13 @@ export async function deleteSession(key: string, id: string, fetchImpl: typeof f
   )
 }
 
+/** The toolkit slugs with an active connected account for `userId`. Null when the key cannot list them (a Connect key). */
+export async function connectedAccounts(key: string, userId: string, fetchImpl: typeof fetch = fetch): Promise<Set<string> | null> {
+  if (isConnectKey(key)) return null
+  const body = (await (await api(key, `connected_accounts?user_ids=${encodeURIComponent(userId)}&statuses=ACTIVE&limit=200`, fetchImpl)).json()) as { items?: { toolkit?: { slug?: unknown } }[] }
+  return new Set((body.items ?? []).flatMap((i) => (typeof i.toolkit?.slug === "string" ? [i.toolkit.slug] : [])))
+}
+
 /** Whether Composio's tool catalog tags `slug` read-only. */
 export async function catalogReadOnly(key: string, slug: string, fetchImpl: typeof fetch = fetch): Promise<boolean> {
   // A Connect key has no catalog access, so its learned tools stay `external`, the safe class.

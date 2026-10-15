@@ -4,28 +4,31 @@ import type { Reminder } from "./reminders"
 
 type Row = { install_id: string; slug: string; room_id: string; agent: string; at: number }
 
-const toInstall = (r: Row): RecipeInstall => ({ installId: r.install_id, slug: r.slug, roomId: r.room_id as RoomId, agent: r.agent, at: r.at })
+/** An install as its table holds it. Its routines come from recipe_links, in the service. */
+export type Install = Omit<RecipeInstall, "routines">
 
-export function listInstalls(sql: SqlStorage): RecipeInstall[] {
+const toInstall = (r: Row): Install => ({ installId: r.install_id, slug: r.slug, roomId: r.room_id as RoomId, agent: r.agent, at: r.at })
+
+export function listInstalls(sql: SqlStorage): Install[] {
   return sql.exec<Row>("SELECT * FROM recipe_installs ORDER BY at").toArray().map(toInstall)
 }
 
-export function findInstall(sql: SqlStorage, installId: string): RecipeInstall | null {
+export function findInstall(sql: SqlStorage, installId: string): Install | null {
   const row = sql.exec<Row>("SELECT * FROM recipe_installs WHERE install_id = ?", installId).toArray()[0]
   return row ? toInstall(row) : null
 }
 
-export function findTarget(sql: SqlStorage, slug: string, roomId: string, agent: string): RecipeInstall | null {
+export function findTarget(sql: SqlStorage, slug: string, roomId: string, agent: string): Install | null {
   const row = sql.exec<Row>("SELECT * FROM recipe_installs WHERE slug = ? AND room_id = ? AND agent = ?", slug, roomId, agent).toArray()[0]
   return row ? toInstall(row) : null
 }
 
 export function deleteInstall(sql: SqlStorage, installId: string): void {
-  sql.exec("DELETE FROM recipe_routines WHERE install_id = ?", installId)
+  sql.exec("DELETE FROM recipe_links WHERE install_id = ?", installId)
   sql.exec("DELETE FROM recipe_installs WHERE install_id = ?", installId)
 }
 
-export function saveInstall(sql: SqlStorage, install: RecipeInstall): void {
+export function saveInstall(sql: SqlStorage, install: Install): void {
   sql.exec("INSERT OR IGNORE INTO recipe_installs (install_id, slug, room_id, agent, at) VALUES (?, ?, ?, ?, ?)", install.installId, install.slug, install.roomId, install.agent, install.at)
 }
 
