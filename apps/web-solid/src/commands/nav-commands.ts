@@ -17,6 +17,7 @@ export function navCommands(deps: {
     { id: "settings.tools", title: "Tools", group: "settings", icon: "integrations", run: () => deps.go("/settings/tools") },
     { id: "settings.appearance", title: "Appearance", group: "settings", icon: "appearance", run: () => deps.go("/settings/appearance") },
     { id: "settings.general", title: "General", group: "settings", icon: "account", run: () => deps.go("/settings/general") },
+    { id: "settings.account", title: "Account", group: "settings", icon: "account", run: () => deps.go("/settings/account") },
     { id: "chat.model", title: "Choose model", group: "chat", icon: "model", shortcut: "Mod+Shift+M", global: true, run: deps.chooseModel },
     { id: "account.sign-out", title: "Sign out", group: "account", icon: "signout", run: deps.signOut },
   ]

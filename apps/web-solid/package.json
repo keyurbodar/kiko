@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/clerk-js": "^6.39.0",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/search": "^6.7.2",
     "@codemirror/state": "^6.7.6",

@@ -14,7 +14,7 @@ describe("nav commands", () => {
     for (const c of list.filter((x) => x.id.startsWith("go.") || x.id.startsWith("settings."))) c.run()
     expect(went).toEqual([
       "/chat", "/settings", "/settings/models",
-      "/settings/tools", "/settings/appearance", "/settings/general",
+      "/settings/tools", "/settings/appearance", "/settings/general", "/settings/account",
     ])
   })
 

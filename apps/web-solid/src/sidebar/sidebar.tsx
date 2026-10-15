@@ -4,6 +4,7 @@ import { HugeIcon } from "@kiko/ui/huge-icon"
 import { ComposeIcon, SettingsIcon, SidebarLeftIcon, SparklesIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { session } from "../app/session"
+import { profile } from "../app/hosted";
 import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
@@ -137,9 +138,9 @@ function Foot(props: { section: SectionId | null }) {
   }
   return (
     <footer class="panel-foot" data-component="sidebar-foot">
-      <A href="/settings/general" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="Account">
+      <A href="/settings/account" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="Account">
         <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
-        <span class="panel-me-name">{user()?.name ?? "You"}</span>
+        <span class="panel-me-name">{profile()?.name ?? user()?.name ?? "You"}</span>
       </A>
       <TooltipV2 placement="top" openDelay={400} value="Recipes">
         <A

@@ -1,4 +1,6 @@
-export interface AuthEnv {
+import { type ClerkEnv, verifyClerkToken } from "./clerk"
+
+export interface AuthEnv extends ClerkEnv {
   SESSION_SECRET: string
   TRUSTED_ORIGINS?: string
   ACCESS_CODE?: string
@@ -100,6 +102,14 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
     if (!(await matches(env.ACCESS_CODE, given))) {
       return Response.json({ message: "That access code is not right" }, { status: 401 })
     }
+    return signedInResponse(env, PRODUCTION_OWNER)
+  }
+  // A hosted backend sets both secrets. Without them the route does not exist.
+  if (pathname === `${AUTH_PATH}/clerk` && env.CLERK_JWT_KEY && env.OWNER_ID) {
+    const input = (await request.json().catch(() => null)) as { token?: unknown } | null
+    if (typeof input?.token !== "string") return Response.json({ message: "token is required" }, { status: 400 })
+    const verdict = await verifyClerkToken({ ...env, CLERK_JWT_KEY: env.CLERK_JWT_KEY, OWNER_ID: env.OWNER_ID }, input.token)
+    if (!verdict.ok) return Response.json({ message: verdict.message }, { status: verdict.status })
     return signedInResponse(env, PRODUCTION_OWNER)
   }
   return null
