@@ -3,7 +3,7 @@ import type { RoomId } from "./ids"
 /** A recipe's tile color. The client maps each to a light and a dark pair. */
 export type RecipeTone = "amber" | "violet" | "green" | "teal" | "pink" | "blue" | "red" | "orange" | "slate"
 
-/** What the gallery shows for a built-in recipe. Generated at build time, so it paints with no request. */
+/** What the gallery shows for a recipe. */
 export type RecipeCard = {
   slug: string
   title: string
@@ -25,4 +25,5 @@ export type RecipeInstall = { installId: string; slug: string; roomId: RoomId; a
 /** `own` gives the recipe a new agent with its own chat. */
 export type InstallRecipe = { installId: string; slug: string } & ({ roomId: RoomId; agent: string } | { own: true })
 
-export type RecipeList = { installs: readonly RecipeInstall[] }
+/** The owner's recipes from /home/recipes, what is added where, and why any file did not load. */
+export type RecipeList = { cards: readonly RecipeCard[]; installs: readonly RecipeInstall[]; broken: readonly string[] }

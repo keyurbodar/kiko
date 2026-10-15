@@ -933,7 +933,7 @@ The recurrence library is `rrule` 2.8.1 (experiment 10, settled). `rrule` checks
 | Aspect | pi | kiko |
 | --- | --- | --- |
 | Frontmatter | `name`, `description`, `disable-model-invocation` | the same, with the same validation rules (`apps/server/src/skills/registry.ts`) |
-| Discovery order | project, ancestors, user home | room, then built-in. The first name wins (`resolveSkills`) |
+| Discovery order | project, ancestors, user home | room, then the owner's recipes in `/home/recipes`, then built-in. The first name wins (`resolveSkills`) |
 | Storage | directories | a room skill is `skills/<name>/SKILL.md` in the room's files. Built-in skills are bundled (`skills/builtin.gen.ts`) |
 | Listing | `<available_skills>` block in the system prompt | the same block, from a `PromptSection` |
 | Loading | the model reads the file | a `read_skill(name)` tool, because there is no filesystem tool |
@@ -941,17 +941,19 @@ The recurrence library is `rrule` 2.8.1 (experiment 10, settled). `rrule` checks
 
 The list is part of the system prompt and changes rarely, so it stays in the cached prefix.
 
-`GET /api/skills` (signed in) answers `{skills: [{name, description, source, disableModelInvocation}]}` for the built-in skills, so the settings page can list them. Room skills are not listed there. The parse is memoized per isolate and small, so it stays in the Worker handler.
+Built-in skills are tools for agents, not shown to the human. `create-recipe` is how an agent makes or changes a recipe (15.1).
 
 ### 15.1 Recipes
 
-**Decision.** A recipe is a built-in skill with a schedule, setup questions, and the apps it needs. It lives in `apps/server/recipes/<slug>/RECIPE.md`, a `SKILL.md` with more frontmatter (`apps/server/src/recipes/recipe.ts`). Adding one reuses what kiko has: its body becomes a chat skill, its schedule becomes routines, and one wake has the agent ask the setup questions in the chat.
+**Decision.** A recipe is a skill the owner can see and change, with a schedule, setup questions, and the apps it needs. Recipes are files in the owner's drive, `/home/recipes/<slug>/RECIPE.md`: a `SKILL.md` with more frontmatter (`apps/server/src/recipes/recipe.ts`). The human edits or deletes one in the files tree like any file, and agents do it with their file tools and the built-in `create-recipe` skill. Adding one to a chat reuses what kiko has: its schedule becomes routines, and one wake has the agent ask the setup questions in the chat.
 
-- **Catalog.** `apps/server/scripts/gen-recipes.ts` writes the bodies for the server (`src/recipes/catalog.gen.ts`) and the gallery cards for the client (`apps/web-solid/src/recipes/catalog.gen.ts`), each with its icon's svg. The gallery paints from a build constant, with no request and no icon bundle. A broken recipe fails the build, not a run.
-- **Icons.** Phosphor duotone, MIT. `scripts/recipe-icons.ts` picks one from the recipe's words with no model call: a synonym table first, then the icon names and tags. On Poke's 44 behavior recipes about 38 picks fit by a read of the list, against about a third for a plain tag match (2026-10-15). A recipe may name its icon. The tone comes from the icon's Phosphor category.
-- **Install.** `POST /api/recipes` with `{installId, slug, roomId, agent}` or `{installId, slug, own: true}`. `UserDO.installRecipe` makes one routine per trigger (the RRULE runs in the owner's time zone), then `RoomDO.addRecipe` writes `skills/<slug>/SKILL.md`, wakes the agent once (`recipe:<installId>`), and posts "<title> added". The row in `recipe_installs` makes a retry with the same id return the first install. A refused wake cancels the routines it made. `own` makes an agent from the recipe's `agent` name and handle, with a number when the handle is taken, and its direct chat.
-- **Setup in the chat.** The wake names the routines and the setup questions. The agent asks them and changes the routine with `update_routine`, the same way a human's ask changes one. Section 7.11 already says the human never fills in a form.
-- **Scope.** A recipe belongs to the chat it was added to, like any chat skill: every agent in that chat sees it, and its routines run as the agent it was added to.
+- **Built-ins.** `apps/server/recipes/*/RECIPE.md` ship with kiko. `RecipeLibrary.seed` (`user/recipe-library.ts`) copies each into the drive once, on the visit after it ships, and records its name in `recipes_seeded`. One the owner deleted stays deleted; one they edited keeps their edit.
+- **Every agent knows them.** The skills section lists the owner's recipes in every chat, after the chat's own skills. `read_skill` loads one, with its schedule and apps on top. So an agent can run a recipe the human asks for in any chat, and an edit applies on the next run. The prompt's files lines name `/home/recipes`, `add_recipe`, and `create-recipe`.
+- **The gallery.** `GET /api/recipes` answers `{cards, installs, broken}`. `UserDO` parses each recipe file once per version and lists the reason for each file that does not parse, so the page can say what to fix. The client paints the last list from local storage, and on a first visit from the built-in cards generated at build time.
+- **Icons.** Phosphor duotone, MIT. `scripts/gen-recipes.ts` writes about 170 curated glyphs with their tones and tag words into `src/recipes/icons.gen.ts`. `pickIcon` (`src/recipes/icons.ts`) picks one from the recipe's words with no model call: a synonym table first, then icon names and tags. On Poke's 44 behavior recipes about 38 picks fit by a read of the list, against about a third for a plain tag match over all of Phosphor (2026-10-15). A recipe may name an icon from the set.
+- **Adding.** `POST /api/recipes` with `{installId, slug, roomId, agent}` or `{installId, slug, own: true}`, or an agent's `add_recipe(slug)`. `UserDO.installRecipe` makes one routine per trigger (the RRULE runs in the owner's time zone), then `RoomDO.addRecipe` posts "<title> added" and wakes the agent once (`recipe:<installId>`) with the setup questions and the apps. An agent that added it itself gets that text as the tool result instead. The row in `recipe_installs` makes a retry with the same id return the first install. A refused wake cancels the routines it made. `own` makes an agent from the recipe's `agent` name and handle, with a number when the handle is taken, and its direct chat.
+- **Apps.** A recipe names its apps as people say them. They run through Composio (section 12) like any app work: the talker hands them to a worker, and a missing connection gets a link from `COMPOSIO_MANAGE_CONNECTIONS` once, in the chat.
+- **Scope.** The recipe itself is the owner's, in every chat. An install belongs to one chat and one agent: its routines run there as that agent.
 - DEVIATION from Poke: Poke also triggers a recipe on an email that matches a sentence. Kiko has no email trigger yet; such recipes check the inbox on a schedule instead.
 
 ## 16. Agents act without asking

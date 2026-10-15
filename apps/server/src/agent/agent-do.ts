@@ -204,6 +204,10 @@ export class AgentDO extends DurableObject<Env> {
       runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),
       runs: async (id) => ((await mine(id)) ? user().routineRuns(id) : []),
       origin: () => user().publicOrigin(),
+      addRecipe: async (slug) => {
+        const out = await user().installRecipe(home.userId, { installId: crypto.randomUUID(), slug, roomId: home.roomId as RoomId, agent: home.slug }, home.slug)
+        return out.ok ? { ok: true, setup: out.setup } : out
+      },
     }
   }
 

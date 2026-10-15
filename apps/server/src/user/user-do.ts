@@ -1,9 +1,10 @@
 import { newRoomId, sameAgentChat } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeInstall, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
-import { builtinRecipe } from "../recipes/catalog"
-import { findInstall, listInstalls, recipeRule, recipeSkill, recipeWake, saveInstall } from "./recipes"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeInstall, RecipeList, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import { findInstall, listInstalls, recipeRule, recipeWake, saveInstall } from "./recipes"
+import { RecipeLibrary } from "./recipe-library"
+import { recipeCard } from "../recipes/card"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadUserDev } from "../lib/dev-guard"
@@ -109,16 +110,32 @@ export class UserDO extends DurableObject<Env> {
   async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> { return this.#routines.createRoutine(owner, input) }
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> { return this.#routines.updateRoutine(id, patch) }
 
-  async recipeInstalls(): Promise<RecipeInstall[]> {
-    return listInstalls(this.sql)
+  async recipeList(): Promise<RecipeList> {
+    const { recipes, broken } = await this.#library.read()
+    return { cards: recipes.map(recipeCard), installs: listInstalls(this.sql), broken }
   }
 
-  /** Adds a built-in recipe: its routines, its skill file in the chat, and one wake so the agent sets it up. A retry with the same id returns the first install. */
-  async installRecipe(owner: string, input: InstallRecipe): Promise<{ ok: true; install: RecipeInstall } | { ok: false; error: string }> {
+  #recipeLibrary?: RecipeLibrary
+  get #library(): RecipeLibrary {
+    this.#recipeLibrary ??= new RecipeLibrary({
+      sql: this.sql,
+      files: this.env.FILES,
+      userId: () => userIdFromObjectName(this.ctx.id.name),
+      list: (dir, recursive) => this.#homeWiring.list(dir, recursive),
+      put: (input) => this.#homeWiring.put(input),
+    })
+    return this.#recipeLibrary
+  }
+
+  /**
+   * Adds one of the owner's recipes to a chat: its routines, then one wake so the agent asks the setup questions.
+   * An agent that adds one itself (`by`) gets that text back instead of a wake. A retry with the same id returns the first install.
+   */
+  async installRecipe(owner: string, input: InstallRecipe, by?: string): Promise<{ ok: true; install: RecipeInstall; setup: string } | { ok: false; error: string }> {
     const done = findInstall(this.sql, input.installId)
-    if (done) return { ok: true, install: done }
-    const recipe = builtinRecipe(input.slug)
-    if (!recipe) return { ok: false, error: `no recipe named ${input.slug}` }
+    const recipe = await this.#library.get(done?.slug ?? input.slug)
+    if (done) return { ok: true, install: done, setup: recipe ? recipeWake(recipe, []) : "" }
+    if (!recipe) return { ok: false, error: `no recipe named ${input.slug} in /home/recipes` }
     let roomId: RoomId
     let agent: string
     if ("own" in input) {
@@ -141,14 +158,15 @@ export class UserDO extends DurableObject<Env> {
       }
       routines.push(out.routine)
     }
-    const woke = await roomStub(this.env.ROOM, owner, roomId).addRecipe(owner, { installId: input.installId, agent: agent as AgentSlug, slug: recipe.slug, title: recipe.title, skill: recipeSkill(recipe), wake: recipeWake(recipe, routines) })
+    const setup = recipeWake(recipe, routines)
+    const woke = await roomStub(this.env.ROOM, owner, roomId).addRecipe(owner, { installId: input.installId, agent: agent as AgentSlug, title: recipe.title, wake: by === agent ? null : setup })
     if (woke !== "delivered" && woke !== "duplicate") {
       for (const r of routines) await this.#routines.cancelReminder(r.id)
       return { ok: false, error: woke === "gone" ? `@${agent} is not in that chat` : "that chat could not take the recipe. try again." }
     }
     const install: RecipeInstall = { installId: input.installId, slug: recipe.slug, roomId, agent, at: Date.now() }
     saveInstall(this.sql, install)
-    return { ok: true, install }
+    return { ok: true, install, setup }
   }
 
   /** A new agent for a recipe. A taken handle gets a number, as people do with usernames. */
@@ -806,6 +824,7 @@ export class UserDO extends DurableObject<Env> {
 
   async ensureHome(): Promise<void> {
     clearTempMarks(this.sql)
+    await this.#library.seed()
     for (const op of kikoChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {

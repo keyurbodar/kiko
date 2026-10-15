@@ -1,9 +1,9 @@
-import type { RecipeInstall } from "@kiko/protocol"
+import type { RecipeInstall, RecipeList } from "@kiko/protocol"
 import { VerifyError } from "../client"
 import { agentTexts, frames, messages, newRoom, poll } from "../kit"
-import { api, ok, type Routine } from "../routine-kit"
+import { api, ok, type Routine, toolLine } from "../routine-kit"
 import type { Suite } from "../runner"
-import { fake } from "./mid-run"
+import { fake, send } from "./mid-run"
 
 type Full = Routine & { rrule: string | null }
 
@@ -16,6 +16,18 @@ const suite: Suite = {
     await fake(v, s, roomId)
     const mine = async () => (await ok<{ routines: Full[] }>(url, s, "routines")).routines.filter((r) => r.roomId === roomId && r.status === "active")
 
+    const library = await ok<RecipeList>(url, s, "recipes")
+    const seeded = library.cards.find((c) => c.slug === "morning-briefing")
+    if (library.cards.length < 10 || !seeded?.glyph.includes("<path") || library.broken.length) throw new VerifyError(`expected the built-in recipes in /home/recipes with icons, got ${library.cards.length} cards, broken ${JSON.stringify(library.broken)}`)
+    const tea = "---\ntitle: Tea time\ndescription: A cup of tea and a short break at four.\nwhen: Daily at 16:00\ntags: [health]\ntriggers:\n  - every: FREQ=DAILY;BYHOUR=16;BYMINUTE=0\n    run: say tea time. follow the tea-time skill.\n---\nsay it is tea time, in one bubble.\n"
+    const put = await s.putFile("home", "recipes/tea-time/RECIPE.md", tea, { type: "text/markdown" })
+    const bad = await s.putFile("home", "recipes/broken/RECIPE.md", "---\ntitle: Broken\n---\nno description", { type: "text/markdown" })
+    if (!put.ok || !bad.ok) throw new VerifyError(`writing to /home/recipes answered ${put.status} and ${bad.status}`)
+    const mine2 = await ok<RecipeList>(url, s, "recipes")
+    const teaCard = mine2.cards.find((c) => c.slug === "tea-time")
+    if (!teaCard || mine2.broken.length !== 1 || !mine2.broken[0]?.includes("recipe broken: description is required")) throw new VerifyError(`expected the new recipe as a card and the broken one listed, got ${JSON.stringify({ teaCard: teaCard?.icon, broken: mine2.broken })}`)
+    console.log(`  ok ${library.cards.length} built-in recipes were in /home/recipes; a new file became a card (${teaCard.icon}) and a broken one was named`)
+
     const installId = crypto.randomUUID()
     const body = { installId, slug: "morning-briefing", roomId, agent: "yuki" }
     const { install } = await ok<{ install: RecipeInstall }>(url, s, "recipes", body)
@@ -26,13 +38,7 @@ const suite: Suite = {
     if (!routine || extra.length || routine.name !== "morning briefing" || routine.target !== "yuki") throw new VerifyError(`expected one morning briefing routine for kiko, got ${JSON.stringify(await mine())}`)
     const due = new Date(routine.dueUtc)
     if (`${due.getUTCHours()}:${due.getUTCMinutes()}:${due.getUTCSeconds()}` !== "7:55:0" || !routine.rrule?.includes("FREQ=DAILY")) throw new VerifyError(`expected a daily routine due at 7:55:00 UTC, got ${due.toISOString()} ${routine.rrule}`)
-    const fileId = () => frames(room).flatMap((f) => (f.t === "events" ? f.events : [])).find((e) => e.t === "file" && e.file.name === "skills/morning-briefing/SKILL.md")
-    await poll("the skill file event", () => fileId() !== undefined, 5_000)
-    const ref = fileId()
-    const skill = await fetch(new URL(`api/files/${roomId}/${ref?.t === "file" ? ref.file.id : ""}`, url), { headers: { cookie: s.cookie } })
-    const text = await skill.text()
-    if (!skill.ok || !text.startsWith("---\nname: morning-briefing\n") || !text.includes("each morning")) throw new VerifyError(`expected the recipe as a chat skill, got ${skill.status} ${text.slice(0, 120)}`)
-    console.log(`  ok the recipe made routine ${routine.id} due ${due.toISOString()}, wrote its skill, and woke kiko`)
+    console.log(`  ok the recipe made routine ${routine.id} due ${due.toISOString()} and woke kiko`)
 
     const again = await ok<{ install: RecipeInstall }>(url, s, "recipes", body)
     if (again.install.at !== install.at || (await mine()).length !== 1) throw new VerifyError("a retried install made a second routine or a second install")
@@ -51,6 +57,14 @@ const suite: Suite = {
     const ownRoutines = (await ok<{ routines: Full[] }>(url, s, "routines")).routines.filter((r) => r.roomId === own.install.roomId)
     if (ownRoutines.length !== 1 || ownRoutines[0]?.target !== own.install.agent) throw new VerifyError(`expected the new agent's routine in its chat, got ${JSON.stringify(ownRoutines)}`)
     console.log(`  ok "its own chat" made @${own.install.agent} in chat ${own.install.roomId} with its routine`)
+    await send(room, toolLine("add_recipe", { slug: "tea-time" }))
+    await poll("the agent's own add", async () => (await mine()).some((r) => r.name === "tea time"), 20_000)
+    await poll("the add_recipe result", () => agentTexts(room).some((t) => t.includes("tool: added.")), 10_000)
+    const teaRoutine = (await mine()).find((r) => r.name === "tea time")
+    await poll("the added line", () => messages(room).some((m) => m.from.kind === "system" && m.text === "Tea time added"), 5_000)
+    await Bun.sleep(1500)
+    if (teaRoutine?.target !== "yuki" || agentTexts(room).some((t) => t.includes('"Tea time" recipe') && !t.includes("tool: added."))) throw new VerifyError("an agent's own add_recipe should make its routine and not wake the agent again")
+    console.log("  ok an agent's add_recipe made the routine and got the setup text as its tool result")
     room.raw.close()
   },
 }

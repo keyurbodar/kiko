@@ -14,7 +14,6 @@ import { routinesRoute } from "./user/routines-route"
 import { remindersRoute } from "./user/reminders-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
-import { skillsRoute } from "./skills/route"
 import { recipesRoute } from "./recipes/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
 
@@ -51,8 +50,6 @@ export default {
     if (soul) return soul
     const searched = await searchRoute(request, env)
     if (searched) return searched
-    const skills = await skillsRoute(request, env)
-    if (skills) return skills
     const recipes = await recipesRoute(request, env)
     if (recipes) return recipes
     const themed = await openVsxRoute(request, env)

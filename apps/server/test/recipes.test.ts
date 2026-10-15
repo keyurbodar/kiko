@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
-import { CLIENT_OUT, clientGenerated, SERVER_OUT, serverGenerated } from "../scripts/gen-recipes"
-import { pickIcon } from "../scripts/recipe-icons"
+import { CLIENT_OUT, clientGenerated, ICONS_OUT, iconsGenerated, SERVER_OUT, serverGenerated } from "../scripts/gen-recipes"
+import { iconFor, pickIcon } from "../src/recipes/icons"
 import { parseRecipe } from "../src/recipes/recipe"
 
 const md = (front: string, body = "do the thing") => `---\n${front}\n---\n${body}`
@@ -26,7 +26,13 @@ test("icons come from the recipe's words, and an unknown topic gets the sparkle"
   expect(pickIcon("Zorblax", "Qwop the frobnicator")).toBe("sparkle")
 })
 
-test("the generated catalogs match apps/server/recipes", () => {
+test("a recipe's own icon wins only when the set has it", () => {
+  expect(iconFor("Tea time", "A cup at four.", "cake").icon).toBe("cake")
+  expect(iconFor("Morning tea", "A cup at four.", "not-an-icon").icon).toBe("sun-horizon")
+})
+
+test("the generated icons and catalogs match apps/server/recipes", async () => {
+  expect(readFileSync(ICONS_OUT, "utf8")).toBe(iconsGenerated)
   expect(readFileSync(SERVER_OUT, "utf8")).toBe(serverGenerated)
-  expect(readFileSync(CLIENT_OUT, "utf8")).toBe(clientGenerated)
+  expect(readFileSync(CLIENT_OUT, "utf8")).toBe(await clientGenerated())
 })

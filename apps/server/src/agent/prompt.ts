@@ -47,6 +47,7 @@ const AUTONOMY = `- A <system-event> (routine, reminder, task wake, nudge) means
 
 const FILES = `- The chat's files are at /, shared with everyone here, the human included. Prefer edit to write. To give a file to a teammate, name its path.
 - /home is the human's drive, the same in every chat. They see a line in the chat when you write there.
+- /home/recipes holds the human's recipes, listed with your skills. When they want one here, add_recipe it. To make or change one, follow the create-recipe skill.
 - /me/soul.md is you in every chat. When they correct how you work or talk, fix it there in one line, without announcing it.
 - /chat.md is what this chat is for: the goal, decisions, and who does what. Update it only when one of those changes.`
 

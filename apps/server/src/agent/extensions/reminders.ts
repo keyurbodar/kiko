@@ -18,6 +18,7 @@ export type RemindersPort = {
   runRoutine(id: string): Promise<RunDelivery | null>
   runs(id: string): Promise<RoutineRun[]>
   origin(): Promise<string | null>
+  addRecipe(slug: string): Promise<{ ok: true; setup: string } | { ok: false; error: string }>
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
@@ -173,6 +174,19 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
             const all = (await user().list()).filter((r) => r.status === "active" || (r.trigger && r.status === "paused"))
             const lines = await Promise.all(all.map(async (r) => (r.trigger ? routineLine(r, await user().runs(r.id)) : line(r, tz()))))
             return { content: text(lines.length ? lines.join("\n") : "no reminders or routines") }
+          },
+        }),
+      ),
+      declareEffect(
+        "write",
+        defineTool({
+          name: "add_recipe",
+          description: "add one of the human's recipes (from /home/recipes, listed with the skills) to this chat, run by you. it makes the recipe's routines at once. use it when the human wants a recipe set up here.",
+          parameters: Type.Object({ slug: Type.String({ description: "the recipe's folder name, like morning-briefing" }) }),
+          replay: "unsafe",
+          execute: async ({ slug }) => {
+            const out = await user().addRecipe(slug.trim())
+            return out.ok ? { content: text(`added.\n${out.setup}`) } : { content: text(`not added: ${out.error}`), isError: true }
           },
         }),
       ),

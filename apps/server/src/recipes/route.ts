@@ -20,7 +20,7 @@ export async function recipesRoute(request: Request, env: Env): Promise<Response
   const user = await signedIn(request, env)
   if (user instanceof Response) return user
   const stub = userStub(env.USER, user.id)
-  if (request.method === "GET") return Response.json({ installs: await stub.recipeInstalls() } satisfies RecipeList)
+  if (request.method === "GET") return Response.json((await stub.recipeList()) satisfies RecipeList)
   if (request.method !== "POST") return error(405, "method not allowed")
   const input = parseInstall(await request.json().catch(() => null))
   if (!input) return error(400, "need installId, slug, and roomId with agent, or own")

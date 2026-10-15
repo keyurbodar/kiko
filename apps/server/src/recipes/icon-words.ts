@@ -1,11 +1,5 @@
-/*
- * Picks a Phosphor icon and a tone for a recipe from its words, with no model call. A synonym wins
- * outright; otherwise the curated icons are scored by their own names and tags. Build time only.
- */
-import { icons } from "@phosphor-icons/core"
-import type { RecipeTone } from "@kiko/protocol"
-
-const SYNONYMS: Record<string, string> = {
+/** Words that name a recipe icon outright, and the other icons a recipe may use. scripts/gen-recipes.ts turns both into icons.gen.ts. */
+export const SYNONYMS: Record<string, string> = {
   morning: "sun-horizon", briefing: "sun-horizon", sunrise: "sun-horizon",
   weather: "cloud-sun", forecast: "cloud-sun", rain: "umbrella", storm: "cloud-lightning",
   pollen: "flower-lotus", allergy: "flower-lotus", meditate: "flower-lotus", mindful: "flower-lotus",
@@ -35,48 +29,5 @@ const SYNONYMS: Record<string, string> = {
   horoscope: "planet", astrology: "planet", prayer: "hands-praying", bible: "book-bookmark", verse: "book-bookmark", quote: "quotes", fact: "lightbulb-filament",
 }
 
-const CURATED = new Set(Object.values(SYNONYMS))
-const SKIP = new Set(["arrows", "system", "editor"])
-
-const TONES: Record<string, RecipeTone> = {
-  finances: "green", commerce: "green", nature: "green", communications: "blue", "maps & travel": "teal", weather: "amber",
-  objects: "orange", media: "pink", design: "pink", games: "violet", "health & wellness": "red", people: "violet",
-  office: "amber", "technology & development": "slate", brands: "slate",
-}
-
-const STOP = new Set("the and for you your with from into that this each every when about are its get using use based".split(" "))
-const stem = (w: string) => w.replace(/ies$/, "y").replace(/(ing|ers|es|s|ed)$/, "")
-const words = (s: string) => s.toLowerCase().replace(/follow-up/g, "followup").split(/[^a-z]+/).filter((w) => w.length > 2 && !STOP.has(w))
-
-const byName = new Map(icons.map((i) => [i.name, i]))
-
-export function pickIcon(title: string, description: string): string {
-  for (const w of [...words(title), ...words(description)]) {
-    const hit = SYNONYMS[w] ?? SYNONYMS[stem(w)]
-    if (hit) return hit
-  }
-  const want = new Map<string, number>()
-  for (const w of words(title)) want.set(stem(w), 3)
-  for (const w of words(description)) if (!want.has(stem(w))) want.set(stem(w), 1)
-  let best = "sparkle"
-  let top = 0
-  for (const icon of icons) {
-    if (icon.categories.every((c) => SKIP.has(c))) continue
-    const own = new Set(words(icon.name.replace(/-/g, " ")).map(stem))
-    const tags = new Set(icon.tags.flatMap(words).map(stem))
-    let score = 0
-    for (const [w, weight] of want) score += own.has(w) ? 3 * weight : tags.has(w) ? weight : 0
-    if (CURATED.has(icon.name)) score *= 1.5
-    if (score > top) [best, top] = [icon.name, score]
-  }
-  return top >= 3 ? best : "sparkle"
-}
-
-export function toneOf(icon: string): RecipeTone {
-  const found = byName.get(icon) ?? (() => { throw new Error(`no Phosphor icon named ${icon}`) })()
-  for (const c of found.categories) {
-    const tone = TONES[c]
-    if (tone) return tone
-  }
-  return "slate"
-}
+/** Icons worth a recipe that no synonym names. */
+export const EXTRA_ICONS = ["sparkle", "cloud-warning", "flower", "star", "heart", "coffee", "brain", "chat-circle-dots", "bell", "clock", "globe", "map-pin", "users", "calendar-dots", "rocket-launch", "trophy", "leaf", "sun", "moon", "fire", "lightning", "megaphone", "clipboard-text", "chart-pie", "piggy-bank", "bank", "hamburger", "pizza", "wine", "tree", "mountains", "bicycle", "airplane", "ticket", "gift", "balloon", "confetti", "palette", "pencil-simple", "puzzle-piece", "dice-five", "game-controller", "headphones", "television", "camera", "image", "files", "folder", "robot", "shield-check", "key", "lock", "wrench", "hammer", "medal", "flag", "compass", "binoculars", "eye", "envelope-open", "tray", "phone-call", "chats", "handshake", "hand-coins", "storefront", "barcode", "truck", "baby-carriage", "dog", "cat", "bird", "fish", "flower-tulip", "cactus", "sun-dim", "snowflake", "thermometer", "wind", "tooth", "brain", "heartbeat", "pill", "bandaids", "bed", "alarm", "timer", "hourglass", "calendar-blank", "note-pencil", "notepad", "student", "chalkboard-teacher", "exam", "certificate", "scroll", "feather", "pen-nib", "quotes", "microphone-stage", "guitar", "radio", "film-strip"]

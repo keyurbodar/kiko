@@ -1,6 +1,6 @@
 import { type Frontmatter, parseFrontmatter } from "./frontmatter"
 
-export type SkillSource = "room" | "builtin"
+export type SkillSource = "room" | "recipe" | "builtin"
 
 export type Skill = { name: string; description: string; body: string; source: SkillSource; disableModelInvocation: boolean }
 

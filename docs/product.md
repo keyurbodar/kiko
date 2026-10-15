@@ -105,15 +105,16 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 ### Skills
 
 - A skill is a `SKILL.md` file with a name and a description. Agents see the list and load a skill body only when a task needs it.
-- Kiko ships built-in skills. You cannot add your own yet.
+- Kiko ships built-in skills for its agents. Your own skills are recipes.
 - Type `/skill:name` to apply a skill by hand.
 
 ### Recipes
 
-- A recipe is a ready-made habit for an agent: a morning briefing, follow-up nudges, a decision council. Settings has a gallery of them, and an empty new chat offers a few as round tiles.
-- One tap adds a recipe. It goes to Kiko by default, or to the agent of the chat you opened it from, or to a new agent with its own chat. The chat opens at once.
-- The agent then asks one or two setup questions in the chat, such as the time or the city. There is no form. A missing app is asked for in the chat with a connect link.
-- An added recipe is a skill in the chat's files and, when it runs on a schedule, a routine in the chat's routines tab. Change or remove it there.
+- A recipe is a ready-made habit for an agent: a morning briefing, follow-up nudges, a decision council. The recipes button beside settings at the bottom of the sidebar opens the gallery, and an empty chat offers a few as round tiles.
+- Recipes are yours. Each is a file in your drive, `home/recipes/<name>/RECIPE.md`, that you can read, edit, or delete in the files tree. Kiko ships a set and copies each new one in once. Ask any agent for a new recipe and it writes one.
+- One tap adds a recipe to Kiko, or to a new agent with its own chat. The chat opens at once, and the agent asks one or two setup questions there, such as the time or the city. There is no form. A missing app is asked for in the chat with a connect link.
+- Every agent knows your recipes, so "run the decision council on this" works in any chat, and "set up the morning briefing here" adds it.
+- An added recipe that runs on a schedule shows in the chat's routines tab. Change or stop it there.
 
 ### Chat interface details
 
