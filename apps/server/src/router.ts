@@ -81,8 +81,10 @@ async function upgrade(request: Request, env: Env, url: URL, target: Target, loo
       headers.set(HANDLE_HEADER, humanHandle(user.name))
       response = await roomStub(env.ROOM, user.id, target.roomId).fetch(new Request(request, { headers }))
     }
-    // A browser closes a socket that offered subprotocols unless the answer names one of them.
-    if (!response.webSocket || request.headers.has("authorization")) return response
+    // A client fails a socket whose answer names a subprotocol it did not offer, and a browser that offered
+    // one fails it unless the answer names it. So echo `kiko` exactly when the client offered it.
+    const offered = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((p) => p.trim())
+    if (!response.webSocket || !offered.includes(SOCKET_PROTOCOL)) return response
     return new Response(null, { status: 101, webSocket: response.webSocket, headers: { "sec-websocket-protocol": SOCKET_PROTOCOL } })
   } catch (e) {
     if (e instanceof NameError) return error(400, e.message)
