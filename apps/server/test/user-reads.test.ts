@@ -12,7 +12,7 @@ beforeAll(async () => {
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
 		durableObjects: { USER: { className: "UserDO", useSQLite: true } },
-		bindings: { CREDENTIALS_KEK: "kek-test-user-reads" },
+		bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars", CREDENTIALS_KEK: "kek-test-user-reads" },
 	})
 	await mf.ready
 }, 60_000)

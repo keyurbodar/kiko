@@ -11,7 +11,7 @@ beforeAll(async () => {
     script: await bundleWorker(new URL("./user-worker.ts", import.meta.url), { "process.env.NODE_ENV": '"development"' }),
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
-    bindings: { CREDENTIALS_KEK: `kek-${crypto.randomUUID()}` },
+    bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars", CREDENTIALS_KEK: `kek-${crypto.randomUUID()}` },
     durableObjects: { USER: { className: "UserDO", useSQLite: true } },
   })
 })
