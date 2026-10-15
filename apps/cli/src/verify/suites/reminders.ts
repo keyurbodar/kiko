@@ -22,7 +22,7 @@ const suite: Suite = {
     async function api<T>(path: string, body?: unknown): Promise<T> {
       const res = await fetch(new URL(`api/${path}`, base), {
         method: body === undefined ? "GET" : "POST",
-        headers: { cookie: s.cookie, "content-type": "application/json" },
+        headers: { authorization: s.auth, "content-type": "application/json" },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       })
       if (!res.ok) throw new VerifyError(`${path} answered ${res.status}: ${await res.text()}`)

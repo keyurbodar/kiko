@@ -4,6 +4,7 @@ import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal, For, Show } from "solid-js"
 import type { LoopRow as WireLoop } from "@kiko/protocol"
 import { shortDate } from "./format"
+import { apiFetch } from "../../lib/api"
 
 export type PlateLoop = Pick<WireLoop, "id" | "room" | "text" | "due" | "snoozedUntil">
 
@@ -20,7 +21,7 @@ export function readLoops(value: unknown): PlateLoop[] {
 }
 
 export async function loadLoops(): Promise<void> {
-  const res = await fetch("/api/loops").catch(() => null)
+  const res = await apiFetch("/api/loops").catch(() => null)
   if (res?.ok) setAll(readLoops(await res.json().catch(() => null)))
   else if (all() === undefined) setAll([])
 }
@@ -42,7 +43,7 @@ export function tomorrow(from = new Date()): number {
 }
 
 const post = (id: number, body: unknown) =>
-  fetch(`/api/loops/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.ok).catch(() => false)
+  apiFetch(`/api/loops/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.ok).catch(() => false)
 
 export async function act(loop: PlateLoop, body: { action: "done" | "drop" } | { action: "snooze"; until: number }, failed: string): Promise<void> {
   setAll((list) => (body.action === "snooze" ? list?.map((l) => (l.id === loop.id ? { ...l, snoozedUntil: body.until } : l)) : list?.filter((l) => l.id !== loop.id)))

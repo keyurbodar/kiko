@@ -1,5 +1,6 @@
 import { createResource, Match, onCleanup, Switch } from "solid-js"
 import { SurfaceFailure, SurfaceLoading } from "../chrome"
+import { apiFetch } from "../../lib/api"
 
 /*
  * A PDF in the browser's own viewer. The file route answers with `content-security-policy:
@@ -11,7 +12,7 @@ export default function PdfView(props: { src: string; title: string }) {
 	const [blob, { refetch }] = createResource(
 		() => props.src,
 		async (src) => {
-			const res = await fetch(src)
+			const res = await apiFetch(src)
 			if (!res.ok) throw new Error(`The server said ${res.status}`)
 			if (url) URL.revokeObjectURL(url)
 			url = URL.createObjectURL(new Blob([await res.arrayBuffer()], { type: "application/pdf" }))

@@ -1,12 +1,13 @@
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createResource, createSignal, Show } from "solid-js"
 import { buttonClass } from "../../settings/kit"
+import { apiFetch } from "../../lib/api"
 
 const MAX_SOUL = 3_000
 type Soul = { body: string; sha: string }
 
 async function load(slug: string): Promise<Soul | null> {
-	const res = await fetch(`/api/souls/${slug}`)
+	const res = await apiFetch(`/api/souls/${slug}`)
 	return res.ok ? ((await res.json()) as Soul) : null
 }
 
@@ -20,7 +21,7 @@ export function SoulCard(props: { slug: string }) {
 		const current = soul()
 		if (body === null || !current) return
 		setSaving(true)
-		const res = await fetch(`/api/souls/${props.slug}`, {
+		const res = await apiFetch(`/api/souls/${props.slug}`, {
 			method: "PUT",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ body, expectSha: current.sha }),

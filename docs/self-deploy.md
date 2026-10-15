@@ -48,7 +48,7 @@ Kiko runs on your own Cloudflare account. One deployment serves one owner. You s
 
    | Secret | What it is |
    | --- | --- |
-   | `SESSION_SECRET` | Signs the session cookie. Use a long random string, 32 bytes or more. Changing it signs every device out. |
+   | `SESSION_SECRET` | Signs the session tokens. Use a long random string, 32 bytes or more. Changing it signs every device out. |
    | `CREDENTIALS_KEK` | Encrypts your provider keys in the owner's Durable Object. Use a long random string. Keep it: a new value cannot read the keys stored under the old one. |
    | `ACCESS_CODE` | The code you type on the sign-in screen. Make it long, at least 24 random characters, for example `openssl rand -hex 16`. The sign-in route has no attempt limit. |
 
@@ -67,7 +67,7 @@ Kiko runs on your own Cloudflare account. One deployment serves one owner. You s
 
 ## Signing out
 
-Sessions are signed cookies, and the server stores none. Sign-out clears the cookie on the device you sign out on. Other devices stay signed in until `SESSION_SECRET` changes, which signs all of them out at once.
+Sessions are signed bearer tokens that last 30 days, and the server stores none. Sign-out clears the token on the device you sign out on. Other devices stay signed in until `SESSION_SECRET` changes, which signs all of them out at once.
 
 ## Upgrading from before the single-owner change
 

@@ -82,7 +82,7 @@ const suite: Suite = {
         TURN_MS,
       )) as Extract<RoomToClient, { t: "events" }>
       const file = written.events.find((e) => e.t === "file")?.file as FileRef
-      const download = await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })
+      const download = await fetch(new URL(file.id, base), { headers: { authorization: s.auth } })
       expectEqual(download.status, 200, "the download of the agent's file")
       const loaded = new Uint8Array(await download.arrayBuffer())
       expectEqual(new TextDecoder().decode(loaded).trim(), first, "the content the agent wrote")
@@ -124,7 +124,7 @@ const suite: Suite = {
       const paths = [...now.keys()].sort()
       expectEqual(JSON.stringify(paths), JSON.stringify(want), "the files after edit, mv, cp, and rm")
       for (const path of want) {
-        const res = await fetch(new URL(must(now.get(path), "file ref").id, base), { headers: { cookie: s.cookie } })
+        const res = await fetch(new URL(must(now.get(path), "file ref").id, base), { headers: { authorization: s.auth } })
         expectEqual((await res.text()).trim(), third, `the content of ${path}`)
       }
       console.log(`  turn three: edit, mv, cp, rm in ${Date.now() - t0} ms. files: ${paths.join(", ")}`)
@@ -138,7 +138,7 @@ const suite: Suite = {
         return entry.dir === "in" && f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "system" && /saved \/home\/plan\.md/.test(e.text))
       })
       if (!noticed) throw new VerifyError("no line in the chat says the agent saved /home/plan.md")
-      const home = await fetch(new URL("api/files/home/", v.url), { headers: { cookie: s.cookie } }).catch(() => null)
+      const home = await fetch(new URL("api/files/home/", v.url), { headers: { authorization: s.auth } }).catch(() => null)
       void home
       console.log(`  turn four: copied to /home/plan.md in ${Date.now() - t0} ms, and the chat said so`)
       user.send({ t: "chat", op: { op: "delete", roomId: roomId as never } })

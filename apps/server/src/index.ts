@@ -2,6 +2,7 @@ import type { AgentDO } from "./agent/agent-do"
 import { devResponse } from "./lib/dev-guard"
 import { BACKEND } from "./lib/version"
 import { type AuthEnv, authRoute, getSessionUser } from "./auth/auth"
+import { withCors } from "./lib/cors"
 import { userStub } from "./lib/names"
 import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
@@ -35,8 +36,7 @@ export interface Env extends AuthEnv {
   RELEASE_BASE_URL?: string
 }
 
-export default {
-  async fetch(request, env) {
+async function handle(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
     if (url.pathname === "/api/health") return Response.json({ ok: true })
     if (url.pathname === "/api/version") return Response.json(BACKEND)
@@ -74,5 +74,8 @@ export default {
     if (authResponse) return authResponse
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return env.ASSETS.fetch(request)
-  },
+}
+
+export default {
+  fetch: (request, env) => withCors(request, env, () => handle(request, env)),
 } satisfies ExportedHandler<Env>

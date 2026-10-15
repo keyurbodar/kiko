@@ -125,8 +125,8 @@ export type ClientToUser =
 export type UpdateStage = "checking" | "authorizing" | "uploading" | "restarting" | "failed"
 
 export type UserToClient =
-	| { t: "events"; events: readonly UserEvent[]; version?: string; protocol?: number }
-	| { t: "reset"; snapshot: UserSnapshot; version?: string; protocol?: number }
+	| { t: "events"; events: readonly UserEvent[]; version?: string; protocol?: number; fileToken?: string }
+	| { t: "reset"; snapshot: UserSnapshot; version?: string; protocol?: number; fileToken?: string }
 	| { t: "memory_result"; reqId: string; result: MemoryResult }
 	| { t: "search"; query: string; chats: readonly Chat[] }
 	| { t: "composio"; reqId?: string; result: ComposioResult }

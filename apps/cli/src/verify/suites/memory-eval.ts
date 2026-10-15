@@ -56,10 +56,10 @@ export function script(e: Eval): { from: string; text: string }[] {
 }
 
 
-async function dev<T = unknown>(url: string, cookie: string, path: string, body: unknown): Promise<T> {
+async function dev<T = unknown>(url: string, auth: string, path: string, body: unknown): Promise<T> {
   const res = await fetch(new URL(`api/dev/agent/${path}`, url), {
     method: "POST",
-    headers: { "content-type": "application/json", cookie },
+    headers: { "content-type": "application/json", authorization: auth },
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new VerifyError(`the dev route ${path} answered ${res.status}. start the Worker with NODE_ENV=development`)
@@ -83,7 +83,7 @@ export const memorySuite = (e: Eval): Suite => ({
     let room = await s.room(roomId)
     await room.expect(opened)
 
-    const seeded = await dev<{ turns: number }>(v.url, s.cookie, "seed", { roomId, turns: script(e) })
+    const seeded = await dev<{ turns: number }>(v.url, s.auth, "seed", { roomId, turns: script(e) })
     if (seeded.turns !== TURNS) throw new VerifyError(`seeded ${seeded.turns} turns, wanted ${TURNS}`)
 
     const started = Date.now()
@@ -95,7 +95,7 @@ export const memorySuite = (e: Eval): Suite => ({
       // A busy machine's wrangler dev sometimes drops a request to the room ("Network connection lost");
       // the next poll reaches it again. Five failures in a row are real.
       try {
-        state = await dev<{ pending: number; view?: string }>(v.url, s.cookie, "memory", { roomId })
+        state = await dev<{ pending: number; view?: string }>(v.url, s.auth, "memory", { roomId })
         lost = 0
       } catch (error) {
         if (++lost >= 5) throw error
@@ -137,7 +137,7 @@ export const memorySuite = (e: Eval): Suite => ({
     for (const [i, f] of ASKED.entries()) console.log(`  ${hits[i] ? "ok  " : "miss"} turn ${String(f.at).padStart(3)}${f.from ? ` @${f.from}` : ""}: ${f.ask}`)
     const score = hits.filter(Boolean).length
     console.log(`  score ${score}/${ASKED.length}. the answer: ${JSON.stringify(text)}`)
-    console.log(`  summary cost: ${JSON.stringify((await dev<{ memory: unknown }>(v.url, s.cookie, "usage", { roomId })).memory)}`)
+    console.log(`  summary cost: ${JSON.stringify((await dev<{ memory: unknown }>(v.url, s.auth, "usage", { roomId })).memory)}`)
     if (score < e.pass) throw new VerifyError(`memory eval scored ${score}/${ASKED.length}, below ${e.pass}`)
   },
 })

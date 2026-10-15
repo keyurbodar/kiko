@@ -48,7 +48,7 @@ async function chat(v: Pick<Verifier, "url" | "as">, mode: "memory") {
     }
     await Bun.sleep(800)
   }
-  const usage = async () => (await dev(v.url, s.cookie, "usage", { roomId })) as Spent
+  const usage = async () => (await dev(v.url, s.auth, "usage", { roomId })) as Spent
   const perRun: Usage[] = []
   let last: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
   for (let i = 0; i < TURNS; i++) {
@@ -66,7 +66,7 @@ async function chat(v: Pick<Verifier, "url" | "as">, mode: "memory") {
   if (!recalled) {
     const from = room.raw.log.length - 40
     for (const e of room.raw.log.slice(Math.max(0, from))) if (e.dir === "in") console.log(`    ${mode} event: ${JSON.stringify(e.frame).slice(0, 300)}`)
-    console.log(`    ${mode} trace: ${JSON.stringify(await dev(v.url, s.cookie, "trace", { roomId })).slice(0, 2000)}`)
+    console.log(`    ${mode} trace: ${JSON.stringify(await dev(v.url, s.auth, "trace", { roomId })).slice(0, 2000)}`)
   }
   await Bun.sleep(60_000)
   const memory = (await usage()).memory

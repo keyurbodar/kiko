@@ -1,4 +1,6 @@
 import { createSignal } from "solid-js"
+import { apiFetch, setToken, setUnauthorizedHandler } from "../lib/api"
+import { clearFileToken } from "../lib/file-token"
 
 /*
  * The session, as the client sees it (architecture section 10). A cached flag in
@@ -81,6 +83,8 @@ async function signedOut(): Promise<void> {
   const current = state()
   const userId = current.status === "signed-in" ? current.user.id : readFlag()?.id
   writeFlag(null)
+  setToken(null)
+  clearFileToken()
   setState({ status: "signed-out" })
   if (userId) await clearWarmTier(userId)
 }
@@ -88,9 +92,16 @@ async function signedOut(): Promise<void> {
 /** Confirms the cached flag with the server. Call once on boot. */
 export async function bootstrapSession(): Promise<void> {
   try {
-    const early = globalThis.__kikoBoot?.me
+    let early = globalThis.__kikoBoot?.me
     if (globalThis.__kikoBoot) globalThis.__kikoBoot.me = undefined
-    const res = await (early ?? fetch("/api/me"))
+    // Development only: /api/auth/dev/session redirects here with the token in the hash.
+    const handed = import.meta.env.DEV ? /^#token=(\S+)$/.exec(location.hash)?.[1] : undefined
+    if (handed) {
+      setToken(handed)
+      history.replaceState(null, "", location.pathname + location.search)
+      early = undefined
+    }
+    const res = await (early ?? apiFetch("/api/me"))
     if (res.status === 401) return await signedOut()
     if (!res.ok) throw new Error(String(res.status))
     const { user } = (await res.json()) as { user: SessionUser }
@@ -104,55 +115,45 @@ export async function bootstrapSession(): Promise<void> {
   }
 }
 
-/** `fetch` for every call to the Worker. A 401 signs the person out. */
-export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const res = await fetch(input, init)
-  if (res.status === 401 && state().status === "signed-in") void signedOut()
-  return res
-}
+// A 401 from any call drops the token (api.ts), then shows sign-in.
+setUnauthorizedHandler(() => {
+  if (state().status === "signed-in") void signedOut()
+})
 
 export async function signOut(): Promise<void> {
   try {
     localStorage.removeItem("kiko:snap")
   } catch {}
-  try {
-    await fetch("/api/auth/sign-out", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-    })
-  } catch {
-    // the local sign-out below does not wait on the network
-  }
   await signedOut()
+}
+
+async function adopt(res: Response | null, failure: string): Promise<void> {
+  if (!res?.ok) throw new Error(failure)
+  const { user, token } = (await res.json()) as { user: SessionUser; token: string }
+  setToken(token)
+  signedIn(user)
 }
 
 /** Signs in with the access code. A wrong code throws the server's message. */
 export async function signInWithAccessCode(code: string): Promise<void> {
-  const res = await fetch("/api/auth/access-code", {
+  const res = await apiFetch("/api/auth/access-code", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ code }),
   }).catch(() => null)
-  if (!res?.ok) {
-    const { message } = res ? ((await res.json().catch(() => ({}))) as { message?: string }) : {}
+  if (res && !res.ok) {
+    const { message } = (await res.json().catch(() => ({}))) as { message?: string }
     throw new Error(message ?? "Could not sign in. Try again")
   }
-  // The cookie is set. Read the user back and show the shell without a reload.
-  const me = await fetch("/api/me")
-  if (!me.ok) throw new Error("Could not sign in. Try again")
-  signedIn(((await me.json()) as { user: SessionUser }).user)
+  await adopt(res, "Could not sign in. Try again")
 }
 
-/** Development Workers only. Mints a session for a test user, then reads it back. */
+/** Development Workers only. Mints a session for a test user. */
 export async function signInAsDev(name = "dev"): Promise<void> {
-  const res = await fetch("/api/auth/dev/session", {
+  const res = await apiFetch("/api/auth/dev/session", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name }),
   })
-  if (!res.ok) throw new Error("dev sign-in failed")
-  const me = await fetch("/api/me")
-  if (!me.ok) throw new Error("dev sign-in failed")
-  signedIn(((await me.json()) as { user: SessionUser }).user)
+  await adopt(res, "dev sign-in failed")
 }

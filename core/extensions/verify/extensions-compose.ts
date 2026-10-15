@@ -109,7 +109,7 @@ const suite: Suite = {
   name: "extensions-compose",
   async run(v) {
     const s = await v.as(`ext-compose-${Date.now()}`)
-    await fetch(new URL("api/me", v.url), { headers: { cookie: s.cookie } })
+    await fetch(new URL("api/me", v.url), { headers: { authorization: s.auth } })
     const install = await installer(s)
     for (const [id, run] of [["P1", p1], ["P3", p3]] as const) {
       try {

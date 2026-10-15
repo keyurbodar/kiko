@@ -16,7 +16,7 @@ const suite: Suite = {
 		const roomId = newRoomId()
 		const base = new URL(`api/files/${roomId}/`, v.url)
 		const call = (path: string, init: RequestInit & { as?: typeof alice } = {}) =>
-			fetch(new URL(path, base), { ...init, headers: { cookie: (init.as ?? alice).cookie, ...(init.headers as Record<string, string>) } })
+			fetch(new URL(path, base), { ...init, headers: { authorization: (init.as ?? alice).auth, ...(init.headers as Record<string, string>) } })
 		const errorOf = async (res: Response) => ((await res.json()) as { error?: string }).error
 		const upload = (id: string, body: Uint8Array<ArrayBuffer>, name: string, type: string, size = body.length) =>
 			call(`pending/${id}?${new URLSearchParams({ name, size: String(size) })}`, { method: "PUT", headers: { "content-type": type }, body })
@@ -111,7 +111,7 @@ const suite: Suite = {
 		expectEqual((await upload(staleId, new TextEncoder().encode("old"), "old.txt", "text/plain")).status, 204, "the stale upload")
 		const aged = await fetch(new URL("api/dev/agent/pending", v.url), {
 			method: "POST",
-			headers: { cookie: alice.cookie, "content-type": "application/json" },
+			headers: { authorization: alice.auth, "content-type": "application/json" },
 			body: JSON.stringify({ roomId, ms: 25 * 3_600_000 }),
 		})
 		if (!aged.ok) throw new VerifyError(`the dev sweep answered ${aged.status}. start the Worker with NODE_ENV=development`)

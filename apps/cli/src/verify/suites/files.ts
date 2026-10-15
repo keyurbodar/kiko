@@ -28,7 +28,7 @@ const suite: Suite = {
 		const call = async (path: string, init: RequestInit & { as?: typeof alice } = {}) => {
 			const res = await fetch(new URL(path, base), {
 				...init,
-				headers: { cookie: (init.as ?? alice).cookie, ...(init.headers as Record<string, string>) },
+				headers: { authorization: (init.as ?? alice).auth, ...(init.headers as Record<string, string>) },
 			})
 			return res
 		}

@@ -8,6 +8,7 @@ import { recipeCard } from "../recipes/card"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadUserDev } from "../lib/dev-guard"
+import { signToken } from "../auth/auth"
 import { BACKEND } from "../lib/version"
 import { Schema } from "effect"
 import type { Env } from "../index"
@@ -707,7 +708,8 @@ export class UserDO extends DurableObject<Env> {
     if (frame.t === "hello") {
       this.seen()
       // The reply says which build answered, so the client can tell it is out of date (versions in docs/app-kiko.md).
-      send(ws, { ...this.resume(frame.lastSeq), ...BACKEND })
+      const fileToken = await signToken(this.env.SESSION_SECRET, userIdFromObjectName(this.ctx.id.name), "files")
+      send(ws, { ...this.resume(frame.lastSeq), ...BACKEND, ...{ fileToken } })
       // The client starts with no browser, so a hello sends a browser only when there is one.
       const browser = this.#kr.browserState()
       if (browser) send(ws, { t: "browserState", state: browser })

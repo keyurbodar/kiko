@@ -6,6 +6,7 @@
 // with exponential backoff and jitter, and at once when the browser says it is
 // back online. Frames are JSON. A frame that is not an object with a string `t`
 // is dropped here, at the edge.
+import { socketProtocols } from "../lib/api"
 //
 // A socket can die without a close event (a laptop that slept, a network that
 // changed), and the chat would sit stale. So the client sends a bare `ping`
@@ -30,7 +31,7 @@ export type SocketLike = {
 /** Opens one connection. The browser's `WebSocket` by default, the mock room in tests. */
 export type Connect = (url: string) => SocketLike
 
-export const browserConnect: Connect = (url) => new WebSocket(url) as unknown as SocketLike
+export const browserConnect: Connect = (url) => new WebSocket(url, socketProtocols()) as unknown as SocketLike
 
 export type SocketStatus = "connecting" | "open" | "closed"
 

@@ -64,8 +64,8 @@ const suite: Suite = {
       const r = await memory({ op: "view" })
       return "text" in r ? r.text.join("\n") : ""
     }
-    const usage = async (): Promise<Usage> => ((await dev(v.url, s.cookie, "usage", { roomId: home.id })) as { memory: Usage }).memory
-    const policy = (p: Record<string, unknown>) => dev(v.url, s.cookie, "policy", { policy: p })
+    const usage = async (): Promise<Usage> => ((await dev(v.url, s.auth, "usage", { roomId: home.id })) as { memory: Usage }).memory
+    const policy = (p: Record<string, unknown>) => dev(v.url, s.auth, "policy", { policy: p })
     const ok = (name: string, evidence: string) => console.log(`  [${stamp()}] ok ${name}: ${evidence}`)
     const settle = async () => {
       await poll("capture to settle", async () => {

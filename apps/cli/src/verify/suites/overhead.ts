@@ -40,7 +40,7 @@ const suite: Suite = {
     const samples = new Samples()
     const get = async (path: string) => {
       const t0 = now()
-      const res = await fetch(new URL(path, base), { headers: { cookie: s.cookie } })
+      const res = await fetch(new URL(path, base), { headers: { authorization: s.auth } })
       await res.arrayBuffer()
       if (!res.ok) throw new VerifyError(`${path} answered ${res.status}`)
       return now() - t0

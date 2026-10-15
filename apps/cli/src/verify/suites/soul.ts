@@ -53,7 +53,7 @@ const suite: Suite = {
     user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "lisbon trip", agents: ["kiko", ada.id] } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
-    const soulNow = async () => ((await (await fetch(new URL(`api/souls/kiko`, v.url), { headers: { cookie: s.cookie } })).json()) as { body: string }).body
+    const soulNow = async () => ((await (await fetch(new URL(`api/souls/kiko`, v.url), { headers: { authorization: s.auth } })).json()) as { body: string }).body
     const soulBefore = await soulNow()
     const fail: string[] = []
 
@@ -92,7 +92,7 @@ const suite: Suite = {
     console.log(`  decision reply (${Date.now() - t0} ms): ${JSON.stringify(kikoSays(room, from).map((m) => m.text))}`)
     const chat = seen(room).files.get("chat.md")
     const base = new URL(`api/files/${roomId}/`, v.url)
-    const text = chat ? await (await fetch(new URL(chat.id, base), { headers: { cookie: s.cookie } })).text() : ""
+    const text = chat ? await (await fetch(new URL(chat.id, base), { headers: { authorization: s.auth } })).text() : ""
     console.log(`  /chat.md: ${JSON.stringify(text)}`)
     if (!text.includes(must(budget.split(" ")[0], "the budget's first word"))) fail.push("chat file: the budget is not in /chat.md")
 

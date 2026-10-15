@@ -127,15 +127,15 @@ const suite: Suite = {
     ok(await op({ op: "uninstall", name: "verify-counter" }), "clean up")
 
     const sender = { kiko: 1, name: "verify-sender", version: "1.0.0", description: "sends, for kiko verify", tools: { verify_send: { description: "sends a ping outside kiko", effect: "external" } }, triggers: [{ id: "ping", rrule: "FREQ=DAILY", send: "[ws verify_send {}]" }], tests: [{ tool: "verify_send", expect: "sent" }] }
-    await fetch(new URL("api/me", v.url), { headers: { cookie: s.cookie } })
+    await fetch(new URL("api/me", v.url), { headers: { authorization: s.auth } })
     const sent = ok(await op({ op: "propose", bundle: { manifest: sender as never, files: { "main.js": 'export const tools = { async verify_send() { return "sent" } }' } } }), "propose the sender")
     ok(await op({ op: "install", id: must(sent.proposal, "sender proposal").id }), "install the sender")
-    const reminders = await fetch(new URL("api/reminders", v.url), { headers: { cookie: s.cookie } })
+    const reminders = await fetch(new URL("api/reminders", v.url), { headers: { authorization: s.auth } })
     const trigger = ((await reminders.json()) as { id: string; roomId: string; createdBy: string; status: string }[]).find((r) => r.createdBy === "ext:verify-sender" && r.status === "active")
     if (!trigger) throw new VerifyError("installing an extension with a trigger scheduled nothing")
     const home = await s.room(trigger.roomId)
     await fake(v, s, trigger.roomId)
-    const due = await fetch(new URL("api/dev/agent/due", v.url), { method: "POST", headers: { "content-type": "application/json", cookie: s.cookie }, body: JSON.stringify({ id: trigger.id }) })
+    const due = await fetch(new URL("api/dev/agent/due", v.url), { method: "POST", headers: { "content-type": "application/json", authorization: s.auth }, body: JSON.stringify({ id: trigger.id }) })
     if (!due.ok) throw new VerifyError(`the due route answered ${due.status}`)
     await poll("the trigger's run", () => seen(home).live.some((m) => m.text.includes("tool: ")), 30_000)
     const said = must(seen(home).live.find((m) => m.text.includes("tool: ")), "trigger run").text

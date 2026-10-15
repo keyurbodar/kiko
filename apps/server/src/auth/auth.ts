@@ -14,8 +14,6 @@ export const PRODUCTION_OWNER = "owner"
 export const OWNER_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/
 
 const AUTH_PATH = "/api/auth"
-const COOKIE = "kiko_session"
-const ONE_YEAR_S = 365 * 24 * 60 * 60
 
 const encoder = new TextEncoder()
 
@@ -44,44 +42,52 @@ function fromHex(hex: string): Uint8Array | null {
   return Uint8Array.from(hex.match(/../g) ?? [], (pair) => Number.parseInt(pair, 16))
 }
 
-// The cookie holds the owner id and an HMAC of it, so the Worker needs no session table.
-export async function sessionCookie(secret: string, ownerId: string, secure: boolean): Promise<string> {
-  const mac = toHex(await crypto.subtle.sign("HMAC", await hmacKey(secret, "sign"), encoder.encode(ownerId)))
-  const attributes = ["Path=/", `Max-Age=${ONE_YEAR_S}`, "HttpOnly", "SameSite=Lax", ...(secure ? ["Secure"] : [])]
-  return `${COOKIE}=${ownerId}.${mac}; ${attributes.join("; ")}`
+type Scope = "session" | "files"
+
+const SCOPE_TTL_S: Record<Scope, number> = { session: 30 * 24 * 60 * 60, files: 60 * 60 }
+// A file token is the same for ten minutes, so a reconnect does not change every file URL and reload every image.
+const SCOPE_STEP_S: Record<Scope, number> = { session: 1, files: 600 }
+
+// A token is `owner.scope.expiry.mac`. The mac covers the first three parts, so the Worker needs no session table
+// and a file token cannot pass as a session token.
+export async function signToken(secret: string, ownerId: string, scope: Scope, nowMs = Date.now()): Promise<string> {
+  const step = SCOPE_STEP_S[scope]
+  const body = `${ownerId}.${scope}.${Math.floor((Math.floor(nowMs / 1000) + SCOPE_TTL_S[scope]) / step) * step}`
+  const mac = toHex(await crypto.subtle.sign("HMAC", await hmacKey(secret, "sign"), encoder.encode(body)))
+  return `${body}.${mac}`
 }
 
-function clearedCookie(secure: boolean): string {
-  return `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`
-}
-
-function cookieValue(request: Request): string | null {
-  for (const part of (request.headers.get("cookie") ?? "").split(";")) {
-    const [key, ...rest] = part.trim().split("=")
-    if (key === COOKIE) return rest.join("=")
-  }
-  return null
-}
-
-export async function getSessionUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
-  const value = cookieValue(request)
-  const dot = value?.lastIndexOf(".") ?? -1
-  if (!value || dot < 1) return null
-  const id = value.slice(0, dot)
-  const mac = fromHex(value.slice(dot + 1))
-  if (!mac || !OWNER_NAME.test(id) || !env.SESSION_SECRET) return null
-  const ok = await crypto.subtle.verify("HMAC", await hmacKey(env.SESSION_SECRET, "verify"), mac, encoder.encode(id))
+export async function verifyToken(secret: string | undefined, token: string | null, scope: Scope, nowMs = Date.now()): Promise<SessionUser | null> {
+  const parts = token?.split(".") ?? []
+  const [id = "", tokenScope, expiry = "", macHex = ""] = parts
+  const mac = fromHex(macHex)
+  if (parts.length !== 4 || tokenScope !== scope || !mac || !OWNER_NAME.test(id) || !secret) return null
+  if (!/^\d+$/.test(expiry) || Number(expiry) * 1000 <= nowMs) return null
+  const ok = await crypto.subtle.verify("HMAC", await hmacKey(secret, "verify"), mac, encoder.encode(`${id}.${scope}.${expiry}`))
   return ok ? { id, name: id } : null
 }
 
-function isSecure(request: Request): boolean {
-  return new URL(request.url).protocol === "https:"
+// A fetch sends `Authorization: Bearer`. A browser socket cannot, so it offers `["kiko", token]` as subprotocols.
+function bearerToken(request: Request): string | null {
+  const header = request.headers.get("authorization")
+  if (header) return /^Bearer (\S+)$/.exec(header)?.[1] ?? null
+  const offered = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((p) => p.trim())
+  return offered[0] === SOCKET_PROTOCOL ? (offered[1] ?? null) : null
 }
 
-export async function signedInResponse(request: Request, env: AuthEnv, ownerId: string): Promise<Response> {
-  const response = Response.json({ user: { id: ownerId, name: ownerId } })
-  response.headers.append("set-cookie", await sessionCookie(env.SESSION_SECRET, ownerId, isSecure(request)))
-  return response
+export const SOCKET_PROTOCOL = "kiko"
+
+export function getSessionUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
+  return verifyToken(env.SESSION_SECRET, bearerToken(request), "session")
+}
+
+// The download route also accepts `?t=`, because an image or link cannot carry a header.
+export function getFileUser(request: Request, env: AuthEnv): Promise<SessionUser | null> {
+  return verifyToken(env.SESSION_SECRET, new URL(request.url).searchParams.get("t"), "files")
+}
+
+export async function signedInResponse(env: AuthEnv, ownerId: string): Promise<Response> {
+  return Response.json({ user: { id: ownerId, name: ownerId }, token: await signToken(env.SESSION_SECRET, ownerId, "session") })
 }
 
 export async function authRoute(request: Request, env: AuthEnv): Promise<Response | null> {
@@ -94,12 +100,7 @@ export async function authRoute(request: Request, env: AuthEnv): Promise<Respons
     if (!(await matches(env.ACCESS_CODE, given))) {
       return Response.json({ message: "That access code is not right" }, { status: 401 })
     }
-    return signedInResponse(request, env, PRODUCTION_OWNER)
-  }
-  if (pathname === `${AUTH_PATH}/sign-out`) {
-    const response = Response.json({ ok: true })
-    response.headers.append("set-cookie", clearedCookie(isSecure(request)))
-    return response
+    return signedInResponse(env, PRODUCTION_OWNER)
   }
   return null
 }

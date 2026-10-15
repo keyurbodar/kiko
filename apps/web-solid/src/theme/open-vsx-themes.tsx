@@ -3,6 +3,7 @@
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { appearanceOf, importedThemes, saveImported } from "@kiko/theme/apply"
 import { MAX_IMPORTED, type Imported, type ImportedTheme } from "@kiko/theme/imported"
+import { apiFetch } from "../lib/api"
 import type { OpenVsxItem } from "@kiko/theme/open-vsx"
 import { Dialog } from "../lib/dialog"
 import { Button, IconButton, Notice } from "../settings/kit"
@@ -53,7 +54,7 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
         setSearching(true)
         setError(null)
         try {
-          const found = await (await importer()).searchThemes(q, abort.signal)
+          const found = await (await importer()).searchThemes(q, abort.signal, apiFetch)
           if (!abort.signal.aborted) setResults(found)
         } catch (cause) {
           if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : "The search failed.")
@@ -75,7 +76,7 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
     setInstalling(keyOf(item))
     setError(null)
     try {
-      const themes = await (await importer()).installTheme(item)
+      const themes = await (await importer()).installTheme(item, undefined, apiFetch)
       const kept = state().themes.filter((theme) => !themes.some((added) => added.id === theme.id))
       commit({ ...state(), themes: [...kept, ...themes].slice(-MAX_IMPORTED) })
       const theme = themes.find((t) => t.appearance === appearanceOf(look().mode)) ?? themes[0]!
