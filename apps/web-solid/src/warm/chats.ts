@@ -1,12 +1,14 @@
 // The chat list and the user socket's cursor.
 
 import type { Agent, Chat, RoomId } from "@kiko/protocol"
+import type { Home } from "../sync/user-store"
 import type { Warm } from "./db"
 import { clearDraft } from "./drafts"
 import { clearRoom } from "./messages"
 
 const USER_SEQ = "userSeq"
 const AGENTS = "agents"
+const HOME = "home"
 
 export function putChats(warm: Warm, chats: readonly Chat[]) {
 	for (const c of chats) warm.put("chats", c.roomId, c)
@@ -48,3 +50,6 @@ export async function allAgents(warm: Warm): Promise<Agent[]> {
 	return [...((await warm.get<Agent[]>("meta", AGENTS)) ?? [])]
 }
 
+export const putHome = (warm: Warm, home: Home) => warm.put("meta", HOME, home)
+
+export const getHome = (warm: Warm): Promise<Home | undefined> => warm.get<Home>("meta", HOME)
