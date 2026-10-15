@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import type { AgentSlug, Message, MessageId, RoomEvent, RoomId } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { IDBFactory } from "fake-indexeddb"
-import { allChats } from "../warm/chats"
+import { allChats, putChats, setUserSeq } from "../warm/chats"
 import { openWarm, type Warm } from "../warm/db"
 import { dropBefore, getLastSeq, newestMessages, putMessages, setLastSeq } from "../warm/messages"
 import { outbox } from "../warm/outbox"
@@ -678,6 +678,35 @@ describe("the user store", () => {
 		await until(() => store.state.patches.length === 0)
 		expect(store.state.chats).toHaveLength(1)
 		store.close()
+	})
+
+	test("a cache with a seq but no drive asks for a full snapshot", async () => {
+		const warm = await freshWarm()
+		setUserSeq(warm, 5)
+		putChats(warm, [fixtures.chat])
+		const mock = createMockUser()
+		const store = createUserStore({ warm, url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await store.ready
+		await until(() => mock.received.some((f) => f.t === "hello"))
+		expect(mock.received.find((f) => f.t === "hello")).toEqual({ t: "hello", lastSeq: 0 })
+		store.close()
+	})
+
+	test("the drive paints from the cache after a reload, before the server answers", async () => {
+		const warm = await freshWarm()
+		const mock = createMockUser()
+		mock.store({ t: "file", file: { id: "f1", name: "a.txt", size: 1, type: "text/plain" } })
+		const first = createUserStore({ warm, url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await until(() => first.homeFiles().length === 1)
+		first.close()
+		const seq = mock.log.at(-1)!.seq
+
+		const second = createUserStore({ warm, url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await second.ready
+		expect(second.homeFiles().map((f) => f.name)).toEqual(["a.txt"])
+		await until(() => second.state.synced)
+		expect(mock.received.filter((f) => f.t === "hello").at(-1)).toEqual({ t: "hello", lastSeq: seq })
+		second.close()
 	})
 
 	test("a second direct chat with an agent is refused: it leaves the list and points at the first", async () => {
