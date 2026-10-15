@@ -43,7 +43,7 @@ const suite: Suite = {
     expectEqual(await received(), receivedAtStop, "envelopes the inboxes stored after stop")
     expectEqual(notices(room).length, 0, "loop limit notices (the chain ended at stop)")
     for (const slug of slugs) {
-      const st = (await dev(v.url, s.cookie, "status", { roomId, slug })) as Status & { tasks: number; submissions: number }
+      const st = (await dev(v.url, s.auth, "status", { roomId, slug })) as Status & { tasks: number; submissions: number }
       expectEqual({ waiting: st.inbox.waiting, claimed: st.inbox.claimed, tasks: st.tasks, submissions: st.submissions }, { waiting: 0, claimed: 0, tasks: 0, submissions: 0 }, `${slug} after stop`)
     }
     console.log(`  ok stop: quiet ${((Date.now() - stoppedAt) / 1000).toFixed(1)}s, ${sendsAtStop} agent messages in all, both inboxes empty, no run live`)

@@ -32,15 +32,15 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   await connectTestModel(s)
   if (jev) await s.connectProvider(TYPESAFE, jev)
   const base = v.url
-  const loops = async () => ((await dev(v.url, s.cookie, "loops", {})) as { loops: Loop[] }).loops
+  const loops = async () => ((await dev(v.url, s.auth, "loops", {})) as { loops: Loop[] }).loops
   const reminders = async () => {
-    const res = await fetch(new URL("api/reminders", base), { headers: { cookie: s.cookie } })
+    const res = await fetch(new URL("api/reminders", base), { headers: { authorization: s.auth } })
     if (!res.ok) throw new VerifyError(`GET api/reminders answered ${res.status}`)
     return (await res.json()) as { text: string; target: string }[]
   }
   const humanReminders = async () => (await reminders()).filter((r) => r.target === "human")
-  const initiative = async (roomId: string) => ((await dev(v.url, s.cookie, "initiative", { roomId })) as { text: string | null }).text ?? ""
-  const usage = async (roomId: string) => (await dev(v.url, s.cookie, "usage", { roomId })) as { agent: Record<string, number>; memory: Record<string, number> }
+  const initiative = async (roomId: string) => ((await dev(v.url, s.auth, "initiative", { roomId })) as { text: string | null }).text ?? ""
+  const usage = async (roomId: string) => (await dev(v.url, s.auth, "usage", { roomId })) as { agent: Record<string, number>; memory: Record<string, number> }
   const show = (l: Loop) => `L${l.id} ${l.status} ${l.kind}/${l.certainty} owner=${l.owner} via ${l.source}${l.due ? ` due ${l.due}` : ""}: ${l.text}`
 
   const work = (await newRoom(s, "work")).room
@@ -52,7 +52,7 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
     const reply = await say(work, text)
     console.log(`  [${stamp()}] agent: ${reply.slice(0, 160)}`)
   }
-  if (!jev) await dev(v.url, s.cookie, "quiet", { roomId: work.id })
+  if (!jev) await dev(v.url, s.auth, "quiet", { roomId: work.id })
   const grant = await poll("an open explicit loop about the grant report", async () => (await loops()).find((l) => l.status === "open" && l.certainty === "explicit" && /grant/i.test(l.text)), 90_000)
   console.log(`  [${stamp()}] deadline -> ${show(grant)}`)
   await Bun.sleep(3_000)
@@ -93,7 +93,7 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
     ...Array.from({ length: 36 }, (_, i) => ({ from: i % 2 ? "kiko" : "human", text: `${chatter[i % chatter.length]} (${i})` })),
   ]
   const callsBefore = (await usage(trip.id)).memory.calls ?? 0
-  await dev(v.url, s.cookie, "seed", { roomId: trip.id, turns })
+  await dev(v.url, s.auth, "seed", { roomId: trip.id, turns })
   const napped = await poll("loops from the summary pass", async () => {
     const got = (await loops()).filter((l) => l.source === "nap" && l.room === trip.id)
     return got.length >= 2 && got

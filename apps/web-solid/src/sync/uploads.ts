@@ -1,5 +1,6 @@
 import type { PendingAttachment } from "@kiko/protocol"
 import { createStore, produce } from "solid-js/store"
+import { apiFetch, apiUrl, getToken } from "../lib/api"
 
 /*
  * Composer attachments upload the moment they are picked, as t3code's do (architecture section
@@ -66,7 +67,9 @@ export function uploadState(id: string): UploadState | undefined {
 function request(job: Job, method: string, url: string, body: Blob | string | null, headers: Record<string, string>, onProgress?: (loaded: number) => void): Promise<string> {
   const xhr = new XMLHttpRequest()
   const done = new Promise<string>((resolve, reject) => {
-    xhr.open(method, url, true)
+    xhr.open(method, apiUrl(url), true)
+    const token = getToken()
+    if (token) xhr.setRequestHeader("authorization", `Bearer ${token}`)
     xhr.timeout = TIMEOUT_MS
     for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v)
     if (onProgress) xhr.upload.addEventListener("progress", (e) => e.lengthComputable && onProgress(e.loaded))
@@ -134,7 +137,7 @@ function pump() {
 /** Deletes a pending upload on the server. Only ever a pending id: the server refuses any other. */
 function deletePending(job: Job) {
   if (!job.sent) return
-  void fetch(base(job), { method: "DELETE" }).catch(() => {})
+  void apiFetch(base(job), { method: "DELETE" }).catch(() => {})
 }
 
 function stop(job: Job) {

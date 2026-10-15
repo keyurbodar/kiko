@@ -1,6 +1,7 @@
 import type { FileRef } from "@kiko/protocol"
 import { createSignal } from "solid-js"
 import { urls } from "../lib/store"
+import { apiFetch } from "../lib/api"
 
 // The file viewer's HTTP calls. The server's edit rule (architecture 18.1): a PUT that
 // names the SHA-256 it started from is refused with 409 when the path holds other bytes.
@@ -20,7 +21,7 @@ export type SaveResult =
  */
 export async function putFile(roomId: string, path: string, body: string, type: string, expect: string): Promise<SaveResult> {
 	try {
-		const res = await fetch(`/api/files/${roomId}?path=${encodeURIComponent(path)}`, {
+		const res = await apiFetch(`/api/files/${roomId}?path=${encodeURIComponent(path)}`, {
 			method: "PUT",
 			headers: { "content-type": type, "x-kiko-if-sha256": expect },
 			body,
@@ -60,7 +61,7 @@ export function decodeText(bytes: Uint8Array, size: number): { kind: "text"; tex
  * the whole file. The server answers a range with its total size in `content-range`.
  */
 export async function readText(roomId: string, id: string, limit?: number): Promise<TextRead> {
-	const res = await fetch(urls.file(roomId, id), limit ? { headers: { range: `bytes=0-${limit - 1}` } } : undefined)
+	const res = await apiFetch(urls.file(roomId, id), limit ? { headers: { range: `bytes=0-${limit - 1}` } } : undefined)
 	if (!res.ok) throw new Error(`The server said ${res.status}`)
 	const bytes = new Uint8Array(await res.arrayBuffer())
 	const size = Number(res.headers.get("content-range")?.split("/")[1]) || bytes.length

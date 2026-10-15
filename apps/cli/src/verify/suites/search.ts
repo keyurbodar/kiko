@@ -46,7 +46,7 @@ const suite: Suite = {
 		expectEqual(page.results[0]?.from, { kind: "human" }, "the sender")
 
 		const res = await fetch(new URL(`api/search?q=${encodeURIComponent(word)}`, v.url), {
-			headers: { cookie: s.cookie },
+			headers: { authorization: s.auth },
 			signal: AbortSignal.timeout(10_000),
 		})
 		if (!res.ok) throw new VerifyError(`GET api/search answered ${res.status}`)

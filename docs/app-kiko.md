@@ -36,7 +36,7 @@ Settled on 2026-10-15.
 
 - **Clerk for sign-in.** Google and GitHub only. No email, password, or phone. The client uses `@clerk/clerk-js` directly, headless, with our own two buttons. It does not use `clerk-solidjs`: that port is unofficial, its server half needs SolidStart, and it trails Clerk's releases. clerk-js loads only on the sign-in screen, so tiers 1 to 3 do not grow.
 - **Clerk checks the owner once.** The client trades a Clerk session token for the backend's own session at `POST /api/auth/clerk`. The backend verifies the token offline with the instance's public key and checks `sub` against `OWNER_ID`. From then on the client holds the backend's session token. Sockets and file links never wait on Clerk.
-- **One backend session, three carriers.** The session is a bearer token in the `Authorization` header for `fetch`, a 30-second ticket for each socket upgrade, and a signed, short-lived URL for each file. Tickets and file URLs are minted by the backend, so a chat switch costs no extra round trip to anyone but the backend. The access code and cookie stay for manual self-deploy.
+- **One backend session, three carriers.** The session is a bearer token in the `Authorization` header for `fetch`, a 30-second ticket for each socket upgrade, and a signed, short-lived URL for each file. Tickets and file URLs are minted by the backend, so a chat switch costs no extra round trip to anyone but the backend. The access code stays for manual self-deploy. Cookies are gone: H03 built the bearer, the `kiko` socket subprotocol, `?t=` file tokens and CORS for trusted origins.
 - **The front door is on workers.dev for now.** `kiko.<our subdomain>.workers.dev` serves the client. A bought domain replaces it later (see "Moving to a domain").
 - **Landing page in Astro.** It is its own static site and its own Worker. It does not share a build with the client.
 - **Updates are one click, like t3code.** There is no nightly channel and no automatic update. Details are in the Updates section.
@@ -340,10 +340,10 @@ Each of these goes into `docs/architecture.md` as a DEVIATION in the pull reques
 
 | Area | Today | Hosted | Where |
 | --- | --- | --- | --- |
-| Sign-in | Access code, HMAC session cookie | Clerk JWT checked offline, plus a socket ticket. The access code stays for people who self-deploy by hand | `architecture.md` section 10, `apps/server/src/auth/` |
+| Sign-in | Access code, HMAC bearer token (30 days) | Clerk JWT checked offline, plus a socket ticket. The access code stays for people who self-deploy by hand | `architecture.md` section 10, `apps/server/src/auth/` |
 | One origin | Client, API and sockets share a hostname | The client is on `app.kiko.codes` and the API on `*.workers.dev`. CORS allows only `app.kiko.codes` | `architecture.md` section 3, "One Worker, one origin" |
-| Socket upgrade | Checked with the session cookie | Checked with a one-time ticket | `architecture.md` section 9.1 |
-| Uploads | Carry the session cookie (same-origin) | Carry the Clerk token in a header | `architecture.md`, the R2 uploads section (the DEVIATION from t3code on the session cookie) |
+| Socket upgrade | Checked with the bearer token in the `kiko` subprotocol | Checked with a one-time ticket | `architecture.md` section 9.1 |
+| Uploads | Carry the bearer in `Authorization` | Carry the Clerk token in a header | `architecture.md`, the R2 uploads section (the DEVIATION from t3code on the upload token) |
 | R2 | Required binding `FILES` | Optional. Attachments are off if the bucket is missing | `apps/server/wrangler.jsonc`, upload routes |
 | Client API base | Same origin, `/api` | A base URL from Clerk metadata | `apps/web-solid/src/sync/` |
 | Self-update | None | Daily cron and the stored refresh token | New, in `UserDO` |

@@ -9,7 +9,7 @@ import { must } from "../must"
 type Work = { id: string; status: string; step: string | null; submissionId: unknown }
 
 async function workers(url: string, s: Session, roomId: string): Promise<Work[]> {
-  const res = await fetch(new URL(`api/dev/agent/workers?roomId=${roomId}`, url), { headers: { cookie: s.cookie } })
+  const res = await fetch(new URL(`api/dev/agent/workers?roomId=${roomId}`, url), { headers: { authorization: s.auth } })
   if (!res.ok) throw new VerifyError(`the workers route answered ${res.status}. start the Worker with NODE_ENV=development`)
   return ((await res.json()) as { workers: Work[] }).workers
 }

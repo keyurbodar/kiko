@@ -48,7 +48,7 @@ function lastFrameBytes(room: RoomHandle): number {
 async function call(v: Verifier, s: Session, path: string, body?: unknown): Promise<Response> {
   const res = await fetch(new URL(path, v.url), {
     method: body === undefined ? "GET" : "POST",
-    headers: { "content-type": "application/json", cookie: s.cookie },
+    headers: { "content-type": "application/json", authorization: s.auth },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!res.ok) throw new VerifyError(`${path} answered ${res.status}. start the Worker with NODE_ENV=development`)

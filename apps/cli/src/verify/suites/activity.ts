@@ -24,7 +24,7 @@ const suite: Suite = {
     const { roomId, room } = await newRoom(s, "activity")
     const res = await fetch(new URL("api/dev/agent/fake", v.url), {
       method: "POST",
-      headers: { "content-type": "application/json", cookie: s.cookie },
+      headers: { "content-type": "application/json", authorization: s.auth },
       body: JSON.stringify({ roomId, slugs: ["kiko", "ada"] }),
     })
     if (!res.ok) throw new VerifyError(`the fake agent route answered ${res.status}. start the Worker with NODE_ENV=development`)

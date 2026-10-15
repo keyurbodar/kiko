@@ -3,11 +3,13 @@ import { mkdtemp, readdir, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { Miniflare } from "miniflare"
+import { signToken } from "../src/auth/auth"
 
 // The production bundle, with and without the ACCESS_CODE secret. The sign-in method is not dev-only,
 // so both tests run against a deploy build.
 const serverDir = new URL("..", import.meta.url).pathname
 const CODE = "correct-horse-battery-staple"
+const SECRET = "test-secret-that-is-at-least-32-characters-long"
 
 let tmp: string
 let bundlePath: string
@@ -42,7 +44,7 @@ async function start(bindings: Record<string, string>): Promise<string> {
       AGENT: { className: "AgentDO", useSQLite: true },
     },
     serviceBindings: { ASSETS: () => new Response("app shell") },
-    bindings: { SESSION_SECRET: "test-secret-that-is-at-least-32-characters-long", ...bindings },
+    bindings: { SESSION_SECRET: SECRET, ...bindings },
   })
   workers.push(mf)
   return (await mf.ready).origin
@@ -67,7 +69,8 @@ afterAll(async () => {
   if (tmp) await rm(tmp, { recursive: true, force: true })
 })
 
-const sessionCookie = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith("kiko_session="))
+const tokenOf = async (res: Response) => ((await res.json()) as { token: string }).token
+const me = (origin: string, token: string) => fetch(`${origin}/api/me`, { headers: { authorization: `Bearer ${token}` } })
 
 describe("with ACCESS_CODE set", () => {
   let origin: string
@@ -75,44 +78,51 @@ describe("with ACCESS_CODE set", () => {
     origin = await start({ ACCESS_CODE: CODE })
   })
 
-  test("the right code sets a one year, HttpOnly, Lax cookie that /api/me accepts as the owner", async () => {
+  test("the right code returns a token that /api/me accepts as the owner, and sets no cookie", async () => {
     const res = await signIn(origin, { code: CODE })
     expect(res.status).toBe(200)
-    const cookie = sessionCookie(res)
-    expect(cookie).toBeDefined()
-    expect(cookie).toContain("HttpOnly")
-    expect(cookie).toContain("SameSite=Lax")
-    expect(cookie).toContain(`Max-Age=${365 * 24 * 60 * 60}`)
-    const me = await fetch(`${origin}/api/me`, { headers: { cookie: cookie!.split(";")[0]! } })
-    expect(me.status).toBe(200)
-    expect(((await me.json()) as { user: { id: string } }).user.id).toBe("owner")
+    expect(res.headers.getSetCookie()).toEqual([])
+    const answer = await me(origin, await tokenOf(res))
+    expect(answer.status).toBe(200)
+    expect(((await answer.json()) as { user: { id: string } }).user.id).toBe("owner")
   })
 
-  test("a wrong code answers 401 with the fixed message and sets no cookie", async () => {
+  test("a wrong code answers 401 with the fixed message and no token", async () => {
     const res = await signIn(origin, { code: "not-the-code" })
     expect(res.status).toBe(401)
-    expect(res.headers.getSetCookie()).toEqual([])
-    expect(((await res.json()) as { message: string }).message).toBe("That access code is not right")
+    const body = (await res.json()) as { message: string; token?: string }
+    expect(body.message).toBe("That access code is not right")
+    expect(body.token).toBeUndefined()
   })
 
   test("a missing code answers 401, not a server error", async () => {
     expect((await signIn(origin, {})).status).toBe(401)
   })
 
-  test("a cookie with a tampered owner id or mac is refused", async () => {
-    const cookie = sessionCookie(await signIn(origin, { code: CODE }))!.split(";")[0]!
-    const [, value] = cookie.split("=")
-    const [id, mac] = value!.split(".")
-    const refused = async (forged: string) => (await fetch(`${origin}/api/me`, { headers: { cookie: `kiko_session=${forged}` } })).status
-    expect(await refused(`other.${mac}`)).toBe(401)
-    expect(await refused(`${id}.${mac!.replace(/^./, mac![0] === "0" ? "1" : "0")}`)).toBe(401)
-    expect(await refused("garbage")).toBe(401)
+  test("a token with a tampered owner id, expiry, or mac is refused, and a request with none is too", async () => {
+    const token = await tokenOf(await signIn(origin, { code: CODE }))
+    const [id, scope, expiry, mac] = token.split(".") as [string, string, string, string]
+    const flip = (hex: string) => hex.replace(/^./, hex[0] === "0" ? "1" : "0")
+    expect((await me(origin, token)).status).toBe(200)
+    expect((await me(origin, `other.${scope}.${expiry}.${mac}`)).status).toBe(401)
+    expect((await me(origin, `${id}.${scope}.${Number(expiry) + 1}.${mac}`)).status).toBe(401)
+    expect((await me(origin, `${id}.${scope}.${expiry}.${flip(mac)}`)).status).toBe(401)
+    expect((await me(origin, "garbage")).status).toBe(401)
+    expect((await fetch(`${origin}/api/me`)).status).toBe(401)
   })
 
-  test("sign out clears the cookie", async () => {
-    const res = await fetch(`${origin}/api/auth/sign-out`, { method: "POST" })
-    expect(res.status).toBe(200)
-    expect(res.headers.getSetCookie().find((c) => c.startsWith("kiko_session=;"))).toContain("Max-Age=0")
+  test("a token past its expiry is refused, and a file token is not a session token", async () => {
+    const expired = await signToken(SECRET, "owner", "session", Date.now() - 31 * 24 * 60 * 60 * 1000)
+    expect((await me(origin, expired)).status).toBe(401)
+    expect((await me(origin, await signToken(SECRET, "owner", "files"))).status).toBe(401)
+    expect((await me(origin, await signToken(SECRET, "owner", "session"))).status).toBe(200)
+  })
+
+  test("a session token lasts thirty days", async () => {
+    const token = await tokenOf(await signIn(origin, { code: CODE }))
+    const left = Number(token.split(".")[2]) - Date.now() / 1000
+    expect(left).toBeGreaterThan(29.9 * 24 * 60 * 60)
+    expect(left).toBeLessThanOrEqual(30 * 24 * 60 * 60)
   })
 })
 

@@ -16,7 +16,7 @@ const suite: Suite = {
     const credentials = async (method = "GET", path = "") => {
       const res = await fetch(new URL(`api/credentials${path}`, base), {
         method,
-        headers: { cookie: s.cookie },
+        headers: { authorization: s.auth },
         signal: AbortSignal.timeout(5000),
       })
       return (await res.json()) as { providers: { provider: string }[] }

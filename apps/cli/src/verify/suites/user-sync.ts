@@ -51,7 +51,7 @@ const suite: Suite = {
 
     const wsUrl = new URL("api/ws/user", v.url)
     wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:"
-    const resumed = new Channel(`${s.name}/user resumed`, wsUrl, s.cookie, UserToClientSchema, ClientToUser, {
+    const resumed = new Channel(`${s.name}/user resumed`, wsUrl, s.auth, UserToClientSchema, ClientToUser, {
       t: "hello",
       lastSeq: must(seqs[0], "seq 0"),
     })

@@ -16,6 +16,7 @@ import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
 import { type UserChannelHost, userChannel } from "./user-channel"
+import { setFileToken } from "../lib/file-token"
 import { APP_VERSION, backendSkew, type Skew } from "../lib/version-skew"
 
 /** The user's drive, /home (architecture section 18.3). */
@@ -213,6 +214,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	function onFrame(frame: UserToClient) {
 		channel.deliver(frame)
 		if (frame.t === "events" || frame.t === "reset") {
+			if (frame.fileToken) setFileToken(frame.fileToken)
 			if (awaitingHello) {
 				awaitingHello = false
 				setState({ skew: backendSkew(clientBuild(), frame), backendVersion: frame.version })

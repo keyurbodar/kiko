@@ -16,8 +16,9 @@ export async function devSessionRoute(request: Request, env: AuthEnv): Promise<R
   if (typeof name !== "string" || !OWNER_NAME.test(name)) {
     return Response.json({ message: "name must match [a-z0-9-], 1 to 32 characters" }, { status: 400 })
   }
-  const signedIn = await signedInResponse(request, env, name)
-  // A browser opens this route with GET, so redirect it to the app with the cookie set.
+  const signedIn = await signedInResponse(env, name)
   if (request.method !== "GET") return signedIn
-  return new Response(null, { status: 302, headers: { location: "/", "set-cookie": signedIn.headers.get("set-cookie") ?? "" } })
+  // A browser opens this route with GET. The app reads the token from the hash, stores it, and drops the hash.
+  const { token } = (await signedIn.json()) as { token: string }
+  return new Response(null, { status: 302, headers: { location: `/#token=${token}` } })
 }

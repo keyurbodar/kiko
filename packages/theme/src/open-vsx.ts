@@ -19,8 +19,11 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const text = (v: unknown) => (typeof v === "string" ? v.trim() : "")
 const unreadable = () => new Error("Open VSX returned an unreadable response.")
 
-async function download(url: string, signal?: AbortSignal): Promise<Uint8Array> {
-  const response = await fetch(PROXY + encodeURIComponent(url), { signal })
+// How a request reaches the Worker. The app passes its own, which adds the backend's address and the sign-in.
+export type Send = (path: string, init: { signal?: AbortSignal }) => Promise<Response>
+
+async function download(url: string, signal: AbortSignal | undefined, send: Send): Promise<Uint8Array> {
+  const response = await send(PROXY + encodeURIComponent(url), { signal })
   if (!response.ok) throw new Error("Open VSX is unavailable right now. Try again.")
   return new Uint8Array(await response.arrayBuffer())
 }
@@ -37,7 +40,7 @@ function parseObject(bytes: Uint8Array | undefined): Record<string, unknown> {
   return value
 }
 
-export async function searchThemes(query: string, signal?: AbortSignal): Promise<OpenVsxItem[]> {
+export async function searchThemes(query: string, signal?: AbortSignal, send: Send = fetch): Promise<OpenVsxItem[]> {
   const search = text(query)
   if (!search) return []
   const url = new URL(`${API}/-/search`)
@@ -46,7 +49,7 @@ export async function searchThemes(query: string, signal?: AbortSignal): Promise
   url.searchParams.set("sortBy", "downloadCount")
   url.searchParams.set("sortOrder", "desc")
   url.searchParams.set("size", "16")
-  const data = parseObject(await download(url.href, signal))
+  const data = parseObject(await download(url.href, signal, send))
   if (!Array.isArray(data.extensions)) throw unreadable()
   return data.extensions.flatMap((item): OpenVsxItem[] => {
     if (!isObject(item) || !text(item.namespace) || !text(item.name)) return []
@@ -61,21 +64,21 @@ function contributedThemes(manifest: Record<string, unknown>): Array<{ path: str
   return contributes.themes.flatMap((theme) => (isObject(theme) && text(theme.path) ? [{ path: text(theme.path), label: text(theme.label) }] : []))
 }
 
-export async function installTheme(item: OpenVsxItem, signal?: AbortSignal): Promise<ImportedTheme[]> {
-  const detail = parseObject(await download(`${API}/${encodeURIComponent(item.namespace)}/${encodeURIComponent(item.name)}`, signal))
+export async function installTheme(item: OpenVsxItem, signal?: AbortSignal, send: Send = fetch): Promise<ImportedTheme[]> {
+  const detail = parseObject(await download(`${API}/${encodeURIComponent(item.namespace)}/${encodeURIComponent(item.name)}`, signal, send))
   const files = isObject(detail.files) ? detail.files : {}
   const version = text(detail.version)
   const license = text(detail.license)
   if (!text(files.manifest) || !text(files.download) || !text(files.sha256) || !version) throw unreadable()
   if (!LICENSES.has(license)) throw new Error("That theme's license is not on the allowed list.")
 
-  const contributions = contributedThemes(parseObject(await download(text(files.manifest), signal)))
+  const contributions = contributedThemes(parseObject(await download(text(files.manifest), signal, send)))
   if (contributions.length === 0) throw new Error("That extension does not contain color themes.")
   if (contributions.length > MAX_THEMES) throw new Error("That extension contains too many color themes to import safely.")
 
-  const vsix = await download(text(files.download), signal)
+  const vsix = await download(text(files.download), signal, send)
   const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", vsix))].map((byte) => byte.toString(16).padStart(2, "0")).join("")
-  const expected = new TextDecoder().decode(await download(text(files.sha256), signal)).trim().split(/\s+/)[0]?.toLowerCase()
+  const expected = new TextDecoder().decode(await download(text(files.sha256), signal, send)).trim().split(/\s+/)[0]?.toLowerCase()
   if (digest !== expected) throw new Error("That theme failed its integrity check.")
 
   const entries = await readZipEntries(vsix, (name) => name.startsWith("extension/") && name.endsWith(".json"), MAX_THEME_BYTES)

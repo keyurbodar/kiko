@@ -53,9 +53,9 @@ const suite: Suite = {
       return !l.redacted && extra.supersededBy == null && !extra.superseded && !/\(replaced/i.test(l.text)
     }
     const live = async (word: RegExp, source?: (s: string) => boolean) => (await lines()).filter((l) => isLive(l) && word.test(l.text) && (!source || source(l.source)))
-    const usage = async (): Promise<Usage> => ((await dev(v.url, s.cookie, "usage", { roomId: chatA.id })) as { memory: Usage }).memory
+    const usage = async (): Promise<Usage> => ((await dev(v.url, s.auth, "usage", { roomId: chatA.id })) as { memory: Usage }).memory
     const show = async (step: string) => console.log(`  [${stamp()}] ${step}: ${JSON.stringify(await usage())}`)
-    const policy = (p: Record<string, unknown>) => dev(v.url, s.cookie, "policy", { policy: { ...FAST, ...p } })
+    const policy = (p: Record<string, unknown>) => dev(v.url, s.auth, "policy", { policy: { ...FAST, ...p } })
     const settle = () =>
       poll("capture to settle", async () => {
         const before = await usage()
@@ -64,7 +64,7 @@ const suite: Suite = {
         return JSON.stringify(before) === JSON.stringify(after) && after
       }, 40_000)
     const credentials = async (): Promise<{ provider: string; refused?: boolean }[]> => {
-      const res = await fetch(new URL("api/credentials", v.url), { headers: { cookie: s.cookie }, signal: AbortSignal.timeout(5000) })
+      const res = await fetch(new URL("api/credentials", v.url), { headers: { authorization: s.auth }, signal: AbortSignal.timeout(5000) })
       if (!res.ok) throw new VerifyError(`GET api/credentials answered ${res.status}`)
       return ((await res.json()) as { providers: { provider: string; refused?: boolean }[] }).providers
     }

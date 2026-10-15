@@ -2,6 +2,7 @@ import type { UserSettings } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal, onMount } from "solid-js"
 import { Group, Row, Segmented } from "./kit"
+import { apiFetch } from "../lib/api"
 
 /*
  * Initiative (architecture section 26): how much Kiko may speak up unasked, and whether it writes down
@@ -36,7 +37,7 @@ async function save(patch: Partial<Settings>): Promise<void> {
   const id = ++counter
   for (const k of Object.keys(patch)) latest[k as keyof Settings] = id
   setSettings({ ...before, ...patch })
-  const ok = await fetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) })
+  const ok = await apiFetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) })
     .then((r) => r.ok)
     .catch(() => false)
   if (!ok) {
@@ -48,7 +49,7 @@ async function save(patch: Partial<Settings>): Promise<void> {
 
 export default function InitiativePage() {
   onMount(() => {
-    void fetch("/api/settings")
+    void apiFetch("/api/settings")
       .then((r) => (r.ok ? r.json() : null))
       .then((v) => v && setSettings(readSettings(v)))
       .catch(() => {})

@@ -7,6 +7,7 @@ import { useApp } from "../lib/store"
 import { createSearch, type Hit, type HitPage, type SearchView, senderName } from "./model"
 import { closeSearch, requestJump, type SearchScope, searchScope, setSearchScope } from "./state"
 import "./search.css"
+import { apiFetch } from "../lib/api"
 
 /*
  * Message search, as kat has it (⌘F, ⌘⇧F): a rounded bar at the top of the chat panel with the
@@ -21,7 +22,7 @@ async function searchAll(query: string, before?: number): Promise<HitPage | null
   const params = new URLSearchParams({ q: query })
   if (before !== undefined) params.set("before", String(before))
   try {
-    const res = await fetch(`/api/search?${params}`, { credentials: "same-origin" })
+    const res = await apiFetch(`/api/search?${params}`, { credentials: "same-origin" })
     return res.ok ? ((await res.json()) as ChatSearchPage) : null
   } catch {
     return null

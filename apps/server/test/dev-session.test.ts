@@ -91,7 +91,7 @@ describe("production build", () => {
     expect(res.headers.getSetCookie()).toEqual([])
   })
 
-  test("refuses /api/me without a cookie", async () => {
+  test("refuses /api/me without a token", async () => {
     expect((await fetch(`${origin}/api/me`)).status).toBe(401)
   })
 
@@ -112,7 +112,7 @@ describe("development build", () => {
     expect(devScript).toContain(MARKER)
   })
 
-  test("refuses /api/me without a cookie", async () => {
+  test("refuses /api/me without a token", async () => {
     expect((await fetch(`${origin}/api/me`)).status).toBe(401)
   })
 
@@ -137,9 +137,17 @@ describe("development build", () => {
     expect(c.out).not.toBe(a1.out)
   })
 
-  test("a forged cookie is refused", async () => {
-    const me = await fetch(`${origin}/api/me`, { headers: { cookie: `kiko_session=dave.${"0".repeat(64)}` } })
+  test("a forged token is refused", async () => {
+    const me = await fetch(`${origin}/api/me`, { headers: { authorization: `Bearer dave.session.${Math.floor(Date.now() / 1000) + 3600}.${"0".repeat(64)}` } })
     expect(me.status).toBe(401)
+  })
+
+  test("the dev route returns a token that /api/me accepts, and a GET hands a browser the same token in the hash", async () => {
+    const res = await fetch(`${origin}/api/auth/dev/session?name=frank`, { redirect: "manual" })
+    expect(res.status).toBe(302)
+    const token = res.headers.get("location")?.replace("/#token=", "") ?? ""
+    const me = await fetch(`${origin}/api/me`, { headers: { authorization: `Bearer ${token}` } })
+    expect(((await me.json()) as { user: { id: string } }).user.id).toBe("frank")
   })
 
   test("the dev route refuses a host that is not local", async () => {

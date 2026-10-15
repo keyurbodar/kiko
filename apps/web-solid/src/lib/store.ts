@@ -27,6 +27,8 @@ import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { createRoomStore, type MemberNotice, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
+import { socketUrl } from "./api"
+import { fileToken, fileUrl } from "./file-token"
 import { browserConnect, type Connect } from "../sync/socket"
 import { createUserStore, newRoomId, type UserStore } from "../sync/user-store"
 import { createDraftBook, type DraftBook } from "../warm/drafts"
@@ -38,17 +40,10 @@ import { dmFor } from "@kiko/protocol"
 
 // The URLs. The one place a socket or file URL is built.
 
-function wsOrigin(): string {
-  const loc = globalThis.location
-  if (!loc) return "ws://localhost"
-  return `${loc.protocol === "https:" ? "wss:" : "ws:"}//${loc.host}`
-}
-
 export const urls = {
-  user: () => `${wsOrigin()}/api/ws/user`,
-  room: (roomId: RoomId) => `${wsOrigin()}/api/ws/room/${roomId}`,
-  // ASSUMPTION: the download route. P8-03 builds it and may change this line.
-  file: (roomId: string, fileId: string) => `/api/files/${roomId}/${encodeURIComponent(fileId)}`,
+  user: () => socketUrl("/api/ws/user"),
+  room: (roomId: RoomId) => socketUrl(`/api/ws/room/${roomId}`),
+  file: (roomId: string, fileId: string) => fileUrl(`/api/files/${roomId}/${encodeURIComponent(fileId)}`),
 }
 
 /** How the stores reach the server. The browser's `WebSocket` unless a test or the dev mock says otherwise. */
@@ -346,7 +341,7 @@ export function createApp(options: AppOptions = {}) {
       const rows: ChatMessage[] = []
       for (const m of roomMessages()) {
         if (pacer.isHeld(m.id)) continue
-        const sig = signature(m)
+        const sig = signature(m) + (m.files?.length ? fileToken() : "")
         const key = m.clientId ?? m.id
         const cached = prev.get(key)
         const entry = cached && cached.sig === sig ? cached : { sig, view: toChatMessage(m, roomId) }
