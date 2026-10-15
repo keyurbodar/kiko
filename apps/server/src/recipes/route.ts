@@ -3,9 +3,11 @@ import { isAgentSlug, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
 import { userStub } from "../lib/names"
 import { error, signedIn } from "../lib/route"
+import { SLUG } from "./recipe"
 
 const ID = /^[0-9a-f-]{36}$/
 const INSTALL = /^\/api\/recipes\/([0-9a-f-]{36})$/
+const EDIT = /^\/api\/recipes\/([^/]+)\/edit$/
 
 function parseInstall(b: unknown): InstallRecipe | null {
   if (!b || typeof b !== "object") return null
@@ -19,10 +21,18 @@ function parseInstall(b: unknown): InstallRecipe | null {
 export async function recipesRoute(request: Request, env: Env): Promise<Response | null> {
   const { pathname } = new URL(request.url)
   const one = INSTALL.exec(pathname)
-  if (pathname !== "/api/recipes" && !one) return null
+  const edit = EDIT.exec(pathname)
+  if (pathname !== "/api/recipes" && !one && !edit) return null
   const user = await signedIn(request, env)
   if (user instanceof Response) return user
   const stub = userStub(env.USER, user.id)
+  if (edit) {
+    if (request.method !== "POST") return error(405, "method not allowed")
+    const slug = edit[1] ?? ""
+    if (!SLUG.test(slug) || slug.length > 64) return error(400, "name must be lowercase words joined by dashes")
+    const path = await stub.editRecipe(slug)
+    return path ? Response.json({ path }) : error(404, `no built-in recipe named ${slug}`)
+  }
   if (one) {
     if (request.method !== "DELETE") return error(405, "method not allowed")
     return (await stub.uninstallRecipe(one[1] ?? "")) ? Response.json({ ok: true }) : error(404, "no such install")

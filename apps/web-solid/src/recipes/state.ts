@@ -110,7 +110,7 @@ const failed = (card: RecipeCard, error: string) => showToastV2({ title: `Could 
 /** Adds to one agent in one chat. The chat opens before the server answers. */
 export function addToTarget(card: RecipeCard, target: RecipeTarget | undefined, navigate: (to: string) => void): void {
   if (!target || isAdded(card.slug, target)) return
-  const install: RecipeInstall = { installId: crypto.randomUUID(), slug: card.slug, roomId: target.roomId, agent: target.agent, at: Date.now() }
+  const install: RecipeInstall = { installId: crypto.randomUUID(), slug: card.slug, roomId: target.roomId, agent: target.agent, at: Date.now(), routines: [] }
   mutations++
   recorded(install)
   navigate(`/chat/${target.roomId}`)

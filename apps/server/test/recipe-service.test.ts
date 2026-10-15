@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test"
 import type { RoomId } from "@kiko/protocol"
-import { RecipeService } from "../src/user/recipe-service"
+import { recipeCard } from "../src/recipes/card"
+import { parseRecipe } from "../src/recipes/recipe"
 import { RecipeLibrary } from "../src/user/recipe-library"
+import { RecipeService } from "../src/user/recipe-service"
 import { Reminders } from "../src/user/reminders"
 import { USER_STEPS } from "../src/user/schema"
-import { parseRecipe } from "../src/recipes/recipe"
 import { sqlWith } from "./sql-shim"
 
 const roomId = "01J0000000000000000000000R" as RoomId
@@ -15,29 +16,38 @@ function setup() {
   const sql = sqlWith(USER_STEPS)
   for (const id of [roomId, "01J0000000000000000000000S"]) sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'Test', 0)", id)
   let recipes = [makeRecipe()]
-  let sha = "v1"
-  const notices: string[] = []
   let inherited = ""
   const reminders = new Reminders(sql, { setWakeup: async () => {}, clearWakeup: async () => {}, dueWakeups: async () => [] }, async () => {})
+  const library = { read: async () => ({ recipes, custom: new Set<string>(), broken: [] }), edit: async () => null, retireSeeded: async () => {} } as unknown as RecipeLibrary
   let service: RecipeService
   service = new RecipeService({
     sql,
-    library: { read: async () => ({ recipes, broken: [], sha: new Map(recipes.map((r) => [r.slug, sha])) }) } as unknown as RecipeLibrary,
+    library,
     timezone: async () => "UTC",
     createRoutine: async (input) => ({ ok: true, ...(await reminders.createRoutine("owner", input)) }),
-    updateRoutine: async (id, patch) => {
-      const out = await reminders.updateRoutine(id, patch)
-      return out ? { ok: true, ...out } : { ok: false, error: "missing" }
+    cancelRoutine: async (id) => {
+      await reminders.cancel(id)
+      service.routineGone(id)
     },
-    cancelRoutine: async (id) => { await reminders.cancel(id); service.routineGone(id) },
     routine: (id) => reminders.get(id),
     chiefModel: async () => "provider/chosen-model",
-    makeAgent: async (name, handle, description, model) => { inherited = model; return { id: "new-agent", name, slug: handle as never, prompt: description, model } },
+    makeAgent: async (name, handle, description, model) => {
+      inherited = model
+      return { id: "new-agent", name, slug: handle as never, prompt: description, model }
+    },
     openChat: async () => "01J0000000000000000000000S" as RoomId,
     announce: async () => "delivered",
-    notice: async (_, __, text) => { notices.push(text) },
   })
-  return { sql, service, reminders, notices, inherited: () => inherited, edit: (next: typeof recipes) => { recipes = next; sha += "x" }, add: (agent = "yuki") => service.install({ installId: crypto.randomUUID(), slug: "tea-time", roomId, agent }) }
+  return {
+    sql,
+    service,
+    reminders,
+    inherited: () => inherited,
+    setRecipes: (next: typeof recipes) => {
+      recipes = next
+    },
+    add: (agent = "yuki") => service.install({ installId: crypto.randomUUID(), slug: "tea-time", roomId, agent }),
+  }
 }
 
 test("concurrent adds with different ids share one target; other agents get independent installs", async () => {
@@ -60,33 +70,12 @@ test("concurrent adds with different ids share one target; other agents get inde
   expect((await f.service.list()).installs).toHaveLength(2)
 })
 
-test("file edits update defaults but preserve a routine's own schedule and instructions", async () => {
+test("an add returns the install with its routines", async () => {
   const f = setup()
-  await f.add()
-  await f.add("ada")
-  const ada = f.reminders.list().find((r) => r.target === "ada")!
-  await f.reminders.updateRoutine(ada.id, { instructions: "my own briefing", trigger: { on: "time", at: new Date().toISOString(), rrule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0" } })
-  f.edit([makeRecipe("FREQ=DAILY;BYHOUR=8;BYMINUTE=30", "new default")])
-  await f.service.reconcile()
-  expect(f.reminders.list().find((r) => r.target === "yuki")).toMatchObject({ text: "new default", rrule: "FREQ=DAILY;BYHOUR=8;BYMINUTE=30;BYSECOND=0" })
-  expect(f.reminders.get(ada.id)).toMatchObject({ text: "my own briefing", rrule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0" })
-})
-
-test("missing files pause installs once; restoring resumes only the routines paused by the recipe", async () => {
-  const f = setup()
-  await f.add()
-  await f.add("ada")
-  const ada = f.reminders.list().find((r) => r.target === "ada")!
-  await f.reminders.updateRoutine(ada.id, { status: "paused" })
-  f.edit([])
-  await f.service.reconcile()
-  await f.service.reconcile()
-  expect(f.reminders.list().map((r) => r.status)).toEqual(["paused", "paused"])
-  expect(f.notices).toHaveLength(1)
-  f.edit([makeRecipe()])
-  await f.service.reconcile()
-  expect(f.reminders.get(ada.id)?.status).toBe("paused")
-  expect(f.reminders.list().find((r) => r.target === "yuki")?.status).toBe("active")
+  const out = await f.add()
+  if (!out.ok) throw new Error("install failed")
+  expect(out.install.routines).toHaveLength(1)
+  expect(out.install.routines[0]).toMatchObject({ id: f.reminders.list()[0]!.id, status: "active", tz: "UTC" })
 })
 
 test("cancelling the last routine clears the install; always-on instructions are scoped to the target", async () => {
@@ -94,11 +83,11 @@ test("cancelling the last routine clears the install; always-on instructions are
   await f.add()
   const routine = f.reminders.list()[0]!
   await f.reminders.cancel(routine.id)
-  await f.service.reconcile()
+  f.service.routineGone(routine.id)
   expect((await f.service.list()).installs).toHaveLength(0)
   const always = makeRecipe()
   always.triggers = []
-  f.edit([always])
+  f.setRecipes([always])
   const out = await f.add()
   expect(out.ok).toBe(true)
   expect((await f.service.briefs(roomId, "yuki"))[0]?.description).toContain("turned this on for you")
@@ -132,21 +121,18 @@ test("deleted chats lose their installs and routines without affecting other cha
   await f.add("ada")
   const own = await f.service.install({ installId: crypto.randomUUID(), slug: "tea-time", own: true })
   if (!own.ok) throw new Error("install failed")
-  f.sql.exec("DELETE FROM chats WHERE room_id = ?", roomId)
+  await f.service.chatGone(roomId)
   const listed = await f.service.list()
   expect(listed.installs.map((i) => i.installId)).toEqual([own.install.installId])
   expect(f.reminders.list().filter((r) => r.status === "active").map((r) => r.roomId)).toEqual([own.install.roomId])
 })
 
-test("old installs recover their routines and cancel duplicate routines", async () => {
-  const f = setup()
-  const out = await f.add()
-  if (!out.ok) throw new Error("install failed")
-  f.sql.exec("DELETE FROM recipe_routines")
-  const original = f.reminders.list()[0]!
-  await f.reminders.createRoutine("owner", { name: original.name!, instructions: original.text, trigger: original.trigger!, tz: "UTC", roomId, target: "yuki", createdBy: "human" })
-  await f.service.reconcile()
-  expect(f.reminders.list().filter((r) => r.status === "active")).toHaveLength(1)
-  await f.service.uninstall(out.install.installId)
-  expect(f.reminders.list().filter((r) => r.status === "active")).toHaveLength(0)
+test("a card lists each app with its toolkit slug, and connected from the port or null when unknown", () => {
+  const r = parseRecipe(`---\ntitle: Morning\ndescription: Mail.\nwhen: Daily\napps:\n  - Google Calendar\n  - Gmail\n---\nBody.`, "morning")
+  const known = recipeCard(r, false, new Set(["gmail"]))
+  expect(known.apps).toEqual([
+    { name: "Google Calendar", slug: "googlecalendar", connected: false },
+    { name: "Gmail", slug: "gmail", connected: true },
+  ])
+  expect(recipeCard(r, true, null).apps.map((a) => a.connected)).toEqual([null, null])
 })
