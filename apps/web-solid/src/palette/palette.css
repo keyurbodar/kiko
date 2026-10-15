@@ -47,6 +47,7 @@
   cursor: default;
 }
 .palette-row[data-selected="true"] { background: var(--accent-strong); }
+.palette-row[data-picked="true"] { background: var(--accent); }
 
 .palette-group [cmdk-group-heading] {
   padding: 8px 10px 4px;

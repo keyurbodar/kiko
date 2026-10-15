@@ -1,19 +1,19 @@
 import { KIKO } from "@kiko/protocol"
 
 /*
- * The bot picker's group rule. Kiko leads every group, so it is never picked: a group is Kiko
- * and the agents picked, one or more.
+ * The bot picker's rule. Picking one agent opens that agent's chat one to one. Picking two or
+ * more opens a group, and Kiko leads every group, so a group it is not already in gains it.
  */
 
-/** The agents a group would hold, Kiko first. Empty when nothing is picked. */
-export function groupMembers(picked: readonly string[]): string[] {
-  const others = [...new Set(picked)].filter((id) => id !== KIKO)
-  return others.length ? [KIKO, ...others] : []
+/** The room the pick opens: the agent alone, or a group Kiko leads. Empty when nothing is picked. */
+export function roomFor(picked: readonly string[]): string[] {
+  const unique = [...new Set(picked)]
+  if (unique.length < 2) return unique
+  return unique.includes(KIKO) ? [KIKO, ...unique.filter((id) => id !== KIKO)] : [KIKO, ...unique]
 }
 
-/** Adds or removes one agent. Kiko is in every group already, so it is not pickable. */
+/** Adds or removes one agent. */
 export function togglePick(picked: readonly string[], id: string): string[] {
-  if (id === KIKO) return [...picked]
   return picked.includes(id) ? picked.filter((other) => other !== id) : [...picked, id]
 }
 
