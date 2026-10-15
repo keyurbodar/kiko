@@ -22,7 +22,7 @@ import { createAgent, listAgents } from "./agents"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { actorKey } from "../room/log"
-import { applyChatOp, type ChatChange, getChat, leftoverTempRooms, listChats, searchChats, type Touch, touchChat } from "./chats"
+import { applyChatOp, type ChatChange, clearTempMarks, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
@@ -830,8 +830,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async ensureHome(): Promise<void> {
-    // Temporary chats are gone. A row one left behind is removed, so it never shows.
-    for (const roomId of leftoverTempRooms(this.sql)) this.apply({ op: "delete", roomId })
+    clearTempMarks(this.sql)
     for (const op of kikoChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {

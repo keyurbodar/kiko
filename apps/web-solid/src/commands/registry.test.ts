@@ -69,8 +69,8 @@ describe("kat commands", () => {
     expect([c.shortcut, c.alias]).toEqual(["Mod+N", undefined])
   })
 
-  test("the sidebar toggle, chat info, chat stepping, search, and the palette are global", () => {
-    expect(list.filter((c) => c.global && !c.unlisted).map((c) => c.id).sort()).toEqual(["chat.info", "chats.go", "chats.next", "chats.previous", "chats.search-all", "chats.search-current", "palette.open", "view.toggle-sidebar"])
+  test("the sidebar toggle, new chat, chat info, chat stepping, search, and the palette are global", () => {
+    expect(list.filter((c) => c.global && !c.unlisted).map((c) => c.id).sort()).toEqual(["chat.info", "chat.new", "chats.go", "chats.next", "chats.previous", "chats.search-all", "chats.search-current", "palette.open", "view.toggle-sidebar"])
   })
 
   test("non-global shortcuts ignore text fields, global ones do not", () => {

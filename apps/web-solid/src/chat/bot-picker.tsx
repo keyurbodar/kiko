@@ -89,7 +89,9 @@ export default function BotPicker() {
                 <Cmdk.Item class="palette-row" value={agent.id} keywords={[agent.name, agent.slug]} onSelect={() => activate(agent)}>
                   <IdentityAvatar seed={agent.slug} size={22} />
                   <span class="palette-label">{agent.name}</span>
-                  <span class="text-sm text-muted-foreground">@{agent.slug}</span>
+                  <Show when={agent.id !== KIKO}>
+                    <span class="text-sm text-muted-foreground">@{agent.slug}</span>
+                  </Show>
                   <span class="relative grid size-4 shrink-0 place-items-center">
                     <input
                       type="checkbox"

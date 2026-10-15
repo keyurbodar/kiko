@@ -120,6 +120,18 @@ export function Composer(props: ComposerProps) {
    * are guarded by the key the input was filled for, so the text of the chat you
    * are leaving never lands under the one you are entering.
    */
+  /**
+   * Puts the caret after filled text, once the dialog that asked for it has handed focus back.
+   * A line's trailing space does not survive the editor's markdown, so it is typed after.
+   */
+  const typeHere = (text: string) =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(".composer-dock .ProseMirror")?.focus()
+        const tail = /\s*$/.exec(text)![0]
+        if (tail) controller.addPart({ type: "text", content: tail, start: 0, end: 0 })
+      }),
+    )
   let filledFor = ""
   createEffect(
     on(
@@ -128,7 +140,9 @@ export function Composer(props: ComposerProps) {
         filledFor = ""
         leaveChat()
         if (!key) return
-        const text = takeComposerFill(key) ?? props.draftFor?.(key) ?? ""
+        const filled = takeComposerFill(key)
+        if (filled !== undefined) typeHere(filled)
+        const text = filled?.trimEnd() ?? props.draftFor?.(key) ?? ""
         if (text !== draftText()) {
           if (text) store.setText(text)
           else store.reset()
@@ -143,7 +157,10 @@ export function Composer(props: ComposerProps) {
     on(
       composerFill,
       (fill) => {
-        if (fill && fill.roomId === props.draftKey) store.setText(takeComposerFill(fill.roomId) ?? "");
+        if (!fill || fill.roomId !== props.draftKey) return
+        const text = takeComposerFill(fill.roomId) ?? ""
+        store.setText(text.trimEnd())
+        typeHere(text)
       },
       { defer: true },
     ),

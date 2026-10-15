@@ -68,9 +68,13 @@ export function searchChats(sql: SqlStorage, query: string): Chat[] {
     .map(toChat)
 }
 
-/** Temporary chats are gone. A row an older build left with a draft mark is one to remove. */
-export function leftoverTempRooms(sql: SqlStorage): RoomId[] {
-  return sql.exec<{ room_id: string }>("SELECT room_id FROM chats WHERE draft IS NOT NULL").toArray().map((row) => row.room_id as RoomId)
+/**
+ * Temporary chats are gone. An older build left them marked, and some hold a real talk with
+ * kiko, so the mark is cleared rather than the chat deleted. Each held kiko alone, which the
+ * sidebar already leaves out beside the kiko chat.
+ */
+export function clearTempMarks(sql: SqlStorage): void {
+  sql.exec("UPDATE chats SET draft = NULL WHERE draft IS NOT NULL")
 }
 
 export function listChats(sql: SqlStorage): Chat[] {
