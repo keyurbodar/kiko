@@ -38,7 +38,11 @@ async function exists(path: string): Promise<boolean> {
 }
 
 async function initKey(): Promise<void> {
-  if (await exists(KEY_PATH)) throw new Error(`${KEY_PATH} already exists. Refusing to overwrite the release key.`)
+  if (await exists(KEY_PATH)) {
+    console.log(`${KEY_PATH} already exists. Keeping it.`)
+    console.log(`Public key x: ${(await loadKey()).x}`)
+    return
+  }
   const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair
   const jwk = (await crypto.subtle.exportKey("jwk", pair.privateKey)) as Jwk
   await mkdir(KEY_DIR, { recursive: true })

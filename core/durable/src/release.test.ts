@@ -9,7 +9,7 @@ const toB64Url = (bytes: ArrayBuffer | Uint8Array) => Buffer.from(bytes as Array
 async function signer() {
   const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair
   const jwk = await crypto.subtle.exportKey("jwk", pair.publicKey)
-  return { privateKey: pair.privateKey, x: jwk.x as string }
+  return { privateKey: pair.privateKey, x: (jwk as JsonWebKey).x as string }
 }
 
 describe("verifyRelease", () => {

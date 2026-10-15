@@ -51,7 +51,7 @@ export async function verifyRelease(manifestBytes: Uint8Array, sigB64: string, p
   }
 }
 
-export type ReleaseModule = { name: string; type: string; sha256: string }
+type ReleaseModule = { name: string; type: string; sha256: string }
 export type ReleaseMigration = { tag: string; new_sqlite_classes?: string[]; deleted_classes?: string[] }
 export type ReleaseManifest = {
   version: string
