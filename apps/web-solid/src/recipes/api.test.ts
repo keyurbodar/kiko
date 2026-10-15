@@ -21,8 +21,8 @@ afterEach(() => {
 })
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } })
-const install = { installId: "i1", slug: "morning-briefing", roomId: "r1" as RoomId, agent: "kiko", at: 1 }
-const serverCard: RecipeCard = { slug: "server-only", title: "Server only", description: "", when: "", apps: [], tags: [], icon: "x", glyph: "", tone: "blue" }
+const install = { installId: "i1", slug: "morning-briefing", roomId: "r1" as RoomId, agent: "kiko", at: 1, routines: [] }
+const serverCard: RecipeCard = { slug: "server-only", title: "Server only", description: "", when: "", apps: [], setup: [], agent: { name: "Ada", handle: "ada" }, custom: false, tags: [], icon: "x", glyph: "", tone: "blue" }
 
 test("a 4xx answer with an error becomes that error, and a network failure says Kiko did not answer", async () => {
   globalThis.fetch = (async () => json({ error: "No such recipe." }, 400)) as unknown as typeof fetch
@@ -62,7 +62,7 @@ test("with no cards in the answer the build's catalog shows, and the catalog is 
   globalThis.fetch = (async () => json({ installs: [install] })) as unknown as typeof fetch
   expect(await fetchListing()).toEqual({ cards: undefined, installs: [install], broken: [] })
   expect(loadCards()).toBe(RECIPES)
-  expect(store.get("kiko:recipes")).toBe(JSON.stringify({ installs: [install], broken: [] }))
+  expect(store.get("kiko:recipes:v2")).toBe(JSON.stringify({ installs: [install], broken: [] }))
 })
 
 test("a failed request keeps the cached list, and a corrupt cache reads as none installed", async () => {
@@ -72,7 +72,7 @@ test("a failed request keeps the cached list, and a corrupt cache reads as none 
   expect(await fetchListing()).toBeNull()
   expect(loadCards()).toEqual([serverCard])
 
-  store.set("kiko:recipes", "{not json")
+  store.set("kiko:recipes:v2", "{not json")
   expect(loadListing()).toEqual({ installs: [] })
   expect(loadCards()).toBe(RECIPES)
 })

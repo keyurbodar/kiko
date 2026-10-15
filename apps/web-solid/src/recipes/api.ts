@@ -10,7 +10,8 @@ export type InstallResult = { ok: true; install: RecipeInstall } | { ok: false; 
  */
 export type Listing = { cards?: readonly RecipeCard[]; installs: readonly RecipeInstall[]; broken?: readonly string[] }
 
-const CACHE_KEY = "kiko:recipes"
+// The card shape changed with app logos and setup questions, so the old cache is left behind.
+const CACHE_KEY = "kiko:recipes:v2"
 
 /** The list this device saw last, so the page paints with the user's installs at once. */
 export function loadListing(): Listing {
@@ -73,4 +74,11 @@ export async function postInstall(body: InstallRecipe): Promise<InstallResult> {
   const data = (await res.json().catch(() => null)) as { install?: RecipeInstall; error?: string } | null
   if (res.ok && data?.install) return { ok: true, install: data.install }
   return { ok: false, error: data?.error ?? "Could not add that recipe." }
+}
+
+/** Makes the recipe's file in the drive when it is a built-in, and answers its home path. Null when the server refuses. */
+export async function postEdit(slug: string): Promise<string | null> {
+  const res = await fetch(`/api/recipes/${encodeURIComponent(slug)}/edit`, { method: "POST" }).catch(() => null)
+  const data = res?.ok ? ((await res.json().catch(() => null)) as { path?: unknown } | null) : null
+  return typeof data?.path === "string" ? data.path : null
 }

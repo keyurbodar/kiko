@@ -1,8 +1,4 @@
 /* The nine recipe tones. Each reads on its theme: a mid tone on light, a bright one on dark. */
-.recipe-menu {
-  z-index: 80;
-}
-
 :root {
   --recipe-amber: oklch(0.82 0.15 85);
   --recipe-violet: oklch(0.75 0.16 295);
@@ -28,6 +24,7 @@
 }
 
 .recipe-icon {
+  position: relative;
   display: grid;
   flex-shrink: 0;
   place-items: center;
@@ -39,4 +36,29 @@
 .recipe-icon svg {
   width: 56%;
   height: 56%;
+}
+
+/* App logos ride the icon's lower edge like stickers. The ring is the surface behind, so it reads on any card. */
+.recipe-stickers {
+  position: absolute;
+  right: -10%;
+  bottom: -10%;
+  display: flex;
+}
+
+.recipe-stickers .recipe-logo {
+  box-shadow: 0 0 0 2.5px var(--recipe-surface, var(--background));
+}
+
+.recipe-logo {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 9999px;
+  background: #fff;
+}
+
+.recipe-logo img {
+  width: 60%;
+  height: 60%;
 }

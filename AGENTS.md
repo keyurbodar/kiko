@@ -116,40 +116,59 @@ Pick the model with [`docs/subagents.md`](docs/subagents.md). Run every subagent
 
 ## Where code lives
 
-Reusable backend packages live in `core/` (`@kiko/*`, importable by apps and by each other by layer), `packages/` holds frontend-only packages (`@kiko/ui`), and `apps/` holds the deployables.
+Reusable backend packages live in `core/` (`@kiko/*`, importable by apps and by each other by layer). `packages/` holds frontend-only packages. `apps/` holds the deployables. When this tree and the code disagree, the code wins; fix the tree.
 
 ```text
 apps/
   web-solid/            the SolidJS client
-    src/chat/           transcript, bubbles, attachments, typing
-    src/composer/       the message input
-    src/sidebar/        chat list and pinned tiles
+    src/app/            shell, routes, rail, tab strip, top bar, sign-in, session
+    src/chat/           transcript, bubbles, attachments, typing, the chat's sidecar
+    src/composer/       the message input and its cards
+    src/sidebar/        chat list, pinned tiles, the settings sidebar
+    src/settings/       settings pages and the settings kit (kit.tsx, kit.css)
+    src/files/          the Files tab: tree, viewers, editor
+    src/recipes/        the recipe gallery and installs
+    src/search/         message search
+    src/palette/        the command palette
+    src/commands/       hotkeys and command registry
+    src/theme/          appearance and imported themes
+    src/avatar/         the avatar picker
+    src/styles/         motion and token tests
     src/lib/            store, types, helpers
-    src/sync/           sockets, stores, optimistic patches
+    src/sync/           sockets, stores, optimistic patches, uploads
     src/warm/           IndexedDB
-    src/app/            shell, routes, rail, tab strip
-  server/               the Worker
-    src/auth/           the access code, the session cookie, the dev-only session
-    src/user/           UserDO: credentials, memory, reminders
+    src/index.css       Tailwind and the global tokens
+  server/               the backend Worker
+    src/auth/           the access code, sessions, the dev-only session
+    src/user/           UserDO: credentials, memory, reminders, routines
     src/room/           RoomDO: log, burst, delivery, workspace
     src/room/wake.ts    the wake path a routine or a nudge uses to start one agent run
     src/room/signals.ts the signal window: human messages and task changes for routines and the engine
     src/initiative/     open loops wiring: attention (learned moment and appetite), engine, judge
     src/agent/          AgentDO: factory, outbox, kiko's extensions
-    src/lib/            names, dev stats
+    src/files/          uploads, downloads, the room file system
+    src/recipes/        the recipe catalog and its route
+    src/skills/         built-in skills
+    src/integrations/   Composio and Kernel
+    src/themes/         the Open VSX theme route
+    src/lib/            names, dev stats, version
+  installer/            the hosted installer Worker: Cloudflare grant, signed install and update
+  landing/              the Astro landing page
   cli/                  the kiko verification CLI
 packages/
-  ui/                   @kiko/ui: Kobalte and Corvu wrappers, kat.css
+  ui/                   @kiko/ui: Kobalte and Corvu wrappers, icons
+  theme/                @kiko/theme: palette, looks, imported VS Code themes
+  avatar/               @kiko/avatar: generated avatars
 core/
-  protocol/             @kiko/protocol: wire types shared by all three apps
-  durable/              @kiko/durable: alarm, safe-fetch, crypto
+  protocol/             @kiko/protocol: wire types and the protocol version
+  durable/              @kiko/durable: alarm, safe-fetch, crypto, migrate, signed releases
   agent/                @kiko/agent: pi-durable host, inbox, effects
   memory/               @kiko/memory: OptMem tree, life log, memory tools, open loops (loops.ts, loop-tool.ts)
   sandbox/              @kiko/sandbox: the recurrence rule for reminders and routines
   extensions/           @kiko/extensions: the parked user-extensions feature, wired by nothing
   browser/              @kiko/browser: browser session and tools
 docs/
-  overview.md  product.md  architecture.md  self-deploy.md  subagents.md
+  overview.md  product.md  architecture.md  self-deploy.md  subagents.md  app-kiko.md
   reference/            code to port, kept unchanged
 .cursor/skills/         verification skills
 ```

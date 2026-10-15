@@ -9,6 +9,15 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Watches a listing page and texts you only when a new apartment matches what you want.",
     "when": "Checks every 30 minutes",
     "apps": [],
+    "setup": [
+      "what is the listing page url?",
+      "what do you want, like budget, neighborhood, and bedrooms?"
+    ],
+    "agent": {
+      "name": "Scout",
+      "handle": "scout"
+    },
+    "custom": false,
     "tags": [
       "home"
     ],
@@ -22,6 +31,14 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Warns you only when rain, a storm, heat, or snow is coming today.",
     "when": "Daily at 7:00",
     "apps": [],
+    "setup": [
+      "which city should i watch?"
+    ],
+    "agent": {
+      "name": "Storm",
+      "handle": "storm"
+    },
+    "custom": false,
     "tags": [
       "mornings"
     ],
@@ -35,8 +52,18 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Finds this week's birthdays on your calendar, with two gift ideas for each person.",
     "when": "Mondays at 8:30",
     "apps": [
-      "Google Calendar"
+      {
+        "name": "Google Calendar",
+        "slug": "googlecalendar",
+        "connected": null
+      }
     ],
+    "setup": [],
+    "agent": {
+      "name": "Gifts",
+      "handle": "gifts"
+    },
+    "custom": false,
     "tags": [
       "fun"
     ],
@@ -50,6 +77,14 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Today's forecast for your city, and what to wear.",
     "when": "Daily at 7:30",
     "apps": [],
+    "setup": [
+      "what city are you in?"
+    ],
+    "agent": {
+      "name": "Weather",
+      "handle": "weather"
+    },
+    "custom": false,
     "tags": [
       "mornings"
     ],
@@ -63,6 +98,12 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Stress-test a big decision from five angles, then give one recommendation.",
     "when": "When you ask",
     "apps": [],
+    "setup": [],
+    "agent": {
+      "name": "Council",
+      "handle": "council"
+    },
+    "custom": false,
     "tags": [
       "thinking"
     ],
@@ -76,8 +117,18 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Finds emails you sent that got no reply after three days, and drafts a short follow-up for each.",
     "when": "Weekdays at 9:00",
     "apps": [
-      "Gmail"
+      {
+        "name": "Gmail",
+        "slug": "gmail",
+        "connected": null
+      }
     ],
+    "setup": [],
+    "agent": {
+      "name": "Nudge",
+      "handle": "nudge"
+    },
+    "custom": false,
     "tags": [
       "inbox"
     ],
@@ -91,6 +142,12 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "One short, varied nudge to drink water, every two hours while you are awake.",
     "when": "Every 2 hours, 8 to 22",
     "apps": [],
+    "setup": [],
+    "agent": {
+      "name": "Sip",
+      "handle": "sip"
+    },
+    "custom": false,
     "tags": [
       "health"
     ],
@@ -104,6 +161,12 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Sends one fitting meme now and then, when a moment in the chat is funny or relatable.",
     "when": "While you chat",
     "apps": [],
+    "setup": [],
+    "agent": {
+      "name": "Meme",
+      "handle": "meme"
+    },
+    "custom": false,
     "tags": [
       "fun"
     ],
@@ -117,9 +180,26 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Your calendar and the emails that need you, every morning.",
     "when": "Daily at 7:55",
     "apps": [
-      "Gmail",
-      "Google Calendar"
+      {
+        "name": "Gmail",
+        "slug": "gmail",
+        "connected": null
+      },
+      {
+        "name": "Google Calendar",
+        "slug": "googlecalendar",
+        "connected": null
+      }
     ],
+    "setup": [
+      "what time do you want it?",
+      "which email matters most, work, personal, or both?"
+    ],
+    "agent": {
+      "name": "Briefing",
+      "handle": "briefing"
+    },
+    "custom": false,
     "tags": [
       "mornings",
       "inbox"
@@ -134,6 +214,14 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Three to five top stories each morning, on the topics you pick.",
     "when": "Daily at 8:00",
     "apps": [],
+    "setup": [
+      "what topics do you want news on?"
+    ],
+    "agent": {
+      "name": "Headlines",
+      "handle": "headlines"
+    },
+    "custom": false,
     "tags": [
       "mornings"
     ],
@@ -147,6 +235,12 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "One gentle prompt each evening, and it remembers what you said.",
     "when": "Daily at 21:00",
     "apps": [],
+    "setup": [],
+    "agent": {
+      "name": "Gratitude",
+      "handle": "gratitude"
+    },
+    "custom": false,
     "tags": [
       "health"
     ],
@@ -160,6 +254,15 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Warns you on high pollen days for the allergies you name, and stays quiet otherwise.",
     "when": "Daily at 7:30",
     "apps": [],
+    "setup": [
+      "what city are you in?",
+      "which allergies do you have, like grass, tree, or ragweed?"
+    ],
+    "agent": {
+      "name": "Pollen",
+      "handle": "pollen"
+    },
+    "custom": false,
     "tags": [
       "health"
     ],
@@ -173,8 +276,18 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Lists open pull requests waiting on your review, and stays quiet when there are none.",
     "when": "Weekdays at 17:00",
     "apps": [
-      "GitHub"
+      {
+        "name": "GitHub",
+        "slug": "github",
+        "connected": null
+      }
     ],
+    "setup": [],
+    "agent": {
+      "name": "Reviews",
+      "handle": "reviews"
+    },
+    "custom": false,
     "tags": [
       "work"
     ],
@@ -188,6 +301,12 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "A friendly heads-up near the end of the month, so rent is ready before it is due.",
     "when": "Monthly on the 28th",
     "apps": [],
+    "setup": [],
+    "agent": {
+      "name": "Rent",
+      "handle": "rent"
+    },
+    "custom": false,
     "tags": [
       "money"
     ],
@@ -201,8 +320,18 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Lists the recurring charges in your receipts, and flags price rises, duplicates, and trials that end soon.",
     "when": "Monthly on the 1st",
     "apps": [
-      "Gmail"
+      {
+        "name": "Gmail",
+        "slug": "gmail",
+        "connected": null
+      }
     ],
+    "setup": [],
+    "agent": {
+      "name": "Ledger",
+      "handle": "ledger"
+    },
+    "custom": false,
     "tags": [
       "money"
     ],
@@ -216,9 +345,23 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Adds new flight and hotel confirmations from your email to your calendar, in the right time zones.",
     "when": "Daily at 18:00",
     "apps": [
-      "Gmail",
-      "Google Calendar"
+      {
+        "name": "Gmail",
+        "slug": "gmail",
+        "connected": null
+      },
+      {
+        "name": "Google Calendar",
+        "slug": "googlecalendar",
+        "connected": null
+      }
     ],
+    "setup": [],
+    "agent": {
+      "name": "Itinerary",
+      "handle": "itinerary"
+    },
+    "custom": false,
     "tags": [
       "travel"
     ],
@@ -232,6 +375,12 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Three reading picks each Saturday, matched to your interests.",
     "when": "Saturdays at 19:00",
     "apps": [],
+    "setup": [],
+    "agent": {
+      "name": "Reading",
+      "handle": "reading"
+    },
+    "custom": false,
     "tags": [
       "thinking"
     ],
@@ -245,6 +394,12 @@ export const RECIPES: readonly RecipeCard[] = [
     "description": "Asks what got done this week, celebrates one win, and sets one goal for next week.",
     "when": "Fridays at 17:00",
     "apps": [],
+    "setup": [],
+    "agent": {
+      "name": "Review",
+      "handle": "review"
+    },
+    "custom": false,
     "tags": [
       "work"
     ],
