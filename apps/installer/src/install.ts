@@ -79,12 +79,12 @@ async function ensureBucket(token: string, accountId: string, f: FetchLike) {
 
 export async function runInstall(env: InstallEnv, deps: InstallDeps, req: InstallRequest): Promise<InstallResult> {
   const f = deps.fetch
-  let stored: Omit<StoredGrant, "accountId">
+  let stored: Omit<StoredGrant, "accountId" | "scriptName">
   let token: string
   if (req.grant.kind === "oauth") {
     const tokens = await exchange(env, req.grant, f)
     token = tokens.accessToken
-    stored = { kind: "oauth", accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }
+    stored = { kind: "oauth", clientId: env.CF_OAUTH_CLIENT_ID, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }
   } else {
     token = req.grant.token
     stored = { kind: "token", token }
@@ -112,7 +112,7 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const existing = byName.get(name)
 
   const { manifest, files } = await loadRelease(env, f)
-  const grant: StoredGrant = { ...stored, accountId }
+  const grant: StoredGrant = { ...stored, accountId, scriptName: name }
   const migrations = selectMigrations(manifest.migrations, existing ? (existing.migration_tag ?? null) : null)
   const secrets = existing
     ? null

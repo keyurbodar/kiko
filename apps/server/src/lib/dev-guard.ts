@@ -54,6 +54,11 @@ export function rpc<T extends object>(stub: T, target: string): T {
   return process.env.NODE_ENV === "development" ? proxyRpc(stub, target) : stub
 }
 
+// Dev only: reads a value a verify suite set, such as a fake Cloudflare address. Production answers null.
+export function devOverride<T>(read: () => T | null): T | null {
+  return process.env.NODE_ENV === "development" ? read() : null
+}
+
 export function inFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
   return process.env.NODE_ENV === "development" ? trackInFlight(key, run) : run()
 }

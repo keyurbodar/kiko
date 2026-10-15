@@ -29,6 +29,10 @@ export interface Env extends AuthEnv {
   FILES: R2Bucket
   ASSETS: Fetcher
   CREDENTIALS_KEK: string
+  /** The install's Cloudflare grant as JSON. UserDO keeps a rotated copy of its own. */
+  CF_GRANT?: string
+  /** Moves where releases are fetched from. It never changes the key that signs them. */
+  RELEASE_BASE_URL?: string
 }
 
 export default {

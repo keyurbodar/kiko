@@ -5,6 +5,10 @@ export type Grant = { kind: "oauth"; code: string; verifier: string; redirectUri
 export type StoredGrant = {
   kind: Grant["kind"]
   accountId: string
+  /** The script this grant may replace, so the backend can update itself without asking which one it is. */
+  scriptName: string
+  /** The OAuth client the refresh token belongs to. */
+  clientId?: string
   accessToken?: string
   refreshToken?: string
   token?: string

@@ -111,7 +111,7 @@ describe("runInstall", () => {
     const { upload, calls } = await install({ release, scripts: [] }, { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" })
     expect(calls[0]?.url).toBe("https://dash.cloudflare.com/oauth2/token")
     const grant = ((upload.body as { bindings: { name: string; text?: string }[] }).bindings.find((b) => b.name === "CF_GRANT") as { text: string }).text
-    expect(JSON.parse(grant)).toEqual({ kind: "oauth", accessToken: "at", refreshToken: "rt", accountId: "acc1" })
+    expect(JSON.parse(grant)).toEqual({ kind: "oauth", clientId: expect.any(String), accessToken: "at", refreshToken: "rt", accountId: "acc1", scriptName: "kiko" })
   })
 
   test("R2 not enabled fails with r2_disabled before any upload", async () => {

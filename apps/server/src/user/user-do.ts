@@ -50,6 +50,7 @@ import { KernelWiring } from "./kernel-wiring"
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
 import { AWAY_MS, LAST_SEEN } from "./keys"
+import { UpdateWiring } from "./update-wiring"
 
 const REPLAY_LIMIT = 500
 
@@ -681,6 +682,21 @@ export class UserDO extends DurableObject<Env> {
     return this.#logins
   }
 
+  #updateWiring?: UpdateWiring
+  get #update(): UpdateWiring {
+    this.#updateWiring ??= new UpdateWiring({
+      env: this.env,
+      sql: this.sql,
+      userId: () => userIdFromObjectName(this.ctx.id.name),
+      broadcast: (frame) => this.broadcast(frame),
+    })
+    return this.#updateWiring
+  }
+
+  async devUpdateConfig(config: Record<string, unknown>): Promise<void> {
+    return (await this.dev()).devUpdateConfig(this.sql, config)
+  }
+
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     let frame: typeof ClientToUser.Type
     try {
@@ -736,6 +752,7 @@ export class UserDO extends DurableObject<Env> {
       if (refused) send(ws, { t: "home_refused", op: frame.op, reason: refused })
       return
     }
+    if (frame.t === "update.start") return this.#update.start(frame.version)
     if (frame.t === "login.start") return void this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {})
     if (frame.t === "login.answer") return this.#loginState.answer(ws, frame.loginId, frame.promptId, frame.value)
     if (frame.t === "login.cancel") return this.#loginState.cancel(ws, frame.loginId)
