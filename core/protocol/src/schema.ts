@@ -2,7 +2,6 @@
 // never imports this entry: it trusts frames from its own server.
 
 import * as Schema from "effect/Schema"
-import { checkBundle, checkManifest } from "./extensions"
 import { isAgentSlug, isRoomId } from "./ids"
 import type * as P from "./index"
 
@@ -200,7 +199,6 @@ export const Trigger = Schema.Union([
 		on: Schema.Literal("watch"),
 		url: Short(2000),
 		everyMinutes: Schema.Int.check(Schema.isGreaterThanOrEqualTo(15), Schema.isLessThanOrEqualTo(10_080)),
-		extension: Schema.optionalKey(Short(64)),
 		headers: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 	}),
 ])
@@ -388,69 +386,6 @@ export const ChatOp = Schema.Union([
 	Schema.Struct({ op: Schema.Literal("delete"), roomId: RoomId }),
 ])
 
-// Extensions (architecture section 24). The manifest and the bundle are checked by the same pure
-// functions the server runs, so a frame that passes here is one the server would accept.
-
-export const ExtensionManifest = Schema.Unknown.pipe(Schema.refine((u): u is P.ExtensionManifest => checkManifest(u).ok))
-export const ExtensionBundle = Schema.Unknown.pipe(Schema.refine((u): u is P.ExtensionBundle => checkBundle(u).ok))
-const ExtensionSource = Schema.Literals(["human", "agent", "catalog"])
-
-export const ExtensionInfo = Schema.Struct({
-	name: Id,
-	version: Id,
-	description: Schema.String,
-	hash: Id,
-	enabled: Schema.Boolean,
-	agents: Schema.NullOr(Schema.Array(AgentSlug)),
-	source: ExtensionSource,
-	by: Schema.optionalKey(AgentSlug),
-	room: Schema.optionalKey(RoomId),
-	manifest: ExtensionManifest,
-	secrets: Schema.Array(Schema.Struct({ name: Id, set: Schema.Boolean })),
-	error: Schema.optionalKey(Schema.String),
-	installedAt: Count,
-	updatedAt: Count,
-})
-
-export const ExtensionProposal = Schema.Struct({
-	id: Id,
-	name: Id,
-	version: Id,
-	hash: Id,
-	source: ExtensionSource,
-	by: Schema.optionalKey(AgentSlug),
-	room: Schema.optionalKey(RoomId),
-	bundle: ExtensionBundle,
-	replaces: Schema.optionalKey(Id),
-	createdAt: Count,
-})
-
-export const ExtensionCatalogEntry = Schema.Struct({ name: Id, version: Id, description: Schema.String, bundle: ExtensionBundle })
-
-export const ExtensionOp = Schema.Union([
-	Schema.Struct({ op: Schema.Literal("propose"), bundle: Schema.Unknown, room: Schema.optionalKey(RoomId) }),
-	Schema.Struct({ op: Schema.Literal("catalog") }),
-	Schema.Struct({ op: Schema.Literal("propose_catalog"), name: Id }),
-	Schema.Struct({ op: Schema.Literal("install"), id: Id }),
-	Schema.Struct({ op: Schema.Literal("decline"), id: Id }),
-	Schema.Struct({ op: Schema.Literal("enable"), name: Id, enabled: Schema.Boolean }),
-	Schema.Struct({ op: Schema.Literal("agents"), name: Id, agents: Schema.NullOr(Schema.Array(AgentSlug)) }),
-	Schema.Struct({ op: Schema.Literal("secret"), name: Id, secret: Id, value: Schema.NullOr(Schema.String) }),
-	Schema.Struct({ op: Schema.Literal("uninstall"), name: Id }),
-	Schema.Struct({ op: Schema.Literal("source"), name: Id }),
-])
-
-export const ExtensionResult = Schema.Union([
-	Schema.Struct({
-		ok: Schema.Literal(true),
-		proposal: Schema.optionalKey(ExtensionProposal),
-		extension: Schema.optionalKey(ExtensionInfo),
-		bundle: Schema.optionalKey(ExtensionBundle),
-		catalog: Schema.optionalKey(Schema.Array(ExtensionCatalogEntry)),
-	}),
-	Schema.Struct({ ok: Schema.Literal(false), error: Schema.String, problems: Schema.optionalKey(Schema.Array(Schema.String)) }),
-])
-
 export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat }),
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
@@ -459,10 +394,6 @@ export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("folders"), folders: Schema.Array(Schema.String) }),
-	Schema.Struct({ ...stored, t: Schema.Literal("extension"), extension: ExtensionInfo }),
-	Schema.Struct({ ...stored, t: Schema.Literal("extension_removed"), name: Id }),
-	Schema.Struct({ ...stored, t: Schema.Literal("extension_proposal"), proposal: ExtensionProposal }),
-	Schema.Struct({ ...stored, t: Schema.Literal("extension_proposal_removed"), id: Id }),
 ])
 
 export const UserSnapshot = Schema.Struct({
@@ -472,8 +403,6 @@ export const UserSnapshot = Schema.Struct({
 	theme: Schema.optionalKey(Schema.NullOr(Schema.String)),
 	home: Schema.Struct({ files: Schema.Array(FileRef), folders: Schema.Array(Schema.String) }),
 	lastChat: Schema.optionalKey(RoomId),
-	extensions: Schema.optionalKey(Schema.Array(ExtensionInfo)),
-	proposals: Schema.optionalKey(Schema.Array(ExtensionProposal)),
 })
 
 
@@ -563,7 +492,6 @@ export const ClientToUser = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
 	Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),
-	Schema.Struct({ t: Schema.Literal("extension"), reqId: Id, op: ExtensionOp }),
 ])
 
 export const LoginEvent = Schema.Union([
@@ -622,7 +550,6 @@ export const UserToClient = Schema.Union([
 		provider: Schema.Struct({ provider: Id, kind: Schema.Literals(["api_key", "oauth"]), last4: Schema.String }),
 	}),
 	Schema.Struct({ t: Schema.Literal("login.error"), loginId: Id, reason: LoginErrorReason, message: Schema.String }),
-	Schema.Struct({ t: Schema.Literal("extension_result"), reqId: Id, result: ExtensionResult }),
 ])
 
 // A schema and its plain type must accept exactly the same values. `Inline`
@@ -664,10 +591,6 @@ export type InSync = Assert<
 	| Same<typeof BrowserLinkResult.Type, P.BrowserLinkResult>
 	| Same<typeof ClientToUser.Type, P.ClientToUser>
 	| Same<typeof UserToClient.Type, P.UserToClient>
-	| Same<typeof ExtensionInfo.Type, P.ExtensionInfo>
-	| Same<typeof ExtensionProposal.Type, P.ExtensionProposal>
-	| Same<typeof ExtensionOp.Type, P.ExtensionOp>
-	| Same<typeof ExtensionResult.Type, P.ExtensionResult>
 >
 
 export * from "./loops"

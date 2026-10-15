@@ -24,7 +24,9 @@ function files(dir: string): string[] {
 const start = performance.now()
 const all = [...files(join(ROOT, "apps")), ...files(join(ROOT, "core"))]
 const text = new Map(all.map((f) => [f, readFileSync(f, "utf8")]))
-const coreDirs = readdirSync(join(ROOT, "core")).map((d) => join(ROOT, "core", d, "src"))
+const coreDirs = readdirSync(join(ROOT, "core"))
+  .filter((d) => d !== "extensions")
+  .map((d) => join(ROOT, "core", d, "src"))
 const owned = [...files(join(ROOT, "apps/server/src")), ...coreDirs.flatMap(files)].filter((f) => !f.endsWith(".gen.ts"))
 
 // Index word -> files that contain it, so each export is a lookup.

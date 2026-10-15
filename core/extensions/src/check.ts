@@ -1,5 +1,5 @@
 import { checkBundle, describeManifest, type ExtensionBundle, type ExtensionTest } from "./manifest"
-import { triggerGapProblems } from "./recurrence"
+import { triggerGapProblems } from "./triggers"
 import type { Effect } from "@kiko/agent/effects"
 import { type Bridge, ScriptError, ScriptVM } from "./vm"
 import { type CallPort, makeQuietBridge, makeToolBridge, mayCall, type ScriptPorts } from "./compile"

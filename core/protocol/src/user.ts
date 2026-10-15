@@ -1,6 +1,5 @@
 
 import type { ChatLast } from "./activity"
-import type { ExtensionInfo, ExtensionOp, ExtensionProposal, ExtensionResult } from "./extensions"
 import type { AgentSlug, RoomId } from "./ids"
 import type { MemoryOp, MemoryResult } from "./memory"
 import type { FileOp, FileRef } from "./room"
@@ -53,10 +52,6 @@ export type UserEvent =
 	| (Stored & { t: "file"; file: FileRef })
 	| (Stored & { t: "file_removed"; ids: readonly string[] })
 	| (Stored & { t: "folders"; folders: readonly string[] })
-	| (Stored & { t: "extension"; extension: ExtensionInfo })
-	| (Stored & { t: "extension_removed"; name: string })
-	| (Stored & { t: "extension_proposal"; proposal: ExtensionProposal })
-	| (Stored & { t: "extension_proposal_removed"; id: string })
 
 export type UserSnapshot = {
 	seq: number
@@ -66,8 +61,6 @@ export type UserSnapshot = {
 	home: { files: readonly FileRef[]; folders: readonly string[] }
 	/** The chat the user was last in, so a new device opens there. The kiko chat when that one is gone. */
 	lastChat?: RoomId
-	extensions?: readonly ExtensionInfo[]
-	proposals?: readonly ExtensionProposal[]
 }
 
 export type ComposioStatus = {
@@ -125,7 +118,6 @@ export type ClientToUser =
 	| { t: "login.answer"; loginId: string; promptId: string; value: string }
 	| { t: "login.cancel"; loginId: string }
 	| { t: "home"; op: FileOp }
-	| { t: "extension"; reqId: string; op: ExtensionOp }
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[] }
@@ -143,7 +135,6 @@ export type UserToClient =
 	| { t: "chat_refused"; roomId: RoomId; existing: RoomId }
 	| { t: "home_refused"; op: FileOp; reason: string }
 	| { t: "typing"; roomId: RoomId; names: readonly string[] }
-	| { t: "extension_result"; reqId: string; result: ExtensionResult }
 
 /** What a sign-in flow tells the user. The same shapes as pi-ai's `AuthEvent`. */
 export type LoginEvent =

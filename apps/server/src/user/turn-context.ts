@@ -13,7 +13,7 @@ export type TurnContext = {
   auth: AuthResult | null
   timezone: string
   captures: boolean
-  agent?: { extensions: { name: string; hash: string }[]; soul: { body: string; sha: string; at: number } }
+  agent?: { soul: { body: string; sha: string; at: number } }
 }
 
 const NO_AMBIENT: AuthContext = { env: async () => undefined, fileExists: async () => false }

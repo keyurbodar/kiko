@@ -5,7 +5,6 @@ import { defaultFetcher } from "../lib/dev-fixture-fetch"
 import { htmlToText } from "@kiko/durable/html-text"
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
-import type { ExtensionStore } from "./extensions"
 import { asResult, type NewRoutine, type Reminder, type Reminders } from "./reminders"
 import { matchWebhook, roomRoutine, type RoutineResult, routineResult } from "./routines"
 
@@ -14,7 +13,6 @@ const HOOK_EXCERPT = 6_000
 type RoutineDeps = {
   env: Env
   reminders: Reminders
-  extensions: ExtensionStore
 }
 
 export class RoutineWiring {
@@ -76,10 +74,6 @@ export class RoutineWiring {
 
   async watchPage(trigger: Extract<Trigger, { on: "watch" }>): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
     try {
-      if (trigger.extension) {
-        const res = await this.d.extensions.fetch(trigger.extension, { url: trigger.url, method: "GET", ...(trigger.headers ? { headers: { ...trigger.headers } } : {}) })
-        return res.status >= 400 ? { ok: false, error: `status ${res.status}` } : { ok: true, text: res.text }
-      }
       const page = await safeFetch(trigger.url, defaultFetcher(), { maxBytes: 256 * 1024 })
       if (!page.ok) return { ok: false, error: page.reason }
       if (page.status >= 400) return { ok: false, error: `status ${page.status}` }

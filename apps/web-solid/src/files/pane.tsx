@@ -1,8 +1,7 @@
 import type { FileOp } from "@kiko/protocol"
 import { FileAddIcon, FolderAddIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { useNavigate } from "@solidjs/router"
-import { createEffect, createMemo, createSignal, lazy, onCleanup, Show, Suspense } from "solid-js"
+import { createEffect, createMemo, lazy, onCleanup, Show, Suspense } from "solid-js"
 import { dropFileSurfaces, moveFileSurfaces, openFile } from "../chat/side/surfaces"
 import { useApp } from "../lib/store"
 import { createFile, forgetMade, withMade } from "./api"
@@ -72,7 +71,6 @@ export function FilesTree(props: { chatId: string }) {
 	)
 }
 
-const extensionAt = (p: string) => /^extensions\/([a-z][a-z0-9-]{1,31})\/extension\.json$/.exec(p)?.[1] ?? null
 
 export function FileSurface(props: { chatId: string; path: string }) {
 	const { files, index } = useChatFiles(props.chatId)
@@ -84,35 +82,10 @@ export function FileSurface(props: { chatId: string; path: string }) {
 	const view = createFileView(props.chatId, () => props.path, file, kind)
 	onCleanup(() => setFullSize(false))
 
-	const navigate = useNavigate()
-	const [proposing, setProposing] = createSignal(false)
-	const installExtension = async (name: string) => {
-		setProposing(true)
-		const { proposeFromFiles } = await import("./extension-install")
-		const out = await proposeFromFiles(props.chatId, name, useApp.activeFiles())
-		setProposing(false)
-		if (!out.ok) return showToastV2({ title: `${out.error}${out.problems?.length ? `: ${out.problems.slice(0, 3).join("; ")}` : ""}`, variant: "error" })
-		navigate("/settings/tools")
-	}
-
 	return (
 		<div class="flex min-h-0 min-w-0 flex-1 flex-col" data-component="files-pane">
 			<div class={SUBHEADER} data-component="file-header">
 				<FileBreadcrumbs path={props.path} index={index()} unsaved={view.unsaved()} onOpen={(to) => openFile(props.chatId, to)} />
-				<Show when={!inHome(props.path) && file() ? extensionAt(props.path) : null}>
-					{(name) => (
-						<button
-							type="button"
-							class="h-6 shrink-0 rounded-md bg-[var(--primary)] px-2 text-xs text-[var(--primary-foreground)] disabled:opacity-50"
-							data-action="install-extension-file"
-							disabled={proposing() || view.unsaved()}
-							title="Review and install this extension"
-							onClick={() => void installExtension(name())}
-						>
-							{proposing() ? "Checking" : "Install"}
-						</button>
-					)}
-				</Show>
 				<Show when={file()} keyed>
 					{(f) => <FileActions view={view} chatId={props.chatId} path={props.path} file={f} kind={kind()} onExpand={() => setFullSize(true)} />}
 				</Show>

@@ -141,7 +141,7 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `browser`, `browser-run`, `kernel`, `browser-takeover` | [browser](./features/browser.md) |
 | `composio`, `composio-extension` | [composio](./features/composio.md) |
 | `fanout` | [fanout](./features/fanout.md) |
-| `extensions`, `extensions-compose`, `extensions-model`, `extensions-edit-model`, `skills` | [extensions](./features/extensions.md) |
+| `skills` | [skills](./features/skills.md) |
 | `routines`, `reminders`, `routine-triggers`, `routines-model`, `routines-scale` | [routines](./features/routines.md) |
 | `credentials`, `byok`, `provider-login` | [account](./features/account.md) |
 | `overhead`, `token-cost`, `latency`, `latency-model` | [limits](./features/limits.md) |

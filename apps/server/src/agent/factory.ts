@@ -2,7 +2,7 @@ import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
-import { NOT_FOR_WORKERS, workExtensions } from "./extensions/work"
+import { workExtensions } from "./extensions/work"
 import type { Workers } from "@kiko/agent/workers"
 import type { Activity } from "@kiko/protocol"
 import { effectTable } from "@kiko/agent/effects"
@@ -23,8 +23,6 @@ import type { ComposioCall, ComposioTool } from "../integrations/composio/client
 import { COMPOSIO, composioExtension } from "../integrations/composio/tools"
 import { BROWSER_EXT, type BrowserToolDeps, browserExtension } from "./browser/tools"
 import { baseSections, type RoleInput } from "./prompt"
-import { compileExtension, type Installed, type ScriptPorts, VmPool } from "@kiko/sandbox/compile"
-import { type BuilderPorts, builderExtension } from "./extensions/builder"
 import { count } from "../lib/dev-guard"
 
 export type BuildAgentInput = RoleInput & {
@@ -42,8 +40,6 @@ export type BuildAgentInput = RoleInput & {
   reminders?: { port: () => RemindersPort | null; tz: () => string }
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
-  scripts?: ScriptPorts
-  builder?: BuilderPorts
   egress?: Fetcher
   work?: Workers
 }
@@ -51,15 +47,12 @@ export type BuildAgentInput = RoleInput & {
 export type BuiltAgent = {
   registry: Registry
   agent: AgentChange
-  extensions: UserExtensions
 }
 
 export const BASE = "base"
 
-export const TOOLS_SUFFIX = "/tools"
-
 export const WORKER_ONLY: readonly string[] = [WEB, COMPOSIO, BROWSER_EXT]
-export const workerOnly = (name: string): boolean => WORKER_ONLY.includes(name) || (name.startsWith("ext:") && name.endsWith(TOOLS_SUFFIX))
+export const workerOnly = (name: string): boolean => WORKER_ONLY.includes(name)
 export const forTalker = (extensions: readonly Extension[]): Extension[] => extensions.filter((e) => !workerOnly(e.name))
 
 function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]): Extension[] {
@@ -78,87 +71,21 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
     ...(input.browser ? [browserExtension(input.browser)] : []),
-    ...(input.builder ? [builderExtension(input.builder)] : []),
     ...(input.work ? workExtensions(input.work, all) : []),
     ...(input.testExtensions ?? []),
   ]
 }
 
 export function buildAgent(input: BuildAgentInput): BuiltAgent {
-  let extensions: UserExtensions | undefined
-  const builtins = extensionsFor(input, () => extensions?.selection() ?? builtins)
+  const builtins = extensionsFor(input, () => builtins)
   // Throws when a tool declares no effect or two tools share a name with different effects.
   effectTable(builtins)
   const registry = createRegistry()
   for (const extension of builtins) registry.install(extension)
-  extensions = new UserExtensions(registry, builtins, input.scripts)
   // The lowest reasoning a model offers: pi-ai clamps "minimal" up to the first level the model
   // supports. A chat reply waits on every turn, and on tool-heavy tasks the default level made each
   // turn take 2 to 5 s longer with the same answers.
-  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: forTalker(builtins) }, extensions }
-}
-
-function split(extension: Extension, calls: readonly string[], talkerOnly: ReadonlySet<string>): Extension[] {
-  if (!extension.tools?.length || calls.some((c) => talkerOnly.has(c))) return [extension]
-  return [{ ...extension, tools: [] }, defineExtension({ name: `${extension.name}${TOOLS_SUFFIX}`, tools: extension.tools })]
-}
-
-export type ExtensionProblem = { name: string; hash: string; error: string }
-
-export class UserExtensions {
-  private installed = new Map<string, { hash: string; parts: Extension[] }>()
-  private readonly pool?: VmPool
-  private readonly reserved: ReadonlySet<string>
-  private readonly talkerOnly: ReadonlySet<string>
-
-  constructor(
-    private readonly registry: Registry,
-    private readonly builtins: readonly Extension[],
-    private readonly ports?: ScriptPorts,
-  ) {
-    if (ports) this.pool = new VmPool(ports.wasm)
-    this.reserved = new Set(builtins.flatMap((e) => (e.tools ?? []).map((t) => t.name)))
-    this.talkerOnly = new Set(builtins.filter((e) => NOT_FOR_WORKERS.includes(e.name)).flatMap((e) => (e.tools ?? []).map((t) => t.name)))
-  }
-
-  selection(): Extension[] {
-    const users = [...this.installed.entries()].sort(([a], [b]) => a.localeCompare(b)).flatMap(([, v]) => v.parts)
-    return [...this.builtins, ...users]
-  }
-
-  talker(): Extension[] {
-    return forTalker(this.selection())
-  }
-
-  sync(list: readonly Installed[]): ExtensionProblem[] {
-    if (!this.ports || !this.pool) return list.map((i) => ({ name: i.name, hash: i.hash, error: "this agent cannot run extensions" }))
-    const problems: ExtensionProblem[] = []
-    const next = new Map<string, { hash: string; parts: Extension[] }>()
-    const taken = new Map<string, string>()
-    for (const item of [...list].sort((a, b) => a.name.localeCompare(b.name))) {
-      const tools = Object.keys(item.bundle.manifest.tools ?? {})
-      const clash = tools.find((t) => this.reserved.has(t)) ?? null
-      const shared = tools.find((t) => taken.has(t)) ?? null
-      if (clash || shared) {
-        const owner = shared ? taken.get(shared) : undefined
-        const error = clash ? `tool ${clash} is a built-in tool; rename it` : `tool ${shared} is also in extension ${owner}; rename one`
-        problems.push({ name: item.name, hash: item.hash, error })
-        continue
-      }
-      for (const t of tools) taken.set(t, item.name)
-      const current = this.installed.get(item.name)
-      next.set(item.name, current?.hash === item.hash ? current : { hash: item.hash, parts: split(compileExtension(item, this.pool, this.ports), item.bundle.manifest.calls ?? [], this.talkerOnly) })
-    }
-    for (const [name, v] of this.installed) if (next.get(name) !== v) for (const part of v.parts) this.registry.uninstall(part)
-    for (const [name, v] of next) if (this.installed.get(name) !== v) for (const part of v.parts) this.registry.install(part)
-    this.installed = next
-    this.pool.retain(new Set([...next.values()].map((v) => v.hash)))
-    return problems
-  }
-
-  release(): void {
-    this.pool?.release()
-  }
+  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: forTalker(builtins) } }
 }
 
 export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse-spark-1.3-contributor" }

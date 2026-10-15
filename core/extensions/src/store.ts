@@ -15,8 +15,8 @@ import {
 } from "@kiko/protocol"
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import { type Fetcher, safeRequest, type SafeRequest } from "@kiko/durable/safe-fetch"
-import { type GuestRequest, type GuestResponse, guestRequestProblem } from "@kiko/sandbox/compile"
-import { triggerGapProblems } from "@kiko/sandbox/recurrence"
+import { type GuestRequest, type GuestResponse, guestRequestProblem } from "./compile"
+import { triggerGapProblems } from "./triggers"
 
 export type ExtensionEvent =
   | { t: "extension"; extension: ExtensionInfo }

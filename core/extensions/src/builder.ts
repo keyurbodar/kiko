@@ -4,8 +4,8 @@ import { defineExtension, defineTool, type Extension, type ToolExecutionApi } fr
 import type { ExtensionBundle, ExtensionInfo, ExtensionResult } from "@kiko/protocol"
 import { filesOf, type RoomFs } from "../../files/room-fs"
 import { declareEffect, type Effect, effectOf } from "@kiko/agent/effects"
-import type { CheckReport } from "@kiko/sandbox/check"
-import { extensionName } from "@kiko/sandbox/compile"
+import type { CheckReport } from "./check"
+import { extensionName } from "./compile"
 
 export const BUILDER = "extension-builder"
 const ROOT = "extensions"

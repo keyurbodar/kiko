@@ -6,8 +6,8 @@ const ALLOWED: Record<string, readonly string[]> = {
   browser: [],
   agent: ["@kiko/durable"],
   memory: ["@kiko/agent"],
-  sandbox: ["@kiko/agent"],
-  protocol: ["@kiko/agent", "@kiko/sandbox"],
+  sandbox: [],
+  protocol: ["@kiko/agent"],
   theme: ["@kiko/avatar"],
   avatar: [],
 }

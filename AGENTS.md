@@ -136,7 +136,6 @@ apps/
     src/room/signals.ts the signal window: human messages and task changes for routines and the engine
     src/initiative/     open loops wiring: attention (learned moment and appetite), engine, judge
     src/agent/          AgentDO: factory, outbox, kiko's extensions
-    catalog/            extensions reviewed upstream, bundled by apps/server/scripts/gen-catalog.ts
     src/lib/            names, dev stats
   cli/                  the kiko verification CLI
 packages/
@@ -146,7 +145,8 @@ core/
   durable/              @kiko/durable: alarm, safe-fetch, crypto
   agent/                @kiko/agent: pi-durable host, inbox, effects
   memory/               @kiko/memory: OptMem tree, life log, memory tools, open loops (loops.ts, loop-tool.ts)
-  sandbox/              @kiko/sandbox: QuickJS VM, manifest, compiler, checker
+  sandbox/              @kiko/sandbox: the recurrence rule for reminders and routines
+  extensions/           @kiko/extensions: the parked user-extensions feature, wired by nothing
   browser/              @kiko/browser: browser session and tools
 docs/
   overview.md  product.md  architecture.md  self-deploy.md  subagents.md

@@ -317,8 +317,6 @@ export class Reminders {
           throw new ReminderError("watch url is not a url")
         }
         if (url.protocol !== "https:" && url.protocol !== "http:") throw new ReminderError("a watch reaches http and https urls only")
-        if (t.extension && url.protocol !== "https:") throw new ReminderError("a watch through an extension reaches https urls only")
-        if (t.headers && !t.extension) throw new ReminderError("headers need an extension, whose secrets they may use")
         return { name, text, due: now + 1000, rrule: null }
       }
       default:

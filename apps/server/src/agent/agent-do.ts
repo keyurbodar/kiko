@@ -24,14 +24,7 @@ import type { RemindersPort } from "./extensions/reminders"
 import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
 import { learnedNote } from "../integrations/composio/tools"
 
-import { buildAgent, DEFAULT_MODEL, type UserExtensions, userModels } from "./factory"
-import { forWorker } from "./extensions/work"
-import type { GuestResponse, Installed, ScriptPorts } from "@kiko/sandbox/compile"
-import { hasScriptWasm, scriptWasm } from "@kiko/sandbox/wasm"
-import { checkExtension } from "@kiko/sandbox/check"
-import type { BuilderPorts } from "./extensions/builder"
-import { SyncMemo } from "./extension-sync"
-import type { ExtensionBundle, ExtensionInfo, ExtensionResult, ExtensionStateScope } from "@kiko/protocol"
+import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { createAlarms } from "@kiko/durable/alarm"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
@@ -56,7 +49,6 @@ const MEMORY_POS_KEY = "memory:pos"
 const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
-const BUNDLE_PREFIX = "ext-bundle:"
 const RECENT_WORKERS = 8
 const MODEL_KEY = "model"
 const MODEL_APPLIED_KEY = "model:applied"
@@ -86,7 +78,6 @@ export class AgentDO extends DurableObject<Env> {
       progress: () => this.outbox.progress(),
       shortBrief,
       onReset: () => this.outbox.clear(),
-      onIdle: () => this.#userExtensions?.release(),
       onWorkers: (running, pending) => void this.workersChanged(running, pending),
       waitUntil: (work) => this.ctx.waitUntil(work),
       ...this.hostOptions,
@@ -310,7 +301,7 @@ export class AgentDO extends DurableObject<Env> {
     if (DEV && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const browserOn = await this.browserOn()
       const noModel = async (): Promise<DeciderChoice> => { throw new Error("the fake agent has no model for browser_run") }
-      const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, this.scriptPorts(), {
+      const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, {
         ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), decider: noModel, acceptsImages: () => false } } : {}),
         reminders: { port: () => this.remindersPort(), tz: () => "UTC" },
         chief: this.chiefPort(),
@@ -320,11 +311,7 @@ export class AgentDO extends DurableObject<Env> {
       })
       return {
         ...fake,
-        beginRun: async (_batch, root) => {
-          await this.syncExtensions(fake.extensions, root)
-          return true
-        },
-        joinRun: (_batch, root) => this.syncExtensions(fake.extensions, root),
+        beginRun: async () => true,
         inputMemory: (batch, fresh, joined) => this.inputMemory(batch, fresh, joined, false),
         beforeCompact: (harness) => this.carryUsage(harness),
       }
@@ -347,12 +334,11 @@ export class AgentDO extends DurableObject<Env> {
     const memory = this.memoryPort()
     const composio = await this.composioTools()
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
-    const scripts = this.scriptPorts()
     const browserOn = await this.browserOn()
     const browser = browserOn && home
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(scripts ? { scripts, builder: this.builderPorts() } : {}), ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -360,22 +346,16 @@ export class AgentDO extends DurableObject<Env> {
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
         this.prefetchInitiative(batch)
-        if (!(await this.beginRun(batch.requestId, root))) return false
-        await this.syncExtensions(built.extensions, root, this.#run?.extensions)
-        return true
+        return this.beginRun(batch.requestId, root)
       },
-      // Input that joins a working run skipped beginRun, so it asks for the current selection itself:
-      // an install, a switch, or an update made since the run began reaches the human's next message.
-      joinRun: (_batch, root) => this.syncExtensions(built.extensions, root),
       inputContext: async () => {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
         const down = composio === "unreachable" ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
-        const extensions = this.#extensionsNote ? `the human's installed extensions, live this run: ${this.#extensionsNote}. one that is not live may be installed but switched off: check extension_list before telling the human to install anything.` : undefined
         const initiative = await this.takeInitiative()
-        return [clock, down, learned, quiet, extensions, initiative].filter(Boolean).join("\n\n")
+        return [clock, down, learned, quiet, initiative].filter(Boolean).join("\n\n")
       },
       ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
@@ -489,57 +469,6 @@ export class AgentDO extends DurableObject<Env> {
     return sum
   }
 
-  private async syncExtensions(extensions: UserExtensions, root: Conversation, versions?: { name: string; hash: string }[]): Promise<void> {
-    this.#userExtensions = extensions
-    const home = this.home()
-    if (!home) return
-    const user = userStub(this.env.USER, home.userId)
-    try {
-      const list = versions ?? (await user.extensionsFor(home.slug))
-      await this.#syncMemo.apply(extensions, list, (key) => this.loadAndSync(user, extensions, root, list, key))
-    } catch (error) {
-      console.error(`extensions not synced: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-
-  private async loadAndSync(user: ReturnType<typeof userStub>, extensions: UserExtensions, root: Conversation, list: { name: string; hash: string }[], key: string): Promise<void> {
-    const installed: Installed[] = []
-    const missing: string[] = []
-    for (const item of list) {
-      const stored = await this.ctx.storage.get<Installed>(`${BUNDLE_PREFIX}${item.hash}`)
-      if (stored) installed.push(stored)
-      else missing.push(item.hash)
-    }
-    if (missing.length) {
-      for (const b of (await user.extensionBundles(missing)) as unknown as Installed[]) {
-        await this.ctx.storage.put(`${BUNDLE_PREFIX}${b.hash}`, b)
-        installed.push(b)
-      }
-    }
-    if (this.#syncMemo.firstSight(key)) {
-      const keep = new Set(list.map((i) => `${BUNDLE_PREFIX}${i.hash}`))
-      const stale = [...(await this.ctx.storage.list({ prefix: BUNDLE_PREFIX })).keys()].filter((k) => !keep.has(k))
-      if (stale.length) await this.ctx.storage.delete(stale)
-    }
-    const problems = extensions.sync(installed)
-    for (const p of problems) void user.extensionError(p.name, p.hash, p.error).catch(() => {})
-    const broken = new Set(problems.map((p) => p.name))
-    this.#extensionsNote = installed
-      .filter((i) => !broken.has(i.name))
-      .map((i) => `${i.name} ${i.bundle.manifest.version}${Object.keys(i.bundle.manifest.tools ?? {}).length ? ` (tools: ${Object.keys(i.bundle.manifest.tools ?? {}).join(", ")})` : ""}`)
-      .join("; ")
-    const want = extensions.talker()
-    const have = (await root.agent(BACKGROUND_CONTEXT)).extensions.map((e) => e.name)
-    if (want.map((e) => e.name).join("\n") !== have.join("\n")) {
-      const workers = this.host.workers.list().flatMap((w) => (w.conversationId === null ? [] : [w.conversationId]))
-      const all = forWorker(extensions.selection())
-      await root.commit(async (tx) => {
-        await configure(tx, root.id, { extensions: want })
-        for (const id of workers) await configure(tx, id, { extensions: all })
-      }, BACKGROUND_CONTEXT)
-    }
-  }
-
   /**
    * Architecture section 17.3. One outside request, made in its own invocation. On the Free plan an
    * invocation may make 50 subrequests, and a run's work all belongs to the invocation that started
@@ -573,53 +502,6 @@ export class AgentDO extends DurableObject<Env> {
     }) as typeof fetch
   }
 
-  #userExtensions?: UserExtensions
-
-  #syncMemo = new SyncMemo()
-
-  #extensionsNote = ""
-
-  private scriptPorts(): ScriptPorts | undefined {
-    if (!hasScriptWasm()) return undefined
-    const where = () => this.homeOrThrow()
-    const scope = (kind: ExtensionStateScope) => {
-      const home = where()
-      return kind === "user" ? "user" : kind === "room" ? `room:${home.roomId}` : `agent:${home.roomId}:${home.slug}`
-    }
-    return {
-      wasm: scriptWasm,
-      state: async (name, kind, op, key, value) => {
-        const home = where()
-        if (home.private && kind === "user" && (op === "set" || op === "delete")) throw new Error(PRIVATE_REFUSAL)
-        return userStub(this.env.USER, home.userId).extensionState(name, scope(kind), op, key, value)
-      },
-      fetch: async (name, request) => (await userStub(this.env.USER, where().userId).extensionFetch(name, request)) as GuestResponse,
-      env: () => {
-        const home = this.home()
-        return { agent: home?.slug ?? "agent", ...(home ? { room: home.roomId } : {}), timezone: this.#run?.timezone ?? "UTC" }
-      },
-      report: (name, hash, error) => {
-        const home = this.home()
-        if (home) void userStub(this.env.USER, home.userId).extensionError(name, hash, error).catch(() => {})
-      },
-    }
-  }
-
-  private builderPorts(): BuilderPorts {
-    const where = () => this.homeOrThrow()
-    return {
-      check: (bundle, tools) => checkExtension(bundle, scriptWasm(), tools),
-      propose: async (bundle) => {
-        const home = where()
-        const out = (await userStub(this.env.USER, home.userId).proposeExtension({ bundle, by: home.slug, room: home.roomId })) as ExtensionResult
-        if (out.ok && out.proposal) await roomStub(this.env.ROOM, home.userId, home.roomId).homeNotice(home.slug, `Proposed the ${out.proposal.name} extension. Review it in Settings → extensions.`)
-        return out
-      },
-      list: async () => (await userStub(this.env.USER, where().userId).extensionList()) as unknown as ExtensionInfo[],
-      source: async (name) => (await userStub(this.env.USER, where().userId).extensionSource(name)) as unknown as ExtensionBundle | null,
-    }
-  }
-
   private memoryPort(): MemoryPort | undefined {
     const home = this.home()
     if (!home) return undefined
@@ -647,7 +529,7 @@ export class AgentDO extends DurableObject<Env> {
     return conversationId === (await this.host.rootId())
   }
 
-  #run: { provider: string; auth: AuthResult | null; timezone: string; captures: boolean; extensions?: { name: string; hash: string }[]; soul?: Soul } | null = null
+  #run: { provider: string; auth: AuthResult | null; timezone: string; captures: boolean; soul?: Soul } | null = null
   #runStamp = 0
 
   private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
@@ -675,7 +557,7 @@ export class AgentDO extends DurableObject<Env> {
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
     const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider, home.slug) : null
-    this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", captures: context?.captures ?? false, ...(context?.agent ? { extensions: context.agent.extensions, soul: context.agent.soul } : {}) }
+    this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", captures: context?.captures ?? false, ...(context?.agent ? { soul: context.agent.soul } : {}) }
     return this.#run.auth
   }
 

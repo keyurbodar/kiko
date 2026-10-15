@@ -13,14 +13,14 @@ import { count } from "../../lib/dev-guard"
 export const WORK = "work"
 export const WORK_STEPS = "work-steps"
 
-export const NOT_FOR_WORKERS: readonly string[] = [WORK, MESSAGING, MEMORY_NOTE, CHIEF_EXT, REMINDERS, WORKSPACE]
+const NOT_FOR_WORKERS: readonly string[] = [WORK, MESSAGING, MEMORY_NOTE, CHIEF_EXT, REMINDERS, WORKSPACE]
 
 const WORKER_PROMPT =
   "You are a background worker. The agent who talks with the human gave you a task. Do it with your tools and check the result. Make independent tool calls together, in one message, not one by one. You cannot talk to the human. A later message is the agent passing on a change from the human: follow it. End with a short, complete report of what you found or did."
 
 const say = (text: string) => ({ content: [{ type: "text" as const, text }] })
 
-export const forWorker = (all: readonly Extension[]): Extension[] => all.filter((e) => !NOT_FOR_WORKERS.includes(e.name))
+const forWorker = (all: readonly Extension[]): Extension[] => all.filter((e) => !NOT_FOR_WORKERS.includes(e.name))
 
 function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
   return { model: agent.model ?? null, thinkingLevel: agent.thinkingLevel, extensions: forWorker(all), instructions: WORKER_PROMPT }

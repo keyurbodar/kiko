@@ -1,7 +1,7 @@
 import { newRoomId, sameAgentChat } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient, ExtensionOp, ExtensionResult } from "@kiko/protocol"
+import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadUserDev } from "../lib/dev-guard"
@@ -37,18 +37,12 @@ import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, roomStub } from "../lib/names"
-import { type ExtensionEvent, ExtensionStore } from "./extensions"
-import { EXTENSION_CATALOG } from "./catalog.gen"
-import { nextOccurrence } from "@kiko/sandbox/recurrence"
-import { CHIEF } from "../room/chief"
-import type { GuestRequest, GuestResponse } from "@kiko/sandbox/compile"
 import type { Certainty, Loop, LoopKind, OpenResult } from "@kiko/memory/loops"
 import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import type { DevBrowserOp, DevInitiativeOp } from "./dev"
 import { InitiativeLoops, LOOPS_WAKEUP } from "./initiative-loops"
 import { KernelWiring } from "./kernel-wiring"
-import { extensionOp, type ExtensionHost, proposeExtension } from "./extension-wiring"
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
 import { AWAY_MS, LAST_SEEN } from "./keys"
@@ -103,75 +97,7 @@ export class UserDO extends DurableObject<Env> {
           },
         },
       })
-      this.extensions = new ExtensionStore(
-        this.sql,
-        () => keyringFromEnv(this.env),
-        () => userIdFromObjectName(ctx.id.name),
-        (event) => this.commit(event),
-        {
-          create: async ({ text, rrule, roomId, target, createdBy }) => {
-            const tz = this.setting("timezone") ?? DEFAULT_TIMEZONE
-            const first = nextOccurrence(rrule, tz, Date.now())
-            if (!first) throw new Error("the rule has no next time")
-            await this.reminders.create(userIdFromObjectName(ctx.id.name), { text, time: first.toISOString(), tz, rrule, roomId, target, createdBy })
-          },
-          cancelBy: async (createdBy) => {
-            return this.reminders.cancelCreatedBy(createdBy)
-          },
-          fallback: () => {
-            const roomId = kikoChatRoom(this.sql)
-            return roomId ? { roomId, target: CHIEF } : null
-          },
-        },
-        () => EXTENSION_CATALOG,
-      )
     })
-  }
-
-  private extensions!: ExtensionStore
-
-  async extensionsFor(slug: string) {
-    return this.extensions.forAgent(slug)
-  }
-
-  async extensionBundles(hashes: string[]) {
-    return this.extensions.bundles(hashes)
-  }
-
-  async extensionState(name: string, scope: string, op: "get" | "set" | "delete" | "list", key: string, value?: unknown) {
-    return this.extensions.state(name, scope, op, key, value)
-  }
-
-  async extensionFetch(name: string, request: GuestRequest): Promise<GuestResponse> {
-    return this.extensions.fetch(name, request)
-  }
-
-  async extensionError(name: string, hash: string, error: string): Promise<void> {
-    this.extensions.setError(name, hash, error)
-  }
-
-  async extensionList() {
-    return this.extensions.list()
-  }
-
-  async extensionSource(name: string) {
-    try {
-      return this.extensions.source(name)
-    } catch {
-      return null
-    }
-  }
-
-  async proposeExtension(input: { bundle: unknown; by: string; room: string }): Promise<ExtensionResult> {
-    return proposeExtension(this.extensions, input)
-  }
-
-  private async extensionOp(op: ExtensionOp): Promise<ExtensionResult> {
-    return extensionOp(this.extensions, op, this.extensionHost())
-  }
-
-  private extensionHost(): ExtensionHost {
-    return { room: this.env.ROOM, userId: userIdFromObjectName(this.ctx.id.name), waitUntil: (work) => this.ctx.waitUntil(work) }
   }
 
   private reminders!: Reminders
@@ -479,7 +405,7 @@ export class UserDO extends DurableObject<Env> {
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
       getSetting(this.sql, key)
-    const agent = slug ? { extensions: this.extensions.forAgent(slug), soul: await this.souls.get(slug) } : undefined
+    const agent = slug ? { soul: await this.souls.get(slug) } : undefined
     return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), captures: this.#mem.captures() }, agent)
   }
 
@@ -501,7 +427,7 @@ export class UserDO extends DurableObject<Env> {
 
   #routinesWiring?: RoutineWiring
   get #routines(): RoutineWiring {
-    this.#routinesWiring ??= new RoutineWiring({ env: this.env, reminders: this.reminders, extensions: this.extensions })
+    this.#routinesWiring ??= new RoutineWiring({ env: this.env, reminders: this.reminders })
     return this.#routinesWiring
   }
 
@@ -734,10 +660,6 @@ export class UserDO extends DurableObject<Env> {
       if (this.setting(LAST_CHAT) !== frame.roomId) this.putSetting(LAST_CHAT, frame.roomId)
       return
     }
-    if (frame.t === "extension") {
-      send(ws, { t: "extension_result", reqId: frame.reqId, result: await this.extensionOp(frame.op) })
-      return
-    }
     if (frame.t === "home") {
       const refused = this.homeOp(frame.op)
       if (refused) send(ws, { t: "home_refused", op: frame.op, reason: refused })
@@ -856,7 +778,7 @@ export class UserDO extends DurableObject<Env> {
     return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM user_events").one().seq ?? 0
   }
 
-  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | FileBody | ExtensionEvent | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
     if (!change) return null
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
     const at = Date.now()
@@ -884,7 +806,7 @@ export class UserDO extends DurableObject<Env> {
       const lastChat = this.lastChat()
       return {
         t: "reset",
-        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}), extensions: this.extensions.list(), proposals: this.extensions.proposals() },
+        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}) },
       }
     }
     const events = this.sql

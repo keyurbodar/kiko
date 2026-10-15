@@ -16,10 +16,6 @@ import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
 import { skillsRoute } from "./skills/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
-import { setScriptWasm } from "@kiko/sandbox/wasm"
-import quickjsWasm from "quickjs-wasi/quickjs.wasm"
-
-setScriptWasm(quickjsWasm)
 
 export { AgentDO } from "./agent/agent-do"
 export { RoomDO } from "./room/room-do"

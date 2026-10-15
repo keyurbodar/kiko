@@ -1,4 +1,4 @@
-import { triggerProblem } from "./rule"
+import { triggerProblem } from "@kiko/sandbox/rule"
 
 export const EXTENSION_SDK = 1
 

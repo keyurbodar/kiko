@@ -2,7 +2,7 @@ import type { ExtensionOp, ExtensionResult } from "@kiko/protocol"
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
 import { EXTENSION_CATALOG } from "./catalog.gen"
-import { type ExtensionStore, ExtensionError } from "./extensions"
+import { type ExtensionStore, ExtensionError } from "./store"
 
 export type ExtensionHost = { room: Env["ROOM"]; userId: string; waitUntil: (work: Promise<unknown>) => void }
 

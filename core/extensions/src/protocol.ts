@@ -1,7 +1,7 @@
 import type { AgentSlug, RoomId } from "./ids"
-import type { ExtensionBundle, ExtensionManifest } from "@kiko/sandbox/manifest"
+import type { ExtensionBundle, ExtensionManifest } from "./manifest"
 
-export * from "@kiko/sandbox/manifest"
+export * from "./manifest"
 
 export type ExtensionSource = "human" | "agent" | "catalog"
 

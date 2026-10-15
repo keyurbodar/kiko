@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
@@ -13,7 +12,6 @@ import type { MessagingPort } from "../src/agent/extensions/messaging"
 import type { RemindersPort } from "../src/agent/extensions/reminders"
 import type { WorkspacePort } from "../src/agent/extensions/workspace"
 import { buildAgent } from "../src/agent/factory"
-import type { ScriptPorts } from "@kiko/sandbox/compile"
 import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
 import type { FsEntry } from "../src/room/files"
 
@@ -76,71 +74,6 @@ test("a worker gets the agent's tools but no chat, notes, reminders, board, or m
     expect(talkerTools).toContain(name)
     expect(workerTools).not.toContain(name)
   }
-})
-
-test("the talker has no web, app, or extension tools; a worker has them all, and keeps the extension's hook", async () => {
-  const wasm = await WebAssembly.compile(readFileSync(require.resolve("quickjs-wasi/quickjs.wasm")))
-  const scripts: ScriptPorts = { wasm: () => wasm, state: async () => null, fetch: async () => ({ status: 200, headers: {}, text: "" }), env: () => ({ agent: "ada", room: "r1", timezone: "UTC" }), report: () => {} }
-  const composio = { tools: [{ name: "COMPOSIO_SEARCH_TOOLS", description: "search", inputSchema: { type: "object", properties: {} } }], call: async () => ({ text: "ok" }) as never }
-  const { workers, reports } = registry()
-  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, composio, scripts, work: workers, egress: async () => new Response("hi") })
-  const dice = { yuki: 1, name: "dice", version: "1.0.0", description: "dice", tools: { roll_dice: { description: "rolls", effect: "read" } }, hooks: ["beforeTool"] }
-  const source = `export const tools = { roll_dice: async () => "4" }\nexport const hooks = { beforeTool: async (call) => { if (call.name === "web_fetch") return { block: "no web" } } }`
-  const faux = fauxProvider()
-  let talkerTools: string[] = []
-  let workerTools: string[] = []
-  const results: string[] = []
-  const step = (r: Request) => {
-    const messages = r.messages as Msg[]
-    const done = messages.filter((m) => m.role === "toolResult")
-    if (isWorker(r)) {
-      workerTools = toolNames(r)
-      results.push(...done.map((m) => (m.content ?? []).map((p) => p.text ?? "").join("")))
-      if (done.length === 0) return fauxAssistantMessage(fauxToolCall("roll_dice", {}), { stopReason: "toolUse" })
-      if (done.length === 1) return fauxAssistantMessage(fauxToolCall("web_fetch", { url: "https://example.com" }), { stopReason: "toolUse" })
-      return fauxAssistantMessage("rolled")
-    }
-    talkerTools = toolNames(r)
-    if (done.length) return fauxAssistantMessage("[skip]")
-    return fauxAssistantMessage(fauxToolCall("start_work", { task: "roll" }), { stopReason: "toolUse" })
-  }
-  faux.setResponses(Array.from({ length: 6 }, () => step))
-  const models = createModels()
-  models.setProvider(faux.provider)
-  const harness = await Harness.open(new MemoryStorage(), { models, registry: built.registry }, context)
-  workers.rearm(harness)
-  const root = await harness.root(context, { agent: { ...built.agent, extensions: built.extensions.talker() } })
-  expect(built.extensions.sync([{ name: "dice", hash: "h1", bundle: { manifest: dice as never, files: { "main.js": source } } }])).toEqual([])
-  await root.configure({ extensions: built.extensions.talker() }, context)
-  expect((await (await root.submit({ type: "input", content: "go" }, context)).wait(context)).status).toBe("done")
-  await until(() => reports.length === 1)
-  await harness.close(context)
-  const outside = (names: string[]) => names.filter((n) => n === "web_fetch" || n.startsWith("composio_") || n === "roll_dice")
-  expect(outside(talkerTools)).toEqual([])
-  expect(talkerTools).toContain("start_work")
-  expect(outside(workerTools).sort()).toEqual(["composio_search_tools", "roll_dice", "web_fetch"])
-  expect(results[0]).toBe("4")
-  expect(results.at(-1)).toContain("no web")
-})
-
-test("an extension whose tools call a talker-only tool keeps them with the talker; others go to workers", async () => {
-  const wasm = await WebAssembly.compile(readFileSync(require.resolve("quickjs-wasi/quickjs.wasm")))
-  const scripts: ScriptPorts = { wasm: () => wasm, state: async () => null, fetch: async () => ({ status: 200, headers: {}, text: "" }), env: () => ({ agent: "ada", room: "r1", timezone: "UTC" }), report: () => {} }
-  const { workers } = registry()
-  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, scripts, work: workers, messaging: () => null, egress: async () => new Response("hi") })
-  const tell = { yuki: 1, name: "tell", version: "1.0.0", description: "tell", tools: { tell_ana: { description: "tells ana", effect: "message" } }, calls: ["send_message"] }
-  const dice = { yuki: 1, name: "dice", version: "1.0.0", description: "dice", tools: { roll_dice: { description: "rolls", effect: "read" } } }
-  const bundle = (manifest: unknown, src: string) => ({ manifest: manifest as never, files: { "main.js": src } })
-  expect(
-    built.extensions.sync([
-      { name: "dice", hash: "d", bundle: bundle(dice, `export const tools = { roll_dice: async () => "4" }`) },
-      { name: "tell", hash: "t", bundle: bundle(tell, `export const tools = { tell_ana: async (_, kiko) => kiko.call("send_message", { to: "ana", text: "hi" }) }`) },
-    ]),
-  ).toEqual([])
-  const names = (es: { tools?: { name: string }[] }[]) => es.flatMap((e) => (e.tools ?? []).map((t) => t.name))
-  expect(names(built.extensions.talker())).toContain("tell_ana")
-  expect(names(built.extensions.talker())).not.toContain("roll_dice")
-  expect(names(built.extensions.selection())).toContain("roll_dice")
 })
 
 test("two asks in one reply, to two teammates, wait together and each gets its own answer", async () => {
@@ -263,7 +196,7 @@ test("two workers that read a file and both rewrite it: the second is refused, s
 test("the talker's start_work takes one whole job per worker, so a many-part job is not one worker per part", () => {
   const { workers } = registry()
   const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, work: workers })
-  const startWork = built.extensions.talker().flatMap((e) => e.tools ?? []).find((t) => t.name === "start_work")
+  const startWork = built.agent.extensions.flatMap((e) => e.tools ?? []).find((t) => t.name === "start_work")
   expect(startWork?.description).toMatch(/one background worker for a whole job/)
   expect(startWork?.description).toMatch(/never one worker per part/)
 })

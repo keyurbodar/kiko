@@ -7,7 +7,6 @@ import { session } from "../app/session"
 import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { useApp } from "../lib/store"
 import { KIKO } from "@kiko/protocol"
 import { ChatPanel } from "./chat-panel"
 import "./sidebar.css"
@@ -131,8 +130,6 @@ function Foot(props: { section: SectionId | null }) {
     const s = session()
     return s.status === "signed-in" ? s.user : null
   }
-  // An extension install waits for the human (architecture section 24): a dot, and the link goes to its review.
-  const waiting = () => (useApp.user()?.proposals().length ?? 0) > 0
   return (
     <footer class="panel-foot" data-component="sidebar-foot">
       <A href="/settings/general" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="Account">
@@ -141,19 +138,16 @@ function Foot(props: { section: SectionId | null }) {
       </A>
       <TooltipV2 placement="top" openDelay={400} value="Settings">
         <A
-          href={waiting() ? "/settings/tools" : "/settings"}
+          href="/settings"
           class="panel-icon-button relative"
           data-component="sidebar-settings"
           data-hint="settings.open"
           data-hint-label="Settings"
           data-active={props.section === "settings" ? "" : undefined}
           aria-current={props.section === "settings" ? "page" : undefined}
-          aria-label={waiting() ? "Settings, an extension waits for review" : "Settings"}
+          aria-label="Settings"
         >
           <HugeIcon icon={SettingsIcon} size={17} />
-          <Show when={waiting()}>
-            <span class="unread-dot panel-icon-dot" data-component="sidebar-extensions-waiting" aria-hidden="true" />
-          </Show>
         </A>
       </TooltipV2>
     </footer>
