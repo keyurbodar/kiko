@@ -83,7 +83,6 @@ export class UserDO extends DurableObject<Env> {
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => {
         const event = this.commit(body)
         if (!event) throw new Error("file change produced no event")
-        this.ctx.waitUntil(this.alarms.setWakeup("recipes", Date.now()))
         return event
       }, actorKey)
       this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()), Date.now, {
@@ -116,8 +115,13 @@ export class UserDO extends DurableObject<Env> {
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> { return this.#routines.updateRoutine(id, patch) }
 
   async recipeList(): Promise<RecipeList> {
-    const { cards, installs, broken } = await this.#recipes.list()
-    return { cards: cards.map(recipeCard), installs, broken }
+    const { cards, custom, installs, broken } = await this.#recipes.list()
+    const connected = await this.#composio.connectedToolkits().catch(() => null)
+    return { cards: cards.map((r) => recipeCard(r, custom.has(r.slug), connected)), installs, broken }
+  }
+
+  async editRecipe(slug: string): Promise<string | null> {
+    return this.#recipes.edit(slug)
   }
 
   async installRecipe(owner: string, input: InstallRecipe, by?: string) {
@@ -146,12 +150,12 @@ export class UserDO extends DurableObject<Env> {
       userId: owner,
       list: (dir, recursive) => this.#homeWiring.list(dir, recursive),
       put: (input) => this.#homeWiring.put(input),
+      remove: (paths, recursive) => this.#homeWiring.remove({ kind: "human" }, paths, recursive),
     })
     this.#recipeService = new RecipeService({
       sql: this.sql,
       library,
       createRoutine: (input) => this.#routines.createRoutine(owner(), input),
-      updateRoutine: (id, patch) => this.#routines.updateRoutine(id, patch),
       cancelRoutine: (id) => this.cancelReminder(id),
       routine: (id) => this.reminders.get(id),
       timezone: () => this.timezone(),
@@ -168,7 +172,6 @@ export class UserDO extends DurableObject<Env> {
         return roomId ? roomStub(this.env.ROOM, owner(), roomId).modelOf("yuki").catch(() => "") : ""
       },
       announce: (roomId, input) => roomStub(this.env.ROOM, owner(), roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
-      notice: (roomId, id, text) => roomStub(this.env.ROOM, owner(), roomId).systemNotice(id, text, "routine"),
     })
     return this.#recipeService
   }
@@ -222,7 +225,6 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async runRoutine(id: string): Promise<RunDelivery | null> {
-    await this.#recipes.reconcile()
     return this.reminders.runNow(id)
   }
 
@@ -756,11 +758,7 @@ export class UserDO extends DurableObject<Env> {
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
-      ["recipes"]: () => this.#recipes.reconcile(),
-      [REMINDERS_WAKEUP]: async () => {
-        await this.#recipes.reconcile()
-        await this.reminders.fire()
-      },
+      [REMINDERS_WAKEUP]: () => this.reminders.fire(),
       [LIFE_WAKEUP]: () => this.#mem.napLife(),
       [CAPTURE_WAKEUP]: () => this.#mem.captureNow(),
       [LOOPS_WAKEUP]: () => this.#il.now(),
@@ -804,7 +802,7 @@ export class UserDO extends DurableObject<Env> {
     // A deleted chat keeps no reminders or routines.
     if (event && op.op === "delete") {
       this.ctx.waitUntil(this.reminders.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
-      this.ctx.waitUntil(this.alarms.setWakeup("recipes", Date.now()))
+      this.ctx.waitUntil(this.#recipes.chatGone(op.roomId).catch((e: unknown) => console.error(`recipes not cleared: ${e instanceof Error ? e.message : String(e)}`)))
     }
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
@@ -827,7 +825,7 @@ export class UserDO extends DurableObject<Env> {
 
   async ensureHome(): Promise<void> {
     clearTempMarks(this.sql)
-    this.ctx.waitUntil(this.#recipes.sync().catch((e: unknown) => console.error(`recipe sync failed: ${e instanceof Error ? e.message : String(e)}`)))
+    this.ctx.waitUntil(this.#recipes.retireSeeded().catch((e: unknown) => console.error(`recipe cleanup failed: ${e instanceof Error ? e.message : String(e)}`)))
     for (const op of kikoChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {

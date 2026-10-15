@@ -21,8 +21,8 @@ afterEach(() => {
 })
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } })
-const install = { installId: "i1", slug: "morning-briefing", roomId: "r1" as RoomId, agent: "yuki", at: 1 }
-const serverCard: RecipeCard = { slug: "server-only", title: "Server only", description: "", when: "", apps: [], tags: [], icon: "x", glyph: "", tone: "blue" }
+const install = { installId: "i1", slug: "morning-briefing", roomId: "r1" as RoomId, agent: "yuki", at: 1, routines: [] }
+const serverCard: RecipeCard = { slug: "server-only", title: "Server only", description: "", when: "", apps: [], setup: [], agent: { name: "Ada", handle: "ada" }, custom: false, tags: [], icon: "x", glyph: "", tone: "blue" }
 
 test("a 4xx answer with an error becomes that error, and a network failure says Kiko did not answer", async () => {
   globalThis.fetch = (async () => json({ error: "No such recipe." }, 400)) as unknown as typeof fetch
