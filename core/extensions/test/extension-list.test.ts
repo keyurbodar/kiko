@@ -3,7 +3,7 @@ import type { ExtensionInfo } from "@kiko/protocol"
 import { extensionLine } from "../src/agent/extensions/builder"
 
 const info = (enabled: boolean) =>
-  ({ name: "tally", version: "1.0.0", enabled, description: "keep counts", manifest: { yuki: 1, name: "tally", version: "1.0.0", description: "keep counts" }, secrets: [] }) as unknown as ExtensionInfo
+  ({ name: "tally", version: "1.0.0", enabled, description: "keep counts", manifest: { kiko: 1, name: "tally", version: "1.0.0", description: "keep counts" }, secrets: [] }) as unknown as ExtensionInfo
 
 test("an extension that is switched off reads as installed and off, never as missing", () => {
   const line = extensionLine(info(false))

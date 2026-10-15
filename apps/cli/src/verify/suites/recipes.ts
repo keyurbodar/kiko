@@ -30,13 +30,13 @@ const suite: Suite = {
     console.log(`  ok ${library.cards.length} built-in recipes were in /home/recipes; a new file became a card (${teaCard.icon}) and a broken one was named`)
 
     const installId = crypto.randomUUID()
-    const body = { installId, slug: "morning-briefing", roomId, agent: "yuki" }
+    const body = { installId, slug: "morning-briefing", roomId, agent: "kiko" }
     const { install } = await ok<{ install: RecipeInstall }>(url, s, "recipes", body)
-    if (install.roomId !== roomId || install.agent !== "yuki") throw new VerifyError(`expected the install in this chat for kiko, got ${JSON.stringify(install)}`)
+    if (install.roomId !== roomId || install.agent !== "kiko") throw new VerifyError(`expected the install in this chat for kiko, got ${JSON.stringify(install)}`)
     await poll("the agent hearing the recipe", () => agentTexts(room).some((t) => t.includes('"Morning briefing" recipe')), 20_000)
     await poll("the added line", () => messages(room).some((m) => m.from.kind === "system" && m.text === "Morning briefing added"), 5_000)
     const [routine, ...extra] = await mine()
-    if (!routine || extra.length || routine.name !== "morning briefing" || routine.target !== "yuki") throw new VerifyError(`expected one morning briefing routine for kiko, got ${JSON.stringify(await mine())}`)
+    if (!routine || extra.length || routine.name !== "morning briefing" || routine.target !== "kiko") throw new VerifyError(`expected one morning briefing routine for kiko, got ${JSON.stringify(await mine())}`)
     const due = new Date(routine.dueUtc)
     if (`${due.getUTCHours()}:${due.getUTCMinutes()}:${due.getUTCSeconds()}` !== "7:55:0" || !routine.rrule?.includes("FREQ=DAILY")) throw new VerifyError(`expected a daily routine due at 7:55:00 UTC, got ${due.toISOString()} ${routine.rrule}`)
     console.log(`  ok the recipe made routine ${routine.id} due ${due.toISOString()} and woke kiko`)
@@ -55,7 +55,7 @@ const suite: Suite = {
 
     const stranger = await api<{ error: string }>(url, s, "recipes", { installId: crypto.randomUUID(), slug: "morning-briefing", roomId, agent: "nobody-here" })
     if (stranger.status !== 400 || !String(stranger.json.error).includes("not in that chat") || (await mine()).length !== 1) throw new VerifyError(`an agent outside the chat should be refused with nothing left behind, got ${stranger.status} ${JSON.stringify(stranger.json)}`)
-    const unknown = await api<{ error: string }>(url, s, "recipes", { installId: crypto.randomUUID(), slug: "no-such-recipe", roomId, agent: "yuki" })
+    const unknown = await api<{ error: string }>(url, s, "recipes", { installId: crypto.randomUUID(), slug: "no-such-recipe", roomId, agent: "kiko" })
     if (unknown.status !== 400) throw new VerifyError(`an unknown recipe should be refused, got ${unknown.status}`)
     console.log("  ok an agent outside the chat and an unknown recipe were refused, and left no routine")
 
@@ -70,7 +70,7 @@ const suite: Suite = {
     const teaRoutine = (await mine()).find((r) => r.name === "tea time")
     await poll("the added line", () => messages(room).some((m) => m.from.kind === "system" && m.text === "Tea time added"), 5_000)
     await Bun.sleep(1500)
-    if (teaRoutine?.target !== "yuki" || agentTexts(room).some((t) => t.includes('"Tea time" recipe') && !t.includes("tool: added."))) throw new VerifyError("an agent's own add_recipe should make its routine and not wake the agent again")
+    if (teaRoutine?.target !== "kiko" || agentTexts(room).some((t) => t.includes('"Tea time" recipe') && !t.includes("tool: added."))) throw new VerifyError("an agent's own add_recipe should make its routine and not wake the agent again")
     console.log("  ok an agent's add_recipe made the routine and got the setup text as its tool result")
     const edited = tea.replace("BYHOUR=16;BYMINUTE=0", "BYHOUR=17;BYMINUTE=30")
     const changed = await s.putFile("home", "recipes/tea-time/RECIPE.md", edited, { expect: new Bun.CryptoHasher("sha256").update(tea).digest("hex"), type: "text/markdown" })
@@ -88,12 +88,12 @@ const suite: Suite = {
 
     const group = await team(v, s, ["ada", "bea"], "recipe group")
     const groupInstalls = []
-    for (const agent of ["yuki", "ada", "bea"]) groupInstalls.push((await ok<{ install: RecipeInstall }>(url, s, "recipes", { installId: crypto.randomUUID(), slug: "morning-briefing", roomId: group.roomId, agent })).install)
+    for (const agent of ["kiko", "ada", "bea"]) groupInstalls.push((await ok<{ install: RecipeInstall }>(url, s, "recipes", { installId: crypto.randomUUID(), slug: "morning-briefing", roomId: group.roomId, agent })).install)
     const groupRoutines = () => ok<{ routines: Full[] }>(url, s, "routines").then((x) => x.routines.filter((r) => r.roomId === group.roomId && r.status === "active"))
     if ((await groupRoutines()).length !== 3) throw new VerifyError("each group member should have one routine")
     await api(url, s, `recipes/${groupInstalls[1]?.installId}`, undefined, "DELETE")
     const left = (await groupRoutines()).map((r) => r.target).sort()
-    if (JSON.stringify(left) !== JSON.stringify(["bea", "yuki"])) throw new VerifyError(`removing Ada affected the other agents: ${left}`)
+    if (JSON.stringify(left) !== JSON.stringify(["bea", "kiko"])) throw new VerifyError(`removing Ada affected the other agents: ${left}`)
     console.log("  ok three agents used one recipe in a group; removing Ada left Kiko and Bea running")
     user.send({ t: "chat", op: { op: "delete", roomId: group.roomId } })
     await poll("a deleted group's installs to be cleared", async () => !(await ok<RecipeList>(url, s, "recipes")).installs.some((i) => i.roomId === group.roomId))

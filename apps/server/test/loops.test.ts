@@ -81,10 +81,10 @@ test("an agent's promise merges into its newest open one unless Jev is sure it i
 
 test("a long answer never crowds the human's sentences out, and only its last two are read", () => {
   const answer = "That is tight. I can help you get it done. What grant is it? Send me the rules. I will check back tomorrow."
-  const got = sentencesOf([{ text: "I have to submit the grant report by Friday." }, { text: answer, by: "yuki" }, { text: "Maybe I'll start running again." }])
+  const got = sentencesOf([{ text: "I have to submit the grant report by Friday." }, { text: answer, by: "kiko" }, { text: "Maybe I'll start running again." }])
   expect(got).toEqual([
     { text: "I have to submit the grant report by Friday.", from: 0 },
-    { text: "Send me the rules. I will check back tomorrow.", from: 1, by: "yuki" },
+    { text: "Send me the rules. I will check back tomorrow.", from: 1, by: "kiko" },
     { text: "Maybe I'll start running again.", from: 2 },
   ])
 })

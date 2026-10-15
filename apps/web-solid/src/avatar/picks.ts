@@ -13,5 +13,5 @@ export const setAvatarPicks = setPicks
 
 /** The pins an avatar draws with. Kiko may change what it wears, never what it is. */
 export function pinsFor(slug: string, pins: AvatarPins = picks()[slug] ?? {}): AvatarPins {
-  return slug === KIKO ? { ...pins, flavour: "hatsuyuki" } : pins
+  return slug === KIKO ? { ...pins, flavour: "fubuki" } : pins
 }

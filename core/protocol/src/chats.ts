@@ -1,7 +1,7 @@
 import type { RoomId } from "./ids"
 import type { Chat } from "./user"
 
-export const KIKO = "yuki"
+export const KIKO = "kiko"
 
 /** Two agent lists name the same chat when they hold the same agents, in any order, with repeats counted once. */
 export function sameAgents(a: readonly string[], b: readonly string[]): boolean {

@@ -41,7 +41,7 @@ export class Souls {
     const found = this.row(slug)
     if (found) return found
     const agent = this.sql.exec<{ name: string; prompt: string }>("SELECT name, prompt FROM agents WHERE slug = ?", slug).toArray()[0]
-    return this.seed(slug, slug === "yuki" ? KIKO_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
+    return this.seed(slug, slug === "kiko" ? KIKO_SOUL : firstSoul(agent?.name ?? slug, agent?.prompt ?? ""))
   }
 
   async seed(slug: string, body: string): Promise<Soul> {

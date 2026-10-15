@@ -19,7 +19,7 @@ const suite: Suite = {
       await fake(v, s, roomId)
       await send(room, "[reply] ok")
       await poll("the first answer", () => agentTexts(room).length >= 1, 20_000)
-      room.raw.send({ t: "task", op: { op: "create", id: "stuck", title: "write the launch post", owner: "yuki" as AgentSlug } })
+      room.raw.send({ t: "task", op: { op: "create", id: "stuck", title: "write the launch post", owner: "kiko" as AgentSlug } })
       room.raw.send({ t: "task", op: { op: "update", id: "stuck", status: "doing" } })
       await Bun.sleep(1_000)
       const before = agentTexts(room).length

@@ -5,7 +5,7 @@ const loop = (id: number, owner: string, text: string, status = "open"): Loop =>
 
 test("the initiative suite checks the human's loop, not the agent's promise with the same words", () => {
   const loops = [
-    loop(2, "yuki", "I will remind you Monday at noon UTC to call the dentist."),
+    loop(2, "kiko", "I will remind you Monday at noon UTC to call the dentist."),
     loop(1, "human", "I have to call the dentist to move my appointment, by Monday at noon."),
     loop(3, "human", "pick up my new glasses", "dropped"),
   ]

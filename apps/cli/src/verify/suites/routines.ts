@@ -17,7 +17,7 @@ const suite: Suite = {
       await send(room, toolLine("create_routine", { name: "ping", instructions: "[reply] pong", trigger: { on: "time", at: inSeconds(4) } }))
       await poll("the tool result", () => agentTexts(room).some((t) => t.includes("routine set")), 20_000)
       const r = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "ping"), "the routine")
-      if (!["active", "done"].includes(r.status) || r.target !== "yuki" || r.createdBy !== "yuki") throw new VerifyError(`expected an active routine for kiko, got ${JSON.stringify(r)}`)
+      if (!["active", "done"].includes(r.status) || r.target !== "kiko" || r.createdBy !== "kiko") throw new VerifyError(`expected an active routine for kiko, got ${JSON.stringify(r)}`)
       const runs = await waitRuns(url, s, r.id, "the run to answer", (rs) => rs.some((x) => x.status === "ok"), 40_000)
       if (runs.length !== 1 || runs[0]?.seq === null) throw new VerifyError(`expected one ok run with a seq, got ${JSON.stringify(runs)}`)
       await poll("pong", () => agentTexts(room).some((t) => t.includes("pong")), 5_000)
@@ -47,7 +47,7 @@ const suite: Suite = {
       const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "parent", instructions: toolLine("create_routine", inner), trigger: { on: "time", at: inSeconds(3) } })
       await waitRuns(url, s, routine.id, "the parent's run to end", (rs) => rs.some((x) => x.status !== "running"), 40_000)
       const child = await waitRoutine(url, s, (all) => all.find((x) => x.roomId === roomId && x.name === "child"), "the routine the run made", 30_000)
-      if (child.createdBy !== "yuki") throw new VerifyError(`expected kiko to make the child routine, got ${JSON.stringify(child)}`)
+      if (child.createdBy !== "kiko") throw new VerifyError(`expected kiko to make the child routine, got ${JSON.stringify(child)}`)
       console.log(`  ok a run nobody asked for made routine ${child.id} on its own`)
       room.raw.close()
     }

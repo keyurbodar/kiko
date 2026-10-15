@@ -22,7 +22,7 @@ function seen(room: RoomHandle): { messages: Message[]; files: Map<string, FileR
   return { messages: [...messages.values()].sort((a, b) => a.seq - b.seq), files }
 }
 
-const kikoSays = (room: RoomHandle, after: number) => seen(room).messages.filter((m) => m.seq > after && m.from.kind === "agent" && m.from.slug === "yuki")
+const kikoSays = (room: RoomHandle, after: number) => seen(room).messages.filter((m) => m.seq > after && m.from.kind === "agent" && m.from.slug === "kiko")
 const lastSeq = (room: RoomHandle) => seen(room).messages.at(-1)?.seq ?? 0
 const FILLER = /great question|happy to help|let me know if|i'd be happy|certainly!|absolutely!/i
 const ANNOUNCED = /\b(i'll remember|i will remember|noted|got it, i'll|i've (saved|updated|noted)|updating my (soul|profile)|soul\.md)\b/i
@@ -50,7 +50,7 @@ const suite: Suite = {
     const ada = { id: `agent-ada-${Date.now()}`, name: "ada", slug: "ada" as never, prompt: "you plan food and drink. opinionated about wine.", model: "" }
     user.send({ t: "agent", op: { op: "create", agent: ada } })
     const roomId = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "lisbon trip", agents: ["yuki", ada.id] } })
+    user.send({ t: "chat", op: { op: "create", roomId: roomId as never, title: "lisbon trip", agents: ["kiko", ada.id] } })
     await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
     const room = await s.room(roomId)
     const soulNow = async () => ((await (await fetch(new URL(`api/souls/kiko`, v.url), { headers: { cookie: s.cookie } })).json()) as { body: string }).body
@@ -71,7 +71,7 @@ const suite: Suite = {
 
     from = lastSeq(room)
     t0 = Date.now()
-    room.send("@yuki from now on, never use emojis with me, and always give me exactly one recommendation, not a list.")
+    room.send("@kiko from now on, never use emojis with me, and always give me exactly one recommendation, not a list.")
     await poll("kiko's reply", () => kikoSays(room, from).length > 0, 90_000)
     await quiet(room, 6_000, 60_000)
     const reply = kikoSays(room, from).map((m) => m.text)

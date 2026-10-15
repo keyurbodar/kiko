@@ -20,7 +20,7 @@ function inkColor(seed: string): string {
 export const identityTint = (seed: string, percent: number) =>
   `color-mix(in oklch, ${identityLook(seed).color} ${percent}%, transparent)`
 
-export const DEFAULT_AGENT_SLUG = "yuki"
+export const DEFAULT_AGENT_SLUG = KIKO
 
 type ChatAgents = { roomId: string; agents?: readonly string[] }
 type AgentIds = readonly { id: string; slug: string }[]

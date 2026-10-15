@@ -165,7 +165,7 @@ export class UserDO extends DurableObject<Env> {
       openChat: async (title, agentIds) => (await this.openChat(title, agentIds)).roomId,
       chiefModel: async () => {
         const roomId = kikoChatRoom(this.sql)
-        return roomId ? roomStub(this.env.ROOM, owner(), roomId).modelOf("yuki").catch(() => "") : ""
+        return roomId ? roomStub(this.env.ROOM, owner(), roomId).modelOf("kiko").catch(() => "") : ""
       },
       announce: (roomId, input) => roomStub(this.env.ROOM, owner(), roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
       notice: (roomId, id, text) => roomStub(this.env.ROOM, owner(), roomId).systemNotice(id, text, "routine"),

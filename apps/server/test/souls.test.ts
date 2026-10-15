@@ -10,7 +10,7 @@ function storage(agents: [slug: string, name: string, prompt: string][] = []): S
 }
 
 test("a new chief gets Kiko's soul", async () => {
-  const soul = await new Souls(storage()).get("yuki")
+  const soul = await new Souls(storage()).get("kiko")
   expect(soul.body).toBe(KIKO_SOUL)
   expect(soul.body).toStartWith("# kiko\n\ni'm kiko, their chief:")
 })
@@ -22,7 +22,7 @@ test("a new agent's first soul is the agent the human described", async () => {
 
 test("a stored soul is returned as it is, and seeding never overwrites it", async () => {
   const souls = new Souls(storage())
-  await souls.seed("yuki", "# kiko\n\nmy own words\n")
-  await souls.seed("yuki", KIKO_SOUL)
-  expect((await souls.get("yuki")).body).toBe("# kiko\n\nmy own words\n")
+  await souls.seed("kiko", "# kiko\n\nmy own words\n")
+  await souls.seed("kiko", KIKO_SOUL)
+  expect((await souls.get("kiko")).body).toBe("# kiko\n\nmy own words\n")
 })

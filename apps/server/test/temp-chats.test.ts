@@ -11,7 +11,7 @@ test("a temporary chat an older build left keeps its talk and loses only its mar
   const db = new Database(":memory:")
   for (const s of [...LEGACY_USER_V1, ...LEGACY_USER_LAZY]) db.exec(s)
   migrate({ sql: sqlStorage(db), transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage, USER_STEPS)
-  db.exec("INSERT INTO chats (room_id, title, updated_at, draft, agents) VALUES ('t1', 'plan the trip', 1, 'temp', '[\"yuki\"]')")
+  db.exec("INSERT INTO chats (room_id, title, updated_at, draft, agents) VALUES ('t1', 'plan the trip', 1, 'temp', '[\"kiko\"]')")
   db.exec("INSERT INTO chats (room_id, title, updated_at, agents) VALUES ('a1', 'ada', 2, '[\"ada\"]')")
   const sql = sqlStorage(db)
   clearTempMarks(sql)

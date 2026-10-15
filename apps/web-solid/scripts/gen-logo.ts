@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 const root = join(import.meta.dir, "..")
-const svg = avatar("yuki", { flavour: "hatsuyuki" })
+const svg = avatar("kiko", { flavour: "fubuki" })
 writeFileSync(join(root, "public/kiko.svg"), svg + "\n")
 
 const htmlPath = join(root, "index.html")

@@ -14,7 +14,7 @@ function messages(room: RoomHandle): Message[] {
   }
   return [...out.values()].sort((a, b) => a.seq - b.seq)
 }
-const kiko = (room: RoomHandle, after = 0) => messages(room).filter((m) => m.seq > after && m.from.kind === "agent" && m.from.slug === "yuki")
+const kiko = (room: RoomHandle, after = 0) => messages(room).filter((m) => m.seq > after && m.from.kind === "agent" && m.from.slug === "kiko")
 const last = (room: RoomHandle) => messages(room).at(-1)?.seq ?? 0
 
 const suite: Suite = {

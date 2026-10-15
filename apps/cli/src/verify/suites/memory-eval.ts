@@ -6,7 +6,7 @@ import { must } from "../must"
 
 
 
-export type Fact = { at: number; from?: "ada" | "bob" | "yuki"; said: string; ask?: string; expect?: RegExp; reject?: RegExp }
+export type Fact = { at: number; from?: "ada" | "bob" | "kiko"; said: string; ask?: string; expect?: RegExp; reject?: RegExp }
 const FACTS: Fact[] = [
   { at: 4, said: "oh and the dog's name is miso, she's a shiba", ask: "what is the dog called?", expect: /miso/i },
   { at: 30, said: "sam's birthday is march 3rd, don't let me forget", ask: "when is sam's birthday?", expect: /march\s*3|3(rd)?\s*march|03\/03|3\/3/i },
@@ -40,7 +40,7 @@ const FILLER_AGENT = [
   "fuunji near the south exit is the classic pick.",
   "works for me.",
 ]
-const AGENTS = ["yuki", "ada", "bob"] as const
+const AGENTS = ["kiko", "ada", "bob"] as const
 
 export type Eval = { name: string; turns: number; facts: Fact[]; pass: number; fillerHuman: string[]; fillerAgent: string[] }
 

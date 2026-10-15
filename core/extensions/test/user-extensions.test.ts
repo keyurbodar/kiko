@@ -51,7 +51,7 @@ const TEST_TOOLS = defineExtension({ name: "test-tools", tools: [fakeSend, fakeN
 const ext = (manifest: Record<string, unknown>, source = ""): { name: string; hash: string; bundle: ExtensionBundle } => ({
   name: manifest.name as string,
   hash: `h-${manifest.name}-${manifest.version}`,
-  bundle: { manifest: { yuki: 1, version: "1.0.0", description: "test", ...manifest } as never, files: source ? { "main.js": source } : {} },
+  bundle: { manifest: { kiko: 1, version: "1.0.0", description: "test", ...manifest } as never, files: source ? { "main.js": source } : {} },
 })
 
 async function run(installed: ReturnType<typeof ext>[], calls: { name: string; args: Record<string, unknown> }[], world: World, spare = 0) {
@@ -256,7 +256,7 @@ describe("the catalog", () => {
 
 describe("extension_check", () => {
   const trigger = (rrule: string) => ({
-    manifest: { yuki: 1, name: "often", version: "1.0.0", description: "x", triggers: [{ id: "tick", rrule, send: "go" }] },
+    manifest: { kiko: 1, name: "often", version: "1.0.0", description: "x", triggers: [{ id: "tick", rrule, send: "go" }] },
     files: {},
   })
 
@@ -275,7 +275,7 @@ describe("extension_check", () => {
 
   test("runs the runtime's egress rule: a test fetch to a differently cased host is judged like the real one", async () => {
     const bundle = {
-      manifest: { yuki: 1, name: "caser", version: "1.0.0", description: "x", tools: { get: { description: "g", effect: "read" } }, egress: ["api.example.com"], tests: [{ tool: "get", fetch: { body: "ok" }, expect: "ok" }] },
+      manifest: { kiko: 1, name: "caser", version: "1.0.0", description: "x", tools: { get: { description: "g", effect: "read" } }, egress: ["api.example.com"], tests: [{ tool: "get", fetch: { body: "ok" }, expect: "ok" }] },
       files: { "main.js": `export const tools = { get: async (_a, kiko) => (await kiko.fetch("https://API.Example.com/x")).text }` },
     }
     const report = await checkExtension(bundle, wasm, new Map())
@@ -284,7 +284,7 @@ describe("extension_check", () => {
 
   test("refuses a test fetch the runtime refuses: plain http to an allowed host", async () => {
     const bundle = {
-      manifest: { yuki: 1, name: "plain", version: "1.0.0", description: "x", tools: { get: { description: "g", effect: "read" } }, egress: ["api.example.com"], tests: [{ tool: "get", fetch: { body: "ok" }, expect: "ok" }] },
+      manifest: { kiko: 1, name: "plain", version: "1.0.0", description: "x", tools: { get: { description: "g", effect: "read" } }, egress: ["api.example.com"], tests: [{ tool: "get", fetch: { body: "ok" }, expect: "ok" }] },
       files: { "main.js": `export const tools = { get: async (_a, kiko) => (await kiko.fetch("http://api.example.com/x")).text }` },
     }
     const report = await checkExtension(bundle, wasm, new Map())
@@ -294,7 +294,7 @@ describe("extension_check", () => {
   test("names a missing export, a failing test, and a call the extension may not make", async () => {
     const report = await checkExtension(
       {
-        manifest: { yuki: 1, name: "half", version: "1.0.0", description: "x", tools: { aa: { description: "a", effect: "read" }, bb: { description: "b", effect: "read" } }, calls: ["fake_send"], tests: [{ tool: "aa", expect: "yes" }] },
+        manifest: { kiko: 1, name: "half", version: "1.0.0", description: "x", tools: { aa: { description: "a", effect: "read" }, bb: { description: "b", effect: "read" } }, calls: ["fake_send"], tests: [{ tool: "aa", expect: "yes" }] },
         files: { "main.js": `export const tools = { aa: async () => "no" }` },
       },
       wasm,

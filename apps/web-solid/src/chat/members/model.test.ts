@@ -7,7 +7,7 @@ const member = (slug: string, extra: Partial<Member> = {}): Member => ({ slug: s
 
 describe("member list model", () => {
   test("only agents not in the room can be added, in the user's order", () => {
-    expect(addable([agent("yuki"), agent("piko"), agent("ada")], [member("piko")]).map((a) => String(a.slug))).toEqual(["yuki", "ada"])
+    expect(addable([agent("kiko"), agent("piko"), agent("ada")], [member("piko")]).map((a) => String(a.slug))).toEqual(["kiko", "ada"])
   })
 
   test("an add carries the agent's tagline as its role and its model, and leaves out what is empty", () => {
@@ -18,7 +18,7 @@ describe("member list model", () => {
       role: "reviews code.",
       model: "opencode-go/x",
     })
-    expect(addOp(agent("yuki"))).toEqual({ op: "add", slug: "yuki" as AgentSlug, name: "yuki" })
+    expect(addOp(agent("kiko"))).toEqual({ op: "add", slug: "kiko" as AgentSlug, name: "kiko" })
   })
 
   test.each([
@@ -37,7 +37,7 @@ describe("member list model", () => {
   ] as const)("a %s refusal says why", (reason, op, want) => expect(refusalText(op as never, reason)).toBe(want))
 
   test.each([
-    ["the lead", member("yuki", { lead: true, role: "plans" }), "Lead"],
+    ["the lead", member("kiko", { lead: true, role: "plans" }), "Lead"],
     ["a role's first line", member("ada", { role: "Reviews code\nand more" }), "Reviews code"],
     ["no role", member("piko"), "Agent"],
   ] as const)("%s", (_name, m, want) => expect(roleLabel(m)).toBe(want))

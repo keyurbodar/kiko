@@ -262,7 +262,7 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			}
 			if (!current) return peer.push({ t: "member_refused", op, reason: "unknown" })
 			if (op.op === "rename") return void store({ t: "member", member: { ...current, name: op.name } })
-			if (op.slug === "yuki") return peer.push({ t: "member_refused", op, reason: "chief" })
+			if (op.slug === "kiko") return peer.push({ t: "member_refused", op, reason: "chief" })
 			if (data.members.length === 1) return peer.push({ t: "member_refused", op, reason: "last" })
 			store({ t: "member_removed", slug: op.slug })
 		},

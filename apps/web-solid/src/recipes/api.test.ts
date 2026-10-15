@@ -21,7 +21,7 @@ afterEach(() => {
 })
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } })
-const install = { installId: "i1", slug: "morning-briefing", roomId: "r1" as RoomId, agent: "yuki", at: 1 }
+const install = { installId: "i1", slug: "morning-briefing", roomId: "r1" as RoomId, agent: "kiko", at: 1 }
 const serverCard: RecipeCard = { slug: "server-only", title: "Server only", description: "", when: "", apps: [], tags: [], icon: "x", glyph: "", tone: "blue" }
 
 test("a 4xx answer with an error becomes that error, and a network failure says Kiko did not answer", async () => {
@@ -45,9 +45,9 @@ test("a success returns the install, and the POST carries the install id and the
     sent = JSON.parse(String(init?.body))
     return json({ install })
   }) as unknown as typeof fetch
-  const result = await postInstall({ installId: "i1", slug: "morning-briefing", roomId: "r1" as RoomId, agent: "yuki" })
+  const result = await postInstall({ installId: "i1", slug: "morning-briefing", roomId: "r1" as RoomId, agent: "kiko" })
   expect(result).toEqual({ ok: true, install })
-  expect(sent).toEqual({ installId: "i1", slug: "morning-briefing", roomId: "r1", agent: "yuki" })
+  expect(sent).toEqual({ installId: "i1", slug: "morning-briefing", roomId: "r1", agent: "kiko" })
 })
 
 test("the server's cards win once it sends them, and the list is cached for the next paint", async () => {

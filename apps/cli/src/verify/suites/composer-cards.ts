@@ -9,7 +9,7 @@ const suite: Suite = {
   async run(v) {
     const session = await v.as("composer-cards")
     const { roomId, room } = await newRoom(session, "Composer cards")
-    await fake(v, session, roomId, ["yuki", "ada"])
+    await fake(v, session, roomId, ["kiko", "ada"])
     const events = (): RoomEvent[] => frames(room).flatMap((f) => f.t === "events" ? f.events : [])
     room.raw.send({ t: "task", op: { op: "create", id: "find", title: "Find cafés" } })
     await poll("the new task", () => events().some((e) => e.t === "task" && e.task.id === "find"), 5_000)

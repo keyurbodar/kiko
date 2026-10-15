@@ -1,10 +1,10 @@
-# app.yuki.codes: one front door, a private backend for each user
+# app.kiko.codes: one front door, a private backend for each user
 
 Status: plan. Nothing here is built yet. Written 2026-10-15.
 
-This document is the plan for a hosted yuki at `app.yuki.codes`. A person signs in, connects their Cloudflare account with OAuth, and yuki installs its Worker and Durable Objects into that account. From then on they use yuki at `app.yuki.codes`. Their backend runs on a `*.workers.dev` hostname they never need to see.
+This document is the plan for a hosted kiko at `app.kiko.codes`. A person signs in, connects their Cloudflare account with OAuth, and kiko installs its Worker and Durable Objects into that account. From then on they use kiko at `app.kiko.codes`. Their backend runs on a `*.workers.dev` hostname they never need to see.
 
-It covers how the backend works, who talks to whom, how it scales to millions of users on the Workers Free plan, what it costs, what yuki has to change, and what is still unverified. Sources are at the end.
+It covers how the backend works, who talks to whom, how it scales to millions of users on the Workers Free plan, what it costs, what kiko has to change, and what is still unverified. Sources are at the end.
 
 Labels follow the repo's rules. ASSUMPTION is a choice we made. UNVERIFIED is a fact we could not confirm. DEVIATION is a departure from `docs/architecture.md`.
 
@@ -21,7 +21,7 @@ Labels follow the repo's rules. ASSUMPTION is a choice we made. UNVERIFIED is a 
 9. [Cost by number of users](#cost-by-number-of-users)
 10. [Clerk or Sign in with Cloudflare](#clerk-or-sign-in-with-cloudflare)
 11. [How t3code does it, and where we differ](#how-t3code-does-it-and-where-we-differ)
-12. [Changes yuki needs](#changes-yuki-needs)
+12. [Changes kiko needs](#changes-kiko-needs)
 13. [Risks and open questions](#risks-and-open-questions)
 14. [Spike plan](#spike-plan)
 15. [Glossary](#glossary)
@@ -37,9 +37,9 @@ Pitch for friends: "It's like a phone. We make the app, but every user brings th
 
 | Piece | Where it runs | Who pays | What it does | What it stores |
 | --- | --- | --- | --- | --- |
-| Front door, `app.yuki.codes` | Our Cloudflare account, Workers Static Assets | Us, $0 | Serves the SolidJS client: HTML, JS, CSS | Nothing |
-| Installer, `api.yuki.codes` | Our Cloudflare account, one small Worker | Us, $0 until about 10k installs a day | Finishes the Cloudflare OAuth exchange and installs or updates yuki in the user's account | Nothing. The Worker URL goes into the user's Clerk metadata |
-| User's backend, `yuki.<their-subdomain>.workers.dev` | The user's Cloudflare account | The user, $0 on Free | The whole of today's yuki: the Worker, `UserDO`, `RoomDO`, `AgentDO`, R2 files | All of the user's data and their encrypted model keys |
+| Front door, `app.kiko.codes` | Our Cloudflare account, Workers Static Assets | Us, $0 | Serves the SolidJS client: HTML, JS, CSS | Nothing |
+| Installer, `api.kiko.codes` | Our Cloudflare account, one small Worker | Us, $0 until about 10k installs a day | Finishes the Cloudflare OAuth exchange and installs or updates kiko in the user's account | Nothing. The Worker URL goes into the user's Clerk metadata |
+| User's backend, `kiko.<their-subdomain>.workers.dev` | The user's Cloudflare account | The user, $0 on Free | The whole of today's kiko: the Worker, `UserDO`, `RoomDO`, `AgentDO`, R2 files | All of the user's data and their encrypted model keys |
 
 Model providers (Anthropic, OpenAI, and others) are called by the user's backend with the user's own keys. We never see the keys.
 
@@ -48,21 +48,21 @@ Model providers (Anthropic, OpenAI, and others) are called by the user's backend
 ```mermaid
 flowchart TB
   subgraph ours["Our Cloudflare account (tiny, fixed cost)"]
-    app["app.yuki.codes<br/>static client files"]
-    api["api.yuki.codes<br/>installer Worker<br/>stores nothing"]
+    app["app.kiko.codes<br/>static client files"]
+    api["api.kiko.codes<br/>installer Worker<br/>stores nothing"]
   end
 
   clerk["Clerk<br/>sign-in, holds each user's backend URL"]
   cfapi["Cloudflare API<br/>api.cloudflare.com"]
 
   subgraph asha["Asha's Cloudflare account"]
-    wa["yuki Worker"] --> doa["UserDO, RoomDO, AgentDO"]
+    wa["kiko Worker"] --> doa["UserDO, RoomDO, AgentDO"]
   end
   subgraph ben["Ben's Cloudflare account"]
-    wb["yuki Worker"] --> dob["UserDO, RoomDO, AgentDO"]
+    wb["kiko Worker"] --> dob["UserDO, RoomDO, AgentDO"]
   end
   subgraph chen["Chen's Cloudflare account"]
-    wc["yuki Worker"] --> doc["UserDO, RoomDO, AgentDO"]
+    wc["kiko Worker"] --> doc["UserDO, RoomDO, AgentDO"]
   end
 
   models["Model providers<br/>user's own keys"]
@@ -71,7 +71,7 @@ flowchart TB
   browser -- "loads the app once" --> app
   browser -- "signs in" --> clerk
   browser -. "once, at sign-up" .-> api
-  api -. "installs yuki" .-> cfapi
+  api -. "installs kiko" .-> cfapi
   cfapi -.-> asha & ben & chen
   browser == "every message" ==> wa
   doa --> models
@@ -88,13 +88,13 @@ The user's own backend talks to them. Here is one message, start to finish.
 ```mermaid
 sequenceDiagram
   autonumber
-  participant B as Browser (app.yuki.codes)
-  participant W as User's yuki Worker (*.workers.dev)
+  participant B as Browser (app.kiko.codes)
+  participant W as User's kiko Worker (*.workers.dev)
   participant R as RoomDO
   participant A as AgentDO
   participant M as Model provider
 
-  Note over B: Page loads from app.yuki.codes static files.<br/>Paints from IndexedDB at once.
+  Note over B: Page loads from app.kiko.codes static files.<br/>Paints from IndexedDB at once.
   B->>W: POST /api/ws-ticket with a Clerk session token
   W-->>B: one-time ticket, valid 30 s
   B->>W: WebSocket upgrade with the ticket
@@ -109,7 +109,7 @@ sequenceDiagram
 
 - Steps 1 to 4 happen once per tab. After that the socket stays open and hibernates when idle.
 - Our installer and Clerk's servers are not in this picture. Clerk's token is checked by the user's Worker with a public key, with no call to Clerk.
-- Everything from step 4 on is yuki as it works today. Sections 4, 6, 7, 8 and 9 of `docs/architecture.md` are unchanged.
+- Everything from step 4 on is kiko as it works today. Sections 4, 6, 7, 8 and 9 of `docs/architecture.md` are unchanged.
 
 ## Joining: the install flow
 
@@ -117,13 +117,13 @@ sequenceDiagram
 sequenceDiagram
   autonumber
   participant U as User
-  participant B as Browser (app.yuki.codes)
+  participant B as Browser (app.kiko.codes)
   participant C as Clerk
   participant D as dash.cloudflare.com
-  participant I as Installer (api.yuki.codes)
+  participant I as Installer (api.kiko.codes)
   participant CF as Cloudflare API
 
-  U->>B: open app.yuki.codes
+  U->>B: open app.kiko.codes
   B->>C: sign in
   C-->>B: session
   U->>B: click "Connect Cloudflare"
@@ -133,8 +133,8 @@ sequenceDiagram
   B->>I: code, PKCE verifier, Clerk token
   I->>D: /oauth2/token (code for tokens)
   I->>CF: read or create the workers.dev subdomain
-  I->>CF: create R2 bucket yuki-files (optional)
-  I->>CF: upload the yuki script with DO bindings and migrations
+  I->>CF: create R2 bucket kiko-files (optional)
+  I->>CF: upload the kiko script with DO bindings and migrations
   I->>CF: set secrets, enable workers.dev
   I->>C: save the Worker URL in the user's metadata
   I-->>B: done, here is your backend URL
@@ -152,15 +152,15 @@ Why there is an installer at all: neither `api.cloudflare.com` nor `dash.cloudfl
 | 1 | `POST https://dash.cloudflare.com/oauth2/token` | Authorization code plus PKCE verifier. Returns an access token and, with `offline_access`, a refresh token |
 | 2 | `GET /client/v4/accounts` | The accounts the user chose on the consent screen |
 | 3 | `GET /accounts/{id}/workers/subdomain`, `PUT` if missing | A new account may not have a workers.dev subdomain yet |
-| 4 | `POST /accounts/{id}/r2/buckets` | `yuki-files`. Skipped if the user has no R2. See risks |
-| 5 | `PUT /accounts/{id}/workers/scripts/yuki` | Multipart. Metadata carries `main_module`, `compatibility_date`, `compatibility_flags: ["nodejs_compat"]`, the bindings (`USER`, `ROOM`, `AGENT` as `durable_object_namespace`, `FILES` as `r2_bucket`) and the migrations from `apps/server/wrangler.jsonc` |
+| 4 | `POST /accounts/{id}/r2/buckets` | `kiko-files`. Skipped if the user has no R2. See risks |
+| 5 | `PUT /accounts/{id}/workers/scripts/kiko` | Multipart. Metadata carries `main_module`, `compatibility_date`, `compatibility_flags: ["nodejs_compat"]`, the bindings (`USER`, `ROOM`, `AGENT` as `durable_object_namespace`, `FILES` as `r2_bucket`) and the migrations from `apps/server/wrangler.jsonc` |
 | 6 | Script secrets | `SESSION_SECRET`, `CREDENTIALS_KEK`, `OWNER_ID` (the Clerk user id), `CLERK_JWT_KEY`. Random values are made in the installer and never stored there |
 | 7 | Enable the script on workers.dev | The script subdomain endpoint |
 | 8 | Clerk Backend API: update the user's `publicMetadata` | `{ workerUrl, accountId, version }`. This is the only record of the install, so no database is needed |
 
-The bundle in step 5 is the same build `bun run --cwd apps/server deploy` makes today. The installer reads it from our static assets, for example `app.yuki.codes/releases/<version>/worker.js`.
+The bundle in step 5 is the same build `bun run --cwd apps/server deploy` makes today. The installer reads it from our static assets, for example `app.kiko.codes/releases/<version>/worker.js`.
 
-ASSUMPTION: the client files are not uploaded into the user's account. The user's Worker is API only. Optionally it can carry the client as a fallback, in case `app.yuki.codes` is ever down.
+ASSUMPTION: the client files are not uploaded into the user's account. The user's Worker is API only. Optionally it can carry the client as a fallback, in case `app.kiko.codes` is ever down.
 
 ## Auth: how a user's backend knows it is them
 
@@ -170,8 +170,8 @@ Each user's Worker has exactly one owner, as today (AGENTS.md rule 5). What chan
 | --- | --- | --- |
 | The token is a real Clerk session | Verify the JWT signature with Clerk's PEM public key (`jwtKey`, stored as a secret at install) | No |
 | It is this backend's owner | `sub` equals `OWNER_ID`, set at install | No |
-| It came from our app | `azp` equals `https://app.yuki.codes` (Clerk's `authorizedParties`) | No |
-| The browser origin is ours | CORS allows only `https://app.yuki.codes`. The WebSocket upgrade checks `Origin` too | No |
+| It came from our app | `azp` equals `https://app.kiko.codes` (Clerk's `authorizedParties`) | No |
+| The browser origin is ours | CORS allows only `https://app.kiko.codes`. The WebSocket upgrade checks `Origin` too | No |
 | The socket URL has no long-lived secret | `POST /api/ws-ticket` with the Clerk token returns a one-time ticket that lives 30 seconds. The socket URL carries only the ticket | No, the ticket is HMAC-signed with `SESSION_SECRET` |
 
 Inside the Worker, the owner id in `apps/server/src/lib/names.ts` stays the constant `owner`. The Clerk check only decides whether a request is the owner. Durable Object names do not change, so no data moves.
@@ -184,7 +184,7 @@ The `.workers.dev` URL is not a secret. Anyone can find it in the browser's netw
 
 ```mermaid
 flowchart LR
-  rel["New release<br/>app.yuki.codes/releases/v42/worker.js"] --> cron["User's Worker<br/>daily cron"]
+  rel["New release<br/>app.kiko.codes/releases/v42/worker.js"] --> cron["User's Worker<br/>daily cron"]
   cron -- "refresh token from UserDO" --> tok["dash.cloudflare.com/oauth2/token"]
   cron -- "PUT its own script" --> cfapi["Cloudflare API"]
 ```
@@ -198,7 +198,7 @@ flowchart LR
 
 A normal chat app has one backend for everyone. More users means more servers, a bigger database, and on-call. Here, more users means more backends, each in its owner's account. Our side has nothing that grows with use.
 
-| | Normal chat app | yuki |
+| | Normal chat app | kiko |
 | --- | --- | --- |
 | Who runs the backend | The company | Each user, in their own Cloudflare account |
 | Where messages go | Company servers | The user's own Worker |
@@ -211,8 +211,8 @@ What grows on our side, and its limit:
 
 | Our part | Grows with | Free plan limit | Enough for |
 | --- | --- | --- | --- |
-| `app.yuki.codes` | Page loads | Static asset requests are free and unlimited | Any number |
-| `api.yuki.codes` | Installs only, about 10 requests each | 100,000 requests a day | About 10,000 new users a day |
+| `app.kiko.codes` | Page loads | Static asset requests are free and unlimited | Any number |
+| `api.kiko.codes` | Installs only, about 10 requests each | 100,000 requests a day | About 10,000 new users a day |
 | Clerk | Monthly active users | 50,000 on Hobby | See cost |
 
 What each user gets on their own Free plan: 100,000 Worker requests a day, Durable Objects with SQLite storage up to 5 GB per account, and 30 seconds of CPU per Durable Object request. One person chatting all day uses a small part of that. The per-turn cost math is in `docs/architecture.md` section 17.
@@ -221,7 +221,7 @@ What each user gets on their own Free plan: 100,000 Worker requests a day, Durab
 
 Our monthly bill, at list prices on 2026-10-15.
 
-| Users | `app.yuki.codes` | Installer | Clerk | Total with Clerk | Total with Sign in with Cloudflare |
+| Users | `app.kiko.codes` | Installer | Clerk | Total with Clerk | Total with Sign in with Cloudflare |
 | --- | --- | --- | --- | --- | --- |
 | 1,000 | $0 | $0 | $0 (Hobby) | $0 | $0 |
 | 100,000 | $0 | $0 | about $1,025 (Pro $25 plus $0.02 per user above 50,000) | about $1,025 | $0 |
@@ -248,12 +248,12 @@ Recommendation: Sign in with Cloudflare, unless the mobile apps need Clerk's SDK
 
 t3code (`app.t3.codes`) solves a similar problem: one hosted web app that talks to many user-owned servers.
 
-| | t3code | yuki plan |
+| | t3code | kiko plan |
 | --- | --- | --- |
 | Hosted app | Static app on Vercel, `latest` and `nightly` channels picked by a cookie (`apps/web/vercel.ts`) | Static app on Workers Static Assets |
-| Users' backends | The t3 server on the user's own machine | yuki on the user's own Cloudflare account |
+| Users' backends | The t3 server on the user's own machine | kiko on the user's own Cloudflare account |
 | Reaching the backend | Per-user Cloudflare Tunnels set up by the relay | A public `*.workers.dev` URL, no tunnel needed |
-| Central server | `infra/relay`, a Cloudflare Worker deployed with Alchemy, with Clerk and PlanetScale through Hyperdrive | `api.yuki.codes`, a Worker with no database |
+| Central server | `infra/relay`, a Cloudflare Worker deployed with Alchemy, with Clerk and PlanetScale through Hyperdrive | `api.kiko.codes`, a Worker with no database |
 | Is the central server on the hot path | No | No |
 | Connection list | Stored in the browser | Clerk metadata, cached in the browser |
 | Pairing | A DPoP-bound one-time bootstrap credential, in a URL fragment, traded with the user's server for a session | The OAuth install itself. The installer writes the owner id into the Worker as a secret |
@@ -261,20 +261,20 @@ t3code (`app.t3.codes`) solves a similar problem: one hosted web app that talks 
 
 What we copy: a static app, a central server that is off the hot path, and short-lived socket tickets. What we drop: tunnels, because Workers are already public, and a database, because Clerk metadata or the user's own account holds the one fact we need.
 
-## Changes yuki needs
+## Changes kiko needs
 
 Each of these goes into `docs/architecture.md` as a DEVIATION in the pull request that makes it.
 
 | Area | Today | Hosted | Where |
 | --- | --- | --- | --- |
 | Sign-in | Access code, HMAC session cookie | Clerk JWT checked offline, plus a socket ticket. The access code stays for people who self-deploy by hand | `architecture.md` section 10, `apps/server/src/auth/` |
-| One origin | Client, API and sockets share a hostname | The client is on `app.yuki.codes` and the API on `*.workers.dev`. CORS allows only `app.yuki.codes` | `architecture.md` section 3, "One Worker, one origin" |
+| One origin | Client, API and sockets share a hostname | The client is on `app.kiko.codes` and the API on `*.workers.dev`. CORS allows only `app.kiko.codes` | `architecture.md` section 3, "One Worker, one origin" |
 | Socket upgrade | Checked with the session cookie | Checked with a one-time ticket | `architecture.md` section 9.1 |
 | Uploads | Carry the session cookie (same-origin) | Carry the Clerk token in a header | `architecture.md`, the R2 uploads section (the DEVIATION from t3code on the session cookie) |
 | R2 | Required binding `FILES` | Optional. Attachments are off if the bucket is missing | `apps/server/wrangler.jsonc`, upload routes |
 | Client API base | Same origin, `/api` | A base URL from Clerk metadata | `apps/web-solid/src/sync/` |
 | Self-update | None | Daily cron and the stored refresh token | New, in `UserDO` |
-| AGENTS.md "Do not add a second owner" | No sign-up, no accounts | Still one owner per Worker. Sign-up lives on `app.yuki.codes`, not in the Worker. The line needs rewording, not removing | `AGENTS.md` |
+| AGENTS.md "Do not add a second owner" | No sign-up, no accounts | Still one owner per Worker. Sign-up lives on `app.kiko.codes`, not in the Worker. The line needs rewording, not removing | `AGENTS.md` |
 
 What does not change: Durable Object layout and names, the room and agent protocol, memory, egress, the Free plan design. Manual self-deploy (`docs/self-deploy.md`) keeps working.
 
@@ -287,8 +287,8 @@ What does not change: Durable Object layout and names, the room and agent protoc
 | 3 | Is there a cap on how many users can authorize a public OAuth client. UNVERIFIED | Caps sign-ups | Ask Cloudflare. Several clients |
 | 4 | R2 asks the user for a card | Friction at sign-up | Make files optional. Turn on later from Settings |
 | 5 | Each user needs a Cloudflare account | The biggest step for a new user | None. It is the price of $0 at scale. Cloudflare sign-up is quick |
-| 6 | A script called `yuki` already exists in the account | Overwriting it would break something | Check first. Use `yuki-<short id>` |
-| 7 | Going public with the OAuth client is permanent and needs a DNS TXT record on `yuki.codes` | One-way step | Test with a private client first |
+| 6 | A script called `kiko` already exists in the account | Overwriting it would break something | Check first. Use `kiko-<short id>` |
+| 7 | Going public with the OAuth client is permanent and needs a DNS TXT record on `kiko.codes` | One-way step | Test with a private client first |
 | 8 | Workers Free gives 10 ms of CPU per Worker request | Already handled. Heavy work is in Durable Objects (`architecture.md` section 17.3) | None needed |
 | 9 | Uninstall | People need a way out | "Delete my backend" in Settings deletes the script and bucket, then revokes the grant through `/oauth2/revoke`. The user can also revoke from the Cloudflare dashboard |
 
@@ -306,10 +306,10 @@ Then build in this order: the installer, Clerk auth in the Worker behind a flag,
 
 ## Glossary
 
-- **Front door.** `app.yuki.codes`. Static files only.
-- **Installer.** `api.yuki.codes`. Runs at sign-up and for plan B updates. Stores nothing.
-- **Backend.** One user's yuki Worker and Durable Objects, in their account.
-- **OAuth client.** yuki's registration with Cloudflare, so users can approve it on `dash.cloudflare.com`.
+- **Front door.** `app.kiko.codes`. Static files only.
+- **Installer.** `api.kiko.codes`. Runs at sign-up and for plan B updates. Stores nothing.
+- **Backend.** One user's kiko Worker and Durable Objects, in their account.
+- **OAuth client.** kiko's registration with Cloudflare, so users can approve it on `dash.cloudflare.com`.
 - **PKCE.** A way for a browser app to do OAuth without a client secret.
 - **Hot path.** What runs on every message. Here, only the user's backend and their model provider.
 - **Socket ticket.** A one-time token, valid 30 seconds, that opens a WebSocket.
@@ -367,4 +367,4 @@ Checked 2026-10-15. Every link returned 200.
 
 ### Checked by hand
 
-- `curl -i -X OPTIONS https://api.cloudflare.com/client/v4/accounts -H 'Origin: https://app.yuki.codes'` and the same for `https://dash.cloudflare.com/oauth2/token`. Neither returns an `Access-Control-Allow-Origin` header. That is why the installer exists.
+- `curl -i -X OPTIONS https://api.cloudflare.com/client/v4/accounts -H 'Origin: https://app.kiko.codes'` and the same for `https://dash.cloudflare.com/oauth2/token`. Neither returns an `Access-Control-Allow-Origin` header. That is why the installer exists.

@@ -132,7 +132,7 @@ function fakeJudge(verdicts: Record<string, Verdict>, seen: Question[][] = []): 
 test("the judged path keeps only worthy, non-private facts, and a replacement supersedes every copy it corrects", async () => {
   const l = life()
   l.append("I live in Lisbon.", "you", 1)
-  l.append("Human lives in Lisbon", "@yuki", 2)
+  l.append("Human lives in Lisbon", "@kiko", 2)
   const text = "I live in Porto now. The weather is nice today. My passport number is X1234567. My partner Ana is a chef. Please keep answers short. Answer in one short line."
   const seen: Question[][] = []
   const judge = fakeJudge(
@@ -171,7 +171,7 @@ test("an unavailable judge writes nothing, and a message changed meanwhile is no
 
 test("nearest offers a correction the facts it shares no word with", () => {
   const l = life()
-  l.append("Human lives in Bangalore.", "@yuki", 1)
+  l.append("Human lives in Bangalore.", "@kiko", 1)
   l.append("the human likes green tea", "you", 2)
   expect(l.nearest("btw i moved to pune last month", 8).map((x) => x.text)).toContain("Human lives in Bangalore.")
   expect(l.nearest("tea", 1).map((x) => x.text)).toEqual(["the human likes green tea"])

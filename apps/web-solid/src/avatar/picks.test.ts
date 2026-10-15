@@ -3,8 +3,8 @@ import { pinsFor, setAvatarPicks } from "./picks"
 
 describe("avatar pins", () => {
   test("Kiko keeps its flavor and changes only what it wears", () => {
-    setAvatarPicks({ yuki: { flavour: "matcha", charm: "beret" } })
-    expect(pinsFor("yuki")).toEqual({ flavour: "hatsuyuki", charm: "beret" })
+    setAvatarPicks({ kiko: { flavour: "matcha", charm: "beret" } })
+    expect(pinsFor("kiko")).toEqual({ flavour: "fubuki", charm: "beret" })
     setAvatarPicks({})
   })
 

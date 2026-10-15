@@ -37,7 +37,7 @@ function setup() {
     announce: async () => "delivered",
     notice: async (_, __, text) => { notices.push(text) },
   })
-  return { sql, service, reminders, notices, inherited: () => inherited, edit: (next: typeof recipes) => { recipes = next; sha += "x" }, add: (agent = "yuki") => service.install({ installId: crypto.randomUUID(), slug: "tea-time", roomId, agent }) }
+  return { sql, service, reminders, notices, inherited: () => inherited, edit: (next: typeof recipes) => { recipes = next; sha += "x" }, add: (agent = "kiko") => service.install({ installId: crypto.randomUUID(), slug: "tea-time", roomId, agent }) }
 }
 
 test("concurrent adds with different ids share one target; other agents get independent installs", async () => {
@@ -68,7 +68,7 @@ test("file edits update defaults but preserve a routine's own schedule and instr
   await f.reminders.updateRoutine(ada.id, { instructions: "my own briefing", trigger: { on: "time", at: new Date().toISOString(), rrule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0" } })
   f.edit([makeRecipe("FREQ=DAILY;BYHOUR=8;BYMINUTE=30", "new default")])
   await f.service.reconcile()
-  expect(f.reminders.list().find((r) => r.target === "yuki")).toMatchObject({ text: "new default", rrule: "FREQ=DAILY;BYHOUR=8;BYMINUTE=30;BYSECOND=0" })
+  expect(f.reminders.list().find((r) => r.target === "kiko")).toMatchObject({ text: "new default", rrule: "FREQ=DAILY;BYHOUR=8;BYMINUTE=30;BYSECOND=0" })
   expect(f.reminders.get(ada.id)).toMatchObject({ text: "my own briefing", rrule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0" })
 })
 
@@ -86,7 +86,7 @@ test("missing files pause installs once; restoring resumes only the routines pau
   f.edit([makeRecipe()])
   await f.service.reconcile()
   expect(f.reminders.get(ada.id)?.status).toBe("paused")
-  expect(f.reminders.list().find((r) => r.target === "yuki")?.status).toBe("active")
+  expect(f.reminders.list().find((r) => r.target === "kiko")?.status).toBe("active")
 })
 
 test("cancelling the last routine clears the install; always-on instructions are scoped to the target", async () => {
@@ -101,7 +101,7 @@ test("cancelling the last routine clears the install; always-on instructions are
   f.edit([always])
   const out = await f.add()
   expect(out.ok).toBe(true)
-  expect((await f.service.briefs(roomId, "yuki"))[0]?.description).toContain("turned this on for you")
+  expect((await f.service.briefs(roomId, "kiko"))[0]?.description).toContain("turned this on for you")
   expect((await f.service.briefs(roomId, "ada"))[0]?.description).not.toContain("turned this on for you")
   expect(await f.service.skillText("tea-time")).toContain("Have tea.")
 })
@@ -121,9 +121,9 @@ test("listing exposes only each install's linked routines with their live schedu
   await f.reminders.createRoutine("owner", { name: ada.name!, instructions: "unrelated routine", trigger: { on: "time", at: "2026-10-16T10:00:00Z", rrule: "FREQ=DAILY" }, tz: "UTC", roomId, target: "ada", createdBy: "human" })
   const listed = (await f.service.list()).installs
   expect(listed.find((i) => i.agent === "ada")?.routines).toEqual([{ id: ada.id, name: ada.name!, trigger: { on: "time", at: new Date(f.reminders.get(ada.id)!.dueUtc).toISOString(), rrule: "FREQ=DAILY" }, status: "paused", tz: "UTC", dueUtc: f.reminders.get(ada.id)!.dueUtc }])
-  expect(listed.find((i) => i.agent === "yuki")?.routines).toHaveLength(1)
-  expect(listed.find((i) => i.agent === "yuki")?.routines?.[0]?.status).toBe("active")
-  expect(listed.find((i) => i.agent === "yuki")?.routines?.[0]?.id).not.toBe(ada.id)
+  expect(listed.find((i) => i.agent === "kiko")?.routines).toHaveLength(1)
+  expect(listed.find((i) => i.agent === "kiko")?.routines?.[0]?.status).toBe("active")
+  expect(listed.find((i) => i.agent === "kiko")?.routines?.[0]?.id).not.toBe(ada.id)
 })
 
 test("deleted chats lose their installs and routines without affecting other chats", async () => {
@@ -144,7 +144,7 @@ test("old installs recover their routines and cancel duplicate routines", async 
   if (!out.ok) throw new Error("install failed")
   f.sql.exec("DELETE FROM recipe_routines")
   const original = f.reminders.list()[0]!
-  await f.reminders.createRoutine("owner", { name: original.name!, instructions: original.text, trigger: original.trigger!, tz: "UTC", roomId, target: "yuki", createdBy: "human" })
+  await f.reminders.createRoutine("owner", { name: original.name!, instructions: original.text, trigger: original.trigger!, tz: "UTC", roomId, target: "kiko", createdBy: "human" })
   await f.service.reconcile()
   expect(f.reminders.list().filter((r) => r.status === "active")).toHaveLength(1)
   await f.service.uninstall(out.install.installId)

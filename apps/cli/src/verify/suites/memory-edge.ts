@@ -259,7 +259,7 @@ const suite: Suite = {
     {
       const bo = { id: `agent-bo-${stampId}`, name: "bo", slug: "bo", prompt: "helps with trips", model: "" }
       user.send({ t: "agent", op: { op: "create", agent: bo as never } })
-      const group = (await newRoom(s, "memory edge group", ["yuki", bo.id])).room
+      const group = (await newRoom(s, "memory edge group", ["kiko", bo.id])).room
       await say(group, "my brother teo lives in oslo, tell @bo too", 120_000)
       await poll("a line about teo", async () => (await live(/\bteo\b|oslo/i)).length > 0, 60_000)
       await settle()
