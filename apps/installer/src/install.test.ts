@@ -60,7 +60,7 @@ function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>
 }
 
 function env(release: { x: string }): InstallEnv {
-  return { CF_OAUTH_CLIENT_ID: "cid", CLERK_JWT_KEY: "PEM", FRONT_DOOR_ORIGIN: "https://app.yuki.codes", RELEASE_BASE_URL: "https://release.test", RELEASE_PUBLIC_KEY: release.x }
+  return { CF_OAUTH_CLIENT_ID: "cid", CLERK_JWT_KEY: "PEM", FRONT_DOOR_ORIGIN: "https://app.kiko.codes", RELEASE_BASE_URL: "https://release.test", RELEASE_PUBLIC_KEY: release.x }
 }
 
 async function install(cfg: Parameters<typeof fakeCloudflare>[0], grant: Parameters<typeof runInstall>[2]["grant"] = { kind: "token", token: "tok" }) {
@@ -108,7 +108,7 @@ describe("runInstall", () => {
 
   test("oauth exchanges the code and stores both tokens in CF_GRANT", async () => {
     const release = await makeRelease()
-    const { upload, calls } = await install({ release, scripts: [] }, { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.yuki.codes/cb" })
+    const { upload, calls } = await install({ release, scripts: [] }, { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" })
     expect(calls[0]?.url).toBe("https://dash.cloudflare.com/oauth2/token")
     const grant = ((upload.body as { bindings: { name: string; text?: string }[] }).bindings.find((b) => b.name === "CF_GRANT") as { text: string }).text
     expect(JSON.parse(grant)).toEqual({ kind: "oauth", accessToken: "at", refreshToken: "rt", accountId: "acc1" })

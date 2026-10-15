@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import worker, { type Env } from "./handler"
 
-const env = { TRUSTED_ORIGINS: "https://app.yuki.codes, https://b.example", CF_OAUTH_CLIENT_ID: "cid" } as Env
+const env = { TRUSTED_ORIGINS: "https://app.kiko.codes, https://b.example", CF_OAUTH_CLIENT_ID: "cid" } as Env
 const call = (path: string, origin?: string, method = "GET") =>
   worker.fetch(new Request(`https://api.test${path}`, { method, headers: origin ? { Origin: origin } : {} }), env)
 
