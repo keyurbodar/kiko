@@ -4,7 +4,7 @@ import { createSignal } from "solid-js"
 import { openFile } from "../chat/side/surfaces"
 import { useApp } from "../lib/store"
 import { installedSlugs } from "./model"
-import { cardsOf, fetchListing, loadListing, type Listing, postInstall, deleteInstall, cacheListing, updateRecipeRoutine } from "./api"
+import { cardsOf, fetchListing, loadListing, type Listing, postEdit, postInstall, deleteInstall, cacheListing, updateRecipeRoutine } from "./api"
 
 /*
  * The recipes the user has added, and the requests in flight. An add shows its agent chip and
@@ -17,7 +17,7 @@ let pending: Promise<void> | undefined
 let revision = 0
 let mutations = 0
 
-/** The cards the gallery and the starter show. */
+/** The cards the page and the starter show. */
 export const cards = (): readonly RecipeCard[] => cardsOf(listing())
 
 /** Gets the list from the server. Calls while one is in flight share it. */
@@ -36,11 +36,12 @@ export const refreshListing = (): Promise<void> => {
 /** Why each recipe file that did not load was refused, so the page can say what to fix. */
 export const broken = (): readonly string[] => listing().broken ?? []
 
-/** Opens a recipe's file in the Kiko chat's files, where the human reads or edits it. */
-export function openRecipeFile(slug: string, navigate: (to: string) => void): void {
+/** Opens a recipe's file in the Kiko chat's files. A built-in is written to the drive first, so there is a file to edit. */
+export async function editRecipe(slug: string, navigate: (to: string) => void): Promise<void> {
   const roomId = useApp.kikoChatId()
-  if (!roomId) return
-  openFile(roomId, `home/recipes/${slug}/RECIPE.md`)
+  const path = await postEdit(slug)
+  if (!roomId || !path) return void showToastV2({ title: "Could not open the recipe", variant: "error" })
+  openFile(roomId, `home/${path}`)
   navigate(`/chat/${roomId}`)
 }
 
@@ -56,20 +57,24 @@ export function targetsForChat(roomId: string): RecipeTarget[] {
   return [...new Set(slugs)].map((agent) => ({ roomId: roomId as RoomId, agent, name: agentName(agent) }))
 }
 
+export const installs = (): readonly RecipeInstall[] => listing().installs
 export const installsFor = (slug: string): readonly RecipeInstall[] => listing().installs.filter((i) => i.slug === slug)
-export const routinesFor = (slug: string): readonly RecipeRoutine[] => installsFor(slug).flatMap((i) => i.routines ?? [])
 export const agentName = (slug: string): string => slug === KIKO ? "Kiko" : useApp.agents().find((a) => a.slug === slug)?.name ?? slug
 export const isAdded = (slug: string, target?: RecipeTarget): boolean => !!target && installedSlugs(listing().installs, target).has(slug)
 
-export function setRecipeRoutineStatus(routine: RecipeRoutine, status: RecipeRoutine["status"]): void {
-  const put = (value: RecipeRoutine["status"]) => changeInstalls((all) => all.map((i) => ({ ...i, routines: i.routines?.map((r) => r.id === routine.id ? { ...r, status: value } : r) })))
+/** Pauses or resumes every routine of one install. It shows at once and goes back if the server refuses. */
+export function setInstallPaused(install: RecipeInstall, paused: boolean): void {
+  const status = paused ? "paused" : "active"
+  const before = new Map(install.routines.map((r) => [r.id, r.status]))
+  const put = (pick: (r: RecipeRoutine) => RecipeRoutine["status"]) =>
+    changeInstalls((all) => all.map((i) => (i.installId === install.installId ? { ...i, routines: i.routines.map((r) => ({ ...r, status: pick(r) })) } : i)))
   mutations++
-  put(status)
-  void updateRecipeRoutine(routine.id, status).then((ok) => {
+  put(() => status)
+  void Promise.all(install.routines.map((r) => updateRecipeRoutine(r.id, status))).then((done) => {
     mutations--
-    if (ok) return
-    put(routine.status)
-    showToastV2({ title: "Could not update routine", variant: "error" })
+    if (done.every(Boolean)) return
+    put((r) => before.get(r.id) ?? r.status)
+    showToastV2({ title: paused ? "Could not pause it" : "Could not resume it", variant: "error" })
   })
 }
 

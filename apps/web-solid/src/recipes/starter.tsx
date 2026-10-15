@@ -6,7 +6,7 @@ import { createSignal, For, onMount, Show } from "solid-js"
 import { useApp } from "../lib/store"
 import { loadCards } from "./api"
 import { starterTiles } from "./model"
-import { RecipeIcon } from "./recipe-icon"
+import { RecipeIcon } from "./icon"
 import { RecipeSheet } from "./sheet"
 import { refreshListing } from "./state"
 
@@ -21,16 +21,16 @@ export default function RecipeStarter() {
   return (
     <div class="mt-3 flex flex-col items-center gap-3" data-component="recipe-starter">
       <p class="text-sm text-muted-foreground">Or start from a recipe</p>
-      <div class="flex max-w-md flex-wrap justify-center gap-4">
+      <div class="flex max-w-lg flex-wrap justify-center gap-4">
         <For each={tiles}>
           {(card) => (
-            <button type="button" class="flex w-20 cursor-pointer flex-col items-center gap-1.5 outline-none" data-recipe={card.slug} onClick={() => setOpen(card)}>
-              <RecipeIcon recipe={card} size={56} />
+            <button type="button" class="flex w-20 cursor-pointer flex-col items-center gap-2.5 outline-none" data-recipe={card.slug} onClick={() => setOpen(card)}>
+              <RecipeIcon recipe={card} size={56} stickers />
               <span class="text-center text-xs leading-4 text-muted-foreground">{card.title}</span>
             </button>
           )}
         </For>
-        <A href={`/recipes?room=${useApp.activeThreadId() ?? ""}`} class="flex w-20 flex-col items-center gap-1.5 outline-none" data-action="all-recipes">
+        <A href={`/recipes?room=${useApp.activeThreadId() ?? ""}`} class="flex w-20 flex-col items-center gap-2.5 outline-none" data-action="all-recipes">
           <span class="grid size-14 place-items-center rounded-full bg-control text-muted-foreground">
             <HugeIcon icon={MoreIcon} size={20} />
           </span>

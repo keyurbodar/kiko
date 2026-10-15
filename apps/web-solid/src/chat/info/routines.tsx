@@ -3,7 +3,7 @@ import { HugeIcon } from "@kiko/ui/huge-icon"
 import { ClockIcon, PauseIcon, PlayIcon, SparklesIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createResource, createSignal, For, Show } from "solid-js"
-import { RecipeIcon } from "../../recipes/recipe-icon"
+import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
 
