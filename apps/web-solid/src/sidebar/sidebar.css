@@ -191,6 +191,10 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
+}
+
+/* The chat column, its top bar included, is one surface, as in t3code. */
+.sidebar-shell [data-component="chat-panel"] {
   background: var(--background);
   box-shadow: inset 1px 0 0 var(--border);
 }
