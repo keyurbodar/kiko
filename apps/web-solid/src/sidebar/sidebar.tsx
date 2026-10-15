@@ -18,6 +18,7 @@ import "./sidebar.css"
 const PANELS: Record<SectionId, Component> = {
   chat: ChatPanel,
   settings: lazy(() => import("./settings/sidebar")),
+  recipes: lazy(() => import("./recipes/sidebar")),
 }
 const SECTION_IDS = SECTIONS.map((section) => section.id)
 
@@ -33,6 +34,7 @@ const ACTIONS: Record<SectionId, PanelAction | null> = {
     run: () => runCommand("chat.new"),
   },
   settings: null,
+  recipes: null,
 }
 
 export interface SidebarProps {
@@ -59,7 +61,6 @@ export interface SidebarProps {
  */
 export function Sidebar(props: SidebarProps) {
   const collapsed = () => props.collapsed
-  // A page that is not a section (recipes) keeps the chat list beside it.
   const shown = (): SectionId => props.section ?? "chat"
   const [visited, setVisited] = createSignal<ReadonlySet<SectionId>>(new Set())
   createEffect(() => {

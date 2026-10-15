@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RecipeCard, RecipeInstall, RoomId } from "@kiko/protocol"
-import { filterRecipes, installedSlugs, recipeForRoutine, recipeTags, sheetLine, starterTiles, tagLabel } from "./model"
+import { filterRecipes, installedSlugs, recipeForRoutine, recipeTags, starterTiles, tagLabel } from "./model"
 
 const card = (slug: string, over: Partial<RecipeCard> = {}): RecipeCard => ({
   slug,
@@ -70,11 +70,6 @@ describe("the empty chat's tiles", () => {
 })
 
 describe("the sheet and the routine icon", () => {
-  test("the sheet line joins the apps after the time, and drops the apps when there are none", () => {
-    expect(sheetLine(cards[0]!)).toBe("Daily at 7:55 · Gmail, Google Calendar")
-    expect(sheetLine(cards[3]!)).toBe("When you ask")
-  })
-
   test("a routine matches its recipe by the lowercased title", () => {
     expect(recipeForRoutine(cards, "morning briefing")?.slug).toBe("morning-briefing")
     expect(recipeForRoutine(cards, "Morning briefing")).toBeUndefined()

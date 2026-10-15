@@ -112,6 +112,18 @@ test("its own chat inherits Kiko's selected model", async () => {
   expect(f.inherited()).toBe("provider/chosen-model")
 })
 
+test("deleted chats lose their installs and routines without affecting other chats", async () => {
+  const f = setup()
+  await f.add()
+  await f.add("ada")
+  const own = await f.service.install({ installId: crypto.randomUUID(), slug: "tea-time", own: true })
+  if (!own.ok) throw new Error("install failed")
+  f.sql.exec("DELETE FROM chats WHERE room_id = ?", roomId)
+  const listed = await f.service.list()
+  expect(listed.installs.map((i) => i.installId)).toEqual([own.install.installId])
+  expect(f.reminders.list().filter((r) => r.status === "active").map((r) => r.roomId)).toEqual([own.install.roomId])
+})
+
 test("old installs recover their routines and cancel duplicate routines", async () => {
   const f = setup()
   const out = await f.add()

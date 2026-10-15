@@ -167,6 +167,9 @@ export class RecipeService {
       }
       if (!used.size) deleteInstall(this.p.sql, install.installId)
     }
+    for (const install of installs) {
+      if (!this.p.sql.exec("SELECT 1 FROM chats WHERE room_id = ?", install.roomId).toArray().length) await this.removeInstall(install.installId)
+    }
     const rows = this.p.sql
       .exec<RoutineRow>("SELECT r.*, i.slug, i.room_id FROM recipe_routines r JOIN recipe_installs i USING (install_id)")
       .toArray()

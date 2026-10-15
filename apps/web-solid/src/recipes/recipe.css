@@ -1,4 +1,8 @@
 /* The nine recipe tones. Each reads on its theme: a mid tone on light, a bright one on dark. */
+.recipe-menu {
+  z-index: 80;
+}
+
 :root {
   --recipe-amber: oklch(0.82 0.15 85);
   --recipe-violet: oklch(0.75 0.16 295);

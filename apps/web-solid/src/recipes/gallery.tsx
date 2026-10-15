@@ -7,12 +7,11 @@ import { Button, fieldClass, muted, Page } from "../settings/kit"
 import { filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
 import { RecipeIcon } from "./recipe-icon"
 import { RecipeSheet } from "./sheet"
-import { addToTarget, broken, cards, isAdded, refreshListing, targetFor, installsFor } from "./state"
+import { addToTarget, agentName, broken, cards, refreshListing, targetFor, installsFor } from "./state"
 
 /*
  * The recipes page, `/recipes`. It fills the main area the way settings does. A search, a row of
- * tag chips, and a grid of cards. A card opens its sheet; its Add button adds the recipe to Kiko
- * without opening it.
+ * tag chips, and a grid of cards. Existing installs open Manage; a new recipe can be added directly.
  */
 export default function RecipesPage() {
   const navigate = useNavigate()
@@ -25,14 +24,14 @@ export default function RecipesPage() {
   const [tag, setTag] = createSignal<TagFilter>("all")
   const [open, setOpen] = createSignal<RecipeCard | null>(null)
   const tags = createMemo(() => recipeTags(cards()))
-  const shown = createMemo(() => filterRecipes(cards(), query(), tag()))
+  const shown = createMemo(() => filterRecipes(cards(), query(), tag()).filter((card) => params.view !== "installed" || installsFor(card.slug).length > 0))
   onMount(() => void refreshListing())
 
   return (
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3 md:px-4 md:pb-4" data-component="recipes-page">
       <div class="@container/recipes flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        <div class="mx-auto w-full max-w-3xl px-5 py-6 pb-16 max-[767px]:pt-14 @min-[560px]/recipes:px-8 @min-[560px]/recipes:py-8">
-          <Page title="Recipes" description="Ready-made habits for your agents. Each is a file in home/recipes that you can edit, and any agent can write you a new one.">
+        <div class="mx-auto w-full max-w-7xl px-5 py-6 pb-16 max-[767px]:pt-14 @min-[560px]/recipes:px-8 @min-[560px]/recipes:py-8">
+          <Page title={params.view === "installed" ? "In use" : "Recipes"} description={params.view === "installed" ? "The recipes your agents are using." : "Give your agents something new to do."}>
             <div class="flex flex-col gap-4" data-component="recipes">
               <div class="flex flex-col gap-3">
                 <input type="search" class={fieldClass} placeholder="Search recipes" aria-label="Search recipes" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
@@ -63,7 +62,7 @@ export default function RecipesPage() {
               </Show>
 
               <Show when={shown().length} fallback={<p class={cn("px-4 py-6 text-center text-md", muted)}>Nothing matches.</p>}>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" data-component="recipes-grid">
+                <div class="grid grid-cols-1 gap-3 @min-[500px]/recipes:grid-cols-2 @min-[850px]/recipes:grid-cols-3 @min-[1180px]/recipes:grid-cols-4" data-component="recipes-grid">
                   <For each={shown()}>
                     {(card) => (
                       <article class="relative flex flex-col gap-3 rounded-xl border border-border bg-card p-4" data-recipe={card.slug}>
@@ -82,12 +81,12 @@ export default function RecipesPage() {
                         </button>
                         <div class="relative mt-auto flex items-center justify-between gap-2">
                           <Show when={installsFor(card.slug).length} fallback={<span />}>
-                            <button type="button" class="cursor-pointer text-xs text-muted-foreground" onClick={() => setOpen(card)}>
-                              {`Used in ${installsFor(card.slug).length} ${installsFor(card.slug).length === 1 ? "place" : "places"}`}
+                            <button type="button" class="flex min-w-0 cursor-pointer flex-wrap gap-1 text-xs text-muted-foreground" aria-label={`Agents using ${card.title}`} onClick={() => setOpen(card)}>
+                              <For each={[...new Set(installsFor(card.slug).map((i) => agentName(i.agent)))]}>{(name) => <span class="rounded-md bg-control px-2 py-0.5">{name}</span>}</For>
                             </button>
                           </Show>
-                          <Button data-action="add-recipe" onClick={() => isAdded(card.slug, target()) ? setOpen(card) : addToTarget(card, target(), go)}>
-                            {isAdded(card.slug, target()) ? "Manage" : `Add to ${target()?.name ?? "Kiko"}`}
+                          <Button data-action="add-recipe" onClick={() => installsFor(card.slug).length ? setOpen(card) : addToTarget(card, target(), go)}>
+                            {installsFor(card.slug).length ? "Manage" : `Use with ${target()?.name ?? "Kiko"}`}
                           </Button>
                         </div>
                       </article>

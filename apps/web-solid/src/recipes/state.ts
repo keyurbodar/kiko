@@ -54,6 +54,7 @@ export function targetFor(roomId?: string | null): RecipeTarget | undefined {
 }
 
 export const installsFor = (slug: string): readonly RecipeInstall[] => listing().installs.filter((i) => i.slug === slug)
+export const agentName = (slug: string): string => slug === KIKO ? "Kiko" : useApp.agents().find((a) => a.slug === slug)?.name ?? slug
 export const isAdded = (slug: string, target?: RecipeTarget): boolean => !!target && installedSlugs(listing().installs, target).has(slug)
 
 function changeInstalls(update: (installs: readonly RecipeInstall[]) => readonly RecipeInstall[]): void {

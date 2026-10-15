@@ -156,6 +156,7 @@ docs/
 
 ## Taste
 
+- Do not use dot separators such as `•` or `·` in interface details. Use labeled rows, chips, or separate elements.
 - Prefer deleting to adding. Prefer one code path to two.
 - Use Kobalte, Corvu, `@kiko/ui`, and solid-primitives before writing a component.
 - Put validation at the edge: the socket, the HTTP route, the tool arguments. Trust types inside.

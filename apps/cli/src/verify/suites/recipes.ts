@@ -91,6 +91,10 @@ const suite: Suite = {
     const left = (await groupRoutines()).map((r) => r.target).sort()
     if (JSON.stringify(left) !== JSON.stringify(["bea", "yuki"])) throw new VerifyError(`removing Ada affected the other agents: ${left}`)
     console.log("  ok three agents used one recipe in a group; removing Ada left Kiko and Bea running")
+    user.send({ t: "chat", op: { op: "delete", roomId: group.roomId } })
+    await poll("a deleted group's installs to be cleared", async () => !(await ok<RecipeList>(url, s, "recipes")).installs.some((i) => i.roomId === group.roomId))
+    if ((await groupRoutines()).length) throw new VerifyError("a deleted group left recipe routines running")
+    console.log("  ok deleting the group cleared its recipe installs and routines")
     group.room.raw.close()
     room.raw.close()
   },

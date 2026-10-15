@@ -802,7 +802,10 @@ export class UserDO extends DurableObject<Env> {
     // A private or deleted chat keeps no loops (section 26.1).
     if (event && ((op.op === "private" && op.private) || op.op === "delete")) this.#il.loops.forgetRoom(op.roomId)
     // A deleted chat keeps no reminders or routines.
-    if (event && op.op === "delete") this.ctx.waitUntil(this.reminders.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
+    if (event && op.op === "delete") {
+      this.ctx.waitUntil(this.reminders.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
+      this.ctx.waitUntil(this.alarms.setWakeup("recipes", Date.now()))
+    }
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
       this.ctx.waitUntil(Promise.resolve(room.setPrivate(op.private)).catch((e: unknown) => console.error(`private flag not sent: ${e instanceof Error ? e.message : String(e)}`)))

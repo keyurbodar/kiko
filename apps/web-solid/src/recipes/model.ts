@@ -46,11 +46,6 @@ export function starterTiles(cards: readonly RecipeCard[]): RecipeCard[] {
   return [...picked, ...fill].slice(0, TILE_COUNT)
 }
 
-/** The line under a recipe's title in its sheet: when it runs, then the apps it needs. */
-export function sheetLine(card: RecipeCard): string {
-  return card.apps.length ? `${card.when} · ${card.apps.join(", ")}` : card.when
-}
-
 /** The recipe a routine came from. Routine names are stored lowercased, so the title is compared lowercased. */
 export function recipeForRoutine(cards: readonly RecipeCard[], routineName: string): RecipeCard | undefined {
   return cards.find((c) => c.title.toLowerCase() === routineName)
