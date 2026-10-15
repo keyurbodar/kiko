@@ -46,16 +46,16 @@ export class InitiativeLoops {
   constructor(d: LoopsDeps) {
     this.d = d
     this.loops = new Loops(d.sql, d.transaction)
-    // A chat the human keeps private never reaches initiative. A temporary chat reaches only the loops it already holds.
-    const title = (roomId: string, withTemp: boolean) => {
+    // A chat the human keeps private never reaches initiative.
+    const title = (roomId: string) => {
       const chat = getChat(d.sql, roomId)
-      return chat && !chat.private && (withTemp || !chat.temp) ? chat.title : null
+      return chat && !chat.private ? chat.title : null
     }
     this.initiative = new Initiative({
       loops: this.loops,
       life: d.life,
       judge: () => d.memory.judgeFor(CAPTURE_TIMEOUT_MS),
-      title: (roomId) => title(roomId, true),
+      title: (roomId) => title(roomId),
       off: () => this.level() === "off",
       count: (delta) => d.memory.count(delta),
       close: (id, status, at, room) => this.closeLoop(id, status, at, room),
@@ -72,7 +72,7 @@ export class InitiativeLoops {
         const last = getSetting(d.sql, LAST_SEEN)
         return last !== null && Date.now() - Number(last) > AWAY_MS
       },
-      title: (roomId) => title(roomId, false),
+      title: (roomId) => title(roomId),
       home: () => kikoChatRoom(d.sql),
       routines: () => {
         const runs = d.reminders.runs()

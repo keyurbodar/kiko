@@ -10,7 +10,6 @@ import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { KIKO } from "@kiko/protocol"
 import { ChatPanel } from "./chat-panel"
-import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import "./sidebar.css"
 
 /*
@@ -26,8 +25,6 @@ const SECTION_IDS = SECTIONS.map((section) => section.id)
 type PanelAction = {
   label: string
   run: (navigate: (to: string) => void) => void
-  /** When set, the + opens this menu of commands instead of running `run`. */
-  menu?: { label: string; command: string; shortcut?: string }[]
 }
 
 /** The header's one primary action. Settings has none. */
@@ -35,10 +32,6 @@ const ACTIONS: Record<SectionId, PanelAction | null> = {
   chat: {
     label: "New chat",
     run: () => runCommand("chat.new"),
-    menu: [
-      { label: "New chat", command: "chat.new", shortcut: "⌘N" },
-      { label: "New group", command: "chat.new-group" },
-    ],
   },
   settings: null,
 }
@@ -167,46 +160,14 @@ function Foot(props: { section: SectionId | null }) {
   )
 }
 
-/**
- * The compose button in the panel header. On chat it is a two-item menu: "New chat" (Kiko, the same command
- * as `Mod+N` and Kiko's avatar in the top bar) and "New group", which opens the same temporary chat
- * with its "to:" search already open. It does not own the sidebar toggle; the rail icon and
- * `cmd+s` do.
- */
+/** The compose button in the panel header. It opens the bot picker, the same as `Mod+N` and `/new`. */
 function HeaderAction(props: { action: PanelAction }) {
   const navigate = useNavigate()
-  const button = "panel-icon-button"
   return (
-    <Show
-      when={props.action.menu}
-      fallback={
-        <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
-          <button type="button" class={button} data-component="sidebar-add" aria-label={props.action.label} onClick={() => props.action.run(navigate)}>
-            <HugeIcon icon={ComposeIcon} size={17} />
-          </button>
-        </TooltipV2>
-      }
-    >
-      {(items) => (
-        <MenuV2 gutter={6} placement="bottom-end">
-          <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
-            <MenuV2.Trigger class={button} data-component="sidebar-add" aria-label={props.action.label} data-hint="chat.new" data-hint-label="New chat">
-              <HugeIcon icon={ComposeIcon} size={17} />
-            </MenuV2.Trigger>
-          </TooltipV2>
-          <MenuV2.Portal>
-            <MenuV2.Content data-component="sidebar-add-menu">
-              <For each={items()}>
-                {(item) => (
-                  <MenuV2.Item shortcut={item.shortcut} onSelect={() => runCommand(item.command)}>
-                    {item.label}
-                  </MenuV2.Item>
-                )}
-              </For>
-            </MenuV2.Content>
-          </MenuV2.Portal>
-        </MenuV2>
-      )}
-    </Show>
+    <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
+      <button type="button" class="panel-icon-button" data-component="sidebar-add" aria-label={props.action.label} title={props.action.label} onClick={() => props.action.run(navigate)}>
+        <HugeIcon icon={ComposeIcon} size={17} />
+      </button>
+    </TooltipV2>
   )
 }

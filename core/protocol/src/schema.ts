@@ -370,7 +370,6 @@ export const Chat = Schema.Struct({
 	agents: Schema.optionalKey(Schema.Array(Schema.String)),
 	kiko: Schema.optionalKey(Schema.Literal(true)),
 	private: Schema.optionalKey(Schema.Boolean),
-	temp: Schema.optionalKey(Schema.Literal(true)),
 	last: Schema.optionalKey(ChatLast),
 	mentions: Schema.optionalKey(Count),
 	group: Schema.optionalKey(Schema.Literal(true)),
@@ -381,8 +380,7 @@ export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlu
 export const AgentOp = Schema.Struct({ op: Schema.Literal("create"), agent: Agent })
 
 export const ChatOp = Schema.Union([
-	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)), temp: Schema.optionalKey(Schema.Literal(true)) }),
-	Schema.Struct({ op: Schema.Literal("keep"), roomId: RoomId, title: Schema.String, agents: Schema.Array(Schema.String) }),
+	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)) }),
 	Schema.Struct({ op: Schema.Literal("rename"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ op: Schema.Literal("pin"), roomId: RoomId, pinned: Schema.Boolean }),
 	Schema.Struct({ op: Schema.Literal("mute"), roomId: RoomId, muted: Schema.Boolean }),

@@ -4,7 +4,7 @@ import type { ClientToRoom, RoomToClient } from "../src/room"
 import type { ClientToUser, UserToClient } from "../src/user"
 import { activities, ada, agentStatuses, bob, chat, file, otherRoomId, roomEvents, roomId, roomSnapshot } from "../src/fixtures"
 
-const tempRoomId = "01a0fa46-9777-7fdf-871e-3c63e992c708" as RoomId
+const refusedRoomId = "01a0fa46-9777-7fdf-871e-3c63e992c708" as RoomId
 const messageId = (n: number) => `m${n}` as MessageId
 const at = (seq: number) => 1_790_000_000_000 + seq * 1000
 
@@ -61,9 +61,8 @@ export const clientToUser: readonly ClientToUser[] = [
 	{ t: "chat", op: { op: "pin", roomId, pinned: true } },
 	{ t: "chat", op: { op: "mute", roomId, muted: true } },
 	{ t: "chat", op: { op: "delete", roomId: otherRoomId } },
-	{ t: "chat", op: { op: "create", roomId: tempRoomId, title: "new chat", agents: ["yuki"], temp: true } },
-	{ t: "chat", op: { op: "keep", roomId: tempRoomId, title: "kiko, ada", agents: ["yuki", "ada"] } },
-	{ t: "open", roomId: tempRoomId },
+	{ t: "chat", op: { op: "create", roomId: refusedRoomId, title: "kiko, ada", agents: ["yuki", "ada"] } },
+	{ t: "open", roomId: refusedRoomId },
 	{ t: "search", query: "protocol" },
 	{ t: "login.start", loginId: "l1", provider: "github-copilot" },
 	{ t: "login.answer", loginId: "l1", promptId: "p1", value: "" },
@@ -79,7 +78,7 @@ export const userToClient: readonly UserToClient[] = [
 		],
 	},
 	{ t: "reset", snapshot: { seq: 2, chats: [chat], home: { files: [file], folders: ["notes"] }, lastChat: roomId } },
-	{ t: "chat_refused", roomId: tempRoomId, existing: roomId },
+	{ t: "chat_refused", roomId: refusedRoomId, existing: roomId },
 	{ t: "home_refused", op: { op: "rm", paths: ["notes"] }, reason: "notes is a folder with things in it" },
 	{ t: "search", query: "protocol", chats: [chat] },
 	{ t: "login.prompt", loginId: "l1", promptId: "p1", prompt: { type: "text", message: "enterprise domain", placeholder: "company.ghe.com" } },

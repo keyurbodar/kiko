@@ -35,19 +35,15 @@ const suite: Suite = {
     await user.expectNone((f) => chat(kiko.roomId)(f) || gone(kiko.roomId)(f), 800)
     console.log("  kiko: unpin and delete changed nothing")
 
-    const temp = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: temp, title: "new chat", agents: ["yuki"], temp: true } })
-    await user.expect(chat(temp))
-    user.send({ t: "chat", op: { op: "delete", roomId: temp } })
-    await user.expect(gone(temp))
     const group = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: group, title: "new chat", agents: ["yuki"], temp: true } })
+    user.send({ t: "chat", op: { op: "create", roomId: group, title: "kiko, ada", agents: ["yuki", agentId] } })
     await user.expect(chat(group))
-    user.send({ t: "chat", op: { op: "keep", roomId: group, title: "kiko, ada", agents: ["yuki", agentId] } })
-    const kept = await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === group && !e.chat.temp))
-    const keptChat = kept.t === "events" ? kept.events.flatMap((e) => (e.t === "chat" && e.chat.roomId === group ? [e.chat] : []))[0] : undefined
-    expectEqual(keptChat?.title, "kiko, ada", "the kept group's title")
-    console.log(`  temp: ${temp} deleted on close, ${group} kept as a group`)
+    const again = newRoomId()
+    user.send({ t: "chat", op: { op: "create", roomId: again, title: "kiko, ada again", agents: [agentId, "yuki", agentId] } })
+    const groupRefused = await user.expect((f) => f.t === "chat_refused")
+    expectEqual(groupRefused, { t: "chat_refused", roomId: again, existing: group }, "a group with the same agents is refused")
+    await user.expectNone(chat(again), 500)
+    console.log(`  group: ${again} refused in another order, ${group} kept`)
 
     const snapshot = async (): Promise<{ lastChat?: RoomId; chats: readonly Chat[] }> => {
       const device = await s.user()
@@ -59,17 +55,14 @@ const suite: Suite = {
     user.send({ t: "open", roomId: dm })
     await Bun.sleep(300)
     expectEqual((await snapshot()).lastChat, dm, "the last chat opened")
-    const temp2 = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: temp2, title: "new chat", agents: ["yuki"], temp: true } })
-    await user.expect(chat(temp2))
-    user.send({ t: "open", roomId: temp2 })
+    user.send({ t: "chat", op: { op: "delete", roomId: dm } })
+    await user.expect(gone(dm))
     await Bun.sleep(300)
-    const after = await snapshot()
-    expectEqual(after.lastChat, kiko.roomId, "a temporary chat is never resumed")
-    console.log(`  resume: ${dm}, then the kiko chat after a temporary one`)
+    expectEqual((await snapshot()).lastChat, kiko.roomId, "a deleted chat falls back to the kiko chat")
+    console.log(`  resume: ${dm}, then the kiko chat once it is deleted`)
 
-    for (const roomId of [dm, group, temp2]) user.send({ t: "chat", op: { op: "delete", roomId } })
-    await user.expect(gone(temp2))
+    user.send({ t: "chat", op: { op: "delete", roomId: group } })
+    await user.expect(gone(group))
   },
 }
 

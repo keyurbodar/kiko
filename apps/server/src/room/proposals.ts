@@ -1,9 +1,7 @@
 import type { AgentSlug, RoomEvent, } from "@kiko/protocol"
-import { tagline, type MemberOp } from "@kiko/protocol"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
 import { CHIEF, checkProposal, introduction, type NewAgentSpec, type Proposal, type ProposalInput } from "./chief"
-import type { Chat } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
 import type { Home } from "./home"
@@ -15,10 +13,7 @@ export type ProposalsDeps = {
 	log: RoomLog
 	members: Members
 	home: () => Home | null
-	chat: (home: Home) => Promise<Chat | null>
 	publish: (events: RoomEvent[]) => void
-	memberOp: (op: MemberOp) => unknown
-	writeChatFile: (slug: AgentSlug, text: string) => Promise<unknown>
 }
 
 export class Proposals {
@@ -73,7 +68,7 @@ export class Proposals {
 		try {
 			if (proposal.kind === "agent") {
 				const agent = await make(proposal.agent)
-				const roomId = await user.openChat(agent.name, [agent.id])
+				const { roomId } = await user.openChat(agent.name, [agent.id])
 				const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko made @${agent.slug}. say hi in your new chat.`, goto: roomId })
 				if (event) this.d.publish([event])
 				this.d.ctx.waitUntil(
@@ -92,29 +87,22 @@ export class Proposals {
 					return a
 				})
 				const members = [...existing, ...made]
-				const chat = await this.d.chat(home)
-				if (chat?.temp) {
-					for (const a of members) {
-						const role = tagline(a.prompt)
-						this.d.memberOp({ op: "add", slug: a.slug, name: a.name, ...(role ? { role } : {}), ...(a.model ? { model: a.model } : {}) })
-					}
-					await this.d.writeChatFile(CHIEF, proposal.chat)
-					this.d.log.setMeta("chat_file", "1")
-					await user.keepChat(home.roomId, proposal.title, [CHIEF, ...members.map((a) => a.id)])
-					const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title} with ${members.map((a) => `@${a.slug}`).join(", ")}` })
-					if (event) this.d.publish([event])
-					text = `the group is ready, here in this chat, with ${members.map((a) => `@${a.slug}`).join(", ")}. /chat.md holds the plan. kick it off in a line or two.`
-				} else {
-					const roomId = await user.openChat(proposal.title, [CHIEF, ...members.map((a) => a.id)])
+				// A group is always its own chat. Asking again for the same agents names the chat already made.
+				const { roomId, created } = await user.openChat(proposal.title, [CHIEF, ...members.map((a) => a.id)])
+				if (created) {
 					this.d.ctx.waitUntil(
 						roomStub(this.d.env.ROOM, home.userId, roomId)
 							.startGroup(home.userId, proposal.chat)
 							.catch((e: unknown) => console.error(`start group failed: ${e instanceof Error ? e.message : String(e)}`)),
 					)
-					const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko started ${proposal.title}. open it to begin.`, goto: roomId })
-					if (event) this.d.publish([event])
-					text = `the group ${proposal.title} is made, in its own chat. say one short line.`
 				}
+				const { event } = this.d.log.addMessage({
+					from: { kind: "system", reason: "created" },
+					text: created ? `kiko started ${proposal.title}. open it to begin.` : `${proposal.title} is already made. open it.`,
+					goto: roomId,
+				})
+				if (event) this.d.publish([event])
+				text = created ? `the group ${proposal.title} is made, in its own chat. say one short line.` : `the group ${proposal.title} is already in its own chat. say one short line.`
 			}
 		} catch (error) {
 			return { ok: false, error: error instanceof Error ? error.message : String(error) }

@@ -18,8 +18,7 @@ describe("the sidebar's chats", () => {
   const kiko = chat("yuki", { agents: ["yuki"], kiko: true, pinned: true })
   test.each<[string, Chat[], string[]]>([
     ["the kiko chat is listed", [kiko], ["yuki"]],
-    ["a temporary chat is not", [kiko, chat("t", { agents: ["yuki"], temp: true })], ["yuki"]],
-    ["a kept group from a temporary chat is", [kiko, chat("g", { agents: ["yuki", "ada"] })], ["yuki", "g"]],
+    ["a group is listed", [kiko, chat("g", { agents: ["yuki", "ada"] })], ["yuki", "g"]],
     ["an old kiko room that is not the kiko chat is not", [kiko, chat("old", { agents: ["yuki"], updatedAt: 9 })], ["yuki"]],
     ["a room made with no agents has kiko alone and is not", [kiko, chat("bare")], ["yuki"]],
     ["one row per agent: the most recently active direct chat", [kiko, chat("a1", { agents: ["ada"], updatedAt: 1 }), chat("a2", { agents: ["ada"], updatedAt: 2 }), chat("b", { agents: ["bob"] })], ["yuki", "a2", "b"]],
@@ -30,13 +29,12 @@ describe("the sidebar's chats", () => {
 })
 
 describe("the chat to resume", () => {
-  const chats = [chat("yuki", { kiko: true }), chat("a", { agents: ["ada"] }), chat("t", { temp: true })]
+  const chats = [chat("yuki", { kiko: true }), chat("a", { agents: ["ada"] })]
   test.each<[string, Chat[], boolean, (string | null)[], string | null]>([
     ["this device's last chat", chats, true, ["a", null], "a"],
     ["the server's when this device has none", chats, true, [null, "a"], "a"],
     ["this device's wins over the server's", chats, true, ["yuki", "a"], "yuki"],
     ["a deleted chat falls through to the kiko chat", chats, true, ["gone", "gone"], "yuki"],
-    ["a temporary chat is never resumed", chats, true, ["t", null], "yuki"],
     ["before the list loads, this device's last chat is trusted", [], false, ["a", null], "a"],
     ["before the list loads with nothing remembered, wait", [], false, [null, null], null],
     ["a loaded list without a kiko chat yet: wait", [], true, [null, null], null],

@@ -75,15 +75,10 @@ export function reopenClosedChat(): string | null {
   return id && useApp.chat(id) ? id : null
 }
 
-/**
- * Leaves the chat, and lands on its neighbour in the list when it was the open one. The chat stays in
- * the list, except a temporary chat, which leaving deletes (architecture section 7.11).
- */
+/** Leaves the chat, and lands on its neighbour in the list when it was the open one. The chat stays in the list. */
 export function closeChat(id: string, active: string | null, go: (path: string) => void): void {
   const next = chatAfter(sidebarOrder().map((r) => r.id), id)
   lastClosed = id
-  const chat = useApp.chat(id)
-  if (chat?.temp) useApp.user()?.remove(chat.roomId)
   if (active === id) go(next ? `/chat/${next}` : "/chat")
 }
 

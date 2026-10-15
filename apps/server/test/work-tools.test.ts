@@ -71,7 +71,7 @@ test("a worker gets the agent's tools but no chat, notes, reminders, board, or m
   expect(reports[0]).toMatchObject({ id: "work:w1:" + workers.get("w1")!.submissionId, body: "the page says hi", work: { id: "w1", status: "done" } })
   expect(workers.get("w1")!.step).toBe("fake_lookup")
   expect(workerTools).toContain("fake_lookup")
-  const withheld = ["start_work", "steer_work", "stop_work", "send_message", "ask", "spawn_agent", "create_task", "update_task", "create_reminder", "create_routine", "update_routine", "note"]
+  const withheld = ["start_work", "steer_work", "stop_work", "send_message", "ask", "create_task", "update_task", "create_reminder", "create_routine", "update_routine", "note"]
   for (const name of withheld) {
     expect(talkerTools).toContain(name)
     expect(workerTools).not.toContain(name)
@@ -148,7 +148,6 @@ test("two asks in one reply, to two teammates, wait together and each gets its o
   let peak = 0
   const port: MessagingPort = {
     send: async () => ({ ok: true, to: [] }),
-    spawn: async () => ({ ok: false, error: "no" }),
     ask: async (input) => ({ ok: true, to: [input.to as never] }),
     askState: async () => null,
     waitAnswer: async (id) => {

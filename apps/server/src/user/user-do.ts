@@ -1,4 +1,4 @@
-import { duplicateDm, newRoomId } from "@kiko/protocol"
+import { newRoomId, sameAgentChat } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
 import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, RoomId, UserEvent, UserToClient, ExtensionOp, ExtensionResult } from "@kiko/protocol"
@@ -22,7 +22,7 @@ import { createAgent, listAgents } from "./agents"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { actorKey } from "../room/log"
-import { applyChatOp, type ChatChange, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
+import { applyChatOp, type ChatChange, getChat, leftoverTempRooms, listChats, searchChats, type Touch, touchChat } from "./chats"
 import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
@@ -257,7 +257,7 @@ export class UserDO extends DurableObject<Env> {
   async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
     const op: ChatOp = { op: "create", roomId, title, ...(agents?.length ? { agents } : {}) }
     this.apply(op)
-    const chat = getChat(this.sql, this.duplicateOf(op) ?? roomId)
+    const chat = getChat(this.sql, this.existingFor(op) ?? roomId)
     if (!chat) throw new Error(`chat ${roomId} is missing right after create`)
     return chat
   }
@@ -352,14 +352,13 @@ export class UserDO extends DurableObject<Env> {
     return agent
   }
 
-  async openChat(title: string, agents: readonly string[]): Promise<RoomId> {
+  /** The chat with exactly these agents: the existing one, or a new one (`created`). */
+  async openChat(title: string, agents: readonly string[]): Promise<{ roomId: RoomId; created: boolean }> {
     const op: ChatOp = { op: "create", roomId: newRoomId(), title, agents }
+    const existing = this.existingFor(op)
+    if (existing) return { roomId: existing, created: false }
     this.apply(op)
-    return this.duplicateOf(op) ?? op.roomId
-  }
-
-  async keepChat(roomId: RoomId, title: string, agents: readonly string[]): Promise<boolean> {
-    return this.apply({ op: "keep", roomId, title, agents }) !== null
+    return { roomId: op.roomId, created: true }
   }
 
   async seedSoul(slug: string, name: string, role: string): Promise<Soul> {
@@ -747,7 +746,7 @@ export class UserDO extends DurableObject<Env> {
     if (frame.t === "login.start") return void this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {})
     if (frame.t === "login.answer") return this.#loginState.answer(ws, frame.loginId, frame.promptId, frame.value)
     if (frame.t === "login.cancel") return this.#loginState.cancel(ws, frame.loginId)
-    const existing = this.duplicateOf(frame.op)
+    const existing = this.existingFor(frame.op)
     if (existing) return send(ws, { t: "chat_refused", roomId: frame.op.roomId, existing })
     this.apply(frame.op)
   }
@@ -805,7 +804,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private apply(op: ChatOp): UserEvent | null {
-    if (movesKikoChat(this.sql, op) || this.duplicateOf(op)) return null
+    if (movesKikoChat(this.sql, op) || this.existingFor(op)) return null
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
     // A private or deleted chat keeps no loops (section 26.1).
     if (event && ((op.op === "private" && op.private) || op.op === "delete")) this.#il.loops.forgetRoom(op.roomId)
@@ -818,18 +817,21 @@ export class UserDO extends DurableObject<Env> {
     return event
   }
 
-  private duplicateOf(op: ChatOp): RoomId | null {
-    if (op.op !== "create" || op.temp || op.agents?.length !== 1) return null
-    return duplicateDm(listChats(this.sql).map((c) => markKikoChat(this.sql, c)), op)
+  /** A create that would make a second chat with the same agents names the chat that is already there. */
+  private existingFor(op: ChatOp): RoomId | null {
+    if (op.op !== "create") return null
+    return sameAgentChat(listChats(this.sql).map((c) => markKikoChat(this.sql, c)), op.agents ?? [], op.roomId)?.roomId ?? null
   }
 
   private lastChat(): RoomId | undefined {
     const stored = this.setting(LAST_CHAT)
     const chat = stored ? getChat(this.sql, stored) : null
-    return chat && !chat.temp ? chat.roomId : (kikoChatRoom(this.sql) ?? undefined)
+    return chat?.roomId ?? kikoChatRoom(this.sql) ?? undefined
   }
 
   async ensureHome(): Promise<void> {
+    // Temporary chats are gone. A row one left behind is removed, so it never shows.
+    for (const roomId of leftoverTempRooms(this.sql)) this.apply({ op: "delete", roomId })
     for (const op of kikoChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {

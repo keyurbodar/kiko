@@ -43,11 +43,12 @@ const suite: Suite = {
       return seen
     }
 
-    const draftId = newRoomId()
+    // Kiko makes agents and groups from its own chat. Each one it makes opens in a chat of its own.
+    const home = (await user.expect((f) => f.t === "reset")) as Extract<UserToClient, { t: "reset" }>
+    const kikoChat = home.snapshot.chats.find((c) => c.kiko)
+    if (!kikoChat) throw new VerifyError("no kiko chat in the snapshot")
     let t0 = Date.now()
-    user.send({ t: "chat", op: { op: "create", roomId: draftId, title: "new chat", agents: ["yuki"], temp: true } })
-    await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === draftId))
-    const draft = await s.room(draftId)
+    const draft = await s.room(kikoChat.roomId)
 
     let from = last(draft)
     t0 = Date.now()
@@ -66,16 +67,15 @@ const suite: Suite = {
     await poll(`@${agent.slug} says hi`, () => messages(dm).some((m) => m.from.kind === "agent" && m.from.slug === agent.slug), 90_000)
     console.log(`  hello (${Date.now() - t0} ms): ${JSON.stringify(messages(dm).find((m) => m.from.kind === "agent")?.text)}`)
 
-    const groupId = newRoomId()
+    from = last(draft)
     t0 = Date.now()
-    user.send({ t: "chat", op: { op: "create", roomId: groupId, title: "new chat", agents: ["yuki"], temp: true } })
-    await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === groupId))
-    const group = await s.room(groupId)
-    from = last(group)
-    group.send(`make a group to plan a weekend in lisbon: @${agent.slug} for food, and a new one who plans the itinerary`)
-    await poll("the temporary chat to become the group", () => chats().get(groupId) !== undefined && chats().get(groupId)?.temp === undefined, 120_000).catch((e) => {
-      throw new VerifyError(`${e instanceof Error ? e.message : e}. kiko said: ${JSON.stringify(kiko(group, from).map((m) => m.text))}`)
+    draft.send(`make a group to plan a weekend in lisbon: @${agent.slug} for food, and a new one who plans the itinerary`)
+    await poll("the made group", () => messages(draft).some((m) => m.seq > from && m.goto && m.goto !== made.goto), 120_000).catch((e) => {
+      throw new VerifyError(`${e instanceof Error ? e.message : e}. kiko said: ${JSON.stringify(kiko(draft, from).map((m) => m.text))}`)
     })
+    const groupId = must(messages(draft).find((m) => m.seq > from && m.goto && m.goto !== made.goto)?.goto, "group goto")
+    const group = await s.room(groupId)
+    await poll("the group's members", () => chats().has(groupId), 30_000)
     const members = new Set<string>()
     for (const entry of group.raw.log) {
       const f = entry.frame as RoomToClient

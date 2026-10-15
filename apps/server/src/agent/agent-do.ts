@@ -261,7 +261,6 @@ export class AgentDO extends DurableObject<Env> {
       askHuman: (input) => room().askHuman(home.slug, input),
       humanAskState: (id) => room().humanAskState(id),
       humanWaiting: () => this.host.humanWaiting(),
-      spawn: (input) => room().spawnAgent(home.slug, input),
       team: () => room().teamNow(),
     }
   }

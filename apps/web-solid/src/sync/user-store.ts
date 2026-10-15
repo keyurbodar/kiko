@@ -160,10 +160,6 @@ export type UserStore = {
 	createAgent(agent: Agent): void
 	/** Returns the new room's id. `agents` are the ids of the agents it starts with. */
 	createChat(title: string, agents?: readonly string[]): RoomId
-	/** A temporary chat with kiko (section 7.11): in the tab strip, not the list, until it becomes a group. */
-	createTemp(): RoomId
-	/** A temporary chat becomes a group in the list, with this title and these agents (ids). */
-	keep(roomId: RoomId, title: string, agents: readonly string[]): void
 	/** Tells the server the user is in this chat, at most once every `OPEN_DEBOUNCE_MS`. */
 	open(roomId: RoomId): void
 
@@ -341,12 +337,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			act({ op: "create", roomId, title, ...(agents?.length ? { agents } : {}) })
 			return roomId
 		},
-		createTemp() {
-			const roomId = newRoomId()
-			act({ op: "create", roomId, title: "New chat", agents: [KIKO], temp: true })
-			return roomId
-		},
-		keep: (roomId, title, agents) => act({ op: "keep", roomId, title, agents: [...agents] }),
 		open(roomId) {
 			if (opening !== undefined) clearTimeout(opening)
 			opening = setTimeout(() => {

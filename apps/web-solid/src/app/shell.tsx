@@ -16,6 +16,7 @@ import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../cha
 import { useKatCommands } from "../commands/use-kat-commands";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
+import { botPickerOpen } from "../chat/bot-picker-state";
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
 import { hintsShown, watchHold } from "../commands/hints";
 const HintLayer = lazy(() => import("../commands/HintLayer"));
@@ -52,6 +53,7 @@ const watchPanel = (el: HTMLElement) => {
   onCleanup(() => observer.disconnect());
 };
 const AvatarPicker = lazy(() => import("../avatar/picker"));
+const BotPicker = lazy(() => import("../chat/bot-picker"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
 const KEY = "kiko:sidebar-collapsed";
@@ -368,6 +370,11 @@ export function Shell(props: ParentProps) {
           )}
         </Show>
         <Palette />
+        <Show when={botPickerOpen()}>
+          <Suspense>
+            <BotPicker />
+          </Suspense>
+        </Show>
         <Show when={hintsShown()}>
           <Suspense>
             <HintLayer />

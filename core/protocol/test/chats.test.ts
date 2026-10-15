@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { dmFor, duplicateDm, kikoOnly } from "../src/chats"
+import { dmFor, kikoOnly, sameAgentChat, sameAgents } from "../src/chats"
 import type { RoomId } from "../src/ids"
 import type { Chat } from "../src/user"
 
@@ -22,7 +22,6 @@ describe("an agent's one direct chat", () => {
 		["the one there is", [ada("a", 1)], "ada", "a"],
 		["another agent's chat does not count", [chat("b", { agents: ["bob"] })], "ada", null],
 		["a group with the agent does not count", [chat("g", { agents: ["yuki", "ada"] })], "ada", null],
-		["a temporary chat does not count", [ada("t", 9, { temp: true })], "ada", null],
 		["of duplicates, the most recently active", [ada("a", 1), ada("b", 3), ada("c", 2)], "ada", "b"],
 		["a tie goes to the lowest room id", [ada("b", 1), ada("a", 1)], "ada", "a"],
 		["for kiko, the kiko chat wins over a newer kiko room", [chat("k", { agents: ["yuki"], kiko: true }), chat("old", { agents: ["yuki"], updatedAt: 9 })], "yuki", "k"],
@@ -31,17 +30,36 @@ describe("an agent's one direct chat", () => {
 	})
 })
 
-describe("a create that would make a second direct chat", () => {
-	const chats = [chat("a", { agents: ["ada"] })]
-	test.each<[string, { roomId: RoomId; agents?: string[]; temp?: true }, string | null]>([
-		["a second chat with ada", { roomId: "n" as RoomId, agents: ["ada"] }, "a"],
-		["a repeat of the same create", { roomId: "a" as RoomId, agents: ["ada"] }, null],
-		["a first chat with bob", { roomId: "n" as RoomId, agents: ["bob"] }, null],
-		["a group with ada", { roomId: "n" as RoomId, agents: ["yuki", "ada"] }, null],
-		["a temporary chat with ada", { roomId: "n" as RoomId, agents: ["ada"], temp: true }, null],
-		["a chat with no agents", { roomId: "n" as RoomId }, null],
-	])("%s", (_, op, expected) => {
-		expect(duplicateDm(chats, op)).toBe(expected as RoomId | null)
+describe("a create that would make a second chat with the same agents", () => {
+	const chats = [chat("a", { agents: ["ada"] }), chat("g", { agents: ["yuki", "ada", "bob"] })]
+	test.each<[string, string[], RoomId | undefined, string | null]>([
+		["a second direct chat with ada", ["ada"], undefined, "a"],
+		["the same direct chat again", ["ada"], "a" as RoomId, null],
+		["a first chat with carol", ["carol"], undefined, null],
+		["a group that exists, in another order", ["bob", "yuki", "ada"], undefined, "g"],
+		["a group with a repeat in it", ["ada", "ada", "bob", "yuki"], undefined, "g"],
+		["a group that is not there yet", ["yuki", "ada"], undefined, null],
+		["a chat with no agents", [], undefined, null],
+	])("%s", (_, agents, roomId, expected) => {
+		expect(sameAgentChat(chats, agents, roomId)?.roomId ?? null).toBe(expected as RoomId | null)
+	})
+
+	test("a kiko-alone create finds the kiko chat", () => {
+		const kiko = [chat("k", { agents: ["yuki"], kiko: true })]
+		expect(sameAgentChat(kiko, ["yuki"])?.roomId).toBe("k" as RoomId)
+	})
+})
+
+describe("two agent lists name one chat", () => {
+	test.each<[string, string[], string[], boolean]>([
+		["the same agents", ["ada", "bob"], ["ada", "bob"], true],
+		["in another order", ["ada", "bob"], ["bob", "ada"], true],
+		["with a repeat", ["ada", "ada"], ["ada"], true],
+		["with an agent more", ["ada", "bob"], ["ada"], false],
+		["with an agent less", ["ada"], ["ada", "bob"], false],
+		["an empty list", [], [], false],
+	])("%s", (_, a, b, expected) => {
+		expect(sameAgents(a, b)).toBe(expected)
 	})
 })
 

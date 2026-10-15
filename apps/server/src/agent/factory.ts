@@ -72,7 +72,7 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     skillsExtension(input.files?.fs, input.runStamp),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(input.egress, input.files?.fs),
-    ...(input.messaging ? [messagingExtension(input.messaging, input.lead)] : []),
+    ...(input.messaging ? [messagingExtension(input.messaging)] : []),
     ...(input.chief ? [chiefExtension(input.chief)] : []),
     ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),

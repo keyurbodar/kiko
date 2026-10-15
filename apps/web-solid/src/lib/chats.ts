@@ -14,14 +14,12 @@ export function agentList(stored: readonly Agent[]): Agent[] {
 }
 
 /**
- * The chats the sidebar lists, in its order. Left out: temporary chats (they live in the tab
- * strip), rooms with kiko alone that are not the kiko chat (old drafts and second kiko chats), and
- * every direct chat with an agent but the one that counts. The kiko chat comes first; it is the
- * first pinned tile. Otherwise the order is kept.
+ * The chats the sidebar lists, in its order. Left out: rooms with kiko alone that are not the kiko
+ * chat (old drafts and second kiko chats), and every direct chat with an agent but the one that
+ * counts. The kiko chat comes first; it is the first pinned tile. Otherwise the order is kept.
  */
 export function rosterChats(chats: readonly Chat[]): Chat[] {
   const out = chats.filter((c) => {
-    if (c.temp) return false
     if (c.kiko) return true
     if (kikoOnly(c)) return false
     const agent = c.agents?.length === 1 ? c.agents[0]! : null
@@ -34,7 +32,7 @@ export function rosterChats(chats: readonly Chat[]): Chat[] {
 
 /**
  * The chat to open when the URL names none. The first of `wanted` (this device's last chat, then
- * the server's) that is in the list and not temporary, else the kiko chat. Before the list has
+ * the server's) that is in the list, else the kiko chat. Before the list has
  * loaded, this device's last chat is trusted, so the first paint never waits; the chat route sends
  * the reader on if it turns out to be gone.
  */
@@ -42,7 +40,7 @@ export function resumeChat(chats: readonly Chat[], loaded: boolean, wanted: read
   if (!loaded) return (wanted.find(Boolean) as RoomId | undefined) ?? null
   for (const id of wanted) {
     const chat = id ? chats.find((c) => c.roomId === id) : undefined
-    if (chat && !chat.temp) return chat.roomId
+    if (chat) return chat.roomId
   }
   return chats.find((c) => c.kiko)?.roomId ?? null
 }
@@ -53,6 +51,3 @@ export function chatAfter(ids: readonly string[], id: string): string | null {
   const rest = ids.filter((other) => other !== id)
   return rest[at] ?? rest[at - 1] ?? null
 }
-
-/** The title a temporary chat gets when it becomes a group: its agents' names. */
-export const groupTitle = (names: readonly string[]): string => names.join(", ")

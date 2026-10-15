@@ -16,6 +16,7 @@ import { createImageDialog } from "../chat/ui/image-dialog"
 import { runSlash, slashSuggestions } from "./slash"
 import { forgetUpload, readyAttachments, releaseUpload, startUpload, uploadBlockReason } from "../sync/uploads"
 import { createDraftRestore } from "./draft-restore"
+import { composerFill, takeComposerFill } from "./fill"
 
 const draftFiles = () => import("./rich/draft-files")
 
@@ -127,7 +128,7 @@ export function Composer(props: ComposerProps) {
         filledFor = ""
         leaveChat()
         if (!key) return
-        const text = props.draftFor?.(key) ?? ""
+        const text = takeComposerFill(key) ?? props.draftFor?.(key) ?? ""
         if (text !== draftText()) {
           if (text) store.setText(text)
           else store.reset()
@@ -135,6 +136,16 @@ export function Composer(props: ComposerProps) {
         filledFor = key
         void restoreFiles(key)
       },
+    ),
+  )
+  // Text sent to the chat already on screen. A chat that is not open takes it when it fills.
+  createEffect(
+    on(
+      composerFill,
+      (fill) => {
+        if (fill && fill.roomId === props.draftKey) store.setText(takeComposerFill(fill.roomId) ?? "");
+      },
+      { defer: true },
     ),
   )
   createEffect(

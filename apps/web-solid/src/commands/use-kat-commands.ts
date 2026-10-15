@@ -11,7 +11,7 @@ import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openAvatarPicker } from "../avatar/picker-state"
 import { useApp } from "../lib/store"
-import { setPickFor } from "../chat/to-bar-state"
+import { openBotPicker } from "../chat/bot-picker-state"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
@@ -44,18 +44,8 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   useCommands(
     katCommands({
       toggleSidebar: deps.toggleSidebar,
-      // The one way to start a chat: a temporary chat with kiko, in a new tab (architecture section 7.11).
-      newChat: () => {
-        const id = useApp.createTemp()
-        if (id) navigate(`/chat/${id}`)
-      },
-      // A group starts the same way, with the "to:" search already open.
-      newGroup: () => {
-        const id = useApp.createTemp()
-        if (!id) return
-        setPickFor(id)
-        navigate(`/chat/${id}`)
-      },
+      // The one way to start a chat: pick the agent, or several for a group (chat/bot-picker.tsx).
+      newChat: openBotPicker,
       openPalette: () => openPalette("commands"),
       inRichEditor: inComposer,
       openChats: () => openPalette("chats"),

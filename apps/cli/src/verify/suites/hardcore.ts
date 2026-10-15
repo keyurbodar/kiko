@@ -104,12 +104,12 @@ const suite: Suite = {
     step(`tagged: ada answered${adaToKiko ? " (and messaged kiko, who answered her)" : ", kiko stayed quiet"}`)
 
     from = lastSeq(room)
-    room.send("@yuki please add a new agent to this chat, a designer called nova, and ask nova to suggest 3 colors for the invite card")
-    await poll("nova to join", () => seen(room).members.includes("nova"), 90_000)
-    await poll("nova to speak", () => agentSays(room, from, "nova").length > 0, 90_000)
+    room.send("@yuki make a new agent called nova, a designer, who suggests 3 colors for an invite card")
+    await poll("kiko to make nova in its own chat", () => after(room, from).some((m) => m.goto !== undefined), 120_000)
     await quiet(room, 6_000, 90_000)
     print(room, from)
-    step("spawn: the lead added @nova and nova answered")
+    if (seen(room).members.includes("nova")) fail.push("new agent: nova joined this chat; kiko must make it in its own chat")
+    step("new agent: kiko made @nova in its own chat, and this chat gained no member")
 
     from = lastSeq(room)
     room.send("@yuki ask ada for one dessert idea, then tell me what she said")

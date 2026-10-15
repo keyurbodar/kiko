@@ -15,7 +15,6 @@ type Row = {
   updated_at: number
   agents: string
   private: number
-  draft: string | null
   last: string | null
   mentions: number
   grp: number
@@ -48,7 +47,6 @@ function toChat(row: Row): Chat {
     unread: row.unread,
     updatedAt: row.updated_at,
     ...(row.private === 1 ? { private: true } : {}),
-    ...(row.draft !== null ? { temp: true as const } : {}),
     ...(row.last ? { last: JSON.parse(row.last) as ChatLast } : {}),
     ...(row.mentions > 0 ? { mentions: row.mentions } : {}),
     ...(row.grp === 1 ? { group: true as const } : {}),
@@ -63,11 +61,16 @@ export function getChat(sql: SqlStorage, roomId: string): Chat | null {
 export function searchChats(sql: SqlStorage, query: string): Chat[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8)
   if (!words.length) return []
-  const where = ["draft IS NULL", ...words.map(() => "instr(lower(title), ?) > 0")].join(" AND ")
+  const where = words.map(() => "instr(lower(title), ?) > 0").join(" AND ")
   return sql
     .exec<Row>(`SELECT * FROM chats WHERE ${where} ORDER BY pinned DESC, updated_at DESC, room_id LIMIT 50`, ...words)
     .toArray()
     .map(toChat)
+}
+
+/** Temporary chats are gone. A row an older build left with a draft mark is one to remove. */
+export function leftoverTempRooms(sql: SqlStorage): RoomId[] {
+  return sql.exec<{ room_id: string }>("SELECT room_id FROM chats WHERE draft IS NOT NULL").toArray().map((row) => row.room_id as RoomId)
 }
 
 export function listChats(sql: SqlStorage): Chat[] {
@@ -76,11 +79,11 @@ export function listChats(sql: SqlStorage): Chat[] {
 
 function write(sql: SqlStorage, chat: Chat): ChatChange {
   sql.exec(
-    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents, private, draft, last, mentions, grp)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents, private, last, mentions, grp)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(room_id) DO UPDATE SET title = excluded.title, pinned = excluded.pinned, muted = excluded.muted,
        last_seq = excluded.last_seq, last_preview = excluded.last_preview, unread = excluded.unread,
-       updated_at = excluded.updated_at, agents = excluded.agents, private = excluded.private, draft = excluded.draft,
+       updated_at = excluded.updated_at, agents = excluded.agents, private = excluded.private,
        last = excluded.last, mentions = excluded.mentions, grp = excluded.grp`,
     chat.roomId,
     chat.title,
@@ -92,7 +95,6 @@ function write(sql: SqlStorage, chat: Chat): ChatChange {
     chat.updatedAt,
     JSON.stringify(chat.agents ?? []),
     chat.private ? 1 : 0,
-    chat.temp ? "temp" : null,
     chat.last ? JSON.stringify(chat.last) : null,
     chat.mentions ?? 0,
     chat.group ? 1 : 0,
@@ -113,15 +115,8 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
         lastPreview: "",
         unread: 0,
         updatedAt: now,
-        ...(op.agents?.length ? { agents: op.agents.slice(0, MAX_AGENTS).map((id) => id.slice(0, 64)) } : {}),
-        ...(op.temp ? { temp: true as const } : {}),
+        ...(op.agents?.length ? { agents: agentIds(op.agents) } : {}),
       }
-    case "keep": {
-      if (!current?.temp) return null
-      const { temp: _, ...chat } = current
-      const agents = op.agents.slice(0, MAX_AGENTS).map((id) => id.slice(0, 64))
-      return { ...chat, title: clip(op.title, MAX_TITLE) || current.title, updatedAt: now, ...(agents.length ? { agents } : {}) }
-    }
     case "rename": {
       const title = clip(op.title, MAX_TITLE)
       if (!current || current.title === title) return null
@@ -137,6 +132,9 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
       return current ? undefined : null
   }
 }
+
+/** Distinct ids, capped. A chat's agents are a set: a repeat adds nothing. */
+const agentIds = (agents: readonly string[]): string[] => [...new Set(agents.map((id) => id.slice(0, 64)))].slice(0, MAX_AGENTS)
 
 export function applyChatOp(sql: SqlStorage, op: ChatOp, now: number): ChatChange | null {
   const current = getChat(sql, op.roomId)

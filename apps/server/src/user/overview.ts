@@ -17,7 +17,7 @@ const ago = (at: number, now: number) => {
 
 export function overview(sql: SqlStorage, input: { reminders: Reminder[]; runs: RoutineRun[]; tz: string; now: number }): string {
   const { now, tz } = input
-  const chats = listChats(sql).filter((c) => !c.temp)
+  const chats = listChats(sql)
   const titles = new Map(chats.map((c) => [c.roomId as string, c.title]))
   const tasks = new Map(
     taskRows(sql).map((r) => [r.room_id, JSON.parse(r.tasks) as ChatTasks]),

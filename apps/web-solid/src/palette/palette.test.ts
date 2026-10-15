@@ -7,7 +7,6 @@ import { paletteGroups, paletteRows } from "./model"
 const deps = (over: { newChat?: () => void } = {}) => ({
   toggleSidebar() {},
   newChat: over.newChat ?? (() => {}),
-  newGroup() {},
   closeChat() {},
   hasActiveChat: () => false,
   toggleCard() {},
@@ -27,14 +26,14 @@ describe("palette rows", () => {
 
   test("keep registry order, drop disabled commands and the palette itself", () => {
     const titles = paletteRows(list).map((c) => c.title)
-    expect(titles).toEqual(["Toggle sidebar", "New chat", "New group", "Reopen closed chat", "Go to chat…", "Search all chats"])
+    expect(titles).toEqual(["Toggle sidebar", "New chat", "Reopen closed chat", "Go to chat…", "Search all chats"])
   })
 
   test("sit under their group's heading, groups in registry order", () => {
     const groups = paletteGroups(list).map((g) => [g.label, g.rows.map((c) => c.id)])
     expect(groups).toEqual([
       ["View", ["view.toggle-sidebar"]],
-      ["Chat", ["chat.new", "chat.new-group", "chat.reopen"]],
+      ["Chat", ["chat.new", "chat.reopen"]],
       ["Chats", ["chats.go", "chats.search-all"]],
     ])
   })

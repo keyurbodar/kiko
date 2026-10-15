@@ -22,7 +22,7 @@ import type {
 	UserEvent,
 	UserToClient,
 } from "@kiko/protocol"
-import { duplicateDm, SNIPPET_CLOSE, SNIPPET_OPEN } from "@kiko/protocol"
+import { sameAgentChat, SNIPPET_CLOSE, SNIPPET_OPEN } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { applyRoomEvent, emptyRoom, type RoomData } from "./room-store"
 import { overlayFiles, overlayFolders } from "./patches"
@@ -423,18 +423,13 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			if (op.op === "create") {
 				if (chat) return
 				// One direct chat per agent, as the server keeps it.
-				const existing = duplicateDm(data.chats, op)
+				const existing = sameAgentChat(data.chats, op.agents ?? [], op.roomId)?.roomId
 				if (existing) return peer.push({ t: "chat_refused", roomId: op.roomId, existing })
 				store({
 					t: "chat",
-					chat: { roomId: op.roomId, title: op.title, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: now(), ...(op.agents?.length ? { agents: op.agents } : {}), ...(op.temp ? { temp: true as const } : {}) },
+					chat: { roomId: op.roomId, title: op.title, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: now(), ...(op.agents?.length ? { agents: op.agents } : {}) },
 				})
 			} else if (!chat) return
-			else if (op.op === "keep") {
-				if (!chat.temp) return
-				const { temp: _, ...kept } = chat
-				store({ t: "chat", chat: { ...kept, title: op.title, agents: op.agents } })
-			}
 			else if (op.op === "delete") store({ t: "chat_removed", roomId: op.roomId })
 			else if (op.op === "rename") store({ t: "chat", chat: { ...chat, title: op.title } })
 			else if (op.op === "pin") store({ t: "chat", chat: { ...chat, pinned: op.pinned } })

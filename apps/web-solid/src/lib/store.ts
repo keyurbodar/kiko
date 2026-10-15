@@ -392,7 +392,7 @@ export function createApp(options: AppOptions = {}) {
     const botRows = shared<RosterBot[]>(() => {
       const r = room()
       const next = new Map<string, RosterBot>()
-      // Every chat, temporary and hidden ones too: the tab strip names them. `roster` is what the sidebar lists.
+      // Every chat, hidden ones too: the tab strip names them. `roster` is what the sidebar lists.
       const typingIn = userStore()?.state.typing ?? {}
       const rows = (userStore()?.chats() ?? []).map((c) => {
         let row: RosterBot
@@ -444,7 +444,6 @@ export function createApp(options: AppOptions = {}) {
       }
     }
     function remember(id: RoomId) {
-      if (chat(id)?.temp) return
       setLocalLast(id)
       const key = lastKey()
       try {
@@ -871,16 +870,6 @@ export function createApp(options: AppOptions = {}) {
         const user = userStore()
         if (!user) return undefined
         return dmFor(user.chats(), agent.id)?.roomId ?? user.createChat(agent.name, [agent.id])
-      },
-
-      /** A temporary chat with kiko: what the new chat button opens. Returns its room id. */
-      createTemp(): RoomId | undefined {
-        return userStore()?.createTemp()
-      },
-
-      /** A temporary chat becomes a group in the list. */
-      keepChat(roomId: RoomId, title: string, agents: readonly string[]) {
-        userStore()?.keep(roomId, title, agents)
       },
 
       /** The kiko chat stays pinned. */

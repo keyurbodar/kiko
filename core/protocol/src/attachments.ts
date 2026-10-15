@@ -98,7 +98,7 @@ export function attachmentsError(files: readonly { type: string; size: number }[
  * swaps that for the stored file's path (`linkAttachments`), so the bubble draws a file chip and
  * the agent reads the file where the human put it.
  */
-export const ATTACHMENT_LINK = /\[([^\]\n]*)\]\(attachment:([\w-]+)\)/g
+const ATTACHMENT_LINK = /\[([^\]\n]*)\]\(attachment:([\w-]+)\)/g
 
 export function attachmentToken(id: string, name: string): string {
 	return `[${name.replace(/[[\]\n\\]/g, "")}](attachment:${id})`

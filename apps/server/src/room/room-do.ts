@@ -65,17 +65,6 @@ const ROW_EVENTS: ReadonlySet<RoomEvent["t"]> = new Set(["message", "edit", "del
 
 type SendOutcome = { ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }
 
-export type SpawnInput = { id: string; slug: string; name?: string; role: string; task: string }
-
-const SPAWN_REFUSAL: Record<MemberRefusal, string> = {
-	limit: "the room is full: it holds at most 8 agents.",
-	exists: "an agent with that handle is already here.",
-	unknown: "no such agent.",
-	last: "the room needs at least one agent.",
-	reserved: "that handle is reserved. pick another.",
-	chief: "kiko leads this room and cannot be removed.",
-}
-
 export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	log!: RoomLog
 	private burstFlush!: BurstFlush
@@ -133,7 +122,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home() })
-			this.proposals = new Proposals({ ctx, env: this.env, log: this.log, members: this.members, home: () => this.home(), chat: (home) => this.chat(home), publish: (events) => this.publish(events), memberOp: (op) => this.memberOp(op), writeChatFile: (slug, text) => this.writeChatFile(slug, text) })
+			this.proposals = new Proposals({ ctx, env: this.env, log: this.log, members: this.members, home: () => this.home(), publish: (events) => this.publish(events) })
 			this.pending = new PendingUploads(ctx.storage.sql)
 			this.signals = new SignalWindow(ctx.storage.sql, () => this.log.meta("room_id"))
 			this.reports = new Reports({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, mail: this.mail, routines: this.routines, signals: this.signals, home: () => this.home() })
@@ -804,26 +793,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
 		return null
-	}
-
-	async spawnAgent(by: AgentSlug, input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }> {
-		const members = this.members.list()
-		const me = members.find((m) => m.slug === by)
-		if (!me?.lead) return { ok: false, error: "only the lead can add an agent to this room." }
-		const slug = input.slug.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32)
-		if (!isAgentSlug(slug)) return { ok: false, error: `"${input.slug}" is not a usable handle. use lowercase letters, digits, and dashes.` }
-		const home = this.home()
-		if (home) await userStub(this.env.USER, home.userId).seedSoul(slug, input.name?.trim() || slug, input.role)
-		if (!members.some((m) => m.slug === slug)) {
-			const refused = this.memberOp({ op: "add", slug, name: input.name?.trim() || slug, role: input.role, ...(me.model ? { model: me.model } : {}) })
-			if (refused) return { ok: false, error: SPAWN_REFUSAL[refused] }
-		}
-		await this.workspaceCall(by, { op: "create_task", id: `spawn-${input.id}`.slice(0, 64), title: input.task.slice(0, 140), owner: slug })
-		const title = oneLine(input.task, DELEGATED_TITLE)
-		const handed = this.log.addMessage({ from: { kind: "system", reason: "work" }, text: `@${by} handed @${slug} a task: ${title}`, clientId: `delegated:${input.id}`, event: { kind: "delegated", from: by, to: slug, title } })
-		if (handed.event) this.publish([handed.event])
-		const sent = await this.agentMessage(by, { id: `spawn:${input.id}`, to: slug, text: input.task })
-		return sent.ok ? { ok: true, slug } : sent
 	}
 
 	setModel(ref: string, slug?: AgentSlug): void {

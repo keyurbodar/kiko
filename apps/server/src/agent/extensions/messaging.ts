@@ -2,7 +2,6 @@ import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { AgentSlug } from "@kiko/protocol"
 import type { AgentSend } from "../../room/mail"
-import type { SpawnInput } from "../../room/room-do"
 import { declareEffect } from "@kiko/agent/effects"
 import type { Answer } from "@kiko/agent/answers"
 
@@ -10,7 +9,6 @@ export const MESSAGING = "messaging"
 
 export type MessagingPort = {
   send(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
-  spawn(input: SpawnInput): Promise<{ ok: true; slug: AgentSlug } | { ok: false; error: string }>
   ask(input: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }>
   askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
   waitAnswer(id: string, ms: number, signal?: AbortSignal): Promise<Answer | null>
@@ -25,7 +23,7 @@ const text = (t: string) => [{ type: "text" as const, text: t }]
 
 export const ASK_WAIT_MS = 120_000
 
-export function messagingExtension(port: () => MessagingPort | null, lead = false): Extension {
+export function messagingExtension(port: () => MessagingPort | null): Extension {
   const room = () => {
     const p = port()
     if (!p) throw new Error("this agent is not in a room yet")
@@ -38,26 +36,6 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
       : { content: text(out.error), isError: true }
   }
   const slug = (description: string) => Type.String({ description })
-
-  const spawnTool = declareEffect(
-    "message",
-    defineTool({
-      name: "spawn_agent",
-      description:
-        "add a new agent to this room as a real member the human can see and talk to, and hand it its first task. use it when the human asks for a new agent, or when the work needs a role nobody here has. the new agent wakes with the task.",
-      parameters: Type.Object({
-        slug: slug("a short handle, lowercase, like nova or designer"),
-        name: Type.Optional(Type.String({ description: "a display name; defaults to the handle" })),
-        role: Type.String({ description: "one or two lines on what this agent does and how" }),
-        task: Type.String({ description: "its first task, written to it directly" }),
-      }),
-      replay: "safe",
-      execute: async ({ slug: handle, name, role, task }, api) => {
-        const out = await room().spawn({ id: `${api.conversationId}:${api.callId}`, slug: handle, name, role, task })
-        return out.ok ? { content: text(`@${out.slug} joined the room and has the task.`) } : { content: text(out.error), isError: true }
-      },
-    }),
-  )
 
   const ask = declareEffect(
     "message",
@@ -119,7 +97,6 @@ export function messagingExtension(port: () => MessagingPort | null, lead = fals
     tools: [
       ask,
       askHuman,
-      ...(lead ? [spawnTool] : []),
       declareEffect(
         "message",
         defineTool({

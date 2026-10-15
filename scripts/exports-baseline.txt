@@ -59,7 +59,6 @@ apps/server/src/room/limits.ts:MAX_DELIVERIES_PER_ROOT
 apps/server/src/room/limits.ts:MAX_HOP
 apps/server/src/room/limits.ts:SendCheck
 apps/server/src/room/log.ts:KEEP_EVENTS
-apps/server/src/room/log.ts:NewMessage
 apps/server/src/room/log.ts:SNAPSHOT_MESSAGES
 apps/server/src/room/mail-drain.ts:MailDeps
 apps/server/src/room/mail-drain.ts:MailOutcome
@@ -157,7 +156,6 @@ core/memory/src/tools.ts:noteRule
 core/protocol/src/attachments.ts:MAX_ATTACHMENT_FILE_BYTES
 core/protocol/src/attachments.ts:MAX_TOTAL_IMAGE_BYTES
 core/protocol/src/attachments.ts:attachmentLimit
-core/protocol/src/chats.ts:isDmOf
 core/protocol/src/ids.ts:AGENT_SLUG_PATTERN
 core/protocol/src/ids.ts:ULID_PATTERN
 core/protocol/src/ids.ts:UUID_V7_PATTERN

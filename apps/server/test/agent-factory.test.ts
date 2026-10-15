@@ -112,12 +112,4 @@ describe("buildAgent", () => {
     expect(member).toContain("You are not the lead")
   })
 
-  test("only the lead's agent is offered spawn_agent", () => {
-    const port = () => null
-    const tools = (lead: boolean) =>
-      (buildAgent({ role: "", lead, model: FAUX, messaging: port }).agent.extensions as readonly { tools?: readonly { name: string }[] }[]).flatMap((e) => (e.tools ?? []).map((t) => t.name))
-    expect(tools(true)).toContain("spawn_agent")
-    expect(tools(false)).not.toContain("spawn_agent")
-    expect(tools(false)).toContain("send_message")
-  })
 })

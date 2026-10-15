@@ -693,18 +693,15 @@ describe("the user store", () => {
 		store.close()
 	})
 
-	test("a temporary chat is kept as a group at once, and the server agrees", async () => {
-		const mock = createMockUser()
+	test("a group with the same agents as one there is refused, in any order", async () => {
+		const mock = createMockUser({ chats: [{ ...fixtures.chat, roomId: fixtures.otherRoomId, agents: ["yuki", "id-ada"] }] })
 		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
 		await store.ready
-		const id = store.createTemp()
-		expect(store.chats().find((c) => c.roomId === id)).toMatchObject({ title: "New chat", agents: ["yuki"], temp: true })
-		store.keep(id, "kiko, ada", ["yuki", "id-ada"])
-		const kept = store.chats().find((c) => c.roomId === id)!
-		expect(kept).toMatchObject({ title: "kiko, ada", agents: ["yuki", "id-ada"] })
-		expect(kept.temp).toBeUndefined()
-		await until(() => store.state.patches.length === 0)
-		expect(store.state.chats.find((c) => c.roomId === id)?.temp).toBeUndefined()
+		await until(() => store.state.synced)
+		const again = store.createChat("kiko, ada", ["id-ada", "yuki"])
+		await until(() => store.state.refused[again] !== undefined)
+		expect(store.state.refused[again]).toBe(fixtures.otherRoomId)
+		expect(store.chats().map((c) => c.roomId)).toEqual([fixtures.otherRoomId])
 		store.close()
 	})
 

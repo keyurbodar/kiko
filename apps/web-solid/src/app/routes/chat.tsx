@@ -5,7 +5,7 @@ import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
 import { ModelPickerButton } from "../../settings/model-picker";
 import { useApp } from "../../lib/store";
-import type { MessageId, RoomId } from "@kiko/protocol";
+import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { connectedProviders, connectedReady } from "../../settings/connected";
 import { hasModelProvider } from "../../settings/provider-kinds";
@@ -14,7 +14,6 @@ import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 const BrowserChip = lazy(() => import("../../chat/BrowserChip"));
-const ToBar = lazy(() => import("../../chat/to-bar").then((m) => ({ default: m.ToBar })));
 
 const JUMP_CLASS =
   "pointer-events-auto relative grid size-[26px] place-items-center rounded-md border border-[color-mix(in_oklab,var(--foreground)_15%,transparent)] bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] text-foreground shadow-md backdrop-blur-md";
@@ -47,12 +46,13 @@ export default function ChatRoute() {
       },
     ),
   );
-  const isTemp = () => !!params.id && !!useApp.chat(params.id)?.temp;
+  // A message that points to another chat (kiko made an agent or a group) takes the reader there once, when it arrives here.
   createEffect(
     on(
-      () => (isTemp() ? useApp.activeMessages().at(-1) : undefined),
-      (last) => {
-        if (last?.goto && last.goto !== params.id) navigate(`/chat/${last.goto}`);
+      [() => params.id, () => useApp.activeMessages().at(-1)],
+      ([id, last], previous) => {
+        if (!previous || previous[0] !== id || !last?.goto || last.goto === id || last.id === previous[1]?.id) return;
+        navigate(`/chat/${last.goto}`);
       },
     ),
   );
@@ -288,17 +288,10 @@ export default function ChatRoute() {
             }}
           />
 
-          <Show when={isTemp() && messages().length === 0 && params.id}>
-            {(id) => (
-              <div class="mx-auto w-full max-w-[720px] pb-2">
-                <ToBar roomId={id() as RoomId} />
-              </div>
-            )}
-          </Show>
           <Composer
             tray={<ModelPickerButton chatId={params.id ?? null} />}
             threadId={useApp.activeThreadId() ?? ""}
-            title={isTemp() ? useApp.members().map((m) => m.name).join(", ") || "Kiko" : useApp.chatById(useApp.activeThreadId() ?? "")?.name}
+            title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}
             draftFor={(key) => book()?.get(key)?.text ?? ""}
             onDraftChange={(key, text) => {
@@ -314,11 +307,6 @@ export default function ChatRoute() {
                 target === null
                   ? useApp.appendMessage(message)
                   : useApp.appendReply(message, target, replyQuote());
-              const id = params.id;
-              if (sent !== undefined && id && isTemp() && messages().length <= 1) {
-                const title = message.body.trim().replace(/\s+/g, " ").slice(0, 40);
-                if (title) useApp.user()?.rename(id as RoomId, title);
-              }
               setQuote(null);
               if (sent !== undefined) (fromHistory ? requestAnimationFrame(() => scrollToLatest?.()) : scrollToLatest?.());
             }}

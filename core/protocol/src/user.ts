@@ -17,7 +17,6 @@ export type Chat = {
 	agents?: readonly string[]
 	kiko?: true
 	private?: boolean
-	temp?: true
 	last?: ChatLast
 	mentions?: number
 	group?: true
@@ -34,8 +33,7 @@ export type Agent = {
 export type AgentOp = { op: "create"; agent: Agent }
 
 export type ChatOp =
-	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[]; temp?: true }
-	| { op: "keep"; roomId: RoomId; title: string; agents: readonly string[] }
+	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[] }
 	| { op: "rename"; roomId: RoomId; title: string }
 	| { op: "pin"; roomId: RoomId; pinned: boolean }
 	| { op: "mute"; roomId: RoomId; muted: boolean }
