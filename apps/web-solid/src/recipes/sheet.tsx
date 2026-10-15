@@ -34,7 +34,7 @@ export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; ro
                   <div class="flex items-center gap-2">
                     <div class="flex min-w-0 flex-1 flex-col items-start gap-1.5">
                       <span class="text-sm"><AgentChip slug={install.agent} name={agentName(install.agent)} /></span>
-                      <p class="max-w-full truncate text-xs text-muted-foreground">{useApp.chatById(install.roomId)?.name ?? "Chat"}</p>
+                      <p class="max-w-full truncate text-xs text-muted-foreground">{useApp.chatById(install.roomId)?.name === agentName(install.agent) ? "Personal chat" : useApp.chatById(install.roomId)?.name ?? "Chat"}</p>
                     </div>
                     <Button data-action="open-recipe-chat" onClick={() => go(`/chat/${install.roomId}`)}>Open chat</Button>
                     <MenuV2 gutter={4} placement="bottom-end">
