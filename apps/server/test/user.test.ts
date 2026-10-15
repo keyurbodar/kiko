@@ -11,6 +11,7 @@ beforeAll(async () => {
     script: await bundleWorker(new URL("./user-worker.ts", import.meta.url)),
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
+    bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
     durableObjects: { USER: { className: "UserDO", useSQLite: true } },
   })
 })
@@ -144,7 +145,7 @@ test("hello resumes after lastSeq, and a socket from the future gets a snapshot"
   await rpc(user, "createChat", ROOM_B, "b")
   await rpc(user, "pinChat", ROOM_B, true)
   const resumed = await socket(user, 2)
-  expect(resumed.frames[0]).toEqual({ t: "events", events: [expect.objectContaining({ seq: 3 })], ...BACKEND })
+  expect(resumed.frames[0]).toEqual({ t: "events", events: [expect.objectContaining({ seq: 3 })], ...BACKEND, fileToken: expect.any(String) })
   const ahead = await socket(user, 99)
   expect(ahead.frames[0]!.t).toBe("reset")
   expect(ahead.frames[0]!.snapshot.seq).toBe(3)
