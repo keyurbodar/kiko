@@ -1,6 +1,8 @@
 import { createSignal } from "solid-js"
 import { apiFetch, setToken, setUnauthorizedHandler } from "../lib/api"
+import { write } from "../lib/api-base"
 import { clearFileToken } from "../lib/file-token"
+import { hosted, setProfile } from "./hosted"
 
 /*
  * The session, as the client sees it (architecture section 10). A cached flag in
@@ -120,11 +122,18 @@ setUnauthorizedHandler(() => {
   if (state().status === "signed-in") void signedOut()
 })
 
+/*
+ * Signing out, from any button or command. It drops this person's token, snapshot, warm tier and
+ * profile. A hosted build also ends the Clerk session. `kiko:backend` stays, so the next sign-in
+ * goes straight back to the same backend.
+ */
 export async function signOut(): Promise<void> {
   try {
     localStorage.removeItem("kiko:snap")
   } catch {}
+  setProfile(null)
   await signedOut()
+  if (hosted) await import("./clerk").then((m) => m.clerkSignOut()).catch(() => {})
 }
 
 async function adopt(res: Response | null, failure: string): Promise<void> {
@@ -156,4 +165,28 @@ export async function signInAsDev(name = "dev"): Promise<void> {
     body: JSON.stringify({ name }),
   })
   await adopt(res, "dev sign-in failed")
+}
+
+/**
+ * Hosted sign-in, after Clerk has a session. Trades the Clerk token for the backend's own. Returns
+ * "connect" when this person has no backend yet, and "none" when Clerk holds no session.
+ */
+export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
+  const { clerkSignIn } = await import("./clerk")
+  const found = await clerkSignIn()
+  if (!found) return "none"
+  setProfile(found.profile)
+  if (!found.backendUrl) return "connect"
+  write("kiko:backend", found.backendUrl)
+  const res = await apiFetch("/api/auth/clerk", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token: found.token }),
+  }).catch(() => null)
+  if (res && !res.ok) {
+    const { message } = (await res.json().catch(() => ({}))) as { message?: string }
+    throw new Error(message ?? "Could not sign in. Try again")
+  }
+  await adopt(res, "Could not reach your backend. Try again")
+  return "in"
 }

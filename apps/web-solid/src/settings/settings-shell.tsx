@@ -1,10 +1,9 @@
 import type { JSX } from "solid-js"
 import { Dynamic } from "solid-js/web"
-import { session, signOut } from "../app/session"
-import { IdentityAvatar } from "../lib/IdentityAvatar"
 import Appearance from "../theme/appearance"
 import Initiative from "./initiative"
-import { Button, Group, Item, Page } from "./kit"
+import { Account } from "./account"
+import { Page } from "./kit"
 import { ModelsPage } from "./models"
 import { SETTINGS_SECTIONS } from "./sections"
 import Tools from "./tools"
@@ -16,29 +15,10 @@ import Tools from "./tools"
  */
 
 function General() {
-  const user = () => {
-    const s = session()
-    return s.status === "signed-in" ? s.user : null
-  }
-  return (
-    <div class="flex flex-col gap-8" data-component="account">
-      <Initiative />
-      <Group title="Account">
-        <Item
-          icon={<IdentityAvatar seed={user()?.id ?? "you"} size={24} />}
-          title={user()?.name ?? "You"}
-          actions={
-            <Button data-action="sign-out" onClick={() => void signOut()}>
-              Sign out
-            </Button>
-          }
-        />
-      </Group>
-    </div>
-  )
+  return <Initiative />
 }
 
-const COMPONENTS: Record<string, () => JSX.Element> = { models: ModelsPage, tools: Tools, appearance: Appearance, general: General }
+const COMPONENTS: Record<string, () => JSX.Element> = { models: ModelsPage, tools: Tools, appearance: Appearance, general: General, account: Account }
 
 export function SettingsShell(props: { sectionId: string }) {
   const meta = () => SETTINGS_SECTIONS.find((s) => s.id === props.sectionId)
