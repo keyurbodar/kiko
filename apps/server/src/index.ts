@@ -1,5 +1,6 @@
 import type { AgentDO } from "./agent/agent-do"
 import { devResponse } from "./lib/dev-guard"
+import { BACKEND } from "./lib/version"
 import { type AuthEnv, authRoute, getSessionUser } from "./auth/auth"
 import { userStub } from "./lib/names"
 import { downloadRoute } from "./files/download"
@@ -34,6 +35,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     if (url.pathname === "/api/health") return Response.json({ ok: true })
+    if (url.pathname === "/api/version") return Response.json(BACKEND)
     const routed = await route(request, env)
     if (routed) return routed
     const credentials = await credentialsRoute(request, env)
