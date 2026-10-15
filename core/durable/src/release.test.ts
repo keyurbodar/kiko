@@ -1,5 +1,6 @@
-import { describe, expect, test } from "bun:test"
-import { verifyRelease } from "./release"
+import { beforeAll, describe, expect, test } from "bun:test"
+import { sha256Hex } from "./hash"
+import { parseManifest, verifyModuleHash, verifyRelease } from "./release"
 
 const enc = new TextEncoder()
 const toB64 = (bytes: ArrayBuffer | Uint8Array) => Buffer.from(bytes as ArrayBuffer).toString("base64")
@@ -47,5 +48,37 @@ describe("verifyRelease", () => {
     const sig = await crypto.subtle.sign({ name: "Ed25519" }, privateKey, manifest)
     expect(toB64Url(Buffer.from(x, "base64url"))).toBe(x)
     expect(await verifyRelease(manifest, toB64(sig), x)).toBe(true)
+  })
+})
+
+describe("module hashes", () => {
+  const bytes = enc.encode("export default {}")
+  let sha = ""
+  beforeAll(async () => {
+    sha = await sha256Hex(bytes)
+  })
+
+  test("accepts the bytes the manifest hashed", async () => {
+    expect(await verifyModuleHash({ name: "index.js", type: "application/javascript+module", sha256: sha }, bytes)).toBe(true)
+  })
+
+  test("rejects a module edited after the manifest was signed", async () => {
+    const tampered = enc.encode("export default { evil: 1 }")
+    expect(await verifyModuleHash({ name: "index.js", type: "application/javascript+module", sha256: sha }, tampered)).toBe(false)
+  })
+
+  test("parseManifest needs the main module in the module list", () => {
+    const base = {
+      version: "1",
+      protocol: 1,
+      main_module: "index.js",
+      compatibility_date: "2026-09-01",
+      compatibility_flags: [],
+      migrations: [],
+      modules: [{ name: "index.js", type: "application/javascript+module", sha256: sha }],
+    }
+    expect(parseManifest(enc.encode(JSON.stringify(base)))?.version).toBe("1")
+    expect(parseManifest(enc.encode(JSON.stringify({ ...base, main_module: "other.js" })))).toBeNull()
+    expect(parseManifest(enc.encode("nope"))).toBeNull()
   })
 })

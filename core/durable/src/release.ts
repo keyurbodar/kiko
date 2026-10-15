@@ -2,6 +2,8 @@
 // machine that built the release. The installer and the update path check the signature with the
 // public key `x` (base64url, the JWK form) before they trust any module the manifest names.
 
+import { sha256Hex } from "./hash"
+
 const ALGORITHM = { name: "Ed25519" } as const
 
 function fromBase64Url(text: string): Uint8Array | null {
@@ -47,4 +49,41 @@ export async function verifyRelease(manifestBytes: Uint8Array, sigB64: string, p
   } catch {
     return false
   }
+}
+
+export type ReleaseModule = { name: string; type: string; sha256: string }
+export type ReleaseMigration = { tag: string; new_sqlite_classes?: string[]; deleted_classes?: string[] }
+export type ReleaseManifest = {
+  version: string
+  protocol: number
+  main_module: string
+  compatibility_date: string
+  compatibility_flags: string[]
+  migrations: ReleaseMigration[]
+  modules: ReleaseModule[]
+}
+
+// Parses manifest bytes that already passed verifyRelease. Returns null when the shape is wrong.
+export function parseManifest(manifestBytes: Uint8Array): ReleaseManifest | null {
+  try {
+    const m = JSON.parse(new TextDecoder().decode(manifestBytes)) as Partial<ReleaseManifest>
+    const ok =
+      typeof m.version === "string" &&
+      typeof m.protocol === "number" &&
+      typeof m.main_module === "string" &&
+      typeof m.compatibility_date === "string" &&
+      Array.isArray(m.compatibility_flags) &&
+      Array.isArray(m.migrations) &&
+      Array.isArray(m.modules) &&
+      m.modules.every((x) => x && typeof x.name === "string" && typeof x.type === "string" && typeof x.sha256 === "string") &&
+      m.modules.some((x) => x.name === m.main_module)
+    return ok ? (m as ReleaseManifest) : null
+  } catch {
+    return null
+  }
+}
+
+// True when the bytes hash to the module's recorded sha256.
+export async function verifyModuleHash(module: ReleaseModule, bytes: Uint8Array): Promise<boolean> {
+  return (await sha256Hex(bytes)) === module.sha256.toLowerCase()
 }
