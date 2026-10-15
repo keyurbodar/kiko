@@ -65,7 +65,7 @@ browser (SolidJS)
   |  WebSocket /api/ws/room/:id     one per visible chat
   v
 Worker "kiko" (stateless)
-  |- access code and session cookie (HMAC, signed with SESSION_SECRET)
+  |- access code and bearer tokens (HMAC, signed with SESSION_SECRET)
   |- uploads, downloads -> R2
   v
 UserDO   user:owner                       credentials, life log, reminders, chat index, skills
@@ -75,7 +75,7 @@ AgentDO  agent:owner:<roomId>:<slug>      pi-durable harness, inbox, private not
 
 **Decision.** One Worker, one origin. The client, the API, and the WebSockets share a hostname.
 
-**Reasoning.** Same-origin requests need no CORS preflight and the session cookie works without cross-site settings. Workers Static Assets serves the client for free and without a Worker invocation. One deploy unit is the simplest thing that works.
+**Reasoning.** Same-origin requests need no CORS preflight. The client can also run on another origin (hosted kiko): the Worker answers CORS for `TRUSTED_ORIGINS` only, and auth is a bearer token, so no cookie settings matter. Workers Static Assets serves the client for free and without a Worker invocation. One deploy unit is the simplest thing that works.
 
 ## 4. Durable Object layout and naming
 
@@ -99,7 +99,7 @@ room:<userId>:<roomId>
 agent:<userId>:<roomId>:<slug>
 ```
 
-- `userId` is the owner id from the session cookie. In production it is the constant `owner` (`PRODUCTION_OWNER`), never a value from the request body. A dev session can name another owner, so each verify suite has its own data.
+- `userId` is the owner id from the session token. In production it is the constant `owner` (`PRODUCTION_OWNER`), never a value from the request body. A dev session can name another owner, so each verify suite has its own data.
 - `roomId` is a lowercase UUIDv7 that the client generates with the `uuid` package, so a new chat exists locally before the server hears of it. Rooms made before UUIDv7 keep their ULID, and `isRoomId` accepts both. Only lowercase is accepted, so one room never gets two object names.
 - `slug` is the agent's name in the room, lowercase, matching `^[a-z0-9-]{1,32}$`. The team id in the spec's `"<teamId>:ada"` example is the `roomId`.
 
@@ -495,9 +495,9 @@ The client holds one WebSocket to `UserDO` and one to the `RoomDO` of the visibl
 
 **Reasoning.** A direct socket to the room avoids a relay hop on the hot path. A relay through `UserDO` would cost one billed request per forwarded event. A hibernated socket costs nothing, so an always-on user socket is free while idle. Intent-based preloading may open the socket of the chat under the pointer and close it if the user does not navigate.
 
-The Worker authenticates the upgrade request with the session cookie, builds the Durable Object name from the session's user id, and forwards the upgrade. A client cannot name a Durable Object.
+The Worker authenticates the upgrade request with the bearer token, builds the Durable Object name from the session's user id, and forwards the upgrade. A client cannot name a Durable Object.
 
-The upgrade is one hop. The session check reads only the signed cookie, so the Worker makes no storage call to check it, and it forwards the upgrade straight to the room.
+The upgrade is one hop. A browser cannot set `Authorization` on a socket, so it opens `new WebSocket(url, ["kiko", token])` and the Worker reads the token from `Sec-WebSocket-Protocol`. The 101 echoes `kiko`; a browser closes the socket without it. The check reads only the signed token, so the Worker makes no storage call to check it, and it forwards the upgrade straight to the room.
 
 A socket can die without a close event, after a laptop sleeps or the network changes, and the chat would sit stale. The client sends a bare `ping` after 25 seconds of silence, and at once when the tab returns or the network comes back. Both objects answer `pong` with `setWebSocketAutoResponse`, which never wakes them. Any frame counts as life. A socket silent for 8 seconds after a ping is dropped and reconnected at once.
 
@@ -632,13 +632,13 @@ Stored system events now survive the client snapshot, event, disk, and history p
 
 **Decision.** One Worker serves one owner. Sign-in is an access code. There is no account store.
 
-- `POST /api/auth/access-code` with the code checks it against the `ACCESS_CODE` secret, and on a match sets a session cookie for the owner `owner`. The cookie is an HMAC signed with `SESSION_SECRET`. `POST /api/auth/sign-out` clears it.
+- `POST /api/auth/access-code` with the code checks it against the `ACCESS_CODE` secret, and on a match returns `{ user, token }` for the owner `owner`. The token is `owner.session.expiry.mac`, an HMAC signed with `SESSION_SECRET`, valid for 30 days. The client keeps it in localStorage and sends `Authorization: Bearer`. Signing out clears it on that device. A 401 clears it too.
 - A wrong code answers 401 after the same hash-and-compare work as a right one. Without the `ACCESS_CODE` secret the route answers 404.
 - A hosted backend also has `POST /api/auth/clerk` with `{ token }`. The token is a Clerk session JWT. The Worker verifies it offline with WebCrypto against the PEM in the `CLERK_JWT_KEY` secret (RS256, `exp` and `nbf` with 5 seconds of skew, `azp` in `TRUSTED_ORIGINS` when present) and requires `sub` to equal the `OWNER_ID` secret. It then answers exactly like the access-code route, with the constant owner `owner`. A bad token is 401, another user is 403, and without both secrets the route answers 404. It makes no network call. `apps/server/src/auth/clerk.ts`.
-- The Worker checks the cookie on each request. It reads no storage to do so.
-- The dev-only route `/api/auth/dev/session?name=<name>` mints a session for a named dev owner. `dev-guard` loads it only in a development build, and it refuses any host that is not local. Each verify suite uses its own name. `apps/server/src/lib/dev-guard.ts` is the only module that reads `NODE_ENV`, and `scripts/check-rules.ts` enforces that.
+- The Worker checks the bearer on each request. It reads no storage to do so. An image or link cannot send a header, so the user socket's hello reply carries a read-only file token (`owner.files.expiry.mac`, about an hour, same value for ten minutes). The client appends it as `?t=`, and only the download route accepts it. The client fetches a new one from `GET /api/files/token` ten minutes before it expires.
+- The dev-only route `/api/auth/dev/session?name=<name>` returns a token for a named dev owner. A GET redirects to `/#token=...` for a browser. `dev-guard` loads it only in a development build, and it refuses any host that is not local. Each verify suite uses its own name. `apps/server/src/lib/dev-guard.ts` is the only module that reads `NODE_ENV`, and `scripts/check-rules.ts` enforces that.
 
-**Reasoning.** Kiko has one user. A sign-in provider, an account table, and its migrations would only add moving parts. The access code keeps the app private, and the signed cookie needs no lookup. A second owner means a second deployment.
+**Reasoning.** Kiko has one user. A sign-in provider, an account table, and its migrations would only add moving parts. The access code keeps the app private, and the signed token needs no lookup. A second owner means a second deployment.
 
 ## 11. Provider credentials
 
@@ -1057,7 +1057,7 @@ DEVIATION: the `Storage` contract says a seq is strictly increasing per commit. 
 - The client paints from IndexedDB and applies every action locally, so no interaction waits on the network.
 - A Durable Object is created near the user who first reaches it. The room socket goes straight to the room.
 - A turn makes two hops between Durable Objects before the model call, room to agent and agent to user object. Each hop stays inside Cloudflare's network.
-- The session check reads a signed cookie, not D1.
+- The session check reads a signed token, not D1.
 - The debounce adds 1.5 seconds before the model starts. That delay is the product behavior the spec asks for. The typing indicator shows during it.
 
 ### 17.7 Caps that remain
@@ -1078,7 +1078,7 @@ Kiko has no per-user limits record and no daily run budget. The caps are the hop
   - **Upload at pick time.** The composer uploads each file the moment it is picked, as a pending upload: `PUT /api/files/<room>/pending/<id>?name=&size=` with the raw bytes, or the parts routes for a file over 32 MB (`files/pending.ts`). The client picks the id, a UUID, so a retry, a cancel, and the send all name the same upload. The Worker checks that `Content-Length` equals the declared size ("Content-Length must match the upload size.", or "Body was N bytes, expected M." when the body comes short), the per-type limit, and the user's storage, then asks the room to record the id (`RoomDO.pendingOpen`), streams the bytes to R2 at `u/<user>/r/<room>/<id>`, and marks the row ready with its SHA-256. The row lives in `pending_uploads` (`room/pending.ts`), not in `ws_files`: the Files tab, the snapshot, and the agents see nothing, and no event is stored. An id the chat's files already use is refused, so an upload never writes over a sent file. `DELETE /api/files/<room>/pending/<id>` deletes a pending upload and its bytes; it answers 404 for any other id, a sent file's included.
   - **Claim at send.** The `send` frame names its uploads (`attachments: { pendingId, name, type, size }[]`). `RoomDO.humanSend` checks the limits (100 files, pictures 80 MB together), refuses a repeated id, checks each row exists, is ready, and has the claimed size and type, and then, in one SQLite transaction with the message, moves each row into `ws_files` at `attachments/<time36>-<name>` (the next free time when two collide) and stores the message with the `FileRef`s. A refusal stores nothing and answers the socket with `send_refused` and t3code's words, such as "Attachment 'plan.pdf' cannot be sent: attachment not found (removed or expired)." A resent `clientId` gets the first ack and claims nothing again.
   - **Sweep.** A pending row nobody sent within 24 hours is deleted with its object by the room's `pending_sweep` wakeup (`core/durable/src/alarm.ts`), objects first so a failed delete leaves the row for the next sweep. The wakeup always points at the oldest row's expiry. Account deletion lists pending objects with the rest (`RoomDO.inventory`).
-  - DEVIATION from t3code: the upload carries the session cookie, not a signed upload URL. It is same-origin and the cookie already names the user, so a token would cost a round trip and prove nothing more. The R2 key is still built from the session's user id only.
+  - DEVIATION from t3code: the upload carries the bearer token in `Authorization`, not a signed upload URL. The token already names the user, so a per-upload URL would cost a round trip and prove nothing more. The R2 key is still built from the session's user id only.
   - DEVIATION from t3code: a claim does not copy bytes. The object is written at the key the file keeps, and the claim only moves the row from `pending_uploads` to `ws_files`. R2 has no rename, and a copy of a 50 MB file inside a socket frame would be slow; t3code copies so a failed turn can retry from the pending file, and kiko's retry is the resent `clientId`, which is already idempotent.
   - The agent's envelope lists each one with `attachedLine` (`room/deliver.ts`), and `read` opens it. Agents send no files on messages: an agent names a path in its text. DEVIATION (2026-10-09): the old media system is removed. There are no stills, no thumbhash, no dimensions, no attachment job, no media catalog, and no `send_message` files. The owner chose t3code's simpler model, where a message carries its attachments and the assistant sends none. Stills already in R2 at `<key>/thumb` are no longer served; account deletion removes them with the rest of the user's prefix.
 - The client follows t3code too. DEVIATION (2026-10-09) from the album, document rows, and media viewer this section used to describe:

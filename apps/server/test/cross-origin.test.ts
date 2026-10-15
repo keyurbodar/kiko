@@ -166,6 +166,15 @@ describe("file token", () => {
     expect(left).toBeLessThanOrEqual(60 * 60)
   })
 
+  test("the token route gives a fresh file token to the bearer and to nobody else", async () => {
+    expect((await fetch(`${origin}/api/files/token`)).status).toBe(401)
+    expect((await fetch(`${origin}/api/files/token?t=${await signToken(SECRET, "owner", "files")}`)).status).toBe(401)
+    const res = await fetch(`${origin}/api/files/token`, { headers: { ...bearer(), origin: PAGE } })
+    expect(res.status).toBe(200)
+    const { fileToken } = (await res.json()) as { fileToken: string }
+    expect((await fetch(`${origin}/api/files/home/missing?t=${fileToken}`)).status).toBe(404)
+  })
+
   test("a session token is not a file token", async () => {
     expect((await fetch(`${origin}/api/files/home/missing?t=${token}`)).status).toBe(401)
   })

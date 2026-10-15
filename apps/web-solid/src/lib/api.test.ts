@@ -33,10 +33,11 @@ test("a stored backend is the base for requests, sockets, and file links", async
   store.set("kiko:backend", "https://kiko.sub.workers.dev/")
   const api = await import("./api")
   const { fileUrl, setFileToken } = await import("./file-token")
-  setFileToken("tok")
+  const tok = `owner.files.${Math.floor(Date.now() / 1000) + 3600}.aa`
+  setFileToken(tok)
   expect(api.apiUrl("/api/me")).toBe("https://kiko.sub.workers.dev/api/me")
   expect(api.socketUrl("/api/ws/user")).toBe("wss://kiko.sub.workers.dev/api/ws/user")
-  expect(fileUrl("/api/files/home/a")).toBe("https://kiko.sub.workers.dev/api/files/home/a?t=tok")
+  expect(fileUrl("/api/files/home/a")).toBe(`https://kiko.sub.workers.dev/api/files/home/a?t=${tok}`)
 })
 
 test("a request carries the bearer token, and a socket offers it as a subprotocol", async () => {
@@ -59,4 +60,19 @@ test("a 401 clears the token and tells the session", async () => {
   expect(store.has("kiko:token")).toBe(false)
   expect(told).toBe(1)
   expect(api.socketProtocols()).toEqual(["kiko"])
+})
+
+test("a file token near its expiry is replaced before it fails", async () => {
+  const { setFileToken, fileToken, clearFileToken } = await import("./file-token")
+  const exp = (ms: number) => `owner.files.${Math.floor((Date.now() + ms) / 1000)}.aa`
+  const fresh = exp(55 * 60 * 1000)
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    sent.push({ url, headers: new Headers(init.headers) })
+    return new Response(JSON.stringify({ fileToken: fresh }))
+  }) as unknown as typeof fetch
+  setFileToken(exp(5 * 60 * 1000))
+  await new Promise((r) => setTimeout(r, 20))
+  expect(sent[0]?.url).toBe("/api/files/token")
+  expect(fileToken()).toBe(fresh)
+  clearFileToken()
 })
