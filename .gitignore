@@ -25,3 +25,6 @@ artifacts/
 wrangler.log
 vite.log
 apps/landing/.astro/
+
+# Signed release output from scripts/release.ts.
+dist-release/
