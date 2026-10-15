@@ -1,4 +1,5 @@
 import type { RoomId } from "./ids"
+import type { Trigger } from "./routines"
 
 /** A recipe's tile color. The client maps each to a light and a dark pair. */
 export type RecipeTone = "amber" | "violet" | "green" | "teal" | "pink" | "blue" | "red" | "orange" | "slate"
@@ -20,7 +21,9 @@ export type RecipeCard = {
 }
 
 /** A recipe added to one agent in one chat. */
-export type RecipeInstall = { installId: string; slug: string; roomId: RoomId; agent: string; at: number }
+export type RecipeRoutine = { id: string; name: string; trigger: Trigger; tz: string; status: "active" | "paused"; dueUtc: number }
+
+export type RecipeInstall = { installId: string; slug: string; roomId: RoomId; agent: string; at: number; routines?: readonly RecipeRoutine[] }
 
 /** `own` gives the recipe a new agent with its own chat. */
 export type InstallRecipe = { installId: string; slug: string } & ({ roomId: RoomId; agent: string } | { own: true })

@@ -47,6 +47,10 @@ const suite: Suite = {
     if (differentId.install.installId !== install.installId || (await mine()).length !== 1) throw new VerifyError("a new id duplicated the same recipe, chat, and agent")
     const listed = await ok<{ installs: RecipeInstall[] }>(url, s, "recipes")
     if (listed.installs.filter((i) => i.slug === "morning-briefing").length !== 1) throw new VerifyError(`expected one listed install, got ${JSON.stringify(listed.installs)}`)
+    if (listed.installs.find((i) => i.installId === install.installId)?.routines?.[0]?.id !== routine.id) throw new VerifyError("the install did not expose its linked routine")
+    await ok(url, s, `routines/${routine.id}`, { status: "paused" })
+    if ((await ok<RecipeList>(url, s, "recipes")).installs.find((i) => i.installId === install.installId)?.routines?.[0]?.status !== "paused") throw new VerifyError("recipe details did not reflect a paused routine")
+    await ok(url, s, `routines/${routine.id}`, { status: "active" })
     console.log("  ok a retry with the same install id changed nothing")
 
     const stranger = await api<{ error: string }>(url, s, "recipes", { installId: crypto.randomUUID(), slug: "morning-briefing", roomId, agent: "nobody-here" })

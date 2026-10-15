@@ -50,7 +50,14 @@ export class RecipeService {
   async list(): Promise<{ cards: Recipe[]; installs: RecipeInstall[]; broken: string[] }> {
     await this.reconcile()
     const { recipes, broken } = await this.p.library.read()
-    return { cards: recipes, installs: listInstalls(this.p.sql), broken }
+    const links = this.p.sql.exec<{ install_id: string; routine_id: string }>("SELECT install_id, routine_id FROM recipe_routines").toArray()
+    const installs = listInstalls(this.p.sql).map((install) => ({ ...install, routines: links.filter((link) => link.install_id === install.installId).flatMap((link) => {
+      const r = this.p.routine(link.routine_id)
+      if (!r?.trigger || (r.status !== "active" && r.status !== "paused")) return []
+      const trigger = r.trigger.on === "time" ? { ...r.trigger, at: new Date(r.dueUtc).toISOString() } : r.trigger
+      return [{ id: r.id, name: r.name ?? "Routine", trigger, tz: r.tz, status: r.status, dueUtc: r.dueUtc }]
+    }) }))
+    return { cards: recipes, installs, broken }
   }
 
   /** Adds a recipe to one agent in one chat. The same recipe, agent, and chat is one install: a second add returns the first. */

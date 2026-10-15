@@ -1,13 +1,13 @@
-import { KIKO, type RecipeCard, type RecipeInstall, type RoomId } from "@kiko/protocol"
+import { KIKO, type RecipeCard, type RecipeInstall, type RecipeRoutine, type RoomId } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
 import { openFile } from "../chat/side/surfaces"
 import { useApp } from "../lib/store"
 import { installedSlugs } from "./model"
-import { cardsOf, fetchListing, loadListing, type Listing, postInstall, deleteInstall, cacheListing } from "./api"
+import { cardsOf, fetchListing, loadListing, type Listing, postInstall, deleteInstall, cacheListing, updateRecipeRoutine } from "./api"
 
 /*
- * The recipes the user has added, and the requests in flight. An add marks its card Added and
+ * The recipes the user has added, and the requests in flight. An add shows its agent chip and
  * takes the user to the chat before the server answers. A refused add takes the mark back and says why.
  */
 
@@ -46,16 +46,32 @@ export function openRecipeFile(slug: string, navigate: (to: string) => void): vo
 
 export type RecipeTarget = { roomId: RoomId; agent: string; name: string }
 
-export function targetFor(roomId?: string | null): RecipeTarget | undefined {
-  const id = roomId ?? useApp.kikoChatId()
-  if (!id) return
-  const lead = roomId ? useApp.roomMembers().find((m) => m.lead) : undefined
-  return { roomId: id as RoomId, agent: lead?.slug ?? KIKO, name: lead?.name ?? "Kiko" }
+export function targetsForChat(roomId: string): RecipeTarget[] {
+  if (useApp.room()?.state.roomId === roomId && useApp.roomMembers().length) return useApp.roomMembers().map((m) => ({ roomId: roomId as RoomId, agent: m.slug, name: m.name }))
+  const chat = useApp.user()?.chats().find((c) => c.roomId === roomId)
+  if (!chat) return []
+  const agents = useApp.agents()
+  const slugs = (chat.agents?.length ? chat.agents : [KIKO]).map((id) => agents.find((a) => a.id === id)?.slug ?? id)
+  if (slugs.length > 1 && !slugs.includes(KIKO)) slugs.unshift(KIKO)
+  return [...new Set(slugs)].map((agent) => ({ roomId: roomId as RoomId, agent, name: agentName(agent) }))
 }
 
 export const installsFor = (slug: string): readonly RecipeInstall[] => listing().installs.filter((i) => i.slug === slug)
+export const routinesFor = (slug: string): readonly RecipeRoutine[] => installsFor(slug).flatMap((i) => i.routines ?? [])
 export const agentName = (slug: string): string => slug === KIKO ? "Kiko" : useApp.agents().find((a) => a.slug === slug)?.name ?? slug
 export const isAdded = (slug: string, target?: RecipeTarget): boolean => !!target && installedSlugs(listing().installs, target).has(slug)
+
+export function setRecipeRoutineStatus(routine: RecipeRoutine, status: RecipeRoutine["status"]): void {
+  const put = (value: RecipeRoutine["status"]) => changeInstalls((all) => all.map((i) => ({ ...i, routines: i.routines?.map((r) => r.id === routine.id ? { ...r, status: value } : r) })))
+  mutations++
+  put(status)
+  void updateRecipeRoutine(routine.id, status).then((ok) => {
+    mutations--
+    if (ok) return
+    put(routine.status)
+    showToastV2({ title: "Could not update routine", variant: "error" })
+  })
+}
 
 function changeInstalls(update: (installs: readonly RecipeInstall[]) => readonly RecipeInstall[]): void {
   revision++

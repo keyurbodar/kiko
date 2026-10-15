@@ -112,6 +112,20 @@ test("its own chat inherits Kiko's selected model", async () => {
   expect(f.inherited()).toBe("provider/chosen-model")
 })
 
+test("listing exposes only each install's linked routines with their live schedule and status", async () => {
+  const f = setup()
+  await f.add()
+  await f.add("ada")
+  const ada = f.reminders.list().find((r) => r.target === "ada")!
+  await f.reminders.updateRoutine(ada.id, { status: "paused", trigger: { on: "time", at: "2026-10-16T09:30:00Z", rrule: "FREQ=DAILY" } })
+  await f.reminders.createRoutine("owner", { name: ada.name!, instructions: "unrelated routine", trigger: { on: "time", at: "2026-10-16T10:00:00Z", rrule: "FREQ=DAILY" }, tz: "UTC", roomId, target: "ada", createdBy: "human" })
+  const listed = (await f.service.list()).installs
+  expect(listed.find((i) => i.agent === "ada")?.routines).toEqual([{ id: ada.id, name: ada.name!, trigger: { on: "time", at: new Date(f.reminders.get(ada.id)!.dueUtc).toISOString(), rrule: "FREQ=DAILY" }, status: "paused", tz: "UTC", dueUtc: f.reminders.get(ada.id)!.dueUtc }])
+  expect(listed.find((i) => i.agent === "yuki")?.routines).toHaveLength(1)
+  expect(listed.find((i) => i.agent === "yuki")?.routines?.[0]?.status).toBe("active")
+  expect(listed.find((i) => i.agent === "yuki")?.routines?.[0]?.id).not.toBe(ada.id)
+})
+
 test("deleted chats lose their installs and routines without affecting other chats", async () => {
   const f = setup()
   await f.add()

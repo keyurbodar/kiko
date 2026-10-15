@@ -56,6 +56,11 @@ export async function deleteInstall(id: string): Promise<{ ok: true } | { ok: fa
   return { ok: false, error: "Kiko could not remove it. Try again." }
 }
 
+export async function updateRecipeRoutine(id: string, status: "active" | "paused"): Promise<boolean> {
+  const res = await fetch(`/api/routines/${encodeURIComponent(id)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) }).catch(() => null)
+  return res?.ok ?? false
+}
+
 /** Adds a recipe. A retry with the same `installId` is safe: the server answers with the same install. */
 export async function postInstall(body: InstallRecipe): Promise<InstallResult> {
   const res = await fetch("/api/recipes", {
