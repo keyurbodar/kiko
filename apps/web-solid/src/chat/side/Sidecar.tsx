@@ -1,6 +1,6 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Bot, Brain, CircleCheck, FileText, FolderOpen, ListChecks, PanelRightClose, Plus, Repeat, X, type LucideProps } from "lucide-solid"
+import { Bot, Brain, CircleCheck, FileText, FolderOpen, ListChecks, Plus, Repeat, X, type LucideProps } from "lucide-solid"
 import { type Component, createEffect, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
 import { EntryIcon } from "../../files/entry-icon"
 import { FileSurface, FilesTree } from "../../files/pane"
@@ -16,7 +16,6 @@ import {
   activeSurface,
   closeAll,
   closeOthers,
-  closeSidecar,
   closeSurface,
   closeToRight,
   fixedSurface,
@@ -326,11 +325,6 @@ export default function Sidecar(props: { chatId: string }) {
             </MenuV2.Portal>
           </MenuV2>
         </div>
-        <TooltipV2 placement="bottom" openDelay={400} value="Close sidecar">
-          <button type="button" class={ICON_BUTTON} aria-label="Close sidecar" data-action="close-sidecar" onClick={() => closeSidecar(props.chatId)}>
-            <PanelRightClose size={14} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        </TooltipV2>
       </header>
       <Show when={active()} keyed fallback={<Launcher chatId={props.chatId} />}>
         {(surface) => <SurfaceBody chatId={props.chatId} surface={surface} />}

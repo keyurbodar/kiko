@@ -35,7 +35,14 @@ export function ModelPicker(props: { current?: string; onPick: (ref: string) => 
     const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
     return catalog()?.providers.filter((p) => ids.has(p.id)) ?? []
   })
-  const [rail, setRail] = createSignal<string>(FAVORITES)
+  const [picked, setRail] = createSignal<string | null>(null)
+  /** Favorites when there are any, else the current model's provider, until the human picks a tab. */
+  const rail = () => {
+    if (picked()) return picked()!
+    if (favoriteModels().length) return FAVORITES
+    const current = props.current?.split("/")[0]
+    return providers().find((p) => p.id === current)?.id ?? providers()[0]?.id ?? FAVORITES
+  }
   const [query, setQuery] = createSignal("")
   const [at, setAt] = createSignal(0)
   const [place, setPlace] = createSignal<JSX.CSSProperties>({})
@@ -69,8 +76,7 @@ export function ModelPicker(props: { current?: string; onPick: (ref: string) => 
         const r = (trigger.closest(".composer-form") ?? trigger).getBoundingClientRect()
         setPlace({ left: `${Math.max(8, Math.min(r.left + 18, window.innerWidth - 428))}px`, bottom: `${window.innerHeight - r.top + 8}px` })
         setQuery("")
-        const currentProvider = props.current?.split("/")[0]
-        setRail(favoriteModels().length ? FAVORITES : (currentProvider ?? providers()[0]?.id ?? FAVORITES))
+        setRail(null)
         setAt(0)
       },
     ),

@@ -115,9 +115,11 @@ export function Shell(props: ParentProps) {
     onCleanup(() => narrowQuery?.removeEventListener("change", on));
   });
   createEffect(() => {
-    if (!(narrow() && drawer())) return;
+    if (!(narrow() && drawer()) && !overlaidSide()) return;
     const on = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) setDrawer(false);
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (overlaidSide()) closeSide();
+      else setDrawer(false);
     };
     window.addEventListener("keydown", on);
     onCleanup(() => window.removeEventListener("keydown", on));

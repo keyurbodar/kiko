@@ -168,9 +168,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             </div>
           </div>
         </div>
-        <Show when={props.tray}>
-          <div class="composer-tray">{props.tray}</div>
-        </Show>
+        <div class="composer-tray">{props.tray}</div>
       </form>
     </div>
   )

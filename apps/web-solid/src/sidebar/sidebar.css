@@ -191,6 +191,8 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
+  background: var(--background);
+  box-shadow: inset 1px 0 0 var(--border);
 }
 
 .sidebar-shell .chat-search {
@@ -718,12 +720,6 @@
   margin: 0;
 }
 
-.sidebar-shell .main-panel {
-  background: var(--background);
-  border-radius: 0;
-  box-shadow: inset 1px 0 0 var(--border), inset 0 1px 0 var(--border);
-}
-
 .sidebar-shell [data-component="sidecar"] {
   background: var(--background);
   box-shadow: inset 1px 0 0 var(--border);
@@ -754,9 +750,5 @@
 @media (width < 768px) {
   .sidebar-shell .main-row {
     margin: 0;
-  }
-
-  .sidebar-shell .main-panel {
-    border-radius: 0;
   }
 }
