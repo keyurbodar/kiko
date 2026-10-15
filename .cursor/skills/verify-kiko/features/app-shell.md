@@ -56,4 +56,4 @@ Preconditions:
 - **`page.snapshot()` captures the current viewport only.** The transcript is virtualized and the shell is one screen tall, so `scope: "full_page"` adds nothing. Leave it off.
 - **The dev server hot-reloads.** If an edit lands mid-run the page reloads under you; re-`goto` and re-snapshot rather than reading a stale snapshot as evidence.
 - **`page.evaluate` has no timeout.** Keep each call bounded: one `evaluate` per assertion, not a loop that waits inside the page.
-- **The app talks to the dev Worker.** `/api/auth/dev/session` mints a real owner session and `/` renders that owner's rooms over the wire, so a missing backend shows as an empty shell rather than fixture content. For a backend-free run, `VITE_KIKO_SYNC=mock` swaps in `sync/mock-room.ts`.
+- **The app talks to the dev Worker.** `/api/auth/dev/session` returns a real owner token and `/` renders that owner's rooms over the wire, so a missing backend shows as an empty shell rather than fixture content. For a backend-free run, `VITE_KIKO_SYNC=mock` swaps in `sync/mock-room.ts`.

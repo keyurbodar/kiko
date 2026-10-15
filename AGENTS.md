@@ -63,7 +63,7 @@ Wrangler signs in and stores the session with `wrangler login`. Use `localhost`,
 
 Several sessions run dev servers at once. Never `pkill` or `killall` wrangler, workerd, or vite: it stops other sessions' servers mid-run. Start yours on a free port (`bun run --cwd apps/server dev --port <n>`, then `bun kiko verify <suite> --url http://localhost:<n>`) and stop only its PID.
 
-Dev-only sign-in: `/api/auth/dev/session?name=<name>` mints a session for a named dev owner. `dev-guard` loads it only in a development build, and it refuses any host that is not local. Each verify suite uses its own name, so its data stays apart.
+Dev-only sign-in: `/api/auth/dev/session?name=<name>` returns a bearer token for a named dev owner. A browser that opens it with GET lands on `/#token=...` and the dev client stores the token. Fetch it with POST or curl when the client runs on another origin. `dev-guard` loads it only in a development build, and it refuses any host that is not local. Each verify suite uses its own name, so its data stays apart.
 
 Dev keys live in `~/.config/kiko/dev.vars`. The directory keeps its old name, and so does `~/.config/kiko/cli-session.json`. Every worktree's `apps/server/.dev.vars` links to it; a git hook adds the link to a new worktree. Never ask the owner to paste a key. The CLI reads keys from the shell: `set -a; . apps/server/.dev.vars; set +a`.
 
@@ -129,7 +129,7 @@ apps/
     src/warm/           IndexedDB
     src/app/            shell, routes, rail, tab strip
   server/               the Worker
-    src/auth/           the access code, the session cookie, the dev-only session
+    src/auth/           the access code, the bearer tokens, the dev-only session
     src/user/           UserDO: credentials, memory, reminders
     src/room/           RoomDO: log, burst, delivery, workspace
     src/room/wake.ts    the wake path a routine or a nudge uses to start one agent run

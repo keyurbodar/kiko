@@ -36,7 +36,7 @@ bun kiko health --url http://localhost:8787
 ## Sign in
 
 ```bash
-export KIKO_SESSION_FILE=/tmp/kiko-session-$USER.json   # keeps sessions apart, outside the repo
+export KIKO_SESSION_FILE=/tmp/kiko-session-$USER.json   # holds the CLI bearer token per server, outside the repo
 bun kiko login --dev --name alice --url http://localhost:8787
 bun kiko whoami --url http://localhost:8787
 ```
@@ -152,3 +152,5 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `initiative`, `initiative-loops` | the `verify-initiative` skill |
 
 Themes (`apps/server/src/user/theme.ts`) have no suite; `apps/server/test/user.test.ts` covers sync across sockets, snapshots and refused text.
+
+- `bun kiko verify cross-origin` needs the Worker started with `--var TRUSTED_ORIGINS:https://app.example.test`. Without it the suite prints a skip note and passes.

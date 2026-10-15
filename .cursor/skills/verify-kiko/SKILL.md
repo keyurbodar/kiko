@@ -195,7 +195,7 @@ The script is evaluated on every new document, so it must be registered **before
 
 ### One entry point
 
-- **Composed app.** `http://localhost:<port>/`. What a user gets: sidebar, top bar, router, transcript and composer together. Signed in, `/` redirects to `/chat/<id>` (`src/app/routes.tsx`, `Resume`). Needs a session: open `/api/auth/dev/session?name=<suite>` once to mint a dev owner cookie, then `/`. The old fixture harness page and its `window.__chat` probes are gone; drive state the way a user does, through the UI.
+- **Composed app.** `http://localhost:<port>/`. What a user gets: sidebar, top bar, router, transcript and composer together. Signed in, `/` redirects to `/chat/<id>` (`src/app/routes.tsx`, `Resume`). Needs a session: open `/api/auth/dev/session?name=<suite>` once to mint a dev owner token (the redirect puts it in the hash and the app stores it), then `/`. The old fixture harness page and its `window.__chat` probes are gone; drive state the way a user does, through the UI.
 
 ```bash
 KIKO_PORT=3017

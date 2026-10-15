@@ -1,5 +1,5 @@
 
-import { getFileUser } from "../auth/auth"
+import { getFileUser, signToken } from "../auth/auth"
 import type { Env } from "../index"
 import type { SessionLookup } from "../router"
 import { error, fileKey, filesPath, isFileId, isSpace } from "./upload"
@@ -41,6 +41,10 @@ export async function downloadRoute(
 	fileLookup: SessionLookup = getFileUser,
 ): Promise<Response | null> {
 	if (request.method !== "GET" && request.method !== "HEAD") return null
+	if (new URL(request.url).pathname === "/api/files/token") {
+		const owner = await lookup(request, env)
+		return owner ? Response.json({ fileToken: await signToken(env.SESSION_SECRET, owner.id, "files") }) : error(401, "unauthorized")
+	}
 	const route = filesPath(new URL(request.url).pathname)
 	if (!route) return null
 	const user = (await lookup(request, env)) ?? (await fileLookup(request, env))
