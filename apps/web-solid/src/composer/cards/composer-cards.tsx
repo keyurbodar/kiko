@@ -33,7 +33,7 @@ function CardSummary(props: { card: ComposerCard; room: RoomStore }) {
 
 function CardBody(props: { card: ComposerCard; room: RoomStore }) {
   return <Show when={props.card.kind === "tasks"} fallback={<div class="composer-card-body"><p>{props.card.title}</p></div>}>
-    <div class="composer-card-body" style={{ "padding-left": "0" }}><TaskList tasks={taskProgress(props.room.tasks()).steps} members={props.room.members()} /></div>
+    <div class="composer-card-body composer-task-body"><TaskList tasks={taskProgress(props.room.tasks()).steps} members={props.room.members()} /></div>
   </Show>
 }
 
@@ -63,7 +63,7 @@ export function ComposerCards(props: { room: RoomStore; question: QuestionInput;
     </Show>
     <Show when={card().kind === "ask"} fallback={
     <Collapsible class="composer-card-surface" open={expanded() === card().id} onOpenChange={(open) => setExpanded(open ? card().id : null)}>
-      <Collapsible.Trigger class="composer-card-row" data-expanded={expanded() === card().id} aria-label={`${card().kind === "ask" ? `Question from ${props.room.members().find((m) => m.slug === (card() as Extract<ComposerCard, { kind: "ask" }>).ask.from)?.name ?? "your agent"}: ` : ""}${taskText(card().title, props.room.members())}`}>
+      <Collapsible.Trigger class="composer-card-row" onPointerDown={(event: PointerEvent) => event.preventDefault()} data-expanded={expanded() === card().id} aria-label={`${card().kind === "ask" ? `Question from ${props.room.members().find((m) => m.slug === (card() as Extract<ComposerCard, { kind: "ask" }>).ask.from)?.name ?? "your agent"}: ` : ""}${taskText(card().title, props.room.members())}`}>
         <CardSummary card={card()} room={props.room} />
       </Collapsible.Trigger>
       <Collapsible.Content><CardBody card={card()} room={props.room} /></Collapsible.Content>
