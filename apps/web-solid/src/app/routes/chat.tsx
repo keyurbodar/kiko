@@ -1,5 +1,5 @@
-import { Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js";
-import { A, useNavigate, useParams } from "@solidjs/router";
+import { Suspense, Show, createEffect, createMemo, createSignal, lazy, on } from "solid-js";
+import { useNavigate, useParams } from "@solidjs/router";
 import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
@@ -12,6 +12,7 @@ import { hasModelProvider } from "../../settings/provider-kinds";
 import { jumpRequest, requestJump } from "../../search/state";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
+const ComposerCards = lazy(() => import("../../composer/cards/composer-cards").then((m) => ({ default: m.ComposerCards })));
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 const BrowserChip = lazy(() => import("../../chat/BrowserChip"));
 
@@ -43,16 +44,6 @@ export default function ChatRoute() {
           if (typing || (active instanceof HTMLElement && active.closest('[role="tab"]'))) return;
           document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus();
         });
-      },
-    ),
-  );
-  // A message that points to another chat (kiko made an agent or a group) takes the reader there once, when it arrives here.
-  createEffect(
-    on(
-      [() => params.id, () => useApp.activeMessages().at(-1)],
-      ([id, last], previous) => {
-        if (!previous || previous[0] !== id || !last?.goto || last.goto === id || last.id === previous[1]?.id) return;
-        navigate(`/chat/${last.goto}`);
       },
     ),
   );
@@ -90,7 +81,6 @@ export default function ChatRoute() {
     if (id && useApp.hasUnread()) useApp.markRead(id);
   });
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
-  const agentName = (slug: string) => members().get(slug)?.name ?? slug;
   const messages = createMemo(() => useApp.activeMessages());
   const notices = createMemo(() =>
     useApp.memberNotices().map((n) => ({ key: `${n.seq}`, seq: n.seq, at: n.at, text: `${n.name} ${n.kind}` })),
@@ -191,7 +181,7 @@ export default function ChatRoute() {
             onStateChange={setThreadState}
             onNearTop={useApp.loadOlder}
             onAtLatest={() => landing || useApp.followLatest()}
-            waitingNames={useApp.typingNames()}
+            waitingNames={[]}
             waitingSlugs={useApp.typingSlugs()}
             waitingDoings={useApp.typingDoings()}
             groupChat={members().size > 1}
@@ -262,25 +252,6 @@ export default function ChatRoute() {
           </Show>
           <BrowserChip slugs={[...members().keys()]} />
 
-          <Show when={useApp.room()?.state.noProvider ?? (connectedReady() && !hasModelProvider(connectedProviders()))}>
-            {(np) => (
-              <div
-                class="mx-1.5 mb-1.5 flex items-center gap-3 rounded-lg bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] py-1 pr-1 pl-3 text-[13px] text-foreground shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_10%,transparent)] backdrop-blur-sm"
-                role="status"
-                data-component="no-provider"
-              >
-                <span class="min-w-0 flex-1">
-                  {typeof np() === "object"
-                    ? `${agentName((np() as { slug: string }).slug)} can't reply yet: no ${(np() as { provider: string }).provider} key is connected.`
-                    : "Connect a provider so your agents can reply."}
-                </span>
-
-                <A href="/settings/models" class="inline-flex h-7 shrink-0 items-center rounded-md bg-[var(--primary)] px-3 text-[12px] font-medium text-[var(--primary-foreground)] no-underline hover:bg-[var(--primary-hover)]">
-                  Connect
-                </A>
-              </div>
-            )}
-          </Show>
           <QuoteOnSelect
             onQuote={(id, text) => {
               setReplyTarget(id);
@@ -289,7 +260,10 @@ export default function ChatRoute() {
             }}
           />
 
+          <Show when={useApp.room()} keyed>{(room) => <Suspense><ComposerCards room={room} needsProvider={!!(room.state.noProvider ?? (connectedReady() && !hasModelProvider(connectedProviders())))} /></Suspense>}</Show>
           <Composer
+            stopping={!!useApp.room()?.state.agents.length}
+            onStop={() => useApp.room()?.stop()}
             tray={<ModelPickerButton chatId={params.id ?? null} />}
             threadId={useApp.activeThreadId() ?? ""}
             title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}

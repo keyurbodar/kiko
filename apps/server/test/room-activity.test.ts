@@ -217,3 +217,15 @@ test("a skip closes the question, tells the agent, and posts nothing as the huma
 	expect(await quiet(c)).toBe(0)
 	c.close()
 })
+
+test("a refused human task change is reported to its socket and leaves the board intact", async () => {
+  const room = fresh()
+  const c = await withAgent(room)
+  c.send({ t: "task", op: { op: "create", id: "plan", title: "Compare places", owner: "ada" } })
+  await c.take((f) => f.t === "events" && f.events.some((e) => e.t === "task" && e.task.id === "plan"))
+  c.send({ t: "task", op: { op: "update", id: "plan", owner: "unknown" } })
+  const refused = await c.take((f) => f.t === "task_refused")
+  expect(refused).toMatchObject({ t: "task_refused", op: { op: "update", id: "plan", owner: "unknown" } })
+  expect((await snapshot(room)).tasks[0]?.owner).toBe("ada")
+  c.close()
+})

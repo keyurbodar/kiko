@@ -1,73 +1,20 @@
-import type { AgentSlug, Task, TaskStatus } from "@kiko/protocol"
-import { createMemo, For, Show } from "solid-js"
-import { IdentityAvatar } from "../../lib/IdentityAvatar"
+import { For, Show } from "solid-js"
 import { useApp } from "../../lib/store"
-export { openTasks } from "./tasks-model"
-
-const ORDER: readonly TaskStatus[] = ["doing", "blocked", "todo", "review", "done", "cancelled"]
-const NEXT: Record<TaskStatus, TaskStatus> = { todo: "doing", doing: "done", blocked: "doing", review: "done", done: "todo", cancelled: "todo" }
-const LABEL: Record<TaskStatus, string> = { doing: "Doing", blocked: "Blocked", todo: "To do", review: "Review", done: "Done", cancelled: "Cancelled" }
-const HUE: Record<TaskStatus, number> = { doing: 45, blocked: 25, todo: 265, review: 210, done: 150, cancelled: 0 }
-
-export function groupTasks(tasks: readonly Task[]): { status: TaskStatus; tasks: Task[] }[] {
-  return ORDER.map((status) => ({ status, tasks: tasks.filter((t) => t.status === status) })).filter((g) => g.tasks.length)
-}
-
-function StatusChip(props: { task: Task }) {
-  const set = () => useApp.room()?.task({ op: "update", id: props.task.id, status: NEXT[props.task.status] })
-  return (
-    <button
-      type="button"
-      class="h-5 shrink-0 rounded-full px-2 text-xs hover:brightness-125"
-      style={{ background: `oklch(0.62 0.13 ${HUE[props.task.status]} / 0.16)`, color: `oklch(from var(--foreground) l 0.12 ${HUE[props.task.status]})` }}
-      title={`Mark ${LABEL[NEXT[props.task.status]].toLowerCase()}`}
-      data-action="task-status"
-      onClick={set}
-    >
-      {LABEL[props.task.status]}
-    </button>
-  )
-}
+import { TaskList } from "./task-list"
+import { groupTasks, TASK_LABEL } from "./tasks-model"
+import "../../composer/cards/cards.css"
+export { groupTasks, openTasks } from "./tasks-model"
 
 export function TasksView() {
-  const tasks = () => useApp.room()?.tasks() ?? []
-  const groups = createMemo(() => groupTasks(tasks()))
-  const title = (id: string) => tasks().find((t) => t.id === id)?.title ?? id
-  return (
-    <div class="flex flex-col gap-3" data-component="info-tasks">
-      <For each={groups()} fallback={
-          <div class="flex flex-col items-center gap-3 px-2 py-6">
-            <p class="text-center text-sm text-muted-foreground">No tasks yet. The lead puts work here when a job needs splitting up.</p>
-          </div>
-        }>
-        {(g) => (
-          <section class="flex flex-col gap-1" data-status={g.status}>
-            <h3 class="flex items-baseline gap-1.5 px-2 text-xs font-medium text-muted-foreground">
-              {LABEL[g.status]}
-              <span class="text-secondary-label">{g.tasks.length}</span>
-            </h3>
-            <div class="flex flex-col">
-              <For each={g.tasks}>
-                {(t) => (
-                  <div class="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent" data-component="info-task" data-id={t.id}>
-                    <Show when={t.owner} fallback={<span class="size-6 shrink-0 rounded-full bg-control" aria-hidden="true" />}>
-                      {(owner) => <IdentityAvatar seed={owner() as AgentSlug} size={24} />}
-                    </Show>
-                    <span class="min-w-0 flex-1">
-                      <span class={`block truncate text-md ${t.status === "done" ? "text-muted-foreground line-through" : "text-foreground"}`}>{t.title}</span>
-                      <span class="block truncate text-xs text-muted-foreground">
-                        {t.owner ? `@${t.owner}` : "Unassigned"}
-                        <Show when={t.dependsOn.length}> · waits on {t.dependsOn.map(title).join(", ")}</Show>
-                      </span>
-                    </span>
-                    <StatusChip task={t} />
-                  </div>
-                )}
-              </For>
-            </div>
-          </section>
-        )}
-      </For>
-    </div>
-  )
+  const room = () => useApp.room()
+  const tasks = () => room()?.tasks() ?? []
+  return <div data-component="info-tasks" class="flex flex-col gap-3">
+    <For each={groupTasks(tasks())} fallback={<p class="px-2 py-6 text-center text-sm text-muted-foreground">No tasks yet. Your agent adds a plan when there is work to track.</p>}>
+      {(group) => <section>
+        <h3 class="px-2 pb-1 text-xs font-medium text-muted-foreground">{TASK_LABEL[group.status]} <span class="text-secondary-label">{group.tasks.length}</span></h3>
+        <TaskList tasks={group.tasks} allTasks={tasks()} group={(room()?.members().length ?? 0) > 1} onStatus={(id, status) => room()?.task({ op: "update", id, status })} />
+        <Show when={group.status === "blocked"}><span class="sr-only">Blocked tasks wait for their dependencies.</span></Show>
+      </section>}
+    </For>
+  </div>
 }

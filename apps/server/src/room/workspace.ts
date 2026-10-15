@@ -247,7 +247,7 @@ export class RoomWorkspace implements Workspace {
 	}
 }
 
-export function applyTaskOp(ws: Workspace, op: TaskOp, members: readonly AgentSlug[]): RoomEvent[] {
+export function applyTaskOp(ws: Workspace, op: TaskOp, members: readonly AgentSlug[], refused?: (reason: string) => void): RoomEvent[] {
 	const human: Actor = { kind: "human" }
 	const result =
 		op.op === "create"
@@ -255,6 +255,7 @@ export function applyTaskOp(ws: Workspace, op: TaskOp, members: readonly AgentSl
 			: op.op === "update"
 				? ws.update(human, op.id, op, members, true)
 				: ws.remove(op.id)
+	if (!result.ok) refused?.(result.error)
 	return result.ok ? result.events : []
 }
 

@@ -213,7 +213,9 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			if (f.seq > data.readSeq) store({ t: "read", upTo: f.seq })
 		},
 		answer(_, f) {
-			store({ t: "ask_resolved", id: f.id, how: "answered" })
+			const ask = data.asks.find((a) => a.id === f.id)
+			if (!ask) return
+			store({ t: "ask_resolved", id: f.id, how: "answered" }, message({ id: `answer-${f.id}` as MessageId, from: { kind: "human" }, text: f.value, replyTo: ask.messageId }, `answer:${f.id}`))
 		},
 		skip(_, f) {
 			store({ t: "ask_resolved", id: f.id, how: "skipped" })

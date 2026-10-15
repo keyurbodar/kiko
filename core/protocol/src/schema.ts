@@ -97,6 +97,7 @@ export const AgentStatus = Schema.Struct({
 })
 
 export const SystemEvent = Schema.Union([
+	Schema.Struct({ kind: Schema.Literal("created"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ kind: Schema.Literal("delegated"), from: AgentSlug, to: AgentSlug, title: Schema.String }),
 	Schema.Struct({
 		kind: Schema.Literal("subagent"),
@@ -327,6 +328,7 @@ export const RoomToClient = Schema.Union([
 		reason: Schema.Literals(["limit", "exists", "unknown", "last", "reserved", "chief"]),
 	}),
 	Schema.Struct({ t: Schema.Literal("send_refused"), clientId: Id, reason: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("task_refused"), op: TaskOp, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("files_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({
 		t: Schema.Literal("search"),

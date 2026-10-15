@@ -108,6 +108,7 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.rich) out.rich = m.rich
   if (m.replyTo) out.replyToId = m.replyTo
   if (m.editedAt !== undefined) out.edited = true
+  if (m.event) out.event = m.event
   if (m.goto) out.goto = m.goto
   if (m.quote) out.quote = m.quote
   if (m.to) out.to = m.to
@@ -126,7 +127,7 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
  * with a `seq` above `readSeq`. Null when everything is read.
  */
 export function firstUnread(messages: readonly ViewMessage[], readSeq: number): MessageId | null {
-  for (const m of messages) if (!m.pending && m.from.kind !== "human" && m.seq > readSeq) return m.id
+  for (const m of messages) if (!m.pending && !m.event && m.from.kind !== "human" && m.seq > readSeq) return m.id
   return null
 }
 
@@ -371,6 +372,7 @@ export function createApp(options: AppOptions = {}) {
         backoff: options.backoff,
       })
       // A send the room refused stays in the transcript, marked failed. The toast says why.
+      next.onTaskRefused((reason) => showToastV2({ title: reason, variant: "error" }))
       next.onSendRefused((reason) => showToastV2({ title: reason, variant: "error" }))
       setRoom(next)
     }

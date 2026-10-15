@@ -1,3 +1,4 @@
+import { ActivityEvent } from "./ActivityEvent"
 import { isImage } from "../../lib/attachments"
 import { lazy, Show, Suspense, type JSX } from "solid-js"
 import { A } from "@solidjs/router"
@@ -65,6 +66,7 @@ export function MessageRow(props: {
   const files = () => (props.message.files ?? []).filter((f) => isImage(f) || !f.path || !props.message.body.includes(`(/${f.path})`))
   const hasFiles = () => files().length > 0
   return (
+    <Show when={!props.message.event && !props.message.goto} fallback={<ActivityEvent message={props.message} />}>
     <div
       class={cn(
         "group/row relative mx-auto flex w-full max-w-(--chat-content-max-width) flex-col items-start",
@@ -180,5 +182,6 @@ export function MessageRow(props: {
         </Show>
       </Bubble>
     </div>
+    </Show>
   )
 }

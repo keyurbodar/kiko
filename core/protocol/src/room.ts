@@ -28,6 +28,7 @@ export type Activity =
 export type AgentStatus = { slug: AgentSlug; state: AgentState; doing?: string; activity?: Activity }
 
 export type SystemEvent =
+	| { kind: "created"; roomId: RoomId; title: string }
 	| { kind: "delegated"; from: AgentSlug; to: AgentSlug; title: string }
 	| { kind: "subagent"; agent: AgentSlug; state: "started" | "done" | "failed" | "stopped"; title: string; private: true }
 	| { kind: "routine"; title: string }
@@ -185,6 +186,7 @@ export type RoomToClient =
 	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
 	/** Not stored. Sent only to the socket whose `send` stored nothing because its attachments could not be claimed. */
 	| { t: "send_refused"; clientId: string; reason: string }
+	| { t: "task_refused"; op: TaskOp; reason: string }
 	| { t: "files_refused"; op: FileOp; reason: FileRefusal }
 	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
 	| { t: "history"; seq: number; before: number; after: number; messages: readonly Message[] }

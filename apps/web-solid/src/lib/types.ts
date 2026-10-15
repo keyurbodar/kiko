@@ -101,6 +101,7 @@ export interface ChatMessage {
   files?: MessageFile[]
   /** Shows the edited marker. The body is never rewritten, only flagged. */
   edited?: boolean
+  event?: import("@kiko/protocol").Message["event"]
   /** A chat this message points to, such as the one kiko just made. */
   goto?: string
   /** The words of the replied-to message this one answers, shown in its reply header. */
@@ -132,6 +133,8 @@ export interface OutgoingMessage {
 }
 
 export interface ComposerProps {
+  stopping?: boolean
+  onStop?: () => void
   tray?: JSX.Element
   /** Conversation a sent message lands in. */
   threadId: string;

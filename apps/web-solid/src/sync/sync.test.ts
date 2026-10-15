@@ -120,7 +120,7 @@ describe("patches", () => {
 		])
 		expect(view[0]).toBe(m1)
 		expect(view[1].reactions).toEqual([{ by: { kind: "human" }, emoji: "🔥" }])
-		expect(view[2]).toMatchObject({ text: "hi", pending: true, clientId: "c9", id: "local:c9" })
+		expect(view.at(-1)).toMatchObject({ text: "hi", pending: true, clientId: "c9", id: "local:c9" })
 	})
 
 	test("the human's reaction replaces its own and leaves an agent's alone", () => {
@@ -720,4 +720,51 @@ describe("the user store", () => {
 	test("room ids are UUIDv7s", () => {
 		expect(newRoomId(0, new Uint8Array(16)) as string).toBe("00000000-0000-7000-8000-000000000000")
 	})
+})
+
+describe("composer cards", () => {
+  test("typed system events survive snapshots, live delivery, and history storage", async () => {
+    const message: Message = { id: "event1" as MessageId, seq: 1, at: 1, from: { kind: "system", reason: "created" }, text: "Sunny morning is ready.", goto: roomId, event: { kind: "created", roomId, title: "Sunny morning" } }
+    const { make } = setup({ events: [{ t: "message", ...message }] })
+    const { store, warm } = await make()
+    await until(() => store.state.seq === 1)
+    expect(store.messages()[0]?.event).toEqual(message.event)
+    await warm.flush()
+    expect((await newestMessages(warm, roomId, 20))[0]?.event).toEqual(message.event)
+    store.close()
+    warm.close()
+  })
+
+  test("an answer hides its question and echoes as a reply before the socket answers", async () => {
+    const ask = { id: "question", from: "ada" as AgentSlug, text: "Tea or coffee?", messageId: "question-message" as MessageId }
+    const { mock, make } = setup({ events: [{ t: "ask", seq: 1, at: 1, ...ask }] })
+    const { store, warm } = await make()
+    await until(() => store.asks().length === 1)
+    store.suspend()
+    store.answer(ask.id, "Coffee")
+    expect(store.asks()).toEqual([])
+    expect(store.messages().at(-1)).toMatchObject({ text: "Coffee", replyTo: ask.messageId, pending: true })
+    store.answer(ask.id, "Tea")
+    expect(store.messages().filter((m) => m.pending)).toHaveLength(1)
+    store.resume()
+    await until(() => mock.received.some((f) => f.t === "answer"))
+    await until(() => store.messages().some((m) => m.text === "Coffee" && !m.pending))
+    expect(store.messages().filter((m) => m.text === "Coffee")).toHaveLength(1)
+    store.close()
+    warm.close()
+  })
+
+  test("an open question paints from IndexedDB while offline", async () => {
+    const ask = { id: "offline-question", from: "ada" as AgentSlug, text: "When?", messageId: "question-message" as MessageId }
+    const warm = await freshWarm()
+    warm.put("meta", `room:${roomId}`, { readSeq: 0, members: [], tasks: [], files: [], folders: [], roster: [], asks: [ask] })
+    setLastSeq(warm, roomId, 1)
+    await warm.flush()
+    const { make } = setup({}, { connect: () => ({ send() {}, close() {}, onopen: null, onmessage: null, onclose: null, onerror: null }) })
+    const { store } = await make(warm)
+    await store.ready
+    expect(store.asks()).toEqual([ask])
+    store.close()
+    warm.close()
+  })
 })

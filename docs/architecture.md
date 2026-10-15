@@ -406,7 +406,7 @@ The human's own profile stays in memory (section 13), so nothing is stored twice
 
 The human never fills in a form. The new chat button (and `Mod+N`) opens a temporary chat with kiko (`temp` on the chat). It lives in the tab strip, never in the chat list, and is deleted when its tab closes. Nothing about it is fixed: the human can just talk, or ask for an agent or a group. Its header is kat's "to:" bar: a chip per agent and a (+) that searches the user's agents. Adding a second agent keeps the chat as a group (the `keep` op), and it joins the list. In an empty chat the human can take kiko off; picking one agent then opens that agent's direct chat instead.
 
-kiko proposes (`propose_agent`, `propose_group`): a name, a handle, one line on what it does, and a soul it writes in the agent's voice, or a title, members, new agents, and `/chat.md`. `create` makes the newest proposal at once; kiko does not wait for a yes (section 16). A new agent gets its own chat, a line in the temporary chat takes the human there, and the agent says hi first. A group made in a temporary chat is that chat, kept with its members and kiko's `/chat.md`.
+kiko proposes (`propose_agent`, `propose_group`): a name, a handle, one line on what it does, and a soul it writes in the agent's voice, or a title, members, new agents, and `/chat.md`. `create` makes the newest proposal at once; kiko does not wait for a yes (section 16). A new agent gets its own chat, an Open chat receipt in the temporary chat takes the human there when clicked, and the agent says hi first. A group made in a temporary chat is that chat, kept with its members and kiko's `/chat.md`.
 
 One chat per agent. A direct chat is a chat that is not temporary and has exactly one agent. `dmFor` in `@kiko/protocol` picks an agent's one direct chat (the kiko chat for kiko, else the most recently active), and both sides use it. Every way of picking an agent calls `useApp.openDm`, which opens that chat and makes one only when there is none. UserDO refuses a create that would be a second direct chat and answers the socket with `chat_refused { roomId, existing }`; the client drops its optimistic row and moves a reader in it to `existing`. Old data with duplicates is not merged: the list shows only the chat `dmFor` picks, and the others stay reachable by link.
 
@@ -612,6 +612,19 @@ A `private` event belongs to the owner's transcript only. It is in the snapshot,
 A second `answer` or `skip` for a closed ask does nothing. `RoomSnapshot.asks` holds the open asks, so a reload shows the card. There is no approval gate in kiko, so there is no approval event.
 
 **Reasoning.** The typing indicator parsed English with two regexes to choose a motion, and a reconnect showed nothing until the next frame. Typed fields cost one function next to the caption and let the client keep a table of cases. Worker rows go on the wire only when the set changes, as the workers design already limits `onChange`. Questions use a stored event and a table, not memory, so a reload or an evicted object cannot lose an open card.
+
+### 9.5 Composer cards
+
+**Decision.** The composer has one attached front card. Open human questions lead, then a missing provider, open room tasks, live agent activity, and the newest chat creation receipt. Other cards peek behind it. Kobalte HoverCard handles pointer travel and dismissal. Its button also opens on click or tap. Kobalte Collapsible handles each drawer. Expanded content is bounded to 40 percent of the viewport. Task menus portal into the stack surface, outside its scroll area. Hover travel therefore includes the menu, and scrolling cannot clip it. There are no transitions.
+
+Task rows port T3 Code's `ComposerTasksBadge` geometry, progress segments, and status icons. Kiko's accent and success tokens map to T3's primary and success roles, so imported themes remain coherent. **DEVIATION:** these surfaces use Lucide, as explicitly requested by the owner, instead of the redesign program's Hugeicons rule. The port's MIT notice lives beside the components.
+
+**ASSUMPTION:** a room keeps one task board. Its progress excludes cancelled tasks and counts completed tasks. The card leaves the dock when no open tasks remain. The details panel keeps completed and cancelled history. Private chats omit redundant owner labels. Group rows show the owner and unresolved dependencies. A status menu replaces cycling a colored chip. A refused task operation returns `task_refused` only to its initiating socket, which rolls back the local patch and shows the reason.
+
+Questions paint from IndexedDB before the socket connects. An answer hides its card and adds a human reply locally, with the server's stable `answer:<id>` identity. The stored human reply confirms it. Skipping closes the question without inventing an answer. Merely collapsing a question leaves it open. Stop is wired to the room's existing interrupt and clears local live presence at once. Typing a message restores Send while the agent works, so the human can steer it.
+
+Stored system events now survive the client snapshot, event, disk, and history paths. They render as compact expandable activity rows. Creation stores `{kind: "created", roomId, title}` beside `goto`, so the client never parses prose for a title. **DEVIATION:** creation leaves the owner in the current chat until they choose Open chat. The previous automatic navigation could interrupt reading and made the creation card disappear.
+
 
 ## 10. Accounts and sessions
 

@@ -157,7 +157,7 @@ describe("useApp over the mock room", () => {
 
   test("boots from the sockets and draws the fixture room", async () => {
     const { app } = await boot()
-    expect(texts(app)).toEqual(["can you two plan the wire protocol package?", "the plan"])
+    expect(texts(app)).toEqual(fixtures.roomSnapshot.messages.map((m) => m.text))
     expect(app.bots().map((b) => b.name)).toEqual(["protocol plan"])
     expect(app.members().map((m) => m.name)).toEqual(["ada", "bob"])
     app.stop()

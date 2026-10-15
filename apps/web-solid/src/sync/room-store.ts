@@ -116,7 +116,7 @@ export function fromSnapshot(s: RoomSnapshot): RoomData {
 		seq: s.seq,
 		readSeq: s.readSeq,
 		members: [...s.members],
-		messages: s.messages.filter((m) => !m.event),
+		messages: [...s.messages],
 		tasks: [...s.tasks],
 		files: [...s.files],
 		folders: [...s.folders],
@@ -176,8 +176,6 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 	data.seq = e.seq
 	switch (e.t) {
 		case "message": {
-			// A system event (a worker started, a task handed over) is not a bubble. The later unit that draws them reads them elsewhere.
-			if (e.event) return {}
 			if (e.from.kind === "agent" && data.noProvider) data.noProvider = null
 			const m = toMessage(e)
 			const i = findMessage(data.messages, m.id)
@@ -253,11 +251,11 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 		case "ask": {
 			const { t: _, seq: __, at: ___, ...ask } = e
 			upsert(data.asks, ask, (x) => x.id === ask.id)
-			return {}
+			return { meta: true }
 		}
 		case "ask_resolved":
 			removeWhere(data.asks, (x) => x.id === e.id)
-			return {}
+			return { meta: true }
 		default:
 			// A tag this client does not know, such as a link preview an older room logged. It changes nothing.
 			return {}
@@ -364,6 +362,9 @@ export type RoomStore = {
 	/** The window with every pending patch applied. */
 	messages(): ViewMessage[]
 	tasks(): Task[]
+	asks(): HumanAsk[]
+	answer(id: string, value: string): void
+	skip(id: string): void
 	/** The members with every pending add, rename, and remove applied. */
 	members(): Member[]
 	/** The room's files with pending `rm` and `mv` applied. */
@@ -394,6 +395,7 @@ export type RoomStore = {
 	onMemberRefused(listener: (op: MemberOp, reason: MemberRefusal) => void): () => void
 	/** `rm` or `mv` on the room's files, applied at once. A refusal drops the patch and calls every `onFilesRefused` listener. */
 	fileOp(op: FileOp): void
+	onTaskRefused(listener: (reason: string) => void): () => void
 	onFilesRefused(listener: (op: FileOp, reason: string) => void): () => void
 	/** Calls `listener` when the room refuses a send, such as one whose attachments expired. The message stays, marked failed. */
 	onSendRefused(listener: (reason: string) => void): () => void
@@ -422,7 +424,7 @@ export type RoomStore = {
 	close(): void
 }
 
-type RoomMeta = Omit<RoomData, "messages" | "seq" | "agents" | "asks">
+type RoomMeta = Omit<RoomData, "messages" | "seq" | "agents">
 const metaKey = (roomId: RoomId) => `room:${roomId}`
 
 /**
@@ -447,6 +449,7 @@ export function defaultSchedule(run: () => void) {
 }
 
 export function createRoomStore(options: RoomStoreOptions): RoomStore {
+	const taskRefusalListeners = new Set<(reason: string) => void>()
 	const { roomId, warm } = options
 	const now = options.now ?? Date.now
 	const newId = options.newId ?? (() => crypto.randomUUID())
@@ -537,6 +540,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			files: s.files,
 			folders: s.folders,
 			roster: s.roster,
+			asks: s.asks,
 		}
 		warm.put("meta", metaKey(roomId), meta)
 	}
@@ -698,7 +702,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			}),
 		// Answers to one socket's questions. Nothing stores them.
 		search: (f) => answer(searchKey(f.query, f.before), { results: f.results, next: f.next }),
-		history: (f) => answer(historyKey(f.seq, f.before, f.after), f.messages.filter((m) => !m.event)),
+		history: (f) => answer(historyKey(f.seq, f.before, f.after), f.messages),
 		// A reply lands as whole bubbles. While a long one grows, its agent shows as typing.
 		draft: () => {},
 		// The room refused a member change: the patch goes at once, so the list rolls back, and the UI says why.
@@ -711,6 +715,10 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			void removeFromOutbox(warm, f.clientId)
 			setPatches((list) => list.map((p) => (p.clientId === f.clientId ? { ...p, failed: true, reason: f.reason } : p)))
 			for (const listener of sendRefusalListeners) listener(f.reason)
+		},
+		task_refused: (f) => {
+			dropPatches(raw(state.patches).filter((p) => !(p.frame.t === "task" && p.frame.op.id === f.op.id)))
+			for (const listener of taskRefusalListeners) listener(f.reason)
 		},
 		files_refused: (f) => {
 			const same = (p: RoomPatch) => p.frame.t === "files" && JSON.stringify(p.frame.op) === JSON.stringify(f.op)
@@ -760,6 +768,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 						s.readSeq = meta?.readSeq ?? 0
 						s.members = [...(meta?.members ?? [])]
 						s.tasks = [...(meta?.tasks ?? [])]
+						s.asks = [...(meta?.asks ?? [])]
 						s.files = [...(meta?.files ?? [])]
 						s.folders = [...(meta?.folders ?? [])]
 						s.roster = [...(meta?.roster ?? [])]
@@ -813,6 +822,18 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		state,
 		messages: () => overlayMessages(state.history ?? state.messages, state.history ? [] : state.patches),
 		tasks: () => overlayTasks(state.tasks, state.patches),
+		asks: () => state.asks.filter((a) => !state.patches.some((p) => (p.frame.t === "answer" || p.frame.t === "skip") && p.frame.id === a.id)),
+		answer(id, value) {
+			const ask = state.asks.find((a) => a.id === id)
+			if (!ask || !value.trim() || state.patches.some((p) => (p.frame.t === "answer" || p.frame.t === "skip") && p.frame.id === id)) return
+			if (state.history) setState("history", null)
+			const p: RoomPatch = { clientId: `answer:${id}`, frame: { t: "answer", id, value: value.trim() }, at: now(), ask: { ...ask } }
+			setPatches((list) => [...list, p])
+			transmit(p)
+		},
+		skip(id) {
+			if (state.asks.some((a) => a.id === id)) act({ t: "skip", id })
+		},
 		members: () => overlayMembers(state.members, state.patches),
 		files: () => overlayFiles(state.files, state.patches, state.folders),
 		folders: () => overlayFolders(state.folders, state.patches),
@@ -851,7 +872,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			if (lastTypingAt !== undefined && t - lastTypingAt < TYPING_EVERY_MS) return
 			if (socket?.send({ t: "typing" })) lastTypingAt = t
 		},
-		stop: () => void socket?.send({ t: "stop" }),
+		stop() {
+			if (socket?.send({ t: "stop" })) setState({ typing: [], status: {}, doing: {}, agents: [] })
+		},
 		suspend() {
 			suspended = true
 			socket?.close()
@@ -869,6 +892,10 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			return () => refusalListeners.delete(listener)
 		},
 		fileOp: (op) => void act({ t: "files", op }),
+		onTaskRefused(listener) {
+			taskRefusalListeners.add(listener)
+			return () => taskRefusalListeners.delete(listener)
+		},
 		onFilesRefused(listener) {
 			fileRefusalListeners.add(listener)
 			return () => fileRefusalListeners.delete(listener)

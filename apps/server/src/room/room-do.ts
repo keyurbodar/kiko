@@ -804,9 +804,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		for (const m of targets) this.ctx.waitUntil(agentStub(this.env.AGENT, home.userId, home.roomId, m.slug).setModel(model).then(() => undefined))
 	}
 
-	taskOp(op: TaskOp): void {
-		this.publish(applyTaskOp(this.workspace, op, this.members.list().map((m) => m.slug)))
+	taskOp(op: TaskOp): string | null {
+		let reason: string | null = null
+		this.publish(applyTaskOp(this.workspace, op, this.members.list().map((m) => m.slug), (error) => { reason = error }))
 		this.ctx.waitUntil(this.deliverWakes())
+		return reason
 	}
 
 	async workspaceCall(slug: AgentSlug, call: WorkspaceCall): Promise<WorkspaceAnswer> {

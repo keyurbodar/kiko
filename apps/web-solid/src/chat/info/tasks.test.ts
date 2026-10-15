@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { groupTasks } from "./tasks"
+import { groupTasks } from "./tasks-model"
 import { openTasks } from "./tasks-model"
 
 test("tasks group by status, doing first, and only open ones count", () => {

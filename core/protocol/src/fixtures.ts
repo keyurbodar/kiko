@@ -116,6 +116,7 @@ export const systemEvents: readonly SystemEvent[] = [
 	{ kind: "routine", title: "morning summary" },
 	{ kind: "agent_message", from: ada, to: bob },
 	{ kind: "activity", count: 4 },
+	{ kind: "created", roomId, title: "Sunny morning" },
 ]
 
 const humanAsk: HumanAsk = { id: "ask1", from: ada, text: "which database should we use?", options: ["sqlite", "postgres"], messageId: messageId(4) }
@@ -167,6 +168,11 @@ export const roomSnapshot: RoomSnapshot = {
 			rich: [{ t: "paragraph", children: [{ t: "text", text: "the plan" }] }],
 			editedAt: at(8),
 		},
+		...roomEvents.flatMap((e) => {
+			if (e.t !== "message" || !e.event) return []
+			const { t: _, ...message } = e
+			return [message]
+		}),
 	],
 	tasks: [task],
 	files: [file],

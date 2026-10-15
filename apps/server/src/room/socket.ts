@@ -20,7 +20,7 @@ export interface SocketRoom {
 	memberOp(op: MemberOp): MemberRefusal | null
 	fileOp(op: FileOp): string | null
 	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<{ ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }>
-	taskOp(op: TaskOp): void
+	taskOp(op: TaskOp): string | null | void
 	setModel(ref: string, slug?: AgentSlug): void
 	answerAsk(id: string, value: string): Promise<void>
 	skipAsk(id: string): Promise<void>
@@ -154,8 +154,10 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 			if (refused) send(ws, { t: "files_refused", op: frame.op, reason: refused })
 			return null
 		}
-		case "task":
-			room.taskOp(frame.op)
+		case "task": {
+			const reason = room.taskOp(frame.op)
+			if (reason) send(ws, { t: "task_refused", op: frame.op, reason })
 			return null
+		}
 	}
 }

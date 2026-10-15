@@ -69,14 +69,14 @@ export class Proposals {
 			if (proposal.kind === "agent") {
 				const agent = await make(proposal.agent)
 				const { roomId } = await user.openChat(agent.name, [agent.id])
-				const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `kiko made @${agent.slug}. say hi in your new chat.`, goto: roomId })
+				const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `${agent.name} is ready.`, clientId: `create:${id}`, goto: roomId, event: { kind: "created", roomId, title: agent.name } })
 				if (event) this.d.publish([event])
 				this.d.ctx.waitUntil(
 					roomStub(this.d.env.ROOM, home.userId, roomId)
 						.introduce(home.userId, agent.slug, introduction(proposal.agent))
 						.catch((e: unknown) => console.error(`introduce failed: ${e instanceof Error ? e.message : String(e)}`)),
 				)
-				text = `made @${agent.slug}. the human is taken to its chat now; say one short line, nothing more.`
+				text = `made @${agent.slug}. the human can open its chat now; say one short line, nothing more.`
 			} else {
 				const mine = await user.listAgents()
 				const made = []
@@ -98,7 +98,9 @@ export class Proposals {
 				}
 				const { event } = this.d.log.addMessage({
 					from: { kind: "system", reason: "created" },
-					text: created ? `kiko started ${proposal.title}. open it to begin.` : `${proposal.title} is already made. open it.`,
+					text: `${proposal.title} is ready.`,
+					clientId: `create:${id}`,
+					event: { kind: "created", roomId, title: proposal.title },
 					goto: roomId,
 				})
 				if (event) this.d.publish([event])

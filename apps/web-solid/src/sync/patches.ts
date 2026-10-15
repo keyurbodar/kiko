@@ -15,6 +15,7 @@
 // Everything here is pure, so the tests and both stores share it.
 
 import type {
+	HumanAsk,
 	Chat,
 	Member,
 	ChatOp,
@@ -33,6 +34,7 @@ export type SendFrame = Extract<ClientToRoom, { t: "send" }>
 
 export type RoomPatch = {
 	clientId: string
+	ask?: HumanAsk
 	frame: RoomPatchFrame
 	/** Epoch milliseconds when the user acted. */
 	at: number
@@ -78,7 +80,7 @@ const roomConfirms: Confirms = {
 	edit: (f, e) => e.t === "edit" && e.messageId === f.messageId && e.text === f.text,
 	delete: (f, e) => e.t === "delete" && e.messageIds.includes(f.messageId),
 	read: (f, e) => e.t === "read" && e.upTo >= f.seq,
-	answer: (f, e) => e.t === "ask_resolved" && e.id === f.id,
+	answer: (f, e) => (e.t === "message" && e.clientId === `answer:${f.id}`) || (e.t === "ask_resolved" && e.id === f.id && e.how === "skipped"),
 	skip: (f, e) => e.t === "ask_resolved" && e.id === f.id,
 	task: (f, e) =>
 		f.op.op === "delete" ? e.t === "task_removed" && e.id === f.op.id : e.t === "task" && e.task.id === f.op.id,
@@ -182,6 +184,7 @@ export function overlayMessages(messages: readonly Message[], patches: readonly 
 	const sends: (RoomPatch & { frame: SendFrame })[] = []
 	for (const p of patches) {
 		if (p.frame.t === "send") sends.push(p as RoomPatch & { frame: SendFrame })
+		if (p.frame.t === "answer" && p.ask) sends.push({ ...p, frame: { t: "send", clientId: p.clientId, text: p.frame.value, replyTo: p.ask.messageId } })
 		const target = messageTarget(p.frame)
 		if (target) byId.set(target, [...(byId.get(target) ?? []), p])
 	}

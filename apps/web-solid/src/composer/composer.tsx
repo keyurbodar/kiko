@@ -243,7 +243,8 @@ export function Composer(props: ComposerProps) {
     view: {
       placeholder,
       submit: {
-        stopping: () => false,
+        stopping: () => !!props.stopping && !draftText().trim() && !boxed().length,
+        working: () => !!props.stopping,
         blocked,
         onSubmit: () => {
           if (props.busy || blocked()) return
@@ -282,7 +283,7 @@ export function Composer(props: ComposerProps) {
           props.onSend(files.length ? { body, files, attachments } : { body })
           props.onClearReply?.()
         },
-        onStop: () => {},
+        onStop: () => props.onStop?.(),
       },
     },
   })
