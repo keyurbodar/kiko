@@ -1,6 +1,6 @@
 # app.yuki.codes: one front door, a private backend for each user
 
-Status: plan. Nothing here is built yet. Written 2026-10-15.
+Status: plan, spiked. Nothing here is built yet. Written 2026-10-15. The section [Decisions and spike results](#decisions-and-spike-results) overrides older text below where they disagree.
 
 This document is the plan for a hosted yuki at `app.yuki.codes`. A person signs in, connects their Cloudflare account with OAuth, and yuki installs its Worker and Durable Objects into that account. From then on they use yuki at `app.yuki.codes`. Their backend runs on a `*.workers.dev` hostname they never need to see.
 
@@ -10,6 +10,7 @@ Labels follow the repo's rules. ASSUMPTION is a choice we made. UNVERIFIED is a 
 
 ## Contents
 
+0. [Decisions and spike results](#decisions-and-spike-results)
 1. [The idea in one paragraph](#the-idea-in-one-paragraph)
 2. [The three pieces](#the-three-pieces)
 3. [Big picture](#big-picture)
@@ -26,6 +27,59 @@ Labels follow the repo's rules. ASSUMPTION is a choice we made. UNVERIFIED is a 
 14. [Spike plan](#spike-plan)
 15. [Glossary](#glossary)
 16. [Sources](#sources)
+
+## Decisions and spike results
+
+Settled on 2026-10-15.
+
+### Decisions
+
+- **Clerk for sign-in.** Google and GitHub only. No email, password, or phone. The client uses `@clerk/clerk-js` directly, headless, with our own two buttons. It does not use `clerk-solidjs`: that port is unofficial, its server half needs SolidStart, and it trails Clerk's releases. clerk-js loads only on the sign-in screen, so tiers 1 to 3 do not grow.
+- **Clerk checks the owner once.** The client trades a Clerk session token for the backend's own session at `POST /api/auth/clerk`. The backend verifies the token offline with the instance's public key and checks `sub` against `OWNER_ID`. From then on the client holds the backend's session token. Sockets and file links never wait on Clerk.
+- **One backend session, three carriers.** The session is a bearer token in the `Authorization` header for `fetch`, a 30-second ticket for each socket upgrade, and a signed, short-lived URL for each file. Tickets and file URLs are minted by the backend, so a chat switch costs no extra round trip to anyone but the backend. The access code and cookie stay for manual self-deploy.
+- **The front door is on workers.dev for now.** `kiko.<our subdomain>.workers.dev` serves the client. A bought domain replaces it later (see "Moving to a domain").
+- **Landing page in Astro.** It is its own static site and its own Worker. It does not share a build with the client.
+- **Updates are one click, like t3code.** There is no nightly channel and no automatic update. Details are in the Updates section.
+- **The installer accepts two grants.** It accepts a Cloudflare OAuth code, or an API token the user pastes from a prefilled token link. Both reach the same install code.
+
+### Spike results
+
+Run against the owner's account with a throwaway Worker. The Worker was deleted afterwards.
+
+- **Install works through the API alone.** `PUT /accounts/{id}/workers/scripts/{name}` with multipart metadata created a Worker with a SQLite Durable Object class (`migrations.new_sqlite_classes`) and a `secret_text` binding. `POST .../scripts/{name}/subdomain` with `{"enabled":true}` put it on workers.dev. The first request answered within about 15 seconds.
+- **Update keeps data and secrets.** A second `PUT` with `keep_bindings: ["secret_text"]` and `migrations: {old_tag, new_tag}` replaced the code. The Durable Object's rows survived (hit count 2, then 3), the secret was still listed, and the new code served within about 20 seconds.
+- **OAuth scope names are known.** `GET /client/v4/oauth/scopes` lists 397 scopes. The install needs `workers-scripts.write` and `account-settings.read`, plus `workers-r2.write` for files. `offline_access` is added by the `refresh_token` grant.
+- **OAuth clients can be made by API.** `POST /accounts/{id}/oauth_clients`. The owner's stored API token can list them. A client can set `allowed_cors_origins`.
+- **A private OAuth client only serves members of our own account.** The docs say: "Private clients can only be authorized by members of the parent Cloudflare account." A public client needs a verified domain, through a TXT record. A workers.dev hostname cannot carry one. So until we own a domain, other people install with a pasted API token.
+- **Clerk development instances stop at 100 users.** Users cannot be moved between instances, and a production instance needs a domain. A user's Clerk id changes when we move to production, so the backend must let the owner rebind `OWNER_ID`. Rebinding takes a fresh Cloudflare grant, which proves the owner holds the account.
+- **Clerk keys work.** The backend API answers for instance `ins_3KjwHJtGnPC9vMXebWX1NsceqbX`, a development instance on `smart-rooster-2969.clerk.accounts.dev`, with 0 users. Keys live in `~/.config/yuki/dev.vars`.
+
+### Corrections to the text below
+
+- The installer's limit is not "10 requests per install". An install is about 2 requests into the installer and about 10 subrequests out of it. Subrequests count against 50 per invocation, not against 100,000 a day.
+- Building an 8 MB multipart body in a Free Worker handler risks the CPU stop measured in `docs/architecture.md` section 17.3. The installer does the upload inside a Durable Object.
+- Self-update runs from a `UserDO` alarm or an RPC, never from a Worker cron.
+- A stateless ticket cannot be one-time. It is valid for 30 seconds.
+- Images and file links use `<img src>` and `href`, which cannot carry a header. They need signed URLs, not only uploads.
+- "A breach exposes one account" holds only if releases are signed. A forged release could otherwise reach every backend.
+
+### Moving to a domain
+
+1. Ship a backend release that adds the new origin to `TRUSTED_ORIGINS`, so both origins work.
+2. Point the domain at the front door Worker. Make the OAuth client public with the TXT record. Create the Clerk production instance with Google and GitHub credentials of our own.
+3. Each user signs in once on the new origin and reconnects Cloudflare. That rebinds `OWNER_ID` to the production Clerk id. IndexedDB is per origin, so the first paint there comes from the server.
+
+### Build order
+
+Each item is one pull request.
+
+1. **Versions.** `PROTOCOL` in `@kiko/protocol`, the build version in the client and in the Worker, and both in the user socket's `hello`. A banner when the backend is older, and a block when its protocol is too old.
+2. **Cross-origin client.** One API base for every fetch, socket, and upload. The bearer session, socket tickets, and signed file URLs on the server. CORS for trusted origins.
+3. **Clerk sign-in.** `POST /api/auth/clerk` on the backend. The sign-in screen with Google and GitHub. The Account settings page.
+4. **Installer and front door.** The installer Worker with OAuth and pasted-token grants, and the front door deploy.
+5. **One-click update.** Signed release manifest, `UserDO` self-update, progress over the user socket, and the Version row in settings.
+6. **Landing page.** Astro.
+7. **Uninstall.** "Delete my backend" in Account settings.
 
 ## The idea in one paragraph
 
@@ -182,17 +236,32 @@ The `.workers.dev` URL is not a secret. Anyone can find it in the browser's netw
 
 ## Updates
 
+Modeled on t3code. Stable channel only.
+
 ```mermaid
 flowchart LR
-  rel["New release<br/>app.yuki.codes/releases/v42/worker.js"] --> cron["User's Worker<br/>daily cron"]
-  cron -- "refresh token from UserDO" --> tok["dash.cloudflare.com/oauth2/token"]
-  cron -- "PUT its own script" --> cfapi["Cloudflare API"]
+  ci["CI release"] --> gh["GitHub Release<br/>worker.js + manifest.json + signature"]
+  ci --> fd["Front door deploy<br/>client is always newest"]
+  fd -- "hello: version, protocol" --> cmp{"Backend older?"}
+  cmp -- "same protocol" --> banner["Banner: Update available"]
+  cmp -- "protocol too old" --> block["Block: Update your backend"]
+  banner & block -- "click" --> udo["UserDO.update(version)"]
+  udo -- "verify signature and hash" --> gh
+  udo -- "refresh grant, PUT own script" --> cfapi["Cloudflare API"]
 ```
 
-- Plan A, self-update. At install, the Cloudflare refresh token is stored encrypted in `UserDO`, like a model key. A daily cron in the user's Worker checks the release manifest. If there is a new version, it gets a fresh access token and uploads the new bundle to itself. Our installer is not involved, so updates cost us nothing at any scale. UNVERIFIED: whether the refresh token of a public PKCE client works from a Worker.
-- Plan B, if plan A fails. The app shows "Update available". One click runs the OAuth flow again and the installer uploads the new bundle. It is the same cost as an install.
-- A Durable Object migration (a new class, a rename) ships in the bundle's metadata, as in `wrangler.jsonc` today. Table changes need nothing, since `migrate` in `core/durable/src/migrate.ts` already runs on first access.
-- The client and the backend can be on different versions for a while. The client reads `/api/version` and keeps one version of backward compatibility. ASSUMPTION.
+| t3code | kiko |
+| --- | --- |
+| `APP_VERSION` and `resolveVersionMismatch` warn only when the server is behind the client (`apps/web/src/versionSkew.ts`) | The same rule. The front door always runs the newest client, so only a backend can lag |
+| `ORCHESTRATION_PROTOCOL_VERSION`, and the socket answers 426 when it does not match (`apps/server/src/ws.ts`) | `PROTOCOL` in `@kiko/protocol`. The client speaks protocol N and N minus 1. An older backend is blocked until it updates |
+| "Server update available" and an update button. The server updates itself to an exact version (`apps/server/src/cloud/selfUpdate.ts`) | The same banner, and a Version row in settings. `UserDO` updates its own Worker to the exact version the client names |
+| Releases on GitHub, overridable with `T3CODE_RELEASE_BASE_URL`, with `SHA256SUMS` | Releases on GitHub, overridable with `RELEASE_BASE_URL`. The manifest is signed with Ed25519, and the public key ships in the bundle |
+| A nightly channel picked by a cookie | None |
+
+- The release URL does not depend on the front door's hostname, so a domain move changes nothing here.
+- The grant used for updates is the install grant. An OAuth grant keeps its refresh token, encrypted in `UserDO` like a model key. A pasted API token is kept the same way.
+- If the grant fails, the button runs the install flow again, and the installer uploads the bundle.
+- A Durable Object migration ships in the manifest's metadata. Table changes need nothing, since `migrate` runs on first access.
 
 ## Why it scales
 
@@ -212,7 +281,7 @@ What grows on our side, and its limit:
 | Our part | Grows with | Free plan limit | Enough for |
 | --- | --- | --- | --- |
 | `app.yuki.codes` | Page loads | Static asset requests are free and unlimited | Any number |
-| `api.yuki.codes` | Installs only, about 10 requests each | 100,000 requests a day | About 10,000 new users a day |
+| `api.yuki.codes` | Installs only, about 2 requests each | 100,000 requests a day | About 50,000 new users a day |
 | Clerk | Monthly active users | 50,000 on Hobby | See cost |
 
 What each user gets on their own Free plan: 100,000 Worker requests a day, Durable Objects with SQLite storage up to 5 GB per account, and 30 seconds of CPU per Durable Object request. One person chatting all day uses a small part of that. The per-turn cost math is in `docs/architecture.md` section 17.
