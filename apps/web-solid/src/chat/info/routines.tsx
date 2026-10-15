@@ -100,7 +100,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
 }
 
 export function RoutinesPage(props: { chatId: string }) {
-  const [recipes] = createResource(() => import("../../recipes/catalog.gen").then((m) => m.RECIPES))
+  const [recipes] = createResource(() => import("../../recipes/api").then((m) => m.loadCards()))
   return (
     <div class="px-2 py-2" data-component="info-routines">
       <Show when={routinesOf(props.chatId)} fallback={<p class={`px-2 py-6 text-center text-[12px] ${faint}`}>Loading</p>}>

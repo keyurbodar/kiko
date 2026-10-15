@@ -2,11 +2,12 @@ import type { RecipeCard } from "@kiko/protocol"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { MoreIcon } from "@kiko/ui/icons"
 import { A } from "@solidjs/router"
-import { createSignal, For, Show } from "solid-js"
-import { RECIPES } from "./catalog.gen"
+import { createSignal, For, onMount, Show } from "solid-js"
+import { loadCards } from "./api"
 import { starterTiles } from "./model"
 import { RecipeIcon } from "./recipe-icon"
 import { RecipeSheet } from "./sheet"
+import { refreshListing } from "./state"
 
 /*
  * The recipes an empty chat offers, under its heading. Loaded lazily by the chat's empty state, so
@@ -14,7 +15,8 @@ import { RecipeSheet } from "./sheet"
  */
 export default function RecipeStarter() {
   const [open, setOpen] = createSignal<RecipeCard | null>(null)
-  const tiles = starterTiles(RECIPES)
+  const tiles = starterTiles(loadCards())
+  onMount(() => void refreshListing())
   return (
     <div class="mt-3 flex flex-col items-center gap-3" data-component="recipe-starter">
       <p class="text-sm text-muted-foreground">Or start from a recipe</p>
@@ -27,7 +29,7 @@ export default function RecipeStarter() {
             </button>
           )}
         </For>
-        <A href="/settings/recipes" class="flex w-20 flex-col items-center gap-1.5 outline-none" data-action="all-recipes">
+        <A href="/recipes" class="flex w-20 flex-col items-center gap-1.5 outline-none" data-action="all-recipes">
           <span class="grid size-14 place-items-center rounded-full bg-control text-muted-foreground">
             <HugeIcon icon={MoreIcon} size={20} />
           </span>

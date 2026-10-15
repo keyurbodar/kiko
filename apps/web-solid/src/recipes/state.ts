@@ -1,8 +1,8 @@
-import { KIKO, type RecipeCard, type RecipeInstall, type RoomId } from "@kiko/protocol"
+import { KIKO, type RecipeCard, type RecipeInstall } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
 import { useApp } from "../lib/store"
-import { listInstalls, postInstall } from "./api"
+import { cardsOf, fetchListing, loadListing, type Listing, postInstall } from "./api"
 import { installedSlugs } from "./model"
 
 /*
@@ -10,17 +10,25 @@ import { installedSlugs } from "./model"
  * takes the user to the chat before the server answers. A refused add takes the mark back and says why.
  */
 
-const [installs, setInstalls] = createSignal<readonly RecipeInstall[]>([])
+const [listing, setListing] = createSignal<Listing>(loadListing())
 const [adding, setAdding] = createSignal<ReadonlySet<string>>(new Set())
 const [owning, setOwning] = createSignal<ReadonlySet<string>>(new Set())
-let loading: Promise<void> | undefined
+let pending: Promise<void> | undefined
 
-export const loadInstalls = (): Promise<void> =>
-  (loading ??= listInstalls().then((list) => {
-    setInstalls(list)
-  }))
+/** The cards the gallery and the starter show. */
+export const cards = (): readonly RecipeCard[] => cardsOf(listing())
 
-export const isAdded = (slug: string): boolean => adding().has(slug) || installedSlugs(installs()).has(slug)
+/** Gets the list from the server. Calls while one is in flight share it. */
+export const refreshListing = (): Promise<void> =>
+  (pending ??= fetchListing()
+    .then((next) => {
+      if (next) setListing(next)
+    })
+    .finally(() => {
+      pending = undefined
+    }))
+
+export const isAdded = (slug: string): boolean => adding().has(slug) || installedSlugs(listing().installs).has(slug)
 
 export const isOwning = (slug: string): boolean => owning().has(slug)
 
@@ -32,6 +40,8 @@ const mark = (set: (update: (s: ReadonlySet<string>) => ReadonlySet<string>) => 
     return next
   })
 
+const recorded = (install: RecipeInstall) => setListing((l) => ({ ...l, installs: [...l.installs, install] }))
+
 const failed = (card: RecipeCard, error: string) => showToastV2({ title: `Could not add ${card.title}`, description: error, variant: "error" })
 
 /** Adds the recipe to Kiko's chat. The chat opens at once; the server's answer only undoes the mark. */
@@ -42,7 +52,7 @@ export function addToKiko(card: RecipeCard, navigate: (to: string) => void): voi
   navigate(`/chat/${roomId}`)
   void postInstall({ installId: crypto.randomUUID(), slug: card.slug, roomId, agent: KIKO }).then((result) => {
     mark(setAdding, card.slug, false)
-    if (result.ok) setInstalls((list) => [...list, result.install])
+    if (result.ok) recorded(result.install)
     else failed(card, result.error)
   })
 }
@@ -53,7 +63,7 @@ export function addOwnChat(card: RecipeCard, navigate: (to: string) => void): vo
   void postInstall({ installId: crypto.randomUUID(), slug: card.slug, own: true }).then((result) => {
     mark(setOwning, card.slug, false)
     if (!result.ok) return failed(card, result.error)
-    setInstalls((list) => [...list, result.install])
+    recorded(result.install)
     navigate(`/chat/${result.install.roomId}`)
   })
 }

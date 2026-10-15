@@ -1,7 +1,7 @@
-import { A, useNavigate } from "@solidjs/router"
+import { A, useLocation, useNavigate } from "@solidjs/router"
 import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ComposeIcon, SettingsIcon, SidebarLeftIcon } from "@kiko/ui/icons"
+import { ComposeIcon, SettingsIcon, SidebarLeftIcon, SparklesIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { session } from "../app/session"
 import { SECTIONS, type SectionId } from "../app/sections"
@@ -59,6 +59,8 @@ export interface SidebarProps {
  */
 export function Sidebar(props: SidebarProps) {
   const collapsed = () => props.collapsed
+  // A page that is not a section (recipes) keeps the chat list beside it.
+  const shown = (): SectionId => props.section ?? "chat"
   const [visited, setVisited] = createSignal<ReadonlySet<SectionId>>(new Set())
   createEffect(() => {
     const id = props.section
@@ -78,7 +80,7 @@ export function Sidebar(props: SidebarProps) {
           <span>Kiko</span>
         </A>
         <span class="flex-1" aria-hidden="true" />
-        <Show when={props.section && ACTIONS[props.section]}>{(action) => <HeaderAction action={action()} />}</Show>
+        <Show when={ACTIONS[shown()]}>{(action) => <HeaderAction action={action()} />}</Show>
         <SidebarToggle open onToggle={props.onToggle} />
       </header>
 
@@ -88,7 +90,7 @@ export function Sidebar(props: SidebarProps) {
             const Panel = PANELS[id]
             return (
               <Show when={id === "chat" || visited().has(id)}>
-                <div class="panel-slot" data-slot={id} data-hidden={props.section === id ? undefined : ""}>
+                <div class="panel-slot" data-slot={id} data-hidden={shown() === id ? undefined : ""}>
                   <Suspense>
                     <Panel />
                   </Suspense>
@@ -126,6 +128,8 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
 
 /** You and settings, at the foot of every section. The card opens the account page. */
 function Foot(props: { section: SectionId | null }) {
+  const location = useLocation()
+  const onRecipes = () => location.pathname.startsWith("/recipes")
   const user = () => {
     const s = session()
     return s.status === "signed-in" ? s.user : null
@@ -136,6 +140,18 @@ function Foot(props: { section: SectionId | null }) {
         <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
         <span class="panel-me-name">{user()?.name ?? "You"}</span>
       </A>
+      <TooltipV2 placement="top" openDelay={400} value="Recipes">
+        <A
+          href="/recipes"
+          class="panel-icon-button"
+          data-component="sidebar-recipes"
+          data-active={onRecipes() ? "" : undefined}
+          aria-current={onRecipes() ? "page" : undefined}
+          aria-label="Recipes"
+        >
+          <HugeIcon icon={SparklesIcon} size={17} />
+        </A>
+      </TooltipV2>
       <TooltipV2 placement="top" openDelay={400} value="Settings">
         <A
           href="/settings"
