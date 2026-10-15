@@ -1,3 +1,4 @@
+import { BACKEND } from "../src/lib/version"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
@@ -143,7 +144,7 @@ test("hello resumes after lastSeq, and a socket from the future gets a snapshot"
   await rpc(user, "createChat", ROOM_B, "b")
   await rpc(user, "pinChat", ROOM_B, true)
   const resumed = await socket(user, 2)
-  expect(resumed.frames[0]).toEqual({ t: "events", events: [expect.objectContaining({ seq: 3 })] })
+  expect(resumed.frames[0]).toEqual({ t: "events", events: [expect.objectContaining({ seq: 3 })], ...BACKEND })
   const ahead = await socket(user, 99)
   expect(ahead.frames[0]!.t).toBe("reset")
   expect(ahead.frames[0]!.snapshot.seq).toBe(3)
