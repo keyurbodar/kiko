@@ -1,0 +1,196 @@
+---
+const appUrl = import.meta.env.PUBLIC_APP_URL || "https://app.kiko.codes"
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Kiko is a chat app that feels like Telegram. Text one AI agent or a team of agents. Self-deploy it on your own Cloudflare account." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fcfcfc" media="(prefers-color-scheme: light)" />
+    <title>Kiko, a chat app for your AI agents</title>
+    <link rel="icon" type="image/svg+xml" href="/kiko.svg" />
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="/">
+        <img src="/kiko.svg" width="22" height="22" alt="" />
+        Kiko
+      </a>
+      <nav aria-label="Main">
+        <a href="#self-deploy">Self-deploy</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="copy">
+          <h1>Text one agent, or a whole team.</h1>
+          <p class="lede">
+            Kiko is a chat app that feels like Telegram. You message an AI agent the way you would message a friend. It remembers you, sets reminders, and keeps working after you close the tab.
+          </p>
+          <div class="actions">
+            <a class="button primary" href={appUrl}>Open Kiko</a>
+            <a class="button" href="#self-deploy">Self-deploy</a>
+          </div>
+        </div>
+        <div class="chat" aria-label="Example chat">
+          <p class="bubble me">Plan a three-day trip to Lisbon. Keep it cheap.</p>
+          <p class="bubble agent">Two options. A hostel near Alfama, or a rental in Graça.</p>
+          <p class="bubble agent">Want me to check train times to Sintra too?</p>
+          <p class="bubble me">Yes, and remind me to book on Friday.</p>
+        </div>
+      </section>
+
+      <section class="features" aria-labelledby="features-title">
+        <h2 id="features-title">Built to feel like texting</h2>
+        <div class="grid">
+          <article>
+            <h3>Instant</h3>
+            <p>Kiko paints from your device first. Navigation, buttons, and the composer respond at once. Nothing waits on the network.</p>
+          </article>
+          <article>
+            <h3>Human pacing</h3>
+            <p>Agents read a burst of messages together and answer once, in short bubbles. They do not reply to every line you type.</p>
+          </article>
+          <article>
+            <h3>Your own backend</h3>
+            <p>Kiko runs in your own Cloudflare account on the free plan. Your model keys are encrypted there and never reach the browser.</p>
+          </article>
+          <article>
+            <h3>Teams of agents</h3>
+            <p>Add agents to a group chat by name. Tag one with @name, or let the lead agent split a goal into tasks and hand them out.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="steps" aria-labelledby="steps-title">
+        <h2 id="steps-title">How it works</h2>
+        <ol>
+          <li>
+            <h3>Sign in</h3>
+            <p>Use your Google or GitHub account. There is no password to make.</p>
+          </li>
+          <li>
+            <h3>Connect Cloudflare</h3>
+            <p>Kiko installs its backend into your own Cloudflare account, on the free plan. Your chats live there, not with us.</p>
+          </li>
+          <li>
+            <h3>Add a model key</h3>
+            <p>Add a key from the model provider you use in Settings. Kiko stores it encrypted and uses it only for your agents.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="self-deploy" id="self-deploy" aria-labelledby="self-deploy-title">
+        <h2 id="self-deploy-title">Self-deploy</h2>
+        <p>One deployment serves one owner. You need a Cloudflare account on the free plan and Bun. The full steps are in <code>docs/self-deploy.md</code> in the repository. In short:</p>
+        <ol>
+          <li>Fork the repo and clone your fork.</li>
+          <li>Run <code>bunx wrangler login</code>, then <code>bunx wrangler r2 bucket create kiko-files</code>.</li>
+          <li>Run <code>bun install</code>, then build the client with <code>bun run --cwd apps/web-solid build</code>.</li>
+          <li>Deploy the Worker with <code>bun run --cwd apps/server deploy</code>.</li>
+          <li>Set three secrets in <code>apps/server</code>: <code>SESSION_SECRET</code>, <code>CREDENTIALS_KEK</code>, and <code>ACCESS_CODE</code>.</li>
+          <li>Open the URL Wrangler printed, enter your access code, and add a model key.</li>
+        </ol>
+      </section>
+    </main>
+
+    <footer>
+      <p>Kiko. Self-deployed on Cloudflare Workers.</p>
+      <p><a href={appUrl}>Open Kiko</a> <a href="#self-deploy">Self-deploy</a></p>
+    </footer>
+  </body>
+</html>
+
+<style>
+  :root {
+    --canvas: #fcfcfc;
+    --text: #27272a;
+    --muted: #71717a;
+    --faint: #a1a1aa;
+    --action: #27272a;
+    --action-hover: #3f3f46;
+    --on-action: #ffffff;
+    --accent: #1b4ed8;
+    --line: color-mix(in oklab, var(--text) 12%, transparent);
+    --bubble-agent: color-mix(in oklab, var(--text) 5%, var(--canvas));
+    --bubble-me: color-mix(in oklab, var(--accent) 15%, transparent);
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --font-mono: "SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 14px;
+    --radius-bubble: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --canvas: #0a0a0a;
+      --text: #f5f5f5;
+      --muted: #818181;
+      --faint: #525252;
+      --action: #f5f5f5;
+      --action-hover: #e5e5e5;
+      --on-action: #0a0a0a;
+      --accent: #346bf1;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--canvas); color: var(--text); font: 14px/1.5 var(--font-sans); -webkit-text-size-adjust: 100%; }
+  body { margin: 0; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  h1, h2, h3, p { margin: 0; }
+  h1 { font-size: 40px; line-height: 1.12; font-weight: 600; letter-spacing: -0.02em; }
+  h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+  h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  p { color: var(--muted); }
+  code { font: 13px/1.5 var(--font-mono); color: var(--text); }
+  ol { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+
+  .top { display: flex; align-items: center; justify-content: space-between; max-width: 1040px; margin: 0 auto; padding: 16px 24px; }
+  .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font-weight: 600; font-size: 16px; text-decoration: none; }
+  .top nav a { color: var(--muted); font-size: 13px; text-decoration: none; }
+  .top nav a:hover { color: var(--text); }
+
+  main, footer { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 48px 0; border-top: 1px solid var(--line); }
+
+  .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; border-top: 0; padding-top: 48px; }
+  .lede { font-size: 16px; margin-top: 16px; max-width: 480px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+  .button { display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: var(--radius-md); border: 1px solid var(--line); color: var(--text); font-size: 14px; font-weight: 500; text-decoration: none; }
+  .button:hover { border-color: var(--muted); }
+  .button.primary { background: var(--action); border-color: var(--action); color: var(--on-action); }
+  .button.primary:hover { background: var(--action-hover); border-color: var(--action-hover); }
+
+  .chat { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-xl); }
+  .bubble { max-width: 82%; padding: 8px 12px; border-radius: var(--radius-bubble); color: var(--text); font-size: 14px; }
+  .bubble.agent { align-self: flex-start; background: var(--bubble-agent); border-bottom-left-radius: 4px; }
+  .bubble.me { align-self: flex-end; background: var(--bubble-me); border-bottom-right-radius: 4px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid article { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .grid p, .steps p, .self-deploy p { font-size: 13px; }
+
+  .steps ol { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .steps li { padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .steps li::before { counter-increment: step; content: counter(step); display: inline-grid; place-items: center; width: 22px; height: 22px; margin-bottom: 12px; border-radius: 50%; background: var(--action); color: var(--on-action); font-size: 12px; font-weight: 600; }
+  .self-deploy ol { display: grid; gap: 8px; margin-top: 16px; counter-reset: step; }
+  .self-deploy li { counter-increment: step; position: relative; padding-left: 24px; color: var(--muted); font-size: 13px; }
+  .self-deploy li::before { content: counter(step) "."; position: absolute; left: 0; color: var(--text); font-weight: 500; }
+
+  footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 24px; padding-bottom: 48px; border-top: 1px solid var(--line); font-size: 13px; }
+  footer p:first-child { color: var(--muted); }
+  footer a { font-size: 13px; margin-left: 16px; }
+
+  @media (max-width: 760px) {
+    h1 { font-size: 30px; }
+    .hero, .grid, .steps ol { grid-template-columns: 1fr; }
+    .hero { padding-top: 24px; gap: 24px; }
+    section { padding: 32px 0; }
+  }
+</style>

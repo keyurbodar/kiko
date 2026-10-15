@@ -24,3 +24,4 @@ artifacts/
 .wrangler/
 wrangler.log
 vite.log
+apps/landing/.astro/
