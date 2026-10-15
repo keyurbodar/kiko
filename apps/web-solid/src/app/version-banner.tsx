@@ -3,6 +3,7 @@ import { Show } from "solid-js";
 import { Hint, Notice } from "../settings/kit";
 import { useApp } from "../lib/store";
 import { APP_VERSION } from "../lib/version-skew";
+import { UpdateAction } from "../settings/update-action";
 
 export function VersionBanner() {
   const skew = () => useApp.user()?.state.skew;
@@ -14,7 +15,7 @@ export function VersionBanner() {
   );
   return (
     <Show when={skew() === "update" || skew() === "blocked"}>
-      <div class="fixed inset-x-0 top-0 z-50 bg-[var(--sidebar)] px-3 py-1" data-component="version-banner">
+      <div class="fixed inset-x-0 top-0 z-50 flex items-center gap-3 bg-[var(--sidebar)] px-3 py-1" data-component="version-banner">
         <Show
           when={skew() === "blocked"}
           fallback={
@@ -27,6 +28,7 @@ export function VersionBanner() {
             <span>Update your backend to keep using Kiko</span> {versions()}
           </Notice>
         </Show>
+        <UpdateAction label={skew() === "blocked" ? "Update now" : "Update"} />
       </div>
     </Show>
   );
