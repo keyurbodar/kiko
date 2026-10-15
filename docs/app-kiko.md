@@ -63,6 +63,14 @@ Run against the owner's account with a throwaway Worker. The Worker was deleted 
 - Images and file links use `<img src>` and `href`, which cannot carry a header. They need signed URLs, not only uploads.
 - "A breach exposes one account" holds only if releases are signed. A forged release could otherwise reach every backend.
 
+### Clerk sign-in, as built (build item 3)
+
+- **Server.** `POST /api/auth/clerk` is in `apps/server/src/auth/clerk.ts`, with no `@clerk/backend` dependency: the check is RS256 through WebCrypto. `CLERK_JWT_KEY` takes the PEM, or the same key as bare base64 or with `\n` for line breaks, so it passes through `wrangler --var` on one line.
+- **Client.** A build with `VITE_CLERK_PUBLISHABLE_KEY` is hosted. `app/hosted-sign-in.tsx` replaces the access-code screen, and also serves `/sso-callback` and the `/connect` placeholder. `@clerk/clerk-js` (about 570 KB gzip) is its own lazy chunk, reached only from the sign-in screen, the callback, and sign-out. The cached profile is `kiko:profile`.
+- **One sign-out.** `signOut()` in `app/session.ts` ends the Clerk session first, then drops the token, snapshot, warm tier, and profile. `kiko:backend` stays. A 401 alone leaves the Clerk session, so the sign-in screen signs the person back in without a click.
+- **Settings.** Account is its own section, `/settings/account` (the `account` alias to General is gone).
+- **Dev instance.** It has no email identifier, so a test user gets a `username`, which is what a sign-in token needs. `scripts/clerk-dev.ts up|ticket|down` and `bun kiko verify clerk` drive it. A dev build of the client accepts `/?ticket=<sign-in token>` (`app/dev-ticket.ts`, dropped from production builds).
+
 ### Moving to a domain
 
 1. Ship a backend release that adds the new origin to `TRUSTED_ORIGINS`, so both origins work.

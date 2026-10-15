@@ -132,8 +132,9 @@ export async function signOut(): Promise<void> {
     localStorage.removeItem("kiko:snap")
   } catch {}
   setProfile(null)
-  await signedOut()
+  // Clerk first: the sign-in screen resumes a Clerk session it finds, so it must be gone before that screen shows.
   if (hosted) await import("./clerk").then((m) => m.clerkSignOut()).catch(() => {})
+  await signedOut()
 }
 
 async function adopt(res: Response | null, failure: string): Promise<void> {

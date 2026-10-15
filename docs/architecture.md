@@ -634,6 +634,7 @@ Stored system events now survive the client snapshot, event, disk, and history p
 
 - `POST /api/auth/access-code` with the code checks it against the `ACCESS_CODE` secret, and on a match sets a session cookie for the owner `owner`. The cookie is an HMAC signed with `SESSION_SECRET`. `POST /api/auth/sign-out` clears it.
 - A wrong code answers 401 after the same hash-and-compare work as a right one. Without the `ACCESS_CODE` secret the route answers 404.
+- A hosted backend also has `POST /api/auth/clerk` with `{ token }`. The token is a Clerk session JWT. The Worker verifies it offline with WebCrypto against the PEM in the `CLERK_JWT_KEY` secret (RS256, `exp` and `nbf` with 5 seconds of skew, `azp` in `TRUSTED_ORIGINS` when present) and requires `sub` to equal the `OWNER_ID` secret. It then answers exactly like the access-code route, with the constant owner `owner`. A bad token is 401, another user is 403, and without both secrets the route answers 404. It makes no network call. `apps/server/src/auth/clerk.ts`.
 - The Worker checks the cookie on each request. It reads no storage to do so.
 - The dev-only route `/api/auth/dev/session?name=<name>` mints a session for a named dev owner. `dev-guard` loads it only in a development build, and it refuses any host that is not local. Each verify suite uses its own name. `apps/server/src/lib/dev-guard.ts` is the only module that reads `NODE_ENV`, and `scripts/check-rules.ts` enforces that.
 
