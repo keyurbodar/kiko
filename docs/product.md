@@ -108,6 +108,13 @@ A chat is a room with you and one or more agents. A chat with a single agent and
 - Kiko ships built-in skills. You cannot add your own yet.
 - Type `/skill:name` to apply a skill by hand.
 
+### Recipes
+
+- A recipe is a ready-made habit for an agent: a morning briefing, follow-up nudges, a decision council. Settings has a gallery of them, and an empty new chat offers a few as round tiles.
+- One tap adds a recipe. It goes to Kiko by default, or to the agent of the chat you opened it from, or to a new agent with its own chat. The chat opens at once.
+- The agent then asks one or two setup questions in the chat, such as the time or the city. There is no form. A missing app is asked for in the chat with a connect link.
+- An added recipe is a skill in the chat's files and, when it runs on a schedule, a routine in the chat's routines tab. Change or remove it there.
+
 ### Chat interface details
 
 Kiko keeps what already works in `apps/web-solid` and adds or fixes the following.

@@ -6,6 +6,8 @@ when: Daily at 7:00
 tags: [mornings]
 icon: cloud-warning
 apps: []
+setup:
+  - which city should i watch?
 triggers:
   - name: bad weather alerts
     every: FREQ=DAILY;BYHOUR=7;BYMINUTE=0
@@ -24,4 +26,4 @@ bad means rain or snow likely, a thunderstorm, or heat above 32 C (90 F).
 
 rules
 - never send a good-weather bubble. silence means the day is fine.
-- if you do not know the city, reply with only [skip]. the daily weather recipe asks for it.
+- if you do not know the city, ask once in one bubble, then reply with only [skip] until you know it.

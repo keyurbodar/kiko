@@ -1,6 +1,6 @@
 import type { RecipeInstall } from "@kiko/protocol"
 import { VerifyError } from "../client"
-import { agentTexts, messages, newRoom, poll } from "../kit"
+import { agentTexts, frames, messages, newRoom, poll } from "../kit"
 import { api, ok, type Routine } from "../routine-kit"
 import type { Suite } from "../runner"
 import { fake } from "./mid-run"
@@ -26,7 +26,10 @@ const suite: Suite = {
     if (!routine || extra.length || routine.name !== "morning briefing" || routine.target !== "yuki") throw new VerifyError(`expected one morning briefing routine for kiko, got ${JSON.stringify(await mine())}`)
     const due = new Date(routine.dueUtc)
     if (`${due.getUTCHours()}:${due.getUTCMinutes()}:${due.getUTCSeconds()}` !== "7:55:0" || !routine.rrule?.includes("FREQ=DAILY")) throw new VerifyError(`expected a daily routine due at 7:55:00 UTC, got ${due.toISOString()} ${routine.rrule}`)
-    const skill = await fetch(new URL(`api/files/${roomId}/skills/morning-briefing/SKILL.md`, url), { headers: { cookie: s.cookie } })
+    const fileId = () => frames(room).flatMap((f) => (f.t === "events" ? f.events : [])).find((e) => e.t === "file" && e.file.name === "skills/morning-briefing/SKILL.md")
+    await poll("the skill file event", () => fileId() !== undefined, 5_000)
+    const ref = fileId()
+    const skill = await fetch(new URL(`api/files/${roomId}/${ref?.t === "file" ? ref.file.id : ""}`, url), { headers: { cookie: s.cookie } })
     const text = await skill.text()
     if (!skill.ok || !text.startsWith("---\nname: morning-briefing\n") || !text.includes("each morning")) throw new VerifyError(`expected the recipe as a chat skill, got ${skill.status} ${text.slice(0, 120)}`)
     console.log(`  ok the recipe made routine ${routine.id} due ${due.toISOString()}, wrote its skill, and woke kiko`)

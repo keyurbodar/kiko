@@ -232,7 +232,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!this.adopt(userId)) return "refused"
 		await this.writeText(input.agent, `skills/${input.slug}/SKILL.md`, input.skill)
 		const out = await this.wakes.wake({ id: `recipe:${input.installId}`, to: input.agent, why: "created", body: input.wake, chain: null })
-		if (out === "delivered") await this.systemNotice(`recipe:${input.installId}`, `${input.title} added`, "created")
+		if (out === "delivered") await this.systemNotice(`recipe-added:${input.installId}`, `${input.title} added`, "created")
 		return out
 	}
 

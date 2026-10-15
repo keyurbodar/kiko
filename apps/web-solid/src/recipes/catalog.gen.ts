@@ -229,7 +229,7 @@ export const RECIPES: readonly RecipeCard[] = [
   {
     "slug": "weekly-reading",
     "title": "Weekly reading",
-    "description": "Three reading picks each Saturday, matched to the interests the human has shared.",
+    "description": "Three reading picks each Saturday, matched to your interests.",
     "when": "Saturdays at 19:00",
     "apps": [],
     "tags": [

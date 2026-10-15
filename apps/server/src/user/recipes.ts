@@ -24,7 +24,7 @@ export const recipeRule = (every: string) => (/BYMINUTE=/i.test(every) && !/BYSE
 
 /** The skill file the recipe becomes in its chat, so `read_skill` loads it and the human can read and edit it. */
 export function recipeSkill(r: Recipe): string {
-  return `---\nname: ${r.slug}\ndescription: ${JSON.stringify(`the ${r.title.toLowerCase()} recipe the human added. ${r.description} load it when its routine runs or the human asks for it.`)}\n---\n${r.body}\n`
+  return `---\nname: ${r.slug}\ndescription: ${JSON.stringify(`the ${r.title.toLowerCase()} recipe the human added. ${r.description} load it whenever it applies, and when its routine runs.`)}\n---\n${r.body}\n`
 }
 
 /** What the agent hears once, right after the human adds the recipe. */

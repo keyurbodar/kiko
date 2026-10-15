@@ -943,6 +943,17 @@ The list is part of the system prompt and changes rarely, so it stays in the cac
 
 `GET /api/skills` (signed in) answers `{skills: [{name, description, source, disableModelInvocation}]}` for the built-in skills, so the settings page can list them. Room skills are not listed there. The parse is memoized per isolate and small, so it stays in the Worker handler.
 
+### 15.1 Recipes
+
+**Decision.** A recipe is a built-in skill with a schedule, setup questions, and the apps it needs. It lives in `apps/server/recipes/<slug>/RECIPE.md`, a `SKILL.md` with more frontmatter (`apps/server/src/recipes/recipe.ts`). Adding one reuses what kiko has: its body becomes a chat skill, its schedule becomes routines, and one wake has the agent ask the setup questions in the chat.
+
+- **Catalog.** `apps/server/scripts/gen-recipes.ts` writes the bodies for the server (`src/recipes/catalog.gen.ts`) and the gallery cards for the client (`apps/web-solid/src/recipes/catalog.gen.ts`), each with its icon's svg. The gallery paints from a build constant, with no request and no icon bundle. A broken recipe fails the build, not a run.
+- **Icons.** Phosphor duotone, MIT. `scripts/recipe-icons.ts` picks one from the recipe's words with no model call: a synonym table first, then the icon names and tags. On Poke's 44 behavior recipes it picked a fitting icon for about 38, against about a third for a plain tag match (measured 2026-10-15). A recipe may name its icon. The tone comes from the icon's Phosphor category.
+- **Install.** `POST /api/recipes` with `{installId, slug, roomId, agent}` or `{installId, slug, own: true}`. `UserDO.installRecipe` makes one routine per trigger (the RRULE runs in the owner's time zone), then `RoomDO.addRecipe` writes `skills/<slug>/SKILL.md`, wakes the agent once (`recipe:<installId>`), and posts "<title> added". The row in `recipe_installs` makes a retry with the same id return the first install. A refused wake cancels the routines it made. `own` makes an agent from the recipe's `agent` name and handle, with a number when the handle is taken, and its direct chat.
+- **Setup in the chat.** The wake names the routines and the setup questions. The agent asks them and changes the routine with `update_routine`, the same way a human's ask changes one. Section 7.11 already says the human never fills in a form.
+- **Scope.** A recipe belongs to the chat it was added to, like any chat skill: every agent in that chat sees it, and its routines run as the agent it was added to.
+- DEVIATION from Poke: Poke also triggers a recipe on an email that matches a sentence. Kiko has no email trigger yet; such recipes check the inbox on a schedule instead.
+
 ## 16. Agents act without asking
 
 Kiko has no approvals and no prompt-injection gating. Agents work like pi's coding agent: no permission gate, no "ask first", no taint, and no wrapping of outside content.

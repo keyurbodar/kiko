@@ -2,7 +2,7 @@ import { triggerProblem } from "@kiko/sandbox/rule"
 import { parseFrontmatter } from "../skills/frontmatter"
 
 /** A schedule the recipe starts with. `every` is an RRULE in the owner's time zone; `run` is the routine's instructions. */
-export type RecipeTrigger = { name: string; every: string; run: string }
+type RecipeTrigger = { name: string; every: string; run: string }
 
 export type Recipe = {
   slug: string
@@ -18,7 +18,7 @@ export type Recipe = {
   body: string
 }
 
-export const RECIPE_TAGS = ["mornings", "inbox", "money", "health", "fun", "thinking", "home", "work", "travel"] as const
+const RECIPE_TAGS = ["mornings", "inbox", "money", "health", "fun", "thinking", "home", "work", "travel"] as const
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const HANDLE = /^[a-z][a-z0-9-]{1,31}$/
