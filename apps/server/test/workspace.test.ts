@@ -105,3 +105,19 @@ test("a ready assignment wakes its owner without a separate message", async () =
   await post(`/woke/${r}`, { taskId: "ready" })
   expect((await call(r, "bob", true, { op: "create_task", id: "ready", title: "Check senders", owner: "ada" })).wakes).toEqual([])
 })
+
+test("agent task titles stay below twelve words without silently clipping instructions", async () => {
+	const r = room()
+	const eleven = "one two three four five six seven eight nine ten eleven"
+	const twelve = `${eleven} twelve`
+	const refused = await call(r, "bob", true, { op: "create_task", id: "long", title: twelve })
+	expect(refused.answer.ok).toBe(false)
+	expect(refused.events).toEqual([])
+	expect((await state(r)).tasks).toEqual([])
+	expect((await call(r, "bob", true, { op: "create_task", id: "short", title: eleven, owner: "ada" })).answer.ok).toBe(true)
+	const renamed = await call(r, "ada", false, { op: "update_task", id: "short", title: twelve, status: "done" })
+	expect(renamed.answer.ok).toBe(false)
+	expect((await state(r)).tasks[0].title).toBe(eleven)
+	expect((await state(r)).tasks[0].status).toBe("todo")
+	expect((await call(r, "ada", false, { op: "update_task", id: "short", status: "doing" })).answer.ok).toBe(true)
+})

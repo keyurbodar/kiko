@@ -2,6 +2,7 @@ import { CollapsibleV2 as Collapsible } from "@kiko/ui/v2/collapsible-v2"
 import { InteractiveHoverCard as HoverCard } from "@kiko/ui/v2/interactive-hover-card"
 import { ChevronDownIcon, CircleHelpIcon, ListTodoIcon } from "lucide-solid"
 import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
+import { useApp } from "../../lib/store"
 import { TaskList } from "../../chat/info/task-list"
 import { taskProgress, taskText } from "../../chat/info/tasks-model"
 import type { RoomStore } from "../../sync/room-store"
@@ -33,7 +34,7 @@ function CardSummary(props: { card: ComposerCard; room: RoomStore }) {
 
 function CardBody(props: { card: ComposerCard; room: RoomStore }) {
   return <Show when={props.card.kind === "tasks"} fallback={<div class="composer-card-body"><p>{props.card.title}</p></div>}>
-    <div class="composer-card-body composer-task-body"><TaskList tasks={taskProgress(props.room.tasks()).steps} members={props.room.members()} /></div>
+    <div class="composer-card-body composer-task-body"><TaskList tasks={taskProgress(props.room.tasks()).steps} members={props.room.members()} agents={useApp.agents()} /></div>
   </Show>
 }
 

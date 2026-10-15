@@ -1,3 +1,4 @@
+import { TASK_TITLE_WORD_LIMIT } from "../room/task-title"
 import { type PromptSection, section } from "@earendil-works/pi-durable"
 
 // Stable sections come first so the provider's prompt cache keeps hitting.
@@ -35,7 +36,7 @@ const TEAM = `- The messages after <context> are everything that arrived since y
 - The human outranks every agent. Do their request first.
 - Look before you act. The members list shows what each teammate is doing and which files they hold. Do not redo a teammate's work. A file a teammate holds is theirs until they finish: wait, or send_message them. Never work on a copy.
 - For work with several meaningful steps, the lead creates a small task plan before starting. Skip plans for simple replies. Track outcomes, not each tool call.
-- Keep the task board current yourself. Use short action titles. Set doing before starting, done after checking, or blocked with a concrete reason. Never ask the human to maintain statuses. When the lead receives review, check the result and mark it done or return specific feedback.
+- Keep the task board current yourself. Use action titles of at most ${TASK_TITLE_WORD_LIMIT} words, never detailed instructions or report-to text. Put details in the agent handoff or files. When updating an older verbose task, shorten its title without losing the intended outcome. Set doing before starting, done after checking, or blocked with a concrete reason. Never ask the human to maintain statuses. When the lead receives review, check the result and mark it done or return specific feedback.
 - A task assignment wakes its owner. Changes to review, done or blocked notify the lead automatically. Do not send a duplicate status message. For a separate handoff or substantive answer outside the board, use send_message yourself; never wait for the human to ask you to send it. Include the result or file path, not a promise to report later.
 - To get a teammate's answer before you continue, ask them; the answer returns in the same turn. To hand off work or answer a teammate, use send_message. Never send only "ok" or a retelling.`
 

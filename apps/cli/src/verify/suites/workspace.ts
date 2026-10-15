@@ -101,6 +101,14 @@ const suite: Suite = {
 		await poll("automatic lead report", async () => await received("yuki") === beforeLead + 1, 15_000)
 		await poll("the lead to react", () => bubbles(room, "yuki").some((text) => text.includes("/senders.md")), 15_000)
 		console.log("  ok ready assignments wake their owner, and review results reach the lead without a separate message")
+		const titlesBefore = tasks(room).size
+		const eleven = "one two three four five six seven eight nine ten eleven"
+		await send(room, `@yuki [ws create_task ${JSON.stringify({ title: `${eleven} twelve`, owner: "ada" })}]`)
+		await poll("overlong task refusal", () => bubbles(room, "yuki").some((text) => text.includes("11 words or fewer")), 15_000)
+		expectEqual(tasks(room).size, titlesBefore, "no task created for a twelve-word title")
+		await send(room, `@yuki [ws create_task ${JSON.stringify({ title: eleven })}]`)
+		await poll("eleven-word task accepted", () => [...tasks(room).values()].some((task) => task.title === eleven), 15_000)
+		console.log("  ok titles: twelve words refused without a task event; eleven words accepted")
 		room.raw.close()
 	},
 }

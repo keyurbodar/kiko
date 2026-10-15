@@ -1,6 +1,7 @@
 import type { Actor, AgentSlug, RoomEvent, Task, TaskOp, TaskStatus } from "@kiko/protocol"
 import { actorKey, type RoomLog } from "./log"
 import type { Chain } from "./mail"
+import { TASK_TITLE_WORD_LIMIT } from "./task-title"
 
 export const TASK_STATUSES: readonly TaskStatus[] = ["todo", "doing", "blocked", "review", "done", "cancelled"]
 const CLOSED: ReadonlySet<TaskStatus> = new Set(["done", "cancelled"])
@@ -282,6 +283,9 @@ export function applyTaskOp(ws: Workspace, op: TaskOp, members: readonly AgentSl
 const line = (t: Task) => `${t.id} [${t.status}] ${t.title}${t.owner ? ` (@${t.owner})` : ""}${t.dependsOn.length ? ` after ${t.dependsOn.join(", ")}` : ""}`
 
 export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: WorkspaceCall, members: readonly AgentSlug[], chain?: Chain): { answer: WorkspaceAnswer; events: RoomEvent[] } {
+	if (call.title !== undefined && call.title.trim().split(/\s+/u).filter(Boolean).length > TASK_TITLE_WORD_LIMIT) {
+		return { answer: fail(`task titles must use ${TASK_TITLE_WORD_LIMIT} words or fewer. Put instructions in the handoff message or files, then retry with a concise action label.`), events: [] }
+	}
 	const by: Actor = { kind: "agent", slug }
 	const done = <T>(r: Result<T>, text: (v: T) => string) =>
 		r.ok ? { answer: { ok: true as const, text: text(r.value) }, events: r.events } : { answer: fail(r.error), events: [] }

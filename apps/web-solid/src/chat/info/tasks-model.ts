@@ -1,4 +1,4 @@
-import type { Member, Task, TaskStatus } from "@kiko/protocol"
+import type { Agent, Member, Task, TaskStatus } from "@kiko/protocol"
 
 export const TASK_ORDER: readonly TaskStatus[] = ["doing", "blocked", "todo", "review", "done", "cancelled"]
 export const TASK_LABEL: Record<TaskStatus, string> = { doing: "Running", blocked: "Blocked", todo: "Pending", review: "In review", done: "Completed", cancelled: "Cancelled" }
@@ -20,4 +20,10 @@ export function taskDependencies(task: Task, tasks: readonly Task[]): string[] {
 
 export function taskText(text: string, members: readonly Pick<Member, "slug" | "name">[]): string {
   return text.replace(/(^|[\s(])@([a-z0-9-]+)\b/g, (_, prefix: string, slug: string) => `${prefix}${members.find((m) => m.slug === slug)?.name ?? `@${slug}`}`)
+}
+
+export function taskOwner(task: Pick<Task, "owner">, members: readonly Pick<Member, "slug" | "name">[], agents: readonly Pick<Agent, "slug" | "name">[] = []) {
+  if (!task.owner) return { name: "Unassigned" }
+  const known = members.find((m) => m.slug === task.owner) ?? agents.find((a) => a.slug === task.owner)
+  return { slug: task.owner, name: known?.name ?? "Former agent" }
 }
