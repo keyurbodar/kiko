@@ -1,3 +1,4 @@
+import { fileName } from "@kiko/protocol"
 /*
  * Which parts of an agent's message name a file, after t3code's markdown file links. A link
  * whose href is a path, and inline code that is clearly a path, become a chip that opens the
@@ -158,7 +159,7 @@ export function isFileLabel(label: string, file: FileTarget): boolean {
   const own = splitPosition(label.trim())
   if ((own.line !== undefined && own.line !== file.line) || (own.column !== undefined && own.column !== file.column)) return false
   const path = workspacePath(own.path)
-  return path === "" || path === file.path || file.path.endsWith(`/${path}`)
+  return path === "" || path === file.path || file.path.endsWith(`/${path}`) || path === fileName(file.path)
 }
 
 /**
@@ -193,7 +194,8 @@ export function parentSuffixes(paths: readonly string[]): Map<string, string> {
 
 /** The chip's text: the name, its parent folders when another chip shares it, and its line. */
 export function chipLabel(file: FileTarget, suffix?: string): string {
-  const parts = [basename(file.path)]
+  // An upload is stored as `attachments/<stamp>-<name>`. The chip says the name the human picked.
+  const parts = [fileName(file.path)]
   if (suffix) parts.push(suffix)
   if (file.line) parts.push(`L${file.line}${file.column ? `:C${file.column}` : ""}`)
   return parts.join(" · ")

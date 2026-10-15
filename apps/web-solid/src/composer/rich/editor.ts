@@ -24,7 +24,7 @@ import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
 import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, selectionInOneCodeBlock, shiftEnterInCode, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
 import { BINDINGS } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
-import { Link, Mention } from "./nodes"
+import { attachmentExtension, type ChipView, Link, Mention } from "./nodes"
 import { markdownSlice } from "./paste"
 import { groupUndoByChangeKind, UNDO_GROUP_DELAY, type ChangeKind } from "./undo-grouping"
 
@@ -35,6 +35,7 @@ export type RichOptions = {
   markdown: string
   label: string
   isMention: (slug: string) => boolean
+  chip: ChipView
   onChange: (snapshot: Snapshot) => void
   onCursor: (cursor: number) => void
   onKeyDown: (event: KeyboardEvent) => boolean
@@ -290,6 +291,7 @@ export function mountRichEditor(options: RichOptions) {
       }),
       Link,
       Mention,
+      attachmentExtension(options.chip),
       Keys,
     ],
     editorProps: {
@@ -403,6 +405,22 @@ export function mountRichEditor(options: RichOptions) {
       const mention = state.schema.nodes.mention!.create({ slug })
       view.dispatch(state.tr.replaceWith(from, state.selection.from, [mention, state.schema.text(" ")]).scrollIntoView())
       editor.commands.focus(undefined, { scrollIntoView: false })
+    },
+    /** Puts a chip per attachment at the caret, each followed by a space. */
+    insertAttachments(items: readonly { id: string; name: string }[]) {
+      const { view } = editor
+      const { state } = view
+      const nodes = items.flatMap((item) => [state.schema.nodes.attachment!.create(item), state.schema.text(" ")])
+      view.dispatch(state.tr.replaceSelection(new Slice(Fragment.from(nodes), 0, 0)).scrollIntoView())
+    },
+    /** Takes every chip of attachment `id` out of the text. */
+    removeAttachment(id: string) {
+      const { view } = editor
+      const tr = view.state.tr
+      view.state.doc.descendants((node, pos) => {
+        if (node.type.name === "attachment" && node.attrs.id === id) tr.delete(tr.mapping.map(pos), tr.mapping.map(pos + node.nodeSize))
+      })
+      if (tr.docChanged) view.dispatch(tr)
     },
     selectionText: () => {
       const { doc, selection } = editor.state

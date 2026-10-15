@@ -180,14 +180,6 @@ export function releaseUpload(id: string): void {
   deletePending(job)
 }
 
-/** Moves an attachment's upload to another room: the old one is deleted, the bytes go again. */
-export function moveUpload(id: string, roomId: string): void {
-  const job = jobs.get(id)
-  if (!job || job.roomId === roomId) return
-  releaseUpload(id)
-  startUpload(id, roomId, job.file, job.name, job.type)
-}
-
 /** The attachment was sent: the room now owns its upload, so the queue forgets it without a delete. */
 export function forgetUpload(id: string): void {
   jobs.delete(id)

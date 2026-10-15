@@ -1,3 +1,4 @@
+import { isImage } from "../../lib/attachments"
 import { lazy, Show, Suspense, type JSX } from "solid-js"
 import { A } from "@solidjs/router"
 import { cn } from "../../lib/cn"
@@ -60,7 +61,9 @@ export function MessageRow(props: {
   const own = () => props.message.sender === "user"
   const grouped = () => !!props.group && !own() && props.message.botId !== undefined
   const senderName = () => props.bot?.name ?? props.message.botId ?? ""
-  const hasFiles = () => (props.message.files?.length ?? 0) > 0
+  // A file the human named in the text is its chip there, so the list under the pictures leaves it out.
+  const files = () => (props.message.files ?? []).filter((f) => isImage(f) || !f.path || !props.message.body.includes(`(/${f.path})`))
+  const hasFiles = () => files().length > 0
   return (
     <div
       class={cn(
@@ -133,7 +136,7 @@ export function MessageRow(props: {
               </div>
             )}
           </Show>
-          <Show when={hasFiles() ? props.message.files : undefined}>
+          <Show when={hasFiles() ? files() : undefined}>
             {(files) => (
               <div class={props.message.body.length > 0 ? "mb-2" : undefined}>
                 <MessageAttachments files={files()} roomId={props.message.threadId} onOpenImages={props.onOpenImages} />

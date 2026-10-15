@@ -1,3 +1,4 @@
+import { fileName } from "@kiko/protocol"
 import { Brain, ChevronRight, CircleCheck, FolderOpen, ListChecks, Repeat, Sparkles, type LucideProps } from "lucide-solid"
 import { type Component, For, onMount, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
@@ -8,12 +9,6 @@ import { loadRoutines, routinesOf } from "../info/routines"
 import { triggerLabel } from "../info/routines-model"
 import { isGroup, liveLine, statusChip, workingLine } from "./overview-model"
 import { agentSurface, type FixedKind, fixedSurface, openSurface } from "./surfaces"
-
-/** An upload is stored as `attachments/<stamp>-<name>`. The card shows the name the human picked. */
-const shownName = (path: string) => {
-  const base = path.slice(path.lastIndexOf("/") + 1)
-  return path.startsWith("attachments/") ? base.replace(/^[a-z0-9]{6,10}-(?=.)/, "") : base
-}
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
@@ -96,7 +91,7 @@ export default function ChatCard(props: { chatId: string }) {
           label="Files"
           kind="files"
           chatId={props.chatId}
-          meta={files().length ? `${files().slice(-2).map((f) => shownName(f.name)).join(", ")}${files().length > 2 ? ` +${files().length - 2}` : ""}` : "None yet"}
+          meta={files().length ? `${files().slice(-2).map((f) => fileName(f.name)).join(", ")}${files().length > 2 ? ` +${files().length - 2}` : ""}` : "None yet"}
         />
         <Row icon={Brain} label="Memory" kind="memory" chatId={props.chatId} meta={memory()?.state.lines.length ? plural(memory()!.state.lines.length, "note") : "Empty"} />
         <Row icon={Repeat} label="Routines" kind="routines" chatId={props.chatId} meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"} />

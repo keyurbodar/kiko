@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { forgetUpload, moveUpload, progressLabel, readyAttachments, releaseUpload, retryFailedUploads, retryUpload, startUpload, uploadBlockReason, uploadState } from "./uploads"
+import { forgetUpload, progressLabel, readyAttachments, releaseUpload, retryFailedUploads, retryUpload, startUpload, uploadBlockReason, uploadState } from "./uploads"
 
 // The composer's upload queue against a fake XMLHttpRequest: three at once, progress in 5% steps,
 // t3code's failure words, retry under the same pending id, and a delete only for what was sent.
@@ -167,19 +167,6 @@ describe("the upload queue", () => {
     await tick()
     expect(deletes.at(-1)).toBe(req!.url.split("?")[0]!)
     expect(uploadState("r1")).toBeUndefined()
-  })
-
-  test("an attachment that moves to another chat uploads again there and the old upload is deleted", async () => {
-    startUpload("m1", "room1", blob(3), "m.txt", "text/plain")
-    const [old] = take()
-    old!.finish(204)
-    await tick()
-    moveUpload("m1", "room2")
-    await tick()
-    expect(deletes.at(-1)).toBe(old!.url.split("?")[0]!)
-    const [fresh] = take()
-    expect(fresh!.url).toMatch(/^\/api\/files\/room2\/pending\//)
-    releaseUpload("m1")
   })
 
   test("a file over 32 MB goes in 16 MB parts with progress across them", async () => {

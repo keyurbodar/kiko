@@ -174,3 +174,10 @@ describe("list markers", () => {
     expect(nextOrderedMarker("9.")).toBe("10.")
   })
 })
+
+test("an attachment chip survives a trip through markdown, so a restored draft keeps it", () => {
+  const text = "see [notes.pdf](attachment:a1) and [site](https://example.com)"
+  const doc = markdownToDoc(text)
+  expect(doc.content?.[0]?.content?.[1]).toEqual({ type: "attachment", attrs: { id: "a1", name: "notes.pdf" } })
+  expect(docToMarkdown(doc)).toBe(text)
+})

@@ -1,3 +1,4 @@
+import { attachmentToken } from "@kiko/protocol"
 export type Json = {
   type: string
   attrs?: Record<string, unknown>
@@ -141,6 +142,7 @@ function sameMark(head: Json, node: Json, mark: string): boolean {
 function leaf(node: Json): string {
   if (node.type === "hardBreak") return "\n"
   if (node.type === "mention") return `@${String(node.attrs?.slug ?? "")}`
+  if (node.type === "attachment") return attachmentToken(String(node.attrs?.id ?? ""), String(node.attrs?.name ?? ""))
   if (node.type === "text") return node.text ?? ""
   return ""
 }
@@ -321,6 +323,13 @@ function inlines(text: string, options: ParseOptions, marks: Mark[]): Json[] {
       const body = code[2]!.length > 2 && code[2]!.startsWith(" ") && code[2]!.endsWith(" ") ? code[2]!.slice(1, -1) : code[2]!
       out.push({ type: "text", text: body, marks: [...marks, { type: "code" }] })
       at += code[0].length
+      continue
+    }
+    const attachment = /^\[([^\]\n]*)\]\(attachment:([\w-]+)\)/.exec(rest)
+    if (attachment) {
+      flush()
+      out.push({ type: "attachment", attrs: { id: attachment[2], name: attachment[1] } })
+      at += attachment[0].length
       continue
     }
     const link = /^\[([^\]]+)\]\(([^)\s]+)\)/.exec(rest)

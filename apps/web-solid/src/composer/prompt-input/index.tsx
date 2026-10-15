@@ -6,6 +6,7 @@ import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import type { PromptInputV2Interaction } from "./interaction"
 import { createComposerEmoji, createShortcodes } from "../emoji"
 import { bindRich, type RichBinding } from "../rich/bind"
+import { isImage } from "../../lib/attachments"
 
 export type {
   PromptInputV2Attachment,
@@ -62,6 +63,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
     syncBlank()
   })
 
+  // The shelf holds pictures. Files are chips in the text.
+  const pictures = () => props.controller.attachments().filter((part) => isImage({ name: part.filename, type: part.mime }))
   return (
     <div class={`relative flex flex-col ${props.class ?? ""}`}>
       <input
@@ -126,10 +129,10 @@ export function PromptInputV2(props: PromptInputV2Props) {
       >
         <div class="composer-box">
           {props.reply}
-          <Show when={props.controller.attachments().length > 0}>
+          <Show when={pictures().length > 0}>
             <Suspense>
               <PromptInputV2Attachments
-                attachments={props.controller.attachments()}
+                attachments={pictures()}
                 onImageClick={props.controller.openAttachment}
                 onRemove={(attachment) => props.controller.removeAttachment(attachment.id)}
               />

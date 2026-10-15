@@ -1,6 +1,7 @@
-import { Show, createEffect, on, onCleanup } from "solid-js"
+import { Show, createEffect, createMemo, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { attachmentIds, linkAttachments } from "@kiko/protocol"
 import type { ComposerProps, MessageFile } from "../lib/types"
 import { isImage, sendRefusal } from "../lib/attachments"
 import "./composer.css"
@@ -103,6 +104,14 @@ export function Composer(props: ComposerProps) {
   const blocked = () => uploadBlockReason(boxed().map((part) => part.id))
   const draftText = () =>
     store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
+  // A file lives in the text as its chip, so deleting the chip takes the file out of the message.
+  // A memo, so adding a file before its chip lands does not count as the chip being deleted.
+  createEffect(
+    on(createMemo(draftText), (text) => {
+      const named = new Set(attachmentIds(text))
+      for (const part of boxed()) if (!named.has(part.id) && !isImage({ name: part.filename, type: part.mime })) store.removeAttachment(part.id)
+    }),
+  )
 
   /*
    * Unsent text follows the chat. Switching refills the input from the draft in
@@ -219,7 +228,13 @@ export function Composer(props: ComposerProps) {
           const parts = boxed()
           const attachments = readyAttachments(parts.map((part) => ({ id: part.id, name: part.filename, type: part.mime, size: part.size })))
           // A refused draft stays in the box, untouched, with the reason in a toast.
-          const refusal = sendRefusal(text, !!editing, attachments ?? [])
+          // Each chip names its upload, which the room turns into the stored file's path.
+          const pending = new Map(parts.map((part, i) => [part.id, attachments?.[i]?.pendingId]))
+          const body = linkAttachments(text, (id) => {
+            const to = pending.get(id)
+            return to && `attachment:${to}`
+          })
+          const refusal = sendRefusal(body, !!editing, attachments ?? [])
           if (refusal) return void showToastV2({ title: refusal, variant: "error" })
           if (editing) {
             if (text.trim() && text !== editing.body) props.onEdit?.(editing.id, text)
@@ -229,14 +244,14 @@ export function Composer(props: ComposerProps) {
           if (runSlash(text)) return void store.reset()
           if (!attachments) return
           const files = parts.map((part): MessageFile => ({ name: part.filename, size: part.size, type: part.mime, src: part.blob.url }))
-          if (!text.trim() && files.length === 0) return
+          if (!body.trim() && files.length === 0) return
           for (const part of parts) forgetUpload(part.id)
           held = new Map()
           keptFor.clear()
           const draftKey = props.draftKey
           if (draftKey) void draftFiles().then((m) => m.clearDraftFiles(draftKey))
           store.reset()
-          props.onSend(files.length ? { body: text, files, attachments } : { body: text })
+          props.onSend(files.length ? { body, files, attachments } : { body })
           props.onClearReply?.()
         },
         onStop: () => {},

@@ -2,6 +2,7 @@ import { createEffect, on, onCleanup } from "solid-js"
 import type { PromptInputV2Interaction } from "../prompt-input/interaction"
 import type { PromptInputV2Attachment } from "../prompt-input/types"
 import { composingKey, enterIsNewline } from "../ime"
+import { chipView } from "../prompt-input/chip"
 import { mountRichEditor, type RichEditor } from "./editor"
 
 export type RichBinding = {
@@ -31,6 +32,7 @@ export function bindRich(input: {
     markdown: markdown(),
     label: input.label,
     isMention: input.isMention,
+    chip: chipView({ attachments: controller.attachments, openAttachment: controller.openAttachment }),
     onChange: ({ markdown: text, plain, cursor }) => {
       const images: PromptInputV2Attachment[] = controller.attachments()
       controller.onInput(plain, [{ type: "text", content: text, start: 0, end: text.length }, ...images], cursor)
@@ -69,6 +71,8 @@ export function bindRich(input: {
   controller.setRich({
     insertText: (text) => editor.insertText(text),
     insertMention: (slug) => editor.insertMention(slug),
+    insertAttachments: (items) => editor.insertAttachments(items),
+    removeAttachment: (id) => editor.removeAttachment(id),
   })
 
   createEffect(() => {

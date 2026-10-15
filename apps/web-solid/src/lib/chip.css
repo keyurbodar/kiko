@@ -38,3 +38,8 @@ button.file-chip:hover {
 
 
 .entry-icon { display: block; width: 1.17em; height: 1.17em; flex-shrink: 0; align-self: center; }
+.file-chip[data-kind="image"] { --file-chip-accent: oklch(0.62 0.16 16); }
+.file-chip[data-state="failed"] { --file-chip-accent: var(--error); }
+.file-chip[data-missing], .file-chip[data-state="failed"] { border-style: dashed; }
+.file-chip-thumb { display: block; width: 1.17em; height: 1.17em; flex-shrink: 0; border-radius: 0.2em; object-fit: cover; }
+.file-chip-meta { flex-shrink: 0; font-size: 0.86em; font-weight: 400; opacity: 0.7; font-variant-numeric: tabular-nums; }

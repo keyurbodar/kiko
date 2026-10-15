@@ -163,68 +163,51 @@
 .composer-dock .composer-attachments {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-left: -6px;
+  gap: 8px;
+  padding-bottom: 4px;
 }
 
 .composer-dock .composer-attachment {
   position: relative;
-  display: flex;
-  height: 52px;
-  border-radius: 12px;
-}
-
-.composer-dock .composer-attachment-file {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 220px;
-  padding: 0 28px 0 10px;
-  background: var(--accent);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-
-.composer-dock .composer-attachment[data-state="failed"] .composer-attachment-file,
-.composer-dock .composer-attachment[data-state="failed"] .composer-attachment-open {
-  border-color: color-mix(in oklab, var(--error) 50%, transparent);
-}
-
-.composer-dock .composer-attachment-open {
-  width: 52px;
-  height: 52px;
-  padding: 0;
+  width: 64px;
+  height: 64px;
   overflow: hidden;
   background: var(--accent);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
+}
+
+.composer-dock .composer-attachment[data-state="failed"] {
+  border-color: color-mix(in oklab, var(--error) 60%, transparent);
+}
+
+.composer-dock .composer-attachment-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
   cursor: zoom-in;
 }
 
 .composer-dock .composer-attachment-open img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.composer-dock .composer-attachment-ring {
+.composer-dock .composer-attachment-progress {
   position: absolute;
-  inset: 12px;
-  width: 28px;
-  height: 28px;
-  transform: rotate(-90deg);
-  fill: none;
-  stroke-width: 3;
+  inset: auto 0 0;
+  padding: 1px 0;
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--background) 85%, transparent);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
   pointer-events: none;
-}
-
-.composer-dock .composer-attachment-ring circle:first-child {
-  stroke: oklch(100% 0 none / 0.3);
-}
-
-.composer-dock .composer-attachment-ring circle:last-child {
-  stroke: #fff;
-  stroke-linecap: round;
 }
 
 .composer-dock .composer-attachment-remove,
@@ -235,33 +218,26 @@
   height: 18px;
   place-items: center;
   padding: 0;
-  color: var(--foreground);
-  background: var(--popover);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  color: #fff;
+  background: oklch(0% 0 none / 0.65);
+  border: 0;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px oklch(100% 0 none / 0.2);
   cursor: pointer;
 }
 
 .composer-dock .composer-attachment-remove {
-  top: -5px;
-  right: -5px;
-  opacity: 0;
+  top: 4px;
+  right: 4px;
 }
 
 .composer-dock .composer-attachment-retry {
-  bottom: -5px;
-  right: -5px;
+  bottom: 4px;
+  left: 4px;
 }
 
-.composer-dock .composer-attachment:hover .composer-attachment-remove,
-.composer-dock .composer-attachment:focus-within .composer-attachment-remove {
-  opacity: 1;
-}
-
-@media (pointer: coarse) {
-  .composer-dock .composer-attachment-remove {
-    opacity: 1;
-  }
+.composer-dock :is(.composer-attachment-remove, .composer-attachment-retry):hover {
+  background: oklch(0% 0 none / 0.8);
 }
 
 .composer-dock .composer-box > .reply-bar {

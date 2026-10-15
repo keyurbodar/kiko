@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { attachmentError, attachmentKind, attachmentsError, limitLabel, MAX_IMAGE_BYTES, sendFits } from "../src/attachments"
+import { attachmentError, attachmentIds, attachmentKind, attachmentsError, attachmentToken, limitLabel, linkAttachments, MAX_IMAGE_BYTES, sendFits } from "../src/attachments"
 
 
 const MB = 1024 * 1024
@@ -42,5 +42,17 @@ describe("attachment rules", () => {
 
 	test("a limit reads in the largest whole unit", () => {
 		expect([limitLabel(10 * MB), limitLabel(512 * 1024), limitLabel(1)]).toEqual(["10 MB", "512 KB", "1 byte"])
+	})
+})
+
+describe("attachment tokens", () => {
+	test("a token round-trips through its id and keeps the text around it", () => {
+		const text = `see ${attachmentToken("a1", "notes [v2].pdf")} and ${attachmentToken("b2", "shot.png")} please`
+		expect(attachmentIds(text)).toEqual(["a1", "b2"])
+		expect(linkAttachments(text, (id) => (id === "a1" ? "/attachments/k3-notes.pdf" : undefined))).toBe("see [notes v2.pdf](/attachments/k3-notes.pdf) and shot.png please")
+	})
+
+	test("an ordinary link is left alone", () => {
+		expect(linkAttachments("[site](https://example.com)", () => "/x")).toBe("[site](https://example.com)")
 	})
 })

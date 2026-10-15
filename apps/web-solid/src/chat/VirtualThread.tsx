@@ -27,7 +27,7 @@ import { TypingIndicator } from "./typing/TypingIndicator"
 import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
-import { createImageDialog } from "./ui/image-dialog"
+import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
 import type { DraftBook } from "../warm/drafts"
 
 export interface VirtualThreadState {
@@ -474,6 +474,7 @@ export function VirtualThread(props: {
   )
 
   const viewer = createImageDialog()
+  provideThreadImages(viewer.open)
 
   const renderMessage = (item: TimelineItem & { kind: "message" }): JSX.Element => {
     const message = item.message

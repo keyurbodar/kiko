@@ -1,4 +1,4 @@
-import { isAgentSlug, oneLine, tagline } from "@kiko/protocol"
+import { isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
 import type { Activity, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
@@ -603,19 +603,22 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 					: null
 				if (filed && (!filed.file || filed.refused || filed.drop)) throw new ClaimRefused("The message's text could not be stored as a file.")
 				const refs = [...claimed.refs, ...(filed?.file ? [filed.file] : [])]
+				// Each attachment the human named in the text links to where it was stored.
+				const paths = new Map((frame.attachments ?? []).map((a, i) => [a.pendingId, `/${claimed.refs[i]!.name}`]))
+				const body = linkAttachments(text, (id) => paths.get(id))
 				const target = frame.replyTo ? this.log.message(frame.replyTo) : null
 				const replyTo = target && !isPrivate(target) ? target.id : undefined
 				const stored = this.log.addMessage({
 					from: { kind: "human" },
-					text,
-					rich: parseRichText(text),
+					text: body,
+					rich: parseRichText(body),
 					clientId: frame.clientId,
 					...(replyTo ? { replyTo } : {}),
 					...(replyTo && frame.quote?.trim() ? { quote: frame.quote.trim() } : {}),
 					...(refs.length ? { files: refs } : {}),
 				})
 				// The burst row takes the whole text's mentions, so routing does not depend on the bubble.
-				if (stored.event) this.burst.stage({ id: stored.id, seq: stored.seq, text, replyTo }, tags(frame.text))
+				if (stored.event) this.burst.stage({ id: stored.id, seq: stored.seq, text: body, replyTo }, tags(frame.text))
 				return { ack: { id: stored.id, seq: stored.seq }, events: [...claimed.events, ...(filed?.events ?? []), ...(stored.event ? [stored.event] : [])] }
 			})
 		} catch (error) {

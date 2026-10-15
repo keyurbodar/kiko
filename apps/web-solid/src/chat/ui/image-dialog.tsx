@@ -1,4 +1,4 @@
-import { Show, createSignal, lazy, type JSX } from "solid-js"
+import { Show, createSignal, lazy, onCleanup, type JSX } from "solid-js"
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays"
 
 /* The dialog body loads on first open, so the transcript and the composer pay only for this. */
@@ -40,3 +40,15 @@ export function createImageDialog(): ImageDialogController {
     ),
   }
 }
+
+let threadOpen: ImageDialogController["open"] | null = null
+
+/** Makes `open` the transcript's dialog, so a picture chip deep in a message opens it. */
+export function provideThreadImages(open: ImageDialogController["open"]) {
+  threadOpen = open
+  onCleanup(() => {
+    if (threadOpen === open) threadOpen = null
+  })
+}
+
+export const openThreadImages: ImageDialogController["open"] = (images, index) => threadOpen?.(images, index)

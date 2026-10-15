@@ -55,6 +55,8 @@ export type PromptInputV2ViewConfig = {
 export type PromptInputV2Rich = {
   insertText: (text: string) => void
   insertMention: (slug: string) => void
+  insertAttachments: (items: readonly { id: string; name: string }[]) => void
+  removeAttachment: (id: string) => void
 }
 
 export function createPromptInputV2State() {
@@ -107,6 +109,8 @@ export function createPromptInputV2Controller(input: {
         editor: () => editor,
         focusEditor: () => editor?.focus(),
         addPart,
+        chip: (items) => rich?.insertAttachments(items),
+        hasText: () => draft.state.prompt.some((part) => part.type === "text" && part.content.trim() !== ""),
         setDragging: (dragging) => {
           if ((state.drag === "active") !== dragging) dispatch({ type: dragging ? "drag.enter" : "drag.leave" })
         },
@@ -328,6 +332,7 @@ export function createPromptInputV2Controller(input: {
     },
     removeAttachment(id: string) {
       draft.removeAttachment(id)
+      rich?.removeAttachment(id)
     },
     canSubmit() {
       if (input.view.submit.blocked?.()) return false

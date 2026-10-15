@@ -1,7 +1,7 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { MAX_IMAGE_BYTES, attachmentMessages } from "@kiko/protocol"
-import { admit, attachmentType } from "../../lib/attachments"
+import { admit, attachmentType, isImage } from "../../lib/attachments"
 import { prepareImageForAttachment } from "../../lib/image-compression"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
@@ -32,6 +32,9 @@ export function createPromptInputV2Attachments(
     editor: () => HTMLElement | undefined
     focusEditor: () => void
     addPart: (part: PromptInputV2Prompt[number]) => boolean
+    /** Puts chips for these attachments at the caret. */
+    chip: (items: readonly { id: string; name: string }[]) => void
+    hasText: () => boolean
     setDragging: (dragging: boolean) => void
   },
 ) {
@@ -69,7 +72,12 @@ export function createPromptInputV2Attachments(
       else refusals.push(prepared.reason === "unreadable" ? attachmentMessages.unreadable(file.name) : attachmentMessages.tooLargeCompressed(file.name))
     }
     if (refusals.length) input.refuse([refusals.at(-1)!])
-    if (added.length) target.set([...target.current(), ...added], target.cursor())
+    if (!added.length) return
+    // As t3code: a file is always named in the text. A picture is too once there is text to place it in.
+    const prose = input.hasText()
+    target.set([...target.current(), ...added], target.cursor())
+    const named = added.filter((part) => prose || !isImage({ name: part.filename, type: part.mime }))
+    if (named.length) input.chip(named.map((part) => ({ id: part.id, name: part.filename })))
   }
   const handlePaste = async (event: ClipboardEvent) => {
     const clipboardData = event.clipboardData

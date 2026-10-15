@@ -96,7 +96,7 @@ test("a pending upload is not the chat's until a send claims it, then it is a fi
 	const c = await Client.open(room)
 	expect((await c.replay()).some((e) => e.t === "file")).toBe(false)
 
-	c.send(sendFrame("c1", [{ pendingId: id, name: "notes.txt", type: "text/plain", size: 11 }], "see this"))
+	c.send(sendFrame("c1", [{ pendingId: id, name: "notes.txt", type: "text/plain", size: 11 }], `see [notes.txt](attachment:${id}) and [gone.txt](attachment:other)`))
 	const ack = await c.next((f) => f.t === "ack")
 	const events = await c.next((f) => f.t === "events")
 	const all = events.t === "events" ? events.events : []
@@ -105,6 +105,8 @@ test("a pending upload is not the chat's until a send claims it, then it is a fi
 	expect(file && file.t === "file" && file.file).toMatchObject({ id, size: 11, type: "text/plain" })
 	expect(file && file.t === "file" && file.file.name).toMatch(/^attachments\/[0-9a-z]+-notes\.txt$/)
 	expect(message && message.t === "message" && message.files).toEqual([(file as { file: FileRef }).file])
+	// The chip the human placed links to where the file was stored. A chip with no upload is its name.
+	expect(message?.t === "message" && message.text).toBe(`see [notes.txt](/${(file as { file: FileRef }).file.name}) and gone.txt`)
 	expect(ack.t === "ack" && message?.t === "message" && ack.id).toBe(message?.t === "message" ? message.id : "")
 
 	const got = await fetch(`${origin}/api/files/${room}/${id}`, { headers: as })

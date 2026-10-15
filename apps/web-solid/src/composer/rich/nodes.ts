@@ -36,3 +36,38 @@ export function middleTruncate(name: string, max = 36): string {
   const stem = name.slice(0, name.length - extension.length)
   return `${stem.slice(0, head)}…${tail > 0 ? stem.slice(-tail) : ""}${extension}`
 }
+
+/** Draws an attachment chip into `dom` and returns what tears it down. */
+export type ChipView = (dom: HTMLElement, attachment: { id: string; name: string }) => () => void
+
+/**
+ * A file or picture named in the text, as t3code's context chip. The text holds it as
+ * `[name](attachment:<id>)` (markdown.ts), so it is sent where the human put it.
+ */
+export function attachmentExtension(view: ChipView) {
+  return Node.create({
+    name: "attachment",
+    group: "inline",
+    inline: true,
+    atom: true,
+    selectable: true,
+    draggable: false,
+    addAttributes: () => ({ id: { default: "" }, name: { default: "" } }),
+    parseHTML: () => [{ tag: "span[data-attachment]" }],
+    renderHTML: ({ node }) => ["span", { "data-attachment": String(node.attrs.id) }, String(node.attrs.name)],
+    renderText: ({ node }) => String(node.attrs.name),
+    addNodeView: () => ({ node }) => {
+      const dom = document.createElement("span")
+      dom.className = "composer-chip-node"
+      dom.contentEditable = "false"
+      dom.dataset.attachment = String(node.attrs.id)
+      const dispose = view(dom, { id: String(node.attrs.id), name: String(node.attrs.name) })
+      return {
+        dom,
+        ignoreMutation: () => true,
+        stopEvent: (event) => event.target instanceof Element && event.target.closest("button") !== null,
+        destroy: dispose,
+      }
+    },
+  })
+}

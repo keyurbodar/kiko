@@ -30,7 +30,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
   return (
     <ModalV2 open onOpenChange={(open: boolean) => !open && props.onClose()}>
       <ModalV2.Portal>
-        <ModalV2.Overlay class="bg-black/75" />
+        <ModalV2.Overlay class="bg-black/80!" />
         <ModalV2.Content
           class="h-[92vh] w-[92vw] items-center justify-center"
           // Focus starts on the picture, so its keys work at once and Enter zooms rather than closing.
@@ -53,6 +53,14 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           }}
         >
           <ModalV2.Title class="sr-only">Image preview</ModalV2.Title>
+          <button
+            type="button"
+            class="absolute top-0 right-0 z-30 grid size-8 place-items-center rounded-lg bg-black/65 text-white shadow-sm ring-1 ring-white/20 hover:bg-black/80 focus-visible:ring-white"
+            aria-label="Close image preview"
+            onClick={() => props.onClose()}
+          >
+            <XIcon class="size-4" aria-hidden="true" />
+          </button>
           <Show when={count() > 1}>
             <button type="button" class={`${NAV} left-0`} aria-label="Previous image" onClick={() => step(-1)}>
               <ChevronLeftIcon class="size-5" aria-hidden="true" />
@@ -62,14 +70,6 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           <Show when={item()} keyed>
             {(image) => (
               <div class="relative z-10 flex max-w-[calc(92vw-96px)] flex-col items-center" data-component="image-dialog">
-                <button
-                  type="button"
-                  class="absolute -top-10 right-0 grid size-6 place-items-center rounded-md bg-black/65 text-white shadow-sm ring-1 ring-white/20 hover:bg-black/80 focus-visible:ring-white"
-                  aria-label="Close image preview"
-                  onClick={() => props.onClose()}
-                >
-                  <XIcon class="size-3.5" aria-hidden="true" />
-                </button>
                 <Show
                   when={failed() !== image.src}
                   fallback={

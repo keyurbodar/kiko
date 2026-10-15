@@ -2,14 +2,10 @@ import { For, Show } from "solid-js"
 import { FolderIcon } from "lucide-solid"
 import { Undo2Icon, XIcon } from "lucide-solid"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { isImage } from "../../lib/attachments"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { progressLabel, retryUpload, uploadState } from "../../sync/uploads"
-import { middleTruncate } from "../rich/nodes"
 import type { PromptInputV2Attachment, PromptInputV2Suggestion } from "./types"
-
-const RING = 2 * Math.PI * 15
 
 function RetryButton(props: { name: string; reason: string; onRetry: () => void }) {
   return (
@@ -24,13 +20,13 @@ function RetryButton(props: { name: string; reason: string; onRetry: () => void 
           props.onRetry()
         }}
       >
-        <Undo2Icon size={12} />
+        <Undo2Icon size={11} />
       </button>
     </TooltipV2>
   )
 }
 
-/** Every attachment in one row above the text: a picture as a thumbnail, any other file as a card. */
+/** The pictures above the text, as t3code's shelf: a square each, its upload under it, and a remove button on it. */
 export function PromptInputV2Attachments(props: {
   attachments: PromptInputV2Attachment[]
   onImageClick?: (attachment: PromptInputV2Attachment) => void
@@ -41,47 +37,19 @@ export function PromptInputV2Attachments(props: {
       <For each={props.attachments}>
         {(attachment) => {
           const upload = () => uploadState(attachment.id)
-          const picture = isImage({ name: attachment.filename, type: attachment.mime })
-          const progress = () => {
+          const failure = () => {
             const u = upload()
-            return u?.status === "uploading" ? u.progress : null
+            return u?.status === "failed" ? u.reason : null
           }
           return (
-            <div
-              class="composer-attachment"
-              data-component="composer-attachment"
-              data-image={picture ? "" : undefined}
-              data-id={attachment.id}
-              data-state={upload()?.status}
-              title={failure(upload()) ?? attachment.filename}
-            >
-              <Show
-                when={picture}
-                fallback={
-                  <div class="composer-attachment-file">
-                    <EntryIcon path={attachment.filename} />
-                    <span class="flex min-w-0 flex-col">
-                      <span class="truncate text-sm text-foreground">{middleTruncate(attachment.filename, 24)}</span>
-                      <span class="truncate text-xs text-muted-foreground">
-                        {progress() !== null ? progressLabel(progress()!) : upload()?.status === "failed" ? "Failed" : formatBytes(attachment.size)}
-                      </span>
-                    </span>
-                  </div>
-                }
-              >
-                <button type="button" class="composer-attachment-open" aria-label={`Preview ${attachment.filename}`} onClick={() => props.onImageClick?.(attachment)}>
-                  <img src={attachment.blob.url} alt={attachment.filename} draggable={false} />
-                </button>
-                <Show when={progress() !== null}>
-                  <svg class="composer-attachment-ring" viewBox="0 0 36 36" role="img" aria-label={progressLabel(progress()!)}>
-                    <circle cx="18" cy="18" r="15" />
-                    <circle cx="18" cy="18" r="15" stroke-dasharray={String(RING)} stroke-dashoffset={String(RING * (1 - progress()!))} />
-                  </svg>
-                </Show>
+            <div class="composer-attachment" data-component="composer-attachment" data-id={attachment.id} data-state={upload()?.status} title={failure() ?? attachment.filename}>
+              <button type="button" class="composer-attachment-open" aria-label={`Preview ${attachment.filename}`} onClick={() => props.onImageClick?.(attachment)}>
+                <img src={attachment.blob.url} alt={attachment.filename} draggable={false} />
+              </button>
+              <Show when={upload()?.status === "uploading" && upload()}>
+                {(u) => <span class="composer-attachment-progress">{progressLabel((u() as { progress: number }).progress)}</span>}
               </Show>
-              <Show when={failure(upload())}>
-                {(reason) => <RetryButton name={attachment.filename} reason={reason()} onRetry={() => retryUpload(attachment.id)} />}
-              </Show>
+              <Show when={failure()}>{(reason) => <RetryButton name={attachment.filename} reason={reason()} onRetry={() => retryUpload(attachment.id)} />}</Show>
               <button type="button" class="composer-attachment-remove" aria-label={`Remove ${attachment.filename}`} onClick={() => props.onRemove(attachment)}>
                 <XIcon size={11} />
               </button>
@@ -91,16 +59,6 @@ export function PromptInputV2Attachments(props: {
       </For>
     </div>
   )
-}
-
-function formatBytes(size: number): string {
-  if (size < 1024) return `${size} B`
-  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`
-  return `${(size / 1024 / 1024).toFixed(1)} MB`
-}
-
-function failure(upload: ReturnType<typeof uploadState>) {
-  return upload?.status === "failed" ? upload.reason : null
 }
 
 export function PromptInputV2Popover(props: {

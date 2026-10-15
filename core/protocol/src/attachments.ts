@@ -91,3 +91,28 @@ export function attachmentsError(files: readonly { type: string; size: number }[
 	for (const f of files) if (isImageType(f.type)) images += f.size
 	return images > MAX_TOTAL_IMAGE_BYTES ? attachmentMessages.imagesTotal : null
 }
+
+/**
+ * An attachment named inside the text, as t3code's context chips: `[name](attachment:<id>)`. The
+ * composer writes it with its own id, the send swaps in the upload's pending id, and the room
+ * swaps that for the stored file's path (`linkAttachments`), so the bubble draws a file chip and
+ * the agent reads the file where the human put it.
+ */
+export const ATTACHMENT_LINK = /\[([^\]\n]*)\]\(attachment:([\w-]+)\)/g
+
+export function attachmentToken(id: string, name: string): string {
+	return `[${name.replace(/[[\]\n\\]/g, "")}](attachment:${id})`
+}
+
+/** Rewrites each token's id through `to`. A token `to` does not know becomes its plain name. */
+export function linkAttachments(text: string, to: (id: string) => string | undefined): string {
+	return text.replace(ATTACHMENT_LINK, (_, name: string, id: string) => {
+		const target = to(id)
+		return target === undefined ? name : `[${name}](${target})`
+	})
+}
+
+/** The ids of the tokens in `text`, in order. */
+export function attachmentIds(text: string): string[] {
+	return Array.from(text.matchAll(ATTACHMENT_LINK), (match) => match[2]!)
+}
