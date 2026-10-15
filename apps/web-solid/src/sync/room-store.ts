@@ -1,3 +1,4 @@
+import { humanAnswerText, type HumanAnswers } from "@kiko/protocol"
 // The open room. Architecture sections 9.2, 9.3, and 19.2.
 //
 // It holds the visible message window in a Solid store, keeps the warm tier in
@@ -363,7 +364,7 @@ export type RoomStore = {
 	messages(): ViewMessage[]
 	tasks(): Task[]
 	asks(): HumanAsk[]
-	answer(id: string, value: string): void
+	answer(id: string, value: string | HumanAnswers): void
 	skip(id: string): void
 	/** The members with every pending add, rename, and remove applied. */
 	members(): Member[]
@@ -825,9 +826,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		asks: () => state.asks.filter((a) => !state.patches.some((p) => (p.frame.t === "answer" || p.frame.t === "skip") && p.frame.id === a.id)),
 		answer(id, value) {
 			const ask = state.asks.find((a) => a.id === id)
-			if (!ask || !value.trim() || state.patches.some((p) => (p.frame.t === "answer" || p.frame.t === "skip") && p.frame.id === id)) return
+			if (!ask || !humanAnswerText(ask, value) || state.patches.some((p) => (p.frame.t === "answer" || p.frame.t === "skip") && p.frame.id === id)) return
 			if (state.history) setState("history", null)
-			const p: RoomPatch = { clientId: `answer:${id}`, frame: { t: "answer", id, value: value.trim() }, at: now(), ask: { ...ask } }
+			const p: RoomPatch = { clientId: `answer:${id}`, frame: { t: "answer", id, value: typeof value === "string" ? value.trim() : value }, at: now(), ask: { ...ask } }
 			setPatches((list) => [...list, p])
 			transmit(p)
 		},

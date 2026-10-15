@@ -38,7 +38,9 @@ export type SystemEvent =
 /** An event kind a newer server sent. Only its kind is kept. */
 export type UnknownSystemEvent = { kind: string }
 
-export type HumanAsk = { id: string; from: AgentSlug; text: string; options?: readonly string[]; messageId: MessageId }
+export type HumanQuestion = { id: string; header: string; question: string; options: readonly { label: string; description?: string; value?: string }[]; multiSelect?: boolean; allowCustomAnswer?: boolean }
+export type HumanAnswers = Record<string, string | readonly string[]>
+export type HumanAsk = { id: string; from: AgentSlug; text: string; options?: readonly string[]; questions?: readonly HumanQuestion[]; messageId: MessageId }
 
 export type FileRef = {
 	id: string
@@ -168,7 +170,7 @@ export type ClientToRoom =
 	| { t: "files"; op: FileOp }
 	| { t: "search"; query: string; before?: number; limit?: number }
 	| { t: "history"; seq: number; before: number; after: number }
-	| { t: "answer"; id: string; value: string }
+	| { t: "answer"; id: string; value: string | HumanAnswers }
 	| { t: "skip"; id: string }
 
 export type RoomToClient =

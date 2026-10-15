@@ -113,11 +113,21 @@ export const SystemEvent = Schema.Union([
 
 const UnknownSystemEvent = Schema.Struct({ kind: Schema.String })
 
+const HumanQuestion = Schema.Struct({
+  id: Id,
+  header: Schema.String,
+  question: Schema.String,
+  options: Schema.Array(Schema.Struct({ label: Schema.String, description: Schema.optionalKey(Schema.String), value: Schema.optionalKey(Schema.String) })),
+  multiSelect: Schema.optionalKey(Schema.Boolean),
+  allowCustomAnswer: Schema.optionalKey(Schema.Boolean),
+})
+
 export const HumanAsk = Schema.Struct({
 	id: Id,
 	from: AgentSlug,
 	text: Schema.String,
 	options: Schema.optionalKey(Schema.Array(Schema.String)),
+	questions: Schema.optionalKey(Schema.Array(HumanQuestion)),
 	messageId: MessageId,
 })
 
@@ -311,7 +321,7 @@ export const ClientToRoom = Schema.Union([
 		limit: Schema.optionalKey(Count),
 	}),
 	Schema.Struct({ t: Schema.Literal("history"), seq: Count, before: Count, after: Count }),
-	Schema.Struct({ t: Schema.Literal("answer"), id: Id, value: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("answer"), id: Id, value: Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Array(Schema.String)]))]) }),
 	Schema.Struct({ t: Schema.Literal("skip"), id: Id }),
 ])
 

@@ -28,6 +28,8 @@ export type PromptInputV2Props = {
   class?: string
   reply?: JSX.Element
   tray?: JSX.Element
+  actions?: JSX.Element
+  answering?: boolean
   isMention?: (slug: string) => boolean
 }
 
@@ -146,7 +148,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
               </Show>
             </div>
             <div class="composer-actions">
-              {emoji.trigger}
+              <Show when={!props.readOnly}>{emoji.trigger}</Show>
+              <Show when={!props.answering}>
               <TooltipV2 placement="top" openDelay={400} value={i18n.t("ui.promptInput.add")}>
                 <button
                   type="button"
@@ -158,7 +161,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
                   <PaperclipIcon class="size-4" />
                 </button>
               </TooltipV2>
-              <PromptInputV2SubmitButton
+              </Show>
+              <Show when={props.answering} fallback={<PromptInputV2SubmitButton
                 mode={state.mode}
                 stopping={view.submit.stopping()}
                 disabled={!props.controller.canSubmit()}
@@ -167,7 +171,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 stopLabel={i18n.t("ui.promptInput.stop")}
                 onSubmit={props.controller.submit}
                 onStop={props.controller.stop}
-              />
+              />}>{props.actions}</Show>
             </div>
           </div>
         </div>

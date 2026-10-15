@@ -20,6 +20,7 @@ type PromptTarget = {
 }
 
 export type PromptInputV2AttachmentConfig = {
+  blocked?: () => string | null
   /** Says why files were left out: too large, the wrong kind, or past the count. */
   refuse: (reasons: string[]) => void
   /** A file entered the box, as `file` (a picture possibly re-encoded). Its upload starts here. */
@@ -44,6 +45,8 @@ export function createPromptInputV2Attachments(
     return { ...prompt, cursor: () => prompt.cursor() ?? (editor ? cursorPosition(editor) : undefined) }
   }
   const addAttachments = async (files: File[], target = capture()) => {
+    const blocked = input.blocked?.()
+    if (blocked) return void input.refuse([blocked])
     const held = target.current().filter((part) => part.type === "image")
     const { images, files: others, error } = admit(held.length, files)
     const refusals = error ? [error] : []

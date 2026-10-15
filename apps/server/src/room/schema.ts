@@ -229,4 +229,5 @@ export const ROOM_STEPS: Step[] = [
 		state TEXT NOT NULL CHECK (state IN ('open', 'answered', 'skipped')),
 		answer TEXT
 	) STRICT`,
+	addColumn("human_asks", "questions", "TEXT"),
 ]

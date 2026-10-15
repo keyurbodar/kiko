@@ -1,7 +1,8 @@
-import { Show, createEffect, createMemo, on, onCleanup } from "solid-js"
+import { Show, Suspense, lazy, batch, createEffect, createMemo, on, onCleanup } from "solid-js"
+import { ChevronLeftIcon, SquareIcon } from "lucide-solid"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { attachmentIds, linkAttachments } from "@kiko/protocol"
+import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, attachmentIds, linkAttachments } from "@kiko/protocol"
 import type { ComposerProps, MessageFile } from "../lib/types"
 import { isImage, sendRefusal } from "../lib/attachments"
 import "./composer.css"
@@ -18,9 +19,25 @@ import { forgetUpload, readyAttachments, releaseUpload, startUpload, uploadBlock
 import { createDraftRestore } from "./draft-restore"
 import { composerFill, takeComposerFill } from "./fill"
 
+import { createQuestionInput } from "./cards/question-input"
+import { carryDisplacedCustomAnswerIntoPrompt } from "./cards/question-model"
+const ComposerCards = lazy(() => import("./cards/composer-cards").then((m) => ({ default: m.ComposerCards })))
+
 const draftFiles = () => import("./rich/draft-files")
 
 export function Composer(props: ComposerProps) {
+  const question = createQuestionInput(() => props.editing ? [] : props.room?.asks() ?? [], (ask, answers) => {
+    const value = ask.questions ? answers : answers.answer as string
+    const text = humanAnswerText(ask, value)
+    if (!text || text.length > MAX_MESSAGE_TEXT || !sendFits(text)) return void showToastV2({ title: "These answers are too long to send.", variant: "error" })
+    props.room?.answer(ask.id, value)
+  }, (id) => props.room?.skip(id), {
+    key: () => props.draftKey,
+    load: (id) => props.draftFor?.(`${props.draftKey}:questions:${id}`) ?? "",
+    save: (id, value) => props.onDraftChange?.(`${props.draftKey}:questions:${id}`, value),
+  })
+  const draftKey = () => question.ask() ? `${props.draftKey}:ask:${question.ask()!.id}:${question.progress().activeQuestion?.id}` : props.draftKey
+
   const [persisted, setPersisted] = createStore<PromptInputV2PersistedState>({
     prompt: [{ type: "text", content: "", start: 0, end: 0 }],
     cursor: 0,
@@ -48,7 +65,7 @@ export function Composer(props: ComposerProps) {
     if (event.key !== "ArrowUp" || event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return
     const target = event.target
     if (!(target instanceof HTMLElement) || !target.closest('[data-component="prompt-input"]')) return
-    if (props.editing || draftText() !== "" || store.state.prompt.some((part) => part.type === "image")) return
+    if (question.ask() || props.editing || draftText() !== "" || store.state.prompt.some((part) => part.type === "image")) return
     if (document.querySelector('[role="listbox"], [role="dialog"], [role="menu"]')) return
     event.preventDefault()
     props.onEditLast?.()
@@ -86,7 +103,7 @@ export function Composer(props: ComposerProps) {
   // Saved files come back as chips. The restore is raced by chat switches, so it is built in draft-restore.ts.
   const restoreFiles = createDraftRestore<{ id: string; part: PromptInputV2Attachment; file: File }>({
     list: (key) => draftFiles().then((m) => m.listDraftFiles(key)),
-    current: () => props.draftKey,
+    current: () => draftKey(),
     inBox: () => new Set(boxed().map((part) => part.id)),
     build: async (entry) => {
       const file = new File([entry.blob], entry.name, { type: entry.type })
@@ -135,14 +152,14 @@ export function Composer(props: ComposerProps) {
   let filledFor = ""
   createEffect(
     on(
-      () => props.draftKey ?? "",
+      () => draftKey() ?? "",
       (key) => {
         filledFor = ""
         leaveChat()
         if (!key) return
         const filled = takeComposerFill(key)
         if (filled !== undefined) typeHere(filled)
-        const text = filled?.trimEnd() ?? props.draftFor?.(key) ?? ""
+        const text = filled?.trimEnd() ?? (question.ask() ? question.progress().customAnswer : props.draftFor?.(key)) ?? ""
         if (text !== draftText()) {
           if (text) store.setText(text)
           else store.reset()
@@ -157,7 +174,7 @@ export function Composer(props: ComposerProps) {
     on(
       composerFill,
       (fill) => {
-        if (!fill || fill.roomId !== props.draftKey) return
+        if (!fill || fill.roomId !== draftKey()) return
         const text = takeComposerFill(fill.roomId) ?? ""
         store.setText(text.trimEnd())
         typeHere(text)
@@ -167,7 +184,10 @@ export function Composer(props: ComposerProps) {
   )
   createEffect(
     on(draftText, (text) => {
-      if (filledFor && filledFor === props.draftKey) props.onDraftChange?.(filledFor, text)
+      if (filledFor && filledFor === draftKey()) {
+        if (question.ask()) question.custom(text)
+        props.onDraftChange?.(filledFor, text)
+      }
     }, { defer: true }),
   )
 
@@ -211,7 +231,15 @@ export function Composer(props: ComposerProps) {
    * The name keeps its own casing, and it is taken from the roster rather than
    * hardcoded so it stays true when the reader switches conversation.
    */
+  const selectAnswer = (value: string) => batch(() => {
+    const key = props.draftKey
+    const displaced = question.progress().customAnswer
+    if (key && displaced.trim()) props.onDraftChange?.(key, carryDisplacedCustomAnswerIntoPrompt(props.draftFor?.(key) ?? "", displaced))
+    store.reset()
+    question.select(value)
+  })
   const placeholder = () => {
+    if (question.ask()) return question.progress().activeQuestion?.allowCustomAnswer === false ? "Select an option above" : "Type your own answer…"
     const name = props.title || botById(props.threadId)?.name
     return name ? `Message ${name}` : "Message"
   }
@@ -229,12 +257,13 @@ export function Composer(props: ComposerProps) {
       )
     },
     attachments: {
+      blocked: () => question.ask() ? "Answer or skip the question before attaching files." : null,
       refuse: (reasons) => {
         for (const title of reasons) showToastV2({ title, variant: "error" })
       },
       onAdded: (attachment, file) => {
         if (props.threadId) startUpload(attachment.id, props.threadId, file, attachment.filename, attachment.mime)
-        const key = props.draftKey
+        const key = draftKey()
         if (!key) return
         keptFor.set(attachment.id, key)
         void draftFiles().then((m) => m.putDraftFile(key, { id: attachment.id, name: attachment.filename, type: attachment.mime, size: attachment.size, blob: file }))
@@ -243,11 +272,13 @@ export function Composer(props: ComposerProps) {
     view: {
       placeholder,
       submit: {
-        stopping: () => !!props.stopping && !draftText().trim() && !boxed().length,
+        canSubmit: () => question.ask() ? (question.progress().isLastQuestion ? question.progress().isComplete : question.progress().canAdvance) : undefined,
+        stopping: () => !question.ask() && !!props.stopping && !draftText().trim() && !boxed().length,
         working: () => !!props.stopping,
         blocked,
         onSubmit: () => {
           if (props.busy || blocked()) return
+          if (question.ask()) return question.advance()
           // There is no conversation to land in, so there is nothing to send.
           if (!props.threadId) return
           const text = draftText()
@@ -277,8 +308,8 @@ export function Composer(props: ComposerProps) {
           for (const part of parts) forgetUpload(part.id)
           held = new Map()
           keptFor.clear()
-          const draftKey = props.draftKey
-          if (draftKey) void draftFiles().then((m) => m.clearDraftFiles(draftKey))
+          const sentDraftKey = draftKey()
+          if (sentDraftKey) void draftFiles().then((m) => m.clearDraftFiles(sentDraftKey))
           store.reset()
           props.onSend(files.length ? { body, files, attachments } : { body })
           props.onClearReply?.()
@@ -325,7 +356,30 @@ export function Composer(props: ComposerProps) {
 
   return (
     <>
-      <PromptInputV2 controller={controller} disabled={!!props.busy} reply={above} tray={props.tray} isMention={(slug) => props.bots.some((bot) => bot.id === slug)} />
+      <Show when={props.room}>{(room) => <Suspense><ComposerCards room={room()} needsProvider={props.needsProvider} question={question} onSelectAnswer={selectAnswer} /></Suspense>}</Show>
+      <PromptInputV2
+        answering={!!question.ask()}
+        readOnly={!!question.ask() && question.progress().activeQuestion?.allowCustomAnswer === false}
+        actions={<Show when={question.ask()}>
+          <div class="question-primary-actions">
+            <Show when={props.stopping}>
+              <button type="button" class="question-stop" aria-label="Stop work" onClick={() => props.onStop?.()}><SquareIcon /></button>
+            </Show>
+            <Show when={question.progress().questionIndex > 0}>
+              <button type="button" class="question-previous" onClick={question.previous} aria-label="Previous question"><span class="question-action-full">Previous</span><ChevronLeftIcon class="question-action-compact size-3.5" /></button>
+            </Show>
+            <button type="button" class="question-submit" disabled={!controller.canSubmit()} onClick={() => controller.submit()}>
+              <span class="question-action-full">{question.progress().isLastQuestion ? (question.progress().questionIndex > 0 ? "Submit answers" : "Submit answer") : "Next question"}</span>
+              <span class="question-action-compact">{question.progress().isLastQuestion ? "Submit" : "Next"}</span>
+            </button>
+          </div>
+        </Show>}
+        controller={controller}
+        disabled={!!props.busy}
+        reply={question.ask() ? undefined : above}
+        tray={props.tray}
+        isMention={(slug) => props.bots.some((bot) => bot.id === slug)}
+      />
       {viewer.view}
     </>
   )

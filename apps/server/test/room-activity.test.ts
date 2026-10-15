@@ -229,3 +229,29 @@ test("a refused human task change is reported to its socket and leaves the board
   expect((await snapshot(room)).tasks[0]?.owner).toBe("ada")
   c.close()
 })
+
+test("batched human questions persist choices, reject incomplete answers, and resolve once", async () => {
+  const room = fresh()
+  const c = await withAgent(room)
+  const questions = [
+    { id: "where", header: "Place", question: "Where?", options: [{ label: "Café", description: "A quiet place", value: "cafe" }] },
+    { id: "food", header: "Food", question: "What should they serve?", multiSelect: true, allowCustomAnswer: false, options: [{ label: "Tea" }, { label: "Cake" }] },
+  ]
+  expect(await rpc(room, "askHuman", "ada", { id: "batch", questions })).toEqual({ ok: true })
+  expect((await snapshot(room)).asks?.[0]?.questions).toEqual(questions)
+  await rpc(room, "answerAsk", "batch", { where: "cafe" })
+  expect((await snapshot(room)).asks).toHaveLength(1)
+  await rpc(room, "answerAsk", "batch", { where: "cafe", food: ["missing"] })
+  expect((await snapshot(room)).asks).toHaveLength(1)
+  await rpc(room, "answerAsk", "batch", { where: "a park instead", food: ["Tea", "Cake"] })
+  await rpc(room, "answerAsk", "batch", { where: "cafe", food: ["Cake"] })
+  const saved = await snapshot(room)
+  expect(saved.asks).toEqual([])
+  expect(saved.messages.filter((m) => m.from.kind === "human").map((m) => m.text)).toEqual(["Place: a park instead\nFood: Tea, Cake"])
+  expect(await rpc(room, "humanAskState", "batch")).toEqual({ state: "answered", answer: "Place: a park instead\nFood: Tea, Cake" })
+  expect(await rpc(room, "askHuman", "ada", { id: "skip-batch", questions })).toEqual({ ok: true })
+  await rpc(room, "skipAsk", "skip-batch")
+  expect((await snapshot(room)).asks).toEqual([])
+  expect(await rpc(room, "humanAskState", "skip-batch")).toEqual({ state: "skipped", answer: null })
+  c.close()
+})

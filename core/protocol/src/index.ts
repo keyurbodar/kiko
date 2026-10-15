@@ -3,6 +3,7 @@
 // pure chat list rules in `chats.ts`, the small pure helpers of `activity.ts` that the
 // room and the client share, and the attachment limits of `attachments.ts`.
 
+export * from "./human-input"
 export * from "./chats"
 export * from "./activity"
 export * from "./attachments"

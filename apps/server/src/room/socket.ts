@@ -22,7 +22,7 @@ export interface SocketRoom {
 	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<{ ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }>
 	taskOp(op: TaskOp): string | null | void
 	setModel(ref: string, slug?: AgentSlug): void
-	answerAsk(id: string, value: string): Promise<void>
+	answerAsk(id: string, value: string | import("@kiko/protocol").HumanAnswers): Promise<void>
 	skipAsk(id: string): Promise<void>
 }
 
@@ -72,7 +72,9 @@ export function parse(raw: string | ArrayBuffer): ClientToRoom | null {
 			// An edit cannot carry a file, so it stays within the bubble limit.
 			return frame.text.length <= MAX_MESSAGE_TEXT && sendFits(frame.text) && frame.text.trim() !== "" ? frame : null
 		case "answer":
-			return frame.value.length <= MAX_MESSAGE_TEXT && sendFits(frame.value) && frame.value.trim() !== "" ? frame : null
+			return typeof frame.value === "string"
+        ? frame.value.length <= MAX_MESSAGE_TEXT && sendFits(frame.value) && frame.value.trim() !== "" ? frame : null
+        : sendFits("", [frame.value]) ? frame : null
 		case "react":
 			return frame.emoji === null || (frame.emoji.length > 0 && frame.emoji.length <= MAX_EMOJI && !/\s/.test(frame.emoji))
 				? frame

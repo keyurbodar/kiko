@@ -1,3 +1,4 @@
+import { humanAnswerText } from "@kiko/protocol"
 // Pending patches over the server state. Architecture section 9.3.
 //
 // Every user action becomes a patch first. A patch is the frame the action
@@ -184,7 +185,7 @@ export function overlayMessages(messages: readonly Message[], patches: readonly 
 	const sends: (RoomPatch & { frame: SendFrame })[] = []
 	for (const p of patches) {
 		if (p.frame.t === "send") sends.push(p as RoomPatch & { frame: SendFrame })
-		if (p.frame.t === "answer" && p.ask) sends.push({ ...p, frame: { t: "send", clientId: p.clientId, text: p.frame.value, replyTo: p.ask.messageId } })
+		if (p.frame.t === "answer" && p.ask) sends.push({ ...p, frame: { t: "send", clientId: p.clientId, text: humanAnswerText(p.ask, p.frame.value) ?? "", replyTo: p.ask.messageId } })
 		const target = messageTarget(p.frame)
 		if (target) byId.set(target, [...(byId.get(target) ?? []), p])
 	}

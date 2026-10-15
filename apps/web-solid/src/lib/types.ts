@@ -133,6 +133,8 @@ export interface OutgoingMessage {
 }
 
 export interface ComposerProps {
+  room?: import("../sync/room-store").RoomStore
+  needsProvider?: boolean
   stopping?: boolean
   onStop?: () => void
   tray?: JSX.Element

@@ -1,5 +1,5 @@
-import { isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
-import type { Activity, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
+import { humanAnswerText, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
+import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
@@ -372,15 +372,27 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.asks.close(id)
 	}
 
-	async askHuman(slug: AgentSlug, input: { id: string; question: string; options?: readonly string[] }): Promise<{ ok: true } | { ok: false; error: string }> {
+	async askHuman(slug: AgentSlug, input: { id: string; question?: string; options?: readonly string[]; questions?: readonly HumanQuestion[] }): Promise<{ ok: true } | { ok: false; error: string }> {
 		if (!this.members.get(slug)) return { ok: false, error: "you are not a member of this room" }
-		const text = input.question.trim().slice(0, MAX_QUESTION)
-		if (!text) return { ok: false, error: "the question is empty" }
+		const questions = input.questions
+		if (questions && (
+			!questions.length || questions.length > 8 ||
+			new Set(questions.map((q) => q.id)).size !== questions.length ||
+			questions.some((q) =>
+				!q.id.trim() || !q.header.trim() || q.header.length > 120 ||
+				!q.question.trim() || q.question.length > MAX_QUESTION ||
+				q.options.length > 8 || (!q.options.length && q.allowCustomAnswer === false) ||
+				new Set(q.options.map((o) => o.value ?? o.label)).size !== q.options.length ||
+				q.options.some((o) => !o.label.trim() || o.label.length > 120 || (o.description?.length ?? 0) > MAX_QUESTION),
+			)
+		)) return { ok: false, error: "provide 1 to 8 questions with unique ids, short headers, and distinct options" }
+		const text = questions ? questions.map((q) => q.question).join("\n\n") : (input.question ?? "").trim().slice(0, MAX_QUESTION)
+		if (!text || text.length > MAX_MESSAGE_TEXT) return { ok: false, error: "the questions must fit in one message" }
 		const options = cleanOptions(input.options)
 		const events = this.ctx.storage.transactionSync((): RoomEvent[] => {
 			if (this.humanAsks.get(input.id)) return []
 			const posted = this.log.addMessage({ from: { kind: "agent", slug }, text, rich: parseRichText(text), clientId: `ask:${input.id}` })
-			const ask = { id: input.id, from: slug, text, ...(options.length ? { options } : {}), messageId: posted.id }
+			const ask = { id: input.id, from: slug, text, ...(options.length ? { options } : {}), ...(questions ? { questions } : {}), messageId: posted.id }
 			this.humanAsks.create(ask, Date.now())
 			return [...(posted.event ? [posted.event] : []), this.log.append(`agent:${slug}`, { t: "ask", ...ask })]
 		})
@@ -393,10 +405,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return ask ? { state: ask.state, answer: ask.answer } : null
 	}
 
-	async answerAsk(id: string, value: string): Promise<void> {
-		const text = value.trim()
+	async answerAsk(id: string, value: string | HumanAnswers): Promise<void> {
 		const ask = this.humanAsks.get(id)
-		if (!ask || ask.state !== "open" || !text) return
+		if (!ask || ask.state !== "open") return
+		const text = humanAnswerText(ask, value)
+		if (!text || text.length > MAX_MESSAGE_TEXT || !sendFits(text)) return
 		const event = this.resolveAsk(id, "answered", text)
 		if (!event) return
 		this.publish([event])

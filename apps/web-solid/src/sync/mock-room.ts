@@ -1,3 +1,4 @@
+import { humanAnswerText } from "@kiko/protocol"
 // An in-memory room and user server that speak the protocol, for tests and the
 // dev harness. It starts from the shared fixtures in `@kiko/protocol/fixtures`.
 // Its `connect` stands in for `WebSocket`. Frames cross it as JSON strings, one
@@ -215,7 +216,7 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		answer(_, f) {
 			const ask = data.asks.find((a) => a.id === f.id)
 			if (!ask) return
-			store({ t: "ask_resolved", id: f.id, how: "answered" }, message({ id: `answer-${f.id}` as MessageId, from: { kind: "human" }, text: f.value, replyTo: ask.messageId }, `answer:${f.id}`))
+			store({ t: "ask_resolved", id: f.id, how: "answered" }, message({ id: `answer-${f.id}` as MessageId, from: { kind: "human" }, text: humanAnswerText(ask, f.value) ?? "", replyTo: ask.messageId }, `answer:${f.id}`))
 		},
 		skip(_, f) {
 			store({ t: "ask_resolved", id: f.id, how: "skipped" })

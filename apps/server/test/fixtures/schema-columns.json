@@ -355,6 +355,14 @@
           "notnull": 0,
           "dflt_value": null,
           "pk": 0
+        },
+        {
+          "cid": 8,
+          "name": "questions",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
         }
       ],
       "indexes": [

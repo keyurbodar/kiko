@@ -1,6 +1,6 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable"
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug, HumanQuestion } from "@kiko/protocol"
 import type { AgentSend } from "../../room/mail"
 import { declareEffect } from "@kiko/agent/effects"
 import type { Answer } from "@kiko/agent/answers"
@@ -13,7 +13,7 @@ export type MessagingPort = {
   askState(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
   waitAnswer(id: string, ms: number, signal?: AbortSignal): Promise<Answer | null>
   closeAsk(id: string): Promise<{ state: "open" | "answered" | "closed"; answer: string | null } | null>
-  askHuman(input: { id: string; question: string; options?: string[] }): Promise<{ ok: true } | { ok: false; error: string }>
+  askHuman(input: { id: string; question?: string; options?: string[]; questions?: readonly HumanQuestion[] }): Promise<{ ok: true } | { ok: false; error: string }>
   humanAskState(id: string): Promise<{ state: "open" | "answered" | "skipped"; answer: string | null } | null>
   humanWaiting(): boolean
   team(): Promise<{ slug: AgentSlug; name: string; status: string; doing: string | null; holds: string[] }[]>
@@ -69,15 +69,23 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
     defineTool({
       name: "ask_human",
       description:
-        "ask the human one question and wait for the answer, which comes back as this tool's result. the human sees your question in the chat and a card over the message box where they pick one of your options, type an answer, or skip. use it only when you cannot go on without their choice. it waits up to two minutes, and stops at once if the human writes something else; a late answer reaches you as a message.",
+        "ask the human one question or a batch of up to eight questions and wait for the answers, which comes back as this tool's result. the human sees your question in the chat and a card over the message box where they select options, type a custom answer in the composer, move between questions, or skip the request. Use questions for a batch, descriptive options, or multiSelect. Each question needs a unique id and a short header. use it only when you cannot go on without their choice. it waits up to two minutes, and stops at once if the human writes something else; a late answer reaches you as a message.",
       parameters: Type.Object({
-        question: Type.String({ description: "one short question, written to the human" }),
+        question: Type.Optional(Type.String({ description: "one short question; use this or questions" })),
+        questions: Type.Optional(Type.Array(Type.Object({
+          id: Type.String({ minLength: 1, maxLength: 120 }),
+          header: Type.String({ minLength: 1, maxLength: 120 }),
+          question: Type.String({ minLength: 1, maxLength: 2000 }),
+          options: Type.Array(Type.Object({ label: Type.String({ minLength: 1, maxLength: 120 }), description: Type.Optional(Type.String({ maxLength: 2000 })), value: Type.Optional(Type.String({ minLength: 1, maxLength: 120 })) }), { maxItems: 8 }),
+          multiSelect: Type.Optional(Type.Boolean()),
+          allowCustomAnswer: Type.Optional(Type.Boolean()),
+        }), { minItems: 1, maxItems: 8 })),
         options: Type.Optional(Type.Array(Type.String(), { maxItems: 8, description: "the answers to offer, each a few words. leave out for a free answer" })),
       }),
       replay: "safe",
-      execute: async ({ question, options }, api, context) => {
+      execute: async ({ question, options, questions }, api, context) => {
         const id = `${api.conversationId}:${api.callId}`
-        const asked = await room().askHuman({ id, question, ...(options?.length ? { options } : {}) })
+        const asked = await room().askHuman({ id, ...(question ? { question } : {}), ...(options?.length ? { options } : {}), ...(questions ? { questions } : {}) })
         if (!asked.ok) return { content: text(asked.error), isError: true }
         const settled = (s: { state: string; answer: string | null } | null) =>
           s?.state === "answered" ? { content: text(`the human answered: ${s.answer ?? ""}`) } : s?.state === "skipped" ? { content: text("the human skipped the question. go on without an answer, or ask in your own words later.") } : null

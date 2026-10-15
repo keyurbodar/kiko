@@ -36,6 +36,7 @@ export type PromptInputV2ViewConfig = {
   variant?: PromptInputV2SelectControl
   submit: {
     stopping: Accessor<boolean>
+    canSubmit?: Accessor<boolean | undefined>
     working?: Accessor<boolean>
     /** Attachments are still being read for sending. The send button says so. */
     preparing?: Accessor<boolean>
@@ -336,6 +337,8 @@ export function createPromptInputV2Controller(input: {
     },
     canSubmit() {
       if (input.view.submit.blocked?.()) return false
+      const pending = input.view.submit.canSubmit?.()
+      if (pending !== undefined) return pending
       const persisted = draft.state
       if (persisted.prompt.some((part) => part.type === "image")) return true
       return persisted.prompt.some((part) => "content" in part && !!part.content.trim())

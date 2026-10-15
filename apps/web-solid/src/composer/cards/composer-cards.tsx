@@ -1,5 +1,4 @@
-import { MAX_MESSAGE_TEXT, sendFits, type ToolKind } from "@kiko/protocol"
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { type ToolKind } from "@kiko/protocol"
 import { Dynamic } from "solid-js/web"
 import { A } from "@solidjs/router"
 import { CollapsibleV2 as Collapsible } from "@kiko/ui/v2/collapsible-v2"
@@ -10,6 +9,8 @@ import { TaskList } from "../../chat/info/task-list"
 import { taskProgress } from "../../chat/info/tasks-model"
 import type { RoomStore } from "../../sync/room-store"
 import { composerCards, type ComposerCard } from "./model"
+import { QuestionPanel } from "./question-panel"
+import type { QuestionInput } from "./question-input"
 import "./cards.css"
 
 const TOOL_ICONS: Record<ToolKind, typeof SearchIcon> = { read: FileTextIcon, edit: FilePenLineIcon, search: SearchIcon, run: TerminalIcon, web: GlobeIcon, other: WrenchIcon }
@@ -48,32 +49,10 @@ function CardSummary(props: { card: ComposerCard; room: RoomStore }) {
   </>
 }
 
-function Question(props: { card: Extract<ComposerCard, { kind: "ask" }>; room: RoomStore }) {
-  const [custom, setCustom] = createSignal("")
-  const answer = (value: string) => {
-    if (value.length > MAX_MESSAGE_TEXT || !sendFits(value)) return void showToastV2({ title: "This answer is too long to send.", variant: "error" })
-    props.room.answer(props.card.ask.id, value)
-  }
-  return <div class="composer-card-body" data-component="question-body">
-    <p>{props.card.ask.text}</p>
-    <For each={props.card.ask.options}>{(option) => <button type="button" class="composer-card-option" onClick={() => answer(option)}>{option}</button>}</For>
-    <form onSubmit={(e) => { e.preventDefault(); answer(custom()) }}>
-      <input class="composer-card-input" maxLength={MAX_MESSAGE_TEXT} aria-label="Your answer" placeholder="Or write your own answer…" value={custom()} onInput={(e) => setCustom(e.currentTarget.value)} />
-      <div class="composer-card-footer">
-        <button type="button" class="composer-card-button" onClick={() => props.room.skip(props.card.ask.id)}>Skip</button>
-        <button type="submit" class="composer-card-button" data-primary disabled={!custom().trim()}>Send answer</button>
-      </div>
-    </form>
-  </div>
-}
-
 function CardBody(props: { card: ComposerCard; room: RoomStore; portalMount?: HTMLElement; dismiss: (id: string) => void }) {
   return <>
     <Show when={props.card.kind === "provider"}><div class="composer-card-body"><p>Connect a model provider so your agent can reply.</p><div class="composer-card-footer"><A class="composer-card-button" data-primary href="/settings/models">Connect provider<ArrowUpRightIcon class="size-3" /></A></div></div></Show>
-    <Show when={props.card.kind === "ask" ? props.card.ask.id : undefined} keyed>{(_id) => {
-      const card = props.card as Extract<ComposerCard, { kind: "ask" }>
-      return <Question card={card} room={props.room} />
-    }}</Show>
+    <Show when={props.card.kind === "ask"}><div class="composer-card-body"><p>{props.card.title}</p></div></Show>
     <Show when={props.card.kind === "tasks"}>
       <div class="composer-card-body" style={{ "padding-left": "0" }}>
         <TaskList portalMount={props.portalMount} tasks={taskProgress(props.room.tasks()).steps} group={props.room.members().length > 1} onStatus={(id, status) => props.room.task({ op: "update", id, status })} />
@@ -91,13 +70,13 @@ function CardBody(props: { card: ComposerCard; room: RoomStore; portalMount?: HT
   </>
 }
 
-export function ComposerCards(props: { room: RoomStore; needsProvider?: boolean }) {
+export function ComposerCards(props: { room: RoomStore; needsProvider?: boolean; question: QuestionInput; onSelectAnswer: (value: string) => void }) {
   const [expanded, setExpanded] = createSignal<string | null>(null)
   const [stackOpen, setStackOpen] = createSignal(false)
   const [stackElement, setStackElement] = createSignal<HTMLElement>()
   const [dismissed, setDismissed] = createSignal<ReadonlySet<string>>(new Set())
   const cards = createMemo(() => {
-    const items = composerCards(props.room.asks(), props.room.tasks(), props.room.state.agents, props.room.state.messages, dismissed())
+    const items = composerCards(props.question.ask() ? props.room.asks() : [], props.room.tasks(), props.room.state.agents, props.room.state.messages, dismissed())
     if (props.needsProvider) {
       const at = items.findIndex((c) => c.kind !== "ask")
       items.splice(at < 0 ? items.length : at, 0, { id: "provider", kind: "provider", title: "Connect a provider to reply" })
@@ -125,11 +104,13 @@ export function ComposerCards(props: { room: RoomStore; needsProvider?: boolean 
         </HoverCard.Content></HoverCard.Portal>
       </HoverCard>
     </Show>
+    <Show when={card().kind === "ask"} fallback={
     <Collapsible class="composer-card-surface" open={expanded() === card().id} onOpenChange={(open) => setExpanded(open ? card().id : null)}>
       <Collapsible.Trigger class="composer-card-row" data-expanded={expanded() === card().id} aria-label={`${card().kind === "ask" ? `Question from ${props.room.members().find((m) => m.slug === (card() as Extract<ComposerCard, { kind: "ask" }>).ask.from)?.name ?? "your agent"}: ` : ""}${card().title}`}>
         <CardSummary card={card()} room={props.room} />
       </Collapsible.Trigger>
       <Collapsible.Content><CardBody card={card()} room={props.room} dismiss={dismiss} /></Collapsible.Content>
     </Collapsible>
+    }><div class="composer-card-surface"><QuestionPanel input={props.question} owner={props.room.members().length > 1 ? props.room.members().find((m) => m.slug === props.question.ask()?.from)?.name : undefined} onSelect={props.onSelectAnswer} /></div></Show>
   </div>}</Show>
 }

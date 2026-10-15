@@ -12,7 +12,6 @@ import { hasModelProvider } from "../../settings/provider-kinds";
 import { jumpRequest, requestJump } from "../../search/state";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
-const ComposerCards = lazy(() => import("../../composer/cards/composer-cards").then((m) => ({ default: m.ComposerCards })));
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 const BrowserChip = lazy(() => import("../../chat/BrowserChip"));
 
@@ -181,7 +180,7 @@ export default function ChatRoute() {
             onStateChange={setThreadState}
             onNearTop={useApp.loadOlder}
             onAtLatest={() => landing || useApp.followLatest()}
-            waitingNames={[]}
+            waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
             waitingDoings={useApp.typingDoings()}
             groupChat={members().size > 1}
@@ -260,8 +259,9 @@ export default function ChatRoute() {
             }}
           />
 
-          <Show when={useApp.room()} keyed>{(room) => <Suspense><ComposerCards room={room} needsProvider={!!(room.state.noProvider ?? (connectedReady() && !hasModelProvider(connectedProviders())))} /></Suspense>}</Show>
           <Composer
+            room={useApp.room() ?? undefined}
+            needsProvider={!!(useApp.room()?.state.noProvider ?? (connectedReady() && !hasModelProvider(connectedProviders())))}
             stopping={!!useApp.room()?.state.agents.length}
             onStop={() => useApp.room()?.stop()}
             tray={<ModelPickerButton chatId={params.id ?? null} />}
