@@ -275,6 +275,22 @@ flowchart LR
 - If the grant fails, the button runs the install flow again, and the installer uploads the bundle.
 - A Durable Object migration ships in the manifest's metadata. Table changes need nothing, since `migrate` runs on first access.
 
+### How the update runs
+
+The owner's socket sends `{ t: "update.start", version }`. The client names its own `APP_VERSION`. `UserDO` answers with `{ t: "update.state", stage, error? }` frames to every open socket: `checking`, `authorizing`, `uploading`, `restarting`, or `failed`. The steps live in `apps/server/src/user/update.ts`. The release fetch and the upload metadata are shared with the installer in `core/durable` (`release-load.ts`, `release-plan.ts`).
+
+1. **Checking.** Fetch `<base>/<version>/manifest.json` and `manifest.sig`. Refuse unless the signature verifies under the key baked into the bundle, the manifest names that exact version, and every module hash matches. Nothing else is read before this passes.
+2. **Authorizing.** Read the grant from `UserDO` (sealed with the credential crypto), else from the `CF_GRANT` secret. An OAuth grant refreshes at `https://dash.cloudflare.com/oauth2/token`. The rotated refresh token is stored before the new access token is used.
+3. **Uploading.** List the account's scripts to read this script's `migration_tag`, then `PUT` the script with the installer's metadata and `keep_bindings: ["secret_text"]`. No secret is sent.
+4. **Restarting.** The old code sends this last. The new code answers the client's reconnect, and the next `hello` carries the new version, which removes the banner.
+
+- The install's `CF_GRANT` now also carries `scriptName` (the script to replace) and, for OAuth, `clientId` (the refresh needs it).
+- `RELEASE_PUBLIC_KEY` is a constant in `apps/server/src/lib/release-config.ts`. A Worker var named `RELEASE_BASE_URL` moves the release base and never the key. The default base is `https://app.kiko.codes/releases`.
+- DEVIATION: a plain-text var is not a secret, so `keep_bindings: ["secret_text"]` drops it on update. Set `RELEASE_BASE_URL` as a secret if you override it.
+- DEVIATION: there is no `done` frame. The old code is replaced as the upload finishes, so the client treats the next `hello` with the new version as done.
+- DEVIATION: the update does not fall back to running the install flow when the grant fails. It says "Reconnect Cloudflare, then try again." The reconnect screen is a separate unit.
+- Verified by `bun kiko verify update`, which serves a release built by `bun scripts/release.ts` and a fake Cloudflare from the suite. Dev builds take the release base, the Cloudflare address, and the grant from a dev-only route (`/api/dev/user/update-config`).
+
 ## Why it scales
 
 A normal chat app has one backend for everyone. More users means more servers, a bigger database, and on-call. Here, more users means more backends, each in its owner's account. Our side has nothing that grows with use.

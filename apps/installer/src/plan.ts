@@ -1,50 +1,20 @@
-import type { ReleaseManifest, ReleaseMigration } from "@kiko/durable/release"
+import type { SecretBinding } from "@kiko/durable/release-plan"
 
 export type Grant = { kind: "oauth"; code: string; verifier: string; redirectUri: string } | { kind: "token"; token: string }
 
 export type StoredGrant = {
   kind: Grant["kind"]
   accountId: string
+  /** The script this grant may replace, so the backend can update itself without asking which one it is. */
+  scriptName: string
+  /** The OAuth client the refresh token belongs to. */
+  clientId?: string
   accessToken?: string
   refreshToken?: string
   token?: string
 }
 
-export type MigrationPlan = { old_tag?: string; new_tag: string; steps: ReleaseMigration[] }
-
-export const BUCKET = "kiko-files"
 export const DEFAULT_SCRIPT = "kiko"
-
-const BINDINGS = [
-  { type: "durable_object_namespace", name: "USER", class_name: "UserDO" },
-  { type: "durable_object_namespace", name: "ROOM", class_name: "RoomDO" },
-  { type: "durable_object_namespace", name: "AGENT", class_name: "AgentDO" },
-  { type: "r2_bucket", name: "FILES", bucket_name: BUCKET },
-] as const
-
-// Which migration steps to send. A new script sends them all. An existing script sends the steps after the tag
-// it already ran. A script at the latest tag sends none.
-export function selectMigrations(all: ReleaseMigration[], currentTag: string | null): MigrationPlan {
-  const last = all.at(-1)
-  if (!last) throw new Error("The release has no migrations.")
-  if (currentTag === null) return { new_tag: last.tag, steps: all }
-  const at = all.findIndex((m) => m.tag === currentTag)
-  if (at < 0) throw new Error(`The backend is at migration ${currentTag}, which this release does not know.`)
-  return { old_tag: currentTag, new_tag: last.tag, steps: all.slice(at + 1) }
-}
-
-export type SecretBinding = { type: "secret_text"; name: string; text: string }
-
-export function buildMetadata(manifest: ReleaseManifest, migrations: MigrationPlan, secrets: SecretBinding[] | null) {
-  return {
-    main_module: manifest.main_module,
-    compatibility_date: manifest.compatibility_date,
-    compatibility_flags: manifest.compatibility_flags,
-    bindings: [...BINDINGS, ...(secrets ?? [])],
-    migrations,
-    ...(secrets ? {} : { keep_bindings: ["secret_text"] }),
-  }
-}
 
 export function firstInstallSecrets(input: {
   random: () => string

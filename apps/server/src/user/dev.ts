@@ -19,6 +19,12 @@ export async function devSetting(sql: SqlStorage, key: "memory_policy", value: s
   setSetting(sql, key, value)
 }
 
+export async function devUpdateConfig(sql: SqlStorage, config: Record<string, unknown>): Promise<void> {
+  setSetting(sql, "dev_update", JSON.stringify(config))
+  // A new config starts from its own grant, not the rotated one an earlier run stored.
+  sql.exec("DELETE FROM settings WHERE key = 'cf_grant'")
+}
+
 export async function devComposioSession(composio: () => ComposioConnection): Promise<string | null> {
   return composio().sessionId()
 }

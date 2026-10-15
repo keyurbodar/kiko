@@ -118,6 +118,11 @@ export type ClientToUser =
 	| { t: "login.answer"; loginId: string; promptId: string; value: string }
 	| { t: "login.cancel"; loginId: string }
 	| { t: "home"; op: FileOp }
+	/** Update this backend to this exact release. Only the owner's socket can ask. */
+	| { t: "update.start"; version: string }
+
+/** Where an update is. `restarting` is the last frame the old code sends. */
+export type UpdateStage = "checking" | "authorizing" | "uploading" | "restarting" | "failed"
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[]; version?: string; protocol?: number; fileToken?: string }
@@ -135,6 +140,7 @@ export type UserToClient =
 	| { t: "chat_refused"; roomId: RoomId; existing: RoomId }
 	| { t: "home_refused"; op: FileOp; reason: string }
 	| { t: "typing"; roomId: RoomId; names: readonly string[] }
+	| { t: "update.state"; stage: UpdateStage; error?: string }
 
 /** What a sign-in flow tells the user. The same shapes as pi-ai's `AuthEvent`. */
 export type LoginEvent =

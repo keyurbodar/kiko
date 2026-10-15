@@ -504,6 +504,10 @@ export const ClientToUser = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
 	Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),
+	Schema.Struct({
+		t: Schema.Literal("update.start"),
+		version: Schema.String.check(Schema.isPattern(/^[A-Za-z0-9._-]{1,64}$/)),
+	}),
 ])
 
 export const LoginEvent = Schema.Union([
@@ -562,6 +566,11 @@ export const UserToClient = Schema.Union([
 		provider: Schema.Struct({ provider: Id, kind: Schema.Literals(["api_key", "oauth"]), last4: Schema.String }),
 	}),
 	Schema.Struct({ t: Schema.Literal("login.error"), loginId: Id, reason: LoginErrorReason, message: Schema.String }),
+	Schema.Struct({
+		t: Schema.Literal("update.state"),
+		stage: Schema.Literals(["checking", "authorizing", "uploading", "restarting", "failed"]),
+		error: Schema.optionalKey(Schema.String),
+	}),
 ])
 
 // A schema and its plain type must accept exactly the same values. `Inline`

@@ -1,15 +1,7 @@
-import { type ReleaseManifest, parseManifest, verifyModuleHash, verifyRelease } from "@kiko/durable/release"
+import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
+import { BUCKET, buildMetadata, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
 import { type FetchLike, InstallError, cf, json } from "./cf"
-import {
-  BUCKET,
-  DEFAULT_SCRIPT,
-  type Grant,
-  type StoredGrant,
-  buildMetadata,
-  firstInstallSecrets,
-  ownScriptName,
-  selectMigrations,
-} from "./plan"
+import { DEFAULT_SCRIPT, type Grant, type StoredGrant, firstInstallSecrets, ownScriptName } from "./plan"
 
 export type InstallEnv = {
   CF_OAUTH_CLIENT_ID: string
@@ -51,42 +43,14 @@ async function exchange(env: InstallEnv, grant: Extract<Grant, { kind: "oauth" }
   return { accessToken: body.access_token, refreshToken: body.refresh_token }
 }
 
-async function fetchBytes(f: FetchLike, url: string): Promise<Uint8Array> {
-  const res = await f(url)
-  if (!res.ok) throw new InstallError("release_unavailable", `The release file ${url.split("/").pop()} could not be fetched.`, 502)
-  return new Uint8Array(await res.arrayBuffer())
-}
-
 // Fetches the latest release and refuses it unless the signature and every module hash match.
 export async function loadRelease(env: InstallEnv, f: FetchLike) {
-  const base = env.RELEASE_BASE_URL.replace(/\/$/, "")
-  const latest = JSON.parse(new TextDecoder().decode(await fetchBytes(f, `${base}/latest.json`))) as { version: string }
-  const dir = `${base}/${latest.version}`
-  const manifestBytes = await fetchBytes(f, `${dir}/manifest.json`)
-  const signature = new TextDecoder().decode(await fetchBytes(f, `${dir}/manifest.sig`))
-  if (!(await verifyRelease(manifestBytes, signature, env.RELEASE_PUBLIC_KEY))) {
-    throw new InstallError("release_untrusted", "The release signature is not valid. Nothing was installed.", 502)
+  try {
+    return await loadVerifiedRelease({ baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY }, (url) => f(url))
+  } catch (e) {
+    if (e instanceof ReleaseRefused) throw new InstallError(e.code, e.message, 502)
+    throw e
   }
-  const manifest = parseManifest(manifestBytes)
-  if (!manifest) throw new InstallError("release_untrusted", "The release manifest is malformed. Nothing was installed.", 502)
-  const files = new Map<string, Uint8Array>()
-  for (const module of manifest.modules) {
-    const bytes = await fetchBytes(f, `${dir}/${module.name}`)
-    if (!(await verifyModuleHash(module, bytes))) {
-      throw new InstallError("release_untrusted", `Module ${module.name} does not match the signed manifest. Nothing was installed.`, 502)
-    }
-    files.set(module.name, bytes)
-  }
-  return { manifest, files }
-}
-
-function uploadBody(manifest: ReleaseManifest, files: Map<string, Uint8Array>, metadata: unknown): FormData {
-  const form = new FormData()
-  form.set("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }))
-  for (const module of manifest.modules) {
-    form.set(module.name, new Blob([files.get(module.name) as Uint8Array<ArrayBuffer>], { type: module.type }), module.name)
-  }
-  return form
 }
 
 async function isKiko(f: FetchLike, url: string): Promise<boolean> {
@@ -115,12 +79,12 @@ async function ensureBucket(token: string, accountId: string, f: FetchLike) {
 
 export async function runInstall(env: InstallEnv, deps: InstallDeps, req: InstallRequest): Promise<InstallResult> {
   const f = deps.fetch
-  let stored: Omit<StoredGrant, "accountId">
+  let stored: Omit<StoredGrant, "accountId" | "scriptName">
   let token: string
   if (req.grant.kind === "oauth") {
     const tokens = await exchange(env, req.grant, f)
     token = tokens.accessToken
-    stored = { kind: "oauth", accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }
+    stored = { kind: "oauth", clientId: env.CF_OAUTH_CLIENT_ID, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }
   } else {
     token = req.grant.token
     stored = { kind: "token", token }
@@ -148,7 +112,7 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const existing = byName.get(name)
 
   const { manifest, files } = await loadRelease(env, f)
-  const grant: StoredGrant = { ...stored, accountId }
+  const grant: StoredGrant = { ...stored, accountId, scriptName: name }
   const migrations = selectMigrations(manifest.migrations, existing ? (existing.migration_tag ?? null) : null)
   const secrets = existing
     ? null
