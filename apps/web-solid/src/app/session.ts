@@ -179,15 +179,27 @@ export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
   setProfile(found.profile)
   if (!found.backendUrl) return "connect"
   write("kiko:backend", found.backendUrl)
+  await exchangeClerkToken(found.token)
+  return "in"
+}
+
+async function exchangeClerkToken(clerkToken: string): Promise<void> {
   const res = await apiFetch("/api/auth/clerk", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token: found.token }),
+    body: JSON.stringify({ token: clerkToken }),
   }).catch(() => null)
   if (res && !res.ok) {
     const { message } = (await res.json().catch(() => ({}))) as { message?: string }
     throw new Error(message ?? "Could not sign in. Try again")
   }
   await adopt(res, "Could not reach your backend. Try again")
-  return "in"
+}
+
+/** After an install stored `kiko:backend`: trades a fresh Clerk token (the install outlives the old one) for the backend's own. */
+export async function signInToInstalledBackend(): Promise<void> {
+  const { clerkSignIn } = await import("./clerk")
+  const found = await clerkSignIn()
+  if (!found) throw new Error("Sign in again to finish connecting")
+  await exchangeClerkToken(found.token)
 }

@@ -1,0 +1,162 @@
+import { write } from "../lib/api-base"
+
+/*
+ * The Connect Cloudflare flow (docs/app-kiko.md, "Joining: the install flow"). Pure steps with the network
+ * passed in, so tests drive them with a fake fetch. The screen is connect.tsx.
+ */
+
+export type Fetch = (input: string, init?: RequestInit) => Promise<Response>
+
+export interface OAuthConfig {
+  clientId: string
+  authorizeUrl: string
+  scopes: string[]
+}
+
+export interface TokenLink {
+  url: string
+  permissions: string[]
+}
+
+export type Grant = { kind: "oauth"; code: string; verifier: string; redirectUri: string } | { kind: "token"; token: string }
+
+export interface InstallError {
+  code: string
+  message: string
+}
+
+export const INSTALLER_URL: string = (import.meta.env.VITE_INSTALLER_URL ?? "").replace(/\/+$/, "")
+
+export const redirectUri = (origin: string) => `${origin}/connect/callback`
+
+const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+
+const randomString = () => b64url(crypto.getRandomValues(new Uint8Array(32)))
+
+/** base64url(SHA-256(verifier)) without padding. */
+export async function challengeOf(verifier: string): Promise<string> {
+  return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))))
+}
+
+export async function makePkce(): Promise<{ verifier: string; challenge: string; state: string }> {
+  const verifier = randomString()
+  return { verifier, challenge: await challengeOf(verifier), state: randomString() }
+}
+
+export function authorizeUrl(config: OAuthConfig, pkce: { challenge: string; state: string }, uri: string): string {
+  const url = new URL(config.authorizeUrl)
+  url.searchParams.set("client_id", config.clientId)
+  url.searchParams.set("redirect_uri", uri)
+  url.searchParams.set("response_type", "code")
+  url.searchParams.set("scope", config.scopes.join(" "))
+  url.searchParams.set("code_challenge", pkce.challenge)
+  url.searchParams.set("code_challenge_method", "S256")
+  url.searchParams.set("state", pkce.state)
+  return url.toString()
+}
+
+const PENDING_KEY = "kiko:connect"
+
+export function savePending(pkce: { verifier: string; state: string }, reconnect: boolean): void {
+  sessionStorage.setItem(PENDING_KEY, JSON.stringify({ verifier: pkce.verifier, state: pkce.state, reconnect }))
+}
+
+export function takePending(): { verifier: string; state: string; reconnect: boolean } | null {
+  const raw = sessionStorage.getItem(PENDING_KEY)
+  sessionStorage.removeItem(PENDING_KEY)
+  try {
+    const value = JSON.parse(raw ?? "null") as { verifier?: unknown; state?: unknown; reconnect?: unknown } | null
+    return value && typeof value.verifier === "string" && typeof value.state === "string"
+      ? { verifier: value.verifier, state: value.state, reconnect: value.reconnect === true }
+      : null
+  } catch {
+    return null
+  }
+}
+
+/** The grant a Cloudflare redirect carries, or the reason it cannot be used. State is checked before anything is sent. */
+export function oauthGrant(search: string, pending: { verifier: string; state: string } | null, uri: string): { grant: Grant } | { error: InstallError } {
+  const params = new URLSearchParams(search)
+  const denied = params.get("error")
+  if (denied) return { error: { code: "oauth_denied", message: params.get("error_description") ?? "Cloudflare did not approve the connection." } }
+  const code = params.get("code")
+  if (!pending || !code || params.get("state") !== pending.state) {
+    return { error: { code: "state_mismatch", message: "This sign-in link is not valid anymore." } }
+  }
+  return { grant: { kind: "oauth", code, verifier: pending.verifier, redirectUri: uri } }
+}
+
+export const STEPS = ["Checking your account", "Creating storage", "Uploading Kiko", "Starting it up"] as const
+
+export interface Failure {
+  message: string
+  link?: { href: string; label: string }
+}
+
+const R2_DASHBOARD = "https://dash.cloudflare.com/?to=/:account/r2/overview"
+const WORKERS_DASHBOARD = "https://dash.cloudflare.com/?to=/:account/workers-and-pages"
+
+/** What to show for an installer error: a sentence-case message and at most one link. "Try again" is always offered. */
+export function failureOf(error: InstallError): Failure {
+  switch (error.code) {
+    case "r2_disabled":
+      return { message: "Cloudflare R2 is not turned on for this account. Turn it on, then try again.", link: { href: R2_DASHBOARD, label: "Open R2 in Cloudflare" } }
+    case "no_subdomain":
+      return { message: "This account has no workers.dev address yet. Create one, then try again.", link: { href: WORKERS_DASHBOARD, label: "Open Workers in Cloudflare" } }
+    case "unauthorized":
+      return { message: "Your Kiko sign-in expired. Reload the page and sign in again." }
+    default:
+      return { message: error.message }
+  }
+}
+
+async function errorOf(res: Response): Promise<InstallError> {
+  const body = (await res.json().catch(() => null)) as { error?: Partial<InstallError> } | null
+  return { code: body?.error?.code ?? "failed", message: body?.error?.message ?? "The install did not finish." }
+}
+
+export async function loadOAuthConfig(f: Fetch = fetch): Promise<OAuthConfig> {
+  const res = await f(`${INSTALLER_URL}/oauth/config`)
+  if (!res.ok) throw new Error("Could not reach the installer. Try again.")
+  return (await res.json()) as OAuthConfig
+}
+
+export async function loadTokenLink(f: Fetch = fetch): Promise<TokenLink> {
+  const res = await f(`${INSTALLER_URL}/token-link`)
+  if (!res.ok) throw new Error("Could not reach the installer. Try again.")
+  return (await res.json()) as TokenLink
+}
+
+export type InstallResult = { ok: true; backendUrl: string } | { ok: false; error: InstallError }
+
+export async function install(clerkToken: string, grant: Grant, f: Fetch = fetch): Promise<InstallResult> {
+  let res: Response
+  try {
+    res = await f(`${INSTALLER_URL}/install`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clerkToken, grant }),
+    })
+  } catch {
+    return { ok: false, error: { code: "network", message: "Could not reach the installer. Check your connection." } }
+  }
+  if (!res.ok) return { ok: false, error: await errorOf(res) }
+  const body = (await res.json().catch(() => null)) as { backendUrl?: unknown } | null
+  if (typeof body?.backendUrl !== "string") return { ok: false, error: { code: "failed", message: "The install did not return an address." } }
+  return { ok: true, backendUrl: body.backendUrl }
+}
+
+/** Installs, then keeps the new address and signs in to it. The address is stored before the exchange runs. */
+export async function connect(
+  clerkToken: string,
+  grant: Grant,
+  exchange: () => Promise<void>,
+  f: Fetch = fetch,
+): Promise<InstallError | null> {
+  const result = await install(clerkToken, grant, f)
+  if (!result.ok) return result.error
+  write("kiko:backend", result.backendUrl)
+  await exchange()
+  return null
+}
+

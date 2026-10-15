@@ -1,4 +1,5 @@
 import { PROTOCOL } from "@kiko/protocol"
+import { useNavigate } from "@solidjs/router"
 import { Show, createResource } from "solid-js"
 import { hosted, profile } from "../app/hosted"
 import { session, signOut } from "../app/session"
@@ -20,6 +21,7 @@ async function fetchBackend(): Promise<BackendBuild | null> {
 function Backend() {
   const [build] = createResource(fetchBackend)
   const version = () => build()?.version
+  const navigate = useNavigate()
   return (
     <Group title="Backend" data-component="account-backend">
       <Row label="Address">
@@ -34,6 +36,11 @@ function Backend() {
             </Pill>
           )}
         </Show>
+      </Row>
+      <Row label="Cloudflare" description="Install or update your backend again in your Cloudflare account.">
+        <Button data-action="reconnect-cloudflare" onClick={() => navigate("/connect?reconnect=1")}>
+          Reconnect Cloudflare
+        </Button>
       </Row>
     </Group>
   )
