@@ -4,7 +4,7 @@
  * Architecture 19.3.
  */
 
-import { apiFetch } from "./lib/api";
+import { apiUrl, getToken } from "./lib/api-base";
 
 const RELOAD_KEY = "kiko:preload-reload";
 
@@ -43,7 +43,8 @@ const signedInBefore = (() => {
     return false;
   }
 })();
-globalThis.__kikoBoot = { me: apiFetch("/api/me") };
+const token = getToken();
+globalThis.__kikoBoot = { me: fetch(apiUrl("/api/me"), token ? { headers: { authorization: `Bearer ${token}` } } : undefined) };
 if (!signedInBefore) void import("./app/sign-in").catch(() => {});
 
 const chunk = firstRouteChunk(location.pathname === "/" ? "/chat" : location.pathname);

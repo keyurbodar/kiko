@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js"
-import { apiUrl, read, write } from "./api"
+import { apiUrl, read, write } from "./api-base"
 
 // The read-only token the backend sends in its hello reply. A file URL carries it as `?t=`, because an image
 // or a link cannot send a header. It is kept so a warm paint before the first hello still has a URL that loads.
