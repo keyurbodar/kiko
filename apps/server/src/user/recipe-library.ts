@@ -25,11 +25,19 @@ export type Library = { recipes: Recipe[]; broken: string[] }
 
 export class RecipeLibrary {
   private readonly parsed = new Map<string, Recipe | string>()
+  private seeding: Promise<void> | undefined
 
   constructor(private readonly d: Deps) {}
 
   /** Copies each built-in recipe into the drive once. One the owner deleted stays deleted; a new built-in arrives on the next visit. */
-  async seed(): Promise<void> {
+  seed(): Promise<void> {
+    this.seeding ??= this.copyBuiltins().finally(() => {
+      this.seeding = undefined
+    })
+    return this.seeding
+  }
+
+  private async copyBuiltins(): Promise<void> {
     const seeded = new Set<string>(JSON.parse(getSetting(this.d.sql, SEEDED) ?? "[]") as string[])
     const fresh = BUILTIN_RECIPES.filter(([slug]) => !seeded.has(slug))
     if (!fresh.length) return

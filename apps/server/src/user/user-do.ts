@@ -824,7 +824,7 @@ export class UserDO extends DurableObject<Env> {
 
   async ensureHome(): Promise<void> {
     clearTempMarks(this.sql)
-    await this.#library.seed()
+    this.ctx.waitUntil(this.#library.seed().catch((e: unknown) => console.error(`recipe seed failed: ${e instanceof Error ? e.message : String(e)}`)))
     for (const op of kikoChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {
