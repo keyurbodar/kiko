@@ -100,12 +100,12 @@ describe("the look record", () => {
   test("a version 2 bird record converts once to avatar pins, and the next save writes version 3", () => {
     const v2 = JSON.stringify({
       version: 2, kind: "look", mode: "dark", accent: "yuzu",
-      birds: { yuki: "yuki.beret", ada: "peach.momiji", bo: "lavender.bucket", cy: "mintchoco.nightcap", di: "nope.none", ed: "matcha.phones" },
+      birds: { kiko: "kiko.beret", ada: "peach.momiji", bo: "lavender.bucket", cy: "mintchoco.nightcap", di: "nope.none", ed: "matcha.phones" },
       display: DEFAULT_LOOK.display,
     })
     const look = parseLook(v2)
     expect(look.avatars).toEqual({
-      yuki: { flavour: "hatsuyuki", charm: "beret" },
+      kiko: { flavour: "fubuki", charm: "beret" },
       ada: { flavour: "momo", leaf: "momiji" },
       bo: { flavour: "ajisai" },
       cy: { flavour: "chocomint" },

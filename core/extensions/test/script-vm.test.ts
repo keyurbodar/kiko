@@ -10,7 +10,7 @@ beforeAll(async () => {
 })
 
 const bundle = (source: string, files: Record<string, string> = {}): ExtensionBundle => ({
-  manifest: { yuki: 1, name: "t", version: "1.0.0", description: "t", tools: { go: { description: "go", effect: "read" } } },
+  manifest: { kiko: 1, name: "t", version: "1.0.0", description: "t", tools: { go: { description: "go", effect: "read" } } },
   files: { "main.js": source, ...files },
 })
 

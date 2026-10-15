@@ -65,7 +65,7 @@ Several sessions run dev servers at once. Never `pkill` or `killall` wrangler, w
 
 Dev-only sign-in: `/api/auth/dev/session?name=<name>` mints a session for a named dev owner. `dev-guard` loads it only in a development build, and it refuses any host that is not local. Each verify suite uses its own name, so its data stays apart.
 
-Dev keys live in `~/.config/yuki/dev.vars`. The directory keeps its old name, and so does `~/.config/yuki/cli-session.json`. Every worktree's `apps/server/.dev.vars` links to it; a git hook adds the link to a new worktree. Never ask the owner to paste a key. The CLI reads keys from the shell: `set -a; . apps/server/.dev.vars; set +a`.
+Dev keys live in `~/.config/kiko/dev.vars`. The directory keeps its old name, and so does `~/.config/kiko/cli-session.json`. Every worktree's `apps/server/.dev.vars` links to it; a git hook adds the link to a new worktree. Never ask the owner to paste a key. The CLI reads keys from the shell: `set -a; . apps/server/.dev.vars; set +a`.
 
 ## Verifying
 

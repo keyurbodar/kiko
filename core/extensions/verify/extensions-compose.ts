@@ -29,7 +29,7 @@ async function installer(s: Session) {
   }
   return {
     bundle: async (manifest: Manifest, source: string) => {
-      const proposed = must(await op({ op: "propose", bundle: { manifest: { yuki: 1, version: "1.0.0", ...manifest } as never, files: { "main.js": source } } }), `propose ${manifest.name}`)
+      const proposed = must(await op({ op: "propose", bundle: { manifest: { kiko: 1, version: "1.0.0", ...manifest } as never, files: { "main.js": source } } }), `propose ${manifest.name}`)
       must(await op({ op: "install", id: mustPresent(proposed.proposal, "proposal").id }), `install ${manifest.name}`)
     },
     catalog: async (name: string) => {

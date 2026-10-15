@@ -8,7 +8,7 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
     "description": "every weekday at 9 your agent sends a short plan for the day, from the chat's goal and its task board.",
     "bundle": {
       "manifest": {
-        "yuki": 1,
+        "kiko": 1,
         "name": "daily-plan",
         "version": "1.0.0",
         "description": "every weekday at 9 your agent sends a short plan for the day, from the chat's goal and its task board.",
@@ -34,7 +34,7 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
     "description": "agents log each decision with its reason in /decisions.md, and always know the last five.",
     "bundle": {
       "manifest": {
-        "yuki": 1,
+        "kiko": 1,
         "name": "decision-log",
         "version": "1.1.0",
         "description": "agents log each decision with its reason in /decisions.md, and always know the last five.",
@@ -91,7 +91,7 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
     "description": "a house style for everything your agents write for you: plain words, no jargon, no hype. edit it to make it yours.",
     "bundle": {
       "manifest": {
-        "yuki": 1,
+        "kiko": 1,
         "name": "house-style",
         "version": "1.0.0",
         "description": "a house style for everything your agents write for you: plain words, no jargon, no hype. edit it to make it yours.",
@@ -110,7 +110,7 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
     "description": "agents ask before they change files under the folders you protect, such as /prod or /contracts.",
     "bundle": {
       "manifest": {
-        "yuki": 1,
+        "kiko": 1,
         "name": "path-guard",
         "version": "1.0.0",
         "description": "agents ask before they change files under the folders you protect, such as /prod or /contracts.",
@@ -163,7 +163,7 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
     "description": "post a message to one Slack channel through an incoming webhook.",
     "bundle": {
       "manifest": {
-        "yuki": 1,
+        "kiko": 1,
         "name": "slack-post",
         "version": "1.0.0",
         "description": "post a message to one Slack channel through an incoming webhook.",
@@ -221,7 +221,7 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
     "description": "keep counts in a chat: habits, scores, glasses of water, anything. each chat has its own.",
     "bundle": {
       "manifest": {
-        "yuki": 1,
+        "kiko": 1,
         "name": "tally",
         "version": "1.0.0",
         "description": "keep counts in a chat: habits, scores, glasses of water, anything. each chat has its own.",
@@ -271,7 +271,7 @@ export const EXTENSION_CATALOG: readonly ExtensionCatalogEntry[] = [
     "description": "the weather now and for the next days, anywhere, from Open-Meteo. no key needed.",
     "bundle": {
       "manifest": {
-        "yuki": 1,
+        "kiko": 1,
         "name": "weather",
         "version": "1.0.0",
         "description": "the weather now and for the next days, anywhere, from Open-Meteo. no key needed.",

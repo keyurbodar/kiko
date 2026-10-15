@@ -52,7 +52,7 @@ export type Warm = {
 	close(): void
 }
 
-export const warmName = (userId: string) => `yuki:warm:${userId}`
+export const warmName = (userId: string) => `kiko:warm:${userId}`
 
 type Op =
 	| { op: "put"; store: StoreName; key: WarmKey; value: unknown }

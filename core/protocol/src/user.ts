@@ -120,8 +120,8 @@ export type ClientToUser =
 	| { t: "home"; op: FileOp }
 
 export type UserToClient =
-	| { t: "events"; events: readonly UserEvent[] }
-	| { t: "reset"; snapshot: UserSnapshot }
+	| { t: "events"; events: readonly UserEvent[]; version?: string; protocol?: number }
+	| { t: "reset"; snapshot: UserSnapshot; version?: string; protocol?: number }
 	| { t: "memory_result"; reqId: string; result: MemoryResult }
 	| { t: "search"; query: string; chats: readonly Chat[] }
 	| { t: "composio"; reqId?: string; result: ComposioResult }

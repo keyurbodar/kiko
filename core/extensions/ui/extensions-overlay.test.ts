@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import type { ExtensionInfo, ExtensionProposal } from "@kiko/protocol"
 import { applyUserEvent, overlayExtensions, type UserData } from "./user-store"
 
-const manifest = { yuki: 1 as const, name: "tally", version: "1.0.0", description: "counts", secrets: { KEY: { hosts: ["api.example.com"] } }, egress: ["api.example.com"] }
+const manifest = { kiko: 1 as const, name: "tally", version: "1.0.0", description: "counts", secrets: { KEY: { hosts: ["api.example.com"] } }, egress: ["api.example.com"] }
 const installed: ExtensionInfo = {
   name: "tally", version: "1.0.0", description: "counts", hash: "h1", enabled: true, agents: null, source: "catalog",
   manifest, secrets: [{ name: "KEY", set: true }], installedAt: 1, updatedAt: 1,

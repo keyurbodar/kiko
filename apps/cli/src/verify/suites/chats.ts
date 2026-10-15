@@ -36,10 +36,10 @@ const suite: Suite = {
     console.log("  kiko: unpin and delete changed nothing")
 
     const group = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: group, title: "kiko, ada", agents: ["yuki", agentId] } })
+    user.send({ t: "chat", op: { op: "create", roomId: group, title: "kiko, ada", agents: ["kiko", agentId] } })
     await user.expect(chat(group))
     const again = newRoomId()
-    user.send({ t: "chat", op: { op: "create", roomId: again, title: "kiko, ada again", agents: [agentId, "yuki", agentId] } })
+    user.send({ t: "chat", op: { op: "create", roomId: again, title: "kiko, ada again", agents: [agentId, "kiko", agentId] } })
     const groupRefused = await user.expect((f) => f.t === "chat_refused")
     expectEqual(groupRefused, { t: "chat_refused", roomId: again, existing: group }, "a group with the same agents is refused")
     await user.expectNone(chat(again), 500)

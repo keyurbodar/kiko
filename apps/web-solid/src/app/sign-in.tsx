@@ -30,7 +30,7 @@ export default function SignIn() {
   return (
     <div class="flex h-dvh items-center justify-center bg-background px-4" data-component="sign-in">
       <div class="flex w-full max-w-72 flex-col items-center gap-3">
-        <IdentityAvatar seed="yuki" size={72} />
+        <IdentityAvatar seed="kiko" size={72} />
         <h1 class="mb-4 mt-1 text-xl font-medium text-foreground">Sign in to Kiko</h1>
         <form class="flex w-full flex-col gap-3" data-component="access-code-form" onSubmit={submitCode}>
           <input

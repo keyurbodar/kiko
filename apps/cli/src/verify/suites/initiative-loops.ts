@@ -86,11 +86,11 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   const chatter = ["what a week", "it was long, yes", "the weather turned cold", "time for soup then", "ha, maybe", "tomato is good", "we saw a film", "which one?", "an old western", "nice"]
   const turns = [
     { from: "human", text: "I have to renew my passport before the Japan trip in March." },
-    { from: "yuki", text: "Got it. I will send you the visa checklist on Monday." },
-    ...chatter.flatMap((t, i) => [{ from: i % 2 ? "yuki" : "human", text: t }]),
+    { from: "kiko", text: "Got it. I will send you the visa checklist on Monday." },
+    ...chatter.flatMap((t, i) => [{ from: i % 2 ? "kiko" : "human", text: t }]),
     { from: "human", text: "I am waiting to hear back from the landlord about the lease." },
-    { from: "yuki", text: "Okay." },
-    ...Array.from({ length: 36 }, (_, i) => ({ from: i % 2 ? "yuki" : "human", text: `${chatter[i % chatter.length]} (${i})` })),
+    { from: "kiko", text: "Okay." },
+    ...Array.from({ length: 36 }, (_, i) => ({ from: i % 2 ? "kiko" : "human", text: `${chatter[i % chatter.length]} (${i})` })),
   ]
   const callsBefore = (await usage(trip.id)).memory.calls ?? 0
   await dev(v.url, s.cookie, "seed", { roomId: trip.id, turns })

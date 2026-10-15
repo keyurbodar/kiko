@@ -222,7 +222,7 @@ function AgentScope(props: { extension: ExtensionInfo; run: Run }) {
       <span class={cn("text-[13px]", muted)}>Used by</span>
       <div class="flex flex-wrap gap-1.5">
         <Chip on={scope() === null} onClick={() => set(null)} label="Every agent" />
-        <Chip on={scope()?.includes("yuki" as never) ?? false} onClick={() => toggle("yuki")} label="@yuki" />
+        <Chip on={scope()?.includes("kiko" as never) ?? false} onClick={() => toggle("kiko")} label="@kiko" />
         <For each={agents()}>{(a) => <Chip on={scope()?.includes(a.slug) ?? false} onClick={() => toggle(a.slug)} label={`@${a.slug}`} />}</For>
       </div>
     </div>

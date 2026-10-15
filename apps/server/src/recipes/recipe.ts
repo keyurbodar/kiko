@@ -20,7 +20,7 @@ export type Recipe = {
 
 const RECIPE_TAGS = ["mornings", "inbox", "money", "health", "fun", "thinking", "home", "work", "travel"] as const
 
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const HANDLE = /^[a-z][a-z0-9-]{1,31}$/
 const MAX_DESCRIPTION = 140
 const MAX_RUN = 2000

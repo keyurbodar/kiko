@@ -20,7 +20,7 @@ const FACTS: Fact[] = [
   { at: 64, said: "no, don't put the photos on the shared drive, my dad can see everything there. use the private album instead", ask: "where should the photos go, and why?", expect: /private.*(dad|father)|(dad|father).*private/i },
   { at: 91, from: "bob", said: "the wifi password at the cabin is cedar-lake-77, it's on the fridge too" , ask: "what's the cabin wifi password?", expect: /cedar-?lake-?77/i },
   { at: 120, said: "kitchen budget is 12k, including the island" },
-  { at: 131, from: "yuki", said: "i tried to cancel the gym membership on their site but it only lets you cancel by phone, so it's still active. their number is on the last invoice.", ask: "is the gym membership cancelled?", expect: /(still|not|isn'?t|hasn'?t|wasn'?t).*(active|cancel)|phone|call/i },
+  { at: 131, from: "kiko", said: "i tried to cancel the gym membership on their site but it only lets you cancel by phone, so it's still active. their number is on the last invoice.", ask: "is the gym membership cancelled?", expect: /(still|not|isn'?t|hasn'?t|wasn'?t).*(active|cancel)|phone|call/i },
   { at: 160, said: "rule for me: never schedule anything before 9am on weekends, i need the mornings", ask: "what's my rule for weekend mornings?", expect: /9/ },
   { at: 200, said: "the plumber is coming tuesday between 2 and 4, his name is luis", ask: "what's the plumber's name?", expect: /luis/i },
   { at: 256, said: "let's call the house project bluebird from now on", ask: "what did we name the house project?", expect: /bluebird/i },

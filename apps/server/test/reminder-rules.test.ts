@@ -37,7 +37,7 @@ function setup(results: RunDelivery[] = [], pages: string[] = [], deliverFails =
 
 test("a held watch run keeps the old fingerprint, so the next check reports the change", async () => {
   const { clock, reminders, runs } = setup(["held", "delivered"], ["page one", "page two", "page two"])
-  const { routine } = await reminders.createRoutine("u", { name: "watch", instructions: "say what changed", trigger: { on: "watch", url: "https://example.com", everyMinutes: 15 }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  const { routine } = await reminders.createRoutine("u", { name: "watch", instructions: "say what changed", trigger: { on: "watch", url: "https://example.com", everyMinutes: 15 }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" })
   for (let i = 0; i < 3; i++) {
     clock.now = reminders.get(routine.id)!.dueUtc
     await reminders.fire()
@@ -48,7 +48,7 @@ test("a held watch run keeps the old fingerprint, so the next check reports the 
 
 test("a routine run is held, not delivered, while the human is away", async () => {
   const { clock, reminders, runs, away } = setup()
-  const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + MIN).toISOString(), rrule: "FREQ=DAILY" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + MIN).toISOString(), rrule: "FREQ=DAILY" }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" })
   away.now = true
   expect(await reminders.runNow(routine.id)).toBe("held")
   expect(runs).toEqual([])
@@ -61,7 +61,7 @@ test("a reminder for the human repeats at most every 30 minutes, like one for an
   const { reminders } = setup()
   const make = (target?: string) => reminders.create("u", { text: "ping", time: new Date(Date.UTC(2026, 9, 10, 13)).toISOString(), tz: "UTC", rrule: "FREQ=MINUTELY", roomId: ROOM, ...(target ? { target } : {}) })
   await expect(make()).rejects.toThrow("at most every 30 minutes")
-  await expect(make("yuki")).rejects.toThrow("at most every 30 minutes")
+  await expect(make("kiko")).rejects.toThrow("at most every 30 minutes")
 })
 
 test("a stored minutely reminder for the human posts at most once in 30 minutes", async () => {
@@ -83,7 +83,7 @@ test("a stored minutely reminder for the human posts at most once in 30 minutes"
 test("aging the initiative clock moves an agent's own reminder with it, a day at a time", async () => {
   const { clock, reminders } = setup()
   const HOUR = 60 * MIN
-  const own = await reminders.create("u", { text: "bring the checklist", time: new Date(clock.now + 28 * HOUR).toISOString(), tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "yuki" })
+  const own = await reminders.create("u", { text: "bring the checklist", time: new Date(clock.now + 28 * HOUR).toISOString(), tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "kiko" })
   const human = await reminders.create("u", { text: "call mom", time: new Date(clock.now + 28 * HOUR).toISOString(), tz: "UTC", roomId: ROOM })
   await reminders.devAge(24 * HOUR)
   expect(reminders.get(own.id)!.dueUtc).toBe(clock.now + 4 * HOUR)
@@ -94,9 +94,9 @@ test("aging the initiative clock moves an agent's own reminder with it, a day at
 
 test("snooze moves only time reminders, and a paused time routine stays paused", async () => {
   const { clock, reminders } = setup()
-  const message = await reminders.createRoutine("u", { name: "talk", instructions: "say hi", trigger: { on: "message", from: "human" }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  const message = await reminders.createRoutine("u", { name: "talk", instructions: "say hi", trigger: { on: "message", from: "human" }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" })
   await expect(reminders.snooze(message.routine.id, new Date(clock.now + MIN).toISOString())).rejects.toThrow("snooze works on time reminders")
-  const timed = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  const timed = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" })
   await reminders.updateRoutine(timed.routine.id, { status: "paused" })
   const snoozed = await reminders.snooze(timed.routine.id, new Date(clock.now + 2 * DAY).toISOString())
   expect(snoozed?.status).toBe("paused")
@@ -104,14 +104,14 @@ test("snooze moves only time reminders, and a paused time routine stays paused",
 
 test("a refused routine run counts toward auto-pause", async () => {
   const { clock, reminders } = setup(["refused", "refused", "refused"])
-  const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" })
   for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id)
   expect(reminders.get(routine.id)?.status).toBe("paused")
 })
 
 test("a routine whose delivery throws counts toward auto-pause, like a refused run", async () => {
   const { clock, reminders, notices } = setup([], [], false, true)
-  const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "yuki", createdBy: "human" })
+  const { routine } = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" })
   for (let i = 0; i < MAX_FAILS; i++) await reminders.runNow(routine.id)
   expect(reminders.get(routine.id)?.status).toBe("paused")
   expect(notices.length).toBe(1)

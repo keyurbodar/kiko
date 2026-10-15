@@ -2,7 +2,7 @@ import { getSetting, setSetting } from "../lib/settings"
 import { isRoomId, newRoomId, type Chat, type ChatOp, type RoomId } from "@kiko/protocol"
 
 // The stored key predates the rename, so existing accounts keep the chat they already have.
-const KEY = "yuki_home"
+const KEY = "kiko_home"
 const TITLE = "Kiko"
 
 export function kikoChatRoom(sql: SqlStorage): RoomId | null {
@@ -18,7 +18,7 @@ export function kikoChatOps(sql: SqlStorage, exists: (roomId: RoomId) => boolean
     setSetting(sql, KEY, roomId)
   }
   return [
-    { op: "create", roomId, title: TITLE, agents: ["yuki"] },
+    { op: "create", roomId, title: TITLE, agents: ["kiko"] },
     { op: "pin", roomId, pinned: true },
   ]
 }

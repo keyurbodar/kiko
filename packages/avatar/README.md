@@ -2,7 +2,7 @@
 
 Deterministic avatars from any string. The same name always gives the same picture. The art is a small loaf of snow with a face, drawn as SVG.
 
-Vendored from `yukiusagi` 0.1.0 (MIT, see `LICENSE`). Names were changed to `avatar`, `avatarUri`, and `Avatar`.
+Vendored from an upstream MIT snow-avatar package, version 0.1.0 (see `LICENSE`). Names were changed to `avatar`, `avatarUri`, and `Avatar`.
 
 ## Use
 

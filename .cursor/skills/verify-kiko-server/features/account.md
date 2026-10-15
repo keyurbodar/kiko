@@ -24,7 +24,7 @@ bun kiko verify byok --url http://localhost:8787
 ```
 
 - `credentials`: 401 anonymous, 403 foreign origin, save returns metadata only, another user sees none, bad id 400, disconnect `{removed: true}`.
-- `byok`: needs `OPENCODE_API_KEY` in the shell. No provider gets `no_provider` with slug `yuki`, a connected user gets an answer, a disconnected user is refused.
+- `byok`: needs `OPENCODE_API_KEY` in the shell. No provider gets `no_provider` with slug `kiko`, a connected user gets an answer, a disconnected user is refused.
 - `provider-login`: without `--fake`, only the `openrouter` refusal and unknown cancel run. With `--fake`: device code `KIKO-0000`, a wrong code fails, cancel works, a reconnect restarts the login.
 
 ## Gotchas

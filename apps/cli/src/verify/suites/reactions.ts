@@ -54,7 +54,7 @@ const suite: Suite = {
       const first = await send(room, "[reply] [react:👍]")
       await answered(room, 0)
       await poll("the agent's reaction", () => reacts(room).length > 0, 5_000)
-      expectEqual(reacts(room).map((r) => ({ on: r.messageId, by: r.by, emoji: r.emoji })), [{ on: first, by: { kind: "agent", slug: "yuki" }, emoji: "👍" }], "the reactions")
+      expectEqual(reacts(room).map((r) => ({ on: r.messageId, by: r.by, emoji: r.emoji })), [{ on: first, by: { kind: "agent", slug: "kiko" }, emoji: "👍" }], "the reactions")
       expectEqual(texts(room), [], "the agent's bubbles")
       step(`a reply of [react:👍] reacted on the human's message and posted no bubble`)
 

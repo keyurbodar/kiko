@@ -1,5 +1,5 @@
 {
-  "yuki": 1,
+  "kiko": 1,
   "name": "slack-post",
   "version": "1.0.0",
   "description": "post a message to one Slack channel through an incoming webhook.",

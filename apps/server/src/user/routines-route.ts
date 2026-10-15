@@ -38,7 +38,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
     if (request.method !== "POST") return error(405, "method not allowed")
     const b = await json(request)
     const roomId = typeof b?.roomId === "string" ? b.roomId : ""
-    const agent = typeof b?.agent === "string" ? b.agent : "yuki"
+    const agent = typeof b?.agent === "string" ? b.agent : "kiko"
     if (!b || !isRoomId(roomId) || !isAgentSlug(agent) || typeof b.name !== "string" || typeof b.instructions !== "string") return error(400, "need roomId, name, instructions, and trigger")
     let trigger: typeof Trigger.Type
     try {

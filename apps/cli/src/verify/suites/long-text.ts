@@ -11,7 +11,7 @@ import { fake } from "./mid-run"
 // answers and the lead does not.
 async function mentionPastBubble(v: { url: string }, alice: Session): Promise<void> {
 	const { roomId, room } = await newRoom(alice, "long mention")
-	await fake(v, alice, roomId, ["yuki", "ada"])
+	await fake(v, alice, roomId, ["kiko", "ada"])
 	room.raw.send({ t: "member", op: { op: "add", slug: "ada" as never, name: "Ada" } })
 	await room.expect((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "ada"), 10_000)
 	// The bubble is the first 16,000 characters and holds a short scripted reply, so ada's answer is quick. The mention is after it.

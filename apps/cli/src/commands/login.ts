@@ -8,7 +8,7 @@ import { CliError, type Context } from "../main"
 type Sessions = Record<string, string>
 
 export function sessionFile(): string {
-  return process.env.KIKO_SESSION_FILE ?? join(homedir(), ".config", "yuki", "cli-session.json")
+  return process.env.KIKO_SESSION_FILE ?? join(homedir(), ".config", "kiko", "cli-session.json")
 }
 
 async function readSessions(): Promise<Sessions> {

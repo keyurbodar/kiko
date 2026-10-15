@@ -279,7 +279,7 @@ test("/me/soul.md is the agent's soul: read and edited with pi's tools, never mo
   expect((await ada.write("/me/other.md", "x")).text).toContain("only /me/soul.md")
   await ada.read("me/soul.md")
   expect((await ada.write("/me/soul.md", "x".repeat(3_001))).text).toContain("tighten it")
-  expect(await agent(room, "yuki").read("/me/soul.md")).toContain("i'm kiko, their chief")
+  expect(await agent(room, "kiko").read("/me/soul.md")).toContain("i'm kiko, their chief")
 })
 
 test("/chat.md stays short: a write past the cap is refused", async () => {
@@ -312,7 +312,7 @@ test("folders are real: mkdir -p, they survive their last file, an empty one goe
 
 test("/home is the user's drive: one agent saves there in one chat, another reads it in a different chat", async () => {
   const ada = agent(fresh(), "ada")
-  const kiko = agent(fresh(), "yuki")
+  const kiko = agent(fresh(), "kiko")
   await fetch(`${origin}/notices/x/x`)
   expect((await ada.write("/home/cv.md", "# cv\nten years of cooking")).ok).toBe(true)
   expect(await kiko.read("/home/cv.md")).toBe("# cv\nten years of cooking")
@@ -325,7 +325,7 @@ test("/home is the user's drive: one agent saves there in one chat, another read
   expect(await kiko.read("/cv.md")).toBe("# cv\ntwelve years of cooking")
   expect((await kiko.run("rm", { paths: ["/home"] })).text).toContain("cannot be deleted")
   const notices = (await (await fetch(`${origin}/notices/x/x`)).json()) as string[]
-  expect(notices).toEqual(["@ada saved /home/cv.md", "@yuki saved /home/cv.md"])
+  expect(notices).toEqual(["@ada saved /home/cv.md", "@kiko saved /home/cv.md"])
 })
 
 test("in a private chat the drive is read-only", async () => {

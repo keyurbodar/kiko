@@ -1,3 +1,4 @@
+import { BACKEND } from "../src/lib/version"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
@@ -143,7 +144,7 @@ test("hello resumes after lastSeq, and a socket from the future gets a snapshot"
   await rpc(user, "createChat", ROOM_B, "b")
   await rpc(user, "pinChat", ROOM_B, true)
   const resumed = await socket(user, 2)
-  expect(resumed.frames[0]).toEqual({ t: "events", events: [expect.objectContaining({ seq: 3 })] })
+  expect(resumed.frames[0]).toEqual({ t: "events", events: [expect.objectContaining({ seq: 3 })], ...BACKEND })
   const ahead = await socket(user, 99)
   expect(ahead.frames[0]!.t).toBe("reset")
   expect(ahead.frames[0]!.snapshot.seq).toBe(3)
@@ -257,7 +258,7 @@ test("every account has one pinned kiko chat that cannot be deleted or unpinned"
   const chats = await rpc(user, "listChats")
   const home = chats.filter((c: { title: string }) => c.title === "Kiko")
   expect(home).toHaveLength(1)
-  expect(home[0]).toMatchObject({ pinned: true, agents: ["yuki"] })
+  expect(home[0]).toMatchObject({ pinned: true, agents: ["kiko"] })
   expect(await rpc(user, "deleteChat", home[0].roomId)).toBe(false)
   expect(await rpc(user, "pinChat", home[0].roomId, false)).toMatchObject({ pinned: true })
   expect((await rpc(user, "listChats")).map((c: { roomId: string }) => c.roomId)).toContain(home[0].roomId)
@@ -275,8 +276,8 @@ test("one chat per set of agents: a second create is refused and names the first
   const ws = await socket(user)
   ws.send({ t: "chat", op: { op: "create", roomId: ROOM_C, title: "ada", agents: ["ada"] } })
   ws.send({ t: "chat", op: { op: "create", roomId: ROOM_D, title: "ada", agents: ["ada"] } })
-  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_B, title: "team", agents: ["yuki", "ada"] } })
-  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_A, title: "team again", agents: ["ada", "yuki", "ada"] } })
+  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_B, title: "team", agents: ["kiko", "ada"] } })
+  ws.send({ t: "chat", op: { op: "create", roomId: ROOM_A, title: "team again", agents: ["ada", "kiko", "ada"] } })
   const frames = await ws.until(5)
   expect(frames.filter((f) => f.t === "chat_refused")).toEqual([
     { t: "chat_refused", roomId: ROOM_D, existing: ROOM_C },
@@ -290,9 +291,9 @@ test("one chat per set of agents: a second create is refused and names the first
 
 test("openChat returns the chat that already holds the same agents, in any order", async () => {
   const user = fresh()
-  const first = await rpc(user, "openChat", "team", ["yuki", "ada"])
+  const first = await rpc(user, "openChat", "team", ["kiko", "ada"])
   expect(first).toMatchObject({ created: true })
-  expect(await rpc(user, "openChat", "team again", ["ada", "yuki"])).toEqual({ roomId: first.roomId, created: false })
+  expect(await rpc(user, "openChat", "team again", ["ada", "kiko"])).toEqual({ roomId: first.roomId, created: false })
   expect(await rpc(user, "listChats")).toHaveLength(1)
 })
 

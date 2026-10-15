@@ -67,7 +67,7 @@ test("a user from main upgrades in place: its rows stay, and its tables match a 
   const old = legacy([...LEGACY_USER_V1, ...LEGACY_USER_LAZY], undefined)
   old.exec("INSERT INTO settings (key, value) VALUES ('schema_version', '1'), ('theme', 'dark')")
   old.exec("INSERT INTO chats (room_id, title, updated_at) VALUES ('r1', 'plans', 5)")
-  old.exec("INSERT INTO reminders (id, text, due_utc, tz, room_id, target, created_by, status, created_at) VALUES ('rem1', 'taxes', 9, 'UTC', 'r1', 'yuki', 'human', 'active', 0)")
+  old.exec("INSERT INTO reminders (id, text, due_utc, tz, room_id, target, created_by, status, created_at) VALUES ('rem1', 'taxes', 9, 'UTC', 'r1', 'kiko', 'human', 'active', 0)")
   old.exec("INSERT INTO attention (name, value) VALUES ('rhythm', 'slow')")
 
   migrate(storageOn(old), USER_STEPS)

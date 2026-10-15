@@ -34,7 +34,7 @@ const SLUG = /^[a-z0-9_-]{1,40}$/
 
 /** Version 2 chose one of Kiko's birds per agent, as `flavor.outfit`. Each one maps to the nearest avatar choice. */
 const BIRD_FLAVOURS: Record<string, FlavourName> = {
-  yuki: "hatsuyuki", matcha: "matcha", sakura: "sakura", hojicha: "hojicha", ichigo: "ichigo", kinako: "kinako",
+  kiko: "fubuki", matcha: "matcha", sakura: "sakura", hojicha: "hojicha", ichigo: "ichigo", kinako: "kinako",
   ramune: "ramune", yuzu: "yuzu", mintchoco: "chocomint", peach: "momo", lavender: "ajisai", earlgrey: "usuzumi", sesame: "goma",
 }
 const BIRD_OUTFITS: Record<string, Pick<AvatarPins, "charm" | "leaf">> = {

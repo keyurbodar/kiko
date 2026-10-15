@@ -84,7 +84,7 @@ const suite: Suite = {
 
     const early = await open("composio routine")
     await turn(early.room, "hi")
-    const status = () => dev(v.url, s, "status", { roomId: early.roomId, slug: "yuki" }) as Promise<{ open: boolean }>
+    const status = () => dev(v.url, s, "status", { roomId: early.roomId, slug: "kiko" }) as Promise<{ open: boolean }>
     // workerd evicts an object idle for about 10 s, and a cold agent sets up afresh, which would hide a stale open one.
     const keepOpen = setInterval(() => void status().catch(() => undefined), 3_000).unref()
 

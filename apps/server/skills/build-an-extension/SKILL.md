@@ -12,7 +12,7 @@ the loop
 
 extension.json (every key except kiko, name, version, description is optional)
 {
-  "yuki": 1,
+  "kiko": 1,
   "name": "standup",                       // 2-32 chars: a-z, 0-9, dashes; starts with a letter
   "version": "1.0.0",                      // bump it on every change
   "description": "one plain line the human reads before installing",

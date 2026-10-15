@@ -29,7 +29,7 @@ export function filterRecipes(cards: readonly RecipeCard[], query: string, tag: 
   return cards.filter(
     (c) =>
       (tag === "all" || c.tags.includes(tag)) &&
-      words.every((w) => `${c.title} ${c.description} ${c.apps.join(" ")} ${c.tags.join(" ")}`.toLowerCase().includes(w)),
+      words.every((w) => `${c.title} ${c.description} ${c.apps.map((a) => a.name).join(" ")} ${c.tags.join(" ")}`.toLowerCase().includes(w)),
   )
 }
 

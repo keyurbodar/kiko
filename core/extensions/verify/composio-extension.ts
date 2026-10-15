@@ -76,7 +76,7 @@ const suite: Suite = {
     console.log(`  tools after yes: ${(await tools()).join(" ")}`)
     await mustWork("the composio search", /^composio_/)
 
-    const p = await op({ op: "propose", bundle: { manifest: { yuki: 1, name: "web-lookup", version: "1.0.0", description: "web lookups through composio", tools: { web_lookup: { description: "search the web through composio and return the raw result", effect: "external", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } } }, calls: ["composio_multi_execute_tool"] }, files: { "main.js": WEB } } })
+    const p = await op({ op: "propose", bundle: { manifest: { kiko: 1, name: "web-lookup", version: "1.0.0", description: "web lookups through composio", tools: { web_lookup: { description: "search the web through composio and return the raw result", effect: "external", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } } }, calls: ["composio_multi_execute_tool"] }, files: { "main.js": WEB } } })
     if (!p.ok) throw new VerifyError(`propose: ${p.error} ${p.problems?.join("; ")}`)
     const i = await op({ op: "install", id: must(p.proposal, "proposal").id })
     if (!i.ok) throw new VerifyError(`install: ${i.error}`)

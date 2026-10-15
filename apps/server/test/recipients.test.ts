@@ -43,9 +43,9 @@ describe("resolveRecipients", () => {
 
   test("tags are found once each, in order", () => expect(tags("@cy @ada @cy, (@bob)")).toEqual(["cy", "ada", "bob"]))
 
-  test("@yuki reaches the chief, whose slug is yuki", () => {
-    const room = [{ slug: slug("yuki"), lead: true }, { slug: slug("ada"), lead: false }]
-    expect(routeTo({ text: "@ada and @Yuki, look" }, room)).toEqual([slug("yuki"), slug("ada")])
+  test("@kiko reaches the chief, whose slug is kiko", () => {
+    const room = [{ slug: slug("kiko"), lead: true }, { slug: slug("ada"), lead: false }]
+    expect(routeTo({ text: "@ada and @Kiko, look" }, room)).toEqual([slug("kiko"), slug("ada")])
     expect(routeTo({ text: "@ada look" }, room)).toEqual([slug("ada")])
   })
 })

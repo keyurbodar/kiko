@@ -8,7 +8,7 @@ import { send } from "./mid-run"
 
 
 const TEAM = ["bob", "ada", "cy"] as const
-const MEMBERS = ["yuki", ...TEAM] as const
+const MEMBERS = ["kiko", ...TEAM] as const
 const agentOf = (name: string): Agent => ({
   id: `team-routing-${name}`,
   name,
@@ -99,7 +99,7 @@ const suite: Suite = {
     await poll("ada's answer", () => bubbles(room).ada?.length === 1, 15_000)
     await Bun.sleep(2_500)
     const b = bubbles(room)
-    expectEqual(b.ada, ["heard: @ada [missed] your turn; missed: human: hello team | @yuki: heard: hello team | human: @bob [reply] noted | @bob: noted"], "ada's answer")
+    expectEqual(b.ada, ["heard: @ada [missed] your turn; missed: human: hello team | @kiko: heard: hello team | human: @bob [reply] noted | @bob: noted"], "ada's answer")
     expectEqual([b.bob?.length, b.cy?.length], [1, 0], "bob's and cy's bubbles after @ada")
     expectEqual(await received("cy"), 0, "envelopes cy received")
     console.log(`  ok @ada: ${JSON.stringify(b.ada?.[0])}`)
@@ -112,7 +112,7 @@ const suite: Suite = {
       {
         kiko: ["heard: hello team", "heard: @all ping"],
         bob: ["noted", "heard: @all ping"],
-        ada: ["heard: @ada [missed] your turn; missed: human: hello team | @yuki: heard: hello team | human: @bob [reply] noted | @bob: noted", "heard: @all ping"],
+        ada: ["heard: @ada [missed] your turn; missed: human: hello team | @kiko: heard: hello team | human: @bob [reply] noted | @bob: noted", "heard: @all ping"],
         cy: ["heard: @all ping"],
       },
       "bubbles after @all",
@@ -143,7 +143,7 @@ const suite: Suite = {
     await send(room, "@all [reply] [react:👍]")
     await poll("four reactions", () => reactsSince().length === 4, 20_000)
     await Bun.sleep(5_000)
-    expectEqual(runsSince(), { yuki: 1, bob: 1, ada: 1, cy: 1 }, "runs after four agents reacted")
+    expectEqual(runsSince(), { kiko: 1, bob: 1, ada: 1, cy: 1 }, "runs after four agents reacted")
     expectEqual(bubbles(room), before, "bubbles after the reactions")
     expectEqual(reactsSince().length, 4, "agent reactions")
     console.log(`  ok reactions: four agents reacted, one run each, and no reaction started a run`)
@@ -151,7 +151,7 @@ const suite: Suite = {
     room.raw.send({ t: "hello", lastSeq: 1_000_000 })
     const reset = await room.expect((f) => f.t === "reset", 5_000)
     if (reset.t !== "reset") throw new VerifyError("no reset")
-    expectEqual(reset.snapshot.members.map((m) => m.slug), ["yuki", "bob", "ada", "cy"], "members in the snapshot")
+    expectEqual(reset.snapshot.members.map((m) => m.slug), ["kiko", "bob", "ada", "cy"], "members in the snapshot")
     console.log(`  ok snapshot: ${reset.snapshot.members.length} members`)
     room.raw.close()
   },
