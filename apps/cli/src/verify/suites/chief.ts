@@ -60,7 +60,7 @@ const suite: Suite = {
     const agent = agents()[0]
     if (!agent) throw new VerifyError("no agent was made")
     console.log(`  made @${agent.slug} (${Date.now() - t0} ms): ${JSON.stringify(made.text)}`)
-    const soul = (await (await fetch(new URL(`api/souls/${agent.slug}`, v.url), { headers: { cookie: s.cookie } })).json()) as { body: string }
+    const soul = (await (await fetch(new URL(`api/souls/${agent.slug}`, v.url), { headers: { authorization: s.auth } })).json()) as { body: string }
     console.log(`  its soul: ${JSON.stringify(soul.body.slice(0, 240))}`)
     if (soul.body.length < 80) throw new VerifyError("the soul kiko wrote is too thin")
     const dm = await s.room(must(made.goto, "goto"))

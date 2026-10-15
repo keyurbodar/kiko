@@ -18,7 +18,7 @@ const suite: Suite = {
     const s = await v.as("versions")
     const wsUrl = new URL("api/ws/user", v.url)
     wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:"
-    const user = new Channel(`${s.name}/user hello`, wsUrl, s.cookie, UserToClientSchema, ClientToUser, { t: "hello", lastSeq: 0 })
+    const user = new Channel(`${s.name}/user hello`, wsUrl, s.auth, UserToClientSchema, ClientToUser, { t: "hello", lastSeq: 0 })
     try {
       await user.connect()
       const first = await user.expect(() => true)

@@ -44,7 +44,7 @@ const suite: Suite = {
     }
     const last = answers().at(-1) ?? ""
     if (!last.includes("4417")) throw new VerifyError(`turn 6 did not answer from the conversation: ${JSON.stringify(last)}`)
-    const trace = (await dev(v.url, s.cookie, "trace", { roomId })) as Trace
+    const trace = (await dev(v.url, s.auth, "trace", { roomId })) as Trace
     const turns: string[][] = []
     for (const e of trace) {
       if (e.kind === "pi.user") turns.push([])

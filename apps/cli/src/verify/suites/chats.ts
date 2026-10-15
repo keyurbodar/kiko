@@ -7,7 +7,7 @@ const suite: Suite = {
   name: "chats",
   async run(v) {
     const s = await v.as(`chats-${Date.now().toString(36)}`)
-    await fetch(new URL("api/me", v.url), { headers: { cookie: s.cookie } })
+    await fetch(new URL("api/me", v.url), { headers: { authorization: s.auth } })
     const user = await s.user()
     const first = await user.expect((f) => f.t === "reset")
     if (first.t !== "reset") throw new VerifyError("a new device must get a snapshot")

@@ -4,6 +4,8 @@
  * Architecture 19.3.
  */
 
+import { apiFetch } from "./lib/api";
+
 const RELOAD_KEY = "kiko:preload-reload";
 
 // Same specifiers as `app/routes.tsx`, so the bundler shares the chunks.
@@ -41,7 +43,7 @@ const signedInBefore = (() => {
     return false;
   }
 })();
-globalThis.__kikoBoot = { me: fetch("/api/me") };
+globalThis.__kikoBoot = { me: apiFetch("/api/me") };
 if (!signedInBefore) void import("./app/sign-in").catch(() => {});
 
 const chunk = firstRouteChunk(location.pathname === "/" ? "/chat" : location.pathname);

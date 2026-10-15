@@ -3,7 +3,7 @@ import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { CliError, type Context } from "../main"
 
-// The CLI keeps one cookie header per server origin in a JSON file.
+// The CLI keeps one bearer token per server origin in a JSON file.
 // KIKO_SESSION_FILE moves it, so tests never touch the real one.
 type Sessions = Record<string, string>
 
@@ -19,13 +19,13 @@ async function readSessions(): Promise<Sessions> {
   }
 }
 
-export async function sessionCookie(url: string): Promise<string | null> {
+export async function sessionToken(url: string): Promise<string | null> {
   return (await readSessions())[new URL(url).origin] ?? null
 }
 
-async function saveCookie(url: string, cookie: string): Promise<void> {
+async function saveToken(url: string, token: string): Promise<void> {
   const sessions = await readSessions()
-  sessions[new URL(url).origin] = cookie
+  sessions[new URL(url).origin] = token
   const file = sessionFile()
   await mkdir(dirname(file), { recursive: true })
   await writeFile(file, `${JSON.stringify(sessions, null, 2)}\n`, { mode: 0o600 })
@@ -55,21 +55,16 @@ export async function login(ctx: Context): Promise<void> {
   })
   if (res.status === 404) throw new CliError(`login failed: ${url.origin} has no such sign-in route`)
   if (!res.ok) throw new CliError(`login failed: ${url} returned ${res.status} ${await res.text()}`)
-  const cookie = res.headers
-    .getSetCookie()
-    .map((line) => line.split(";", 1)[0] ?? "")
-    .join("; ")
-  if (!cookie) throw new CliError("login failed: the server set no cookie")
-  const { user } = (await res.json()) as { user: { id: string } }
-  await saveCookie(ctx.url, cookie)
+  const { user, token } = (await res.json()) as { user: { id: string }; token: string }
+  await saveToken(ctx.url, token)
   console.log(ctx.json ? JSON.stringify({ id: user.id }) : user.id)
 }
 
 export async function whoami(ctx: Context): Promise<void> {
-  const cookie = await sessionCookie(ctx.url)
-  if (!cookie) throw new CliError(`not signed in to ${new URL(ctx.url).origin}. run kiko login`)
+  const token = await sessionToken(ctx.url)
+  if (!token) throw new CliError(`not signed in to ${new URL(ctx.url).origin}. run kiko login`)
   const url = endpoint(ctx, "api/me")
-  const res = await request(url, { headers: { cookie } })
+  const res = await request(url, { headers: { authorization: `Bearer ${token}` } })
   if (res.status === 401) throw new CliError("the stored session is not valid. run kiko login --dev")
   if (!res.ok) throw new CliError(`whoami failed: ${url} returned ${res.status}`)
   const { user } = (await res.json()) as { user: { id: string; name: string } }

@@ -62,12 +62,12 @@ async function user(v: Parameters<Suite["run"]>[0], arm: Arm, tag: string) {
   await connectTestModel(s)
   if (arm.jev) await s.connectProvider("typesafe", arm.jev)
   const channel = await s.user()
-  const call = (body: unknown) => dev(v.url, s.cookie, "attention", body)
+  const call = (body: unknown) => dev(v.url, s.auth, "attention", body)
   return {
     s,
     channel,
     roll: async (roomId: string, text: string, due: string | null = null) => {
-      if (!arm.jev) await dev(v.url, s.cookie, "loops", { open: { roomId, text, due } })
+      if (!arm.jev) await dev(v.url, s.auth, "loops", { open: { roomId, text, due } })
     },
     rhythm: () => call({ action: "rhythm", mode: "now" }),
     age: (ms: number) => call({ action: "age", ms }),
@@ -77,9 +77,9 @@ async function user(v: Parameters<Suite["run"]>[0], arm: Arm, tag: string) {
       return p
     },
     state: async () => (await call({ action: "state" })) as { appetite: { user: { a: number; b: number }; kinds: Record<string, { a: number; b: number }> }; marks: unknown[] },
-    loops: async () => ((await dev(v.url, s.cookie, "loops", {})) as { loops: Loop[] }).loops,
-    usage: async (roomId: string, slug?: string) => (await dev(v.url, s.cookie, "usage", { roomId, ...(slug ? { slug } : {}) })) as Usage,
-    brief: async (roomId: string) => ((await dev(v.url, s.cookie, "initiative", { roomId })) as { text: string | null }).text ?? "",
+    loops: async () => ((await dev(v.url, s.auth, "loops", {})) as { loops: Loop[] }).loops,
+    usage: async (roomId: string, slug?: string) => (await dev(v.url, s.auth, "usage", { roomId, ...(slug ? { slug } : {}) })) as Usage,
+    brief: async (roomId: string) => ((await dev(v.url, s.auth, "initiative", { roomId })) as { text: string | null }).text ?? "",
   }
 }
 
@@ -198,7 +198,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     check(spokenBefore < 2 || after.every((p) => p.woke.length === 0), `(b) after two ignored nudges nothing wakes (${spokenBefore} spoken before: ${after.map(show).join(" / ")})`)
     const settled = rests.length >= 2 ? Math.max(...rests) > must(rests[0], "first rest") : wakes.every((w) => !firstRest || w < firstRest)
     check(settled, `(b) the rest grows, or nothing wakes after it: rests ${JSON.stringify(rests)} days, wakes ${wakes.length}`)
-    if (process.env.INITIATIVE_TRACE) console.log(`       lead trace: ${JSON.stringify(await dev(v.url, u.s.cookie, "trace", { roomId: room.id }))}`)
+    if (process.env.INITIATIVE_TRACE) console.log(`       lead trace: ${JSON.stringify(await dev(v.url, u.s.auth, "trace", { roomId: room.id }))}`)
     done(room)
   } catch (e) {
     check(false, `(b) stopped: ${e instanceof Error ? e.message : String(e)}`)
@@ -250,7 +250,7 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     room.raw.send({ t: "task", op: { op: "update", id: "copy", status: "doing" } })
     await Bun.sleep(2_000)
     await u.rhythm()
-    await dev(v.url, u.s.cookie, "age", { roomId: room.id, ms: 2 * DAY })
+    await dev(v.url, u.s.auth, "age", { roomId: room.id, ms: 2 * DAY })
     await u.age(10 * 60_000)
     const before = agentMessages(room).length
     const filesBefore = files(room)
@@ -282,10 +282,10 @@ async function scenarios(v: Parameters<Suite["run"]>[0], arm: Arm): Promise<stri
     await poll("an open glasses loop", async () => humanLoop(await u.loops(), /glasses/i), 60_000)
     await u.rhythm()
     await u.age(DAY)
-    await dev(v.url, u.s.cookie, "seen", { ago: 8 * DAY })
+    await dev(v.url, u.s.auth, "seen", { ago: 8 * DAY })
     const away = await u.pass()
     check(away.woke.length === 0 && away.verdicts.every((x) => x.verdict !== "nudge"), `(f) away 8 days: ${show(away)}`)
-    await dev(v.url, u.s.cookie, "seen", { ago: 0 })
+    await dev(v.url, u.s.auth, "seen", { ago: 0 })
     await ok(v.url, u.s, "settings", { initiative: "off" })
     const off = await u.pass()
     await Bun.sleep(5_000)

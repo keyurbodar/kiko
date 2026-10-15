@@ -11,10 +11,10 @@ import { must } from "../must"
 const TEAM = ["bob", "ada", "cy"] as const
 const agentOf = (name: string): Agent => ({ id: `workspace-${name}`, name, slug: name as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
 
-async function dev(url: string, cookie: string, path: string, body: unknown): Promise<unknown> {
+async function dev(url: string, auth: string, path: string, body: unknown): Promise<unknown> {
 	const res = await fetch(new URL(`api/dev/agent/${path}`, url), {
 		method: "POST",
-		headers: { "content-type": "application/json", cookie },
+		headers: { "content-type": "application/json", authorization: auth },
 		body: JSON.stringify(body),
 	})
 	if (!res.ok) throw new VerifyError(`the dev agent route answered ${res.status}. start the Worker with NODE_ENV=development`)
@@ -43,9 +43,9 @@ const suite: Suite = {
 		user.send({ t: "chat", op: { op: "create", roomId, title: "ship it", agents: TEAM.map((n) => agentOf(n).id) } })
 		await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
 		const room = await s.room(roomId)
-		await dev(v.url, s.cookie, "fake", { roomId, slugs: ["kiko", ...TEAM] })
+		await dev(v.url, s.auth, "fake", { roomId, slugs: ["kiko", ...TEAM] })
 		await poll("three members", () => events(room).filter((e) => e.t === "member").length >= 3, 5_000)
-		const status = async (slug: string) => (await dev(v.url, s.cookie, "status", { roomId, slug })) as Status
+		const status = async (slug: string) => (await dev(v.url, s.auth, "status", { roomId, slug })) as Status
 		const received = async (slug: string) => {
 			const st = await status(slug)
 			return st.inbox.waiting + st.inbox.claimed + st.inbox.submitted

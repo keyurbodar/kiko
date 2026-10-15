@@ -52,12 +52,12 @@ const suite: Suite = {
     await Bun.sleep(5_000)
     const file = must(files().get("walk.md"), "walk.md")
     const base = new URL(`api/files/${roomId}/`, v.url)
-    const text = (await (await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })).text()).toLowerCase()
+    const text = (await (await fetch(new URL(file.id, base), { headers: { authorization: s.auth } })).text()).toLowerCase()
     console.log(`  /walk.md after ${Math.round((Date.now() - t0) / 1000)} s: ${JSON.stringify(text)}`)
     for (const m of messages().filter((m) => m.from.kind === "agent")) console.log(`    @${(m.from as { slug: string }).slug}: ${m.text.replace(/\s+/g, " ").slice(0, 160)}`)
     const woken: Record<string, number> = {}
     for (const slug of ["kiko", "ada", "bob"]) {
-      const st = (await dev(v.url, s.cookie, "status", { roomId, slug })) as Status
+      const st = (await dev(v.url, s.auth, "status", { roomId, slug })) as Status
       woken[slug] = st.inbox.waiting + st.inbox.claimed + st.inbox.submitted
     }
     console.log(`  envelopes each agent received: ${JSON.stringify(woken)}`)

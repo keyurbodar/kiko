@@ -1,4 +1,5 @@
 import type { LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
+import { socketProtocols } from "../lib/api"
 import { urls } from "../lib/store"
 
 // Provider sign-in from the browser (architecture 11.4). The server runs the flow; this
@@ -48,7 +49,7 @@ export type SignInHandle = {
 /** Starts a sign-in for `provider`. `onState` sees every change, the last one final. */
 export function startSignIn(provider: string, onState: (state: SignIn) => void): SignInHandle {
   const loginId = crypto.randomUUID()
-  const socket = new WebSocket(urls.user())
+  const socket = new WebSocket(urls.user(), socketProtocols())
   let state = started
   let ended = false
   const send = (frame: object) => {

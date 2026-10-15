@@ -1,13 +1,13 @@
 import { CliError, type Context } from "../main"
-import { sessionCookie } from "./login"
+import { sessionToken } from "./login"
 
 export async function askUser<R>(ctx: Context, frame: Record<string, unknown>, answer: string): Promise<R> {
-  const cookie = await sessionCookie(ctx.url)
-  if (!cookie) throw new CliError("not signed in. run `kiko login --dev` first")
+  const token = await sessionToken(ctx.url)
+  if (!token) throw new CliError("not signed in. run `kiko login --dev` first")
   const target = new URL("api/ws/user", ctx.url)
   target.protocol = target.protocol === "https:" ? "wss:" : "ws:"
   // Bun takes headers here. The DOM type that the default lib adds does not know that.
-  const options: Bun.WebSocketOptions = { headers: { cookie } }
+  const options: Bun.WebSocketOptions = { headers: { authorization: `Bearer ${token}` } }
   const socket = new WebSocket(target, options as unknown as string[])
   const reqId = "cli1"
   try {

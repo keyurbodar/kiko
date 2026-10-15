@@ -24,7 +24,7 @@ export class Channel<In, Out> {
   constructor(
     readonly label: string,
     private readonly target: URL,
-    private readonly cookie: string,
+    private readonly auth: string,
     private readonly incoming: Schema.Codec<In, unknown>,
     private readonly outgoing: Schema.Codec<Out, unknown>,
     private readonly hello: Out,
@@ -33,7 +33,7 @@ export class Channel<In, Out> {
   async connect(): Promise<void> {
     this.cursor = this.log.length
     this.failure = null
-    const headers = this.cookie ? { cookie: this.cookie } : undefined
+    const headers = this.auth ? { authorization: this.auth } : undefined
     const socket = new WebSocket(this.target, { headers } as never)
     this.socket = socket
     socket.onmessage = (ev) => {
@@ -177,7 +177,7 @@ export interface RoomHandle {
 export interface Session {
   name: string
   userId: string
-  cookie: string
+  auth: string
   user(): Promise<UserChannel>
   room(roomId: string): Promise<RoomHandle>
   connectProvider(provider: string, apiKey: string): Promise<void>
@@ -208,7 +208,7 @@ function withSlash(url: string) {
  * Signs a test user in. A deployed Worker has no dev route, so with `KIKO_ACCESS_CODE` in the shell the
  * CLI signs in through the access code instead, as the owner would. Every name then shares the one owner.
  */
-export async function devSession(url: string, name: string): Promise<{ cookie: string; userId: string }> {
+export async function devSession(url: string, name: string): Promise<{ auth: string; userId: string }> {
   const code = process.env.KIKO_ACCESS_CODE
   const res = await fetch(new URL(code ? "api/auth/access-code" : "api/auth/dev/session", withSlash(url)), {
     method: "POST",
@@ -225,21 +225,17 @@ export async function devSession(url: string, name: string): Promise<{ cookie: s
         : `dev sign-in failed with ${res.status}. start the Worker with NODE_ENV=development`,
     )
   }
-  const cookie = res.headers
-    .getSetCookie()
-    .map((l) => l.split(";", 1)[0] ?? "")
-    .join("; ")
-  const { user } = (await res.json()) as { user: { id: string } }
-  return { cookie, userId: user.id }
+  const { user, token } = (await res.json()) as { user: { id: string }; token: string }
+  return { auth: `Bearer ${token}`, userId: user.id }
 }
 
 export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}): Verifier {
   const url = withSlash(baseUrl)
   const open: { close(): void }[] = []
-  async function credentials(cookie: string, method: "PUT" | "DELETE", provider: string, body?: unknown): Promise<void> {
+  async function credentials(auth: string, method: "PUT" | "DELETE", provider: string, body?: unknown): Promise<void> {
     const res = await fetch(new URL(`api/credentials/${provider}`, url), {
       method,
-      headers: body === undefined ? { cookie } : { cookie, "content-type": "application/json" },
+      headers: body === undefined ? { authorization: auth } : { authorization: auth, "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     })
@@ -254,13 +250,13 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
     url,
     fake: options.fake ?? false,
     async as(name) {
-      const { cookie, userId } = await devSession(url, name)
+      const { auth, userId } = await devSession(url, name)
       return {
         name,
         userId,
-        cookie,
+        auth,
         async user() {
-          const user: UserChannel = new Channel(`${name}/user`, wsUrl("api/ws/user"), cookie, UserToClient, ClientToUser, {
+          const user: UserChannel = new Channel(`${name}/user`, wsUrl("api/ws/user"), auth, UserToClient, ClientToUser, {
             t: "hello",
             lastSeq: 0,
           })
@@ -272,7 +268,7 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
           const raw: RoomChannel = new Channel(
             `${name}/room ${roomId}`,
             wsUrl(`api/ws/room/${roomId}`),
-            cookie,
+            auth,
             RoomToClient,
             ClientToRoom,
             { t: "hello", lastSeq: 0 },
@@ -292,15 +288,15 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
           }
         },
         async connectProvider(provider, apiKey) {
-          await credentials(cookie, "PUT", provider, { apiKey })
+          await credentials(auth, "PUT", provider, { apiKey })
         },
         async disconnectProvider(provider) {
-          await credentials(cookie, "DELETE", provider)
+          await credentials(auth, "DELETE", provider)
         },
         putFile(roomId, path, body, options = {}) {
           return fetch(new URL(`api/files/${roomId}?path=${encodeURIComponent(path)}`, url), {
             method: "PUT",
-            headers: { cookie, "content-type": options.type ?? "text/plain", "x-kiko-if-sha256": options.expect ?? "none" },
+            headers: { authorization: auth, "content-type": options.type ?? "text/plain", "x-kiko-if-sha256": options.expect ?? "none" },
             body,
           })
         },

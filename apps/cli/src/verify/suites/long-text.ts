@@ -53,7 +53,7 @@ const suite: Suite = {
 		const file = files[0]
 		if (!file || !/^attachments\/[0-9a-z]+-message\.txt$/.test(file.name)) throw new VerifyError(`the file is at ${file?.name}`)
 		const base = v.url
-		const download = await fetch(new URL(`api/files/${roomId}/${file.id}`, base), { headers: { cookie: alice.cookie } })
+		const download = await fetch(new URL(`api/files/${roomId}/${file.id}`, base), { headers: { authorization: alice.auth } })
 		expectEqual(await download.text(), text, "the file's bytes")
 
 		// The agent's transcript takes the message. Its entry is longer than the bubble, since the
@@ -62,7 +62,7 @@ const suite: Suite = {
 		for (;;) {
 			const trace = await fetch(new URL("api/dev/agent/trace", base), {
 				method: "POST",
-				headers: { "content-type": "application/json", cookie: alice.cookie },
+				headers: { "content-type": "application/json", authorization: alice.auth },
 				body: JSON.stringify({ roomId }),
 			})
 			const entries = trace.ok ? ((await trace.json()) as { chars: number }[]) : []

@@ -54,7 +54,7 @@ const suite: Suite = {
     await quiet(room, 10_000, 180_000)
     const file = must(seen(room).files.get("notes.md"), "the notes.md file")
     const base = new URL(`api/files/${roomId}/`, v.url)
-    const text = (await (await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })).text()).toLowerCase()
+    const text = (await (await fetch(new URL(file.id, base), { headers: { authorization: s.auth } })).text()).toLowerCase()
     console.log(`  /notes.md after ${Date.now() - t0} ms: ${JSON.stringify(text)}`)
     for (const m of seen(room).messages.filter((m) => m.from.kind === "agent")) console.log(`    @${(m.from as { slug: string }).slug}: ${m.text.replace(/\s+/g, " ").slice(0, 140)}`)
     const missing = ["kiko", "ada"].filter((n) => !text.includes(n))

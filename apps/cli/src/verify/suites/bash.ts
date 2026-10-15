@@ -56,7 +56,7 @@ const suite: Suite = {
     })
     const file = saved.at(-1)
     if (!file) throw new VerifyError("the agent never saved /data/total.txt")
-    const body = await (await fetch(new URL(file.id, base), { headers: { cookie: s.cookie } })).text()
+    const body = await (await fetch(new URL(file.id, base), { headers: { authorization: s.auth } })).text()
     expectEqual(body.trim(), String(total), "the content of /data/total.txt")
     const kept = room.raw.log.some((entry) => {
       const frame = entry.frame as RoomToClient

@@ -1,3 +1,4 @@
+import { apiFetch } from "../lib/api"
 // The HTTP client for provider credentials. A key goes up in one PUT and never
 // comes back: every answer holds the provider, the kind, and the last four
 // characters. The key is never kept on the client: not in a store that outlives
@@ -15,7 +16,7 @@ export interface ProviderInfo {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/credentials${path}`, { credentials: "same-origin", ...init })
+  const response = await apiFetch(`/api/credentials${path}`, init)
   const body = (await response.json().catch(() => ({}))) as T & { error?: unknown }
   if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "Request failed.")
   return body

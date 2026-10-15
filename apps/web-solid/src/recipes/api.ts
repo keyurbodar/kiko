@@ -1,5 +1,6 @@
 import type { InstallRecipe, RecipeCard, RecipeInstall } from "@kiko/protocol"
 import { RECIPES } from "./catalog.gen"
+import { apiFetch } from "../lib/api"
 
 export type InstallResult = { ok: true; install: RecipeInstall } | { ok: false; error: string }
 
@@ -30,7 +31,7 @@ export const loadCards = (): readonly RecipeCard[] => cardsOf(loadListing())
 
 /** The list from the server, cached for the next visit. Null when the request fails, so the cache stays as it was. */
 export async function fetchListing(): Promise<Listing | null> {
-  const res = await fetch("/api/recipes").catch(() => null)
+  const res = await apiFetch("/api/recipes").catch(() => null)
   if (!res?.ok) return null
   const body = (await res.json().catch(() => null)) as { cards?: unknown; installs?: unknown; broken?: unknown } | null
   const next: Listing = {
@@ -51,19 +52,19 @@ export function cacheListing(next: Listing): void {
 }
 
 export async function deleteInstall(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const res = await fetch(`/api/recipes/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => null)
+  const res = await apiFetch(`/api/recipes/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => null)
   if (res?.ok || res?.status === 404) return { ok: true }
   return { ok: false, error: "Kiko could not remove it. Try again." }
 }
 
 export async function updateRecipeRoutine(id: string, status: "active" | "paused"): Promise<boolean> {
-  const res = await fetch(`/api/routines/${encodeURIComponent(id)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) }).catch(() => null)
+  const res = await apiFetch(`/api/routines/${encodeURIComponent(id)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) }).catch(() => null)
   return res?.ok ?? false
 }
 
 /** Adds a recipe. A retry with the same `installId` is safe: the server answers with the same install. */
 export async function postInstall(body: InstallRecipe): Promise<InstallResult> {
-  const res = await fetch("/api/recipes", {
+  const res = await apiFetch("/api/recipes", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

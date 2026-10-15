@@ -6,6 +6,7 @@ import { createResource, createSignal, For, Show } from "solid-js"
 import { RecipeIcon } from "../../recipes/recipe-icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
+import { apiFetch } from "../../lib/api"
 
 export type Routine = { id: string; name: string; roomId: string; status: "active" | "paused"; trigger: Trigger; tz: string }
 
@@ -24,7 +25,7 @@ function read(value: unknown): Routine[] {
 }
 
 export async function loadRoutines(): Promise<void> {
-  const res = await fetch("/api/routines").catch(() => null)
+  const res = await apiFetch("/api/routines").catch(() => null)
   if (res?.ok) setAll(read(await res.json().catch(() => null)))
   else if (all() === undefined) setAll([])
 }
@@ -32,7 +33,7 @@ export async function loadRoutines(): Promise<void> {
 export const routinesOf = (chatId: string): readonly Routine[] | undefined => all()?.filter((r) => r.roomId === chatId)
 
 const post = (path: string, body: unknown) =>
-  fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.ok).catch(() => false)
+  apiFetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.ok).catch(() => false)
 
 export async function setStatus(routine: Routine, status: Routine["status"]): Promise<void> {
   const put = (s: Routine["status"]) => setAll((list) => list?.map((r) => (r.id === routine.id ? { ...r, status: s } : r)))

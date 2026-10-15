@@ -8,7 +8,7 @@ export type Run = { routineId: string; occurrence: string; status: string; seq: 
 export async function api<T>(url: string, s: Session, path: string, body?: unknown, method?: string): Promise<{ status: number; json: T }> {
   const res = await fetch(new URL(`api/${path}`, url), {
     method: method ?? (body === undefined ? "GET" : "POST"),
-    headers: { cookie: s.cookie, "content-type": "application/json" },
+    headers: { authorization: s.auth, "content-type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   const text = await res.text()

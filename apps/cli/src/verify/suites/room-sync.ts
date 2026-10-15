@@ -65,7 +65,7 @@ const suite: Suite = {
 		const resumed = new Channel<In, typeof ClientToRoom.Type>(
 			`${s.name}/room ${roomId} resumed`,
 			wsUrl(v.url, `api/ws/room/${roomId}`),
-			s.cookie,
+			s.auth,
 			RoomToClientSchema,
 			ClientToRoom,
 			{ t: "hello", lastSeq: 4 },

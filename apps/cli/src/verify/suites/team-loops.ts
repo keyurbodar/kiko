@@ -9,8 +9,8 @@ import { send } from "./mid-run"
 
 const agentOf = (slug: string): Agent => ({ id: `team-loops-${slug}`, name: slug, slug: slug as AgentSlug, prompt: "", model: "opencode-go/deepseek-v4.1-flash" })
 
-export async function dev(url: string, cookie: string, path: string, body: unknown): Promise<unknown> {
-  const res = await fetch(new URL(`api/dev/agent/${path}`, url), { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) })
+export async function dev(url: string, auth: string, path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(new URL(`api/dev/agent/${path}`, url), { method: "POST", headers: { "content-type": "application/json", authorization: auth }, body: JSON.stringify(body) })
   if (!res.ok) throw new VerifyError(`the dev agent route answered ${res.status}. start the Worker with NODE_ENV=development`)
   return res.json()
 }
@@ -29,11 +29,11 @@ export async function team(v: { url: string }, s: Session, slugs: string[], titl
   await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "chat" && e.chat.roomId === roomId))
   const room = await s.room(roomId)
   const members = slugs.length > 1 ? ["kiko", ...slugs] : slugs
-  await dev(v.url, s.cookie, "fake", { roomId, slugs: members })
+  await dev(v.url, s.auth, "fake", { roomId, slugs: members })
   const received = async () => {
     let total = 0
     for (const slug of members) {
-      const st = (await dev(v.url, s.cookie, "status", { roomId, slug })) as Status
+      const st = (await dev(v.url, s.auth, "status", { roomId, slug })) as Status
       total += st.inbox.waiting + st.inbox.claimed + st.inbox.submitted
     }
     return total

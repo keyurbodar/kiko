@@ -1,5 +1,5 @@
 import { CliError, type Context } from "../main"
-import { sessionCookie } from "./login"
+import { sessionToken } from "./login"
 
 export async function ws(ctx: Context): Promise<void> {
   const path = ctx.args[0]
@@ -7,8 +7,8 @@ export async function ws(ctx: Context): Promise<void> {
   const target = new URL(path, ctx.url)
   target.protocol = target.protocol === "https:" ? "wss:" : "ws:"
 
-  const cookie = await sessionCookie(ctx.url)
-  const headers: Record<string, string> = cookie ? { cookie } : {}
+  const token = await sessionToken(ctx.url)
+  const headers: Record<string, string> = token ? { authorization: `Bearer ${token}` } : {}
   const options: Bun.WebSocketOptions = { headers }
   const socket = new WebSocket(target, options as unknown as string[])
   const opened = Promise.withResolvers<void>()

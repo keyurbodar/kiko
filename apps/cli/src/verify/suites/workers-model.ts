@@ -20,7 +20,7 @@ const suite: Suite = {
     await connectTestModel(s)
     const { roomId, room } = await newRoom(s, "workers model check")
     const list = async (): Promise<Work[]> => {
-      const res = await fetch(new URL(`api/dev/agent/workers?roomId=${roomId}`, v.url), { headers: { cookie: s.cookie } })
+      const res = await fetch(new URL(`api/dev/agent/workers?roomId=${roomId}`, v.url), { headers: { authorization: s.auth } })
       if (!res.ok) throw new VerifyError(`the workers route answered ${res.status}. start the Worker with NODE_ENV=development`)
       return ((await res.json()) as { workers: Work[] }).workers
     }
