@@ -1,11 +1,12 @@
 import { createSignal, For, Show, createEffect, on, onCleanup } from "solid-js"
-import { CheckIcon, ChevronDownIcon, CircleHelpIcon, XIcon } from "lucide-solid"
+import { CheckIcon, ChevronLeftIcon, ChevronDownIcon, CircleHelpIcon, XIcon } from "lucide-solid"
 import { CollapsibleV2 as Collapsible } from "@kiko/ui/v2/collapsible-v2"
 import { ToggleGroupV2 as ToggleGroup } from "@kiko/ui/v2/toggle-group-v2"
+import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import type { QuestionInput } from "./question-input"
 import "./question-panel.css"
 
-export function QuestionPanel(props: { input: QuestionInput; owner?: string; onSelect: (value: string) => void }) {
+export function QuestionPanel(props: { input: QuestionInput; owner?: string; ownerSeed?: string; onSelect: (value: string) => void }) {
   const p = props.input.progress
   const [open, setOpen] = createSignal(true)
   createEffect(on(() => `${props.input.ask()?.id}:${p().activeQuestion?.id}`, () => setOpen(true)))
@@ -22,7 +23,7 @@ export function QuestionPanel(props: { input: QuestionInput; owner?: string; onS
   return <Show when={p().activeQuestion}>{(q) => <Collapsible open={open()} onOpenChange={setOpen} data-component="question-panel">
     <div class="question-header">
       <Collapsible.Trigger class="composer-card-row" data-pending-user-input-toggle={open() ? "expanded" : "collapsed"} title={open() ? "Hide the question and its options" : "Show the question and its options"}>
-        <span class="composer-card-icon"><CircleHelpIcon /></span>
+        <span class="composer-card-icon"><Show when={props.ownerSeed} fallback={<CircleHelpIcon />}>{(seed) => <IdentityAvatar seed={seed()} size={18} />}</Show></span>
         <span class="composer-card-title"><span class="composer-card-kind font-medium">{q().header}<Show when={props.owner}> · {props.owner}</Show></span><Show when={!open()}><span class="truncate">{q().question}</span></Show></span>
         <span class="composer-card-actions"><Show when={(props.input.ask()?.questions?.length ?? 1) > 1}><span>{p().questionIndex + 1}/{props.input.ask()?.questions?.length}</span></Show><ChevronDownIcon class="composer-card-toggle" /></span>
       </Collapsible.Trigger>
@@ -42,6 +43,13 @@ export function QuestionPanel(props: { input: QuestionInput; owner?: string; onS
           </ToggleGroup>
         </Show>
       </div>
+        <div class="question-primary-actions" data-component="question-actions">
+          <Show when={p().questionIndex > 0}><button type="button" class="question-previous" onClick={props.input.previous} aria-label="Previous question"><ChevronLeftIcon /><span class="question-action-full">Previous</span></button></Show>
+          <button type="button" class="question-submit" disabled={p().isLastQuestion ? !p().isComplete : !p().canAdvance} onClick={props.input.advance}>
+            <span class="question-action-full">{p().isLastQuestion ? (p().questionIndex > 0 ? "Submit answers" : "Submit answer") : "Next question"}</span>
+            <span class="question-action-compact">{p().isLastQuestion ? "Submit" : "Next"}</span>
+          </button>
+        </div>
     </Collapsible.Content>
   </Collapsible>}</Show>
 }

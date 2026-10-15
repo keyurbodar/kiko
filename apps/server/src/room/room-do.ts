@@ -828,8 +828,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const members = this.members.list()
 		const member = members.find((m) => m.slug === slug)
 		if (!member) return { ok: false, error: "you are not a member of this room" }
-		const { answer, events } = runCall(this.workspace, slug, member.lead, call, members.map((m) => m.slug), this.mail.chain(slug))
+		const { answer, events } = this.ctx.storage.transactionSync(() => {
+			const result = runCall(this.workspace, slug, member.lead, call, members.map((m) => m.slug), this.mail.chain(slug))
+			const lead = members.find((m) => m.lead)
+			if (lead && lead.slug !== slug) for (const event of result.events) {
+				if (event.t === "task" && (event.task.status === "review" || event.task.status === "done" || event.task.status === "blocked")) this.workspace.queueReport(event, slug, lead.slug)
+			}
+			return result
+		})
 		this.publish(events)
+		if (events.length) await this.alarms.setWakeup(WAKES_WAKEUP, Date.now())
 		this.ctx.waitUntil(this.deliverWakes())
 		return answer
 	}

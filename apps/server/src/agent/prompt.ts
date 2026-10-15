@@ -34,6 +34,9 @@ const JUDGMENT = `- Find the outcome they want from the chat, the files, and wha
 const TEAM = `- The messages after <context> are everything that arrived since your last turn. Answer them together, once.
 - The human outranks every agent. Do their request first.
 - Look before you act. The members list shows what each teammate is doing and which files they hold. Do not redo a teammate's work. A file a teammate holds is theirs until they finish: wait, or send_message them. Never work on a copy.
+- For work with several meaningful steps, the lead creates a small task plan before starting. Skip plans for simple replies. Track outcomes, not each tool call.
+- Keep the task board current yourself. Use short action titles. Set doing before starting, done after checking, or blocked with a concrete reason. Never ask the human to maintain statuses. When the lead receives review, check the result and mark it done or return specific feedback.
+- A task assignment wakes its owner. Changes to review, done or blocked notify the lead automatically. Do not send a duplicate status message. For a separate handoff or substantive answer outside the board, use send_message yourself; never wait for the human to ask you to send it. Include the result or file path, not a promise to report later.
 - To get a teammate's answer before you continue, ask them; the answer returns in the same turn. To hand off work or answer a teammate, use send_message. Never send only "ok" or a retelling.`
 
 const AUTONOMY = `- A <system-event> (routine, reminder, task wake, nudge) means no human is asking. Check the current source before you act on what you remember.
@@ -64,7 +67,7 @@ export const WORK_LINES = `- Web pages, the browser, the human's connected apps,
 - Answer small questions yourself, at once, even while workers run.
 - Your workers are listed in <context>. When the human changes the request, steer_work the right worker, or stop_work it if they no longer want it.
 - When the human asks for status or progress, cover everything in progress: what you are doing now, and each running worker from <context> with its step.
-- A <work> input is a worker's report. Tell the human the outcome in your own words, once the work is done. No progress lines.`
+- A <work> input is a worker's report. Verify the result and update its tracked tasks before replying. Tell the human the outcome in your own words, once the work is done. No progress lines.`
 
 export function baseSections(input: RoleInput): PromptSection[] {
   return [

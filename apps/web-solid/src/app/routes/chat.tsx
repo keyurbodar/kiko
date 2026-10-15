@@ -7,8 +7,6 @@ import { ModelPickerButton } from "../../settings/model-picker";
 import { useApp } from "../../lib/store";
 import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
-import { connectedProviders, connectedReady } from "../../settings/connected";
-import { hasModelProvider } from "../../settings/provider-kinds";
 import { jumpRequest, requestJump } from "../../search/state";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
@@ -261,7 +259,6 @@ export default function ChatRoute() {
 
           <Composer
             room={useApp.room() ?? undefined}
-            needsProvider={!!(useApp.room()?.state.noProvider ?? (connectedReady() && !hasModelProvider(connectedProviders())))}
             stopping={!!useApp.room()?.state.agents.length}
             onStop={() => useApp.room()?.stop()}
             tray={<ModelPickerButton chatId={params.id ?? null} />}

@@ -1,4 +1,4 @@
-import type { Task, TaskStatus } from "@kiko/protocol"
+import type { Member, Task, TaskStatus } from "@kiko/protocol"
 
 export const TASK_ORDER: readonly TaskStatus[] = ["doing", "blocked", "todo", "review", "done", "cancelled"]
 export const TASK_LABEL: Record<TaskStatus, string> = { doing: "Running", blocked: "Blocked", todo: "Pending", review: "In review", done: "Completed", cancelled: "Cancelled" }
@@ -16,4 +16,8 @@ export function taskDependencies(task: Task, tasks: readonly Task[]): string[] {
     const dependency = tasks.find((t) => t.id === id)
     return dependency && dependency.status !== "done" && dependency.status !== "cancelled" ? [dependency.title] : []
   })
+}
+
+export function taskText(text: string, members: readonly Pick<Member, "slug" | "name">[]): string {
+  return text.replace(/(^|[\s(])@([a-z0-9-]+)\b/g, (_, prefix: string, slug: string) => `${prefix}${members.find((m) => m.slug === slug)?.name ?? `@${slug}`}`)
 }

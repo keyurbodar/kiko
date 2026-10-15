@@ -133,14 +133,20 @@ export class RoomWakes {
 	async deliverWakes(): Promise<void> {
 		const home = this.d.home()
 		const wakes = this.d.workspace.pendingWakes()
-		if (!home || !wakes.length) return
+		const reports = this.d.workspace.pendingReports()
+		if (!home || (!wakes.length && !reports.length)) return
 		try {
-			for (const wake of wakes) {
+			for (const report of reports) {
+				await this.wake({ id: `task-report:${report.seq}`, to: report.recipient, why: "task_updated", body: report.body, chain: report.chain, seq: report.seq })
+				this.d.workspace.markReported(report.seq)
+			}
+			for (const wake of wakes.slice(0, 8 - reports.length)) {
 				await this.wake({ id: `unblocked:${wake.taskId}`, to: wake.owner, why: "task_unblocked", body: wakeBody(wake), chain: wake.chain, seq: wake.seq })
 				this.d.workspace.markWoken(wake.taskId)
 			}
+			if (this.d.workspace.pendingReports().length || this.d.workspace.pendingWakes().length) await this.d.alarms.setWakeup(WAKES_WAKEUP, Date.now())
 		} catch (error) {
-			console.error(`task_unblocked delivery failed: ${error instanceof Error ? error.message : String(error)}`)
+			console.error(`task delivery failed: ${error instanceof Error ? error.message : String(error)}`)
 			await this.d.alarms.setWakeup(WAKES_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
 		}
 	}

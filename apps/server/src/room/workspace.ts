@@ -11,7 +11,7 @@ const MAX_NOTE = 2_000
 const MAX_DEPS = 20
 
 export type WorkspaceCall =
-	| { op: "update_task"; id: string; status?: string; note?: string }
+	| { op: "update_task"; id: string; status?: string; note?: string; title?: string }
 	| { op: "create_task"; id: string; title: string; owner?: string; dependsOn?: readonly string[] }
 
 export type WorkspaceAnswer = { ok: true; text: string } | { ok: false; error: string }
@@ -43,10 +43,10 @@ export function listTasks(storage: DurableObjectStorage): Task[] {
 	return readTasks(storage.sql)
 }
 
-export function briefTasks(sql: SqlStorage, slug: AgentSlug): Task[] {
+export function briefTasks(sql: SqlStorage, slug: AgentSlug, lead = false): Task[] {
 	const tasks = readTasks(sql)
 	const byId = new Map(tasks.map((t) => [t.id, t]))
-	const mine = tasks.filter((t) => t.owner === slug && !CLOSED.has(t.status))
+	const mine = tasks.filter((t) => (lead || t.owner === slug) && !CLOSED.has(t.status))
 	const ids = new Set(mine.map((t) => t.id))
 	const blockers: Task[] = []
 	for (const id of mine.flatMap((t) => t.dependsOn)) {
@@ -153,7 +153,11 @@ export class RoomWorkspace implements Workspace {
 			for (const d of deps) this.sql.exec("INSERT INTO ws_task_deps (task_id, depends_on) VALUES (?, ?)", input.id, d)
 			const task = this.task(input.id)
 			if (!task) throw new Error(`task ${input.id} missing after insert`)
-			return { ok: true as const, value: task, events: [this.emit(by, task)] }
+			const event = this.emit(by, task)
+			if (owner && by.kind === "agent" && owner !== by.slug && !this.openDeps(input.id).length) {
+				this.sql.exec("UPDATE ws_tasks SET unblocked_seq = ? WHERE id = ?", event.seq, input.id)
+			}
+			return { ok: true as const, value: task, events: [event] }
 		})
 	}
 
@@ -231,10 +235,26 @@ export class RoomWorkspace implements Workspace {
 			.exec<{ id: string; owner: string; title: string; seq: number; chain: string | null }>(
 				`SELECT id, owner, title, unblocked_seq AS seq, chain FROM ws_tasks
 				 WHERE unblocked_seq IS NOT NULL AND woken_at IS NULL AND owner IS NOT NULL AND status NOT IN ('done', 'cancelled')
-				 ORDER BY unblocked_seq, id`,
+				 ORDER BY unblocked_seq, id LIMIT 8`,
 			)
 			.toArray()
 			.map((r) => ({ taskId: r.id, owner: r.owner as AgentSlug, title: r.title, seq: r.seq, chain: r.chain ? (JSON.parse(r.chain) as Chain) : null }))
+	}
+
+	queueReport(event: Extract<RoomEvent, { t: "task" }>, from: AgentSlug, recipient: AgentSlug): void {
+		const task = event.task
+		const action = task.status === "blocked" ? "Resolve the blocker or give specific feedback. Keep it blocked until the obstacle is cleared." : task.status === "review" ? "Verify the result and files, then mark it done or return specific feedback." : "Use the verified result and continue any ready dependent work."
+		const body = `Task ${task.id} (${task.title}) from @${from} is ${task.status}.${task.note ? ` Result: ${task.note}` : ""} Check the current board first; a newer update may supersede this report. ${action} Report the outcome to the human when useful. Do not ask the human to manage task statuses.`
+		const chain = this.chainOf(task.id)
+		this.sql.exec("INSERT OR IGNORE INTO ws_task_reports (seq, recipient, body, chain) VALUES (?, ?, ?, ?)", event.seq, recipient, body, chain ? JSON.stringify(chain) : null)
+	}
+
+	pendingReports(): { seq: number; recipient: AgentSlug; body: string; chain: Chain | null }[] {
+		return this.sql.exec<{ seq: number; recipient: AgentSlug; body: string; chain: string | null }>("SELECT seq, recipient, body, chain FROM ws_task_reports ORDER BY seq LIMIT 8").toArray().map((r) => ({ ...r, chain: r.chain ? JSON.parse(r.chain) as Chain : null }))
+	}
+
+	markReported(seq: number): void {
+		this.sql.exec("DELETE FROM ws_task_reports WHERE seq = ?", seq)
 	}
 
 	chainOf(id: string): Chain | null {
@@ -272,7 +292,7 @@ export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: Wor
 				const claimed = ws.claim(slug, call.id)
 				if (!claimed.ok || call.note === undefined) return done(claimed, (t) => `took ${line(t)}`)
 			}
-			return done(ws.update(by, call.id, { status: call.status, note: call.note }, members, lead), (t) => `updated ${line(t)}`)
+			return done(ws.update(by, call.id, { status: call.status, note: call.note, title: call.title }, members, lead), (t) => `updated ${line(t)}`)
 		}
 		case "create_task":
 			if (!lead) return { answer: fail("only the lead creates tasks"), events: [] }

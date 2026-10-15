@@ -1,5 +1,4 @@
 import { Show, Suspense, lazy, batch, createEffect, createMemo, on, onCleanup } from "solid-js"
-import { ChevronLeftIcon, SquareIcon } from "lucide-solid"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, attachmentIds, linkAttachments } from "@kiko/protocol"
@@ -356,24 +355,10 @@ export function Composer(props: ComposerProps) {
 
   return (
     <>
-      <Show when={props.room}>{(room) => <Suspense><ComposerCards room={room()} needsProvider={props.needsProvider} question={question} onSelectAnswer={selectAnswer} /></Suspense>}</Show>
+      <Show when={props.room}>{(room) => <Suspense><ComposerCards room={room()} question={question} onSelectAnswer={selectAnswer} /></Suspense>}</Show>
       <PromptInputV2
         answering={!!question.ask()}
         readOnly={!!question.ask() && question.progress().activeQuestion?.allowCustomAnswer === false}
-        actions={<Show when={question.ask()}>
-          <div class="question-primary-actions">
-            <Show when={props.stopping}>
-              <button type="button" class="question-stop" aria-label="Stop work" onClick={() => props.onStop?.()}><SquareIcon /></button>
-            </Show>
-            <Show when={question.progress().questionIndex > 0}>
-              <button type="button" class="question-previous" onClick={question.previous} aria-label="Previous question"><span class="question-action-full">Previous</span><ChevronLeftIcon class="question-action-compact size-3.5" /></button>
-            </Show>
-            <button type="button" class="question-submit" disabled={!controller.canSubmit()} onClick={() => controller.submit()}>
-              <span class="question-action-full">{question.progress().isLastQuestion ? (question.progress().questionIndex > 0 ? "Submit answers" : "Submit answer") : "Next question"}</span>
-              <span class="question-action-compact">{question.progress().isLastQuestion ? "Submit" : "Next"}</span>
-            </button>
-          </div>
-        </Show>}
         controller={controller}
         disabled={!!props.busy}
         reply={question.ask() ? undefined : above}

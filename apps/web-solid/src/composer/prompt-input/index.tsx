@@ -28,7 +28,6 @@ export type PromptInputV2Props = {
   class?: string
   reply?: JSX.Element
   tray?: JSX.Element
-  actions?: JSX.Element
   answering?: boolean
   isMention?: (slug: string) => boolean
 }
@@ -162,7 +161,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 </button>
               </TooltipV2>
               </Show>
-              <Show when={props.answering} fallback={<PromptInputV2SubmitButton
+              <Show when={!props.answering}>
+              <PromptInputV2SubmitButton
                 mode={state.mode}
                 stopping={view.submit.stopping()}
                 disabled={!props.controller.canSubmit()}
@@ -171,7 +171,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 stopLabel={i18n.t("ui.promptInput.stop")}
                 onSubmit={props.controller.submit}
                 onStop={props.controller.stop}
-              />}>{props.actions}</Show>
+              />
+              </Show>
             </div>
           </div>
         </div>

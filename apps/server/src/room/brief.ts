@@ -58,7 +58,7 @@ function boardLines(tasks: readonly Task[]): string[] {
 	const lines: string[] = []
 	let bytes = 0
 	for (const [i, t] of tasks.entries()) {
-		const line = `- ${t.id} [${t.status}] ${oneLine(t.title)}${t.dependsOn.length ? ` (after ${t.dependsOn.join(", ")})` : ""}`
+		const line = `- ${t.id} [${t.status}] ${oneLine(t.title)}${t.owner ? ` (owner @${t.owner})` : ""}${t.dependsOn.length ? ` (after ${t.dependsOn.join(", ")})` : ""}`
 		bytes += new TextEncoder().encode(line).length + 1
 		if (bytes > MAX_BOARD_BYTES) return [...lines, `- and ${tasks.length - i} more on the board`]
 		lines.push(line)
@@ -83,7 +83,7 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 		]
 		lines.push(`- @${m.slug} (${escapeXml(m.name)}): ${parts.filter(Boolean).join(", ")}`)
 	}
-	lines.push("your tasks:")
+	lines.push(member.lead ? "room tasks:" : "your tasks:")
 	lines.push(...(view.tasks.length ? boardLines(view.tasks) : ["- none"]))
 	if (view.proposal) lines.push(oneLine(view.proposal))
 	if (view.reactions) lines.push(escapeXml(view.reactions))
@@ -91,7 +91,7 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 }
 
 export function readBriefView(sql: SqlStorage, member: MemberRow, members: readonly MemberRow[], goal: string, reactions: string | null): BriefView {
-	return { goal, members, tasks: briefTasks(sql, member.slug), reactions }
+	return { goal, members, tasks: briefTasks(sql, member.slug, member.lead), reactions }
 }
 
 export function initiativeBrief(view: { owe: readonly string[]; related: readonly string[]; noticed?: readonly string[] }): string {

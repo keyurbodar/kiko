@@ -20,21 +20,22 @@ export function workspaceExtension(port: WorkspacePort, lead: boolean): Extensio
   const updateTask = defineTool({
     name: "update_task",
     description:
-      "take a task nobody owns by setting it to doing, or change the status of a task you own, with an optional short note. use review when your part is ready for the lead, done when it is finished.",
+      "take a task nobody owns by setting it to doing, or change the status of a task you own, with an optional short note. set doing before work, done after verifying the result, blocked with a reason when stuck, and review only when the lead must check it. Changes to review, done or blocked automatically notify the lead. Keep titles short; put findings and file paths in note. Never ask the human to change task status.",
     parameters: Type.Object({
       id: Type.String(),
       status: Type.Union(TASK_STATUSES.map((s) => Type.Literal(s))),
       note: Type.Optional(Type.String()),
+      title: Type.Optional(Type.String({ maxLength: 80, description: "short action label, without instructions, handles, or report-to text" })),
     }),
     replay: "safe",
-    execute: async (args) => answer(await port.call({ op: "update_task", id: args.id, status: args.status, ...(args.note ? { note: args.note } : {}) })),
+    execute: async (args) => answer(await port.call({ op: "update_task", id: args.id, status: args.status, ...(args.note ? { note: args.note } : {}), ...(args.title ? { title: args.title } : {}) })),
   })
 
   const createTask = defineTool({
     name: "create_task",
-    description: "add a task to the board, optionally for a member and after other tasks. its owner is woken when every task it depends on is done.",
+    description: "track one meaningful step, not every tool call. Write a short action title (3 to 8 words), without handles, detailed instructions, or report-to text. Assign an owner. A different owner is woken immediately when ready, or when dependencies finish. Keep details in the handoff message or files. Do not create a plan for a simple reply.",
     parameters: Type.Object({
-      title: Type.String(),
+      title: Type.String({ maxLength: 80 }),
       owner: Type.Optional(Type.String({ description: "a member slug, without @" })),
       depends_on: Type.Optional(Type.Array(Type.String(), { description: "ids of tasks that must be done first" })),
     }),

@@ -230,4 +230,10 @@ export const ROOM_STEPS: Step[] = [
 		answer TEXT
 	) STRICT`,
 	addColumn("human_asks", "questions", "TEXT"),
+	`CREATE TABLE IF NOT EXISTS ws_task_reports (
+		seq INTEGER PRIMARY KEY,
+		recipient TEXT NOT NULL,
+		body TEXT NOT NULL,
+		chain TEXT
+	) STRICT`,
 ]

@@ -92,6 +92,15 @@ const suite: Suite = {
 		if (reset.t !== "reset") throw new VerifyError("no reset")
 		expectEqual(reset.snapshot.tasks.map((t) => `${t.id}:${t.status}`), ["task-a:done", `${b.id}:todo`], "tasks in the snapshot")
 		console.log(`  ok snapshot: ${reset.snapshot.tasks.length} tasks`)
+		const beforeAda = await received("ada")
+		await send(room, '@yuki [ws create_task {"title":"Check newsletter senders","owner":"ada"}]')
+		const assigned = await poll("the assigned task", () => [...tasks(room).values()].find((t) => t.title === "Check newsletter senders"), 15_000)
+		await poll("automatic assignment delivery", async () => await received("ada") === beforeAda + 1, 15_000)
+		const beforeLead = await received("yuki")
+		await send(room, `@ada [ws update_task ${JSON.stringify({ id: assigned.id, status: "review", note: "Saved newsletter findings in /senders.md" })}]`)
+		await poll("automatic lead report", async () => await received("yuki") === beforeLead + 1, 15_000)
+		await poll("the lead to react", () => bubbles(room, "yuki").some((text) => text.includes("/senders.md")), 15_000)
+		console.log("  ok ready assignments wake their owner, and review results reach the lead without a separate message")
 		room.raw.close()
 	},
 }

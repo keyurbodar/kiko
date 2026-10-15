@@ -83,6 +83,7 @@ test("a dependency cycle is rejected", async () => {
 test("finishing the last dependency unblocks a task once, and a task cannot finish before its dependencies", async () => {
 	const r = room()
 	await call(r, "bob", true, { op: "create_task", id: "a", title: "first", owner: "ada" })
+	await post(`/woke/${r}`, { taskId: "a" })
 	await call(r, "bob", true, { op: "create_task", id: "a2", title: "also first", owner: "bob" })
 	await call(r, "bob", true, { op: "create_task", id: "b", title: "second", owner: "cy", dependsOn: ["a", "a2"] })
 	expect((await call(r, "cy", false, { op: "update_task", id: "b", status: "done" })).answer.error).toBe("task b waits on a, a2, which are not done")
@@ -95,3 +96,12 @@ test("finishing the last dependency unblocks a task once, and a task cannot fini
 	expect((await call(r, "bob", true, { op: "update_task", id: "a2", status: "done" })).wakes).toEqual([])
 })
 
+
+test("a ready assignment wakes its owner without a separate message", async () => {
+  const r = room()
+  const made = await call(r, "bob", true, { op: "create_task", id: "ready", title: "Check senders", owner: "ada" })
+  expect(made.wakes).toHaveLength(1)
+  expect(made.wakes[0]).toMatchObject({ taskId: "ready", owner: "ada" })
+  await post(`/woke/${r}`, { taskId: "ready" })
+  expect((await call(r, "bob", true, { op: "create_task", id: "ready", title: "Check senders", owner: "ada" })).wakes).toEqual([])
+})
