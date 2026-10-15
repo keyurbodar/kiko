@@ -2,7 +2,7 @@
 // It asks for this app's own version. The front door always runs the newest client, so that is the version to install.
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { APP_VERSION } from "../lib/version-skew";
-import { reduceUpdate, stageText, type UpdateProgress } from "../lib/update";
+import { checkStall, reduceUpdate, sent, STALL_MS, stageText, type UpdateProgress } from "../lib/update";
 import { userChannel } from "../sync/user-channel";
 import { Button, Hint, Notice } from "./kit";
 
@@ -22,8 +22,9 @@ export function UpdateAction(props: { label?: string }) {
     });
   });
   const start = () => {
-    setProgress({ stage: "checking" });
-    if (!userChannel.send({ t: "update.start", version: APP_VERSION })) setProgress({ stage: "failed", error: "Kiko is offline. Try again when it reconnects." });
+    setProgress(sent(Date.now()));
+    if (!userChannel.send({ t: "update.start", version: APP_VERSION })) return setProgress({ stage: "failed", error: "Kiko is offline. Try again when it reconnects." });
+    setTimeout(() => setProgress((p) => checkStall(p, Date.now())), STALL_MS);
   };
   return (
     <div class="inline-flex items-center gap-2" data-component="update-action">

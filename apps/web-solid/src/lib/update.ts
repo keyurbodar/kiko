@@ -2,7 +2,20 @@
 
 import type { UpdateStage, UserToClient } from "@kiko/protocol"
 
-export type UpdateProgress = { stage: UpdateStage; error?: string } | null
+/** `sentAt` is set only while the client waits for the backend's first frame. */
+export type UpdateProgress = { stage: UpdateStage; error?: string; sentAt?: number } | null
+
+/** A backend from before updates ignores `update.start`, so silence this long means it cannot update itself. */
+export const STALL_MS = 20_000
+export const STALL_ERROR = "This backend cannot update itself. Reconnect Cloudflare to reinstall it."
+
+export const sent = (now: number): UpdateProgress => ({ stage: "checking", sentAt: now })
+
+/** The failed state when no frame answered `update.start` in time. Otherwise the progress as it was. */
+export function checkStall(progress: UpdateProgress, now: number): UpdateProgress {
+	if (progress?.sentAt === undefined || now - progress.sentAt < STALL_MS) return progress
+	return { stage: "failed", error: STALL_ERROR }
+}
 
 export const STAGE_TEXT: Record<Exclude<UpdateStage, "failed">, string> = {
 	checking: "Checking the release",
