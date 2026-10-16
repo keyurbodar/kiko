@@ -9,7 +9,8 @@ import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { APP_VERSION, type BackendBuild, backendSkew } from "../lib/version-skew"
 import { Button, Group, Item, Pill, Row } from "./kit"
 
-const PROVIDER_LABEL = { google: "Google", github: "GitHub" } as const
+const PROVIDER_LABEL: Record<string, string> = { google: "Google", github: "GitHub", apple: "Apple", microsoft: "Microsoft" }
+const providerLabel = (id: string) => PROVIDER_LABEL[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
 
 const SKEW_TEXT = { ok: "Up to date", update: "Update available", blocked: "Update required" } as const
 
@@ -80,7 +81,7 @@ export function Account() {
             title={profile()?.name ?? user()?.name ?? "You"}
             meta={profile()?.email}
             actions={
-              <Show when={profile()?.provider}>{(p) => <Pill data-field="provider">{PROVIDER_LABEL[p()]}</Pill>}</Show>
+              <Show when={profile()?.provider}>{(p) => <Pill data-field="provider">{providerLabel(p())}</Pill>}</Show>
             }
           />
         </Group>

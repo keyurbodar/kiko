@@ -66,7 +66,7 @@ Run against the owner's account with a throwaway Worker. The Worker was deleted 
 ### Clerk sign-in, as built (build item 3)
 
 - **Server.** `POST /api/auth/clerk` is in `apps/server/src/auth/clerk.ts`, with no `@clerk/backend` dependency: the check is RS256 through WebCrypto. `CLERK_JWT_KEY` takes the PEM, or the same key as bare base64 or with `\n` for line breaks, so it passes through `wrangler --var` on one line.
-- **Client.** A build with `VITE_CLERK_PUBLISHABLE_KEY` is hosted. `app/hosted-sign-in.tsx` replaces the access-code screen, and also serves `/sso-callback`, `/connect`, and `/connect/callback`. `@clerk/clerk-js` (about 570 KB gzip) is its own lazy chunk, reached only from the sign-in screen, the callback, and sign-out. The cached profile is `kiko:profile`.
+- **Client.** A build with `VITE_CLERK_PUBLISHABLE_KEY` is hosted. `app/hosted-sign-in.tsx` replaces the access-code screen: kiko's welcome behind, Clerk's prebuilt sign-in modal over it (as t3code does), and it also serves `/connect` and `/connect/callback`. Providers come from the Clerk dashboard. `@clerk/clerk-js` (about 570 KB gzip) is its own lazy chunk, reached only from the sign-in screen and sign-out. It ships without the prebuilt components, so `app/clerk.ts` hotloads `@clerk/ui` from the instance's front-end host and passes it to `load`. The cached profile is `kiko:profile`.
 
 ### Connect Cloudflare, as built (build item 10)
 
