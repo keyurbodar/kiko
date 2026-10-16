@@ -13,7 +13,6 @@ type DevDeps = {
 	pending: PendingUploads
 	publish: (events: RoomEvent[]) => void
 	armMemory: () => Promise<void>
-	rollupQuiet: () => Promise<void>
 	tasksChanged: () => Promise<void>
 	sweepPending: () => Promise<number>
 }
@@ -38,10 +37,6 @@ export class RoomDev {
 		const pending = this.d.memory.pending(1_000).length
 		if (pending) await this.d.armMemory()
 		return { turns: this.d.memory.count(), pending, view }
-	}
-
-	async quiet(): Promise<void> {
-		await this.d.rollupQuiet()
 	}
 
 	async age(ms: number): Promise<number> {

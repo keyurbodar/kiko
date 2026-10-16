@@ -774,134 +774,73 @@ User extensions (section 24) do run QuickJS inside the agent's object, through `
 
 ## 13. Memory
 
-**Decision.** Memory is a log, not a set of records and not a transcript. Two logs exist: a room's own messages, read as turns, and each user's life log. Over each sits a binary tree of one-line summaries. Every run starts from a bounded view of both, the `<memory>` block, and the model sees nothing older than that run. The design follows OptMem (github.com/VictorTaelin/OptMem, read at commit 1fb164c) and keeps its one rule: the history is the memory, and context is a view of it.
+**Decision.** Memory is a log, not a set of records. Two logs exist: a room's own messages, read as turns, and each user's life log. Over each sits a binary tree of one-line summaries. Every fresh run starts from a bounded view of both, the `<memory>` block. The design follows OptMem (github.com/VictorTaelin/OptMem, read at commit 1fb164c): the history is the memory, and context is a view of it.
 
-**Reasoning.** Before this, kiko had four memories that did not know about each other: typed records with a daily tidy job, each agent's ever-growing pi-durable transcript with one lossy compaction, the brief's last 30 messages, and the workspace notes. A late teammate saw almost nothing of a group's past, agents in one room disagreed about what happened, the kiko chat could not run forever, and memory filled only when an agent remembered to write. A log fills itself, every member reads the same one, and a view of it costs the same at turn 50 or 50,000.
+**Reasoning.** Kiko once had four memories that did not know about each other. A late teammate saw almost nothing of a group's past, and the kiko chat could not run forever. A log fills itself, every member reads the same one, and a view of it costs the same at turn 50 or 50,000.
 
 ### 13.1 The tree
 
 `core/memory/src/optmem.ts` is the one implementation, used by both logs.
 
-- **Items.** A log is a list of items that only grows. Position is identity.
-- **Nodes.** A node is an aligned span `[k*size, (k+1)*size)` whose size is a page times a power of two. A page is summarized from its raw items. A bigger node is summarized from its two halves. A summary is one lowercase line of at most 280 bytes, memo's size. OptChat (gist.github.com/VictorTaelin/91837951a5ce5b38f341ec1ba1df6449, read on 2026-10-05) uses 512; kiko keeps 280 so the `<memory>` block every fresh run reads stays the size it was.
-- **The summary prompt.** memo's, with three changes measured on real pages of `verify memory-hard` with deepseek-v4.1-flash, which thinks on every call. Items go whole, up to 8,000 characters: memo cut each at 600, which lost a fact 900 characters into a long paste. No ids appear anywhere, since a model copies them into its line (OptChat). The limit is 40 words, not 280 bytes: asked for bytes, the model spent about 9,000 thinking tokens a call counting them, and about 5,000 asked for words, with as many facts kept. The stored line is still cut at 280 bytes. OptChat's longer ranked prompt (the human's words first, and so on) cost about 20% more thinking for no fact gained, so it is left out.
-- **Free nodes.** A stretch whose items already fit in one line, or two halves that fit together, is its own summary, word for word, with no model call. Quiet stretches stay verbatim and cost nothing.
-- **Size.** A line over 280 bytes is cut at a character, as memo does. OptChat asks the model again for a shorter line; each retry is a call, so it is left out.
-- **Idempotent.** A node is stored with `INSERT OR IGNORE` on `(size, k)`, so an alarm delivered twice writes nothing twice.
-- **Forgetting.** An edited or deleted item drops the nodes above it, one per level. They are built again from the log, alone.
-- **Gaps.** A level is built left to right, four calls at a time. A node missing below the highest one built, because it was forgotten, its call failed, or it was told to wait, is found by a count per level and built again. Before 2026-10-05 such a node was never retried, and its stretch stayed raw for good: `verify memory-hard` lost the page with the pasted notes that way.
-- **The view.** The newest `floor` items are verbatim, with their time, each up to 300 characters. A cut item ends with `(cut, zoom <n>)`: OptChat's rule is that an agent must never act on half a message thinking it whole. Before them, memo's `cover` tiles the rest into at most `budget` lines, coarser with age, each with its date range. A node not built yet renders as its halves, so a view never waits for a model.
-- **Sticky.** A view keeps the last tiling and appends new pages to it. It tiles again, down to `retile` lines, only past `budget`. The old lines stay byte for byte, so the provider's prompt cache keeps hitting; the prefix changes about once per 128 turns.
+- **Nodes.** A node is an aligned span whose size is a page times a power of two. A page is summarized from its raw items, a bigger node from its two halves. A summary is one lowercase line of at most 280 bytes. The prompt asks for at most 40 words and for every name, number, date, and code word. Items go in whole, up to 8,000 characters, with no ids.
+- **Free nodes.** A stretch that already fits in one line is its own summary, with no model call.
+- **Idempotent.** A node is stored with `INSERT OR IGNORE` on `(size, k)`. An edited or deleted item drops the nodes above it, and they are built again. A missing node below the highest built one is found by a count per level and built again.
+- **The view.** The newest `floor` items are verbatim, each cut at 300 characters with `(cut, zoom <n>)`. Before them, `cover` tiles the rest into at most `budget` lines, coarser with age. A node not built yet renders as its halves, so a view never waits for a model.
+- **Sticky.** A view keeps its last tiling and appends new pages. It tiles again only past `budget`, so the prompt cache keeps hitting.
 
 | Log | Lives in | Page | Floor | Budget | Retile |
 | --- | --- | --- | --- | --- | --- |
 | room | `RoomDO`, `mem_turns` and `mem_tree` | 16 turns | 32 turns | 48 lines | 32 |
 | life | `UserDO`, `life`, `life_tree`, `life_fts` | 8 lines | 16 lines | 32 lines | 24 |
 
-DEVIATION from OptChat. OptChat summarizes every message alone and folds the view by merging the most due pair of lines, with no verbatim floor. Kiko measured that design on `verify memory-hard` (below): 14 of 15 against 15 of 15 for pages, about as many calls, and only 68% of the view unchanged from one turn to the next against nearly all of it for the sticky tiling. Kiko keeps pages.
-
-DEVIATION from OptMem, in four places. A room page is 16 turns (a life page 8 lines), not 2, so a chat pays about one summary per eight turns instead of one per turn. The newest items are never compressed. The tiling is sticky. A forgotten node leaves a hole that is rebuilt alone, instead of truncating every later node. And summaries are made in the background, never by the agent in the middle of a reply: memo has the agent answer a compression prompt before its next action, and refuses to wake while a summary is missing. Either would stall a kiko reply.
+DEVIATION from OptMem and OptChat: pages of 16 turns (8 life lines) instead of 2, a verbatim floor, a sticky tiling, a forgotten node rebuilt alone, and summaries made in the background, never by the agent in the middle of a reply. Measured on `verify memory-hard` (2026-10-06, deepseek-v4.1-flash): 14 of 15 against 15 of 15 for per-message summaries, about as many calls, and nearly all of the view unchanged from turn to turn against 68%.
 
 ### 13.2 A room's log
 
-- **Turns.** A turn is a human burst (consecutive human messages less than 30 minutes apart), one agent run's bubbles, one agent message, or one system event. Bubbles are what the chat shows; turns are what memory counts, so a page is 16 things that happened, not half a reply. `room/memory.ts` builds the `mem_turns` index lazily from `messages` and only ever appends to it.
-- **Traces.** What an agent did during a run (the team board's words: "editing /flights.md", "reading a web page") joins its reply turn as one `(did: ...)` line. A call that failed joins it too, with the start of its error (`failed: reading a web page (403 forbidden)`), since what failed and why is what a summary keeps longest. A run that acted and said nothing gets a turn of its own. Teammates and the agent's own next run see it, now that tool output is not kept between runs. It costs no model call.
-- **Rollups.** A settled node of eight pages (128 turns) becomes one line of the user's life (`chat <title>: ...`). A chat quiet for six hours rolls its unrolled turns into one line too, so a slow chat reaches the life log. Private chats never roll up.
-- **Failures.** Each summary call has a 2-minute deadline. A node the model fails on three times gets a model-free line (the start of each item, cut to 280 bytes), so one refusal can never stall a log or retry forever. A pass that dies with its process is brought back by a wakeup it arms before it starts.
-- **Summaries.** They never compete with a live reply: while any member of the room is working, the pass waits 30 seconds and looks again. A background pass in `waitUntil` makes them, up to 24 per pass, through `UserDO.compress`. It never holds the alarm, because the burst and mail wakeups share it. The newest 8 turns stay open, since a reply may still grow.
+- **Turns.** A turn is a human burst (messages less than 30 minutes apart), one agent run's bubbles, one agent message, or one system event. `room/memory.ts` builds `mem_turns` lazily from `messages` and only appends.
+- **Traces.** What an agent did in a run joins its reply as one `(did: ...)` line, with the start of the error for a failed call. A run that acted and said nothing gets a turn of its own. It costs no model call.
+- **No rollup into the life log.** A room's summaries stay in the room. They are not copied into the life log, so the kiko chat's block never holds a chat's summary twice. Older lines `chat <title>: ...` stay in the life log and are forgotten with their turns.
+- **Failures.** Each summary call has a 2-minute deadline. A node the model fails on three times gets a model-free line, so one refusal never stalls a log.
+- **Summaries.** They never compete with a live reply: while any member is working, the pass waits 30 seconds. A background pass in `waitUntil` makes up to 24, through `UserDO.compress`. The newest 8 turns stay open.
 
 ### 13.3 The user's life log
 
-- **Lines.** An agent's `note` (`@ada: ...`), a room's rollup (`chat trip: ...`), a fact captured from the human's own messages, or a line the human adds (both `you: ...`). One line, at most 280 bytes. Summaries of the life log follow the room's rules above. The same words twice are stored once, and a correction replaces what it corrects (13.6).
-- **The human.** The memory screen lists every line, newest first. The human pins up to 10 lines, which head every view, and redacts any line: its text is gone for good and the summaries above it are rebuilt. Agents can do neither.
-- **The model.** Summaries use the model the human picks on the memory screen, else the default model, with the human's own credential. Kiko picks no cheaper model on its own. At most four summaries run at once per user, across every room, so a dozen busy chats cannot spend the human's rate limit; the rest are told when to try again.
-- **Migration.** The earlier records store is read once into the log, oldest first, then dropped.
+- **Lines.** An agent's `note` (`@ada: ...`), a fact captured from the human's own messages, or a line the human adds (`you: ...`). One line, at most 280 bytes. The same words twice are stored once, and a correction replaces what it corrects (13.6).
+- **The human.** The memory screen lists every line. The human pins up to 10 lines, which head every view, and redacts any line for good. Agents can do neither.
+- **The model.** Summaries use the model the human picks on the memory screen, else the default, with the human's own credential. At most four run at once per user.
 
 ### 13.4 Reading and writing
 
-Kiko follows OptMem's own loop: wake from memory once, then work in an ordinary transcript.
+1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns opens with the whole `<memory>` block: the life view from `UserDO.lifeView`, then this chat's view from `RoomDO.memoryView`. A working task goes on up to `TASK_BUDGET_CHARS` (`startsFresh` in `core/agent/src/host.ts`).
+2. **Going on.** Every other run keeps its transcript and opens with only what is new in the chat since its last run (`RoomDO.memorySince`), without its own turns and without messages the batch delivers on their own.
 
-1. **Waking.** An agent's first run, a run after its transcript passed `CONTEXT_BUDGET_CHARS` (about 15,000 tokens), or a run that missed more than 32 turns calls `root.reset()` and opens with the whole `<memory>` block. A working task is the exception (`startsFresh` in `core/agent/src/host.ts`): when tool output is most of the transcript and the agent ran in the last 15 minutes, the run goes on up to `TASK_BUDGET_CHARS` (about 60,000 tokens). Before this, a Gmail task started over at every step, because the integration's guides alone passed the budget, and the agent read the same 55 KB five times. Plain chat never qualifies, so its cost is unchanged (`verify token-cost` passed on 2026-10-06). The budget is measured after the opening `<memory>` block (`measure` in `core/agent/src/host.ts`): the block is the chat's own bounded view, and counting it made a long chat restart in the middle of a task. The block is the life view from `UserDO.lifeView`, then this chat's view from `RoomDO.memoryView`, read side by side. Only a fresh run reads the life view; `turnContext` no longer builds it on every run.
-2. **Going on.** Every other run keeps the transcript and opens with a small `<memory>` block of only what is new in the chat since its last run (`RoomDO.memorySince`), without its own turns, which the transcript holds, and without the messages the batch delivers on their own. It also leaves out the messages that joined the last run while it was live, as a steer or a queued input: the host keeps their seqs (`memory:joined`) until the next run starts. Before this, they came back in the next delta, so the agent read them twice. A turn there is cut at 300 characters, as before, and now says so and how to zoom for the rest.
+A run makes one call to `UserDO` before its first token (`turnContext`). The room computes the delta at the same time (`prefetchDelta`).
 
-**Before the first token.** A run makes one call to `UserDO`: `turnContext(provider, slug)` brings the auth, the agent's extension versions, and its soul. The extension sync does nothing when the versions match what the process synced last. The room computes the delta at the same time (`prefetchDelta` in `agent/agent-do.ts`); a run that turns out fresh drops it. The soul, `/chat.md`, and the skills list in the system prompt are read once per run (`perRun` in `agent/extensions/self.ts`), not before every model request, and `/chat.md` comes through the byte cache. A change to any of them reaches the next run. Built-in skills are parsed once per isolate.
+Three tools cover what the block does not show. `recall(query)` searches this chat's messages and every life line. It leaves out chat lines the agent has verbatim and lines it already got, and says so. At most six hits come back, shared between the two logs. `zoom(id)` opens a summary or one turn or line in full (`life:64-127`, `chat:12`). `note(text)` adds one life line. A private chat reads memory and writes nothing.
 
-**Measured, 2026-10-06.** The changes above, paired against the code before them on two servers started together, with deepseek-v4.1-flash and `KIKO_TOKEN_TURNS=30`. Agent cost at a 10% cache price, new against old: 45,241 against 44,205, then 43,473 against 45,307, then 41,456 against 61,584 (that old run hit a cache miss and is left out of any average). Input went down in every pair: fresh input 7,411 against 7,738, 7,344 against 8,585, and 6,364 against 20,085, and cached input 4 to 14% lower. The one pair where new cost more did so on output, which is mostly thinking and varies by 30% or more between runs. `verify memory-eval` scored 10 of 10 on both, with a chat block of 6,629 against 6,501 characters. `verify memory-session` passed on both: no recall or zoom at turn 6, and no tool in small talk.
+Each fact has one home: a note for a fact about the human that matters beyond the chat, `/chat.md` for the chat's goal and decisions, the soul for how the agent works. Every 50 runs that started fresh, an idle agent drops pi-durable's tables.
 
-A steer and a mid-run restart add no block. Every view line is written once and never changes (a fixed UTC time, one cut), so both the transcript and a fresh block are mostly served from the provider's cache.
-
-The prompt says the conversation above is memory too: an agent looks there first, and reaches for a tool only for what is in neither the conversation nor the block. Tool output stays until the transcript is full; the prompt used to say it was gone once a task paused, so agents fetched it again. `verify memory-session` holds this: a fact told at turn 2 and asked at turn 6 of one session costs no `recall` and no `zoom`, and small talk calls no tool.
-
-Three tools cover what the block does not show. `recall(query)` searches this chat's messages, newest first, and every life line, best match first. A hit is the message itself cut at 300 characters, not a 16-word snippet, so it rarely needs a zoom after it. `zoom(id)` opens a summary into its halves, or one turn or line in full (`life:64-127`, `chat:0-63`, `chat:12`). It also takes `#12` and `12`, which mean this chat, and a cut line's hint names the exact id (`(cut, zoom chat:12)`). Before this, the hint said `zoom 12`, which the tool rejected. OptChat's rule, to zoom "before you act, guess, or ask", was tried: with it in the prompt the agent's spend in `verify token-cost` ran 9 to 30% above the old design over four paired runs, and without it the spend was even again, so kiko keeps its own rule. `note(text)` adds one life line. The rule in the system prompt is three lines, so the cached prefix holds. A private chat reads memory and writes nothing.
-
-Each fact has one home, so one fact costs one write. A note is a fact about the human that matters beyond this chat and that the agent did not know. `/chat.md` changes only when the chat's goal or a standing decision changes. The soul changes only when the human corrects how the agent works or talks. A note that says a stored fact again with different case, punctuation, or filler words ("the human's sister is maya." and "human's sister maya") is stored once (`norm` in `core/memory/src/life.ts`). No model call decides it.
-
-**Storage.** With the reset, old pi-durable entries are never read again. Every 50 runs that started fresh, an idle agent closes its harness and drops pi-durable's tables; the next run opens a fresh one. Until 2026-10-06 every run counted, so a short chat started cold every 50 runs for nothing.
-
-**Reasoning.** A first version reset the context on every run. It was bounded, but it rebuilt the block every time, lost tool output between runs, and measured about 1.8 times the tokens of the old transcript design on a 30-turn chat. Waking only when the transcript is full keeps the old design's cache behavior and adds the bound: on the same 30-turn chat the agent's requests cost about 12% less than the old design's (`bun kiko verify token-cost`), and the gap grows with the chat, because the old transcript never stopped growing. Summary calls ask for no thinking, or the least a model allows, since a one-line summary needs none.
-
-**Measured.** `bun kiko verify memory-eval` seeds 320 turns with eight facts, from turn 4 to turn 300, lets the real model make the summaries, and asks all eight in one message. On 2026-10-04 with deepseek-v4.1-flash, a group chat of the human and three agents, with a fact buried in a long teammate reply and two facts corrected later: 10 of 10, from a chat block of 64 lines and about 9,000 characters. The summaries took about 7 minutes in the background. The nap prompt asks for every name, number, date, and code word for word; the facts survive two to four levels of the tree that way.
-
-`bun kiko verify memory-hard` is harder: 640 turns, 15 facts, a "yes do it" that means something only next to the question before it, a fact 900 characters into a long paste, a correction with its reason, and an old value the answer must not carry. On 2026-10-06 with deepseek-v4.1-flash, old and new design side by side on two servers at once: both scored 15 of 15 and both 10 of 10 on `memory-eval`, while the new summaries spent 33% less output on `memory-hard` (365,000 against 545,000 tokens) and 22% less on `memory-eval` (102,000 against 131,000), and finished sooner. `verify token-cost` showed the agent's own spend unchanged (42,063 against 41,964, and 39,482 against 42,673, at a 10% cache price). Output is mostly thinking, which this model does on every call, so single runs vary by 30% or more; every comparison above is a pair run at the same time.
+**Measured.** `verify memory-eval` (320 turns, eight facts) scored 10 of 10, and `memory-hard` (640 turns, 15 facts) 14 to 15 of 15. `verify token-cost` showed the agent's requests about 12% cheaper than the old transcript design on a 30-turn chat.
 
 ### 13.5 Later
 
-Vector search is added only if `recall`'s keyword search proves too weak. Nothing in the tables blocks it.
+Vector search is added only if `recall`'s keyword search proves too weak.
 
 ### 13.6 Capture, replacement, and Jev
 
-Phase 15, after comparing kiko with bops, memoryrepo, and Honcho on 2026-10-10. Judge-only capture came after a token-cost measurement the same day.
+**Decision.** Kiko keeps its own memory in `UserDO` SQLite. Facts come from what the human says, a correction replaces the old fact, every fact knows the message it came from, and a short card of stable facts leads the life view. Jev (TypeSafe's classifier, through pi-ai's `models.classify`) is an optional judge. Capture runs only when a judge is connected, since without one it cost 4 to 7 background calls per 30-turn chat and found nothing (2026-10-10, UNVERIFIED beyond these runs). The `capture` field of `memory_policy` is `auto` or `off`; `note` always works.
 
-**Decision.** Kiko keeps its own memory in `UserDO` SQLite. It takes four ideas from those systems: facts come from what the human says, a correction replaces the old fact, every fact knows the message it came from, and a short card of stable facts leads the life view. Jev (TypeSafe) is an optional judge. Automatic capture runs only when a judge is connected.
+**Capture.** `RoomDO` hands each delivered burst's human messages to `UserDO.captureHuman`; private chats hand nothing. They queue in `capture_queue` and are judged in a wakeup, never on a reply's path. Code splits messages into sentences, and one Jev request judges the sentences of up to four messages. Per sentence it asks: worth keeping for months, private, a standing rule, a card tag, and for each known fact nearby "says the same" and "makes it no longer true". The kept sentence is stored word for word. A chunk Jev does not answer stays queued. A sentence ending in "?" never reaches the judge. A diagnosis, condition, or medication is private.
 
-**Why not Honcho.** Honcho is AGPL-3.0, needs Postgres with pgvector and Redis, and reads one model key from its server config (`src/llm/credentials.py`). It cannot run on Workers, and it cannot use each user's own key. Hosted Honcho would send every chat to another company. Its good ideas fit in a few hundred lines here.
+With capture on, the note rule tells the agent the human's words are saved without `note`; otherwise it asks for `note`. A note carries the ref of the human message it answers, and takes an optional `replaces` (`life:12`) so corrections work without a judge.
 
-**Judge-only capture.** Base-path capture without a judge cost too much for what it found. Measured with Muse Spark 1.3 on 2026-10-10 by `bun kiko verify token-cost`: in a 30-turn chat, capture made 4 to 7 background model calls and found no new fact. Background spend rose from 1,179 to 8,076 and 18,557 tokens, while the agent's own spend stayed flat (44,838 and 41,250 against 45,027). UNVERIFIED beyond these runs.
+**A judge** is a provider pi-ai lists classifier models for, with the user's credential, read when each judgment runs. A provider with only classifier models (TypeSafe) is a judge on its own. One that also runs chat models is a judge only when `judge_model` names it as `provider/model`. A key the API refuses (401 or 403) is marked by its last four, and Settings says "Key refused". Any other failure returns no answer, and the messages stay queued.
 
-So the `capture` field of `memory_policy` has two values:
+**Replacement and forgetting.** `life` has `ref`, `superseded_by`, and `card`. A replaced line leaves recall and the card. Deleting or editing a message redacts every line with its ref, and an edit is queued again. **The card** is the pinned lines, then card-tagged lines, at most 12, at the top of the life view. `recall` leaves card lines out.
 
-- `auto` (default). Capture runs only when a judge is connected. Without one, agents keep the `note` rule at no extra cost.
-- `off`. No automatic capture. `note` still saves facts.
+**Policy.** Thresholds, timings, and `capture` are one user setting, `memory_policy`, merged over defaults in `core/memory/src/capture.ts`.
 
-**Capture.** `RoomDO` hands each delivered burst's human messages to `UserDO.captureHuman`. Private chats hand nothing. `UserDO` queues them (`capture_queue`) and works in its own wakeup, never on the path of a reply.
-
-- Capture runs only when it pays. The policy's `capture` is `auto` (the default) or `off`. A stored `true` means `auto` and `false` means `off`, and a stored `always` from before the base path was removed reads as `auto`. Capture runs only while a judge is ready, and with none `captureHuman` queues nothing.
-- With a judge, code splits each message into sentences and one Jev request judges the sentences of up to four messages, so a long queue never makes one request too big to answer. A chunk Jev does not answer stays queued; the chunks around it are still settled. Per sentence it asks: worth keeping for months, private, a standing rule for how to help, a card tag, and, for each known fact nearby, "says the same" and "makes it no longer true". The sentences and their nearby facts go in the request's `state` once, and each question points at them by path (`candidates[0].known[2].text`), so no text is sent twice. The kept sentence is stored word for word, so Jev picks text and never writes it. A first version asked one choice over every known fact. Two copies of "lives in Bangalore" split the replace vote 0.41 and 0.10, and "new" won at 0.49. One yes or no per fact fixed it, and a correction now replaces every copy.
-- Nearby facts are keyword matches, then the card, then the newest facts. A correction often shares no word with what it corrects ("i moved to pune" against "lives in Bangalore").
-- The note rule follows capture on every run. `UserDO.turnContext` says whether capture is on (`captures`), and the memory extension reads it through its port. With capture on, `note` is for facts an agent finds out itself, in a file, a tool, or a teammate's message. With it off, the rule is the original one: note a new fact the moment you learn it. A note carries the ref of the human message it answers.
-- `note` takes an optional `replaces`, a life id such as `life:12`, and supersedes that line when it is live. The tool's answer names the new line's id, so a later run in the same transcript can correct it. This gives corrections to users without a judge at no background cost.
-- A sentence that ends in "?" or opens with a question or request word never reaches a judge or a model. Questions and requests to the agent are not facts.
-
-- Privacy: a diagnosis, condition, or medication is private. Food allergies and diets, a city, an employer, or a job are not.
-- The judge is pi-ai's own `typesafe` classifier provider (api `typesafe-system-one`, model from the pi-ai catalog). Kiko adds no client and no model list.
-**The note rule.** `note` stays for facts an agent finds out itself, in a file, a tool, or a teammate's message. The rule is chosen per run. With capture active, it says the human's own words are saved without `note`. Otherwise the agent gets the original rule, which asks it to call `note` for lasting facts from the human too. A note carries the ref of the human message it answers.
-
-**Judge availability.** Settings decides "model provider" from the pi-ai catalog's chat models, and "judge" from its classifier models. Neither list has a hardcoded id. A provider is a judge when the catalog gives it classifier models and the user has a credential. Every judgment reads the credential when it runs, so adding or removing a key mid-session changes the next capture and nothing else. A key the API refuses is marked, and Settings says "Key refused". Capture then stops and `note` carries the facts. Any judge failure returns no answer, and the caller falls back the same way.
-
-**Replacement and forgetting.** `life` gains `ref`, `superseded_by`, and `card`. `note` gains an optional `replaces`, a life id such as `life:12`, so a user without a judge still gets corrections that replace the old fact. A replaced line leaves recall and the card, and the summaries above it rebuild. Deleting or editing a message redacts every line with its ref, and an edit is queued again. A redacted correction brings back what it replaced. A rollup's ref is its turn span, so a deleted turn takes its rollup too.
-
-**The card.** Pinned lines, then card-tagged lines, newest first, at most 12, at the top of the life view. A card line is one unlikely to change within six months (Honcho's rule). `recall` leaves card lines out, since every fresh block shows them.
-
-**Recall reads nothing twice.** `recall` leaves out chat lines that are verbatim in the agent's context and lines it already returned since the context last started fresh, and says so in one line. With a judge, more than six hits are reranked and weak ones dropped.
-
-**Policy.** Thresholds, timings, and the `capture` field are one user setting, `memory_policy`, merged over defaults in `core/memory/src/capture.ts`, so they change without a deploy.
-
-**Jev is dynamic.** Jev comes from pi-ai: the `typesafe` provider's classifier model, called with `models.classify`. Kiko has no adapter of its own. A judge is a connected provider that pi-ai lists classifier models for. The key is sealed like any other and listed in Settings. Every judgment looks the key up when it runs, so adding or removing it mid-session, with agents running, changes the next capture and nothing else. The model is the user setting `judge_model` when set, else the provider's first classifier model. A key the API refuses (pi-ai's error carries 401 or 403) is marked by its last four, Settings says "Key refused", and the mark clears when the key changes. Any other failure returns no answer, and the messages stay queued for the judge.
-
-DEVIATION: pi-ai 1.0.0 also lists classifier models for OpenCode, OpenRouter, Vercel AI Gateway, and Cloudflare Workers AI, which are chat providers most users already have. Counting them would turn on background judgments, billed to a chat key, for nearly everyone. So a provider with only classifier models (TypeSafe today) is a judge on its own, and one that also runs chat models is a judge only when `judge_model` names it as `provider/model`. Settings learns which providers run chat models and which judge from pi-ai's catalog (`classifiers` in the catalog asset, and `chat` and `judge` on each saved provider), never from a provider id.
-
-**Measured, 2026-10-10.** All with Muse Spark 1.3 through OpenCode Go and the real Jev API.
-
-- `bun kiko verify memory-jev` passed in six runs with the final suite, the last two after the final capture change (about 50 s each): no capture and an agent note without a judge, the key added mid-session with Jev replacing Bangalore by Pune, a bank pin never stored, chat B answering "You live in Pune and your sister works as a nurse in Lisbon.", a deleted message forgotten 1.0 s later, a refused key marked in Settings, and the key removed.
-- `bun kiko verify memory-edge` passed three runs in a row on the final code, 13 cases each: a private chat, capture off, an edit, a correction through `note replaces` without a judge, two chats at once, a repeated fact, a key added while capture is queued, deleting a correction, a long message, eight similar friends, a Spanish fact, and a group chat with two agents. Its rerank case only prints a note when rerank does not fire.
-- `bun kiko verify memory-eval` scored 10 of 10 in every run, and `memory-hard` 14 of 15 over 640 turns (its harness first ran on 2026-10-10, so there is no older score on this model).
-- `bun kiko verify token-cost`, two runs on the final code: agent 41,251 and 40,631 plus background 1,939 and 1,733, against 45,027 plus 1,179 before this work, so 6.5 and 8 percent less in all. Agents no longer spend a `note` call on what the human said when capture is on, and capture costs nothing without a judge.
-- A failure found this way: with known facts in the classifier `state`, Jev rated each new friend lower the more friends it already knew (worth 0.61, then 0.47, then 0.35). Known facts now appear only in their own same and replaces questions, which also cut Jev input by 10 percent.
-- UNVERIFIED: rerank has never fired in a live run. In every run the agent answered from its memory block without calling `recall`. The rerank code has unit tests only.
-- A Jev capture request takes 300 to 500 ms.
-
-**Not done.** Dreaming (a rare rewrite of the whole log) waits until evals show duplicates that capture misses. A judge check before each run and judge burst-end detection were left out, because both put a network call in front of the agent's first token.
-
+**Not done.** Dreaming, a judge check before each run, and a rerank of recall hits. Rerank ran only after six hits, never fired in a live run, and was removed on 2026-10-16.
 
 ## 14. Reminders and scheduling
 
@@ -1422,7 +1361,7 @@ The user-extensions feature was parked on 2026-10-15. Its code moved to `core/ex
 
 ## 25. Routines and proactivity
 
-Work that starts without a human message: routines on a schedule or an event, reminders, task wakes, and the initiative pass of section 26.6, which replaced the daily check-in and the stall sweep. The behavior follows Grok Bot and OpenAI dots, read from their own pages. The owner asked for this on 2026-10-05 and left out push notifications, voice, Slack and Teams, a computer per agent, and a reviewer model.
+Work that starts without a human message: routines on a schedule or an event, reminders, task wakes, and the daily initiative pass of section 26.4, which replaced the daily check-in and the stall sweep. The behavior follows Grok Bot and OpenAI dots, read from their own pages. The owner asked for this on 2026-10-05 and left out push notifications, voice, Slack and Teams, a computer per agent, and a reviewer model.
 
 ### 25.1 Decision
 
@@ -1437,7 +1376,7 @@ Work that starts without a human message: routines on a schedule or an event, re
 | --- | --- | --- | --- |
 | a routine's time, a chat event, a webhook, a watch | `routine` | `UserDO`, through `RoomDO.deliverRoutine` | `routine:<id>:<occurrence>` |
 | a routine's "run now" | `routine` | the human's route or an agent's tool | `routine:<id>:test:<time>:<n>` |
-| the initiative pass (section 26.6): an open loop, a stalled task, a routine in trouble | `initiative` | `UserDO` `initiative_pass` wakeup, through `RoomDO.initiativeWake` | `initiative:<candidate>#<surfaced>.<ignored>` |
+| the daily initiative pass (section 26.4): an open loop that is due | `initiative` | `UserDO` `initiative_pass` wakeup, through `RoomDO.initiativeWake` | `initiative:loop:<id>#<day>` |
 | a task unblocked (section 7.6) | `task_unblocked` | `RoomDO` | the task's chain, else `unblocked:<taskId>` |
 | an agent's reminder (section 14) | `reminder` | `UserDO` alarm | the chain that made it; a recurring one its own |
 
@@ -1481,7 +1420,7 @@ An agent reaches only its own chat's reminders and routines, whatever id it pass
 
 **Message triggers are human only.** A `message` trigger has no `from` option and matches human messages only (`matches` in `room/signals.ts`). A routine stored with `from: agent` or `any` reads as human. A routine or reminder is never how one agent talks to another: the agent uses `send_message`. The `agent_final` signal stays for other consumers.
 
-**Chat events.** `UserDO` pushes a chat's active event routines to `RoomDO.setRoutines` on every change. `RoomDO.publish` turns each stored event into a signal (`signalOf`) and keeps it when some routine's trigger `matches` it (a task changing to a status, a human message with optional text, or a file under a path), or when the human wrote it: every human message is kept for the initiative engine (26.6).
+**Chat events.** `UserDO` pushes a chat's active event routines to `RoomDO.setRoutines` on every change. `RoomDO.publish` turns each stored event into a signal (`signalOf`) and keeps it when some routine's trigger `matches` it (a task changing to a status, a human message with optional text, or a file under a path), or when the human wrote it.
 
 - A room's signals within 60 seconds of the first become one batch, like the human burst. The window lives in `signal_window` and flushes on the `routine_events` wakeup. A batch keeps at most 20 signals and counts the rest. `UserDO.signals` gives each event routine one run per batch (`routineRun`), with occurrence `event:<openedAt>`, so a retried batch runs once.
 - An agent's own acts never fire its own routines (the event's actor, from the `events` table). Acts of a run that an event, a webhook, or a watch started fire no event routine at all, so one event starts at most one level of work and two routines cannot feed each other.
@@ -1513,11 +1452,11 @@ The kiko chat says once per absence: "i paused your routines and follow-ups whil
 
 ### 25.6 Stalled tasks
 
-DEVIATION from the first version, where an hourly sweep in each room woke the owner of a task untouched for 24 hours. The sweep (`room/stalls.ts`) is gone. Each room still reports its open tasks to `UserDO.chatTasks` when they change (`room/open-tasks.ts`, the count and the three oldest with their ids). A task in `doing`, `blocked`, or `review` that nobody touched for one of the human's rhythm cycles is a candidate of the initiative pass (26.6), which wakes its owner, or the lead for review work, at the human's next moment.
+DEVIATION from the first version, where an hourly sweep in each room woke the owner of a task untouched for 24 hours. The sweep (`room/stalls.ts`) is gone. Each room still reports its open tasks to `UserDO.chatTasks` when they change (`room/open-tasks.ts`, the count and the three oldest with their ids). The initiative pass (26.4) no longer reads them; since 2026-10-16 a stalled task is only on the team board and in `overview`.
 
 ### 25.7 No daily check-in
 
-DEVIATION from the first version, where `ensureHome` made every user a `check-in` routine for kiko at 08:30 with a fingerprint gate. The owner asked for nothing on a fixed clock. The routine, `check_in_seen`, and `overviewFingerprint` are gone; `ensureHome` cancels a check-in routine a user still has. What the check-in looked for (stale tasks, failed or paused routines, open loops) are candidates of the initiative pass (26.6). `overview` stays a kiko tool (read, outside content `chats`) for when the human asks what is open.
+DEVIATION from the first version, where `ensureHome` made every user a `check-in` routine for kiko at 08:30 with a fingerprint gate. The owner asked for nothing on a fixed clock. The routine, `check_in_seen`, and `overviewFingerprint` are gone; `ensureHome` cancels a check-in routine a user still has. Only open loops that are due are raised, by the daily initiative pass (26.4). `overview` stays a kiko tool (read, outside content `chats`) for when the human asks what is open.
 
 ### 25.8 What the agent is told
 
@@ -1557,128 +1496,64 @@ Kiko sends no notifications. A routine's run answers in its chat as bubbles; an 
 
 ## 26. Initiative: open loops
 
-**Decision.** Kiko keeps the human's open loops: goals, plans, deadlines, things they wait on, and what an agent promised. Detection is judged by a model, never by cue words or a date parser. Saying nothing is the common case. The brief of the human's next run is the main channel. A nudge is the exception, decided by the attention pass of 26.6 from what the human did before, not from a fixed clock.
+**Decision.** Kiko keeps the human's open loops: goals, plans, deadlines, things they wait on, and what an agent promised. A model judges them, never cue words or a date parser. Saying nothing is the common case. The brief of the next run is the main channel. A nudge is the exception: one deterministic pass a day.
 
-**Reasoning.** The owner rejected regex cue lists and chrono-node (the first plan's D2 and D11). Detection never sits on the run's critical path: an extra `loop` tool turn cost about 2.5 s to the first bubble and its schema about 900 prompt tokens on every run. So loops open in the background, from Jev after a burst and from the summary call the memory already makes.
+**Reasoning.** Detection never sits on the run's critical path (an extra `loop` tool turn cost about 2.5 s to the first bubble). Loops open in the background. Until 2026-10-16 a learned attention module (a rhythm of the human's hours, a Beta appetite per kind, a Jev worth score) chose what to raise. It needed a rhythm, an outcome feed, and many dev routes to explain a nudge nobody could predict. It is gone.
 
 ### 26.1 The store
 
-`core/memory/src/loops.ts`, table `loops` in `UserDO` beside the life log, with `loops_fts` (FTS5). A row has `kind` (goal, intention, commitment, waiting, project), `certainty` (explicit, tentative), `owner` (`human` or an agent slug), `room`, `ref` (the human message it came from, as life refs), `due`, `status` (open, done, dropped, snoozed), `mentions`, `last_seen`, and `source` (tool for an agent's own reminder, jev, nap). What a nudge did to a loop is the engine's (`initiative_marks`, 26.6), not...
+`core/memory/src/loops.ts`, table `loops` in `UserDO`, with `loops_fts`. A row has `kind` (goal, intention, commitment, waiting, project), `owner` (`human` or an agent slug), `room`, `ref` (the message it came from), `due`, `status` (open, done, dropped, snoozed), `mentions`, `last_seen`, and `source` (`tool` for an agent's own reminder, `jev`). The `certainty` column is kept for old rows and always written as `explicit`.
 
-- `open` merges a repeat into the same loop: one the caller names (`same`, from Jev) or one with the same words. A merge never crosses owners, keeps the first words, can firm a tentative loop up and add a due time, and never softens an explicit one.
-- Deleting a message forgets the loops learned from it, as it forgets life lines.
-- A private chat keeps no loops. Making a chat private, or deleting it, forgets the loops it had. A loop from the summary pass carries its page as ref (`room:<id>:turns:<lo>-<hi>`), so forgetting a turn forgets it too.
-- A snooze ends after now and at most a year away; the route and the store both refuse anything else.
+- `open` merges a repeat into the same loop: one the caller names (`same`, from Jev) or one with the same words. A merge never crosses owners and can add a due date.
+- Deleting a message forgets the loops learned from it. A private chat keeps no loops, and making a chat private or deleting it forgets its loops.
+- A snooze ends after now and at most a year away.
+- An open loop with no due date that nobody mentioned for 30 days closes as dropped in the daily pass (`Loops.expire`).
 
-### 26.2 Background detectors, one write path
+### 26.2 Where loops open
 
-A run never opens a loop. Its `loop` tool (effect `write`, selected in `factory.ts`) only closes one: `{ id, status }`, done or dropped, scoped to the agent's own chat (checked in `UserDO`), for "finished X" or "stop reminding me" about an `L<id>` the run can see. Its rule is one line (`LOOP_RULE` in `loop-tool.ts`). Loops open in three places, none of them in the run:
+A run never opens a loop. Its `loop` tool (effect `write`) only closes one, scoped to the agent's own chat. Loops open in two places:
 
 1. **A reminder an agent sets for itself** opens its commitment. No model call.
-2. **Jev**, when the user saved a judge key. Each human burst, and the agent's answer when its run ends (`RoomDO.captureAnswer`), is queued in `loop_heard` and read 15 s after the first row (ASSUMPTION: so the answer to a burst is read in the same call). A row is deleted once read, so each message is classified once. A pass Jev fails on keeps the burst for up to three tries; after the last, the two-word touch decides it. A pass reads at most 48 rows over at most 8 chats. One batched classify per chat: per human sentence, a kind choice with `none`, an explicit or tentative bool, and a done, dropped, same, or other choice per open loop that shares its words; per agent sentence, a bool "promises to come back later" and the same relation choice against that agent's open promises in the chat. A choice counts only when it holds most of the probability. "same" merges into that loop. An agent's promise merges into its newest open promise in the chat unless Jev is sure it is another, so a promise it already keeps with a reminder is not owed twice (a human sentence's unsure answer leaves it to the store's rule instead); a plan whose probability splits between kinds still counts, as the likeliest kind; a promise opens a commitment the agent owns; "done" on an agent's sentence closes the promise it kept. A close goes through `UserDO.closeLoop`, as every close does. Capture `off` or initiative `off` turns it off.
-3. **The summary pass**, with no judge as well. It reads the agent's turns too, so a promise is caught without Jev. When a room summarizes a page of raw turns, or rolls up a quiet chat, the same call also lists `loop + ...`, `loop done <id>`, and `loop dropped <id>` lines after its summary line (`napLoopsPrompt`). No extra call; a page is summarized once 48 turns follow it, or the chat rolls up after six quiet hours, so without Jev a loop appears hours later. That is the trade for a run with no loop work in it. Initiative `off` leaves the loop part out of the prompt.
+2. **Jev**, when a judge key is saved. Each human burst, and the agent's answer when its run ends, is queued in `loop_heard` and read 15 s after the first row. One batched classify per chat: per human sentence, a kind choice with `none` and a `when` choice (none, today, tomorrow, week, month) that becomes the due date; per agent sentence, a bool "promises to come back" and the same `when`; and a done, dropped, same, or other choice per nearby open loop. A choice counts only when it holds most of the probability. An agent's promise merges into its newest open one in the chat unless Jev is sure it is another. A burst gets three passes, then is let go. A pass reads at most 48 rows over 8 chats.
 
-A tentative loop never becomes a reminder: no code path creates one from a loop, and `create_reminder` says a reminder is for when the human wants one, or for the agent's own promise.
+The summary pass no longer lists loops, so a slow chat opens none by itself. Jev hears every burst. A run that answered only agent mail is not read (`RoomDO.endRun`): agent chatter never becomes the human's commitment. Pair rooms never feed capture or loops.
 
-### 26.3 The judge service
+### 26.3 What a run starts with
 
-`apps/server/src/initiative/judge.ts`: two plain functions, `classifyBurst` and `worthNow`, over the judge from `UserDO.judge`, so the key is read where it always was. A failed call answers null and the caller does what it does without a judge. (The first version wrapped them in an Effect service with a model-free layer; two calls did not need it.)
+`AgentDO` asks `UserDO.initiativeBrief` when a run starts and waits at most 1.5 s. The brief is SQL only and adds a second `<context>` block (`initiativeBrief` in `room/brief.ts`):
 
-### 26.4 What a run starts with
+- `you owe:` the agent's own open commitments in this chat, at most three.
+- `related:` at most three open loops or life lines that share two keywords with the burst. A loop of a private or deleted chat is never shown.
+- `on their plate:` at most two of the human's open loops in this chat, due ones first. The run reports the lines it was given (`UserDO.briefShown`), and only then does a loop rest for a day. A brief that arrived too late rests nothing.
 
-DEVIATION from the first plan: the lines are asked for by `AgentDO` when a run starts, not built by `RoomDO` at delivery. The room's delivery path stays untouched, so it never waits on `UserDO`, and the run start already asks `UserDO` for memory. `beginRun` starts `UserDO.initiativeBrief` while the run sets up; `inputContext` waits at most 1.5 s for it (ASSUMPTION) and adds a second `<context>` block (`initiativeBrief` in `room/brief.ts`). The brief is SQL reads only, never a model call:
+Initiative `off` gives no lines; `chat` keeps them and never nudges. The agent mentions at most one line, in passing.
 
-- `you owe:` the agent's own open commitments in this chat, at most three. Only this chat's: one from another chat made the real model set a duplicate reminder.
-- `related:` at most three open loops or life lines found by FTS (bm25) that share two keywords with the burst. A loop of a private or deleted chat is never a related line. (A Jev "related?" call was removed: it held the run up to 1 s.)
+### 26.4 The daily pass
 
-Initiative `off` gives a run no lines.
+`apps/server/src/initiative/engine.ts`. An alarm (`initiative_pass`) fires at 09:00 in the owner's time zone. The pass closes stale loops, then picks the oldest open loop (by due date) that is due or overdue, was not nudged in the last 3 days, and is not about to be kept by an active reminder. It wakes that loop's chat's lead once (`RoomDO.initiativeWake`, origin `auto`). A loop with no chat goes to the Kiko chat, and an agent's own promise goes to that agent. A private or deleted chat is skipped. At `active`, up to three loops in different chats are raised; at `digest`, one.
 
-### 26.5 The brief channel
+A wake that comes back busy (a burst gathers or the human typed in the last two minutes), gone, or refused sets the next pass an hour later, not a day. The wake id is the loop and the day, so a retry never wakes twice. A nudge is recorded in `initiative_wakes` only once it was delivered, and that row is the 3-day rest. The room follows the wake like a routine run (routine id `initiative`): if the agent that owns the promise speaks, the commitment is closed. A reminder an agent set for itself is followed the same way (routine id `reminder`). Bubbles of the run carry `initiative: { reason }`, which the client shows.
 
-`InitiativeEngine.noticed` adds at most two `on their plate:` lines to the same block: the human's explicit open loops in this chat, past their rest, most pressing first by `score`, then oldest sighting (26.6). A tentative loop is never on their plate; it shows only as a `related` line when the burst bears on it. Loops already in a `you owe` or `related` line are left out. A loop shown rests one rhythm cycle before it is shown again (`initiative_briefed`). That showing is not a nudge mark, so it never counts as an ignore. Initiative `off` turns these lines off; `chat` keeps them and never nudges. This is the main channel: it costs no model call and never interrupts. The agent decides whether to mention one, at most one, in passing.
+The body states the loop and asks for one short message in the agent's own words, [skip] only when the chat shows it is handled, and a drop with the `loop` tool when the human no longer wants it. There is no model call in the pass itself. Nothing is learned: the owner controls volume with the level (`off`, `chat`, `digest`, `active`).
 
-### 26.6 The attention pass
+DEVIATION: stalled tasks and failed routines are no longer nudged. The team board and `overview` show them. A loop with no due date is never nudged, only briefed.
 
-`apps/server/src/initiative/engine.ts`, in `UserDO`, over the attention module (`initiative/attention/`). Fixed code is kept only for safety: initiative off, the human away (the seven-day rule), and the human busy in that room. Everything else is learned.
+### 26.5 Client surfaces and routes
 
-**Signals.** `RoomDO` now keeps every human message in its signal window (25.4), besides what event routines match. A human message that quotes an initiative bubble carries that bubble's seq (`answers`). `UserDO.signals` hands each batch to the engine first:
+The sidecar has an On your plate tab (`apps/web-solid/src/chat/info/loops.tsx`) with done, tomorrow, and drop. Settings has an Initiative page for the level and the capture mode. Routes: `GET /api/loops`, `POST /api/loops/<id>` (`done`, `drop`, or `snooze`), `GET` and `POST /api/settings`. Every close goes through `UserDO.closeLoop`.
 
-- a human burst goes into the rhythm (`AttentionStore.observe`), marks the room busy for two minutes, and touches an open loop that shares two words with it;
-- pending nudges are settled over their window, from the nudge to its ignore deadline. A nudge is engaged only when the human answers it: a message that quotes one of its bubbles, or, with a judge key, a burst Jev judges an answer. Where Jev does not read the chat's bursts, a burst that shares two words with the nudged loop counts too. Jev reads them when a judge key exists, capture is on, initiative is on, and the chat may be kept (`InitiativeLoops.judging`). There its verdict decides alone (changed on 2026-10-12, U66). If Jev's pass fails three times, the two-word touch decides the burst instead, so a reply still counts (U82). Jev reads the nudge's last bubble beside the human's messages in the same call that reads the burst for loops (26.2), so a burst with a sentence costs no extra model call. A burst too short to hold a sentence, such as "not yet", costs one call of its own while a nudge is pending, and it counts when Jev reads it as an answer. A human who talks in the chat about something else has not engaged. A drop of the nudge's loop inside the window is dismissed, whatever order it and the answer arrived in: "stop reminding me" is itself an answer, and the agent or Jev closes the loop after reading it. So an answer is only noted, and counts as engagement at the deadline. With neither, the nudge is ignored. Changed on 2026-10-11 (U35): before, any human message or task change in the nudge's chat counted, and the U40b simulation recorded 44 to 99 percent of ignored nudges as engaged (`issues/evidence/u66`);
-- a followed run's end (`routine_result` with routine id `initiative` or `reminder`, below) records whether the agent spoke.
-
-**Moment.** The rhythm is a decayed histogram of the human's message times by local weekday and hour (`rhythm.ts`): 168 weekly slots, each on its own. Neighbouring hours and other days are not pooled or smoothed, so a human who writes at 09:00 gets a 09:00 moment. The pass is an alarm (`initiative_pass` wakeup) set by `arm` to the start of the human's next usual active window, at least 20 hours after the last pass (ASSUMPTION). Declined on 2026-10-12 (U66): dropping the gap, so that a second window 12 hours later gets its own pass, raised nudges per week with three rooms from 3.49 to 4.46 for regular-keen and from 3.95 to 5.85 for hoarder, and with one room the hoarder went from 4.36 to 7.39 (`issues/evidence/u66`). Restoring the gap brings regular-keen back to 3.49 (`ablation-gap-r3.txt`), so the gap is the driver. The gap stays until a second window gets an allowance of its own. `arm` runs after each signal batch, loop open, task report, and settings change. It sets nothing while initiative is `off` or `chat`, while the rhythm has fewer than ten messages of evidence, or while there is no candidate. A fresh user is never interrupted; the brief carries their loops.
-
-**Candidates.** One `Candidate` shape for three sources:
-
-| Source | Id | Owner | Candidate when |
-| --- | --- | --- | --- |
-| an open loop (26.1) | `loop:<id>` | the loop's owner | open, or snoozed past its time; an agent's commitment is left out while the reminder it set for itself is active (`loop_reminders`) |
-| a workspace task from `chat_tasks` | `task:<room>:<id>:<updated_at>` | the task's owner; the lead for `review` or no owner | `doing`, `blocked`, or `review`, untouched for one rhythm cycle |
-| a routine | `routine:<id>:<occurrence>` | the lead | paused, or its last run failed or timed out |
-
-A private, temporary, or deleted chat has no candidates. A loop of no chat belongs to the kiko chat. The task id names its last change, so one stretch of staleness is raised once.
-
-**Verdict.** `attend` (`attend.ts`), a pure function, gives each candidate one verdict:
-
-- `rest` while an item rests after a nudge or a [skip]: one cycle, doubled for each ignore or [skip], at most three doublings, so eight cycles at most. ASSUMPTION: the cap, `MAX_DOUBLINGS`, since ten ignores once rested an item for about 1,024 days (U25). Until 2026-10-12 a kind factor, `0.5 / p`, also lengthened the rest as the kind's welcome fell, to about 200 cycles at its floor. The kind gate already closes such a kind, so U66 removed the factor;
-- `brief` when initiative is `off` or `chat`, the rhythm is unknown, the human is away or busy in that room, the item was said less than half a cycle ago and is not due, it is tentative and there is no judge, the kind's appetite is closed and there is no Jev verdict for the item, its worth is under one half, or it is not the human's usual moment;
-- `nudge` for the most worthwhile items, at most one per room, no more than the appetite allows, and one per pass at `digest`.
-
-The score is a noisy-or of due urgency in the human's own cycles (weight 1) and an agent's own promise near its date (weight 0.5). Items with equal scores rank by the oldest sighting first, so the score orders Jev's ten and the brief's `on their plate` lines. Mentions, staleness, and age were dropped on 2026-10-11 (U34); the candidate has no mention count at all (U66). The appetite is a Beta posterior per user and per kind over "a nudge of this kind is welcome" (`appetite.ts`): a new user gets one nudge a pass, two ignores in a row give none, a dismissal weighs five ignores for its kind, a [skip] counts one against its kind only (it never reached the human), and outcomes fade with a two-week half-life.
-
-**Jev.** With a judge key, and only when a nudge could go out at all, Jev's `worthNow` reads the ten highest-scoring candidates past their rest (ties by oldest sighting) in one batched call. Its probability replaces the score in `worth`, and it gates: an item it did not read wakes nobody that pass. It reads what the woken agent will read, in plain words: whose item it is, the due time and last mention relative to now, how often it was raised, let pass, or declined by the agent, how many nudges the human answered or let pass lately, and the agent's own rule. Without Jev the score decides, and the kind's appetite gates it. The worth is the score itself, with no multiplier by the kind's welcome (U66). With Jev the kind gate is skipped: Jev decides, and the user's allowance is the volume brake. Either way the engine is the one decider, and the agent is told to raise the item, not asked whether to. UNVERIFIED: Jev's recall of about 0.8 has not been measured on real traffic (U35).
-
-**The wake.** `RoomDO.initiativeWake` is one wake (25.5) about one item: origin `auto`, never held. The room answers `busy` while a burst gathers or the human typed in the last two minutes. The target is the owner for an agent's own commitment or task, else the room's lead, which may hand it to a teammate with `send_message`. The body states the item, why now, and the rule: one short message in your own words, at most two sentences, with no text around tool calls, after moving its own work on if it can; [skip] only when the chat shows it is already handled; close a loop as dropped when the human no longer wants it. An agent's own promise is kept in that one message.
-
-**One message.** A nudge run may use any tool, like every run (section 16). Changed on 2026-10-11: the nudge gate that allowed only `read` and `message` tools is gone.
-
-**Outcomes.** The room follows the wake like a routine run (routine id `initiative`). When the agent's run ends, `ok` (it posted) records the nudge with its last bubble's seq and text (`AttentionStore.sent`, a mark) and closes an agent's own commitment it was woken for. `quiet` ([skip]) is an outcome: the item rests as after an ignore, and the kind learns it (`AttentionStore.skipped`). A failed run only rests the item. The wake id is the item with the time it was last raised (`<candidate>#<last_at>`), so a retried pass wakes once and a later nudge is a new wake. Bubbles of the run carry `initiative: { reason }` ("You mentioned this Oct 3", "Untouched for 2 days"), which the client shows. A reminder an agent set for itself is followed the same way (routine id `reminder`); when its run posts, the commitment it kept is closed.
-
-**Dismissal.** The human says to stop in plain words; the agent's run closes the loop as `dropped` with the `loop` tool, or Jev reads the same words as a drop, or the human drops it on the On your plate panel. Every close goes through `UserDO.closeLoop`, so a nudge about it still in its window settles as dismissed. No pattern matching.
-
-**Cost.** Without Jev the engine calls no model; the only spend is the agent run of a nudge, at most one a pass at `digest`, and none while the appetite is closed. With Jev, one batched `worthNow` call per pass that could nudge. A [skip] costs a run, which is why it teaches the kind and why Jev reads past skips.
-
-### 26.7 Stalled tasks and check-ins
-
-The initiative pass covers what a daily check-in or a stall sweep would have looked for: stalled tasks (25.6), failed or paused routines, and open loops. Kiko runs no check-in on a fixed clock (25.7). `overview` answers when the human asks what is open.
-
-### 26.8 Verification
+### 26.6 Verification
 
 | Check | Proves |
 | --- | --- |
-| `test/loops.test.ts` | merge, firming, owners never merging, close, redaction; Jev answers to ops by majority; "same" merges and anything else leaves it to the store; an agent's promise opens its commitment and a kept one closes it; the summary pass's loop lines |
-| `test/initiative-safety.test.ts` | related lines skip private chats; `off` gives no lines; on their plate skips tentative loops and rests once shown; closes scoped to a chat; a private chat and a forgotten turn forget their loops; the snooze bound; with a judge key a shared-word burst does not engage a nudge |
-| `test/attention.test.ts` | the rhythm, the appetite, rests (doubling to eight cycles at most, however closed the kind), and the `attend` table, including the fresh and dated-promise cases; a drop winning over a reply in either order; a [skip] teaching only the kind; Jev gating what it did not read, and deciding a kind the appetite has closed; without Jev the score alone decides |
-| `bun kiko verify initiative-loops` | with Muse Spark 1.3, once with no judge (the chat rolled up through the `quiet` dev route) and once with Jev (the pass after the burst): a stated deadline is an open explicit loop and makes no reminder; "maybe" is tentative and makes no reminder; the agent's promise is its commitment and its next run starts with `you owe:`; "finally done" closes the loop; a later chat starts with a `related:` line; the summary pass opens loops from seeded turns in its one call |
-| `bun kiko verify initiative` | with Muse Spark 1.3, both arms, a fresh user per scenario: (a) the agent's promise is followed up by exactly one run; (b) a loop ignored twice gets no third nudge; (c) "stop reminding me" drops the loop, a spoken nudge settles as dismissed, and nothing follows; (d) with no rhythm nothing interrupts and the next run's brief carries the loop; (e) a stalled task in a team room wakes its owner, who posts one message; (f) away or initiative off wakes nobody |
-| `bun kiko verify proactive` | the fake agent (its loop opened through the `loops` dev route): a stalled task wakes its owner once, with the reason on the answer; a loop is nudged, ignored, rests, nudged again, ignored, and then is not woken (1, 0, 1, 0, 0) |
+| `test/loops.test.ts` | merge, close, redaction, Jev answers to ops by majority, the `when` choice to a due date, stale loops close |
+| `test/initiative-runs.test.ts` | the pass picks the oldest due loop, rests 3 days, retries busy, gone, and refused in an hour, runs at 09:00 local, and closes stale loops |
+| `test/initiative-safety.test.ts` | related lines skip private chats, `off` gives none, on their plate rests only once marked shown, closes are scoped to a chat |
+| `test/room-activity.test.ts` | a run that answered only agent mail is not read for promises |
+| `bun kiko verify proactive` | the fake agent: the pass nudges the loop that is due once and not twice, runs are held while the human is away |
+| `bun kiko verify initiative-loops` | with a real model: a stated deadline is an open loop with a due date and no reminder, the promise is the agent's commitment, "finally done" closes the loop, a later chat gets a `related:` line |
 
-The dev route `POST /api/dev/agent/attention` (development only) sets a known rhythm (`rhythm`), moves the engine's clock state into the past (`age`: loops and their due times, marks, pending nudges, and an agent's own reminders that would have come due), runs a pass now (`pass`, returning its verdicts and wakes), or reads the state.
-
-Measured 2026-10-10, `verify initiative`, all six scenarios per arm with Muse Spark 1.3, before and after the [skip]-as-outcome, Jev-gate, merge-by-message, one-message, and drop-wins changes. Before: no judge 7 wakes for 3 spoken nudges and 11,354 agent tokens; Jev 6 wakes for 1 spoken nudge, 11,673 agent tokens plus 6,304 Jev tokens, and Jev called the agent's own promise not worth it. The team owner posted 2 and 4 bubbles and wrote a draft file. After: no judge 5 wakes for 3 spoken nudges and 10,488 agent tokens; Jev 3 wakes for 2 spoken nudges, 9,037 agent tokens plus 8,754 Jev tokens. The owner posted one bubble and no file in both arms, and the dentist nudge settled as dismissed. The remaining skips are the tax deadline: the dev clock ages the engine but not the chat, so the lead sees its own unanswered question from seconds ago and skips. Without a judge two skips close the kind; with Jev one skip makes Jev say no after. UNVERIFIED: how often a lead skips across many users.
-
-Measured 2026-10-10: the summary call for a page with three loops took 506 input and 503 to 584 output tokens. UNVERIFIED: the same page without the loop part was not measured side by side. With Jev, a session of four bursts spent 6,050 Jev input tokens across capture, one loop classify, and four related checks, about $0.0003.
-
-Measured 2026-10-11 with Muse Spark 1.3, ten messages per row, before and after loops left the run (first bubble median and p90 in ms, agent prompt tokens per turn, Jev tokens for the ten messages):
-
-| Row | Before | After |
-| --- | --- | --- |
-| plain, no judge | 2,733 / 3,637, 8,736 | 2,233 / 2,753, 8,133 |
-| loop, no judge | 5,116 / 8,306, 22,044 | 2,704 / 3,720, 9,290 |
-| plain, Jev | 3,384 / 5,542, 8,721, Jev 5,136 | 2,107 / 2,616, 8,113, Jev 7,245 |
-| loop, Jev | 4,784 / 5,964, 20,932, Jev 19,637 | 3,236 / 4,947, 11,844, Jev 14,866 |
-
-A loop message's first bubble is back near a plain one, and plain prompt tokens are about 300 above the build before initiative (7,838). Jev spends more on plain chats than before because it now reads the agent's answers too; it spends less on loop chats because the related calls are gone.
-
-### 26.9 Client surfaces and routes
-
-The sidecar has an On your plate tab (`apps/web-solid/src/chat/info/loops.tsx`). It lists the chat's open loops with done, tomorrow, and drop. Each action applies at once and is put back with a toast if the server refuses. The list stays in memory, so a reopened tab paints at once. It is fetched again when the tab opens, when the page shows, and, debounced, when the room gets a message or an agent's status changes. Settings has an Initiative page (`settings/initiative.tsx`) for the level and the memory capture mode. Saves apply at once, and a failed save puts back only a field that no newer save touched. The client takes its types from `@kiko/protocol` (`LoopRow`, `UserSettings`), types only.
-
-Routes, all from the session's user:
-
-- `GET /api/loops` lists open and snoozed loops. `POST /api/loops/<id>` takes `{action: "done" | "drop"}` or `{action: "snooze", until}` and goes through `UserDO.closeLoop` for a close.
-- `GET /api/settings` and `POST /api/settings` read and patch `initiative` (off, chat, digest, active) and `capture` (auto, off).
+The dev route `POST /api/dev/agent/pass` (development only) runs the pass now and returns what it woke.
 
 ## 27. Browser
 

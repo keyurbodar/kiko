@@ -8,10 +8,6 @@ import type { RoomMemory } from "./memory"
 import type { Home } from "./home"
 
 export const MEMORY_WAKEUP = "memory_naps"
-export const QUIET_WAKEUP = "memory_quiet"
-const QUIET_MS = 6 * 3_600_000
-// The quiet timer fires about QUIET_MS after the last activity. A view or a run's end moves it only when it is this far behind, so a busy chat does not rewrite the wakeup on every call.
-const QUIET_SLACK_MS = 30 * 60_000
 const NAPS_PER_PASS = 24
 const NAPS_AT_ONCE = 4
 
@@ -49,10 +45,6 @@ export class MemoryNaps {
 
 	async arm(): Promise<void> {
 		if (this.d.memory.pending(1).length) await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 2_000)
-		if (this.d.log.meta("private") === "1") return
-		const target = Date.now() + QUIET_MS
-		const armed = this.d.ctx.storage.sql.exec<{ at: number }>("SELECT at FROM wakeups WHERE key = ?", QUIET_WAKEUP).toArray()[0]?.at
-		if (armed === undefined || armed < target - QUIET_SLACK_MS) await this.d.alarms.setWakeup(QUIET_WAKEUP, target)
 	}
 
 	async forget(): Promise<void> {
@@ -77,13 +69,12 @@ export class MemoryNaps {
 		await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 120_000)
 		await this.forget()
 		const user = userStub(this.d.env.USER, home.userId)
-		const rollup = this.d.log.meta("private") === "1" ? null : (text: string, at: number, span: { lo: number; hi: number }) => user.lifeRollup(home.roomId, text, at, span)
 		const pass = async () => {
 			for (let done = 0; done < NAPS_PER_PASS; done += NAPS_AT_ONCE) {
 				if (this.d.members.list().some((m) => m.status !== "idle")) return void (await this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000))
 				const spans = this.d.memory.pending(NAPS_AT_ONCE)
 				if (!spans.length) return void (await (this.d.memory.changes() ? this.d.alarms.setWakeup(MEMORY_WAKEUP, Date.now() + 30_000) : this.d.alarms.clearWakeup(MEMORY_WAKEUP)))
-				const outs = await Promise.all(spans.map((span) => this.d.memory.nap(span, (prompt, page) => user.compress(prompt, rollup && page ? { roomId: home.roomId, at: page.at, span: page.span } : undefined), rollup)))
+				const outs = await Promise.all(spans.map((span) => this.d.memory.nap(span, (prompt) => user.compress(prompt))))
 				const retryAt = outs.find((o) => o.retryAt)?.retryAt
 				if (retryAt) return void (await this.d.alarms.setWakeup(MEMORY_WAKEUP, retryAt))
 			}
@@ -99,13 +90,5 @@ export class MemoryNaps {
 					this.#napping = false
 				}),
 		)
-	}
-
-	async rollupQuiet(): Promise<void> {
-		const home = this.d.home()
-		if (!home || this.d.log.meta("private") === "1") return
-		const user = userStub(this.d.env.USER, home.userId)
-		const out = await this.d.memory.rollupQuiet((prompt, page) => user.compress(prompt, page ? { roomId: home.roomId, at: page.at, span: page.span } : undefined), (text, at, span) => user.lifeRollup(home.roomId, text, at, span))
-		if (out.retryAt) await this.d.alarms.setWakeup(QUIET_WAKEUP, out.retryAt)
 	}
 }

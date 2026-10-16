@@ -1,24 +1,19 @@
 import type { AgentSlug, Sender } from "@kiko/protocol"
-import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, napPrompt, type NapInput, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@kiko/memory/optmem"
+import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, napPrompt, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@kiko/memory/optmem"
 import { searchMessages } from "./search"
 
 const HUMAN_GAP_MS = 30 * 60_000
-const ROLLUP_MAX = 64
-const ROLLUP_MIN = 4
-const ROLLUP_SIZE = ROOM_SHAPE.page * 8
 const RECALL_CUT = 300
 const TRACE_MAX = 6
 
 const TILING = "mem_tiling"
 const SYNCED = "mem_synced"
 const EVENTS = "mem_events"
-const ROLLED = "mem_rolled"
 const FORWARDED = "mem_forwarded"
 
 type TurnRow = { pos: number; key: string; first_seq: number | null; last_seq: number | null; at: number; at_last: number; trace: string | null }
 
-export type Compress = (prompt: string, page?: { at: number; span: Span }) => Promise<{ text: string } | { retryAt: number } | { error: string }>
-export type Rollup = (text: string, at: number, span: Span) => Promise<void>
+export type Compress = (prompt: string) => Promise<{ text: string } | { retryAt: number } | { error: string }>
 
 export type Changes = { upto: number; deleted: string[]; edited: { messageId: string; text: string; at: number }[]; positions: number[] }
 
@@ -260,35 +255,16 @@ export class RoomMemory {
     return this.tree.pending(region(this.sync(), ROOM_SHAPE), limit)
   }
 
-  async nap(span: Span, compress: Compress, rollup: Rollup | null): Promise<{ retryAt?: number }> {
+  async nap(span: Span, compress: Compress): Promise<{ retryAt?: number }> {
     const input = this.tree.input(span)
     if (!input) return {}
     const free = this.tree.free(input)
-    const out = free !== null ? { text: free } : await compress(napPrompt(input, "turns"), "items" in input ? { at: input.items[input.items.length - 1]?.at ?? Date.now(), span } : undefined)
+    const out = free !== null ? { text: free } : await compress(napPrompt(input, "turns"))
     if ("retryAt" in out) return { retryAt: out.retryAt }
     if ("error" in out && this.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
     const node = this.tree.nodeFor(input, "text" in out ? out.text : this.tree.fallback(input))
     this.tree.put(span, node)
-    if (rollup && span.hi - span.lo === ROLLUP_SIZE && span.lo >= Number(this.meta.get(ROLLED) ?? 0)) {
-      await rollup(node.text, node.to, span)
-      this.meta.set(ROLLED, String(span.hi))
-    }
     return {}
-  }
-
-  async rollupQuiet(compress: Compress, rollup: Rollup): Promise<{ done: boolean; retryAt?: number }> {
-    const count = this.sync()
-    const rolled = Number(this.meta.get(ROLLED) ?? 0)
-    if (count - rolled < ROLLUP_MIN) return { done: false }
-    const lo = Math.max(rolled, count - ROLLUP_MAX)
-    const input: NapInput = { span: { lo, hi: count }, items: this.items(lo, count) }
-    const out = await compress(napPrompt(input, "turns"), { at: input.items[input.items.length - 1]?.at ?? Date.now(), span: input.span })
-    if ("retryAt" in out) return { done: false, retryAt: out.retryAt }
-    if ("error" in out) throw new Error(out.error)
-    const items = input.items
-    await rollup(out.text, items[items.length - 1]?.at ?? Date.now(), input.span)
-    this.meta.set(ROLLED, String(count))
-    return { done: true }
   }
 }
 

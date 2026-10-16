@@ -40,26 +40,25 @@ Write a scenario in `scripts/` that imports `./kit` (run with `bun`, from the re
 | `age(ctx, room, ms)` / `seen(ctx, ago)` / `due(ctx, id)` | dev routes below |
 | `save(ctx, name, data)` | writes JSON evidence |
 
-Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. `silent-ab.ts <label>` runs the silent-loop measurement the same way. The attention engine has its own suite: `bun kiko verify initiative` (model; `INITIATIVE_MODE=jev|nojev` picks one arm, default both; the Jev arm is skipped without `TYPESAFE_API_KEY`; `INITIATIVE_ONLY=a,b,...` picks scenarios). It prints a `background tokens` line per arm. For an A/B, run the same scenario with and without `--jev` and compare those lines.
+Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. `silent-ab.ts <label>` runs the silent-loop measurement the same way. Loops from real bursts have a suite: `bun kiko verify initiative-loops` (model; `INITIATIVE_MODE=jev|nojev` picks one arm, default both; the Jev arm is skipped without `TYPESAFE_API_KEY`). For a cost A/B, run `smoke.ts` with and without `--jev` and compare the `background tokens` lines.
 
 ### Dev routes that exist (NODE_ENV=development, localhost only), all `POST /api/dev/agent/<name>`
 
-Useful here: `attention {action}` (the initiative engine: `rhythm` with `mode: now` makes the human usually write at this hour, `age` with `ms` moves loops, due times, rests, pending nudges, and an agent's own reminders into the past, `pass` runs the attention pass now and returns its verdicts and wakes, `state` reads rhythm, appetite, marks, wakes), `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages open tasks and reports them to UserDO, for stalled-task candidates), `seen {ago}` (human last seen; a week holds unasked runs), `budget {roomId, ms}` (budget for unasked runs), `due {id}` (routine due now), `pending`, `limits`. Also `loops`, `quiet`, `initiative`, `workers`, `composio`, `browser` (the last one is `{action}`: `lease`, `touch`, `dead`, `age`, `reap`, `switch`, `state`). Fake-agent and inspection routes: `fake`, `status`, `seed` (log turns with no run), `memory`, `classic`, `trace`. Also `GET /api/dev/stats`, `POST /api/reminders/<id>/rewind`.
+Useful here: `pass` (runs the daily initiative pass now and returns what it woke and which loops it expired), `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages open tasks and reports them to UserDO, for stalled-task candidates), `seen {ago}` (human last seen; a week holds unasked runs), `budget {roomId, ms}` (budget for unasked runs), `due {id}` (routine due now), `pending`, `limits`. Also `loops` (`{open: {roomId, text, due}}` opens a human loop with any due date), `initiative`, `workers`, `composio`, `browser` (the last one is `{action}`: `lease`, `touch`, `dead`, `age`, `reap`, `switch`, `state`). Fake-agent and inspection routes: `fake`, `status`, `seed` (log turns with no run), `memory`, `classic`, `trace`. Also `GET /api/dev/stats`, `POST /api/reminders/<id>/rewind`.
 
 ### Gaps an initiative suite will hit
 
-- `attention {action: "age"}` fires an agent's own reminders that would have come due; a reminder for the human still cannot be moved earlier.
 - No route ages memory lines or the life log (for staleness or "follow up on a stated deadline" behavior).
 - `usage` memory counters are cumulative per user; take a before and after, or use a fresh user per arm.
 
 ## What the engine does
 
-Use these rules when a scenario asserts timing. They are in `apps/server/src/initiative`.
+Use these rules when a scenario asserts timing. They are in `apps/server/src/initiative/engine.ts`.
 
-- Rest. After a loop is surfaced it rests until `lastSurfaced + cycle * 2^min(ignored, 3)`, where `cycle` is the rhythm's cycle (`restUntil` in `attention/appetite.ts`). The ignore count stops doubling at 3, so the longest rest is 8 cycles.
-- Pass gap. The next attention pass is scheduled at least 20 hours after the last one (`MIN_GAP` in `engine.ts`).
-- Engagement. In a chat that Jev reads, Jev's verdict on the burst decides whether a nudge was answered. Elsewhere, a burst that shares two words with a loop counts as a reply (`SHARED_WORDS`).
-- Jev failures. A burst gets three Jev passes in all: the first try and two retries, 15 seconds apart (`LOOPS_TRIES` and `LOOPS_DELAY_MS` in `user/initiative-loops.ts`). If the third pass fails, the two-word rule decides the burst.
+- Daily pass. Once a day at 09:00 in the owner's time zone, one open loop that is due or overdue wakes its chat's lead (a loop with no chat goes to the Kiko chat). The oldest due date goes first. A loop nudged in the last 3 days waits.
+- Retry. A wake that was busy, gone, or refused tries again in an hour, not a day.
+- Stale. An open loop with no due date that nobody mentioned for 30 days closes in the pass.
+- Jev failures. A burst gets three Jev passes in all: the first try and two retries, 15 seconds apart (`LOOPS_TRIES` and `LOOPS_DELAY_MS` in `user/initiative-loops.ts`). After the third the burst is let go.
 
 ## Evidence
 
