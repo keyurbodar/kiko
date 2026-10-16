@@ -172,13 +172,14 @@ export function viewLast(m: ViewMessage, name: (slug: string) => string): ChatLa
 
 /**
  * The open room's messages that mention the human, oldest first: an agent's `@handle` or reply to
- * a human message (`mentionsHuman`). A handle an agent of the room also holds counts as none.
+ * a human message (`mentionsHuman`). A handle an agent of the room also holds counts as none, and so
+ * does a message to another agent: the transcript folds it into a divider, so it is never on screen.
  */
 export function mentionIds(messages: readonly ViewMessage[], handle: string | null, slugs: readonly string[]): { id: MessageId; seq: number }[] {
   const own = handle && !slugs.includes(handle) ? handle : null
   const human = new Set(messages.filter((m) => m.from.kind === "human").map((m) => m.id))
   return messages
-    .filter((m) => !m.pending && m.from.kind === "agent" && mentionsHuman(m.text, own, !!m.replyTo && human.has(m.replyTo)))
+    .filter((m) => !m.pending && m.from.kind === "agent" && m.to === undefined && mentionsHuman(m.text, own, !!m.replyTo && human.has(m.replyTo)))
     .map((m) => ({ id: m.id, seq: m.seq }))
 }
 

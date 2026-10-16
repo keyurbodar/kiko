@@ -33,8 +33,8 @@ export function IdentityAvatar(props: { seed: string; size?: number; class?: str
  */
 const LAYOUT: Record<number, readonly Spot[]> = {
   2: [
-    { x: 0, y: 0.12, s: 0.66, z: 0 },
-    { x: 0.34, y: 0.22, s: 0.66, z: 1 },
+    { x: 0, y: 0.02, s: 0.62, z: 0 },
+    { x: 0.38, y: 0.36, s: 0.62, z: 1 },
   ],
   3: [
     { x: 0.14, y: 0.3, s: 0.72, z: 2 },

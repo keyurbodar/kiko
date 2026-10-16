@@ -155,13 +155,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  min-height: 36px;
-  margin: -1px 18px 0;
-  padding: 4px 6px;
-  background: color-mix(in oklab, var(--foreground) 2.5%, var(--background));
-  border: 1px solid var(--composer-edge);
-  border-top: 0;
-  border-radius: 0 0 14px 14px;
+  margin: 0 0 -2px -8px;
 }
 
 .composer-dock .composer-attachments {

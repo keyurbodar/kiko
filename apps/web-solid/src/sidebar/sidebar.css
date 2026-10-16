@@ -236,6 +236,24 @@
   outline: none;
 }
 
+.sidebar-shell .chat-search-clear {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  place-items: center;
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.sidebar-shell .chat-search-clear:hover {
+  color: var(--foreground);
+}
+
 .sidebar-shell :is(.chat-search-input, .settings-search input)::placeholder {
   color: var(--secondary-label);
 }
@@ -541,18 +559,19 @@
 }
 
 .sidebar-shell .chat-rename {
-  width: 100%;
+  height: 24px;
   min-width: 0;
-  padding: 0 4px;
-  margin: 0 -4px;
+  flex: 1;
+  padding: 0 6px;
+  margin: -2px 0 -2px -6px;
   color: var(--foreground);
   font: inherit;
   font-size: var(--font-md);
   font-weight: var(--font-weight-medium);
-  background: var(--secondary);
-  border: none;
+  background: var(--background);
+  border: 1px solid color-mix(in oklab, var(--ring) 55%, transparent);
   border-radius: var(--radius-md);
-  outline: 1px solid var(--ring);
+  outline: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -41,6 +41,7 @@
 }
 
 
+.rich .rich-link-anchor { display: inline; }
 .rich-link { color: oklch(0.707 0.165 254.624); text-decoration: none; }
 :root:not(.dark) .rich-link { color: oklch(0.488 0.243 264.376); }
 .rich-link:hover, .rich-link:focus-visible {

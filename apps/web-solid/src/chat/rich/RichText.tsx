@@ -52,7 +52,7 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
           if (e().tag === "a") {
             // The URL shows on hover, as t3code's link does, so the link itself carries no native title.
             return (
-              <TooltipV2 placement="top" value={e().attrs.href ?? ""}>
+              <TooltipV2 class="rich-link-anchor" placement="top" value={e().attrs.href ?? ""}>
                 <Dynamic component="a" {...e().attrs}>
                   {children()}
                 </Dynamic>

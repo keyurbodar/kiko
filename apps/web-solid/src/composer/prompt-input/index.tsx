@@ -190,8 +190,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
               </Show>
             </div>
           </div>
+          <div class="composer-tray">{props.tray}</div>
         </div>
-        <div class="composer-tray">{props.tray}</div>
       </form>
     </div>
   )

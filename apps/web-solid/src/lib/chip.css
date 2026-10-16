@@ -1,6 +1,7 @@
 
 
 :root { --file-chip-accent: oklch(0.62 0.11 215); }
+.rich .file-chip-attached { display: flex; width: fit-content; margin-block: 2px 4px; }
 :root:not(.dark) [data-side="bot"] .rich { --file-chip-accent: oklch(0.55 0.11 215); }
 .file-chip-anchor { display: inline-flex; max-width: 100%; vertical-align: middle; }
 
