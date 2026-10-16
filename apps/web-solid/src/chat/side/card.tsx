@@ -119,17 +119,19 @@ export default function ChatCard(props: { chatId: string }) {
             </MenuV2.Trigger>
             <MenuV2.Portal>
               <MenuV2.Content class="z-[80] min-w-48" data-component="add-member-menu">
-                <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">Add to this chat</MenuV2.GroupLabel>
-                <Show when={addable(useApp.agents(), members()).length > 0} fallback={<MenuV2.Item disabled>No other agents</MenuV2.Item>}>
-                  <For each={addable(useApp.agents(), members())}>
-                    {(agent) => (
-                      <MenuV2.Item data-add-member={agent.slug} onSelect={() => useApp.memberOp(addOp(agent))}>
-                        <IdentityAvatar seed={agent.slug} size={18} />
-                        {agent.name}
-                      </MenuV2.Item>
-                    )}
-                  </For>
-                </Show>
+                <MenuV2.Group>
+                  <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">Add to this chat</MenuV2.GroupLabel>
+                  <Show when={addable(useApp.agents(), members()).length > 0} fallback={<MenuV2.Item disabled>No other agents</MenuV2.Item>}>
+                    <For each={addable(useApp.agents(), members())}>
+                      {(agent) => (
+                        <MenuV2.Item data-add-member={agent.slug} onSelect={() => useApp.memberOp(addOp(agent))}>
+                          <IdentityAvatar seed={agent.slug} size={18} />
+                          {agent.name}
+                        </MenuV2.Item>
+                      )}
+                    </For>
+                  </Show>
+                </MenuV2.Group>
               </MenuV2.Content>
             </MenuV2.Portal>
           </MenuV2>

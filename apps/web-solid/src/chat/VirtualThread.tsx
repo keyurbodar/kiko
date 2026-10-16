@@ -51,6 +51,8 @@ const LANDING_MS = 1200
 
 const DATE_CHIP_IDLE_MS = 1200
 
+const READER_SCROLL_MS = 250
+
 const DATE_CHIP_EDGE_PX = 56
 
 
@@ -326,6 +328,7 @@ export function VirtualThread(props: {
   let anchor: DriftAnchor | undefined
   // True while the reader is at the end. Content that grows under them (the typing line, a reply) keeps them there.
   let stuck = true
+  let readerScrolling = false
 
   const readState = (): VirtualThreadState => {
     const virtualizer = handle()
@@ -417,7 +420,10 @@ export function VirtualThread(props: {
     const onScroll = () => {
       seedAnchor()
       const state = readState()
-      stuck = isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
+      const atEnd = isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
+      // Rows measured after they render also move the offset. Only a reader's own scroll lets go of the end.
+      if (atEnd) stuck = true
+      else if (readerScrolling) stuck = false
       commitState(state)
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
@@ -438,8 +444,25 @@ export function VirtualThread(props: {
     const viewportObserver = makeResizeObserver(onViewportResize)
     viewportObserver.observe(scroller)
     createEventListener(() => scroller, "scroll", onScroll, { passive: true })
-    createEventListener(() => scroller, "wheel", noteScrolling, { passive: true })
-    createEventListener(() => scroller, "touchmove", noteScrolling, { passive: true })
+    let readerScrollEnd: ReturnType<typeof setTimeout> | undefined
+    onCleanup(() => clearTimeout(readerScrollEnd))
+    const readerMoved = () => {
+      readerScrolling = true
+      clearTimeout(readerScrollEnd)
+      readerScrollEnd = setTimeout(() => {
+        readerScrolling = false
+      }, READER_SCROLL_MS)
+    }
+    const onReader = () => {
+      noteScrolling()
+      readerMoved()
+    }
+    createEventListener(() => scroller, "wheel", onReader, { passive: true })
+    createEventListener(() => scroller, "touchmove", onReader, { passive: true })
+    createEventListener(() => scroller, "keydown", readerMoved)
+    createEventListener(() => scroller, "pointerdown", (event: PointerEvent) => {
+      if (event.target === scroller) onReader()
+    }, { passive: true })
     createEventListener(() => scroller, "pointermove", (event: PointerEvent) => setNearTopEdge(event.clientY - scroller.getBoundingClientRect().top < DATE_CHIP_EDGE_PX), { passive: true })
     createEventListener(() => scroller, "pointerleave", () => setNearTopEdge(false), { passive: true })
     const mutations = new MutationObserver(queueDriftCancel)

@@ -69,7 +69,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
     defineTool({
       name: "ask_human",
       description:
-        "ask the human one question or a batch of up to eight questions and wait for the answers, which comes back as this tool's result. the human sees your question in the chat and a card over the message box where they select options, type a custom answer in the composer, move between questions, or skip the request. Use questions for a batch, descriptive options, or multiSelect. Each question needs a unique id and a short header. use it only when you cannot go on without their choice. it waits up to two minutes, and stops at once if the human writes something else; a late answer reaches you as a message.",
+        "ask the human one question or a batch of up to eight questions and wait for the answers, which comes back as this tool's result. the human sees your question in the chat and a card over the message box where they select options, type a custom answer in the composer, move between questions, or skip the request. Use questions for a batch, descriptive options, or multiSelect. Each question needs a unique id and a short header. the card shows every question, so write the questions only in this tool, never in a message before or after it. use it only when you cannot go on without their choice. it waits up to two minutes, and stops at once if the human writes something else; a late answer reaches you as a message.",
       parameters: Type.Object({
         question: Type.Optional(Type.String({ description: "one short question; use this or questions" })),
         questions: Type.Optional(Type.Array(Type.Object({
