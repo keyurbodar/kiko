@@ -59,9 +59,12 @@ export default function ChatRoute() {
   const [threadState, setThreadState] = createSignal<VirtualThreadState | null>(null);
   const book = () => useApp.drafts();
   const draftKey = () => (book()?.ready() ? (useApp.activeThreadId() ?? "") : "");
+  // The words typed so far, so the composer's model chip follows an @tag in the draft.
+  const [draft, setDraft] = createSignal("");
   let replyKey = "";
   createEffect(
     on(draftKey, (key) => {
+      setDraft(key ? (book()?.get(key)?.text ?? "") : "");
       replyKey = "";
       setReplyTarget((key && (book()?.get(key)?.replyTo ?? null)) || null);
       replyKey = key;
@@ -258,17 +261,19 @@ export default function ChatRoute() {
             room={useApp.room() ?? undefined}
             stopping={!!useApp.room()?.state.agents.length}
             onStop={() => useApp.room()?.stop()}
-            tray={<ModelPickerButton chatId={params.id ?? null} />}
+            tray={<ModelPickerButton draft={draft()} />}
             threadId={useApp.activeThreadId() ?? ""}
             title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}
             draftFor={(key) => book()?.get(key)?.text ?? ""}
             onDraftChange={(key, text) => {
               book()?.save(key, { text });
+              setDraft(text);
               if (text !== "") useApp.typing();
             }}
             bots={useApp.members()}
             onSend={(message) => {
+              setDraft("");
               if (empty()) launch = captureLaunch(dock);
               const target = replyTarget();
               const fromHistory = useApp.showingHistory();

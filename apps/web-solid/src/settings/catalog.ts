@@ -2,6 +2,8 @@
 // The catalog is a hashed static asset (architecture 11.5). It is fetched when
 // settings or the model picker first opens, never bundled.
 
+import type { ThinkingLevel } from "@kiko/protocol"
+
 export type ConnectMethod = "api_key" | "device_code" | "paste_code"
 
 export interface CatalogModel {
@@ -10,6 +12,8 @@ export interface CatalogModel {
   contextWindow: number
   maxTokens: number
   reasoning: boolean
+  /** The reasoning levels the model supports, from pi-ai. Only "off" when it cannot reason. */
+  thinking: ThinkingLevel[]
   /** Dollars per million tokens. */
   pricing: { input: number; output: number }
 }

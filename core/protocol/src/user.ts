@@ -1,6 +1,7 @@
 
 import type { ChatLast } from "./activity"
 import type { AgentSlug, RoomId } from "./ids"
+import type { ThinkingLevel } from "./thinking"
 import type { MemoryOp, MemoryResult } from "./memory"
 import type { FileOp, FileRef } from "./room"
 
@@ -29,6 +30,9 @@ export type Agent = {
 	model: string
 }
 
+/** What an agent runs on, for every chat it is in. `thinkingLevels` are the levels pi-ai says the model supports. */
+export type AgentModel = { model: string; thinking: ThinkingLevel; thinkingLevels: readonly ThinkingLevel[] }
+
 export type AgentOp = { op: "create"; agent: Agent }
 
 export type ChatOp =
@@ -48,6 +52,7 @@ export type UserEvent =
 	| (Stored & { t: "chat"; chat: Chat })
 	| (Stored & { t: "chat_removed"; roomId: RoomId })
 	| (Stored & { t: "agent"; agent: Agent })
+	| (Stored & { t: "agent_model"; slug: AgentSlug } & AgentModel)
 	| (Stored & { t: "theme"; theme: string | null })
 	| (Stored & { t: "file"; file: FileRef })
 	| (Stored & { t: "file_removed"; ids: readonly string[] })
@@ -57,6 +62,8 @@ export type UserSnapshot = {
 	seq: number
 	chats: readonly Chat[]
 	agents?: readonly Agent[]
+	/** Every agent's model and level, Kiko included, keyed by slug. */
+	agentModels?: Readonly<Record<string, AgentModel>>
 	theme?: string | null
 	home: { files: readonly FileRef[]; folders: readonly string[] }
 	/** The chat the user was last in, so a new device opens there. The kiko chat when that one is gone. */
@@ -101,6 +108,8 @@ export type ClientToUser =
 	/** The user is in this chat now. Stored, not broadcast, so the next device opens it (`lastChat`). */
 	| { t: "open"; roomId: RoomId }
 	| { t: "agent"; op: AgentOp }
+	/** Sets an agent's model, its level, or both, for every chat. `roomId` is the chat the human was in. */
+	| { t: "agent_model"; slug: AgentSlug; ref?: string; thinking?: ThinkingLevel; roomId?: RoomId }
 	| { t: "memory"; reqId: string; op: MemoryOp }
 	| { t: "theme"; theme: string | null }
 	| { t: "search"; query: string }

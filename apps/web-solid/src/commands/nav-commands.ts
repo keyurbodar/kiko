@@ -1,5 +1,5 @@
 import { SETTINGS_SECTIONS } from "../settings/sections"
-import type { Command } from "./registry"
+import type { Choice, Command } from "./registry"
 
 /*
  * Commands that move around the app and open settings. Every screen the rail reaches has one, and
@@ -12,6 +12,9 @@ export function navCommands(deps: {
   chooseModel: () => void
   /** Opens the palette on one command's submenu. */
   openView: (id: string) => void
+  /** True when the agent the composer's model chip targets can reason. */
+  canReason: () => boolean
+  reasoningChoices: () => Choice[]
 }): Command[] {
   return [
     { id: "go.chat", title: "Chats", group: "go", icon: "chat", global: true, run: () => deps.go("/chat") },
@@ -26,6 +29,7 @@ export function navCommands(deps: {
       submenu: () => SETTINGS_SECTIONS.map((s) => ({ id: s.id, title: s.label, icon: "settings", run: () => deps.go(`/settings/${s.id}`) })),
       run: () => deps.openView("settings.pages"),
     },
+    { id: "chat.reasoning", title: "Reasoning…", group: "chat", icon: "model", placeholder: "Reasoning…", when: deps.canReason, submenu: deps.reasoningChoices, run: () => deps.openView("chat.reasoning") },
     { id: "chat.model", title: "Choose model", group: "chat", icon: "model", shortcut: "Mod+Shift+M", global: true, run: deps.chooseModel },
     { id: "account.sign-out", title: "Sign out", group: "account", icon: "signout", run: deps.signOut },
   ]

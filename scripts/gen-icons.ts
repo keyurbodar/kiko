@@ -53,6 +53,7 @@ const ICONS = {
   tasks: "CheckListIcon",
   info: "InformationCircleIcon",
   model: "AiBrain01Icon",
+  reasoning: "Brain01Icon",
   appearance: "PaintBoardIcon",
   integrations: "PlugSocketIcon",
   extensions: "PuzzleIcon",

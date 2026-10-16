@@ -2,11 +2,11 @@ import type { RecipeCard } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
 import { createSignal, For, onMount, Show } from "solid-js"
 import { Dialog } from "../lib/dialog"
-import { buttonClass } from "../settings/kit"
+import { Button, buttonClass } from "../settings/kit"
 import { AddPicker } from "./add"
 import { AppLogo, RecipeIcon } from "./icon"
 import { InstallRow } from "./row"
-import { addToTarget, editRecipe, installsFor, isAdded, refreshListing, targetsForChat } from "./state"
+import { addToTarget, editRecipe, installsFor, isAdded, isEditing, refreshListing, targetsForChat } from "./state"
 
 const label = "px-1 text-[11.5px] font-semibold text-muted-foreground"
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -45,9 +45,9 @@ export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; ro
       }
       footer={
         <Show when={!adding()}>
-          <button type="button" class={buttonClass("ghost", "mr-auto rounded-full")} data-action="recipe-file" onClick={() => void editRecipe(props.recipe.slug, go)}>
+          <Button variant="ghost" class="mr-auto rounded-full" data-action="recipe-file" busy={isEditing(props.recipe.slug)} onClick={() => void editRecipe(props.recipe.slug, go)}>
             Edit recipe
-          </button>
+          </Button>
           <button
             type="button"
             class={buttonClass("primary", "rounded-full px-4")}

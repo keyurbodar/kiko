@@ -25,9 +25,12 @@ import { COMPOSIO, composioExtension } from "../integrations/composio/tools"
 import { BROWSER_EXT, type BrowserToolDeps, browserExtension } from "./browser/tools"
 import { baseSections, type RoleInput } from "./prompt"
 import { count } from "../lib/dev-guard"
+import type { ThinkingLevel } from "@kiko/protocol"
+import { thinkingFor } from "./thinking"
 
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
+  thinkingLevel?: ThinkingLevel
   files?: Omit<FilesOptions, "touched"> & { fs: RoomFs }
   soul?: SoulPort
   runStamp?: () => number
@@ -84,10 +87,7 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   effectTable(builtins)
   const registry = createRegistry()
   for (const extension of builtins) registry.install(extension)
-  // The lowest reasoning a model offers: pi-ai clamps "minimal" up to the first level the model
-  // supports. A chat reply waits on every turn, and on tool-heavy tasks the default level made each
-  // turn take 2 to 5 s longer with the same answers.
-  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: forTalker(builtins) } }
+  return { registry, agent: { model: input.model, thinkingLevel: input.thinkingLevel ?? thinkingFor(input.model), extensions: forTalker(builtins) } }
 }
 
 export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse-spark-1.3-contributor" }
@@ -95,10 +95,11 @@ export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse
 /** pi-ai APIs whose adapter throws on a custom fetch (`api/google-generative-ai.js`, `api/google-vertex.js`). */
 const NO_CUSTOM_FETCH = new Set(["google-generative-ai", "google-vertex"])
 
-function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream: S): S {
+function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream: S, reasoning?: string): S {
   const t = performance.now()
   count("model.turns")
   count(`model.id.${modelId}`)
+  count(`model.reasoning.${reasoning ?? "off"}`)
   void stream.result().then(() => count("model.ms", Math.round(performance.now() - t)), () => {})
   return stream
 }
@@ -118,7 +119,7 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
     const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
     const routed = {
       stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(model, context, via(model, options) as never))) as typeof provider.stream,
-      streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(model, context, via(model, options) as never))) as typeof provider.streamSimple,
+      streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(model, context, via(model, options) as never), options?.reasoning)) as typeof provider.streamSimple,
     }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }

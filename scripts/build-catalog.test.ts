@@ -37,7 +37,7 @@ test("the test model and the connect kinds come from pi-ai", () => {
 
 test("a model carries only the fields the client reads", () => {
   const model = catalog.providers.find((p) => p.id === "opencode-go")!.models[0]!;
-  expect(Object.keys(model).sort()).toEqual(["contextWindow", "id", "maxTokens", "name", "pricing", "reasoning"]);
+  expect(Object.keys(model).sort()).toEqual(["contextWindow", "id", "maxTokens", "name", "pricing", "reasoning", "thinking"]);
   expect(Object.keys(model.pricing).sort()).toEqual(["input", "output"]);
 });
 
@@ -53,4 +53,15 @@ test("a provider's classifier models are counted, so the client can tell a judge
   expect(typesafe?.models).toEqual([]);
   expect(typesafe?.classifiers).toBeGreaterThan(0);
   expect(catalog.providers.find((p) => p.id === "anthropic")?.classifiers).toBe(0);
+});
+
+test("each model's reasoning levels come from pi-ai, so models differ and a non-reasoning model is off only", () => {
+  const all = catalog.providers.flatMap((p) => p.models);
+  for (const model of all) {
+    expect(model.thinking.length).toBeGreaterThan(0);
+    if (!model.reasoning) expect(model.thinking).toEqual(["off"]);
+  }
+  const shapes = new Set(all.filter((m) => m.reasoning).map((m) => m.thinking.join(",")));
+  expect(shapes.size).toBeGreaterThan(2);
+  expect(all.some((m) => m.thinking.includes("xhigh"))).toBe(true);
 });

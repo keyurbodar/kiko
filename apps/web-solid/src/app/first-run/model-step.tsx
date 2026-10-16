@@ -2,9 +2,9 @@ import { useNavigate } from "@solidjs/router"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
+import { KIKO, type AgentSlug } from "@kiko/protocol"
 import { useApp } from "../../lib/store"
 import { loadCatalog, modelRef } from "../../settings/catalog"
-import { setChatModel } from "../../settings/chat-model"
 import { connectedProviders } from "../../settings/connected"
 import { modelProviders } from "../../settings/provider-kinds"
 import { primary } from "./welcome"
@@ -21,7 +21,7 @@ function focusComposer(tries = 40): void {
 
 /*
  * Pick Kiko's model. The list is the connected providers' models, reasoning and large context first, so the
- * first row is a good default. Continue sets the model for the Kiko chat and new chats, then lands in the chat.
+ * first row is a good default. Start chatting sets Kiko's model, then lands in the chat.
  */
 export function ModelStep() {
   const navigate = useNavigate()
@@ -39,8 +39,8 @@ export function ModelStep() {
   const current = () => chosen() ?? rows()[0]?.ref
 
   const land = () => {
-    const ref = current()
-    if (ref) setChatModel(useApp.kikoChatId() ?? null, ref)
+    const row = rows().find((r) => r.ref === current())
+    if (row) useApp.setAgentModel(KIKO as AgentSlug, { ref: row.ref, levels: row.model.thinking })
     move("next")
     navigate("/", { replace: true })
     focusComposer()
@@ -54,17 +54,17 @@ export function ModelStep() {
       <p class="mb-2 text-center text-sm text-muted-foreground" style={{ "--i": 1 }}>
         You can change it any time from the composer.
       </p>
-      <ul
+      <div
         class="flex max-h-[min(340px,45dvh)] flex-col gap-1.5 overflow-y-auto"
         role="radiogroup"
         aria-label="Model"
         data-component="first-run-models"
         style={{ "--i": 2 }}
       >
-        <Show when={!catalog.loading} fallback={<For each={[0, 1, 2]}>{() => <li class="first-run-skeleton h-[46px] rounded-lg bg-muted" />}</For>}>
+        <Show when={!catalog.loading} fallback={<For each={[0, 1, 2]}>{() => <div class="first-run-skeleton h-[46px] rounded-lg bg-muted" />}</For>}>
           <For each={shown()}>
             {(row) => (
-              <li>
+              <div>
                 <button
                   type="button"
                   role="radio"
@@ -77,11 +77,11 @@ export function ModelStep() {
                   <span class="min-w-0 flex-1 truncate text-md font-medium text-foreground">{row.model.name}</span>
                   <span class="shrink-0 text-sm text-muted-foreground">{row.provider.name}</span>
                 </button>
-              </li>
+              </div>
             )}
           </For>
         </Show>
-      </ul>
+      </div>
       <div class="mt-1 flex flex-col gap-3" style={{ "--i": 3 }}>
         <button type="button" class={primary} data-action="finish-first-run" onClick={land}>
           Start chatting

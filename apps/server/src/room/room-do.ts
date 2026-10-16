@@ -32,6 +32,7 @@ import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
 import { agentStatuses, statusOf, workersKey } from "./status"
 import { dividerMessage, type Divider } from "./dividers"
 import { findProvider } from "../user/turn-context"
+import { parseModelRef } from "../agent/thinking"
 import { parseRichText } from "./rich-text"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, reactionBrief } from "./reactions"
@@ -241,9 +242,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		const member = this.members.list().find((m) => m.slug === slug)
 		if (!home || !member) return ""
-		// Chat model picks live in AgentDO; the member row keeps only its original model.
-		const model = await agentStub(this.env.AGENT, home.userId, home.roomId, member.slug).model()
-		return `${model.provider}/${model.modelId}`
+		return (await userStub(this.env.USER, home.userId).agentModel(member.slug)).model
 	}
 
 	async propose(slug: AgentSlug, input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
@@ -859,21 +858,21 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return null
 	}
 
+	/** The frame for a model pick. The user keeps it for every chat, so this passes it on. */
 	setModel(ref: string, slug?: AgentSlug): void {
 		const home = this.home()
-		const at = ref.indexOf("/")
-		if (!home || at <= 0) return
-		const model = { provider: ref.slice(0, at), modelId: ref.slice(at + 1) }
-		const targets = this.members.list().filter((m) => !slug || m.slug === slug)
-		const named = findProvider(model.provider)?.getModels().find((m) => m.id === model.modelId)?.name ?? model.modelId
-		for (const m of targets) {
-			const changed = agentStub(this.env.AGENT, home.userId, home.roomId, m.slug)
-				.setModel(model)
-				.then((ok) => {
-					if (ok) this.divider(`model:${m.slug}:${crypto.randomUUID()}`, `${m.name} now uses ${named}`, { kind: "model_changed", agent: m.slug, model: named, private: true })
-				})
-			this.ctx.waitUntil(changed)
-		}
+		if (!home || ref.indexOf("/") <= 0) return
+		const slugs = this.members.list().filter((m) => !slug || m.slug === slug).map((m) => m.slug)
+		this.ctx.waitUntil(userStub(this.env.USER, home.userId).setAgentModels(slugs, ref, home.roomId))
+	}
+
+	/** The user calls this when an agent in this chat changes model here. */
+	async modelChanged(slug: AgentSlug, ref: string): Promise<void> {
+		const member = this.members.get(slug)
+		if (!member) return
+		const found = parseModelRef(ref)
+		const named = (found && findProvider(found.provider)?.getModels().find((m) => m.id === found.modelId)?.name) || ref
+		this.divider(`model:${slug}:${crypto.randomUUID()}`, `${member.name} now uses ${named}`, { kind: "model_changed", agent: slug, model: named, private: true })
 	}
 
 	taskOp(op: TaskOp): string | null {

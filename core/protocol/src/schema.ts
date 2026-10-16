@@ -167,6 +167,8 @@ export const Message = Schema.Struct({
 	event: Schema.optionalKey(Schema.Union([SystemEvent, UnknownSystemEvent])),
 })
 
+export const ThinkingLevel = Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+
 export const Member = Schema.Struct({
 	slug: AgentSlug,
 	name: Schema.String,
@@ -403,10 +405,13 @@ export const ChatOp = Schema.Union([
 	Schema.Struct({ op: Schema.Literal("delete"), roomId: RoomId }),
 ])
 
+export const AgentModel = Schema.Struct({ model: Schema.String, thinking: ThinkingLevel, thinkingLevels: Schema.Array(ThinkingLevel) })
+
 export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat }),
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
 	Schema.Struct({ ...stored, t: Schema.Literal("agent"), agent: Agent }),
+	Schema.Struct({ ...stored, t: Schema.Literal("agent_model"), slug: AgentSlug, ...AgentModel.fields }),
 	Schema.Struct({ ...stored, t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
@@ -417,6 +422,7 @@ export const UserSnapshot = Schema.Struct({
 	seq: Count,
 	chats: Schema.Array(Chat),
 	agents: Schema.optionalKey(Schema.Array(Agent)),
+	agentModels: Schema.optionalKey(Schema.Record(Schema.String, AgentModel)),
 	theme: Schema.optionalKey(Schema.NullOr(Schema.String)),
 	home: Schema.Struct({ files: Schema.Array(FileRef), folders: Schema.Array(Schema.String) }),
 	lastChat: Schema.optionalKey(RoomId),
@@ -494,6 +500,7 @@ export const ClientToUser = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("chat"), op: ChatOp }),
 	Schema.Struct({ t: Schema.Literal("open"), roomId: RoomId }),
 	Schema.Struct({ t: Schema.Literal("agent"), op: AgentOp }),
+	Schema.Struct({ t: Schema.Literal("agent_model"), slug: AgentSlug, ref: Schema.optionalKey(Schema.String), thinking: Schema.optionalKey(ThinkingLevel), roomId: Schema.optionalKey(RoomId) }),
 	Schema.Struct({ t: Schema.Literal("memory"), reqId: Id, op: MemoryOp }),
 	Schema.Struct({ t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String }),
