@@ -1,0 +1,40 @@
+import type { RoomToClient } from "@kiko/protocol"
+import { showToastV2, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
+
+export type RunErrorFrame = Extract<RoomToClient, { t: "run_error" }>
+
+let go: (href: string) => void = () => {}
+/** The shell gives the toast actions a way to navigate. */
+export const setGo = (fn: (href: string) => void) => {
+  go = fn
+}
+
+/** The words for a run that ended in a model or provider error. A pure table: the kind picks the sentence and whether to offer settings. */
+export function runErrorToast(frame: Pick<RunErrorFrame, "kind" | "provider" | "detail">, name: string): ToastV2Options & { title: string; settings?: boolean } {
+  const provider = frame.provider ? frame.provider.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ") : "The provider"
+  switch (frame.kind) {
+    case "no_key":
+      return { title: `${name} cannot answer yet`, description: `${provider} is not connected.`, settings: true }
+    case "invalid_key":
+      return { title: `${provider} did not accept the request`, description: "Check the key and the billing, then send again.", settings: true }
+    case "rate_limit":
+      return { title: `${provider} is rate limiting requests`, description: "Wait a moment, then send again." }
+    case "provider_down":
+      return { title: `${provider} is having trouble`, description: "It did not answer. Try again in a bit." }
+    case "refused":
+      return { title: `The model refused that request`, description: `${name} could not answer it. Rephrase and send again.` }
+    case "too_long":
+      return { title: "This chat is too long for the model", description: "Pick a model with a larger context, or start a new chat." }
+    case "other":
+      return { title: `${name} hit an error`, ...(frame.detail ? { description: frame.detail } : {}) }
+  }
+}
+
+export function showRunError(frame: RunErrorFrame, name: string): void {
+  const { settings, ...toast } = runErrorToast(frame, name)
+  showToastV2({
+    ...toast,
+    variant: "error",
+    ...(settings ? { action: { label: "Open settings", onClick: () => go("/settings/models") } } : {}),
+  })
+}

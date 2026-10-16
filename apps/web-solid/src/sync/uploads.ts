@@ -1,5 +1,6 @@
 import type { PendingAttachment } from "@kiko/protocol"
 import { createStore, produce } from "solid-js/store"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { apiFetch, apiUrl, getToken } from "../lib/api"
 
 /*
@@ -21,6 +22,7 @@ export type UploadState =
   | { status: "failed"; reason: string }
 
 const MAX_UPLOADS = 3
+const OFFLINE = "Not connected"
 const TIMEOUT_MS = 5 * 60_000
 /** The server's largest single request body (`files/upload.ts`). */
 const MAX_SINGLE_PUT = 32 * 1024 * 1024
@@ -112,7 +114,7 @@ async function transfer(job: Job): Promise<void> {
 }
 
 async function run(job: Job): Promise<void> {
-  if (typeof navigator !== "undefined" && navigator.onLine === false) throw new Error("Not connected")
+  if (typeof navigator !== "undefined" && navigator.onLine === false) throw new Error(OFFLINE)
   await transfer(job)
 }
 
@@ -124,7 +126,12 @@ function pump() {
     run(job)
       .then(
         () => !job.cancelled && set(job.id, { status: "ready", pendingId: job.pendingId }),
-        (e: unknown) => !job.cancelled && set(job.id, { status: "failed", reason: e instanceof Error ? e.message : "Upload failed" }),
+        (e: unknown) => {
+          if (job.cancelled) return
+          const reason = e instanceof Error ? e.message : "Upload failed"
+          set(job.id, { status: "failed", reason })
+          if (reason !== OFFLINE) showToastV2({ title: `Could not upload ${job.name}`, description: reason, variant: "error" })
+        },
       )
       .finally(() => {
         job.abort = null

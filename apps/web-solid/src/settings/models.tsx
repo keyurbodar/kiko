@@ -11,6 +11,7 @@ import { VList } from "virtua/solid"
 import { Dialog } from "../lib/dialog"
 import { hiddenModels, setHidden } from "./model-prefs"
 import { cn } from "../lib/cn"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 
 const METHOD_LABEL: Record<ConnectMethod, string> = {
   api_key: "API key",
@@ -250,6 +251,8 @@ function DisconnectButton(props: { id: string }) {
     setRemoving(true)
     try {
       await disconnectProvider(props.id)
+    } catch (e) {
+      showToastV2({ title: "Could not disconnect", description: e instanceof Error ? e.message : undefined, variant: "error" })
     } finally {
       setRemoving(false)
       setSure(false)
@@ -344,7 +347,9 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
       await refreshConnected()
       props.onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save the key.")
+      const message = e instanceof Error ? e.message : "Could not save the key."
+      setError(message)
+      showToastV2({ title: "Could not save the key", description: message, variant: "error" })
     } finally {
       setBusy(false)
     }

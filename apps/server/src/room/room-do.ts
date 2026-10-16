@@ -1,5 +1,5 @@
 import { humanAnswerText, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
-import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
+import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
@@ -890,7 +890,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.log.setMeta(key, String(event.seq))
 			return event
 		})
-		if (event) this.publish([event])
+		if (event) {
+			this.publish([event])
+			this.broadcast({ t: "run_error", slug, kind: "no_key", provider })
+		}
 		const home = this.home()
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because the human has not connected ${provider}. tell the human, or go on without it.)`
@@ -898,6 +901,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 		this.reports.run(this.routines.dropped(slug), "failed")
 		return event !== null
+	}
+
+	async runError(slug: AgentSlug, error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void> {
+		if (!this.members.get(slug)) return
+		this.broadcast({ t: "run_error", slug, kind: error.kind, ...(error.provider ? { provider: error.provider } : {}), ...(error.detail ? { detail: error.detail } : {}) })
 	}
 
 	async runDropped(slug: AgentSlug): Promise<void> {

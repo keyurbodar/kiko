@@ -42,6 +42,8 @@ export interface ToastV2Options {
   actions?: ToastV2Action[]
   /* Shows a small toast next to this element instead of in the stack, as t3code's copy buttons do. */
   anchor?: Element
+  /* An error with a description gets a copy button, as in t3code. Set this to leave it out. */
+  hideCopyButton?: boolean
 }
 
 export interface ToastV2RegionProps {
@@ -320,6 +322,20 @@ function ToastCard(props: {
   const options = () => props.toast.options
   const variant = () => options().variant ?? "default"
   const actions = () => actionsOf(options())
+  const copyText = () => {
+    const text = options().description
+    return variant() === "error" && text && !options().hideCopyButton ? text : undefined
+  }
+  const [copied, setCopied] = createSignal(false)
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      return
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
   const limited = () => props.slot?.limited ?? false
   const icon = createMemo(() => options().icon ?? VARIANT_ICONS[variant()]?.())
   const clamp = () =>
@@ -410,7 +426,7 @@ function ToastCard(props: {
           <path d="m6 6 12 12" />
         </svg>
       </button>
-      <div ref={content} class="toast-v2-content" data-actions={actions().length > 0 || undefined}>
+      <div ref={content} class="toast-v2-content" data-actions={actions().length > 0 || copyText() !== undefined || undefined}>
         <div class="toast-v2-body">
           <Show when={options().title || icon()}>
             <div class="toast-v2-head">
@@ -426,8 +442,34 @@ function ToastCard(props: {
             </div>
           </Show>
         </div>
-        <Show when={actions().length > 0}>
+        <Show when={actions().length > 0 || copyText() !== undefined}>
           <div class="toast-v2-actions">
+            <Show when={copyText()}>
+              {(text) => (
+                <button
+                  type="button"
+                  class="toast-v2-copy"
+                  aria-label={copied() ? "Copied error" : "Copy error"}
+                  title={copied() ? "Copied error" : "Copy error"}
+                  data-copied={copied() || undefined}
+                  onClick={() => void copy(text())}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <Show
+                      when={copied()}
+                      fallback={
+                        <>
+                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                        </>
+                      }
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </Show>
+                  </svg>
+                </button>
+              )}
+            </Show>
             <For each={actions()}>
               {(action) => (
                 <button

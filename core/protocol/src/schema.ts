@@ -339,6 +339,13 @@ export const RoomToClient = Schema.Union([
 	}),
 	Schema.Struct({ t: Schema.Literal("send_refused"), clientId: Id, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("task_refused"), op: TaskOp, reason: Schema.String }),
+	Schema.Struct({
+		t: Schema.Literal("run_error"),
+		slug: AgentSlug,
+		kind: Schema.Literals(["no_key", "invalid_key", "rate_limit", "provider_down", "refused", "too_long", "other"]),
+		provider: Schema.optionalKey(Schema.String),
+		detail: Schema.optionalKey(Schema.String),
+	}),
 	Schema.Struct({ t: Schema.Literal("files_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({
 		t: Schema.Literal("search"),
