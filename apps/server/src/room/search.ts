@@ -31,8 +31,8 @@ export function snippetOf(plain: string, query: string): string {
 	const flat = plain.replace(/\s+/g, " ").trim()
 	const words = queryWords(query)
 	const edge = "[\\p{L}\\p{N}]"
-	const escape = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-	const pattern = new RegExp(`(?<!${edge})(?:${words.map((w, i) => `${escape(w)}${i === words.length - 1 ? `${edge}*` : `(?!${edge})`}`).join("|")})`, "giu")
+	const literal = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+	const pattern = new RegExp(`(?<!${edge})(?:${words.map((w, i) => `${literal(w)}${i === words.length - 1 ? `${edge}*` : `(?!${edge})`}`).join("|")})`, "giu")
 	const first = pattern.exec(flat)
 	pattern.lastIndex = 0
 	const from = first ? Math.max(0, first.index - BEFORE) : 0
