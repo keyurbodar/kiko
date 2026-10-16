@@ -1,4 +1,4 @@
-import { humanAnswerText, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
+import { humanAnswerText, KIKO, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
 import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
@@ -55,6 +55,7 @@ import type { AgentHome, Home } from "./home"
 import { RoomWakes, WAKES_WAKEUP } from "./wake-delivery"
 import { MAIL_WAKEUP, RoomMail } from "./mail-drain"
 import { BurstFlush } from "./burst-flush"
+import { type PairIn, RoomPair } from "./pair"
 
 const MAX_DOING = 160
 const DELEGATED_TITLE = 100
@@ -92,6 +93,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private reports!: Reports
 	private wakes!: RoomWakes
 	private mailer!: RoomMail
+	private pairs!: RoomPair
 	private receiver!: ReceiveDeps
 	private pending!: PendingUploads
 	private typingChain: Promise<void> = Promise.resolve()
@@ -161,6 +163,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				alarms: this.alarms,
 				home: () => this.home(),
 				title: (home) => this.title(home),
+				pair: (from, to) => this.pairWith(from, to),
+			})
+			this.pairs = new RoomPair({
+				...this.receiver,
+				ctx,
+				members: this.members,
+				asks: this.asks,
+				adopt: (userId) => this.adopt(userId),
+				chat: (home) => this.chat(home),
+				seedMembers: (home, chat) => this.seedMembers(home, chat),
 			})
 			this.burstFlush = new BurstFlush({
 				...this.receiver,
@@ -214,6 +226,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	private async seedMembers(home: Home, chat: Chat): Promise<void> {
+		if (chat.pair) return this.seedPair(home, chat)
 		if (this.members.seeded()) return this.trySeedChatFile(chat.title)
 		let agents: NewMember[] = []
 		if (chat.agents?.length) {
@@ -230,6 +243,33 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.publish(this.members.seed(agents))
 		if (agents.length > 1) this.divider("group-formed", "Group formed", { kind: "group_formed", private: true })
 		await this.trySeedChatFile(chat.title)
+	}
+
+	/** A pair room holds exactly its two agents. Kiko is there only when it is one of them, and the room has no group notice and no chat file. */
+	private async seedPair(home: Home, chat: Chat): Promise<void> {
+		if (this.members.seeded()) return
+		const mine = await userStub(this.env.USER, home.userId).listAgents()
+		const agents = (chat.agents ?? []).flatMap((id): NewMember[] => {
+			if (id === DEFAULT_AGENT) return [{ slug: DEFAULT_AGENT, name: CHIEF_NAME }]
+			const a = mine.find((x) => x.id === id)
+			const role = tagline(a?.prompt ?? "")
+			return a ? [{ slug: a.slug, name: a.name, ...(role ? { role } : {}), model: a.model }] : []
+		})
+		this.publish(this.members.seed(agents))
+		this.log.setMeta("chat_file", "1")
+	}
+
+	private async pairWith(from: AgentSlug, to: AgentSlug): Promise<{ ok: true; roomId: RoomId } | { ok: false; error: string }> {
+		const home = this.home()
+		return home ? userStub(this.env.USER, home.userId).openPair(from, to) : { ok: false, error: "not sent: this chat is not set up yet." }
+	}
+
+	pairIn(userId: string, input: PairIn): Promise<"ok" | "full" | "refused"> {
+		return this.pairs.receive(userId, input)
+	}
+
+	pairBack(input: { askId: string; from: AgentSlug; text: string; rootId: string; hop: number }): Promise<void> {
+		return this.mailer.pairBack(input)
 	}
 
 	async writeChatFile(author: AgentSlug, text: string): Promise<boolean> {
@@ -615,6 +655,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async systemNotice(id: string, text: string, reason: SystemReason = "run_budget"): Promise<void> {
 		const event = this.deliveries.notice(id, text, reason, reason === "routine" ? { kind: "routine", title: oneLine(text, DELEGATED_TITLE) } : undefined)
 		if (event) this.publish([event])
+	}
+
+	/** Tells Kiko what the human changed in the system. The id makes a repeat a duplicate. */
+	announce(userId: string, id: string, body: string): Promise<WakeResult> {
+		this.adopt(userId)
+		return this.wakes.wake({ id, to: KIKO as AgentSlug, why: "system", body, chain: null })
 	}
 
 	wake(w: Wake): Promise<WakeResult> {

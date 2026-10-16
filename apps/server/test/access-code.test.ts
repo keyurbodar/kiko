@@ -126,6 +126,26 @@ describe("with ACCESS_CODE set", () => {
   })
 })
 
+describe("a new account", () => {
+  let origin: string
+  beforeAll(async () => {
+    origin = await start({ ACCESS_CODE: CODE })
+  })
+
+  test("signing in makes the pinned Kiko chat before any /api/me call, so the first socket lists it", async () => {
+    const token = await tokenOf(await signIn(origin, { code: CODE }))
+    const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/api/ws/user`, ["kiko", token])
+    const first = new Promise<{ t: string; snapshot?: { chats: { title: string; pinned: boolean; kiko?: boolean }[] } }>((resolve, reject) => {
+      ws.onopen = () => ws.send(JSON.stringify({ t: "hello", lastSeq: 0 }))
+      ws.onmessage = (e) => resolve(JSON.parse(String(e.data)))
+      ws.onerror = reject
+    })
+    const frame = await first
+    ws.close()
+    expect(frame.snapshot?.chats).toMatchObject([{ title: "Kiko", pinned: true, kiko: true }])
+  })
+})
+
 describe("without ACCESS_CODE", () => {
   let origin: string
   beforeAll(async () => {

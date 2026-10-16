@@ -1,10 +1,13 @@
 import type { CurlRequest, CurlResponse } from "../../integrations/kernel/client"
 import type { LeaseInfo } from "../../integrations/kernel/lease"
+import type { BrowserCheck } from "../../user/kernel-wiring"
 import type { UserDO } from "../../user/user-do"
 
 export type Lease = LeaseInfo
 
-export type BrowserState = { connected: boolean; takeover: boolean; tabs: Record<string, number> }
+export type BrowserState = BrowserCheck
+
+export type LiveLink = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
 
 export type FetchRequest = CurlRequest
 
@@ -24,7 +27,8 @@ export interface LeasePort {
   release(): Promise<void>
   state(): Promise<BrowserState>
   paused(): Promise<boolean>
-  share(reason: string): Promise<string>
+  /** The live view link. With a reason it is also posted to the room as the agent. `control` pauses every agent's browser tools. */
+  live(mode: "watch" | "control", reason?: string): Promise<LiveLink>
   /** HTTP through the browser's network stack, with its cookies and proxy. Only http and https. */
   fetchPage(req: FetchRequest): Promise<FetchResult>
   /** Writes an upload into the browser's VM. Returns the VM path to use in an upload step. */
@@ -44,7 +48,7 @@ export type UserBrowserRpc = Pick<
   | "browserRelease"
   | "browserCheck"
   | "browserTakeover"
-  | "browserShare"
+  | "browserLive"
   | "browserFetch"
   | "browserPutFile"
   | "browserGetFile"
@@ -52,21 +56,30 @@ export type UserBrowserRpc = Pick<
 >
 
 const NOT_CONNECTED = /not connected/i
+const PAUSE_MEMO_MS = 1_000
 
 export function userLease(user: () => UserBrowserRpc, agentId: string, roomId: string): LeasePort {
   const connected = <T>(call: () => Promise<T>): Promise<T> =>
     call().catch((e: unknown) => {
       throw e instanceof Error && NOT_CONNECTED.test(e.message) ? new BrowserNotConnected() : e
     })
+  let seen: { at: number; on: boolean } | undefined
+  /** A step loop asks per step. The answer is reused for a second, so ten steps cost one call; a takeover waits at most that long. */
+  const paused = async (): Promise<boolean> => {
+    const now = Date.now()
+    if (seen && now - seen.at < PAUSE_MEMO_MS) return seen.on
+    const on = await user().browserTakeover()
+    seen = { at: now, on }
+    return on
+  }
   return {
     lease: () => connected(() => user().browserLease(agentId)),
     touch: (tabs) => user().browserTouch(agentId, tabs),
     dead: (sessionId) => user().browserDead(agentId, sessionId),
     release: () => user().browserRelease(agentId),
-    state: () => user().browserCheck(),
-    paused: () => user().browserTakeover(),
-    share: async (reason) =>
-      (await user().browserShare(agentId, roomId, reason)) ? "Asked the human to watch or take over the browser." : "Could not post the request to the human.",
+    state: () => user().browserCheck(agentId),
+    paused: () => paused(),
+    live: (mode, reason) => connected(() => user().browserLive(agentId, roomId, mode, reason)),
     fetchPage: (req) => connected(() => user().browserFetch(req)),
     putFile: (name, base64) => connected(() => user().browserPutFile(name, base64)),
     getFile: (path) => connected(() => user().browserGetFile(path)),

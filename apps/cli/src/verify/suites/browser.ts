@@ -56,6 +56,10 @@ async function check(v: Verifier, s: Session): Promise<void> {
     if (![before, after].some((t) => norm(text).includes(norm(t)))) throw new VerifyError("the reply does not name the top story")
     if (total > LIMIT_MS) throw new VerifyError(`the answer took ${(total / 1000).toFixed(1)} s, over ${LIMIT_MS / 1000} s`)
 
+    const shown = await turn(room, "Send me the link to watch the browser live.")
+    console.log(`  link reply: ${shown.text.slice(0, 200)}`)
+    if (!/\]\(https:\/\/[^)\s]*kernel[^)\s]*\)/.test(shown.text)) throw new VerifyError("the agent did not send the live view as a markdown link")
+
     for (;;) {
       const state = await api<{ status: { browser: { tabs: Record<string, number> } | null } }>(v.url, s, "dev/agent/browser", { action: "state" })
       const held = Object.keys(state.json.status.browser?.tabs ?? {}).some((k) => k.startsWith(`${roomId}:`))

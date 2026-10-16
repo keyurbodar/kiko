@@ -1,5 +1,5 @@
 import { BACKEND } from "../src/lib/version"
-import { KIKO_HOME_ROOM } from "@kiko/protocol"
+import { KIKO_HOME_ROOM, pairRoomId } from "@kiko/protocol"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
@@ -395,6 +395,38 @@ test("an agent name is unique, ignoring case and surrounding spaces", async () =
   expect(await rpc(user, "listAgents")).toHaveLength(1)
 })
 
+test("a private talk's pair chat is made once, hidden from every list, and never taken for a group of the same agents", async () => {
+  const user = fresh()
+  const agent = (slug: string) => ({ id: `id-${slug}`, name: slug, slug, prompt: "", model: "" })
+  await rpc(user, "createAgent", agent("ada"))
+  await rpc(user, "createAgent", agent("bob"))
+  const ws = await socket(user, 0)
+  const seen = events(ws.frames).length
+  const roomId = pairRoomId("ada", "bob")
+  expect(await rpc(user, "openPair", "ada", "bob")).toEqual({ ok: true, roomId })
+  expect(await rpc(user, "openPair", "bob", "ada")).toEqual({ ok: true, roomId })
+  expect(await rpc(user, "getChat", roomId)).toMatchObject({ roomId, pair: true, private: true, agents: ["id-ada", "id-bob"] })
+  expect((await rpc(user, "listChats")).map((c: { roomId: string }) => c.roomId)).not.toContain(roomId)
+  expect((await rpc(user, "searchChats", "ada")).map((c: { roomId: string }) => c.roomId)).not.toContain(roomId)
+  await rpc(user, "touchChat", roomId, { lastSeq: 2, lastPreview: "hi", unread: 1 })
+  expect(events(await ws.settle()).length).toBe(seen)
+  const group = await rpc(user, "openChat", "ada and bob", ["id-ada", "id-bob"])
+  expect(group.created).toBe(true)
+  expect(group.roomId).not.toBe(roomId)
+  const late = await socket(user, 0)
+  expect(JSON.stringify(late.frames)).not.toContain(roomId)
+  ws.close()
+  late.close()
+})
+
+test("a pair chat with Kiko, and a target the human does not have", async () => {
+  const user = fresh()
+  await rpc(user, "createAgent", { id: "id-ada", name: "ada", slug: "ada", prompt: "", model: "" })
+  expect(await rpc(user, "openPair", "ada", "kiko")).toEqual({ ok: true, roomId: pairRoomId("ada", "kiko") })
+  expect(await rpc(user, "getChat", pairRoomId("ada", "kiko"))).toMatchObject({ pair: true, agents: ["id-ada", "kiko"] })
+  expect(await rpc(user, "openPair", "ada", "zed")).toEqual({ ok: false, error: "not sent: no agent @zed. the human has: @kiko." })
+})
+
 test("an agent's Composio call with no key tells the human on every open socket", async () => {
   const user = fresh()
   const ws = await socket(user)
@@ -410,5 +442,15 @@ test("an agent's browser lease with no Kernel key tells the human", async () => 
   await rpc(user, "browserLease", "room/ada").catch(() => undefined)
   const got = (await ws.settle()).filter((f: any) => f.t === "error")
   expect(got).toMatchObject([{ error: { code: "kernel_missing", action: "open_integrations" } }])
+  ws.close()
+})
+
+test("connecting a provider moves an unpicked agent's model for a connected socket", async () => {
+  const user = fresh()
+  const ws = await socket(user)
+  await rpc(user, "connectProvider", "anthropic", `sk-${crypto.randomUUID().replaceAll("-", "")}`)
+  await ws.settle()
+  const got = events(ws.frames).filter((e) => e.t === "agent_model" && e.slug === "kiko")
+  expect(got.at(-1)?.model).toStartWith("anthropic/")
   ws.close()
 })

@@ -1,4 +1,4 @@
-import { KIKO, newRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
+import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
 import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, RecipeList, RoomId, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
@@ -53,11 +53,12 @@ import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/e
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import type { DevBrowserOp } from "./dev"
 import { InitiativeLoops, LOOPS_WAKEUP } from "./initiative-loops"
-import { KernelWiring } from "./kernel-wiring"
+import { type BrowserCheck, KernelWiring, type LiveLinkResult } from "./kernel-wiring"
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
 import { AWAY_MS, LAST_SEEN } from "./keys"
 import { UpdateWiring } from "./update-wiring"
+import { ANNOUNCE_WAKEUP, Announcements, COMPOSIO_CHANGE, KERNEL_CHANGE, providerChange, updateChange } from "./announce"
 
 const REPLAY_LIMIT = 500
 
@@ -380,6 +381,20 @@ export class UserDO extends DurableObject<Env> {
     return { roomId: op.roomId, created: true }
   }
 
+  /** The hidden chat where two of the human's agents talk. It is made once, from the two slugs, and no client hears of it. */
+  async openPair(a: string, b: string): Promise<{ ok: true; roomId: RoomId } | { ok: false; error: string }> {
+    const mine = listAgents(this.sql)
+    const idOf = (slug: string) => (slug === KIKO ? KIKO : mine.find((x) => x.slug === slug)?.id)
+    const ids = [idOf(a), idOf(b)]
+    if (ids[0] === undefined || ids[1] === undefined) {
+      const known = [KIKO, ...mine.map((x) => x.slug)].filter((s) => s !== a)
+      return { ok: false, error: `not sent: no agent @${ids[1] === undefined ? b : a}. the human has: ${known.map((s) => `@${s}`).join(", ")}.` }
+    }
+    const roomId = pairRoomId(a, b)
+    if (!getChat(this.sql, roomId)) this.commit(applyChatOp(this.sql, { op: "create", roomId, title: [a, b].sort().map((s) => `@${s}`).join(" and "), agents: ids as string[] }, Date.now(), true))
+    return { ok: true, roomId }
+  }
+
   async seedSoul(slug: string, name: string, role: string): Promise<Soul> {
     return this.souls.seed(slug, firstSoul(name, role))
   }
@@ -465,15 +480,28 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
+    const before = allAgentModels(this.sql)
     const info = await this.#credentials.connect(provider, apiKey)
+    this.announceModels(before)
     await this.#mem.keyChanged(provider)
+    await this.#announce.note(providerChange(provider, apiKey)).catch(() => {})
     return this.#mem.describe(info)
   }
 
   async disconnectProvider(provider: string): Promise<boolean> {
+    const before = allAgentModels(this.sql)
     const removed = await this.#credentials.disconnect(provider)
+    this.announceModels(before)
     await this.#mem.keyChanged(provider)
+    await this.#announce.note(providerChange(provider, null)).catch(() => {})
     return removed
+  }
+
+  /** An agent nobody picked a model for follows the connected providers, so a key change can move it. */
+  private announceModels(before: Record<string, AgentModel>): void {
+    for (const [slug, now] of Object.entries(allAgentModels(this.sql))) {
+      if (JSON.stringify(now) !== JSON.stringify(before[slug])) this.commit({ t: "agent_model", slug: slug as AgentSlug, ...now })
+    }
   }
 
   async listProviders(): Promise<ProviderInfo[]> {
@@ -630,6 +658,7 @@ export class UserDO extends DurableObject<Env> {
     }
     send(ws, { t: "composio", reqId: frame.reqId, result })
     if (result.ok && frame.t !== "composioStatus") {
+      await this.#announce.note({ ...COMPOSIO_CHANGE, secret: frame.t === "connectComposio" ? frame.apiKey : null }).catch(() => {})
       const { tools: _, ...others } = result
       const text = JSON.stringify({ t: "composio", result: others } satisfies UserToClient)
       for (const other of this.ctx.getWebSockets()) {
@@ -659,13 +688,9 @@ export class UserDO extends DurableObject<Env> {
     return this.#kr.takeover()
   }
 
-  /**
-   * An agent asks the human to look at the browser, for a sign-in or a captcha. Posts the reason as a plain
-   * message, with no link: the browser bar's Watch and Take over ask for it. `agentId` ends in the agent's slug
-   * (after the last "/" or ":"). Returns false when the agent is not in that room.
-   */
-  async browserShare(agentId: string, roomId: string, reason: string): Promise<boolean> {
-    return this.#kr.share(agentId, roomId, reason)
+  /** The live view link for the human, with a reason it is also posted to the room (section 27.7). */
+  async browserLive(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {
+    return this.#kr.liveLink(agentId, roomId, mode, reason)
   }
 
   /** The agent's socket died: the next lease makes a new browser. */
@@ -701,8 +726,8 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** Read before each browser call. Holds no URL. */
-  async browserCheck(): Promise<{ connected: boolean; takeover: boolean; tabs: Record<string, number> }> {
-    return this.#kr.check()
+  async browserCheck(agentId?: string): Promise<BrowserCheck> {
+    return this.#kr.check(agentId)
   }
 
   async devBrowser(op: DevBrowserOp): Promise<Record<string, unknown>> {
@@ -739,6 +764,23 @@ export class UserDO extends DurableObject<Env> {
     return this.#logins
   }
 
+  #announcements?: Announcements
+  get #announce(): Announcements {
+    this.#announcements ??= new Announcements({
+      sql: this.sql,
+      alarms: this.alarms,
+      now: Date.now,
+      send: async (id, body) => {
+        const roomId = kikoChatRoom(this.sql)
+        if (roomId) {
+          const owner = userIdFromObjectName(this.ctx.id.name)
+          await roomStub(this.env.ROOM, owner, roomId).announce(owner, id, body)
+        }
+      },
+    })
+    return this.#announcements
+  }
+
   #updateWiring?: UpdateWiring
   get #update(): UpdateWiring {
     this.#updateWiring ??= new UpdateWiring({
@@ -746,6 +788,7 @@ export class UserDO extends DurableObject<Env> {
       sql: this.sql,
       userId: () => userIdFromObjectName(this.ctx.id.name),
       broadcast: (frame) => this.broadcast(frame),
+      landed: (version) => this.#announce.note(updateChange(version)),
     })
     return this.#updateWiring
   }
@@ -792,7 +835,8 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "connectKernel" || frame.t === "disconnectKernel" || frame.t === "kernelStatus") {
-      await this.#kr.kernelFrame(ws, frame)
+      const result = await this.#kr.kernelFrame(ws, frame)
+      if (result.ok && frame.t !== "kernelStatus") await this.#announce.note({ ...KERNEL_CHANGE, secret: frame.t === "connectKernel" ? frame.apiKey : null }).catch(() => {})
       return
     }
     if (frame.t === "memory") {
@@ -855,6 +899,7 @@ export class UserDO extends DurableObject<Env> {
       [LOOPS_WAKEUP]: () => this.#il.now().finally(() => this.changed("loops")),
       [INITIATIVE_WAKEUP]: () => this.#il.engine.pass().finally(() => this.changed("loops")),
       [REAP_WAKEUP]: () => this.#kr.reap(),
+      [ANNOUNCE_WAKEUP]: () => this.#announce.flush(),
     })
   }
 
@@ -972,7 +1017,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private commit(change: ChatChange | { t: "agent"; agent: Agent } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
-    if (!change) return null
+    if (!change || (change.t === "chat" && change.chat.pair)) return null
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
     const at = Date.now()
     const seq = this.currentSeq() + 1

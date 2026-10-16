@@ -5,7 +5,7 @@ import { api } from "./routine-kit"
 
 const KERNEL = "https://api.onkernel.com"
 export const BROWSER_MODEL = process.env.KIKO_BROWSER_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
-const IDLE_PAST_MS = 6 * 60_000
+const IDLE_PAST_MS = 11 * 60_000
 
 type Events = Extract<RoomToClient, { t: "events" }>
 type Status = Extract<RoomToClient, { t: "status" }>

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { type KernelClient, KernelError } from "../src/integrations/kernel/client"
-import { IDLE_MS, KernelLease, type LeaseStore, reapDecision, TAKEOVER_RECHECK_MS } from "../src/integrations/kernel/lease"
+import { humanHolds, IDLE_MS, KernelLease, type LeaseStore, reapDecision, TAKEOVER_MS, TAKEOVER_RECHECK_MS } from "../src/integrations/kernel/lease"
 import type { LeaseRow, LeaseUrls } from "../src/integrations/kernel/store"
 
 function memoryStore() {
@@ -98,6 +98,8 @@ describe("reaper decision table", () => {
     ["a browser used inside the idle window survives any age", { lastUse: 10_000_000 }, 10_000_000 + IDLE_MS - 1, { delete: false, at: 10_000_000 + IDLE_MS }],
     ["an idle browser is deleted at its idle time, whatever its age", { lastUse: 1_000 }, 1_000 + IDLE_MS, { delete: true }],
     ["takeover keeps it however old", { takeover: true }, 1_000 + IDLE_MS * 20, { delete: false, at: 1_000 + IDLE_MS * 20 + TAKEOVER_RECHECK_MS }],
+    ["a takeover from before the limit (no end time) holds until handed back", { takeover: true, watchUntil: 0 }, 1_000 + IDLE_MS * 20, { delete: false, at: 1_000 + IDLE_MS * 20 + TAKEOVER_RECHECK_MS }],
+    ["a takeover past its limit is over, so the idle rule decides", { takeover: true, watchUntil: 5_000 }, 1_000 + IDLE_MS * 20, { delete: true }],
     ["watching keeps it until the watch ends", { watchUntil: 5_000_000 }, 4_000_000, { delete: false, at: 5_000_000 }],
     ["a watch in the past does not count", { watchUntil: 500 }, 1_000 + IDLE_MS, { delete: true }],
     ["a dead browser is deleted at once", { dead: true, takeover: true }, 1_001, { delete: true }],
@@ -144,6 +146,26 @@ describe("lease", () => {
     await t.lease.lease("a")
     await t.lease.switchMode("headless")
     expect(t.kernel.calls.filter((c) => c.startsWith("create") || c.startsWith("delete"))).toEqual(["create headless kiko-test"])
+  })
+
+  test("a forgotten takeover ends after the limit: the flag clears and the idle rule deletes the browser", async () => {
+    const t = setup()
+    await t.lease.lease("a")
+    t.lease.setTakeover(true)
+    const row = () => t.store.lease() as LeaseRow
+    expect(humanHolds(row(), t.clock.now)).toBe(true)
+    t.clock.now += TAKEOVER_MS + 1
+    expect(humanHolds(row(), t.clock.now)).toBe(false)
+    await t.lease.reap()
+    expect(t.store.lease()).toBeUndefined()
+  })
+
+  test("handing back clears the control and the extra time it bought", async () => {
+    const t = setup()
+    await t.lease.lease("a")
+    t.lease.setTakeover(true)
+    t.lease.setTakeover(false)
+    expect(t.store.lease()).toMatchObject({ takeover: false, watchUntil: 0 })
   })
 
   test("a switch keeps the human's takeover", async () => {
@@ -229,7 +251,7 @@ describe("reaper", () => {
     const t = setup()
     await t.lease.lease("a")
     t.lease.setTakeover(true)
-    t.clock.now += IDLE_MS * 20
+    t.clock.now += IDLE_MS * 5
     await t.lease.reap()
     expect(t.store.lease()).toBeDefined()
     t.lease.setTakeover(false)

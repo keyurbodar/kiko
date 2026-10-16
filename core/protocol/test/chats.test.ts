@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { sameAgentChat, sameAgents } from "../src/chats"
-import type { RoomId } from "../src/ids"
+import { pairRoomId, sameAgentChat, sameAgents } from "../src/chats"
+import { isRoomId, type RoomId } from "../src/ids"
 import type { Chat } from "../src/user"
 
 const chat = (roomId: string, over: Partial<Chat> = {}): Chat => ({
@@ -61,4 +61,22 @@ describe("two agent lists name one chat", () => {
 	])("%s", (_, a, b, expected) => {
 		expect(sameAgents(a, b)).toBe(expected)
 	})
+})
+
+describe("the pair room of two agents", () => {
+	test("is one valid room id whatever the order", () => {
+		const id = pairRoomId("ada", "bob")
+		expect(isRoomId(id)).toBe(true)
+		expect(pairRoomId("bob", "ada")).toBe(id)
+	})
+	test("differs for every pair", () => {
+		const ids = [pairRoomId("ada", "bob"), pairRoomId("ada", "kiko"), pairRoomId("a-b", "c"), pairRoomId("a", "b-c"), pairRoomId("bob", "kiko")]
+		expect(new Set(ids).size).toBe(ids.length)
+	})
+})
+
+test("a pair chat is never the chat that already holds its agents", () => {
+	const chats = [chat("p", { agents: ["a", "b"], pair: true }), chat("g", { agents: ["a", "b"], updatedAt: 1 })]
+	expect(sameAgentChat(chats, ["b", "a"])?.roomId).toBe("g" as RoomId)
+	expect(sameAgentChat([chats[0]!], ["a", "b"])).toBeNull()
 })

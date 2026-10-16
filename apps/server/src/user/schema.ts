@@ -233,4 +233,5 @@ export const USER_STEPS: Step[] = [
    WHERE trigger IS NULL AND status IN ('active', 'paused', 'failed')`,
   // Watch, file, and task triggers are gone. A routine that had one stays, paused, with no due time.
   "UPDATE reminders SET status = 'paused', due_utc = 0, hook_hash = NULL WHERE status = 'active' AND json_extract(trigger, '$.on') IN ('watch', 'file', 'task')",
+  addColumn("chats", "pair", "INTEGER NOT NULL DEFAULT 0"),
 ]

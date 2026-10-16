@@ -13,7 +13,13 @@ export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[]; ans
 
 export type Chain = { rootId: string; hop: number }
 
-export type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend }
+/** Where a queued mail goes when its recipient is in another room: the pair room, and the ask it belongs to. `back` marks an answer on its way to the room that asked. */
+type Remote = { room: RoomId; askId: string; back?: true }
+
+export type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend; remote: Remote | null }
+
+/** What the room does after an answer came back from a pair room. */
+type Returned = { events: RoomEvent[]; asker: AgentSlug; waiting: boolean; queued: boolean }
 
 export const KEEP_SENDS_MS = 7 * 86_400_000
 const PRUNE_EVERY_MS = 3_600_000
@@ -39,9 +45,9 @@ export class Mail {
 
 	pending(): QueuedMail[] {
 		return this.sql
-			.exec<{ n: number; sender: string; send: string; recipient: string }>("SELECT n, sender, send, recipient FROM mail_queue ORDER BY n")
+			.exec<{ n: number; sender: string; send: string; recipient: string; remote: string | null }>("SELECT n, sender, send, recipient, remote FROM mail_queue ORDER BY n")
 			.toArray()
-			.map((r) => ({ n: r.n, from: r.sender as AgentSlug, to: r.recipient as AgentSlug, send: JSON.parse(r.send) as StoredSend }))
+			.map((r) => ({ n: r.n, from: r.sender as AgentSlug, to: r.recipient as AgentSlug, send: JSON.parse(r.send) as StoredSend, remote: r.remote ? (JSON.parse(r.remote) as Remote) : null }))
 	}
 
 	queued(): boolean {
@@ -119,8 +125,8 @@ export class Mail {
 		return this.sql.exec<{ n: number }>("SELECT deliveries AS n FROM root_counts WHERE root_id = ?", rootId).toArray()[0]?.n ?? 0
 	}
 
-	/** Records the send, queues it for each recipient, and links it to `askId`, all in one transaction. A replay returns the first record and queues nothing. */
-	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], askId: string | null): SendOutcome {
+	/** Records the send, queues it for each recipient, and links it to `askId`, all in one transaction. A replay returns the first record and queues nothing. A `pair` room means the one recipient is not a member and is reached there. */
+	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], askId: string | null, pair: RoomId | null = null): SendOutcome {
 		return this.storage.transactionSync((): SendOutcome => {
 			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", input.id).toArray()[0]
 			if (earlier) return { ok: true, send: JSON.parse(earlier.send) as StoredSend, events: [], answered: this.asks.answeredBy(input.id) }
@@ -128,10 +134,10 @@ export class Mail {
 			if (!text) return { ok: false, error: "not sent: the message is empty.", events: [] }
 			if (input.to === from) return { ok: false, error: "not sent: you cannot message yourself.", events: [] }
 			const others = members.filter((m) => m.slug !== from).map((m) => m.slug)
-			if (input.to !== "all" && !others.includes(input.to)) {
+			if (!pair && input.to !== "all" && !others.includes(input.to)) {
 				return { ok: false, error: `not sent: no agent @${input.to} in this room. members: ${others.map((s) => `@${s}`).join(", ") || "none"}.`, events: [] }
 			}
-			const recipients = input.to === "all" ? others : [input.to]
+			const recipients = pair ? [input.to as AgentSlug] : input.to === "all" ? others : [input.to]
 			if (!recipients.length) return { ok: false, error: "not sent: you are the only agent in this room.", events: [] }
 			const { rootId, hop: was } = this.chain(from)
 			if (this.stopped(rootId)) return { ok: false, error: "not sent: the human pressed stop.", events: [] }
@@ -143,11 +149,13 @@ export class Mail {
 			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients }
 			this.count(rootId, recipients.length)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
-			if (askId) this.asks.sent(askId, stored.id)
-			const heard = askId || input.to === "all" ? null : this.asks.answer(from, input.to, text, input.id)
+			if (askId) this.asks.sent(askId, stored.id, pair)
+			const heard = askId || pair || input.to === "all" ? null : this.asks.answer(from, input.to, text, input.id)
+			const back = askId || pair || input.to === "all" ? [] : this.asks.answerRemote(from, input.to, text)
+			for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
 			const answered = heard?.open ?? null
-			if (!answered) this.enqueue(from, send)
-			if (!askId && !heard?.answered) for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now())
+			if (!answered && !back.length) this.enqueue(from, send, pair ? { room: pair, askId: askId ?? `${input.id}:${input.to}` } : null)
+			if (!askId && !heard?.answered && !back.length) for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now(), pair)
 			this.prune()
 			return { ok: true, send, events: stored.event ? [stored.event] : [], answered }
 		})
@@ -168,8 +176,48 @@ export class Mail {
 		})
 	}
 
-	private enqueue(from: AgentSlug, send: StoredSend): void {
-		for (const to of send.recipients) this.sql.exec("INSERT INTO mail_queue (sender, send, recipient) VALUES (?, ?, ?)", from, JSON.stringify(send), to)
+	private enqueue(from: AgentSlug, send: StoredSend, remote: Remote | null = null): void {
+		for (const to of send.recipients) this.sql.exec("INSERT INTO mail_queue (sender, send, recipient, remote) VALUES (?, ?, ?, ?)", from, JSON.stringify(send), to, remote ? JSON.stringify(remote) : null)
+	}
+
+	/**
+	 * In a pair room, queues the answer to what `to` asked in `room`. Once per ask, so a replay queues nothing.
+	 * `chain` is the answer's own: the chain of the agent that answers, one hop on, unless the caller has it already.
+	 */
+	giveBack(askId: string, from: AgentSlug, to: AgentSlug, text: string, room: RoomId, chain?: Chain): void {
+		this.storage.transactionSync(() => {
+			const id = `back:${askId}`
+			if (this.sql.exec("SELECT 1 FROM agent_sends WHERE id = ?", id).toArray().length) return
+			const own = chain ?? { rootId: this.chain(from).rootId, hop: this.chain(from).hop + 1 }
+			const send: StoredSend = { messageId: "", seq: 0, text, hop: own.hop, rootId: own.rootId, recipients: [to] }
+			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", id, JSON.stringify(send), this.now())
+			this.enqueue(from, send, { room, askId, back: true })
+		})
+	}
+
+	/**
+	 * The answer to a private talk, back from the pair room. It settles the asker's expectation, logs the answer
+	 * as a message from the agent that is not in this room, and queues it for the asker unless the asker waits in an `ask`.
+	 * Null when the answer was already taken, the ask is unknown, or the human stopped this root.
+	 */
+	returned(askId: string, from: AgentSlug, text: string, chain: Chain): Returned | null {
+		return this.storage.transactionSync((): Returned | null => {
+			const ask = this.asks.remote(askId)
+			if (!ask || ask.answer !== null || this.stopped(chain.rootId)) return null
+			const waiting = ask.state === "open"
+			this.asks.settle(askId, text)
+			if (!text) return { events: [], asker: ask.asker, waiting, queued: false }
+			const shown = `@${ask.asker} ${text}`
+			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), to: ask.asker })
+			const queued = !waiting && checkSend(chain.hop, this.deliveries(chain.rootId), 1).ok
+			if (queued) {
+				const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop: chain.hop, rootId: chain.rootId, recipients: [ask.asker] }
+				this.count(chain.rootId, 1)
+				this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", `answer:${askId}`, JSON.stringify(send), this.now())
+				this.enqueue(from, send)
+			}
+			return { events: stored.event ? [stored.event] : [], asker: ask.asker, waiting, queued }
+		})
 	}
 
 	private count(rootId: string, deliveries: number): void {
