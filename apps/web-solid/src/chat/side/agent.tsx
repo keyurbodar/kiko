@@ -10,6 +10,7 @@ const sentence = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
 export function AgentPage(props: { slug: string; chatId: string; onRemoved: () => void }) {
   const member = () => roomMembers().find((m) => m.slug === props.slug)
+  const picked = () => useApp.agentModel(props.slug)
   const status = () => useApp.room()?.state.status[props.slug as never] ?? "idle"
   return (
     <div class="flex min-h-full flex-col" data-component="info-agent" data-slug={props.slug}>
@@ -31,8 +32,8 @@ export function AgentPage(props: { slug: string; chatId: string; onRemoved: () =
       </Profile>
       <Properties>
         <Property label="Role" field="role">{member()?.lead ? "Lead" : "Agent"}</Property>
-        <Property label="Model" field="model">{member()?.model?.split("/").slice(1).join("/") ?? "None"}</Property>
-        {canReason(member()?.thinkingLevels) && member()?.thinking && <Property label="Reasoning" field="thinking">{THINKING_LABELS[member()!.thinking!]}</Property>}
+        <Property label="Model" field="model">{picked()?.model.split("/").slice(1).join("/") ?? "None"}</Property>
+        {canReason(picked()?.thinkingLevels) && <Property label="Reasoning" field="thinking">{THINKING_LABELS[picked()!.thinking]}</Property>}
         <Property label="Status" field="status">{sentence(status())}</Property>
       </Properties>
       <div class="px-2 pb-4">

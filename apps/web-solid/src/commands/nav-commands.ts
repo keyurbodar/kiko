@@ -9,6 +9,9 @@ export function navCommands(deps: {
   go: (href: string) => void
   signOut: () => void
   chooseModel: () => void
+  /** True when the agent the composer's model chip targets can reason. */
+  canReason: () => boolean
+  chooseReasoning: () => void
 }): Command[] {
   return [
     { id: "go.chat", title: "Chats", group: "go", icon: "chat", global: true, run: () => deps.go("/chat") },
@@ -19,6 +22,7 @@ export function navCommands(deps: {
     { id: "settings.general", title: "General", group: "settings", icon: "account", run: () => deps.go("/settings/general") },
     { id: "settings.account", title: "Account", group: "settings", icon: "account", run: () => deps.go("/settings/account") },
     { id: "chat.model", title: "Choose model", group: "chat", icon: "model", shortcut: "Mod+Shift+M", global: true, run: deps.chooseModel },
+    { id: "chat.reasoning", title: "Reasoning…", group: "chat", icon: "model", when: deps.canReason, run: deps.chooseReasoning },
     { id: "account.sign-out", title: "Sign out", group: "account", icon: "signout", run: deps.signOut },
   ]
 }

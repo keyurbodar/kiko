@@ -1,7 +1,9 @@
 import { useNavigate } from "@solidjs/router"
 import { Command as Cmdk } from "cmdk-solid"
 import { HugeIcon } from "@kiko/ui/huge-icon"
+import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/protocol"
 import { ChatAvatar } from "../lib/IdentityAvatar"
+import { answeringMember } from "../settings/agent-model"
 import { For, Show, createEffect, createMemo } from "solid-js"
 import { displayShortcut } from "../commands/hotkeys"
 import { useApp } from "../lib/store"
@@ -19,6 +21,10 @@ export default function Palette() {
   const groups = createMemo(() => paletteGroups())
   const chats = createMemo(() => useApp.bots())
   let input: HTMLInputElement | undefined
+  // The agent the composer's model chip targets when the draft tags no one: the lead.
+  const target = () => answeringMember(useApp.roomMembers(), "")
+  const picked = () => useApp.agentModel(target()?.slug ?? "")
+  const levels = () => picked()?.thinkingLevels ?? []
 
   // Focus goes back to where it was, so closing the palette does not strand the person on the page body.
   let before: Element | null = null
@@ -58,7 +64,7 @@ export default function Palette() {
             <Cmdk.Input
               ref={input}
               class="palette-input"
-              placeholder={mode() === "chats" ? "Go to chat…" : "Type a command…"}
+              placeholder={mode() === "chats" ? "Go to chat…" : mode() === "reasoning" ? "Reasoning…" : "Type a command…"}
               autofocus
             />
             <Cmdk.List class="palette-list">
@@ -66,6 +72,9 @@ export default function Palette() {
               <Show
                 when={mode() === "commands"}
                 fallback={
+                  <Show
+                    when={mode() === "reasoning"}
+                    fallback={
                   <For each={chats()}>
                     {(chat) => (
                       <Cmdk.Item class="palette-row" value={`${chat.id} ${chat.name.toLowerCase()}`} onSelect={() => run(() => navigate(`/chat/${chat.id}`))}>
@@ -74,6 +83,29 @@ export default function Palette() {
                       </Cmdk.Item>
                     )}
                   </For>
+                    }
+                  >
+                    <Cmdk.Group class="palette-group" heading={`Reasoning for ${target()?.name ?? "the agent"}`}>
+                      <For each={levels()}>
+                        {(level) => (
+                          <Cmdk.Item
+                            class="palette-row"
+                            value={THINKING_LABELS[level]}
+                            data-level={level}
+                            onSelect={() => run(() => useApp.setAgentModel(target()!.slug, { thinking: level as ThinkingLevel }))}
+                          >
+                            <span class="palette-label">{THINKING_LABELS[level]}</span>
+                            <Show when={level === picked()?.thinking}>
+                              <span class="palette-keys">Current</span>
+                            </Show>
+                            <Show when={level === defaultThinking(levels())}>
+                              <span class="palette-keys">Default</span>
+                            </Show>
+                          </Cmdk.Item>
+                        )}
+                      </For>
+                    </Cmdk.Group>
+                  </Show>
                 }
               >
                 <For each={groups()}>

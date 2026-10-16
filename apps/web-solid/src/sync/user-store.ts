@@ -49,7 +49,7 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	return true
 }
 
-import { clampThinking, newRoomId, PROTOCOL, sameAgentChat } from "@kiko/protocol"
+import { clampThinking, defaultThinking, newRoomId, PROTOCOL, sameAgentChat } from "@kiko/protocol"
 export { newRoomId }
 
 // The app's own build. The backend's answer is checked against it.
@@ -289,10 +289,9 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		agentModel: (slug) => state.pendingModels[slug] ?? state.agentModels[slug],
 		setAgentModel(slug, { ref, thinking, levels, roomId }) {
 			const current = state.pendingModels[slug] ?? state.agentModels[slug]
-			if (current) {
-				const nextLevels = levels ?? current.thinkingLevels
-				setState("pendingModels", slug, { model: ref ?? current.model, thinking: clampThinking(nextLevels, thinking ?? current.thinking), thinkingLevels: nextLevels })
-			}
+			const nextLevels = levels ?? current?.thinkingLevels
+			const model = ref ?? current?.model
+			if (model && nextLevels) setState("pendingModels", slug, { model, thinking: clampThinking(nextLevels, thinking ?? current?.thinking ?? defaultThinking(nextLevels)), thinkingLevels: nextLevels })
 			socket?.send({ t: "agent_model", slug, ...(ref ? { ref } : {}), ...(thinking ? { thinking } : {}), ...(roomId ? { roomId } : {}) })
 		},
 		createChat(title, agents) {

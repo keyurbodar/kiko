@@ -2,9 +2,9 @@ import { useNavigate } from "@solidjs/router"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
+import { KIKO, type AgentSlug } from "@kiko/protocol"
 import { useApp } from "../../lib/store"
 import { loadCatalog, modelRef } from "../../settings/catalog"
-import { setChatModel } from "../../settings/chat-model"
 import { connectedProviders } from "../../settings/connected"
 import { modelProviders } from "../../settings/provider-kinds"
 import { primary } from "./welcome"
@@ -21,7 +21,7 @@ function focusComposer(tries = 40): void {
 
 /*
  * Pick Kiko's model. The list is the connected providers' models, reasoning and large context first, so the
- * first row is a good default. Continue sets the model for the Kiko chat and new chats, then lands in the chat.
+ * first row is a good default. Start chatting sets Kiko's model, then lands in the chat.
  */
 export function ModelStep() {
   const navigate = useNavigate()
@@ -39,8 +39,8 @@ export function ModelStep() {
   const current = () => chosen() ?? rows()[0]?.ref
 
   const land = () => {
-    const ref = current()
-    if (ref) setChatModel(useApp.kikoChatId() ?? null, ref)
+    const row = rows().find((r) => r.ref === current())
+    if (row) useApp.setAgentModel(KIKO as AgentSlug, { ref: row.ref, levels: row.model.thinking })
     move("next")
     navigate("/", { replace: true })
     focusComposer()

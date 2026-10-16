@@ -5,7 +5,7 @@ import { createRoot, createSignal } from "solid-js"
  * panel so the registry's commands can open it without importing the panel,
  * which loads later as tier 3.
  */
-export type PaletteMode = "commands" | "chats"
+export type PaletteMode = "commands" | "chats" | "reasoning"
 
 const [mode, setMode] = createRoot(() => createSignal<PaletteMode | null>(null))
 

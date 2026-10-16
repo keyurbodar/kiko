@@ -4,6 +4,7 @@ import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, tog
 import { signOut } from "../app/session"
 import { toggleCard } from "../chat/side/card-state"
 import { fixedSurface, openSurface } from "../chat/side/surfaces"
+import { answeringMember, canReason } from "../settings/agent-model"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
 import { openSearch } from "../search/state"
@@ -104,6 +105,8 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         if (!location.pathname.startsWith("/chat")) navigate("/chat")
         openModelPicker()
       },
+      canReason: () => canReason(useApp.agentModel(answeringMember(useApp.roomMembers(), "")?.slug ?? "")?.thinkingLevels),
+      chooseReasoning: () => openPalette("reasoning"),
     }),
   )
   const live = () => import("../theme/live")

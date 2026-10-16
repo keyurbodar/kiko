@@ -3,7 +3,7 @@ import { navCommands } from "./nav-commands"
 
 describe("nav commands", () => {
   const went: string[] = []
-  const list = navCommands({ go: (h) => went.push(h), signOut() {}, chooseModel() {} })
+  const list = navCommands({ go: (h) => went.push(h), signOut() {}, chooseModel() {}, canReason: () => true, chooseReasoning() {} })
 
   test("every title is sentence case with no group prefix, and every id is unique", () => {
     for (const c of list) expect(c.title).toMatch(/^[A-Z][^:A-Z]*$/)

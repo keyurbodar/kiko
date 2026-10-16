@@ -709,6 +709,28 @@ describe("the user store", () => {
 		second.close()
 	})
 
+	test("an agent's model is one setting: a pick shows at once, reaches a second device, and a fresh device reads it from the snapshot", async () => {
+		const mock = createMockUser()
+		const options = { url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } }
+		const a = createUserStore({ warm: await freshWarm(), ...options })
+		const b = createUserStore({ warm: await freshWarm(), ...options })
+		await Promise.all([a.ready, b.ready])
+		await until(() => a.state.synced && b.state.synced)
+		a.setAgentModel("ada" as never, { ref: "x/two", thinking: "high", levels: ["off", "low"] })
+		expect(a.agentModel("ada")).toEqual({ model: "x/two", thinking: "low", thinkingLevels: ["off", "low"] })
+		await until(() => mock.received.some((f) => f.t === "agent_model"))
+		expect(mock.received.find((f) => f.t === "agent_model")).toEqual({ t: "agent_model", slug: "ada", ref: "x/two", thinking: "high" })
+		await until(() => b.agentModel("ada")?.model === "x/two")
+		expect(b.state.pendingModels).toEqual({})
+		const c = createUserStore({ warm: await freshWarm(), ...options })
+		await c.ready
+		await until(() => c.agentModel("ada") !== undefined)
+		expect(c.agentModel("ada")?.model).toBe("x/two")
+		a.close()
+		b.close()
+		c.close()
+	})
+
 	test("a second direct chat made before the list arrived is refused: it leaves the list and points at the first", async () => {
 		const mock = createMockUser({ chats: [{ ...fixtures.chat, roomId: fixtures.otherRoomId, agents: ["id-ada"] }] })
 		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
