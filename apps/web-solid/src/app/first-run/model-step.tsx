@@ -69,7 +69,7 @@ export function ModelStep() {
                   type="button"
                   role="radio"
                   aria-checked={current() === row.ref}
-                  class="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left outline-none hover:bg-accent aria-checked:border-[var(--ring)] aria-checked:bg-accent"
+                  class="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent aria-checked:border-[var(--ring)] aria-checked:bg-accent"
                   data-model={row.ref}
                   onClick={() => setChosen(row.ref)}
                 >
@@ -87,7 +87,7 @@ export function ModelStep() {
           Start chatting
         </button>
         <Show when={!all() && rows().length > FEW}>
-          <button type="button" class="cursor-pointer self-center text-sm text-muted-foreground outline-none hover:text-foreground" onClick={() => setAll(true)}>
+          <button type="button" class="cursor-pointer self-center text-sm text-muted-foreground hover:text-foreground" onClick={() => setAll(true)}>
             Show all models
           </button>
         </Show>

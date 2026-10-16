@@ -8,7 +8,7 @@ Read `docs/overview.md` before your first task. `docs/architecture.md` has every
 
 These are not negotiable. A change that breaks one is wrong even if it works.
 
-1. **Instant.** Navigation, buttons, menus, tabs, the composer, and route changes have 0 ms of animation and never wait on the network. The app paints from IndexedDB first.
+1. **Instant.** Navigation, route changes, tabs, buttons, and the composer have 0 ms of animation and never wait on the network. The app paints from IndexedDB first. Motion is allowed where it never delays input: overlays entering and leaving (dialogs, the palette, popovers, menus, tooltips) with t3code's timings, toasts, and waiting states (spinners, skeletons, progress, busy labels). Honor `prefers-reduced-motion`.
 2. **Optimistic.** Every user action applies locally before the server answers.
 3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles.
 4. **The human outranks every agent.** A human message is handled first and can interrupt work.

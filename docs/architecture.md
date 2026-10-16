@@ -1090,7 +1090,7 @@ Kiko has no per-user limits record and no daily run budget. The caps are the hop
   - Order. `RoomDO.humanSend` runs one send at a time, in arrival order. A long send waits on R2 before its transaction, so a short send behind it waits too. Otherwise the short one takes an earlier seq.
   - Not yet (U52): a send refused because its upload expired (24 hours, `pending.ts`) stays failed, and the human must attach again.
   - A message draws its pictures as a grid of 4:3 tiles, at most 210 px wide in two columns (a lone picture spans both), and its other files as one button each, with an icon, the name, and the size (`chat/ui/Attachments.tsx`). A click opens the files tab when its viewer can show the file, else the file in a new tab. Download lives in the file's own view. A file's type decides, so a message stored with the old media fields draws the same way, and the client ignores the fields it no longer knows.
-  - A picture opens in one image dialog per surface (`chat/ui/ImageDialog.tsx`, lazy). It opens and closes with no animation, as section 19.5 asks of overlays, and has no zoom.
+  - A picture opens in one image dialog per surface (`chat/ui/ImageDialog.tsx`, lazy). It opens and closes with the overlay motion of section 19.5, and has no zoom.
   - The files tab draws a picture inline, and video and sound in the browser's own players, as t3code's file preview does. The old picture viewer and players are deleted (section 19.3).
 - Link previews are gone (2026-10-09) and links are plain text (section 6.4). The protocol dropped `LinkPreview`, `Message.preview`, the `preview` event, `CatalogItem`, the `catalog` frames, and `FileRef`'s `width`, `height`, `thumbhash`, and `thumb`. A schema ignores keys it does not know, so a stored message that still has them decodes. The room socket ignores a retired `catalog` frame from an older client rather than close (`room/socket.ts`), and the client store ignores an event tag it does not know, such as an old `preview`.
 - The chat's files are `pi-durable`'s `ExecutionEnv` (`files/room-fs.ts`), passed to the harness as `env`, so pi's own `read`, `write`, `edit`, and `bash` run unchanged. The shell is an interpreter, not a process (section 18.4). Folders are rows of their own (`ws_dirs`, `home_dirs`), so an empty folder stays (section 18.3). `mv` changes paths only (ids and R2 objects stay), so a folder of any size moves at once; `rm` checks every path before it deletes anything.
@@ -1237,7 +1237,15 @@ Effect v4 does not ship in tiers 1 to 3. See section 20.
 
 ### 19.5 Motion
 
-Navigation, buttons, menus, tabs, the composer, the image dialog, and route changes have no animation. Motion is allowed where the user is already waiting: the typing indicator, incoming bubbles, toasts, progress, reaction pop, attachment add and remove, and the calendar opening. All of it respects `prefers-reduced-motion` and none of it delays input.
+Navigation, route changes, tabs, buttons, and the composer have 0 ms of animation and never wait on the network. Motion is for two things, and it never delays input.
+
+- **Overlays entering and leaving:** dialogs, the command palette, popovers, menus, tooltips, and hover cards. They follow t3code: opacity and scale 0.98, 200 ms ease-in-out for a dialog and 150 ms for a menu, popover, or tooltip, interactive from the first frame. Kobalte keeps a leaving overlay mounted until its exit animation ends.
+- **Waiting states:** a spinner, a skeleton (2.4 s stepped pulse), progress, a button's busy label, the typing indicator, incoming bubbles, toasts, the scroll-to-bottom button, onboarding transitions, a collapsing panel (200 ms), and a switch (150 ms).
+- Also allowed: reaction pop, and attachment add and remove.
+
+All of it respects `prefers-reduced-motion`. The durations and easings are tokens in `styles/motion.css`, and `styles/motion.test.ts` fails on motion aimed at navigation, buttons, tabs, or the composer, and on any motion that is not a named overlay or an opt-in `motion-*` class.
+
+Focus follows the same calm. A pointer never lights a button, row, tree item, or text field. `:focus-visible` shows one subtle ring, and a text field shows it only after a key press (`html[data-input="keys"]`, set in `app/shell.tsx`).
 
 Motion never overshoots or bounces. It travels a short way, fades in, and settles on one ease-out curve, `cubic-bezier(0.22, 1, 0.36, 1)`, monocode's. Your sent message rises out of the composer into its place over 520 ms, and an agent's reply fades up 10 px over 320 ms.
 

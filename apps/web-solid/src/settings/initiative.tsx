@@ -1,7 +1,7 @@
 import type { UserSettings } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { createSignal, onMount } from "solid-js"
-import { Group, Row, Segmented } from "./kit"
+import { createSignal, onMount, Show } from "solid-js"
+import { Group, Row, Segmented, Skeleton } from "./kit"
 import { apiFetch } from "../lib/api"
 
 /*
@@ -18,6 +18,7 @@ const CAPTURES: readonly Capture[] = ["auto", "off"]
 const DEFAULTS: Settings = { initiative: "digest", capture: "auto" }
 
 const [settings, setSettings] = createSignal<Settings>(DEFAULTS)
+const [loaded, setLoaded] = createSignal(false)
 
 /** A server answer reduced to values the page knows. Anything else keeps the default. */
 export function readSettings(value: unknown): Settings {
@@ -53,11 +54,13 @@ export default function InitiativePage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((v) => v && setSettings(readSettings(v)))
       .catch(() => {})
+      .finally(() => setLoaded(true))
   })
   return (
     <div class="flex flex-col gap-8" data-component="initiative-settings">
         <Group title="Agents">
           <Row label="Initiative" id="initiative" description="Off: no initiative and no background judge cost. In chat only: brings things up only inside replies. Daily digest: at most one message a day. Active: a few, learned from how you respond.">
+            <Show when={loaded()} fallback={<Skeleton class="h-7 w-72" />}>
             <Segmented<Level>
               label="Initiative"
               value={settings().initiative}
@@ -69,8 +72,10 @@ export default function InitiativePage() {
               ]}
               onChange={(initiative) => void save({ initiative })}
             />
+            </Show>
           </Row>
           <Row label="Memory capture" id="capture" description="Auto captures facts when you have saved a judge key. Off never captures.">
+            <Show when={loaded()} fallback={<Skeleton class="h-7 w-24" />}>
             <Segmented<Capture>
               label="Memory capture"
               value={settings().capture}
@@ -80,6 +85,7 @@ export default function InitiativePage() {
               ]}
               onChange={(capture) => void save({ capture })}
             />
+            </Show>
           </Row>
         </Group>
     </div>
