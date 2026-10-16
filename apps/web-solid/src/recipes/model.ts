@@ -1,4 +1,4 @@
-import type { RecipeCard, RecipeInstall, RoomId } from "@kiko/protocol"
+import type { RecipeCard, RecipeInstall } from "@kiko/protocol"
 import { triggerLabel } from "../chat/info/routines-model"
 
 /** The tags in the order the page shows their chips. A tag not listed here comes after, in the order the catalog has it. */
@@ -62,15 +62,18 @@ export function nextLabel(at: number, now: number, tz?: string): string {
   return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)} at ${time}`
 }
 
-/** The installs grouped by chat, in the chat list's order. A chat the list does not have goes last. */
-export function groupByChat(installs: readonly RecipeInstall[], chatOrder: readonly string[]): { roomId: RoomId; installs: RecipeInstall[] }[] {
-  const groups = new Map<RoomId, RecipeInstall[]>()
-  for (const install of installs) groups.set(install.roomId, [...(groups.get(install.roomId) ?? []), install])
+/** "Next run tomorrow at 7:30 AM": the next run's label as the tail of a sentence. */
+export function nextRunLabel(at: number, now: number, tz?: string): string {
+  return `Next run ${nextLabel(at, now, tz).replace(/^(Today|Tomorrow)/, (day) => day.toLowerCase())}`
+}
+
+/** The installs in the chat list's order, so the page reads like the sidebar. A chat the list does not have goes last. */
+export function byChatOrder(installs: readonly RecipeInstall[], chatOrder: readonly string[]): RecipeInstall[] {
   const rank = (roomId: string) => {
     const i = chatOrder.indexOf(roomId)
     return i === -1 ? Number.POSITIVE_INFINITY : i
   }
-  return [...groups].sort((a, b) => rank(a[0]) - rank(b[0])).map(([roomId, list]) => ({ roomId, installs: list }))
+  return [...installs].sort((a, b) => rank(a.roomId) - rank(b.roomId))
 }
 
 /** The recipe a routine came from. Routine names are stored lowercased, so the title is compared lowercased. */

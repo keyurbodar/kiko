@@ -1,23 +1,38 @@
 import type { RecipeCard } from "@kiko/protocol"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ChevronRightIcon, SearchIcon } from "@kiko/ui/icons"
+import { SearchIcon } from "@kiko/ui/icons"
+import { TabsV2 } from "@kiko/ui/v2/tabs-v2"
 import { useNavigate, useSearchParams } from "@solidjs/router"
-import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
-import { cn } from "../lib/cn"
-import { ChatAvatar } from "../lib/IdentityAvatar"
+import { createEffect, createMemo, createSignal, For, type JSX, onMount, Show } from "solid-js"
 import { useApp } from "../lib/store"
-import { filterRecipes, groupByChat, recipeTags, type TagFilter, tagLabel } from "./model"
-import { InstallRow } from "./row"
+import { buttonClass } from "../settings/kit"
+import { byChatOrder, filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
+import { InstallCard } from "./row"
 import { RecipeSheet } from "./sheet"
 import { addToTarget, broken, cards, installs, isAdded, refreshListing, targetsForChat } from "./state"
 import { RecipeTile } from "./tile"
 
-const names = (list: readonly string[]) => (list.length < 3 ? list.join(" and ") : `${list.slice(0, -1).join(", ")}, and ${list.at(-1)}`)
-const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+type Section = "yours" | "discover"
+
+const sectionTab =
+  "flex h-8 cursor-pointer items-center gap-2 rounded-full pr-2 pl-3.5 text-[14px] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[selected]:bg-control-strong data-[selected]:text-foreground"
+const tagTab =
+  "h-7 shrink-0 cursor-pointer rounded-full px-3 text-[13px] text-muted-foreground outline-none hover:bg-control hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[selected]:bg-control-strong data-[selected]:text-foreground"
+const grid = "grid grid-cols-1 gap-3 @max-[519px]/recipes:gap-2 @min-[520px]/recipes:grid-cols-2"
+
+function Empty(props: { title: string; children?: JSX.Element }) {
+  return (
+    <div class="flex flex-col items-center gap-2 px-6 py-16 text-center">
+      <p class="text-[15px] font-medium text-foreground">{props.title}</p>
+      {props.children}
+    </div>
+  )
+}
 
 /*
- * The recipes page, `/recipes`. "Yours" shows what runs now, one card per chat. "Discover" is the
- * book. `?room=` is the chat the human came from, so Add goes there first.
+ * The recipes page, `/recipes`. Two tabs: "Yours" shows what runs now, "Discover" is the book, with
+ * its categories as a second row of tabs. Both rows stick to the top, so any of it is one click
+ * away. Search filters both tabs. `?room=` is the chat the human came from, so Add goes there first.
  */
 export default function RecipesPage() {
   const navigate = useNavigate()
@@ -31,9 +46,12 @@ export default function RecipesPage() {
   const [tag, setTag] = createSignal<TagFilter>("all")
   const [open, setOpen] = createSignal<{ card: RecipeCard; mode?: "add" } | null>(null)
   const bySlug = createMemo(() => new Map(cards().map((c) => [c.slug, c])))
-  const groups = createMemo(() => groupByChat(installs().filter((i) => bySlug().has(i.slug)), useApp.bots().map((b) => b.id)))
-  const tags = createMemo(() => recipeTags(cards()))
+  const matching = createMemo(() => new Set(filterRecipes(cards(), query(), "all").map((c) => c.slug)))
+  const yours = createMemo(() => byChatOrder(installs().filter((i) => matching().has(i.slug)), useApp.bots().map((b) => b.id)))
+  const tags = createMemo(() => ["all", ...recipeTags(cards())])
+  // Only the selected category's panel is mounted, so one list serves every panel.
   const shown = createMemo(() => filterRecipes(cards(), query(), tag()))
+  const [section, setSection] = createSignal<Section>(installs().length && !roomId() ? "yours" : "discover")
   const add = (card: RecipeCard) => {
     const id = roomId()
     const targets = id ? targetsForChat(id) : []
@@ -42,11 +60,19 @@ export default function RecipesPage() {
   }
   onMount(() => void refreshListing())
 
+  let scroller!: HTMLDivElement
+  let tabsTop!: HTMLDivElement
+  // A switch from far down the page lands at the top of the new list, with the tabs still in view.
+  const toTabs = () => {
+    const y = tabsTop.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
+    if (scroller.scrollTop > y) scroller.scrollTop = y
+  }
+
   return (
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden" data-component="recipes-page">
-      <div class="@container/recipes flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        <div class="mx-auto flex w-full max-w-[880px] flex-col gap-9 px-5 pt-8 pb-20 max-[767px]:pt-14 @min-[560px]/recipes:px-8 @min-[560px]/recipes:pt-10">
-          <header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+      <div ref={scroller} class="@container/recipes flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <div class="mx-auto flex w-full max-w-[880px] flex-col px-5 pb-20 @min-[560px]/recipes:px-8">
+          <header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pt-8 pb-4 max-[767px]:pt-14 @min-[560px]/recipes:pt-10">
             <div class="flex flex-col gap-1">
               <h1 class="text-[26px] font-semibold tracking-[-0.02em] text-foreground">Recipes</h1>
               <p class="text-[14px] text-muted-foreground">Little routines your agents can pick up.</p>
@@ -64,81 +90,88 @@ export default function RecipesPage() {
             </label>
           </header>
 
-          <Show when={groups().length && !query()}>
-            <section class="flex flex-col gap-3" data-component="recipes-yours">
-              <div class="flex items-baseline gap-2.5 px-1">
-                <h2 class="text-[15px] font-semibold text-foreground">Yours</h2>
-                <span class="text-[13px] text-muted-foreground">
-                  {count(groups().reduce((n, g) => n + g.installs.length, 0), "recipe", "recipes")} in {count(groups().length, "chat", "chats")}
-                </span>
-              </div>
-              <div class="gap-3 @min-[760px]/recipes:columns-2">
-                <For each={groups()}>
-                  {(group) => {
-                    const chat = () => useApp.chatById(group.roomId)
-                    const members = () => targetsForChat(group.roomId)
-                    return (
-                      <div class="mb-3 flex break-inside-avoid flex-col rounded-[18px] bg-card p-1.5 [--recipe-surface:var(--card)]" data-chat={group.roomId}>
-                        <div class="flex items-center gap-2.5 px-2.5 pt-2 pb-1.5">
-                          <ChatAvatar faces={useApp.chatFaces(group.roomId)} size={28} />
-                          <span class="min-w-0 flex-1">
-                            <span class="block truncate text-[13.5px] font-semibold text-foreground">{chat()?.name ?? "Chat"}</span>
-                            <Show when={members().length > 1 && chat()?.name !== members().map((m) => m.name).join(", ")}>
-                              <span class="block truncate text-xs text-muted-foreground">{names(members().map((m) => m.name))}</span>
-                            </Show>
-                          </span>
-                          <button
-                            type="button"
-                            class="flex h-7 shrink-0 cursor-pointer items-center gap-0.5 rounded-full pr-2 pl-3 text-xs text-muted-foreground hover:bg-control hover:text-foreground"
-                            data-action="open-chat"
-                            onClick={() => navigate(`/chat/${group.roomId}`)}
-                          >
-                            Open chat
-                            <HugeIcon icon={ChevronRightIcon} size={13} />
-                          </button>
-                        </div>
-                        <For each={group.installs}>{(install) => <InstallRow install={install} card={bySlug().get(install.slug)!} lead="recipe" />}</For>
-                      </div>
-                    )
-                  }}
-                </For>
-              </div>
-            </section>
-          </Show>
+          <div ref={tabsTop} />
+          <TabsV2
+            value={section()}
+            onChange={(next) => {
+              setSection(next as Section)
+              toTabs()
+            }}
+          >
+            <TabsV2.List class="sticky top-0 z-10 -mx-1 flex h-14 items-center gap-1 bg-background px-1" aria-label="Recipes" data-component="recipes-sections">
+              <TabsV2.Trigger value="yours" class={sectionTab} data-section="yours">
+                Yours
+                <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">{yours().length}</span>
+              </TabsV2.Trigger>
+              <TabsV2.Trigger value="discover" class={sectionTab} data-section="discover">
+                Discover
+                <span class="min-w-5 rounded-full bg-control px-1.5 text-center text-[11.5px] leading-5 tabular-nums">{matching().size}</span>
+              </TabsV2.Trigger>
+            </TabsV2.List>
 
-          <section class="flex flex-col gap-4" data-component="recipes">
-            <div class="flex flex-col gap-3 px-1">
-              <h2 class="text-[15px] font-semibold text-foreground">Discover</h2>
-              <div class="-mx-1 flex flex-wrap gap-1" role="group" aria-label="Filter by tag">
-                <For each={["all", ...tags()]}>
+            <TabsV2.Content value="yours" class="pt-2 outline-none" data-component="recipes-yours">
+              <Show
+                when={yours().length}
+                fallback={
+                  <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
+                    <Empty title="Nothing runs yet">
+                      <p class="max-w-[320px] text-[13.5px] text-muted-foreground">Recipes you add show up here, with when each one runs next.</p>
+                      <button type="button" class={buttonClass("primary", "mt-3 rounded-full px-4")} onClick={() => setSection("discover")}>
+                        Browse recipes
+                      </button>
+                    </Empty>
+                  </Show>
+                }
+              >
+                <div class={grid}>
+                  <For each={yours()}>{(install) => <InstallCard install={install} card={bySlug().get(install.slug)!} />}</For>
+                </div>
+              </Show>
+            </TabsV2.Content>
+
+            <TabsV2.Content value="discover" class="outline-none" data-component="recipes">
+              <TabsV2
+                value={tag()}
+                onChange={(next) => {
+                  setTag(next)
+                  toTabs()
+                }}
+              >
+                <TabsV2.List
+                  class="sticky top-14 z-10 -mx-1 flex items-center gap-1 overflow-x-auto bg-background px-1 pb-3 [scrollbar-width:none]"
+                  aria-label="Categories"
+                  data-component="recipes-tags"
+                >
+                  <For each={tags()}>
+                    {(t) => (
+                      <TabsV2.Trigger value={t} class={tagTab} data-tag={t}>
+                        {t === "all" ? "All" : tagLabel(t)}
+                      </TabsV2.Trigger>
+                    )}
+                  </For>
+                </TabsV2.List>
+
+                <Show when={broken().length}>
+                  <div class="mb-3 flex flex-col gap-1 rounded-[16px] bg-card px-4 py-3 text-[13px] text-muted-foreground" data-component="recipes-broken">
+                    <p class="font-medium text-foreground">Some recipe files did not load</p>
+                    <For each={broken()}>{(why) => <p>{why}</p>}</For>
+                  </div>
+                </Show>
+
+                <For each={tags()}>
                   {(t) => (
-                    <button
-                      type="button"
-                      aria-pressed={tag() === t}
-                      data-tag={t}
-                      class={cn("h-7 cursor-pointer rounded-full px-3 text-[13px]", tag() === t ? "bg-control-strong text-foreground" : "text-muted-foreground hover:bg-control hover:text-foreground")}
-                      onClick={() => setTag(t)}
-                    >
-                      {t === "all" ? "All" : tagLabel(t)}
-                    </button>
+                    <TabsV2.Content value={t} class="outline-none">
+                      <Show when={shown().length} fallback={<Empty title="Nothing matches" />}>
+                        <div class={`${grid} @min-[760px]/recipes:grid-cols-3`} data-component="recipes-grid">
+                          <For each={shown()}>{(card) => <RecipeTile recipe={card} onOpen={() => setOpen({ card })} onAdd={() => add(card)} />}</For>
+                        </div>
+                      </Show>
+                    </TabsV2.Content>
                   )}
                 </For>
-              </div>
-            </div>
-
-            <Show when={broken().length}>
-              <div class="flex flex-col gap-1 rounded-[16px] bg-card px-4 py-3 text-[13px] text-muted-foreground" data-component="recipes-broken">
-                <p class="font-medium text-foreground">Some recipe files did not load</p>
-                <For each={broken()}>{(why) => <p>{why}</p>}</For>
-              </div>
-            </Show>
-
-            <Show when={shown().length} fallback={<p class="px-1 py-10 text-center text-sm text-muted-foreground">Nothing matches.</p>}>
-              <div class="grid grid-cols-1 gap-3 @max-[519px]/recipes:gap-0.5 @min-[520px]/recipes:grid-cols-2 @min-[760px]/recipes:grid-cols-3" data-component="recipes-grid">
-                <For each={shown()}>{(card) => <RecipeTile recipe={card} onOpen={() => setOpen({ card })} onAdd={() => add(card)} />}</For>
-              </div>
-            </Show>
-          </section>
+              </TabsV2>
+            </TabsV2.Content>
+          </TabsV2>
 
           <Show when={open()}>{(o) => <RecipeSheet roomId={roomId()} recipe={o().card} mode={o().mode} onClose={() => setOpen(null)} />}</Show>
         </div>
