@@ -66,7 +66,7 @@ export const chipView =
 function FileRef(props: { path: string }) {
   const name = () => fileName(props.path)
   return (
-    <span class="file-chip" data-component="composer-file-ref" data-kind="file" title={`/${props.path}`} aria-label={name()}>
+    <span class="file-chip" data-component="composer-file-ref" data-kind="file" title={`/${props.path}`}>
       <EntryIcon path={name()} />
       <span class="file-chip-label">{middleTruncate(name(), 28)}</span>
     </span>

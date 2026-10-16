@@ -263,10 +263,11 @@ test("an agent is stored once, broadcast to every socket, and the chat keeps the
   a.send({ t: "agent", op: { op: "create", agent } })
   a.send({ t: "agent", op: { op: "create", agent } }) // a resend after a reconnect changes nothing
   expect(await rpc(user, "createAgent", { ...agent, id: "ag2" })).toBeNull() // the handle is taken
-  await b.until(2)
+  await b.until(3)
   const got = events((await b.settle()).slice(1))
-  expect(got).toHaveLength(1)
+  expect(got).toHaveLength(2)
   expect(got[0]).toMatchObject({ t: "agent", agent })
+  expect(got[1]).toMatchObject({ t: "agent_model", slug: "ada", model: agent.model })
   expect(await rpc(user, "listAgents")).toEqual([agent])
   a.send({ t: "chat", op: { op: "create", roomId: ROOM_A, title: "ada", agents: ["ag1"] } })
   await b.until(3)

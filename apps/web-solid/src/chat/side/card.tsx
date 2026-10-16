@@ -66,14 +66,14 @@ export default function ChatCard(props: { chatId: string }) {
       if (!(target instanceof Element) || card?.contains(target) || target.closest('[data-action="toggle-card"], [data-component="add-member-menu"]')) return
       dismissCard()
     }
-    const escape = (event: KeyboardEvent) => {
+    const onEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) dismissCard()
     }
     document.addEventListener("pointerdown", away, true)
-    document.addEventListener("keydown", escape)
+    document.addEventListener("keydown", onEscape)
     onCleanup(() => {
       document.removeEventListener("pointerdown", away, true)
-      document.removeEventListener("keydown", escape)
+      document.removeEventListener("keydown", onEscape)
     })
   })
 
