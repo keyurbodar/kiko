@@ -6,6 +6,7 @@ import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import type { PromptInputV2Interaction } from "./interaction"
 import { createComposerEmoji, createShortcodes } from "../emoji"
 import type { RichBinding } from "../rich/bind"
+import { setRichLoaded } from "../rich/loaded"
 import { mountLite, type LiteField } from "../rich/lite"
 import { isImage } from "../../lib/attachments"
 
@@ -58,8 +59,9 @@ export function PromptInputV2(props: PromptInputV2Props) {
     const label = i18n.t("ui.promptInput.label")
     lite = mountLite({ host: richHost, controller: props.controller, label, disabled: () => !!props.disabled || !!props.readOnly, onEdit: syncBlank })
     syncBlank()
-    void import("../rich/bind").then(({ bindRich }) =>
-      runWithOwner(owner, () => {
+    void import("../rich/bind").then(({ bindRich }) => {
+      setRichLoaded(true)
+      return runWithOwner(owner, () => {
         const focused = lite?.isFocused()
         lite?.destroy()
         lite = undefined
@@ -75,8 +77,8 @@ export function PromptInputV2(props: PromptInputV2Props) {
         })
         if (focused) binding.editor.focus()
         syncBlank()
-      }),
-    )
+      })
+    })
   })
 
   // The shelf holds pictures. Files are chips in the text.

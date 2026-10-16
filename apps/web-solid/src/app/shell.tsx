@@ -12,6 +12,7 @@ import { avatarPickerSlug } from "../avatar/picker-state";
 import { createEffect, createMemo, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces";
 import { preloadRoute } from "./routes";
+import { richLoaded } from "../composer/rich/loaded";
 import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../chat/side/card-state";
 import { useKatCommands } from "../commands/use-kat-commands";
 import { setGo } from "../lib/run-error";
@@ -194,12 +195,14 @@ export function Shell(props: ParentProps) {
     if (sideOpen()) void loadSidecar();
     const warm = () => {
       preloadRoute("/chat");
-      // After the composer's rich editor has loaded, so these downloads never race it.
-      void import("../composer/rich/bind").then(() => preloadRoute("/settings"), () => preloadRoute("/settings"));
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000);
     };
     if (idle) idle(warm);
     else setTimeout(warm, 300);
+  });
+  // After the composer's rich editor has loaded, so the settings download never races it.
+  createEffect(() => {
+    if (richLoaded()) preloadRoute("/settings");
   });
   onMount(() => onCleanup(watchHold()));
   onMount(() => {
