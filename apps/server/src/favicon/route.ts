@@ -34,11 +34,16 @@ const reply = (body: BodyInit | null, status: number, type: string | null, secon
 		},
 	})
 
+// Google's favicon service finds icons declared in a page's <link rel=icon>; the site's own /favicon.ico is the fallback.
+const sources = (host: string) => [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`, `https://${host}/favicon.ico`]
+
 export async function fetchFavicon(host: string, fetcher?: Fetcher): Promise<Response> {
-	const result = await safeFetch(`https://${host}/favicon.ico`, fetcher, { maxBytes: MAX_BYTES, timeoutMs: TIMEOUT_MS, userAgent: "kiko-favicon" })
-	const type = result.ok ? (result.headers.get("content-type")?.split(";")[0]?.trim() ?? "") : ""
-	if (!result.ok || result.truncated || result.status !== 200 || !result.body.length || !IMAGE.test(type)) return reply(null, 404, null, MISS_SECONDS)
-	return reply(result.body, 200, type.toLowerCase(), HIT_SECONDS)
+	for (const url of sources(host)) {
+		const result = await safeFetch(url, fetcher, { maxBytes: MAX_BYTES, timeoutMs: TIMEOUT_MS, userAgent: "kiko-favicon" })
+		const type = result.ok ? (result.headers.get("content-type")?.split(";")[0]?.trim() ?? "") : ""
+		if (result.ok && !result.truncated && result.status === 200 && result.body.length && IMAGE.test(type)) return reply(result.body, 200, type.toLowerCase(), HIT_SECONDS)
+	}
+	return reply(null, 404, null, MISS_SECONDS)
 }
 
 export async function faviconRoute(request: Request, env: Env): Promise<Response | null> {
