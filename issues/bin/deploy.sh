@@ -11,6 +11,9 @@ git checkout -q --detach main && git reset -q --hard main
 bun install --frozen-lockfile >/dev/null 2>&1
 set -a; . "$HOME/.config/yuki/cloudflare.env"; set +a
 "$root/issues/bin/heavy.sh" bun run --cwd apps/web-solid build >/dev/null
+# People sign in at the hosted front door with Clerk. This Worker's own pages send the browser there; its /api stays.
+door="${FRONT_DOOR:-https://kiko-app.keyurbodar16.workers.dev}"
+printf '<!doctype html><meta charset="utf-8"><title>Kiko</title><meta http-equiv="refresh" content="0;url=%s/"><script>location.replace("%s"+location.pathname+location.search)</script>\n' "$door" "$door" > apps/web-solid/dist/index.html
 cd apps/server
 bun run deploy 2>&1 | grep -E "Uploaded kiko|Total Upload|Startup Time|Version ID|https://"
 cd "$root" && git worktree remove --force "$dir"

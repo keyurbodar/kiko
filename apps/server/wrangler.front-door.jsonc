@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kiko-app",
+  "main": "src/front-door.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "../web-solid/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/assets/*"]
+  }
+}

@@ -1,4 +1,5 @@
 import type { AgentDO } from "./agent/agent-do"
+import { serveAsset } from "./lib/assets"
 import { devResponse } from "./lib/dev-guard"
 import { BACKEND } from "./lib/version"
 import { type AuthEnv, authRoute, getSessionUser } from "./auth/auth"
@@ -73,7 +74,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const authResponse = await authRoute(request, env)
     if (authResponse) return authResponse
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
-    return env.ASSETS.fetch(request)
+    return serveAsset(env.ASSETS, request)
 }
 
 export default {
