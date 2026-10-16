@@ -36,9 +36,9 @@ export function chatSeed(chat: ChatAgents, agents: AgentIds): string {
 
 export const MAX_FACES = 3
 
-export function chatFaces(chat: ChatAgents, agents: AgentIds, members?: readonly string[]): string[] {
-  let slugs = members?.length ? [...members] : (chat.agents ?? []).map((id) => slugOf(id, agents))
-  if (!members?.length && slugs.length > 1 && !slugs.includes(DEFAULT_AGENT_SLUG)) slugs = [DEFAULT_AGENT_SLUG, ...slugs]
+export function chatFaces(chat: ChatAgents, agents: AgentIds): string[] {
+  let slugs = (chat.agents ?? []).map((id) => slugOf(id, agents))
+  if (slugs.length > 1 && !slugs.includes(DEFAULT_AGENT_SLUG)) slugs = [DEFAULT_AGENT_SLUG, ...slugs]
   if (slugs.length > 1) return slugs.slice(0, MAX_FACES)
   return [slugs[0] ?? DEFAULT_AGENT_SLUG]
 }

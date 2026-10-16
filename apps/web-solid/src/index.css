@@ -589,6 +589,22 @@
     user-select: none;
   }
 
+  /* Chrome is not text to copy: a drag that leaves a bubble must not pick it up. */
+  [data-component="top-bar"],
+  [data-component="sidebar"],
+  [data-component="sidebar-panel"],
+  [data-component="sidebar-resize"],
+  [data-component="chat-sender"],
+  [data-component="chat-run-avatar"],
+  [data-component="chat-actions"],
+  [data-component="chat-date-chip"],
+  [data-component="chat-day-chip"],
+  [data-component="event-divider"],
+  [data-component="composer-no-key-hint"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   p,
   h1,
   h2,

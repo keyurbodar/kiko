@@ -330,6 +330,9 @@ export function VirtualThread(props: {
   // True while the reader is at the end. Content that grows under them (the typing line, a reply) keeps them there.
   let stuck = true
   let readerScrolling = false
+  // A drag that selects text: the browser scrolls the view itself, so nothing here may scroll it back.
+  let dragging = false
+  let dragFrom: { id: number; x: number; y: number } | undefined
 
   const readState = (): VirtualThreadState => {
     const virtualizer = handle()
@@ -383,6 +386,12 @@ export function VirtualThread(props: {
   const cancelDrift = () => {
     if (!scrollElement || !columnElement) return
     const state = readState()
+    if (dragging) {
+      stuck = false
+      seedAnchor()
+      commitState(state)
+      return
+    }
     const held = anchor?.element.isConnected === true ? anchor : undefined
     if (!held) {
       seedAnchor()
@@ -463,7 +472,24 @@ export function VirtualThread(props: {
     createEventListener(() => scroller, "keydown", readerMoved)
     createEventListener(() => scroller, "pointerdown", (event: PointerEvent) => {
       if (event.target === scroller) onReader()
+      dragging = event.pointerType === "mouse" && event.button === 0
+      dragFrom = dragging ? { id: event.pointerId, x: event.clientX, y: event.clientY } : undefined
     }, { passive: true })
+    // Once a press turns into a drag, the scroller keeps the pointer, so the selection ends inside the thread
+    // when the pointer crosses the header or the sidebar. A click is left alone: capture would retarget it.
+    createEventListener(() => scroller, "pointermove", (event: PointerEvent) => {
+      if (!dragFrom || event.pointerId !== dragFrom.id || Math.hypot(event.clientX - dragFrom.x, event.clientY - dragFrom.y) < 4) return
+      scroller.setPointerCapture(dragFrom.id)
+      dragFrom = undefined
+    }, { passive: true })
+    const endDrag = () => {
+      if (!dragging) return
+      dragging = false
+      dragFrom = undefined
+      seedAnchor()
+    }
+    createEventListener(document, "pointerup", endDrag, { passive: true })
+    createEventListener(document, "pointercancel", endDrag, { passive: true })
     createEventListener(() => scroller, "pointermove", (event: PointerEvent) => setNearTopEdge(event.clientY - scroller.getBoundingClientRect().top < DATE_CHIP_EDGE_PX), { passive: true })
     createEventListener(() => scroller, "pointerleave", () => setNearTopEdge(false), { passive: true })
     const mutations = new MutationObserver(queueDriftCancel)

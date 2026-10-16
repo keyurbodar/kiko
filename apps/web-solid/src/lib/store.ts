@@ -728,13 +728,11 @@ export function createApp(options: AppOptions = {}) {
 
       /**
        * The faces of a chat's avatar: one for a chat with one agent, up to three for a group.
-       * The open room's live members win over the agents the chat was made with.
+       * Always read from the chat record, open or not, so a tile and the open chat agree.
        */
       chatFaces(roomId: string): string[] {
         const chat = userStore()?.chats().find((c) => c.roomId === roomId)
-        const r = room()
-        const live = r && r.state.roomId === roomId ? r.members().map((m) => m.slug) : undefined
-        return chatFaces(chat ?? { roomId }, userStore()?.agents() ?? [], live)
+        return chatFaces(chat ?? { roomId }, userStore()?.agents() ?? [])
       },
 
       /** The open room's agents as the protocol has them: role and lead included. */
