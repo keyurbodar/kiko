@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js"
+import { rememberFile } from "../../files/recent"
 
 /*
  * The right sidecar's tabs, per chat. This file is in the shell's tier and holds no UI: the
@@ -195,6 +196,7 @@ export function dropFileSurfaces(chatId: string, path: string) {
 /** Opens the file in its own tab and asks the viewer to reveal `line`. */
 export function openFile(chatId: string, path: string, line?: number) {
   openSurface(chatId, fileSurface(path))
+  rememberFile(chatId, path)
   setReveal({ chatId, path, line: line !== undefined && line > 0 ? line : null, n: (reveal()?.n ?? 0) + 1 })
 }
 

@@ -14,6 +14,8 @@ interface Slash {
 
 export const SLASH: readonly Slash[] = [
   { trigger: "new", title: "Start a new chat", commandId: "chat.new" },
+  { trigger: "file", title: "Go to a file", commandId: "files.go" },
+  { trigger: "search", title: "Search messages", commandId: "chats.search-all" },
   { trigger: "remind", title: "Ask for a reminder" },
   { trigger: "skill", title: "Use a skill" },
 ]

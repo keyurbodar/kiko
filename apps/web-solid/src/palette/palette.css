@@ -69,6 +69,16 @@
   font-weight: var(--font-weight-medium);
 }
 .palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 1px; }
+.palette-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: var(--font-xs); }
+.palette-file-icon { display: inline-flex; flex-shrink: 0; width: 16px; height: 16px; }
+.palette-file-icon svg { width: 16px; height: 16px; }
+.palette-mark { background: transparent; color: var(--foreground); font-weight: var(--font-weight-semibold, 600); }
+.palette-swatch { width: 12px; height: 12px; flex-shrink: 0; border-radius: 9999px; }
+.palette-bar { display: flex; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.palette-bar .palette-input { flex: 1; min-width: 0; border-bottom: 0; }
+.palette-addon { display: inline-flex; flex-shrink: 0; margin-left: 16px; color: var(--muted-foreground); }
+.palette-addon + .palette-input { padding-left: 10px; }
 .palette-keys { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
 .palette-trail { width: 14px; height: 14px; flex-shrink: 0; color: var(--muted-foreground); }
 .palette-empty { padding: 12px 10px; font-size: var(--font-md); color: var(--muted-foreground); }
