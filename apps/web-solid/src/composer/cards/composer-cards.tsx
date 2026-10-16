@@ -57,7 +57,7 @@ export function ComposerCards(props: { room: RoomStore; question: QuestionInput;
         <HoverCard.Portal><HoverCard.Content class="composer-card-choices" aria-label="Other activity" data-component="composer-card-stack">
           <div class="composer-card-stack-scroll"><For each={otherIds()}>{(id) => {
             const other = createMemo(() => others().find((c) => c.id === id))
-            return <Show when={other()}>{(item) => <Collapsible class="composer-card-choice" defaultOpen={false}><Collapsible.Trigger class="composer-card-row"><CardSummary card={item()} room={props.room} /></Collapsible.Trigger><Collapsible.Content><CardBody card={item()} room={props.room} /></Collapsible.Content></Collapsible>}</Show>
+            return <Show when={other()}>{(item) => <Collapsible class="composer-card-choice" defaultOpen={false}><Collapsible.Trigger class="composer-card-row"><CardSummary card={item()} room={props.room} /></Collapsible.Trigger><Collapsible.Content class="motion-collapse"><CardBody card={item()} room={props.room} /></Collapsible.Content></Collapsible>}</Show>
           }}</For></div>
         </HoverCard.Content></HoverCard.Portal>
       </HoverCard>
@@ -67,7 +67,7 @@ export function ComposerCards(props: { room: RoomStore; question: QuestionInput;
       <Collapsible.Trigger class="composer-card-row" onPointerDown={(event: PointerEvent) => event.preventDefault()} data-expanded={expanded() === card().id} aria-label={`${card().kind === "ask" ? `Question from ${props.room.members().find((m) => m.slug === (card() as Extract<ComposerCard, { kind: "ask" }>).ask.from)?.name ?? "your agent"}: ` : ""}${taskText(card().title, props.room.members())}`}>
         <CardSummary card={card()} room={props.room} />
       </Collapsible.Trigger>
-      <Collapsible.Content><CardBody card={card()} room={props.room} /></Collapsible.Content>
+      <Collapsible.Content class="motion-collapse"><CardBody card={card()} room={props.room} /></Collapsible.Content>
     </Collapsible>
     }><div class="composer-card-surface"><QuestionPanel input={props.question} ownerSeed={props.room.members().length > 1 ? props.question.ask()?.from : undefined} owner={props.room.members().length > 1 ? props.room.members().find((m) => m.slug === props.question.ask()?.from)?.name : undefined} onSelect={props.onSelectAnswer} /></div></Show>
   </div>}</Show>

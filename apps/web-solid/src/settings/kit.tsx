@@ -1,3 +1,4 @@
+import { LoaderCircle } from "lucide-solid"
 import { For, Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import "./kit.css"
@@ -16,9 +17,34 @@ export function buttonClass(variant: Variant = "secondary", extra?: string) {
 
 export const selectClass = "kit-select"
 
-export function Button(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }): JSX.Element {
-  const [local, rest] = splitProps(props, ["variant", "class", "type"])
-  return <button type={local.type ?? "button"} class={buttonClass(local.variant, local.class)} {...rest} />
+export function Spinner(props: { size?: number }): JSX.Element {
+  return <LoaderCircle class="motion-spin" size={props.size ?? 14} strokeWidth={2} aria-hidden="true" />
+}
+
+/** Placeholder bars while a load is in flight. Size them with `class`. */
+export function Skeleton(props: { class?: string }): JSX.Element {
+  return <div class={cn("motion-skeleton rounded-sm", props.class)} aria-hidden="true" data-component="skeleton" />
+}
+
+/** `busy` keeps the label's width and lays a spinner over it, so a button never changes size. */
+export function Button(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; busy?: boolean }): JSX.Element {
+  const [local, rest] = splitProps(props, ["variant", "class", "type", "busy", "disabled", "children"])
+  return (
+    <button
+      type={local.type ?? "button"}
+      class={buttonClass(local.variant, cn(local.busy && "relative", local.class))}
+      disabled={local.disabled || local.busy}
+      aria-busy={local.busy || undefined}
+      {...rest}
+    >
+      <Show when={local.busy} fallback={local.children}>
+        <span class="invisible inline-flex items-center gap-[inherit]">{local.children}</span>
+        <span class="motion-busy absolute inset-0 grid place-items-center">
+          <Spinner />
+        </span>
+      </Show>
+    </button>
+  )
 }
 
 export const iconButtonClass = cn(
@@ -269,7 +295,7 @@ export function Slider(props: { label: string; value: number; display: string; m
 export function Toggle(props: { label: string; on: boolean; disabled?: boolean; onChange: (on: boolean) => void; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["label", "on", "disabled", "onChange"])
   return (
-    <button type="button" role="switch" aria-label={local.label} aria-checked={local.on} disabled={local.disabled} class="kit-switch" onClick={() => local.onChange(!local.on)} {...rest}>
+    <button type="button" role="switch" aria-label={local.label} aria-checked={local.on} disabled={local.disabled} class="kit-switch motion-switch" onClick={() => local.onChange(!local.on)} {...rest}>
       <span aria-hidden="true" />
     </button>
   )

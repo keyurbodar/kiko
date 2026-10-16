@@ -35,8 +35,7 @@ import { createDraftBook, type DraftBook } from "../warm/drafts"
 import { openWarm, type Warm, type WarmOptions } from "../warm/db"
 import { newestMessages } from "../warm/messages"
 import type { BotPresence, ChatMessage, OutgoingMessage, Reaction, RosterBot } from "./types"
-import { resumeChat, rosterChats } from "./chats"
-import { dmFor } from "@kiko/protocol"
+import { distinctTitles, resumeChat, rosterChats } from "./chats"
 
 // The URLs. The one place a socket or file URL is built.
 
@@ -392,7 +391,7 @@ export function createApp(options: AppOptions = {}) {
       const next = new Map<string, RosterBot>()
       // Every chat, hidden ones too: the tab strip names them. `roster` is what the sidebar lists.
       const typingIn = userStore()?.state.typing ?? {}
-      const rows = (userStore()?.chats() ?? []).map((c) => {
+      const rows = distinctTitles(userStore()?.chats() ?? []).map((c) => {
         let row: RosterBot
         if (!r || r.state.roomId !== c.roomId) row = chatRow(c, "idle", { typing: typingIn[c.roomId] })
         else {
@@ -850,20 +849,6 @@ export function createApp(options: AppOptions = {}) {
       /** The user's own agents, in the order they were made. */
       agents(): Agent[] {
         return userStore()?.agents() ?? []
-      },
-
-      createAgent(agent: Agent) {
-        userStore()?.createAgent(agent)
-      },
-
-      /**
-       * The agent's one direct chat (architecture section 7.11), made only when it has none. Every
-       * way of picking an agent comes here. A new one is in the list before the server hears of it.
-       */
-      openDm(agent: Agent): RoomId | undefined {
-        const user = userStore()
-        if (!user) return undefined
-        return dmFor(user.chats(), agent.id)?.roomId ?? user.createChat(agent.name, [agent.id])
       },
 
       /** The kiko chat stays pinned. */

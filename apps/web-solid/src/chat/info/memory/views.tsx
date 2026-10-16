@@ -170,7 +170,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 				</Show>
 				<MemoryModelRow store={props.store} />
 				<form
-					class="flex h-10 items-center gap-2 rounded-full border border-border bg-secondary pr-1 pl-4 focus-within:border-[var(--rule)]"
+					class="flex h-10 items-center gap-2 rounded-full border border-border bg-secondary pr-1 pl-4"
 					data-component="memory-note"
 					onSubmit={(e) => {
 						e.preventDefault()

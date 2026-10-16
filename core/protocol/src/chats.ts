@@ -24,9 +24,4 @@ export function sameAgentChat(chats: readonly Chat[], agents: readonly string[],
 	return best
 }
 
-/** The agent's one direct chat, or null. */
-export const dmFor = (chats: readonly Chat[], agentId: string): Chat | null => sameAgentChat(chats, [agentId])
-
 const rank = (a: Chat, b: Chat) => Number(!!b.kiko) - Number(!!a.kiko) || b.updatedAt - a.updatedAt || (a.roomId < b.roomId ? -1 : 1)
-
-export const kikoOnly = (chat: Chat): boolean => !chat.agents?.length || (chat.agents.length === 1 && chat.agents[0] === KIKO)

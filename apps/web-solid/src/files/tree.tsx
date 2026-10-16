@@ -1,9 +1,10 @@
 import type { FileRef } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { FileTree as Pierre, type ContextMenuItem as FileTreeContextMenuItem, type ContextMenuOpenContext as FileTreeContextMenuOpenContext } from "@pierre/trees"
-import { ChevronsDownUp, ChevronsUpDown, FilePlus, FolderPlus, Search } from "lucide-solid"
+import { ChevronsDownUp, ChevronsUpDown, FilePlus, FolderPlus } from "lucide-solid"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
+import { KIKO_FILE_ICONS } from "../lib/entry-icon-pierre"
 import "./tree.css"
 import { dirname, HOME, join, loadExpanded, pathsUnder, ROOT, saveExpanded } from "./model"
 
@@ -26,19 +27,20 @@ const TREE_CSS = `
 	:host {
 		--trees-bg-override: transparent;
 		--trees-fg-override: var(--foreground);
-		--trees-selected-bg-override: var(--accent-strong);
-		--trees-hover-bg-override: var(--accent);
-		--trees-border-color-override: var(--border);
-		--trees-font-family-override: inherit;
-		--trees-font-size-override: var(--font-md);
+		--trees-selected-bg-override: color-mix(in srgb, currentColor 12%, transparent);
+		--trees-hover-bg-override: color-mix(in srgb, currentColor 7%, transparent);
+		--trees-border-color-override: color-mix(in srgb, currentColor 14%, transparent);
+		--trees-font-family-override: var(--font-sans);
+		--trees-font-size-override: 0.75rem;
 		--trees-fg-muted-override: var(--muted-foreground);
-		--trees-focus-ring-width-override: 1px;
-		--trees-focus-ring-offset-override: -1px;
-		--trees-focus-ring-color-override: color-mix(in oklab, var(--ring) 55%, transparent);
 		--trees-selected-focused-border-color-override: transparent;
-		--trees-padding-inline-override: 4px;
 	}
 	button[data-type='item'], button[data-type='item']::before { border-radius: var(--radius-md); }
+	svg[data-icon-name='t3-tree-icon-loading'] { opacity: 0.6; }
+	@media (prefers-reduced-motion: no-preference) {
+		svg[data-icon-name='t3-tree-icon-loading'] { animation: t3-tree-spin 1s linear infinite; }
+	}
+	@keyframes t3-tree-spin { to { transform: rotate(360deg); } }
 `
 
 export function FileTree(props: FileTreeProps): JSX.Element {
@@ -135,7 +137,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		const expanded = loadExpanded(props.roomId, storage()).map(asFolder)
 		const instance = new Pierre({
 			paths: wanted(),
-			icons: { set: "complete", colored: true },
+			icons: KIKO_FILE_ICONS,
 			density: "compact",
 			flattenEmptyDirectories: true,
 			initialExpansion: "closed",
@@ -243,7 +245,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		<div class="kt-root" data-component="file-tree">
 			<div class="kt-bar">
 				<label class="kt-field">
-					<Search size={14} strokeWidth={1.75} aria-hidden="true" />
 					<input
 						type="search"
 						aria-label="Search files"

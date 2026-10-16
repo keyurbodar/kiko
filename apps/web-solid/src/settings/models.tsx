@@ -6,7 +6,7 @@ import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
 import { connectProvider, disconnectProvider } from "./credentials"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
-import { Button, Empty, fieldClass, Group, Hint, muted, Notice, Toggle } from "./kit"
+import { Button, Empty, fieldClass, Group, Hint, muted, Notice, Skeleton, Spinner, Toggle } from "./kit"
 import { VList } from "virtua/solid"
 import { Dialog } from "../lib/dialog"
 import { hiddenModels, setHidden } from "./model-prefs"
@@ -18,7 +18,7 @@ const METHOD_LABEL: Record<ConnectMethod, string> = {
   paste_code: "Browser sign-in",
 }
 
-const POPULAR: readonly { id: string; note: string }[] = [
+export const POPULAR: readonly { id: string; note: string }[] = [
   { id: "opencode-go", note: "Low-cost open models from OpenCode." },
   { id: "opencode", note: "Models picked and tested by the OpenCode team." },
   { id: "anthropic", note: "Claude models." },
@@ -99,7 +99,8 @@ export function ModelsPage() {
         fallback={
           <Group title="Connect a provider" data-component="provider-add" bare action={<Button variant="ghost" data-action="view-all-providers" onClick={() => setBrowsing(true)}>All providers</Button>}>
             <div class="grid grid-cols-1 gap-2 @min-[560px]/settings:grid-cols-2">
-              <For each={popular()} fallback={<Hint>{catalog.loading ? "Loading" : "No providers found."}</Hint>}>
+              <Show when={connectedReady() && !catalog.loading} fallback={<ProviderSkeletons />}>
+              <For each={popular()} fallback={<Hint>No providers found.</Hint>}>
                 {({ provider, note }) => (
                   <button
                     type="button"
@@ -116,6 +117,7 @@ export function ModelsPage() {
                   </button>
                 )}
               </For>
+              </Show>
             </div>
           </Group>
         }
@@ -243,6 +245,14 @@ export function ModelsPage() {
   )
 }
 
+function ProviderSkeletons() {
+  return (
+    <For each={[0, 1, 2, 3]}>
+      {() => <Skeleton class="h-[58px] rounded-lg" />}
+    </For>
+  )
+}
+
 function DisconnectButton(props: { id: string }) {
   const [removing, setRemoving] = createSignal(false)
   const [sure, setSure] = createSignal(false)
@@ -257,13 +267,13 @@ function DisconnectButton(props: { id: string }) {
     }
   }
   return (
-    <Button variant={sure() ? "danger" : "ghost"} data-action="disconnect" disabled={removing()} onBlur={() => setSure(false)} onClick={() => (sure() ? void remove() : setSure(true))}>
+    <Button variant={sure() ? "danger" : "ghost"} data-action="disconnect" busy={removing()} onBlur={() => setSure(false)} onClick={() => (sure() ? void remove() : setSure(true))}>
       {sure() ? "Disconnect for good" : "Disconnect"}
     </Button>
   )
 }
 
-function AddProviderDialog(props: { open: boolean; loading: boolean; providers: readonly CatalogProvider[]; onClose: () => void; onPick: (provider: CatalogProvider) => void }) {
+export function AddProviderDialog(props: { open: boolean; loading: boolean; providers: readonly CatalogProvider[]; onClose: () => void; onPick: (provider: CatalogProvider) => void }) {
   const [query, setQuery] = createSignal("")
   const shown = createMemo(() => {
     const q = query().trim().toLowerCase()
@@ -304,7 +314,7 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
         />
       </form>
       <ul class="flex min-h-0 flex-1 flex-col overflow-y-auto" data-component="provider-list">
-        <For each={shown()} fallback={<li class={cn("px-2 text-[13px]", muted)}>{props.loading ? "Loading providers" : "No provider matches"}</li>}>
+        <For each={shown()} fallback={<li class={cn("px-2 text-[13px]", muted)}>{props.loading ? <Skeleton class="h-8" /> : "No provider matches"}</li>}>
           {(provider) => (
             <li data-provider={provider.id}>
               <button
@@ -325,7 +335,7 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
   )
 }
 
-function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () => void }) {
+export function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () => void }) {
   const [error, setError] = createSignal<string | null>(null)
   const [busy, setBusy] = createSignal(false)
   let input: HTMLInputElement | undefined
@@ -367,7 +377,7 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
           <Button variant="ghost" data-action="cancel-connect" onClick={close}>
             Cancel
           </Button>
-          <Button type="submit" form="provider-key-form" variant="primary" disabled={busy()} data-action="save-key">
+          <Button type="submit" form="provider-key-form" variant="primary" busy={busy()} data-action="save-key">
             Save key
           </Button>
         </Show>
@@ -469,6 +479,12 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
       <Show when={running() ? state() : null}>
         {(s) => (
           <>
+            <Show when={!s().code && !s().link && !s().prompt}>
+              <div class={cn("flex items-center gap-2 text-[12px]", muted)} data-component="sign-in-waiting" role="status">
+                <Spinner size={12} />
+                Waiting for the provider
+              </div>
+            </Show>
             <Show when={s().code}>
               {(code) => (
                 <div class="flex flex-col gap-1" data-component="device-code">
