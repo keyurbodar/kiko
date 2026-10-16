@@ -4,6 +4,9 @@ import { Icon as IconV2 } from "@kiko/ui/v2/icon";
 import { MessageList, type VirtualThreadState } from "../../chat/MessageList";
 import { Composer } from "../../composer/composer";
 import { ModelPickerButton } from "../../settings/model-picker";
+import { answeringMember } from "../../settings/agent-model";
+import { connectedProviders, connectedReady } from "../../settings/connected";
+import { sendBlock } from "../../settings/send-block";
 import { useApp } from "../../lib/store";
 import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
@@ -82,13 +85,34 @@ export default function ChatRoute() {
     if (id && useApp.hasUnread()) useApp.markRead(id);
   });
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
+  const answering = createMemo(() => answeringMember(useApp.roomMembers(), draft()));
+  const block = createMemo(() =>
+    sendBlock({ known: connectedReady() && useApp.modelsSynced(), providers: connectedProviders(), model: answering() && useApp.agentModel(answering()!.slug)?.model, agent: answering()?.name }),
+  );
   const messages = createMemo(() => useApp.activeMessages());
   const byId = createMemo(
     () => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])),
   );
+  // The message being answered, kept from the moment it was picked: a window that moves on (a jump
+  // to older history, a long chat) must not drop the reply bar while the target is still armed.
+  const [armed, setArmed] = createSignal<ChatMessage | null>(null);
+  const aim = (id: string) => {
+    setArmed(byId().get(id) ?? null);
+    setReplyTarget(id);
+  };
   const replyTo = createMemo(() => {
     const id = replyTarget();
-    return id === null ? null : (byId().get(id) ?? null);
+    if (id === null) return null;
+    const kept = armed();
+    return byId().get(id) ?? (kept?.id === id ? kept : null);
+  });
+  // A reply restored from a draft whose message is older than the window has nothing to show in the bar, so it is dropped rather than sent unseen.
+  createEffect(() => {
+    const id = replyTarget();
+    if (id !== null && messages().length > 0 && !useApp.showingHistory() && replyTo() === null) {
+      setReplyTarget(null);
+      setQuote(null);
+    }
   });
 
   let jumpToMessage: ((messageId: string) => void) | undefined;
@@ -175,7 +199,11 @@ export default function ChatRoute() {
             replyParent={(id) => (id === undefined ? undefined : byId().get(id))}
             firstUnreadMessageId={useApp.firstUnreadMessageId()}
             onJumpToMessage={() => {}}
-            onReplyTarget={setReplyTarget}
+            onReplyTarget={aim}
+            onJumpToSeq={(id, seq) => {
+              const roomId = useApp.activeThreadId();
+              if (roomId) requestJump({ roomId, id: id as MessageId, seq });
+            }}
             scrollRef={() => {}}
             onStateChange={setThreadState}
             onNearTop={useApp.loadOlder}
@@ -256,7 +284,7 @@ export default function ChatRoute() {
 
           <QuoteOnSelect
             onQuote={(id, text) => {
-              setReplyTarget(id);
+              aim(id);
               setQuote({ target: id, text });
               document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus();
             }}
@@ -265,6 +293,8 @@ export default function ChatRoute() {
           <Composer
             room={useApp.room() ?? undefined}
             tray={<ModelPickerButton draft={draft()} />}
+            sendBlock={block()}
+            sendBlockAgent={answering()?.slug}
             threadId={useApp.activeThreadId() ?? ""}
             title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}
             draftKey={draftKey()}

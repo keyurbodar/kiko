@@ -1,4 +1,4 @@
-import { Show, Suspense, lazy, batch, createEffect, createMemo, on, onCleanup } from "solid-js"
+import { For, Show, Suspense, lazy, batch, createEffect, createMemo, on, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, attachmentIds, linkAttachments } from "@kiko/protocol"
@@ -11,8 +11,8 @@ import { createPromptInputV2Store } from "./prompt-input/store"
 import { blobId, releaseBlobUrl } from "./prompt-input/attachments"
 import type { PromptInputV2Attachment, PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
-import { showNoKeyHint } from "../settings/connected"
 import { openSettings } from "../lib/errors"
+import { openModelPicker } from "../settings/model-picker"
 import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createImageDialog } from "../chat/ui/image-dialog"
 import { runSlash, slashSuggestions } from "./slash"
@@ -120,7 +120,9 @@ export function Composer(props: ComposerProps) {
       store.setPrompt([...store.state.prompt, ...items.map((item) => item.part)], store.state.cursor)
     },
   })
-  const blocked = () => uploadBlockReason(boxed().map((part) => part.id))
+  // Typing always works. A send that could only come back as an error waits, and says why.
+  const modelBlock = () => (props.editing || question.ask() ? null : (props.sendBlock ?? null))
+  const blocked = () => modelBlock()?.reason ?? uploadBlockReason(boxed().map((part) => part.id))
   const draftText = () =>
     store.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
   // A file lives in the text as its chip, so deleting the chip takes the file out of the message.
@@ -340,21 +342,31 @@ export function Composer(props: ComposerProps) {
         {(message) => (
           <ReplyBar
             summary={props.replyQuote ? quoteSummary(props.replyQuote) : replySummary(message())}
-            label={
+            label={`Replying to ${
               message().sender === "user"
-                ? "You"
-                : (botById(message().botId)?.name ?? (props.bots.length === 1 ? props.bots[0]!.name : "Agent"))
-            }
+                ? "yourself"
+                : (botById(message().botId)?.name ?? (props.bots.length === 1 ? props.bots[0]!.name : "an agent"))
+            }`}
             onJump={() => props.onJumpToReply?.(message().id)}
             onDismiss={() => props.onClearReply?.()}
           />
         )}
       </Show>
-      <Show when={showNoKeyHint(props.room?.state.noProvider)}>
-        <div class="no-key-hint" data-component="composer-no-key-hint" role="status">
-          <span>Add a model key to start chatting</span>
-          <button type="button" onClick={openSettings}>Open settings</button>
-        </div>
+      <Show when={modelBlock()}>
+        {(block) => (
+          <div class="no-key-hint" data-component="composer-send-block" role="status">
+            <span>{block().reason}</span>
+            <span class="no-key-actions">
+              <For each={block().actions}>
+                {(action) => (
+                  <button type="button" data-action={action} onClick={() => (action === "open_settings" ? openSettings() : openModelPicker(props.sendBlockAgent))}>
+                    {action === "open_settings" ? "Open settings" : "Choose model"}
+                  </button>
+                )}
+              </For>
+            </span>
+          </div>
+        )}
       </Show>
     </>
   )

@@ -5,19 +5,22 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  lazy,
   on,
   onCleanup,
   onMount,
   Show,
+  Suspense,
   type JSX,
 } from "solid-js"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
+import type { SystemEvent } from "@kiko/protocol"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems, dayStartOf, keepUnchanged, type TimelineItem } from "./lib/grouping"
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
 import { dividerLabel, dividerParts } from "./lib/time-label"
-import { jumboEmojiClass } from "./lib/reply"
+import { jumboEmojiClass, quoteOf } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"
 import { SystemMessage } from "./SystemMessage"
@@ -33,6 +36,8 @@ import { ScrollFades } from "./ui/ScrollFades"
 import { chatImages } from "./ui/chat-images"
 import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
 import type { DraftBook } from "../warm/drafts"
+
+const RunErrorRow = lazy(() => import("./ui/RunErrorRow"))
 
 export interface VirtualThreadState {
   readonly scrollOffset: number
@@ -79,6 +84,8 @@ export function VirtualThread(props: {
   firstUnreadMessageId: string | null
   onJumpToMessage: (messageId: string) => void
   onReplyTarget: (messageId: string) => void
+  /** A quote's original is not in the window: load it by its seq, then show it. */
+  onJumpToSeq?: (messageId: string, seq: number) => void
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]
@@ -159,7 +166,9 @@ export function VirtualThread(props: {
   })
 
   const [replyTarget, setReplyTarget] = createSignal<string | null>(null)
+  // A message still on its way has no id the room knows, so there is nothing yet to answer.
   const aimReplyAt = (messageId: string) => {
+    if (messageId.startsWith("local:")) return
     setReplyTarget(messageId)
     props.onReplyTarget(messageId)
   }
@@ -223,6 +232,13 @@ export function VirtualThread(props: {
       if (landingGeneration === generation) setLanded(undefined)
     }, LANDING_MS)
     props.onJumpToMessage(messageId)
+  }
+
+  /** A quote goes to its original. One the window does not hold is loaded by its seq first. */
+  const openReplyTarget = (messageId: string, seq?: number) => {
+    const held = items().some((item) => item.kind === "message" && item.message.id === messageId) || items().some((item) => item.kind === "thread" && item.messages.some((m) => m.id === messageId))
+    if (!held && seq !== undefined) return props.onJumpToSeq?.(messageId, seq)
+    jumpToMessage(messageId)
   }
 
   onMount(() => {
@@ -587,8 +603,7 @@ export function VirtualThread(props: {
         <MessageRow
           message={message}
           bot={props.botById(message.botId)}
-          parent={props.replyParent(message.replyToId)}
-          parentBot={props.botById(props.replyParent(message.replyToId)?.botId)}
+          quote={quoteOf(message, props.replyParent(message.replyToId), (slug) => props.botById(slug)?.name)}
           isRunStart={item.isRunStart}
           isRunEnd={item.isRunEnd}
           runKey={item.runKey}
@@ -598,7 +613,7 @@ export function VirtualThread(props: {
           highlighted={landed() === message.id}
           replying={activeReply() === message.id}
           jumboClass={jumboEmojiClass(message.body)}
-          onOpenReplyTarget={jumpToMessage}
+          onOpenReplyTarget={openReplyTarget}
           onReact={(emoji) => props.onReact?.(message.id, emoji)}
           onReply={() => aimReplyAt(message.id)}
           onMore={(anchor) => {
@@ -624,6 +639,14 @@ export function VirtualThread(props: {
         <SystemMessage variant="divider" label={dividerLabel(item.firstSentAt, now())} data-component="chat-divider">
           {dividerParts(item.firstSentAt, now()).time}
         </SystemMessage>
+      )
+    }
+    if (item.kind === "event" && item.message.event?.kind === "run_error") {
+      const failed = item.message.event as Extract<SystemEvent, { kind: "run_error" }>
+      return (
+        <Suspense fallback={<ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />}>
+          <RunErrorRow message={item.message} slug={failed.slug} actions={failed.actions} latest={props.messages.at(-1)?.id === item.message.id} />
+        </Suspense>
       )
     }
     if (item.kind === "event") {

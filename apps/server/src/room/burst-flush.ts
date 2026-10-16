@@ -1,7 +1,8 @@
 import type { AgentSlug, Chat, Envelope, } from "@kiko/protocol"
 import { agentStub, userStub } from "../lib/names"
 import { route } from "./deliver"
-import { deliverable, MAX_DELIVERY_ENVELOPES, type Burst, type Pending } from "./burst"
+import { replyAddressees } from "./recipients"
+import { deliverable, envelopeId, MAX_DELIVERY_ENVELOPES, type Burst, type Pending } from "./burst"
 import { receive, type ReceiveDeps } from "./receive"
 import type { Members } from "./members"
 import { DELIVERY_RETRY_MS } from "./wake-delivery"
@@ -42,9 +43,24 @@ export class BurstFlush {
 		await this.d.drainMail()
 	}
 
-	private replyAuthor(id: string): AgentSlug | undefined {
-		const from = this.d.log.message(id)?.from
-		return from?.kind === "agent" ? from.slug : undefined
+	private addressees = (id: string) => replyAddressees((at) => this.d.log.message(at), id)
+
+	/**
+	 * Gives `slug` the human messages of a failed run again, to run them again. Each is a new delivery
+	 * (named for the error line, so a second click changes nothing). No message is stored or sent.
+	 */
+	async redeliver(slug: AgentSlug, ids: readonly string[], errorId: string): Promise<void> {
+		const home = this.d.home()
+		const members = this.d.members.list()
+		const member = members.find((m) => m.slug === slug)
+		const chat = home ? await this.d.chat(home) : null
+		if (!home || !member || !chat) return
+		const envelopes = ids.flatMap((id): Envelope[] => {
+			const m = this.d.log.message(id)
+			if (!m) return []
+			return [{ id: `${envelopeId(id)}#${errorId}`, roomId: home.roomId, from: { kind: "human" }, body: m.text, ...(m.replyTo ? { replyTo: m.replyTo } : {}), hop: 0, rootId: id, seq: m.seq }]
+		})
+		if (envelopes.length) await receive(this.d, home, member, members, chat.title, envelopes)
 	}
 
 	private async deliverBurst(home: Home, batch: Pending[]): Promise<Set<AgentSlug> | "full"> {
@@ -57,7 +73,7 @@ export class BurstFlush {
 		}
 		await this.d.seedMembers(home, chat)
 		const members = this.d.members.list()
-		const routes = route(batch, members, (id) => this.replyAuthor(id))
+		const routes = route(batch, members, this.addressees)
 		const results = await Promise.allSettled(
 			[...routes].map(async ([slug, mine]) => {
 				const member = members.find((m) => m.slug === slug)
@@ -105,7 +121,7 @@ export class BurstFlush {
 		const home = this.d.home()
 		if (!home) return
 		const members = this.d.members.list()
-		const to = new Set(route(this.d.burst.envelopes(home.roomId), members, (id) => this.replyAuthor(id)).keys())
+		const to = new Set(route(this.d.burst.envelopes(home.roomId), members, this.addressees).keys())
 		const busy = members.filter((m) => to.has(m.slug) && m.status !== "idle")
 		for (const m of busy) this.#warned.add(m.slug)
 		await Promise.allSettled(busy.map((m) => agentStub(this.d.env.AGENT, home.userId, home.roomId, m.slug).humanComing()))

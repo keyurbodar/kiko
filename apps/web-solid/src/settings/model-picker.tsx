@@ -18,8 +18,17 @@ const ModelPickerPanel = lazy(loadPanel)
 export const preloadModelPicker = () => void loadPanel()
 
 const [pickerOpen, setPickerOpen] = createSignal(false)
-/** Opens the composer's model picker, from the palette or Mod+Shift+M. */
-export const openModelPicker = () => setPickerOpen(true)
+/** The agent a failed run or a blocked send wants the picker for. Null means the one the draft addresses. */
+const [pickerFor, setPickerFor] = createSignal<string | null>(null)
+/** Opens the composer's model picker, from the palette or Mod+Shift+M, or for one agent from an error line. */
+export const openModelPicker = (slug?: string) => {
+  setPickerFor(slug ?? null)
+  setPickerOpen(true)
+}
+const changePicker = (open: boolean) => {
+  if (!open) setPickerFor(null)
+  setPickerOpen(open)
+}
 
 /**
  * The model picker: a rail of providers with favorites first, a search across all of them, and
@@ -56,7 +65,7 @@ export function ModelPicker(props: { current?: string; onPick: (ref: string, thi
  */
 export function ModelPickerButton(props: { draft: string }) {
   const members = () => useApp.roomMembers()
-  const target = () => answeringMember(members(), props.draft)
+  const target = () => members().find((m) => m.slug === pickerFor()) ?? answeringMember(members(), props.draft)
   return (
     <Show when={hasModelProvider(connectedProviders()) ? target() : undefined}>
       {(member) => {
@@ -66,7 +75,7 @@ export function ModelPickerButton(props: { draft: string }) {
             <ModelPicker
               current={current()?.model}
               open={pickerOpen()}
-              onOpenChange={setPickerOpen}
+              onOpenChange={changePicker}
               onPick={(ref, levels) => ref !== current()?.model && useApp.setAgentModel(member().slug, { ref, levels })}
               title={members().length > 1 ? `Choose model for ${member().name}` : "Choose model"}
               class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"

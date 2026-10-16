@@ -40,6 +40,7 @@ export type SystemEvent =
 	| { kind: "group_formed"; private: true }
 	| { kind: "member_added"; slug: AgentSlug; name: string; private: true }
 	| { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
+	| { kind: "run_error"; slug: AgentSlug; reason: RunErrorKind; actions: readonly RunErrorAction[]; private: true }
 
 /** An event kind a newer server sent. Only its kind is kept. */
 export type UnknownSystemEvent = { kind: string }
@@ -66,6 +67,8 @@ export type Reaction = { by: Actor; emoji: string }
 
 export type RunRef = { runId: string; attempt: number; index: number }
 
+export type ReplyPreview = { seq: number; from: Actor; text: string; gone?: true }
+
 export type Message = {
 	id: MessageId
 	seq: number
@@ -74,6 +77,8 @@ export type Message = {
 	text: string
 	rich?: RichText
 	replyTo?: MessageId
+	/** What `replyTo` pointed at when the room last read it, so a reply shows its quote even when the original is not loaded. */
+	reply?: ReplyPreview
 	files?: readonly FileRef[]
 	run?: RunRef
 	editedAt?: number
@@ -138,7 +143,6 @@ export type RoomEvent =
 	| (Stored & { t: "file"; file: FileRef })
 	| (Stored & { t: "file_removed"; ids: readonly string[] })
 	| (Stored & { t: "folders"; folders: readonly string[] })
-	| (Stored & { t: "no_provider"; slug: AgentSlug; provider: string })
 	| (Stored & { t: "ask" } & HumanAsk)
 	| (Stored & { t: "ask_resolved"; id: string; how: "answered" | "skipped" })
 
@@ -178,8 +182,13 @@ export type ClientToRoom =
 	| { t: "history"; seq: number; before: number; after: number }
 	| { t: "answer"; id: string; value: string | HumanAnswers }
 	| { t: "skip"; id: string }
+	/** Runs the input again that a `run_error` message reports. `messageId` is that message. */
+	| { t: "retry"; messageId: MessageId }
 
-export type RunErrorKind = "no_key" | "invalid_key" | "rate_limit" | "provider_down" | "refused" | "too_long" | "other"
+export type RunErrorKind = "no_key" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "refused" | "too_long" | "other"
+
+/** What the human can do about a failed run. The client draws one button for each. */
+export type RunErrorAction = "retry" | "change_model" | "open_settings"
 
 export type RoomToClient =
 	| { t: "events"; events: readonly RoomEvent[] }
@@ -197,10 +206,8 @@ export type RoomToClient =
 	/** Not stored. Sent only to the socket whose `send` stored nothing because its attachments could not be claimed. */
 	| { t: "send_refused"; clientId: string; reason: string }
 	| { t: "task_refused"; op: TaskOp; reason: string }
-	/** Not stored. A run of this agent ended in a model or provider error. `detail` is scrubbed and only set for `other`. */
 	/** Not stored. Something the human must know about, as one toast. */
 	| { t: "error"; error: KikoError }
-	| { t: "run_error"; slug: AgentSlug; kind: RunErrorKind; provider?: string; detail?: string }
 	| { t: "files_refused"; op: FileOp; reason: FileRefusal }
 	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
 	| { t: "history"; seq: number; before: number; after: number; messages: readonly Message[] }

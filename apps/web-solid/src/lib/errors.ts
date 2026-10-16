@@ -41,3 +41,6 @@ export function showMissing(message: string, action: ErrorAction): number | unde
 export function showKikoError(error: KikoError): number | undefined {
   return error.action ? showMissing(error.message, error.action) : showFailure(error.message)
 }
+
+/** A chat's own error is a line in its transcript. The human has seen it there when that chat is open and the tab is showing. */
+export const seenInChat = (roomId: string | undefined, openChat: string | null, tabVisible: boolean): boolean => roomId !== undefined && roomId === openChat && tabVisible

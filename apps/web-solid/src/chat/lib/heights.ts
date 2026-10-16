@@ -18,6 +18,8 @@ const CENTER_LINE = 16;
 
 // An event divider is a 16px line with 8px above and below.
 const EVENT_ROW_PX = 32;
+// A failed run (RunErrorRow.tsx): a bordered sentence with a row of buttons under it.
+const RUN_ERROR_ROW_PX = 96;
 
 const CHARS_PER_LINE = 87;
 
@@ -55,6 +57,7 @@ export function estimateRowHeight(item: TimelineItem): number {
   // Every centred row is one 16px line with 12px above and below. The day pill adds 4px each way.
   if (item.kind === "day-divider") return CENTER_ROW_PAD_Y + CENTER_LINE + 8;
   // The unread rule, an event line and a thread line (EventDivider.tsx): `py-2` around a `text-xs` line.
+  if (item.kind === "event" && item.message.event?.kind === "run_error") return RUN_ERROR_ROW_PX;
   if (item.kind === "unread-divider" || item.kind === "event" || item.kind === "thread") return EVENT_ROW_PX;
 
   const { message } = item;

@@ -30,7 +30,7 @@ import type {
 } from "@kiko/protocol"
 
 /** The room frames that change state. `hello`, `typing`, and `stop` change nothing to show. */
-export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" } | { t: "search" } | { t: "history" } | { t: "model" }>
+export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" } | { t: "search" } | { t: "history" } | { t: "model" } | { t: "retry" }>
 export type SendFrame = Extract<ClientToRoom, { t: "send" }>
 
 export type RoomPatch = {
@@ -154,6 +154,7 @@ function pendingMessage(p: RoomPatch & { frame: SendFrame }): ViewMessage {
 		pending: true,
 	}
 	if (p.frame.replyTo) m.replyTo = p.frame.replyTo
+	if (p.frame.replyTo && p.frame.quote) m.quote = p.frame.quote
 	if (p.local?.length) m.local = p.local
 	if (p.failed) m.failed = true
 	if (p.reason) m.reason = p.reason

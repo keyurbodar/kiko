@@ -4,12 +4,12 @@ import type { MemberRow } from "../src/room/members"
 import { buildBrief } from "../src/room/brief"
 import { replyTag } from "../src/room/bubbles"
 import { route } from "../src/room/deliver"
-import { resolveRecipients, tags, type RecipientMessage } from "../src/room/recipients"
+import { replyAddressees, resolveRecipients, tags, type RecipientMessage } from "../src/room/recipients"
 import type { Pending } from "../src/room/burst"
 
 /** A message as the room routes it: its mentions are the tags of its text. */
 const routeTo = (message: { text: string; replyToAgent?: AgentSlug }, members: Parameters<typeof resolveRecipients>[1]): AgentSlug[] => {
-	const recipient: RecipientMessage = { mentions: tags(message.text), ...(message.replyToAgent ? { replyToAgent: message.replyToAgent } : {}) }
+	const recipient: RecipientMessage = { mentions: tags(message.text), ...(message.replyToAgent ? { replyTo: [message.replyToAgent] } : {}) }
 	return resolveRecipients(recipient, members)
 }
 
@@ -66,12 +66,12 @@ const pending = (e: Envelope): Pending => ({ envelope: e, mentions: tags(e.body)
 describe("route", () => {
   test("each member gets only its own envelopes of a burst, in one call", () => {
     const burst = [envelope(1, "hello"), envelope(2, "@ada look"), envelope(3, "@all done?"), envelope(4, "this one", "b1")].map(pending)
-    const routes = route(burst, team, (id) => (id === "b1" ? slug("cy") : undefined))
+    const routes = route(burst, team, (id) => (id === "b1" ? [slug("cy")] : []))
     expect(Object.fromEntries([...routes].map(([s, es]) => [s, es.map((e) => e.seq)]))).toEqual({ bob: [1, 3], ada: [2, 3], cy: [3, 4] })
   })
 
   test("an agent that is not addressed is not in the result", () => {
-    const routes = route([pending(envelope(1, "@ada only"))], team, () => undefined)
+    const routes = route([pending(envelope(1, "@ada only"))], team, () => [])
     expect([...routes.keys()]).toEqual([slug("ada")])
   })
 })
@@ -132,4 +132,42 @@ describe("replyTag", () => {
     ["[reply:m1]", { text: "", replyTo: "m1" }],
   ]
   for (const [block, want] of cases) test(JSON.stringify(block), () => expect(replyTag(block)).toEqual(want))
+})
+
+describe("replyAddressees", () => {
+  type Row = Parameters<typeof replyAddressees>[0] extends (id: string) => infer R ? NonNullable<R> : never
+  const human = (text: string, replyTo?: string): Row => ({ from: { kind: "human" }, text, ...(replyTo ? { replyTo: replyTo as never } : {}) })
+  const agent = (s: string): Row => ({ from: { kind: "agent", slug: slug(s) }, text: "an answer" })
+  const log: Record<string, Row> = {
+    a1: agent("cy"),
+    h1: human("hello"),
+    h2: human("@ada look at this"),
+    h3: human("yes", "a1"),
+    h4: human("and this too", "h3"),
+    h5: human("more", "h1"),
+    sys: { from: { kind: "system", reason: "routine" }, text: "routine ran" },
+  }
+  const find = (id: string) => log[id] ?? null
+  const rows: [string, string | undefined, string[]][] = [
+    ["a reply to an agent's bubble is for that agent", "a1", ["cy"]],
+    ["a reply to the human's untagged message is for no one in particular", "h1", []],
+    ["a reply to the human's own tagged message is for the agent it tagged", "h2", ["ada"]],
+    ["a reply to a reply to an agent keeps talking to that agent", "h3", ["cy"]],
+    ["a reply to a reply to a reply still does", "h4", ["cy"]],
+    ["a chain that never reached an agent is for no one", "h5", []],
+    ["a reply to a system line is for no one", "sys", []],
+    ["a reply to a message that is gone is for no one", "missing", []],
+    ["no reply is for no one", undefined, []],
+  ]
+  for (const [name, id, expected] of rows) test(name, () => expect(replyAddressees(find, id)).toEqual(expected))
+
+  test("a chain that loops back on itself ends", () => {
+    const loop: Record<string, Row> = { x: human("hi", "y"), y: human("hi", "x") }
+    expect(replyAddressees((id) => loop[id] ?? null, "x")).toEqual([])
+  })
+
+  test("a reply to the human's own reply routes to the agent that reply was for", () => {
+    const routes = route([pending(envelope(9, "and this too", "h4"))], team, (id) => replyAddressees(find, id))
+    expect([...routes.keys()]).toEqual([slug("cy")])
+  })
 })

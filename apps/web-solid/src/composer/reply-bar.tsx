@@ -5,15 +5,17 @@ import { EntryIcon } from "../lib/EntryIcon"
 
 export interface ReplyBarProps {
   summary: ReplySummary
+  /** Who is being answered: "Replying to Kiko". Or "Edit message". */
   label: string
   onJump: () => void
   onDismiss: () => void
 }
 
+/** The card above the input for the message being answered or edited: whose words, a snippet, and a button that drops it. */
 export function ReplyBar(props: ReplyBarProps): JSX.Element {
   return (
-    <div class="reply-bar" data-component="composer-reply-bar">
-      <button class="reply-bar-jump" type="button" onClick={() => props.onJump()}>
+    <div class="reply-bar" data-component="composer-reply-bar" role="group" aria-label={props.label}>
+      <button class="reply-bar-jump" type="button" aria-label={`${props.label}. Go to the message`} onClick={() => props.onJump()}>
         <Show
           when={props.summary.thumb}
           fallback={
@@ -24,10 +26,12 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
         >
           {(thumb) => <img class="reply-bar-thumb" src={thumb()} alt="" />}
         </Show>
-        <span class="reply-bar-role">{props.label}</span>
-        <span class="reply-bar-preview">{props.summary.text}</span>
+        <span class="reply-bar-text">
+          <span class="reply-bar-role">{props.label}</span>
+          <span class="reply-bar-preview">{props.summary.text}</span>
+        </span>
       </button>
-      <button class="reply-bar-dismiss" type="button" aria-label="Cancel reply" onClick={() => props.onDismiss()}>
+      <button class="reply-bar-dismiss" type="button" aria-label="Cancel reply" title="Cancel reply (Esc)" onClick={() => props.onDismiss()}>
         <XIcon class="size-4" aria-hidden="true" />
       </button>
     </div>

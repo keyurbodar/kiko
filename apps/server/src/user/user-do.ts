@@ -591,6 +591,11 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
+  /** A chat's agent failed to answer. Every open client hears it; the one showing that chat has the line in its transcript and skips the toast. */
+  async notifyError(error: KikoError, roomId: RoomId): Promise<void> {
+    this.broadcast({ t: "error", error, roomId })
+  }
+
   /** Tells the human what broke, then lets the caller see the error as before. */
   private fail(error: KikoError | null, cause: unknown): never {
     if (error) this.broadcast({ t: "error", error })

@@ -10,6 +10,7 @@ type ErrorCode =
 	| "kernel_rejected"
 	| "kernel_down"
 	| "storage"
+	| "model"
 
 /** What the toast button does. The client owns the navigation. */
 export type ErrorAction = "open_models" | "open_integrations"
