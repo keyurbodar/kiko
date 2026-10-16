@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Chat, RoomId } from "@kiko/protocol"
+import { type Chat, KIKO_HOME_ROOM, type RoomId } from "@kiko/protocol"
 import { agentList, BUILTIN_AGENT, chatAfter, distinctTitles, resumeChat, rosterChats } from "./chats"
 
 const chat = (roomId: string, over: Partial<Chat> = {}): Chat => ({
@@ -36,7 +36,7 @@ describe("the chat to resume", () => {
     ["a deleted chat falls through to the kiko chat", chats, true, ["gone", "gone"], "kiko"],
     ["before the list loads, this device's last chat is trusted", [], false, ["a", null], "a"],
     ["before the list loads with nothing remembered, wait", [], false, [null, null], null],
-    ["a loaded list without a kiko chat yet: wait", [], true, [null, null], null],
+    ["a synced list with no chats opens the Kiko home chat, never a blank screen", [], true, [null, null], KIKO_HOME_ROOM],
   ])("%s", (_, list, loaded, wanted, expected) => {
     expect(resumeChat(list, loaded, wanted)).toBe(expected as RoomId | null)
   })

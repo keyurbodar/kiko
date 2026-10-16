@@ -9,6 +9,7 @@ import { connectedProviders } from "../../settings/connected"
 import { modelProviders } from "../../settings/provider-kinds"
 import { primary } from "./welcome"
 import { move } from "./progress"
+import { modelToSave, shownModel } from "./steps"
 
 const FEW = 5
 
@@ -36,10 +37,11 @@ export function ModelStep() {
       .sort((a, b) => Number(b.model.reasoning) - Number(a.model.reasoning) || b.model.contextWindow - a.model.contextWindow)
   })
   const shown = () => (all() ? rows() : rows().slice(0, FEW))
-  const current = () => chosen() ?? rows()[0]?.ref
+  const running = () => useApp.agentModel(KIKO)?.model
+  const current = () => shownModel(chosen(), running(), rows().map((r) => r.ref))
 
   const land = () => {
-    const row = rows().find((r) => r.ref === current())
+    const row = rows().find((r) => r.ref === modelToSave(chosen(), running()))
     if (row) useApp.setAgentModel(KIKO as AgentSlug, { ref: row.ref, levels: row.model.thinking })
     move("next")
     navigate(`/chat/${useApp.kikoChatId() ?? KIKO_HOME_ROOM}`, { replace: true })

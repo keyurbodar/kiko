@@ -41,6 +41,14 @@ export interface Env extends AuthEnv {
   RELEASE_BASE_URL?: string
 }
 
+// Signing in does not call /api/me, so without this a new account's first socket finds no Kiko chat.
+async function withHome(response: Response, env: Env): Promise<Response> {
+  if (!response.ok) return response
+  const body = (await response.clone().json().catch(() => null)) as { user?: { id?: unknown } } | null
+  if (typeof body?.user?.id === "string") await userStub(env.USER, body.user.id).ensureHome()
+  return response
+}
+
 async function handle(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
     if (url.pathname === "/api/health") return Response.json({ ok: true })
@@ -68,7 +76,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
     const dev = await devResponse(request, env)
-    if (dev) return dev
+    if (dev) return url.pathname.startsWith("/api/auth/") ? withHome(dev, env) : dev
     if (url.pathname === "/api/me") {
       const user = await getSessionUser(request, env)
       if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -76,7 +84,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
       return Response.json({ user })
     }
     const authResponse = await authRoute(request, env)
-    if (authResponse) return authResponse
+    if (authResponse) return withHome(authResponse, env)
     if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
     return serveAsset(env.ASSETS, request)
 }
