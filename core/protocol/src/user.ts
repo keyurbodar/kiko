@@ -20,6 +20,8 @@ export type Chat = {
 	last?: ChatLast
 	mentions?: number
 	group?: true
+	/** Where two agents talk privately. Never listed, never shown to the client. */
+	pair?: true
 }
 
 export type Agent = {

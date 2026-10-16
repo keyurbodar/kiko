@@ -18,6 +18,7 @@ type Row = {
   last: string | null
   mentions: number
   grp: number
+  pair: number
 }
 
 export type Touch = {
@@ -50,6 +51,7 @@ function toChat(row: Row): Chat {
     ...(row.last ? { last: JSON.parse(row.last) as ChatLast } : {}),
     ...(row.mentions > 0 ? { mentions: row.mentions } : {}),
     ...(row.grp === 1 ? { group: true as const } : {}),
+    ...(row.pair === 1 ? { pair: true as const } : {}),
   }
 }
 
@@ -63,7 +65,7 @@ export function searchChats(sql: SqlStorage, query: string): Chat[] {
   if (!words.length) return []
   const where = words.map(() => "instr(lower(title), ?) > 0").join(" AND ")
   return sql
-    .exec<Row>(`SELECT * FROM chats WHERE ${where} ORDER BY pinned DESC, updated_at DESC, room_id LIMIT 50`, ...words)
+    .exec<Row>(`SELECT * FROM chats WHERE pair = 0 AND ${where} ORDER BY pinned DESC, updated_at DESC, room_id LIMIT 50`, ...words)
     .toArray()
     .map(toChat)
 }
@@ -74,17 +76,17 @@ export function renameLegacyAgent(sql: SqlStorage): void {
 }
 
 export function listChats(sql: SqlStorage): Chat[] {
-  return sql.exec<Row>("SELECT * FROM chats ORDER BY pinned DESC, updated_at DESC, room_id").toArray().map(toChat)
+  return sql.exec<Row>("SELECT * FROM chats WHERE pair = 0 ORDER BY pinned DESC, updated_at DESC, room_id").toArray().map(toChat)
 }
 
 function write(sql: SqlStorage, chat: Chat): ChatChange {
   sql.exec(
-    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents, private, last, mentions, grp)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO chats (room_id, title, pinned, muted, last_seq, last_preview, unread, updated_at, agents, private, last, mentions, grp, pair)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(room_id) DO UPDATE SET title = excluded.title, pinned = excluded.pinned, muted = excluded.muted,
        last_seq = excluded.last_seq, last_preview = excluded.last_preview, unread = excluded.unread,
        updated_at = excluded.updated_at, agents = excluded.agents, private = excluded.private,
-       last = excluded.last, mentions = excluded.mentions, grp = excluded.grp`,
+       last = excluded.last, mentions = excluded.mentions, grp = excluded.grp, pair = excluded.pair`,
     chat.roomId,
     chat.title,
     chat.pinned ? 1 : 0,
@@ -98,11 +100,12 @@ function write(sql: SqlStorage, chat: Chat): ChatChange {
     chat.last ? JSON.stringify(chat.last) : null,
     chat.mentions ?? 0,
     chat.group ? 1 : 0,
+    chat.pair ? 1 : 0,
   )
   return { t: "chat", chat }
 }
 
-function next(current: Chat | null, op: ChatOp, now: number): Chat | null | undefined {
+function next(current: Chat | null, op: ChatOp, now: number, pair: boolean): Chat | null | undefined {
   switch (op.op) {
     case "create":
       if (current) return null
@@ -116,6 +119,7 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
         unread: 0,
         updatedAt: now,
         ...(op.agents?.length ? { agents: agentIds(op.agents) } : {}),
+        ...(pair ? { pair: true as const } : {}),
       }
     case "rename": {
       const title = clip(op.title, MAX_TITLE)
@@ -136,9 +140,10 @@ function next(current: Chat | null, op: ChatOp, now: number): Chat | null | unde
 /** Distinct ids, capped. A chat's agents are a set: a repeat adds nothing. */
 const agentIds = (agents: readonly string[]): string[] => [...new Set(agents.map((id) => id.slice(0, 64)))].slice(0, MAX_AGENTS)
 
-export function applyChatOp(sql: SqlStorage, op: ChatOp, now: number): ChatChange | null {
+/** `pair` marks the chat a create makes as a private talk between two agents. Only the server sets it. */
+export function applyChatOp(sql: SqlStorage, op: ChatOp, now: number, pair = false): ChatChange | null {
   const current = getChat(sql, op.roomId)
-  const chat = next(current, op, now)
+  const chat = next(current, op, now, pair)
   if (chat === null) return null
   if (chat === undefined) {
     sql.exec("DELETE FROM chats WHERE room_id = ?", op.roomId)

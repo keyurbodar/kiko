@@ -42,7 +42,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
     defineTool({
       name: "ask",
       description:
-        "ask one teammate a question and wait for the answer, which comes back as this tool's result. use it when you need their answer to go on. it waits up to two minutes, and stops at once if the human writes. to ask several teammates, call ask once per teammate in the same reply, and they wait together.",
+        "ask one of the human's agents a question, in this room or not, and wait for the answer, which comes back as this tool's result. use it when you need their answer to go on. it waits up to two minutes, and stops at once if the human writes. to ask several teammates, call ask once per teammate in the same reply, and they wait together.",
       parameters: Type.Object({ to: slug("the agent's slug, without @"), question: Type.String() }),
       replay: "safe",
       execute: async ({ to, question }, api, context) => {
@@ -110,7 +110,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
         defineTool({
           name: "send_message",
           description:
-            "send a message to one agent in this room, or to every other agent with to: all. it shows in the chat and wakes them. the teammate's answer comes back to you as a message, so you need not wait. a plain reply to a teammate's message is your answer and goes back to them, so use send_message to start a conversation or to say something extra, not to answer.",
+            "send a message to one of the human's agents, or to every other agent in this room with to: all. an agent that is not in this room is reached in private, and the exchange shows in this chat. it wakes them. the teammate's answer comes back to you as a message, so you need not wait. a plain reply to a teammate's message is your answer and goes back to them, so use send_message to start a conversation or to say something extra, not to answer.",
           parameters: Type.Object({ to: slug("the agent's slug, without @, or all"), text: Type.String({ description: "the message" }) }),
           replay: "safe",
           execute: async ({ to, text: body }, api) => {

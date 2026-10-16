@@ -222,4 +222,5 @@ export const USER_STEPS: Step[] = [
   "INSERT OR IGNORE INTO recipe_links (routine_id, install_id) SELECT routine_id, install_id FROM recipe_routines",
   "DROP TABLE IF EXISTS recipe_routines",
   "CREATE INDEX IF NOT EXISTS recipe_links_install ON recipe_links (install_id)",
+  addColumn("chats", "pair", "INTEGER NOT NULL DEFAULT 0"),
 ]
