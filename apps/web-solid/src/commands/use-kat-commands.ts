@@ -3,15 +3,19 @@ import { createSignal, onCleanup } from "solid-js"
 import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleCard } from "../chat/side/card-state"
-import { fixedSurface, openSurface } from "../chat/side/surfaces"
+import { fixedSurface, openSurface, toggleSidecar } from "../chat/side/surfaces"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
+import { agentList } from "../lib/chats"
+import { readCache } from "@kiko/theme/apply"
+import { parseLook } from "@kiko/theme/look"
 import { openSearch } from "../search/state"
 import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openAvatarPicker } from "../avatar/picker-state"
 import { useApp } from "../lib/store"
-import { openBotPicker } from "../chat/bot-picker-state"
+import { NEW_AGENT_START, openBotPicker } from "../chat/bot-picker-state"
+import { fillComposer } from "../composer/fill"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
@@ -46,14 +50,42 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       toggleSidebar: deps.toggleSidebar,
       // The one way to start a chat: pick the agent, or several for a group (chat/bot-picker.tsx).
       newChat: openBotPicker,
-      openPalette: () => openPalette("commands"),
+      openPalette: () => openPalette(),
       inRichEditor: inComposer,
-      openChats: () => openPalette("chats"),
+      openChats: () => openPalette("chats.go"),
+      openView: openPalette,
+      chatChoices: () =>
+        useApp.bots().map((chat) => ({ id: chat.id, title: chat.name, faces: useApp.chatFaces(chat.id), run: () => navigate(`/chat/${chat.id}`) })),
+      agentChoices: () =>
+        agentList(useApp.agents()).map((agent) => ({
+          id: agent.id,
+          title: agent.name,
+          seed: agent.slug,
+          run: () => {
+            const roomId = useApp.openDm(agent)
+            if (roomId) navigate(`/chat/${roomId}`)
+          },
+        })),
+      newGroup: openBotPicker,
+      newAgent: () => {
+        const kiko = useApp.kikoChatId()
+        if (!kiko) return
+        fillComposer(kiko, NEW_AGENT_START)
+        navigate(`/chat/${kiko}`)
+      },
+      toggleSidecar: () => {
+        const id = activeId()
+        if (id) toggleSidecar(id)
+      },
+      copyLink: () => {
+        const id = activeId()
+        if (id) void navigator.clipboard?.writeText(`${window.location.origin}/chat/${id}`)
+      },
       hasActiveChat: () => activeId() !== null,
       toggleCard,
-      openFiles: () => {
+      openPanel: (kind) => {
         const id = activeId()
-        if (id) openSurface(id, fixedSurface("files"))
+        if (id) openSurface(id, fixedSurface(kind))
       },
       closeChat: () => {
         const id = activeId()
@@ -104,12 +136,18 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         if (!location.pathname.startsWith("/chat")) navigate("/chat")
         openModelPicker()
       },
+      openView: openPalette,
     }),
   )
   const live = () => import("../theme/live")
   useCommands(
     themeCommands({
+      // The saved look is cached for the first paint, so the check mark reads it without loading the look.
+      mode: () => parseLook(readCache()?.text ?? null).mode,
+      accent: () => parseLook(readCache()?.text ?? null).accent,
       setMode: (mode) => void live().then((m) => m.updateLook({ mode })),
+      setAccent: (accent) => void live().then((m) => m.updateLook({ accent })),
+      openView: openPalette,
       activeAgent: () => {
         const id = activeId()
         const faces = id ? useApp.chatFaces(id) : []

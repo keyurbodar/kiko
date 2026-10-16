@@ -1,4 +1,4 @@
-import type { Command } from "./registry"
+import type { Choice, Command } from "./registry"
 
 /*
  * kat's command map (screenshot 20). Titles are sentence case; the palette shows the group as a heading.
@@ -12,9 +12,22 @@ export function katCommands(deps: {
   closeChat: () => void
   hasActiveChat: () => boolean
   toggleCard: () => void
-  openFiles: () => void
+  /** Opens a tab in the right panel for the open chat. */
+  openPanel: (kind: "files" | "memory" | "routines") => void
+  toggleSidecar: () => void
+  copyLink: () => void
+  /** The agents a new chat can start with. */
+  agentChoices: () => Choice[]
+  /** Opens the palette on one command's submenu. */
+  openView: (id: string) => void
+  /** Opens the picker that makes a group from several agents. */
+  newGroup: () => void
+  /** Starts Kiko's new agent flow. */
+  newAgent: () => void
   openPalette: () => void
   openChats: () => void
+  /** Every chat the sidebar lists, as options for the jump list. */
+  chatChoices: () => Choice[]
   reopenClosed: () => void
   attach: () => void
   rename: () => void
@@ -36,16 +49,23 @@ export function katCommands(deps: {
 }): Command[] {
   return [
     { id: "view.toggle-sidebar", title: "Toggle sidebar", group: "view", icon: "menu", shortcut: "Mod+\\", global: true, run: deps.toggleSidebar },
+    { id: "view.toggle-panel", title: "Toggle right panel", group: "view", icon: "board", when: deps.hasActiveChat, run: deps.toggleSidecar },
     { id: "chat.new", title: "New chat", group: "chat", icon: "plus", shortcut: "Mod+N", global: true, run: deps.newChat },
+    { id: "chat.new-with", title: "New chat with…", group: "chat", icon: "plus", placeholder: "New chat with…", submenu: deps.agentChoices, run: () => deps.openView("chat.new-with") },
+    { id: "chat.new-group", title: "New group", group: "chat", icon: "plus", run: deps.newGroup },
+    { id: "chat.new-agent", title: "New agent", group: "chat", icon: "plus", run: deps.newAgent },
     { id: "chat.reopen", title: "Reopen closed chat", group: "chat", icon: "undo", run: deps.reopenClosed },
     { id: "chat.attach", title: "Attach file…", group: "chat", icon: "attach", shortcut: "Mod+O", when: deps.hasActiveChat, run: deps.attach },
     { id: "chat.rename", title: "Rename chat", group: "chat", icon: "edit", shortcut: "F2", when: deps.hasActiveChat, run: deps.rename },
     { id: "chat.pin", title: "Pin chat", group: "chat", icon: "pin", when: deps.canMove, run: deps.togglePin },
     { id: "chat.info", title: "Chat details", group: "chat", icon: "info", shortcut: "Mod+I", global: true, when: deps.hasActiveChat, run: deps.toggleCard },
-    { id: "chat.files", title: "Files", group: "chat", icon: "files", when: deps.hasActiveChat, run: deps.openFiles },
+    { id: "chat.files", title: "Open files", group: "chat", icon: "files", when: deps.hasActiveChat, run: () => deps.openPanel("files") },
+    { id: "chat.memory", title: "Open memory", group: "chat", icon: "info", when: deps.hasActiveChat, run: () => deps.openPanel("memory") },
+    { id: "chat.routines", title: "Open routines", group: "chat", icon: "board", when: deps.hasActiveChat, run: () => deps.openPanel("routines") },
+    { id: "chat.copy-link", title: "Copy chat link", group: "chat", icon: "attach", when: deps.hasActiveChat, run: deps.copyLink },
     { id: "chat.close", title: "Close chat", group: "chat", icon: "close", when: deps.hasActiveChat, run: deps.closeChat },
     { id: "chat.delete", title: "Delete chat", group: "chat", icon: "trash", when: deps.canMove, run: deps.deleteChat },
-    { id: "chats.go", title: "Go to chat…", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, run: deps.openChats },
+    { id: "chats.go", title: "Go to chat…", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, placeholder: "Go to chat…", submenu: deps.chatChoices, run: deps.openChats },
     // ⌘1 to ⌘9 open the sidebar's chats in order, pinned first, as kat does.
     ...Array.from({ length: 9 }, (_, i): Command => ({
       id: `chats.go-${i + 1}`,

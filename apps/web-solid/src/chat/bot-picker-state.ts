@@ -9,3 +9,6 @@ const [open, setOpen] = createRoot(() => createSignal(false))
 export const botPickerOpen = open
 export const openBotPicker = () => setOpen(true)
 export const closeBotPicker = () => setOpen(false)
+
+/** What kiko's new agent flow starts from. The human types the purpose after it. */
+export const NEW_AGENT_START = "Make me a new agent that "

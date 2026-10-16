@@ -11,12 +11,10 @@ import { Dialog } from "../lib/dialog"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { Button } from "../settings/kit"
-import { closeBotPicker } from "./bot-picker-state"
+import { closeBotPicker, NEW_AGENT_START } from "./bot-picker-state"
 import { groupTitle, roomFor, togglePick } from "./bot-picker-model"
 
 const NEW_AGENT = "new-agent"
-/** What kiko's new agent flow starts from. The human types the purpose after it. */
-const NEW_AGENT_START = "Make me a new agent that "
 
 /*
  * The new chat picker (kat's palette look). One verb picks: a row, clicked or entered, adds that
