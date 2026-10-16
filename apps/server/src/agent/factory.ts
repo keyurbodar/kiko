@@ -17,7 +17,7 @@ import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RemindersPort, remindersExtension } from "./extensions/reminders"
 import { type RecipesPort, skillsExtension } from "./extensions/skills"
 import { selfExtension } from "./extensions/self"
-import { type ChiefPort, chiefExtension } from "./extensions/chief"
+import { type GroupsPort, groupsExtension } from "./extensions/chief"
 import { presenceExtension } from "./extensions/presence"
 import type { RoomFs, SoulPort } from "../files/room-fs"
 import type { ComposioCall, ComposioTool } from "../integrations/composio/client"
@@ -35,7 +35,7 @@ export type BuildAgentInput = RoleInput & {
   files?: Omit<FilesOptions, "touched"> & { fs: RoomFs }
   soul?: SoulPort
   runStamp?: () => number
-  chief?: ChiefPort
+  groups?: GroupsPort
   presence?: (doing: string, activity: Activity) => Promise<unknown>
   memory?: MemoryPort
   loops?: () => LoopPort | null
@@ -72,7 +72,7 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
     webExtension(input.egress, input.files?.fs),
     ...(input.messaging ? [messagingExtension(input.messaging)] : []),
-    ...(input.chief ? [chiefExtension(input.chief)] : []),
+    ...(input.groups ? [groupsExtension(input.groups)] : []),
     ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
