@@ -493,6 +493,7 @@ export function createApp(options: AppOptions = {}) {
       // it from its blob URL until the room's copy arrives.
       if (message.attachments?.length) Object.assign(opts, { attachments: message.attachments, local })
       const clientId = r.send(message.body, opts)
+      anchors.set(r, null)
       return `local:${clientId}`
     }
 

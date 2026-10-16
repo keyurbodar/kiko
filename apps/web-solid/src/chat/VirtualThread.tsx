@@ -22,6 +22,7 @@ import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"
 import { SystemMessage } from "./SystemMessage"
 import { ActivityEvent } from "./ui/ActivityEvent"
+import { EventDivider } from "./ui/EventDivider"
 import { AgentThread } from "./AgentThread"
 import { MentionLookup } from "./ui/Mention"
 import { TypingIndicator } from "./typing/TypingIndicator"
@@ -554,14 +555,9 @@ export function VirtualThread(props: {
     }
     if (item.kind === "unread-divider") {
       return (
-        <SystemMessage
-          variant="divider"
-          tone="accent"
-          label="New messages"
-          data-component="chat-unread-rule"
-        >
+        <EventDivider class="text-ring [&>.line]:bg-ring/45" data-component="chat-unread-rule">
           New messages
-        </SystemMessage>
+        </EventDivider>
       )
     }
     return renderMessage(item)

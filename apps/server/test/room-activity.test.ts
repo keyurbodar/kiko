@@ -114,9 +114,11 @@ const row = (status: WorkerRow["status"], over: Partial<WorkerRow> = {}): Worker
 test("workers show as a background activity and add no line to the transcript", async () => {
 	const room = fresh()
 	const c = await withAgent(room)
+	const joined = (await snapshot(room)).messages.map((m) => m.event)
+	expect(joined).toEqual([{ kind: "member_added", slug: "ada", name: "ada", private: true }])
 	await rpc(room, "setWorkers", "ada", [row("running")])
 	expect(await quiet(c)).toBe(0)
-	expect((await snapshot(room)).messages).toEqual([])
+	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual(joined)
 
 	await rpc(room, "setStatus", "ada", "working")
 	const background = await c.take((f) => f.t === "status" && f.state === "working")
@@ -126,7 +128,7 @@ test("workers show as a background activity and add no line to the transcript", 
 	await rpc(room, "setWorkers", "ada", [row("done", { steps: 3 })])
 	const after = await c.take((f) => f.t === "status")
 	expect(after).toEqual({ t: "status", slug: "ada", state: "working" })
-	expect((await snapshot(room)).messages).toEqual([])
+	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual(joined)
 	c.close()
 })
 
@@ -154,6 +156,7 @@ test("a routine and a repeated compaction each store one divider", async () => {
 	await rpc(room, "compacted", "ada", "2")
 	const kinds = (await snapshot(room)).messages.map((m) => m.event)
 	expect(kinds).toEqual([
+		{ kind: "member_added", slug: "ada", name: "ada", private: true },
 		{ kind: "routine_created", agent: "ada", title: "morning summary", private: true },
 		{ kind: "compacted", agent: "ada", private: true },
 		{ kind: "compacted", agent: "ada", private: true },

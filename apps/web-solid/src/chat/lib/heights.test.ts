@@ -66,7 +66,7 @@ describe("estimateRowHeight covers every TimelineItem variant", () => {
     expect(items.map((item) => item.kind)).toEqual(["message", "message", "day-divider", "message"]);
   });
 
-  test("the day pill and the unread rule share one rhythm, the pill 8px taller", () => {
+  test("the unread rule is one divider line and the day pill is taller", () => {
     const items = buildTimelineItems(
       [
         bot("a", new Date(2024, 0, 15, 23, 0, 0)),
@@ -81,9 +81,8 @@ describe("estimateRowHeight covers every TimelineItem variant", () => {
     if (!day || day.kind !== "day-divider" || !unread || unread.kind !== "unread-divider") {
       throw new Error("expected both dividers");
     }
-    // Both rows are 12px above and below a 16px line. The day pill adds its own 4px each way.
-    expect(estimateRowHeight(unread)).toBe(40);
-    expect(estimateRowHeight(day) - estimateRowHeight(unread)).toBe(8);
+    expect(estimateRowHeight(unread)).toBe(32);
+    expect(estimateRowHeight(day)).toBe(48);
   });
 });
 
@@ -104,10 +103,10 @@ describe("bubble spacing", () => {
     expect(continuation).toBe(Math.ceil(14 + 6 + 16 + 2 * px("row-gap")));
   });
 
-  test("an event line is one 16px line with 4px above and below", () => {
+  test("an event line is one 16px line with 8px above and below", () => {
     const [item] = buildTimelineItems([bot("e", at(0), { botId: undefined, event: { kind: "compacted", agent: "b1", private: true } as never })]);
     expect(item?.kind).toBe("event");
-    expect(estimateRowHeight(item!)).toBe(24);
+    expect(estimateRowHeight(item!)).toBe(32);
   });
 });
 

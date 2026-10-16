@@ -3,7 +3,6 @@ import { cn } from "../lib/cn"
 
 export function SystemMessage(props: {
   variant?: "default" | "divider"
-  tone?: "plain" | "accent"
   icon?: JSX.Element
   label?: string
   class?: string
@@ -12,25 +11,17 @@ export function SystemMessage(props: {
 }): JSX.Element {
   const [local, rest] = splitProps(props, [
     "variant",
-    "tone",
     "icon",
     "label",
     "class",
     "children",
   ])
   const divider = () => local.variant === "divider"
-  const accent = () => local.tone === "accent"
   return (
     <div
       class={cn(
         "chat-system-message flex items-baseline justify-center gap-1.5 px-4 py-3 text-center text-sm leading-4",
-        accent()
-          ? [
-              "mx-auto w-full max-w-(--chat-content-max-width) items-center gap-2.5 text-ring",
-              "before:h-px before:grow before:bg-[color-mix(in_oklch,var(--ring)_45%,transparent)]",
-              "after:h-px after:grow after:bg-[color-mix(in_oklch,var(--ring)_45%,transparent)]",
-            ]
-          : "text-muted-foreground",
+        "text-muted-foreground",
         local.class,
       )}
       data-component={rest["data-component"] ?? "chat-system-message"}
@@ -41,7 +32,7 @@ export function SystemMessage(props: {
         <span class="sr-only">{local.label}</span>
       </Show>
       <span
-        class={cn("inline-flex items-baseline gap-1.5", accent() && "shrink-0 font-medium")}
+        class={"inline-flex items-baseline gap-1.5"}
         aria-hidden={divider() && local.label ? "true" : undefined}
       >
         <Show when={local.icon}>
