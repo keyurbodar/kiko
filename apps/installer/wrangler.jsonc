@@ -4,6 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
   "routes": [{ "pattern": "api.kiko.works", "custom_domain": true }],
   "durable_objects": { "bindings": [{ "name": "INSTALL", "class_name": "InstallDO" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["InstallDO"] }]

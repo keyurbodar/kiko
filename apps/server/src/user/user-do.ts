@@ -510,7 +510,7 @@ export class UserDO extends DurableObject<Env> {
     return this.#mem.compress(prompt)
   }
 
-  async providerKeyRefused(provider: string, apiKey: string): Promise<boolean> {
+  async providerKeyRefused(provider: string, apiKey: string): Promise<string | null> {
     const key = checkApiKey(apiKey)
     const { models, settings } = userModels(async () => ({ auth: { apiKey: key } }), `check-${this.ctx.id.toString()}`)
     return keyRefused(models, provider, settings.stream?.headers)
@@ -710,7 +710,7 @@ export class UserDO extends DurableObject<Env> {
     return this.#kernelWiring
   }
 
-  /** The user's browser for `agentId`, headless unless the human asked to watch. Creates it when there is none. */
+  /** The user's browser for `agentId`, always headful so it has a live view. Creates it when there is none. */
   async browserLease(agentId: string): Promise<Lease> {
     return this.#kr.lease(agentId)
   }

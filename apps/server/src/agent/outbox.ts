@@ -2,7 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
-import { classifyRunError } from "./run-error"
+import { classifyRunError, runErrorDetail } from "./run-error"
 import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
@@ -16,7 +16,7 @@ export interface RoomPort {
   workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
-  runError(runId: string, error: { kind: RunErrorKind; provider: string }): Promise<void>
+  runError(runId: string, error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void>
 }
 
 type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number }
@@ -270,7 +270,8 @@ export class Outbox {
   }
 
   private async reportError(runId: string, message: AssistantLike): Promise<void> {
-    await this.room()?.runError(runId, { kind: classifyRunError(message.errorMessage), provider: message.provider ?? "" })
+    const detail = runErrorDetail(message.errorMessage)
+    await this.room()?.runError(runId, { kind: classifyRunError(message.errorMessage), provider: message.provider ?? "", ...(detail ? { detail } : {}) })
   }
 
   private finishGeneration(run: Run, entry: EntryRecord): boolean {

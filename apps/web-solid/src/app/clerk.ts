@@ -13,6 +13,8 @@ type ClerkUI = Awaited<NonNullable<NonNullable<Options["ui"]>["ClerkUI"]>>
 
 const UI_VERSION = "1"
 
+const BLOCKED = "Could not load the sign-in form. Check your connection. If you use an ad blocker or Private DNS, allow clerk.kiko.works, then try again."
+
 /** The Clerk front-end host is the publishable key's payload: base64 of `host$`. */
 function frontendHost(key: string): string {
   return atob(key.split("_").slice(2).join("_")).replace(/\$$/, "")
@@ -27,11 +29,11 @@ function loadUi(key: string): Promise<ClerkUI> {
     script.async = true
     script.crossOrigin = "anonymous"
     script.setAttribute("data-clerk-publishable-key", key)
-    script.onerror = () => reject(new Error("Could not load the sign-in form. Check your connection"))
+    script.onerror = () => reject(new Error(BLOCKED))
     script.onload = () => {
       const ctor = w.__internal_ClerkUICtor
       if (ctor) resolve(ctor)
-      else reject(new Error("Could not load the sign-in form. Try again"))
+      else reject(new Error(BLOCKED))
     }
     document.head.append(script)
   })
@@ -69,7 +71,11 @@ export function loadClerk(): Promise<Clerk> {
     const clerk = new Clerk(key)
     const ui = loadUi(key)
     ui.catch(() => {})
-    await clerk.load({ ui: { ClerkUI: ui }, appearance })
+    // Clerk's own load errors are written for developers, so the person gets one plain sentence.
+    await clerk.load({ ui: { ClerkUI: ui }, appearance }).catch((e: unknown) => {
+      console.error("clerk load failed", e)
+      throw new Error(BLOCKED)
+    })
     return clerk
   })()
   loading.catch(() => {

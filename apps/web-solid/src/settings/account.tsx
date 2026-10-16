@@ -2,7 +2,7 @@ import { useNavigate } from "@solidjs/router"
 import { Match, Show, Switch, createSignal, onMount } from "solid-js"
 import { hosted, profile } from "../app/hosted"
 import { session, signOut } from "../app/session"
-import { backendVersion, checkForUpdates, clientIsBehind, currentSkew, refreshBackend, refreshLatest, startUpdate, view } from "../app/update-flow"
+import { backendStorage, backendVersion, checkForUpdates, clientIsBehind, currentSkew, refreshBackend, refreshLatest, startUpdate, view } from "../app/update-flow"
 import { base } from "../lib/api-base"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { APP_VERSION } from "../lib/version-skew"
@@ -21,7 +21,7 @@ function Backend() {
     setChecking(true)
     void checkForUpdates().finally(() => setChecking(false))
   }
-  const status = () => (clientIsBehind() ? "Reload to update" : currentSkew() ? SKEW_TEXT[currentSkew()!] : undefined)
+  const status = () => (clientIsBehind() && currentSkew() !== "blocked" ? SKEW_TEXT.update : currentSkew() ? SKEW_TEXT[currentSkew()!] : undefined)
   return (
     <Group title="Backend" data-component="account-backend">
       <Row label="Address">
@@ -48,13 +48,8 @@ function Backend() {
               {(view() as { text: string }).text}
             </span>
           </Match>
-          <Match when={view().kind === "reload"}>
-            <Button variant="primary" data-action="reload-update" onClick={() => location.reload()}>
-              Reload to update
-            </Button>
-          </Match>
           <Match when={view().kind === "update" || view().kind === "failed"}>
-            <Button variant="primary" data-action="update-start" onClick={startUpdate}>
+            <Button variant="primary" data-action="update-start" onClick={() => void startUpdate()}>
               {view().kind === "failed" ? "Retry update" : "Update"}
             </Button>
           </Match>
@@ -65,6 +60,24 @@ function Backend() {
           </Match>
         </Switch>
       </Row>
+      <Show when={backendStorage()}>
+        {(storage) => (
+          <Row
+            label="File storage"
+            description={
+              storage() === "r2"
+                ? "Cloudflare R2. Files up to 512 MB."
+                : "Built-in, because R2 is not turned on in your Cloudflare account. Files up to 100 MB, and 800 MB per chat."
+            }
+          >
+            <Show when={storage() === "built-in"} fallback={<span class="text-md" data-field="file-storage">R2</span>}>
+              <a class="text-sm text-foreground underline underline-offset-2" href="https://developers.cloudflare.com/r2/pricing/" target="_blank" rel="noreferrer" data-field="file-storage">
+                About R2
+              </a>
+            </Show>
+          </Row>
+        )}
+      </Show>
       <Row label="Cloudflare" description="Install or update your backend again in your Cloudflare account.">
         <Button data-action="reconnect-cloudflare" onClick={() => navigate("/connect?reconnect=1")}>
           Reconnect Cloudflare

@@ -126,7 +126,7 @@ export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("group_formed"), private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("member_added"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("member_removed"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
-	Schema.Struct({ kind: Schema.Literal("run_error"), slug: AgentSlug, reason: RunErrorKind, actions: Schema.Array(Schema.Literals(["retry", "change_model", "open_settings"])), private: Schema.Literal(true) }),
+	Schema.Struct({ kind: Schema.Literal("run_error"), slug: AgentSlug, reason: RunErrorKind, actions: Schema.Array(Schema.Literals(["retry", "change_model", "open_settings"])), detail: Schema.optionalKey(Schema.String), private: Schema.Literal(true) }),
 ])
 
 const UnknownSystemEvent = Schema.Struct({ kind: Schema.String })

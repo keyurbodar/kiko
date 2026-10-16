@@ -40,7 +40,7 @@ export type SystemEvent =
 	| { kind: "group_formed"; private: true }
 	| { kind: "member_added"; slug: AgentSlug; name: string; private: true }
 	| { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
-	| { kind: "run_error"; slug: AgentSlug; reason: RunErrorKind; actions: readonly RunErrorAction[]; private: true }
+	| { kind: "run_error"; slug: AgentSlug; reason: RunErrorKind; actions: readonly RunErrorAction[]; /** The provider's own words, keys removed. */ detail?: string; private: true }
 
 /** An event kind a newer server sent. Only its kind is kept. */
 export type UnknownSystemEvent = { kind: string }

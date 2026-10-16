@@ -11,7 +11,7 @@ export const APP_VERSION: string = typeof __KIKO_VERSION__ === "string" ? __KIKO
 export type Skew = "ok" | "update" | "blocked"
 export type Build = { version: string; protocol: number }
 /** What an older backend may leave out. A missing field means "update". */
-export type BackendBuild = { version?: string; protocol?: number }
+export type BackendBuild = { version?: string; protocol?: number; storage?: "r2" | "built-in" }
 
 /** The major, minor, and patch numbers of a semver string. Pre-release and build tags are ignored. */
 const core = (version: string) => (version.split(/[-+]/)[0] ?? "").split(".").map(Number)

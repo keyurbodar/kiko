@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js"
 import { apiFetch, setToken, setUnauthorizedHandler } from "../lib/api"
-import { write } from "../lib/api-base"
+import { base, write } from "../lib/api-base"
 import { clearFileToken } from "../lib/file-token"
 import { hosted, setProfile } from "./hosted"
 
@@ -179,9 +179,37 @@ export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
   setProfile(found.profile)
   if (!found.backendUrl) return "connect"
   write("kiko:backend", found.backendUrl)
-  await exchangeClerkToken(found.token)
+  try {
+    await exchangeClerkToken(found.token)
+  } catch (e) {
+    // The address Clerk remembers answers, but not as Kiko: the Worker was deleted or replaced. Install again.
+    if (!(e instanceof Unreachable) && (await backendGone())) return "connect"
+    throw e
+  }
   return "in"
 }
+
+/** True when the stored address answers but is not a Kiko backend (deleted on Cloudflare, or another Worker). */
+async function backendGone(): Promise<boolean> {
+  const res = await fetch(`${base()}/api/version`, { cache: "no-store" }).catch(() => null)
+  if (!res) return false
+  const body = (await res.json().catch(() => null)) as { version?: unknown } | null
+  return !res.ok || typeof body?.version !== "string"
+}
+
+/** The backend did not answer at all: no response, so DNS, the network, or a blocker. */
+class Unreachable extends Error {}
+
+const hostOf = () => {
+  try {
+    return new URL(base()).host
+  } catch {
+    return "your backend"
+  }
+}
+
+export const unreachableText = () =>
+  `This device cannot reach ${hostOf()} yet. A new Cloudflare address can take a few minutes to reach every network. Try again in a minute. If you use a VPN, Private DNS, or an ad blocker, allow workers.dev.`
 
 async function exchangeClerkToken(clerkToken: string): Promise<void> {
   const res = await apiFetch("/api/auth/clerk", {
@@ -189,17 +217,34 @@ async function exchangeClerkToken(clerkToken: string): Promise<void> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ token: clerkToken }),
   }).catch(() => null)
-  if (res && !res.ok) {
+  if (!res) throw new Unreachable(unreachableText())
+  if (!res.ok) {
     const { message } = (await res.json().catch(() => ({}))) as { message?: string }
-    throw new Error(message ?? "Could not sign in. Try again")
+    throw new Error(message ? `${message}.` : `Your backend answered ${res.status}. Try again.`)
   }
-  await adopt(res, "Could not reach your backend. Try again")
+  await adopt(res, "Could not sign in. Try again")
 }
 
-/** After an install stored `kiko:backend`: trades a fresh Clerk token (the install outlives the old one) for the backend's own. */
+/** How long a fresh install is given to become reachable from this device before the person is asked. */
+const REACH_MS = 90_000
+const REACH_STEP_MS = 3_000
+
+/**
+ * After an install stored `kiko:backend`: trades a fresh Clerk token for the backend's own. A new workers.dev
+ * address can take a minute to reach this device's network, so no answer at all is tried again for a while.
+ * Each try gets a new Clerk token, because one lives for a minute.
+ */
 export async function signInToInstalledBackend(): Promise<void> {
   const { clerkSignIn } = await import("./clerk")
-  const found = await clerkSignIn()
-  if (!found) throw new Error("Sign in again to finish connecting")
-  await exchangeClerkToken(found.token)
+  const until = Date.now() + REACH_MS
+  for (;;) {
+    const found = await clerkSignIn()
+    if (!found) throw new Error("Your Kiko sign-in ended. Sign in again to finish connecting.")
+    try {
+      return await exchangeClerkToken(found.token)
+    } catch (e) {
+      if (!(e instanceof Unreachable) || Date.now() + REACH_STEP_MS > until) throw e
+      await new Promise((r) => setTimeout(r, REACH_STEP_MS))
+    }
+  }
 }

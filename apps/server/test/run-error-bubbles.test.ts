@@ -21,5 +21,5 @@ test("a 429 leaves no bubble, not even from text the failed turn carried, and re
   const failed = { role: "assistant", stopReason: "error", errorMessage: "429 rate limit exceeded", provider: "openai", content: [{ type: "text", text: "Wait a minute, then retry." }] }
   await inner.entry({ id: 1, kind: "pi.message", model: [failed] })
   expect(posts).toEqual([])
-  expect(errors).toEqual([{ kind: "rate_limit", provider: "openai" }])
+  expect(errors).toEqual([{ kind: "rate_limit", provider: "openai", detail: "429 rate limit exceeded" }])
 })

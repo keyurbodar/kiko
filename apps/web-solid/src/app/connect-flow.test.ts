@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { authorizeUrl, challengeOf, connect, failureOf, install, oauthGrant, type Fetch } from "./connect-flow"
+import { authorizeUrl, challengeOf, connect, failureOf, install, oauthGrant, retryKind, type Fetch } from "./connect-flow"
 
 const store = new Map<string, string>()
 Object.assign(globalThis, {
@@ -45,13 +45,24 @@ describe("callback", () => {
 
 describe("errors", () => {
   test("each installer code maps to a sentence and at most one link", () => {
-    for (const code of ["no_permission", "not_ready", "cloudflare_error"]) expect(failureOf({ code, message: "raw" }).link?.href).toContain("workers-and-pages")
+    for (const code of ["not_ready", "cloudflare_error"]) expect(failureOf({ code, message: "raw" }).link?.href).toContain("workers-and-pages")
+    for (const code of ["no_permission", "cannot_create"]) expect(failureOf({ code, message: "raw" }).link?.href).toContain("api-tokens")
+    expect(failureOf({ code: "cannot_create", message: "x" }).message).toContain("Workers Admin")
     expect(failureOf({ code: "cloudflare_error", message: "raw cloudflare text" }).message).not.toContain("raw")
     expect(failureOf({ code: "no_account", message: "x" }).link?.href).toContain("sign-up")
     expect(failureOf({ code: "cloudflare_down", message: "x" }).link?.href).toContain("cloudflarestatus")
     expect(failureOf({ code: "busy", message: "x" }).link).toBeUndefined()
     expect(failureOf({ code: "no_subdomain", message: "x" }).link?.href).toContain("workers")
-    expect(failureOf({ code: "oauth_failed", message: "Cloudflare said no." })).toEqual({ message: "Cloudflare said no." })
+    expect(failureOf({ code: "oauth_failed", message: "x" }).message).toContain("Connect again")
+    expect(failureOf({ code: "some_new_code", message: "The installer's own sentence." })).toEqual({ message: "The installer's own sentence." })
+  })
+  test("Cloudflare's own words ride along under the sentence", () => {
+    expect(failureOf({ code: "no_permission", message: "x", detail: "No access to the specified resource. (PUT /accounts/…/workers/scripts/kiko)" }).detail).toContain("No access")
+  })
+  test("Try again signs in again after an install, starts over after a failed Cloudflare sign-in, and repeats otherwise", () => {
+    expect(retryKind({ code: "unreachable", message: "x", installed: true })).toBe("sign-in")
+    for (const code of ["oauth_failed", "oauth_denied", "state_mismatch"]) expect(retryKind({ code, message: "x" })).toBe("new-grant")
+    for (const code of ["busy", "cannot_create", "cloudflare_down"]) expect(retryKind({ code, message: "x" })).toBe("same")
   })
   test("install returns the installer's error shape", async () => {
     const f: Fetch = async () => json({ error: { code: "failed_step", message: "m" } }, 400)
@@ -77,6 +88,26 @@ describe("connect", () => {
     expect(error).toBeNull()
     expect(body).toEqual({ clerkToken: "clerk", grant: { kind: "token", token: "k" } })
     expect(seen).toBe("https://kiko-abc.me.workers.dev")
+  })
+  test("an install whose sign-in fails keeps the address and says only the sign-in failed", async () => {
+    const error = await connect("c", { kind: "token", token: "k" }, async () => {
+      throw new Error("This device cannot reach kiko.me.workers.dev yet.")
+    }, async () => json({ backendUrl: "https://kiko.me.workers.dev", version: "1" }))
+    expect(error).toEqual({ code: "unreachable", message: "This device cannot reach kiko.me.workers.dev yet.", installed: true })
+    expect(localStorage.getItem("kiko:backend")).toBe("https://kiko.me.workers.dev")
+  })
+  test("the installer's account list and Cloudflare detail reach the screen", async () => {
+    const f: Fetch = async () => json({ error: { code: "choose_account", message: "m", accounts: [{ id: "a", name: "Mine" }], detail: "d" } }, 409)
+    expect(await install("t", { kind: "token", token: "k" }, f, undefined)).toEqual({ ok: false, error: { code: "choose_account", message: "m", accounts: [{ id: "a", name: "Mine" }], detail: "d" } })
+  })
+  test("a picked account is sent with the grant", async () => {
+    let body: unknown
+    const f: Fetch = async (_url, init) => {
+      body = JSON.parse(String(init?.body))
+      return json({ backendUrl: "https://kiko.me.workers.dev", version: "1" })
+    }
+    await connect("c", { kind: "token", token: "k" }, async () => {}, f, "acc2")
+    expect(body).toMatchObject({ accountId: "acc2" })
   })
   test("a failed install stores nothing and skips the exchange", async () => {
     let exchanged = false

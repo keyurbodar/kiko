@@ -92,7 +92,7 @@ export class KernelWiring {
     await this.d.alarms.clearWakeup(REAP_WAKEUP)
   }
 
-  /** The user's browser for `agentId`, headless unless the human asked to watch. Creates it when there is none. */
+  /** The user's browser for `agentId`, always headful so it has a live view. Creates it when there is none. */
   async lease(agentId: string): Promise<LeaseInfo> {
     const info = await this.browser.lease(checkAgentId(agentId)).catch((e) => {
       const error = kernelFailure(e)
@@ -185,9 +185,9 @@ export class KernelWiring {
   }
 
   /**
-   * The live view URL for the human. A headless browser has none, so it is switched to headful first
-   * (about 5 s, `onSwitching` tells the caller). With no browser open, one is made headful straight away: asking
-   * to watch is a reason to open it. `control` sets the takeover flag before the switch, so agents stop at once,
+   * The live view URL for the human. Every browser is made headful, so this reads the open one's URL. With no
+   * browser open, or a headless one left from an older version, one is made headful (about 5 s, `onSwitching`
+   * tells the caller): asking to watch is a reason to open it. `control` sets the takeover flag before the switch, so agents stop at once,
    * and the switch carries it over. Watch keeps the browser for `WATCH_MS`.
    */
   private async openLink(mode: "watch" | "control", onSwitching: (on: boolean) => void): Promise<string> {
@@ -198,12 +198,7 @@ export class KernelWiring {
     if (!row || row.dead || row.mode === "headless") {
       onSwitching(true)
       try {
-        // A switch while a worker drives the browser sometimes outlasts the SDK's timeout. One more try finds the
-        // old browser gone and only starts the new one.
-        await this.browser.switchMode("headful").catch((e: unknown) => {
-          if (e instanceof KernelError && e.message === "Kernel did not answer") return this.browser.switchMode("headful")
-          throw e
-        })
+        await this.browser.switchMode("headful")
       } finally {
         onSwitching(false)
       }

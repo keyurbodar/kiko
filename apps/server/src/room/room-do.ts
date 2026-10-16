@@ -1006,8 +1006,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return stored !== null
 	}
 
-	async runError(slug: AgentSlug, runId: string, error: { kind: RunErrorKind; provider: string; inputs: readonly string[] }): Promise<void> {
-		this.reportRunError(slug, `run-error:${slug}:${runId}`, error.kind, error.provider, error.inputs)
+	async runError(slug: AgentSlug, runId: string, error: { kind: RunErrorKind; provider: string; inputs: readonly string[]; detail?: string }): Promise<void> {
+		this.reportRunError(slug, `run-error:${slug}:${runId}`, error.kind, error.provider, error.inputs, typeof error.detail === "string" ? error.detail.slice(0, 300) : undefined)
 	}
 
 	/**
@@ -1015,14 +1015,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * in another chat. `key` makes a repeat store nothing. Retry needs the human messages the run
 	 * answered, so it is offered only when there are some.
 	 */
-	private reportRunError(slug: AgentSlug, key: string, kind: RunErrorKind, provider: string, inputs: readonly string[]): { id: MessageId; seq: number } | null {
+	private reportRunError(slug: AgentSlug, key: string, kind: RunErrorKind, provider: string, inputs: readonly string[], detail?: string): { id: MessageId; seq: number } | null {
 		const member = this.members.get(slug)
 		const home = this.home()
 		if (!member || !home) return null
 		const heard = inputs.filter((id) => this.log.message(id)?.from.kind === "human")
 		const failure = describeRunError(kind, findProvider(provider)?.name ?? (provider || "The provider"), member.name)
 		const actions = heard.length ? failure.actions : failure.actions.filter((a) => a !== "retry")
-		const stored = this.log.addMessage(dividerMessage(key, failure.message, { kind: "run_error", slug, reason: kind, actions, private: true }))
+		const stored = this.log.addMessage(dividerMessage(key, failure.message, { kind: "run_error", slug, reason: kind, actions, ...(detail ? { detail } : {}), private: true }))
 		if (!stored.event) return null
 		this.log.setMeta(`retry:${stored.id}`, JSON.stringify({ slug, inputs: heard }))
 		this.publish([stored.event])

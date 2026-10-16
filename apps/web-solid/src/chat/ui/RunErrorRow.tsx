@@ -17,7 +17,7 @@ const LABELS: Record<RunErrorAction, string> = { retry: "Retry", change_model: "
  * sentence, and what the human can do. The buttons are for the newest line of the chat only, since
  * an older failure has been answered by what came after it.
  */
-export default function RunErrorRow(props: { message: ChatMessage; slug: string; actions: readonly RunErrorAction[]; latest: boolean }): JSX.Element {
+export default function RunErrorRow(props: { message: ChatMessage; slug: string; actions: readonly RunErrorAction[]; detail?: string | undefined; latest: boolean }): JSX.Element {
   const [retrying, setRetrying] = createSignal(false)
   let timer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(timer))
@@ -35,7 +35,16 @@ export default function RunErrorRow(props: { message: ChatMessage; slug: string;
       <div class="flex max-w-full flex-col items-start gap-2 rounded-xl bg-error-surface px-3 py-2 text-sm text-foreground">
         <div class="flex min-w-0 items-start gap-2">
           <CircleAlertIcon class="mt-0.5 size-4 shrink-0 text-error" aria-hidden="true" />
-          <span class="min-w-0">{props.message.body}</span>
+          <div class="flex min-w-0 flex-col gap-0.5">
+            <span>{props.message.body}</span>
+            <Show when={props.detail}>
+              {(detail) => (
+                <span class="break-words text-xs text-muted-foreground select-text" data-part="run-error-detail">
+                  {detail()}
+                </span>
+              )}
+            </Show>
+          </div>
         </div>
         <Show when={props.latest && props.actions.length > 0}>
           <div class="flex flex-wrap gap-1.5 ps-6" data-component="run-error-actions">

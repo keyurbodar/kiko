@@ -46,7 +46,10 @@ const suite: Suite = {
     expectEqual((await call(bob.auth, "GET", "api/credentials")).body, { providers: [] }, "bob's providers")
 
     const refused = await call(alice.auth, "PUT", "api/credentials/opencode-go", { apiKey: `sk-not-a-real-key-${key.slice(-8)}` })
-    expectEqual([refused.status, refused.body], [400, { error: "The provider refused that key" }], "a key the provider refuses")
+    expectEqual(refused.status, 400, "status of a key the provider refuses")
+    const said = (refused.body as { error?: string }).error ?? ""
+    if (!said.startsWith("The provider refused that key")) throw new VerifyError(`a refused key answered: ${said}`)
+    if (said.includes("sk-not-a-real-key")) throw new VerifyError("the refusal repeated the key")
     expectEqual((await call(alice.auth, "GET", "api/credentials")).body, { providers: [{ provider: PROVIDER, kind: "api_key", last4: key.slice(-4), chat: false, judge: false }] }, "providers after a refused save")
 
     const bad = await call(alice.auth, "PUT", "api/credentials/Not%20A%20Provider", { apiKey: key })

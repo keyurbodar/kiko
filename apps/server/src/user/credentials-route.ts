@@ -1,7 +1,7 @@
 import type { Env } from "../index"
 import { error, signedIn } from "../lib/route"
 import { userStub } from "../lib/names"
-import { KEY_REFUSED } from "./credentials-check"
+import { keyRefusedText } from "./credentials-check"
 import { checkApiKey, CredentialError, isProviderId } from "./credentials"
 
 const PREFIX = "/api/credentials"
@@ -42,6 +42,7 @@ export async function credentialsRoute(request: Request, env: Env): Promise<Resp
   } catch (e) {
     return error(400, e instanceof CredentialError ? e.message : "bad request")
   }
-  if (await stub.providerKeyRefused(provider, apiKey)) return error(400, KEY_REFUSED)
+  const refused = await stub.providerKeyRefused(provider, apiKey)
+  if (refused !== null) return error(400, keyRefusedText(refused))
   return Response.json({ provider: await stub.connectProvider(provider, apiKey) })
 }

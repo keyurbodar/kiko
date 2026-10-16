@@ -62,10 +62,10 @@ const suite: Suite = {
       if (lease.status !== 200) throw new VerifyError(`lease answered ${lease.status}`)
       seen.add(lease.json.sessionId)
       profile = (await dev<{ profile: string }>("dev/agent/browser", { action: "state" })).json.profile
-      expectEqual(await headless(lease.json.sessionId), true, "the first browser is headless")
+      expectEqual(await headless(lease.json.sessionId), false, "the first browser is headful")
       await dev("dev/user/browser-tabs", { agentId: AGENT, tabs: { t1: "https://example.com/login?token=secret" } })
       const idle = await state((b) => b.tabs.length === 1, "an agent's tab")
-      expectEqual([idle.mode, idle.takeover, idle.switching, idle.tabs[0]?.slug, idle.tabs[0]?.host], ["headless", false, false, "ada", "example.com"], "the state with a tab")
+      expectEqual([idle.mode, idle.takeover, idle.switching, idle.tabs[0]?.slug, idle.tabs[0]?.host], ["headful", false, false, "ada", "example.com"], "the state with a tab")
 
       const set = await kernel<{ success: boolean }>("POST", `/browsers/${lease.json.sessionId}/playwright/execute`, {
         code: `await context.addCookies([{ name: '${COOKIE}', value: '1', domain: 'example.com', path: '/', expires: Math.floor(Date.now() / 1000) + 86400 }]); return true`,
@@ -75,18 +75,14 @@ const suite: Suite = {
 
       const started = performance.now()
       user.send({ t: "browserLink", reqId: "watch1", mode: "watch" })
-      await state((b) => b.switching, "the switching state")
-      const headful = await state((b) => b.mode === "headful" && !b.switching, "headful and done switching")
       const watch = (await user.expect((f) => f.t === "browserLink" && f.reqId === "watch1", 90_000)) as Link
       console.error(`  watch link: ${((performance.now() - started) / 1000).toFixed(1)} s`)
       if (!watch.result.ok) throw new VerifyError(`watch failed: ${watch.result.error}`)
       expectEqual(new URL(watch.result.url).searchParams.get("readOnly"), "true", "readOnly on the watch link")
-      expectEqual([headful.takeover, headful.tabs[0]?.host], [false, "example.com"], "the state after the switch")
       const watching = await sessionId()
-      if (!watching || watching === lease.json.sessionId) throw new VerifyError("the switch kept the old browser")
-      seen.add(watching)
-      expectEqual(await headless(watching), false, "Kernel says the watched browser is headful")
-      if (!(await hasCookie(watching))) throw new VerifyError("the cookie did not survive the switch to headful")
+      expectEqual(watching, lease.json.sessionId, "the watch link keeps the agent's browser and its pages")
+      if (!watching) throw new VerifyError("no browser after the watch link")
+      if (!(await hasCookie(watching))) throw new VerifyError("the cookie did not survive the watch link")
 
       const control = await link("control")
       if (!control.result.ok) throw new VerifyError(`control failed: ${control.result.error}`)

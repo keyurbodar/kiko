@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { forgetUpload, isNewFailure, progressLabel, readyAttachments, releaseUpload, retryFailedUploads, retryUpload, startUpload, uploadBlockReason, uploadState } from "./uploads"
+import { forgetUpload, isNewFailure, progressLabel, readyAttachments, refusal, releaseUpload, retryFailedUploads, retryUpload, startUpload, uploadBlockReason, uploadState } from "./uploads"
 
 // The composer's upload queue against a fake XMLHttpRequest: three at once, progress in 5% steps,
 // t3code's failure words, retry under the same pending id, and a delete only for what was sent.
@@ -113,12 +113,18 @@ describe("the upload queue", () => {
     take()
   })
 
+  test("the server's own sentence is shown when it sends one", () => {
+    expect(refusal(413, JSON.stringify({ error: "That file is over 100 MB, the most Kiko's built-in storage takes." }))).toContain("100 MB")
+    expect(refusal(409, JSON.stringify({ error: "conflict" }))).toBe("The upload was refused (409).")
+    expect(refusal(502, "<html>")).toContain("502")
+  })
+
   test("a failure says why in t3code's words, blocks the send, and a retry uses the same pending id", async () => {
     startUpload("f1", "room1", blob(5), "f.txt", "text/plain")
     const [first] = take()
     first!.finish(413)
     await tick()
-    expect(uploadState("f1")).toEqual({ status: "failed", reason: "Upload rejected (413)" })
+    expect(uploadState("f1")).toEqual({ status: "failed", reason: "That file is too large to upload." })
     expect(uploadBlockReason(["f1"])).toBe("Retry or remove the failed attachment")
     retryUpload("f1")
     const [second] = take()

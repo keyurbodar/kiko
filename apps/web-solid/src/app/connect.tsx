@@ -5,9 +5,12 @@ import {
   STEPS,
   type Failure,
   type Grant,
+  type InstallError,
   authorizeUrl,
   connect,
   failureOf,
+  finish,
+  retryKind,
   loadOAuthConfig,
   loadTokenLink,
   makePkce,
@@ -21,7 +24,11 @@ import "./first-run/first-run.css"
 import { enteringFresh, setWorking } from "./first-run/progress"
 import { signInToInstalledBackend } from "./session"
 
-type View = { name: "start" } | { name: "installing" } | { name: "failed"; failure: Failure; retry: () => void }
+type View =
+  | { name: "start" }
+  | { name: "installing" }
+  | { name: "failed"; failure: Failure; retry: () => void }
+  | { name: "choose"; accounts: { id: string; name: string }[]; pick: (id: string) => void }
 
 const link = "text-sm text-foreground underline underline-offset-2"
 
@@ -95,19 +102,35 @@ export function ConnectCloudflare() {
     navigate(reconnect() ? "/connect?reconnect=1" : "/connect", { replace: true })
   }
 
-  const run = async (grant: Grant) => {
+  const signIn = () => {
+    if (!reconnect()) enteringFresh()
+    return signInToInstalledBackend()
+  }
+
+  const show = (error: InstallError | null, again: () => void) => {
+    if (!error) return navigate("/", { replace: true })
+    const retry = { "sign-in": () => void finishOnly(), "new-grant": startAgain, same: again }[retryKind(error)]
+    setView({ name: "failed", failure: failureOf(error), retry })
+  }
+
+  const finishOnly = async () => {
     setView({ name: "installing" })
+    show(await finish(signIn), () => void finishOnly())
+  }
+
+  const run = async (grant: Grant, accountId?: string) => {
+    setView({ name: "installing" })
+    const again = () => void run(grant, accountId)
     try {
       const clerkToken = await import("./clerk").then((m) => m.clerkSignIn()).then((c) => c?.token)
-      if (!clerkToken) throw new Error("Sign in again to continue")
-      const error = await connect(clerkToken, grant, () => {
-        if (!reconnect()) enteringFresh()
-        return signInToInstalledBackend()
-      })
-      if (!error) return navigate("/", { replace: true })
-      setView({ name: "failed", failure: failureOf(error), retry: grant.kind === "token" ? () => void run(grant) : startAgain })
+      if (!clerkToken) throw new Error("Your Kiko sign-in ended. Reload the page and sign in again.")
+      const error = await connect(clerkToken, grant, signIn, fetch, accountId)
+      if (error?.code === "choose_account" && error.accounts?.length) {
+        return setView({ name: "choose", accounts: error.accounts, pick: (id) => void run(grant, id) })
+      }
+      show(error, again)
     } catch (e) {
-      setView({ name: "failed", failure: { message: e instanceof Error ? e.message : "Could not finish connecting." }, retry: startAgain })
+      setView({ name: "failed", failure: { message: e instanceof Error ? e.message : "Could not finish connecting. Try again." }, retry: again })
     }
   }
 
@@ -162,6 +185,13 @@ export function ConnectCloudflare() {
                 {(f) => (
                   <div class="flex flex-col gap-2" role="alert" data-field="install-error">
                     <p class="text-sm text-[var(--error)]">{f().failure.message}</p>
+                    <Show when={f().failure.detail}>
+                      {(d) => (
+                        <p class="text-xs break-words text-muted-foreground" data-field="install-error-detail">
+                          Cloudflare said: {d()}
+                        </p>
+                      )}
+                    </Show>
                     <div class="flex items-center gap-3">
                       <Show when={f().failure.link}>
                         {(l) => (
@@ -177,13 +207,24 @@ export function ConnectCloudflare() {
                   </div>
                 )}
               </Show>
+              <Show when={v.name === "choose" && v}>
+                {(c) => (
+                  <div class="flex flex-col gap-2" data-field="choose-account">
+                    <p class="text-sm text-foreground">This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.</p>
+                    <For each={c().accounts}>
+                      {(a) => (
+                        <Button class="h-11 w-full justify-start" data-action="pick-account" onClick={() => c().pick(a.id)}>
+                          {a.name}
+                        </Button>
+                      )}
+                    </For>
+                  </div>
+                )}
+              </Show>
               <Show when={v.name === "start"}>
                 <Button variant="primary" class="h-11 w-full" disabled={redirecting()} data-action="connect-cloudflare" onClick={() => void withCloudflare()}>
                   {redirecting() ? "Opening Cloudflare" : "Connect with Cloudflare"}
                 </Button>
-                <p class="text-xs text-muted-foreground">
-                  Cloudflare sign-in works for invited accounts while Kiko is in preview. Use an API token otherwise.
-                </p>
                 <Show when={note()}>
                   <p class="text-sm text-[var(--error)]" role="alert">{note()}</p>
                 </Show>
@@ -207,9 +248,9 @@ export function ConnectCloudflare() {
                       {(t) => (
                         <>
                           <a class={link} href={t().url} target="_blank" rel="noreferrer" data-action="create-token">
-                            Create a token
+                            Create a token with these permissions
                           </a>
-                          <p class="text-sm text-muted-foreground">Give it these permissions:</p>
+                          <p class="text-sm text-muted-foreground">The link ticks them for you. Check that they match, then create the token and paste it here.</p>
                           <ul class="flex list-disc flex-col gap-1 pl-5 text-sm text-foreground" data-field="token-permissions">
                             <For each={t().permissions}>{(p) => <li>{p}</li>}</For>
                           </ul>

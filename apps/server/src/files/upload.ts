@@ -43,6 +43,8 @@ export function storageRefusal(e: unknown): string | null {
 	return message === STORAGE_FULL || message === FILE_TOO_LARGE ? message : null
 }
 
+const tooLarge = (env: Pick<Env, "FILES">) => (env.FILES ? "That file is over 512 MB, the most Kiko takes." : FILE_TOO_LARGE)
+
 export function error(status: number, message: string): Response {
 	return Response.json({ error: message }, { status })
 }
@@ -89,7 +91,7 @@ export async function json(request: Request): Promise<Record<string, unknown> | 
 }
 
 export function refuse(size: number, env: Env): Response | null {
-	return size > maxFileBytes(env, MAX_FILE_BYTES) ? error(413, "file too large") : null
+	return size > maxFileBytes(env, MAX_FILE_BYTES) ? error(413, tooLarge(env)) : null
 }
 
 async function index(env: Env, userId: string, roomId: string, input: NewFile): Promise<Response> {
@@ -181,7 +183,7 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 	if (fresh && object.size > maxFileBytes(env, MAX_FILE_BYTES)) {
 		await object.body.cancel()
 		await fileStore(env).delete(key)
-		return error(413, "file too large")
+		return error(413, tooLarge(env))
 	}
 	const sha256 = await sha256Stream(object.body)
 	const type = mime(object.httpMetadata?.contentType)
