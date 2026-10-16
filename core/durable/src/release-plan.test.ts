@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { ReleaseManifest } from "./release"
-import { type MigrationPlan, buildMetadata, selectMigrations } from "./release-plan"
+import { type FilesBinding, type MigrationPlan, buildMetadata, selectMigrations } from "./release-plan"
 
 const all = [
   { tag: "v1", new_sqlite_classes: ["UserDO", "RoomDO", "AgentDO"] },
@@ -38,11 +38,11 @@ describe("buildMetadata", () => {
     expect(meta.bindings.some((b) => b.type === "secret_text")).toBe(false)
   })
 
-  test.each([
+  test.each<[FilesBinding, unknown[]]>([
     ["r2", [{ type: "r2_bucket", name: "FILES", bucket_name: "kiko-files" }]],
     ["inherit", [{ type: "inherit", name: "FILES" }]],
     ["none", []],
-  ] as const)("files %s", (files, expected) => {
+  ])("files %s", (files, expected) => {
     const meta = buildMetadata(manifest, plan, null, files)
     expect(meta.bindings.filter((b) => b.name === "FILES")).toEqual(expected)
     expect(meta.bindings.some((b) => b.name === "FILE" && b.type === "durable_object_namespace")).toBe(true)
