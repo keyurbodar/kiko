@@ -1,25 +1,34 @@
 import { createResource, createRoot } from "solid-js"
 import { session } from "../app/session"
 import { listProviders, type ProviderInfo } from "./credentials"
+import { readStored, writeStored } from "./connected-store"
 
 // One shared list of connected providers, so settings and the chat top bar agree.
 // It holds provider ids and last four characters only. It is keyed by the signed-in user, so a list
 // fetched before sign-in (an empty 401) never sticks, and it refreshes when the tab comes back, so a
-// key connected in another tab or from the CLI shows up without a reload.
+// key connected in another tab or from the CLI shows up without a reload. The last list is kept
+// on this device, so a reload paints the connected providers at once instead of an empty list.
+function initialList(): ProviderInfo[] {
+  const s = session()
+  return s.status === "signed-in" ? readStored(s.user.id) : []
+}
+
 const [providers, actions] = createRoot(() => {
   const res = createResource<ProviderInfo[], string>(
     () => {
       const s = session()
       return s.status === "signed-in" ? s.user.id : false
     },
-    async () => {
+    async (userId) => {
       try {
-        return await listProviders()
+        const list = await listProviders()
+        writeStored(userId, list)
+        return list
       } catch {
-        return []
+        return readStored(userId)
       }
     },
-    { initialValue: [] },
+    { initialValue: initialList() },
   )
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {

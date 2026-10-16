@@ -3,6 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
 import solid from "vite-plugin-solid";
 import { buildCatalog, catalogFile, type CatalogFile } from "../../scripts/build-catalog";
+import { firstPaintPreload } from "./scripts/preload-plugin";
 import pkg from "../../package.json";
 
 const CATALOG_MODULE = "virtual:kiko-model-catalog";
@@ -40,7 +41,7 @@ function modelCatalog(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [solid(), tailwindcss(), modelCatalog()],
+  plugins: [solid(), tailwindcss(), modelCatalog(), firstPaintPreload()],
   // The build version, from the root package.json. The client compares it with the backend (src/lib/version-skew.ts).
   define: { __KIKO_VERSION__: JSON.stringify(pkg.version) },
   optimizeDeps: {
