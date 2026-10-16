@@ -133,9 +133,9 @@ const entryTime = (e: Entry): number =>
  * Walks messages oldest-first and interleaves the dividers the thread needs.
  *
  * `firstUnreadMessageId` names the read cursor's first unseen message. The rule
- * is only placed for an incoming message that has something below it: the
- * viewer never gets an unread rule for their own words, and a rule under the
- * final message marks nothing.
+ * is placed above that message, even when it is the newest, so a chat opened
+ * with one unread reply shows it. The viewer never gets an unread rule for
+ * their own words.
  *
  * An event line or a thread line between two messages ends the run above it, the way a
  * service message does in Telegram. Messages inside an open thread run among themselves.
@@ -175,7 +175,6 @@ export function buildTimelineItems(
   for (let i = n - 1; i >= 0; i -= 1) {
     runEnds[i] = i + 1 < n && runStarts[i + 1] === runStarts[i] ? runEnds[i + 1] : i;
   }
-  const lastMessage = list.findLastIndex((e) => e.kind === "message");
 
   const items: TimelineItem[] = [];
   for (let i = 0; i < n; i += 1) {
@@ -206,8 +205,7 @@ export function buildTimelineItems(
     if (
       firstUnreadMessageId != null &&
       message.id === firstUnreadMessageId &&
-      message.sender !== "user" &&
-      i < lastMessage
+      message.sender !== "user"
     ) {
       items.push({
         kind: "unread-divider",

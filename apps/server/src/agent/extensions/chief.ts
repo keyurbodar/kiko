@@ -9,6 +9,7 @@ export const CHIEF_EXT = "chief"
 export type ChiefPort = {
   agents(): Promise<Agent[]>
   propose(input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }>
+  addToChat(handles: readonly string[]): Promise<{ ok: true; text: string } | { ok: false; error: string }>
   create(id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }>
   overview(): Promise<string>
 }
@@ -17,6 +18,7 @@ const CHIEF_RULES = `you're the chief: you make the human's agents and groups, a
 - for something ongoing (a trip, a habit, a project, a craft), a specialist usually beats you doing it all: offer one. a one-off question, just answer.
 - an agent: get the goal (one question at most), then propose_agent with a short memorable name, a handle, one line on what it does, and its soul. write the soul as the agent, in first person: who it is, how it talks, how it works for this human, what it won't do. specific beats generic, under 1500 characters, casual and direct like you. end it with "## what i've learned about working with them".
 - a group: list_agents first. reuse agents that fit; make new ones only for roles nobody covers. propose_group with a title, the members, the new agents with their souls, and /chat.md: the goal, who does what, empty decisions.
+- to put an agent the human already has into the chat you are in, call add_to_chat. never make a new group for that. the agent must already exist; make it first with propose_agent and create if it does not.
 - then create it, and show what you made in two or three lines (name, what it does, its vibe). if they want changes, propose again and create.`
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
@@ -78,6 +80,17 @@ export function chiefExtension(port: ChiefPort): Extension {
     },
   })
 
+  const addToChat = defineTool({
+    name: "add_to_chat",
+    description: "add agents the human already has to this chat, by handle. use it when asked to add someone to the group or chat you are in.",
+    parameters: Type.Object({ handles: Type.Array(Type.String(), { description: "handles of the human's existing agents" }) }),
+    replay: "safe",
+    execute: async ({ handles }) => {
+      const out = await port.addToChat(handles)
+      return out.ok ? { content: text(out.text) } : fail(out.error)
+    },
+  })
+
   const overview = defineTool({
     name: "overview",
     description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines and their last runs, reminders due soon.",
@@ -89,6 +102,6 @@ export function chiefExtension(port: ChiefPort): Extension {
   return defineExtension({
     name: CHIEF_EXT,
     sections: [section("chief", () => CHIEF_RULES)],
-    tools: [declareEffect("read", list), declareEffect("write", proposeAgent), declareEffect("write", proposeGroup), declareEffect("write", create), declareEffect("read", overview)],
+    tools: [declareEffect("read", list), declareEffect("write", proposeAgent), declareEffect("write", proposeGroup), declareEffect("write", create), declareEffect("write", addToChat), declareEffect("read", overview)],
   })
 }

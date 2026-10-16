@@ -283,6 +283,7 @@ export class AgentDO extends DurableObject<Env> {
       agents: () => userStub(this.env.USER, home.userId).listAgents(),
       propose: (input) => room().propose(home.slug, input),
       create: (id) => room().createProposal(home.slug, id),
+      addToChat: (handles) => room().addToChat(home.slug, handles),
       overview: () => userStub(this.env.USER, home.userId).overview(),
     }
   }

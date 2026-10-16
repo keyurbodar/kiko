@@ -28,6 +28,9 @@ export class UserDO extends DurableObject {
 		return (await this.ctx.storage.get<string[][]>("typing")) ?? []
 	}
 	async captureHuman(): Promise<void> {}
+	async listAgents(): Promise<unknown[]> {
+		return [{ id: "a1", slug: "scout", name: "Scout", prompt: "Scout\n\nresearches topics", model: "" }]
+	}
 	async getChat(): Promise<null> {
 		return null
 	}
