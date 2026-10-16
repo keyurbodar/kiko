@@ -9,7 +9,7 @@ const HN = "https://news.ycombinator.com"
 const TABS = 8
 const BUSY_MS = 1_000
 const FOREIGN_WAIT_MS = 10_000
-const TOOLS = ["browse", "browser_act", "browser_run", "browser_look", "browser_share"]
+const TOOLS = ["browse", "browser_act", "browser_run", "browser_look", "browser_tabs"]
 
 const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
 

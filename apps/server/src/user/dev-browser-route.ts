@@ -5,7 +5,7 @@ import { userStub } from "../lib/names"
 
 export async function devBrowserRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
-  const share = url.pathname === "/api/dev/user/browser-share"
+  const share = url.pathname === "/api/dev/user/browser-link"
   if (!DEV || (url.pathname !== "/api/dev/user/browser-tabs" && !share) || request.method !== "POST") return null
   if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
   const user = await getSessionUser(request, env)
@@ -18,8 +18,10 @@ export async function devBrowserRoute(request: Request, env: Env): Promise<Respo
     if (share) {
       const roomId = body?.roomId
       const reason = body?.reason
-      if (typeof roomId !== "string" || typeof reason !== "string") return Response.json({ error: "roomId and reason required" }, { status: 400 })
-      return Response.json({ ok: await stub.browserShare(agentId, roomId, reason) })
+      const mode = body?.mode === "control" ? "control" : "watch"
+      if (typeof roomId !== "string" || (reason !== undefined && typeof reason !== "string")) return Response.json({ error: "roomId required" }, { status: 400 })
+      const out = await stub.browserLive(agentId, roomId, mode, reason)
+      return Response.json(out.ok ? { ok: true, posted: out.posted } : out)
     }
     const tabs = body?.tabs
     return Response.json({ ok: await stub.browserTouch(agentId, tabs as Record<string, string> | undefined) })

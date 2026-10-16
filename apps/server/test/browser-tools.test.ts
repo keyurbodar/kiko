@@ -114,7 +114,7 @@ describe("browser tool list", () => {
   test("registers the new tools and helpers stay out", () => {
     const { lease } = fakeLease()
     const names = browserExtension(depsWith(lease)).tools.map((t) => t.name)
-    for (const name of ["browser_tabs", "browser_extract", "browser_eval", "browser_dialog", "browser_fetch", "browser_files", "browse", "browser_act", "browser_run", "browser_share"]) {
+    for (const name of ["browser_tabs", "browser_extract", "browser_eval", "browser_dialog", "browser_fetch", "browser_files", "browse", "browser_act", "browser_run"]) {
       expect(names).toContain(name)
     }
     expect(WORKER_ONLY).toContain("browser")

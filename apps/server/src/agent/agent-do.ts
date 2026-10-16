@@ -36,7 +36,7 @@ import type { Batch } from "@kiko/agent/inbox"
 import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
-import { jevPort, modelPort, pickDecider } from "./browser/deciders"
+import { chooseDecider, jevPort, modelPort } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
 import { pickJudge } from "../user/turn-context"
 
@@ -632,19 +632,32 @@ export class AgentDO extends DurableObject<Env> {
     return this.#browser
   }
 
-  private async browserDecider(models: Models, egress: typeof fetch): Promise<DeciderChoice> {
+  #decider?: { at: number; choice: Promise<DeciderChoice> }
+
+  /** The judge is looked up through the user's object, so the answer is kept for a minute: a browse loop would otherwise pay 3 subrequests a call. */
+  private browserDecider(models: Models, egress: typeof fetch): Promise<DeciderChoice> {
+    const now = Date.now()
+    if (this.#decider && now - this.#decider.at < 60_000) return this.#decider.choice
+    const choice = this.pickBrowserDecider(models, egress).catch((e) => {
+      this.#decider = undefined
+      throw e
+    })
+    this.#decider = { at: now, choice }
+    return choice
+  }
+
+  private async pickBrowserDecider(models: Models, egress: typeof fetch): Promise<DeciderChoice> {
     const home = this.home()
     const own = modelPort(models, await this.model(), this.ctx.id.toString())
-    if (home) {
+    return chooseDecider(own, async () => {
+      if (!home) return null
       const user = userStub(this.env.USER, home.userId)
       const picked = pickJudge(await user.listProviders(), (p) => p.refused === true)
       const auth = picked ? (await user.turnContext(picked.provider)).auth : null
-      if (picked && auth) {
-        const jevModels = userModels(async () => auth, `browser-${this.ctx.id.toString()}`, egress).models
-        return { name: "jev", ...pickDecider(own, jevPort(jevModels, { provider: picked.provider, auth }, egress)) }
-      }
-    }
-    return { name: "model", ...pickDecider(own, null) }
+      if (!picked || !auth) return null
+      const jevModels = userModels(async () => auth, `browser-${this.ctx.id.toString()}`, egress).models
+      return jevPort(jevModels, { provider: picked.provider, auth }, egress)
+    })
   }
 
   /**

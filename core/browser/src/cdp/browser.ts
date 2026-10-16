@@ -147,10 +147,10 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       return adopt(targetId, url)
     },
     tab: (id) => tabs.get(id),
-    listTabs: async () =>
-      Promise.all(
-        [...tabs.values()].map(async (tab) => ({ id: tab.id, url: await tab.url(), title: await tab.title() })),
-      ),
+    listTabs: async () => {
+      const { targetInfos } = await cdp.send("Target.getTargets")
+      return targetInfos.filter((t) => tabs.has(t.targetId)).map((t) => ({ id: t.targetId, url: t.url, title: t.title }))
+    },
     closed: cdp.closed,
     close: () => cdp.close(),
   }
