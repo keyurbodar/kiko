@@ -296,6 +296,33 @@ test("every account has one pinned kiko chat that cannot be deleted or unpinned"
   ws.close()
 })
 
+async function homeOf(user: string) {
+  const ws = await socket(user, 1_000_000)
+  const snap = ws.frames.find((f) => f.t === "reset")!.snapshot
+  ws.close()
+  return snap.chats as { roomId: string; kiko?: boolean; pinned: boolean; agents?: string[] }[]
+}
+
+test("an account from before the rename keeps its Kiko chat: adopted, flagged, pinned, no second one", async () => {
+  const user = fresh()
+  await rpc(user, "createChat", ROOM_A, "Yuki", ["yuki"])
+  await rpc(user, "putSetting", "yuki_home", ROOM_A)
+  await rpc(user, "ensureHome")
+  const chats = await homeOf(user)
+  expect(chats.map((c) => c.roomId)).toEqual([ROOM_A])
+  expect(chats[0]).toMatchObject({ kiko: true, pinned: true, agents: ["kiko"], title: "Kiko" })
+})
+
+test("a Kiko-only chat with no home setting is adopted instead of being hidden or duplicated", async () => {
+  const user = fresh()
+  await rpc(user, "createChat", ROOM_B, "Kiko", ["kiko"])
+  await rpc(user, "ensureHome")
+  await rpc(user, "ensureHome")
+  const chats = await homeOf(user)
+  expect(chats.map((c) => c.roomId)).toEqual([ROOM_B])
+  expect(chats[0]).toMatchObject({ kiko: true, pinned: true })
+})
+
 const ROOM_C = "01a0fa46-9777-7fdf-871e-3c63e992c708"
 const ROOM_D = "01a0fa46-9778-7fdf-871e-3c63e992c709"
 
@@ -346,4 +373,13 @@ test("the last chat opened comes back in the snapshot, and the kiko chat stands 
   expect(await rpc(user, "deleteChat", ROOM_C)).toBe(true)
   expect(await snap()).toBe(kiko)
   ws.close()
+})
+
+test("an agent name is unique, ignoring case and surrounding spaces", async () => {
+  const user = fresh()
+  const agent = (id: string, name: string, slug: string) => ({ id, name, slug, prompt: "p", model: "" })
+  expect(await rpc(user, "createAgent", agent("a1", "Pollen", "pollen"))).toMatchObject({ id: "a1" })
+  expect(await rpc(user, "createAgent", agent("a2", " pollen ", "pollen-2"))).toBeNull()
+  expect(await rpc(user, "createAgent", agent("a3", "KIKO", "kikoo"))).toBeNull()
+  expect(await rpc(user, "listAgents")).toHaveLength(1)
 })

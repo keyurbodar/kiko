@@ -1,73 +1,73 @@
 import { useNavigate } from "@solidjs/router"
-import { type Agent, KIKO, sameAgentChat } from "@kiko/protocol"
+import { type Agent, KIKO } from "@kiko/protocol"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { PlusIcon } from "@kiko/ui/icons"
 import { Command as Cmdk } from "cmdk-solid"
-import { createMemo, createSignal, For } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js"
 import { fillComposer } from "../composer/fill"
 import "../palette/palette.css"
 import { agentList } from "../lib/chats"
 import { Dialog } from "../lib/dialog"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
-import { Button } from "../settings/kit"
-import { closeBotPicker } from "./bot-picker-state"
+import { Button, fieldClass } from "../settings/kit"
+import { closeBotPicker, NEW_AGENT_START, takeNewAgentRequest } from "./bot-picker-state"
 import { groupTitle, roomFor, togglePick } from "./bot-picker-model"
 
 const NEW_AGENT = "new-agent"
-/** What kiko's new agent flow starts from. The human types the purpose after it. */
-const NEW_AGENT_START = "Make me a new agent that "
 
 /*
- * The new chat picker (kat's palette look). One verb picks: a row, clicked or entered, adds that
- * agent to the pick and clicks it again to drop it. The button under the list then opens what the
- * pick is, whose label says which: one agent is that agent's chat, several are a group Kiko leads.
- * The list keeps its size, so the dialog never moves. Lazy: loaded on first use.
+ * The new chat picker (kat's palette look). With nothing picked, a row, clicked or entered, opens
+ * that agent's one chat at once. The checkbox at a row's end starts a group instead: from then on
+ * a row adds or drops that agent, and the footer names the group, which Kiko leads. A chat with
+ * the same agents is opened rather than made again. Lazy: loaded on first use.
  */
 export default function BotPicker() {
   const navigate = useNavigate()
   const [picked, setPicked] = createSignal<string[]>([])
   const [highlight, setHighlight] = createSignal("")
   const [query, setQuery] = createSignal("")
+  const [title, setTitle] = createSignal("")
+  const [waiting, setWaiting] = createSignal(false)
   const agents = createMemo(() => agentList(useApp.agents()))
   const room = createMemo(() => roomFor(picked()))
   const name = (id: string) => agents().find((a) => a.id === id)?.name ?? id
+  const grouping = () => picked().length > 0
+  const defaultTitle = () => groupTitle(room().map(name))
 
-  const go = (roomId: string) => {
+  const open = (agentIds: readonly string[], chatTitle: string) => {
+    const roomId = useApp.user()?.createChat(chatTitle, agentIds)
+    if (!roomId) return
     closeBotPicker()
     navigate(`/chat/${roomId}`)
   }
 
-  const direct = (agent: Agent) => {
-    const roomId = useApp.openDm(agent)
-    if (roomId) go(roomId)
-  }
-
-  // One pick opens that agent's chat. Two or more open a group Kiko leads, and a group that
-  // already holds the same agents is opened rather than made again.
   const start = () => {
-    const ids = room()
-    if (ids.length === 1) {
-      const agent = agents().find((a) => a.id === ids[0])
-      if (agent) direct(agent)
-      return
-    }
-    if (ids.length < 2) return
-    const existing = sameAgentChat(useApp.user()?.chats() ?? [], ids)
-    if (existing) return go(existing.roomId)
-    const roomId = useApp.user()?.createChat(groupTitle(ids.map(name)), ids)
-    if (roomId) go(roomId)
+    if (room().length > 1) open(room(), title().trim() || defaultTitle())
   }
 
   const pick = (id: string) => setPicked((list) => togglePick(list, id))
+  const choose = (agent: Agent) => (grouping() ? pick(agent.id) : open([agent.id], agent.name))
 
-  const newAgent = () => {
-    const kiko = useApp.kikoChatId()
+  const startNewAgent = (kiko: string) => {
     closeBotPicker()
-    if (!kiko) return
     fillComposer(kiko, NEW_AGENT_START)
     navigate(`/chat/${kiko}`)
   }
+
+  // Before the list has Kiko's chat, the row shows it is working and finishes when the chat arrives.
+  createEffect(() => {
+    const kiko = useApp.kikoChatId()
+    if (waiting() && kiko) startNewAgent(kiko)
+  })
+
+  const newAgent = () => {
+    const kiko = useApp.kikoChatId()
+    if (kiko) startNewAgent(kiko)
+    else setWaiting(true)
+  }
+  // The palette's "New agent" opens the picker already starting the flow, so it waits for Kiko's chat the same way.
+  if (takeNewAgentRequest()) newAgent()
 
   // Mod+Enter opens the pick. Space picks the highlighted row, but only while the search is empty, so a space can still be typed.
   const keys = (event: KeyboardEvent) => {
@@ -90,7 +90,7 @@ export default function BotPicker() {
             {(agent) => {
               const on = () => picked().includes(agent.id)
               return (
-                <Cmdk.Item class="palette-row" value={agent.id} data-picked={on() ? "true" : undefined} keywords={[agent.name, agent.slug]} onSelect={() => pick(agent.id)}>
+                <Cmdk.Item class="palette-row" value={agent.id} data-picked={on() ? "true" : undefined} keywords={[agent.name, agent.slug]} onSelect={() => choose(agent)}>
                   <IdentityAvatar seed={agent.slug} size={22} />
                   <span class="palette-label">{agent.name}</span>
                   <span class="text-sm text-muted-foreground">{agent.id === KIKO ? "Leads every group" : `@${agent.slug}`}</span>
@@ -122,15 +122,25 @@ export default function BotPicker() {
           </For>
           <Cmdk.Item class="palette-row" value={NEW_AGENT} forceMount onSelect={newAgent}>
             <HugeIcon icon={PlusIcon} size={16} />
-            <span class="palette-label">New agent</span>
+            <span class="palette-label">{waiting() ? "Opening Kiko" : "New agent"}</span>
           </Cmdk.Item>
         </Cmdk.List>
       </Cmdk>
-      <div class="flex h-11 items-center justify-between gap-3 border-t border-border pt-3">
-        <span class="min-w-0 truncate text-sm text-muted-foreground">{room().length ? room().map(name).join(", ") : "Pick one agent for a chat, or several for a group"}</span>
-        <Button variant="primary" disabled={room().length === 0} onClick={start}>
-          {room().length > 1 ? "Start group" : room().length === 1 ? `Chat with ${name(room()[0]!)}` : "Start"}
-        </Button>
+      <div class="flex h-11 items-center gap-3 border-t border-border pt-3">
+        <Show when={grouping()} fallback={<span class="min-w-0 truncate text-sm text-muted-foreground">Use the checkboxes to start a group with Kiko</span>}>
+          <input
+            class={`${fieldClass} min-w-0 flex-1`}
+            aria-label="Group name"
+            placeholder={defaultTitle() || "Group name"}
+            value={title()}
+            maxLength={200}
+            onInput={(event) => setTitle(event.currentTarget.value)}
+            onKeyDown={(event) => event.key === "Enter" && start()}
+          />
+          <Button variant="primary" disabled={room().length < 2} onClick={start}>
+            Start group
+          </Button>
+        </Show>
       </div>
     </Dialog>
   )

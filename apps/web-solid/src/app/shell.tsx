@@ -1,5 +1,5 @@
 import Resizable, { type PanelContextValue } from "@corvu/resizable";
-import { useLocation } from "@solidjs/router";
+import { useLocation, useNavigate } from "@solidjs/router";
 import {
   I18nProvider,
   pluralCategory,
@@ -14,6 +14,7 @@ import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces";
 import { preloadRoute } from "./routes";
 import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../chat/side/card-state";
 import { useKatCommands } from "../commands/use-kat-commands";
+import { setGo } from "../lib/run-error";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
 import { botPickerOpen } from "../chat/bot-picker-state";
@@ -81,6 +82,8 @@ function writeCollapsed(value: boolean) {
 
 export function Shell(props: ParentProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  setGo(navigate);
   const [collapsed, setCollapsed] = createSignal(readCollapsed());
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined;
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false);
@@ -192,6 +195,8 @@ export function Shell(props: ParentProps) {
     const warm = () => {
       preloadRoute("/settings");
       preloadRoute("/chat");
+      // After the composer's rich editor has loaded, so the 2 MB parse and download never race it.
+      setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000);
     };
     if (idle) idle(warm);
     else setTimeout(warm, 300);

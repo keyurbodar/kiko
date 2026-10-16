@@ -1,28 +1,26 @@
-/* Micro-motion, the only motion Kiko allows outside the typing indicator.
+/* Motion tokens and the opt-in motion classes. Architecture 19.5.
  *
- * Architecture 19.5: navigation, buttons, menus, tabs, the composer, and route
- * changes never animate. Motion is allowed where the user is already waiting:
- * a reaction pop, an attachment added or removed, an incoming bubble, and the
- * spinner of a file that is loading. The
- * calendar is a popover, so it opens in one frame like a menu. Every rule here
- * hangs off an opt-in `motion-*` class that only those surfaces carry, and none of them is ever
- * put on a navigation, button, menu, tab, or composer element. `motion.test.ts`
- * scans this file and fails on motion aimed at one of those.
+ * Policy. Navigation, route changes, tabs, buttons, and the composer stay at 0 ms and never wait on
+ * the network. Motion is for two things: an overlay entering or leaving (dialog, palette, menu,
+ * popover, tooltip), and a place where the user is already waiting (spinner, skeleton, progress,
+ * a busy label). The durations follow t3code. Nothing motion ever delays input: an overlay is
+ * interactive from its first frame, and every rule is off under `prefers-reduced-motion`.
  *
  * Rules:
  * - Durations and easings are tokens. No literal time appears below the tokens.
- * - Only `transform` and `opacity` change, so nothing lays out or repaints.
- * - Everything is inside `prefers-reduced-motion: no-preference`, so with
- *   reduced motion on nothing animates. The tokens stay outside because a
- *   custom property is not motion.
- * - Animation, not transition: an element that mounts has no "from" state for a
- *   transition to start at, and an animation never delays input.
- * - Nothing overshoots or bounces. Things travel a short way, fade in, and settle on
- *   one ease-out curve, monocode's (MIT, AgentTranscript.tsx `riseIntoAnchor`).
+ * - Keyframes move `transform` and `opacity`. A collapsing panel also moves `height`, and a switch
+ *   uses a transition, because both have a "from" state on screen already.
+ * - Everything is inside `prefers-reduced-motion: no-preference`. The tokens stay outside because
+ *   a custom property is not motion.
+ * - Animation for anything that mounts: it has no "from" state for a transition to start at.
+ * - Nothing overshoots or bounces. Things travel a short way, fade in, and settle.
+ * - Overlays are named by their `data-component` and by Kobalte's `data-expanded` and `data-closed`,
+ *   so an element leaves with its exit animation before it unmounts.
+ * - `motion.test.ts` scans this file and fails on motion aimed at navigation, buttons, tabs, or
+ *   the composer.
  *
- * The composer's glide to the dock on a chat's first send is the one motion outside
- * this file: it measures where the composer was, so it runs as a web animation in
- * `chat/send-motion.ts`. */
+ * The composer's glide to the dock on a chat's first send is the one motion outside this file: it
+ * measures where the composer was, so it runs as a web animation in `chat/send-motion.ts`. */
 
 :root {
   --motion-fast: 120ms;
@@ -34,6 +32,12 @@
   --motion-reveal: 320ms;
   --motion-spin: 800ms;
   --motion-ease-linear: linear;
+  --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-dialog: 200ms;
+  --motion-popover: 150ms;
+  --motion-collapse: 200ms;
+  --motion-switch: 150ms;
+  --motion-skeleton: 2400ms;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -91,5 +95,119 @@
 
   .motion-spin {
     animation: motion-spin var(--motion-spin) var(--motion-ease-linear) infinite;
+  }
+
+  /* Overlays: opacity and scale 0.98, interactive from the first frame. */
+  @keyframes motion-overlay-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes motion-overlay-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  @keyframes motion-dialog-in {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+
+  @keyframes motion-dialog-out {
+    from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    to { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+  }
+
+  @keyframes motion-popover-in {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes motion-popover-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.98); }
+  }
+
+  [data-component="modal-v2-overlay"][data-expanded],
+  .motion-scrim-in {
+    animation: motion-overlay-in var(--motion-dialog) var(--motion-ease-in-out) both;
+  }
+
+  [data-component="modal-v2-overlay"][data-closed] {
+    animation: motion-overlay-out var(--motion-dialog) var(--motion-ease-in-out) both;
+  }
+
+  [data-component="modal-v2-content"][data-expanded] {
+    animation: motion-dialog-in var(--motion-dialog) var(--motion-ease-in-out) both;
+  }
+
+  [data-component="modal-v2-content"][data-closed] {
+    animation: motion-dialog-out var(--motion-dialog) var(--motion-ease-in-out) both;
+  }
+
+  [data-component="menu-v2-content"][data-expanded],
+  [data-component="hover-card-v2-content"][data-expanded],
+  [data-component="tooltip-v2"][data-expanded],
+  .motion-popover-in {
+    animation: motion-popover-in var(--motion-popover) var(--motion-ease-out) both;
+  }
+
+  [data-component="menu-v2-content"][data-closed],
+  [data-component="hover-card-v2-content"][data-closed],
+  [data-component="tooltip-v2"][data-closed] {
+    animation: motion-popover-out var(--motion-popover) var(--motion-ease-in) both;
+  }
+
+  .motion-dialog-in {
+    animation: motion-popover-in var(--motion-dialog) var(--motion-ease-in-out) both;
+  }
+
+  /* A panel that opens and closes in place. Kobalte sets the measured height. */
+  @keyframes motion-collapse-down {
+    from { height: 0; }
+    to { height: var(--kb-collapsible-content-height); }
+  }
+
+  @keyframes motion-collapse-up {
+    from { height: var(--kb-collapsible-content-height); }
+    to { height: 0; }
+  }
+
+  .motion-collapse {
+    overflow: hidden;
+  }
+
+  .motion-collapse[data-expanded] {
+    animation: motion-collapse-down var(--motion-collapse) var(--motion-ease-out);
+  }
+
+  .motion-collapse[data-closed] {
+    animation: motion-collapse-up var(--motion-collapse) var(--motion-ease-out);
+  }
+
+  /* A switch slides its thumb and fades its track. */
+  .motion-switch {
+    transition: background-color var(--motion-switch) var(--motion-ease-out);
+  }
+
+  .motion-switch > span {
+    transition: transform var(--motion-switch) var(--motion-ease-out);
+  }
+
+  /* Placeholder bars while a load is in flight. */
+  @keyframes motion-skeleton {
+    0%, 42% { opacity: 1; animation-timing-function: steps(4); }
+    50%, 92% { opacity: 0.55; animation-timing-function: steps(4); }
+    100% { opacity: 1; }
+  }
+
+  .motion-skeleton {
+    background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
+    animation: motion-skeleton var(--motion-skeleton) var(--motion-ease-linear) infinite;
+  }
+
+  /* A busy label fades in, so a save that takes a moment does not flash. */
+  .motion-busy {
+    animation: motion-overlay-in var(--motion-base) var(--motion-ease-out) both;
   }
 }

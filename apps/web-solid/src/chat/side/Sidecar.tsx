@@ -2,7 +2,7 @@ import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Bot, Brain, CircleCheck, FileText, FolderOpen, ListChecks, Plus, Repeat, X, type LucideProps } from "lucide-solid"
 import { type Component, createEffect, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
-import { EntryIcon } from "../../files/entry-icon"
+import { EntryIcon } from "../../lib/EntryIcon"
 import { FileSurface, FilesTree } from "../../files/pane"
 import { useApp } from "../../lib/store"
 import { roomMembers } from "../info/sections"
@@ -108,9 +108,9 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
             closeSurface(props.chatId, props.surface.id)
           }}
         >
-          <span class="relative flex size-3 items-center justify-center group-hover/tab:hidden group-focus-visible/close:hidden">
+          <span class="relative flex size-3 items-center justify-center text-[10px] group-hover/tab:hidden group-focus-visible/close:hidden">
             <Show when={props.surface.kind === "file" ? (props.surface as FileTab).path : null} fallback={<Glyph size={12} strokeWidth={1.75} class="shrink-0" aria-hidden="true" />}>
-              {(path) => <EntryIcon path={path()} size={12} />}
+              {(path) => <EntryIcon path={path()} />}
             </Show>
           </span>
           <X size={12} strokeWidth={1.75} class="hidden group-hover/tab:block group-focus-visible/close:block" aria-hidden="true" />

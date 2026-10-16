@@ -3,7 +3,7 @@ import { navCommands } from "./nav-commands"
 
 describe("nav commands", () => {
   const went: string[] = []
-  const list = navCommands({ go: (h) => went.push(h), signOut() {}, chooseModel() {} })
+  const list = navCommands({ go: (h) => went.push(h), signOut() {}, chooseModel() {}, openView() {} })
 
   test("every title is sentence case with no group prefix, and every id is unique", () => {
     for (const c of list) expect(c.title).toMatch(/^[A-Z][^:A-Z]*$/)
@@ -11,11 +11,16 @@ describe("nav commands", () => {
   })
 
   test("each screen has a command that goes to its route", () => {
-    for (const c of list.filter((x) => x.id.startsWith("go.") || x.id.startsWith("settings."))) c.run()
-    expect(went).toEqual([
-      "/chat", "/settings", "/settings/models",
-      "/settings/tools", "/settings/appearance", "/settings/general", "/settings/account",
-    ])
+    for (const c of list.filter((x) => (x.id.startsWith("go.") || x.id.startsWith("settings.")) && !x.submenu)) c.run()
+    expect(went).toEqual(["/chat", "/settings", "/settings/models"])
+  })
+
+  test("the settings submenu has every page and goes to its route", () => {
+    went.length = 0
+    const pages = list.find((c) => c.id === "settings.pages")!.submenu!()
+    expect(pages.map((p) => p.title)).toEqual(["Models", "Tools", "Appearance", "General", "Account"])
+    for (const p of pages) p.run()
+    expect(went).toEqual(["/settings/models", "/settings/tools", "/settings/appearance", "/settings/general", "/settings/account"])
   })
 
   test("the first-run path has a command", () => {

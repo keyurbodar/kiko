@@ -1,12 +1,10 @@
 import { createSignal, type Setter } from "solid-js";
 import type { ChatMessage } from "../../lib/types";
+import { eventText } from "./event-line";
 import { startsTimeBreak } from "./time-label";
 
 /** Telegram's run window. A gap strictly larger than this splits a run. */
 export const MESSAGE_GROUPING_WINDOW_MS = 300_000;
-
-/** A senderless line in a group: "kiko joined". Placed by the room's `seq`. */
-export type Notice = { key: string; seq: number; at: number; text: string };
 
 export type TimelineItem =
   | {
@@ -20,7 +18,7 @@ export type TimelineItem =
       firstSentAt: number;
     }
   | { kind: "unread-divider"; key: string; afterMessageId: string }
-  | { kind: "notice"; key: string; at: number; text: string }
+  | { kind: "event"; key: string; message: ChatMessage }
   | {
       /** Agents talking to each other, folded into one muted line. Expanded, its messages follow it. */
       kind: "thread";
@@ -47,8 +45,6 @@ export type TimelineItem =
     };
 
 export type TimelineOptions = {
-  /** Member joins and leaves, by `seq`. */
-  notices?: readonly Notice[];
   /**
    * A group's member slugs. With it, agent messages addressed to another agent fold into
    * threads. Without it (a one-agent room) nothing folds.
@@ -90,18 +86,16 @@ const addressee = (message: ChatMessage): string | undefined => (message.sender 
 
 type Entry =
   | { kind: "message"; message: ChatMessage; inThread: boolean }
-  | { kind: "notice"; notice: Notice }
+  | { kind: "event"; message: ChatMessage }
   | { kind: "thread"; key: string; messages: ChatMessage[]; slugs: string[]; expanded: boolean };
 
-const order = (m: ChatMessage) => m.seq ?? Number.POSITIVE_INFINITY;
+const visibleMessage = (m: ChatMessage) => !m.event || eventText(m, String) !== null;
 
-const visibleMessage = (m: ChatMessage) => m.event?.kind !== "subagent" || !("state" in m.event) || (m.event.state !== "started" && m.event.state !== "done");
+const isEvent = (m: ChatMessage) => m.event !== undefined || m.goto !== undefined;
 
-/** Messages and notices in `seq` order, with agent-to-agent stretches folded into threads. */
+/** Messages and event lines in `seq` order, with agent-to-agent stretches folded into threads. */
 function entries(messages: readonly ChatMessage[], options: TimelineOptions): Entry[] {
-  const notices = [...(options.notices ?? [])].sort((a, b) => a.seq - b.seq);
   const out: Entry[] = [];
-  let n = 0;
   let thread: Extract<Entry, { kind: "thread" }> | null = null;
   const close = () => {
     if (!thread) return;
@@ -110,9 +104,10 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions): En
     thread = null;
   };
   for (const message of messages) {
-    while (n < notices.length && notices[n].seq < order(message)) {
+    if (isEvent(message)) {
       close();
-      out.push({ kind: "notice", notice: notices[n++] });
+      out.push({ kind: "event", message });
+      continue;
     }
     const to = options.members ? addressee(message) : undefined;
     if (to === undefined) {
@@ -128,12 +123,11 @@ function entries(messages: readonly ChatMessage[], options: TimelineOptions): En
     for (const slug of [message.botId!, to]) if (slug !== "all" && !thread.slugs.includes(slug)) thread.slugs.push(slug);
   }
   close();
-  while (n < notices.length) out.push({ kind: "notice", notice: notices[n++] });
   return out;
 }
 
 const entryTime = (e: Entry): number =>
-  e.kind === "message" ? e.message.sentAt : e.kind === "notice" ? e.notice.at : e.messages[0].sentAt;
+  e.kind === "thread" ? e.messages[0].sentAt : e.message.sentAt;
 
 /**
  * Walks messages oldest-first and interleaves the dividers the thread needs.
@@ -143,7 +137,7 @@ const entryTime = (e: Entry): number =>
  * viewer never gets an unread rule for their own words, and a rule under the
  * final message marks nothing.
  *
- * A notice or a thread line between two messages ends the run above it, the way a
+ * An event line or a thread line between two messages ends the run above it, the way a
  * service message does in Telegram. Messages inside an open thread run among themselves.
  */
 export function buildTimelineItems(
@@ -191,7 +185,7 @@ export function buildTimelineItems(
 
     if (i > 0 && startsTimeBreak(entryTime(list[i - 1]), at)) {
       const newDay = dayStartOf(entryTime(list[i - 1])) !== dayStart;
-      const id = entry.kind === "message" ? entry.message.id : entry.kind === "notice" ? entry.notice.key : entry.key;
+      const id = entry.kind === "thread" ? entry.key : entry.message.id;
       items.push({
         kind: "day-divider",
         // A pause inside a day is keyed by the entry it sits above.
@@ -200,8 +194,8 @@ export function buildTimelineItems(
         firstSentAt: at,
       });
     }
-    if (entry.kind === "notice") {
-      items.push({ kind: "notice", key: `notice:${entry.notice.key}`, at, text: entry.notice.text });
+    if (entry.kind === "event") {
+      items.push({ kind: "event", key: `event:${entry.message.id}`, message: entry.message });
       continue;
     }
     if (entry.kind === "thread") {

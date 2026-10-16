@@ -15,7 +15,7 @@ export const MessageId = opaque<P.MessageId>()
 export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 
-export const SystemReason = Schema.Literals(["task_updated", "task_unblocked", "reminder", "run_budget", "limit", "files", "created", "routine", "stalled", "initiative", "work"])
+export const SystemReason = Schema.Literals(["task_updated", "task_unblocked", "reminder", "run_budget", "limit", "files", "created", "routine", "stalled", "initiative", "divider"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })
@@ -99,16 +99,14 @@ export const AgentStatus = Schema.Struct({
 export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("created"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ kind: Schema.Literal("delegated"), from: AgentSlug, to: AgentSlug, title: Schema.String }),
-	Schema.Struct({
-		kind: Schema.Literal("subagent"),
-		agent: AgentSlug,
-		state: Schema.Literals(["started", "done", "failed", "stopped"]),
-		title: Schema.String,
-		private: Schema.Literal(true),
-	}),
 	Schema.Struct({ kind: Schema.Literal("routine"), title: Schema.String }),
 	Schema.Struct({ kind: Schema.Literal("agent_message"), from: AgentSlug, to: AgentSlug }),
 	Schema.Struct({ kind: Schema.Literal("activity"), count: Count }),
+	Schema.Struct({ kind: Schema.Literal("routine_created"), agent: AgentSlug, title: Schema.String, private: Schema.Literal(true) }),
+	Schema.Struct({ kind: Schema.Literal("model_changed"), agent: AgentSlug, model: Schema.String, private: Schema.Literal(true) }),
+	Schema.Struct({ kind: Schema.Literal("compacted"), agent: AgentSlug, private: Schema.Literal(true) }),
+	Schema.Struct({ kind: Schema.Literal("member_added"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
+	Schema.Struct({ kind: Schema.Literal("member_removed"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
 ])
 
 const UnknownSystemEvent = Schema.Struct({ kind: Schema.String })
@@ -339,6 +337,13 @@ export const RoomToClient = Schema.Union([
 	}),
 	Schema.Struct({ t: Schema.Literal("send_refused"), clientId: Id, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("task_refused"), op: TaskOp, reason: Schema.String }),
+	Schema.Struct({
+		t: Schema.Literal("run_error"),
+		slug: AgentSlug,
+		kind: Schema.Literals(["no_key", "invalid_key", "rate_limit", "provider_down", "refused", "too_long", "other"]),
+		provider: Schema.optionalKey(Schema.String),
+		detail: Schema.optionalKey(Schema.String),
+	}),
 	Schema.Struct({ t: Schema.Literal("files_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({
 		t: Schema.Literal("search"),

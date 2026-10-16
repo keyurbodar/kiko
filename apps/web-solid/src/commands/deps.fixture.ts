@@ -1,0 +1,32 @@
+import type { katCommands } from "./kat-commands"
+
+/** Inert dependencies for `katCommands`, so a test overrides only what it reads. */
+export const testDeps = (over: Partial<Parameters<typeof katCommands>[0]> = {}): Parameters<typeof katCommands>[0] => ({
+  toggleSidebar() {},
+  newChat() {},
+  closeChat() {},
+  hasActiveChat: () => false,
+  toggleCard() {},
+  openPanel() {},
+  toggleSidecar() {},
+  copyLink() {},
+  agentChoices: () => [],
+  openView() {},
+  newGroup() {},
+  newAgent() {},
+  openPalette() {},
+  openChats() {},
+  chatChoices: () => [],
+  reopenClosed() {},
+  attach() {},
+  rename() {},
+  togglePin() {},
+  deleteChat() {},
+  canMove: () => false,
+  goToChat() {},
+  stepChat() {},
+  chatCount: () => 0,
+  searchChat() {},
+  searchAll() {},
+  ...over,
+})

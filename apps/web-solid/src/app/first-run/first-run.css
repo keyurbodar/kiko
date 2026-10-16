@@ -1,0 +1,32 @@
+/* First-run motion. Only opacity and transform move, nothing waits on it, and reduced motion gets none. */
+.first-run-bar > i {
+  transform-origin: left;
+  transform: scaleX(0);
+}
+.first-run-bar > i[data-on] {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes first-run-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes first-run-pulse {
+    50% { opacity: 0.5; }
+  }
+
+  .first-run-step {
+    animation: first-run-in 260ms var(--motion-ease-settle) both;
+  }
+  .first-run-step > * {
+    animation: first-run-in 300ms var(--motion-ease-settle) both;
+    animation-delay: calc(var(--i, 0) * 40ms);
+  }
+  .first-run-bar > i {
+    transition: transform 280ms var(--motion-ease-settle);
+  }
+  .first-run-skeleton {
+    animation: first-run-pulse 1.4s ease-in-out infinite;
+  }
+}

@@ -29,7 +29,7 @@ export function QuestionPanel(props: { input: QuestionInput; owner?: string; own
       </Collapsible.Trigger>
       <button type="button" class="question-dismiss" onClick={props.input.skip} aria-label="Skip questions without answering" title="Skip questions without answering"><XIcon /></button>
     </div>
-    <Collapsible.Content>
+    <Collapsible.Content class="motion-collapse">
       <div class="composer-card-body question-body" data-component="question-body">
         <p>{q().question}</p>
         <Show when={q().multiSelect}><p class="question-hint">Select one or more options.</p></Show>

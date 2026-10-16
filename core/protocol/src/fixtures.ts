@@ -111,11 +111,14 @@ export const agentStatuses: readonly AgentStatus[] = [
 
 export const systemEvents: readonly SystemEvent[] = [
 	{ kind: "delegated", from: ada, to: bob, title: "write the tests" },
-	{ kind: "subagent", agent: ada, state: "started", title: "find the three pricing pages", private: true },
-	{ kind: "subagent", agent: ada, state: "done", title: "find the three pricing pages", private: true },
 	{ kind: "routine", title: "morning summary" },
 	{ kind: "agent_message", from: ada, to: bob },
 	{ kind: "activity", count: 4 },
+	{ kind: "routine_created", agent: ada, title: "morning summary", private: true },
+	{ kind: "model_changed", agent: ada, model: "Claude Opus 4.6", private: true },
+	{ kind: "compacted", agent: ada, private: true },
+	{ kind: "member_added", slug: bob, name: "Bob", private: true },
+	{ kind: "member_removed", slug: bob, name: "Bob", private: true },
 	{ kind: "created", roomId, title: "Sunny morning" },
 ]
 
@@ -143,7 +146,7 @@ export const roomEvents: readonly RoomEvent[] = [
 	{ seq: 14, at: at(14), t: "task", task: blockedTask },
 	{ seq: 15, at: at(15), t: "task_removed", id: "t2" },
 	{ seq: 17, at: at(17), t: "file", file },
-	{ seq: 18, at: at(18), t: "message", id: messageId(6), from: { kind: "system", reason: "files" }, text: "ada started a worker: find the three pricing pages", event: systemEvents[1]! },
+	{ seq: 18, at: at(18), t: "message", id: messageId(6), from: { kind: "system", reason: "divider" }, text: "ada compacted its context", event: systemEvents[6]! },
 	{ seq: 19, at: at(19), t: "message", id: messageId(7), from: { kind: "system", reason: "files" }, text: "ada handed bob a task: write the tests", event: systemEvents[0]! },
 	{ seq: 20, at: at(20), t: "ask", ...humanAsk },
 	{ seq: 21, at: at(21), t: "ask", ...openQuestion },

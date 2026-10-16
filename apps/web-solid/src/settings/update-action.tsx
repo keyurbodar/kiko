@@ -4,7 +4,7 @@ import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { APP_VERSION } from "../lib/version-skew";
 import { checkStall, reduceUpdate, sent, STALL_MS, stageText, type UpdateProgress } from "../lib/update";
 import { userChannel } from "../sync/user-channel";
-import { Button, Hint, Notice } from "./kit";
+import { Button, Hint, Notice, Spinner } from "./kit";
 
 // Shared, so the banner and a settings row show the same progress.
 const [progress, setProgress] = createSignal<UpdateProgress>(null);
@@ -39,7 +39,12 @@ export function UpdateAction(props: { label?: string }) {
           </Button>
         }
       >
-        {(text) => <Hint data-part="update-progress">{text()}</Hint>}
+        {(text) => (
+          <span class="inline-flex items-center gap-2 text-muted-foreground" role="status">
+            <Spinner size={12} />
+            <Hint data-part="update-progress">{text()}</Hint>
+          </span>
+        )}
       </Show>
     </div>
   );

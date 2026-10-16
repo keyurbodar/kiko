@@ -19,7 +19,7 @@ test("every model has provider, id, context window, and pricing", () => {
       expect(provider.id).toBeTruthy();
       expect(model.id).toBeTruthy();
       expect(model.contextWindow).toBeGreaterThan(0);
-      for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) {
+      for (const key of ["input", "output"] as const) {
         expect(Number.isFinite(model.pricing[key])).toBe(true);
       }
     }
@@ -33,6 +33,12 @@ test("the test model and the connect kinds come from pi-ai", () => {
   expect(opencodeGo?.connect).toEqual(["api_key"]);
   expect(catalog.providers.find((p) => p.id === "github-copilot")?.connect).toContain("device_code");
   expect(catalog.providers.find((p) => p.id === "anthropic")?.connect).toContain("paste_code");
+});
+
+test("a model carries only the fields the client reads", () => {
+  const model = catalog.providers.find((p) => p.id === "opencode-go")!.models[0]!;
+  expect(Object.keys(model).sort()).toEqual(["contextWindow", "id", "maxTokens", "name", "pricing", "reasoning"]);
+  expect(Object.keys(model.pricing).sort()).toEqual(["input", "output"]);
 });
 
 test("the file name is a hash of the content", () => {

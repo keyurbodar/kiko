@@ -1,7 +1,5 @@
-import { ActivityEvent } from "./ActivityEvent"
 import { isImage } from "../../lib/attachments"
 import { lazy, Show, Suspense, type JSX } from "solid-js"
-import { A } from "@solidjs/router"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, RosterBot } from "../../lib/types"
 import { quoteSummary, replySummary } from "../lib/reply"
@@ -66,7 +64,6 @@ export function MessageRow(props: {
   const files = () => (props.message.files ?? []).filter((f) => isImage(f) || !f.path || !props.message.body.includes(`(/${f.path})`))
   const hasFiles = () => files().length > 0
   return (
-    <Show when={!props.message.event && !props.message.goto} fallback={<ActivityEvent message={props.message} />}>
     <div
       class={cn(
         "group/row relative mx-auto flex w-full max-w-(--chat-content-max-width) flex-col items-start",
@@ -157,15 +154,6 @@ export function MessageRow(props: {
               </Show>
             </Collapsible>
           </Show>
-          <Show when={props.message.goto}>
-            {(to) => (
-              <div class="px-3 pb-2">
-                <A href={`/chat/${to()}`} class="inline-flex h-8 items-center rounded-full bg-control px-3 text-sm text-foreground" data-action="open-made-chat">
-                  Open chat
-                </A>
-              </div>
-            )}
-          </Show>
         </BubbleContent>
         <ReactionStack
           reactions={props.message.reactions}
@@ -182,6 +170,5 @@ export function MessageRow(props: {
         </Show>
       </Bubble>
     </div>
-    </Show>
   )
 }

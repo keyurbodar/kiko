@@ -62,7 +62,7 @@ describe("fixture round trip", () => {
 })
 
 describe("system events", () => {
-	const message = F.roomEvents.find((e) => e.t === "message" && e.event?.kind === "subagent")
+	const message = F.roomEvents.find((e) => e.t === "message" && e.event?.kind === "compacted")
 
 	test("an unknown event kind decodes without throwing and keeps only its kind", () => {
 		const stored = { ...F.roomSnapshot.messages[0]!, from: { kind: "system", reason: "files" }, event: { kind: "from_a_newer_server", title: "x", count: 3 } }
@@ -70,9 +70,9 @@ describe("system events", () => {
 		expect(decoded.event).toEqual({ kind: "from_a_newer_server" })
 	})
 
-	test("a subagent event stays private in the type and on the wire", () => {
-		expect(message?.t === "message" && message.event).toEqual({ kind: "subagent", agent: F.ada, state: "started", title: "find the three pricing pages", private: true })
-		const unmarked = { kind: "subagent", agent: F.ada, state: "started", title: "x", private: false }
+	test("a divider event stays private in the type and on the wire", () => {
+		expect(message?.t === "message" && message.event).toEqual({ kind: "compacted", agent: F.ada, private: true })
+		const unmarked = { kind: "compacted", agent: F.ada, private: false }
 		expect(() => Schema.decodeUnknownSync(S.SystemEvent)(unmarked)).toThrow()
 	})
 

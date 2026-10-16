@@ -1,7 +1,9 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
-import type { AgentState, WorkerRow } from "@kiko/protocol"
+import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
+import { classifyRunError, scrubDetail } from "./run-error"
+import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
 const context = BACKGROUND_CONTEXT
@@ -14,14 +16,15 @@ export interface RoomPort {
   workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
+  runError(error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void>
 }
 
 type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number }
 
-type AssistantLike = { role?: string; stopReason?: string; content?: readonly { type: string; text?: string }[] }
+type AssistantLike = { role?: string; stopReason?: string; errorMessage?: string; provider?: string; content?: readonly { type: string; text?: string }[] }
 
-function textOf(message: AssistantLike | undefined): string {
-  return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n\n")
+export function textOf(message: AssistantLike | undefined, final = true): string {
+  return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [scrubToolMarkup(part.text, final)] : [])).join("\n\n")
 }
 
 export function partsOf(text: string): { blocks: string[]; reactions: Reaction[] } {
@@ -135,7 +138,7 @@ export class Outbox {
         if (message.role !== "assistant" || message.stopReason === "aborted" || !this.run) return
         this.run.generation = newGeneration()
         await this.setStatus("typing")
-        return this.stream(textOf(message))
+        return this.stream(textOf(message, false))
       }
       case "message_update": {
         const generation = this.run?.generation
@@ -151,7 +154,7 @@ export class Outbox {
             })
           }
         }
-        const text = [...generation.texts.entries()].sort(([a], [b]) => a - b).map(([, t]) => t).filter(Boolean).join("\n\n")
+        const text = [...generation.texts.entries()].sort(([a], [b]) => a - b).map(([, t]) => scrubToolMarkup(t, false)).filter(Boolean).join("\n\n")
         return this.stream(text)
       }
       case "message_end":
@@ -226,7 +229,7 @@ export class Outbox {
     const partial = snapshot.generation?.message as AssistantLike | undefined
     if (livePartial && partial) {
       this.run.generation ??= newGeneration()
-      await this.stream(textOf(partial))
+      await this.stream(textOf(partial, false))
     }
   }
 
@@ -259,9 +262,17 @@ export class Outbox {
     if (!run) return
     const before = run.blocks.length
     const lost = this.finishGeneration(run, entry)
+    const failed = assistant(entry)
+    if (failed?.stopReason === "error") await this.reportError(failed)
     if (lost && run.posted > before) this.rebase(run)
     this.save(run)
     await this.flush()
+  }
+
+  private async reportError(message: AssistantLike): Promise<void> {
+    const kind = classifyRunError(message.errorMessage)
+    const detail = kind === "other" && message.errorMessage ? scrubDetail(message.errorMessage) : undefined
+    await this.room()?.runError({ kind, provider: message.provider ?? "", ...(detail ? { detail } : {}) })
   }
 
   private finishGeneration(run: Run, entry: EntryRecord): boolean {

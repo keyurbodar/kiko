@@ -30,10 +30,14 @@ export type AgentStatus = { slug: AgentSlug; state: AgentState; doing?: string; 
 export type SystemEvent =
 	| { kind: "created"; roomId: RoomId; title: string }
 	| { kind: "delegated"; from: AgentSlug; to: AgentSlug; title: string }
-	| { kind: "subagent"; agent: AgentSlug; state: "started" | "done" | "failed" | "stopped"; title: string; private: true }
 	| { kind: "routine"; title: string }
 	| { kind: "agent_message"; from: AgentSlug; to: AgentSlug }
 	| { kind: "activity"; count: number }
+	| { kind: "routine_created"; agent: AgentSlug; title: string; private: true }
+	| { kind: "model_changed"; agent: AgentSlug; model: string; private: true }
+	| { kind: "compacted"; agent: AgentSlug; private: true }
+	| { kind: "member_added"; slug: AgentSlug; name: string; private: true }
+	| { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
 
 /** An event kind a newer server sent. Only its kind is kept. */
 export type UnknownSystemEvent = { kind: string }
@@ -173,6 +177,8 @@ export type ClientToRoom =
 	| { t: "answer"; id: string; value: string | HumanAnswers }
 	| { t: "skip"; id: string }
 
+export type RunErrorKind = "no_key" | "invalid_key" | "rate_limit" | "provider_down" | "refused" | "too_long" | "other"
+
 export type RoomToClient =
 	| { t: "events"; events: readonly RoomEvent[] }
 	| { t: "ack"; clientId: string; id: MessageId; seq: number }
@@ -189,6 +195,8 @@ export type RoomToClient =
 	/** Not stored. Sent only to the socket whose `send` stored nothing because its attachments could not be claimed. */
 	| { t: "send_refused"; clientId: string; reason: string }
 	| { t: "task_refused"; op: TaskOp; reason: string }
+	/** Not stored. A run of this agent ended in a model or provider error. `detail` is scrubbed and only set for `other`. */
+	| { t: "run_error"; slug: AgentSlug; kind: RunErrorKind; provider?: string; detail?: string }
 	| { t: "files_refused"; op: FileOp; reason: FileRefusal }
 	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }
 	| { t: "history"; seq: number; before: number; after: number; messages: readonly Message[] }
