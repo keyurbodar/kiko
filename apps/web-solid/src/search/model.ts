@@ -1,4 +1,5 @@
 import type { Agent, RoomId, SearchHit, Sender } from "@kiko/protocol"
+import { agentDisplayName } from "../lib/names"
 import type { SearchScope } from "./state"
 
 /*
@@ -124,5 +125,5 @@ export function createSearch(options: {
 export function senderName(from: Sender, agents: readonly Pick<Agent, "slug" | "name">[]): string {
   if (from.kind === "human") return "You"
   if (from.kind === "system") return "Kiko"
-  return agents.find((a) => a.slug === from.slug)?.name ?? from.slug
+  return agentDisplayName(from.slug, agents)
 }

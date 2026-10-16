@@ -34,6 +34,7 @@ const suite: Suite = {
     const { install } = await ok<{ install: RecipeInstall }>(url, s, "recipes", body)
     if (install.roomId !== roomId || install.agent !== "kiko") throw new VerifyError(`expected the install in this chat for kiko, got ${JSON.stringify(install)}`)
     await poll("the agent hearing the recipe", () => agentTexts(room).some((t) => t.includes('"Morning briefing" recipe')), 20_000)
+    await poll("the routine divider", () => messages(room).some((m) => m.event?.kind === "routine_created" && (m.event as { title?: string }).title === "morning briefing"), 5_000)
     await poll("the added line", () => messages(room).some((m) => m.from.kind === "system" && m.text === "Morning briefing added"), 5_000)
     const [routine, ...extra] = await mine()
     if (!routine || extra.length || routine.name !== "morning briefing" || routine.target !== "kiko") throw new VerifyError(`expected one morning briefing routine for kiko, got ${JSON.stringify(await mine())}`)

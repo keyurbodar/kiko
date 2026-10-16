@@ -207,9 +207,7 @@ export class AgentDO extends DurableObject<Env> {
         return out.ok ? { ok: true } : { ok: false, error: out.error }
       },
       createRoutine: async (input) => {
-        const out = await user().createRoutine(home.userId, { ...input, target: input.target ?? home.slug, tz: tz(), roomId: home.roomId as RoomId, createdBy: home.slug })
-        if (out.ok) await room().routineCreated(home.slug, out.routine.id, out.routine.name ?? input.name).catch(() => {})
-        return out
+        return user().createRoutine(home.userId, { ...input, target: input.target ?? home.slug, tz: tz(), roomId: home.roomId as RoomId, createdBy: home.slug })
       },
       updateRoutine: async (id, patch) => ((await mine(id)) ? user().updateRoutine(id, patch) : notHere),
       runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),

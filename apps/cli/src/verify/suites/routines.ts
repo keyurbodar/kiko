@@ -1,4 +1,4 @@
-import { agentTexts, newRoom, poll } from "../kit"
+import { agentTexts, messages, newRoom, poll } from "../kit"
 import { VerifyError } from "../client"
 import { api, dev, inSeconds, ok, type Routine, systemTexts, toolLine, waitRoutine, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
@@ -24,6 +24,13 @@ const suite: Suite = {
       const after = await waitRoutine(url, s, (all) => all.find((x) => x.id === r.id), "the routine")
       if (after.status !== "done") throw new VerifyError(`a one-off routine should be done after its run, got ${after.status}`)
       console.log(`  ok a human's ask made routine ${r.id} at once; it ran once (seq ${runs[0]?.seq}) and is done`)
+      await poll("the routine divider", () => messages(room).some((m) => m.event?.kind === "routine_created" && (m.event as { title?: string }).title === "ping"), 5_000)
+      const remind = await ok<{ id: string }>(url, s, "reminders", { text: "book it", time: inSeconds(86_400), tz: "UTC", roomId })
+      const listed = await ok<{ reminders: { id: string; text: string }[] }>(url, s, "routines")
+      if (!listed.reminders.some((x) => x.id === remind.id && x.text === "book it")) throw new VerifyError(`expected the reminder in the routines list, got ${JSON.stringify(listed.reminders)}`)
+      await ok(url, s, `reminders/${remind.id}/cancel`, {})
+      if ((await ok<{ reminders: { id: string }[] }>(url, s, "routines")).reminders.some((x) => x.id === remind.id)) throw new VerifyError("a cancelled reminder is still listed")
+      console.log("  ok the routine got a divider; a reminder was listed with its chat and left the list when cancelled")
       room.raw.close()
     }
 

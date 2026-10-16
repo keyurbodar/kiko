@@ -11,6 +11,7 @@ const ICONS: Record<string, Glyph> = {
   routine_created: ClockIcon,
   model_changed: ModelIcon,
   compacted: MemoryIcon,
+  group_formed: GroupIcon,
   member_added: PlusIcon,
   member_removed: MinusIcon,
   delegated: ChatIcon,

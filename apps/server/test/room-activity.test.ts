@@ -215,6 +215,7 @@ test("a routine and a repeated compaction each store one divider", async () => {
 	const c = await withAgent(room)
 	await rpc(room, "routineCreated", "ada", "r1", "morning summary")
 	await rpc(room, "routineCreated", "ada", "r1", "morning summary")
+	await rpc(room, "routineCreated", "ada", "r2", "weekly review", true)
 	await rpc(room, "compacted", "ada", "1")
 	await rpc(room, "compacted", "ada", "1")
 	await rpc(room, "compacted", "ada", "2")
@@ -222,6 +223,7 @@ test("a routine and a repeated compaction each store one divider", async () => {
 	expect(kinds).toEqual([
 		{ kind: "member_added", slug: "ada", name: "ada", private: true },
 		{ kind: "routine_created", agent: "ada", title: "morning summary", private: true },
+		{ kind: "routine_created", agent: "ada", title: "weekly review", byAgent: true, private: true },
 		{ kind: "compacted", agent: "ada", private: true },
 		{ kind: "compacted", agent: "ada", private: true },
 	])

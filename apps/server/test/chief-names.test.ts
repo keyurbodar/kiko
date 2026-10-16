@@ -12,3 +12,8 @@ test("a proposal for a name an agent already has is refused, ignoring case and s
   }
   expect(checkProposal({ kind: "agent", agent: spec("Bee", "bee") }, [pollen])).toMatchObject({ kind: "agent" })
 })
+
+test("a new agent's name starts with a capital, whatever case the model wrote", () => {
+  const out = checkProposal({ kind: "agent", agent: spec("ebert", "ebert") }, [])
+  expect(out).toMatchObject({ kind: "agent", agent: { name: "Ebert" } })
+})

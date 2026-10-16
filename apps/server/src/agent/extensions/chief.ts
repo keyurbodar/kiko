@@ -23,7 +23,7 @@ const text = (t: string) => [{ type: "text" as const, text: t }]
 const fail = (t: string) => ({ content: text(t), isError: true })
 
 const NewAgent = Type.Object({
-  name: Type.String({ description: "a short display name, lowercase" }),
+  name: Type.String({ description: "a short display name, capitalized like a name (Scout)" }),
   handle: Type.String({ description: "the @handle: lowercase letters, digits, dashes" }),
   description: Type.String({ description: "one line on what it does, for teammates" }),
   soul: Type.String({ description: "its soul.md, in its own first person" }),

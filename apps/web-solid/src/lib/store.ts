@@ -18,6 +18,8 @@ import { chatFaces, chatSeed } from "./identity"
 import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
 import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { isListed } from "../sidebar/activity"
+import { agentDisplayName } from "./names"
 import { showRunError } from "./run-error"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
@@ -167,7 +169,7 @@ export function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRo
 /** The activity a view message is, for the open room's row before the server's touch. */
 export function viewLast(m: ViewMessage, name: (slug: string) => string): ChatLast {
   const files = m.files ?? m.local
-  return messageLast({ from: m.from.kind, ...(m.from.kind === "agent" ? { name: name(m.from.slug) } : {}), text: m.text, ...(files ? { files } : {}), at: m.at })
+  return messageLast({ from: m.from.kind, ...(m.from.kind === "agent" ? { name: name(m.from.slug) } : {}), text: m.text, ...(m.rich ? { rich: m.rich, mentionName: name } : {}), ...(files ? { files } : {}), at: m.at })
 }
 
 /**
@@ -399,9 +401,9 @@ export function createApp(options: AppOptions = {}) {
         else {
           const working = Object.values(r.state.status).includes("working")
           const members = r.members()
-          const name = (slug: string) => members.find((m) => m.slug === slug)?.name ?? slug
+          const name = (slug: string) => agentDisplayName(slug, members)
           // The open room's own messages are the newest truth: a send shows in its row before the server's touch.
-          const newest = roomMessages().at(-1)
+          const newest = roomMessages().findLast(isListed)
           const fresh = newest && (newest.pending || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
           row = chatRow(c, presenceOf(false, working ? "working" : undefined), {
             ...(fresh ? { last: fresh } : {}),
@@ -789,7 +791,7 @@ export function createApp(options: AppOptions = {}) {
         paced()
         const slugs = new Set<string>([...r.state.typing, ...lingering(), ...pacer.holders()])
         slugs.delete("")
-        return [...slugs].map((slug) => r.state.members.find((m) => m.slug === slug)?.name ?? slug)
+        return [...slugs].map((slug) => agentDisplayName(slug, r.state.members))
       },
 
       /** The composer calls this on input. The room store sends at most one frame every 2 s. */

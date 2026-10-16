@@ -158,7 +158,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 					<section class="flex flex-col" data-component="memory-view">
 						<button type="button" class="flex h-8 items-center gap-2 px-1 text-left text-sm text-muted-foreground hover:text-foreground" aria-expanded={reading()} onClick={() => setReading(!reading())}>
 							<span class="flex-1">What every agent reads</span>
-							<span>{s().view.length} lines</span>
+							<span>{s().view.length} {s().view.length === 1 ? "line" : "lines"}</span>
 							<ChevronDown size={13} strokeWidth={1.75} class={reading() ? "rotate-180" : ""} />
 						</button>
 						<Show when={reading()}>

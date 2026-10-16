@@ -2,6 +2,7 @@ import { KIKO, type RecipeCard, type RecipeInstall, type RecipeRoutine, type Roo
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
 import { openFile } from "../chat/side/surfaces"
+import { agentDisplayName } from "../lib/names"
 import { useApp } from "../lib/store"
 import { installedSlugs } from "./model"
 import { cardsOf, fetchListing, loadListing, type Listing, postEdit, postInstall, deleteInstall, cacheListing, updateRecipeRoutine } from "./api"
@@ -65,7 +66,7 @@ export function targetsForChat(roomId: string): RecipeTarget[] {
 
 export const installs = (): readonly RecipeInstall[] => listing().installs
 export const installsFor = (slug: string): readonly RecipeInstall[] => listing().installs.filter((i) => i.slug === slug)
-export const agentName = (slug: string): string => slug === KIKO ? "Kiko" : useApp.agents().find((a) => a.slug === slug)?.name ?? slug
+export const agentName = (slug: string): string => agentDisplayName(slug, useApp.agents())
 export const isAdded = (slug: string, target?: RecipeTarget): boolean => !!target && installedSlugs(listing().installs, target).has(slug)
 
 /** Pauses or resumes every routine of one install. It shows at once and goes back if the server refuses. */

@@ -8,7 +8,7 @@ import { useApp } from "../../lib/store"
 import { roomMembers } from "../info/sections"
 import { loadLoops, PlatePage, refreshLoops } from "../info/loops"
 import { MemoryError, MemoryList, useMemoryStore } from "../info/memory/views"
-import { loadRoutines, RoutinesPage } from "../info/routines"
+import { loadRoutines, refreshRoutines, RoutinesPage } from "../info/routines"
 import { TasksView } from "../info/tasks"
 import { AgentPage } from "./agent"
 import {
@@ -296,7 +296,10 @@ export default function Sidecar(props: { chatId: string }) {
     if (k === "plate") void loadLoops()
     if (k === "routines") void loadRoutines()
   }))
-  createEffect(on(() => [useApp.room()?.state.seq, useApp.room()?.state.status], () => refreshLoops(), { defer: true }))
+  createEffect(on(() => [useApp.room()?.state.seq, useApp.room()?.state.status], () => {
+    refreshLoops()
+    if (kind() === "routines") refreshRoutines()
+  }, { defer: true }))
 
   return (
     <aside class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden" data-component="sidecar" aria-label="Chat sidecar">

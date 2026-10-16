@@ -1,6 +1,6 @@
-import { type ChatLast, messageLast, mentionsHuman, oneLine } from "@kiko/protocol"
+import { type ChatLast, messageLast, mentionsHuman, oneLine, type RichText } from "@kiko/protocol"
 import type { FileRef, Sender } from "@kiko/protocol"
-import { PUBLIC_MESSAGE, type RoomLog } from "./log"
+import { LISTED_MESSAGE, type RoomLog } from "./log"
 
 export type Touch = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions?: number; group: boolean }
 
@@ -13,21 +13,21 @@ const QUOTE = 40
 
 type Candidate = { seq: number; last: ChatLast }
 
-type Posted = { seq: number; at: number; from: Sender; text: string; files?: readonly FileRef[] | undefined }
+type Posted = { seq: number; at: number; from: Sender; text: string; to?: unknown; rich?: RichText | undefined; files?: readonly FileRef[] | undefined }
 
 function messageCandidate(m: Posted, nameOf: (slug: string) => string): Candidate {
 	const { from, files } = m
 	return {
 		seq: m.seq,
-		last: messageLast({ from: from.kind, ...(from.kind === "agent" ? { name: nameOf(from.slug) } : {}), text: m.text, ...(files?.length ? { files } : {}), at: m.at }),
+		last: messageLast({ from: from.kind, ...(from.kind === "agent" ? { name: nameOf(from.slug) } : {}), text: m.text, ...(m.rich ? { rich: m.rich, mentionName: nameOf } : {}), ...(files?.length ? { files } : {}), at: m.at }),
 	}
 }
 
-/** The touch for one bubble that just landed: no scan, so a bubble in a long run costs the same as the first. Mentions stay as they are until the run ends. */
+/** The touch for one bubble that just landed: no scan, so a bubble in a long run costs the same as the first. Mentions stay as they are until the run ends. Mail between agents is counted but not quoted as the last line. */
 export function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): Touch {
 	const name = (slug: string) => sql.exec<{ name: string }>("SELECT name FROM members WHERE slug = ?", slug).toArray()[0]?.name ?? slug
 	const group = (sql.exec<{ n: number }>("SELECT count(*) AS n FROM members WHERE removed_at IS NULL").one().n ?? 0) > 1
-	return { lastSeq: log.lastSeq(), lastPreview: row.text, unread: log.unread(), last: messageCandidate(row, name).last, group }
+	return { lastSeq: log.lastSeq(), lastPreview: row.text, unread: log.unread(), ...(row.to === undefined ? { last: messageCandidate(row, name).last } : {}), group }
 }
 
 export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
@@ -37,11 +37,11 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 	const candidates: Candidate[] = []
 
 	const message = sql
-		.exec<{ seq: number; at: number; sender: string; text: string; files: string | null }>(
-			`SELECT seq, at, sender, text, files FROM messages WHERE deleted_at IS NULL AND ${PUBLIC_MESSAGE} ORDER BY seq DESC LIMIT 1`,
+		.exec<{ seq: number; at: number; sender: string; text: string; rich: string | null; files: string | null }>(
+			`SELECT seq, at, sender, text, rich, files FROM messages WHERE deleted_at IS NULL AND ${LISTED_MESSAGE} ORDER BY seq DESC LIMIT 1`,
 		)
 		.toArray()[0]
-	if (message) candidates.push(messageCandidate({ ...message, from: JSON.parse(message.sender) as Sender, files: message.files ? (JSON.parse(message.files) as FileRef[]) : undefined }, nameOf))
+	if (message) candidates.push(messageCandidate({ ...message, from: JSON.parse(message.sender) as Sender, rich: message.rich ? (JSON.parse(message.rich) as RichText) : undefined, files: message.files ? (JSON.parse(message.files) as FileRef[]) : undefined }, nameOf))
 
 	const react = sql
 		.exec<{ seq: number; at: number; actor: string; payload: string }>("SELECT seq, at, actor, payload FROM events WHERE kind = 'react' AND actor LIKE 'agent:%' ORDER BY seq DESC LIMIT 1")

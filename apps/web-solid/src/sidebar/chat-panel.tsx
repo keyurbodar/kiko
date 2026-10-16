@@ -10,6 +10,7 @@ import { VList } from "virtua/solid"
 import { useCommands, type Command } from "../commands/registry"
 import { ChatAvatar } from "../lib/IdentityAvatar"
 import { intentRef } from "../lib/intent"
+import { agentDisplayName } from "../lib/names"
 import { useApp } from "../lib/store"
 import type { BotPresence, RosterBot } from "../lib/types"
 import {
@@ -25,6 +26,7 @@ import {
   toggleMute,
   togglePin,
 } from "./actions"
+import { isListed, quoteOf } from "./activity"
 import { filterRows } from "./filter"
 
 const MINUTE = 60_000
@@ -157,7 +159,8 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void;
 }
 
 function ChatPreview(props: { bot: RosterBot }) {
-  const tail = createMemo(() => useApp.messagesFor(props.bot.id).slice(-3))
+  const tail = createMemo(() => useApp.messagesFor(props.bot.id).filter(isListed).slice(-3))
+  const name = (slug: string) => useApp.memberById(slug)?.name ?? agentDisplayName(slug, [])
 
   return (
     <div class="w-[280px] p-3" data-component="sidebar-preview">
@@ -175,7 +178,7 @@ function ChatPreview(props: { bot: RosterBot }) {
             {(message) => (
               <p class="line-clamp-2 text-[12px] leading-snug text-muted-foreground">
                 <span class="font-semibold text-foreground">{message.sender === "user" ? "You" : (useApp.memberById(message.botId)?.name ?? props.bot.name)}:</span>{" "}
-                {message.body}
+                {quoteOf(message, name)}
               </p>
             )}
           </For>

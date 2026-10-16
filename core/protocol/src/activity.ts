@@ -3,6 +3,8 @@
 // same ones for the open room, so both read a message the same way. Pure and small, so a client
 // bundle that imports them pulls in no dependency.
 
+import type { RichText } from "./rich-text"
+import { plainText } from "./rich-text"
 import type { FileRef } from "./room"
 
 export type LastKind =
@@ -48,9 +50,10 @@ export function fileName(path: string): string {
 
 type Files = readonly Pick<FileRef, "name" | "type">[]
 
-export function messageLast(m: { from: ChatLast["from"]; name?: string; text: string; files?: Files; at: number }): ChatLast {
+/** `rich` is the agent's tree; its plain text stands in for `text`, which is markdown. `mentionName` turns a mentioned slug into a name. */
+export function messageLast(m: { from: ChatLast["from"]; name?: string; text: string; rich?: RichText; mentionName?: (slug: string) => string; files?: Files; at: number }): ChatLast {
 	const base: ChatLast = { from: m.from, ...(m.from === "agent" && m.name ? { name: m.name } : {}), kind: "text", at: m.at }
-	const text = oneLine(m.text)
+	const text = oneLine(m.rich?.length ? plainText(m.rich, m.mentionName) : m.text)
 	const caption = text ? { text } : {}
 	const files = m.files ?? []
 	if (m.from === "system") return { ...base, kind: "notice", ...caption }

@@ -298,10 +298,17 @@ export class Workers {
     const conversation = await harness.conversation(conversationId, context)
     const entry = await conversation?.commit((tx) => tx.entry(AssistantEntry, settled.answer), context)
     const message = entry?.model?.[0] as AssistantMessage | undefined
-    const text = (message?.content ?? []).flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
-    return clip(text.trim() || "it finished with no report.", REPORT_CHARS)
+    const text = plainReport((message?.content ?? []).flatMap((c) => (c.type === "text" ? [c.text] : [])).join(""))
+    return clip(text || "it finished with no report.", REPORT_CHARS)
   }
 }
+
+/**
+ * A worker's words with the harness's own diagnostics taken out. A tool refusal comes back to the
+ * worker as a `<harness>` block; a report that quotes one is machinery, and the agent that reads
+ * it would tell the human the same.
+ */
+export const plainReport = (text: string): string => text.replace(/<harness>[\s\S]*?(?:<\/harness>|$)/g, "").trim()
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
 

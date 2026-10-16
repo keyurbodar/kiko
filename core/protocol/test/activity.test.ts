@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { humanHandle, mentionsHuman, messageLast } from "../src/activity"
+import type { RichText } from "../src/rich-text"
 
 const at = 1
 const img = (name = "a.png") => ({ name: `attachments/k1-${name}`, type: "image/png" })
@@ -52,4 +53,17 @@ describe("mentionsHuman", () => {
 		["no handle", "hi there", false, false],
 	]
 	for (const [name, text, reply, want] of cases) test(name, () => expect(mentionsHuman(text, "keyur", reply)).toBe(want))
+})
+
+describe("plain previews", () => {
+	const rich = [
+		{ t: "paragraph", children: [{ t: "bold", children: [{ t: "text", text: "Checked it." }] }, { t: "text", text: " " }, { t: "mention", slug: "ebert" }] },
+		{ t: "code_block", text: "hello world" },
+		{ t: "list", items: [[{ t: "paragraph", children: [{ t: "code", text: "one" }] }], [{ t: "paragraph", children: [{ t: "text", text: "two" }] }]] },
+	] as unknown as RichText
+
+	test("a message with a tree reads as its words, not its markup", () => {
+		const out = messageLast({ from: "agent", name: "Kiko", text: "**Checked it.** @ebert\n```\nhello world\n```", rich, mentionName: () => "Ebert", at })
+		expect(out.text).toBe("Checked it. @Ebert hello world one two")
+	})
 })

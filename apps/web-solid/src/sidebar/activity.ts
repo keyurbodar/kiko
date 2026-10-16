@@ -1,4 +1,4 @@
-import type { ChatLast, LastKind } from "@kiko/protocol"
+import { type ChatLast, type LastKind, plainText, type RichText } from "@kiko/protocol"
 
 // The chat list's second line, worded the way Telegram words it. The room sends the newest
 // activity as data (`ChatLast`); this file is the one place that turns it into words. A DM names
@@ -53,3 +53,9 @@ export function typingLine(names: readonly string[], group: boolean): string {
   if (names.length === 2) return `${first} and ${second} are typing`
   return `${first} and ${names.length - 1} others are typing`
 }
+
+/** A message a chat row or its preview card may quote: not a divider, and not mail between agents. */
+export const isListed = (m: { to?: unknown; event?: object }): boolean => m.to === undefined && !(m.event && "private" in m.event)
+
+/** What a message says in a preview, as plain words with mentions by name. */
+export const quoteOf = (m: { body: string; rich?: RichText }, name: (slug: string) => string): string => (m.rich?.length ? plainText(m.rich, name) : m.body)

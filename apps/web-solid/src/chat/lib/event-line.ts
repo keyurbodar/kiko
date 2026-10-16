@@ -9,11 +9,13 @@ export function eventText(message: ChatMessage, name: (slug: string) => string):
     case "created":
       return `${e.title} is ready`
     case "routine_created":
-      return `${name(e.agent)} created a routine: ${e.title}`
+      return e.byAgent ? `${name(e.agent)} created a routine: ${e.title}` : `Routine added: ${e.title}`
     case "model_changed":
       return `${name(e.agent)} now uses ${e.model}`
     case "compacted":
       return `${name(e.agent)} compacted its context`
+    case "group_formed":
+      return "Group formed"
     case "member_added":
       return `${e.name} joined`
     case "member_removed":

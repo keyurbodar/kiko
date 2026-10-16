@@ -1,4 +1,4 @@
-import type { Trigger } from "@kiko/protocol"
+import type { AgentSlug, Trigger } from "@kiko/protocol"
 import { sha256Hex } from "@kiko/durable/hash"
 import { safeFetch } from "@kiko/durable/safe-fetch"
 import { defaultFetcher } from "../lib/dev-fixture-fetch"
@@ -36,8 +36,18 @@ export class RoutineWiring {
         this.d.reminders.remove(out.routine.id)
         throw e
       }
+      const { routine } = out
+      await this.postDivider(owner, routine)
       return out
     })
+  }
+
+  private async postDivider(owner: string, routine: Reminder): Promise<void> {
+    const byAgent = routine.createdBy !== "human"
+    const slug = (byAgent ? routine.createdBy : routine.target) as AgentSlug
+    try {
+      await roomStub(this.d.env.ROOM, owner, routine.roomId).routineCreated(slug, routine.id, routine.name ?? routine.text, byAgent)
+    } catch {}
   }
 
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> {
