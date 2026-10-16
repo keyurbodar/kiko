@@ -78,5 +78,6 @@ export const routes: RouteDefinition[] = [
   { path: "/recipes", component: pages.recipes },
   { path: ["/connect", "/connect/callback"], component: pages.connect },
   { path: "/settings/*", component: pages.settings },
+  { path: "/welcome", component: () => <Navigate href="/chat" /> },
   { path: "*", component: () => <Navigate href="/chat" /> },
 ]

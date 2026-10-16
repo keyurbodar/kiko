@@ -31,11 +31,14 @@ export const UserSettings = Schema.Struct({
 	initiative: Schema.Literals(INITIATIVE_LEVELS),
 	capture: Schema.Literals(CAPTURE_MODES),
 	timezone: Schema.optionalKey(Schema.String),
+	/** The owner finished or skipped first run, on any device. */
+	onboarded: Schema.optionalKey(Schema.Boolean),
 })
 export type UserSettings = typeof UserSettings.Type
 export const UserSettingsPatch = Schema.Struct({
 	initiative: Schema.optionalKey(Schema.Literals(INITIATIVE_LEVELS)),
 	capture: Schema.optionalKey(Schema.Literals(CAPTURE_MODES)),
 	timezone: Schema.optionalKey(Schema.String),
+	onboarded: Schema.optionalKey(Schema.Literal(true)),
 })
 export type UserSettingsPatch = typeof UserSettingsPatch.Type

@@ -1,13 +1,27 @@
 import { describe, expect, test } from "bun:test"
-import { advance, positionOf, stepFor, type Facts } from "./steps"
+import { advance, indexOf, stepFor, type Facts } from "./steps"
 
-const base: Facts = { signedIn: true, hosted: false, saved: null, fresh: false, known: false, connected: false }
+const base: Facts = { signedIn: true, hosted: false, started: false, needsBackend: false, saved: null, fresh: false, known: false, connected: false, onboarded: false }
 const at = (over: Partial<Facts>) => stepFor({ ...base, ...over })
 
 describe("stepFor", () => {
-  test("signed out starts at welcome, except on a hosted build", () => {
+  test("signed out starts at welcome, in a hosted build too", () => {
     expect(at({ signedIn: false })).toBe("welcome")
-    expect(at({ signedIn: false, hosted: true })).toBe("done")
+    expect(at({ signedIn: false, hosted: true })).toBe("welcome")
+  })
+
+  test("get started, or a browser that signed in before, goes to sign in", () => {
+    expect(at({ signedIn: false, started: true })).toBe("sign-in")
+    expect(at({ signedIn: false, started: true, hosted: true })).toBe("sign-in")
+  })
+
+  test("a hosted person with no backend yet installs one", () => {
+    expect(at({ signedIn: false, hosted: true, needsBackend: true })).toBe("cloudflare")
+    expect(at({ signedIn: false, hosted: true, needsBackend: true, started: true })).toBe("cloudflare")
+  })
+
+  test("a self-hosted build never shows the Cloudflare step", () => {
+    expect(at({ signedIn: false, needsBackend: true, started: true })).toBe("sign-in")
   })
 
   test("a fresh sign-in goes straight to connect without waiting on the network", () => {
@@ -17,6 +31,7 @@ describe("stepFor", () => {
   test("a signed-in owner with a key is never shown first run", () => {
     expect(at({ known: true, connected: true })).toBe("done")
     expect(at({ fresh: true, known: true, connected: true })).toBe("done")
+    expect(at({ known: true, connected: true, hosted: true, needsBackend: true })).toBe("done")
   })
 
   test("a signed-in owner with no key and no saved step is sent to connect", () => {
@@ -39,6 +54,11 @@ describe("stepFor", () => {
   test("a finished or skipped first run stays finished even with no key", () => {
     expect(at({ saved: "done", known: true })).toBe("done")
   })
+
+  test("a skip the server remembers holds in a browser that saved nothing", () => {
+    expect(at({ known: true, onboarded: true })).toBe("done")
+    expect(at({ known: true, onboarded: false })).toBe("connect")
+  })
 })
 
 describe("advance", () => {
@@ -50,6 +70,8 @@ describe("advance", () => {
   })
 })
 
-test("positionOf counts steps from one", () => {
-  expect(["welcome", "connect", "model", "done"].map((s) => positionOf(s as never))).toEqual([1, 2, 3, 0])
+test("indexOf places each step in the stepper, with Cloudflare only when hosted", () => {
+  const steps = ["welcome", "sign-in", "cloudflare", "connect", "model", "done"] as const
+  expect(steps.map((s) => indexOf(s, false))).toEqual([-1, 0, -1, 1, 2, 3])
+  expect(steps.map((s) => indexOf(s, true))).toEqual([-1, 0, 1, 2, 3, 4])
 })

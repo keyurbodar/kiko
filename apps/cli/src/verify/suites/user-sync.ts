@@ -71,6 +71,19 @@ const suite: Suite = {
         if (e.t === "chat_removed") removed.add(e.roomId)
       }
     }
+
+    // First run is remembered on the server, so a browser that saved nothing does not show it again.
+    const settings = async (body?: object) => {
+      const res = await fetch(new URL("api/settings", v.url), {
+        method: body ? "POST" : "GET",
+        headers: { authorization: s.auth, ...(body ? { "content-type": "application/json" } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      if (!res.ok) throw new VerifyError(`${body ? "POST" : "GET"} api/settings answered ${res.status}`)
+      return (await res.json()) as { onboarded?: boolean }
+    }
+    await settings({ onboarded: true })
+    expectEqual((await settings()).onboarded, true, "onboarded after first run ends")
   },
 }
 
