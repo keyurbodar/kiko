@@ -10,6 +10,21 @@ import { createRoot, createSignal, getOwner, onCleanup } from "solid-js"
  */
 export type CommandGroup = "view" | "chat" | "chats" | "palette" | "go" | "settings" | "account" | "theme"
 
+/** One option inside a command's submenu: an agent, a chat, an appearance. */
+export interface Choice {
+  id: string
+  title: string
+  /** An icon name, as on a command. */
+  icon?: string
+  /** Draws an agent's generated avatar. */
+  seed?: string
+  /** Draws the avatar of the chat with this id, from its members' faces. */
+  chatId?: string
+  /** The option that is on now. It gets a check. */
+  current?: boolean
+  run: () => void
+}
+
 export interface Command {
   /** Stable id, `group.verb`, for example `chat.new`. */
   id: string
@@ -30,6 +45,10 @@ export interface Command {
   unlisted?: boolean
   /** Enabled while this returns true. Absent means always enabled. */
   when?: () => boolean
+  /** The palette opens these as a second list, under a chevron. `run` then opens that list too, for a shortcut. */
+  submenu?: () => readonly Choice[]
+  /** The search hint inside the submenu. */
+  placeholder?: string
   run: () => void
 }
 

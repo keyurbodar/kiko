@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { hotkeyOptions } from "./hotkeys"
+import { testDeps } from "./deps.fixture"
 import { katCommands } from "./kat-commands"
 import { commands, registerCommands, runCommand, shortcuts, type Command } from "./registry"
 
@@ -37,20 +38,26 @@ describe("registry", () => {
 })
 
 describe("kat commands", () => {
-  const list = katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false, toggleCard() {}, openFiles() {}, openPalette() {}, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, goToChat() {}, stepChat() {}, chatCount: () => 0, searchChat() {}, searchAll() {}, inRichEditor: () => false })
+  const list = katCommands(testDeps())
 
   test("matches kat's map and leaves share out", () => {
     const map = Object.fromEntries(list.filter((c) => !c.unlisted).map((c) => [c.title, c.shortcut]))
     expect(map).toEqual({
       "Toggle sidebar": "Mod+\\",
+      "Toggle right panel": undefined,
       "New chat": "Mod+N",
+      "New chat with…": undefined,
       "New group": undefined,
+      "New agent": undefined,
       "Reopen closed chat": undefined,
       "Attach file…": "Mod+O",
       "Rename chat": "F2",
       "Pin chat": undefined,
       "Chat details": "Mod+I",
-      "Files": undefined,
+      "Open files": undefined,
+      "Open memory": undefined,
+      "Open routines": undefined,
+      "Copy chat link": undefined,
       "Close chat": undefined,
       "Delete chat": undefined,
       "Go to chat…": "Mod+P",
@@ -93,31 +100,19 @@ describe("kat commands", () => {
   })
 })
 
-describe("the palette steps aside for the rich editor's link key", () => {
-  const kat = (inRichEditor: boolean, openPalette: () => void) =>
-    katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false, toggleCard() {}, openFiles() {}, openPalette, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, goToChat() {}, stepChat() {}, chatCount: () => 0, searchChat() {}, searchAll() {}, inRichEditor: () => inRichEditor })
-
-  test("Mod+K does not open the palette while focus is in the composer", () => {
-    let opened = 0
-    const off = registerCommands(kat(true, () => opened++))
-    expect(runCommand("palette.open")).toBe(false)
-    expect(opened).toBe(0)
-    off()
-  })
-
-  test("Mod+K still opens the palette everywhere else", () => {
-    let opened = 0
-    const off = registerCommands(kat(false, () => opened++))
-    expect(runCommand("palette.open")).toBe(true)
-    expect(opened).toBe(1)
-    off()
+describe("Mod+K opens the palette from anywhere", () => {
+  test("it fires even while a text field has focus, so the rich composer cannot swallow it", () => {
+    const command = katCommands(testDeps()).find((c) => c.id === "palette.open")!
+    expect(command.shortcut).toBe("Mod+K")
+    expect(command.global).toBe(true)
+    expect(command.when).toBeUndefined()
   })
 })
 
 describe("numbered chat jumps", () => {
   test("Mod+1 to Mod+9 open the sidebar's chats in order, only as many as there are", () => {
     const went: number[] = []
-    const jumps = katCommands({ toggleSidebar() {}, newChat() {}, closeChat() {}, hasActiveChat: () => false, toggleCard() {}, openFiles() {}, openPalette() {}, openChats() {}, reopenClosed() {}, attach() {}, rename() {}, togglePin() {}, deleteChat() {}, canMove: () => false, goToChat: (n) => went.push(n), stepChat() {}, chatCount: () => 2, searchChat() {}, searchAll() {}, inRichEditor: () => false }).filter((c) => c.id.startsWith("chats.go-"))
+    const jumps = katCommands(testDeps({ goToChat: (n) => went.push(n), chatCount: () => 2 })).filter((c) => c.id.startsWith("chats.go-"))
     expect(jumps.map((c) => c.shortcut)).toEqual(["Mod+1", "Mod+2", "Mod+3", "Mod+4", "Mod+5", "Mod+6", "Mod+7", "Mod+8", "Mod+9"])
     expect(jumps.map((c) => c.when!())).toEqual([true, true, false, false, false, false, false, false, false])
     jumps[1]!.run()
