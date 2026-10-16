@@ -3,9 +3,19 @@ import { EntryIcon } from "../../lib/EntryIcon"
 import { cn } from "../../lib/cn"
 import { splitFiles, tileSpan } from "../../lib/attachments"
 import type { MessageFile } from "../../lib/types"
+import { setFileDrag } from "../../lib/file-drag"
 import { openFile } from "../side/surfaces"
 import { formatBytes } from "../info/format"
 import type { DialogImage } from "./image-dialog"
+
+/** A stored file drags to the composer as a reference to where it lives. */
+const dragProps = (file: MessageFile) => ({
+  draggable: file.path !== undefined,
+  onDragStart: (event: DragEvent) => {
+    if (file.path && event.dataTransfer) setFileDrag(event.dataTransfer, file.path)
+    else event.preventDefault()
+  },
+})
 
 function preview(roomId: string, file: MessageFile) {
   if (file.path) openFile(roomId, file.path)
@@ -33,6 +43,7 @@ export function MessageAttachments(props: {
                 )}
                 aria-label={`Preview ${file.name}`}
                 data-component="chat-attachment-image"
+                {...dragProps(file)}
                 onClick={(event) => props.onOpenImages?.(images(), i(), event.currentTarget)}
               >
                 <img src={file.src} alt={file.name} class="block size-full object-cover" loading="lazy" draggable={false} />
@@ -50,6 +61,7 @@ export function MessageAttachments(props: {
                 class="flex min-w-0 cursor-pointer items-center gap-2 rounded-md py-1 text-start text-sm hover:underline focus-visible:outline-2"
                 aria-label={`Preview ${file.name}`}
                 data-component="chat-attachment-file"
+                {...dragProps(file)}
                 onClick={() => preview(props.roomId, file)}
               >
                 <EntryIcon path={file.name} />

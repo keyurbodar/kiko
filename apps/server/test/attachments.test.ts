@@ -145,6 +145,20 @@ test("a file with a space or a parenthesis in its name reaches the bubble as a l
 	c.close()
 })
 
+test("an upload retried under its own id writes over itself, so a folder of retries leaves one object each", async () => {
+	const room = fresh()
+	const id = crypto.randomUUID()
+	expect((await upload(room, id, "first try")).status).toBe(204)
+	expect((await upload(room, id, "first try")).status).toBe(204)
+	expect(await keys(room)).toEqual([`u/alice/r/${room}/${id}`])
+	// The same id with another size is another file, not a retry.
+	const clash = await upload(room, id, "a longer second body")
+	expect(clash.status).toBe(409)
+	await clash.body?.cancel()
+	expect(await (await fetch(`${origin}/api/files/${room}/pending/${id}`, { method: "DELETE", headers: as })).status).toBe(204)
+	expect(await keys(room)).toEqual([])
+})
+
 test("a send names files only by pending upload: a files field from an old client carries nothing", async () => {
 	const room = fresh()
 	const c = await Client.open(room)
