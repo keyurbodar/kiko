@@ -109,6 +109,39 @@ test("a typing member with nothing else to show is writing", async () => {
 	c.close()
 })
 
+const typingCalls = async (room: string) => (await (await fetch(`${origin}/typing/${room}`)).json()) as string[][]
+
+test("the sidebar hears typing only while an agent writes, and each clear arrives in order", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	await rpc(room, "setStatus", "ada", "typing")
+	await rpc(room, "setStatus", "ada", "working")
+	await rpc(room, "setStatus", "ada", "typing")
+	await rpc(room, "endRun", "ada", "run-1", [], false)
+	expect((await typingCalls(room)).slice(-4)).toEqual([["ada"], [], ["ada"], []])
+	c.close()
+})
+
+test("a background worker is working, not typing, in the sidebar", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	await rpc(room, "setStatus", "ada", "working")
+	expect((await typingCalls(room)).at(-1)).toEqual([])
+	c.close()
+})
+
+test("a socket that connects mid-run is told who is busy", async () => {
+	const room = fresh()
+	const first = await withAgent(room)
+	await rpc(room, "setStatus", "ada", "typing")
+	await first.take((f) => f.t === "status" && f.state === "typing")
+	first.close()
+	const again = await open(room, 1_000_000)
+	await again.take((f) => f.t === "typing" && f.who.includes("ada" as never))
+	await again.take((f) => f.t === "status" && f.slug === "ada" && f.state === "typing")
+	again.close()
+})
+
 const row = (status: WorkerRow["status"], over: Partial<WorkerRow> = {}): WorkerRow => ({ id: "w1", task: "find the pricing pages", status, step: null, steps: 0, startedAt: 5, ...over })
 
 test("workers show as a background activity, and each start and end is one private system line", async () => {

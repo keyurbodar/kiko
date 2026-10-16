@@ -5,6 +5,7 @@ import { createSignal, For, Show } from "solid-js"
 import type { LoopRow as WireLoop } from "@kiko/protocol"
 import { shortDate } from "./format"
 import { apiFetch } from "../../lib/api"
+import { watchChanged } from "../../sync/changed"
 
 export type PlateLoop = Pick<WireLoop, "id" | "room" | "text" | "due" | "snoozedUntil">
 
@@ -21,6 +22,7 @@ export function readLoops(value: unknown): PlateLoop[] {
 }
 
 export async function loadLoops(): Promise<void> {
+  watchChanged("loops", loadLoops)
   const res = await apiFetch("/api/loops").catch(() => null)
   if (res?.ok) setAll(readLoops(await res.json().catch(() => null)))
   else if (all() === undefined) setAll([])

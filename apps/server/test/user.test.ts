@@ -110,13 +110,40 @@ test("renaming a group is its row's line until something newer happens", async (
   expect((await rpc(user, "getChat", ROOM_A)).last).toEqual(newer)
 })
 
-test("chatTyping tells every socket who is typing, and stores nothing", async () => {
+test("chatTyping tells every socket who is typing", async () => {
   const user = fresh()
   await rpc(user, "createChat", ROOM_A, "plans")
   const ws = await socket(user, 1)
   await rpc(user, "chatTyping", ROOM_A, ["Ada", "Bob"])
   const frames = (await ws.settle()).slice(1)
   expect(frames).toEqual([{ t: "typing", roomId: ROOM_A, names: ["Ada", "Bob"] }])
+  ws.close()
+})
+
+test("a socket that connects mid-run is told who is typing, and a clear removes the entry", async () => {
+  const user = fresh()
+  await rpc(user, "createChat", ROOM_A, "plans")
+  await rpc(user, "chatTyping", ROOM_A, ["Ada"])
+  const late = await socket(user, 1)
+  expect((await late.settle()).filter((f) => f.t === "typing")).toEqual([{ t: "typing", roomId: ROOM_A, names: ["Ada"] }])
+  late.close()
+  await rpc(user, "chatTyping", ROOM_A, [])
+  const after = await socket(user, 1)
+  expect((await after.settle()).filter((f) => f.t === "typing")).toEqual([])
+  after.close()
+})
+
+test("a routine, a memory note, and an open loop each push a change frame", async () => {
+  const user = fresh()
+  await rpc(user, "createChat", ROOM_A, "plans")
+  const ws = await socket(user, 1)
+  const at = new Date(Date.now() + 86_400_000).toISOString()
+  const made = await rpc(user, "createRoutine", "u", { name: "daily", instructions: "say hi", trigger: { on: "time", at }, tz: "UTC", roomId: ROOM_A, target: "kiko", createdBy: "kiko" })
+  expect(made.ok).toBe(true)
+  await rpc(user, "lifeNote", "ada", "likes tea at four")
+  await rpc(user, "loopOpen", "u", ROOM_A, "room:x:msg:1", { kind: "commitment", certainty: "explicit", text: "send the plan", due: null })
+  const changed = (await ws.settle()).filter((f: Frame) => f.t === "changed").map((f: any) => f.what)
+  expect(new Set(changed)).toEqual(new Set(["routines", "memory", "loops"]))
   ws.close()
 })
 

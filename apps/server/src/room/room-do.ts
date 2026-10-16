@@ -29,7 +29,7 @@ import { CHIEF, type ProposalInput } from "./chief"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
 import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
-import { readWorkers, statusOf, workersKey } from "./status"
+import { agentStatuses, readWorkers, statusOf, workersKey } from "./status"
 import { workerMessages } from "./work-events"
 import { parseRichText } from "./rich-text"
 import { type MemberRow, Members, type NewMember } from "./members"
@@ -89,7 +89,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private mailer!: RoomMail
 	private receiver!: ReceiveDeps
 	private pending!: PendingUploads
-	private readonly typing = new Set<AgentSlug>()
+	private typingChain: Promise<void> = Promise.resolve()
+	private typingSent: string | null = null
 	private sends: Promise<unknown> = Promise.resolve()
 
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -920,7 +921,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!this.members.setStatus(slug, state)) return false
 		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
 		this.broadcastStatus(slug)
-		await this.setTyping(slug, state !== "idle")
+		this.broadcast(this.activeFrame())
+		await this.pushTyping()
 		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
 		else if (this.log.meta(`live:${slug}`) === null) this.log.setMeta(`live:${slug}`, String(this.log.lastSeq()))
 		return true
@@ -968,21 +970,30 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.bubbles.markEnded(runId)
 	}
 
-	async setTyping(slug: AgentSlug, typing: boolean): Promise<void> {
-		const had = this.typing.has(slug)
-		if (typing === had) return
-		if (typing) this.typing.add(slug)
-		else this.typing.delete(slug)
-		this.broadcast({ t: "typing", who: [...this.typing] })
+	private activeFrame(): RoomToClient {
+		return { t: "typing", who: this.members.list().filter((m) => m.status !== "idle").map((m) => m.slug) }
+	}
+
+	/** What a new room socket needs to know: who is busy and what each is doing. Statuses are not part of a catch-up. */
+	presence(): RoomToClient[] {
+		const statuses = agentStatuses(this.ctx.storage.sql)
+		return statuses.length ? [this.activeFrame(), ...statuses.map((s): RoomToClient => ({ t: "status", ...s }))] : []
+	}
+
+	/** The sidebar says "typing" for an agent that is writing a reply, not for one using a tool. One chain keeps the frames in order. */
+	private pushTyping(): Promise<void> {
 		const home = this.home()
-		if (home) {
-			const names = [...this.typing].map((s) => this.members.get(s)?.name ?? s)
-			this.ctx.waitUntil(
-				Promise.resolve()
-					.then(() => userStub(this.env.USER, home.userId).chatTyping(home.roomId, names))
-					.catch(() => undefined),
-			)
-		}
+		if (!home) return Promise.resolve()
+		this.typingChain = this.typingChain
+			.then(async () => {
+				const names = this.members.list().filter((m) => m.status === "typing").map((m) => m.name)
+				const key = JSON.stringify(names)
+				if (key === this.typingSent) return
+				await userStub(this.env.USER, home.userId).chatTyping(home.roomId, names)
+				this.typingSent = key
+			})
+			.catch((error) => console.error(`chatTyping failed: ${error instanceof Error ? error.message : String(error)}`))
+		return this.typingChain
 	}
 
 	// The dev-only bodies live in room/dev.ts, which only a development build can load. One cached load
