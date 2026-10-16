@@ -6,7 +6,7 @@ import { error, signedIn } from "../lib/route"
 import { userStub } from "../lib/names"
 import type { RoutineResult } from "./routines"
 
-const ACTION = /^\/api\/routines\/([0-9a-f-]{36})(\/run)?$/
+const ACTION = /^\/api\/routines\/([0-9a-f-]{36})(\/run|\/cancel)?$/
 const decodeTrigger = Schema.decodeUnknownSync(Trigger)
 
 const reply = (r: RoutineResult) => (r.ok ? Response.json({ routine: r.routine, ...(r.token ? { token: r.token } : {}) }) : error(r.error === "no such routine" ? 404 : 400, r.error))
@@ -32,9 +32,8 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
 
   if (!action) {
     if (request.method === "GET") {
-      const all = await stub.listReminders()
-      const reminders = all.filter((r) => !r.trigger && r.status === "active")
-      return Response.json({ routines: all.filter((r) => r.trigger), reminders, runs: await stub.routineRuns() })
+      const routines = (await stub.listRoutines()).filter((r) => r.status === "active" || r.status === "paused")
+      return Response.json({ routines, runs: await stub.routineRuns() })
     }
     if (request.method !== "POST") return error(405, "method not allowed")
     const b = await json(request)
@@ -54,6 +53,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   if (request.method !== "POST") return error(405, "method not allowed")
   const id = action[1]
   if (id === undefined) return error(400, "need a routine id")
+  if (action[2] === "/cancel") return reply(await stub.cancelRoutine(id))
   if (action[2]) return Response.json({ delivery: await stub.runRoutine(id) })
   const b = await json(request)
   if (!b) return error(400, "expected an object")

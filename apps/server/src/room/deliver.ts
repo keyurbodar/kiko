@@ -1,6 +1,5 @@
 import type { AgentSlug, Envelope, FileRef, RoomEvent, SystemEvent, SystemReason } from "@kiko/protocol"
 import type { RoomLog } from "./log"
-import type { Chain } from "./mail"
 import type { Pending } from "./burst"
 import { type RecipientMember, resolveRecipients } from "./recipients"
 
@@ -71,19 +70,6 @@ export function withContext(log: RoomLog, e: Envelope): Envelope {
 	return lines.length ? { ...e, body: lines.join("\n") } : e
 }
 
-export type ReminderDelivery = {
-	text: string
-	target: string
-	createdBy?: string
-	chain?: Chain | null
-	recurring?: boolean
-}
-
-export function reminderChain(own: string, r: Pick<ReminderDelivery, "chain" | "createdBy" | "recurring">): Chain | null {
-	const made = r.chain ?? (r.createdBy === "human" ? { rootId: own, hop: 0 } : null)
-	return made && r.recurring ? { ...made, rootId: own, hop: 0 } : made
-}
-
 export class Deliveries {
 	constructor(
 		private readonly storage: DurableObjectStorage,
@@ -105,16 +91,6 @@ export class Deliveries {
 		return this.storage.transactionSync(() => {
 			if (this.seen(id)) return null
 			const { event } = this.log.addMessage({ from: { kind: "system", reason }, text, ...(detail ? { event: detail } : {}) })
-			this.storage.sql.exec("INSERT INTO deliveries (id, at) VALUES (?, ?)", id, Date.now())
-			return event
-		})
-	}
-
-	reminder(id: string, reminder: ReminderDelivery): RoomEvent | null {
-		return this.storage.transactionSync(() => {
-			if (this.seen(id)) return null
-			const text = reminder.target === "human" ? `reminder: ${reminder.text}` : `reminder for @${reminder.target}: ${reminder.text}`
-			const { event } = this.log.addMessage({ from: { kind: "system", reason: "reminder" }, text })
 			this.storage.sql.exec("INSERT INTO deliveries (id, at) VALUES (?, ?)", id, Date.now())
 			return event
 		})

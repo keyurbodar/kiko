@@ -1,8 +1,5 @@
 import type { RoomId, RoutineRunStatus, Trigger } from "@kiko/protocol"
-import type { Env } from "../index"
 import type { Alarms } from "@kiko/durable/alarm"
-import { roomStub } from "../lib/names"
-import type { Chain } from "../room/mail"
 import { RRule } from "rrule"
 import { sha256Hex, toHex } from "@kiko/durable/hash"
 import { getSetting, setSetting } from "../lib/settings"
@@ -11,22 +8,17 @@ import { MIN_REPEAT_MS, ruleProblem } from "@kiko/sandbox/rule"
 
 export const REMINDERS_WAKEUP = "reminders"
 export const MAX_ROUTINES = 50
-const MAX_REMINDERS = 100
 const YEAR_MS = 365 * 86_400_000
 export const RUNS_KEPT = 20
 const LATE_MS = 60 * 60_000
 export const MAX_FAILS = 3
-const WATCHES_PER_PASS = 10
 const RUNS_PER_PASS = 10
-export const MAX_WATCHES = 10
-const MAX_WATCH_ERRORS = 10
 const LOST_RUN_MS = 2 * 60 * 60_000
-const WATCH_EXCERPT = 3_000
 const RETRY_MS = 30_000
 const MAX_SKIPS = 10_000
 const MAX_TEXT = 2000
 
-// failed: a one-off reminder that could not post after MAX_FAILS tries. snooze it to try again.
+// failed is only on rows stored before reminders became routines.
 export type ReminderStatus = "active" | "paused" | "done" | "cancelled" | "failed"
 
 export type Reminder = {
@@ -43,7 +35,6 @@ export type Reminder = {
   name: string | null
   trigger: Trigger | null
   fails: number
-  chain: Chain | null
 }
 
 export type RoutineRun = { routineId: string; occurrence: string; startedAt: number; endedAt: number | null; status: RoutineRunStatus; seq: number | null }
@@ -62,24 +53,9 @@ export type RunDelivery = "delivered" | "held" | "refused" | "gone" | "duplicate
 
 export type DeliverRun = (input: { deliveryId: string; routine: Reminder; body: string }) => Promise<RunDelivery>
 
-export type WatchFetch = (trigger: Extract<Trigger, { on: "watch" }>) => Promise<{ ok: true; text: string } | { ok: false; error: string }>
-
 export type Notice = (roomId: RoomId, id: string, text: string) => Promise<void>
 
 export type RunGate = { away(): boolean }
-
-export type NewReminder = {
-  text: string
-  time: string
-  tz: string
-  rrule?: string
-  roomId: RoomId
-  target?: string
-  createdBy?: string
-  chain?: Chain
-}
-
-export type Deliver = (deliveryId: string, reminder: Reminder) => Promise<unknown>
 
 export class ReminderError extends Error {}
 
@@ -97,7 +73,6 @@ type Row = {
   name: string | null
   trigger: string | null
   fails: number
-  chain: string | null
 }
 
 const toReminder = (r: Row): Reminder => ({
@@ -114,11 +89,9 @@ const toReminder = (r: Row): Reminder => ({
   createdBy: r.created_by,
   status: r.status as ReminderStatus,
   lastFired: r.last_fired,
-  chain: r.chain ? (JSON.parse(r.chain) as Chain) : null,
 })
 
-export const deliveryId = (r: Pick<Reminder, "id" | "dueUtc">) => `${r.id}:${r.dueUtc}`
-// The one place a time is parsed, so every reminder, routine, and snooze obeys the same horizon.
+// The one place a time is parsed, so every routine obeys the same horizon.
 function parseTime(time: string, now: number): number {
   if (!/(z|[+-]\d{2}:?\d{2})$/i.test(time.trim())) throw new ReminderError("time must include an offset or z")
   const at = Date.parse(time)
@@ -140,33 +113,12 @@ export function nextAfter(rrule: string, tz: string, due: number, now: number): 
   return null
 }
 
-export type ReminderResult = { ok: true; reminder: Reminder } | { ok: false; error: string }
-
-export async function asResult(run: () => Promise<Reminder | null>): Promise<ReminderResult> {
-  try {
-    const reminder = await run()
-    return reminder ? { ok: true, reminder } : { ok: false, error: "no such reminder" }
-  } catch (e) {
-    if (e instanceof ReminderError) return { ok: false, error: e.message }
-    throw e
-  }
-}
-
-export function roomDelivery(env: Env, owner: () => string | null): Deliver {
-  return async (id, reminder) => {
-    const userId = owner()
-    if (!userId) throw new ReminderError("no owner")
-    return roomStub(env.ROOM, userId, reminder.roomId).deliverReminder(id, { text: reminder.text, target: reminder.target, createdBy: reminder.createdBy, chain: reminder.chain, recurring: reminder.rrule !== null })
-  }
-}
-
-export type RoutinePorts = { deliverRun: DeliverRun; watch: WatchFetch; notice: Notice; gate: RunGate }
+export type RoutinePorts = { deliverRun: DeliverRun; notice: Notice; gate: RunGate }
 
 export class Reminders {
   constructor(
     private readonly sql: SqlStorage,
     private readonly alarms: Alarms,
-    private readonly deliver: Deliver,
     private readonly now: () => number = Date.now,
     private readonly ports?: RoutinePorts,
     private readonly changed: () => void = () => {},
@@ -187,7 +139,7 @@ export class Reminders {
   list(): Reminder[] {
     return this.sql
       .exec<Row>(
-        "SELECT * FROM reminders ORDER BY status = 'active' DESC, CASE WHEN status = 'active' THEN due_utc ELSE -due_utc END",
+        "SELECT * FROM reminders WHERE trigger IS NOT NULL ORDER BY status = 'active' DESC, CASE WHEN status = 'active' THEN due_utc ELSE -due_utc END",
       )
       .toArray()
       .map(toReminder)
@@ -202,49 +154,6 @@ export class Reminders {
     const value = getSetting(this.sql, "owner")
     return value ? (JSON.parse(value) as string) : null
   }
-
-  async create(owner: string, input: NewReminder): Promise<Reminder> {
-    this.claim(owner, input.roomId)
-    const text = input.text.trim()
-    if (!text) throw new ReminderError("text is empty")
-    if (text.length > MAX_TEXT) throw new ReminderError("text is too long")
-    if (!validZone(input.tz)) throw new ReminderError("unknown time zone")
-    const due = parseTime(input.time, this.now())
-    const rrule = input.rrule?.trim() || null
-    if (rrule) {
-      const problem = ruleProblem(rrule)
-      if (problem) throw new ReminderError(problem)
-      try {
-        nextOccurrence(rrule, input.tz, due)
-      } catch {
-        throw new ReminderError("rrule does not parse")
-      }
-    }
-    const target = input.target?.trim() || "human"
-    if (target !== "human" && !/^[a-z0-9-]{1,32}$/.test(target)) throw new ReminderError("bad target")
-    if (rrule) checkRepeat(rrule, input.tz, due)
-    const open = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM reminders WHERE room_id = ? AND trigger IS NULL AND status = 'active'", input.roomId).one().n
-    if (open >= MAX_REMINDERS) throw new ReminderError(`this chat already has ${MAX_REMINDERS} reminders. cancel one first.`)
-    const id = crypto.randomUUID()
-    const chain = input.chain
-    this.sql.exec(
-      `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at, chain)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, ?)`,
-      id,
-      text,
-      due,
-      input.tz,
-      rrule,
-      input.roomId,
-      target,
-      input.createdBy ?? "human",
-      this.now(),
-      chain ? JSON.stringify(chain) : null,
-    )
-    await this.rearm()
-    return this.required(id)
-  }
-
 
   private claim(owner: string, roomId: string): void {
     if (this.owner() === null) {
@@ -266,9 +175,6 @@ export class Reminders {
       .exec<{ n: number }>("SELECT count(*) AS n FROM reminders WHERE room_id = ? AND target = ? AND trigger IS NOT NULL AND status IN ('active', 'paused')", input.roomId, input.target)
       .one().n
     if (open >= MAX_ROUTINES) throw new ReminderError(`@${input.target} already has ${MAX_ROUTINES} routines in this chat. cancel one first.`)
-    if (input.trigger.on === "watch" && this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM reminders WHERE status IN ('active', 'paused') AND json_extract(trigger, '$.on') = 'watch'").one().n >= MAX_WATCHES) {
-      throw new ReminderError(`there are already ${MAX_WATCHES} watches. cancel one first.`)
-    }
     const id = crypto.randomUUID()
     this.sql.exec(
       `INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at, name, trigger, fails, hook_hash)
@@ -310,18 +216,11 @@ export class Reminders {
         } else if (due < now - 1000) throw new ReminderError("that time is in the past. pick a future time.")
         return { name, text, due, rrule }
       }
-      case "watch": {
-        let url: URL
-        try {
-          url = new URL(t.url)
-        } catch {
-          throw new ReminderError("watch url is not a url")
-        }
-        if (url.protocol !== "https:" && url.protocol !== "http:") throw new ReminderError("a watch reaches http and https urls only")
-        return { name, text, due: now + 1000, rrule: null }
-      }
-      default:
+      case "message":
+      case "webhook":
         return { name, text, due: 0, rrule: null }
+      default:
+        throw new ReminderError(`its ${(t as { on: string }).on} trigger is no longer supported. give it a time, message, or webhook trigger.`)
     }
   }
 
@@ -337,7 +236,7 @@ export class Reminders {
     const due = retimed ? fields.due : current.dueUtc
     this.sql.exec(
       `UPDATE reminders SET name = ?, text = ?, trigger = ?, rrule = ?, due_utc = ?, status = ?, fails = CASE WHEN ? = 'active' THEN 0 ELSE fails END,
-       watch_state = CASE WHEN ? THEN NULL ELSE watch_state END, hook_hash = coalesce(?, hook_hash) WHERE id = ?`,
+       hook_hash = coalesce(?, hook_hash) WHERE id = ?`,
       fields.name,
       fields.text,
       JSON.stringify(trigger),
@@ -345,7 +244,6 @@ export class Reminders {
       due,
       patch.status ?? current.status,
       patch.status ?? "",
-      patch.trigger !== undefined ? 1 : 0,
       freshHash,
       id,
     )
@@ -411,18 +309,15 @@ export class Reminders {
     else this.sql.exec("UPDATE reminders SET fails = 0 WHERE id = ?", routineId)
   }
 
-  // One failed run or post. At MAX_FAILS a routine pauses and a one-off fails. The human hears once per occurrence.
+  // One failed run. At MAX_FAILS a routine pauses. The human hears once per occurrence.
   private async countFailure(id: string, occurrence: string): Promise<void> {
     this.sql.exec("UPDATE reminders SET fails = fails + 1 WHERE id = ?", id)
-    const reminder = this.get(id)
-    if (!reminder || reminder.fails < MAX_FAILS) return
-    const to = reminder.trigger ? "paused" : "failed"
-    if (!this.sql.exec("UPDATE reminders SET status = ? WHERE id = ? AND status = 'active'", to, id).rowsWritten) return
+    const routine = this.get(id)
+    if (!routine || routine.fails < MAX_FAILS) return
+    if (!this.sql.exec("UPDATE reminders SET status = 'paused' WHERE id = ? AND status = 'active'", id).rowsWritten) return
     await this.rearm()
-    const text = reminder.trigger
-      ? `routine "${reminder.name}" paused itself: its last ${MAX_FAILS} runs failed. ask @${reminder.target} to look at it, or resume it.`
-      : `reminder "${reminder.text}" did not post after ${MAX_FAILS} tries. snooze it to try again.`
-    await this.ports?.notice(reminder.roomId, `${to}:${id}:${occurrence}`, text).catch((e: unknown) => console.error(`${to} notice not sent: ${e instanceof Error ? e.message : String(e)}`))
+    const text = `routine "${routine.name}" paused itself: its last ${MAX_FAILS} runs failed. ask @${routine.target} to look at it, or resume it.`
+    await this.ports?.notice(routine.roomId, `paused:${id}:${occurrence}`, text).catch((e: unknown) => console.error(`paused notice not sent: ${e instanceof Error ? e.message : String(e)}`))
   }
 
   async runNow(id: string): Promise<RunDelivery | null> {
@@ -436,7 +331,7 @@ export class Reminders {
   async fireEvent(id: string, occurrence: string, what: string, extra: string): Promise<RunDelivery | null> {
     const routine = this.get(id)
     if (!routine?.trigger || routine.status !== "active" || !this.ports) return null
-    if (!["task", "message", "file", "webhook"].includes(routine.trigger.on)) return null
+    if (routine.trigger.on !== "message" && routine.trigger.on !== "webhook") return null
     return this.run(routine, occurrence, what, extra)
   }
 
@@ -461,13 +356,13 @@ export class Reminders {
 
   roomRoutines(roomId: string): Reminder[] {
     return this.sql
-      .exec<Row>("SELECT * FROM reminders WHERE room_id = ? AND status = 'active' AND json_extract(trigger, '$.on') IN ('task', 'message', 'file')", roomId)
+      .exec<Row>("SELECT * FROM reminders WHERE room_id = ? AND status = 'active' AND json_extract(trigger, '$.on') = 'message'", roomId)
       .toArray()
       .map(toReminder)
   }
 
   async devAge(ms: number): Promise<void> {
-    this.sql.exec("UPDATE reminders SET due_utc = max(due_utc - ?, ?) WHERE status = 'active' AND trigger IS NULL AND target != 'human' AND due_utc > 0", ms, this.now())
+    this.sql.exec("UPDATE reminders SET due_utc = max(due_utc - ?, ?) WHERE status = 'active' AND created_by != 'human' AND json_extract(trigger, '$.on') = 'time' AND rrule IS NULL AND due_utc > 0", ms, this.now())
     await this.rearm()
   }
 
@@ -500,72 +395,28 @@ export class Reminders {
     return changed.rowsWritten
   }
 
-  async snooze(id: string, time: string): Promise<Reminder | null> {
-    const due = parseTime(time, this.now())
-    const current = this.get(id)
-    if (!current || current.status === "cancelled") return null
-    if (current.trigger && current.trigger.on !== "time") throw new ReminderError("snooze works on time reminders")
-    // A paused routine stays paused: the human paused it, and its failures still count.
-    this.sql.exec(
-      "UPDATE reminders SET due_utc = ?, status = CASE WHEN status = 'paused' THEN 'paused' ELSE 'active' END, fails = CASE WHEN status = 'paused' THEN fails ELSE 0 END WHERE id = ?",
-      due,
-      id,
-    )
-    await this.rearm()
-    return this.get(id)
-  }
-
-  async rewind(id: string): Promise<Reminder | null> {
-    const changed = this.sql.exec(
-      "UPDATE reminders SET due_utc = last_fired, status = 'active' WHERE id = ? AND last_fired IS NOT NULL AND status != 'cancelled'",
-      id,
-    )
-    if (!changed.rowsWritten) return null
-    await this.rearm()
-    return this.get(id)
-  }
-
   async fire(): Promise<void> {
     const now = this.now()
     await this.alarms.setWakeup(REMINDERS_WAKEUP, now + RETRY_MS)
     const due = this.sql
-      .exec<Row>("SELECT * FROM reminders WHERE status = 'active' AND due_utc > 0 AND due_utc <= ? ORDER BY due_utc, id", now)
+      .exec<Row>("SELECT * FROM reminders WHERE status = 'active' AND trigger IS NOT NULL AND due_utc > 0 AND due_utc <= ? ORDER BY due_utc, id", now)
       .toArray()
       .map(toReminder)
     let failed = false
-    let watched = 0
     let delivered = 0
-    const away = this.ports?.gate.away() ?? false
     this.expireLostRuns()
     for (const reminder of due) {
-      let next: number | null
+      if (++delivered > RUNS_PER_PASS) {
+        failed = true
+        continue
+      }
       try {
-        if (!reminder.trigger) {
-          if ((await this.deliver(deliveryId(reminder), reminder).catch(thrownAsRefused)) === "refused") {
-            await this.countFailure(reminder.id, String(reminder.dueUtc))
-            failed = true
-            continue
-          }
-          next = nextTime(reminder, this.now())
-        } else if (reminder.trigger.on === "watch") {
-          if (!away && ++watched > WATCHES_PER_PASS) {
-            failed = true
-            continue
-          }
-          if (!away) await this.check(reminder, reminder.trigger)
-          next = nextEvery(reminder.dueUtc, reminder.trigger.everyMinutes * 60_000, this.now())
-        } else {
-          if (++delivered > RUNS_PER_PASS) {
-            failed = true
-            continue
-          }
-          if (this.now() - reminder.dueUtc <= LATE_MS) await this.run(reminder, String(reminder.dueUtc), "its scheduled time", "")
-          next = nextTime(reminder, this.now())
-        }
+        if (reminder.rrule === null || this.now() - reminder.dueUtc <= LATE_MS) await this.run(reminder, String(reminder.dueUtc), "its scheduled time", "")
       } catch {
         failed = true
         continue
       }
+      const next = nextTime(reminder, this.now())
       this.sql.exec(
         `UPDATE reminders SET last_fired = due_utc, due_utc = ?, status = ?
          WHERE id = ? AND due_utc = ? AND status = 'active'`,
@@ -575,29 +426,7 @@ export class Reminders {
         reminder.dueUtc,
       )
     }
-    await this.rearm(failed ? this.now() + (watched > WATCHES_PER_PASS || delivered > RUNS_PER_PASS ? 1_000 : RETRY_MS) : 0)
-  }
-
-  private async check(routine: Reminder, trigger: Extract<Trigger, { on: "watch" }>): Promise<void> {
-    if (!this.ports) return
-    const state = JSON.parse(this.sql.exec<{ watch_state: string | null }>("SELECT watch_state FROM reminders WHERE id = ?", routine.id).one().watch_state ?? "{}") as { fp?: string; errors?: number }
-    const save = (next: { fp?: string; errors?: number }) => this.sql.exec("UPDATE reminders SET watch_state = ? WHERE id = ?", JSON.stringify(next), routine.id)
-    const page = await this.ports.watch(trigger)
-    if (!page.ok) {
-      const errors = (state.errors ?? 0) + 1
-      save({ ...state, errors })
-      if (errors < MAX_WATCH_ERRORS) return
-      this.sql.exec("UPDATE reminders SET status = 'paused' WHERE id = ? AND status = 'active'", routine.id)
-      await this.ports.notice(routine.roomId, `watch-paused:${routine.id}:${routine.dueUtc}`, `routine "${routine.name}" paused itself: ${trigger.url} failed ${errors} checks in a row (${page.error}).`)
-      return
-    }
-    const fp = await sha256Hex(page.text)
-    if (state.fp === fp && !state.errors) return
-    if (state.fp !== undefined && state.fp !== fp) {
-      const excerpt = page.text.length > WATCH_EXCERPT ? `${page.text.slice(0, WATCH_EXCERPT)}\n[cut at ${WATCH_EXCERPT} characters]` : page.text
-      if ((await this.run(routine, `watch:${routine.dueUtc}`, `${trigger.url} changed`, `the page now:\n${excerpt}`)) === "held") return
-    }
-    save({ fp })
+    await this.rearm(failed ? this.now() + (delivered > RUNS_PER_PASS ? 1_000 : RETRY_MS) : 0)
   }
 
   private async rearm(notBefore = 0): Promise<void> {
@@ -634,10 +463,6 @@ export function nextTime(r: Pick<Reminder, "rrule" | "tz" | "dueUtc">, now: numb
   return r.rrule ? nextAfter(r.rrule, r.tz, r.dueUtc, Math.max(now, r.dueUtc + MIN_REPEAT_MS - 1)) : null
 }
 
-export function nextEvery(due: number, every: number, now: number): number {
-  return due + Math.max(1, Math.ceil((now - due + 1) / every)) * every
-}
-
 // Built from parts so the text does not depend on the host ICU version, which joins date and time differently.
 export function localTime(at: number, tz: string): string {
   const p = Object.fromEntries(
@@ -660,16 +485,12 @@ export function describeTrigger(trigger: Trigger, tz: string, due: number): stri
   switch (trigger.on) {
     case "time":
       return trigger.rrule ? `${ruleText(trigger.rrule)}, next ${localTime(due, tz)} (${tz})` : `once, ${localTime(due, tz)} (${tz})`
-    case "task":
-      return `when a task here moves to ${trigger.status?.length ? trigger.status.join(" or ") : "any status"}`
     case "message":
       return `when the human posts here${trigger.contains ? ` a message containing "${trigger.contains}"` : ""}`
-    case "file":
-      return `when a file under /${trigger.path.replace(/^\/+/, "")} changes`
     case "webhook":
       return `when its webhook gets a post${trigger.match?.length ? " that matches" : ""}`
-    case "watch":
-      return `when ${trigger.url} changes, checked every ${trigger.everyMinutes} minutes`
+    default:
+      return "a trigger kiko no longer supports. it is paused"
   }
 }
 

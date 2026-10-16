@@ -1,7 +1,7 @@
 
 import { agentTexts, newRoom, poll } from "../kit"
 import { VerifyError } from "../client"
-import { dev, ok, type Routine, runsOf, waitRuns } from "../routine-kit"
+import { api, ok, type Routine, runsOf, waitRuns } from "../routine-kit"
 import type { Suite } from "../runner"
 import { fake, send } from "./mid-run"
 
@@ -13,21 +13,6 @@ const suite: Suite = {
     // A webhook post has no session, so the Worker hands it to the one owner. The suite signs in as that owner.
     const s = await v.as("owner")
     const url = v.url
-
-    {
-      const { roomId, room } = await newRoom(s, "triggers: tasks")
-      await fake(v, s, roomId)
-      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "reviewer", instructions: "[quiet]", trigger: { on: "task", status: ["review"] } })
-      for (const n of [1, 2, 3]) room.raw.send({ t: "task", op: { op: "create", id: `t${n}`, title: `task ${n}` } })
-      await Bun.sleep(500)
-      for (const n of [1, 2, 3]) room.raw.send({ t: "task", op: { op: "update", id: `t${n}`, status: "review" } })
-      const runs = await waitRuns(url, s, routine.id, "one run for the window", (rs) => rs.some((x) => x.status !== "running"), 100_000)
-      await Bun.sleep(3_000)
-      const all = await runsOf(url, s, routine.id)
-      if (all.length !== 1 || !all[0]?.occurrence.startsWith("event:")) throw new VerifyError(`expected one event run, got ${JSON.stringify(all)}`)
-      console.log(`  ok three task changes made one run (${runs[0]?.occurrence}, ${runs[0]?.status})`)
-      room.raw.close()
-    }
 
     {
       const { roomId, room } = await newRoom(s, "triggers: messages")
@@ -45,17 +30,12 @@ const suite: Suite = {
     }
 
     {
-      const { roomId, room } = await newRoom(s, "triggers: files")
-      await fake(v, s, roomId)
-      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "report reader", instructions: "[quiet]", trigger: { on: "file", path: "reports" } })
-      const put = (path: string) => s.putFile(roomId, path, `hello ${path}`)
-      const elsewhere = await put("notes/a.txt")
-      if (!elsewhere.ok) throw new VerifyError(`upload answered ${elsewhere.status}`)
-      const inside = await put("reports/q3.txt")
-      if (!inside.ok) throw new VerifyError(`upload answered ${inside.status}`)
-      const runs = await waitRuns(url, s, routine.id, "the file run", (rs) => rs.some((x) => x.status !== "running"), 100_000)
-      if (runs.length !== 1) throw new VerifyError(`expected one run, got ${JSON.stringify(runs)}`)
-      console.log("  ok an upload under /reports ran the routine once; one under /notes did not add a run")
+      const { roomId, room } = await newRoom(s, "triggers: cut")
+      for (const trigger of [{ on: "task" }, { on: "file", path: "reports" }, { on: "watch", url: "https://example.com", everyMinutes: 15 }]) {
+        const out = await api<unknown>(url, s, "routines", { roomId, name: "cut", instructions: "[quiet]", trigger })
+        if (out.status !== 400) throw new VerifyError(`a ${trigger.on} routine answered ${out.status}, not 400`)
+      }
+      console.log("  ok task, file, and watch routines are refused")
       room.raw.close()
     }
 
@@ -88,40 +68,10 @@ const suite: Suite = {
       await Bun.sleep(3_000)
       const runs = await runsOf(url, s, made.routine.id)
       if (runs.length !== 1) throw new VerifyError(`a repeated or unmatched post ran again: ${JSON.stringify(runs)}`)
-      await ok(url, s, `reminders/${made.routine.id}/cancel`, {})
+      await ok(url, s, `routines/${made.routine.id}/cancel`, {})
       const gone = await hook(payload, { "x-github-delivery": "d-3" })
       if (gone.status !== 404) throw new VerifyError(`a cancelled routine's hook answered ${gone.status}`)
       console.log(`  ok a matching post ran once and used fake_send; repeat, mismatch, 70 KB, unknown token, and a cancelled hook answered ${JSON.stringify(answers)}, 404`)
-      room.raw.close()
-    }
-
-    {
-      const { roomId, room } = await newRoom(s, "triggers: watch")
-      await fake(v, s, roomId)
-      let page = "<html><body><p>price: 100</p></body></html>"
-      let hits = 0
-      const server = Bun.serve({
-        port: 0,
-        fetch: () => {
-          hits++
-          return new Response(page, { headers: { "content-type": "text/html" } })
-        },
-      })
-      try {
-        const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "price watch", instructions: "[quiet]", trigger: { on: "watch", url: `http://fixture-${server.port}.preview.test/item`, everyMinutes: 15 } })
-        await poll("the first check", () => hits >= 1, 20_000)
-        await dev(url, s, "due", { id: routine.id })
-        await poll("the second check", () => hits >= 2, 20_000)
-        await Bun.sleep(2_000)
-        if ((await runsOf(url, s, routine.id)).length) throw new VerifyError("an unchanged page woke the agent")
-        page = "<html><body><p>price: 80</p></body></html>"
-        await dev(url, s, "due", { id: routine.id })
-        const runs = await waitRuns(url, s, routine.id, "the change run", (rs) => rs.some((x) => x.status !== "running"), 40_000)
-        if (runs.length !== 1 || !runs[0]?.occurrence.startsWith("watch:")) throw new VerifyError(`expected one watch run, got ${JSON.stringify(runs)}`)
-        console.log(`  ok ${hits} checks without a model; only the change ran the routine (${runs[0]?.status})`)
-      } finally {
-        server.stop(true)
-      }
       room.raw.close()
     }
   },

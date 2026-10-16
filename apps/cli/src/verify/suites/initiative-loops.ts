@@ -34,11 +34,10 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   const base = v.url
   const loops = async () => ((await dev(v.url, s.auth, "loops", {})) as { loops: Loop[] }).loops
   const reminders = async () => {
-    const res = await fetch(new URL("api/reminders", base), { headers: { authorization: s.auth } })
-    if (!res.ok) throw new VerifyError(`GET api/reminders answered ${res.status}`)
-    return (await res.json()) as { text: string; target: string }[]
+    const res = await fetch(new URL("api/routines", base), { headers: { authorization: s.auth } })
+    if (!res.ok) throw new VerifyError(`GET api/routines answered ${res.status}`)
+    return ((await res.json()) as { routines: { text: string; target: string }[] }).routines
   }
-  const humanReminders = async () => (await reminders()).filter((r) => r.target === "human")
   const initiative = async (roomId: string) => ((await dev(v.url, s.auth, "initiative", { roomId })) as { text: string | null }).text ?? ""
   const usage = async (roomId: string) => (await dev(v.url, s.auth, "usage", { roomId })) as { agent: Record<string, number>; memory: Record<string, number> }
   const show = (l: Loop) => `L${l.id} ${l.status} ${l.kind}/${l.certainty} owner=${l.owner} via ${l.source}${l.due ? ` due ${l.due}` : ""}: ${l.text}`
@@ -63,8 +62,8 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   const owed = await poll("a commitment loop the agent owns", async () => (await loops()).find((l) => l.status === "open" && l.owner !== "human"), 30_000)
   console.log(`  [${stamp()}] promise -> ${show(owed)}`)
   console.log(`  [${stamp()}] reminders now: ${JSON.stringify((await reminders()).map((r) => `${r.target}: ${r.text}`))}`)
-  const asked = await humanReminders()
-  if (asked.length) throw new VerifyError(`a tentative plan or deadline made a reminder: ${JSON.stringify(asked)}`)
+  const asked = await reminders()
+  if (asked.length) throw new VerifyError(`a tentative plan or deadline made a routine: ${JSON.stringify(asked)}`)
 
   let reply = await say(work, "Finally done with the grant report, sent it this morning!")
   console.log(`  [${stamp()}] agent: ${reply.slice(0, 160)}`)

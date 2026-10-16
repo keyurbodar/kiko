@@ -7,12 +7,11 @@ import { describeTrigger, type Reminder, type RoutineRun, type RunDelivery } fro
 import type { RoutineResult } from "../../user/routines"
 import { declareEffect } from "@kiko/agent/effects"
 
-export const REMINDERS = "reminders"
+export const ROUTINES = "routines"
 
-export type RemindersPort = {
-  create(input: { text: string; time: string; tz?: string; rrule?: string; target?: string }): Promise<{ ok: true; reminder: Reminder } | { ok: false; error: string }>
+export type RoutinesPort = {
   list(): Promise<Reminder[]>
-  cancel(id: string): Promise<{ ok: true } | { ok: false; error: string }>
+  cancel(id: string): Promise<RoutineResult>
   createRoutine(input: { name: string; instructions: string; trigger: Trigger; target?: string }): Promise<RoutineResult>
   updateRoutine(id: string, patch: { name?: string; instructions?: string; trigger?: Trigger; status?: "active" | "paused" }): Promise<RoutineResult>
   runRoutine(id: string): Promise<RunDelivery | null>
@@ -22,9 +21,9 @@ export type RemindersPort = {
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
-const SHAPES = "shapes: {on:'time',at:'<iso with offset>',rrule?} | {on:'task',status?:['review']} | {on:'message',contains?} | {on:'file',path} | {on:'webhook',match?} | {on:'watch',url,everyMinutes:15 or more}"
+const SHAPES = "shapes: {on:'time',at:'<iso with offset>',rrule?} | {on:'message',contains?} | {on:'webhook',match?}"
 
-function tidyTrigger(value: unknown): unknown {
+function tidyTrigger(value: unknown, now = Date.now()): unknown {
   let v = value
   if (typeof v === "string") {
     try {
@@ -36,8 +35,9 @@ function tidyTrigger(value: unknown): unknown {
   if (!v || typeof v !== "object" || Array.isArray(v)) return v
   const out: Record<string, unknown> = {}
   for (const [k, x] of Object.entries(v)) if (x !== null && x !== undefined && x !== "") out[k] = x
-  if (typeof out.status === "string") out.status = [out.status]
-  if (typeof out.everyMinutes === "string" && out.everyMinutes.trim() !== "") out.everyMinutes = Number(out.everyMinutes)
+  const seconds = out.in_seconds
+  delete out.in_seconds
+  if (out.on === "time" && out.at === undefined && typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0) out.at = new Date(now + seconds * 1000).toISOString()
   return out
 }
 
@@ -46,7 +46,7 @@ function otherAgent(agent: string | undefined): string | undefined {
   return handle && !["you", "me", "self", "myself", "yourself", "default", "none"].includes(handle) ? handle : undefined
 }
 
-function parseTrigger(value: unknown): Trigger | string {
+export function parseTrigger(value: unknown): Trigger | string {
   try {
     return decodeTrigger(tidyTrigger(value)) as Trigger
   } catch (e) {
@@ -61,54 +61,21 @@ const routineLine = (r: Reminder, runs: RoutineRun[]) => {
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
 
-export function whenOf(args: { time_iso?: string; in_seconds?: number }, now = Date.now()): string | null {
-  if (typeof args.in_seconds === "number" && Number.isFinite(args.in_seconds) && args.in_seconds > 0) return new Date(now + args.in_seconds * 1000).toISOString()
-  if (args.time_iso && !Number.isNaN(Date.parse(args.time_iso))) return args.time_iso
-  return null
-}
-
-const line = (r: Reminder, tz: string) =>
-  `${r.id}: "${r.text}" for ${r.target === "human" ? "the human" : `@${r.target}`} at ${new Date(r.dueUtc).toLocaleString("en-US", { timeZone: tz })}${r.rrule ? ` (repeats ${r.rrule})` : ""}`
-
-export function remindersExtension(port: () => RemindersPort | null, tz: () => string): Extension {
+export function routinesExtension(port: () => RoutinesPort | null): Extension {
   const user = () => {
     const p = port()
     if (!p) throw new Error("this agent is not in a room yet")
     return p
   }
   return defineExtension({
-    name: REMINDERS,
+    name: ROUTINES,
     tools: [
-      declareEffect(
-        "write",
-        defineTool({
-          name: "create_reminder",
-          description:
-            "schedule a reminder when the human wants one, or for yourself to keep a promise. never because they mention a deadline, plan, or wait; those are kept without you. say nothing about it unless they asked. for the human by default (it shows in this chat), or for yourself or a teammate with target (it wakes them). give in_seconds for relative times like 'in 10 minutes', or time_iso with an offset for a clock time. rrule (RFC 5545, like FREQ=DAILY) repeats it. never use a reminder to talk with another agent: message the agent with send_message.",
-          parameters: Type.Object({
-            text: Type.String({ description: "what to remind about, short" }),
-            in_seconds: Type.Optional(Type.Number({ description: "seconds from now" })),
-            time_iso: Type.Optional(Type.String({ description: "ISO 8601 with Z or an offset" })),
-            rrule: Type.Optional(Type.String({ description: "RFC 5545 rule, e.g. FREQ=WEEKLY;BYDAY=MO" })),
-            target: Type.Optional(Type.String({ description: "human (default), or an agent slug in this room" })),
-          }),
-          replay: "unsafe",
-          execute: async (args) => {
-            const time = whenOf(args)
-            if (!time) return { content: text("give in_seconds (a positive number) or a valid time_iso."), isError: true }
-            if (Date.parse(time) < Date.now() - 1000) return { content: text("that time is in the past. pick a future time."), isError: true }
-            const out = await user().create({ text: args.text, time, tz: tz(), rrule: args.rrule, target: args.target?.replace(/^@/, "") })
-            if (!out.ok) return { content: text(`not scheduled: ${out.error}`), isError: true }
-            return { content: text(`scheduled ${line(out.reminder, tz())}`) }
-          },
-        }),
-      ),
       declareEffect(
         "write",
         defineTool({
           name: "create_routine",
           description:
-            "give an agent in this chat a standing job that runs on its own and answers here. use it whenever the human wants something done on a schedule (every day, each monday) or when something happens (whenever, when a task, if a page changes); saying \"got it\" sets nothing. triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and tell them which zone you used; never ask for a zone first); {on:'task', status?:['blocked']} when a task here changes; {on:'message', contains?} when the human posts here (agent messages never match; never make a routine or reminder to talk with another agent, message the agent with send_message); {on:'file', path:'invoices'} when files under a folder change; {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service; {on:'watch', url, everyMinutes>=15} to notice a page change, which checks without running you, so use it instead of a frequent schedule. a plain one-off nudge for the human is create_reminder.",
+            "give an agent in this chat a job that runs on its own and answers here. use it whenever the human wants a reminder, or something done on a schedule (every day, each monday) or when something happens (whenever they post, a service posts to a webhook); saying \"got it\" sets nothing. a reminder is a routine that runs once: trigger {on:'time', in_seconds:600} or {on:'time', at:'<iso with offset>'}, and instructions that say what to tell the human. triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and tell them which zone you used; never ask for a zone first); {on:'message', contains?} when the human posts here (agent messages never match; never make a routine to talk with another agent, message the agent with send_message); {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service. to come back to something yourself later, make a one-time routine for yourself.",
           parameters: Type.Object({
             name: Type.String({ description: "short, lowercase" }),
             instructions: Type.String({ description: "what to do each run, and what to do when a source is missing" }),
@@ -131,7 +98,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
         "write",
         defineTool({
           name: "update_routine",
-          description: "change, pause, resume, or run now a routine by its id from list_reminders.",
+          description: "change, pause, resume, or run now a routine by its id from list_routines.",
           parameters: Type.Object({
             id: Type.String(),
             name: Type.Optional(Type.String()),
@@ -166,14 +133,14 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
       declareEffect(
         "read",
         defineTool({
-          name: "list_reminders",
-          description: "list the reminders and routines in this chat, with each routine's last run.",
+          name: "list_routines",
+          description: "list the routines in this chat, with each routine's last run.",
           parameters: Type.Object({}),
           replay: "safe",
           execute: async () => {
-            const all = (await user().list()).filter((r) => r.status === "active" || (r.trigger && r.status === "paused"))
-            const lines = await Promise.all(all.map(async (r) => (r.trigger ? routineLine(r, await user().runs(r.id)) : line(r, tz()))))
-            return { content: text(lines.length ? lines.join("\n") : "no reminders or routines") }
+            const all = (await user().list()).filter((r) => r.status === "active" || r.status === "paused")
+            const lines = await Promise.all(all.map(async (r) => routineLine(r, await user().runs(r.id))))
+            return { content: text(lines.length ? lines.join("\n") : "no routines") }
           },
         }),
       ),
@@ -193,8 +160,8 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
       declareEffect(
         "write",
         defineTool({
-          name: "cancel_reminder",
-          description: "cancel a reminder or routine by its id from list_reminders.",
+          name: "cancel_routine",
+          description: "cancel a reminder or routine by its id from list_routines.",
           parameters: Type.Object({ id: Type.String() }),
           replay: "safe",
           execute: async ({ id }) => {

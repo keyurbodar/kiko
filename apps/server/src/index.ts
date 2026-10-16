@@ -14,7 +14,6 @@ import type { UserDO } from "./user/user-do"
 import { hooksRoute } from "./user/hooks-route"
 import { loopsRoute } from "./user/loops-route"
 import { routinesRoute } from "./user/routines-route"
-import { remindersRoute } from "./user/reminders-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
 import { recipesRoute } from "./recipes/route"
@@ -45,8 +44,6 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (routed) return routed
     const credentials = await credentialsRoute(request, env)
     if (credentials) return credentials
-    const reminders = await remindersRoute(request, env)
-    if (reminders) return reminders
     const hooked = await hooksRoute(request, env)
     if (hooked) return hooked
     const routines = await routinesRoute(request, env)

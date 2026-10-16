@@ -73,7 +73,7 @@ export async function devInitiative(engine: () => InitiativeEngine, reminders: R
   if (op.action === "pass") return e.pass()
   if (op.action === "state") return e.devState()
   e.devAge(op.ms)
-  // A reminder an agent set for itself ages with the clock, and fires once the aging reaches it.
+  // A one-shot routine an agent set ages with the clock, and fires once the aging reaches it.
   await reminders.devAge(op.ms)
   return { at: await e.arm() }
 }

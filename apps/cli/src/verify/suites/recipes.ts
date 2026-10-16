@@ -85,7 +85,7 @@ const suite: Suite = {
     const removed = await api(url, s, `recipes/${install.installId}`, undefined, "DELETE")
     if (removed.status !== 200 || (await mine()).some((r) => r.id === routine.id)) throw new VerifyError("removing an install left its routine running")
     const readded = await ok<{ install: RecipeInstall }>(url, s, "recipes", { ...body, installId: crypto.randomUUID() })
-    await ok(url, s, `reminders/${(await mine()).find((r) => r.name === "morning briefing")?.id}/cancel`, {})
+    await ok(url, s, `routines/${(await mine()).find((r) => r.name === "morning briefing")?.id}/cancel`, {})
     if ((await ok<RecipeList>(url, s, "recipes")).installs.some((i) => i.installId === readded.install.installId)) throw new VerifyError("cancelling the last routine left the install behind")
     console.log("  ok removal stopped the routine, and cancellation cleared its install")
 

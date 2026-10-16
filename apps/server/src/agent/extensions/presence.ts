@@ -35,10 +35,11 @@ export function describeCall(name: string, args: Record<string, unknown>): Descr
       return tool(name, "reading a web page")
     case "start_work":
       return tool(name, "starting background work")
-    case "create_reminder":
-    case "list_reminders":
-    case "cancel_reminder":
-      return tool(name, "handling a reminder")
+    case "create_routine":
+    case "update_routine":
+    case "list_routines":
+    case "cancel_routine":
+      return tool(name, "handling a routine")
     case "create_agent":
     case "create_group":
       return tool(name, "setting up agents")

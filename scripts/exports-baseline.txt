@@ -13,11 +13,9 @@ apps/server/src/agent/dev-fake.ts:SLOW_TOOL_MS
 apps/server/src/agent/dev-fake.ts:fakeReply
 apps/server/src/agent/extensions/files.ts:MAX_PDF_BYTES
 apps/server/src/agent/extensions/messaging.ts:ASK_WAIT_MS
-apps/server/src/agent/extensions/reminders.ts:whenOf
 apps/server/src/agent/extensions/self.ts:SELF
 apps/server/src/agent/factory.ts:BuiltAgent
 apps/server/src/agent/factory.ts:RunAuth
-apps/server/src/agent/factory.ts:forTalker
 apps/server/src/agent/factory.ts:workerOnly
 apps/server/src/agent/outbox.ts:DRAFT_INTERVAL_MS
 apps/server/src/agent/prompt.ts:SectionKey
@@ -36,7 +34,6 @@ apps/server/src/files/room-fs.ts:SOUL_PATH
 apps/server/src/files/upload.ts:MAX_FILE_BYTES
 apps/server/src/integrations/composio/client.ts:ComposioResultBlock
 apps/server/src/integrations/composio/store.ts:SavedListing
-apps/server/src/integrations/composio/tools.ts:fillFlags
 apps/server/src/integrations/composio/tools.ts:relaxSchema
 apps/server/src/integrations/kernel/client.ts:CreatedBrowser
 apps/server/src/integrations/kernel/client.ts:KernelErrorKind
@@ -84,14 +81,11 @@ apps/server/src/user/memory-capture.ts:MemoryDeps
 apps/server/src/user/provider-login.ts:LoginDeps
 apps/server/src/user/provider-login.ts:MAX_LOGINS
 apps/server/src/user/provider-login.ts:hasSignIn
-apps/server/src/user/reminders.ts:Deliver
 apps/server/src/user/reminders.ts:MAX_ROUTINES
-apps/server/src/user/reminders.ts:MAX_WATCHES
 apps/server/src/user/reminders.ts:RUNS_KEPT
 apps/server/src/user/reminders.ts:ReminderStatus
 apps/server/src/user/reminders.ts:RoutinePorts
 apps/server/src/user/reminders.ts:RunGate
-apps/server/src/user/reminders.ts:WatchFetch
 apps/server/src/user/reminders.ts:nextAfter
 apps/server/src/user/reminders.ts:nextTime
 apps/server/src/user/reminders.ts:routineBody

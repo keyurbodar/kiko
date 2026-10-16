@@ -3,7 +3,7 @@ import { iconFor } from "./icons"
 import type { Recipe } from "./recipe"
 
 /** The toolkit slug Composio uses for an app name: "Google Calendar" is "googlecalendar". */
-const toolkitSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "")
+export const toolkitSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "")
 
 /** `connected` is null for every app when Composio cannot say which apps are connected. */
 export function recipeCard(r: Recipe, custom: boolean, connected: ReadonlySet<string> | null): RecipeCard {

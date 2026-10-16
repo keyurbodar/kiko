@@ -11,14 +11,18 @@ import { sqlWith } from "./sql-shim"
 
 const roomId = "01J0000000000000000000000R" as RoomId
 const rule = "FREQ=DAILY;BYHOUR=7;BYMINUTE=55"
-const makeRecipe = (every = rule, run = "follow the tea-time skill.") => parseRecipe(`---\ntitle: Tea time\ndescription: Take a break.\nwhen: Daily\ntriggers:\n  - every: ${every}\n    run: ${run}\n---\nHave tea.`, "tea-time")
+const makeRecipe = (every = rule, run = "follow the tea-time skill.", apps = "") => parseRecipe(`---\ntitle: Tea time\ndescription: Take a break.\nwhen: Daily\n${apps}triggers:\n  - every: ${every}\n    run: ${run}\n---\nHave tea.`, "tea-time")
 
-function setup() {
+type Have = ReadonlySet<string> | "off" | null
+
+function setup(apps = "", have: Have = new Set()) {
   const sql = sqlWith(USER_STEPS)
   for (const id of [roomId, "01J0000000000000000000000S"]) sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'Test', 0)", id)
-  let recipes = [makeRecipe()]
+  let recipes = [makeRecipe(rule, "follow the tea-time skill.", apps)]
+  let connected: Have = have
+  const linked: string[] = []
   let inherited = ""
-  const reminders = new Reminders(sql, { setWakeup: async () => {}, clearWakeup: async () => {}, dueWakeups: async () => [] }, async () => {})
+  const reminders = new Reminders(sql, { setWakeup: async () => {}, clearWakeup: async () => {}, dueWakeups: async () => [] })
   const library = { read: async () => ({ recipes, custom: new Set<string>(), broken: [] }), edit: async () => null, retireSeeded: async () => {} } as unknown as RecipeLibrary
   let service: RecipeService
   service = new RecipeService({
@@ -38,6 +42,13 @@ function setup() {
       return createAgent(sql, { id: crypto.randomUUID(), name, slug: handle as never, prompt: description, model }, 0)
     },
     openChat: async () => "01J0000000000000000000000S" as RoomId,
+    composio: {
+      connected: async () => connected,
+      link: async (app) => {
+        linked.push(app)
+        return `https://connect.example/${app}`
+      },
+    },
     announce: async () => "delivered",
   })
   return {
@@ -45,6 +56,10 @@ function setup() {
     service,
     reminders,
     inherited: () => inherited,
+    linked,
+    connect: (next: Have) => {
+      connected = next
+    },
     setRecipes: (next: typeof recipes) => {
       recipes = next
     },
@@ -148,4 +163,43 @@ test("installing a recipe into its own chat twice reuses the agent, whatever the
   expect(f.sql.exec("SELECT count(*) AS n FROM agents").one().n).toBe(1)
   expect(f.reminders.list().filter((r) => r.status === "active")).toHaveLength(1)
   expect(createAgent(f.sql, { id: "x", name: " TEA time ", slug: "other" as never, prompt: "", model: "" }, 0)).toBeNull()
+})
+
+test("an add that needs an app that is not connected makes nothing and answers with its link", async () => {
+  const f = setup("apps: [Gmail, Google Calendar]\n", new Set(["gmail"]))
+  const id = crypto.randomUUID()
+  const input = { installId: id, slug: "tea-time", roomId, agent: "kiko" }
+  const out = await f.service.install(input)
+  expect(out).toEqual({ ok: false, needsConnect: { state: "needs_connect", links: [{ app: "Google Calendar", url: "https://connect.example/Google Calendar" }] } })
+  expect(f.reminders.list()).toHaveLength(0)
+  expect(f.sql.exec("SELECT count(*) AS n FROM recipe_installs").one().n).toBe(0)
+  f.connect(new Set(["gmail", "googlecalendar"]))
+  const done = await f.service.install(input)
+  expect(done).toMatchObject({ ok: true, existed: false })
+  expect(f.reminders.list()).toHaveLength(1)
+})
+
+test("an own-chat add with a missing app makes no agent and no chat", async () => {
+  const f = setup("apps: [Gmail]\n")
+  const out = await f.service.install({ installId: crypto.randomUUID(), slug: "tea-time", own: true })
+  expect(out).toMatchObject({ ok: false, needsConnect: { state: "needs_connect" } })
+  expect(f.inherited()).toBe("")
+  expect(f.sql.exec("SELECT count(*) AS n FROM agents WHERE slug = 'tea'").one().n).toBe(0)
+})
+
+test("with no Composio key an add answers needs_connect with a reason and no links", async () => {
+  const f = setup("apps: [Gmail]\n", "off")
+  const out = await f.add()
+  if (out.ok || !("needsConnect" in out)) throw new Error("expected needs_connect")
+  expect(out.needsConnect.links).toEqual([])
+  expect(out.needsConnect.reason).toContain("Composio key")
+  expect(f.linked).toEqual([])
+  expect(f.reminders.list()).toHaveLength(0)
+})
+
+test("a recipe whose apps are all connected, or that needs none, installs as before", async () => {
+  expect(await setup("apps: [Gmail]\n", new Set(["gmail"])).add()).toMatchObject({ ok: true })
+  const none = setup("", "off")
+  expect(await none.add()).toMatchObject({ ok: true })
+  expect(none.linked).toEqual([])
 })
