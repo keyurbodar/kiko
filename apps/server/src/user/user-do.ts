@@ -998,7 +998,12 @@ export class UserDO extends DurableObject<Env> {
 
   async userSettings(): Promise<UserSettings> {
     const timezone = this.setting("timezone")
-    return { initiative: this.#il.level(), capture: this.#mem.policy().capture, ...(timezone ? { timezone } : {}) }
+    return {
+      initiative: this.#il.level(),
+      capture: this.#mem.policy().capture,
+      ...(timezone ? { timezone } : {}),
+      ...(this.setting("onboarded") ? { onboarded: true } : {}),
+    }
   }
 
   async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
@@ -1012,6 +1017,7 @@ export class UserDO extends DurableObject<Env> {
       await this.#il.engine.arm()
     }
     if (patch.capture) this.#mem.setCapture(patch.capture)
+    if (patch.onboarded) this.putSetting("onboarded", "1")
     return this.userSettings()
   }
 }

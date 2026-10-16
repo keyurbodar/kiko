@@ -19,7 +19,7 @@ export function Welcome() {
         Text one agent or a team of them. It reads what you send, works in the background, and answers like a person.
       </p>
       <div class="w-full max-w-72" style={{ "--i": 2 }}>
-        <button type="button" class={primary} data-action="get-started" onClick={getStarted} ref={(el) => queueMicrotask(() => el.focus())}>
+        <button type="button" class={primary} data-action="get-started" onClick={getStarted}>
           Get started
         </button>
       </div>

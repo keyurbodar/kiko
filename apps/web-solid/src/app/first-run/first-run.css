@@ -3,8 +3,8 @@
  * every layer still. Colors come from the theme: lines from --foreground, the glow from the accent (--ring).
  */
 .welcome {
-  --welcome-top: max(40px, 9dvh);
-  --welcome-size: 128px;
+  --welcome-top: max(40px, 14dvh);
+  --welcome-size: 152px;
   --welcome-cy: calc(var(--welcome-top) + var(--welcome-size) / 2);
   --welcome-line: color-mix(in oklab, var(--foreground) 7%, transparent);
   --welcome-line-strong: color-mix(in oklab, var(--foreground) 12%, transparent);
@@ -85,6 +85,7 @@
 }
 .welcome-stage > * {
   position: absolute;
+  max-width: none;
 }
 
 .welcome-glow {

@@ -29,6 +29,8 @@ export interface Facts {
   /** The server has answered whether any model provider is connected. */
   known: boolean
   connected: boolean
+  /** The server says first run was finished or skipped, on this device or another. */
+  onboarded: boolean
 }
 
 export function stepFor(f: Facts): Step {
@@ -39,7 +41,7 @@ export function stepFor(f: Facts): Step {
   if (f.saved === "done") return "done"
   if (f.saved === "connect") return f.connected ? "model" : "connect"
   if (f.saved === "model") return "model"
-  if (f.known) return f.connected ? "done" : "connect"
+  if (f.known) return f.connected || f.onboarded ? "done" : "connect"
   return f.fresh ? "connect" : "done"
 }
 

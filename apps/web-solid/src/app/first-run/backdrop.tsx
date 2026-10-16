@@ -50,7 +50,7 @@ export function Backdrop(props: { busy: boolean }) {
           <circle class="welcome-satellite" cx="0" cy="276" r="2" />
         </svg>
         <svg class="welcome-ticks" viewBox="-160 -160 320 320">
-          <path d={[plus(-150, -150), plus(150, -150), plus(-150, 150), plus(150, 150)].join("")} />
+          <path d={[plus(-124, -124), plus(124, -124), plus(-124, 124), plus(124, 124)].join("")} />
         </svg>
         <Show when={props.busy}>
           <i class="welcome-pulse" />

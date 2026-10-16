@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { advance, indexOf, stepFor, type Facts } from "./steps"
 
-const base: Facts = { signedIn: true, hosted: false, started: false, needsBackend: false, saved: null, fresh: false, known: false, connected: false }
+const base: Facts = { signedIn: true, hosted: false, started: false, needsBackend: false, saved: null, fresh: false, known: false, connected: false, onboarded: false }
 const at = (over: Partial<Facts>) => stepFor({ ...base, ...over })
 
 describe("stepFor", () => {
@@ -53,6 +53,11 @@ describe("stepFor", () => {
 
   test("a finished or skipped first run stays finished even with no key", () => {
     expect(at({ saved: "done", known: true })).toBe("done")
+  })
+
+  test("a skip the server remembers holds in a browser that saved nothing", () => {
+    expect(at({ known: true, onboarded: true })).toBe("done")
+    expect(at({ known: true, onboarded: false })).toBe("connect")
   })
 })
 

@@ -44,7 +44,7 @@ export default function FirstRun() {
         <Backdrop busy={working()} />
         <div class="relative flex flex-col items-center px-4 pb-12 pt-[var(--welcome-top)]">
           <Mascot />
-          <div class="mt-12 flex w-full max-w-[400px] flex-col gap-3">
+          <div class={`flex w-full max-w-[400px] flex-col gap-3 ${currentStep() === "welcome" ? "mt-24" : "mt-16"}`}>
             <Show when={at() >= 0}>
               <ol class="welcome-steps welcome-step flex items-center justify-center gap-4" aria-label="Setup progress">
                 <For each={STEPS}>

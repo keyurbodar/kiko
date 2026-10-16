@@ -1,4 +1,5 @@
 import { createEffect, createRoot, createSignal } from "solid-js"
+import { apiFetch } from "../../lib/api"
 import { connectedProviders } from "../../settings/connected"
 import { listProviders } from "../../settings/credentials"
 import { hasModelProvider } from "../../settings/provider-kinds"
@@ -29,7 +30,7 @@ const userId = () => {
 }
 
 const [saved, setSaved] = createSignal<{ userId: string; step: Step | null } | null>(null)
-const [probe, setProbe] = createSignal<{ userId: string; connected: boolean } | null>(null)
+const [probe, setProbe] = createSignal<{ userId: string; connected: boolean; onboarded: boolean } | null>(null)
 const [fresh, setFresh] = createSignal(false)
 
 /** A browser that has signed in before skips the welcome cover and opens on sign in. */
@@ -75,6 +76,7 @@ export function currentStep(): Step {
     fresh: fresh(),
     known,
     connected: hasModelProvider(connectedProviders()) || (known && probe()!.connected),
+    onboarded: known && probe()!.onboarded,
   })
 }
 
@@ -84,6 +86,16 @@ export function move(how: Move): void {
   const step = advance(currentStep(), how)
   write(id, step)
   setSaved({ userId: id, step })
+  if (step === "done") void remember()
+}
+
+/** Tells the server first run is over, so a browser with nothing saved, or another device, skips it too. */
+const remember = () =>
+  apiFetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ onboarded: true }) }).catch(() => {})
+
+async function onboardedOnServer(): Promise<boolean> {
+  const res = await apiFetch("/api/settings")
+  return res.ok && ((await res.json()) as { onboarded?: unknown }).onboarded === true
 }
 
 createRoot(() => {
@@ -91,8 +103,8 @@ createRoot(() => {
   createEffect(() => {
     const id = userId()
     if (!id || savedStep() || probe()?.userId === id) return
-    void listProviders()
-      .then((list) => setProbe({ userId: id, connected: hasModelProvider(list) }))
+    void Promise.all([listProviders(), onboardedOnServer()])
+      .then(([list, onboarded]) => setProbe({ userId: id, connected: hasModelProvider(list), onboarded }))
       .catch(() => {})
   })
   // Remember the step, so a reload resumes it and a finished first run stays finished.
