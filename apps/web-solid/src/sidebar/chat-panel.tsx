@@ -34,6 +34,7 @@ const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
 export const ROW_H = 52
+const SKELETON_ROWS = [62, 48, 70, 54, 66, 44]
 
 export function rowStamp(updatedAt: number, now: number): string {
   const delta = now - updatedAt
@@ -426,6 +427,7 @@ export function ChatPanel() {
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
   const muted = createMemo(() => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
   const active = () => useApp.activeThreadId()
+  const loading = () => all().length === 0 && !!useApp.user()?.state.loaded && !useApp.user()?.state.synced
 
   return (
     <div class="chat-panel" data-component="sidebar-chats">
@@ -450,6 +452,21 @@ export function ChatPanel() {
       <Show when={shown().length === 0 && (query() !== "" || unreadOnly())}>
         <div class="flex flex-col items-center gap-2 py-6" data-component="sidebar-empty">
           <p class="text-xs text-muted-foreground">No chats match</p>
+        </div>
+      </Show>
+      <Show when={loading()}>
+        <div class="chat-skeleton-list" data-component="sidebar-skeleton" aria-hidden="true">
+          <For each={SKELETON_ROWS}>
+            {(width) => (
+              <div class="chat-skeleton-row">
+                <span class="chat-skeleton chat-skeleton-avatar motion-skeleton" />
+                <span class="chat-skeleton-text">
+                  <span class="chat-skeleton motion-skeleton" style={{ width: `${width}%` }} />
+                  <span class="chat-skeleton motion-skeleton" style={{ width: `${width - 20}%` }} />
+                </span>
+              </div>
+            )}
+          </For>
         </div>
       </Show>
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">

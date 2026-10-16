@@ -1,4 +1,5 @@
-import { attachmentToken, fileName, linkTarget } from "@kiko/protocol"
+import { attachmentToken } from "@kiko/protocol"
+import { fileRefToken } from "./file-ref"
 export type Json = {
   type: string
   attrs?: Record<string, unknown>
@@ -137,11 +138,6 @@ function sameMark(head: Json, node: Json, mark: string): boolean {
   const a = head.marks?.find((m) => m.type === mark)
   const b = node.marks?.find((m) => m.type === mark)
   return !!b && JSON.stringify(a?.attrs ?? null) === JSON.stringify(b.attrs ?? null)
-}
-
-/** A workspace file as text: a link to its path, which the agent reads and the bubble draws as a chip. */
-export function fileRefToken(path: string): string {
-  return `[${fileName(path).replace(/[[\]\n\\]/g, "")}](${linkTarget(`/${path}`)})`
 }
 
 function leaf(node: Json): string {

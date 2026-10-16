@@ -11,6 +11,8 @@ import { createPromptInputV2Store } from "./prompt-input/store"
 import { blobId, releaseBlobUrl } from "./prompt-input/attachments"
 import type { PromptInputV2Attachment, PromptInputV2PersistedState, PromptInputV2Suggestion } from "./prompt-input/types"
 import { ReplyBar } from "./reply-bar"
+import { showNoKeyHint } from "../settings/connected"
+import { openSettings } from "../lib/run-error"
 import { quoteSummary, replySummary } from "../chat/lib/reply"
 import { createImageDialog } from "../chat/ui/image-dialog"
 import { runSlash, slashSuggestions } from "./slash"
@@ -350,7 +352,12 @@ export function Composer(props: ComposerProps) {
           />
         )}
       </Show>
-
+      <Show when={showNoKeyHint(props.room?.state.noProvider)}>
+        <div class="no-key-hint" data-component="composer-no-key-hint" role="status">
+          <span>Add a model key to start chatting</span>
+          <button type="button" onClick={openSettings}>Open settings</button>
+        </div>
+      </Show>
     </>
   )
 

@@ -38,6 +38,7 @@ const textOf = (m: Message) =>
   rawOf(m)
     .replace(/<memory>[\s\S]*?<\/memory>\s*/g, "")
     .replace(/<context>[\s\S]*?<\/context>\s*/g, "")
+    .replace(/<system-event[^>]*>\s*([\s\S]*?)\s*<\/system-event>/g, "$1")
     .trim()
 const callsTool = (m: Message) => typeof m.content !== "string" && (m.content ?? []).some((p) => p.type === "toolCall")
 

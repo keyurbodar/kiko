@@ -1,3 +1,4 @@
+import { preloadMessageMenu } from "./MessageMenu"
 import { unnamedFiles } from "../../lib/attachments"
 import { lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
@@ -80,6 +81,7 @@ export function MessageRow(props: {
       data-run-first={props.isRunStart ? "" : undefined}
       data-gap={props.hasRunGapBefore ? "" : undefined}
       data-replying={props.replying ? "" : undefined}
+      onPointerEnter={preloadMessageMenu}
       onContextMenu={props.onContextMenu}
     >
       <Show when={grouped()}>
