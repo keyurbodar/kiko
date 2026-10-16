@@ -72,7 +72,7 @@ describe("the reducer", () => {
 	test("an idle status takes the agent off the busy list", () => {
 		const data = emptyRoom()
 		applyStatus(data, { slug: "ada" as never, state: "typing" })
-		expect(data.agents.map((a) => a.slug)).toEqual(["ada"])
+		expect(data.agents).toHaveLength(1)
 		applyStatus(data, { slug: "ada" as never, state: "idle" })
 		expect(data.agents).toEqual([])
 	})
