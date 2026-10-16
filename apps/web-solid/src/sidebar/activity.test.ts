@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { Chat, ChatLast, MessageId, RoomId } from "@kiko/protocol"
 import { chatRow, mentionIds, viewLast } from "../lib/store"
 import type { ViewMessage } from "../sync/patches"
-import { type ActivityLine, describeLast, typingLine } from "./activity"
+import { type ActivityLine, describeLast, isListed, quoteOf, typingLine } from "./activity"
 
 const at = 1
 const ada = { from: "agent", name: "Ada", at } as const
@@ -105,4 +105,25 @@ describe("viewLast", () => {
     const m = message("local:1", Number.MAX_SAFE_INTEGER, { kind: "human" }, "", { pending: true, local: [{ src: "blob:x", name: "a.png", type: "image/png", size: 4 }] })
     expect(viewLast(m, (s) => s)).toEqual({ from: "human", kind: "photo", at: Number.MAX_SAFE_INTEGER })
   })
+})
+
+describe("what a preview quotes", () => {
+  test("mail between agents and dividers are left out", () => {
+    expect(isListed({})).toBe(true)
+    expect(isListed({ to: "ebert" })).toBe(false)
+    expect(isListed({ event: { kind: "group_formed", private: true } })).toBe(false)
+    expect(isListed({ event: { kind: "created", roomId: "r" } })).toBe(true)
+  })
+
+  test("an agent's tree reads as plain words with mentions by name", () => {
+    const rich = [{ t: "paragraph", children: [{ t: "bold", children: [{ t: "text", text: "Done." }] }, { t: "text", text: " ask " }, { t: "mention", slug: "ebert" }] }] as never
+    expect(quoteOf({ body: "**Done.** ask @ebert", rich }, () => "Ebert")).toBe("Done. ask @Ebert")
+    expect(quoteOf({ body: "**typed** by a person" }, () => "x")).toBe("**typed** by a person")
+  })
+})
+
+test("the open room's row quotes an agent's words, not its markdown", () => {
+  const rich = [{ t: "paragraph", children: [{ t: "bold", children: [{ t: "text", text: "Done." }] }] }] as never
+  const m = { id: "m1" as MessageId, seq: 3, at, from: { kind: "agent", slug: "ada" }, text: "**Done.**", rich } as unknown as ViewMessage
+  expect(viewLast(m, () => "Ada").text).toBe("Done.")
 })

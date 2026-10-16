@@ -18,6 +18,7 @@ import { chatFaces, chatSeed } from "./identity"
 import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
 import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { isListed } from "../sidebar/activity"
 import { agentDisplayName } from "./names"
 import { showRunError } from "./run-error"
 import { session as signedIn } from "../app/session"
@@ -164,9 +165,6 @@ export function chatRow(chat: Chat, presence: BotPresence = "idle", live: LiveRo
   if (chat.mentions) row.mentions = chat.mentions
   return row
 }
-
-/** The messages a chat row may quote: not a divider, and not mail between agents. */
-const shownInList = (m: ViewMessage) => m.to === undefined && !(m.event && "private" in m.event)
 
 /** The activity a view message is, for the open room's row before the server's touch. */
 export function viewLast(m: ViewMessage, name: (slug: string) => string): ChatLast {
@@ -404,7 +402,7 @@ export function createApp(options: AppOptions = {}) {
           const members = r.members()
           const name = (slug: string) => agentDisplayName(slug, members)
           // The open room's own messages are the newest truth: a send shows in its row before the server's touch.
-          const newest = roomMessages().findLast(shownInList)
+          const newest = roomMessages().findLast(isListed)
           const fresh = newest && (newest.pending || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
           row = chatRow(c, presenceOf(false, working ? "working" : undefined), {
             ...(fresh ? { last: fresh } : {}),
