@@ -104,11 +104,20 @@ export function attachmentToken(id: string, name: string): string {
 	return `[${name.replace(/[[\]\n\\]/g, "")}](attachment:${id})`
 }
 
+/**
+ * A path as a markdown link target. A name with a space or a parenthesis, such as
+ * `Screenshot 2026-10-16.png` or `report (1).pdf`, ends a bare target early, so it goes in angle
+ * brackets and stays readable to the agent as the real path.
+ */
+export function linkTarget(path: string): string {
+	return /[\s()<>]/.test(path) ? `<${path.replace(/</g, "%3C").replace(/>/g, "%3E")}>` : path
+}
+
 /** Rewrites each token's id through `to`. A token `to` does not know becomes its plain name. */
 export function linkAttachments(text: string, to: (id: string) => string | undefined): string {
 	return text.replace(ATTACHMENT_LINK, (_, name: string, id: string) => {
 		const target = to(id)
-		return target === undefined ? name : `[${name}](${target})`
+		return target === undefined ? name : `[${name}](${linkTarget(target)})`
 	})
 }
 
