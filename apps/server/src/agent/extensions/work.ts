@@ -16,7 +16,7 @@ export const WORK_STEPS = "work-steps"
 const NOT_FOR_WORKERS: readonly string[] = [WORK, MESSAGING, MEMORY_NOTE, GROUPS_EXT, ROUTINES, WORKSPACE]
 
 const WORKER_PROMPT =
-  "You are a background worker. The agent who talks with the human gave you a task. Do it with your tools and check the result. Make independent tool calls together, in one message, not one by one. You cannot talk to the human. A later message is the agent passing on a change from the human: follow it. End with a short, complete report of what you found or did, in plain sentences. Never quote a tool error or markup in it."
+  "You are a background worker. The agent who talks with the human gave you a task. Do it with your tools and check the result. Make independent tool calls together, in one message, not one by one. You cannot talk to the human. A later message is the agent passing on a change from the human: follow it. End with a short, complete report of what you found or did, in plain sentences. Never quote a tool error or markup in it. If an app the task needs is not connected, or a key is missing, stop at once and report only which app or key is missing; do not try other routes."
 
 const say = (text: string) => ({ content: [{ type: "text" as const, text }] })
 
