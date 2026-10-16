@@ -13,20 +13,30 @@ export function replacedMark(l: Pick<LifeLine, "supersededBy">): string | null {
 	return l.supersededBy != null ? "Replaced" : null
 }
 
-/** Where a memory came from, as a heading: the chat's name without the `chat ` prefix. */
-export function sourceOf(l: Pick<LifeLine, "source">): string {
-	return (l.source || "Kiko").replace(/^chat\s+/i, "")
+export type Origin = { kind: "you" } | { kind: "agent"; slug: string } | { kind: "chat"; title: string }
+
+/** Where a memory came from: the human, an agent's handle, or a chat's title. */
+export function originOf(l: Pick<LifeLine, "source">): Origin {
+	const source = (l.source || "@kiko").trim()
+	if (source === "you") return { kind: "you" }
+	if (source.startsWith("@")) return { kind: "agent", slug: source.slice(1) }
+	return { kind: "chat", title: source.replace(/^chat\s+/i, "") }
 }
 
-/** Pinned lines first, then one group per source, newest group first. Order inside a group is kept. */
-export function groupLines(lines: readonly LifeLine[]): { title: string; lines: LifeLine[] }[] {
-	const pinned = lines.filter((l) => l.pinned && !l.redacted)
-	const groups = new Map<string, LifeLine[]>()
-	for (const l of lines) {
-		if (l.redacted || l.pinned) continue
-		const key = sourceOf(l)
-		groups.set(key, [...(groups.get(key) ?? []), l])
-	}
-	const rest = [...groups].map(([title, ls]) => ({ title, lines: ls })).sort((a, b) => Math.max(...b.lines.map((l) => l.at)) - Math.max(...a.lines.map((l) => l.at)))
-	return pinned.length ? [{ title: "Pinned", lines: pinned }, ...rest] : rest
+/** The lines to show: pinned first, then the rest in the order given (newest first). Removed lines drop out. */
+export function ordered(lines: readonly LifeLine[]): { pinned: LifeLine[]; recent: LifeLine[] } {
+	const live = lines.filter((l) => !l.redacted)
+	return { pinned: live.filter((l) => l.pinned), recent: live.filter((l) => !l.pinned) }
+}
+
+/** The loaded lines that contain every word of the query, so a search shows at once. */
+export function matching(lines: readonly LifeLine[], query: string): LifeLine[] {
+	const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+	return lines.filter((l) => !l.redacted && words.every((w) => l.text.toLowerCase().includes(w)))
+}
+
+/** Local matches first, then older ones the server found that are not loaded yet. */
+export function mergeResults(local: readonly LifeLine[], remote: readonly LifeLine[] | null): LifeLine[] {
+	const seen = new Set(local.map((l) => l.pos))
+	return [...local, ...(remote ?? []).filter((l) => !seen.has(l.pos))]
 }
