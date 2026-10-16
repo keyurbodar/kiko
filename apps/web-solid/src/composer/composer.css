@@ -343,3 +343,34 @@
 .composer-dock .composer-tray:empty {
   display: none;
 }
+
+.composer-dock .composer-box > .no-key-hint {
+  display: flex;
+  flex: 0 0 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  order: -2;
+  min-width: 0;
+  padding: 2px 2px 4px 12px;
+  font-size: var(--font-size-prompt);
+  line-height: 20px;
+  color: var(--muted-foreground);
+}
+
+.composer-dock .no-key-hint button {
+  flex-shrink: 0;
+  padding: 0 6px;
+  color: var(--foreground);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .composer-dock .no-key-hint button:hover {
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  }
+}

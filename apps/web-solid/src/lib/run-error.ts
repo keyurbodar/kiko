@@ -1,10 +1,12 @@
 import type { RoomToClient } from "@kiko/protocol"
+import { noModelKey } from "../settings/connected"
 import { loadCatalog } from "../settings/catalog"
 import { showToastV2, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
 
 export type RunErrorFrame = Extract<RoomToClient, { t: "run_error" }>
 
 let go: (href: string) => void = () => {}
+export const openSettings = () => go("/settings/models")
 /** The shell gives the toast actions a way to navigate. */
 export const setGo = (fn: (href: string) => void) => {
   go = fn
@@ -36,10 +38,11 @@ const catalogName = (id: string | undefined) =>
   id ? loadCatalog().then((catalog) => catalog.providers.find((p) => p.id === id)?.name).catch(() => undefined) : Promise.resolve(undefined)
 
 export async function showRunError(frame: RunErrorFrame, name: string): Promise<void> {
+  if (frame.kind === "no_key" && noModelKey()) return
   const { settings, ...toast } = runErrorToast(frame, name, await catalogName(frame.provider))
   showToastV2({
     ...toast,
     variant: "error",
-    ...(settings ? { action: { label: "Open settings", onClick: () => go("/settings/models") } } : {}),
+    ...(settings ? { action: { label: "Open settings", onClick: openSettings } } : {}),
   })
 }

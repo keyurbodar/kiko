@@ -1,6 +1,7 @@
 import { createResource, createRoot } from "solid-js"
 import { session } from "../app/session"
 import { listProviders, type ProviderInfo } from "./credentials"
+import { hasModelProvider } from "./provider-kinds"
 import { readStored, writeStored } from "./connected-store"
 
 // One shared list of connected providers, so settings and the chat top bar agree.
@@ -41,3 +42,6 @@ const [providers, actions] = createRoot(() => {
 export const connectedProviders = (): ProviderInfo[] => providers() ?? []
 export const refreshConnected = () => actions.refetch()
 export const connectedReady = () => providers.state === "ready"
+
+/** True once the saved list has loaded and holds no provider that can run a model. */
+export const noModelKey = () => !providers.loading && !hasModelProvider(providers() ?? [])
