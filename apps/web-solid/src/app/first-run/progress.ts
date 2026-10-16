@@ -99,10 +99,10 @@ async function onboardedOnServer(): Promise<boolean> {
 }
 
 createRoot(() => {
-  // Ask the server once for a browser that has no saved step, so a returning owner with a key never sees first run.
+  // Ask the server once, so a first run finished or skipped elsewhere wins over a step this browser saved earlier.
   createEffect(() => {
     const id = userId()
-    if (!id || savedStep() || probe()?.userId === id) return
+    if (!id || savedStep() === "done" || probe()?.userId === id) return
     void Promise.all([listProviders(), onboardedOnServer()])
       .then(([list, onboarded]) => setProbe({ userId: id, connected: hasModelProvider(list), onboarded }))
       .catch(() => {})

@@ -59,6 +59,11 @@ describe("stepFor", () => {
     expect(at({ known: true, onboarded: true })).toBe("done")
     expect(at({ known: true, onboarded: false })).toBe("connect")
   })
+
+  test("a skip the server remembers beats a step this browser saved before it", () => {
+    expect(at({ saved: "connect", connected: true, known: true, onboarded: true })).toBe("done")
+    expect(at({ saved: "model", known: true, onboarded: true })).toBe("done")
+  })
 })
 
 describe("advance", () => {
