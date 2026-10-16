@@ -920,16 +920,17 @@ export class UserDO extends DurableObject<Env> {
     if (!stored) return null
     this.commit({ t: "agent", agent: stored })
     // A new agent starts on the model it was made with, or on Kiko's.
-    this.setAgentModel(stored.slug, stored.model || agentModel(this.sql, KIKO).model)
+    // Always announce it: the pick can equal the fallback, and the client still needs an entry for the new agent.
+    this.setAgentModel(stored.slug, stored.model || agentModel(this.sql, KIKO).model, undefined, undefined, true)
     return stored
   }
 
   /** The one setter for an agent's model and level. Every chat, Settings, and the next run read what it saves. */
-  setAgentModel(slug: AgentSlug, ref?: string, thinking?: ThinkingLevel, roomId?: RoomId): AgentModel | null {
+  setAgentModel(slug: AgentSlug, ref?: string, thinking?: ThinkingLevel, roomId?: RoomId, announce = false): AgentModel | null {
     const before = agentModel(this.sql, slug)
     const saved = saveAgentModel(this.sql, slug, ref, thinking)
     if (!saved) return null
-    if (JSON.stringify(saved) === JSON.stringify(before)) return saved
+    if (!announce && JSON.stringify(saved) === JSON.stringify(before)) return saved
     this.commit({ t: "agent_model", slug, ...saved })
     if (roomId && saved.model !== before.model) this.ctx.waitUntil(Promise.resolve(roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).modelChanged(slug, saved.model)).catch(() => {}))
     return saved
