@@ -18,7 +18,7 @@ import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
 import { Bubbles, replyTag } from "./bubbles"
-import { chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
+import { bubbleTouch, chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
 import { Deliveries, type ReminderDelivery, withContext } from "./deliver"
 import { type AgentSend, type Chain, Mail } from "./mail"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
@@ -548,6 +548,17 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		)
 	}
 
+	private touchBubble(message: Extract<RoomEvent, { t: "message" }>): void {
+		const home = this.home()
+		if (!home || isPrivate(message)) return
+		const touch = bubbleTouch(this.ctx.storage.sql, this.log, message)
+		this.ctx.waitUntil(
+			userStub(this.env.USER, home.userId)
+				.touchChat(home.roomId, touch)
+				.catch((error) => console.error(`touchChat failed: ${error instanceof Error ? error.message : String(error)}`)),
+		)
+	}
+
 	broadcast(frame: RoomToClient): void {
 		for (const ws of this.ctx.getWebSockets()) if (attachment(ws).ready) send(ws, frame)
 	}
@@ -756,8 +767,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.memory.did(slug, doing, now)
 		if (this.team.now(slug) === doing) return
 		this.team.doing(slug, doing, now, activity)
-		const member = this.members.list().find((m) => m.slug === slug)
-		if (member) this.broadcast({ t: "status", slug, state: member.status === "idle" ? "working" : member.status, doing, activity })
+		this.broadcastStatus(slug)
 	}
 
 	private guarded<T extends FsChange<RoomEvent> | FsFail>(slug: AgentSlug, paths: readonly string[], doing: string, act: () => T): T | FsFail {
@@ -905,7 +915,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const reason = root?.startsWith("initiative:") ? this.log.meta(`initiative:${root}`) : null
 		const events = this.bubbles.post(slug, { runId, attempt, index }, block, reason ? { reason } : undefined)
 		this.publish(events, { touch: false })
-		return events.some((e) => e.t === "message")
+		const posted = events.find((e) => e.t === "message")
+		if (posted) this.touchBubble(posted)
+		return posted !== undefined
 	}
 
 	async react(slug: AgentSlug, emoji: string, messageId?: string): Promise<boolean> {

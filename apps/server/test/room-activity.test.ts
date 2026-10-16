@@ -80,6 +80,8 @@ test("a status frame carries the typed activity, and a reconnect snapshot shows 
 	const room = fresh()
 	const c = await withAgent(room)
 	const read: Activity = { kind: "tool", tool: "read", caption: "reading /plan.md" }
+	await rpc(room, "setStatus", "ada", "working")
+	await c.take((f) => f.t === "status" && f.state === "working")
 	await rpc(room, "reportDoing", "ada", "reading /plan.md", read)
 	const first = await c.take(statusOf(read))
 	expect(first).toEqual({ t: "status", slug: "ada", state: "working", doing: "reading /plan.md", activity: read })
@@ -97,6 +99,35 @@ test("a status frame carries the typed activity, and a reconnect snapshot shows 
 	const idle = await c.take((f) => f.t === "status" && f.state === "idle")
 	expect(idle).toEqual({ t: "status", slug: "ada", state: "idle" })
 	expect((await snapshot(room)).agents).toEqual([])
+	c.close()
+})
+
+test("an idle member that reports doing is never shown as working", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	await rpc(room, "reportDoing", "ada", "reading /plan.md", { kind: "tool", tool: "read", caption: "reading /plan.md" })
+	const frame = await c.take((f) => f.t === "status")
+	expect(frame).toEqual({ t: "status", slug: "ada", state: "idle" })
+	expect((await snapshot(room)).agents).toEqual([])
+	c.close()
+})
+
+const touches = async (room: string) => (await (await fetch(`${origin}/touches/${room}`)).json()) as { lastPreview: string; unread: number; mentions?: number }[]
+
+test("a bubble that lands mid-run updates the chat row at once, without waiting for the run to end", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	await rpc(room, "setStatus", "ada", "typing")
+	await rpc(room, "post", "ada", "run-1", 0, 0, "first bubble")
+	await rpc(room, "post", "ada", "run-1", 0, 1, "second bubble")
+	let seen: Awaited<ReturnType<typeof touches>> = []
+	for (let i = 0; i < 200 && !seen.some((t) => t.lastPreview === "second bubble"); i++) {
+		await Bun.sleep(10)
+		seen = await touches(room)
+	}
+	const last = seen.find((t) => t.lastPreview === "second bubble")
+	expect(last).toMatchObject({ unread: 2 })
+	expect(last?.mentions).toBeUndefined()
 	c.close()
 })
 
