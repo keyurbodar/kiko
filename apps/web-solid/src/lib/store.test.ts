@@ -33,6 +33,7 @@ async function boot(events?: readonly RoomEvent[]) {
   })
   app.selectThread(fixtures.roomId)
   await app.start(`u${++users}`)
+  await until(() => app.user()?.state.synced === true)
   await until(() => app.room()?.state.connection === "open" && app.activeMessages().length > 0)
   await until(() => app.room()!.state.seq === room.log[room.log.length - 1].seq)
   return { app, room, other, user }

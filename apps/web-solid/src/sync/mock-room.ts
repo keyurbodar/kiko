@@ -407,7 +407,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			received.push(frame)
 			if (frame.t === "hello") {
 				const last = log[log.length - 1]?.seq ?? 0
-				if (frame.lastSeq > last || last - frame.lastSeq > resetAfter)
+				if (frame.lastSeq === 0 || frame.lastSeq > last || last - frame.lastSeq > resetAfter)
 					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents, agentModels: agentModels, home: data.home }) })
 				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
 			}
