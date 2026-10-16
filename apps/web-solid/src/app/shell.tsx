@@ -193,9 +193,9 @@ export function Shell(props: ParentProps) {
     const idle = (globalThis as { requestIdleCallback?: (run: () => void) => number }).requestIdleCallback;
     if (sideOpen()) void loadSidecar();
     const warm = () => {
-      preloadRoute("/settings");
       preloadRoute("/chat");
-      // After the composer's rich editor has loaded, so the 2 MB parse and download never race it.
+      // After the composer's rich editor has loaded, so these downloads never race it.
+      void import("../composer/rich/bind").then(() => preloadRoute("/settings"), () => preloadRoute("/settings"));
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000);
     };
     if (idle) idle(warm);

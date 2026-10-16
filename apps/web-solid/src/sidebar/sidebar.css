@@ -347,6 +347,41 @@
   overscroll-behavior: contain;
 }
 
+.sidebar-shell .chat-skeleton-list {
+  flex: none;
+  padding: 0 8px;
+}
+
+.sidebar-shell .chat-skeleton-row {
+  display: flex;
+  height: 52px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 8px;
+}
+
+.sidebar-shell .chat-skeleton {
+  display: block;
+  height: 10px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
+}
+
+.sidebar-shell .chat-skeleton-avatar {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 999px;
+}
+
+.sidebar-shell .chat-skeleton-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .sidebar-shell .chat-row {
   position: relative;
   display: flex;
