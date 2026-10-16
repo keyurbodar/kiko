@@ -25,7 +25,7 @@ export function attachedLine(files: readonly FileRef[]): string {
 const WORKSPACE_LINK = /\]\((?:<(\/[^>\n]+)>|(\/[^)\s<>]+))\)/g
 
 /** The workspace files a human's text links to, as the composer's file chips write them: `[name](/path)`. */
-export function referencedFiles(text: string, attached: readonly FileRef[] = []): string[] {
+function referencedFiles(text: string, attached: readonly FileRef[] = []): string[] {
 	const named = new Set(attached.map((f) => `/${f.name}`))
 	const out = new Set<string>()
 	for (const m of text.matchAll(WORKSPACE_LINK)) {
