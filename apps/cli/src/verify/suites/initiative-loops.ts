@@ -9,7 +9,7 @@ const TYPESAFE = "typesafe"
 const T0 = Date.now()
 const stamp = () => `${((Date.now() - T0) / 1000).toFixed(1).padStart(6)}s`
 
-type Loop = { id: number; kind: string; certainty: string; owner: string; room: string; status: string; text: string; source: string; due: string | null }
+type Loop = { id: number; kind: string; owner: string; room: string; status: string; text: string; source: string; due: string | null }
 
 
 async function say(room: RoomHandle, text: string, ms = 120_000): Promise<string> {
@@ -41,7 +41,7 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   const humanReminders = async () => (await reminders()).filter((r) => r.target === "human")
   const initiative = async (roomId: string) => ((await dev(v.url, s.auth, "initiative", { roomId })) as { text: string | null }).text ?? ""
   const usage = async (roomId: string) => (await dev(v.url, s.auth, "usage", { roomId })) as { agent: Record<string, number>; memory: Record<string, number> }
-  const show = (l: Loop) => `L${l.id} ${l.status} ${l.kind}/${l.certainty} owner=${l.owner} via ${l.source}${l.due ? ` due ${l.due}` : ""}: ${l.text}`
+  const show = (l: Loop) => `L${l.id} ${l.status} ${l.kind} owner=${l.owner} via ${l.source}${l.due ? ` due ${l.due}` : ""}: ${l.text}`
 
   const work = (await newRoom(s, "work")).room
   for (const text of [
@@ -52,19 +52,16 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
     const reply = await say(work, text)
     console.log(`  [${stamp()}] agent: ${reply.slice(0, 160)}`)
   }
-  if (!jev) await dev(v.url, s.auth, "quiet", { roomId: work.id })
-  const grant = await poll("an open explicit loop about the grant report", async () => (await loops()).find((l) => l.status === "open" && l.certainty === "explicit" && /grant/i.test(l.text)), 90_000)
+  const grant = await poll("an open loop about the grant report", async () => (await loops()).find((l) => l.status === "open" && /grant/i.test(l.text)), 90_000)
   console.log(`  [${stamp()}] deadline -> ${show(grant)}`)
   await Bun.sleep(3_000)
   console.log(`  [${stamp()}] loops so far:\n${(await loops()).map((l) => `      ${show(l)}`).join("\n")}`)
   console.log(`  [${stamp()}] memory ${JSON.stringify((await usage(work.id)).memory)}`)
-  const run = await poll("a tentative loop about running", async () => (await loops()).find((l) => l.status === "open" && l.certainty === "tentative" && l.owner === "human" && /running/i.test(l.text)), 30_000)
-  console.log(`  [${stamp()}] maybe -> ${show(run)}`)
   const owed = await poll("a commitment loop the agent owns", async () => (await loops()).find((l) => l.status === "open" && l.owner !== "human"), 30_000)
   console.log(`  [${stamp()}] promise -> ${show(owed)}`)
   console.log(`  [${stamp()}] reminders now: ${JSON.stringify((await reminders()).map((r) => `${r.target}: ${r.text}`))}`)
   const asked = await humanReminders()
-  if (asked.length) throw new VerifyError(`a tentative plan or deadline made a reminder: ${JSON.stringify(asked)}`)
+  if (asked.length) throw new VerifyError(`a deadline made a reminder: ${JSON.stringify(asked)}`)
 
   let reply = await say(work, "Finally done with the grant report, sent it this morning!")
   console.log(`  [${stamp()}] agent: ${reply.slice(0, 160)}`)
@@ -81,26 +78,6 @@ async function phase(v: Parameters<Suite["run"]>[0], jev: string | null): Promis
   console.log(`  [${stamp()}] personal chat run started with:\n${later.split("\n").map((l) => `      ${l}`).join("\n")}`)
   if (!/^related: .*run/im.test(later)) throw new VerifyError("the later chat's brief has no related line about running")
   if (/grant/i.test(later)) throw new VerifyError("a closed loop showed up as related")
-
-  const trip = (await newRoom(s, "trip")).room
-  const chatter = ["what a week", "it was long, yes", "the weather turned cold", "time for soup then", "ha, maybe", "tomato is good", "we saw a film", "which one?", "an old western", "nice"]
-  const turns = [
-    { from: "human", text: "I have to renew my passport before the Japan trip in March." },
-    { from: "kiko", text: "Got it. I will send you the visa checklist on Monday." },
-    ...chatter.flatMap((t, i) => [{ from: i % 2 ? "kiko" : "human", text: t }]),
-    { from: "human", text: "I am waiting to hear back from the landlord about the lease." },
-    { from: "kiko", text: "Okay." },
-    ...Array.from({ length: 36 }, (_, i) => ({ from: i % 2 ? "kiko" : "human", text: `${chatter[i % chatter.length]} (${i})` })),
-  ]
-  const callsBefore = (await usage(trip.id)).memory.calls ?? 0
-  await dev(v.url, s.auth, "seed", { roomId: trip.id, turns })
-  const napped = await poll("loops from the summary pass", async () => {
-    const got = (await loops()).filter((l) => l.source === "nap" && l.room === trip.id)
-    return got.length >= 2 && got
-  }, 120_000)
-  console.log(`  [${stamp()}] summary pass -> ${napped.map(show).join("\n      ")}`)
-  console.log(`  [${stamp()}] memory model calls during the pass: ${((await usage(trip.id)).memory.calls ?? 0) - callsBefore} (summaries only, no extra call)`)
-  trip.raw.close()
 
   console.log(`  [${stamp()}] all loops:\n${(await loops()).map((l) => `      ${show(l)}`).join("\n")}`)
   const [a, b] = [await usage(work.id), await usage(home.id)]

@@ -2,9 +2,8 @@ import type { JsonObject } from "@earendil-works/pi-ai"
 import type { Alarms } from "@kiko/durable/alarm"
 import type { Life } from "@kiko/memory/life"
 import { cleanLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@kiko/memory/optmem"
-import { candidates, type CaptureCount, type CapturePolicy, captureWithJudge, mergePolicy, RECALL_MAX, RERANK_MIN } from "@kiko/memory/capture"
-import { type Answer, boolOf, type Judge, type Question } from "@kiko/memory/judge"
-import { parseNapLoops } from "@kiko/memory/loops"
+import { candidates, type CaptureCount, type CapturePolicy, captureWithJudge, mergePolicy } from "@kiko/memory/capture"
+import type { Answer, Judge, Question } from "@kiko/memory/judge"
 import type { MemoryModel, MemoryOp, MemoryResult, RoomId } from "@kiko/protocol"
 import type { UserSettingsPatch } from "@kiko/protocol/schema"
 import { DEFAULT_MODEL, userModels } from "../agent/factory"
@@ -13,7 +12,6 @@ import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import type { CredentialVault, ProviderInfo } from "./credentials"
 import { getChat } from "./chats"
 import { findProvider, pickJudge, providerUses, type TurnContext } from "./turn-context"
-import type { InitiativeLoops } from "./initiative-loops"
 
 export const LIFE_WAKEUP = "life_naps"
 const NAPS_PER_ALARM = 4
@@ -31,9 +29,6 @@ const CAPTURE_PER_ALARM = 24
 const CAPTURE_CHUNK = 4
 export const CAPTURE_TEXT_MAX = 8_000
 export const CAPTURE_TIMEOUT_MS = 8_000
-const RERANK_TIMEOUT_MS = 1_500
-const RERANK_LINES_MAX = 30
-const NAP_APPLIED_FOR = 7 * 86_400_000
 
 export type MemoryDeps = {
   sql: SqlStorage
@@ -42,7 +37,6 @@ export type MemoryDeps = {
   label: string
   credentials: () => CredentialVault
   turn: (provider: string) => Promise<TurnContext>
-  loops: () => InitiativeLoops
 }
 
 export class MemoryCapture {
@@ -211,29 +205,19 @@ export class MemoryCapture {
     await this.armNaps()
   }
 
-  async compress(prompt: string, page?: { roomId: RoomId; at: number; span?: { lo: number; hi: number } }): Promise<{ text: string } | { retryAt: number } | { error: string }> {
+  async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
     if (this.#compressing >= MAX_NAPS) return { retryAt: Date.now() + 5_000 + Math.floor(Math.random() * 5_000) }
     this.#compressing++
     try {
-      const loops = page ? this.d.loops().initiative.napPrompt(page.roomId, prompt, page.at) : null
-      const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, loops?.system ?? NAP_SYSTEM, loops?.prompt ?? prompt)
+      const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, NAP_SYSTEM, prompt)
       if (answer === null) return { retryAt: Date.now() + 10 * 60_000 }
-      const line = cleanLine(loops && page ? ((await this.napOnce(page, prompt)) ? this.d.loops().initiative.napApply(page.roomId, answer, loops.known, page.at, page.span) : parseNapLoops(answer, loops.known).summary) ?? "" : answer)
+      const line = cleanLine(answer)
       return line ? { text: line } : { error: "the model wrote no line" }
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) }
     } finally {
       this.#compressing--
     }
-  }
-
-  private async napOnce(page: { roomId: RoomId; span?: { lo: number; hi: number } }, prompt: string): Promise<boolean> {
-    if (!page.span) return true
-    const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(prompt)))
-    const id = `${page.roomId}:${page.span.lo}-${page.span.hi}:${[...hash.slice(0, 8)].map((b) => b.toString(16).padStart(2, "0")).join("")}`
-    const now = Date.now()
-    this.sql.exec("DELETE FROM nap_applied WHERE at < ?", now - NAP_APPLIED_FOR)
-    return this.sql.exec("INSERT OR IGNORE INTO nap_applied (id, at) VALUES (?, ?)", id, now).rowsWritten > 0
   }
 
   private async complete(ref: { provider: string; modelId: string }, system: string, prompt: string): Promise<string | null> {
@@ -253,25 +237,6 @@ export class MemoryCapture {
     this.count({ input: reply.usage?.input ?? 0, output: reply.usage?.output ?? 0, cacheRead: reply.usage?.cacheRead ?? 0, calls: 1, failed: failed ? 1 : 0 })
     if (failed) throw new Error(`the model call failed: ${reply.stopReason} ${(reply.errorMessage ?? "").slice(0, 160)}`)
     return reply.content.flatMap((c) => (c.type === "text" ? [c.text] : [])).join("")
-  }
-
-  async rerank(query: string, lines: { id: string; text: string }[]): Promise<string[] | null> {
-    if (!this.judgeKey()) return null
-    const shown = lines.slice(0, RERANK_LINES_MAX)
-    if (!shown.length) return []
-    const questions: Record<string, Question> = {}
-    shown.forEach((_, i) => {
-      questions[`l${i}`] = { type: "bool", instructions: `Does \`lines[${i}]\` help answer \`query\`?`, criteria: { true: "it holds part of the answer", false: "it does not help answer it" } }
-    })
-    const answers = await this.judge(RERANK_TIMEOUT_MS)({ query, lines: shown.map((l) => l.text) }, questions)
-    if (!answers) return null
-    this.count({ rerank_jev: 1 })
-    return shown
-      .map((l, i) => ({ id: l.id, p: boolOf(answers[`l${i}`]) }))
-      .filter((x) => x.p >= RERANK_MIN)
-      .sort((a, b) => b.p - a.p)
-      .slice(0, RECALL_MAX)
-      .map((x) => x.id)
   }
 
   private memoryModel(): MemoryModel {

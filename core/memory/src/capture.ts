@@ -14,8 +14,6 @@ const WORTH_MIN = 0.6
 const PRIVATE_MAX = 0.5
 const CARD_MIN = 0.7
 const RELATION_MIN = 0.5
-export const RERANK_MIN = 0.3
-export const RECALL_MAX = 6
 
 export function mergePolicy(raw: string | null): CapturePolicy {
   let stored: Record<string, unknown> = {}

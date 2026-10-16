@@ -1,5 +1,5 @@
 import { agentTexts, messages, newRoom, poll } from "../kit"
-import type { AgentSlug, UserToClient } from "@kiko/protocol"
+import type { UserToClient } from "@kiko/protocol"
 import { VerifyError } from "../client"
 import { dev, inSeconds, ok, type Routine, routines, systemTexts, toolLine, waitRuns } from "../routine-kit"
 import { must } from "../must"
@@ -15,54 +15,25 @@ const suite: Suite = {
     const url = v.url
 
     {
-      const { roomId, room } = await newRoom(s, "proactive: stalls")
-      await fake(v, s, roomId)
-      await send(room, "[reply] ok")
-      await poll("the first answer", () => agentTexts(room).length >= 1, 20_000)
-      room.raw.send({ t: "task", op: { op: "create", id: "stuck", title: "write the launch post", owner: "kiko" as AgentSlug } })
-      room.raw.send({ t: "task", op: { op: "update", id: "stuck", status: "doing" } })
-      await Bun.sleep(1_000)
-      const before = agentTexts(room).length
-      await dev(url, s, "attention", { action: "rhythm", mode: "now" })
-      await dev(url, s, "age", { roomId, ms: 2 * 86_400_000 })
-      await dev(url, s, "attention", { action: "age", ms: 10 * 60_000 })
-      const pass = await dev(url, s, "attention", { action: "pass" })
-      await poll("the woken owner's answer", () => agentTexts(room).length > before, 30_000).catch((e: Error) => {
-        throw new VerifyError(`${e.message}: ${JSON.stringify(pass)}`)
-      })
-      const answer = must(messages(room).filter((m) => m.from.kind === "agent").at(-1), "the woken owner's answer")
-      if (!answer.text.includes("write the launch post")) throw new VerifyError(`the wake did not reach the owner: ${JSON.stringify(answer.text)}`)
-      if (!answer.initiative?.reason) throw new VerifyError(`the answer to a wake has no initiative reason: ${JSON.stringify(answer)}`)
-      await Bun.sleep(2_000)
-      await dev(url, s, "attention", { action: "pass" })
-      await Bun.sleep(4_000)
-      if (agentTexts(room).length !== before + 1) throw new VerifyError(`a task was woken twice for one stretch of staleness: ${JSON.stringify(agentTexts(room).slice(before))}`)
-      console.log(`  ok a task untouched for 2 days woke its owner once (${JSON.stringify(answer.initiative.reason)}): ${JSON.stringify(answer.text.slice(0, 80))}`)
-      room.raw.close()
-    }
-
-    {
-      const a = await v.as(`proactive-ignore-${run}`)
-      const { roomId, room } = await newRoom(a, "proactive: ignored")
+      const a = await v.as(`proactive-pass-${run}`)
+      const { roomId, room } = await newRoom(a, "proactive: daily pass")
       await fake(v, a, roomId)
-      const due = new Date(Date.now() + 86_400_000).toISOString()
-      await dev(url, a, "loops", { open: { roomId, text: "file the tax return", due } })
-      await dev(url, a, "attention", { action: "rhythm", mode: "now" })
-      type P = { woke: { result: string }[]; verdicts: { verdict: string; reason?: string; until?: number }[]; at: number }
-      const step = async (days: number) => {
-        await dev(url, a, "attention", { action: "age", ms: days * 86_400_000 })
-        const before = agentTexts(room).length
-        const p = (await dev(url, a, "attention", { action: "pass" })) as P
-        if (p.woke.some((w) => w.result === "delivered")) await poll("the nudge", () => agentTexts(room).length > before, 20_000)
-        await Bun.sleep(2_000)
-        const v0 = must(p.verdicts[0], "a verdict")
-        return { woke: p.woke.filter((w) => w.result === "delivered").length, verdict: `${v0.verdict}${v0.reason ? `:${v0.reason}` : ""}${v0.until ? ` ${((v0.until - p.at) / 86_400_000).toFixed(1)}d` : ""}` }
-      }
-      // One ignore rests two cycles (two days here), and the next ignore doubles it to four. The third step is past the first rest but inside a three-day one.
-      const got = [await step(1), await step(1.5), await step(1), await step(2), await step(4)]
-      const want = [1, 0, 1, 0, 0]
-      if (got.map((g) => g.woke).join() !== want.join()) throw new VerifyError(`nudges per pass ${JSON.stringify(got)}, want ${JSON.stringify(want)}`)
-      console.log(`  ok nudge, rest after an ignore, nudge, rest after a second ignore, then none: ${got.map((g) => g.verdict).join(" | ")}`)
+      const yesterday = new Date(Date.now() - 86_400_000).toISOString()
+      const tomorrow = new Date(Date.now() + 86_400_000).toISOString()
+      await dev(url, a, "loops", { open: { roomId, text: "renew the passport", due: tomorrow } })
+      await dev(url, a, "loops", { open: { roomId, text: "file the tax return", due: yesterday } })
+      type P = { woke: { result: string }[] }
+      const before = agentTexts(room).length
+      const first = (await dev(url, a, "pass", {})) as P
+      if (first.woke.length !== 1 || first.woke[0]?.result !== "delivered") throw new VerifyError(`the daily pass woke ${JSON.stringify(first.woke)}, want one delivered wake`)
+      await poll("the nudge", () => agentTexts(room).length > before, 30_000)
+      const answer = must(messages(room).filter((m) => m.from.kind === "agent").at(-1), "the nudge")
+      if (!answer.text.includes("file the tax return")) throw new VerifyError(`the nudge was not about the loop that is due: ${JSON.stringify(answer.text)}`)
+      if (!answer.initiative?.reason) throw new VerifyError(`the nudge has no initiative reason: ${JSON.stringify(answer)}`)
+      await Bun.sleep(2_000)
+      const second = (await dev(url, a, "pass", {})) as P
+      if (second.woke.length) throw new VerifyError(`a loop was nudged twice in three days: ${JSON.stringify(second.woke)}`)
+      console.log(`  ok the daily pass nudged the loop that is due once (${JSON.stringify(answer.initiative.reason)}) and left the one due tomorrow`)
       room.raw.close()
     }
 
