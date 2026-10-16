@@ -1,7 +1,9 @@
 import { type AgentModel, type AgentSlug, KIKO, type ThinkingLevel } from "@kiko/protocol"
+import type { ModelRef } from "@earendil-works/pi-durable"
 import { DEFAULT_MODEL } from "../agent/factory"
 import { isKnownModel, parseModelRef, supportedThinking, thinkingFor } from "../agent/thinking"
 import { getSetting, setSetting } from "../lib/settings"
+import { findProvider } from "./turn-context"
 
 const PREFIX = "agentModel:"
 
@@ -12,9 +14,23 @@ const readPick = (sql: SqlStorage, slug: string): Pick => {
   return text ? (JSON.parse(text) as Pick) : {}
 }
 
+/**
+ * What an agent runs on when nobody picked: the default model, unless the owner has keys and none is
+ * for its provider. Then the best chat model of a connected provider, reasoning and the largest
+ * context first, the order the first-run model step lists them in.
+ */
+function defaultModel(sql: SqlStorage): ModelRef {
+  const connected = sql.exec<{ provider_id: string }>("SELECT provider_id FROM credentials ORDER BY provider_id").toArray().map((r) => r.provider_id)
+  if (!connected.length || connected.includes(DEFAULT_MODEL.provider)) return DEFAULT_MODEL
+  const best = connected
+    .flatMap((id) => findProvider(id)?.getModels().map((m) => ({ provider: id, modelId: m.id, reasoning: m.reasoning, contextWindow: m.contextWindow })) ?? [])
+    .sort((a, b) => Number(b.reasoning) - Number(a.reasoning) || b.contextWindow - a.contextWindow)[0]
+  return best ?? DEFAULT_MODEL
+}
+
 const resolve = (sql: SqlStorage, slug: string, pick: Pick): AgentModel => {
   const fallback = sql.exec<{ model: string }>("SELECT model FROM agents WHERE slug = ?", slug).toArray()[0]?.model
-  const ref = [pick.model, fallback].map((r) => (r ? parseModelRef(r) : null)).find((r) => r && isKnownModel(r)) ?? DEFAULT_MODEL
+  const ref = [pick.model, fallback].map((r) => (r ? parseModelRef(r) : null)).find((r) => r && isKnownModel(r)) ?? defaultModel(sql)
   return { model: `${ref.provider}/${ref.modelId}`, thinking: thinkingFor(ref, pick.thinking), thinkingLevels: supportedThinking(ref) }
 }
 

@@ -412,3 +412,13 @@ test("an agent's browser lease with no Kernel key tells the human", async () => 
   expect(got).toMatchObject([{ error: { code: "kernel_missing", action: "open_integrations" } }])
   ws.close()
 })
+
+test("connecting a provider moves an unpicked agent's model for a connected socket", async () => {
+  const user = fresh()
+  const ws = await socket(user)
+  await rpc(user, "connectProvider", "anthropic", `sk-${crypto.randomUUID().replaceAll("-", "")}`)
+  await ws.settle()
+  const got = events(ws.frames).filter((e) => e.t === "agent_model" && e.slug === "kiko")
+  expect(got.at(-1)?.model).toStartWith("anthropic/")
+  ws.close()
+})

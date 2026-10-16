@@ -465,15 +465,26 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
+    const before = allAgentModels(this.sql)
     const info = await this.#credentials.connect(provider, apiKey)
+    this.announceModels(before)
     await this.#mem.keyChanged(provider)
     return this.#mem.describe(info)
   }
 
   async disconnectProvider(provider: string): Promise<boolean> {
+    const before = allAgentModels(this.sql)
     const removed = await this.#credentials.disconnect(provider)
+    this.announceModels(before)
     await this.#mem.keyChanged(provider)
     return removed
+  }
+
+  /** An agent nobody picked a model for follows the connected providers, so a key change can move it. */
+  private announceModels(before: Record<string, AgentModel>): void {
+    for (const [slug, now] of Object.entries(allAgentModels(this.sql))) {
+      if (JSON.stringify(now) !== JSON.stringify(before[slug])) this.commit({ t: "agent_model", slug: slug as AgentSlug, ...now })
+    }
   }
 
   async listProviders(): Promise<ProviderInfo[]> {
