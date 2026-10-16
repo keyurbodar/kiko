@@ -37,7 +37,7 @@ import { agentModel, allAgentModels, saveAgentModel } from "./agent-models"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { actorKey } from "../room/log"
-import { applyChatOp, type ChatChange, getChat, listChats, renameLegacyAgent, searchChats, type Touch, touchChat } from "./chats"
+import { applyChatOp, type ChatChange, getChat, listChats, renameLegacyAgent, searchChats, setChatAgents, type Touch, touchChat } from "./chats"
 import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
@@ -341,6 +341,12 @@ export class UserDO extends DurableObject<Env> {
 
   async listChats(): Promise<Chat[]> {
     return listChats(this.sql)
+  }
+
+  /** The room calls this when its members change. Slugs become agent ids; Kiko's id is its slug. */
+  async chatMembers(roomId: RoomId, slugs: readonly string[]): Promise<void> {
+    const ids = new Map(listAgents(this.sql).map((a) => [a.slug as string, a.id]))
+    this.commit(setChatAgents(this.sql, roomId, slugs.flatMap((s) => (s === KIKO ? [KIKO] : ids.has(s) ? [ids.get(s)!] : []))))
   }
 
   async getChat(roomId: RoomId): Promise<Chat | null> {
@@ -1008,6 +1014,9 @@ export class UserDO extends DurableObject<Env> {
     renameLegacyAgent(this.sql)
     this.ctx.waitUntil(this.#recipes.retireSeeded().catch((e: unknown) => console.error(`recipe cleanup failed: ${e instanceof Error ? e.message : String(e)}`)))
     for (const op of kikoChatOps(this.sql, listChats(this.sql))) this.apply(op)
+    // The Kiko chat is Kiko alone, also for a chat record that listed an agent added before that rule.
+    const home = kikoChatRoom(this.sql)
+    if (home) this.commit(setChatAgents(this.sql, home, [KIKO]))
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {
       await this.reminders.cancel(old)

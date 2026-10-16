@@ -45,6 +45,12 @@ export class UserDO extends DurableObject {
 		await this.ctx.storage.put("opened", [...opened, { title, agents }])
 		return { roomId, created: true }
 	}
+	async chatMembers(roomId: string, slugs: string[]): Promise<void> {
+		await this.ctx.storage.put(`members:${roomId}`, [...slugs].sort())
+	}
+	async savedMembers(roomId: string): Promise<unknown> {
+		return (await this.ctx.storage.get(`members:${roomId}`)) ?? null
+	}
 	async markKiko(roomId: string): Promise<void> {
 		await this.ctx.storage.put("kiko", [...((await this.ctx.storage.get<string[]>("kiko")) ?? []), roomId])
 	}
@@ -96,6 +102,7 @@ export default {
 			return new Response("ok")
 		}
 		if (kind === "opened") return Response.json(await env.USER.get(env.USER.idFromName("user:alice")).opened())
+		if (kind === "saved") return Response.json(await env.USER.get(env.USER.idFromName("user:alice")).savedMembers(roomId!))
 		if (kind === "agent") {
 			const agent = env.AGENT.get(env.AGENT.idFromName(`agent:alice:${roomId}:${slug}`))
 			return Response.json({ got: await agent.got(), stops: await agent.stops() })

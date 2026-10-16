@@ -104,6 +104,8 @@ test("a Kiko chat that already holds other members drops them once, and stops th
 	expect(stops).toBe(2)
 	await open(room).then((x) => x.close())
 	expect(await members(room)).toEqual(["kiko"])
+	// The chat record follows, so the pinned tile shows Kiko alone.
+	expect(await until(async () => (await fetch(`${origin}/saved/${room}/x`)).json(), (v) => JSON.stringify(v) === '["kiko"]')).toEqual(["kiko"])
 	c.close()
 })
 

@@ -140,6 +140,15 @@ function next(current: Chat | null, op: ChatOp, now: number, pair: boolean): Cha
 /** Distinct ids, capped. A chat's agents are a set: a repeat adds nothing. */
 const agentIds = (agents: readonly string[]): string[] => [...new Set(agents.map((id) => id.slice(0, 64)))].slice(0, MAX_AGENTS)
 
+/** A chat's agents follow its room's members, so its tile shows who is really in it. */
+export function setChatAgents(sql: SqlStorage, roomId: string, agents: readonly string[]): ChatChange | null {
+  const current = getChat(sql, roomId)
+  if (!current) return null
+  const ids = agentIds(agents)
+  const same = (current.agents ?? []).length === ids.length && ids.every((id) => current.agents?.includes(id))
+  return same ? null : write(sql, { ...current, agents: ids })
+}
+
 /** `pair` marks the chat a create makes as a private talk between two agents. Only the server sets it. */
 export function applyChatOp(sql: SqlStorage, op: ChatOp, now: number, pair = false): ChatChange | null {
   const current = getChat(sql, op.roomId)
