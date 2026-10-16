@@ -251,7 +251,7 @@ describe("useApp over the mock room", () => {
 
   test("a chat row that did not change keeps its object, so the list keeps its DOM", async () => {
     const { app } = await boot()
-    app.openDm({ id: "cy", name: "cy", slug: "cy" as never, prompt: "", model: "" })
+    app.user()!.createChat("cy", ["cy"])
     const before = app.bots()
     expect(before.length).toBeGreaterThan(1)
     expect(app.chatById(before[0].id)).toBe(before[0])

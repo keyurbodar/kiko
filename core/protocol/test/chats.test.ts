@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { dmFor, kikoOnly, sameAgentChat, sameAgents } from "../src/chats"
+import { sameAgentChat, sameAgents } from "../src/chats"
 import type { RoomId } from "../src/ids"
 import type { Chat } from "../src/user"
 
@@ -26,7 +26,7 @@ describe("an agent's one direct chat", () => {
 		["a tie goes to the lowest room id", [ada("b", 1), ada("a", 1)], "ada", "a"],
 		["for kiko, the kiko chat wins over a newer kiko room", [chat("k", { agents: ["kiko"], kiko: true }), chat("old", { agents: ["kiko"], updatedAt: 9 })], "kiko", "k"],
 	])("%s", (_, chats, agent, expected) => {
-		expect((dmFor(chats, agent)?.roomId ?? null) as string | null).toBe(expected)
+		expect((sameAgentChat(chats, [agent])?.roomId ?? null) as string | null).toBe(expected)
 	})
 })
 
@@ -60,16 +60,5 @@ describe("two agent lists name one chat", () => {
 		["an empty list", [], [], false],
 	])("%s", (_, a, b, expected) => {
 		expect(sameAgents(a, b)).toBe(expected)
-	})
-})
-
-describe("rooms with kiko alone", () => {
-	test.each<[string, Chat, boolean]>([
-		["kiko alone", chat("a", { agents: ["kiko"] }), true],
-		["no agents, which seeds kiko", chat("a"), true],
-		["another agent", chat("a", { agents: ["ada"] }), false],
-		["a group", chat("a", { agents: ["kiko", "ada"] }), false],
-	])("%s", (_, c, expected) => {
-		expect(kikoOnly(c)).toBe(expected)
 	})
 })

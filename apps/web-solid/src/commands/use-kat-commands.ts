@@ -13,8 +13,7 @@ import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openAvatarPicker } from "../avatar/picker-state"
 import { useApp } from "../lib/store"
-import { NEW_AGENT_START, openBotPicker } from "../chat/bot-picker-state"
-import { fillComposer } from "../composer/fill"
+import { openBotPicker, openNewAgentFlow } from "../chat/bot-picker-state"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
@@ -48,17 +47,12 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
           title: agent.name,
           seed: agent.slug,
           run: () => {
-            const roomId = useApp.openDm(agent)
+            const roomId = useApp.user()?.createChat(agent.name, [agent.id])
             if (roomId) navigate(`/chat/${roomId}`)
           },
         })),
       newGroup: openBotPicker,
-      newAgent: () => {
-        const kiko = useApp.kikoChatId()
-        if (!kiko) return
-        fillComposer(kiko, NEW_AGENT_START)
-        navigate(`/chat/${kiko}`)
-      },
+      newAgent: openNewAgentFlow,
       toggleSidecar: () => {
         const id = activeId()
         if (id) toggleSidecar(id)

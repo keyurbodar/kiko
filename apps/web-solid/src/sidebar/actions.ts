@@ -14,10 +14,26 @@ const [renaming, setRenaming] = createSignal<string | null>(null)
 /** The chat whose title is being edited in place, or null. */
 export const renamingId = renaming
 
-// DEVIATION: the protocol has no "mark as unread" op, and `protocol` is not in
-// this task's files. The mark is a client-only overlay, kept per tab. It is
-// cleared when the chat is opened.
-const [forced, setForced] = createSignal<ReadonlySet<string>>(new Set())
+// DEVIATION: the protocol has no "mark as unread" op. The mark is a client-only overlay, kept on
+// this device so a reload keeps it. It is cleared when the chat is opened.
+const MARKS = "kiko:marked-unread"
+const savedMarks = (): ReadonlySet<string> => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(MARKS) ?? "[]") as string[])
+  } catch {
+    return new Set()
+  }
+}
+const [forced, setForcedSignal] = createSignal<ReadonlySet<string>>(savedMarks())
+const setForced = (update: (marks: ReadonlySet<string>) => ReadonlySet<string>) => {
+  const next = update(forced())
+  setForcedSignal(next)
+  try {
+    localStorage.setItem(MARKS, JSON.stringify([...next]))
+  } catch {
+    // Blocked storage keeps the mark for this tab only.
+  }
+}
 export const markedUnread = (id: string): boolean => forced().has(id)
 
 export function markUnread(id: string): void {

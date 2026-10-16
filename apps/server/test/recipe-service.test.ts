@@ -2,6 +2,7 @@ import { expect, test } from "bun:test"
 import type { RoomId } from "@kiko/protocol"
 import { recipeCard } from "../src/recipes/card"
 import { parseRecipe } from "../src/recipes/recipe"
+import { agentNamed, createAgent } from "../src/user/agents"
 import { RecipeLibrary } from "../src/user/recipe-library"
 import { RecipeService } from "../src/user/recipe-service"
 import { Reminders } from "../src/user/reminders"
@@ -31,9 +32,10 @@ function setup() {
     },
     routine: (id) => reminders.get(id),
     chiefModel: async () => "provider/chosen-model",
+    agentNamed: (name) => agentNamed(sql, name),
     makeAgent: async (name, handle, description, model) => {
       inherited = model
-      return { id: "new-agent", name, slug: handle as never, prompt: description, model }
+      return createAgent(sql, { id: crypto.randomUUID(), name, slug: handle as never, prompt: description, model }, 0)
     },
     openChat: async () => "01J0000000000000000000000S" as RoomId,
     announce: async () => "delivered",
@@ -135,4 +137,15 @@ test("a card lists each app with its toolkit slug, and connected from the port o
     { name: "Gmail", slug: "gmail", connected: true },
   ])
   expect(recipeCard(r, true, null).apps.map((a) => a.connected)).toEqual([null, null])
+})
+
+test("installing a recipe into its own chat twice reuses the agent, whatever the case of its name", async () => {
+  const f = setup()
+  const first = await f.service.install({ installId: crypto.randomUUID(), slug: "tea-time", own: true })
+  const second = await f.service.install({ installId: crypto.randomUUID(), slug: "tea-time", own: true })
+  expect(first.ok && second.ok).toBe(true)
+  expect(second).toMatchObject({ existed: true })
+  expect(f.sql.exec("SELECT count(*) AS n FROM agents").one().n).toBe(1)
+  expect(f.reminders.list().filter((r) => r.status === "active")).toHaveLength(1)
+  expect(createAgent(f.sql, { id: "x", name: " TEA time ", slug: "other" as never, prompt: "", model: "" }, 0)).toBeNull()
 })
