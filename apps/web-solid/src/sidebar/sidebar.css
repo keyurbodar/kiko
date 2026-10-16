@@ -867,27 +867,27 @@
   }
 }
 
-.sidebar-shell .update-pill {
+.update-pill {
   display: inline-flex;
   height: 28px;
   max-width: 100%;
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--font-xs);
   color: var(--ring);
   background: color-mix(in oklab, var(--ring) 14%, transparent);
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 
-.sidebar-shell .update-pill[data-kind="blocked"],
-.sidebar-shell .update-pill[data-kind="failed"] {
+.update-pill[data-kind="blocked"],
+.update-pill[data-kind="failed"] {
   color: var(--error);
   background: color-mix(in oklab, var(--error) 14%, transparent);
 }
 
-.sidebar-shell span.update-pill {
+span.update-pill {
   cursor: default;
 }

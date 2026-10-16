@@ -3,7 +3,6 @@
 import { Show } from "solid-js"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { DownloadIcon } from "@kiko/ui/icons"
-import { Button, Spinner } from "../settings/kit"
 import { startUpdate, view } from "./update-flow"
 
 export default function UpdateNotice() {
@@ -15,7 +14,7 @@ export default function UpdateNotice() {
 		<Show when={shown()}>
 			<div class="mx-3 mb-2 flex items-center gap-2 rounded-lg bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] px-3 py-2 text-sm" role="status" data-component="update-notice" data-kind={view().kind}>
 				<Show when={view().kind === "busy"} fallback={<HugeIcon icon={DownloadIcon} size={14} />}>
-					<Spinner size={12} />
+					<span class="motion-spin inline-block size-3 rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
 				</Show>
 				<span class="min-w-0 flex-1 truncate">
 					{(() => {
@@ -24,9 +23,9 @@ export default function UpdateNotice() {
 					})()}
 				</span>
 				<Show when={view().kind !== "busy"}>
-					<Button variant="primary" onClick={startUpdate} data-part="update-start">
+					<button type="button" class="update-pill" onClick={startUpdate} data-part="update-start">
 						{view().kind === "failed" ? "Retry update" : "Update now"}
-					</Button>
+					</button>
 				</Show>
 			</div>
 		</Show>

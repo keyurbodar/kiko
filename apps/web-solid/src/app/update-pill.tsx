@@ -4,7 +4,6 @@ import { HugeIcon } from "@kiko/ui/huge-icon"
 import { DownloadIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { APP_VERSION } from "../lib/version-skew"
-import { Spinner } from "../settings/kit"
 import { backendVersion, startUpdate, view, watchLatest } from "./update-flow"
 
 function Versions() {
@@ -28,7 +27,7 @@ export default function UpdatePill() {
 						<Match when={view().kind === "busy" && view()}>
 							{(v) => (
 								<span class="update-pill" role="status" data-component="update-pill" data-kind="busy">
-									<Spinner size={12} />
+									<span class="motion-spin inline-block size-3 rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
 									{(v() as { text: string }).text}
 								</span>
 							)}
