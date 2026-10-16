@@ -3,7 +3,6 @@ import "@kiko/ui/provider-icon.css"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
 import { loadCatalog, type CatalogProvider } from "../../settings/catalog"
 import { AddProviderDialog, ConnectDialog, POPULAR } from "../../settings/models"
-import { isJudgeOnly, JUDGE_NOTE } from "../../settings/provider-kinds"
 import { move } from "./progress"
 
 /*
@@ -19,7 +18,7 @@ export function ConnectStep() {
     return POPULAR.flatMap(({ id, note }) => {
       const provider = all.find((p) => p.id === id)
       return provider ? [{ provider, note }] : []
-    }).concat(all.filter(isJudgeOnly).map((provider) => ({ provider, note: JUDGE_NOTE })))
+    }).slice(0, 5)
   })
   return (
     <div class="first-run-step flex w-full flex-col gap-3" data-step="connect">
@@ -32,7 +31,7 @@ export function ConnectStep() {
       <div class="flex flex-col gap-2" data-component="first-run-providers" style={{ "--i": 2 }}>
         <Show
           when={!catalog.loading}
-          fallback={<For each={POPULAR}>{() => <div class="first-run-skeleton h-[58px] rounded-lg bg-muted" />}</For>}
+          fallback={<For each={POPULAR.slice(0, 5)}>{() => <div class="first-run-skeleton h-[58px] rounded-lg bg-muted" />}</For>}
         >
           <Show when={catalog.error}>
             <p class="text-center text-sm text-[var(--error)]" role="alert">

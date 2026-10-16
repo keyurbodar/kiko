@@ -14,8 +14,8 @@ import { Welcome } from "./welcome"
 export default function FirstRun() {
   const at = () => positionOf(currentStep())
   return (
-    <div class="flex h-dvh flex-col items-center justify-center bg-background px-4" data-component="first-run" data-step={currentStep()}>
-      <div class="flex w-full max-w-80 flex-col items-center gap-8">
+    <div class="h-dvh overflow-y-auto bg-background px-4 py-8" data-component="first-run" data-step={currentStep()}>
+      <div class="mx-auto flex min-h-full w-full max-w-80 flex-col items-center justify-center gap-8">
         <div class="flex w-full gap-1.5" role="progressbar" aria-label="Setup progress" aria-valuemin="1" aria-valuemax={SHOWN.length} aria-valuenow={at()} aria-valuetext={`Step ${at()} of ${SHOWN.length}`}>
           <For each={SHOWN}>
             {(_, i) => (
