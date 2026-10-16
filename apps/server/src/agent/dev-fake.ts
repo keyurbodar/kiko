@@ -124,6 +124,8 @@ export function fakeReply(transcript: readonly Message[]) {
   const missed = briefed.length ? `; missed: ${briefed.flatMap((m) => missedOf(rawOf(m))).join(" | ")}` : ""
   const heard = `heard: ${users.join(" | ")}${results.length ? `; tool: ${results.join(", ")}` : ""}${missed}`
   const newest = last?.role === "user" ? textOf(last) : ""
+  const failing = /(?:^|\s)\[model-error\]\s*([\s\S]*)$/.exec(newest)
+  if (failing) return fauxAssistantMessage("", { stopReason: "error", errorMessage: capture(failing, 1) })
   const scripted = /(?:^|\s)\[reply\]\s*([\s\S]*)$/.exec(newest)
   if (scripted) return fauxAssistantMessage(capture(scripted, 1))
   if (newest.includes("[brief]")) {

@@ -19,6 +19,7 @@ import { onChatModelChange } from "../settings/chat-model"
 import type { Agent, AgentSlug, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
 import { fileName, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { showRunError } from "./run-error"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
@@ -368,6 +369,7 @@ export function createApp(options: AppOptions = {}) {
       // A send the room refused stays in the transcript, marked failed. The toast says why.
       next.onTaskRefused((reason) => showToastV2({ title: reason, variant: "error" }))
       next.onSendRefused((reason) => showToastV2({ title: reason, variant: "error" }))
+      next.onRunError((frame) => showRunError(frame, next.state.members.find((m) => m.slug === frame.slug)?.name ?? "The agent"))
       setRoom(next)
     }
 
