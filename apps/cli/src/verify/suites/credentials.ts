@@ -2,7 +2,7 @@ import { expectEqual, VerifyError } from "../client"
 import type { Suite } from "../runner"
 
 
-const PROVIDER = "opencode-go"
+const PROVIDER = "acme-test"
 
 type Answer = { status: number; text: string; body: unknown }
 
@@ -39,11 +39,15 @@ const suite: Suite = {
 
     const saved = await call(alice.auth, "PUT", `api/credentials/${PROVIDER}`, { apiKey: key })
     expectEqual(saved.status, 200, "status of the save")
-    const row = { provider: PROVIDER, kind: "api_key", last4: key.slice(-4), chat: true, judge: false }
+    const row = { provider: PROVIDER, kind: "api_key", last4: key.slice(-4), chat: false, judge: false }
     expectEqual(saved.body, { provider: row }, "save answer")
 
     expectEqual((await call(alice.auth, "GET", "api/credentials")).body, { providers: [row] }, "alice's providers")
     expectEqual((await call(bob.auth, "GET", "api/credentials")).body, { providers: [] }, "bob's providers")
+
+    const refused = await call(alice.auth, "PUT", "api/credentials/opencode-go", { apiKey: `sk-not-a-real-key-${key.slice(-8)}` })
+    expectEqual([refused.status, refused.body], [400, { error: "The provider refused that key" }], "a key the provider refuses")
+    expectEqual((await call(alice.auth, "GET", "api/credentials")).body, { providers: [{ provider: PROVIDER, kind: "api_key", last4: key.slice(-4), chat: false, judge: false }] }, "providers after a refused save")
 
     const bad = await call(alice.auth, "PUT", "api/credentials/Not%20A%20Provider", { apiKey: key })
     expectEqual(bad.status, 400, "status for a bad provider id")

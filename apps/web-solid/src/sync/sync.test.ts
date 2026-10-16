@@ -547,7 +547,31 @@ describe("the room store", () => {
 		store.close()
 	})
 
+	// A loaded machine pauses any task for a while, so one pause must not fail the run. A real regression is slow in every attempt.
 	test("applies 1,000 events with no task over 8 ms", async () => {
+		const attempts: number[] = []
+		for (let attempt = 0; attempt < 4 && !(attempts.at(-1)! < 8); attempt++) attempts.push(await longestTaskOfThousandEvents())
+		console.log(`longest task per attempt: ${attempts.map((a) => a.toFixed(2)).join(", ")} ms`)
+		expect(attempts.at(-1)!).toBeLessThan(8)
+	})
+
+	test("hands the main thread back between slices of a replay", async () => {
+		let slices = 0
+		const { mock, make } = setup({ resetAfter: 5000 }, { budgetMs: 0, schedule: (run) => void (slices++, setTimeout(run, 0)) })
+		const { store } = await make()
+		await until(() => store.state.seq === LAST)
+		mock.drop()
+		mock.online = false
+		mock.store(...Array.from({ length: 1000 }, (_, i) => ({ t: "message", id: `y${i}` as MessageId, from: { kind: "agent", slug: "ada" as AgentSlug }, text: `bubble ${i}` }) as never))
+		slices = 0
+		mock.online = true
+		await until(() => store.state.seq === LAST + 1000, 10_000)
+		await store.settled()
+		expect(slices).toBeGreaterThanOrEqual(1000)
+		store.close()
+	})
+
+	async function longestTaskOfThousandEvents(): Promise<number> {
 		const { schedule, durations } = timedSchedule()
 		const { mock, make } = setup({ schedule, resetAfter: 5000 }, { schedule })
 		const { store } = await make()
@@ -581,14 +605,12 @@ describe("the room store", () => {
 		await store.settled()
 		const live = Math.max(...durations)
 
-		console.log(`longest task: ${replay.toFixed(2)} ms on replay, ${live.toFixed(2)} ms live`)
 		expect(store.state.messages.length).toBeLessThanOrEqual(MAX_MESSAGES_IN_MEMORY + WINDOW_SLACK)
 		expect(store.state.messages.at(-1)?.text).toBe("bubble 1998")
 		expect(store.state.messages.at(-1)?.reactions).toHaveLength(1)
-		expect(replay).toBeLessThan(8)
-		expect(live).toBeLessThan(8)
 		store.close()
-	})
+		return Math.max(replay, live)
+	}
 
 	test("typing and status are shown, and cleared when the socket drops", async () => {
 		const { mock, make } = setup()

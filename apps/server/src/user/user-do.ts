@@ -22,7 +22,9 @@ import { type Alarms, createAlarms, runDue } from "@kiko/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "@kiko/durable/crypto"
-import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
+import { checkApiKey, CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
+import { keyRefused } from "./credentials-check"
+import { userModels } from "../agent/factory"
 import { agentNamed, createAgent, listAgents } from "./agents"
 import { agentModel, allAgentModels, saveAgentModel } from "./agent-models"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
@@ -441,6 +443,12 @@ export class UserDO extends DurableObject<Env> {
 
   async compress(prompt: string, page?: { roomId: RoomId; at: number; span?: { lo: number; hi: number } }): Promise<{ text: string } | { retryAt: number } | { error: string }> {
     return this.#mem.compress(prompt, page)
+  }
+
+  async providerKeyRefused(provider: string, apiKey: string): Promise<boolean> {
+    const key = checkApiKey(apiKey)
+    const { models, settings } = userModels(async () => ({ auth: { apiKey: key } }), `check-${this.ctx.id.toString()}`)
+    return keyRefused(models, provider, settings.stream?.headers)
   }
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
