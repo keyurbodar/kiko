@@ -3,6 +3,7 @@ import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, ty
 import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
 import { classifyRunError, scrubDetail } from "./run-error"
+import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
 const context = BACKGROUND_CONTEXT
@@ -22,8 +23,8 @@ type Row = { run_id: string; attempt: number; cursor: number; blocks: string; po
 
 type AssistantLike = { role?: string; stopReason?: string; errorMessage?: string; provider?: string; content?: readonly { type: string; text?: string }[] }
 
-function textOf(message: AssistantLike | undefined): string {
-  return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n\n")
+export function textOf(message: AssistantLike | undefined, final = true): string {
+  return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [scrubToolMarkup(part.text, final)] : [])).join("\n\n")
 }
 
 export function partsOf(text: string): { blocks: string[]; reactions: Reaction[] } {
@@ -137,7 +138,7 @@ export class Outbox {
         if (message.role !== "assistant" || message.stopReason === "aborted" || !this.run) return
         this.run.generation = newGeneration()
         await this.setStatus("typing")
-        return this.stream(textOf(message))
+        return this.stream(textOf(message, false))
       }
       case "message_update": {
         const generation = this.run?.generation
@@ -153,7 +154,7 @@ export class Outbox {
             })
           }
         }
-        const text = [...generation.texts.entries()].sort(([a], [b]) => a - b).map(([, t]) => t).filter(Boolean).join("\n\n")
+        const text = [...generation.texts.entries()].sort(([a], [b]) => a - b).map(([, t]) => scrubToolMarkup(t, false)).filter(Boolean).join("\n\n")
         return this.stream(text)
       }
       case "message_end":
@@ -228,7 +229,7 @@ export class Outbox {
     const partial = snapshot.generation?.message as AssistantLike | undefined
     if (livePartial && partial) {
       this.run.generation ??= newGeneration()
-      await this.stream(textOf(partial))
+      await this.stream(textOf(partial, false))
     }
   }
 

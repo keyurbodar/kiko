@@ -1,4 +1,5 @@
 import type { RoomToClient } from "@kiko/protocol"
+import { loadCatalog } from "../settings/catalog"
 import { showToastV2, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
 
 export type RunErrorFrame = Extract<RoomToClient, { t: "run_error" }>
@@ -10,8 +11,8 @@ export const setGo = (fn: (href: string) => void) => {
 }
 
 /** The words for a run that ended in a model or provider error. A pure table: the kind picks the sentence and whether to offer settings. */
-export function runErrorToast(frame: Pick<RunErrorFrame, "kind" | "provider" | "detail">, name: string): ToastV2Options & { title: string; settings?: boolean } {
-  const provider = frame.provider ? frame.provider.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ") : "The provider"
+export function runErrorToast(frame: Pick<RunErrorFrame, "kind" | "provider" | "detail">, name: string, providerName?: string): ToastV2Options & { title: string; settings?: boolean } {
+  const provider = providerName ?? (frame.provider ? frame.provider.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ") : "The provider")
   switch (frame.kind) {
     case "no_key":
       return { title: `${name} cannot answer yet`, description: `${provider} is not connected.`, settings: true }
@@ -30,8 +31,12 @@ export function runErrorToast(frame: Pick<RunErrorFrame, "kind" | "provider" | "
   }
 }
 
-export function showRunError(frame: RunErrorFrame, name: string): void {
-  const { settings, ...toast } = runErrorToast(frame, name)
+/** The provider's own display name from the catalog ("OpenCode Go"), or undefined when the catalog is not available. */
+const catalogName = (id: string | undefined) =>
+  id ? loadCatalog().then((catalog) => catalog.providers.find((p) => p.id === id)?.name).catch(() => undefined) : Promise.resolve(undefined)
+
+export async function showRunError(frame: RunErrorFrame, name: string): Promise<void> {
+  const { settings, ...toast } = runErrorToast(frame, name, await catalogName(frame.provider))
   showToastV2({
     ...toast,
     variant: "error",

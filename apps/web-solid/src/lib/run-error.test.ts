@@ -15,6 +15,10 @@ describe("runErrorToast", () => {
   test("only the kinds a key fixes offer settings", () => {
     expect(kinds.filter((kind) => runErrorToast({ kind }, "Kiko").settings)).toEqual(["no_key", "invalid_key"])
   })
+  test("the provider's catalog name wins over the prettified id", () => {
+    expect(runErrorToast({ kind: "rate_limit", provider: "opencode-go" }, "Kiko", "OpenCode Go").title).toContain("OpenCode Go")
+  })
+
   test("the provider and the agent are named", () => {
     expect(runErrorToast({ kind: "rate_limit", provider: "openai" }, "Kiko").title).toContain("Openai")
     expect(runErrorToast({ kind: "no_key", provider: "anthropic" }, "Jev").title).toContain("Jev")
