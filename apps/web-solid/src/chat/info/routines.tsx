@@ -1,8 +1,9 @@
 import type { RecipeCard, Trigger } from "@kiko/protocol"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { ClockIcon, TrashIcon } from "@kiko/ui/icons"
+import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { createResource, createSignal, For, Show } from "solid-js"
+import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
+import { createResource, createSignal, For, Show, type JSX } from "solid-js"
 import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
@@ -66,23 +67,37 @@ export async function cancelRoutine(routine: Routine): Promise<void> {
   }
 }
 
+const STARTED_MS = 2500
+
+const forget = (id: string) =>
+  setStarted((s) => {
+    const next = new Set(s)
+    next.delete(id)
+    return next
+  })
+
 export async function runNow(routine: Routine): Promise<void> {
   setStarted((s) => new Set(s).add(routine.id))
-  if (!(await post(`/api/routines/${routine.id}/run`, {}))) {
-    setStarted((s) => {
-      const next = new Set(s)
-      next.delete(routine.id)
-      return next
-    })
-    showToastV2({ title: `Could not run ${routine.name}`, variant: "error" })
+  if (await post(`/api/routines/${routine.id}/run`, {})) {
+    setTimeout(() => forget(routine.id), STARTED_MS)
+    return
   }
+  forget(routine.id)
+  showToastV2({ title: `Could not run ${routine.name}`, variant: "error" })
 }
 
 const faint = "text-[color-mix(in_oklab,var(--foreground)_40%,transparent)]"
 const tool =
   "grid size-7 shrink-0 place-items-center rounded-md text-[color-mix(in_oklab,var(--foreground)_45%,transparent)] hover:bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] hover:text-foreground disabled:opacity-40"
-const word =
-  "h-7 shrink-0 rounded-md px-2 text-[11px] text-[color-mix(in_oklab,var(--foreground)_55%,transparent)] hover:bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] hover:text-foreground disabled:opacity-40"
+function Tool(props: { label: string; action: string; disabled?: boolean; onClick: () => void; children: JSX.Element }) {
+  return (
+    <TooltipV2 placement="top" openDelay={400} value={props.label}>
+      <button type="button" class={tool} aria-label={props.label} disabled={props.disabled} data-action={props.action} onClick={props.onClick}>
+        {props.children}
+      </button>
+    </TooltipV2>
+  )
+}
 
 function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
   const on = () => props.routine.status === "active"
@@ -110,15 +125,15 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           </span>
         </span>
       </div>
-      <button type="button" class={word} disabled={ran()} data-action="routine-run" onClick={() => void runNow(props.routine)}>
-        {ran() ? "Started" : "Run now"}
-      </button>
-      <button type="button" class={word} data-action="routine-toggle" onClick={() => void setStatus(props.routine, on() ? "paused" : "active")}>
-        {on() ? "Pause" : "Resume"}
-      </button>
-      <button type="button" class={tool} aria-label="Delete routine" title="Delete routine" data-action="routine-delete" onClick={() => void cancelRoutine(props.routine)}>
+      <Tool label={ran() ? "Started" : "Run now"} action="routine-run" disabled={ran()} onClick={() => void runNow(props.routine)}>
+        <HugeIcon icon={ran() ? CheckIcon : PlayIcon} size={14} />
+      </Tool>
+      <Tool label={on() ? "Pause" : "Resume"} action="routine-toggle" onClick={() => void setStatus(props.routine, on() ? "paused" : "active")}>
+        <HugeIcon icon={on() ? PauseIcon : PlayIcon} size={14} />
+      </Tool>
+      <Tool label="Delete routine" action="routine-delete" onClick={() => void cancelRoutine(props.routine)}>
         <HugeIcon icon={TrashIcon} size={14} />
-      </button>
+      </Tool>
     </li>
   )
 }

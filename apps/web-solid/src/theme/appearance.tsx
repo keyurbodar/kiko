@@ -8,7 +8,8 @@ import { cn } from "../lib/cn"
 import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import { Select } from "../settings/select"
 import { look, updateLook } from "./live"
-import { choose, DEFAULT, remove, ThemeBrowser, themes } from "./open-vsx-themes"
+import { choose, DEFAULT, remove, themes } from "./live"
+import { ThemeBrowser } from "./open-vsx-themes"
 
 /*
  * Appearance is chosen by eye: every theme is a small picture of Kiko in its colors. The dark and

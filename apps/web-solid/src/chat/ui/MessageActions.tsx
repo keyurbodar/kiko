@@ -1,7 +1,8 @@
 import { EllipsisIcon, ReplyIcon, SmilePlusIcon } from "lucide-solid"
-import { createSignal, lazy, onCleanup, Show, Suspense, type JSX } from "solid-js"
+import { createSignal, lazy, onCleanup, onMount, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { warmEmoji } from "../../lib/emoji-data"
+import { actionsPlacement, type ActionsPlacement } from "./actions-placement"
 
 const popoverModule = () => import("./ReactionPopover")
 const ReactionPopover = lazy(() => popoverModule().then((m) => ({ default: m.ReactionPopover })))
@@ -32,6 +33,25 @@ export function MessageActions(props: {
   }
   onCleanup(clearTimers)
 
+  let root: HTMLDivElement | undefined
+  const [placement, setPlacement] = createSignal<ActionsPlacement>("outside")
+  onMount(() => {
+    const bubble = root?.parentElement
+    const row = root?.closest<HTMLElement>('[data-component="chat-row"]')
+    if (!bubble || !row) return
+    const measure = () => {
+      if (open()) return
+      const scroller = row.closest<HTMLElement>('[data-component="chat-scroll"]') ?? document.documentElement
+      setPlacement(actionsPlacement(props.side, bubble.getBoundingClientRect(), scroller.getBoundingClientRect()))
+    }
+    row.addEventListener("pointerenter", measure)
+    row.addEventListener("focusin", measure)
+    onCleanup(() => {
+      row.removeEventListener("pointerenter", measure)
+      row.removeEventListener("focusin", measure)
+    })
+  })
+
   const warm = () => {
     void popoverModule()
     warmEmoji()
@@ -51,12 +71,19 @@ export function MessageActions(props: {
 
   return (
     <div
+      ref={root}
       class={cn(
-        "absolute top-1/2 z-[7] hidden -translate-y-1/2 items-center gap-0.5 pointer-fine:flex",
+        "absolute z-[7] hidden items-center gap-0.5 pointer-fine:flex",
         "opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 data-[open]:opacity-100",
-        props.side === "user" ? "right-full mr-1.5 flex-row-reverse" : "left-full ml-1.5",
+        placement() === "inside"
+          ? cn(
+              "top-0 -translate-y-[80%] rounded-full border border-border bg-popover p-0.5 shadow-sm",
+              props.side === "user" ? "right-2 flex-row-reverse" : "left-2",
+            )
+          : cn("top-1/2 -translate-y-1/2", props.side === "user" ? "right-full mr-1.5 flex-row-reverse" : "left-full ml-1.5"),
       )}
       data-component="chat-actions"
+      data-placement={placement()}
       data-open={open() ? "" : undefined}
     >
       <button

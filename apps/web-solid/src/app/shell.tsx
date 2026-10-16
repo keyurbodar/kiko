@@ -281,7 +281,7 @@ export function Shell(props: ParentProps) {
           {(_mode) => {
             const sizes = initialSizes(window.innerWidth, narrow() ? null : collapsed() ? 0 : readWidth(SIDEBAR), compact() ? null : dockedSide() ? readWidth(INFO) : 0);
             return (
-              <Resizable class="min-w-0 flex-1" keyboardDelta="16px" data-component="app-panels">
+              <Resizable class="min-w-0 flex-1" keyboardDelta="16px" handleCursorStyle={false} data-component="app-panels">
                 <Show when={!narrow()}>
                   <Resizable.Panel
                     panelId="kiko-sidebar-panel"

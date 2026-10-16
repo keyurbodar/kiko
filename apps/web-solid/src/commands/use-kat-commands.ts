@@ -11,7 +11,7 @@ import type { Choice } from "./registry"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
 import { agentList } from "../lib/chats"
-import { readCache } from "@kiko/theme/apply"
+import { importedThemes, previewLook, readCache } from "@kiko/theme/apply"
 import { parseLook } from "@kiko/theme/look"
 import { openSearch, requestJump } from "../search/state"
 import { messageSearchCommand } from "./message-search"
@@ -176,6 +176,17 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       accent: () => parseLook(readCache()?.text ?? null).accent,
       setMode: (mode) => void live().then((m) => m.updateLook({ mode })),
       setAccent: (accent) => void live().then((m) => m.updateLook({ accent })),
+      imported: importedThemes,
+      setTheme: (appearance, id) =>
+        void live().then((m) => {
+          m.updateLook({ mode: appearance })
+          m.choose(appearance, id)
+        }),
+      preview: ({ mode, accent, active }) => {
+        const saved = parseLook(readCache()?.text ?? null)
+        const imported = importedThemes()
+        return previewLook({ ...saved, mode: mode ?? saved.mode, accent: accent ?? saved.accent }, active ? { ...imported, active } : imported)
+      },
       openView: openPalette,
       activeAgent: () => {
         const id = activeId()

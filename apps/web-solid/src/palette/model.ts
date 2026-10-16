@@ -33,6 +33,7 @@ export interface Item {
   chat?: boolean
   shortcut?: string
   current?: boolean
+  preview?: () => () => void
   submenu?: string
   run: () => void
 }
@@ -66,14 +67,16 @@ const commandItem = (c: Command): Item => ({
   run: c.run,
 })
 
-const choiceItem = (c: Choice): Item => ({ key: c.id, title: c.title, icon: c.icon, seed: c.seed, chatId: c.chatId, detail: c.detail, file: c.file, snippet: c.snippet, swatch: c.swatch, current: c.current, run: c.run })
+const choiceItem = (c: Choice): Item => ({ key: c.id, title: c.title, icon: c.icon, seed: c.seed, chatId: c.chatId, detail: c.detail, file: c.file, snippet: c.snippet, swatch: c.swatch, current: c.current, preview: c.preview, run: c.run })
 
 /** A search view's rows under their headings. A heading starts a new group when it changes. */
-export function searchGroups(parent: Command, query: string): PaletteGroup[] {
+export const searchGroups = (parent: Command, query: string): PaletteGroup[] => groupChoices(parent.search?.(query) ?? [], parent.highlight ? query.trim() : undefined)
+
+function groupChoices(choices: readonly Choice[], mark?: string): PaletteGroup[] {
   const groups: PaletteGroup[] = []
-  for (const c of parent.search?.(query) ?? []) {
+  for (const c of choices) {
     const label = c.group ?? null
-    const item = { ...choiceItem(c), mark: parent.highlight ? query.trim() : undefined }
+    const item = { ...choiceItem(c), mark }
     const last = groups[groups.length - 1]
     if (last && last.label === label) last.items.push(item)
     else groups.push({ label, items: [item] })
@@ -101,7 +104,7 @@ export function viewFor(stack: readonly string[], list: readonly Command[] = com
   const parent = stack.length ? list.find((c) => c.id === stack[stack.length - 1] && (c.submenu || c.search) && isEnabled(c)) : undefined
   if (parent?.search) return { parent, placeholder: parent.placeholder ?? "Search…", groups: [] }
   if (parent?.submenu) {
-    return { parent, placeholder: parent.placeholder ?? "Search…", groups: [{ label: null, items: parent.submenu().map(choiceItem) }] }
+    return { parent, placeholder: parent.placeholder ?? "Search…", groups: groupChoices(parent.submenu()) }
   }
   const groups = new Map<CommandGroup, PaletteGroup>()
   for (const c of listed(list)) {
@@ -114,6 +117,27 @@ export function viewFor(stack: readonly string[], list: readonly Command[] = com
   const rows = [...groups.values()]
   if (chats.length) rows.push({ label: typed ? "Chats" : "Recent chats", items: chats.map((c) => ({ ...choiceItem(c), chat: true })) })
   return { placeholder: ROOT_PLACEHOLDER, groups: rows }
+}
+
+/**
+ * The live preview of the highlighted row. A row with `preview` shows itself on highlight, and the next
+ * highlight replaces it. `restore` puts the saved look back, `keep` forgets it because the row was chosen.
+ */
+export function createPreview() {
+  let undo: (() => void) | null = null
+  return {
+    show(item: Item | undefined) {
+      if (item?.preview) undo = item.preview()
+      else this.restore()
+    },
+    keep() {
+      undo = null
+    },
+    restore() {
+      undo?.()
+      undo = null
+    },
+  }
 }
 
 /** Backspace in an empty search leaves the submenu. With text in it, it deletes a letter. */

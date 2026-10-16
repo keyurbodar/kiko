@@ -8,7 +8,7 @@ import { commands } from "../commands/registry"
 import { EntryIcon } from "../lib/EntryIcon"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
-import { backspaceLeaves, emptyText, enterLabel, iconFor, keyChips, rowScore, searchGroups, viewFor, type Item } from "./model"
+import { backspaceLeaves, createPreview, emptyText, enterLabel, iconFor, keyChips, rowScore, searchGroups, viewFor, type Item } from "./model"
 import { backView, closePalette, enterView, paletteStack } from "./state"
 import "./palette.css"
 
@@ -105,7 +105,30 @@ export default function Palette() {
   // A search that fills in later is told what is typed, and told to stand down when its view closes.
   createEffect(() => view().parent?.onQuery?.(query()))
   createEffect(on(() => view().parent, (_now, before) => before?.onQuery?.(""), { defer: true }))
+  // The highlighted row previews itself, but only once the person has moved: the row the list starts on is not a choice.
+  const preview = createPreview()
+  const [highlight, setHighlight] = createSignal("")
+  let engaged = false
+  const items = () => groups().flatMap((g) => g.items)
+  createEffect(() => {
+    const key = highlight()
+    const item = items().find((i) => i.key === key)
+    if (engaged && open()) preview.show(item)
+  })
+  createEffect(
+    on(
+      () => stack().join("/"),
+      () => {
+        engaged = false
+        preview.restore()
+      },
+      { defer: true },
+    ),
+  )
+  onCleanup(() => preview.restore())
+
   const close = () => {
+    preview.restore()
     closePalette()
     const el = before
     before = null
@@ -114,17 +137,31 @@ export default function Palette() {
 
   const choose = (item: Item) => {
     if (item.submenu) return enterView(item.submenu)
+    preview.keep()
     close()
     item.run()
   }
 
   return (
     <Show when={kept()}>
-      <div class="palette-scrim" data-component="palette" data-closing={open() ? undefined : ""} onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div
+        class="palette-scrim"
+        data-component="palette"
+        ref={(el) => {
+          const engage = (event: Event) => {
+            if (event instanceof KeyboardEvent && (event.key === "Enter" || event.key === "Escape")) return
+            engaged = true
+          }
+          el.addEventListener("keydown", engage, true)
+          el.addEventListener("pointermove", engage, true)
+        }} data-closing={open() ? undefined : ""}
+        onMouseDown={(e) => e.target === e.currentTarget && close()}>
         <Cmdk
           class="palette-panel"
           label="Command palette"
           loop
+          value={highlight()}
+          onValueChange={setHighlight}
           shouldFilter={!searching()}
           filter={(_value, search, keywords) => rowScore(search, keywords?.[0] ?? "", keywords?.[1] ?? "", Boolean(keywords?.[2]))}
           onKeyDown={(e: KeyboardEvent) => {

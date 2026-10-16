@@ -73,6 +73,21 @@ export function applyCommitted(look: Look): void {
   watch()
 }
 
+/**
+ * Paints a look the person has not saved, as the palette's live preview. It never touches the saved
+ * look or the stored themes. The returned function paints the saved look back.
+ */
+export function previewLook(look: Look, themes: Imported = imported): () => void {
+  const real = imported
+  imported = themes
+  try {
+    paint(look)
+  } finally {
+    imported = real
+  }
+  return () => paint(committed)
+}
+
 export function readCache(): Cache | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY)

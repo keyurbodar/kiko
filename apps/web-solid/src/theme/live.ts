@@ -6,7 +6,8 @@
 import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js"
 import { useApp } from "../lib/store"
 import { type UserChannel, userChannel } from "../sync/user-channel"
-import { applyCommitted, readCache, writeCache } from "@kiko/theme/apply"
+import { applyCommitted, importedThemes, readCache, saveImported, writeCache } from "@kiko/theme/apply"
+import type { Imported, ImportedTheme } from "@kiko/theme/imported"
 import { setAvatarPicks } from "../avatar/picks"
 import { formatLook, parseLook, type Look } from "@kiko/theme/look"
 
@@ -103,3 +104,29 @@ export function forgetTheme(): void {
   outbox = undefined
   adopt(null)
 }
+
+/** The imported themes and which one each appearance uses. `""` is Kiko's own theme. */
+export const DEFAULT = ""
+
+const [state, setState] = createSignal<Imported>(importedThemes())
+
+export const themes = state
+
+export function commit(next: Imported) {
+  saveImported(next)
+  setState(next)
+}
+
+export function choose(appearance: "light" | "dark", id: string) {
+  const active = { ...state().active }
+  if (id === DEFAULT) delete active[appearance]
+  else active[appearance] = id
+  commit({ ...state(), active })
+}
+
+export function remove(theme: ImportedTheme) {
+  const active = { ...state().active }
+  for (const appearance of ["light", "dark"] as const) if (active[appearance] === theme.id) delete active[appearance]
+  commit({ themes: state().themes.filter((other) => other.id !== theme.id), active })
+}
+

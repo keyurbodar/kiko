@@ -32,6 +32,8 @@ export interface Choice {
   group?: string
   /** The option that is on now. It gets a check. */
   current?: boolean
+  /** Shows this option while it is highlighted, without choosing it. Returns what puts things back. */
+  preview?: () => () => void
   run: () => void
 }
 
