@@ -3,17 +3,27 @@
   inset: 0;
   z-index: 60;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 15vh;
+  flex-direction: column;
+  align-items: center;
+  padding: max(16px, 4vh) 16px;
+  background: color-mix(in srgb, var(--background) 60%, transparent);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
+.palette-scrim[data-closing] { pointer-events: none; }
 .palette-panel {
-  width: min(560px, calc(100vw - 32px));
-  background: var(--popover);
+  width: 100%;
+  max-width: 36rem;
+  max-height: 26.25rem;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--background) 80%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.14);
+  backdrop-filter: blur(12px) saturate(1.14);
   color: var(--foreground);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
   border-radius: var(--radius-xl);
-  box-shadow: var(--popover-shadow);
+  box-shadow: 0 24px 64px -24px rgb(0 0 0 / 65%);
   overflow: hidden;
 }
 .palette-input {
@@ -22,7 +32,7 @@
   height: 48px;
   padding: 0 16px;
   border: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   outline: 0;
   background: transparent;
   color: inherit;
@@ -31,22 +41,25 @@
 }
 .palette-input::placeholder { color: var(--secondary-label); }
 .palette-list {
-  max-height: 420px;
+  flex: 1;
+  min-height: 0;
+  max-height: min(28rem, 70vh);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px 6px 6px;
+  scroll-padding-block: 8px;
+  padding: 8px;
 }
 .palette-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
   font-size: var(--font-md);
   cursor: default;
 }
-.palette-row[data-selected="true"] { background: var(--accent-strong); }
+.palette-row[data-selected="true"] { background: color-mix(in srgb, var(--foreground) 9%, transparent); }
 .palette-row[data-picked="true"] { background: var(--accent); }
 
 .palette-group [cmdk-group-heading] {
@@ -56,12 +69,55 @@
   font-weight: var(--font-weight-medium);
 }
 .palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.palette-keys { color: var(--muted-foreground); font-size: var(--font-sm); }
+.palette-keys { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.palette-trail { width: 14px; height: 14px; flex-shrink: 0; color: var(--muted-foreground); }
 .palette-empty { padding: 12px 10px; font-size: var(--font-md); color: var(--muted-foreground); }
 
+.palette-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  min-width: 20px;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-medium);
+}
+.palette-kbd svg { width: 12px; height: 12px; }
+.palette-kbd-down svg { transform: rotate(180deg); }
 
-@media (width < 768px) {
-  .palette-scrim { padding-top: 8vh; }
-  .palette-row { height: 44px; }
+.palette-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+  color: var(--muted-foreground);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+}
+.palette-hint { display: inline-flex; align-items: center; gap: 4px; }
+.palette-hint > .palette-kbd + .palette-kbd { margin-left: 0; }
+.palette-hint > .palette-kbd:last-of-type { margin-right: 4px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .palette-scrim { animation: palette-fade 200ms ease-in-out; }
+  .palette-panel { animation: palette-pop 200ms ease-in-out; }
+  .palette-scrim[data-closing] { animation: palette-fade 150ms ease-in-out reverse forwards; }
+  .palette-scrim[data-closing] .palette-panel { animation: palette-pop 150ms ease-in-out reverse forwards; }
+}
+@keyframes palette-fade { from { opacity: 0; } }
+@keyframes palette-pop { from { opacity: 0; transform: scale(0.98); } }
+
+@media (width >= 640px) {
+  .palette-scrim { padding-top: 10vh; }
+}
+@media (width < 640px) {
+  .palette-row { min-height: 44px; }
   .palette-list { max-height: 50dvh; }
+  .palette-footer { flex-wrap: wrap; }
 }

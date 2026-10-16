@@ -11,12 +11,10 @@ import { Dialog } from "../lib/dialog"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { Button, fieldClass } from "../settings/kit"
-import { closeBotPicker } from "./bot-picker-state"
+import { closeBotPicker, NEW_AGENT_START, takeNewAgentRequest } from "./bot-picker-state"
 import { groupTitle, roomFor, togglePick } from "./bot-picker-model"
 
 const NEW_AGENT = "new-agent"
-/** What kiko's new agent flow starts from. The human types the purpose after it. */
-const NEW_AGENT_START = "Make me a new agent that "
 
 /*
  * The new chat picker (kat's palette look). With nothing picked, a row, clicked or entered, opens
@@ -68,6 +66,8 @@ export default function BotPicker() {
     if (kiko) startNewAgent(kiko)
     else setWaiting(true)
   }
+  // The palette's "New agent" opens the picker already starting the flow, so it waits for Kiko's chat the same way.
+  if (takeNewAgentRequest()) newAgent()
 
   // Mod+Enter opens the pick. Space picks the highlighted row, but only while the search is empty, so a space can still be typed.
   const keys = (event: KeyboardEvent) => {

@@ -8,14 +8,12 @@ export type ConnectMethod = "api_key" | "device_code" | "paste_code";
 export interface CatalogModel {
   id: string;
   name: string;
-  api: string;
   contextWindow: number;
   maxTokens: number;
   reasoning: boolean;
   /** The reasoning levels pi-ai says the model supports. Only "off" for a model that cannot reason. */
   thinking: string[];
-  input: string[];
-  pricing: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  pricing: { input: number; output: number };
 }
 
 export interface CatalogProvider {
@@ -40,7 +38,6 @@ interface CatalogSourceModel {
   contextWindow: number;
   maxTokens: number;
   reasoning?: boolean;
-  thinkingLevelMap?: Record<string, string | null>;
   input: string[];
   cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
   type?: string;
@@ -92,17 +89,13 @@ export async function buildCatalog(): Promise<Catalog> {
     const models: CatalogModel[] = [...provider.getModels()].map((model) => ({
       id: model.id,
       name: model.name,
-      api: model.api,
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,
       reasoning: Boolean(model.reasoning),
       thinking: getSupportedThinkingLevels(model),
-      input: [...model.input],
       pricing: {
         input: model.cost?.input ?? 0,
         output: model.cost?.output ?? 0,
-        cacheRead: model.cost?.cacheRead ?? 0,
-        cacheWrite: model.cost?.cacheWrite ?? 0,
       },
     }));
     models.sort((a, b) => a.id.localeCompare(b.id));

@@ -82,9 +82,6 @@ export default function ChatRoute() {
   });
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
   const messages = createMemo(() => useApp.activeMessages());
-  const notices = createMemo(() =>
-    useApp.memberNotices().map((n) => ({ key: `${n.seq}`, seq: n.seq, at: n.at, text: `${n.name} ${n.kind}` })),
-  );
   const byId = createMemo(
     () => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])),
   );
@@ -150,7 +147,7 @@ export default function ChatRoute() {
     useApp.seeMentions([id]);
   };
 
-  const empty = () => messages().length === 0;
+  const empty = () => messages().every((m) => m.event);
   let dock: HTMLDivElement | undefined;
   let launch: Launch | null = null;
   createEffect(
@@ -186,7 +183,6 @@ export default function ChatRoute() {
             waitingDoings={useApp.typingDoings()}
             groupChat={members().size > 1}
             memberSlugs={[...members().keys()]}
-            notices={notices()}
             onReact={useApp.toggleReaction}
             onEdit={startEdit}
             onDelete={(id) => {
@@ -205,7 +201,7 @@ export default function ChatRoute() {
 
 
         <Show when={empty()}>
-          <EmptyState faces={useApp.chatFaces(useApp.activeThreadId() ?? "")} names={members().size > 1 ? [...members().values()].map((m) => m.name) : []} />
+          <EmptyState />
         </Show>
         <div
           ref={dock}
@@ -235,21 +231,22 @@ export default function ChatRoute() {
             </div>
           </Show>
 
-          <Show when={scrolled()}>
-            <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+6px)] z-6 flex justify-center">
-              <button
-                type="button"
-                class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border border-[color-mix(in_oklab,var(--foreground)_10%,transparent)] bg-[color-mix(in_oklab,var(--background)_80%,transparent)] px-2.5 text-xs font-medium text-foreground shadow-md backdrop-blur-md"
-                data-component="composer-scroll-down"
-                aria-label="Scroll to end"
-                onPointerDown={(event) => event.preventDefault()}
-                onClick={toLatest}
-              >
-                <IconV2 name="chevron-down" class="size-3.5" />
-                Scroll to end
-              </button>
-            </div>
-          </Show>
+          <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+6px)] z-6 flex justify-center">
+            <button
+              type="button"
+              class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border border-[color-mix(in_oklab,var(--foreground)_10%,transparent)] bg-[color-mix(in_oklab,var(--background)_80%,transparent)] px-2.5 text-xs font-medium text-foreground shadow-md backdrop-blur-md transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none data-[hidden]:pointer-events-none data-[hidden]:scale-95 data-[hidden]:opacity-0"
+              data-component="composer-scroll-down"
+              data-hidden={scrolled() ? undefined : ""}
+              aria-label="Scroll to end"
+              aria-hidden={scrolled() ? undefined : "true"}
+              tabIndex={scrolled() ? 0 : -1}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={toLatest}
+            >
+              <IconV2 name="chevron-down" class="size-3.5" />
+              Scroll to end
+            </button>
+          </div>
           <BrowserChip slugs={[...members().keys()]} />
 
           <QuoteOnSelect

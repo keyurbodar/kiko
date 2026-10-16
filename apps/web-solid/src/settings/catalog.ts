@@ -39,6 +39,16 @@ let forget: ReturnType<typeof setTimeout> | undefined
  */
 export const CATALOG_KEEP_MS = 60_000
 
+/** Fetches the file into the HTTP cache without parsing it, so the first open skips the download. */
+export async function prefetchCatalog(): Promise<void> {
+  try {
+    const { default: url } = await import("virtual:kiko-model-catalog")
+    await fetch(url)
+  } catch {
+    // the open retries
+  }
+}
+
 /** Loads the catalog once. A failed load is not cached, so the next open retries. */
 export function loadCatalog(): Promise<Catalog> {
   if (forget !== undefined) clearTimeout(forget)

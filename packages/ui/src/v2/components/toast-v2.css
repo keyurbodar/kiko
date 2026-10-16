@@ -292,6 +292,39 @@
 }
 
 
+.toast-v2-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: color-mix(in oklab, var(--toast-muted) 80%, transparent);
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+
+  &:hover {
+    color: var(--toast-muted);
+  }
+
+  &[data-copied] {
+    color: var(--success);
+  }
+
+  > svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
 .toast-v2-action {
   display: inline-flex;
   flex-shrink: 0;

@@ -1,2 +1,16 @@
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+/emoji-picker-data.json
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/*.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+/favicon.ico
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+/kiko.svg
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+/manifest.webmanifest
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

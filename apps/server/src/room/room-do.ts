@@ -1,5 +1,5 @@
 import { humanAnswerText, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
-import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
+import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
@@ -29,8 +29,10 @@ import { CHIEF, type ProposalInput } from "./chief"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
 import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
-import { readWorkers, statusOf, workersKey } from "./status"
-import { workerMessages } from "./work-events"
+import { statusOf, workersKey } from "./status"
+import { dividerMessage, type Divider } from "./dividers"
+import { findProvider } from "../user/turn-context"
+import { parseModelRef } from "../agent/thinking"
 import { parseRichText } from "./rich-text"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, reactionBrief } from "./reactions"
@@ -719,6 +721,19 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { ok: true, events: [], drop: [] }
 	}
 
+	private divider(id: string, text: string, event: Divider): void {
+		const { event: stored } = this.log.addMessage(dividerMessage(id, text, event))
+		if (stored) this.publish([stored])
+	}
+
+	async routineCreated(slug: AgentSlug, routineId: string, title: string): Promise<void> {
+		this.divider(`routine-created:${routineId}`, `${this.members.get(slug)?.name ?? slug} created a routine: ${title}`, { kind: "routine_created", agent: slug, title, private: true })
+	}
+
+	async compacted(slug: AgentSlug, key: string): Promise<void> {
+		this.divider(`compacted:${slug}:${key}`, `${this.members.get(slug)?.name ?? slug} compacted its context`, { kind: "compacted", agent: slug, private: true })
+	}
+
 	async homeNotice(slug: AgentSlug, text: string): Promise<void> {
 		const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${slug} ${text}`.slice(0, 300) })
 		if (event) this.publish([event])
@@ -817,6 +832,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const activity: MemberActivity = { seq: this.log.lastSeq(), at: result.events[0]?.at ?? 0, kind: op.op === "add" ? "joined" : "left", name: op.op === "add" ? op.name : (name ?? op.slug) }
 			this.log.setMeta(MEMBER_ACTIVITY, JSON.stringify(activity))
 		}
+		if (op.op !== "rename") {
+			const joined = op.op === "add"
+			const who = joined ? op.name : (name ?? op.slug)
+			const slug = op.slug
+			const line = this.log.addMessage(
+				dividerMessage(`member:${result.events[0]?.seq}`, `${who} ${joined ? "joined" : "left"}`, joined ? { kind: "member_added", slug, name: who, private: true } : { kind: "member_removed", slug, name: who, private: true }),
+			).event
+			if (line) notice.push(line)
+		}
 		this.publish([...result.events, ...notice])
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
@@ -831,8 +855,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.ctx.waitUntil(userStub(this.env.USER, home.userId).setAgentModels(slugs, ref, home.roomId))
 	}
 
-	/** Called by the user when an agent in this chat changes model. */
-	async modelChanged(_slug: AgentSlug, _model: string): Promise<void> {}
+	/** The user calls this when an agent in this chat changes model here. */
+	async modelChanged(slug: AgentSlug, ref: string): Promise<void> {
+		const member = this.members.get(slug)
+		if (!member) return
+		const found = parseModelRef(ref)
+		const named = (found && findProvider(found.provider)?.getModels().find((m) => m.id === found.modelId)?.name) || ref
+		this.divider(`model:${slug}:${crypto.randomUUID()}`, `${member.name} now uses ${named}`, { kind: "model_changed", agent: slug, model: named, private: true })
+	}
 
 	taskOp(op: TaskOp): string | null {
 		let reason: string | null = null
@@ -890,7 +920,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.log.setMeta(key, String(event.seq))
 			return event
 		})
-		if (event) this.publish([event])
+		if (event) {
+			this.publish([event])
+			this.broadcast({ t: "run_error", slug, kind: "no_key", provider })
+		}
 		const home = this.home()
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because the human has not connected ${provider}. tell the human, or go on without it.)`
@@ -898,6 +931,11 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 		this.reports.run(this.routines.dropped(slug), "failed")
 		return event !== null
+	}
+
+	async runError(slug: AgentSlug, error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void> {
+		if (!this.members.get(slug)) return
+		this.broadcast({ t: "run_error", slug, kind: error.kind, ...(error.provider ? { provider: error.provider } : {}), ...(error.detail ? { detail: error.detail } : {}) })
 	}
 
 	async runDropped(slug: AgentSlug): Promise<void> {
@@ -936,15 +974,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!member) return
 		const next = JSON.stringify(rows)
 		if (this.log.meta(workersKey(slug)) === next) return
-		const before = readWorkers(this.ctx.storage.sql, slug)
-		const events = this.ctx.storage.transactionSync(() => {
-			this.log.setMeta(workersKey(slug), next)
-			return workerMessages(slug, before, rows).flatMap((m) => {
-				const { event } = this.log.addMessage(m)
-				return event ? [event] : []
-			})
-		})
-		this.publish(events)
+		this.log.setMeta(workersKey(slug), next)
 		if (member.status !== "idle") this.broadcastStatus(slug)
 	}
 

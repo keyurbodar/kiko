@@ -4,10 +4,6 @@ import { triggerLabel } from "../chat/info/routines-model"
 /** The tags in the order the page shows their chips. A tag not listed here comes after, in the order the catalog has it. */
 const TAG_ORDER = ["mornings", "inbox", "money", "health", "fun", "thinking", "home", "work", "travel"]
 
-/** The four tiles an empty chat shows, in order. Any that the catalog lacks is replaced by the next recipe. */
-const TILE_ORDER = ["morning-briefing", "decision-council", "follow-up-nudges", "daily-weather"]
-const TILE_COUNT = 4
-
 /** The page's tag filter: every recipe, or the recipes with one tag. */
 export type TagFilter = "all" | (string & {})
 
@@ -37,14 +33,6 @@ export function filterRecipes(cards: readonly RecipeCard[], query: string, tag: 
 /** The slugs of the recipes already added, for the "Added" mark. */
 export function installedSlugs(installs: readonly RecipeInstall[], target: { roomId: string; agent: string }): ReadonlySet<string> {
   return new Set(installs.filter((i) => i.roomId === target.roomId && i.agent === target.agent).map((i) => i.slug))
-}
-
-/** The recipes an empty chat offers: the preferred four that the catalog has, filled in order from the rest. */
-export function starterTiles(cards: readonly RecipeCard[]): RecipeCard[] {
-  const bySlug = new Map(cards.map((c) => [c.slug, c]))
-  const picked = TILE_ORDER.flatMap((slug) => bySlug.get(slug) ?? [])
-  const fill = cards.filter((c) => !picked.includes(c))
-  return [...picked, ...fill].slice(0, TILE_COUNT)
 }
 
 /** What an install's row says: when it next runs, that its routines are paused, or that it still needs an answer. */

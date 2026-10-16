@@ -1,7 +1,8 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
-import type { AgentState, WorkerRow } from "@kiko/protocol"
+import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
+import { classifyRunError, scrubDetail } from "./run-error"
 import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
@@ -15,11 +16,12 @@ export interface RoomPort {
   workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
+  runError(error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void>
 }
 
 type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number }
 
-type AssistantLike = { role?: string; stopReason?: string; content?: readonly { type: string; text?: string }[] }
+type AssistantLike = { role?: string; stopReason?: string; errorMessage?: string; provider?: string; content?: readonly { type: string; text?: string }[] }
 
 export function textOf(message: AssistantLike | undefined, final = true): string {
   return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [scrubToolMarkup(part.text, final)] : [])).join("\n\n")
@@ -260,9 +262,17 @@ export class Outbox {
     if (!run) return
     const before = run.blocks.length
     const lost = this.finishGeneration(run, entry)
+    const failed = assistant(entry)
+    if (failed?.stopReason === "error") await this.reportError(failed)
     if (lost && run.posted > before) this.rebase(run)
     this.save(run)
     await this.flush()
+  }
+
+  private async reportError(message: AssistantLike): Promise<void> {
+    const kind = classifyRunError(message.errorMessage)
+    const detail = kind === "other" && message.errorMessage ? scrubDetail(message.errorMessage) : undefined
+    await this.room()?.runError({ kind, provider: message.provider ?? "", ...(detail ? { detail } : {}) })
   }
 
   private finishGeneration(run: Run, entry: EntryRecord): boolean {

@@ -66,17 +66,13 @@ describe("the reducer", () => {
 		const data = { ...emptyRoom(), members: [...fixtures.members] }
 		for (const e of structuredClone(fixtures.roomEvents) as RoomEvent[]) applyRoomEvent(data, e)
 		for (const s of fixtures.agentStatuses) applyStatus(data, s)
-		const { roster, ...rest } = data
-		expect(rest).toEqual({ ...fixtures.roomSnapshot } as never)
-		// cy joins at seq 11 and leaves at 12; the transcript shows both as system lines.
-		expect(roster.map((n) => `${n.seq} ${n.name} ${n.kind}`)).toEqual(["11 cy joined", "12 cy left"])
+		expect(data).toEqual({ ...fixtures.roomSnapshot } as never)
 	})
 
-	test("a change to a current member is not a join", () => {
+	test("a change to a current member updates it in place", () => {
 		const data = { ...emptyRoom(), members: [...fixtures.members] }
 		const lead = fixtures.members[0]!
 		applyRoomEvent(data, { seq: 1, at: 1, t: "member", member: { ...lead, name: "renamed" } })
-		expect(data.roster).toEqual([])
 		expect(data.members[0]!.name).toBe("renamed")
 	})
 
@@ -227,7 +223,6 @@ describe("the room store", () => {
 		expect(slugs()).toEqual(["ada:ada two", "bob:bob", "cy:cy"])
 		await until(() => store.state.patches.length === 0)
 		expect(store.state.members.map((m) => m.slug as string)).toEqual(["ada", "bob", "cy"])
-		expect(store.state.roster.map((n) => `${n.name} ${n.kind}`)).toEqual(["cy joined"])
 
 		store.member({ op: "remove", slug: "bob" as never })
 		store.member({ op: "remove", slug: "cy" as never })
@@ -237,7 +232,6 @@ describe("the room store", () => {
 		await until(() => refused.length === 1 && store.state.patches.length === 0)
 		expect(refused).toEqual(["remove ada last"])
 		expect(slugs()).toEqual(["ada:ada two"])
-		expect(store.state.roster.map((n) => `${n.name} ${n.kind}`)).toEqual(["cy joined", "bob left", "cy left"])
 		store.close()
 	})
 
@@ -719,7 +713,7 @@ describe("the user store", () => {
 		a.setAgentModel("ada" as never, { ref: "x/two", thinking: "high", levels: ["off", "low"] })
 		expect(a.agentModel("ada")).toEqual({ model: "x/two", thinking: "low", thinkingLevels: ["off", "low"] })
 		await until(() => mock.received.some((f) => f.t === "agent_model"))
-		expect(mock.received.find((f) => f.t === "agent_model")).toEqual({ t: "agent_model", slug: "ada", ref: "x/two", thinking: "high" })
+		expect(mock.received.find((f) => f.t === "agent_model")).toEqual({ t: "agent_model", slug: "ada" as never, ref: "x/two", thinking: "high" })
 		await until(() => b.agentModel("ada")?.model === "x/two")
 		expect(b.state.pendingModels).toEqual({})
 		const c = createUserStore({ warm: await freshWarm(), ...options })
@@ -826,7 +820,7 @@ describe("composer cards", () => {
   test("an open question paints from IndexedDB while offline", async () => {
     const ask = { id: "offline-question", from: "ada" as AgentSlug, text: "When?", messageId: "question-message" as MessageId }
     const warm = await freshWarm()
-    warm.put("meta", `room:${roomId}`, { readSeq: 0, members: [], tasks: [], files: [], folders: [], roster: [], asks: [ask] })
+    warm.put("meta", `room:${roomId}`, { readSeq: 0, members: [], tasks: [], files: [], folders: [], asks: [ask] })
     setLastSeq(warm, roomId, 1)
     await warm.flush()
     const { make } = setup({}, { connect: () => ({ send() {}, close() {}, onopen: null, onmessage: null, onclose: null, onerror: null }) })

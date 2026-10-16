@@ -1,23 +1,26 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { createSignal, onCleanup } from "solid-js"
 import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleCard } from "../chat/side/card-state"
-import { fixedSurface, openSurface } from "../chat/side/surfaces"
+import { fixedSurface, openSurface, toggleSidecar } from "../chat/side/surfaces"
 import { answeringMember, canReason } from "../settings/agent-model"
+import { THINKING_LABELS } from "@kiko/protocol"
+import type { Choice } from "./registry"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
+import { agentList } from "../lib/chats"
+import { readCache } from "@kiko/theme/apply"
+import { parseLook } from "@kiko/theme/look"
 import { openSearch } from "../search/state"
 import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openAvatarPicker } from "../avatar/picker-state"
 import { useApp } from "../lib/store"
-import { openBotPicker } from "../chat/bot-picker-state"
+import { openBotPicker, openNewAgentFlow } from "../chat/bot-picker-state"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
 const CHAT_PATH = /^\/chat\/([^/]+)$/
-const COMPOSER_FIELD = ".ProseMirror"
 
 /*
  * The router glue, kept apart from the table so the table tests without a
@@ -31,30 +34,41 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
     const id = CHAT_PATH.exec(location.pathname)?.[1]
     return id ? decodeURIComponent(id) : null
   }
-  // A signal, not a read of activeElement: tanstack stores the `enabled` it was given and refreshes it
-  // only when a signal it read changes, so focus has to be a signal for Mod+K to follow it.
-  const [inComposer, setInComposer] = createSignal(false)
-  const onFocusIn = (event: FocusEvent) => setInComposer(event.target instanceof Element && event.target.closest(COMPOSER_FIELD) !== null)
-  const onFocusOut = () => setInComposer(false)
-  document.addEventListener("focusin", onFocusIn)
-  document.addEventListener("focusout", onFocusOut)
-  onCleanup(() => {
-    document.removeEventListener("focusin", onFocusIn)
-    document.removeEventListener("focusout", onFocusOut)
-  })
   useCommands(
     katCommands({
       toggleSidebar: deps.toggleSidebar,
       // The one way to start a chat: pick the agent, or several for a group (chat/bot-picker.tsx).
       newChat: openBotPicker,
-      openPalette: () => openPalette("commands"),
-      inRichEditor: inComposer,
-      openChats: () => openPalette("chats"),
+      openPalette: () => openPalette(),
+      openChats: () => openPalette("chats.go"),
+      openView: openPalette,
+      chatChoices: () =>
+        useApp.bots().map((chat) => ({ id: chat.id, title: chat.name, chatId: chat.id, run: () => navigate(`/chat/${chat.id}`) })),
+      agentChoices: () =>
+        agentList(useApp.agents()).map((agent) => ({
+          id: agent.id,
+          title: agent.name,
+          seed: agent.slug,
+          run: () => {
+            const roomId = useApp.user()?.createChat(agent.name, [agent.id])
+            if (roomId) navigate(`/chat/${roomId}`)
+          },
+        })),
+      newGroup: openBotPicker,
+      newAgent: openNewAgentFlow,
+      toggleSidecar: () => {
+        const id = activeId()
+        if (id) toggleSidecar(id)
+      },
+      copyLink: () => {
+        const id = activeId()
+        if (id) void navigator.clipboard?.writeText(`${window.location.origin}/chat/${id}`)
+      },
       hasActiveChat: () => activeId() !== null,
       toggleCard,
-      openFiles: () => {
+      openPanel: (kind) => {
         const id = activeId()
-        if (id) openSurface(id, fixedSurface("files"))
+        if (id) openSurface(id, fixedSurface(kind))
       },
       closeChat: () => {
         const id = activeId()
@@ -96,6 +110,8 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
     }),
   )
+  // The agent the composer's model chip targets when the draft tags no one: the lead.
+  const chipAgent = () => answeringMember(useApp.roomMembers(), "")
   useCommands(
     navCommands({
       go: (href) => navigate(href),
@@ -105,14 +121,25 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         if (!location.pathname.startsWith("/chat")) navigate("/chat")
         openModelPicker()
       },
-      canReason: () => canReason(useApp.agentModel(answeringMember(useApp.roomMembers(), "")?.slug ?? "")?.thinkingLevels),
-      chooseReasoning: () => openPalette("reasoning"),
+      openView: openPalette,
+      canReason: () => canReason(useApp.agentModel(chipAgent()?.slug ?? "")?.thinkingLevels),
+      reasoningChoices: () => {
+        const agent = chipAgent()
+        const picked = agent ? useApp.agentModel(agent.slug) : undefined
+        if (!agent || !picked) return []
+        return picked.thinkingLevels.map((level): Choice => ({ id: level, title: THINKING_LABELS[level], current: level === picked.thinking, run: () => useApp.setAgentModel(agent.slug, { thinking: level }) }))
+      },
     }),
   )
   const live = () => import("../theme/live")
   useCommands(
     themeCommands({
+      // The saved look is cached for the first paint, so the check mark reads it without loading the look.
+      mode: () => parseLook(readCache()?.text ?? null).mode,
+      accent: () => parseLook(readCache()?.text ?? null).accent,
       setMode: (mode) => void live().then((m) => m.updateLook({ mode })),
+      setAccent: (accent) => void live().then((m) => m.updateLook({ accent })),
+      openView: openPalette,
       activeAgent: () => {
         const id = activeId()
         const faces = id ? useApp.chatFaces(id) : []

@@ -10,11 +10,14 @@ const LINE_BOX = FONT_BASE + 6;
 const BUBBLE_PAD_TOP = 8;
 const BUBBLE_PAD_Y = BUBBLE_PAD_TOP * 2;
 const ROW_GAP_PX = 1;
-const RUN_GAP_PX = 16;
+const RUN_GAP_PX = 11;
 
-// The day divider, the unread rule and a notice (SystemMessage.tsx): `py-3` around a `leading-4` line.
+// The day divider (SystemMessage.tsx): `py-3` around a `leading-4` line.
 const CENTER_ROW_PAD_Y = 24;
 const CENTER_LINE = 16;
+
+// An event divider is a 16px line with 8px above and below.
+const EVENT_ROW_PX = 32;
 
 const CHARS_PER_LINE = 87;
 
@@ -51,9 +54,8 @@ function bubbleTextLines(body: string): number {
 export function estimateRowHeight(item: TimelineItem): number {
   // Every centred row is one 16px line with 12px above and below. The day pill adds 4px each way.
   if (item.kind === "day-divider") return CENTER_ROW_PAD_Y + CENTER_LINE + 8;
-  if (item.kind === "unread-divider" || item.kind === "notice") return CENTER_ROW_PAD_Y + CENTER_LINE;
-  // A thread line is a 28px pill with the run gap above.
-  if (item.kind === "thread") return RUN_GAP_PX + 28 + 2;
+  // The unread rule, an event line and a thread line (EventDivider.tsx): `py-2` around a `text-xs` line.
+  if (item.kind === "unread-divider" || item.kind === "event" || item.kind === "thread") return EVENT_ROW_PX;
 
   const { message } = item;
   const attachments = attachmentsHeight(message);

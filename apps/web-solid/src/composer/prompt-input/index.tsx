@@ -1,11 +1,12 @@
-import { createMemo, createSignal, lazy, onMount, Show, Suspense, type JSX } from "solid-js"
+import { createMemo, createSignal, getOwner, lazy, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
 import { ArrowUpIcon, CornerDownLeftIcon, PaperclipIcon, SquareIcon } from "lucide-solid"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import type { PromptInputV2Interaction } from "./interaction"
 import { createComposerEmoji, createShortcodes } from "../emoji"
-import { bindRich, type RichBinding } from "../rich/bind"
+import type { RichBinding } from "../rich/bind"
+import { mountLite, type LiteField } from "../rich/lite"
 import { isImage } from "../../lib/attachments"
 
 export type {
@@ -37,11 +38,13 @@ export function PromptInputV2(props: PromptInputV2Props) {
   const state = props.controller.state
   const view = props.controller.view
   const [blank, setBlank] = createSignal(true)
-  const shortcodes = createShortcodes(() => binding?.editor.dom as HTMLDivElement | undefined)
-  const emoji = createComposerEmoji(() => binding?.editor.dom as HTMLDivElement | undefined, () => !!props.disabled || !!props.readOnly)
-  let richHost!: HTMLDivElement
   let binding: RichBinding | undefined
-  const syncBlank = () => setBlank(binding?.editor.isEmpty() ?? true)
+  let lite: LiteField | undefined
+  const field = () => binding?.editor ?? lite
+  const shortcodes = createShortcodes(() => field()?.dom as HTMLDivElement | undefined)
+  const emoji = createComposerEmoji(() => field()?.dom as HTMLDivElement | undefined, () => !!props.disabled || !!props.readOnly)
+  let richHost!: HTMLDivElement
+  const syncBlank = () => setBlank(field()?.isEmpty() ?? true)
   const dropArea = createMemo(() => {
     if (state.drag !== "active") return null
     const column = richHost?.closest('[data-component="chat-shell"]') ?? richHost?.closest("form")
@@ -51,17 +54,29 @@ export function PromptInputV2(props: PromptInputV2Props) {
   })
 
   onMount(() => {
-    binding = bindRich({
-      host: richHost,
-      controller: props.controller,
-      label: i18n.t("ui.promptInput.label"),
-      isMention: (slug) => props.isMention?.(slug) ?? false,
-      disabled: () => !!props.disabled || !!props.readOnly,
-      shortcodes,
-      onEdit: syncBlank,
-      onFocus: () => {},
-    })
+    const owner = getOwner()
+    const label = i18n.t("ui.promptInput.label")
+    lite = mountLite({ host: richHost, controller: props.controller, label, disabled: () => !!props.disabled || !!props.readOnly, onEdit: syncBlank })
     syncBlank()
+    void import("../rich/bind").then(({ bindRich }) =>
+      runWithOwner(owner, () => {
+        const focused = lite?.isFocused()
+        lite?.destroy()
+        lite = undefined
+        binding = bindRich({
+          host: richHost,
+          controller: props.controller,
+          label,
+          isMention: (slug) => props.isMention?.(slug) ?? false,
+          disabled: () => !!props.disabled || !!props.readOnly,
+          shortcodes,
+          onEdit: syncBlank,
+          onFocus: () => {},
+        })
+        if (focused) binding.editor.focus()
+        syncBlank()
+      }),
+    )
   })
 
   // The shelf holds pictures. Files are chips in the text.
@@ -139,7 +154,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               />
             </Suspense>
           </Show>
-          <div class="composer-main" data-component="prompt-input-box" onPointerDown={(e) => e.target === e.currentTarget && binding?.editor.focus()}>
+          <div class="composer-main" data-component="prompt-input-box" onPointerDown={(e) => e.target === e.currentTarget && field()?.focus()}>
             <div class="composer-field">
               <div ref={richHost} class="composer-rich" classList={{ "opacity-50": props.disabled }} />
               <Show when={blank()}>

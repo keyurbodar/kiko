@@ -254,24 +254,25 @@ describe("group timeline", () => {
         ? `${item.message.id}${item.isRunStart ? "<" : ""}${item.isRunEnd ? ">" : ""}`
         : item.kind === "thread"
           ? `thread(${item.messages.map((m) => m.id).join(",")}${item.expanded ? " open" : ""})`
-          : item.kind === "notice"
-            ? `notice:${item.text}`
+          : item.kind === "event"
+            ? `event:${item.message.event?.kind}`
             : item.kind,
     );
   /** `to` is who the room says the message was sent to; the body never decides. */
   const k = (id: string, seq: number, to?: string, body = "hi") => bot(id, at(seq * 1000), { botId: "kiko", seq, body, ...(to ? { to } : {}) });
+  const kind = (id: string, seq: number, kind: string) => bot(id, at(seq * 1000), { botId: undefined, seq, event: { kind, slug: "piko", name: "Piko", private: true } as never });
   const p = (id: string, seq: number, to?: string, body = "hi") => bot(id, at(seq * 1000), { botId: "piko", seq, body, ...(to ? { to } : {}) });
 
   test.each([
-    ["a notice sits by seq and ends the run above it", [k("a", 1), k("b", 3)], [{ key: "n", seq: 2, at: at(2000).getTime(), text: "piko joined" }], undefined, ["a<>", "notice:piko joined", "b<>"]],
-    ["a notice past every message goes last", [k("a", 1)], [{ key: "n", seq: 5, at: at(5000).getTime(), text: "piko left" }], undefined, ["a<>", "notice:piko left"]],
+    ["an event line sits by seq and ends the run above it", [k("a", 1), kind("n", 2, "member_added"), k("b", 3)], [], undefined, ["a<>", "event:member_added", "b<>"]],
+    ["an event line past every message goes last", [k("a", 1), kind("n", 5, "member_removed")], [], undefined, ["a<>", "event:member_removed"]],
+    ["an event kind this client does not draw is hidden and does not end the run", [k("a", 1), kind("n", 2, "from_a_newer_server"), k("b", 3)], [], undefined, ["a<", "b>"]],
     ["agents addressing each other fold into one thread", [k("a", 1), k("b", 2, "piko"), p("c", 3, "kiko"), k("d", 4)], [], undefined, ["a<>", "thread(b,c)", "d<>"]],
     ["an open thread's messages follow it and run among themselves", [k("b", 2, "piko"), k("c", 3, "piko"), k("d", 4)], [], "thread:b", ["thread(b,c open)", "b<", "c>", "d<>"]],
     ["a message to every agent folds too", [k("a", 1), k("b", 2, "all"), k("c", 3)], [], undefined, ["a<>", "thread(b)", "c<>"]],
     ["a reply to the human that starts by naming a teammate stays in view", [k("a", 1, undefined, "@piko found these, here is the summary")], [], undefined, ["a<>"]],
-  ] as const)("%s", (_name, messages, notices, open, want) => {
+  ] as const)("%s", (_name, messages, _unused, open, want) => {
     const items = buildTimelineItems(messages as unknown as ChatMessage[], null, {
-      notices: notices as never,
       members,
       expanded: new Set(open ? [open] : []),
     });
@@ -316,22 +317,16 @@ describe("keepUnchanged", () => {
   });
 });
 
-test("background start and completion do not add rows, dividers or break a reply run", () => {
-  const event = (state: "started" | "done" | "failed"): ChatMessage["event"] => ({ kind: "subagent", agent: "b1" as never, state, title: "Check inbox", private: true });
-  const items = buildTimelineItems([
-    bot("start", at(-86_400_000), { event: event("started") }),
-    bot("a", at(0)),
-    bot("done", at(1_000), { event: event("done") }),
-    bot("b", at(2_000)),
-    bot("failure", at(3_000), { event: event("failed") }),
-  ]);
-  expect(items.map((i) => i.key)).toEqual(["msg:a", "msg:b", "msg:failure"]);
-  expect(messageRows(items).slice(0, 2).map((i) => i.runSize)).toEqual([3, 3]);
+test("a legacy worker line is hidden and does not break a reply run", () => {
+  const legacy = { kind: "subagent", agent: "b1", state: "started", title: "Check inbox", private: true } as never;
+  const items = buildTimelineItems([bot("a", at(0)), bot("start", at(1_000), { event: legacy }), bot("b", at(2_000))]);
+  expect(items.map((i) => i.key)).toEqual(["msg:a", "msg:b"]);
+  expect(messageRows(items).map((i) => i.runSize)).toEqual([2, 2]);
 });
 
-
-test("a hidden background event passes the unread divider to the next reply", () => {
-  const background = bot("background", at(0), { event: { kind: "subagent", agent: "b1" as never, state: "done", title: "Check inbox", private: true } });
+test("a hidden event passes the unread divider to the next reply", () => {
+  const legacy = { kind: "subagent", agent: "b1", state: "done", title: "Check inbox", private: true } as never;
+  const background = bot("background", at(0), { event: legacy });
   expect(buildTimelineItems([background])).toEqual([]);
   const items = buildTimelineItems([background, bot("reply", at(1_000)), bot("next", at(2_000))], "background");
   expect(items.find((i) => i.kind === "unread-divider")?.key).toBe("unread:reply");

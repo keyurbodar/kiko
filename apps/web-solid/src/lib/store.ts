@@ -18,6 +18,7 @@ import { chatFaces, chatSeed } from "./identity"
 import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
 import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { showRunError } from "./run-error"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
@@ -25,7 +26,7 @@ import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
-import { createRoomStore, type MemberNotice, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
+import { createRoomStore, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
 import { socketUrl } from "./api"
 import { fileToken, fileUrl } from "./file-token"
 import { browserConnect, type Connect } from "../sync/socket"
@@ -367,6 +368,7 @@ export function createApp(options: AppOptions = {}) {
       // A send the room refused stays in the transcript, marked failed. The toast says why.
       next.onTaskRefused((reason) => showToastV2({ title: reason, variant: "error" }))
       next.onSendRefused((reason) => showToastV2({ title: reason, variant: "error" }))
+      next.onRunError((frame) => showRunError(frame, next.state.members.find((m) => m.slug === frame.slug)?.name ?? "The agent"))
       setRoom(next)
     }
 
@@ -491,6 +493,7 @@ export function createApp(options: AppOptions = {}) {
       // it from its blob URL until the room's copy arrives.
       if (message.attachments?.length) Object.assign(opts, { attachments: message.attachments, local })
       const clientId = r.send(message.body, opts)
+      anchors.set(r, null)
       return `local:${clientId}`
     }
 
@@ -757,11 +760,6 @@ export function createApp(options: AppOptions = {}) {
       /** Calls `listener` when the open room refuses a member change. Returns the unsubscribe. */
       onMemberRefused(listener: (op: MemberOp, reason: MemberRefusal) => void): () => void {
         return room()?.onMemberRefused(listener) ?? (() => {})
-      },
-
-      /** Who joined and left the open room, for the transcript's system lines. */
-      memberNotices(): MemberNotice[] {
-        return room()?.state.roster ?? []
       },
 
       /**
