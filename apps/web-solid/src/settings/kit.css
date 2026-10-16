@@ -366,7 +366,7 @@
   bottom: -1px;
   left: 8px;
   height: 2px;
-  border-radius: 1px;
+  border-radius: var(--radius-pill);
   background: var(--foreground);
 }
 
