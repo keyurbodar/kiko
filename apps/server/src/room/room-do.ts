@@ -19,7 +19,7 @@ import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
 import { Bubbles, replyTag } from "./bubbles"
 import { bubbleTouch, chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
-import { Deliveries, type ReminderDelivery, withContext } from "./deliver"
+import { Deliveries, withContext } from "./deliver"
 import { type AgentSend, type Chain, Mail } from "./mail"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
@@ -583,20 +583,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return searchMessages(this.ctx.storage.sql, query, options)
 	}
 
-	deliverReminder(id: string, reminder: ReminderDelivery): Promise<WakeResult | "posted"> {
-		return this.wakes.deliverReminder(id, reminder)
-	}
-
 	initiativeWake(input: { id: string; to: AgentSlug | null; body: string; reason: string }): Promise<WakeResult | "busy"> {
 		return this.wakes.initiativeWake(input)
 	}
 
 	deliverRoutine(deliveryId: string, input: { target: string; body: string }): Promise<WakeResult> {
 		return this.wakes.deliverRoutine(deliveryId, input)
-	}
-
-	async chainOf(slug: AgentSlug): Promise<Chain> {
-		return this.mail.chain(slug)
 	}
 
 	async setRoutines(list: RoomRoutine[]): Promise<void> {

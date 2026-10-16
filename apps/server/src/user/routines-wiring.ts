@@ -1,11 +1,8 @@
-import type { AgentSlug, Trigger } from "@kiko/protocol"
+import type { AgentSlug } from "@kiko/protocol"
 import { sha256Hex } from "@kiko/durable/hash"
-import { safeFetch } from "@kiko/durable/safe-fetch"
-import { defaultFetcher } from "../lib/dev-fixture-fetch"
-import { htmlToText } from "@kiko/durable/html-text"
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
-import { asResult, type NewRoutine, type Reminder, type Reminders } from "./reminders"
+import type { NewRoutine, Reminder, Reminders } from "./reminders"
 import { matchWebhook, roomRoutine, type RoutineResult, routineResult } from "./routines"
 
 const HOOK_EXCERPT = 6_000
@@ -18,12 +15,13 @@ type RoutineDeps = {
 export class RoutineWiring {
   constructor(private readonly d: RoutineDeps) {}
 
-  async cancelReminder(id: string) {
-    return asResult(async () => {
+  async cancelRoutine(id: string): Promise<RoutineResult> {
+    return routineResult(async () => {
       const before = this.d.reminders.get(id)
       const out = await this.d.reminders.cancel(id)
-      if (out?.trigger) await this.routineChanged(out, before)
-      return out
+      if (!out) return null
+      await this.routineChanged(out, before)
+      return { routine: out }
     })
   }
 
@@ -78,20 +76,7 @@ export class RoutineWiring {
   async routineChanged(routine: Reminder, before?: Reminder | null): Promise<void> {
     const owner = this.d.reminders.owner()
     if (!owner) return
-    const event = (r?: Reminder | null) => r?.trigger?.on === "task" || r?.trigger?.on === "message" || r?.trigger?.on === "file"
+    const event = (r?: Reminder | null) => r?.trigger?.on === "message"
     if (event(routine) || event(before)) await roomStub(this.d.env.ROOM, owner, routine.roomId).setRoutines(this.d.reminders.roomRoutines(routine.roomId).map(roomRoutine))
-  }
-
-  async watchPage(trigger: Extract<Trigger, { on: "watch" }>): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-    try {
-      const page = await safeFetch(trigger.url, defaultFetcher(), { maxBytes: 256 * 1024 })
-      if (!page.ok) return { ok: false, error: page.reason }
-      if (page.status >= 400) return { ok: false, error: `status ${page.status}` }
-      const raw = new TextDecoder().decode(page.body)
-      const type = (page.headers.get("content-type") ?? "").split(";", 1)[0]?.trim().toLowerCase() ?? ""
-      return { ok: true, text: type === "text/html" || (!type && /<html\b/i.test(raw)) ? htmlToText(raw) : raw }
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
-    }
   }
 }

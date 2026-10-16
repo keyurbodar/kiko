@@ -40,10 +40,10 @@ export class ComposioConnection {
     }
   }
 
-  /** The toolkits the owner has connected, cached for a minute. Null when Composio is not connected or cannot say. */
-  async connectedToolkits(now = Date.now()): Promise<ReadonlySet<string> | null> {
+  /** The toolkits the owner has connected, cached for a minute unless `fresh`. Null when Composio is not connected or cannot say. */
+  async connectedToolkits(now = Date.now(), fresh = false): Promise<ReadonlySet<string> | null> {
     if (!this.store.connected()) return null
-    if (this.connected && now - this.connected.at < CONNECTED_FRESH_MS) return this.connected.toolkits
+    if (!fresh && this.connected && now - this.connected.at < CONNECTED_FRESH_MS) return this.connected.toolkits
     const target = await this.store.target()
     if (!target) return null
     const toolkits = await connectedAccounts(target.key, await this.userId(), this.fetcher)

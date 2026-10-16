@@ -1,4 +1,4 @@
-import { KIKO, type RecipeCard, type RecipeInstall, type RecipeRoutine, type RoomId } from "@kiko/protocol"
+import { type InstallRecipe, KIKO, type RecipeCard, type RecipeInstall, type RecipeNeedsConnect, type RecipeRoutine, type RoomId } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
 import { openFile } from "../chat/side/surfaces"
@@ -119,28 +119,72 @@ const recorded = (install: RecipeInstall) => changeInstalls((list) => [...list.f
 
 const failed = (card: RecipeCard, error: string) => showToastV2({ title: `Could not add ${card.title}`, description: error, variant: "error" })
 
-/** Adds to one agent in one chat. The chat opens before the server answers. */
+/** An add that is waiting on the human to connect apps. The same `installId` is posted again on "Done, add it". */
+export type ConnectAsk = { card: RecipeCard; body: InstallRecipe; navigate: (to: string) => void; connect: RecipeNeedsConnect }
+
+const [ask, setAsk] = createSignal<ConnectAsk | null>(null)
+const [waiting, setWaiting] = createSignal<ReadonlySet<string>>(new Set())
+export const connectAsk = ask
+export const dismissConnect = () => setAsk(null)
+export const isWaiting = (slug: string): boolean => waiting().has(slug)
+
+/** Posts an add. Only an install the server made is recorded, and only then does the chat open. */
+async function submit(card: RecipeCard, body: InstallRecipe, navigate: (to: string) => void): Promise<RecipeInstall | null> {
+  const result = await postInstall(body)
+  if (result.ok) {
+    setAsk(null)
+    return result.install
+  }
+  if ("connect" in result) setAsk({ card, body, navigate, connect: result.connect })
+  else failed(card, result.error)
+  return null
+}
+
+/** True when the card is known to need no connecting, so the add can show before the server answers. */
+const ready = (card: RecipeCard) => card.apps.every((a) => a.connected === true)
+
+/** Adds to one agent in one chat. The chat opens before the server answers when no app is missing. */
 export function addToTarget(card: RecipeCard, target: RecipeTarget | undefined, navigate: (to: string) => void): void {
-  if (!target || isAdded(card.slug, target)) return
+  if (!target || isAdded(card.slug, target) || isWaiting(card.slug)) return
   const install: RecipeInstall = { installId: crypto.randomUUID(), slug: card.slug, roomId: target.roomId, agent: target.agent, at: Date.now(), routines: [] }
+  const body: InstallRecipe = { installId: install.installId, slug: card.slug, roomId: target.roomId, agent: target.agent }
   mutations++
-  recorded(install)
-  navigate(`/chat/${target.roomId}`)
-  void postInstall({ ...install }).then((result) => {
+  const optimistic = ready(card)
+  if (optimistic) {
+    recorded(install)
+    navigate(`/chat/${target.roomId}`)
+  } else mark(setWaiting, card.slug, true)
+  void submit(card, body, navigate).then((made) => {
     mutations--
+    mark(setWaiting, card.slug, false)
     changeInstalls((list) => list.filter((i) => i.installId !== install.installId))
-    if (result.ok) recorded(result.install)
-    else failed(card, result.error)
+    if (!made) return
+    recorded(made)
+    if (!optimistic) navigate(`/chat/${target.roomId}`)
   })
 }
 
 /** Gives the recipe its own new chat, then opens it. Nothing opens until the server has made the chat. */
 export function addOwnChat(card: RecipeCard, navigate: (to: string) => void): void {
   mark(setOwning, card.slug, true)
-  void postInstall({ installId: crypto.randomUUID(), slug: card.slug, own: true }).then((result) => {
+  void submit(card, { installId: crypto.randomUUID(), slug: card.slug, own: true }, navigate).then((made) => {
     mark(setOwning, card.slug, false)
-    if (!result.ok) return failed(card, result.error)
-    recorded(result.install)
-    navigate(`/chat/${result.install.roomId}`)
+    if (!made) return
+    recorded(made)
+    navigate(`/chat/${made.roomId}`)
+  })
+}
+
+/** "Done, add it": posts the same add again. The server checks the apps again and makes the install when they are all connected. */
+export function retryConnect(): void {
+  const pending = ask()
+  if (!pending || isWaiting(pending.card.slug)) return
+  const { card, body, navigate } = pending
+  mark(setWaiting, card.slug, true)
+  void submit(card, body, navigate).then((made) => {
+    mark(setWaiting, card.slug, false)
+    if (!made) return
+    recorded(made)
+    navigate(`/chat/${made.roomId}`)
   })
 }

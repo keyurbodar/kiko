@@ -10,8 +10,6 @@ const base = { roomId: Schema.String, at: Schema.Number }
 export const Signal = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("burst"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
 	Schema.Struct({ kind: Schema.Literal("agent_final"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
-	Schema.Struct({ kind: Schema.Literal("task"), ...base, seq: Schema.Number, title: Schema.String, status: Schema.String, owner: Schema.NullOr(Schema.String), by: Schema.NullOr(By) }),
-	Schema.Struct({ kind: Schema.Literal("file"), ...base, seq: Schema.Number, path: Schema.String, by: Schema.NullOr(By) }),
 	Schema.Struct({ kind: Schema.Literal("routine_result"), ...base, routineId: Schema.String, occurrence: Schema.String, outcome: Schema.Literals(["ok", "quiet", "failed", "timeout"]), seq: Schema.NullOr(Schema.Number) }),
 ])
 export type Signal = typeof Signal.Type
@@ -23,7 +21,7 @@ export const SIGNALS_WAKEUP = "routine_events"
 const WINDOW_MS = 60_000
 const MAX_SIGNALS = 20
 
-type Act = Extract<Signal, { kind: "burst" | "agent_final" | "task" | "file" }>
+type Act = Extract<Signal, { kind: "burst" | "agent_final" }>
 type By = typeof By.Type
 
 export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by: By | null }): Act | null {
@@ -33,10 +31,6 @@ export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by
 			if (event.from.kind === "system" || !by) return null
 			if (event.from.kind === "human") return { kind: "burst", roomId, at, seq: event.seq, text: event.text, by }
 			return { kind: "agent_final", roomId, at, seq: event.seq, text: event.text, by }
-		case "task":
-			return { kind: "task", roomId, at, seq: event.seq, title: event.task.title, status: event.task.status, owner: event.task.owner ?? null, by }
-		case "file":
-			return { kind: "file", roomId, at, seq: event.seq, path: event.file.name, by }
 		default:
 			return null
 	}
@@ -47,28 +41,12 @@ function signalLine(s: Act): string {
 		case "burst":
 		case "agent_final":
 			return `${s.by.kind === "human" ? "the human" : `@${s.by.name}`} wrote: "${s.text.replace(/\s+/g, " ").slice(0, 200)}"`
-		case "task":
-			return `task "${s.title}" is now ${s.status}${s.owner ? ` (owner @${s.owner})` : ""}`
-		case "file":
-			return `/${s.path} changed`
 	}
 }
 
 export function matches(routine: RoomRoutine, s: Signal): boolean {
 	const t = routine.trigger
-	switch (t.on) {
-		case "task":
-			return s.kind === "task" && (!t.status?.length || t.status.includes(s.status as never))
-		case "message": {
-			if (s.kind !== "burst") return false
-			return (!t.contains || s.text.toLowerCase().includes(t.contains.toLowerCase()))
-		}
-		case "file": {
-			if (s.kind !== "file") return false
-			const prefix = t.path.replace(/^\/+|\/+$/g, "")
-			return !prefix || s.path === prefix || s.path.startsWith(`${prefix}/`)
-		}
-	}
+	return s.kind === "burst" && (!t.contains || s.text.toLowerCase().includes(t.contains.toLowerCase()))
 }
 
 export function routineRun(routine: RoomRoutine, batch: SignalBatch): { body: string } | null {

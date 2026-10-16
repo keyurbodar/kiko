@@ -76,7 +76,7 @@ test("a user from main upgrades in place: its rows stay, and its tables match a 
   migrate(storageOn(fresh), USER_STEPS)
   expect(schemaOf(old)).toEqual(schemaOf(fresh))
   expect(old.query("SELECT title FROM chats").all()).toEqual([{ title: "plans" }])
-  expect(old.query("SELECT text FROM reminders").all()).toEqual([{ text: "taxes" }])
+  expect(old.query("SELECT text FROM reminders").all()).toEqual([{ text: "reminder: taxes" }])
   expect(old.query("SELECT value FROM settings WHERE key = 'theme'").get()).toEqual({ value: "dark" })
   expect(old.query("SELECT value FROM attention WHERE name = 'rhythm'").get()).toEqual({ value: "slow" })
   expect(old.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({ value: String(USER_STEPS.length) })
@@ -94,4 +94,29 @@ test("an agent from main upgrades to the tables and columns a fresh agent has, a
   migrate(storageOn(fresh), AGENT_STEPS)
   expect(schemaOf(old)).toEqual(schemaOf(fresh))
   expect(old.query("SELECT task, steps FROM workers").all()).toEqual([{ task: "older work", steps: 0 }])
+})
+
+test("stored reminders become time routines, and a routine with a cut trigger is paused", () => {
+  const old = legacy([...LEGACY_USER_V1, ...LEGACY_USER_LAZY], undefined)
+  old.exec("INSERT INTO settings (key, value) VALUES ('schema_version', '1')")
+  old.exec("INSERT INTO chats (room_id, title, updated_at, agents) VALUES ('r1', 'plans', 5, '[\"ada\"]')")
+  const row = "INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, created_at, trigger) VALUES"
+  old.exec(`${row} ('human', 'Call mom', 1760000000000, 'UTC', NULL, 'r1', 'human', 'human', 'active', 0, NULL)`)
+  old.exec(`${row} ('daily', 'stand up', 1760000000000, 'UTC', 'FREQ=DAILY', 'r1', 'ada', 'human', 'active', 0, NULL)`)
+  old.exec(`${row} ('own', 'check the oven', 1760000000000, 'UTC', NULL, 'r1', 'ada', 'ada', 'failed', 0, NULL)`)
+  old.exec(`${row} ('gone', 'old news', 1760000000000, 'UTC', NULL, 'r1', 'human', 'human', 'done', 0, NULL)`)
+  old.exec(`${row} ('watch', 'w', 1760000000000, 'UTC', NULL, 'r1', 'ada', 'ada', 'active', 0, '{"on":"watch","url":"https://example.com","everyMinutes":15}')`)
+  old.exec(`${row} ('task', 't', 0, 'UTC', NULL, 'r1', 'ada', 'ada', 'active', 0, '{"on":"task"}')`)
+  old.exec(`${row} ('msg', 'm', 0, 'UTC', NULL, 'r1', 'ada', 'ada', 'active', 0, '{"on":"message"}')`)
+
+  migrate(storageOn(old), USER_STEPS)
+
+  const get = (id: string) => old.query<{ name: string; text: string; target: string; status: string; due_utc: number; trigger: string | null }, [string]>("SELECT name, text, target, status, due_utc, trigger FROM reminders WHERE id = ?").get(id)!
+  expect(get("human")).toMatchObject({ name: "call mom", text: "remind the human: Call mom", target: "ada", status: "active", trigger: '{"on":"time","at":"2025-10-09T08:53:20Z"}' })
+  expect(get("daily")).toMatchObject({ target: "ada", text: "reminder: stand up", trigger: '{"on":"time","at":"2025-10-09T08:53:20Z","rrule":"FREQ=DAILY"}' })
+  expect(get("own")).toMatchObject({ status: "paused", text: "you set this reminder for yourself. the time has come: check the oven" })
+  expect(get("gone")).toMatchObject({ status: "done", trigger: null })
+  expect(get("watch")).toMatchObject({ status: "paused", due_utc: 0 })
+  expect(get("task")).toMatchObject({ status: "paused", due_utc: 0 })
+  expect(get("msg")).toMatchObject({ status: "active" })
 })

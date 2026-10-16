@@ -1,7 +1,7 @@
 import type { AgentSlug, Chat, Envelope, RoomEvent, } from "@kiko/protocol"
 import type { Alarms } from "@kiko/durable/alarm"
 import type { Env } from "../index"
-import { INITIATIVE_RUN, REMINDER_RUN } from "../initiative/engine"
+import { INITIATIVE_RUN } from "../initiative/engine"
 import type { Burst } from "./burst"
 import type { Mail } from "./mail"
 import type { Members } from "./members"
@@ -12,7 +12,7 @@ import { wakeBody } from "./workspace"
 import { type Wake, type WakeResult, wakeStamp } from "./wake"
 import { receive, type ReceiveDeps } from "./receive"
 import type { Home } from "./home"
-import { type Deliveries, type ReminderDelivery, reminderChain } from "./deliver"
+import type { Deliveries } from "./deliver"
 
 export const DELIVERY_RETRY_MS = 2_000
 export const WAKES_WAKEUP = "ws_wakes"
@@ -46,25 +46,6 @@ export class RoomWakes {
 
 	humanHere(now: number): boolean {
 		return this.d.burst.pending() || now - this.humanTypingAt < HUMAN_HERE_MS
-	}
-
-	async deliverReminder(id: string, reminder: ReminderDelivery): Promise<WakeResult | "posted"> {
-		const event = this.d.deliveries.reminder(id, reminder)
-		if (event) this.d.publish([event])
-		if (reminder.target === "human") return "posted"
-		const own = `reminder:${id}`
-		const run = { routineId: REMINDER_RUN, occurrence: id, slug: reminder.target as AgentSlug, seq: event?.seq ?? this.d.log.lastSeq() }
-		if (!this.d.deliveries.seen(own)) this.d.routines.follow(run)
-		const out = await this.wake({
-			id: own,
-			to: reminder.target as AgentSlug,
-			why: "reminder",
-			body: reminder.createdBy === reminder.target ? `reminder: ${reminder.text}\nyou set this to come back now. the time has come: do it and post the result here.` : `reminder: ${reminder.text}`,
-			chain: reminderChain(own, reminder),
-			...(event ? { seq: event.seq } : {}),
-		})
-		if (out !== "delivered" && out !== "duplicate") this.d.routines.unfollow(run)
-		return out
 	}
 
 	async initiativeWake(input: { id: string; to: AgentSlug | null; body: string; reason: string }): Promise<WakeResult | "busy"> {

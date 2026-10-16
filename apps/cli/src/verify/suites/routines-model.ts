@@ -40,19 +40,17 @@ const suite: Suite = {
       console.log(`  ${ok ? "ok  " : "MISS"} ${what}`)
     }
 
-    const asks: { text: string; want: (r: Routine[], reminders: number) => boolean; what: string }[] = [
+    const asks: { text: string; want: (r: Routine[]) => boolean; what: string }[] = [
       { text: "every weekday at 8:30 send me a two line summary of what's on my plate", what: "a weekday time routine", want: (r) => r.some((x) => x.trigger?.on === "time") },
-      { text: "whenever a task here moves to review, check it and tell me in one line what's left", what: "a task routine for review", want: (r) => r.some((x) => x.trigger?.on === "task") },
-      { text: "keep an eye on https://example.com, check it every hour and tell me if it changes", what: "a watch every 60 minutes", want: (r) => r.some((x) => x.trigger?.on === "watch") },
-      { text: "remind me in 10 minutes to stretch", what: "a reminder, not a routine", want: (r, reminders) => r.length === 0 && reminders === 1 },
+      { text: "whenever I say deploy, remind me to run the checks first", what: "a message routine for deploy", want: (r) => r.some((x) => x.trigger?.on === "message") },
+      { text: "remind me in 10 minutes to stretch", what: "a one-time routine", want: (r) => r.length === 1 && r[0]?.trigger?.on === "time" },
     ]
     let weekday: { roomId: string; routine: Routine; room: RoomHandle } | null = null
     for (const a of asks) {
       const { roomId, room } = await newRoom(s, `model: ${a.what}`)
       const said = await ask(room, a.text)
       const all = (await routines(url, s)).routines.filter((r) => r.roomId === roomId)
-      const reminders = (await ok<{ roomId: string; trigger: unknown; status: string }[]>(url, s, "reminders")).filter((r) => r.roomId === roomId && !r.trigger && r.status === "active").length
-      check(a.want(all, reminders), `"${a.text}" -> ${a.what}: ${all.map((r) => `${r.name} ${JSON.stringify(r.trigger)}`).join("; ") || `${reminders} reminder(s)`} | said ${JSON.stringify(said.join(" / ").slice(0, 160))}`)
+      check(a.want(all), `"${a.text}" -> ${a.what}: ${all.map((r) => `${r.name} ${JSON.stringify(r.trigger)}`).join("; ") || "no routine"} | said ${JSON.stringify(said.join(" / ").slice(0, 160))}`)
       if (a.what.startsWith("a weekday") && all[0]) weekday = { roomId, routine: all[0], room }
       else room.raw.close()
     }
@@ -98,13 +96,12 @@ const suite: Suite = {
       await ask(room, "hi")
       const { routine } = await ok<{ routine: Routine }>(url, s, "routines", {
         roomId,
-        name: "review check",
-        instructions: "a task moved to review. tell the human in one line which task and what to look at.",
-        trigger: { on: "task", status: ["review"] },
+        name: "pricing check",
+        instructions: "the human mentioned pricing. tell them in one line to check the pricing page.",
+        trigger: { on: "message", contains: "pricing" },
       })
       const before = agentTexts(room).length
-      room.raw.send({ t: "task", op: { op: "create", id: "draft", title: "draft the pricing page" } })
-      room.raw.send({ t: "task", op: { op: "update", id: "draft", status: "review" } })
+      await ask(room, "the pricing page draft is ready")
       const runs = await waitRuns(url, s, routine.id, "the event run", (rs) => rs.some((x) => x.status !== "running"), 180_000)
       await Bun.sleep(3_000)
       const said = agentTexts(room).slice(before)

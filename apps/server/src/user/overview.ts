@@ -40,7 +40,7 @@ export function overview(sql: SqlStorage, input: { reminders: Reminder[]; runs: 
       out.push(`- "${r.name}" by @${r.target} in ${titles.get(r.roomId) ?? "a chat"}: ${r.status}${last ? `, last run ${last.status} ${ago(last.startedAt, now)}` : ", never run"}`)
     }
   }
-  const soon = input.reminders.filter((r) => !r.trigger && r.status === "active" && r.dueUtc - now < DAY)
-  if (soon.length) out.push("reminders in the next day:", ...soon.slice(0, 10).map((r) => `- ${localTime(r.dueUtc, tz)}: ${r.text.slice(0, 80)}${r.target === "human" ? "" : ` (for @${r.target})`}`))
+  const soon = routines.filter((r) => r.status === "active" && r.dueUtc > 0 && r.dueUtc - now < DAY)
+  if (soon.length) out.push("routines due in the next day:", ...soon.slice(0, 10).map((r) => `- ${localTime(r.dueUtc, tz)}: "${r.name}" by @${r.target}`))
   return out.join("\n")
 }
