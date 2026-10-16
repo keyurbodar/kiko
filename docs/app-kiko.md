@@ -281,7 +281,7 @@ The `.workers.dev` URL is not a secret. Anyone can find it in the browser's netw
 
 Modeled on t3code. Stable channel only.
 
-A tab can also run an older client than the front door serves. On the hosted app only, the client reads `/releases/latest.json` (never cached) on focus and every 30 minutes. When it is newer than the tab's own version, the pill says "Reload to update", with a toast once. The page never reloads by itself.
+A tab can also run an older client than the front door serves. On the hosted app only, the client reads `/releases/latest.json` (never cached) on focus, when the tab shows again, and every 5 minutes. A newer release and an older backend are the same one click: the sidebar pill says "Update", with a toast once. The update installs the newest release on the backend, then the client asks `/api/version` every 2 s until the new version answers (up to 3 minutes; the socket's own reconnect is not trusted to say so). If the release is newer than the tab, the tab then reloads into it, because the owner clicked Update. Progress shows in the pill only. The note above the composer shows only when the backend is too old to talk to.
 
 ```mermaid
 flowchart LR

@@ -32,19 +32,13 @@ export default function UpdatePill() {
 								</span>
 							)}
 						</Match>
-						<Match when={view().kind === "reload"}>
-							<button type="button" class="update-pill" data-component="update-pill" data-kind="reload" onClick={() => location.reload()}>
-								<HugeIcon icon={DownloadIcon} size={14} />
-								Reload to update
-							</button>
-						</Match>
 						<Match when={true}>
 							<button
 								type="button"
 								class="update-pill"
 								data-component="update-pill"
 								data-kind={view().kind === "failed" ? "failed" : (view() as { blocked: boolean }).blocked ? "blocked" : "update"}
-								onClick={startUpdate}
+								onClick={() => void startUpdate()}
 							>
 								<HugeIcon icon={DownloadIcon} size={14} />
 								{view().kind === "failed" ? "Retry update" : (view() as { blocked: boolean }).blocked ? "Update required" : "Update"}

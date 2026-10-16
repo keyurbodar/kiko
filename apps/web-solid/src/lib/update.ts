@@ -1,7 +1,7 @@
 // Where a one-click update is, as the backend reports it. Pure, so the table is tested in update.test.ts.
 
 import type { UpdateStage, UserToClient } from "@kiko/protocol"
-import type { Skew } from "./version-skew"
+import { clientBehind, type Skew } from "./version-skew"
 
 /** `sentAt` is set only while the client waits for the backend's first frame. */
 export type UpdateProgress = { stage: UpdateStage; error?: string; sentAt?: number } | null
@@ -41,20 +41,31 @@ export type PillView =
 	| { kind: "none" }
 	| { kind: "busy"; text: string }
 	| { kind: "failed"; error: string }
-	| { kind: "reload" }
 	| { kind: "update"; blocked: boolean }
 
 /**
- * A running update wins, then a failure. A stale tab comes before the backend update, because the
- * update installs this tab's own version and would install the old one.
+ * A running update wins, then a failure. A newer release on the front door and an older backend are the
+ * same one click: the update installs the newest release, then the tab reloads into it.
  */
 export function pillView(skew: Skew | undefined, clientIsBehind: boolean, progress: UpdateProgress): PillView {
 	const text = stageText(progress)
 	if (text) return { kind: "busy", text }
 	if (progress?.stage === "failed") return { kind: "failed", error: progress.error ?? "The update failed. Try again." }
-	if (clientIsBehind) return { kind: "reload" }
-	if (skew === "update" || skew === "blocked") return { kind: "update", blocked: skew === "blocked" }
+	if (skew === "blocked") return { kind: "update", blocked: true }
+	if (clientIsBehind || skew === "update") return { kind: "update", blocked: false }
 	return { kind: "none" }
 }
 
-export const LATEST_POLL_MS = 30 * 60_000
+/** The release an update installs: the front door's newest when it is ahead of this tab, else this tab's own. */
+export const updateTarget = (app: string, latest: string | undefined): string => (clientBehind(app, latest) ? (latest as string) : app)
+
+/** After "restarting", the backend is asked this often until it answers with the new version. */
+export const RESTART_POLL_MS = 2_000
+/** Longer than any rollout seen. Past it the update is reported, not waited on for ever. */
+export const RESTART_LIMIT_MS = 180_000
+export const RESTART_ERROR = "Kiko was updated but has not restarted yet. Wait a minute, then try again."
+
+/** True when the backend answers with the target release or a newer one. */
+export const landed = (target: string, backend: string | undefined): boolean => backend !== undefined && !clientBehind(backend, target)
+
+export const LATEST_POLL_MS = 5 * 60_000

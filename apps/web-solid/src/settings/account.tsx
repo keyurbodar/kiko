@@ -21,7 +21,7 @@ function Backend() {
     setChecking(true)
     void checkForUpdates().finally(() => setChecking(false))
   }
-  const status = () => (clientIsBehind() ? "Reload to update" : currentSkew() ? SKEW_TEXT[currentSkew()!] : undefined)
+  const status = () => (clientIsBehind() && currentSkew() !== "blocked" ? SKEW_TEXT.update : currentSkew() ? SKEW_TEXT[currentSkew()!] : undefined)
   return (
     <Group title="Backend" data-component="account-backend">
       <Row label="Address">
@@ -48,13 +48,8 @@ function Backend() {
               {(view() as { text: string }).text}
             </span>
           </Match>
-          <Match when={view().kind === "reload"}>
-            <Button variant="primary" data-action="reload-update" onClick={() => location.reload()}>
-              Reload to update
-            </Button>
-          </Match>
           <Match when={view().kind === "update" || view().kind === "failed"}>
-            <Button variant="primary" data-action="update-start" onClick={startUpdate}>
+            <Button variant="primary" data-action="update-start" onClick={() => void startUpdate()}>
               {view().kind === "failed" ? "Retry update" : "Update"}
             </Button>
           </Match>

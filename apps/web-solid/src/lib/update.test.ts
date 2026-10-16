@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { checkStall, pillView, reduceUpdate, sent, STALL_ERROR, STALL_MS, stageText } from "./update"
+import { checkStall, landed, pillView, reduceUpdate, sent, STALL_ERROR, STALL_MS, stageText, updateTarget } from "./update"
 
 describe("update progress", () => {
 	test.each([
@@ -54,12 +54,35 @@ describe("pillView", () => {
 		["no hello yet", undefined, false, idle, { kind: "none" }],
 		["a backend update", "update", false, idle, { kind: "update", blocked: false }],
 		["a backend too old", "blocked", false, idle, { kind: "update", blocked: true }],
-		["a stale tab", "ok", true, idle, { kind: "reload" }],
-		["a stale tab outranks a backend update, which would install the old version", "update", true, idle, { kind: "reload" }],
+		["a newer release is one update", "ok", true, idle, { kind: "update", blocked: false }],
+		["a newer release and an old backend are the same update", "update", true, idle, { kind: "update", blocked: false }],
+		["a blocked backend says so even with a newer release", "blocked", true, idle, { kind: "update", blocked: true }],
 		["a running update", "update", false, running, { kind: "busy", text: "Uploading" }],
 		["a running update outranks a stale tab", "ok", true, running, { kind: "busy", text: "Uploading" }],
 		["a failure", "update", false, failed, { kind: "failed", error: "No." }],
 	] as const)("%s", (_name, skew, behind, progress, expected) => {
 		expect(pillView(skew, behind, progress)).toEqual(expected)
+	})
+})
+
+describe("the release an update installs", () => {
+	test("the front door's newest when it is ahead of this tab", () => {
+		expect(updateTarget("0.3.0", "0.3.1")).toBe("0.3.1")
+	})
+	test("this tab's own when the front door is not ahead, or unknown", () => {
+		expect(updateTarget("0.3.1", "0.3.1")).toBe("0.3.1")
+		expect(updateTarget("0.3.1", "0.3.0")).toBe("0.3.1")
+		expect(updateTarget("0.3.1", undefined)).toBe("0.3.1")
+	})
+})
+
+describe("a restart has landed", () => {
+	test.each([
+		["0.3.1", "0.3.0", false],
+		["0.3.1", "0.3.1", true],
+		["0.3.1", "0.4.0", true],
+		["0.3.1", undefined, false],
+	] as const)("target %s, backend %s: %s", (target, backend, expected) => {
+		expect(landed(target, backend)).toBe(expected)
 	})
 })

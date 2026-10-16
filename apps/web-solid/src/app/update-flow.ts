@@ -1,12 +1,12 @@
 // The update state one tab shares: the one-click update, what the backend and the front door say now, and the checks.
 // The sidebar pill, the composer notice and the Account page all read it. Docs: docs/app-kiko.md "Updates".
 import { createSignal } from "solid-js"
-import { dismissToastV2, showToastV2, updateToastV2 } from "@kiko/ui/v2/toast-v2"
+import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { PROTOCOL } from "@kiko/protocol"
 import { apiFetch } from "../lib/api"
 import { showFailure } from "../lib/errors"
 import { useApp } from "../lib/store"
-import { checkStall, LATEST_POLL_MS, pillView, reduceUpdate, sent, STALL_MS, stageText, type UpdateProgress } from "../lib/update"
+import { checkStall, LATEST_POLL_MS, landed, pillView, reduceUpdate, RESTART_ERROR, RESTART_LIMIT_MS, RESTART_POLL_MS, sent, STALL_MS, type UpdateProgress, updateTarget } from "../lib/update"
 import { APP_VERSION, type BackendBuild, backendSkew, clientBehind, type Skew } from "../lib/version-skew"
 import { userChannel } from "../sync/user-channel"
 import { hosted } from "./hosted"
@@ -25,22 +25,34 @@ export const currentSkew = (): Skew | undefined => {
 	return build ? backendSkew({ version: APP_VERSION, protocol: PROTOCOL }, build) : useApp.user()?.state.skew
 }
 
-let toastId: number | undefined
-const endToast = () => {
-	dismissToastV2(toastId)
-	toastId = undefined
-}
-
+// The pill in the sidebar shows each stage. Only the end of an update, or its failure, is a toast.
 function set(next: UpdateProgress) {
 	setProgress(next)
-	const text = stageText(next)
-	if (text) {
-		const options = { title: text, variant: "loading", persistent: true } as const
-		if (toastId === undefined) toastId = showToastV2(options)
-		else updateToastV2(toastId, options)
-	} else {
-		endToast()
-		if (next?.stage === "failed") showFailure(next.error ?? "The update failed. Try again.")
+	if (next?.stage === "failed") showFailure(next.error ?? "The update failed. Try again.")
+}
+
+let target = APP_VERSION
+let polling = false
+
+/**
+ * After the upload, asks the backend for its version until the new one answers. The socket's own reconnect is
+ * not waited on: Cloudflare can keep the old socket open, or drop it before the last stage arrives.
+ */
+async function awaitRestart() {
+	if (polling) return
+	polling = true
+	try {
+		for (const until = Date.now() + RESTART_LIMIT_MS; Date.now() < until; await new Promise((r) => setTimeout(r, RESTART_POLL_MS))) {
+			const build = await refreshBackend()
+			if (!landed(target, build?.version)) continue
+			if (clientIsBehind()) return location.reload()
+			set(null)
+			showToastV2({ title: "Kiko is updated", description: `Now on ${build?.version}.`, variant: "success" })
+			return
+		}
+		set({ stage: "failed", error: RESTART_ERROR })
+	} finally {
+		polling = false
 	}
 }
 
@@ -48,20 +60,28 @@ let wired = false
 function wire() {
 	if (wired) return
 	wired = true
-	userChannel.on("update.state", (frame) => set(reduceUpdate(frame)))
-	// A restart drops the socket. The reconnect's hello says whether the new code answered.
+	userChannel.on("update.state", (frame) => {
+		set(reduceUpdate(frame))
+		if (frame.stage === "restarting") void awaitRestart()
+	})
+	// A drop during the upload can lose the "restarting" frame. The upload may still have landed, so look.
 	userChannel.onOpen(() => {
-		if (progress()?.stage !== "restarting") return
-		set(null)
-		setFetched(undefined)
-		showToastV2({ title: "Kiko is updated", variant: "success" })
+		const stage = progress()?.stage
+		if (stage === "uploading" || stage === "restarting") void awaitRestart()
 	})
 }
 
-export function startUpdate() {
+/** One click: installs the newest release on the backend, then reloads this tab into it when it is newer too. */
+export async function startUpdate() {
 	wire()
+	target = updateTarget(APP_VERSION, latest())
 	set(sent(Date.now()))
-	if (!userChannel.send({ t: "update.start", version: APP_VERSION })) return set({ stage: "failed", error: "Kiko is offline. Try again when it reconnects." })
+	const build = await refreshBackend()
+	if (landed(target, build?.version)) {
+		if (clientIsBehind()) return location.reload()
+		return set(null)
+	}
+	if (!userChannel.send({ t: "update.start", version: target })) return set({ stage: "failed", error: "Kiko is offline. Try again when it reconnects." })
 	setTimeout(() => {
 		const p = progress()
 		const stalled = checkStall(p, Date.now())
@@ -85,13 +105,13 @@ export async function refreshLatest(): Promise<void> {
 	if (typeof body?.version !== "string") return
 	const was = clientIsBehind()
 	setLatest(body.version)
-	if (!was && clientIsBehind()) {
-		showToastV2({ title: "A new version of Kiko is ready", description: "Reload to update.", persistent: true, action: { label: "Reload", onClick: () => location.reload() } })
+	if (!was && clientIsBehind() && !progress()) {
+		showToastV2({ title: `Kiko ${body.version} is ready`, description: "Update in one click.", action: { label: "Update", onClick: () => void startUpdate() } })
 	}
 }
 
 let watching = false
-/** Checks on focus and every 30 minutes. It never reloads by itself. */
+/** Checks on focus, when the tab shows again, and every few minutes. It never reloads by itself. */
 export function watchLatest() {
 	if (watching || !hosted) return
 	watching = true
