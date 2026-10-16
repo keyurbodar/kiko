@@ -44,7 +44,7 @@ describe("buildMetadata", () => {
     ["none", []],
   ])("files %s", (files, expected) => {
     const meta = buildMetadata(manifest, plan, null, files)
-    expect(meta.bindings.filter((b) => b.name === "FILES")).toEqual(expected)
+    expect(meta.bindings.filter((b) => b.name === "FILES") as unknown[]).toEqual(expected)
     expect(meta.bindings.some((b) => b.name === "FILE" && b.type === "durable_object_namespace")).toBe(true)
   })
 })
