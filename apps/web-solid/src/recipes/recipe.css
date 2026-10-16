@@ -97,3 +97,12 @@
 .recipe-card:hover .recipe-watermark {
   opacity: 0.11;
 }
+
+/* A paused recipe keeps its shape but loses its color, so the running ones stand out. */
+.recipe-card[data-status="paused"] {
+  --recipe-tone: var(--recipe-slate) !important;
+}
+
+.recipe-card[data-status="paused"] .recipe-icon {
+  filter: grayscale(1);
+}

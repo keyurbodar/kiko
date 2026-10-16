@@ -15,9 +15,9 @@ import { RecipeTile } from "./tile"
 type Section = "yours" | "discover"
 
 const sectionTab =
-  "flex h-8 cursor-pointer items-center gap-2 rounded-full pr-2 pl-3.5 text-[14px] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[selected]:bg-control-strong data-[selected]:text-foreground"
+  "flex h-8 cursor-pointer items-center gap-2 rounded-full pr-2 pl-3.5 text-[14px] font-medium text-muted-foreground hover:text-foreground data-[selected]:bg-control-strong data-[selected]:text-foreground"
 const tagTab =
-  "h-7 shrink-0 cursor-pointer rounded-full px-3 text-[13px] text-muted-foreground outline-none hover:bg-control hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[selected]:bg-control-strong data-[selected]:text-foreground"
+  "h-7 shrink-0 cursor-pointer rounded-full px-3 text-[13px] text-muted-foreground hover:bg-control hover:text-foreground data-[selected]:bg-control-strong data-[selected]:text-foreground"
 const grid = "grid grid-cols-1 gap-3 @max-[519px]/recipes:gap-2 @min-[520px]/recipes:grid-cols-2"
 
 function Empty(props: { title: string; children?: JSX.Element }) {
@@ -137,19 +137,21 @@ export default function RecipesPage() {
                   toTabs()
                 }}
               >
-                <TabsV2.List
-                  class="sticky top-14 z-10 -mx-1 flex items-center gap-1 overflow-x-auto bg-background px-1 pb-3 [scrollbar-width:none]"
-                  aria-label="Categories"
-                  data-component="recipes-tags"
-                >
-                  <For each={tags()}>
-                    {(t) => (
-                      <TabsV2.Trigger value={t} class={tagTab} data-tag={t}>
-                        {t === "all" ? "All" : tagLabel(t)}
-                      </TabsV2.Trigger>
-                    )}
-                  </For>
-                </TabsV2.List>
+                <div class="sticky top-14 z-10 -mx-1 bg-background px-1 pb-3">
+                  <TabsV2.List
+                    class="flex items-center gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,black_calc(100%-32px),transparent)] [scrollbar-width:none]"
+                    aria-label="Categories"
+                    data-component="recipes-tags"
+                  >
+                    <For each={tags()}>
+                      {(t) => (
+                        <TabsV2.Trigger value={t} class={tagTab} data-tag={t}>
+                          {t === "all" ? "All" : tagLabel(t)}
+                        </TabsV2.Trigger>
+                      )}
+                    </For>
+                  </TabsV2.List>
+                </div>
 
                 <Show when={broken().length}>
                   <div class="mb-3 flex flex-col gap-1 rounded-[16px] bg-card px-4 py-3 text-[13px] text-muted-foreground" data-component="recipes-broken">
