@@ -347,6 +347,8 @@ export type MockUser = {
 	readonly received: ClientToUser[]
 	readonly log: readonly UserEvent[]
 	store(...events: WithoutStored<UserEvent>[]): UserEvent[]
+	/** Sends a frame that is not stored, such as `error`. */
+	broadcast(frame: UserToClient): void
 }
 
 type FileEventBody = { t: "file"; file: FileRef } | { t: "file_removed"; ids: string[] } | { t: "folders"; folders: string[] }
@@ -463,5 +465,8 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 		received,
 		log,
 		store,
+		broadcast(frame) {
+			for (const p of peers) p.push(frame)
+		},
 	}
 }

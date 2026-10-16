@@ -219,6 +219,17 @@ describe("the socket", () => {
 })
 
 describe("the room store", () => {
+	test("an error frame from the room reaches the toast path", async () => {
+		const heard: unknown[] = []
+		const { mock, make } = setup({}, { onError: (e) => heard.push(e) })
+		const { store } = await make()
+		await until(() => store.state.connection === "open")
+		const error = { code: "storage", message: "Kiko could not save that. Try again." } as const
+		mock.broadcast({ t: "error", error })
+		await until(() => heard.length === 1)
+		expect(heard).toEqual([error])
+	})
+
 	test("a member change shows at once, and a refusal rolls it back and is reported", async () => {
 		const { make } = setup({ resetAfter: 0 }) // a snapshot, which carries the members
 		const { store } = await make()
@@ -657,6 +668,18 @@ describe("composer typing and run end", () => {
 })
 
 describe("the user store", () => {
+	test("an error frame from the server reaches the toast path", async () => {
+		const mock = createMockUser()
+		const heard: unknown[] = []
+		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 }, onError: (e) => heard.push(e) })
+		await until(() => store.state.synced)
+		const error = { code: "composio_rejected", message: "Composio did not accept your key. Check it in integrations.", action: "open_integrations" } as const
+		mock.broadcast({ t: "error", error })
+		await until(() => heard.length === 1)
+		expect(heard).toEqual([error])
+		store.close()
+	})
+
 	test("one socket carries the look, memory, and Composio frames through the channel", async () => {
 		const mock = createMockUser()
 		const warm = await freshWarm()

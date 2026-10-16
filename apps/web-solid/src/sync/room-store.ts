@@ -1,4 +1,4 @@
-import { humanAnswerText, type HumanAnswers } from "@kiko/protocol"
+import { humanAnswerText, type HumanAnswers, type KikoError } from "@kiko/protocol"
 // The open room. Architecture sections 9.2, 9.3, and 19.2.
 //
 // It holds the visible message window in a Solid store, keeps the warm tier in
@@ -308,6 +308,8 @@ export type RoomStoreOptions = {
 	url: string
 	connect?: Connect
 	backoff?: Backoff
+	/** Something the human must know about, from the server. */
+	onError?: (error: KikoError) => void
 	/** Runs the next slice of work. Defaults to a macrotask. */
 	schedule?: (run: () => void) => void
 	/** Longest slice of event work. Defaults to 3 ms, which leaves room for the slice's warm writes in an 8 ms frame. */
@@ -697,6 +699,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			setPatches((list) => list.map((p) => (p.clientId === f.clientId ? { ...p, failed: true, reason: f.reason } : p)))
 			for (const listener of sendRefusalListeners) listener(f.reason)
 		},
+		error: (f) => options.onError?.(f.error),
 		run_error: (f) => {
 			for (const listener of runErrorListeners) listener(f)
 		},

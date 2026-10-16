@@ -1,7 +1,7 @@
 import { KIKO, newRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeList, RoomId, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, RecipeList, RoomId, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
 import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
@@ -13,6 +13,8 @@ import { BACKEND } from "../lib/version"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
+import { STORAGE_ERROR } from "../lib/storage-error"
+import { composioFailure } from "./user-errors"
 import { connectLinkFor, MANAGE_CONNECTIONS } from "../integrations/composio/connect-tool"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
@@ -569,7 +571,11 @@ export class UserDO extends DurableObject<Env> {
 
   /** Null when no key is stored. A cold object serves the saved listing and refreshes it behind. */
   async composioTools(): Promise<ComposioTool[] | null> {
-    return this.#composio.tools()
+    try {
+      return await this.#composio.tools()
+    } catch (e) {
+      return this.fail(composioFailure(e), e)
+    }
   }
 
   /** What an open agent compares with the tools it opened with. Reads one row, never calls Composio. */
@@ -578,7 +584,17 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async composioCall(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
-    return this.#composio.call(name, args)
+    try {
+      return await this.#composio.call(name, args)
+    } catch (e) {
+      return this.fail(composioFailure(e), e)
+    }
+  }
+
+  /** Tells the human what broke, then lets the caller see the error as before. */
+  private fail(error: KikoError | null, cause: unknown): never {
+    if (error) this.broadcast({ t: "error", error })
+    throw cause
   }
 
   #composioConnection?: ComposioConnection
@@ -619,7 +635,7 @@ export class UserDO extends DurableObject<Env> {
 
   #kernelWiring?: KernelWiring
   get #kr(): KernelWiring {
-    this.#kernelWiring ??= new KernelWiring({ ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => userIdFromObjectName(this.ctx.id.name) })
+    this.#kernelWiring ??= new KernelWiring({ ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => userIdFromObjectName(this.ctx.id.name), notify: (error) => this.broadcast({ t: "error", error }) })
     return this.#kernelWiring
   }
 
@@ -734,6 +750,15 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    try {
+      await this.handleMessage(ws, message)
+    } catch (e) {
+      console.error(`user frame failed: ${e instanceof Error ? e.message : String(e)}`)
+      send(ws, { t: "error", error: STORAGE_ERROR })
+    }
+  }
+
+  private async handleMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     let frame: typeof ClientToUser.Type
     try {
       frame = decodeFrame(JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)))

@@ -78,6 +78,7 @@ export const userToClient: readonly UserToClient[] = [
 		],
 	},
 	{ t: "reset", snapshot: { seq: 2, chats: [chat], home: { files: [file], folders: ["notes"] }, lastChat: roomId } },
+	{ t: "error", error: { code: "composio_rejected", message: "Composio did not accept the key.", action: "open_integrations" } },
 	{ t: "chat_refused", roomId: refusedRoomId, existing: roomId },
 	{ t: "home_refused", op: { op: "rm", paths: ["notes"] }, reason: "notes is a folder with things in it" },
 	{ t: "search", query: "protocol", chats: [chat] },

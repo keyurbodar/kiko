@@ -1,18 +1,13 @@
 import type { RoomToClient } from "@kiko/protocol"
 import { loadCatalog } from "../settings/catalog"
 import { showToastV2, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
+import { openSettings } from "./errors"
 
 /** A model error is the reason a reply never came, so it outlasts the default toast. */
 const RUN_ERROR_TOAST_MS = 15_000
 
 export type RunErrorFrame = Extract<RoomToClient, { t: "run_error" }>
 
-let go: (href: string) => void = () => {}
-export const openSettings = () => go("/settings/models")
-/** The shell gives the toast actions a way to navigate. */
-export const setGo = (fn: (href: string) => void) => {
-  go = fn
-}
 
 /** The words for a run that ended in a model or provider error. A pure table: the kind picks the sentence and whether to offer settings. */
 export function runErrorToast(frame: Pick<RunErrorFrame, "kind" | "provider" | "detail">, name: string, providerName?: string): ToastV2Options & { title: string; settings?: boolean } {

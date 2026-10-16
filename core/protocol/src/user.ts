@@ -1,5 +1,6 @@
 
 import type { ChatLast } from "./activity"
+import type { KikoError } from "./errors"
 import type { AgentSlug, RoomId } from "./ids"
 import type { ThinkingLevel } from "./thinking"
 import type { MemoryOp, MemoryResult } from "./memory"
@@ -148,6 +149,8 @@ export type UserToClient =
 	| { t: "login.prompt"; loginId: string; promptId: string; prompt: LoginPrompt }
 	| { t: "login.done"; loginId: string; provider: { provider: string; kind: "api_key" | "oauth"; last4: string } }
 	| { t: "login.error"; loginId: string; reason: LoginErrorReason; message: string }
+	/** Not stored. Something the human must know about, as one toast. */
+	| { t: "error"; error: KikoError }
 	| { t: "chat_refused"; roomId: RoomId; existing: RoomId }
 	| { t: "home_refused"; op: FileOp; reason: string }
 	| { t: "typing"; roomId: RoomId; names: readonly string[] }
