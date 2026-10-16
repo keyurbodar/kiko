@@ -7,7 +7,7 @@ export type InstallOutcome =
   | { ok: false; error: { code: string; message: string; status: number; detail?: string; accounts?: { id: string; name: string }[] } }
 
 export type Env = InstallEnv & {
-  INSTALL: {
+  INSTALLER: {
     idFromName(name: string): DurableObjectId
     get(id: DurableObjectId): { install(req: { sub: string; grant: Grant; accountId?: string }): Promise<InstallOutcome> }
   }
@@ -93,7 +93,7 @@ export default {
         return reply({ error: { code: "unauthorized", message: "Sign in again." } }, 401, origin)
       }
       const accountId = typeof body.accountId === "string" ? body.accountId : undefined
-      const stub = env.INSTALL.get(env.INSTALL.idFromName(sub))
+      const stub = env.INSTALLER.get(env.INSTALLER.idFromName(sub))
       const result = await stub.install({ sub, grant, accountId })
       return reply(result.ok ? result.value : { error: result.error }, result.ok ? 200 : result.error.status, origin)
     }
