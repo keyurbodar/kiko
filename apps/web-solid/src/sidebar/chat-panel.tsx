@@ -427,7 +427,7 @@ export function ChatPanel() {
   const byId = createMemo(() => new Map(shown().map((bot) => [bot.id, bot])))
   const muted = createMemo(() => new Set((useApp.user()?.chats() ?? []).filter((c) => c.muted).map((c) => c.roomId as string)))
   const active = () => useApp.activeThreadId()
-  const loading = () => all().length === 0 && !useApp.user()?.state.synced
+  const loading = () => all().length === 0 && !!useApp.user()?.state.loaded && !useApp.user()?.state.synced
 
   return (
     <div class="chat-panel" data-component="sidebar-chats">

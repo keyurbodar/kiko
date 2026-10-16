@@ -352,7 +352,7 @@
   gap: 8px;
   order: -2;
   min-width: 0;
-  padding: 2px 2px 4px 12px;
+  padding: 2px 2px 4px 0;
   font-size: var(--font-size-prompt);
   line-height: 20px;
   color: var(--muted-foreground);
