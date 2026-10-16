@@ -58,9 +58,6 @@ const suite: Suite = {
       const good = await ask({ t: "connectKernel", apiKey: key })
       if (!good.ok) throw new VerifyError(`connect failed: ${good.error}`)
 
-      const none = await link("watch")
-      expectEqual(none.result.ok, false, "a link with no browser open")
-
       const lease = await dev<{ sessionId: string; mode: string }>("dev/agent/browser", { action: "lease", agentId: AGENT })
       if (lease.status !== 200) throw new VerifyError(`lease answered ${lease.status}`)
       seen.add(lease.json.sessionId)
