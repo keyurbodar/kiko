@@ -96,7 +96,7 @@ export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; ro
           <Show when={installs().length}>
             <section class="-mx-2.5 flex flex-col gap-0.5" data-component="recipe-installs">
               <h3 class={`${label} px-3.5 pb-1`}>Running in</h3>
-              <For each={installs()}>{(install) => <InstallRow install={install} card={props.recipe} lead="chat" navigate={go} />}</For>
+              <For each={installs()}>{(install) => <InstallRow install={install} card={props.recipe} navigate={go} />}</For>
             </section>
           </Show>
         </div>

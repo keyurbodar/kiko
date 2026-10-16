@@ -4,15 +4,15 @@ import { PlusIcon } from "@kiko/ui/icons"
 import { For, Show } from "solid-js"
 import { cn } from "../lib/cn"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { RecipeIcon } from "./icon"
-import { installStatus, nextLabel } from "./model"
-import { StatusDot } from "./row"
+import { RecipeIcon, RecipeWatermark, toneStyle } from "./icon"
+import { installStatus, nextRunLabel } from "./model"
 import { installsFor } from "./state"
 
 /**
- * A recipe in the book. Off, it shows when it would run and a round add button. On, it shows its
- * soonest run and the faces of the agents that use it. The whole tile opens the details. Below
- * 520px of page width it lays out as a row, so a phone reads the book like a chat list.
+ * A recipe in the book: a card tinted by its tone, with its mark in the corner. Off, it shows when
+ * it would run and a round add button. On, it shows its soonest run and the faces of the agents that
+ * use it. The whole tile opens the details. Below 520px of page width it lays out as a row, so a
+ * phone reads the book like a chat list.
  */
 export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAdd: () => void }) {
   const installs = () => installsFor(props.recipe.slug)
@@ -22,42 +22,42 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
       const s = installStatus(i, props.recipe)
       return s.kind === "next" ? [s.at] : []
     })
-    return times.length ? nextLabel(Math.min(...times), Date.now()) : "On"
+    return times.length ? nextRunLabel(Math.min(...times), Date.now()) : "Paused"
   }
   const on = () => installs().length > 0
   const status = () => (
     <Show when={on()} fallback={<span class="truncate">{props.recipe.when}</span>}>
-      <StatusDot />
       <span class="truncate text-foreground/85">{soonest()}</span>
     </Show>
   )
   return (
     <article
       class={cn(
-        "relative flex min-w-0 flex-col gap-2 rounded-[20px] bg-card p-4 pb-3.5 [--recipe-surface:var(--card)]",
-        "@max-[519px]/recipes:[--recipe-surface:var(--background)]",
-        "@max-[519px]/recipes:flex-row @max-[519px]/recipes:items-center @max-[519px]/recipes:gap-3 @max-[519px]/recipes:rounded-[14px] @max-[519px]/recipes:bg-transparent @max-[519px]/recipes:px-2.5 @max-[519px]/recipes:py-2 @max-[519px]/recipes:hover:bg-control",
+        "recipe-card flex min-w-0 flex-col gap-3 rounded-[20px] p-4 [--recipe-surface:var(--card)]",
+        "@max-[519px]/recipes:flex-row @max-[519px]/recipes:items-center @max-[519px]/recipes:gap-3 @max-[519px]/recipes:rounded-[14px] @max-[519px]/recipes:px-2.5 @max-[519px]/recipes:py-2",
       )}
+      style={toneStyle(props.recipe)}
       data-recipe={props.recipe.slug}
       data-on={on() ? "" : undefined}
     >
+      <RecipeWatermark recipe={props.recipe} />
       <button
         type="button"
-        class={cn("flex min-w-0 flex-1 cursor-pointer flex-col gap-2 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]", "@max-[519px]/recipes:flex-row @max-[519px]/recipes:items-center @max-[519px]/recipes:gap-3")}
+        class={cn("flex min-w-0 flex-1 cursor-pointer flex-col gap-3 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]", "@max-[519px]/recipes:flex-row @max-[519px]/recipes:items-center")}
         data-action="open-recipe"
         onClick={() => props.onOpen()}
       >
-        <span class={cn("mb-1.5 flex", "@max-[519px]/recipes:mb-0")}>
-          <RecipeIcon recipe={props.recipe} size={44} stickers />
+        <span class={cn("mb-1 flex", "@max-[519px]/recipes:mb-0")}>
+          <RecipeIcon recipe={props.recipe} size={48} stickers />
         </span>
         <span class="flex min-w-0 flex-col gap-1">
-          <span class="truncate text-[14px] font-semibold tracking-[-0.005em] text-foreground">{props.recipe.title}</span>
-          <span class={cn("line-clamp-2 text-[12.5px] leading-[1.45] text-muted-foreground", "@max-[519px]/recipes:hidden")}>{props.recipe.description}</span>
-          <span class={cn("hidden min-w-0 items-center gap-1.5 text-xs text-muted-foreground", "@max-[519px]/recipes:flex")}>{status()}</span>
+          <span class="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">{props.recipe.title}</span>
+          <span class={cn("line-clamp-2 min-h-[2.9em] text-[13px] leading-[1.45] text-muted-foreground", "@max-[519px]/recipes:hidden")}>{props.recipe.description}</span>
+          <span class={cn("hidden min-w-0 items-center text-xs text-muted-foreground", "@max-[519px]/recipes:flex")}>{status()}</span>
         </span>
       </button>
-      <div class={cn("relative mt-auto flex items-center justify-between gap-2 pt-1.5", "@max-[519px]/recipes:mt-0 @max-[519px]/recipes:pt-0")}>
-        <span class={cn("flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground", "@max-[519px]/recipes:hidden")}>{status()}</span>
+      <div class={cn("relative mt-auto flex items-center justify-between gap-2", "@max-[519px]/recipes:mt-0")}>
+        <span class={cn("flex min-w-0 items-center text-xs text-muted-foreground", "@max-[519px]/recipes:hidden")}>{status()}</span>
         <span class="flex shrink-0 items-center gap-1.5">
           <Show when={on()}>
             <span class="flex" role="img" aria-label={`On for ${agents().length} ${agents().length === 1 ? "agent" : "agents"}`}>

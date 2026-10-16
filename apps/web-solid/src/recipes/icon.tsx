@@ -13,8 +13,16 @@ export function AppLogo(props: { app: RecipeApp; size: number; overlap?: number 
   )
 }
 
+/** The CSS variable that carries a recipe's tone, set on any element whose children tint by it. */
+export const toneStyle = (recipe: Pick<RecipeCard, "tone">) => ({ "--recipe-tone": `var(--recipe-${recipe.tone})` })
+
+/** The recipe's glyph drawn large and faint in a card's corner, so each card carries its recipe's mark. */
+export function RecipeWatermark(props: { recipe: Pick<RecipeCard, "glyph"> }) {
+  return <svg class="recipe-watermark" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" innerHTML={props.recipe.glyph} />
+}
+
 /**
- * A recipe's round icon: its glyph on a tint of its tone. With `stickers`, the logos of the apps it
+ * A recipe's icon: its glyph on a tint of its tone, in an app icon's rounded square. With `stickers`, the logos of the apps it
  * uses sit on its lower edge. The glyph is a build constant, so innerHTML is safe.
  */
 export function RecipeIcon(props: { recipe: Pick<RecipeCard, "glyph" | "tone" | "apps">; size: number; stickers?: boolean }) {
@@ -22,7 +30,7 @@ export function RecipeIcon(props: { recipe: Pick<RecipeCard, "glyph" | "tone" | 
   return (
     <span
       class="recipe-icon"
-      style={{ width: `${props.size}px`, height: `${props.size}px`, "--recipe-tone": `var(--recipe-${props.recipe.tone})` }}
+      style={{ width: `${props.size}px`, height: `${props.size}px`, ...toneStyle(props.recipe) }}
       aria-hidden="true"
       data-component="recipe-icon"
     >

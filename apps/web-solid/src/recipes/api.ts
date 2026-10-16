@@ -78,7 +78,7 @@ export async function postInstall(body: InstallRecipe): Promise<InstallResult> {
 
 /** Makes the recipe's file in the drive when it is a built-in, and answers its home path. Null when the server refuses. */
 export async function postEdit(slug: string): Promise<string | null> {
-  const res = await fetch(`/api/recipes/${encodeURIComponent(slug)}/edit`, { method: "POST" }).catch(() => null)
+  const res = await apiFetch(`/api/recipes/${encodeURIComponent(slug)}/edit`, { method: "POST" }).catch(() => null)
   const data = res?.ok ? ((await res.json().catch(() => null)) as { path?: unknown } | null) : null
   return typeof data?.path === "string" ? data.path : null
 }

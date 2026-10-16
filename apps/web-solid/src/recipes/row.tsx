@@ -1,6 +1,6 @@
 import type { RecipeCard, RecipeInstall } from "@kiko/protocol"
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { MoreIcon } from "@kiko/ui/icons"
+import { MoreIcon, PauseIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useNavigate } from "@solidjs/router"
 import { Show } from "solid-js"
@@ -8,60 +8,41 @@ import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { iconButtonClass, Spinner } from "../settings/kit"
-import { RecipeIcon } from "./icon"
-import { installStatus, nextLabel } from "./model"
+import { RecipeIcon, RecipeWatermark, toneStyle } from "./icon"
+import { type InstallStatus, installStatus, nextRunLabel } from "./model"
 import { agentName, editRecipe, isEditing, removeInstall, setInstallPaused, targetsForChat } from "./state"
 
-export const pillClass = "h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
+const pillClass = "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
 
-/** A filled dot for a recipe that will run, a ring for one that is paused. */
-export function StatusDot(props: { paused?: boolean }) {
+/** When an install runs next, as a calm chip. Paused says so and keeps its schedule beside it. */
+export function StatusChip(props: { status: InstallStatus }) {
+  const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs"
   return (
-    <span
-      class={cn(
-        "size-[7px] shrink-0 rounded-full",
-        props.paused ? "shadow-[inset_0_0_0_1.5px_currentColor]" : "bg-[var(--success)] shadow-[0_0_0_3px_color-mix(in_oklab,var(--success)_18%,transparent)]",
-      )}
-      aria-hidden="true"
-    />
+    <span class="flex min-w-0 items-center gap-2" data-component="recipe-status">
+      {(() => {
+        const s = props.status
+        if (s.kind === "next") return <span class={cn(chip, "min-w-0 bg-control text-foreground/85")}><span class="truncate">{nextRunLabel(s.at, Date.now())}</span></span>
+        if (s.kind === "paused")
+          return (
+            <>
+              <span class={cn(chip, "bg-control text-muted-foreground")}>
+                <HugeIcon icon={PauseIcon} size={11} />
+                Paused
+              </span>
+              <span class="truncate text-xs text-muted-foreground">{s.schedule}</span>
+            </>
+          )
+        return <span class="truncate text-xs text-muted-foreground">{s.label}</span>
+      })()}
+    </span>
   )
 }
 
-/**
- * One recipe at work for one agent in one chat. `lead` is what the row is about: the recipe, where
- * rows are grouped by chat, or the chat, where rows sit under one recipe.
- */
-export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; lead: "recipe" | "chat"; navigate?: (to: string) => void }) {
-  const navigate = useNavigate()
-  const go = (to: string) => (props.navigate ?? navigate)(to)
+/** Pause or resume, and the menu: open the chat, edit the recipe's file, or remove it. */
+function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (to: string) => void }) {
   const status = () => installStatus(props.install, props.card)
-  const inGroup = () => targetsForChat(props.install.roomId).length > 1
-  const who = () => agentName(props.install.agent)
-  const title = () => (props.lead === "recipe" ? props.card.title : (useApp.chatById(props.install.roomId)?.name ?? who()))
   return (
-    <div class="flex items-center gap-2 rounded-[14px] px-2.5 py-2 hover:bg-control" data-install={props.install.installId} data-status={status().kind}>
-      <button type="button" class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none" data-action="open-recipe-chat" onClick={() => go(`/chat/${props.install.roomId}`)}>
-        <Show when={props.lead === "recipe"} fallback={<ChatAvatar faces={useApp.chatFaces(props.install.roomId)} size={36} />}>
-          <RecipeIcon recipe={props.card} size={40} stickers />
-        </Show>
-        <span class="min-w-0 flex-1">
-          <span class="block truncate text-[13.5px] font-medium text-foreground">{title()}</span>
-          <span class="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-            <Show when={inGroup()}>
-              <span class="flex shrink-0 items-center gap-1 pr-1 text-foreground/80">
-                <IdentityAvatar seed={props.install.agent} size={16} />
-                {who()}
-              </span>
-            </Show>
-            {(() => {
-              const s = status()
-              if (s.kind === "next") return <><StatusDot /><span class="truncate">{nextLabel(s.at, Date.now())}</span></>
-              if (s.kind === "paused") return <><StatusDot paused /><span class="shrink-0">Paused</span><span class="truncate pl-1 opacity-75">{s.schedule}</span></>
-              return <span class="truncate">{s.label}</span>
-            })()}
-          </span>
-        </span>
-      </button>
+    <span class="relative flex shrink-0 items-center gap-0.5">
       <Show when={status().kind !== "ask"}>
         <button type="button" class={pillClass} data-action="recipe-pause" onClick={() => setInstallPaused(props.install, status().kind === "next")}>
           {status().kind === "next" ? "Pause" : "Resume"}
@@ -75,12 +56,83 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; le
         </MenuV2.Trigger>
         <MenuV2.Portal>
           <MenuV2.Content class="z-[80]">
-            <MenuV2.Item onSelect={() => go(`/chat/${props.install.roomId}`)}>Open chat</MenuV2.Item>
-            <MenuV2.Item onSelect={() => void editRecipe(props.card.slug, go)}>Edit recipe</MenuV2.Item>
-            <MenuV2.Item onSelect={() => removeInstall(props.install)}>Remove from {who()}</MenuV2.Item>
+            <MenuV2.Item onSelect={() => props.go(`/chat/${props.install.roomId}`)}>Open chat</MenuV2.Item>
+            <MenuV2.Item onSelect={() => void editRecipe(props.card.slug, props.go)}>Edit recipe</MenuV2.Item>
+            <MenuV2.Item onSelect={() => removeInstall(props.install)}>Remove from {agentName(props.install.agent)}</MenuV2.Item>
           </MenuV2.Content>
         </MenuV2.Portal>
       </MenuV2>
+    </span>
+  )
+}
+
+/** Who runs an install, when the chat has more than one agent: their face and name. */
+function Runner(props: { install: RecipeInstall }) {
+  return (
+    <Show when={targetsForChat(props.install.roomId).length > 1}>
+      <span class="flex shrink-0 items-center gap-1 text-xs text-foreground/80">
+        <IdentityAvatar seed={props.install.agent} size={16} />
+        {agentName(props.install.agent)}
+      </span>
+    </Show>
+  )
+}
+
+/** One recipe at work, as a card on the page's "Yours" tab. The card opens its chat. */
+export function InstallCard(props: { install: RecipeInstall; card: RecipeCard }) {
+  const navigate = useNavigate()
+  const chatName = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
+  return (
+    <article
+      class="recipe-card flex min-w-0 flex-col gap-4 rounded-[20px] p-4 [--recipe-surface:var(--card)]"
+      style={toneStyle(props.card)}
+      data-install={props.install.installId}
+      data-status={installStatus(props.install, props.card).kind}
+    >
+      <RecipeWatermark recipe={props.card} />
+      <button
+        type="button"
+        class="flex min-w-0 cursor-pointer items-center gap-3.5 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]"
+        data-action="open-recipe-chat"
+        aria-label={`Open ${chatName()}`}
+        onClick={() => navigate(`/chat/${props.install.roomId}`)}
+      >
+        <RecipeIcon recipe={props.card} size={48} stickers />
+        <span class="flex min-w-0 flex-1 flex-col gap-1">
+          <span class="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">{props.card.title}</span>
+          <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <ChatAvatar faces={useApp.chatFaces(props.install.roomId)} size={16} />
+            <span class="truncate">{chatName()}</span>
+          </span>
+        </span>
+      </button>
+      <div class="flex min-w-0 items-center gap-2">
+        <Runner install={props.install} />
+        <span class="min-w-0 flex-1">
+          <StatusChip status={installStatus(props.install, props.card)} />
+        </span>
+        <InstallActions install={props.install} card={props.card} go={navigate} />
+      </div>
+    </article>
+  )
+}
+
+/** One chat a recipe runs in, as a row in the recipe's sheet. The row opens the chat. */
+export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; navigate: (to: string) => void }) {
+  const title = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
+  return (
+    <div class="flex items-center gap-2 rounded-[14px] px-2.5 py-2 hover:bg-control" data-install={props.install.installId} data-status={installStatus(props.install, props.card).kind}>
+      <button type="button" class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none" data-action="open-recipe-chat" onClick={() => props.navigate(`/chat/${props.install.roomId}`)}>
+        <ChatAvatar faces={useApp.chatFaces(props.install.roomId)} size={36} />
+        <span class="flex min-w-0 flex-1 flex-col gap-1">
+          <span class="truncate text-[13.5px] font-medium text-foreground">{title()}</span>
+          <span class="flex min-w-0 items-center gap-2">
+            <Runner install={props.install} />
+            <StatusChip status={installStatus(props.install, props.card)} />
+          </span>
+        </span>
+      </button>
+      <InstallActions install={props.install} card={props.card} go={props.navigate} />
     </div>
   )
 }
