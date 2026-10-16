@@ -15,6 +15,7 @@ import type { Env } from "../index"
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
 import { STORAGE_ERROR } from "../lib/storage-error"
 import { composioFailure } from "./user-errors"
+import { connectLinkFor, MANAGE_CONNECTIONS } from "../integrations/composio/connect-tool"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
 import { basenameOf, decodeBase64, encodeBase64, FILE_CAP } from "../integrations/kernel/files"
@@ -37,7 +38,7 @@ import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
 import { ProviderLogins } from "./provider-login"
-import { asResult, type NewReminder, type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery } from "./reminders"
+import { type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
@@ -93,11 +94,10 @@ export class UserDO extends DurableObject<Env> {
         if (!event) throw new Error("file change produced no event")
         return event
       }, actorKey)
-      this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()), Date.now, {
+      this.reminders = new Reminders(this.sql, this.alarms, Date.now, {
         deliverRun: async ({ deliveryId, routine, body }) => {
           return roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body })
         },
-        watch: (trigger) => this.#routines.watchPage(trigger),
         notice: (roomId, id, text) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).systemNotice(id, text, "routine"),
         gate: {
           away: () => {
@@ -112,10 +112,9 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private reminders!: Reminders
-  async createReminder(owner: string, input: NewReminder) { return asResult(() => this.reminders.create(owner, input)) }
-  async listReminders() { return this.reminders.list() }
-  async cancelReminder(id: string) {
-    const out = await this.#routines.cancelReminder(id)
+  async listRoutines() { return this.reminders.list() }
+  async cancelRoutine(id: string): Promise<RoutineResult> {
+    const out = await this.#routines.cancelRoutine(id)
     if (out.ok || this.reminders.get(id)?.status === "cancelled") this.#recipes.routineGone(id)
     return out
   }
@@ -164,7 +163,7 @@ export class UserDO extends DurableObject<Env> {
       sql: this.sql,
       library,
       createRoutine: (input) => this.#routines.createRoutine(owner(), input),
-      cancelRoutine: (id) => this.cancelReminder(id),
+      cancelRoutine: (id) => this.cancelRoutine(id),
       routine: (id) => this.reminders.get(id),
       timezone: () => this.timezone(),
       agentNamed: (name) => agentNamed(this.sql, name),
@@ -179,6 +178,14 @@ export class UserDO extends DurableObject<Env> {
       chiefModel: async () => {
         const roomId = kikoChatRoom(this.sql)
         return roomId ? roomStub(this.env.ROOM, owner(), roomId).modelOf("kiko").catch(() => "") : ""
+      },
+      composio: {
+        connected: async () => (this.#composio.status().connected ? await this.#composio.connectedToolkits(Date.now(), true).catch(() => null) : "off"),
+        link: async (app) => {
+          const manage = (await this.#composio.tools().catch(() => null))?.find((t) => t.name === MANAGE_CONNECTIONS)
+          const out = manage && (await connectLinkFor(manage, (name, args) => this.#composio.call(name, args), app))
+          return out && out.kind === "link" ? out.link : null
+        },
       },
       announce: (roomId, input) => roomStub(this.env.ROOM, owner(), roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
     })
@@ -244,7 +251,7 @@ export class UserDO extends DurableObject<Env> {
   async signals(batch: SignalBatch): Promise<void> {
     this.#il.engine.results(batch)
     for (const s of batch.signals) if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN && s.routineId !== REMINDER_RUN) await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
-    if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final" || s.kind === "task" || s.kind === "file")) return
+    if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final")) return
     for (const routine of this.reminders.roomRoutines(batch.roomId)) {
       const run = routineRun(roomRoutine(routine), batch)
       if (run) await this.reminders.fireEvent(routine.id, `event:${batch.openedAt}`, "events in this chat", run.body)
@@ -255,8 +262,6 @@ export class UserDO extends DurableObject<Env> {
     return this.#routines.routineHook(token, deliveryKey, body)
   }
 
-  async snoozeReminder(id: string, time: string) { return asResult(() => this.reminders.snooze(id, time)) }
-  async rewindReminder(id: string) { return asResult(() => this.reminders.rewind(id)) }
 
   async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
     const op: ChatOp = { op: "create", roomId, title, ...(agents?.length ? { agents } : {}) }

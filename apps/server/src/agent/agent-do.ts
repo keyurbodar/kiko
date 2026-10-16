@@ -20,7 +20,7 @@ import { mergeRecall, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@kiko/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { MessagingPort } from "./extensions/messaging"
-import type { RemindersPort } from "./extensions/reminders"
+import type { RoutinesPort } from "./extensions/routines"
 import type { RecipesPort } from "./extensions/skills"
 import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
 import { learnedNote } from "../integrations/composio/tools"
@@ -187,30 +187,16 @@ export class AgentDO extends DurableObject<Env> {
     return { list: () => user().recipeBriefs(home.roomId, home.slug), body: (name) => user().recipeSkillText(name) }
   }
 
-  private remindersPort(): RemindersPort | null {
+  private routinesPort(): RoutinesPort | null {
     const home = this.home()
     if (!home) return null
     const user = () => userStub(this.env.USER, home.userId)
-    const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     const tz = () => this.#run?.timezone ?? "UTC"
-    const mine = async (id: string) => (await user().listReminders()).some((r) => r.id === id && r.roomId === home.roomId)
-    const notHere = { ok: false as const, error: "no such reminder in this chat" }
+    const mine = async (id: string) => (await user().listRoutines()).some((r) => r.id === id && r.roomId === home.roomId)
+    const notHere = { ok: false as const, error: "no such routine in this chat" }
     return {
-      create: async (input) => {
-        const out = await user().createReminder(home.userId, { ...input, tz: input.tz ?? "UTC", roomId: home.roomId as RoomId, createdBy: home.slug, chain: await room().chainOf(home.slug) })
-        if (out.ok && out.reminder.target === home.slug && !out.reminder.rrule) {
-          await user()
-            .loopOpen(home.slug, home.roomId, this.#heard ? `room:${home.roomId}:msg:${this.#heard}` : "", { kind: "commitment", text: input.text, due: out.reminder.dueUtc ? new Date(out.reminder.dueUtc).toISOString() : null, reminderId: out.reminder.id })
-            .catch(() => {})
-        }
-        return out
-      },
-      list: async () => (await user().listReminders()).filter((r) => r.roomId === home.roomId),
-      cancel: async (id) => {
-        if (!(await mine(id))) return notHere
-        const out = await user().cancelReminder(id)
-        return out.ok ? { ok: true } : { ok: false, error: out.error }
-      },
+      list: async () => (await user().listRoutines()).filter((r) => r.roomId === home.roomId),
+      cancel: async (id) => ((await mine(id)) ? user().cancelRoutine(id) : notHere),
       createRoutine: async (input) => {
         return user().createRoutine(home.userId, { ...input, target: input.target ?? home.slug, tz: tz(), roomId: home.roomId as RoomId, createdBy: home.slug })
       },
@@ -220,7 +206,12 @@ export class AgentDO extends DurableObject<Env> {
       origin: () => user().publicOrigin(),
       addRecipe: async (slug) => {
         const out = await user().installRecipe(home.userId, { installId: crypto.randomUUID(), slug, roomId: home.roomId as RoomId, agent: home.slug }, home.slug)
-        return out.ok ? { ok: true, setup: out.setup, existed: out.existed } : out
+        if (out.ok) return { ok: true, setup: out.setup, existed: out.existed }
+        if ("needsConnect" in out) {
+          const { links, reason } = out.needsConnect
+          return { ok: false, error: links.length ? `nothing was added. these apps are not connected yet. send the human these links, and add the recipe again once they connect: ${links.map((l) => `[Connect ${l.app}](${l.url})`).join(" ")}` : `nothing was added. ${reason}` }
+        }
+        return out
       },
     }
   }
@@ -324,7 +315,7 @@ export class AgentDO extends DurableObject<Env> {
       const noModel = async (): Promise<DeciderChoice> => { throw new Error("the fake agent has no model for browser_run") }
       const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, {
         ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), decider: noModel, acceptsImages: () => false } } : {}),
-        reminders: { port: () => this.remindersPort(), tz: () => "UTC" },
+        routines: { port: () => this.routinesPort() },
         groups: this.groupsPort(),
         loops: () => this.loopPort(),
         work: this.host.workers,
@@ -360,7 +351,7 @@ export class AgentDO extends DurableObject<Env> {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: picked.model, thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: picked.model, thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,

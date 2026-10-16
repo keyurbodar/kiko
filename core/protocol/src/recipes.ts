@@ -35,5 +35,8 @@ export type RecipeInstall = { installId: string; slug: string; roomId: RoomId; a
 /** `own` gives the recipe a new agent with its own chat. */
 export type InstallRecipe = { installId: string; slug: string } & ({ roomId: RoomId; agent: string } | { own: true })
 
+/** The answer to an add that waits on apps. Nothing was made. `links` is empty, with a `reason`, when Composio is not set up or cannot make a link. */
+export type RecipeNeedsConnect = { state: "needs_connect"; links: readonly { app: string; url: string }[]; reason?: string }
+
 /** The owner's recipes from /home/recipes, what is added where, and why any file did not load. */
 export type RecipeList = { cards: readonly RecipeCard[]; installs: readonly RecipeInstall[]; broken: readonly string[] }

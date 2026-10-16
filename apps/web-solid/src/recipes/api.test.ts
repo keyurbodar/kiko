@@ -97,3 +97,11 @@ test("opening a recipe's file carries the session token, as the server's signed-
   }) as unknown as typeof fetch
   expect(await postEdit("pollen-alert")).toBe("recipes/pollen-alert/RECIPE.md")
 })
+
+test("a needs_connect answer is its own result with the links and no install", async () => {
+  const links = [{ app: "Gmail", url: "https://connect.composio.dev/x" }]
+  globalThis.fetch = (async () => json({ state: "needs_connect", links })) as unknown as typeof fetch
+  expect(await postInstall({ installId: "i1", slug: "morning-briefing", own: true })).toEqual({ ok: false, connect: { state: "needs_connect", links } })
+  globalThis.fetch = (async () => json({ state: "needs_connect", links: [], reason: "Add a Composio key in Settings, Integrations." })) as unknown as typeof fetch
+  expect(await postInstall({ installId: "i1", slug: "morning-briefing", own: true })).toEqual({ ok: false, connect: { state: "needs_connect", links: [], reason: "Add a Composio key in Settings, Integrations." } })
+})

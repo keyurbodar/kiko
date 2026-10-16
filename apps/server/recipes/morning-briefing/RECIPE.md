@@ -24,5 +24,4 @@ each morning, give the human their day in two or three short bubbles.
 
 rules
 - if the calendar and inbox are both quiet, reply with only [skip].
-- if gmail or google calendar is not connected, say which one and send the connect link once. do the part you can.
 - never paste whole emails. one line per thread: who, and what they need.

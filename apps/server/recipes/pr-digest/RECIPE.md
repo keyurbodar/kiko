@@ -22,5 +22,4 @@ each weekday, list the open pull requests that need the human's review.
 
 rules
 - if no pull request needs them, reply with only [skip].
-- if github is not connected, say so and send the connect link once.
 - never comment on, approve, or merge anything.

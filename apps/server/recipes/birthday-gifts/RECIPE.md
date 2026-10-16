@@ -21,5 +21,4 @@ each monday, look at the week ahead for birthdays.
 
 rules
 - if there are no birthdays this week, reply with only [skip].
-- if google calendar is not connected, say so and send the connect link once.
 - never invent a detail about a person. ask the human for one fact if it would change the idea.

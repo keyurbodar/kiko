@@ -8,8 +8,9 @@ import { useApp } from "../lib/store"
 import { buttonClass } from "../settings/kit"
 import { byChatOrder, filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
 import { InstallCard } from "./row"
+import { ConnectSheet } from "./connect"
 import { RecipeSheet } from "./sheet"
-import { addToTarget, broken, cards, installs, isAdded, refreshListing, targetsForChat } from "./state"
+import { addToTarget, broken, connectAsk, cards, installs, isAdded, refreshListing, targetsForChat } from "./state"
 import { RecipeTile } from "./tile"
 
 type Section = "yours" | "discover"
@@ -175,7 +176,9 @@ export default function RecipesPage() {
             </TabsV2.Content>
           </TabsV2>
 
-          <Show when={open()}>{(o) => <RecipeSheet roomId={roomId()} recipe={o().card} mode={o().mode} onClose={() => setOpen(null)} />}</Show>
+          <Show when={connectAsk()} fallback={<Show when={open()}>{(o) => <RecipeSheet roomId={roomId()} recipe={o().card} mode={o().mode} onClose={() => setOpen(null)} />}</Show>}>
+            <ConnectSheet />
+          </Show>
         </div>
       </div>
     </div>
