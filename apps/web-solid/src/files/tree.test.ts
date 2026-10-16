@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { buildIndex, isHidden, loadExpanded, pathsUnder, saveExpanded, type KeyValueStore } from "./model"
+import { buildIndex, createParent, isHidden, loadExpanded, pathsUnder, saveExpanded, type KeyValueStore } from "./model"
 
 describe("buildIndex", () => {
 	test("folders first, then files, each by name", () => {
@@ -74,4 +74,16 @@ describe("expanded persistence", () => {
 		}
 		expect(() => saveExpanded("r", bad, ["a"])).not.toThrow()
 	})
+})
+
+describe("createParent", () => {
+	for (const [touched, parent] of [
+		[null, ""],
+		["a/b/", "a/b"],
+		["a/b/c.txt", "a/b"],
+		["top.txt", ""],
+		["home/", "home"],
+	] as const) {
+		test(`${touched} gives ${parent || "the root"}`, () => expect(createParent(touched)).toBe(parent))
+	}
 })

@@ -97,3 +97,13 @@ export const inHome = (p: string) => p === HOME || p.startsWith(`${HOME}/`)
 export const strip = (p: string) => (p === HOME ? "" : p.slice(HOME.length + 1))
 /** Where a tree path lives: its space (a room id or `home`) and its path there. */
 export const where = (chatId: string, p: string) => (inHome(p) ? { space: HOME, path: strip(p) } : { space: chatId, path: p })
+
+/**
+ * The folder a new file or folder goes into, from the row the user last touched. A folder row
+ * (a trailing slash) is its own target, and a compacted `a / b` row stands for its deepest folder.
+ * A file row gives its folder, and no row gives the root.
+ */
+export const createParent = (touched: string | null | undefined): string => {
+	if (!touched) return ROOT
+	return touched.endsWith("/") ? touched.replace(/\/+$/, "") : dirname(touched)
+}
