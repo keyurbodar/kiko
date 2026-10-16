@@ -273,6 +273,7 @@ type Envelope = {
 }
 type SystemReason = "task_unblocked" | "reminder" | "files" | "created"
 	| "routine" | "stalled" | "initiative"   // section 25, 26
+	| "system"                                // section 9.4, announcements
 ```
 
 `from` is set by the room from the authenticated WebSocket or from the calling agent's own Durable Object name. Message text cannot change it.
@@ -592,6 +593,8 @@ Every client action is applied locally first. The client keeps a list of pending
 **Reconnect.** `RoomSnapshot.agents` lists every member that is not idle with its `state`, `doing` and `activity`, so a client that reconnects paints the live row without waiting for a frame. `agents` and `asks` are optional in the type because the client builds snapshots too; the server always sends both.
 
 **Workers.** The agent reports its worker rows (`id`, `task`, `status`, `step`, `steps`, `startedAt`; the newest 8) to the room when the set of running workers changes (`Workers.onChange`). It does not report each step, so the frame rate does not follow the worker's tool calls. The room stores the rows in `meta` and, when they changed, posts one system line for each worker that started and one for each that ended (`done`, `failed`, `stopped`). The line has an id from the agent, worker id, start time and state, so a repeated report stores nothing. A steered worker that runs again adds no second start line.
+
+**Announcements.** When the human adds, replaces, or removes a Composio key, a Kernel key, or a model provider, or an update lands, Kiko tells them in the Kiko chat what it can do now (`user/announce.ts`). `UserDO` compares each change with the last state it announced (a hash, never the key), so saving the same key twice says nothing. Changes wait one minute on an alarm (`announce`) and leave as one `system` wake to Kiko in the Kiko chat, with id `system:<window start>:<hash of the states>` so a retry wakes once. The wake only says what changed and asks for one or two lines in Kiko's own voice; the integration line in `<context>` already says what is set up. A Composio app connected is not announced: the server learns it only by polling.
 
 **System events.** A system message may carry `event`, a `SystemEvent`:
 

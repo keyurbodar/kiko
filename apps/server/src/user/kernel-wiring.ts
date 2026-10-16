@@ -266,7 +266,7 @@ export class KernelWiring {
     this.push()
   }
 
-  async kernelFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectKernel" | "disconnectKernel" | "kernelStatus" }>): Promise<void> {
+  async kernelFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "connectKernel" | "disconnectKernel" | "kernelStatus" }>): Promise<KernelResult> {
     let result: KernelResult
     try {
       if (frame.t === "connectKernel") result = { ok: true, status: await this.connect(frame.apiKey) }
@@ -286,5 +286,6 @@ export class KernelWiring {
         if (other !== ws && (other.deserializeAttachment() as Attachment | null)?.ready) trySend(other, text)
       }
     }
+    return result
   }
 }
