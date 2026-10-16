@@ -4,6 +4,7 @@ import { ArrowUpIcon, ChevronRightIcon, CheckIcon } from "@kiko/ui/icons"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { displayShortcut } from "../commands/hotkeys"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
+import { useApp } from "../lib/store"
 import { backspaceLeaves, iconFor, keyChips, matchScore, viewFor, type Item } from "./model"
 import { backView, closePalette, enterView, paletteStack } from "./state"
 import "./palette.css"
@@ -26,9 +27,9 @@ function Chips(props: { keys: string[] }) {
 
 function Leading(props: { item: Item }) {
   return (
-    <Show when={props.item.faces ?? props.item.seed} fallback={<HugeIcon icon={iconFor(props.item.icon ?? "command")} size={16} />}>
-      <Show when={props.item.faces} fallback={<IdentityAvatar seed={props.item.seed!} size={18} />}>
-        {(faces) => <ChatAvatar faces={faces()} size={18} />}
+    <Show when={props.item.chatId ?? props.item.seed} fallback={<HugeIcon icon={iconFor(props.item.icon ?? "command")} size={16} />}>
+      <Show when={props.item.chatId} fallback={<IdentityAvatar seed={props.item.seed!} size={18} />}>
+        {(id) => <ChatAvatar faces={useApp.chatFaces(id())} size={18} />}
       </Show>
     </Show>
   )

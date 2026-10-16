@@ -28,6 +28,5 @@ export const testDeps = (over: Partial<Parameters<typeof katCommands>[0]> = {}):
   chatCount: () => 0,
   searchChat() {},
   searchAll() {},
-  inRichEditor: () => false,
   ...over,
 })

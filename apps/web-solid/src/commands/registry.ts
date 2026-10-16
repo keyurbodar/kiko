@@ -18,8 +18,8 @@ export interface Choice {
   icon?: string
   /** Draws an agent's generated avatar. */
   seed?: string
-  /** Draws a chat's avatar from its members' faces. */
-  faces?: readonly string[]
+  /** Draws the avatar of the chat with this id, from its members' faces. */
+  chatId?: string
   /** The option that is on now. It gets a check. */
   current?: boolean
   run: () => void

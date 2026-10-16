@@ -20,7 +20,7 @@ export interface Item {
   title: string
   icon?: string
   seed?: string
-  faces?: readonly string[]
+  chatId?: string
   shortcut?: string
   current?: boolean
   submenu?: string
@@ -53,7 +53,7 @@ const commandItem = (c: Command): Item => ({
   run: c.run,
 })
 
-const choiceItem = (c: Choice): Item => ({ key: c.id, title: c.title, icon: c.icon, seed: c.seed, faces: c.faces, current: c.current, run: c.run })
+const choiceItem = (c: Choice): Item => ({ key: c.id, title: c.title, icon: c.icon, seed: c.seed, chatId: c.chatId, current: c.current, run: c.run })
 
 /**
  * The list the stack points at. The root groups the enabled commands under their headings, in the

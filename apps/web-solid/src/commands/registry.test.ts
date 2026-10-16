@@ -100,24 +100,12 @@ describe("kat commands", () => {
   })
 })
 
-describe("the palette steps aside for the rich editor's link key", () => {
-  const kat = (inRichEditor: boolean, openPalette: () => void) =>
-    katCommands(testDeps({ openPalette, inRichEditor: () => inRichEditor }))
-
-  test("Mod+K does not open the palette while focus is in the composer", () => {
-    let opened = 0
-    const off = registerCommands(kat(true, () => opened++))
-    expect(runCommand("palette.open")).toBe(false)
-    expect(opened).toBe(0)
-    off()
-  })
-
-  test("Mod+K still opens the palette everywhere else", () => {
-    let opened = 0
-    const off = registerCommands(kat(false, () => opened++))
-    expect(runCommand("palette.open")).toBe(true)
-    expect(opened).toBe(1)
-    off()
+describe("Mod+K opens the palette from anywhere", () => {
+  test("it fires even while a text field has focus, so the rich composer cannot swallow it", () => {
+    const command = katCommands(testDeps()).find((c) => c.id === "palette.open")!
+    expect(command.shortcut).toBe("Mod+K")
+    expect(command.global).toBe(true)
+    expect(command.when).toBeUndefined()
   })
 })
 
