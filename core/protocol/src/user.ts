@@ -133,6 +133,8 @@ export type ClientToUser =
 /** Where an update is. `restarting` is the last frame the old code sends. */
 export type UpdateStage = "checking" | "authorizing" | "uploading" | "restarting" | "failed"
 
+export type UserChange = "routines" | "memory" | "loops"
+
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[]; version?: string; protocol?: number; fileToken?: string }
 	| { t: "reset"; snapshot: UserSnapshot; version?: string; protocol?: number; fileToken?: string }
@@ -149,6 +151,8 @@ export type UserToClient =
 	| { t: "chat_refused"; roomId: RoomId; existing: RoomId }
 	| { t: "home_refused"; op: FileOp; reason: string }
 	| { t: "typing"; roomId: RoomId; names: readonly string[] }
+	/** A list the user socket does not carry changed: reload it. */
+	| { t: "changed"; what: UserChange }
 	| { t: "update.state"; stage: UpdateStage; error?: string }
 
 /** What a sign-in flow tells the user. The same shapes as pi-ai's `AuthEvent`. */

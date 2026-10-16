@@ -48,10 +48,23 @@ K00	Rename yuki to kiko	1	sonnet	landed	s/k00-rename	4fd81eda	gate-green	main 69
 H00	Hosted plan spike results	1	opus	landed	plan/hosted-spike	6283a803	gate-green	main d3b180b8	2026-10-15T17:24:00Z
 H01	Backend version and protocol in hello	1	haiku	landed	feat/versions	f4d79ecc	gate-green	main 2a141c51	2026-10-15T18:43:10Z
 H02	Finish yuki to kiko rename, no migration	1	haiku	landed	s/h02-rename	0726085e	gate-green	main e009e421	2026-10-15T19:02:19Z
-H03	Cross-origin client and bearer session	2	sonnet	running	s/h03-cross-origin	-	-	-	2026-10-15T18:44:08Z
-H04	Clerk sign-in and account settings	3	sonnet	running	s/h04-clerk	-	-	-	2026-10-15T19:00:32Z
+H03	Cross-origin client and bearer session	2	sonnet	landed	s/h03-cross-origin	40107a0c	gate-green	main 0dd8debc	2026-10-15T19:16:35Z
+H04	Clerk sign-in and account settings	3	sonnet	landed	s/h04-clerk	e6ae82b5	gate-green	main 5d9a49c6	2026-10-15T19:41:10Z
 H05	Installer and front door	2	sonnet	landed	s/h05-installer	10be6813	gate-green	main 37488e4b	2026-10-15T18:36:41Z
-H06	One-click signed self-update	4	haiku	queued	s/h06-update	-	-	-	2026-10-15T17:23:30Z
+H06	One-click signed self-update	4	sonnet	landed	s/h06-update	ba3655c3	gate-green	main 8e4b4684	2026-10-15T19:43:48Z
 H07	Astro landing page	1	haiku	landed	s/h07-landing	f464c6af	gate-green	main 0fe37429	2026-10-15T18:14:38Z
 H08	Uninstall backend	5	haiku	queued	s/h08-uninstall	-	-	-	2026-10-15T17:23:30Z
-H10	Onboarding: connect Cloudflare in the app	4	sonnet	queued	s/h10-onboarding	-	-	-	2026-10-15T19:00:32Z
+H10	Onboarding: connect Cloudflare in the app	4	sonnet	landed	s/h10-onboarding	29d59389	gate-green	main 712d1973	2026-10-15T19:44:26Z
+H09	Docs: neutral subagent models, real code map	1	opus	landed	s/h09-docs	8fd1229c	gate-green	main b4f436f7	2026-10-15T19:03:32Z
+H11	Socket echo and test secret hotfix	2	opus	landed	s/h11-socket-echo	f1c38bc5	gate-green	main 98c9be59	2026-10-15T19:36:27Z
+P00	Favicons and manifest from icon branch	1	opus	landed	s/p00-icons	ca900bf9	gate-green	main db7899f8	2026-10-16T03:13:36Z
+P01	Never show machinery in bubbles	1	sonnet	landed	s/p01-agent-hygiene	c2c9f87d	gate-green	main 8ac818de	2026-10-16T03:27:48Z
+P02	Live typing and right panel	1	sonnet	landed	s/p02-live	703d83f8	gate-green	main 33f63c22	2026-10-16T04:17:02Z
+P03	Transcript dividers spacing empty state	1	sonnet	landed	s/p03-transcript	ff092955	gate-green	main 018e2b72	2026-10-16T03:43:42Z
+P04	Chat list and creation flows	1	sonnet	landed	s/p04-chats	02ba9af5	gate-green	main e6d56bd0	2026-10-16T03:36:01Z
+P05	Per-agent model and reasoning	1	sonnet	landed	s/p05-models	f138a888	gate-green	main 7877a2b9	2026-10-16T03:51:03Z
+P06	Command palette redesign	1	sonnet	landed	s/p06-palette	22d3fdc5	gate-green	main 57f51fe8	2026-10-16T03:41:13Z
+P07	Toasts and errors	1	sonnet	landed	s/p07-toasts	c26621ee	gate-green	main c6d3fb6e	2026-10-16T03:39:57Z
+P08	Motion focus borders tree waits	1	sonnet	landed	s/p08-surfaces	beb4af78	gate-green	main b6a0b79c	2026-10-16T03:36:44Z
+P09	Instant load and navigation	1	sonnet	landed	s/p09-speed	12bc0eef	gate-green	main b76f49a5	2026-10-16T03:40:34Z
+P10	First-run onboarding	1	sonnet	landed	s/p10-onboarding	30634754	gate-green	main bde49ff0	2026-10-16T03:29:25Z

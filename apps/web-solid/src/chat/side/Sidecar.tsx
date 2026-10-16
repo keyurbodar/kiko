@@ -1,7 +1,7 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Bot, Brain, CircleCheck, FileText, FolderOpen, ListChecks, Plus, Repeat, X, type LucideProps } from "lucide-solid"
-import { type Component, createEffect, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
+import { type Component, createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { FileSurface, FilesTree } from "../../files/pane"
 import { useApp } from "../../lib/store"
@@ -268,11 +268,29 @@ export default function Sidecar(props: { chatId: string }) {
   }
 
   let strip: HTMLDivElement | undefined
+  const [fade, setFade] = createSignal({ start: false, end: false })
+  const measure = () => {
+    if (!strip) return
+    const start = strip.scrollLeft > 1
+    const end = strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1
+    if (start !== fade().start || end !== fade().end) setFade({ start, end })
+  }
   onMount(() => {
-    const observer = new ResizeObserver(() => strip?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" }))
-    if (strip) observer.observe(strip)
+    const observer = new ResizeObserver(() => {
+      strip?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" })
+      measure()
+    })
+    if (strip) {
+      observer.observe(strip)
+      if (strip.firstElementChild) observer.observe(strip.firstElementChild)
+    }
     onCleanup(() => observer.disconnect())
   })
+  const mask = () => {
+    const { start, end } = fade()
+    if (!start && !end) return undefined
+    return `linear-gradient(to right, ${start ? "transparent, #000 20px" : "#000"}, ${end ? "#000 calc(100% - 20px), transparent" : "#000"})`
+  }
 
   createEffect(on(() => [props.chatId, kind()] as const, ([, k]) => {
     if (k === "plate") void loadLoops()
@@ -289,7 +307,9 @@ export default function Sidecar(props: { chatId: string }) {
 
         <div
           ref={strip}
-          class="flex min-w-0 flex-1 snap-x snap-proximity items-center gap-1 overflow-x-auto scroll-px-2 [mask-image:linear-gradient(to_right,#000_calc(100%-20px),transparent)] [scrollbar-width:none]"
+          class="flex min-w-0 snap-x snap-proximity items-center gap-1 overflow-x-auto scroll-px-2 [scrollbar-width:none]"
+          style={{ "mask-image": mask() }}
+          onScroll={measure}
         >
           <div class="contents" role="tablist" aria-label="Open surfaces" aria-orientation="horizontal" onKeyDown={onTablistKey}>
             <For each={surfaces()}>
@@ -305,7 +325,8 @@ export default function Sidecar(props: { chatId: string }) {
               )}
             </For>
           </div>
-          <MenuV2 gutter={6} placement="bottom-end">
+        </div>
+        <MenuV2 gutter={6} placement="bottom-end">
             <TooltipV2 placement="bottom" openDelay={400} value="Open a surface">
               <MenuV2.Trigger class={ICON_BUTTON} aria-label="Open a surface" data-action="open-launcher">
                 <Plus size={14} strokeWidth={1.75} aria-hidden="true" />
@@ -326,8 +347,7 @@ export default function Sidecar(props: { chatId: string }) {
                 </For>
               </MenuV2.Content>
             </MenuV2.Portal>
-          </MenuV2>
-        </div>
+        </MenuV2>
       </header>
       <Show when={active()} keyed fallback={<Launcher chatId={props.chatId} />}>
         {(surface) => <SurfaceBody chatId={props.chatId} surface={surface} />}

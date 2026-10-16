@@ -406,7 +406,7 @@ export function createApp(options: AppOptions = {}) {
           const fresh = newest && (newest.pending || newest.seq > c.lastSeq) ? viewLast(newest, name) : undefined
           row = chatRow(c, presenceOf(false, working ? "working" : undefined), {
             ...(fresh ? { last: fresh } : {}),
-            typing: r.state.typing.map(name),
+            typing: Object.entries(r.state.status).filter(([, state]) => state === "typing").map(([slug]) => name(slug)),
             ...(members.length ? { group: members.length > 1 } : {}),
           })
           // The open room is read as soon as the reader marks it, before the server's count catches up.
@@ -482,7 +482,7 @@ export function createApp(options: AppOptions = {}) {
     function members(): RosterBot[] {
       const r = room()
       if (!r) return []
-      return r.members().map((m) => memberRow(m, presenceOf(r.state.typing.includes(m.slug), r.state.status[m.slug])))
+      return r.members().map((m) => memberRow(m, presenceOf(r.state.status[m.slug] === "typing", r.state.status[m.slug])))
     }
 
     function send(message: OutgoingMessage, replyTo?: string, quote?: string): string | undefined {

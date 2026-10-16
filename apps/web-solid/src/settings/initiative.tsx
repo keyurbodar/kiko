@@ -15,6 +15,12 @@ export type Capture = Settings["capture"]
 
 const LEVELS: readonly Level[] = ["off", "chat", "digest", "active"]
 const CAPTURES: readonly Capture[] = ["auto", "off"]
+const HELP: Record<Level, string> = {
+  off: "No initiative and no background judge cost.",
+  chat: "Brings things up only inside replies.",
+  digest: "At most one message a day.",
+  active: "A few messages, learned from how you respond.",
+}
 const DEFAULTS: Settings = { initiative: "digest", capture: "auto" }
 
 const [settings, setSettings] = createSignal<Settings>(DEFAULTS)
@@ -59,7 +65,7 @@ export default function InitiativePage() {
   return (
     <div class="flex flex-col gap-8" data-component="initiative-settings">
         <Group title="Agents">
-          <Row label="Initiative" id="initiative" description="Off: no initiative and no background judge cost. In chat only: brings things up only inside replies. Daily digest: at most one message a day. Active: a few, learned from how you respond.">
+          <Row label="Initiative" id="initiative" description={HELP[settings().initiative]}>
             <Show when={loaded()} fallback={<Skeleton class="h-7 w-72" />}>
             <Segmented<Level>
               label="Initiative"

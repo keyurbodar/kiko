@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
-import { ROOM_ID_HEADER, USER_ID_HEADER } from "../src/lib/names"
+import { ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../src/lib/names"
 import { RoomDO as Room } from "../src/room/room-do"
 
 export class RoomDO extends Room {
@@ -12,9 +12,21 @@ export class UserDO extends DurableObject {
 	async recordRoom(): Promise<boolean> {
 		return true
 	}
-	async touchChat(): Promise<void> {}
+	async touchChat(_roomId: string, touch: unknown): Promise<void> {
+		const kept = (await this.ctx.storage.get<unknown[]>("touches")) ?? []
+		await this.ctx.storage.put("touches", [...kept, touch])
+	}
+	async touchCalls(): Promise<unknown[]> {
+		return (await this.ctx.storage.get<unknown[]>("touches")) ?? []
+	}
 	async chatTasks(): Promise<void> {}
-	async chatTyping(): Promise<void> {}
+	async chatTyping(_roomId: string, names: string[]): Promise<void> {
+		const kept = (await this.ctx.storage.get<string[][]>("typing")) ?? []
+		await this.ctx.storage.put("typing", [...kept, names])
+	}
+	async typingCalls(): Promise<string[][]> {
+		return (await this.ctx.storage.get<string[][]>("typing")) ?? []
+	}
 	async captureHuman(): Promise<void> {}
 	async getChat(): Promise<null> {
 		return null
@@ -46,7 +58,7 @@ export class AgentDO extends DurableObject {
 	}
 }
 
-type Env = { ROOM: DurableObjectNamespace<RoomDO>; AGENT: DurableObjectNamespace<AgentDO> }
+type Env = { ROOM: DurableObjectNamespace<RoomDO>; USER: DurableObjectNamespace<UserDO>; AGENT: DurableObjectNamespace<AgentDO> }
 
 export default {
 	async fetch(request: Request, env: Env) {
@@ -57,6 +69,8 @@ export default {
 			const call = (stub as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[slug!]
 			return Response.json((await call!(...args)) ?? null)
 		}
+		if (kind === "touches") return Response.json(await userStub(env.USER, "alice").touchCalls())
+		if (kind === "typing") return Response.json(await userStub(env.USER, "alice").typingCalls())
 		if (kind === "agent") {
 			const agent = env.AGENT.get(env.AGENT.idFromName(`agent:alice:${roomId}:${slug}`))
 			if (arg === "answers") return Response.json(await agent.answers())

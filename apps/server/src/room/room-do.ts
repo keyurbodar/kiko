@@ -18,7 +18,7 @@ import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
 import { Bubbles, replyTag } from "./bubbles"
-import { chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
+import { bubbleTouch, chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
 import { Deliveries, type ReminderDelivery, withContext } from "./deliver"
 import { type AgentSend, type Chain, Mail } from "./mail"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
@@ -29,7 +29,7 @@ import { CHIEF, type ProposalInput } from "./chief"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
 import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
-import { statusOf, workersKey } from "./status"
+import { agentStatuses, statusOf, workersKey } from "./status"
 import { dividerMessage, type Divider } from "./dividers"
 import { findProvider } from "../user/turn-context"
 import { parseModelRef } from "../agent/thinking"
@@ -91,7 +91,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private mailer!: RoomMail
 	private receiver!: ReceiveDeps
 	private pending!: PendingUploads
-	private readonly typing = new Set<AgentSlug>()
+	private typingChain: Promise<void> = Promise.resolve()
+	private typingSent: string | null = null
 	private sends: Promise<unknown> = Promise.resolve()
 
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -547,6 +548,17 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		)
 	}
 
+	private touchBubble(message: Extract<RoomEvent, { t: "message" }>): void {
+		const home = this.home()
+		if (!home || isPrivate(message) || message.to !== undefined) return
+		const touch = bubbleTouch(this.ctx.storage.sql, this.log, message)
+		this.ctx.waitUntil(
+			userStub(this.env.USER, home.userId)
+				.touchChat(home.roomId, touch)
+				.catch((error) => console.error(`touchChat failed: ${error instanceof Error ? error.message : String(error)}`)),
+		)
+	}
+
 	broadcast(frame: RoomToClient): void {
 		for (const ws of this.ctx.getWebSockets()) if (attachment(ws).ready) send(ws, frame)
 	}
@@ -755,8 +767,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.memory.did(slug, doing, now)
 		if (this.team.now(slug) === doing) return
 		this.team.doing(slug, doing, now, activity)
-		const member = this.members.list().find((m) => m.slug === slug)
-		if (member) this.broadcast({ t: "status", slug, state: member.status === "idle" ? "working" : member.status, doing, activity })
+		this.broadcastStatus(slug)
 	}
 
 	private guarded<T extends FsChange<RoomEvent> | FsFail>(slug: AgentSlug, paths: readonly string[], doing: string, act: () => T): T | FsFail {
@@ -904,7 +915,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const reason = root?.startsWith("initiative:") ? this.log.meta(`initiative:${root}`) : null
 		const events = this.bubbles.post(slug, { runId, attempt, index }, block, reason ? { reason } : undefined)
 		this.publish(events, { touch: false })
-		return events.some((e) => e.t === "message")
+		const posted = events.find((e) => e.t === "message")
+		if (posted) this.touchBubble(posted)
+		return posted !== undefined
 	}
 
 	async react(slug: AgentSlug, emoji: string, messageId?: string): Promise<boolean> {
@@ -959,7 +972,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!this.members.setStatus(slug, state)) return false
 		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
 		this.broadcastStatus(slug)
-		await this.setTyping(slug, state !== "idle")
+		this.broadcast(this.activeFrame())
+		await this.pushTyping()
 		if (state === "idle") this.ctx.storage.sql.exec("DELETE FROM meta WHERE key = ?", `live:${slug}`)
 		else if (this.log.meta(`live:${slug}`) === null) this.log.setMeta(`live:${slug}`, String(this.log.lastSeq()))
 		return true
@@ -999,21 +1013,30 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.bubbles.markEnded(runId)
 	}
 
-	async setTyping(slug: AgentSlug, typing: boolean): Promise<void> {
-		const had = this.typing.has(slug)
-		if (typing === had) return
-		if (typing) this.typing.add(slug)
-		else this.typing.delete(slug)
-		this.broadcast({ t: "typing", who: [...this.typing] })
+	private activeFrame(): RoomToClient {
+		return { t: "typing", who: [...this.members.busy().keys()] }
+	}
+
+	/** What a new room socket needs to know: who is busy and what each is doing. Statuses are not part of a catch-up. */
+	presence(): RoomToClient[] {
+		const statuses = agentStatuses(this.ctx.storage.sql)
+		return statuses.length ? [this.activeFrame(), ...statuses.map((s): RoomToClient => ({ t: "status", ...s }))] : []
+	}
+
+	/** The sidebar says "typing" for an agent that is writing a reply, not for one using a tool. One chain keeps the frames in order. */
+	private pushTyping(): Promise<void> {
 		const home = this.home()
-		if (home) {
-			const names = [...this.typing].map((s) => this.members.get(s)?.name ?? s)
-			this.ctx.waitUntil(
-				Promise.resolve()
-					.then(() => userStub(this.env.USER, home.userId).chatTyping(home.roomId, names))
-					.catch(() => undefined),
-			)
-		}
+		if (!home) return Promise.resolve()
+		this.typingChain = this.typingChain
+			.then(async () => {
+				const names = [...this.members.busy().values()].filter((m) => m.status === "typing").map((m) => m.name)
+				const key = JSON.stringify(names)
+				if (key === this.typingSent) return
+				await userStub(this.env.USER, home.userId).chatTyping(home.roomId, names)
+				this.typingSent = key
+			})
+			.catch((error) => console.error(`chatTyping failed: ${error instanceof Error ? error.message : String(error)}`))
+		return this.typingChain
 	}
 
 	// The dev-only bodies live in room/dev.ts, which only a development build can load. One cached load

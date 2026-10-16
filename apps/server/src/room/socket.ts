@@ -15,6 +15,7 @@ export interface SocketRoom {
 	readonly log: RoomLog
 	publish(events: readonly RoomEvent[]): void
 	humanTyping(): void
+	presence(): RoomToClient[]
 	stop(): void
 	search(query: string, options?: SearchOptions): SearchPage
 	memberOp(op: MemberOp): MemberRefusal | null
@@ -102,6 +103,7 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 	switch (frame.t) {
 		case "hello":
 			send(ws, log.catchUp(frame.lastSeq))
+			for (const f of room.presence()) send(ws, f)
 			ws.serializeAttachment({ ...attachment(ws), ready: true } satisfies Attachment)
 			return null
 		case "send": {

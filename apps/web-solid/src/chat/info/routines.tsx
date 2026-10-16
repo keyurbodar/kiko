@@ -7,6 +7,7 @@ import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
 import { apiFetch } from "../../lib/api"
+import { watchChanged } from "../../sync/changed"
 
 export type Routine = { id: string; name: string; roomId: string; status: "active" | "paused"; trigger: Trigger; tz: string }
 
@@ -38,6 +39,7 @@ function readReminders(value: unknown): Reminder[] {
 }
 
 export async function loadRoutines(): Promise<void> {
+  watchChanged("routines", loadRoutines)
   const res = await apiFetch("/api/routines").catch(() => null)
   if (!res?.ok) {
     if (all() === undefined) setAll([])

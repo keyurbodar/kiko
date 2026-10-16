@@ -1,6 +1,7 @@
 // The one memory store for the signed-in user. It outlives the route, so coming back to
 // /memory paints the list from what is already here, then refreshes it.
 
+import { watchChanged } from "../../../sync/changed"
 import { createMemoryClient, type MemoryClient } from "./client"
 import { createMemoryStore, type MemoryStore } from "./store"
 
@@ -19,5 +20,6 @@ export async function memoryFor(userId: string): Promise<MemoryStore> {
 	const client = await openClient()
 	const store = createMemoryStore(client)
 	current = { userId, store, client }
+	watchChanged("memory", () => (current?.store.state.loaded ? current.store.load() : undefined))
 	return store
 }
