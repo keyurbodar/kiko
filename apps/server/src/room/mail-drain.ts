@@ -53,8 +53,15 @@ export class RoomMail {
 			.toArray()
 		const text = bubbles.map((b) => b.text).join("\n\n").trim()
 		const last = bubbles.at(-1)
-		if (!last || !text) return
+		if (!last || !text) return this.nothingToAdd(home, slug, heard)
 		this.answerHeard(home, slug, heard, text, { id: last.id, seq: last.seq })
+	}
+
+	/** A run with no reply bubbles (empty, `[skip]`, or only reactions, none of which become messages) has nothing to relay. Its asks settle with an empty answer, and a waiting `ask` returns that. */
+	private nothingToAdd(home: Home, slug: AgentSlug, heard: readonly string[]): void {
+		for (const ask of this.d.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
+			if (this.d.asks.settle(ask.id, "") && ask.state === "open") this.answer(home, ask.asker, ask.id, "")
+		}
 	}
 
 	/** Answers the asks `slug` heard. An open ask gets the text pushed to its asker. A closed one gets it as mail, and is settled only once the mail is accepted, so a refused answer is not lost. */

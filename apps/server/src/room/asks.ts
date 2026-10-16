@@ -24,12 +24,18 @@ export class Asks {
     return this.sql.exec("SELECT 1 FROM agent_asks WHERE asker = ? AND askee = ? AND state = 'open' LIMIT 1", asker, askee).toArray().length > 0
   }
 
-  answer(from: AgentSlug, to: AgentSlug, text: string, sendId: string): string | null {
+  /** A send_message expects an answer but waits for none, so its row is closed from the start. */
+  expect(id: string, asker: AgentSlug, askee: AgentSlug, messageId: string, now: number): void {
+    this.sql.exec("INSERT OR IGNORE INTO agent_asks (id, asker, askee, at, state, message_id) VALUES (?, ?, ?, ?, 'closed', ?)", id, asker, askee, now, messageId)
+  }
+
+  /** A send from `from` to `to` answers what `to` expects of `from`. `answered` is true when it settled any row, open or closed. `open` is the waiting ask it answered, if any. */
+  answer(from: AgentSlug, to: AgentSlug, text: string, sendId: string): { answered: boolean; open: string | null } {
     const open = this.sql.exec<{ id: string }>("SELECT id FROM agent_asks WHERE asker = ? AND askee = ? AND state = 'open' ORDER BY at LIMIT 1", to, from).toArray()[0]
-    this.sql.exec("UPDATE agent_asks SET answer = ? WHERE asker = ? AND askee = ? AND state = 'closed' AND answer IS NULL", text, to, from)
-    if (!open) return null
+    const closed = this.sql.exec("UPDATE agent_asks SET answer = ? WHERE asker = ? AND askee = ? AND state = 'closed' AND answer IS NULL", text, to, from).rowsWritten > 0
+    if (!open) return { answered: closed, open: null }
     this.sql.exec("UPDATE agent_asks SET state = 'answered', answer = ?, answer_send = ? WHERE id = ?", text, sendId, open.id)
-    return open.id
+    return { answered: true, open: open.id }
   }
 
   answeredBy(sendId: string): string | null {
