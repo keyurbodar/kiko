@@ -61,9 +61,8 @@ export function matches(routine: RoomRoutine, s: Signal): boolean {
 		case "task":
 			return s.kind === "task" && (!t.status?.length || t.status.includes(s.status as never))
 		case "message": {
-			if (s.kind !== "burst" && s.kind !== "agent_final") return false
-			const from = s.kind === "burst" ? "human" : "agent"
-			return (t.from === "any" || t.from === from) && (!t.contains || s.text.toLowerCase().includes(t.contains.toLowerCase()))
+			if (s.kind !== "burst") return false
+			return (!t.contains || s.text.toLowerCase().includes(t.contains.toLowerCase()))
 		}
 		case "file": {
 			if (s.kind !== "file") return false

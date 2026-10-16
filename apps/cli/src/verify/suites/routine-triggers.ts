@@ -32,7 +32,7 @@ const suite: Suite = {
     {
       const { roomId, room } = await newRoom(s, "triggers: messages")
       await fake(v, s, roomId)
-      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "banana watcher", instructions: "[reply] banana noted", trigger: { on: "message", from: "any", contains: "banana" } })
+      const { routine } = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "banana watcher", instructions: "[reply] banana noted", trigger: { on: "message", contains: "banana" } })
       await send(room, "banana bread tonight?")
       await poll("the agent's reply", () => agentTexts(room).some((t) => t.includes("banana")), 20_000)
       await waitRuns(url, s, routine.id, "the message run", (rs) => rs.some((x) => x.status !== "running"), 100_000)
