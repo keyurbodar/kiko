@@ -51,7 +51,12 @@ function ThemeCard(props: { name: string; palette: Palette; accent: string; sele
         onClick={props.onPick}
       >
         <Preview palette={props.palette} accent={props.accent} />
-        <span class="truncate border-t border-border px-2.5 py-1.5 text-sm text-foreground">{props.name}</span>
+        <span
+          class="truncate border-t px-2.5 py-1.5 text-sm"
+          style={{ background: props.palette.canvas, color: props.palette.text, "border-color": `color-mix(in oklab, ${props.palette.text} 14%, transparent)` }}
+        >
+          {props.name}
+        </span>
       </button>
       <Show when={props.onRemove}>
         <button
