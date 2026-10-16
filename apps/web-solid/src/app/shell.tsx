@@ -32,7 +32,6 @@ import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
-import { VersionBanner } from "./version-banner";
 import { CHAT_MIN, INFO, initialSizes, readWidth, resetWidth, saveWidth, SIDEBAR } from "./widths";
 
 /** Lazy menu and picker chunks, warmed once the rich editor is in, so no first right click or open waits on the network. */
@@ -269,7 +268,6 @@ export function Shell(props: ParentProps) {
         data-component="app-shell"
         data-section={sectionOf(location.pathname) ?? undefined}
       >
-        <VersionBanner />
         <Show when={narrow()}>{sidebar()}</Show>
         <Show when={narrow() && drawer()}>
           <div

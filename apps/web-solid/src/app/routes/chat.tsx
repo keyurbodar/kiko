@@ -15,6 +15,7 @@ import { eventText } from "../../chat/lib/event-line";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
+const UpdateNotice = lazy(() => import("../update-notice"));
 const BrowserChip = lazy(() => import("../../chat/BrowserChip"));
 
 const JUMP_CLASS =
@@ -297,6 +298,9 @@ export default function ChatRoute() {
             }}
           />
 
+          <Suspense>
+            <UpdateNotice />
+          </Suspense>
           <Composer
             room={useApp.room() ?? undefined}
             tray={<ModelPickerButton draft={draft()} />}

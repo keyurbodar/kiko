@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { type BackendBuild, type Build, backendSkew, type Skew } from "./version-skew"
+import { type BackendBuild, type Build, backendSkew, clientBehind, type Skew } from "./version-skew"
 
 // Each row: a name, the client, the backend's answer, and the one result that must come out.
 const rows: [string, Build, BackendBuild, Skew][] = [
@@ -23,4 +23,16 @@ describe("backendSkew", () => {
 			expect(backendSkew(client, backend)).toBe(want)
 		})
 	}
+})
+
+describe("clientBehind", () => {
+	test.each([
+		["the same version", "0.1.0", "0.1.0", false],
+		["a newer deploy", "0.1.0", "0.2.0", true],
+		["minor compares as a number", "0.9.0", "0.10.0", true],
+		["a client newer than the release", "0.3.0", "0.2.0", false],
+		["no answer yet", "0.1.0", undefined, false],
+	] as const)("%s", (_name, client, latest, expected) => {
+		expect(clientBehind(client, latest)).toBe(expected)
+	})
 })

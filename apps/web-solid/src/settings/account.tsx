@@ -1,42 +1,69 @@
-import { PROTOCOL } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
-import { Show, createResource, createSignal } from "solid-js"
+import { Match, Show, Switch, createSignal, onMount } from "solid-js"
 import { hosted, profile } from "../app/hosted"
 import { session, signOut } from "../app/session"
-import { apiFetch } from "../lib/api"
+import { backendVersion, checkForUpdates, clientIsBehind, currentSkew, refreshBackend, refreshLatest, startUpdate, view } from "../app/update-flow"
 import { base } from "../lib/api-base"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { APP_VERSION, type BackendBuild, backendSkew } from "../lib/version-skew"
-import { Button, Group, Item, Pill, Row } from "./kit"
+import { APP_VERSION } from "../lib/version-skew"
+import { Button, Group, Item, Pill, Row, Spinner } from "./kit"
 
 const PROVIDER_LABEL: Record<string, string> = { google: "Google", github: "GitHub", apple: "Apple", microsoft: "Microsoft" }
 const providerLabel = (id: string) => PROVIDER_LABEL[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
 
 const SKEW_TEXT = { ok: "Up to date", update: "Update available", blocked: "Update required" } as const
 
-async function fetchBackend(): Promise<BackendBuild | null> {
-  const res = await apiFetch("/api/version").catch(() => null)
-  return res?.ok ? ((await res.json().catch(() => null)) as BackendBuild | null) : null
-}
-
 function Backend() {
-  const [build] = createResource(fetchBackend)
-  const version = () => build()?.version
   const navigate = useNavigate()
+  const [checking, setChecking] = createSignal(false)
+  onMount(() => void refreshBackend().then(() => refreshLatest()))
+  const check = () => {
+    setChecking(true)
+    void checkForUpdates().finally(() => setChecking(false))
+  }
+  const status = () => (clientIsBehind() ? "Reload to update" : currentSkew() ? SKEW_TEXT[currentSkew()!] : undefined)
   return (
     <Group title="Backend" data-component="account-backend">
       <Row label="Address">
         <span class="truncate text-md" data-field="backend-address">{base() || location.origin}</span>
       </Row>
-      <Row label="Version">
-        <span class="text-md" data-field="backend-version">{version() ?? (build.loading ? "Checking" : "Unknown")}</span>
-        <Show when={build()}>
-          {(b) => (
-            <Pill tone={backendSkew({ version: APP_VERSION, protocol: PROTOCOL }, b()) === "ok" ? "success" : "accent"} data-field="backend-status">
-              {SKEW_TEXT[backendSkew({ version: APP_VERSION, protocol: PROTOCOL }, b())]}
+      <Row label="App version">
+        <span class="text-md" data-field="app-version">{APP_VERSION}</span>
+      </Row>
+      <Row label="Backend version">
+        <span class="text-md" data-field="backend-version">{backendVersion() ?? "Unknown"}</span>
+      </Row>
+      <Row label="Updates">
+        <Show when={status()}>
+          {(text) => (
+            <Pill tone={status() === "Up to date" ? "success" : "accent"} data-field="backend-status">
+              {text()}
             </Pill>
           )}
         </Show>
+        <Switch>
+          <Match when={view().kind === "busy"}>
+            <span class="inline-flex items-center gap-2 text-muted-foreground" role="status" data-part="update-progress">
+              <Spinner size={12} />
+              {(view() as { text: string }).text}
+            </span>
+          </Match>
+          <Match when={view().kind === "reload"}>
+            <Button variant="primary" data-action="reload-update" onClick={() => location.reload()}>
+              Reload to update
+            </Button>
+          </Match>
+          <Match when={view().kind === "update" || view().kind === "failed"}>
+            <Button variant="primary" data-action="update-start" onClick={startUpdate}>
+              {view().kind === "failed" ? "Retry update" : "Update"}
+            </Button>
+          </Match>
+          <Match when={true}>
+            <Button data-action="check-updates" busy={checking()} onClick={check}>
+              Check for updates
+            </Button>
+          </Match>
+        </Switch>
       </Row>
       <Row label="Cloudflare" description="Install or update your backend again in your Cloudflare account.">
         <Button data-action="reconnect-cloudflare" onClick={() => navigate("/connect?reconnect=1")}>

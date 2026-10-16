@@ -91,7 +91,7 @@ Run against the owner's account with a throwaway Worker. The Worker was deleted 
 
 Each item is one pull request.
 
-1. **Versions.** `PROTOCOL` in `@kiko/protocol`, the build version in the client and in the Worker, and both in the user socket's `hello`. A banner when the backend is older, and a block when its protocol is too old.
+1. **Versions.** `PROTOCOL` in `@kiko/protocol`, the build version in the client and in the Worker, and both in the user socket's `hello`. A quiet pill in the sidebar foot when the backend is older, and a compact notice above the composer when its protocol is too old.
 2. **Cross-origin client.** One API base for every fetch, socket, and upload. The bearer session, socket tickets, and signed file URLs on the server. CORS for trusted origins.
 3. **Clerk sign-in.** `POST /api/auth/clerk` on the backend. The sign-in screen with Google and GitHub. The Account settings page.
 4. **Installer and front door.** The installer Worker with OAuth and pasted-token grants, and the front door deploy.
@@ -281,12 +281,14 @@ The `.workers.dev` URL is not a secret. Anyone can find it in the browser's netw
 
 Modeled on t3code. Stable channel only.
 
+A tab can also run an older client than the front door serves. On the hosted app only, the client reads `/releases/latest.json` (never cached) on focus and every 30 minutes. When it is newer than the tab's own version, the pill says "Reload to update", with a toast once. The page never reloads by itself.
+
 ```mermaid
 flowchart LR
   ci["CI release"] --> gh["GitHub Release<br/>worker.js + manifest.json + signature"]
   ci --> fd["Front door deploy<br/>client is always newest"]
   fd -- "hello: version, protocol" --> cmp{"Backend older?"}
-  cmp -- "same protocol" --> banner["Banner: Update available"]
+  cmp -- "same protocol" --> banner["Sidebar pill: Update"]
   cmp -- "protocol too old" --> block["Block: Update your backend"]
   banner & block -- "click" --> udo["UserDO.update(version)"]
   udo -- "verify signature and hash" --> gh
@@ -297,7 +299,7 @@ flowchart LR
 | --- | --- |
 | `APP_VERSION` and `resolveVersionMismatch` warn only when the server is behind the client (`apps/web/src/versionSkew.ts`) | The same rule. The front door always runs the newest client, so only a backend can lag |
 | `ORCHESTRATION_PROTOCOL_VERSION`, and the socket answers 426 when it does not match (`apps/server/src/ws.ts`) | `PROTOCOL` in `@kiko/protocol`. The client speaks protocol N and N minus 1. An older backend is blocked until it updates |
-| "Server update available" and an update button. The server updates itself to an exact version (`apps/server/src/cloud/selfUpdate.ts`) | The same banner, and a Version row in settings. `UserDO` updates its own Worker to the exact version the client names |
+| "Server update available" and an update button. The server updates itself to an exact version (`apps/server/src/cloud/selfUpdate.ts`) | The same pill in the sidebar foot, progress and failure as toasts, and an Updates row in Account settings with Update or Check for updates. `UserDO` updates its own Worker to the exact version the client names |
 | Releases on GitHub, overridable with `T3CODE_RELEASE_BASE_URL`, with `SHA256SUMS` | Releases on GitHub, overridable with `RELEASE_BASE_URL`. The manifest is signed with Ed25519, and the public key ships in the bundle |
 | A nightly channel picked by a cookie | None |
 
@@ -314,7 +316,7 @@ The owner's socket sends `{ t: "update.start", version }`. The client names its 
 1. **Checking.** Fetch `<base>/<version>/manifest.json` and `manifest.sig`. Refuse unless the signature verifies under the key baked into the bundle, the manifest names that exact version, and every module hash matches. Nothing else is read before this passes.
 2. **Authorizing.** Read the grant from `UserDO` (sealed with the credential crypto), else from the `CF_GRANT` secret. An OAuth grant refreshes at `https://dash.cloudflare.com/oauth2/token`. The rotated refresh token is stored before the new access token is used.
 3. **Uploading.** List the account's scripts to read this script's `migration_tag`, then `PUT` the script with the installer's metadata and `keep_bindings: ["secret_text"]`. No secret is sent.
-4. **Restarting.** The old code sends this last. The new code answers the client's reconnect, and the next `hello` carries the new version, which removes the banner.
+4. **Restarting.** The old code sends this last. The new code answers the client's reconnect, and the next `hello` carries the new version, which removes the pill.
 
 - The install's `CF_GRANT` now also carries `scriptName` (the script to replace) and, for OAuth, `clientId` (the refresh needs it).
 - `RELEASE_PUBLIC_KEY` is a constant in `apps/server/src/lib/release-config.ts`. A Worker var named `RELEASE_BASE_URL` moves the release base and never the key. The default base is `https://app.kiko.codes/releases`.
