@@ -10,13 +10,11 @@ import { read, write } from "../lib/api-base"
 export const CLERK_KEY: string | undefined = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || undefined
 export const hosted = CLERK_KEY !== undefined
 
-export type Provider = "google" | "github"
-
 export interface Profile {
   name: string
   email: string
   imageUrl: string
-  provider: Provider | null
+  provider: string | null
 }
 
 const PROFILE_KEY = "kiko:profile"
