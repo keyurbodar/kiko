@@ -34,5 +34,7 @@ bun "$root/issues/bin/keep-release.ts" "$store" https://app.kiko.works/releases
 rm -rf "${store:?}/$version" && cp -r "dist-release/$version" "$store/$version"
 rm -rf apps/web-solid/dist/releases && cp -r "$store" apps/web-solid/dist/releases && cp dist-release/latest.json apps/web-solid/dist/releases/
 cd apps/server
-bunx wrangler deploy --config wrangler.front-door.jsonc 2>&1 | grep -E "Uploaded|Version ID|kiko.works"
+# A pipe into grep would hide a failed deploy, so the output is kept and wrangler's exit status decides.
+out="$(bunx wrangler deploy --config wrangler.front-door.jsonc 2>&1)" || { echo "$out" >&2; cd "$root" && git worktree remove --force "$dir"; exit 1; }
+echo "$out" | grep -E "Uploaded|Version ID|kiko.works"
 cd "$root" && git worktree remove --force "$dir"

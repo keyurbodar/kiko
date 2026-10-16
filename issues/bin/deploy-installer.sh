@@ -12,7 +12,9 @@ bun install --frozen-lockfile >/dev/null 2>&1
 . "$HOME/.config/kiko/cf-kiko-works.env"
 export CLOUDFLARE_API_TOKEN="$CF_API_TOKEN" CLOUDFLARE_ACCOUNT_ID="$CF_ACCOUNT_ID"
 cd apps/installer
-bunx wrangler deploy 2>&1 | grep -E "Uploaded|Version ID|kiko.works"
+# A pipe into grep would hide a failed deploy, so the output is kept and wrangler's exit status decides.
+out="$(bunx wrangler deploy 2>&1)" || { echo "$out" >&2; cd "$root" && git worktree remove --force "$dir"; exit 1; }
+echo "$out" | grep -E "Uploaded|Version ID|kiko.works"
 if [ "${1:-}" = "--secrets" ]; then
   cfg="$HOME/.config/kiko"
   put() { printf '%s' "$2" | bunx wrangler secret put "$1" >/dev/null 2>&1 && echo "secret $1 set"; }
