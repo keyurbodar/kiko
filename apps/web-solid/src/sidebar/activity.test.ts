@@ -95,6 +95,10 @@ describe("mentionIds", () => {
   test("an @handle and a reply to the human are mentions, oldest first", () => {
     expect(mentionIds(list, "alice", ["ada"]).map((m) => m.id)).toEqual(["a1" as MessageId, "a2" as MessageId])
   })
+  test("a message an agent sent to another agent is no mention, even with the handle in it", () => {
+    const toAgent = [message("a5", 6, agent, "@bob tell @alice about it", { to: "bob" as never })]
+    expect(mentionIds(toAgent, "alice", ["ada", "bob"])).toEqual([])
+  })
   test("a handle an agent also holds counts as none", () => {
     expect(mentionIds(list, "alice", ["ada", "alice"]).map((m) => m.id)).toEqual(["a2" as MessageId])
   })

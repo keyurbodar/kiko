@@ -3,7 +3,7 @@ import type { PromptInputV2Suggestion } from "./prompt-input/types"
 
 /*
  * Composer slash commands. `/new` runs a registry command. `/remind` and
- * `/skill:` have no client action: they stay in the draft and send as text for
+ * `/skill` have no client action: they stay in the draft and send as text for
  * the agent to handle (ASSUMPTION: the agent owns reminders and skills).
  */
 interface Slash {
@@ -15,7 +15,7 @@ interface Slash {
 export const SLASH: readonly Slash[] = [
   { trigger: "new", title: "Start a new chat", commandId: "chat.new" },
   { trigger: "remind", title: "Ask for a reminder" },
-  { trigger: "skill:", title: "Use a skill" },
+  { trigger: "skill", title: "Use a skill" },
 ]
 
 export function slashSuggestions(): PromptInputV2Suggestion[] {

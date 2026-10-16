@@ -63,7 +63,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
   }
   return (
     <Show when={isChip()} fallback={<code class="rich-inline-code">{full()}</code>}>
-    <TooltipV2 class="file-chip-anchor" placement="top" value={<span class="font-mono">{full()}</span>}>
+    <TooltipV2 class={size() ? "file-chip-anchor file-chip-attached" : "file-chip-anchor"} placement="top" value={<span class="font-mono">{full()}</span>}>
       <MenuV2.Context gutter={4}>
         <MenuV2.Context.Trigger
           as="button"

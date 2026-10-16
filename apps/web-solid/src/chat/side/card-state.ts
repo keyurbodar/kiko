@@ -28,6 +28,9 @@ export const CARD_WIDTH = 288
 export const cardShown = () => (wide() ? docked() : popped())
 export const cardBeside = () => wide() && docked()
 
+/** A card over the chat closes when the reader moves on. A docked card is the reader's saved choice and stays. */
+export const dismissCard = () => setPopped(false)
+
 export function toggleCard() {
   if (!wide()) return setPopped(!popped())
   const next = !docked()
