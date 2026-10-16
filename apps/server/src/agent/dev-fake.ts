@@ -6,6 +6,7 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
 import { type Effect, declareEffect } from "@kiko/agent/effects"
 import { boundedWait } from "@kiko/durable/bounded-wait"
 import { type BuildAgentInput, buildAgent } from "./factory"
+import { withTextToolCalls } from "./tool-markup"
 import type { AgentSetup } from "@kiko/agent/host"
 import type { RoleInput } from "./prompt"
 import type { WorkspacePort } from "./extensions/workspace"
@@ -97,6 +98,8 @@ export function fakeReply(transcript: readonly Message[]) {
   const browse = browseScript(messages, users)
   if (browse) return fauxAssistantMessage(browse, { stopReason: "toolUse" })
   if (last?.role === "toolResult" && last.toolName?.startsWith("browse")) return fauxAssistantMessage(browsed(textOf(last)))
+  const typed = last?.role === "user" ? textCall(rawOf(last)) : null
+  if (typed) return fauxAssistantMessage(typed)
   const any = last && ((last.role === "user" && !fetchFirst) || page) ? anyToolCall(rawOf(last)) : null
   if (any) return fauxAssistantMessage(any, { stopReason: "toolUse" })
   const twoPart = users.at(-1)?.includes("[two-part]")
@@ -161,6 +164,16 @@ function anyToolCall(raw: string) {
   const text = raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&")
   const direct = /\[tool (\w+) (\{.*\})\]\s*$/m.exec(text)
   return direct ? fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))) : null
+}
+
+/** `[textcall name {json}]` answers the way an open model does when it writes its tool call as text. */
+function textCall(raw: string) {
+  const m = /\[textcall (\w+) (\{.*\})\]\s*$/m.exec(raw.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&"))
+  if (!m) return null
+  const args = Object.entries(JSON.parse(capture(m, 2)) as Record<string, unknown>)
+    .map(([k, v]) => `<atem:parameter name="${k}">${typeof v === "string" ? v : JSON.stringify(v)}</atem:parameter>`)
+    .join("\n")
+  return `Sure, one moment.\natem:function_calls\n<atem:invoke name="default.${capture(m, 1)}">\n${args}\n</atem:invoke>\n</atem:function_calls>`
 }
 
 const slowTool = (name: string, effect: Effect) =>
@@ -252,6 +265,6 @@ export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
-  models.setProvider(faux.provider)
+  models.setProvider({ ...faux.provider, streamSimple: withTextToolCalls(faux.provider.streamSimple), stream: withTextToolCalls(faux.provider.stream as never) as never })
   return { models, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION] }) } satisfies AgentSetup
 }

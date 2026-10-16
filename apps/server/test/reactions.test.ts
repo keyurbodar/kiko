@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { partsOf } from "../src/agent/outbox"
+import { partsOf, textOf } from "../src/agent/outbox"
 import { escapeXml } from "@kiko/agent/text"
 import { allowedReaction, MAX_REACTIONS_BYTES, reactionLines } from "../src/room/reactions"
 
@@ -49,4 +49,14 @@ describe("reactionLines", () => {
       `reactions since your last turn:\n- the human reacted ❤️ to your "hi"\n- @ada reacted 👍 to your "${"x".repeat(59)}…"`,
     )
   })
+})
+
+describe("textOf", () => {
+	test("markup that reached an assistant message never reaches a bubble, also when unterminated", () => {
+		const call = '<atem:function_calls>\n<atem:invoke name="default.ask_human">\n<atem:parameter name="q">x</atem:parameter>'
+		expect(textOf({ content: [{ type: "text", text: `Hello.\n${call}` }] })).toBe("Hello.\n")
+		expect(partsOf(textOf({ content: [{ type: "text", text: `Hello.\n${call}` }] })).blocks).toEqual(["Hello."])
+		expect(textOf({ content: [{ type: "text", text: `Hello.\n${call}` }] }, false)).toBe("Hello.\n")
+		expect(textOf({ content: [{ type: "text", text: "<think>hmm</think>Done." }] })).toBe("Done.")
+	})
 })
