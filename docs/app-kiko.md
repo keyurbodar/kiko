@@ -246,6 +246,9 @@ A new Cloudflare account must reach a working Kiko with no dashboard visit. The 
 | The script is up but does not answer within 60 s | Link to Workers, Try again | `not_ready` |
 | A script named `kiko` that is not Kiko | Installs as `kiko-<hash>` | none |
 | The sign-in code was used or expired | Starts the sign-in again, which Cloudflare approves at once | `oauth_failed` |
+| The token may change but not create Workers (Workers Editor) | Edit the token to Workers Admin, link to API tokens | `cannot_create` |
+| The sign-in can use several accounts and none runs Kiko | A list of the accounts to pick | `choose_account` |
+| Installed, but this device cannot reach the new address yet | Names the address, mentions VPN or Private DNS; Try again signs in only | `unreachable` |
 
 UNVERIFIED: that an unverified email blocks any of these calls. Cloudflare documents no such rule for the Workers API. The unmapped case falls under `cloudflare_error`: a sentence and a link to Workers.
 
@@ -255,7 +258,11 @@ The bundle in step 5 is the same build `bun run --cwd apps/server deploy` makes 
 
 DEVIATION (H05, as built in `apps/installer`): the script is named `kiko`, the bucket `kiko-files`, and the metadata key is `backendUrl`, not `workerUrl`. The Worker handler only checks the Clerk token and the origin. It hands the install to `InstallDO` (one per Clerk user), which builds the multipart upload. The installer reads a signed release (`latest.json`, `<version>/manifest.json`, `manifest.sig`, modules) from `RELEASE_BASE_URL`, not a bare `worker.js`, and refuses any release whose Ed25519 signature or module hash does not match (`scripts/release.ts`, `core/durable/src/release.ts`). If `kiko` already exists and does not answer `/api/version` like kiko, the script is named `kiko-<6 hex of sha256(sub)>`. The secrets go in the upload metadata on first install. An update sends `keep_bindings: ["secret_text"]` and never regenerates `SESSION_SECRET` or `CREDENTIALS_KEK`. It sets `OWNER_ID` and `CF_GRANT` through the secrets endpoint every time, because a secret's value cannot be read back to compare.
 
-UNVERIFIED: Cloudflare documents no prefilled API token URL. `GET /token-link` returns the plain `https://dash.cloudflare.com/profile/api-tokens` page and the permission list to tick. UNVERIFIED: the installer reads the current migration tag from `migration_tag` in the scripts list (`GET /accounts/{id}/workers/scripts`), and treats Cloudflare code 10073 (bucket exists) as success; 10042 (not entitled, R2 not enabled).
+`GET /token-link` returns a user token template URL (`/profile/api-tokens?permissionGroupKeys=...&accountId=*&zoneId=all`, [docs](https://developers.cloudflare.com/fundamentals/api/how-to/account-owned-token-template/)) with `workers_scripts` edit, `account_settings` read, and `workers_r2` edit, plus the permission list. Since Cloudflare's Workers roles (2026-09), Workers Editor "Cannot create or delete Workers" and Workers Admin is the old Workers Scripts Write. A Workers Editor token was tested live: the script upload answers 403, so the list asks for Workers Admin and a 403 on creating the Worker is `cannot_create`. UNVERIFIED: which of the two roles the `workers_scripts` edit template key ticks. The OAuth client asks for `workers-scripts.write`, the legacy scope, which still creates Workers (tested with a token of the matching permission group).
+
+Account choice: an account that already runs Kiko wins, one usable account is used, and with several the installer answers `choose_account` with their names and the client asks. The installer keeps the tokens an OAuth code was traded for (10 minutes, in `InstallDO`), so the pick can send the same code again. A workers.dev address the install made is handed out only when 1.1.1.1 and 8.8.8.8 resolve it (up to 90 s), and the client's first sign-in to a new backend retries a missing answer for 90 s. Every installer error carries Cloudflare's own message and the failing call as `detail`, which the page shows under its sentence.
+
+UNVERIFIED: the installer reads the current migration tag from `migration_tag` in the scripts list (`GET /accounts/{id}/workers/scripts`), and treats Cloudflare code 10073 (bucket exists) as success; 10042 (not entitled, R2 not enabled).
 
 ASSUMPTION: the client files are not uploaded into the user's account. The user's Worker is API only. Optionally it can carry the client as a fallback, in case `app.kiko.codes` is ever down.
 

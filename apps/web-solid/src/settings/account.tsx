@@ -2,7 +2,7 @@ import { useNavigate } from "@solidjs/router"
 import { Match, Show, Switch, createSignal, onMount } from "solid-js"
 import { hosted, profile } from "../app/hosted"
 import { session, signOut } from "../app/session"
-import { backendVersion, checkForUpdates, clientIsBehind, currentSkew, refreshBackend, refreshLatest, startUpdate, view } from "../app/update-flow"
+import { backendStorage, backendVersion, checkForUpdates, clientIsBehind, currentSkew, refreshBackend, refreshLatest, startUpdate, view } from "../app/update-flow"
 import { base } from "../lib/api-base"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { APP_VERSION } from "../lib/version-skew"
@@ -60,6 +60,24 @@ function Backend() {
           </Match>
         </Switch>
       </Row>
+      <Show when={backendStorage()}>
+        {(storage) => (
+          <Row
+            label="File storage"
+            description={
+              storage() === "r2"
+                ? "Cloudflare R2. Files up to 512 MB."
+                : "Built-in, because R2 is not turned on in your Cloudflare account. Files up to 100 MB, and 800 MB per chat."
+            }
+          >
+            <Show when={storage() === "built-in"} fallback={<span class="text-md" data-field="file-storage">R2</span>}>
+              <a class="text-sm text-foreground underline underline-offset-2" href="https://developers.cloudflare.com/r2/pricing/" target="_blank" rel="noreferrer" data-field="file-storage">
+                About R2
+              </a>
+            </Show>
+          </Row>
+        )}
+      </Show>
       <Row label="Cloudflare" description="Install or update your backend again in your Cloudflare account.">
         <Button data-action="reconnect-cloudflare" onClick={() => navigate("/connect?reconnect=1")}>
           Reconnect Cloudflare

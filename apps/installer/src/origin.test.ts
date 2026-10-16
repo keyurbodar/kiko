@@ -20,8 +20,15 @@ test("an untrusted origin is rejected without CORS headers", async () => {
   expect((await call("/install", "https://evil.example", "OPTIONS")).status).toBe(403)
 })
 
-test("the token link lists permissions", async () => {
+test("the token link opens the create form with Workers create rights, account read, and R2 ticked", async () => {
   const body = (await (await call("/token-link")).json()) as { url: string; permissions: string[] }
-  expect(body.url).toBe("https://dash.cloudflare.com/profile/api-tokens")
-  expect(body.permissions.length).toBe(3)
+  const url = new URL(body.url)
+  expect(url.origin + url.pathname).toBe("https://dash.cloudflare.com/profile/api-tokens")
+  expect(JSON.parse(url.searchParams.get("permissionGroupKeys") ?? "[]")).toEqual([
+    { key: "workers_scripts", type: "edit" },
+    { key: "account_settings", type: "read" },
+    { key: "workers_r2", type: "edit" },
+  ])
+  expect([url.searchParams.get("accountId"), url.searchParams.get("zoneId")]).toEqual(["*", "all"])
+  expect(body.permissions[0]).toContain("Workers Admin")
 })

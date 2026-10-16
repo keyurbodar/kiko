@@ -23,6 +23,12 @@ export type Grant = { kind: "oauth"; code: string; verifier: string; redirectUri
 export interface InstallError {
   code: string
   message: string
+  /** What Cloudflare itself said, and the step. Shown small under the message. */
+  detail?: string
+  /** For `choose_account`: the accounts this sign-in can install into. */
+  accounts?: { id: string; name: string }[]
+  /** The install finished and only signing in to the new backend failed, so a retry signs in again. */
+  installed?: boolean
 }
 
 export const INSTALLER_URL: string = (import.meta.env.VITE_INSTALLER_URL ?? "").replace(/\/+$/, "")
@@ -90,21 +96,50 @@ export const STEPS = ["Checking your account", "Creating storage", "Uploading Ki
 
 export interface Failure {
   message: string
+  detail?: string
   link?: { href: string; label: string }
 }
 
 const WORKERS_DASHBOARD = "https://dash.cloudflare.com/?to=/:account/workers-and-pages"
 const WORKERS_LINK = { href: WORKERS_DASHBOARD, label: "Open Workers in Cloudflare" }
+const TOKENS_LINK = { href: "https://dash.cloudflare.com/profile/api-tokens", label: "Open API tokens in Cloudflare" }
+
+/**
+ * What "Try again" does after a failure. "sign-in": the backend is installed, only signing in to it failed.
+ * "new-grant": the Cloudflare sign-in itself failed, so it starts over. "same": the same grant again; an OAuth
+ * code can be sent twice because the installer keeps what it was traded for.
+ */
+export function retryKind(error: InstallError): "sign-in" | "new-grant" | "same" {
+  if (error.installed) return "sign-in"
+  return ["oauth_failed", "oauth_denied", "state_mismatch"].includes(error.code) ? "new-grant" : "same"
+}
 
 /** What to show for an installer error: a plain sentence and at most one link. "Try again" is always offered, and an install that stopped halfway picks up where it left off. */
 export function failureOf(error: InstallError): Failure {
+  const base = sentence(error)
+  return error.detail && !base.detail ? { ...base, detail: error.detail } : base
+}
+
+function sentence(error: InstallError): Failure {
   switch (error.code) {
+    case "cannot_create":
+      return { message: "This token may change Workers but not create one. Edit the token, give it Workers Admin (not Workers Editor), then try again.", link: TOKENS_LINK }
+    case "oauth_failed":
+      return { message: "Cloudflare did not finish the sign-in. Connect again." }
+    case "oauth_denied":
+      return { message: "The Cloudflare sign-in was cancelled. Connect again when you are ready." }
+    case "state_mismatch":
+      return { message: "This sign-in link expired or was opened in another tab. Connect again from here." }
+    case "network":
+      return { message: "Could not reach the Kiko installer. Check your connection, then try again." }
+    case "unreachable":
+      return { message: error.message }
     case "no_subdomain":
       return { message: "This account has no workers.dev address yet. Create one, then try again.", link: WORKERS_LINK }
     case "no_account":
       return { message: "No Cloudflare account was found for this sign-in. Create one, then try again.", link: { href: "https://dash.cloudflare.com/sign-up", label: "Create a Cloudflare account" } }
     case "no_permission":
-      return { message: "Cloudflare did not let this sign-in change Workers on your account. Open Workers and check that you can create one there, then try again.", link: WORKERS_LINK }
+      return { message: "Cloudflare did not let this sign-in do a step of the install. Check that you are an admin of the account, or use an API token with the permissions listed below.", link: TOKENS_LINK }
     case "busy":
       return { message: "Cloudflare is busy. Wait a minute, then try again." }
     case "cloudflare_down":
@@ -122,7 +157,13 @@ export function failureOf(error: InstallError): Failure {
 
 async function errorOf(res: Response): Promise<InstallError> {
   const body = (await res.json().catch(() => null)) as { error?: Partial<InstallError> } | null
-  return { code: body?.error?.code ?? "failed", message: body?.error?.message ?? "The install did not finish." }
+  const e = body?.error
+  return {
+    code: e?.code ?? "failed",
+    message: e?.message ?? `The install did not finish (the installer answered ${res.status}). Try again.`,
+    ...(typeof e?.detail === "string" ? { detail: e.detail } : {}),
+    ...(Array.isArray(e?.accounts) ? { accounts: e.accounts } : {}),
+  }
 }
 
 export async function loadOAuthConfig(f: Fetch = fetch): Promise<OAuthConfig> {
@@ -139,13 +180,13 @@ export async function loadTokenLink(f: Fetch = fetch): Promise<TokenLink> {
 
 export type InstallResult = { ok: true; backendUrl: string } | { ok: false; error: InstallError }
 
-export async function install(clerkToken: string, grant: Grant, f: Fetch = fetch): Promise<InstallResult> {
+export async function install(clerkToken: string, grant: Grant, f: Fetch = fetch, accountId?: string): Promise<InstallResult> {
   let res: Response
   try {
     res = await f(`${INSTALLER_URL}/install`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clerkToken, grant }),
+      body: JSON.stringify({ clerkToken, grant, ...(accountId ? { accountId } : {}) }),
     })
   } catch {
     return { ok: false, error: { code: "network", message: "Could not reach the installer. Check your connection." } }
@@ -162,11 +203,21 @@ export async function connect(
   grant: Grant,
   exchange: () => Promise<void>,
   f: Fetch = fetch,
+  accountId?: string,
 ): Promise<InstallError | null> {
-  const result = await install(clerkToken, grant, f)
+  const result = await install(clerkToken, grant, f, accountId)
   if (!result.ok) return result.error
   write("kiko:backend", result.backendUrl)
-  await exchange()
-  return null
+  return finish(exchange)
+}
+
+/** Signs in to the installed backend. A failure keeps the install: "Try again" only signs in again. */
+export async function finish(exchange: () => Promise<void>): Promise<InstallError | null> {
+  try {
+    await exchange()
+    return null
+  } catch (e) {
+    return { code: "unreachable", message: e instanceof Error ? e.message : "Could not sign in to your new backend. Try again.", installed: true }
+  }
 }
 

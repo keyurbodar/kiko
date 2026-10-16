@@ -27,7 +27,8 @@ async function makeRelease(tamper?: "manifest" | "module") {
 
 type Call = { url: string; method: string; body?: unknown }
 
-function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled"; subdomain?: string | null; accounts?: string[]; deniedAccounts?: string[]; status?: { path: string; code: number; error?: number } }) {
+function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled"; subdomain?: string | null; accounts?: string[]; deniedAccounts?: string[]; scriptsByAccount?: Record<string, { id: string }[]>; status?: { path: string; code: number; error?: number }; dnsAfter?: number }) {
+  let dnsAsks = 0
   const calls: Call[] = []
   const ok = (result: unknown) => Response.json({ success: true, result })
   const fail = (code: number, message: string) => Response.json({ success: false, errors: [{ code, message }] }, { status: 400 })
@@ -45,11 +46,19 @@ function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>
       const bytes = (opts.release.files as Record<string, Uint8Array>)[url.pathname.slice(1)]
       return bytes ? new Response(bytes) : new Response("no", { status: 404 })
     }
+    if (url.host === "cloudflare-dns.com" || url.host === "dns.google") {
+      dnsAsks++
+      return Response.json(dnsAsks > (opts.dnsAfter ?? 0) ? { Status: 0, Answer: [{ data: "104.21.0.1" }] } : { Status: 3 })
+    }
     if (url.host.endsWith(".workers.dev")) return url.host.startsWith("kiko.") ? Response.json({ version: "0.1.0" }) : new Response("no", { status: 404 })
     const path = url.pathname.replace("/client/v4", "")
     if (opts.status && path.endsWith(opts.status.path)) return Response.json({ success: false, errors: [{ code: opts.status.error ?? 1000, message: "Cloudflare says no" }] }, { status: opts.status.code })
     if (opts.deniedAccounts?.some((a) => path.startsWith(`/accounts/${a}/`))) return Response.json({ success: false, errors: [{ code: 10000, message: "Authentication error" }] }, { status: 403 })
-    if (path === "/accounts") return ok((opts.accounts ?? ["acc1"]).map((id) => ({ id })))
+    if (path === "/accounts") return ok((opts.accounts ?? ["acc1"]).map((id) => ({ id, name: `${id} name` })))
+    if (method === "GET" && path.endsWith("/workers/scripts")) {
+      const account = path.split("/")[2] ?? ""
+      if (opts.scriptsByAccount?.[account]) return ok(opts.scriptsByAccount[account])
+    }
     if (path.endsWith("/workers/subdomain")) {
       if (method === "PUT") return ok({ subdomain: (body as { subdomain: string }).subdomain })
       return opts.subdomain === null ? fail(10007, "This account does not have a workers.dev subdomain") : ok({ subdomain: opts.subdomain ?? "me" })
@@ -68,11 +77,11 @@ function env(release: { x: string }): InstallEnv {
   return { CF_OAUTH_CLIENT_ID: "cid", CLERK_JWT_KEY: "PEM", FRONT_DOOR_ORIGIN: "https://app.kiko.codes", RELEASE_BASE_URL: "https://release.test", RELEASE_PUBLIC_KEY: release.x }
 }
 
-async function install(cfg: Parameters<typeof fakeCloudflare>[0], grant: Parameters<typeof runInstall>[2]["grant"] = { kind: "token", token: "tok" }) {
+async function install(cfg: Parameters<typeof fakeCloudflare>[0], grant: Parameters<typeof runInstall>[2]["grant"] = { kind: "token", token: "tok" }, accountId?: string) {
   const { calls, fetcher } = fakeCloudflare(cfg)
   const metadata: unknown[] = []
   let n = 0
-  const result = await runInstall(env(cfg.release), { fetch: fetcher, randomSecret: () => `rand${n++}`, sleep: async () => {}, setMetadata: async (sub, m) => void metadata.push([sub, m]) }, { sub: "user_1", grant })
+  const result = await runInstall(env(cfg.release), { fetch: fetcher, randomSecret: () => `rand${n++}`, sleep: async () => {}, setMetadata: async (sub, m) => void metadata.push([sub, m]) }, { sub: "user_1", grant, ...(accountId ? { accountId } : {}) })
   const upload = calls.find((c) => c.method === "PUT" && c.url.endsWith("/workers/scripts/kiko")) as Call
   return { calls, upload, result, metadata }
 }
@@ -170,16 +179,69 @@ describe("runInstall", () => {
     expect(calls.some((c) => c.url.includes("/accounts/mine/workers/scripts/kiko"))).toBe(true)
   })
 
+  test("several usable accounts and none chosen: the person picks, and nothing is uploaded", async () => {
+    const release = await makeRelease()
+    const err = await install({ release, scripts: [], accounts: ["team", "mine"] }).catch((e) => e)
+    expect(err).toMatchObject({ code: "choose_account", accounts: [{ id: "team", name: "team name" }, { id: "mine", name: "mine name" }] })
+  })
+
+  test("the chosen account is the one installed into", async () => {
+    const release = await makeRelease()
+    const { calls } = await install({ release, scripts: [], accounts: ["team", "mine"] }, undefined, "mine")
+    expect(calls.some((c) => c.method === "PUT" && c.url.includes("/accounts/mine/workers/scripts/kiko"))).toBe(true)
+  })
+
+  test("after picking an account, the same OAuth code installs without being traded twice", async () => {
+    const release = await makeRelease()
+    const { calls, fetcher } = fakeCloudflare({ release, scripts: [], accounts: ["team", "mine"] })
+    const kept = new Map<string, { accessToken: string; refreshToken?: string }>()
+    const codes = { get: async (c: string) => kept.get(c), put: async (c: string, t: { accessToken: string }) => void kept.set(c, t) }
+    const deps = { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {}, codes }
+    const grant = { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" } as const
+    expect(await runInstall(env(release), deps, { sub: "u", grant }).catch((e) => e.code)).toBe("choose_account")
+    expect((await runInstall(env(release), deps, { sub: "u", grant, accountId: "mine" })).version).toBe("0.1.0")
+    expect(calls.filter((c) => c.url === "https://dash.cloudflare.com/oauth2/token")).toHaveLength(1)
+  })
+
+  test("an account that already runs Kiko is used without asking", async () => {
+    const release = await makeRelease()
+    const { calls } = await install({ release, scripts: [], accounts: ["team", "mine"], scriptsByAccount: { mine: [{ id: "kiko" }] } })
+    expect(calls.some((c) => c.method === "PUT" && c.url.includes("/accounts/mine/workers/scripts/kiko"))).toBe(true)
+  })
+
+  test("a token that may edit but not create Workers is told to use Workers Admin, with Cloudflare's words", async () => {
+    const release = await makeRelease()
+    const err = await install({ release, scripts: [], status: { path: "/workers/scripts/kiko", code: 403, error: 10000 } }).catch((e) => e)
+    expect(err.code).toBe("cannot_create")
+    expect(err.message).toContain("Workers Admin")
+    expect(err.detail).toContain("Cloudflare says no")
+  })
+
+  test("a fresh workers.dev address is not handed out until public resolvers see it", async () => {
+    const release = await makeRelease()
+    const { calls } = await install({ release, scripts: [], subdomain: null, dnsAfter: 4 })
+    const asks = calls.filter((c) => c.url.includes("dns")).length
+    expect(asks).toBeGreaterThanOrEqual(6)
+    expect(calls.findIndex((c) => c.url.includes("dns"))).toBeGreaterThan(calls.findIndex((c) => c.url.includes("/api/version")))
+  })
+
+  test("an address that existed before is not checked", async () => {
+    const release = await makeRelease()
+    const { calls } = await install({ release, scripts: [] })
+    expect(calls.some((c) => c.url.includes("dns"))).toBe(false)
+  })
+
   test.each([
     ["every account denies the sign-in", { accounts: ["team"], deniedAccounts: ["team"] }, "no_permission"],
     ["Cloudflare says slow down", { status: { path: "/workers/scripts", code: 429 } }, "busy"],
     ["Cloudflare is down", { status: { path: "/workers/scripts", code: 503 } }, "cloudflare_down"],
     ["the subdomain call is denied, not missing", { subdomain: null, status: { path: "/workers/subdomain", code: 403, error: 10000 } }, "no_permission"],
-    ["the upload is denied", { status: { path: "/workers/scripts/kiko", code: 403 } }, "no_permission"],
+    ["the upload of a new Worker is denied", { status: { path: "/workers/scripts/kiko", code: 403 } }, "cannot_create"],
+    ["the upload over an existing Kiko is denied", { scripts: [{ id: "kiko" }], status: { path: "/workers/scripts/kiko", code: 403 } }, "no_permission"],
     ["the account list is empty", { accounts: [] }, "no_account"],
   ] as const)("%s maps to %s", async (_name, extra, code) => {
     const release = await makeRelease()
-    const { fetcher } = fakeCloudflare({ release, scripts: [], ...(extra as object) })
+    const { fetcher } = fakeCloudflare({ release, scripts: [], ...(extra as object) } as Parameters<typeof fakeCloudflare>[0])
     const err = await runInstall(env(release), { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { sub: "u", grant: { kind: "token", token: "t" } }).catch((e) => e)
     expect(err.code).toBe(code)
   })

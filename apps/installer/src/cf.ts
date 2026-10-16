@@ -1,11 +1,17 @@
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
+export type AccountChoice = { id: string; name: string }
+
 export class InstallError extends Error {
   constructor(
     readonly code: string,
     message: string,
     readonly status = 400,
     readonly cfCodes: number[] = [],
+    /** Cloudflare's own sentence, shown under ours so the person sees what Cloudflare said. */
+    readonly detail?: string,
+    /** The accounts to pick from, for `choose_account`. */
+    readonly accounts?: AccountChoice[],
   ) {
     super(message)
   }
@@ -29,16 +35,30 @@ function codeOf(status: number, codes: number[]): string {
 /** A failure that repeating the same call will not fix, so a caller that swallows other errors must not swallow these. */
 export const isBlocking = (e: unknown): e is InstallError => e instanceof InstallError && ["no_permission", "busy", "cloudflare_down"].includes(e.code)
 
+const SENTENCE: Record<string, string> = {
+  no_permission: "Cloudflare did not let this sign-in do a step of the install.",
+  busy: "Cloudflare is busy. Wait a minute, then try again.",
+  cloudflare_down: "Cloudflare is having trouble right now. Try again in a few minutes.",
+  cloudflare_error: "Cloudflare did not accept a step of the install.",
+}
+
 // One Cloudflare API call. The token goes in the header only; errors carry Cloudflare's own message and codes, never the token.
 export async function cf<T>(token: string, path: string, init: RequestInit = {}, fetcher: FetchLike = fetch): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set("Authorization", `Bearer ${token}`)
-  const res = await fetcher(`${API}${path}`, { ...init, headers })
+  let res: Response
+  try {
+    res = await fetcher(`${API}${path}`, { ...init, headers })
+  } catch {
+    throw new InstallError("cloudflare_down", SENTENCE.cloudflare_down as string, 502)
+  }
   const body = (await res.json().catch(() => null)) as CfBody<T> | null
   if (!res.ok || !body?.success) {
     const errors = body?.errors ?? []
-    const codes = errors.map((e) => e.code)
-    throw new InstallError(codeOf(res.status, codes), errors[0]?.message ?? `Cloudflare answered ${res.status}.`, 502, codes)
+    const codes = errors.flatMap((e) => (typeof e.code === "number" ? [e.code] : []))
+    const code = codeOf(res.status, codes)
+    const said = errors[0]?.message ?? `Cloudflare answered ${res.status}.`
+    throw new InstallError(code, SENTENCE[code] as string, 502, codes, `${said} (${init.method ?? "GET"} ${path.replace(/\/accounts\/\w+/, "/accounts/…")})`)
   }
   return body.result
 }

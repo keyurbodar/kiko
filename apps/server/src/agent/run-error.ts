@@ -14,6 +14,23 @@ const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
   ["network", /connection (error|reset|refused|closed)|fetch failed|network|econn|enotfound|socket hang up|dns|offline/i],
 ]
 
+const DETAIL_MAX = 300
+
+/**
+ * The provider's own words, shown small under kiko's sentence so the human sees what actually went wrong.
+ * Anything that looks like a key or a bearer token is cut out, and the text is capped.
+ */
+export function runErrorDetail(message: string | undefined): string | undefined {
+  const text = (message ?? "")
+    .replace(/(bearer\s+)\S+/gi, "$1[hidden]")
+    .replace(/\b(sk|pk|rk|key|tok|ghp|xox[abp])[-_][A-Za-z0-9_-]{8,}/gi, "[hidden]")
+    .replace(/[A-Za-z0-9_-]{32,}/g, "[hidden]")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (!text) return undefined
+  return text.length > DETAIL_MAX ? `${text.slice(0, DETAIL_MAX - 1)}…` : text
+}
+
 export function classifyRunError(message: string | undefined): RunErrorKind {
   const text = message ?? ""
   return KINDS.find(([, pattern]) => pattern.test(text))?.[0] ?? "other"

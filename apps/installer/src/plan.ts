@@ -40,10 +40,20 @@ export async function ownScriptName(sub: string): Promise<string> {
   return `${DEFAULT_SCRIPT}-${hex.slice(0, 6)}`
 }
 
+/** As the token form names them. Workers Admin was called Workers Scripts Write; Workers Editor cannot create a Worker. */
 export const TOKEN_PERMISSIONS = [
-  "Account: Workers Scripts: Edit",
+  "Account: Workers Admin (it may show as Workers Scripts: Edit)",
   "Account: Account Settings: Read",
-  "Account: Workers R2 Storage: Edit",
+  "Account: Workers R2 Storage: Edit (optional, for files)",
 ] as const
+
+const TEMPLATE_KEYS = [
+  { key: "workers_scripts", type: "edit" },
+  { key: "account_settings", type: "read" },
+  { key: "workers_r2", type: "edit" },
+]
+
+/** The create-token form with the permissions ticked, for every account the person has. */
+export const TOKEN_TEMPLATE_URL = `https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=${encodeURIComponent(JSON.stringify(TEMPLATE_KEYS))}&accountId=*&zoneId=all&name=Kiko`
 
 export const OAUTH_SCOPES = ["workers-scripts.write", "account-settings.read", "workers-r2.write", "offline_access"] as const

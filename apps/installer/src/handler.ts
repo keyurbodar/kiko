@@ -1,10 +1,10 @@
 import { verifyToken } from "@clerk/backend"
 import type { InstallEnv } from "./install"
-import { OAUTH_SCOPES, TOKEN_PERMISSIONS, type Grant } from "./plan"
+import { OAUTH_SCOPES, TOKEN_PERMISSIONS, TOKEN_TEMPLATE_URL, type Grant } from "./plan"
 
 export type InstallOutcome =
   | { ok: true; value: { backendUrl: string; version: string } }
-  | { ok: false; error: { code: string; message: string; status: number } }
+  | { ok: false; error: { code: string; message: string; status: number; detail?: string; accounts?: { id: string; name: string }[] } }
 
 export type Env = InstallEnv & {
   INSTALL: {
@@ -60,8 +60,9 @@ export default {
       return reply({ clientId: env.CF_OAUTH_CLIENT_ID, authorizeUrl: "https://dash.cloudflare.com/oauth2/auth", scopes: OAUTH_SCOPES }, 200, origin)
     }
     if (request.method === "GET" && url.pathname === "/token-link") {
-      // UNVERIFIED: Cloudflare documents no prefilled token URL, so this is the plain page plus the list to tick.
-      return reply({ url: "https://dash.cloudflare.com/profile/api-tokens", permissions: TOKEN_PERMISSIONS }, 200, origin)
+      // A token template URL opens the create form with the permissions ticked
+      // (https://developers.cloudflare.com/fundamentals/api/how-to/account-owned-token-template/).
+      return reply({ url: TOKEN_TEMPLATE_URL, permissions: TOKEN_PERMISSIONS }, 200, origin)
     }
 
     if (request.method === "POST" && url.pathname === "/install") {

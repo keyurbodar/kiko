@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RunErrorKind } from "@kiko/protocol"
-import { classifyRunError, describeRunError } from "../src/agent/run-error"
+import { classifyRunError, describeRunError, runErrorDetail } from "../src/agent/run-error"
 
 describe("classifyRunError", () => {
   const cases: [string, RunErrorKind][] = [
@@ -57,5 +57,22 @@ describe("describeRunError", () => {
     expect(describeRunError("invalid_key", "P", "A").toast).toBe("open_models")
     expect(describeRunError("overloaded", "P", "A").toast).toBeUndefined()
     expect(describeRunError("other", "P", "A").toast).toBeUndefined()
+  })
+})
+
+describe("the provider's own words", () => {
+  test("are kept so the human sees what went wrong", () => {
+    expect(runErrorDetail('404 {"error":{"message":"The model `gpt-9` does not exist"}}')).toContain("does not exist")
+  })
+  test("never carry a key or a bearer token", () => {
+    const out = runErrorDetail("401 Incorrect API key provided: sk-proj-abcdefghijklmnop1234. Authorization: Bearer abc.def.ghi") ?? ""
+    expect(out).not.toContain("sk-proj-abcdefghijklmnop1234")
+    expect(out).not.toContain("abc.def.ghi")
+    expect(out).toContain("Incorrect API key")
+  })
+  test("are capped, and nothing is said when there are none", () => {
+    expect((runErrorDetail("x ".repeat(400)) ?? "").length).toBeLessThanOrEqual(300)
+    expect(runErrorDetail(undefined)).toBeUndefined()
+    expect(runErrorDetail("   ")).toBeUndefined()
   })
 })

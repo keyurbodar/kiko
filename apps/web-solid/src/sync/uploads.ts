@@ -66,6 +66,17 @@ export function uploadState(id: string): UploadState | undefined {
   return uploads[id]
 }
 
+/** The server's own sentence when it sent one, else a plain one for the status. */
+export function refusal(status: number, body: string): string {
+  try {
+    const said = (JSON.parse(body) as { error?: unknown }).error
+    if (typeof said === "string" && said.includes(" ")) return said
+  } catch {}
+  if (status === 413) return "That file is too large to upload."
+  if (status === 401) return "Your session ended. Sign in again, then retry."
+  return status >= 500 ? `Your backend had a problem (${status}). Retry in a moment.` : `The upload was refused (${status}).`
+}
+
 /** One request. Resolves with the body, rejects with the reason a thumbnail's tooltip shows. */
 function request(job: Job, method: string, url: string, body: Blob | string | null, headers: Record<string, string>, onProgress?: (loaded: number) => void): Promise<string> {
   const xhr = new XMLHttpRequest()
@@ -76,7 +87,7 @@ function request(job: Job, method: string, url: string, body: Blob | string | nu
     xhr.timeout = TIMEOUT_MS
     for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v)
     if (onProgress) xhr.upload.addEventListener("progress", (e) => e.lengthComputable && onProgress(e.loaded))
-    xhr.addEventListener("load", () => (xhr.status >= 200 && xhr.status < 300 ? resolve(xhr.responseText) : reject(new Error(`Upload rejected (${xhr.status})`))))
+    xhr.addEventListener("load", () => (xhr.status >= 200 && xhr.status < 300 ? resolve(xhr.responseText) : reject(new Error(refusal(xhr.status, xhr.responseText)))))
     xhr.addEventListener("error", () => reject(new Error("Upload failed")))
     xhr.addEventListener("timeout", () => reject(new Error("Upload timed out")))
     xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")))

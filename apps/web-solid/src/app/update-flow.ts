@@ -18,6 +18,9 @@ export { progress }
 
 /** True when the front door serves a newer client than this tab runs. Always false off the hosted app. */
 export const clientIsBehind = () => hosted && clientBehind(APP_VERSION, latest())
+/** Where the backend keeps files. Unknown until the first version check answers. */
+export const backendStorage = () => fetched()?.storage
+
 /** The backend as the last check saw it, else as the socket's hello said. */
 export const backendVersion = () => fetched()?.version ?? useApp.user()?.state.backendVersion
 export const currentSkew = (): Skew | undefined => {
