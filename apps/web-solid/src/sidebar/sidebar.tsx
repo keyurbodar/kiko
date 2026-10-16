@@ -9,7 +9,6 @@ import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { KIKO } from "@kiko/protocol"
-import { BrandArt } from "./brand"
 import { ChatPanel } from "./chat-panel"
 import "./sidebar.css"
 
@@ -77,7 +76,7 @@ export function Sidebar(props: SidebarProps) {
       data-panel={props.section ?? undefined}
       data-collapsed={collapsed() ? "" : undefined}
       >
-      <BrandArt />
+      <div class="brand-art" aria-hidden="true" />
       <header class="panel-header">
         <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
           <IdentityAvatar seed={KIKO} size={22} />
