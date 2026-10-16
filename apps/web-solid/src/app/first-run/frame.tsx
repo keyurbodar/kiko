@@ -1,7 +1,6 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { For, Match, Show, Switch, createEffect } from "solid-js"
+import { For, Match, Show, Switch, createEffect, lazy } from "solid-js"
 import "./first-run.css"
-import { ConnectCloudflare } from "../connect"
 import { hosted } from "../hosted"
 import { session } from "../session"
 import { Backdrop, Mascot } from "./backdrop"
@@ -13,6 +12,7 @@ import { indexOf, stepsFor } from "./steps"
 import { AccessCode, Welcome } from "./welcome"
 
 const STEPS = stepsFor(hosted)
+const ConnectCloudflare = lazy(() => import("../connect").then((m) => ({ default: m.ConnectCloudflare })))
 
 const Check = () => (
   <svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -31,6 +31,7 @@ export default function FirstRun() {
   const navigate = useNavigate()
   const at = () => indexOf(currentStep(), hosted)
 
+  if (hosted) void ConnectCloudflare.preload()
   if (hosted && session().status !== "signed-in" && currentStep() !== "cloudflare") resumeClerk(location.search)
 
   createEffect(() => {

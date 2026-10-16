@@ -3,6 +3,8 @@
  * 192 and 512 px manifest icons. They go to apps/web-solid/public and apps/landing/public.
  * The art is the real @kiko/avatar (Fubuki with headphones) on the app's own #0a0a0a, with a zinc
  * blueprint grid behind it. The leaves are recolored silver, so the berry eyes are the only color.
+ * It also writes the welcome screen's mascot to apps/web-solid/public: the same face with open eyes, and
+ * with closed eyes for its blink.
  * Edit the look below, then run `bun scripts/gen-brand.ts`.
  */
 import { writeFileSync } from "node:fs"
@@ -78,3 +80,7 @@ const files: Record<string, string | Uint8Array> = {
 
 for (const dir of OUT) for (const [name, data] of Object.entries(files)) writeFileSync(resolve(import.meta.dir, "..", dir, name), data)
 console.log(`wrote ${Object.keys(files).length} files to ${OUT.join(" and ")}`)
+
+const welcome = (mood: "calm" | "happy") => silver(avatar("kiko", { flavour: "fubuki", mood, facing: "left", charm: "headphones" }))
+writeFileSync(resolve(import.meta.dir, "../apps/web-solid/public/kiko-mascot.svg"), welcome("calm"))
+writeFileSync(resolve(import.meta.dir, "../apps/web-solid/public/kiko-mascot-blink.svg"), welcome("happy"))

@@ -1,20 +1,12 @@
-import { avatar } from "@kiko/avatar"
 import { Show } from "solid-js"
 
-/* The favicon's mascot (scripts/gen-brand.ts): Fubuki with headphones, its leaves recolored silver. */
-const SILVER: Record<string, string> = { "#25492e": "#5b5b63", "#578357": "#b4b4bc", "#2f5e3b": "#7a7a83", "#6fa86f": "#e4e4e7" }
-const face = (mood: "calm" | "happy") => {
-  const svg = avatar("kiko", { flavour: "fubuki", mood, facing: "left", charm: "headphones" })
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/#[0-9a-f]{6}/gi, (hex) => SILVER[hex.toLowerCase()] ?? hex))}`
-}
-
-/** The mascot breathes, and blinks by showing the closed-eye face over the eyes alone. */
+/** The favicon's mascot (scripts/gen-brand.ts writes both faces). It breathes, and blinks by showing the closed-eye face over the eyes alone. */
 export function Mascot() {
   return (
     <div class="welcome-mascot" aria-hidden="true">
       <div class="welcome-mascot-body">
-        <img src={face("calm")} alt="" draggable={false} />
-        <img src={face("happy")} alt="" draggable={false} class="welcome-mascot-blink" />
+        <img src="/kiko-mascot.svg" alt="" draggable={false} />
+        <img src="/kiko-mascot-blink.svg" alt="" draggable={false} class="welcome-mascot-blink" />
       </div>
     </div>
   )
