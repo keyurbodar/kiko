@@ -21,7 +21,8 @@ export function createAgent(form: Form, pins: AvatarPins, back: () => void): Roo
   const roomId = newRoomId()
   const undo = user.addAgentChat(agent, roomId)
   const before = look()
-  saveLook({ ...before, avatars: { ...before.avatars, [slug]: pins } })
+  // No pins is the face the handle draws, which every view shows for an agent with no pick.
+  if (Object.keys(pins).length) saveLook({ ...before, avatars: { ...before.avatars, [slug]: pins } })
   void send(agent, roomId, description).then((error) => {
     if (error === null) return
     undo()

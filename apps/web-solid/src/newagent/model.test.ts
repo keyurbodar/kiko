@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { handleFrom, problems, ready, shufflePins, suggestHandle, tidyName, uniqueHandle } from "./model"
+import { faceOptions, handleFrom, problems, ready, shufflePins, suggestHandle, tidyName, uniqueHandle } from "./model"
 
 const taken = [
   { name: "Scout", slug: "scout" },
@@ -47,4 +47,11 @@ test("shuffle pins a flavor and never a charm with an outfit", () => {
 
 test("the name is stored trimmed with a capital", () => {
   expect(tidyName("  ebert ")).toBe("Ebert")
+})
+
+test("the first face is drawn from the handle alone, the rest are picks", () => {
+  const faces = faceOptions(() => 0.1)
+  expect(faces).toHaveLength(8)
+  expect(faces[0]).toEqual({})
+  expect(faces.slice(1).every((f) => f.flavour !== undefined)).toBe(true)
 })

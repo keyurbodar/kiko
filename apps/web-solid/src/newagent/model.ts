@@ -67,6 +67,9 @@ export function shufflePins(random: () => number = Math.random): AvatarPins {
   return { flavour, charm: "none", outfit: "none" }
 }
 
+/** Eight faces to pick from. The first has no pins: it is the face the handle draws, so it changes as the name is typed. */
+export const faceOptions = (random: () => number = Math.random): AvatarPins[] => [{}, ...Array.from({ length: 7 }, () => shufflePins(random))]
+
 /** The name as the server will store it: trimmed, and starting with a capital. */
 export const tidyName = (name: string): string => {
   const n = name.trim()

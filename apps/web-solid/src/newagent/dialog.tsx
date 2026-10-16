@@ -6,11 +6,9 @@ import { cn } from "../lib/cn"
 import { useApp } from "../lib/store"
 import { Button, fieldClass } from "../settings/kit"
 import { createAgent } from "./create"
-import { MAX_DESCRIPTION, MAX_NAME, problems, ready, shufflePins, suggestHandle } from "./model"
+import { faceOptions, MAX_DESCRIPTION, MAX_NAME, problems, ready, suggestHandle } from "./model"
 import { closeNewAgent } from "./state"
 
-const CANDIDATES = 8
-const candidates = () => Array.from({ length: CANDIDATES }, () => shufflePins())
 
 /*
  * The new agent form: a name, a handle, a face, and what it should do. Create opens the agent's own chat at
@@ -24,7 +22,7 @@ export default function NewAgentDialog() {
   const [handle, setHandle] = createSignal("")
   const [handleEdited, setHandleEdited] = createSignal(false)
   const [description, setDescription] = createSignal("")
-  const [options, setOptions] = createSignal(candidates())
+  const [options, setOptions] = createSignal(faceOptions())
   const [chosen, setChosen] = createSignal(0)
   const taken = () => useApp.agents().map((a) => ({ name: a.name, slug: a.slug }))
   const form = () => ({ name: name(), handle: handle(), description: description() })
@@ -40,8 +38,8 @@ export default function NewAgentDialog() {
     if (!handleEdited()) setHandle(suggestHandle(value, taken()))
   }
   const shuffle = () => {
-    setOptions(candidates())
-    setChosen(0)
+    setOptions(faceOptions())
+    setChosen(1)
   }
   const create = (event?: SubmitEvent) => {
     event?.preventDefault()
@@ -125,7 +123,7 @@ export default function NewAgentDialog() {
                 type="button"
                 role="radio"
                 aria-checked={chosen() === index()}
-                aria-label={`Face ${index() + 1}`}
+                aria-label={index() === 0 ? "Face from the name" : `Face ${index() + 1}`}
                 class="grid aspect-square place-items-center rounded-xl outline-none hover:bg-[var(--control)] aria-checked:bg-[var(--ring-wash)] aria-checked:shadow-[inset_0_0_0_1px_var(--ring)]"
                 onClick={() => setChosen(index())}
               >
