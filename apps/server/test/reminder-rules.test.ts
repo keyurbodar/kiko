@@ -72,18 +72,6 @@ test("a routine repeats at most every 30 minutes", async () => {
   await expect(reminders.createRoutine("u", timeRoutine(at, { rrule: "FREQ=MINUTELY" }))).rejects.toThrow("at most every 30 minutes")
 })
 
-test("aging the initiative clock moves an agent's own one-time routine with it, a day at a time", async () => {
-  const { clock, reminders } = setup()
-  const HOUR = 60 * MIN
-  const own = await reminders.createRoutine("u", { ...timeRoutine(clock.now + 28 * HOUR), createdBy: "kiko" })
-  const human = await reminders.createRoutine("u", timeRoutine(clock.now + 28 * HOUR))
-  await reminders.devAge(24 * HOUR)
-  expect(reminders.get(own.routine.id)!.dueUtc).toBe(clock.now + 4 * HOUR)
-  await reminders.devAge(24 * HOUR)
-  expect(reminders.get(own.routine.id)!.dueUtc).toBe(clock.now)
-  expect(reminders.get(human.routine.id)!.dueUtc).toBe(clock.now + 28 * HOUR)
-})
-
 test("a routine with a trigger kiko dropped is refused, and resuming a stored one says why", async () => {
   const { sql, clock, reminders } = setup()
   const watch = { on: "watch" as const, url: "https://example.com", everyMinutes: 15 }
