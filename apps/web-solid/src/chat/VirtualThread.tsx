@@ -13,7 +13,7 @@ import {
 } from "solid-js"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
 import type { ChatMessage, RosterBot } from "../lib/types"
-import { buildTimelineItems, dayStartOf, keepUnchanged, type Notice, type TimelineItem } from "./lib/grouping"
+import { buildTimelineItems, dayStartOf, keepUnchanged, type TimelineItem } from "./lib/grouping"
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
 import { dividerLabel, dividerParts } from "./lib/time-label"
@@ -21,6 +21,7 @@ import { jumboEmojiClass } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"
 import { SystemMessage } from "./SystemMessage"
+import { ActivityEvent } from "./ui/ActivityEvent"
 import { AgentThread } from "./AgentThread"
 import { MentionLookup } from "./ui/Mention"
 import { TypingIndicator } from "./typing/TypingIndicator"
@@ -76,7 +77,6 @@ export function VirtualThread(props: {
   waitingDoings?: readonly (string | undefined)[]
   groupChat?: boolean
   memberSlugs?: readonly string[]
-  notices?: readonly Notice[]
   onReact?: (messageId: string, emoji: string) => void
   onEdit?: (messageId: string) => void
   onDelete?: (messageId: string) => void
@@ -110,7 +110,6 @@ export function VirtualThread(props: {
     const next = keepUnchanged(
       lastItems,
       buildTimelineItems(props.messages, props.firstUnreadMessageId, {
-        notices: props.groupChat ? props.notices : undefined,
         members: memberSet(),
         expanded: expanded(),
       }),
@@ -296,7 +295,13 @@ export function VirtualThread(props: {
   }
 
   const scrollToLatest = () => {
-    if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
+    const scroller = scrollElement
+    if (!scroller) return
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: reduced ? "auto" : "smooth" })
+    if (reduced) return
+    // Rows below the view are measured as they arrive, so the first target can fall short.
+    scroller.addEventListener("scrollend", () => scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" }), { once: true })
   }
 
   let anchor: DriftAnchor | undefined
@@ -534,13 +539,12 @@ export function VirtualThread(props: {
         </SystemMessage>
       )
     }
-    if (item.kind === "notice") {
-      return <SystemMessage data-component="chat-notice">{item.text}</SystemMessage>
+    if (item.kind === "event") {
+      return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? slug} />
     }
     if (item.kind === "thread") {
       return (
         <AgentThread
-          slugs={item.slugs}
           names={item.slugs.map((slug) => props.botById(slug)?.name ?? slug)}
           count={item.messages.length}
           expanded={item.expanded}

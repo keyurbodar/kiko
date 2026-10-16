@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { RecipeApp, RecipeCard, RecipeInstall, RoomId } from "@kiko/protocol"
 import { triggerLabel } from "../chat/info/routines-model"
-import { filterRecipes, groupByChat, installStatus, installedSlugs, nextLabel, recipeForRoutine, recipeTags, starterTiles, tagLabel } from "./model"
+import { filterRecipes, groupByChat, installStatus, installedSlugs, nextLabel, recipeForRoutine, recipeTags, tagLabel } from "./model"
 
 const card = (slug: string, over: Partial<RecipeCard> = {}): RecipeCard => ({
   slug,
@@ -63,15 +63,6 @@ describe("installed recipes", () => {
     expect(installedSlugs([], { roomId: "r", agent: "kiko" }).has("day-trip")).toBe(false)
     expect(installedSlugs([install("day-trip")], { roomId: "r", agent: "ada" }).has("day-trip")).toBe(false)
     expect(installedSlugs([install("day-trip")], { roomId: "other-chat", agent: "kiko" }).has("day-trip")).toBe(false)
-  })
-})
-
-describe("the empty chat's tiles", () => {
-  test("the preferred five come first, in order, and the catalog's first recipes fill any gap", () => {
-    const many = ["meme-machine", "daily-weather", "x1", "morning-briefing", "follow-up-nudges", "x2", "decision-council"].map((s) => card(s))
-    expect(starterTiles(many).map((c) => c.slug)).toEqual(["morning-briefing", "decision-council", "follow-up-nudges", "daily-weather"])
-    expect(starterTiles(cards).map((c) => c.slug)).toEqual(["morning-briefing", "daily-weather", "expense-log", "day-trip"])
-    expect(starterTiles(many.slice(0, 2)).map((c) => c.slug)).toEqual(["daily-weather", "meme-machine"])
   })
 })
 

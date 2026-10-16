@@ -26,7 +26,7 @@ import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
-import { createRoomStore, type MemberNotice, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
+import { createRoomStore, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
 import { socketUrl } from "./api"
 import { fileToken, fileUrl } from "./file-token"
 import { browserConnect, type Connect } from "../sync/socket"
@@ -749,11 +749,6 @@ export function createApp(options: AppOptions = {}) {
       /** Calls `listener` when the open room refuses a member change. Returns the unsubscribe. */
       onMemberRefused(listener: (op: MemberOp, reason: MemberRefusal) => void): () => void {
         return room()?.onMemberRefused(listener) ?? (() => {})
-      },
-
-      /** Who joined and left the open room, for the transcript's system lines. */
-      memberNotices(): MemberNotice[] {
-        return room()?.state.roster ?? []
       },
 
       /**

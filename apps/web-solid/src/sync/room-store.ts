@@ -82,14 +82,7 @@ export type RoomData = {
 	asks: HumanAsk[]
 	/** The newest "no provider" refusal (P4-02), until an agent next speaks. The chat shows a connect notice. */
 	noProvider?: { slug: AgentSlug; provider: string } | null
-	/** Who joined and left, oldest first, for the transcript's system lines. The newest `ROSTER_LIMIT`. */
-	roster: MemberNotice[]
 }
-
-/** One member joining or leaving, as the transcript shows it: "kiko joined". */
-export type MemberNotice = { seq: number; at: number; slug: AgentSlug; name: string; kind: "joined" | "left" }
-
-export const ROSTER_LIMIT = 100
 
 /**
  * The most messages the open room holds in memory while the reader follows the end. Older ones
@@ -109,7 +102,6 @@ export const emptyRoom = (): RoomData => ({
 	folders: [],
 	agents: [],
 	asks: [],
-	roster: [],
 })
 
 export function fromSnapshot(s: RoomSnapshot): RoomData {
@@ -123,14 +115,7 @@ export function fromSnapshot(s: RoomSnapshot): RoomData {
 		folders: [...s.folders],
 		agents: [...(s.agents ?? [])],
 		asks: [...(s.asks ?? [])],
-		// A snapshot carries members, not their history. `reset` keeps the lines it already had.
-		roster: [],
 	}
-}
-
-function notice(data: RoomData, n: MemberNotice) {
-	data.roster.push(n)
-	if (data.roster.length > ROSTER_LIMIT) data.roster.splice(0, data.roster.length - ROSTER_LIMIT)
 }
 
 /** A `message` event without its frame fields. */
@@ -217,17 +202,11 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 			data.readSeq = Math.max(data.readSeq, e.upTo)
 			return { meta: true }
 		case "member":
-			// A change to a current member (a rename, a new lead) is not news. An arrival is.
-			if (!data.members.some((x) => x.slug === e.member.slug))
-				notice(data, { seq: e.seq, at: e.at, slug: e.member.slug, name: e.member.name, kind: "joined" })
 			upsert(data.members, e.member, (x) => x.slug === e.member.slug)
 			return { meta: true }
-		case "member_removed": {
-			const gone = data.members.find((x) => x.slug === e.slug)
-			if (gone) notice(data, { seq: e.seq, at: e.at, slug: e.slug, name: gone.name, kind: "left" })
+		case "member_removed":
 			removeWhere(data.members, (x) => x.slug === e.slug)
 			return { meta: true }
-		}
 		case "task":
 			upsert(data.tasks, e.task, (x) => x.id === e.task.id)
 			return { meta: true }
@@ -540,7 +519,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			tasks: s.tasks,
 			files: s.files,
 			folders: s.folders,
-			roster: s.roster,
 			asks: s.asks,
 		}
 		warm.put("meta", metaKey(roomId), meta)
@@ -669,7 +647,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	function reset(snapshot: RoomSnapshot) {
 		queue = queue.filter((e) => e.seq > snapshot.seq)
 		const data = fromSnapshot(snapshot)
-		data.roster = raw(state.roster).filter((n) => n.seq <= snapshot.seq)
 		following = true
 		batch(() => {
 			setState({ ...data, history: null })
@@ -772,7 +749,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 						s.asks = [...(meta?.asks ?? [])]
 						s.files = [...(meta?.files ?? [])]
 						s.folders = [...(meta?.folders ?? [])]
-						s.roster = [...(meta?.roster ?? [])]
 						s.seq = seq
 					}
 					s.loaded = true

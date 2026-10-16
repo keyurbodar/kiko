@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import type { ChatMessage, MessageFile } from "../../lib/types";
 import type { TimelineItem } from "./grouping";
 import { buildTimelineItems } from "./grouping";
@@ -86,6 +87,30 @@ describe("estimateRowHeight covers every TimelineItem variant", () => {
   });
 });
 
+describe("bubble spacing", () => {
+  const css = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
+  const px = (name: string) => Number(new RegExp(`--${name}:\\s*(\\d+)px`).exec(css)?.[1]);
+
+  test("two bubbles of one run sit 2px apart and two runs 12px apart", () => {
+    expect(px("row-gap") * 2).toBe(2);
+    expect(px("row-gap") + px("run-gap")).toBe(12);
+  });
+
+  test("the height estimate uses the same gaps as the CSS", () => {
+    const body = { body: "same body" };
+    const opener = heightOf(bot("a", at(0), body));
+    const continuation = heightOf(bot("b", at(1_000), body), false);
+    expect(opener - continuation).toBe(px("run-gap") - px("row-gap"));
+    expect(continuation).toBe(Math.ceil(14 + 6 + 16 + 2 * px("row-gap")));
+  });
+
+  test("an event line is one 16px line with 4px above and below", () => {
+    const [item] = buildTimelineItems([bot("e", at(0), { botId: undefined, event: { kind: "compacted", agent: "b1", private: true } as never })]);
+    expect(item?.kind).toBe("event");
+    expect(estimateRowHeight(item!)).toBe(24);
+  });
+});
+
 describe("estimateRowHeight on bubbles", () => {
   test("every row of a run reports the same height, and the run opener is taller", () => {
     const [a, b, c] = heightsOf([
@@ -102,8 +127,8 @@ describe("estimateRowHeight on bubbles", () => {
     const opener = heightOf(bot("a", at(0), { body: "same body" }));
     const continuation = heightOf(bot("b", at(1_000), { body: "same body" }), false);
 
-    // 16px of run gap above in place of the row's 1px.
-    expect(opener - continuation).toBe(15);
+    // 11px of run gap above in place of the row's 1px.
+    expect(opener - continuation).toBe(10);
   });
 
   test("each wrapped line adds one 20px line box", () => {
@@ -137,8 +162,8 @@ const pdf = (name = "a.pdf"): MessageFile => ({ name, size: 10, type: "applicati
 
 describe("estimateRowHeight on attachments", () => {
   test("a lone picture reserves a 210px wide 4:3 tile inside the bubble's padding", () => {
-    // 16px of bubble padding, a 157.5px tile, the row gaps: 16 run gap and 1 below.
-    expect(heightOf(me("a", at(0), { body: "", files: [picture()] }))).toBe(Math.ceil(16 + 157.5 + 16 + 1));
+    // 16px of bubble padding, a 157.5px tile, the row gaps: 11 run gap and 1 below.
+    expect(heightOf(me("a", at(0), { body: "", files: [picture()] }))).toBe(Math.ceil(16 + 157.5 + 11 + 1));
   });
 
   test("two pictures share one row of half-width tiles, so they are shorter than one", () => {
