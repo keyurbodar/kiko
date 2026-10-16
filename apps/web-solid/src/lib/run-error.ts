@@ -5,6 +5,7 @@ import { showToastV2, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
 export type RunErrorFrame = Extract<RoomToClient, { t: "run_error" }>
 
 let go: (href: string) => void = () => {}
+export const openSettings = () => go("/settings/models")
 /** The shell gives the toast actions a way to navigate. */
 export const setGo = (fn: (href: string) => void) => {
   go = fn
@@ -35,11 +36,14 @@ export function runErrorToast(frame: Pick<RunErrorFrame, "kind" | "provider" | "
 const catalogName = (id: string | undefined) =>
   id ? loadCatalog().then((catalog) => catalog.providers.find((p) => p.id === id)?.name).catch(() => undefined) : Promise.resolve(undefined)
 
+/** The composer's inline hint already says it, so a no-key run error adds no toast over the first bubble. */
+export const hintCoversRunError = (frame: RunErrorFrame, noKey: boolean): boolean => frame.kind === "no_key" && noKey
+
 export async function showRunError(frame: RunErrorFrame, name: string): Promise<void> {
   const { settings, ...toast } = runErrorToast(frame, name, await catalogName(frame.provider))
   showToastV2({
     ...toast,
     variant: "error",
-    ...(settings ? { action: { label: "Open settings", onClick: () => go("/settings/models") } } : {}),
+    ...(settings ? { action: { label: "Open settings", onClick: openSettings } } : {}),
   })
 }
