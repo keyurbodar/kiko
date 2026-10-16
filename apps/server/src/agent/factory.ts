@@ -22,6 +22,7 @@ import { presenceExtension } from "./extensions/presence"
 import type { RoomFs, SoulPort } from "../files/room-fs"
 import type { ComposioCall, ComposioTool } from "../integrations/composio/client"
 import { COMPOSIO, composioExtension } from "../integrations/composio/tools"
+import { connectAppExtension } from "../integrations/composio/connect-tool"
 import { BROWSER_EXT, type BrowserToolDeps, browserExtension } from "./browser/tools"
 import { baseSections, type RoleInput } from "./prompt"
 import { count } from "../lib/dev-guard"
@@ -75,6 +76,7 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     ...(input.presence ? [presenceExtension(input.presence)] : []),
     ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
+    ...(input.composio?.tools.length ? connectAppExtension(input.composio.tools, input.composio.call) : []),
     ...(input.browser ? [browserExtension(input.browser)] : []),
     ...(input.work ? workExtensions(input.work, all) : []),
     ...(input.testExtensions ?? []),

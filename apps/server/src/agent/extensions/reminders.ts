@@ -22,7 +22,7 @@ export type RemindersPort = {
 }
 
 const decodeTrigger = Schema.decodeUnknownSync(TriggerSchema)
-const SHAPES = "shapes: {on:'time',at:'<iso with offset>',rrule?} | {on:'task',status?:['review']} | {on:'message',from:'human'|'agent'|'any',contains?} | {on:'file',path} | {on:'webhook',match?} | {on:'watch',url,everyMinutes:15 or more}"
+const SHAPES = "shapes: {on:'time',at:'<iso with offset>',rrule?} | {on:'task',status?:['review']} | {on:'message',contains?} | {on:'file',path} | {on:'webhook',match?} | {on:'watch',url,everyMinutes:15 or more}"
 
 function tidyTrigger(value: unknown): unknown {
   let v = value
@@ -84,7 +84,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
         defineTool({
           name: "create_reminder",
           description:
-            "schedule a reminder when the human wants one, or for yourself to keep a promise. never because they mention a deadline, plan, or wait; those are kept without you. say nothing about it unless they asked. for the human by default (it shows in this chat), or for yourself or a teammate with target (it wakes them). give in_seconds for relative times like 'in 10 minutes', or time_iso with an offset for a clock time. rrule (RFC 5545, like FREQ=DAILY) repeats it.",
+            "schedule a reminder when the human wants one, or for yourself to keep a promise. never because they mention a deadline, plan, or wait; those are kept without you. say nothing about it unless they asked. for the human by default (it shows in this chat), or for yourself or a teammate with target (it wakes them). give in_seconds for relative times like 'in 10 minutes', or time_iso with an offset for a clock time. rrule (RFC 5545, like FREQ=DAILY) repeats it. never use a reminder to talk with another agent: message the agent with send_message.",
           parameters: Type.Object({
             text: Type.String({ description: "what to remind about, short" }),
             in_seconds: Type.Optional(Type.Number({ description: "seconds from now" })),
@@ -108,7 +108,7 @@ export function remindersExtension(port: () => RemindersPort | null, tz: () => s
         defineTool({
           name: "create_routine",
           description:
-            "give an agent in this chat a standing job that runs on its own and answers here. use it whenever the human wants something done on a schedule (every day, each monday) or when something happens (whenever, when a task, if a page changes); saying \"got it\" sets nothing. triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and tell them which zone you used; never ask for a zone first); {on:'task', status?:['blocked']} when a task here changes; {on:'message', from:'human'|'agent'|'any', contains?} when someone posts here; {on:'file', path:'invoices'} when files under a folder change; {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service; {on:'watch', url, everyMinutes>=15} to notice a page change, which checks without running you, so use it instead of a frequent schedule. a plain one-off nudge for the human is create_reminder.",
+            "give an agent in this chat a standing job that runs on its own and answers here. use it whenever the human wants something done on a schedule (every day, each monday) or when something happens (whenever, when a task, if a page changes); saying \"got it\" sets nothing. triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and tell them which zone you used; never ask for a zone first); {on:'task', status?:['blocked']} when a task here changes; {on:'message', contains?} when the human posts here (agent messages never match; never make a routine or reminder to talk with another agent, message the agent with send_message); {on:'file', path:'invoices'} when files under a folder change; {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service; {on:'watch', url, everyMinutes>=15} to notice a page change, which checks without running you, so use it instead of a frequent schedule. a plain one-off nudge for the human is create_reminder.",
           parameters: Type.Object({
             name: Type.String({ description: "short, lowercase" }),
             instructions: Type.String({ description: "what to do each run, and what to do when a source is missing" }),

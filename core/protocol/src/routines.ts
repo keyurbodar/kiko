@@ -6,7 +6,7 @@ export type WebhookMatch = { path: string; equals?: string | number | boolean; c
 export type Trigger =
 	| { on: "time"; at: string; rrule?: string }
 	| { on: "task"; status?: readonly TaskStatus[] }
-	| { on: "message"; from: "human" | "agent" | "any"; contains?: string }
+	| { on: "message"; contains?: string }
 	| { on: "file"; path: string }
 	| { on: "webhook"; match?: readonly WebhookMatch[] }
 	/**

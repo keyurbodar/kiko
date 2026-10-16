@@ -32,7 +32,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
   const send = async (to: AgentSlug | "all", body: string, api: Pick<ToolExecutionApi, "conversationId" | "callId">) => {
     const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body })
     return out.ok
-      ? { content: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat. if that was all you had to say, reply with just [skip].`) }
+      ? { content: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat, and their answer will reach you as a message. if that was all you had to say, reply with just [skip].`) }
       : { content: text(out.error), isError: true }
   }
   const slug = (description: string) => Type.String({ description })
@@ -50,7 +50,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
         const who = to.replace(/^@/, "").toLowerCase() as AgentSlug
         const sent = await room().ask({ id, to: who, text: question })
         if (!sent.ok) return { content: text(sent.error), isError: true }
-        const reply = (answer: Answer) => ({ content: text(`@${who} answered: ${answer}`) })
+        const reply = (answer: Answer) => ({ content: text(answer ? `@${who} answered: ${answer}` : `@${who} had nothing to add.`) })
         const answered = (s: { state: string; answer: string | null } | null) => (s?.state === "answered" ? reply(s.answer ?? "") : null)
         const stored = answered(await room().askState(id))
         if (stored) return stored
@@ -110,7 +110,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
         defineTool({
           name: "send_message",
           description:
-            "send a message to one agent in this room, or to every other agent with to: all. it shows in the chat and wakes them. a plain reply wakes nobody, so use this to answer a teammate.",
+            "send a message to one agent in this room, or to every other agent with to: all. it shows in the chat and wakes them. the teammate's answer comes back to you as a message, so you need not wait. a plain reply to a teammate's message is your answer and goes back to them, so use send_message to start a conversation or to say something extra, not to answer.",
           parameters: Type.Object({ to: slug("the agent's slug, without @, or all"), text: Type.String({ description: "the message" }) }),
           replay: "safe",
           execute: async ({ to, text: body }, api) => {
