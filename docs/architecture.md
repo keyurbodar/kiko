@@ -613,6 +613,22 @@ A second `answer` or `skip` for a closed ask does nothing. `RoomSnapshot.asks` h
 
 **Reasoning.** The typing indicator parsed English with two regexes to choose a motion, and a reconnect showed nothing until the next frame. Typed fields cost one function next to the caption and let the client keep a table of cases. Worker rows go on the wire only when the set changes, as the workers design already limits `onChange`. Questions use a stored event and a table, not memory, so a reload or an evicted object cannot lose an open card.
 
+**Errors.** A failure the human must know about is one typed frame, `{t: "error", error: {code, message, action?}}`, on the room socket or the user socket. It is not stored. `message` is one sentence in sentence case that the server wrote from the error's kind. It never carries a stack, provider JSON, or a key. `action` is `open_models` or `open_integrations`, and the client turns it into the "Open settings" button. The server sends it from four places:
+
+| Where | Codes |
+| --- | --- |
+| `UserDO.composioCall` and `composioTools` (`user/user-errors.ts`) | `composio_missing`, `composio_rejected`, `composio_down` |
+| `KernelWiring.lease`, when an agent asks for the browser | `kernel_missing`, `kernel_rejected`, `kernel_down` |
+| `webSocketMessage` in `RoomDO` and `UserDO`, when handling a frame threw | `storage` |
+
+A model or provider error keeps its own frame, `run_error`, which `RunErrorKind` already classifies and the client shows through the same toaster. The agent still gets its tool error as text, so it can tell the human in its own words. The toast is the part the human cannot miss. A tool that failed on its own arguments is the agent's, so `composioFailure` and `kernelFailure` return nothing for it.
+
+Refusals the client caused (`send_refused`, `task_refused`, `member_refused`, `files_refused`, `home_refused`, `chat_refused`) stay as they are: the optimistic patch is dropped, the view rolls back, and a toast gives the reason.
+
+The client has one coordinator, `lib/errors.ts`. `showKikoError` shows a server error, `showFailure(message, action?)` shows any other failure, and `showMissing(message, "open_models" | "open_integrations")` shows a missing prerequisite with its button. Anything that fails fast on the client, such as a recipe that needs an integration, calls `showMissing` and starts nothing. A toast with an action stays until dismissed. One without closes after ten seconds. The toaster (`toast-v2`, after t3code) refreshes an identical toast in place, so three failed calls show one toast. Toast motion honors `prefers-reduced-motion`.
+
+**Reasoning.** Composio and Kernel failures reached only the agent, as tool text, so a bad key looked like an agent that gave up. One frame, one table of sentences, and one coordinator keep the wording in one place and let a new source add a row instead of a toast.
+
 ### 9.5 Composer cards
 
 **Decision.** The composer has one attached front card. Open human questions lead, followed by open room tasks. Writing, tool activity, provider failures, and model failover do not create cards. The transcript typing indicator retains live progress. Creation receipts appear only in transcript history, so refresh never resurrects a floating Open chat card. Background start and completion events stay in the message log but do not create transcript rows or dividers. Failures and other retained activity events use plain wrapping text with no disclosure. Other cards peek behind it. Kobalte HoverCard handles pointer travel and dismissal. Its button also opens on click or tap. Kobalte Collapsible handles each drawer. Expanded content is bounded to 40 percent of the viewport. There are no transitions.

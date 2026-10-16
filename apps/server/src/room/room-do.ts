@@ -42,6 +42,7 @@ import { tags } from "./recipients"
 import { migrate } from "@kiko/durable/migrate"
 import { ROOM_STEPS } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
+import { STORAGE_ERROR } from "../lib/storage-error"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
 import type { RoomDev } from "./dev"
 import { MemoryNaps, MEMORY_WAKEUP, QUIET_WAKEUP } from "./memory-naps"
@@ -521,7 +522,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-		await handleFrame(this, ws, message)
+		try {
+			await handleFrame(this, ws, message)
+		} catch (e) {
+			console.error(`room frame failed: ${e instanceof Error ? e.message : String(e)}`)
+			send(ws, { t: "error", error: STORAGE_ERROR })
+		}
 	}
 
 	async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {

@@ -7,6 +7,20 @@ import type * as P from "./index"
 
 const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 const Id = Schema.String.check(Schema.isMinLength(1))
+export const KikoError = Schema.Struct({
+	code: Schema.Literals([
+		"composio_missing",
+		"composio_rejected",
+		"composio_down",
+		"kernel_missing",
+		"kernel_rejected",
+		"kernel_down",
+		"storage",
+	]),
+	message: Id,
+	action: Schema.optionalKey(Schema.Literals(["open_models", "open_integrations"])),
+})
+
 const opaque = <T extends string>() => Id.pipe(Schema.refine((value): value is T => true))
 
 export const UserId = opaque<P.UserId>()
@@ -347,6 +361,7 @@ export const RoomToClient = Schema.Union([
 		provider: Schema.optionalKey(Schema.String),
 		detail: Schema.optionalKey(Schema.String),
 	}),
+	Schema.Struct({ t: Schema.Literal("error"), error: KikoError }),
 	Schema.Struct({ t: Schema.Literal("files_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({
 		t: Schema.Literal("search"),
@@ -561,6 +576,7 @@ export const LoginErrorReason = Schema.Literals(["unsupported", "disabled", "unk
 
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent), version: Schema.optionalKey(Schema.String), protocol: Schema.optionalKey(Schema.Number), fileToken: Schema.optionalKey(Schema.String) }),
+	Schema.Struct({ t: Schema.Literal("error"), error: KikoError }),
 	Schema.Struct({ t: Schema.Literal("home_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("chat_refused"), roomId: RoomId, existing: RoomId }),
 	Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),
