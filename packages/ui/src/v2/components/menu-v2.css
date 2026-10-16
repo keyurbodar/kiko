@@ -12,6 +12,10 @@
     align-items: stretch;
     padding: 4px;
     min-width: 168px;
+    max-width: var(--kb-popper-content-available-width);
+    max-height: var(--kb-popper-content-available-height);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     z-index: 60;
     pointer-events: auto;
 

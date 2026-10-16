@@ -333,3 +333,44 @@
     gap: 1.5rem;
   }
 }
+
+.kit-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+}
+
+.kit-tab {
+  position: relative;
+  height: 32px;
+  padding: 0 10px;
+  color: var(--kit-muted);
+  font-size: var(--font-md);
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+
+.kit-tab:hover {
+  color: var(--foreground);
+}
+
+.kit-tab[aria-selected="true"] {
+  color: var(--foreground);
+}
+
+.kit-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--foreground);
+}
+
+.kit-tab:focus-visible {
+  border-radius: var(--radius-xs);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 60%, transparent);
+}

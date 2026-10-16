@@ -9,8 +9,11 @@ import type { ThinkingLevel } from "@kiko/protocol"
 import { connectedProviders } from "./connected"
 import { favoriteModels, hiddenModels, toggleFavorite } from "./model-picker"
 import { modelProviders } from "./provider-kinds"
+import { placePanel } from "../lib/place-panel"
 
 const ROW_H = 44
+const PANEL_W = 420
+const PANEL_H = 380
 const FAVORITES = "favorites"
 
 function Star(props: { on: boolean }) {
@@ -66,8 +69,10 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
   onMount(() => {
     const trigger = props.trigger()
     if (!trigger) return
-    const r = (trigger.closest(".composer-form") ?? trigger).getBoundingClientRect()
-    setPlace({ left: `${Math.max(8, Math.min(r.left + 18, window.innerWidth - 428))}px`, bottom: `${window.innerHeight - r.top + 8}px` })
+    const form = trigger.closest(".composer-form")
+    const r = (form ?? trigger).getBoundingClientRect()
+    const anchor = form ? { top: r.top, bottom: r.bottom, left: r.left + 18, right: r.right } : r
+    setPlace(placePanel(anchor, PANEL_W, PANEL_H, { width: window.innerWidth, height: window.innerHeight }, form ? "above" : "below", form ? "start" : "end"))
   })
   createEffect(on([query, rail], () => setAt(0), { defer: true }))
   createEffect(() => {
