@@ -324,6 +324,18 @@ test("an account from before the rename keeps its Kiko chat: adopted, flagged, p
   expect(chats[0]).toMatchObject({ kiko: true, pinned: true, agents: ["kiko"], title: "Kiko" })
 })
 
+test("the Kiko chat record drops an agent added before the rule, and a chat's agents follow its room's members", async () => {
+  const user = fresh()
+  await rpc(user, "createAgent", { id: "id-hub", name: "hub", slug: "hub", prompt: "", model: "" })
+  await rpc(user, "createChat", ROOM_A, "Kiko", ["kiko", "id-hub"])
+  await rpc(user, "putSetting", "kiko_home", ROOM_A)
+  await rpc(user, "ensureHome")
+  expect((await homeOf(user))[0]).toMatchObject({ roomId: ROOM_A, agents: ["kiko"] })
+  await rpc(user, "createChat", ROOM_B, "team", ["id-hub"])
+  await rpc(user, "chatMembers", ROOM_B, ["kiko", "hub", "gone"])
+  expect(await rpc(user, "getChat", ROOM_B)).toMatchObject({ agents: ["kiko", "id-hub"] })
+})
+
 test("a Kiko-only chat with no home setting is adopted instead of being hidden or duplicated", async () => {
   const user = fresh()
   await rpc(user, "createChat", ROOM_B, "Kiko", ["kiko"])
