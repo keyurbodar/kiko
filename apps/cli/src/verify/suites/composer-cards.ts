@@ -52,6 +52,14 @@ const suite: Suite = {
     room.raw.send({ t: "answer", id: batch.id, value: { place: "A quiet garden", food: ["Tea", "Cake"] } })
     await poll("one batch answer", () => events().some((e) => e.t === "message" && e.clientId === `answer:${batch.id}` && e.text === "Place: A quiet garden\nFood: Tea, Cake"), 15_000)
     console.log("  ok multi-question requests, described options, custom answers and multi-select replies survive reconnect")
+    await send(room, '[textcall ask_human {"question":"Which city?","options":["Oslo","Rome"]}]')
+    const typed = await poll("the question from a tool call written as text", () => events().find((e) => e.t === "ask" && e.text === "Which city?"), 15_000)
+    if (typed.t !== "ask") throw new VerifyError("a tool call written as text did not run")
+    const spoken = events().flatMap((e) => (e.t === "message" && e.from.kind === "agent" ? [e.text] : []))
+    const leaked = spoken.filter((text) => /function_calls|invoke|parameter|atem:/.test(text))
+    expectEqual(leaked, [], "agent bubbles that show tool-call markup")
+    if (!spoken.includes("Sure, one moment.")) throw new VerifyError("the prose before the tool call was not posted as a bubble")
+    console.log("  ok a tool call written as text runs its tool, and the bubble holds only the prose")
     room.raw.close()
   },
 }
