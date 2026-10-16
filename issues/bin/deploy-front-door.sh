@@ -20,6 +20,8 @@ bun scripts/release.ts >/dev/null
 # A released version is never replaced with other code: a backend on it would think it is current and never update.
 version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest.json)"
 live="$(curl -sf "https://app.kiko.works/releases/$version/manifest.json" || true)"
+# An unknown path answers with the app page, so only a body that names the version counts as released.
+case "$live" in *"\"version\": \"$version\""*) ;; *) live="" ;; esac
 if [ -n "$live" ] && [ "$live" != "$(cat "dist-release/$version/manifest.json")" ]; then
   echo "Version $version is already released with other code. Bump the version in package.json." >&2
   cd "$root" && git worktree remove --force "$dir"
