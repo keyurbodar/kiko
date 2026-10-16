@@ -1,4 +1,4 @@
-import type { Trigger } from "@kiko/protocol"
+import type { AgentSlug, Trigger } from "@kiko/protocol"
 import { sha256Hex } from "@kiko/durable/hash"
 import { safeFetch } from "@kiko/durable/safe-fetch"
 import { defaultFetcher } from "../lib/dev-fixture-fetch"
@@ -36,6 +36,8 @@ export class RoutineWiring {
         this.d.reminders.remove(out.routine.id)
         throw e
       }
+      const { routine } = out
+      await roomStub(this.d.env.ROOM, owner, routine.roomId).routineCreated(routine.target as AgentSlug, routine.id, routine.name ?? input.name).catch(() => {})
       return out
     })
   }

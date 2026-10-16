@@ -4,6 +4,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { type Effect, declareEffect } from "@kiko/agent/effects"
+import { plainReport } from "@kiko/agent/workers"
 import { boundedWait } from "@kiko/durable/bounded-wait"
 import { type BuildAgentInput, buildAgent } from "./factory"
 import { withTextToolCalls } from "./tool-markup"
@@ -62,7 +63,8 @@ function workerReply(messages: readonly Message[], toolNames: () => string) {
   if (direct && !results.length) return fauxAssistantMessage(fauxToolCall(capture(direct, 1), JSON.parse(capture(direct, 2))), { stopReason: "toolUse" })
   const steps = direct ? 1 : Number(/\[steps (\d+)\]/.exec(users[0] ?? "")?.[1] ?? 1)
   if (results.length < steps) return fauxAssistantMessage(fauxToolCall(SLOW_TOOL, { ms: WORK_STEP_MS }), { stopReason: "toolUse" })
-  return fauxAssistantMessage(`work done: heard=${users.join(" | ")}${direct ? `; tool: ${results.map(textOf).join(", ")}` : ""}`)
+  const told = results.map((r) => plainReport(textOf(r))).filter(Boolean)
+  return fauxAssistantMessage(`work done: heard=${users.join(" | ")}${direct && told.length ? `; tool: ${told.join(", ")}` : ""}`)
 }
 
 const toolsOf = (transcript: readonly Message[]) => new Set([...JSON.stringify(transcript.filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map((m) => capture(m, 1)))

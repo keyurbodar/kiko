@@ -29,6 +29,9 @@ const UNREAD = "unread"
 // A private event is for the owner's transcript only: no agent, memory pass, search or chat preview reads it.
 export const PUBLIC_MESSAGE = "(event IS NULL OR json_extract(event, '$.private') IS NOT 1)"
 
+// Mail between agents sits behind a divider in the transcript, so a preview or a search result does not quote it either.
+export const LISTED_MESSAGE = `${PUBLIC_MESSAGE} AND addressed IS NULL`
+
 export const isPrivate = (m: { event?: { kind: string } }): boolean => (m.event as { private?: boolean } | undefined)?.private === true
 
 type Body = RoomEvent extends infer E ? (E extends unknown ? Omit<E, "seq" | "at"> : never) : never

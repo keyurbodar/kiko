@@ -1,6 +1,6 @@
-import { type ChatLast, messageLast, mentionsHuman, oneLine } from "@kiko/protocol"
+import { type ChatLast, messageLast, mentionsHuman, oneLine, type RichText } from "@kiko/protocol"
 import type { FileRef, Sender } from "@kiko/protocol"
-import { PUBLIC_MESSAGE, type RoomLog } from "./log"
+import { LISTED_MESSAGE, type RoomLog } from "./log"
 
 export type Touch = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions: number; group: boolean }
 
@@ -20,8 +20,8 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 	const candidates: Candidate[] = []
 
 	const message = sql
-		.exec<{ seq: number; at: number; sender: string; text: string; files: string | null }>(
-			`SELECT seq, at, sender, text, files FROM messages WHERE deleted_at IS NULL AND ${PUBLIC_MESSAGE} ORDER BY seq DESC LIMIT 1`,
+		.exec<{ seq: number; at: number; sender: string; text: string; rich: string | null; files: string | null }>(
+			`SELECT seq, at, sender, text, rich, files FROM messages WHERE deleted_at IS NULL AND ${LISTED_MESSAGE} ORDER BY seq DESC LIMIT 1`,
 		)
 		.toArray()[0]
 	if (message) {
@@ -29,7 +29,7 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 		const files = message.files ? (JSON.parse(message.files) as FileRef[]) : undefined
 		candidates.push({
 			seq: message.seq,
-			last: messageLast({ from: from.kind, ...(from.kind === "agent" ? { name: nameOf(from.slug) } : {}), text: message.text, ...(files ? { files } : {}), at: message.at }),
+			last: messageLast({ from: from.kind, ...(from.kind === "agent" ? { name: nameOf(from.slug) } : {}), text: message.text, ...(message.rich ? { rich: JSON.parse(message.rich) as RichText, mentionName: nameOf } : {}), ...(files ? { files } : {}), at: message.at }),
 		})
 	}
 

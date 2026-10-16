@@ -27,3 +27,45 @@ export type Block =
 	| { t: "table"; align: readonly ColumnAlign[]; head: readonly (readonly Inline[])[]; rows: readonly (readonly (readonly Inline[])[])[] }
 
 export type RichText = readonly Block[]
+
+const inlineText = (nodes: readonly Inline[], name: (slug: string) => string): string =>
+	nodes
+		.map((n) => {
+			switch (n.t) {
+				case "text":
+				case "code":
+					return n.text
+				case "mention":
+					return `@${name(n.slug)}`
+				default:
+					return inlineText(n.children, name)
+			}
+		})
+		.join("")
+
+const blockText = (block: Block, name: (slug: string) => string): string => {
+	switch (block.t) {
+		case "paragraph":
+		case "heading":
+			return inlineText(block.children, name)
+		case "list":
+			return block.items.map((item) => item.map((b) => blockText(b, name)).join("\n")).join("\n")
+		case "quote":
+			return block.children.map((b) => blockText(b, name)).join("\n")
+		case "rule":
+			return ""
+		case "code_block":
+			return block.text
+		case "table":
+			return [block.head, ...block.rows].map((row) => row.map((cell) => inlineText(cell, name)).join(" ")).join("\n")
+	}
+}
+
+/**
+ * A message as plain words, with no markup: the one text a chat-list preview and a search result
+ * show. Blocks are separated by a newline; the caller flattens whitespace. A mention reads as
+ * `@` and whatever `name` returns for the slug.
+ */
+export function plainText(rich: RichText, name: (slug: string) => string = (slug) => slug): string {
+	return rich.map((b) => blockText(b, name)).join("\n")
+}

@@ -69,7 +69,7 @@ export const WORK_LINES = `- Web pages, the browser, the human's connected apps,
 - Answer small questions yourself, at once, even while workers run.
 - Your workers are listed in <context>. When the human changes the request, steer_work the right worker, or stop_work it if they no longer want it.
 - When the human asks for status or progress, cover everything in progress: what you are doing now, and each running worker from <context> with its step.
-- A <work> input is a worker's report. Verify the result and update its tracked tasks before replying. Tell the human the outcome in your own words, once the work is done. No progress lines.`
+- A <work> input is a worker's report. Verify the result and update its tracked tasks before replying. Tell the human the outcome in your own words, once the work is done. Never paste the report, a tool error, or markup into a bubble. No progress lines.`
 
 export function baseSections(input: RoleInput): PromptSection[] {
   return [

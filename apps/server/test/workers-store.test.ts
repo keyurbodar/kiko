@@ -58,3 +58,9 @@ test("a workers table from before this change reads and writes after the upgrade
   workers.touched(2 as ConversationId, ["/a.txt"])
   expect(workers.note()).toBe("your workers:\n- w2 (running, 1 step): tidy the folder. changed: /a.txt. last step: write /a.txt")
 })
+
+test("a worker's report loses the harness's own diagnostics", async () => {
+  const { plainReport } = await import("@kiko/agent/workers")
+  expect(plainReport("<harness>\n[error] Tool mkdir is not available\n</harness>")).toBe("")
+  expect(plainReport("Listed 3 files.\n<harness>\n[error] Tool x is not available\n</harness>\nDone.")).toBe("Listed 3 files.\n\nDone.")
+})

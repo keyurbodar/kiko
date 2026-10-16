@@ -105,6 +105,7 @@ export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("routine_created"), agent: AgentSlug, title: Schema.String, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("model_changed"), agent: AgentSlug, model: Schema.String, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("compacted"), agent: AgentSlug, private: Schema.Literal(true) }),
+	Schema.Struct({ kind: Schema.Literal("group_formed"), private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("member_added"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("member_removed"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
 ])

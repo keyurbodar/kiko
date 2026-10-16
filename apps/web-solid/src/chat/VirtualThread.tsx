@@ -23,6 +23,7 @@ import { DateChip } from "./ui/DateChip"
 import { SystemMessage } from "./SystemMessage"
 import { ActivityEvent } from "./ui/ActivityEvent"
 import { EventDivider } from "./ui/EventDivider"
+import { agentDisplayName } from "../lib/names"
 import { AgentThread } from "./AgentThread"
 import { MentionLookup } from "./ui/Mention"
 import { TypingIndicator } from "./typing/TypingIndicator"
@@ -541,12 +542,12 @@ export function VirtualThread(props: {
       )
     }
     if (item.kind === "event") {
-      return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? slug} />
+      return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />
     }
     if (item.kind === "thread") {
       return (
         <AgentThread
-          names={item.slugs.map((slug) => props.botById(slug)?.name ?? slug)}
+          names={item.slugs.map((slug) => props.botById(slug)?.name ?? agentDisplayName(slug, []))}
           count={item.messages.length}
           expanded={item.expanded}
           onToggle={() => toggleThread(item.key)}

@@ -9,6 +9,7 @@ import type { RoomStore } from "../../sync/room-store"
 import { composerCards, type ComposerCard } from "./model"
 import { QuestionPanel } from "./question-panel"
 import type { QuestionInput } from "./question-input"
+import { agentDisplayName } from "../../lib/names"
 import "./cards.css"
 
 function CardIcon(props: { card: ComposerCard }) {
@@ -16,7 +17,7 @@ function CardIcon(props: { card: ComposerCard }) {
 }
 
 function CardSummary(props: { card: ComposerCard; room: RoomStore }) {
-  const name = (slug: string) => props.room.members().find((m) => m.slug === slug)?.name ?? slug
+  const name = (slug: string) => agentDisplayName(slug, props.room.members())
   const progress = createMemo(() => taskProgress(props.room.tasks()))
   const kind = () => props.card.kind === "ask" ? `Question${props.room.members().length > 1 ? ` · ${name(props.card.ask.from)}` : ""}` : "Tasks"
   return <>

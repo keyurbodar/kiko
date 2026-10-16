@@ -8,6 +8,7 @@ import { useApp } from "../../lib/store";
 import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage } from "../../lib/types";
 import { jumpRequest, requestJump } from "../../search/state";
+import { eventText } from "../../chat/lib/event-line";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
@@ -147,7 +148,8 @@ export default function ChatRoute() {
     useApp.seeMentions([id]);
   };
 
-  const empty = () => messages().every((m) => m.event);
+  // A divider is something to read, so a chat that has one is not empty; an event this client does not draw is nothing.
+  const empty = () => messages().every((m) => m.event && eventText(m, String) === null);
   let dock: HTMLDivElement | undefined;
   let launch: Launch | null = null;
   createEffect(

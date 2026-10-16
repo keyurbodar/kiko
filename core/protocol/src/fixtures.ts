@@ -117,6 +117,7 @@ export const systemEvents: readonly SystemEvent[] = [
 	{ kind: "routine_created", agent: ada, title: "morning summary", private: true },
 	{ kind: "model_changed", agent: ada, model: "Claude Opus 4.6", private: true },
 	{ kind: "compacted", agent: ada, private: true },
+	{ kind: "group_formed", private: true },
 	{ kind: "member_added", slug: bob, name: "Bob", private: true },
 	{ kind: "member_removed", slug: bob, name: "Bob", private: true },
 	{ kind: "created", roomId, title: "Sunny morning" },

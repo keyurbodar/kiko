@@ -212,6 +212,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: CHIEF_NAME }]
 		else if (agents.length > 1) agents = [{ slug: DEFAULT_AGENT, name: CHIEF_NAME }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
 		this.publish(this.members.seed(agents))
+		if (agents.length > 1) this.divider("group-formed", "Group formed", { kind: "group_formed", private: true })
 		await this.trySeedChatFile(chat.title)
 	}
 

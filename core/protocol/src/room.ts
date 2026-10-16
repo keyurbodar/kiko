@@ -36,6 +36,7 @@ export type SystemEvent =
 	| { kind: "routine_created"; agent: AgentSlug; title: string; private: true }
 	| { kind: "model_changed"; agent: AgentSlug; model: string; private: true }
 	| { kind: "compacted"; agent: AgentSlug; private: true }
+	| { kind: "group_formed"; private: true }
 	| { kind: "member_added"; slug: AgentSlug; name: string; private: true }
 	| { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
 

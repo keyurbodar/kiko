@@ -14,6 +14,8 @@ export function eventText(message: ChatMessage, name: (slug: string) => string):
       return `${name(e.agent)} now uses ${e.model}`
     case "compacted":
       return `${name(e.agent)} compacted its context`
+    case "group_formed":
+      return "Group formed"
     case "member_added":
       return `${e.name} joined`
     case "member_removed":

@@ -208,11 +208,11 @@ export class RoomMemory {
     const count = this.sync()
     const lo = region(count, ROOM_SHAPE)
     const fetch = seen === undefined && !skip.size ? limit : limit * 3
-    let hits = searchMessages(this.sql, query, { limit: fetch }).results
+    let hits = searchMessages(this.sql, query, { limit: fetch, mail: true }).results
     if (!hits.length) {
       const words = [...new Set(query.toLowerCase().split(/\W+/).filter((w) => w.length > 2))].sort((a, b) => b.length - a.length).slice(0, 4)
       const found = new Map<string, (typeof hits)[number]>()
-      for (const w of words) for (const h of searchMessages(this.sql, w, { limit: fetch }).results) found.set(h.id, h)
+      for (const w of words) for (const h of searchMessages(this.sql, w, { limit: fetch, mail: true }).results) found.set(h.id, h)
       hits = [...found.values()].sort((a, b) => b.seq - a.seq).slice(0, fetch)
     }
     const poss = new Map(hits.map((h) => [h.id, this.posOfMessage(h.id)]))
