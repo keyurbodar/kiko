@@ -41,6 +41,7 @@ export function describeCall(name: string, args: Record<string, unknown>): Descr
       return tool(name, "handling a reminder")
     case "propose_agent":
     case "propose_group":
+    case "add_to_chat":
     case "create":
       return tool(name, "setting up agents")
     case "ask": {

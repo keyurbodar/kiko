@@ -173,11 +173,11 @@ describe("buildTimelineItems unread rule", () => {
     expect(firstUnreadIndex(items, "b1")).toBe(1);
   });
 
-  test("no rule is emitted when the first unread message is the newest", () => {
+  test("a chat opened with one unread reply, the newest message, still gets the rule", () => {
     const items = buildTimelineItems(thread, "b2");
 
-    expect(items.some((item) => item.kind === "unread-divider")).toBe(false);
-    expect(firstUnreadIndex(items, "b2")).toBe(-1);
+    expect(items.map((item) => item.kind)).toEqual(["message", "message", "unread-divider", "message"]);
+    expect(firstUnreadIndex(items, "b2")).toBe(2);
   });
 
   test("no rule is emitted for a message the viewer sent", () => {

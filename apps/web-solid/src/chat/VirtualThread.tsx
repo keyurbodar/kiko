@@ -50,6 +50,12 @@ const PIN_SETTLE_MS = 400
 
 const LANDING_MS = 1200
 
+const DATE_CHIP_IDLE_MS = 1200
+
+const READER_SCROLL_MS = 250
+
+const DATE_CHIP_EDGE_PX = 56
+
 
 type DriftAnchor = { readonly element: HTMLElement; readonly top: number }
 
@@ -182,7 +188,17 @@ export function VirtualThread(props: {
     onCleanup(() => clearInterval(clock))
   })
 
-  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined)
+  // The day pill floats over the bubbles, so it shows only while the reader scrolls or points at the top edge.
+  const [scrolling, setScrolling] = createSignal(false)
+  const [nearTopEdge, setNearTopEdge] = createSignal(false)
+  let scrollIdle: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => clearTimeout(scrollIdle))
+  const noteScrolling = () => {
+    setScrolling(true)
+    clearTimeout(scrollIdle)
+    scrollIdle = setTimeout(() => setScrolling(false), DATE_CHIP_IDLE_MS)
+  }
+  const dateChipVisible = createMemo(() => topVisibleDay() !== undefined && (scrolling() || nearTopEdge()))
 
   const [landed, setLanded] = createSignal<string | undefined>()
   let landingGeneration = 0
@@ -199,6 +215,7 @@ export function VirtualThread(props: {
       (item) => item.kind === "message" && item.message.id === messageId,
     )
     if (index < 0) return
+    stuck = false
     handle()?.scrollToIndex(index, { align: "start" })
     const generation = (landingGeneration += 1)
     setLanded(messageId)
@@ -218,6 +235,7 @@ export function VirtualThread(props: {
       (item) => item.kind === "message" && dayStartOf(item.message.sentAt) === dayStart,
     )
     if (index < 0) return
+    stuck = false
     handle()?.scrollToIndex(index, { align: "start" })
     seedAnchor()
     commitState(readState())
@@ -272,6 +290,7 @@ export function VirtualThread(props: {
     const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
     if (index < 0) return false
     let tries = 0
+    stuck = false
     const apply = () => {
       const virtualizer = handle()
       if (!virtualizer) {
@@ -308,6 +327,9 @@ export function VirtualThread(props: {
   }
 
   let anchor: DriftAnchor | undefined
+  // True while the reader is at the end. Content that grows under them (the typing line, a reply) keeps them there.
+  let stuck = true
+  let readerScrolling = false
 
   const readState = (): VirtualThreadState => {
     const virtualizer = handle()
@@ -369,6 +391,12 @@ export function VirtualThread(props: {
     }
     const atBottom =
       state.scrollOffset + state.viewportSize >= state.scrollSize - BOTTOM_EPSILON
+    if (stuck && !atBottom) {
+      scrollElement.scrollTop = scrollElement.scrollHeight
+      seedAnchor()
+      commitState(readState())
+      return
+    }
     const drift =
       held.element.getBoundingClientRect().top -
       columnElement.getBoundingClientRect().top -
@@ -393,6 +421,10 @@ export function VirtualThread(props: {
     const onScroll = () => {
       seedAnchor()
       const state = readState()
+      const atEnd = isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
+      // Rows measured after they render also move the offset. Only a reader's own scroll lets go of the end.
+      if (atEnd) stuck = true
+      else if (readerScrolling) stuck = false
       commitState(state)
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
@@ -413,6 +445,27 @@ export function VirtualThread(props: {
     const viewportObserver = makeResizeObserver(onViewportResize)
     viewportObserver.observe(scroller)
     createEventListener(() => scroller, "scroll", onScroll, { passive: true })
+    let readerScrollEnd: ReturnType<typeof setTimeout> | undefined
+    onCleanup(() => clearTimeout(readerScrollEnd))
+    const readerMoved = () => {
+      readerScrolling = true
+      clearTimeout(readerScrollEnd)
+      readerScrollEnd = setTimeout(() => {
+        readerScrolling = false
+      }, READER_SCROLL_MS)
+    }
+    const onReader = () => {
+      noteScrolling()
+      readerMoved()
+    }
+    createEventListener(() => scroller, "wheel", onReader, { passive: true })
+    createEventListener(() => scroller, "touchmove", onReader, { passive: true })
+    createEventListener(() => scroller, "keydown", readerMoved)
+    createEventListener(() => scroller, "pointerdown", (event: PointerEvent) => {
+      if (event.target === scroller) onReader()
+    }, { passive: true })
+    createEventListener(() => scroller, "pointermove", (event: PointerEvent) => setNearTopEdge(event.clientY - scroller.getBoundingClientRect().top < DATE_CHIP_EDGE_PX), { passive: true })
+    createEventListener(() => scroller, "pointerleave", () => setNearTopEdge(false), { passive: true })
     const mutations = new MutationObserver(queueDriftCancel)
     mutations.observe(column, { childList: true, subtree: true })
     const heights = new MutationObserver(queueDriftCancel)
@@ -467,7 +520,7 @@ export function VirtualThread(props: {
         if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
       }
       const restoring = restorePosition()
-      const wasAtLatest = firstLoad || isAtLatest()
+      const wasAtLatest = firstLoad || stuck || isAtLatest()
       seedAnchor()
       if (restoring) {
         firstLoad = false

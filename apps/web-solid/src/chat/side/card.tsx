@@ -1,5 +1,6 @@
 import { fileName } from "@kiko/protocol"
-import { Brain, ChevronRight, CircleCheck, FolderOpen, ListChecks, Repeat, Sparkles, type LucideProps } from "lucide-solid"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
+import { Brain, Plus, ChevronRight, CircleCheck, FolderOpen, ListChecks, Repeat, Sparkles, type LucideProps } from "lucide-solid"
 import { type Component, createEffect, For, onCleanup, onMount, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
@@ -7,6 +8,7 @@ import { loadLoops, loopsOf } from "../info/loops"
 import { useMemoryStore } from "../info/memory/views"
 import { loadRoutines, remindersOf, routinesOf } from "../info/routines"
 import { triggerLabel } from "../info/routines-model"
+import { addable, addOp } from "../members/model"
 import { cardBeside, dismissCard } from "./card-state"
 import { isGroup, liveLine, statusChip, workingLine } from "./overview-model"
 import { agentSurface, type FixedKind, fixedSurface, openSurface } from "./surfaces"
@@ -61,7 +63,7 @@ export default function ChatCard(props: { chatId: string }) {
     if (cardBeside()) return
     const away = (event: PointerEvent) => {
       const target = event.target
-      if (!(target instanceof Element) || card?.contains(target) || target.closest('[data-action="toggle-card"]')) return
+      if (!(target instanceof Element) || card?.contains(target) || target.closest('[data-action="toggle-card"], [data-component="add-member-menu"]')) return
       dismissCard()
     }
     const escape = (event: KeyboardEvent) => {
@@ -106,6 +108,33 @@ export default function ChatCard(props: { chatId: string }) {
               </button>
             )}
           </For>
+          <MenuV2 gutter={6} placement="bottom-start">
+            <MenuV2.Trigger
+              class="flex h-7 items-center gap-1 rounded-full border border-dashed border-border py-0.5 pr-2.5 pl-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent"
+              aria-label="Add agent"
+              data-action="add-member"
+            >
+              <Plus size={13} strokeWidth={2} />
+              Add
+            </MenuV2.Trigger>
+            <MenuV2.Portal>
+              <MenuV2.Content class="z-[80] min-w-48" data-component="add-member-menu">
+                <MenuV2.Group>
+                  <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">Add to this chat</MenuV2.GroupLabel>
+                  <Show when={addable(useApp.agents(), members()).length > 0} fallback={<MenuV2.Item disabled>No other agents</MenuV2.Item>}>
+                    <For each={addable(useApp.agents(), members())}>
+                      {(agent) => (
+                        <MenuV2.Item data-add-member={agent.slug} onSelect={() => useApp.memberOp(addOp(agent))}>
+                          <IdentityAvatar seed={agent.slug} size={18} />
+                          {agent.name}
+                        </MenuV2.Item>
+                      )}
+                    </For>
+                  </Show>
+                </MenuV2.Group>
+              </MenuV2.Content>
+            </MenuV2.Portal>
+          </MenuV2>
         </div>
       </Show>
       <div class="flex flex-col border-t border-border pt-1.5">
