@@ -205,7 +205,7 @@ sequenceDiagram
   B->>I: code, PKCE verifier, Clerk token
   I->>D: /oauth2/token (code for tokens)
   I->>CF: read or create the workers.dev subdomain
-  I->>CF: create R2 bucket kiko-files (optional)
+  I->>CF: try to create R2 bucket kiko-files (new install only, never fatal)
   I->>CF: upload the kiko script with DO bindings and migrations
   I->>CF: set secrets, enable workers.dev
   I->>C: save the Worker URL in the user's metadata
@@ -224,17 +224,38 @@ Why there is an installer at all: neither `api.cloudflare.com` nor `dash.cloudfl
 | 1 | `POST https://dash.cloudflare.com/oauth2/token` | Authorization code plus PKCE verifier. Returns an access token and, with `offline_access`, a refresh token |
 | 2 | `GET /client/v4/accounts` | The accounts the user chose on the consent screen |
 | 3 | `GET /accounts/{id}/workers/subdomain`, `PUT` if missing | A new account may not have a workers.dev subdomain yet |
-| 4 | `POST /accounts/{id}/r2/buckets` | `kiko-files`. Skipped if the user has no R2. See risks |
-| 5 | `PUT /accounts/{id}/workers/scripts/kiko` | Multipart. Metadata carries `main_module`, `compatibility_date`, `compatibility_flags: ["nodejs_compat"]`, the bindings (`USER`, `ROOM`, `AGENT` as `durable_object_namespace`, `FILES` as `r2_bucket`) and the migrations from `apps/server/wrangler.jsonc` |
+| 4 | `POST /accounts/{id}/r2/buckets` | `kiko-files`, only when the script is new. Any failure is ignored: the install then has no `FILES` binding and keeps files in `FileDO` (architecture section 18.1). An existing script keeps the binding it has (`inherit`) |
+| 5 | `PUT /accounts/{id}/workers/scripts/kiko` | Multipart. Metadata carries `main_module`, `compatibility_date`, `compatibility_flags: ["nodejs_compat"]`, the bindings (`USER`, `ROOM`, `AGENT` as `durable_object_namespace`, `FILE` as `durable_object_namespace`, `FILES` as `r2_bucket` only when step 4 made or found the bucket) and the migrations from `apps/server/wrangler.jsonc` |
 | 6 | Script secrets | `SESSION_SECRET`, `CREDENTIALS_KEK`, `OWNER_ID` (the Clerk user id), `CLERK_JWT_KEY`. Random values are made in the installer and never stored there |
 | 7 | Enable the script on workers.dev | The script subdomain endpoint |
 | 8 | Clerk Backend API: update the user's `publicMetadata` | `{ workerUrl, accountId, version }`. This is the only record of the install, so no database is needed |
+
+### First-run failures (R34)
+
+A new Cloudflare account must reach a working Kiko with no dashboard visit. The installer handles what the API allows and otherwise sends one plain sentence, one link, and Try again (`failureOf` in `connect-flow.ts`). A retry resumes: every step looks at what exists and carries on.
+
+| What goes wrong | What the installer does | Code |
+| --- | --- | --- |
+| No workers.dev subdomain | Makes one (`PUT /workers/subdomain`). If that fails, links to Workers | `no_subdomain` |
+| R2 not turned on, no R2 plan, or any R2 error | Installs without the binding. Files live in `FileDO` | none |
+| The sign-in lists accounts it cannot change Workers on | Uses the first account whose scripts it can list | none |
+| Every account refuses the sign-in (401, 403, 10000, 9109) | Sentence and a link to Workers | `no_permission` |
+| No account | Link to Cloudflare sign-up | `no_account` |
+| Rate limit (429) | Wait a minute | `busy` |
+| Cloudflare 5xx | Link to Cloudflare status | `cloudflare_down` |
+| The script is up but does not answer within 60 s | Link to Workers, Try again | `not_ready` |
+| A script named `kiko` that is not Kiko | Installs as `kiko-<hash>` | none |
+| The sign-in code was used or expired | Starts the sign-in again, which Cloudflare approves at once | `oauth_failed` |
+
+UNVERIFIED: that an unverified email blocks any of these calls. Cloudflare documents no such rule for the Workers API. The unmapped case falls under `cloudflare_error`: a sentence and a link to Workers.
+
+No new OAuth scope is needed: `workers-scripts.write` covers the subdomain, the upload, and the secrets, `account-settings.read` lists accounts, and `workers-r2.write` is used only to try the bucket.
 
 The bundle in step 5 is the same build `bun run --cwd apps/server deploy` makes today. The installer reads it from our static assets, for example `app.kiko.codes/releases/<version>/worker.js`.
 
 DEVIATION (H05, as built in `apps/installer`): the script is named `kiko`, the bucket `kiko-files`, and the metadata key is `backendUrl`, not `workerUrl`. The Worker handler only checks the Clerk token and the origin. It hands the install to `InstallDO` (one per Clerk user), which builds the multipart upload. The installer reads a signed release (`latest.json`, `<version>/manifest.json`, `manifest.sig`, modules) from `RELEASE_BASE_URL`, not a bare `worker.js`, and refuses any release whose Ed25519 signature or module hash does not match (`scripts/release.ts`, `core/durable/src/release.ts`). If `kiko` already exists and does not answer `/api/version` like kiko, the script is named `kiko-<6 hex of sha256(sub)>`. The secrets go in the upload metadata on first install. An update sends `keep_bindings: ["secret_text"]` and never regenerates `SESSION_SECRET` or `CREDENTIALS_KEK`. It sets `OWNER_ID` and `CF_GRANT` through the secrets endpoint every time, because a secret's value cannot be read back to compare.
 
-UNVERIFIED: Cloudflare documents no prefilled API token URL. `GET /token-link` returns the plain `https://dash.cloudflare.com/profile/api-tokens` page and the permission list to tick. UNVERIFIED: the installer reads the current migration tag from `migration_tag` in the scripts list (`GET /accounts/{id}/workers/scripts`), and detects R2 errors by Cloudflare codes 10004 (exists) and 10042 (R2 not enabled).
+UNVERIFIED: Cloudflare documents no prefilled API token URL. `GET /token-link` returns the plain `https://dash.cloudflare.com/profile/api-tokens` page and the permission list to tick. UNVERIFIED: the installer reads the current migration tag from `migration_tag` in the scripts list (`GET /accounts/{id}/workers/scripts`), and treats Cloudflare code 10073 (bucket exists) as success; 10042 (not entitled, R2 not enabled).
 
 ASSUMPTION: the client files are not uploaded into the user's account. The user's Worker is API only. Optionally it can carry the client as a fallback, in case `app.kiko.codes` is ever down.
 
@@ -334,7 +355,7 @@ Our monthly bill, at list prices on 2026-10-15.
 | 100,000 | $0 | $0 | about $1,025 (Pro $25 plus $0.02 per user above 50,000) | about $1,025 | $0 |
 | 1,000,000 | $0 | about $5 (Workers Paid, if installs pass 10k a day) | up to about $19,025 before volume discounts | about $19,030 | about $5 |
 
-Users pay $0 to Cloudflare on the Free plan, plus their own model usage. R2 is free up to 10 GB a month, but turning R2 on asks for a card.
+Users pay $0 to Cloudflare on the Free plan, plus their own model usage. R2 is free up to 10 GB a month, but turning R2 on asks for a card. Kiko does not need it: without R2, files live in Durable Object storage (Free allows 5 GB), so a first-time user is never asked for a card.
 
 ## Clerk or Sign in with Cloudflare
 
@@ -378,7 +399,7 @@ Each of these goes into `docs/architecture.md` as a DEVIATION in the pull reques
 | One origin | Client, API and sockets share a hostname | The client is on `app.kiko.codes` and the API on `*.workers.dev`. CORS allows only `app.kiko.codes` | `architecture.md` section 3, "One Worker, one origin" |
 | Socket upgrade | Checked with the bearer token in the `kiko` subprotocol | Checked with a one-time ticket | `architecture.md` section 9.1 |
 | Uploads | Carry the bearer in `Authorization` | Carry the Clerk token in a header | `architecture.md`, the R2 uploads section (the DEVIATION from t3code on the upload token) |
-| R2 | Required binding `FILES` | Optional. Attachments are off if the bucket is missing | `apps/server/wrangler.jsonc`, upload routes |
+| R2 | Required binding `FILES` | Optional. Without it, files live in `FileDO` (100 MB a file, 800 MB a chat) | `apps/server/wrangler.jsonc`, upload routes |
 | Client API base | Same origin, `/api` | A base URL from Clerk metadata | `apps/web-solid/src/sync/` |
 | Self-update | None | Daily cron and the stored refresh token | New, in `UserDO` |
 | AGENTS.md "Do not add a second owner" | No sign-up, no accounts | Still one owner per Worker. Sign-up lives on `app.kiko.codes`, not in the Worker. The line needs rewording, not removing | `AGENTS.md` |
@@ -392,7 +413,7 @@ What does not change: Durable Object layout and names, the room and agent protoc
 | 1 | Which OAuth scopes allow a full install: script upload with Durable Object migrations, secrets, the workers.dev subdomain, R2 buckets. UNVERIFIED | If a scope is missing, OAuth cannot do a full install | The user pastes an API token once, or uses a Deploy to Cloudflare button |
 | 2 | Does a public PKCE client's refresh token work from a Worker. UNVERIFIED | Decides plan A for updates | Plan B, one-click update |
 | 3 | Is there a cap on how many users can authorize a public OAuth client. UNVERIFIED | Caps sign-ups | Ask Cloudflare. Several clients |
-| 4 | R2 asks the user for a card | Friction at sign-up | Make files optional. Turn on later from Settings |
+| 4 | R2 asks the user for a card | Friction at sign-up | DONE (R34): R2 is optional and the install never fails for it |
 | 5 | Each user needs a Cloudflare account | The biggest step for a new user | None. It is the price of $0 at scale. Cloudflare sign-up is quick |
 | 6 | A script called `kiko` already exists in the account | Overwriting it would break something | Check first. Use `kiko-<short id>` |
 | 7 | Going public with the OAuth client is permanent and needs a DNS TXT record on `kiko.codes` | One-way step | Test with a private client first |
