@@ -75,7 +75,7 @@ export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; ro
                   <div class="flex items-center gap-3 px-1 py-1" data-app={app.slug}>
                     <AppLogo app={app} size={26} />
                     <span class="min-w-0 flex-1 truncate text-sm text-foreground">{app.name}</span>
-                    <Show when={app.connected} fallback={<span class="shrink-0 text-xs text-muted-foreground">Your agent sends the link</span>}>
+                    <Show when={app.connected}>
                       <span class="shrink-0 text-xs text-[var(--success)]">Connected</span>
                     </Show>
                   </div>

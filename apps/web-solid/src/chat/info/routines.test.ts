@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { cancelReminder, loadRoutines, reminderWhen, remindersOf, routinesOf } from "./routines"
+import { cancelRoutine, loadRoutines, routinesOf } from "./routines"
 import { triggerLabel } from "./routines-model"
 
 const original = globalThis.fetch
@@ -29,28 +29,21 @@ describe("a chat's routines", () => {
   })
 })
 
-describe("a chat's reminders", () => {
-  const reminder = { id: "m1", text: "book the table", roomId: "room-a", dueUtc: Date.parse("2026-10-17T09:00:00Z"), rrule: null, tz: "UTC" }
+describe("deleting a routine", () => {
+  const once = { id: "m1", name: "book the table", roomId: "room-a", status: "active", trigger: { on: "time", at: "2026-10-17T09:00:00Z" }, tz: "UTC" }
 
-  test("a reminder is listed in its own chat, with when it fires", async () => {
-    serve({ routines: [], reminders: [reminder, { ...reminder, id: "m2", roomId: "room-b" }], runs: [] })
+  test("it leaves the list at once, and a refused delete puts it back", async () => {
+    serve({ routines: [once], runs: [] })
     await loadRoutines()
-    expect(remindersOf("room-a").map((r) => r.text)).toEqual(["book the table"])
-    expect(reminderWhen(remindersOf("room-a")[0]!)).toBe("Once, Oct 17 at 9:00 AM")
-  })
-
-  test("deleting one leaves the list at once, and a refused delete puts it back", async () => {
-    serve({ routines: [], reminders: [reminder], runs: [] })
-    await loadRoutines()
-    const [only] = remindersOf("room-a")
+    const [only] = routinesOf("room-a")!
     globalThis.fetch = (async () => new Response("no", { status: 500 })) as unknown as typeof fetch
-    const failed = cancelReminder(only!)
-    expect(remindersOf("room-a")).toEqual([])
+    const failed = cancelRoutine(only!)
+    expect(routinesOf("room-a")).toEqual([])
     await failed
-    expect(remindersOf("room-a").map((r) => r.id)).toEqual(["m1"])
+    expect(routinesOf("room-a")?.map((r) => r.id)).toEqual(["m1"])
     globalThis.fetch = (async () => Response.json({})) as unknown as typeof fetch
-    await cancelReminder(only!)
-    expect(remindersOf("room-a")).toEqual([])
+    await cancelRoutine(only!)
+    expect(routinesOf("room-a")).toEqual([])
   })
 })
 

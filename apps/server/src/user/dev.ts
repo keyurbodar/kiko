@@ -61,21 +61,9 @@ export async function devBrowser(kernel: () => KernelWiring, userId: string, op:
   return { sessionId: k.sessionId(), status: k.status(), profile: await profileName(userId) }
 }
 
-export type DevInitiativeOp = { action: "age"; ms: number } | { action: "rhythm"; mode: "now" | "clear" } | { action: "pass" } | { action: "state" }
-
-// Development only (section 26.8): a day of initiative in seconds.
-export async function devInitiative(engine: () => InitiativeEngine, reminders: Reminders, op: DevInitiativeOp): Promise<unknown> {
-  const e = engine()
-  if (op.action === "rhythm") {
-    e.devRhythm(op.mode)
-    return { at: await e.arm() }
-  }
-  if (op.action === "pass") return e.pass()
-  if (op.action === "state") return e.devState()
-  e.devAge(op.ms)
-  // A reminder an agent set for itself ages with the clock, and fires once the aging reaches it.
-  await reminders.devAge(op.ms)
-  return { at: await e.arm() }
+// Development only: runs the daily initiative pass now.
+export async function devPass(engine: () => InitiativeEngine): Promise<unknown> {
+  return engine().pass()
 }
 
 // The sign-in test provider. Its flow shows a device code, then asks for it back.

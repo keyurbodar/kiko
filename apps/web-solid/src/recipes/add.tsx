@@ -6,7 +6,7 @@ import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { RecipeIcon } from "./icon"
-import { addOwnChat, addToTarget, isAdded, isOwning, type RecipeTarget, targetsForChat } from "./state"
+import { addOwnChat, addToTarget, isAdded, isOwning, isWaiting, type RecipeTarget, targetsForChat } from "./state"
 
 type Option =
   | { kind: "chat"; key: string; roomId: string; name: string; targets: RecipeTarget[] }
@@ -94,6 +94,9 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
           onKeyDown={onKey}
         />
       </label>
+      <Show when={isWaiting(props.card.slug)}>
+        <p class="px-2 text-xs text-muted-foreground">Checking your apps…</p>
+      </Show>
       <div class="flex max-h-[min(360px,50dvh)] flex-col gap-0.5 overflow-y-auto" role="listbox" aria-label="Chats">
         <For each={options()}>
           {(o, i) => (

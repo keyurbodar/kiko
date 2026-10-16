@@ -9,7 +9,7 @@ import type { MemoryPort } from "@kiko/memory/tools"
 import { sqlWith } from "./sql-shim"
 import { FAKE_TOOLS_EXTENSION } from "../src/agent/dev-fake"
 import type { MessagingPort } from "../src/agent/extensions/messaging"
-import type { RemindersPort } from "../src/agent/extensions/reminders"
+import type { RoutinesPort } from "../src/agent/extensions/routines"
 import type { WorkspacePort } from "../src/agent/extensions/workspace"
 import { buildAgent } from "../src/agent/factory"
 import { type FilesBackend, RoomFs, roomViews } from "../src/files/room-fs"
@@ -36,13 +36,13 @@ async function until(test: () => boolean, ms = 5_000): Promise<void> {
 const toolNames = (r: Request) => [...JSON.stringify((r.messages as Msg[]).filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map((m) => m[1]!)
 const isWorker = (r: Request) => !toolNames(r).includes("start_work")
 
-test("a worker gets the agent's tools but no chat, notes, reminders, board, or more workers, and its report comes back", async () => {
+test("a worker gets the agent's tools but no chat, notes, routines, board, or more workers, and its report comes back", async () => {
   const workspace: WorkspacePort = { call: async () => ({ ok: true, text: "ok" }) }
-  const reminders = { port: () => null as RemindersPort | null, tz: () => "UTC" }
+  const routines = { port: () => null as RoutinesPort | null, tz: () => "UTC" }
   const messaging = () => ({}) as MessagingPort
   const memory: MemoryPort = { note: async () => ({ ok: true }) as never, recall: async () => "", zoom: async () => null, captures: () => false }
   const { workers, reports } = registry()
-  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, workspace, reminders, messaging, memory, work: workers, testExtensions: [FAKE_TOOLS_EXTENSION] })
+  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, workspace, routines, messaging, memory, work: workers, testExtensions: [FAKE_TOOLS_EXTENSION] })
   const faux = fauxProvider()
   let talkerTools: string[] = []
   let workerTools: string[] = []
@@ -69,7 +69,7 @@ test("a worker gets the agent's tools but no chat, notes, reminders, board, or m
   expect(reports[0]).toMatchObject({ id: "work:w1:" + workers.get("w1")!.submissionId, body: "the page says hi", work: { id: "w1", status: "done" } })
   expect(workers.get("w1")!.step).toBe("fake_lookup")
   expect(workerTools).toContain("fake_lookup")
-  const withheld = ["start_work", "steer_work", "stop_work", "send_message", "ask", "create_task", "update_task", "create_reminder", "create_routine", "update_routine", "note"]
+  const withheld = ["start_work", "steer_work", "stop_work", "send_message", "ask", "create_task", "update_task", "create_routine", "cancel_routine", "update_routine", "note"]
   for (const name of withheld) {
     expect(talkerTools).toContain(name)
     expect(workerTools).not.toContain(name)

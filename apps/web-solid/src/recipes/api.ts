@@ -1,8 +1,8 @@
-import type { InstallRecipe, RecipeCard, RecipeInstall } from "@kiko/protocol"
+import type { InstallRecipe, RecipeCard, RecipeInstall, RecipeNeedsConnect } from "@kiko/protocol"
 import { RECIPES } from "./catalog.gen"
 import { apiFetch } from "../lib/api"
 
-export type InstallResult = { ok: true; install: RecipeInstall } | { ok: false; error: string }
+export type InstallResult = { ok: true; install: RecipeInstall } | { ok: false; error: string } | { ok: false; connect: RecipeNeedsConnect }
 
 /**
  * The last list the server sent. `cards` is there only when the server sent it, so a build's
@@ -63,7 +63,7 @@ export async function updateRecipeRoutine(id: string, status: "active" | "paused
   return res?.ok ?? false
 }
 
-/** Adds a recipe. A retry with the same `installId` is safe: the server answers with the same install. */
+/** Adds a recipe. A retry with the same `installId` is safe: the server answers with the same install. A recipe whose apps are not connected comes back as `connect`, and nothing was made. */
 export async function postInstall(body: InstallRecipe): Promise<InstallResult> {
   const res = await apiFetch("/api/recipes", {
     method: "POST",
@@ -71,7 +71,8 @@ export async function postInstall(body: InstallRecipe): Promise<InstallResult> {
     body: JSON.stringify(body),
   }).catch(() => null)
   if (!res) return { ok: false, error: "Kiko did not answer." }
-  const data = (await res.json().catch(() => null)) as { install?: RecipeInstall; error?: string } | null
+  const data = (await res.json().catch(() => null)) as (Partial<RecipeNeedsConnect> & { install?: RecipeInstall; error?: string }) | null
+  if (res.ok && data?.state === "needs_connect") return { ok: false, connect: { state: "needs_connect", links: data.links ?? [], ...(data.reason ? { reason: data.reason } : {}) } }
   if (res.ok && data?.install) return { ok: true, install: data.install }
   return { ok: false, error: data?.error ?? "Could not add that recipe." }
 }

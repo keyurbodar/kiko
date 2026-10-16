@@ -19,7 +19,7 @@ import { preloadMessageSearch } from "../commands/message-search";
 import { richLoaded } from "../composer/rich/loaded";
 import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../chat/side/card-state";
 import { useKatCommands } from "../commands/use-kat-commands";
-import { setGo } from "../lib/run-error";
+import { setGo } from "../lib/errors";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
 import { botPickerOpen } from "../chat/bot-picker-state";

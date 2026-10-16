@@ -59,22 +59,13 @@ export function triggerLabel(trigger: Trigger, timeZone?: string): string {
   switch (trigger.on) {
     case "time":
       return timeLabel(trigger, timeZone)
-    case "task":
-      return trigger.status?.length ? `When a task moves to ${trigger.status.join(" or ")}` : "When a task changes"
     case "message": {
       const who = "When you send a message"
       return trigger.contains ? `${who} with “${trigger.contains}”` : who
     }
-    case "file":
-      return `When ${trigger.path} changes`
     case "webhook":
       return "When its webhook is called"
-    case "watch": {
-      let host = trigger.url
-      try {
-        host = new URL(trigger.url).host
-      } catch {}
-      return `When ${host} changes, checked every ${trigger.everyMinutes} min`
-    }
+    default:
+      return "Trigger no longer supported"
   }
 }

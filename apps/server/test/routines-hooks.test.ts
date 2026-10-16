@@ -14,7 +14,7 @@ function routines() {
   const sql = sqlWith(USER_STEPS)
   sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
   const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms
-  const reminders = new Reminders(sql, alarms, async () => {}, () => Date.now())
+  const reminders = new Reminders(sql, alarms, () => Date.now())
   const wiring = new RoutineWiring({ env: {} as Env, reminders, extensions: {} as never })
   return { sql, reminders, wiring }
 }
@@ -48,7 +48,7 @@ test("cancelling a webhook routine stops its token", async () => {
   const t = routines()
   const made = await t.wiring.createRoutine("u", hook)
   if (!made.ok || !made.token) throw new Error("no webhook token")
-  await t.wiring.cancelReminder(made.routine.id)
+  await t.wiring.cancelRoutine(made.routine.id)
   expect(t.reminders.byHook(await sha256Hex(made.token))).toBeNull()
 })
 

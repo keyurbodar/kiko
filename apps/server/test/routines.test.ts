@@ -5,16 +5,19 @@ import { Schema } from "effect"
 import { matches, routineRun, Signal, signalOf, SignalWindow } from "../src/room/signals"
 import { sqlWith } from "./sql-shim"
 import { ROOM_STEPS } from "../src/room/schema"
-import { describeTrigger, nextEvery } from "../src/user/reminders"
+import { parseTrigger } from "../src/agent/extensions/routines"
+import { describeTrigger } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
 
 describe("triggers (section 25.4)", () => {
   const decode = Schema.decodeUnknownSync(Trigger)
 
-  test("the schema takes each trigger and refuses a watch faster than 15 minutes or too many conditions", () => {
+  test("the schema takes time, message, and webhook, and refuses the cut triggers or too many conditions", () => {
     expect(() => decode({ on: "time", at: "2026-10-06T08:00:00+02:00", rrule: "FREQ=DAILY" })).not.toThrow()
-    expect(() => decode({ on: "watch", url: "https://example.com", everyMinutes: 15 })).not.toThrow()
-    expect(() => decode({ on: "watch", url: "https://example.com", everyMinutes: 5 })).toThrow()
+    expect(() => decode({ on: "message", contains: "deploy" })).not.toThrow()
+    expect(() => decode({ on: "watch", url: "https://example.com", everyMinutes: 15 })).toThrow()
+    expect(() => decode({ on: "task", status: ["review"] })).toThrow()
+    expect(() => decode({ on: "file", path: "invoices" })).toThrow()
     expect(() => decode({ on: "webhook", match: Array.from({ length: 9 }, () => ({ path: "a", equals: 1 })) })).toThrow()
     expect(() => decode({ on: "cron", spec: "* * * * *" })).toThrow()
   })
@@ -33,16 +36,21 @@ describe("triggers (section 25.4)", () => {
   const at = { seq: 1, at: 0 }
   const r = (trigger: RoomRoutine["trigger"]): RoomRoutine => ({ id: "r", target: "kiko", trigger })
 
-  test("room events match by kind, status, sender, text, and path prefix", () => {
-    const task = signalOf({ ...at, t: "task", task: { id: "t", title: "ship", status: "review", dependsOn: [] } } as RoomEvent, ctx)!
+  test("the routine tools refuse a cut trigger with a line the model can fix, and take a one-time reminder in seconds", () => {
+    for (const cut of [{ on: "watch", url: "https://example.com", everyMinutes: 15 }, { on: "task" }, { on: "file", path: "x" }]) {
+      expect(parseTrigger(cut)).toMatch(/^bad trigger: .*shapes: \{on:'time'/)
+    }
+    expect(parseTrigger('{"on":"message"}')).toEqual({ on: "message" })
+    const soon = parseTrigger({ on: "time", in_seconds: 600 })
+    expect(soon).toMatchObject({ on: "time" })
+    expect(Date.parse((soon as { at: string }).at) - Date.now()).toBeGreaterThan(590_000)
+  })
+
+  test("a message routine matches human text only", () => {
     const human = signalOf({ ...at, t: "message", id: "m", from: { kind: "human" }, text: "Deploy it" } as RoomEvent, ctx)!
-    const file = signalOf({ ...at, t: "file", file: { id: "f", name: "reports/q3.md", size: 1, type: "text/markdown" } } as RoomEvent, ctx)!
-    expect(matches(r({ on: "task", status: ["review"] }), task)).toBe(true)
-    expect(matches(r({ on: "task", status: ["done"] }), task)).toBe(false)
-    expect(matches(r({ on: "task" }), task)).toBe(true)
+    expect(signalOf({ ...at, t: "task", task: { id: "t", title: "ship", status: "review", dependsOn: [] } } as RoomEvent, ctx)).toBeNull()
     expect(matches(r({ on: "message", contains: "deploy" }), human)).toBe(true)
-    expect(matches(r({ on: "file", path: "/reports/" }), file)).toBe(true)
-    expect(matches(r({ on: "file", path: "report" }), file)).toBe(false)
+    expect(matches(r({ on: "message", contains: "ship" }), human)).toBe(false)
     expect(signalOf({ ...at, t: "message", id: "m", from: { kind: "system", reason: "reminder" }, text: "x" } as RoomEvent, ctx)).toBeNull()
   })
 
@@ -59,13 +67,10 @@ describe("triggers (section 25.4)", () => {
     expect(routineRun(any, { ...batch(say("hi", { kind: "human" })), more: 3 })!.body.endsWith("- and more")).toBe(true)
   })
 
-  test("a watch steps on its own grid past now, and a trigger reads as words", () => {
-    expect(nextEvery(0, 10, 25)).toBe(30)
-    expect(nextEvery(0, 10, 30)).toBe(40)
-    expect(nextEvery(100, 10, 50)).toBe(110)
+  test("a trigger reads as words", () => {
     const due = Date.UTC(2026, 9, 6, 6, 30)
     expect(describeTrigger({ on: "time", at: "x", rrule: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" }, "Europe/Berlin", due)).toBe("every weekday, next tue, oct 6 at 08:30 (Europe/Berlin)")
-    expect(describeTrigger({ on: "watch", url: "https://x.test", everyMinutes: 30 }, "UTC", due)).toBe("when https://x.test changes, checked every 30 minutes")
+    expect(describeTrigger({ on: "time", at: "x" }, "UTC", due)).toBe("once, tue, oct 6 at 06:30 (UTC)")
   })
 })
 

@@ -222,5 +222,16 @@ export const USER_STEPS: Step[] = [
   "INSERT OR IGNORE INTO recipe_links (routine_id, install_id) SELECT routine_id, install_id FROM recipe_routines",
   "DROP TABLE IF EXISTS recipe_routines",
   "CREATE INDEX IF NOT EXISTS recipe_links_install ON recipe_links (install_id)",
+  // Reminders became routines (architecture 14): a plain reminder is a one-time or repeating time routine run by an agent of its chat.
+  `UPDATE reminders SET
+    name = substr(lower(replace(text, char(10), ' ')), 1, 60),
+    trigger = CASE WHEN rrule IS NULL THEN json_object('on', 'time', 'at', strftime('%Y-%m-%dT%H:%M:%SZ', due_utc / 1000, 'unixepoch'))
+      ELSE json_object('on', 'time', 'at', strftime('%Y-%m-%dT%H:%M:%SZ', due_utc / 1000, 'unixepoch'), 'rrule', replace(rrule, 'RRULE:', '')) END,
+    target = CASE WHEN target = 'human' THEN coalesce((SELECT json_extract(agents, '$[0]') FROM chats WHERE chats.room_id = reminders.room_id), 'kiko') ELSE target END,
+    text = CASE WHEN target = 'human' THEN 'remind the human: ' || text WHEN created_by = target THEN 'you set this reminder for yourself. the time has come: ' || text ELSE 'reminder: ' || text END,
+    status = CASE WHEN status = 'failed' THEN 'paused' ELSE status END
+   WHERE trigger IS NULL AND status IN ('active', 'paused', 'failed')`,
+  // Watch, file, and task triggers are gone. A routine that had one stays, paused, with no due time.
+  "UPDATE reminders SET status = 'paused', due_utc = 0, hook_hash = NULL WHERE status = 'active' AND json_extract(trigger, '$.on') IN ('watch', 'file', 'task')",
   addColumn("chats", "pair", "INTEGER NOT NULL DEFAULT 0"),
 ]

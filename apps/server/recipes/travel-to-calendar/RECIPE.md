@@ -25,4 +25,3 @@ rules
 - if there are no new confirmations, reply with only [skip].
 - if you cannot be sure of a time zone, add the event and say the zone is a guess.
 - never add a booking twice. check the calendar for the confirmation code first.
-- if gmail or google calendar is not connected, say which one and send the connect link once.

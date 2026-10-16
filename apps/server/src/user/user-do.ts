@@ -1,7 +1,7 @@
 import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeList, RoomId, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, RecipeList, RoomId, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
 import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
@@ -13,6 +13,9 @@ import { BACKEND } from "../lib/version"
 import { Schema } from "effect"
 import type { Env } from "../index"
 import { ComposioConnection, composioErrorText } from "../integrations/composio/connect"
+import { STORAGE_ERROR } from "../lib/storage-error"
+import { composioFailure } from "./user-errors"
+import { connectLinkFor, MANAGE_CONNECTIONS } from "../integrations/composio/connect-tool"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
 import { basenameOf, decodeBase64, encodeBase64, FILE_CAP } from "../integrations/kernel/files"
@@ -35,7 +38,7 @@ import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
 import { ProviderLogins } from "./provider-login"
-import { asResult, type NewReminder, type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery, roomDelivery } from "./reminders"
+import { type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
@@ -45,10 +48,10 @@ import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, roomStub } from "../lib/names"
-import type { Certainty, Loop, LoopKind, OpenResult } from "@kiko/memory/loops"
+import type { Loop, LoopKind, OpenResult } from "@kiko/memory/loops"
 import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
-import type { DevBrowserOp, DevInitiativeOp } from "./dev"
+import type { DevBrowserOp } from "./dev"
 import { InitiativeLoops, LOOPS_WAKEUP } from "./initiative-loops"
 import { KernelWiring } from "./kernel-wiring"
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
@@ -91,11 +94,10 @@ export class UserDO extends DurableObject<Env> {
         if (!event) throw new Error("file change produced no event")
         return event
       }, actorKey)
-      this.reminders = new Reminders(this.sql, this.alarms, roomDelivery(env, () => this.reminders.owner()), Date.now, {
+      this.reminders = new Reminders(this.sql, this.alarms, Date.now, {
         deliverRun: async ({ deliveryId, routine, body }) => {
           return roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), routine.roomId).deliverRoutine(deliveryId, { target: routine.target, body })
         },
-        watch: (trigger) => this.#routines.watchPage(trigger),
         notice: (roomId, id, text) => roomStub(env.ROOM, userIdFromObjectName(ctx.id.name), roomId).systemNotice(id, text, "routine"),
         gate: {
           away: () => {
@@ -110,10 +112,9 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private reminders!: Reminders
-  async createReminder(owner: string, input: NewReminder) { return asResult(() => this.reminders.create(owner, input)) }
-  async listReminders() { return this.reminders.list() }
-  async cancelReminder(id: string) {
-    const out = await this.#routines.cancelReminder(id)
+  async listRoutines() { return this.reminders.list() }
+  async cancelRoutine(id: string): Promise<RoutineResult> {
+    const out = await this.#routines.cancelRoutine(id)
     if (out.ok || this.reminders.get(id)?.status === "cancelled") this.#recipes.routineGone(id)
     return out
   }
@@ -162,7 +163,7 @@ export class UserDO extends DurableObject<Env> {
       sql: this.sql,
       library,
       createRoutine: (input) => this.#routines.createRoutine(owner(), input),
-      cancelRoutine: (id) => this.cancelReminder(id),
+      cancelRoutine: (id) => this.cancelRoutine(id),
       routine: (id) => this.reminders.get(id),
       timezone: () => this.timezone(),
       agentNamed: (name) => agentNamed(this.sql, name),
@@ -177,6 +178,14 @@ export class UserDO extends DurableObject<Env> {
       chiefModel: async () => {
         const roomId = kikoChatRoom(this.sql)
         return roomId ? roomStub(this.env.ROOM, owner(), roomId).modelOf("kiko").catch(() => "") : ""
+      },
+      composio: {
+        connected: async () => (this.#composio.status().connected ? await this.#composio.connectedToolkits(Date.now(), true).catch(() => null) : "off"),
+        link: async (app) => {
+          const manage = (await this.#composio.tools().catch(() => null))?.find((t) => t.name === MANAGE_CONNECTIONS)
+          const out = manage && (await connectLinkFor(manage, (name, args) => this.#composio.call(name, args), app))
+          return out && out.kind === "link" ? out.link : null
+        },
       },
       announce: (roomId, input) => roomStub(this.env.ROOM, owner(), roomId).addRecipe(owner(), { ...input, agent: input.agent as AgentSlug }),
     })
@@ -240,9 +249,9 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async signals(batch: SignalBatch): Promise<void> {
-    await this.#il.engine.signals(batch)
+    this.#il.engine.results(batch)
     for (const s of batch.signals) if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN && s.routineId !== REMINDER_RUN) await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
-    if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final" || s.kind === "task" || s.kind === "file")) return
+    if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final")) return
     for (const routine of this.reminders.roomRoutines(batch.roomId)) {
       const run = routineRun(roomRoutine(routine), batch)
       if (run) await this.reminders.fireEvent(routine.id, `event:${batch.openedAt}`, "events in this chat", run.body)
@@ -253,8 +262,6 @@ export class UserDO extends DurableObject<Env> {
     return this.#routines.routineHook(token, deliveryKey, body)
   }
 
-  async snoozeReminder(id: string, time: string) { return asResult(() => this.reminders.snooze(id, time)) }
-  async rewindReminder(id: string) { return asResult(() => this.reminders.rewind(id)) }
 
   async createChat(roomId: RoomId, title: string, agents?: readonly string[]): Promise<Chat> {
     const op: ChatOp = { op: "create", roomId, title, ...(agents?.length ? { agents } : {}) }
@@ -419,16 +426,6 @@ export class UserDO extends DurableObject<Env> {
     return { ok: true, pos: out.pos, ...(out.duplicate ? { duplicate: true as const } : {}), ...(replaces === undefined ? {} : { replaced }) }
   }
 
-  async lifeRollup(roomId: RoomId, text: string, at: number, span?: { lo: number; hi: number }): Promise<void> {
-    const chat = getChat(this.sql, roomId)
-    if (!chat || chat.private) return
-    const out = this.life.append(text, `chat ${chat.title}`, at, span ? { ref: `room:${roomId}:turns:${span.lo}-${span.hi}` } : {})
-    if (out.ok && !out.duplicate) {
-      await this.#mem.armNaps()
-      this.changed("memory")
-    }
-  }
-
   async lifeRecall(query: string): Promise<string[]> {
     return this.life
       .recall(query, 10, { skipCard: true })
@@ -459,10 +456,6 @@ export class UserDO extends DurableObject<Env> {
     await this.captureHuman(roomId, requeue)
   }
 
-  async rerank(query: string, lines: { id: string; text: string }[]): Promise<string[] | null> {
-    return this.#mem.rerank(query, lines)
-  }
-
   async lifeZoom(id: string): Promise<string | null> {
     const one = /^(\d+)$/.exec(id)
     const span = one ? { lo: Number(one[1]), hi: Number(one[1]) + 1 } : spanOf(id)
@@ -475,8 +468,8 @@ export class UserDO extends DurableObject<Env> {
     return this.#mem.usage()
   }
 
-  async compress(prompt: string, page?: { roomId: RoomId; at: number; span?: { lo: number; hi: number } }): Promise<{ text: string } | { retryAt: number } | { error: string }> {
-    return this.#mem.compress(prompt, page)
+  async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
+    return this.#mem.compress(prompt)
   }
 
   async providerKeyRefused(provider: string, apiKey: string): Promise<boolean> {
@@ -572,7 +565,6 @@ export class UserDO extends DurableObject<Env> {
       label: this.ctx.id.toString(),
       credentials: () => this.#credentials,
       turn: (provider) => this.turnContext(provider),
-      loops: () => this.#il,
     })
     return this.#memory
   }
@@ -585,7 +577,6 @@ export class UserDO extends DurableObject<Env> {
       alarms: this.alarms,
       life: this.life,
       memory: this.#mem,
-      reminders: this.reminders,
       room: this.env.ROOM,
       userId: userIdFromObjectName(this.ctx.id.name),
     })
@@ -594,7 +585,11 @@ export class UserDO extends DurableObject<Env> {
 
   /** Null when no key is stored. A cold object serves the saved listing and refreshes it behind. */
   async composioTools(): Promise<ComposioTool[] | null> {
-    return this.#composio.tools()
+    try {
+      return await this.#composio.tools()
+    } catch (e) {
+      return this.fail(composioFailure(e), e)
+    }
   }
 
   /** What an open agent compares with the tools it opened with. Reads one row, never calls Composio. */
@@ -603,7 +598,17 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async composioCall(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
-    return this.#composio.call(name, args)
+    try {
+      return await this.#composio.call(name, args)
+    } catch (e) {
+      return this.fail(composioFailure(e), e)
+    }
+  }
+
+  /** Tells the human what broke, then lets the caller see the error as before. */
+  private fail(error: KikoError | null, cause: unknown): never {
+    if (error) this.broadcast({ t: "error", error })
+    throw cause
   }
 
   #composioConnection?: ComposioConnection
@@ -644,7 +649,7 @@ export class UserDO extends DurableObject<Env> {
 
   #kernelWiring?: KernelWiring
   get #kr(): KernelWiring {
-    this.#kernelWiring ??= new KernelWiring({ ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => userIdFromObjectName(this.ctx.id.name) })
+    this.#kernelWiring ??= new KernelWiring({ ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => userIdFromObjectName(this.ctx.id.name), notify: (error) => this.broadcast({ t: "error", error }) })
     return this.#kernelWiring
   }
 
@@ -759,6 +764,15 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    try {
+      await this.handleMessage(ws, message)
+    } catch (e) {
+      console.error(`user frame failed: ${e instanceof Error ? e.message : String(e)}`)
+      send(ws, { t: "error", error: STORAGE_ERROR })
+    }
+  }
+
+  private async handleMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     let frame: typeof ClientToUser.Type
     try {
       frame = decodeFrame(JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)))
@@ -858,12 +872,8 @@ export class UserDO extends DurableObject<Env> {
     this.changed("loops")
   }
 
-  async devInitiative(op: DevInitiativeOp): Promise<unknown> {
-    return (await this.dev()).devInitiative(() => this.#il.engine, this.reminders, op)
-  }
-
   /** A reminder an agent set for itself opens its commitment (section 26.2); a dev route opens a loop for the fake-agent suite. */
-  async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; reminderId?: string }): Promise<OpenResult> {
+  async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; text: string; due: string | null; reminderId?: string }): Promise<OpenResult> {
     const out = await this.#il.open(owner, roomId, ref, input)
     if (out.ok) this.changed("loops")
     return out
@@ -880,8 +890,17 @@ export class UserDO extends DurableObject<Env> {
     return this.#il.loops.list(filter)
   }
 
-  async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string }): Promise<{ owe: string[]; related: string[]; noticed: string[] }> {
+  async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string }): Promise<{ owe: string[]; related: string[]; noticed: string[]; noticedIds: number[] }> {
     return this.#il.initiative.brief(roomId, slug, burst)
+  }
+
+  /** The "on their plate" lines a run was given, so the next burst does not repeat them. */
+  async devPass(): Promise<unknown> {
+    return (await this.dev()).devPass(() => this.#il.engine)
+  }
+
+  async briefShown(loopIds: number[]): Promise<void> {
+    this.#il.engine.briefed(loopIds)
   }
 
   /** An agent's answer, for the Jev pass to catch a promise to come back (section 26.2). */
@@ -1022,7 +1041,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
-    // The route checked the zone. The rhythm reads hours in it, so the pass is set again.
+    // The route checked the zone. The daily pass is at nine in it, so the pass is set again.
     if (patch.timezone) {
       this.putSetting("timezone", patch.timezone)
       await this.#il.engine.arm()

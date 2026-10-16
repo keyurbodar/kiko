@@ -1,6 +1,6 @@
 import type { AgentSlug, MessageId, RoomEvent, RunRef } from "@kiko/protocol"
 import type { RoomLog } from "./log"
-import { parseRichText } from "./rich-text"
+import { type ImageFile, parseRichText } from "./rich-text"
 
 
 const REPLY_TAG = /^\[reply:([^\]\s]+)\]\s*/
@@ -17,6 +17,7 @@ export class Bubbles {
 	constructor(
 		storage: DurableObjectStorage,
 		private readonly log: RoomLog,
+		private readonly imageFile: ImageFile,
 	) {
 		this.sql = storage.sql
 	}
@@ -34,7 +35,7 @@ export class Bubbles {
 		const earlier = this.log.earlierAttempts(run.runId, run.attempt, run.index)
 		const deleted = earlier.length ? this.log.deleteMessages(earlier, from) : null
 		if (deleted) events.push(deleted)
-		const rich = parseRichText(text)
+		const rich = parseRichText(text, this.imageFile)
 		if (!text || !rich.length) return events
 		const { event } = this.log.addMessage({ from, text, rich, run, ...target, ...(initiative ? { initiative } : {}) })
 		if (event) events.push(event)

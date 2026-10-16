@@ -15,12 +15,9 @@ const cases: Array<[string, Trigger, string]> = [
   ["hourly", { on: "time", at, rrule: "FREQ=HOURLY;INTERVAL=3" }, "Every 3 hours"],
   ["an unknown rule", { on: "time", at, rrule: "FREQ=SECONDLY" }, "Repeats"],
   ["a bad date", { on: "time", at: "soon" }, "On a schedule"],
-  ["any task", { on: "task" }, "When a task changes"],
-  ["some task states", { on: "task", status: ["done", "blocked"] }, "When a task moves to done or blocked"],
   ["the human's message", { on: "message", contains: "deploy" }, "When you send a message with “deploy”"],
-  ["a file", { on: "file", path: "/plan/route.md" }, "When /plan/route.md changes"],
   ["a webhook", { on: "webhook" }, "When its webhook is called"],
-  ["a watched page", { on: "watch", url: "https://status.example.com/feed", everyMinutes: 15 }, "When status.example.com changes, checked every 15 min"],
+  ["a trigger kiko dropped", { on: "watch", url: "https://x.test", everyMinutes: 15 } as unknown as Trigger, "Trigger no longer supported"],
 ]
 
 describe("triggerLabel", () => {

@@ -1,5 +1,6 @@
 
 import type { Actor, Sender } from "./envelope"
+import type { KikoError } from "./errors"
 import type { AgentSlug, MessageId, RoomId } from "./ids"
 import type { RichText } from "./rich-text"
 
@@ -197,6 +198,8 @@ export type RoomToClient =
 	| { t: "send_refused"; clientId: string; reason: string }
 	| { t: "task_refused"; op: TaskOp; reason: string }
 	/** Not stored. A run of this agent ended in a model or provider error. `detail` is scrubbed and only set for `other`. */
+	/** Not stored. Something the human must know about, as one toast. */
+	| { t: "error"; error: KikoError }
 	| { t: "run_error"; slug: AgentSlug; kind: RunErrorKind; provider?: string; detail?: string }
 	| { t: "files_refused"; op: FileOp; reason: FileRefusal }
 	| { t: "search"; query: string; before?: number; results: readonly SearchHit[]; next: number | null }

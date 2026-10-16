@@ -1,7 +1,7 @@
 import type { Trigger, WebhookMatch } from "@kiko/protocol"
 import { type Reminder, ReminderError } from "./reminders"
 
-export type RoomRoutine = { id: string; target: string; trigger: Extract<Trigger, { on: "task" | "message" | "file" }> }
+export type RoomRoutine = { id: string; target: string; trigger: Extract<Trigger, { on: "message" }> }
 
 export const roomRoutine = (r: Reminder): RoomRoutine => ({ id: r.id, target: r.target, trigger: r.trigger as RoomRoutine["trigger"] })
 

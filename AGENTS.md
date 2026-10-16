@@ -144,7 +144,7 @@ apps/
     src/room/           RoomDO: log, burst, delivery, workspace
     src/room/wake.ts    the wake path a routine or a nudge uses to start one agent run
     src/room/signals.ts the signal window: human messages and task changes for routines and the engine
-    src/initiative/     open loops wiring: attention (learned moment and appetite), engine, judge
+    src/initiative/     open loops wiring: the daily pass (engine), the brief and Jev (initiative), the Jev burst check (judge)
     src/agent/          AgentDO: factory, outbox, kiko's extensions
     src/files/          uploads, downloads, the room file system
     src/recipes/        the recipe catalog and its route

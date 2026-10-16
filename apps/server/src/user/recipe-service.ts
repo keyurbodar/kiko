@@ -1,4 +1,5 @@
-import type { Agent, InstallRecipe, RecipeInstall, RoomId } from "@kiko/protocol"
+import type { Agent, InstallRecipe, RecipeInstall, RecipeNeedsConnect, RoomId } from "@kiko/protocol"
+import { toolkitSlug } from "../recipes/card"
 import type { Recipe } from "../recipes/recipe"
 import type { RecipeLibrary } from "./recipe-library"
 import { deleteInstall, findInstall, findTarget, type Install, listInstalls, recipeRule, recipeWake, saveInstall } from "./recipes"
@@ -18,10 +19,15 @@ type Ports = {
   makeAgent(name: string, handle: string, description: string, model: string): Promise<Agent | null>
   openChat(title: string, agentIds: readonly string[]): Promise<RoomId>
   chiefModel(): Promise<string>
+  composio: {
+    /** The connected toolkit slugs; "off" when Composio has no key; null when it cannot say. Always fresh. */
+    connected(): Promise<ReadonlySet<string> | "off" | null>
+    link(app: string): Promise<string | null>
+  }
   announce(roomId: RoomId, input: { installId: string; agent: string; title: string; wake: string | null }): Promise<"delivered" | "refused" | "gone" | "duplicate">
 }
 
-type InstallOutcome = { ok: true; install: RecipeInstall; setup: string; existed: boolean } | { ok: false; error: string }
+type InstallOutcome = { ok: true; install: RecipeInstall; setup: string; existed: boolean } | { ok: false; error: string } | { ok: false; needsConnect: RecipeNeedsConnect }
 
 /** Installs and removals. A recipe is a file; an install is a row plus links to its routines. Nothing reconciles them. */
 export class RecipeService {
@@ -62,6 +68,10 @@ export class RecipeService {
     const lib = await this.p.library.read()
     const recipe = lib.recipes.find((r) => r.slug === input.slug)
     if (!recipe) return { ok: false, error: `no recipe named ${input.slug} in /home/recipes` }
+    const on = "own" in input ? undefined : findTarget(this.p.sql, recipe.slug, input.roomId, input.agent)
+    if (on) return { ok: true, install: this.withRoutines(on), setup: `${recipe.title} is already on for @${on.agent} in this chat.`, existed: true }
+    const needsConnect = await this.gate(recipe)
+    if (needsConnect) return { ok: false, needsConnect }
     let roomId: RoomId
     let agent: string
     if ("own" in input) {
@@ -76,6 +86,19 @@ export class RecipeService {
     const there = findTarget(this.p.sql, recipe.slug, roomId, agent)
     if (there) return { ok: true, install: this.withRoutines(there), setup: `${recipe.title} is already on for @${agent} in this chat.`, existed: true }
     return this.add(recipe, input.installId, roomId, agent, by)
+  }
+
+  /** Null when every app the recipe needs is connected. Else the links that connect the missing ones, and nothing is made. */
+  private async gate(recipe: Recipe): Promise<RecipeNeedsConnect | null> {
+    if (!recipe.apps.length) return null
+    const have = await this.p.composio.connected()
+    if (have === "off") return { state: "needs_connect", links: [], reason: "Add a Composio key in Settings, Integrations, then add this recipe again." }
+    if (!have) return { state: "needs_connect", links: [], reason: "Kiko could not check your apps. Try again." }
+    const missing = recipe.apps.filter((app) => !have.has(toolkitSlug(app)))
+    if (!missing.length) return null
+    const made = await Promise.all(missing.map(async (app) => ({ app, url: await this.p.composio.link(app) })))
+    const links = made.flatMap((l) => (l.url ? [{ app: l.app, url: l.url }] : []))
+    return { state: "needs_connect", links, ...(links.length ? {} : { reason: "Kiko could not make a connect link. Try again." }) }
   }
 
   private async add(recipe: Recipe, installId: string, roomId: RoomId, agent: string, by: string | undefined): Promise<InstallOutcome> {

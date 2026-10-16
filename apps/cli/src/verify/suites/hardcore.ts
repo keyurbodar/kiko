@@ -125,7 +125,7 @@ const suite: Suite = {
     from = lastSeq(room)
     t0 = Date.now()
     room.send("@kiko remind me in 20 seconds to buy candles")
-    await poll("the reminder line", () => after(room, from).some((m) => m.from.kind === "system" && /candle/i.test(m.text)), 120_000)
+    await poll("the reminder line", () => after(room, from).some((m) => m.from.kind === "agent" && /candle/i.test(m.text) && m.at >= t0 + 15_000), 120_000)
     const fired = (Date.now() - t0) / 1000
     print(room, from)
     if (fired < 15) fail.push(`reminder: fired after ${fired.toFixed(0)} s, too early`)
