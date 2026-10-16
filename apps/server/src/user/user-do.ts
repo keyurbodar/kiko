@@ -75,7 +75,7 @@ const OLD_CHECK_IN_SEEN = "check_in_seen"
 const LAST_CHAT = "last_chat"
 
 
-export type NewAgentOutcome = { ok: true; agent: Agent; roomId: RoomId } | { ok: false; error: string }
+type NewAgentOutcome = { ok: true; agent: Agent; roomId: RoomId } | { ok: false; error: string }
 
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage

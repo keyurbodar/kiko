@@ -11,7 +11,7 @@ export type NewAgentPorts = {
   introduce(roomId: RoomId, agent: Agent, text: string): Promise<void>
 }
 
-export type NewAgentResult =
+type NewAgentResult =
   | { ok: true; agent: Agent; roomId: RoomId; /** The agent's greeting. The caller keeps it alive with `waitUntil`. */ introduced: Promise<void> }
   | { ok: false; error: string }
 
