@@ -1,7 +1,7 @@
-import { newRoomId, sameAgentChat } from "@kiko/protocol"
+import { KIKO, newRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeList, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeList, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
 import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
@@ -24,6 +24,7 @@ import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-c
 import { keyringFromEnv } from "@kiko/durable/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
 import { createAgent, listAgents } from "./agents"
+import { agentModel, allAgentModels, saveAgentModel } from "./agent-models"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { actorKey } from "../room/log"
@@ -474,6 +475,22 @@ export class UserDO extends DurableObject<Env> {
     if (roomId) await roomStub(this.env.ROOM, owner, roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open kiko.", "limit")
   }
 
+  /** What an agent runs on, for every chat. */
+  async agentModel(slug: string): Promise<AgentModel> {
+    return agentModel(this.sql, slug)
+  }
+
+  /** The room frame's setter: one model for the named agent, or for each of the room's agents. */
+  async setAgentModels(slugs: readonly AgentSlug[], ref: string, roomId: RoomId): Promise<void> {
+    for (const slug of slugs) this.setAgentModel(slug, ref, undefined, roomId)
+  }
+
+  /** One round trip for a run: the agent's model and level, then the credentials for that model's provider. */
+  async agentTurn(slug: string): Promise<TurnContext & { model: string; thinking: ThinkingLevel }> {
+    const picked = agentModel(this.sql, slug)
+    return { ...(await this.turnContext(picked.model.slice(0, picked.model.indexOf("/")), slug)), model: picked.model, thinking: picked.thinking }
+  }
+
   async turnContext(provider: string, slug?: string): Promise<TurnContext> {
     const setting = (key: string) =>
       getSetting(this.sql, key)
@@ -745,6 +762,10 @@ export class UserDO extends DurableObject<Env> {
       this.saveAgent(frame.op.agent)
       return
     }
+    if (frame.t === "agent_model") {
+      this.setAgentModel(frame.slug, frame.ref, frame.thinking, frame.roomId)
+      return
+    }
     if (frame.t === "open") {
       if (this.setting(LAST_CHAT) !== frame.roomId) this.putSetting(LAST_CHAT, frame.roomId)
       return
@@ -858,8 +879,22 @@ export class UserDO extends DurableObject<Env> {
 
   private saveAgent(agent: Agent): Agent | null {
     const stored = createAgent(this.sql, agent, Date.now())
-    if (stored) this.commit({ t: "agent", agent: stored })
+    if (!stored) return null
+    this.commit({ t: "agent", agent: stored })
+    // A new agent starts on the model it was made with, or on Kiko's.
+    this.setAgentModel(stored.slug, stored.model || agentModel(this.sql, KIKO).model)
     return stored
+  }
+
+  /** The one setter for an agent's model and level. Every chat, Settings, and the next run read what it saves. */
+  setAgentModel(slug: AgentSlug, ref?: string, thinking?: ThinkingLevel, roomId?: RoomId): AgentModel | null {
+    const before = agentModel(this.sql, slug)
+    const saved = saveAgentModel(this.sql, slug, ref, thinking)
+    if (!saved) return null
+    if (JSON.stringify(saved) === JSON.stringify(before)) return saved
+    this.commit({ t: "agent_model", slug, ...saved })
+    if (roomId && saved.model !== before.model) this.ctx.waitUntil(Promise.resolve(roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).modelChanged(slug, saved.model)).catch(() => {}))
+    return saved
   }
 
   private saveTheme(theme: string | null): boolean {
@@ -872,7 +907,7 @@ export class UserDO extends DurableObject<Env> {
     return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM user_events").one().seq ?? 0
   }
 
-  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "agent"; agent: Agent } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
     if (!change) return null
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
     const at = Date.now()
@@ -900,7 +935,7 @@ export class UserDO extends DurableObject<Env> {
       const lastChat = this.lastChat()
       return {
         t: "reset",
-        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}) },
+        snapshot: { seq, chats: listChats(this.sql).map((c) => markKikoChat(this.sql, c)), agents: listAgents(this.sql), agentModels: allAgentModels(this.sql), theme: getTheme(this.sql), home: { files: this.home.all(), folders: this.home.folders() }, ...(lastChat ? { lastChat } : {}) },
       }
     }
     const events = this.sql

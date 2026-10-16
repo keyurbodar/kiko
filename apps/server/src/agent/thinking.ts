@@ -2,6 +2,17 @@ import { clampThinkingLevel, getSupportedThinkingLevels } from "@earendil-works/
 import { defaultThinking, type ThinkingLevel } from "@kiko/protocol"
 import { findProvider } from "../user/turn-context"
 
+/** `provider/model` as a model reference. A string with no provider names no model. */
+export function parseModelRef(ref: string): { provider: string; modelId: string } | null {
+  const at = ref.indexOf("/")
+  return at > 0 ? { provider: ref.slice(0, at), modelId: ref.slice(at + 1) } : null
+}
+
+/** True when pi-ai lists this model, so a stale or made-up id never reaches a run. */
+export function isKnownModel(ref: { provider: string; modelId: string }): boolean {
+  return lookup(ref) !== undefined
+}
+
 function lookup(ref: { provider: string; modelId: string }) {
   return findProvider(ref.provider)?.getModels().find((m) => m.id === ref.modelId)
 }

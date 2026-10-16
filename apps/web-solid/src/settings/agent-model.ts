@@ -1,4 +1,4 @@
-import { clampThinking, type Member, type ThinkingLevel } from "@kiko/protocol"
+import type { Member, ThinkingLevel } from "@kiko/protocol"
 
 // Same rule as the room's tag scan (server room/recipients.ts): an @ after a space or the start.
 const TAG = /(?:^|[^a-z0-9_@.-])@([a-z0-9-]{1,32})(?![a-z0-9-])/gi
@@ -14,8 +14,3 @@ export function answeringMember(members: readonly Member[], draft: string): Memb
 
 /** True when a model offers a reasoning level beyond "off". */
 export const canReason = (levels: readonly ThinkingLevel[] | undefined): boolean => !!levels?.some((level) => level !== "off")
-
-/** The level an agent keeps when it moves to a model with these levels. */
-export function levelFor(levels: readonly ThinkingLevel[], current: ThinkingLevel | undefined): ThinkingLevel | undefined {
-  return current ? clampThinking(levels, current) : undefined
-}

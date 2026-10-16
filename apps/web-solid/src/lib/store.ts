@@ -15,8 +15,8 @@ import { chatFaces, chatSeed } from "./identity"
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { Agent, AgentSlug, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
-import { fileName, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
+import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
+import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
@@ -729,9 +729,25 @@ export function createApp(options: AppOptions = {}) {
         return chatFaces(chat ?? { roomId }, userStore()?.agents() ?? [], live)
       },
 
-      /** The open room's agents as the protocol has them: role, model, and lead included. */
+      /** The open room's agents as the protocol has them: role and lead included. */
       roomMembers(): Member[] {
         return room()?.members() ?? []
+      },
+
+      /** An agent's model and reasoning level. It is the same in every chat. */
+      agentModel(slug: string): AgentModel | undefined {
+        return userStore()?.agentModel(slug)
+      },
+
+      /** Sets an agent's model, its level, or both, for every chat. It applies at once; the server confirms it. */
+      setAgentModel(slug: AgentSlug, pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[] }) {
+        userStore()?.setAgentModel(slug, { ...pick, ...(room() ? { roomId: room()!.state.roomId } : {}) })
+      },
+
+      /** Kiko first, then every agent the owner made. Each one has a model to set. */
+      modelAgents(): { slug: AgentSlug; name: string }[] {
+        const mine = (userStore()?.agents() ?? []).map((a) => ({ slug: a.slug, name: a.name }))
+        return [{ slug: KIKO as AgentSlug, name: "Kiko" }, ...mine.filter((a) => a.slug !== KIKO)]
       },
 
       /** Adds, renames, or removes an agent in the open room. It applies at once; a refusal rolls it back. */

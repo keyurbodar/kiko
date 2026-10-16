@@ -236,6 +236,4 @@ export const ROOM_STEPS: Step[] = [
 		body TEXT NOT NULL,
 		chain TEXT
 	) STRICT`,
-	// The reasoning level a member runs at, as the human last set it. Empty means the model's default.
-	addColumn("members", "thinking", "TEXT NOT NULL DEFAULT ''"),
 ]

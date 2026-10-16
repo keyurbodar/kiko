@@ -26,7 +26,7 @@ import { type ComposioTool, learnedSignature } from "../integrations/composio/cl
 import { learnedNote } from "../integrations/composio/tools"
 
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
-import { thinkingFor } from "./thinking"
+import { parseModelRef, thinkingFor } from "./thinking"
 import { createAlarms } from "@kiko/durable/alarm"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
@@ -37,7 +37,7 @@ import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { jevPort, modelPort, pickDecider } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
-import { findProvider, pickJudge } from "../user/turn-context"
+import { pickJudge } from "../user/turn-context"
 
 import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
@@ -52,8 +52,6 @@ const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 const RECENT_WORKERS = 8
-const MODEL_KEY = "model"
-const THINKING_KEY = "thinking"
 const MODEL_APPLIED_KEY = "model:applied"
 
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
@@ -350,7 +348,8 @@ export class AgentDO extends DurableObject<Env> {
     const browser = browserOn && home
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), thinkingLevel: await this.thinking(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const picked = await this.picked()
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: picked.model, thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -548,14 +547,15 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     if (!home) return false
     this.#runStamp++
-    const model = await this.model()
-    const applied = { model, thinkingLevel: await this.thinking() }
+    const turn = await userStub(this.env.USER, home.userId).agentTurn(home.slug)
+    const model = parseModelRef(turn.model) ?? DEFAULT_MODEL
+    this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.agent ? { soul: turn.agent.soul } : {}) }
+    const applied = { model, thinkingLevel: turn.thinking }
     if (JSON.stringify(applied) !== JSON.stringify(await this.ctx.storage.get(MODEL_APPLIED_KEY))) {
       await root.configure(applied, BACKGROUND_CONTEXT)
       await this.ctx.storage.put(MODEL_APPLIED_KEY, applied)
     }
-    const auth = await this.loadAuth(model.provider)
-    if (auth) return true
+    if (turn.auth) return true
     const heard = this.host.inbox.envelopeIds(requestId).filter((id) => id.startsWith("agent:"))
     await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId, heard)
     return false
@@ -573,23 +573,16 @@ export class AgentDO extends DurableObject<Env> {
     return this.#run.auth
   }
 
+  /** The model and level this agent runs on. Kept by the user, so every chat with this agent agrees. */
+  private async picked(): Promise<{ model: ModelRef; thinking: ThinkingLevel }> {
+    const home = this.home()
+    if (!home) return { model: DEFAULT_MODEL, thinking: thinkingFor(DEFAULT_MODEL) }
+    const picked = await userStub(this.env.USER, home.userId).agentModel(home.slug)
+    return { model: parseModelRef(picked.model) ?? DEFAULT_MODEL, thinking: picked.thinking }
+  }
+
   async model(): Promise<ModelRef> {
-    return (await this.ctx.storage.get<ModelRef>(MODEL_KEY)) ?? DEFAULT_MODEL
-  }
-
-  /** The reasoning level the agent runs at: its pick clamped to what its model supports. */
-  async thinking(): Promise<ThinkingLevel> {
-    return thinkingFor(await this.model(), await this.ctx.storage.get<ThinkingLevel>(THINKING_KEY))
-  }
-
-  /** Sets the model and, with it, the reasoning level (clamped to the model). Returns the level now in force, or null for an unknown model. */
-  async setModel(model: ModelRef, thinking?: ThinkingLevel): Promise<ThinkingLevel | null> {
-    if (!findProvider(model.provider)?.getModels().some((m) => m.id === model.modelId)) return null
-    const next = { provider: model.provider, modelId: model.modelId }
-    const wanted = thinking ?? (await this.ctx.storage.get<ThinkingLevel>(THINKING_KEY))
-    const level = thinkingFor(next, wanted)
-    await this.ctx.storage.put({ [MODEL_KEY]: next, [THINKING_KEY]: level })
-    return level
+    return (await this.picked()).model
   }
 
   async alarm() {

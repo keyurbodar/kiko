@@ -7,8 +7,8 @@ import { VList, type VListHandle } from "virtua/solid"
 import { loadCatalog, modelRef, searchModels, type ModelRow } from "./catalog"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
-import type { Member, ThinkingLevel } from "@kiko/protocol"
-import { answeringMember, levelFor } from "./agent-model"
+import type { ThinkingLevel } from "@kiko/protocol"
+import { answeringMember } from "./agent-model"
 import { ReasoningMenu } from "./reasoning-menu"
 import { connectedProviders } from "./connected"
 import { favoriteModels, hiddenModels, toggleFavorite } from "./model-prefs"
@@ -251,37 +251,33 @@ export function ModelPicker(props: { current?: string; onPick: (ref: string, thi
 export function ModelPickerButton(props: { draft: string }) {
   const members = () => useApp.roomMembers()
   const target = () => answeringMember(members(), props.draft)
-  const pick = (member: Member, ref: string, levels: readonly ThinkingLevel[]) => {
-    if (ref !== member.model) useApp.room()?.model(member.slug, ref, levelFor(levels, member.thinking), levels)
-  }
   return (
     <Show when={hasModelProvider(connectedProviders()) ? target() : undefined}>
-      {(member) => (
-        <>
-          <ModelPicker
-            current={member().model}
-            open={pickerOpen()}
-            onOpenChange={setPickerOpen}
-            onPick={(ref, levels) => pick(member(), ref, levels)}
-            title={members().length > 1 ? `Choose model for ${member().name}` : "Choose model"}
-            class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
-          >
-            <Show when={members().length > 1}>
-              <IdentityAvatar seed={member().slug} size={14} />
-            </Show>
-            <Show when={member().model?.split("/")[0]}>{(provider) => <ProviderIcon id={provider()} width="13" height="13" />}</Show>
-            <span class="truncate" data-component="composer-model">{member().model?.split("/").slice(1).join("/") ?? "Choose model"}</span>
-            <svg class="size-2.5 shrink-0 opacity-70" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M3 4.5L6 7.5l3-3" />
-            </svg>
-          </ModelPicker>
-          <ReasoningMenu
-            levels={member().thinkingLevels}
-            value={member().thinking}
-            onChange={(level) => useApp.room()?.model(member().slug, member().model ?? "", level)}
-          />
-        </>
-      )}
+      {(member) => {
+        const current = () => useApp.agentModel(member().slug)
+        return (
+          <>
+            <ModelPicker
+              current={current()?.model}
+              open={pickerOpen()}
+              onOpenChange={setPickerOpen}
+              onPick={(ref, levels) => ref !== current()?.model && useApp.setAgentModel(member().slug, { ref, levels })}
+              title={members().length > 1 ? `Choose model for ${member().name}` : "Choose model"}
+              class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
+            >
+              <Show when={members().length > 1}>
+                <IdentityAvatar seed={member().slug} size={14} />
+              </Show>
+              <Show when={current()?.model.split("/")[0]}>{(provider) => <ProviderIcon id={provider()} width="13" height="13" />}</Show>
+              <span class="truncate" data-component="composer-model">{current()?.model.split("/").slice(1).join("/") ?? "Choose model"}</span>
+              <svg class="size-2.5 shrink-0 opacity-70" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 4.5L6 7.5l3-3" />
+              </svg>
+            </ModelPicker>
+            <ReasoningMenu levels={current()?.thinkingLevels} value={current()?.thinking} onChange={(thinking) => useApp.setAgentModel(member().slug, { thinking })} />
+          </>
+        )
+      }}
     </Show>
   )
 }

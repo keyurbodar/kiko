@@ -12,9 +12,10 @@ const suite: Suite = {
   async run(v) {
     const s = await v.as("agent-reasoning")
     await connectTestModel(s)
+    const user = await s.user()
+    user.send({ t: "agent_model", slug: "kiko" as AgentSlug, ref: MODEL, thinking: "high" })
+    await user.expect((f) => f.t === "events" && f.events.some((e) => e.t === "agent_model" && e.slug === "kiko" && e.model === MODEL && e.thinking === "high"))
     const { room } = await newRoom(s, "agent reasoning")
-    room.raw.send({ t: "model", slug: "kiko" as AgentSlug, ref: MODEL, thinking: "high" })
-    await poll("kiko on the model at high", () => room.raw.log.some((e) => e.dir === "in" && JSON.stringify(e.frame).includes(`"model":"${MODEL}","thinking":"high"`)))
     await resetStats(v, s)
     room.send("reply with the single word ok.")
     await poll("an answer", () => seen(room).live.length > 0, 90_000)

@@ -8,10 +8,10 @@
 // ASSUMPTION: chat edits are not written to the outbox, which holds sends
 // only. A chat edit made offline is lost on reload.
 
-import type { Agent, Chat, ChatOp, FileOp, FileRef, RoomId, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, FileRef, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
-import { allAgents, allChats, getHome, getUserSeq, putAgents, putChats, putHome, removeChat, replaceChats, setUserSeq } from "../warm/chats"
+import { allAgentModels, allAgents, allChats, getHome, getUserSeq, putAgentModels, putAgents, putChats, putHome, removeChat, replaceChats, setUserSeq } from "../warm/chats"
 import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
@@ -27,7 +27,7 @@ export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home
 export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	if (e.seq <= data.seq) return false
 	data.seq = e.seq
-	if (e.t === "theme") return true // the theme client reads these. The chat list has nothing to change.
+	if (e.t === "theme" || e.t === "agent_model") return true // the theme client and the agent models read these. The chat list has nothing to change.
 	// The drive's events, by the same rules as a room's files: a path holds one file, a move keeps the id.
 	if (e.t === "file" || e.t === "file_removed" || e.t === "folders") {
 		if (e.t === "file") {
@@ -51,7 +51,7 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	return true
 }
 
-import { KIKO, newRoomId, PROTOCOL } from "@kiko/protocol"
+import { clampThinking, KIKO, newRoomId, PROTOCOL } from "@kiko/protocol"
 export { newRoomId }
 
 // The app's own build. The backend's answer is checked against it.
@@ -66,6 +66,10 @@ export type UserState = UserData & {
 	pendingAgents: Agent[]
 	/** Drive changes the server has not confirmed yet, laid over `home`. */
 	pendingHome: RoomPatch[]
+	/** Every agent's model and reasoning level, Kiko included, as the server last said. One entry per agent, whatever chat is open. */
+	agentModels: Record<string, AgentModel>
+	/** Model picks the server has not confirmed yet, laid over `agentModels`. */
+	pendingModels: Record<string, AgentModel>
 	/** The saved look as the server last said it, as JSON text. Undefined until it says. `theme/live.ts` applies it. */
 	theme?: string | null
 	/** True once the server has answered `hello`: the list is the server's, not only this device's. */
@@ -101,6 +105,10 @@ export type UserStore = {
 	readonly ready: Promise<void>
 	/** The user's agents, with the ones not yet confirmed. */
 	agents(): Agent[]
+	/** The agent's model and level, with a pending pick applied. Undefined until the server has said. */
+	agentModel(slug: string): AgentModel | undefined
+	/** Sets an agent's model, its level, or both, for every chat. Shown at once; the server confirms it. `levels` are the new model's supported levels. */
+	setAgentModel(slug: AgentSlug, pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[]; roomId?: RoomId }): void
 	/** Adds an agent at once and sends it after. The caller makes the id and the unique handle. */
 	createAgent(agent: Agent): void
 	/** Returns the new room's id. `agents` are the ids of the agents it starts with. */
@@ -143,6 +151,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		patches: [],
 		pendingAgents: [],
 		pendingHome: [],
+		agentModels: {},
+		pendingModels: {},
 		synced: false,
 		lastChat: null,
 		refused: {},
@@ -187,7 +197,13 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			if (confirmed.length) setState("pendingAgents", (list) => list.filter((a) => !confirmed.includes(a.id)))
 			const next = settleUser(state.patches, applied)
 			if (next.length !== state.patches.length) setState("patches", next)
-			for (const e of applied) if (e.t === "theme") setState("theme", e.theme)
+			for (const e of applied) {
+				if (e.t === "theme") setState("theme", e.theme)
+				else if (e.t === "agent_model") {
+					setState("agentModels", e.slug, { model: e.model, thinking: e.thinking, thinkingLevels: e.thinkingLevels })
+					setState("pendingModels", e.slug, undefined!)
+				}
+			}
 			const home = state.pendingHome.filter((p) => !applied.some((e) => roomConfirmedBy(p, e as never)))
 			if (home.length !== state.pendingHome.length) setState("pendingHome", home)
 		})
@@ -196,6 +212,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			else if (e.t === "chat_removed") removeChat(warm, e.roomId)
 		}
 		if (applied.some((e) => e.t === "agent")) putAgents(warm, unwrap(state.agents))
+		if (applied.some((e) => e.t === "agent_model")) putAgentModels(warm, unwrap(state.agentModels))
 		if (applied.some((e) => e.t === "file" || e.t === "file_removed" || e.t === "folders")) putHome(warm, unwrap(state.home))
 		if (applied.length) setUserSeq(warm, state.seq)
 	}
@@ -205,6 +222,9 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		const home = { files: [...snapshot.home.files], folders: [...snapshot.home.folders] }
 		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, lastChat: snapshot.lastChat ?? null })
 		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
+		const agentModels = { ...snapshot.agentModels }
+		setState({ agentModels, pendingModels: {} })
+		putAgentModels(warm, agentModels)
 		setState("pendingAgents", (list) => list.filter((a) => !agents.some((x) => x.id === a.id)))
 		replaceChats(warm, snapshot.chats, snapshot.seq)
 		putAgents(warm, agents)
@@ -237,10 +257,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	}
 
 	async function boot() {
-		const [chats, seq, agents, home] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm)])
+		const [chats, seq, agents, home, agentModels] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm), allAgentModels(warm)])
 		if (closed) return
 		// A cache with no drive predates the drive cache. Ask for a snapshot, not the events after `seq`.
-		setState({ chats, seq: home ? seq : 0, agents, home: home ?? { files: [], folders: [] }, loaded: true })
+		setState({ chats, seq: home ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, loaded: true })
 		socket = createSyncSocket<UserToClient>({
 			url: options.url,
 			connect: options.connect,
@@ -269,6 +289,16 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		chats: () => overlayChats(state.chats, state.patches),
 		ready,
 		agents: () => [...state.agents, ...state.pendingAgents.filter((p) => !state.agents.some((a) => a.id === p.id))],
+		agentModel: (slug) => state.pendingModels[slug] ?? state.agentModels[slug],
+		setAgentModel(slug, { ref, thinking, levels, roomId }) {
+			const current = state.pendingModels[slug] ?? state.agentModels[slug]
+			if (current) {
+				const nextLevels = levels ?? current.thinkingLevels
+				const next = { model: ref ?? current.model, thinking: clampThinking(nextLevels, thinking ?? current.thinking), thinkingLevels: nextLevels }
+				setState("pendingModels", slug, next)
+			}
+			socket?.send({ t: "agent_model", slug, ...(ref ? { ref } : {}), ...(thinking ? { thinking } : {}), ...(roomId ? { roomId } : {}) })
+		},
 		createAgent(agent) {
 			setState("pendingAgents", (list) => [...list, agent])
 			socket?.send({ t: "agent", op: { op: "create", agent } })
