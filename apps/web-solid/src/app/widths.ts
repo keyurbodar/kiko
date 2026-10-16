@@ -23,7 +23,7 @@ export function saveWidth(rule: Rule, panelId: string) {
 }
 
 /** Puts a column back to its default width, the one a double click on its handle restores. */
-export function resetWidth(rule: Rule, panel: { resize: (size: string) => void } | undefined) {
+export function resetWidth(rule: Rule, panel: { resize: (size: `${number}px`) => void } | undefined) {
   panel?.resize(`${rule.fallback}px`)
   try {
     localStorage.setItem(rule.key, String(rule.fallback))
