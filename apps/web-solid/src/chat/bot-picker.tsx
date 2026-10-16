@@ -3,15 +3,15 @@ import { type Agent, KIKO } from "@kiko/protocol"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { PlusIcon } from "@kiko/ui/icons"
 import { Command as Cmdk } from "cmdk-solid"
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js"
-import { fillComposer } from "../composer/fill"
+import { createMemo, createSignal, For, Show } from "solid-js"
 import "../palette/palette.css"
 import { agentList } from "../lib/chats"
 import { Dialog } from "../lib/dialog"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { Button, fieldClass } from "../settings/kit"
-import { closeBotPicker, NEW_AGENT_START, takeNewAgentRequest } from "./bot-picker-state"
+import { openNewAgent } from "../newagent/state"
+import { closeBotPicker } from "./bot-picker-state"
 import { groupTitle, roomFor, togglePick } from "./bot-picker-model"
 
 const NEW_AGENT = "new-agent"
@@ -28,7 +28,6 @@ export default function BotPicker() {
   const [highlight, setHighlight] = createSignal("")
   const [query, setQuery] = createSignal("")
   const [title, setTitle] = createSignal("")
-  const [waiting, setWaiting] = createSignal(false)
   const agents = createMemo(() => agentList(useApp.agents()))
   const room = createMemo(() => roomFor(picked()))
   const name = (id: string) => agents().find((a) => a.id === id)?.name ?? id
@@ -49,25 +48,10 @@ export default function BotPicker() {
   const pick = (id: string) => setPicked((list) => togglePick(list, id))
   const choose = (agent: Agent) => (grouping() ? pick(agent.id) : open([agent.id], agent.name))
 
-  const startNewAgent = (kiko: string) => {
-    closeBotPicker()
-    fillComposer(kiko, NEW_AGENT_START)
-    navigate(`/chat/${kiko}`)
-  }
-
-  // Before the list has Kiko's chat, the row shows it is working and finishes when the chat arrives.
-  createEffect(() => {
-    const kiko = useApp.kikoChatId()
-    if (waiting() && kiko) startNewAgent(kiko)
-  })
-
   const newAgent = () => {
-    const kiko = useApp.kikoChatId()
-    if (kiko) startNewAgent(kiko)
-    else setWaiting(true)
+    closeBotPicker()
+    openNewAgent()
   }
-  // The palette's "New agent" opens the picker already starting the flow, so it waits for Kiko's chat the same way.
-  if (takeNewAgentRequest()) newAgent()
 
   // Mod+Enter opens the pick. Space picks the highlighted row, but only while the search is empty, so a space can still be typed.
   const keys = (event: KeyboardEvent) => {
@@ -122,7 +106,7 @@ export default function BotPicker() {
           </For>
           <Cmdk.Item class="palette-row" value={NEW_AGENT} forceMount onSelect={newAgent}>
             <HugeIcon icon={PlusIcon} size={16} />
-            <span class="palette-label">{waiting() ? "Opening Kiko" : "New agent"}</span>
+            <span class="palette-label">New agent</span>
           </Cmdk.Item>
         </Cmdk.List>
       </Cmdk>

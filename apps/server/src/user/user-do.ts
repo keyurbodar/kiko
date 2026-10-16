@@ -3,6 +3,9 @@ import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
 import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, RecipeList, RoomId, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
+import { matchRecipes, type RecipeHint } from "../recipes/match"
+import { capitalized, soulFromDescription } from "../room/chief"
+import { makeAgentChat } from "../room/new-agent"
 import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
 import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
@@ -72,6 +75,8 @@ const OLD_CHECK_IN_SEEN = "check_in_seen"
 const LAST_CHAT = "last_chat"
 
 
+export type NewAgentOutcome = { ok: true; agent: Agent; roomId: RoomId } | { ok: false; error: string }
+
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
   private alarms!: Alarms
@@ -126,6 +131,31 @@ export class UserDO extends DurableObject<Env> {
     const { cards, custom, installs, broken } = await this.#recipes.list()
     const connected = await this.#composio.connectedToolkits().catch(() => null)
     return { cards: cards.map((r) => recipeCard(r, custom.has(r.slug), connected)), installs, broken }
+  }
+
+  /** The catalog recipes that may fit a new agent's description. */
+  async recipeHints(description: string): Promise<RecipeHint[]> {
+    return matchRecipes(description, (await this.#recipes.list()).cards)
+  }
+
+  /** Makes an agent from the new agent form: the agent, its own chat, and its greeting. The chat id is the client's, so it is already open there. */
+  async createAgentChat(input: { id: string; roomId: RoomId; name: string; handle: string; description: string }): Promise<NewAgentOutcome> {
+    const owner = userIdFromObjectName(this.ctx.id.name)
+    const out = await makeAgentChat(
+      {
+        agents: async () => listAgents(this.sql),
+        make: (spec) => this.makeAgent({ id: spec.id, name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" }),
+        openChat: (title, agentIds, roomId) => this.openChat(title, agentIds, roomId),
+        recipes: (description) => this.recipeHints(description),
+        introduce: (roomId, agent, text) => roomStub(this.env.ROOM, owner, roomId).introduce(owner, agent.slug, text),
+      },
+      { name: input.name, handle: input.handle, description: input.description, soul: soulFromDescription(capitalized(input.name.trim()), input.description) },
+      "human",
+      { id: input.id, roomId: input.roomId },
+    )
+    if (!out.ok) return out
+    this.ctx.waitUntil(out.introduced)
+    return { ok: true, agent: out.agent, roomId: out.roomId }
   }
 
   async editRecipe(slug: string): Promise<string | null> {
@@ -365,16 +395,16 @@ export class UserDO extends DurableObject<Env> {
     return this.#homeWiring.op(op)
   }
 
-  async makeAgent(input: { name: string; slug: string; description: string; soul: string; model: string }): Promise<Agent | null> {
-    const agent = this.saveAgent({ id: crypto.randomUUID(), name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model })
+  async makeAgent(input: { id?: string; name: string; slug: string; description: string; soul: string; model: string }): Promise<Agent | null> {
+    const agent = this.saveAgent({ id: input.id ?? crypto.randomUUID(), name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model })
     if (!agent) return null
     await this.souls.seed(agent.slug, input.soul)
     return agent
   }
 
   /** The chat with exactly these agents: the existing one, or a new one (`created`). */
-  async openChat(title: string, agents: readonly string[]): Promise<{ roomId: RoomId; created: boolean }> {
-    const op: ChatOp = { op: "create", roomId: newRoomId(), title, agents }
+  async openChat(title: string, agents: readonly string[], roomId: RoomId = newRoomId()): Promise<{ roomId: RoomId; created: boolean }> {
+    const op: ChatOp = { op: "create", roomId, title, agents }
     const existing = this.existingFor(op)
     if (existing) return { roomId: existing, created: false }
     this.apply(op)

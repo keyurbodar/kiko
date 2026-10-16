@@ -113,6 +113,11 @@ export type UserStore = {
 	 * once. The server decides the same way, so a refusal only follows a race with another device.
 	 */
 	createChat(title: string, agents?: readonly string[]): RoomId
+	/**
+	 * An agent and its own chat, shown at once while the server makes them. The server's events replace both by id.
+	 * Returns the undo for a refusal.
+	 */
+	addAgentChat(agent: Agent, roomId: RoomId): () => void
 	/** Tells the server the user is in this chat, at most once every `OPEN_DEBOUNCE_MS`. */
 	open(roomId: RoomId): void
 
@@ -305,6 +310,18 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			const roomId = newRoomId()
 			act({ op: "create", roomId, title, ...(agents?.length ? { agents } : {}) })
 			return roomId
+		},
+		addAgentChat(agent, roomId) {
+			const chat: Chat = { roomId, title: agent.name, pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: now(), agents: [agent.id] }
+			batch(() => {
+				setState("agents", (list) => [...list, agent])
+				setState("chats", (list) => [...list, chat])
+			})
+			return () =>
+				batch(() => {
+					setState("agents", (list) => list.filter((a) => a.id !== agent.id))
+					setState("chats", (list) => list.filter((c) => c.roomId !== roomId))
+				})
 		},
 		open(roomId) {
 			if (opening !== undefined) clearTimeout(opening)

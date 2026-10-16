@@ -1,5 +1,6 @@
 import { type Agent, type AgentSlug, isAgentSlug, tagline } from "@kiko/protocol"
 import { MAX_CHAT } from "../files/room-fs"
+import type { RecipeHint } from "../recipes/match"
 import { MAX_SOUL } from "../user/souls"
 
 export const CHIEF = "kiko" as AgentSlug
@@ -15,7 +16,7 @@ const MAX_KICKOFF = 4_000
 const clean = (s: string, max: number) => s.trim().slice(0, max)
 const handleOf = (s: string) => s.trim().toLowerCase().replace(/^@/, "")
 /** A name begins with a capital, so a model that writes "ebert" still makes Ebert. */
-const capitalized = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+export const capitalized = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 /** Tracks the handles and names a batch of new agents must not reuse. */
 function newAgentCheck(agents: readonly Agent[]) {
@@ -71,6 +72,33 @@ export function groupChatFile(title: string, goal: string, team: readonly { slug
   return new TextEncoder().encode(text).length > MAX_CHAT ? { error: `/chat.md holds ${MAX_CHAT} bytes. tighten the goal` } : text
 }
 
-export function introduction(spec: NewAgentSpec): string {
-  return `kiko just made you for the human: ${spec.description}. this is your own chat with them. say hi in a line, in your voice, and ask what to start with.`
+export type Maker = "kiko" | "human"
+
+/** What a new agent hears first. It speaks first, asks what it needs, and may suggest a recipe that fits. */
+export function introduction(spec: NewAgentSpec, by: Maker, recipes: readonly RecipeHint[] = []): string {
+  const made = by === "kiko" ? "kiko just made you for the human" : "the human just made you themselves"
+  const lines = [`${made}: ${spec.description}. this is your own chat with them, and you speak first. say hi in a line or two, in your voice, then ask the one or two questions you need to start. no more than two.`]
+  if (recipes.length) {
+    lines.push("these ready-made recipes from the catalog may fit what you were made for:")
+    for (const r of recipes) lines.push(`- ${r.title} (${r.slug}): ${r.description}`)
+    lines.push("if one really fits, suggest it by name with a short reason. they can add it from the recipes page, or ask you and you add_recipe it. if none fits, say nothing about recipes.")
+  }
+  return lines.join("\n")
+}
+
+/** A first soul for an agent the human made from a form: its own voice, from the description they wrote. */
+export function soulFromDescription(name: string, description: string): string {
+  return `# ${name}
+
+i'm ${name}, an agent they made themselves. this is what they made me for, in their words:
+
+${description.trim()}
+
+## how i am
+- casual and direct. short by default, depth when it matters.
+- i ask one or two questions when i need to, then i get on with it.
+- i say so when i can't do something, and what i'd do instead.
+
+## what i've learned about working with them
+`
 }
