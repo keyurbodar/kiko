@@ -57,3 +57,10 @@ export function indexOf(step: Step, hosted: boolean): number {
   const steps = stepsFor(hosted)
   return step === "done" ? steps.length : steps.findIndex((s) => s.step === step)
 }
+
+/** What the model step shows as selected: the human's click, else the model Kiko already runs on if it is listed, else the first row. */
+export const shownModel = (chosen: string | null, running: string | undefined, listed: readonly string[]): string | undefined =>
+  chosen ?? (running && listed.includes(running) ? running : listed[0])
+
+/** The model to save when the step ends. Only a click on a model other than the running one changes it. */
+export const modelToSave = (chosen: string | null, running: string | undefined): string | null => (chosen && chosen !== running ? chosen : null)
