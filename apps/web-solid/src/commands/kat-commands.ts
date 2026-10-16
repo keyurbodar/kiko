@@ -26,6 +26,8 @@ export function katCommands(deps: {
   newAgent: () => void
   openPalette: () => void
   openChats: () => void
+  /** The open chat's files and the home files that match the query, best first. */
+  fileSearch: (query: string) => readonly Choice[]
   /** Every chat the sidebar lists, as options for the jump list. */
   chatChoices: () => Choice[]
   reopenClosed: () => void
@@ -39,9 +41,8 @@ export function katCommands(deps: {
   stepChat: (step: 1 | -1) => void
   /** How many chats the sidebar lists. */
   chatCount: () => number
-  /** Opens message search over the open chat, or over every chat. */
+  /** Opens message search over the open chat. */
   searchChat: () => void
-  searchAll: () => void
   /** The open chat may be pinned, unpinned, or deleted: it is not the kiko chat. */
   canMove: () => boolean
 }): Command[] {
@@ -64,6 +65,22 @@ export function katCommands(deps: {
     { id: "chat.close", title: "Close chat", group: "chat", icon: "close", when: deps.hasActiveChat, run: deps.closeChat },
     { id: "chat.delete", title: "Delete chat", group: "chat", icon: "trash", when: deps.canMove, run: deps.deleteChat },
     { id: "chats.go", title: "Go to chat…", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, placeholder: "Go to chat…", submenu: deps.chatChoices, run: deps.openChats },
+    // Mod+O attaches a file and Mod+P is the chat jump, so the file jump takes Mod+Shift+O.
+    {
+      id: "files.go",
+      title: "Go to file…",
+      group: "go",
+      icon: "files",
+      shortcut: "Mod+Shift+O",
+      global: true,
+      when: deps.hasActiveChat,
+      placeholder: "Search files…",
+      search: deps.fileSearch,
+      enter: "Open file",
+      highlight: true,
+      empty: { none: "No files yet", noMatch: "No matching files" },
+      run: () => deps.openView("files.go"),
+    },
     // ⌘1 to ⌘9 open the sidebar's chats in order, pinned first, as kat does.
     ...Array.from({ length: 9 }, (_, i): Command => ({
       id: `chats.go-${i + 1}`,
@@ -80,7 +97,6 @@ export function katCommands(deps: {
     { id: "chats.previous", title: "Previous chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowUp", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(-1) },
     { id: "chats.next", title: "Next chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowDown", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(1) },
     { id: "chats.search-current", title: "Search messages in this chat", group: "chats", icon: "search", shortcut: "Mod+F", global: true, when: deps.hasActiveChat, run: deps.searchChat },
-    { id: "chats.search-all", title: "Search all chats", group: "chats", icon: "search", shortcut: "Mod+Shift+F", global: true, run: deps.searchAll },
     { id: "palette.open", title: "Open command palette", group: "palette", icon: "command", shortcut: "Mod+K", global: true, run: deps.openPalette },
   ]
 }

@@ -30,7 +30,7 @@ export function themeCommands(deps: {
       placeholder: "Change theme…",
       submenu: (): Choice[] => [
         ...MODES.map(([mode, title]): Choice => ({ id: `mode.${mode}`, title, icon: "appearance", current: deps.mode() === mode, run: () => deps.setMode(mode) })),
-        ...ACCENT_IDS.map((id): Choice => ({ id: `accent.${id}`, title: `${ACCENTS[id].label} accent`, icon: "appearance", current: deps.accent() === id, run: () => deps.setAccent(id) })),
+        ...ACCENT_IDS.map((id): Choice => ({ id: `accent.${id}`, title: `${ACCENTS[id].label} accent`, icon: "appearance", swatch: ACCENTS[id].dark, current: deps.accent() === id, run: () => deps.setAccent(id) })),
       ],
       run: () => deps.openView("theme.change"),
     },
