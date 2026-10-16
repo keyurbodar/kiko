@@ -36,15 +36,12 @@ export type PromptInputV2ViewConfig = {
   model?: PromptInputV2SelectControl
   variant?: PromptInputV2SelectControl
   submit: {
-    stopping: Accessor<boolean>
     canSubmit?: Accessor<boolean | undefined>
-    working?: Accessor<boolean>
     /** Attachments are still being read for sending. The send button says so. */
     preparing?: Accessor<boolean>
     /** Why sending waits, such as an attachment still uploading. The send button is off and says so. */
     blocked?: Accessor<string | null>
     onSubmit: () => void
-    onStop: () => void
   }
   shell?: {
     onOpen: () => void
@@ -241,15 +238,6 @@ export function createPromptInputV2Controller(input: {
       )
     }
     if (handled) return true
-    const stop =
-      input.view.submit.working?.() &&
-      ((event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "g") ||
-        event.key === "Escape")
-    if (stop) {
-      event.preventDefault()
-      input.view.submit.onStop()
-      return true
-    }
     if (
       !event.altKey &&
       !event.ctrlKey &&
@@ -367,6 +355,10 @@ export function createPromptInputV2Controller(input: {
     openCommands() {
       dispatch({ type: "commands.open" })
     },
+    agents: () => input.context().filter((item) => item.kind === "agent"),
+    mention(item: PromptInputV2Suggestion) {
+      dispatch({ type: "popover.select", item })
+    },
     openContext() {
       dispatch({ type: "context.open" })
     },
@@ -379,9 +371,6 @@ export function createPromptInputV2Controller(input: {
     submit() {
       input.view.submit.onSubmit()
       dispatch({ type: "popover.close" })
-    },
-    stop() {
-      input.view.submit.onStop()
     },
     addHistory(prompt: PromptInputV2PersistedState["prompt"], mode: "normal" | "shell") {
       input.history?.add(prompt, mode)

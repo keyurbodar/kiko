@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto"
 import { describe, expect, test } from "bun:test"
 import type { AgentSlug, Message, MessageId, RoomEvent, RoomId } from "@kiko/protocol"
+import { KIKO_HOME_ROOM } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { IDBFactory } from "fake-indexeddb"
 import { allChats, putChats, setUserSeq } from "../warm/chats"
@@ -678,6 +679,14 @@ describe("the user store", () => {
 		expect(memory).toEqual([])
 	})
 
+	test("an empty cache paints the pinned Kiko tile before the network answers", async () => {
+		const mock = createMockUser()
+		mock.online = false
+		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await store.ready
+		expect(store.chats()).toMatchObject([{ roomId: KIKO_HOME_ROOM, title: "Kiko", pinned: true, kiko: true }])
+	})
+
 	test("chat edits apply at once, go out after a reconnect, and are confirmed", async () => {
 		const mock = createMockUser()
 		mock.online = false
@@ -687,7 +696,7 @@ describe("the user store", () => {
 		const roomIdNew = store.createChat("new chat")
 		expect(roomIdNew as string).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
 		store.pin(roomIdNew, true)
-		expect(store.chats()[0]).toMatchObject({ roomId: roomIdNew, title: "new chat", pinned: true })
+		expect(store.chats().find((c) => c.roomId === roomIdNew)).toMatchObject({ title: "new chat", pinned: true })
 
 		mock.online = true
 		await until(() => store.state.patches.length === 0)
