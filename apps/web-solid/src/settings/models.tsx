@@ -18,7 +18,7 @@ const METHOD_LABEL: Record<ConnectMethod, string> = {
   paste_code: "Browser sign-in",
 }
 
-const POPULAR: readonly { id: string; note: string }[] = [
+export const POPULAR: readonly { id: string; note: string }[] = [
   { id: "opencode-go", note: "Low-cost open models from OpenCode." },
   { id: "opencode", note: "Models picked and tested by the OpenCode team." },
   { id: "anthropic", note: "Claude models." },
@@ -263,7 +263,7 @@ function DisconnectButton(props: { id: string }) {
   )
 }
 
-function AddProviderDialog(props: { open: boolean; loading: boolean; providers: readonly CatalogProvider[]; onClose: () => void; onPick: (provider: CatalogProvider) => void }) {
+export function AddProviderDialog(props: { open: boolean; loading: boolean; providers: readonly CatalogProvider[]; onClose: () => void; onPick: (provider: CatalogProvider) => void }) {
   const [query, setQuery] = createSignal("")
   const shown = createMemo(() => {
     const q = query().trim().toLowerCase()
@@ -325,7 +325,7 @@ function AddProviderDialog(props: { open: boolean; loading: boolean; providers: 
   )
 }
 
-function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () => void }) {
+export function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () => void }) {
   const [error, setError] = createSignal<string | null>(null)
   const [busy, setBusy] = createSignal(false)
   let input: HTMLInputElement | undefined
@@ -368,7 +368,7 @@ function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () =>
             Cancel
           </Button>
           <Button type="submit" form="provider-key-form" variant="primary" disabled={busy()} data-action="save-key">
-            Save key
+            {busy() ? "Saving key" : "Save key"}
           </Button>
         </Show>
       }

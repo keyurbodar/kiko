@@ -3,6 +3,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
 import { workExtensions } from "./extensions/work"
+import { withTextToolCalls } from "./tool-markup"
 import type { Workers } from "@kiko/agent/workers"
 import type { Activity } from "@kiko/protocol"
 import { effectTable } from "@kiko/agent/effects"
@@ -116,8 +117,8 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
   for (const provider of builtinProviders()) {
     const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
     const routed = {
-      stream: ((model, context, options) => timed(model.id, provider.stream(model, context, via(model, options) as never))) as typeof provider.stream,
-      streamSimple: ((model, context, options) => timed(model.id, provider.streamSimple(model, context, via(model, options) as never))) as typeof provider.streamSimple,
+      stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(model, context, via(model, options) as never))) as typeof provider.stream,
+      streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(model, context, via(model, options) as never))) as typeof provider.streamSimple,
     }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }

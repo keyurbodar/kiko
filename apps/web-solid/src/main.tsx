@@ -2,7 +2,7 @@ import { Router } from "@solidjs/router";
 import { Match, Switch, createEffect, lazy, type ParentProps } from "solid-js";
 import { useApp } from "./lib/store";
 import { render } from "solid-js/web";
-import { hosted } from "./app/hosted";
+import { currentStep } from "./app/first-run/progress";
 import { bootstrapSession, session } from "./app/session";
 import "./index.css";
 import { routes } from "./app/routes";
@@ -10,7 +10,8 @@ import { Shell } from "./app/shell";
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays";
 import { startSnapshots } from "./lib/snapshot";
 
-const SignIn = lazy(() => (hosted ? import("./app/hosted-sign-in") : import("./app/sign-in")));
+const SignIn = lazy(() => import("./app/hosted-sign-in"));
+const FirstRun = lazy(() => import("./app/first-run/frame"));
 
 function Root(props: ParentProps) {
   createEffect(() => {
@@ -27,6 +28,9 @@ function Root(props: ParentProps) {
   });
   return (
     <Switch>
+      <Match when={currentStep() !== "done"}>
+        <FirstRun />
+      </Match>
       <Match when={session().status === "signed-in"}>
         <Shell>{props.children}</Shell>
       </Match>
