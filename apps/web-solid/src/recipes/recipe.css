@@ -28,8 +28,9 @@
   display: grid;
   flex-shrink: 0;
   place-items: center;
-  border-radius: 9999px;
-  background: color-mix(in oklab, var(--recipe-tone) 16%, transparent);
+  border-radius: 30%;
+  background: linear-gradient(150deg, color-mix(in oklab, var(--recipe-tone) 30%, transparent), color-mix(in oklab, var(--recipe-tone) 12%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--recipe-tone) 22%, transparent);
   color: var(--recipe-tone);
 }
 
@@ -61,4 +62,47 @@
 .recipe-logo img {
   width: 60%;
   height: 60%;
+}
+
+/* A card tinted by its recipe: a wash of the tone from the top left corner, under the content. */
+.recipe-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(130% 110% at 0% 0%, color-mix(in oklab, var(--recipe-tone) 13%, transparent), transparent 58%),
+    var(--card);
+}
+
+.recipe-card:hover {
+  background:
+    radial-gradient(130% 110% at 0% 0%, color-mix(in oklab, var(--recipe-tone) 19%, transparent), transparent 62%),
+    var(--card);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--recipe-tone) 16%, var(--border));
+}
+
+.recipe-watermark {
+  position: absolute;
+  z-index: -1;
+  top: -22px;
+  right: -22px;
+  width: 128px;
+  height: 128px;
+  color: var(--recipe-tone);
+  opacity: 0.07;
+  transform: rotate(-14deg);
+  pointer-events: none;
+}
+
+.recipe-card:hover .recipe-watermark {
+  opacity: 0.11;
+}
+
+/* A paused recipe keeps its shape but loses its color, so the running ones stand out. */
+.recipe-card[data-status="paused"] {
+  --recipe-tone: var(--recipe-slate) !important;
+}
+
+.recipe-card[data-status="paused"] .recipe-icon {
+  filter: grayscale(1);
 }

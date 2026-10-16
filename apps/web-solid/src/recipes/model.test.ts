@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { RecipeApp, RecipeCard, RecipeInstall, RoomId } from "@kiko/protocol"
 import { triggerLabel } from "../chat/info/routines-model"
-import { filterRecipes, groupByChat, installStatus, installedSlugs, nextLabel, recipeForRoutine, recipeTags, tagLabel } from "./model"
+import { byChatOrder, filterRecipes, installStatus, installedSlugs, nextLabel, nextRunLabel, recipeForRoutine, recipeTags, tagLabel } from "./model"
 
 const card = (slug: string, over: Partial<RecipeCard> = {}): RecipeCard => ({
   slug,
@@ -123,6 +123,13 @@ describe("the next run's label", () => {
     expect(nextLabel(at(22), now, "UTC")).toBe("Oct 22 at 7:55 AM")
   })
 
+  test("as a sentence, today and tomorrow are lowercased and a weekday or date keeps its capital", () => {
+    expect(nextRunLabel(at(16), now, "UTC")).toBe("Next run tomorrow at 7:55 AM")
+    expect(nextRunLabel(at(15), now, "UTC")).toBe("Next run today at 7:55 AM")
+    expect(nextRunLabel(at(17), now, "UTC")).toBe("Next run Sat at 7:55 AM")
+    expect(nextRunLabel(at(22), now, "UTC")).toBe("Next run Oct 22 at 7:55 AM")
+  })
+
   test("days are counted in the zone, not in UTC", () => {
     // 23:30 UTC on the 15th is already the 16th in Tokyo.
     const lateUtc = Date.UTC(2026, 9, 15, 23, 30)
@@ -130,13 +137,12 @@ describe("the next run's label", () => {
   })
 })
 
-describe("grouping installs by chat", () => {
-  test("chats follow the list's order and a chat the list lacks goes last", () => {
+describe("ordering installs by chat", () => {
+  test("installs follow the chat list's order, keep their order within a chat, and a chat the list lacks goes last", () => {
     const a1 = install([], "chat-a")
     const b1 = install([], "chat-b")
     const gone = install([], "chat-gone")
-    const groups = groupByChat([gone, b1, a1, { ...a1, installId: "second" }], ["chat-a", "chat-b"])
-    expect(groups.map((g): string => g.roomId)).toEqual(["chat-a", "chat-b", "chat-gone"])
-    expect(groups[0].installs.map((i) => i.installId)).toEqual(["i-chat-a", "second"])
+    const ordered = byChatOrder([gone, b1, a1, { ...a1, installId: "second" }], ["chat-a", "chat-b"])
+    expect(ordered.map((i) => i.installId)).toEqual(["i-chat-a", "second", "i-chat-b", "i-chat-gone"])
   })
 })

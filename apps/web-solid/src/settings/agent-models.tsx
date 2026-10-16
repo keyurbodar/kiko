@@ -4,7 +4,7 @@ import { createSignal, For, Show } from "solid-js"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { connectedProviders } from "./connected"
-import { Group, Row } from "./kit"
+import { Group, Hint, Row } from "./kit"
 import { ModelPicker } from "./model-picker"
 import { hasModelProvider } from "./provider-kinds"
 import { ReasoningMenu } from "./reasoning-menu"
@@ -41,8 +41,8 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
 /** Every agent the owner has, Kiko first, with its model and reasoning level. The same in every chat. */
 export function AgentModels() {
   return (
-    <Show when={hasModelProvider(connectedProviders())}>
-      <Group title="Agents" description="Each agent keeps its own model and reasoning level in every chat." data-component="agent-models">
+    <Show when={hasModelProvider(connectedProviders())} fallback={<Hint>Connect a provider in the Providers tab to choose models for your agents.</Hint>}>
+      <Group description="Each agent keeps its own model and reasoning level in every chat." data-component="agent-models">
         <For each={useApp.modelAgents()}>{(agent) => <AgentRow slug={agent.slug} name={agent.name} />}</For>
       </Group>
     </Show>
