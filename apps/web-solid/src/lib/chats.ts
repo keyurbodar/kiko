@@ -26,7 +26,7 @@ export function rosterChats(chats: readonly Chat[]): Chat[] {
 
 /**
  * The chat to open when the URL names none. The first of `wanted` (this device's last chat, then
- * the server's) that is in the list, else the kiko chat. Before the list has
+ * the server's) that is in the list, else the kiko chat, else the Kiko home room of an account that has no chats yet. Before the list has
  * loaded, this device's last chat is trusted, so the first paint never waits; the chat route sends
  * the reader on if it turns out to be gone.
  */
@@ -36,7 +36,7 @@ export function resumeChat(chats: readonly Chat[], loaded: boolean, wanted: read
     const chat = id ? chats.find((c) => c.roomId === id) : undefined
     if (chat) return chat.roomId
   }
-  return chats.find((c) => c.kiko)?.roomId ?? null
+  return chats.find((c) => c.kiko)?.roomId ?? (chats.length ? null : KIKO_HOME_ROOM)
 }
 
 /** The chat that takes `id`'s place in a list once it leaves: the one below it, else the one above, else none. */

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { advance, indexOf, stepFor, type Facts } from "./steps"
+import { advance, indexOf, modelToSave, shownModel, stepFor, type Facts } from "./steps"
 
 const base: Facts = { signedIn: true, hosted: false, started: false, needsBackend: false, saved: null, fresh: false, known: false, connected: false, onboarded: false }
 const at = (over: Partial<Facts>) => stepFor({ ...base, ...over })
@@ -79,4 +79,20 @@ test("indexOf places each step in the stepper, with Cloudflare only when hosted"
   const steps = ["welcome", "sign-in", "cloudflare", "connect", "model", "done"] as const
   expect(steps.map((s) => indexOf(s, false))).toEqual([-1, 0, -1, 1, 2, 3])
   expect(steps.map((s) => indexOf(s, true))).toEqual([-1, 0, 1, 2, 3, 4])
+})
+
+describe("the model step never changes a model the human did not pick", () => {
+  test("Start chatting without a click saves nothing", () => {
+    expect(modelToSave(null, "opencode-go/muse-spark-1.3-contributor")).toBeNull()
+    expect(modelToSave(null, undefined)).toBeNull()
+  })
+  test("a click on another model saves it, a click on the running one saves nothing", () => {
+    expect(modelToSave("opencode-go/b", "opencode-go/a")).toBe("opencode-go/b")
+    expect(modelToSave("opencode-go/a", "opencode-go/a")).toBeNull()
+  })
+  test("the highlighted row is the running model when listed, else the first", () => {
+    expect(shownModel(null, "p/b", ["p/a", "p/b"])).toBe("p/b")
+    expect(shownModel(null, "p/x", ["p/a", "p/b"])).toBe("p/a")
+    expect(shownModel("p/b", "p/a", ["p/a", "p/b"])).toBe("p/b")
+  })
 })
