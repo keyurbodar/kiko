@@ -18,6 +18,7 @@ import { remindersRoute } from "./user/reminders-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
 import { recipesRoute } from "./recipes/route"
+import { faviconRoute } from "./favicon/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
 
 export { AgentDO } from "./agent/agent-do"
@@ -61,6 +62,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (recipes) return recipes
     const themed = await openVsxRoute(request, env)
     if (themed) return themed
+    const icon = await faviconRoute(request, env)
+    if (icon) return icon
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
     const dev = await devResponse(request, env)

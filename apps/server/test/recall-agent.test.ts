@@ -18,8 +18,6 @@ function room() {
   return { memory, say, sql, now: () => clock }
 }
 
-const noRank = async () => null
-
 test("hit ids come from the leading #n and lines without one have none", () => {
   expect(hitId("life", "#3 2026-09-01 10:00 likes tea")).toBe("life:3")
   expect(hitId("chat", "#40 today human: hi")).toBe("chat:40")
@@ -27,26 +25,21 @@ test("hit ids come from the leading #n and lines without one have none", () => {
   expect(hitId("chat", "no id here")).toBeNull()
 })
 
-test("lines already shown are left out and summarized by id", async () => {
+test("lines already shown are left out and summarized by id", () => {
   const shown = new Set<string>()
   const life = tagHits("life", ["#3 a", "#4 b"])
   const chat = tagHits("chat", ["#40 c", "loose"])
-  expect(await mergeRecall(life, chat, shown, noRank)).toBe("life:\n#3 a\n#4 b\n\nchat:\n#40 c\nloose")
-  expect(await mergeRecall(life, chat, shown, noRank)).toBe("chat:\nloose\n\nalready seen: life:3, life:4, chat:40")
+  expect(mergeRecall(life, chat, shown)).toBe("life:\n#3 a\n#4 b\n\nchat:\n#40 c\nloose")
+  expect(mergeRecall(life, chat, shown)).toBe("chat:\nloose\n\nalready seen: life:3, life:4, chat:40")
 })
 
-test("more than six hits are reranked and unranked ones drop; failure keeps the order", async () => {
+test("more than six hits are capped, and the chat keeps a share", () => {
   const life = tagHits("life", Array.from({ length: 8 }, (_, i) => `#${i} x`))
-  const out = await mergeRecall(life, [], new Set(), async (lines) => {
-    expect(lines).toHaveLength(8)
-    return ["life:5", "life:2"]
-  })
-  expect(out).toBe("life:\n#5 x\n#2 x")
-  const failed = await mergeRecall(life, [], new Set(), async () => {
-    throw new Error("down")
-  })
-  expect(failed.split("\n")).toHaveLength(9)
-  expect((await mergeRecall(life, [], new Set(), noRank)).split("\n")).toHaveLength(9)
+  expect(mergeRecall(life, [], new Set()).split("\n")).toHaveLength(7)
+  const chat = tagHits("chat", Array.from({ length: 8 }, (_, i) => `#${i} y`))
+  const both = mergeRecall(life, chat, new Set())
+  expect(both.match(/ x/g)).toHaveLength(3)
+  expect(both.match(/ y/g)).toHaveLength(3)
 })
 
 test("chat recall leaves out turns the agent has verbatim but keeps summarized ones and the batch skip", () => {

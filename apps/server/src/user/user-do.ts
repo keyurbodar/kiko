@@ -47,10 +47,10 @@ import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, roomStub } from "../lib/names"
-import type { Certainty, Loop, LoopKind, OpenResult } from "@kiko/memory/loops"
+import type { Loop, LoopKind, OpenResult } from "@kiko/memory/loops"
 import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
-import type { DevBrowserOp, DevInitiativeOp } from "./dev"
+import type { DevBrowserOp } from "./dev"
 import { InitiativeLoops, LOOPS_WAKEUP } from "./initiative-loops"
 import { KernelWiring } from "./kernel-wiring"
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
@@ -242,7 +242,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async signals(batch: SignalBatch): Promise<void> {
-    await this.#il.engine.signals(batch)
+    this.#il.engine.results(batch)
     for (const s of batch.signals) if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN && s.routineId !== REMINDER_RUN) await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
     if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final" || s.kind === "task" || s.kind === "file")) return
     for (const routine of this.reminders.roomRoutines(batch.roomId)) {
@@ -407,16 +407,6 @@ export class UserDO extends DurableObject<Env> {
     return { ok: true, pos: out.pos, ...(out.duplicate ? { duplicate: true as const } : {}), ...(replaces === undefined ? {} : { replaced }) }
   }
 
-  async lifeRollup(roomId: RoomId, text: string, at: number, span?: { lo: number; hi: number }): Promise<void> {
-    const chat = getChat(this.sql, roomId)
-    if (!chat || chat.private) return
-    const out = this.life.append(text, `chat ${chat.title}`, at, span ? { ref: `room:${roomId}:turns:${span.lo}-${span.hi}` } : {})
-    if (out.ok && !out.duplicate) {
-      await this.#mem.armNaps()
-      this.changed("memory")
-    }
-  }
-
   async lifeRecall(query: string): Promise<string[]> {
     return this.life
       .recall(query, 10, { skipCard: true })
@@ -447,10 +437,6 @@ export class UserDO extends DurableObject<Env> {
     await this.captureHuman(roomId, requeue)
   }
 
-  async rerank(query: string, lines: { id: string; text: string }[]): Promise<string[] | null> {
-    return this.#mem.rerank(query, lines)
-  }
-
   async lifeZoom(id: string): Promise<string | null> {
     const one = /^(\d+)$/.exec(id)
     const span = one ? { lo: Number(one[1]), hi: Number(one[1]) + 1 } : spanOf(id)
@@ -463,8 +449,8 @@ export class UserDO extends DurableObject<Env> {
     return this.#mem.usage()
   }
 
-  async compress(prompt: string, page?: { roomId: RoomId; at: number; span?: { lo: number; hi: number } }): Promise<{ text: string } | { retryAt: number } | { error: string }> {
-    return this.#mem.compress(prompt, page)
+  async compress(prompt: string): Promise<{ text: string } | { retryAt: number } | { error: string }> {
+    return this.#mem.compress(prompt)
   }
 
   async providerKeyRefused(provider: string, apiKey: string): Promise<boolean> {
@@ -560,7 +546,6 @@ export class UserDO extends DurableObject<Env> {
       label: this.ctx.id.toString(),
       credentials: () => this.#credentials,
       turn: (provider) => this.turnContext(provider),
-      loops: () => this.#il,
     })
     return this.#memory
   }
@@ -573,7 +558,6 @@ export class UserDO extends DurableObject<Env> {
       alarms: this.alarms,
       life: this.life,
       memory: this.#mem,
-      reminders: this.reminders,
       room: this.env.ROOM,
       userId: userIdFromObjectName(this.ctx.id.name),
     })
@@ -869,12 +853,8 @@ export class UserDO extends DurableObject<Env> {
     this.changed("loops")
   }
 
-  async devInitiative(op: DevInitiativeOp): Promise<unknown> {
-    return (await this.dev()).devInitiative(() => this.#il.engine, this.reminders, op)
-  }
-
   /** A reminder an agent set for itself opens its commitment (section 26.2); a dev route opens a loop for the fake-agent suite. */
-  async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; reminderId?: string }): Promise<OpenResult> {
+  async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; text: string; due: string | null; reminderId?: string }): Promise<OpenResult> {
     const out = await this.#il.open(owner, roomId, ref, input)
     if (out.ok) this.changed("loops")
     return out
@@ -891,8 +871,17 @@ export class UserDO extends DurableObject<Env> {
     return this.#il.loops.list(filter)
   }
 
-  async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string }): Promise<{ owe: string[]; related: string[]; noticed: string[] }> {
+  async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string }): Promise<{ owe: string[]; related: string[]; noticed: string[]; noticedIds: number[] }> {
     return this.#il.initiative.brief(roomId, slug, burst)
+  }
+
+  /** The "on their plate" lines a run was given, so the next burst does not repeat them. */
+  async devPass(): Promise<unknown> {
+    return (await this.dev()).devPass(() => this.#il.engine)
+  }
+
+  async briefShown(loopIds: number[]): Promise<void> {
+    this.#il.engine.briefed(loopIds)
   }
 
   /** An agent's answer, for the Jev pass to catch a promise to come back (section 26.2). */
@@ -1033,7 +1022,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async setUserSettings(patch: UserSettingsPatch): Promise<UserSettings> {
-    // The route checked the zone. The rhythm reads hours in it, so the pass is set again.
+    // The route checked the zone. The daily pass is at nine in it, so the pass is set again.
     if (patch.timezone) {
       this.putSetting("timezone", patch.timezone)
       await this.#il.engine.arm()

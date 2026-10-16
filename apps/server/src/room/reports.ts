@@ -12,8 +12,6 @@ import type { Mail } from "./mail"
 import type { Home } from "./home"
 
 
-const RESULT_TEXT_MAX = 500
-
 export type ReportsDeps = {
 	ctx: DurableObjectState
 	env: Env
@@ -46,8 +44,7 @@ export class Reports {
 			const actor = event.t === "message" && event.from.kind === "human" ? "human" : actorOf(event.seq)
 			const agent = actor?.startsWith("agent:") ? (actor.slice(6) as AgentSlug) : null
 			const by = actor === "human" ? ({ kind: "human" } as const) : agent ? ({ kind: "agent", slug: agent, name: this.d.members.get(agent)?.name ?? agent, eventRun: eventRun(agent) } as const) : null
-			const quoted = event.t === "message" && event.replyTo ? this.d.log.message(event.replyTo) : null
-			const signal = signalOf(event, { roomId, at: now, by, ...(quoted?.initiative ? { answers: quoted.seq } : {}) })
+			const signal = signalOf(event, { roomId, at: now, by })
 			if (signal && (signal.kind === "burst" || routines.some((r) => matches(r, signal)))) signals.push(signal)
 		}
 		const closes = this.d.signals.add(signals, now)
@@ -73,7 +70,7 @@ export class Reports {
 		const signals = runs.map((r): Signal => {
 			const posted = status === "ended" ? this.d.log.lastAgentMessage(r.slug, r.seq) : null
 			const outcome = status === "ended" ? (posted !== null ? "ok" : "quiet") : status === "stopped" ? "quiet" : status
-			return { kind: "routine_result", roomId: home.roomId, at: now, routineId: r.routineId, occurrence: r.occurrence, outcome, seq: posted?.seq ?? null, ...(posted ? { text: posted.text.slice(0, RESULT_TEXT_MAX) } : {}) }
+			return { kind: "routine_result", roomId: home.roomId, at: now, routineId: r.routineId, occurrence: r.occurrence, outcome, seq: posted?.seq ?? null }
 		})
 		this.d.signals.hold(signals)
 		this.d.ctx.waitUntil(

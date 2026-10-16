@@ -21,11 +21,11 @@ function room() {
     prompts.push(prompt)
     return { text: `summary ${prompts.length} ${"of what happened ".repeat(16)}`.trim() }
   }
-  const napAll = async (rollups: string[] = [], spans: { lo: number; hi: number }[] = []) => {
+  const napAll = async () => {
     for (;;) {
       const [span] = memory.pending(1)
       if (!span) return
-      await memory.nap(span, compress, async (text, _at, span) => void (rollups.push(text), spans.push(span)))
+      await memory.nap(span, compress)
     }
   }
   return { log, memory, say, napAll, prompts, sql, now: () => clock }
@@ -113,19 +113,6 @@ test("a run's trace joins its reply, and a run that only acted gets a turn of it
   memory.trace("bob" as AgentSlug, "run-b", 0)
   const items = memory.items(0, memory.sync())
   expect(items.map((i) => i.text)).toEqual(["@ada: flights are in /flights.md (did: editing /flights.md)", "@bob: (deleted) (did: reading a web page)"])
-})
-
-test("a settled stretch of eight pages rolls up into the user's life once", async () => {
-  const { memory, say, napAll } = room()
-  const size = ROOM_SHAPE.page * 8
-  for (let i = 0; i < ROOM_SHAPE.floor + 2 * size + 8; i++) say(i % 2 ? agent("ada") : human, `t${i}`, i % 2 ? `r${i}` : undefined)
-  const rollups: string[] = []
-  const spans: { lo: number; hi: number }[] = []
-  await napAll(rollups, spans)
-  expect(rollups).toEqual([memory.tree.node({ lo: 0, hi: size })!.text, memory.tree.node({ lo: size, hi: 2 * size })!.text])
-  expect(spans).toEqual([{ lo: 0, hi: size }, { lo: size, hi: 2 * size }])
-  await napAll(rollups)
-  expect(rollups.length).toBe(2)
 })
 
 function life() {

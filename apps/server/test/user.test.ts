@@ -142,7 +142,7 @@ test("a routine, a memory note, and an open loop each push a change frame", asyn
   const made = await rpc(user, "createRoutine", "u", { name: "daily", instructions: "say hi", trigger: { on: "time", at }, tz: "UTC", roomId: ROOM_A, target: "kiko", createdBy: "kiko" })
   expect(made.ok).toBe(true)
   await rpc(user, "lifeNote", "ada", "likes tea at four")
-  await rpc(user, "loopOpen", "u", ROOM_A, "room:x:msg:1", { kind: "commitment", certainty: "explicit", text: "send the plan", due: null })
+  await rpc(user, "loopOpen", "u", ROOM_A, "room:x:msg:1", { kind: "commitment", text: "send the plan", due: null })
   const changed = (await ws.settle()).filter((f: Frame) => f.t === "changed").map((f: any) => f.what)
   expect(new Set(changed)).toEqual(new Set(["routines", "memory", "loops"]))
   ws.close()

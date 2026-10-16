@@ -29,7 +29,14 @@ const cases: [string, string, unknown][] = [
 	["the chief's handle is its slug", "ask @kiko now", [p(text("ask "), { t: "mention", slug: "kiko" }, text(" now"))]],
 	["raw html block", '<div onclick="x()">hi</div>', [p(text('<div onclick="x()">hi</div>'))]],
 	["raw html inline", "a <b>x</b> b", [p(text("a "), text("<b>"), text("x"), text("</b>"), text(" b"))]],
-	["image becomes alt text", "![cat](https://a.com/c.png)", [p(text("cat"))]],
+	["an https image alone is an image block", "![cat](https://a.com/c.png)", [{ t: "image", alt: "cat", url: "https://a.com/c.png" }]],
+	["an image inside text stays its alt text", "see ![cat](https://a.com/c.png) here", [p(text("see "), text("cat"), text(" here"))]],
+	["an http image is alt text", "![cat](http://a.com/c.png)", [p(text("cat"))]],
+	["a javascript image is alt text", "![cat](javascript:alert(1))", [p(text("cat"))]],
+	["a chat file image is an image block", "![plan](/plan/map.png)", [{ t: "image", alt: "plan", fileId: "f-map" }]],
+	["a missing chat file stays a file link", "![plan](/plan/none.png)", [p({ t: "link", href: "/plan/none.png", children: [text("plan")] })]],
+	["a link with no host loses its href", "[x](https://)", [p(text("x"))]],
+	["a link with a bad port loses its href", "[x](https://a.com:99999/)", [p(text("x"))]],
 	["a rule between blocks", "a\n\n---\n\nb", [p(text("a")), { t: "rule" }, p(text("b"))]],
 	["a single newline is a line break", "a\nb", [p(text("a"), text("\n"), text("b"))]],
 	["quote keeps its lines", "> a\n> b", [{ t: "quote", children: [p(text("a"), text("\n"), text("b"))] }]],
@@ -41,11 +48,13 @@ const cases: [string, string, unknown][] = [
 	["empty", "", []],
 ]
 
+const imageFile = (path: string) => (path === "plan/map.png" ? "f-map" : null)
+
 test.each(cases)("%s", (_name, input, expected) => {
-	expect(parseRichText(input) as unknown).toEqual(expected)
+	expect(parseRichText(input, imageFile) as unknown).toEqual(expected)
 })
 
-const NODE_TYPES = new Set(["paragraph", "heading", "list", "quote", "rule", "code_block", "table", "text", "bold", "italic", "strike", "code", "link", "mention"])
+const NODE_TYPES = new Set(["paragraph", "heading", "list", "quote", "rule", "code_block", "table", "text", "bold", "italic", "strike", "code", "link", "mention", "image"])
 
 test("no input yields a node type outside the protocol", () => {
 	const seen = new Set<string>()

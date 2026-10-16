@@ -19,7 +19,7 @@ const HELP: Record<Level, string> = {
   off: "No initiative and no background judge cost.",
   chat: "Brings things up only inside replies.",
   digest: "At most one message a day.",
-  active: "A few messages, learned from how you respond.",
+  active: "Up to three messages a day, one per chat.",
 }
 const DEFAULTS: Settings = { initiative: "digest", capture: "auto" }
 

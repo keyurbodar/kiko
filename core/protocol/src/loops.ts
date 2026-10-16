@@ -7,7 +7,6 @@ export const LoopStatus = Schema.Literals(["open", "done", "dropped", "snoozed"]
 export const LoopRow = Schema.Struct({
 	id: Schema.Number,
 	kind: LoopKind,
-	certainty: Schema.Literals(["explicit", "tentative"]),
 	owner: Schema.String,
 	room: Schema.String,
 	due: Schema.NullOr(Schema.String),

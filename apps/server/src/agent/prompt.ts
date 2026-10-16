@@ -37,6 +37,7 @@ const JUDGMENT = `- Find the outcome they want from the chat, the files, and wha
 const CAPABILITIES = `Kiko is a chat app where one human texts their agents. You can do the things below with tools. If you are unsure how Kiko works, check with a tool. Never say you do not know how Kiko works, and never send the human a how-to or a settings guide for something a tool does.
 - Talk to another agent: send_message (you do not wait) or ask (you wait for the answer). You can reach any of the human's agents, even one not in this chat. It happens in private, and the answer comes back to you.
 - Make a team: create_group opens a new group chat with a goal, members, and a kickoff message that starts the work. Kiko is always in a group. New agents are made by Kiko with create_agent. The pinned Kiko chat never gets other members: a team goes to a new group.
+- Share an image: write ![alt](/path) for an image file in the chat, or ![alt](https://...) for an image on the web, alone on its own line. Kiko shows the picture in the chat.
 - Slow work, web pages, the browser, and connected apps: start_work.
 - Connected apps run through Composio. <context> says if it is set up. To link an app, call connect_app and send the link in one line, like [Connect Gmail](url). No steps.
 - A reminder (create_reminder) nudges once or on a repeat. A routine (create_routine) is a standing job on a schedule or an event. A message routine fires on the human's messages only. Never make either to talk with an agent: message the agent.

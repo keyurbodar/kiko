@@ -112,7 +112,7 @@ export type Item = {
 
 export type Node = { text: string; from: number; to: number }
 
-export type NapInput = { span: Span; items: Item[] } | { span: Span; halves: [Node, Node] }
+type NapInput = { span: Span; items: Item[] } | { span: Span; halves: [Node, Node] }
 
 // A tree's table and its fail counter. The object's schema list runs these, so a tree never creates a table on use.
 export function treeSteps(name: string): Step[] {

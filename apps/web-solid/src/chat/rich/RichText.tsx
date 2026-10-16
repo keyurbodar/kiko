@@ -8,7 +8,9 @@ import { EmojiText } from "../../lib/emoji"
 import { FileChip } from "../ui/FileChip"
 import { Mention } from "../ui/Mention"
 import { CodeBlock } from "./CodeBlock"
-import { richNodes, type RichNode, type TableCopy } from "./model"
+import { LinkIcon } from "./LinkIcon"
+import { linkHost, linkLead, richNodes, type RichNode, type TableCopy } from "./model"
+import { RichImage } from "./RichImage"
 import "./rich.css"
 
 const SuspiciousLinkDialog = lazy(() => import("../ui/SuspiciousLinkDialog").then((m) => ({ default: m.SuspiciousLinkDialog })))
@@ -24,6 +26,12 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
         {(n) => {
           const f = () => n() as Extract<RichNode, { kind: "file" }>
           return <FileChip file={f().file} label={f().label} bare={f().bare} />
+        }}
+      </Match>
+      <Match when={props.node.kind === "image" && props.node}>
+        {(n) => {
+          const i = () => n() as Extract<RichNode, { kind: "image" }>
+          return <RichImage alt={i().alt} url={i().url} fileId={i().fileId} />
         }}
       </Match>
       <Match when={props.node.kind === "code" && props.node}>
@@ -54,7 +62,9 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
             return (
               <TooltipV2 class="rich-link-anchor" placement="top" value={e().attrs.href ?? ""}>
                 <Dynamic component="a" {...e().attrs}>
-                  {children()}
+                  <Show when={linkHost(e().attrs.href ?? "")} fallback={children()}>
+                    {(host) => <IconLead host={host()} nodes={e().children} onMasked={props.onMasked} />}
+                  </Show>
                 </Dynamic>
               </TooltipV2>
             )
@@ -69,6 +79,26 @@ function Node(props: { node: RichNode; onMasked: (href: string) => void }): JSX.
         }}
       </Match>
     </Switch>
+  )
+}
+
+/** A link's children with the site icon in front. The icon and the first character share one run that cannot break, so the icon never wraps alone. */
+function IconLead(props: { host: string; nodes: RichNode[]; onMasked: (href: string) => void }): JSX.Element {
+  const first = () => props.nodes[0]
+  const lead = () => {
+    const n = first()
+    return n?.kind === "text" ? linkLead(n.text) : null
+  }
+  return (
+    <>
+      <span class="rich-link-lead">
+        <LinkIcon host={props.host} />
+        <Show when={lead()}>{(l) => l()[0]}</Show>
+        <Show when={!lead() && first()}>{(n) => <Node node={n()} onMasked={props.onMasked} />}</Show>
+      </span>
+      <Show when={lead()}>{(l) => <EmojiText text={l()[1]} />}</Show>
+      <For each={props.nodes.slice(1)}>{(child) => <Node node={child} onMasked={props.onMasked} />}</For>
+    </>
   )
 }
 

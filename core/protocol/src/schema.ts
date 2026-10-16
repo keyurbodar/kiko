@@ -71,6 +71,7 @@ export const Block: Schema.Codec<P.Block, unknown> = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("quote"), children: blocks }),
 	Schema.Struct({ t: Schema.Literal("rule") }),
 	Schema.Struct({ t: Schema.Literal("code_block"), lang: Schema.optionalKey(Schema.String), text: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("image"), alt: Schema.String, url: Schema.optionalKey(Schema.String), fileId: Schema.optionalKey(Schema.String) }),
 	Schema.Struct({
 		t: Schema.Literal("table"),
 		align: Schema.Array(Schema.NullOr(Schema.Literals(["left", "center", "right"]))),
