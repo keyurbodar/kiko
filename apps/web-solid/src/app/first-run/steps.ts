@@ -38,7 +38,7 @@ export function stepFor(f: Facts): Step {
     if (f.hosted && f.needsBackend) return "cloudflare"
     return f.started ? "sign-in" : "welcome"
   }
-  if (f.saved === "done") return "done"
+  if (f.saved === "done" || (f.known && f.onboarded)) return "done"
   if (f.saved === "connect") return f.connected ? "model" : "connect"
   if (f.saved === "model") return "model"
   if (f.known) return f.connected || f.onboarded ? "done" : "connect"
