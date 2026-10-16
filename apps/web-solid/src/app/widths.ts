@@ -22,6 +22,14 @@ export function saveWidth(rule: Rule, panelId: string) {
   } catch {}
 }
 
+/** Puts a column back to its default width, the one a double click on its handle restores. */
+export function resetWidth(rule: Rule, panel: { resize: (size: string) => void } | undefined) {
+  panel?.resize(`${rule.fallback}px`)
+  try {
+    localStorage.setItem(rule.key, String(rule.fallback))
+  } catch {}
+}
+
 /**
  * The three columns as fractions of the window, for Corvu's first layout. A collapsed or absent
  * column is 0, and the chat takes the rest. A column gives way before the chat drops under 360 px.

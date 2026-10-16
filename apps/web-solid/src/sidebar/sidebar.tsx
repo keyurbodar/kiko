@@ -9,6 +9,7 @@ import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { KIKO } from "@kiko/protocol"
+import { BrandArt } from "./brand"
 import { ChatPanel } from "./chat-panel"
 import "./sidebar.css"
 
@@ -76,10 +77,11 @@ export function Sidebar(props: SidebarProps) {
       data-panel={props.section ?? undefined}
       data-collapsed={collapsed() ? "" : undefined}
       >
+      <BrandArt />
       <header class="panel-header">
         <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
           <IdentityAvatar seed={KIKO} size={22} />
-          <span>Kiko</span>
+          <span class="panel-brand-name">Kiko</span>
         </A>
         <span class="flex-1" aria-hidden="true" />
         <Show when={ACTIONS[shown()]}>{(action) => <HeaderAction action={action()} />}</Show>

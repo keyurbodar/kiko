@@ -1,5 +1,20 @@
 import { expect, test } from "bun:test"
-import { CHAT_MIN, initialSizes } from "./widths"
+import { CHAT_MIN, INFO, initialSizes, readWidth, resetWidth, SIDEBAR } from "./widths"
+
+const store = new Map<string, string>()
+Object.assign(globalThis, {
+  localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) },
+})
+
+test("a reset puts a dragged column back to its default width and remembers it", () => {
+  for (const rule of [SIDEBAR, INFO]) {
+    store.set(rule.key, String(rule.max))
+    const sizes: string[] = []
+    resetWidth(rule, { resize: (size) => sizes.push(size) })
+    expect(sizes).toEqual([`${rule.fallback}px`])
+    expect(readWidth(rule)).toBe(rule.fallback)
+  }
+})
 
 const px = (width: number, sidebar: number | null, info: number | null) => {
   const s = initialSizes(width, sidebar, info)

@@ -29,6 +29,7 @@
 }
 
 .sidebar-shell .panel-header {
+  position: relative;
   display: flex;
   height: 50px;
   flex-shrink: 0;
@@ -53,6 +54,61 @@
   letter-spacing: -0.01em;
   text-decoration: none;
   border-radius: var(--radius-md);
+}
+
+.sidebar-shell .panel-brand-name {
+  font-family: var(--font-family-display);
+  font-size: var(--font-lg);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: transparent;
+  background: linear-gradient(100deg, var(--foreground) 50%, color-mix(in oklab, var(--brand-art-glow) 35%, var(--foreground)));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Behind the brand and search rows, then gone into the sidebar by the second row's end. */
+.sidebar-shell .brand-art {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 108px;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(150px 96px at calc(100% - 44px) 10px, color-mix(in oklab, var(--brand-art-glow) 30%, transparent), transparent 72%),
+    radial-gradient(200px 72px at 0 0, color-mix(in oklab, var(--brand-art-glow) 12%, transparent), transparent 70%),
+    linear-gradient(to bottom, var(--brand-art-wash), var(--brand-art-fade));
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent);
+}
+
+.sidebar-shell .brand-art-grid {
+  position: absolute;
+  inset: 0;
+}
+
+.sidebar-shell .brand-art-orbit {
+  position: absolute;
+  top: -62px;
+  right: -36px;
+  width: 160px;
+  height: 160px;
+}
+
+.sidebar-shell .brand-art-line {
+  stroke: var(--brand-art-line);
+}
+
+.sidebar-shell .brand-art-halo {
+  fill: var(--brand-art-glow);
+  opacity: 0.2;
+}
+
+.sidebar-shell .brand-art-planet {
+  fill: var(--brand-art-glow);
 }
 
 @media (hover: hover) {
@@ -124,6 +180,7 @@
 }
 
 .sidebar-shell .panel-scroll {
+  position: relative;
   flex: 1;
   min-height: 0;
 
@@ -193,10 +250,11 @@
   flex-direction: column;
 }
 
-/* The chat column, its top bar included, is one surface, as in t3code. */
+/* The chat column, its top bar included, is one surface, as in t3code. A border, not an inset
+   shadow: a child with a background, such as the composer dock in a narrow column, paints over a shadow. */
 .sidebar-shell [data-component="chat-panel"] {
   background: var(--background);
-  box-shadow: inset 1px 0 0 var(--border);
+  border-left: 1px solid var(--border);
 }
 
 .sidebar-shell .chat-search {
@@ -780,7 +838,7 @@
 
 .sidebar-shell [data-component="sidecar"] {
   background: var(--background);
-  box-shadow: inset 1px 0 0 var(--border);
+  border-left: 1px solid var(--border);
 }
 
 .sidebar-shell .sidecar-scrim {
@@ -802,7 +860,7 @@
 
 .sidebar-shell .sidecar-overlay [data-component="sidecar"] {
   background: transparent;
-  box-shadow: none;
+  border-left: 0;
 }
 
 @media (width < 768px) {

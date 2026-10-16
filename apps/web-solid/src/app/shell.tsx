@@ -32,7 +32,7 @@ import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
 import { VersionBanner } from "./version-banner";
-import { CHAT_MIN, INFO, initialSizes, readWidth, saveWidth, SIDEBAR } from "./widths";
+import { CHAT_MIN, INFO, initialSizes, readWidth, resetWidth, saveWidth, SIDEBAR } from "./widths";
 
 /** Lazy menu and picker chunks, warmed once the rich editor is in, so no first right click or open waits on the network. */
 const idlePreloads = [preloadMessageMenu, preloadModelPicker, preloadMessageSearch];
@@ -305,6 +305,7 @@ export function Shell(props: ParentProps) {
                     altKey={false}
                     onHandleDragEnd={() => saveWidth(SIDEBAR, "kiko-sidebar-panel")}
                     onKeyUp={() => saveWidth(SIDEBAR, "kiko-sidebar-panel")}
+                    onDblClick={() => resetWidth(SIDEBAR, sidebarPanel)}
                   />
                 </Show>
                 <Resizable.Panel class="shell-panel" data-component="chat-panel" initialSize={sizes.chat} minSize={`${CHAT_MIN}px`}>
@@ -350,6 +351,7 @@ export function Shell(props: ParentProps) {
                     disabled={!dockedSide()}
                     onHandleDragEnd={() => saveWidth(INFO, "kiko-sidecar-panel")}
                     onKeyUp={() => saveWidth(INFO, "kiko-sidecar-panel")}
+                    onDblClick={() => resetWidth(INFO, sidePanel())}
                   />
                   <Resizable.Panel
                     panelId="kiko-sidecar-panel"
