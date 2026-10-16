@@ -5,8 +5,8 @@ import type { ComposioCall, ComposioCallResult, ComposioTool } from "./client"
 import { composioErrorText } from "./connect"
 import { fillFlags } from "./tools"
 
-export const CONNECT_APP = "composio_connect"
-export const MANAGE_CONNECTIONS = "COMPOSIO_MANAGE_CONNECTIONS"
+const CONNECT_APP = "composio_connect"
+const MANAGE_CONNECTIONS = "COMPOSIO_MANAGE_CONNECTIONS"
 
 const text = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) })
 
@@ -20,7 +20,7 @@ function toolkitArgs(tool: ComposioTool, app: string): Record<string, unknown> {
 const URL_KEYS = ["redirect_url", "redirectUrl", "connect_url", "url", "link"]
 
 /** The first https link under a known key, else the first https link in the text. */
-export function connectLink(out: ComposioCallResult): string | undefined {
+function connectLink(out: ComposioCallResult): string | undefined {
   const body = out.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n")
   const walk = (v: unknown): string | undefined => {
     if (!v || typeof v !== "object") return undefined
