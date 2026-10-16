@@ -49,6 +49,7 @@ const INITIATIVE_WAIT_MS = 1_500
 const MEMORY_POS_KEY = "memory:pos"
 const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
+const COMPACTIONS_KEY = "compactions"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 const RECENT_WORKERS = 8
 const MODEL_KEY = "model"
@@ -205,8 +206,11 @@ export class AgentDO extends DurableObject<Env> {
         const out = await user().cancelReminder(id)
         return out.ok ? { ok: true } : { ok: false, error: out.error }
       },
-      createRoutine: (input) =>
-        user().createRoutine(home.userId, { ...input, target: input.target ?? home.slug, tz: tz(), roomId: home.roomId as RoomId, createdBy: home.slug }),
+      createRoutine: async (input) => {
+        const out = await user().createRoutine(home.userId, { ...input, target: input.target ?? home.slug, tz: tz(), roomId: home.roomId as RoomId, createdBy: home.slug })
+        if (out.ok) await room().routineCreated(home.slug, out.routine.id, out.routine.name ?? input.name).catch(() => {})
+        return out
+      },
       updateRoutine: async (id, patch) => ((await mine(id)) ? user().updateRoutine(id, patch) : notHere),
       runRoutine: async (id) => ((await mine(id)) ? user().runRoutine(id) : null),
       runs: async (id) => ((await mine(id)) ? user().routineRuns(id) : []),
@@ -324,7 +328,7 @@ export class AgentDO extends DurableObject<Env> {
         ...fake,
         beginRun: async () => true,
         inputMemory: (batch, fresh, joined) => this.inputMemory(batch, fresh, joined, false),
-        beforeCompact: (harness) => this.carryUsage(harness),
+        beforeCompact: (harness) => this.beforeCompact(harness),
       }
     }
     const egress = this.egressFetch()
@@ -370,7 +374,7 @@ export class AgentDO extends DurableObject<Env> {
       },
       ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
-      beforeCompact: (harness) => this.carryUsage(harness),
+      beforeCompact: (harness) => this.beforeCompact(harness),
     }
   }
 
@@ -444,6 +448,15 @@ export class AgentDO extends DurableObject<Env> {
 
   async devInitiative(): Promise<string | null> {
     return (await this.dev()).devInitiative(this.agentDevHost())
+  }
+
+  private async beforeCompact(harness: Harness): Promise<void> {
+    await this.carryUsage(harness)
+    const home = this.home()
+    if (!home) return
+    const count = ((await this.ctx.storage.get<number>(COMPACTIONS_KEY)) ?? 0) + 1
+    await this.ctx.storage.put(COMPACTIONS_KEY, count)
+    await roomStub(this.env.ROOM, home.userId, home.roomId).compacted(home.slug, String(count)).catch(() => {})
   }
 
   private async carryUsage(harness: Harness): Promise<void> {

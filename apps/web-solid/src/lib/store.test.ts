@@ -231,6 +231,18 @@ describe("useApp over the mock room", () => {
     app.stop()
   })
 
+  test("sending a message clears the unread divider and it stays gone", async () => {
+    const unread = fixtures.roomEvents.filter((e) => e.t !== "read")
+    const { app, room } = await boot(unread)
+    expect(app.firstUnreadMessageId()).toBe("m2")
+    app.appendMessage({ body: "got it" } as never)
+    expect(app.firstUnreadMessageId()).toBeNull()
+    room.store({ t: "message", id: "m98" as MessageId, from: { kind: "agent", slug: "bob" as AgentSlug }, text: "later" })
+    await until(() => texts(app).includes("later"))
+    expect(app.firstUnreadMessageId()).toBeNull()
+    app.stop()
+  })
+
   test("a message that arrives while the room is open and read gets no divider", async () => {
     const { app, room } = await boot()
     expect(app.firstUnreadMessageId()).toBeNull()

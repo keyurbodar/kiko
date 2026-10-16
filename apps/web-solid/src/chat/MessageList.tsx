@@ -1,7 +1,6 @@
 import type { JSX } from "solid-js"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import type { DraftBook } from "../warm/drafts"
-import type { Notice } from "./lib/grouping"
 import { VirtualThread, type VirtualThreadState } from "./VirtualThread"
 
 /**
@@ -30,7 +29,6 @@ export function MessageList(props: {
   /** The room's member slugs, so an agent's message to another member folds into a thread. */
   memberSlugs?: readonly string[]
   /** Who joined and left, as muted lines. */
-  notices?: readonly Notice[]
   /** The viewer tapped an emoji on a message. */
   onReact?: (messageId: string, emoji: string) => void
   /** Edit one of the human's own messages. Absent: the menu has no edit. */

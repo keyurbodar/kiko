@@ -12,11 +12,6 @@ export function activityOf(state: AgentState, stored: Activity | null, workers: 
 	return state === "typing" ? { kind: "writing" } : undefined
 }
 
-export function readWorkers(sql: SqlStorage, slug: AgentSlug): WorkerRow[] {
-	const value = sql.exec<{ value: string }>("SELECT value FROM meta WHERE key = ?", workersKey(slug)).toArray()[0]?.value
-	return value ? (JSON.parse(value) as WorkerRow[]) : []
-}
-
 export function statusOf(sql: SqlStorage, slug: AgentSlug): AgentStatus | null {
 	const row = sql
 		.exec<Row>(

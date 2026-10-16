@@ -1,4 +1,4 @@
-import type { Message, RoomEvent, RoomToClient, SystemEvent } from "@kiko/protocol"
+import type { Message, RoomEvent, RoomToClient } from "@kiko/protocol"
 import { connectTestModel, expectEqual, type RoomHandle, VerifyError } from "../client"
 import { frames, newRoom, poll, seen } from "../kit"
 import type { Suite } from "../runner"
@@ -16,7 +16,6 @@ const messages = (room: RoomHandle): Message[] => events(room).flatMap((e) => (e
 const asks = (room: RoomHandle) => events(room).flatMap((e) => (e.t === "ask" ? [e] : []))
 const resolved = (room: RoomHandle, id: string) => events(room).find((e) => e.t === "ask_resolved" && e.id === id)
 const agentText = (room: RoomHandle) => seen(room).live.map((m) => m.text)
-const subagent = (m: Message): Extract<SystemEvent, { kind: "subagent" }> | undefined => (m.event?.kind === "subagent" ? (m.event as Extract<SystemEvent, { kind: "subagent" }>) : undefined)
 
 async function reconnected(s: { room(id: string): Promise<RoomHandle> }, roomId: string) {
   const other = await s.room(roomId)
@@ -62,22 +61,14 @@ const suite: Suite = {
     console.log(`  ok asking a teammate shows as waiting: ${JSON.stringify(waiting.activity)}`)
 
     await send(room, '[tool start_work {"task":"[steps 2] find flights"}]')
-    const started = await poll("the worker's started line", () => messages(room).find((m) => subagent(m)?.state === "started"), FAKE_MS)
-    expectEqual(started.event, { kind: "subagent", agent: "kiko", state: "started", title: "[steps 2] find flights", private: true }, "the started event")
-    expectEqual(started.from, { kind: "system", reason: "work" }, "who the started line is from")
     const background = await poll("a background status", () => statuses(room).find((f) => f.activity?.kind === "background"), FAKE_MS)
     if (background.activity?.kind !== "background" || background.activity.workers[0]?.status !== "running") throw new VerifyError(`the background status is wrong: ${JSON.stringify(background)}`)
     const mid = await reconnected(s, roomId)
     expectEqual(mid.agents?.[0]?.activity?.kind, "background", "the snapshot while a worker runs")
-    await poll("the worker's done line", () => messages(room).find((m) => subagent(m)?.state === "done"), FAKE_MS * 2)
-    expectEqual(messages(room).filter((m) => subagent(m)).length, 2, "worker lines: one start and one end")
+    await poll("the worker to finish", () => statuses(room).some((f) => f.activity?.kind === "background" && f.activity.workers[0]?.status === "done") || statuses(room).at(-1)?.state === "idle", FAKE_MS * 2)
     await poll("the agent to go idle", () => statuses(room).at(-1)?.state === "idle", FAKE_MS)
-    console.log(`  ok a worker is a background activity with its list, and one private line starts it and one ends it`)
-
-    room.raw.send({ t: "search", query: "worker" })
-    const found = await room.expect((f) => f.t === "search" && f.query === "worker", 5_000)
-    if (found.t === "search" && found.results.some((r) => r.from.kind === "system")) throw new VerifyError("a private worker line showed up in search")
-    console.log("  ok a private worker line is not in search")
+    expectEqual(messages(room).filter((m) => m.from.kind === "system" && /worker/.test(m.text)).length, 0, "worker lines in the transcript")
+    console.log("  ok a worker is a background activity with its list, and it adds no line to the transcript")
 
     await send(room, '[tool ask_human {"question":"red or blue?","options":["red","blue"]}]')
     const ask = await poll("the ask event", () => asks(room).find((a) => a.text === "red or blue?"), FAKE_MS)

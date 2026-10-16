@@ -111,42 +111,56 @@ test("a typing member with nothing else to show is writing", async () => {
 
 const row = (status: WorkerRow["status"], over: Partial<WorkerRow> = {}): WorkerRow => ({ id: "w1", task: "find the pricing pages", status, step: null, steps: 0, startedAt: 5, ...over })
 
-test("workers show as a background activity, and each start and end is one private system line", async () => {
+test("workers show as a background activity and add no line to the transcript", async () => {
 	const room = fresh()
 	const c = await withAgent(room)
+	const joined = (await snapshot(room)).messages.map((m) => m.event)
+	expect(joined).toEqual([{ kind: "member_added", slug: "ada", name: "ada", private: true }])
 	await rpc(room, "setWorkers", "ada", [row("running")])
-	const started = await c.take((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.event?.kind === "subagent"))
-	const line = (started as Extract<RoomToClient, { t: "events" }>).events.find((e) => e.t === "message")
-	expect(line).toMatchObject({ from: { kind: "system", reason: "work" }, text: "@ada started a worker: find the pricing pages", event: { kind: "subagent", agent: "ada", state: "started", private: true } })
 	expect(await quiet(c)).toBe(0)
+	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual(joined)
 
 	await rpc(room, "setStatus", "ada", "working")
 	const background = await c.take((f) => f.t === "status" && f.state === "working")
 	expect(background).toMatchObject({ activity: { kind: "background", workers: [row("running")] } })
 	expect((await snapshot(room)).agents).toEqual([{ slug: "ada", state: "working", activity: { kind: "background", workers: [row("running")] } }])
 
-	await rpc(room, "setWorkers", "ada", [row("running")])
-	expect(await quiet(c)).toBe(0)
-
 	await rpc(room, "setWorkers", "ada", [row("done", { steps: 3 })])
-	await c.take((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.event?.kind === "subagent" && e.event.state === "done"))
 	const after = await c.take((f) => f.t === "status")
 	expect(after).toEqual({ t: "status", slug: "ada", state: "working" })
-	await rpc(room, "setWorkers", "ada", [row("done", { steps: 3 })])
-	expect(await quiet(c)).toBe(0)
+	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual(joined)
 	c.close()
 })
 
-test("a reply to a private worker line is stored as a plain message", async () => {
+test("a reply to a divider line is stored as a plain message", async () => {
 	const room = fresh()
 	const c = await withAgent(room)
-	await rpc(room, "setWorkers", "ada", [row("running")])
-	const frame = await c.take((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.event?.kind === "subagent"))
-	const id = (frame as Extract<RoomToClient, { t: "events" }>).events.find((e): e is Extract<RoomEvent, { t: "message" }> => e.t === "message")!.id
-	c.send({ t: "send", clientId: "c1", text: "how is it going?", replyTo: id })
+	await rpc(room, "compacted", "ada", "1")
+	const frame = await c.take((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.event?.kind === "compacted"))
+	const line = (frame as Extract<RoomToClient, { t: "events" }>).events.find((e): e is Extract<RoomEvent, { t: "message" }> => e.t === "message")!
+	expect(line).toMatchObject({ from: { kind: "system", reason: "divider" }, event: { kind: "compacted", agent: "ada", private: true } })
+	c.send({ t: "send", clientId: "c1", text: "how is it going?", replyTo: line.id })
 	const stored = await c.take((f) => f.t === "events" && f.events.some((e) => e.t === "message" && e.from.kind === "human"))
 	const human = (stored as Extract<RoomToClient, { t: "events" }>).events.find((e): e is Extract<RoomEvent, { t: "message" }> => e.t === "message")!
 	expect(human.replyTo).toBeUndefined()
+	c.close()
+})
+
+test("a routine and a repeated compaction each store one divider", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	await rpc(room, "routineCreated", "ada", "r1", "morning summary")
+	await rpc(room, "routineCreated", "ada", "r1", "morning summary")
+	await rpc(room, "compacted", "ada", "1")
+	await rpc(room, "compacted", "ada", "1")
+	await rpc(room, "compacted", "ada", "2")
+	const kinds = (await snapshot(room)).messages.map((m) => m.event)
+	expect(kinds).toEqual([
+		{ kind: "member_added", slug: "ada", name: "ada", private: true },
+		{ kind: "routine_created", agent: "ada", title: "morning summary", private: true },
+		{ kind: "compacted", agent: "ada", private: true },
+		{ kind: "compacted", agent: "ada", private: true },
+	])
 	c.close()
 })
 
