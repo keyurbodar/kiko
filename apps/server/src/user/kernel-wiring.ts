@@ -248,7 +248,7 @@ export class KernelWiring {
   /** DEVELOPMENT ONLY. Moves the browser's clocks back, so the reaper's time is up. */
   age(ms: number): void {
     const row = this.store.lease()
-    if (row) this.store.patchLease({ lastUse: row.lastUse - ms })
+    if (row) this.store.patchLease({ lastUse: row.lastUse - ms, ...(row.watchUntil ? { watchUntil: Math.max(1, row.watchUntil - ms) } : {}) })
   }
 
   private liveSession(): string {

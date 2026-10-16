@@ -82,6 +82,28 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
     if (missing.length) throw new VerifyError(`a worker lacks browser tools: ${missing.join(", ")}`)
     console.log(`  ok the talker has none of ${TOOLS.join(", ")}; a worker has all of them`)
 
+    const status = await ask(a.room, toolLine("browser_status", {}))
+    if (!/(headless|headful) browser\. (the agents have control|the human has control)/.test(status)) {
+      throw new VerifyError(`the talker's browser_status did not list the tabs: ${JSON.stringify(status.slice(0, 300))}`)
+    }
+    console.log(`  ok the talker listed the browser's tabs without a worker: ${status.split("\n")[0]}`)
+
+    const user = await s.user()
+    const posted = await ask(a.room, toolLine("browser_link", { mode: "control", reason: "please sign in to example.com" }), 90_000)
+    await poll("the control call's own answer", () => texts(a.room).some((t) => t.includes("posted the control link")), 30_000)
+    const withLink = texts(a.room).find((t) => t.includes("please sign in to example.com") && /\[Take control\]\(https:\/\/[^)]+\)/.test(t))
+    if (!withLink) throw new VerifyError(`the control request did not post a Take control link: ${JSON.stringify(posted.slice(0, 300))}`)
+    console.log("  ok the talker posted a Take control link to the chat")
+    const paused = await ask(a.room, toolLine("browse", { urls: ["https://example.com"] }))
+    if (!paused.includes("The human is using the browser")) throw new VerifyError(`browse ran while the human had control: ${JSON.stringify(paused.slice(0, 200))}`)
+    user.send({ t: "handBack" })
+    const resumed = await poll("browse after hand back", async () => {
+      const out = await ask(a.room, toolLine("browse", { urls: ["https://example.com"] }))
+      return out.includes("Example Domain") ? out : undefined
+    }, 60_000)
+    if (!resumed) throw new VerifyError("browse did not resume after the human handed back")
+    console.log("  ok browse waited while the human had control and worked again after hand back")
+
     const routineText = agentTexts(r.room).find((t) => t.includes("/newest")) ?? ""
     if (!/did: click \d+\./.test(routineText)) throw new VerifyError(`the routine's browser_act did not click: ${JSON.stringify(routineText.slice(0, 300))}`)
     console.log(`  ok routine ${first.routine.id} ran browser_act (click, /newest)`)

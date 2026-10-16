@@ -168,14 +168,6 @@ describe("lease", () => {
     expect(t.store.lease()).toMatchObject({ takeover: false, watchUntil: 0 })
   })
 
-  test("a switch drops the tabs it cannot carry, so they do not count against the cap", async () => {
-    const t = setup()
-    await t.lease.lease("room/ada")
-    t.lease.touch("room/ada", { t1: "https://a.test/" })
-    await t.lease.switchMode("headful")
-    expect(t.store.lease()?.tabs).toEqual({})
-  })
-
   test("a switch keeps the human's takeover", async () => {
     const t = setup()
     await t.lease.lease("a")

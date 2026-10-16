@@ -39,7 +39,7 @@ const BROWSER_INFO = [
   "without a worker: browser_status lists the open tabs and who holds them, and says whether the human has control. browser_link returns the live view link.",
   "to show the human the browser, call browser_link (mode watch) and reply with a markdown link in one line, such as [Watch the browser](url). Never write a link from memory.",
   "for a login, captcha, or payment, call browser_link with mode control and a reason. It posts a Take control link to the chat and pauses every agent's browser until the human gives it back. Never ask for a password or card number in the chat, and never type one.",
-  "a link on a headless browser restarts it once as a visible one (about 5 s). Open tabs reopen at their last address.",
+  "a link on a headless browser restarts it once as a visible one (about 5 s). An agent's current page reopens at its last address; other tabs are lost.",
 ].join("\n")
 
 export type DeciderChoice = { name: "model" | "jev"; decider: Decider; ranker: Ranker }
@@ -185,7 +185,7 @@ function timedTab(tab: Tab): Tab {
 }
 
 /** The worker (or talker) that made the call. Its tab is its own: two workers of one agent never share a current tab. */
-export const scopeOf = (api: { conversationId?: unknown } | undefined): string => String(api?.conversationId ?? "")
+const scopeOf = (api: { conversationId?: unknown } | undefined): string => String(api?.conversationId ?? "")
 
 export function call(deps: BrowserToolDeps, tool: string, api: { conversationId?: unknown } | undefined, run: (signal: AbortSignal, scope: string) => Promise<string>) {
   return async (signal: AbortSignal | undefined) =>

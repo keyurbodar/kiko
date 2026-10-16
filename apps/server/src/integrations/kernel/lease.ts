@@ -154,7 +154,7 @@ export class KernelLease {
         if (urls) return { cdpUrl: urls.cdpUrl, mode, tabs: {} }
       }
       if (row) await this.#destroy(row)
-      const made = await this.#create(mode, { takeover: row?.takeover ?? false, watchUntil: row?.watchUntil ?? 0 })
+      const made = await this.#create(mode, { takeover: row?.takeover ?? false, watchUntil: row?.watchUntil ?? 0, tabs: row?.tabs ?? {} })
       return { cdpUrl: made.cdpUrl, mode, tabs: row ? urlsOf(row.tabs) : {} }
     })
   }
@@ -192,7 +192,7 @@ export class KernelLease {
     this.deps.store.patchLease({ lastUse: this.#now(), tabs: next })
   }
 
-  async #create(mode: Mode, keep: Pick<LeaseRow, "takeover" | "watchUntil">): Promise<{ cdpUrl: string; row: LeaseRow }> {
+  async #create(mode: Mode, keep: Pick<LeaseRow, "takeover" | "watchUntil"> & { tabs?: Tabs }): Promise<{ cdpUrl: string; row: LeaseRow }> {
     const { store, wake } = this.deps
     const client = await this.deps.client()
     const profile = await this.deps.profile()
