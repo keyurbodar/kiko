@@ -5,7 +5,7 @@ export type AskState = { state: "open" | "answered" | "closed"; answer: string |
 
 export type Unanswered = { id: string; asker: AgentSlug; state: "open" | "closed"; remote: RoomId | null }
 
-export type RemoteAsk = { asker: AgentSlug; state: "open" | "answered" | "closed"; answer: string | null }
+type RemoteAsk = { asker: AgentSlug; state: "open" | "answered" | "closed"; answer: string | null }
 
 export const KEEP_ASKS_MS = 7 * 86_400_000
 

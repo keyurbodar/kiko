@@ -77,6 +77,6 @@ describe("the pair room of two agents", () => {
 
 test("a pair chat is never the chat that already holds its agents", () => {
 	const chats = [chat("p", { agents: ["a", "b"], pair: true }), chat("g", { agents: ["a", "b"], updatedAt: 1 })]
-	expect(sameAgentChat(chats, ["b", "a"])?.roomId).toBe("g")
+	expect(sameAgentChat(chats, ["b", "a"])?.roomId).toBe("g" as RoomId)
 	expect(sameAgentChat([chats[0]!], ["a", "b"])).toBeNull()
 })

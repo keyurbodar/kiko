@@ -8,7 +8,7 @@ import { parseRichText } from "./rich-text"
 /** A message from `from` in the room `origin`, for `to` in this pair room. `askId` is the origin's expectation, and names the message here. */
 export type PairIn = { askId: string; origin: RoomId; from: AgentSlug; to: AgentSlug; text: string; rootId: string; hop: number }
 
-export type PairDeps = ReceiveDeps & {
+type PairDeps = ReceiveDeps & {
 	ctx: DurableObjectState
 	members: Members
 	asks: Asks

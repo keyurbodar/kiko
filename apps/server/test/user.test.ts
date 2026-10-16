@@ -425,6 +425,7 @@ test("a pair chat with Kiko, and a target the human does not have", async () => 
   expect(await rpc(user, "openPair", "ada", "kiko")).toEqual({ ok: true, roomId: pairRoomId("ada", "kiko") })
   expect(await rpc(user, "getChat", pairRoomId("ada", "kiko"))).toMatchObject({ pair: true, agents: ["id-ada", "kiko"] })
   expect(await rpc(user, "openPair", "ada", "zed")).toEqual({ ok: false, error: "not sent: no agent @zed. the human has: @kiko." })
+})
 
 test("an agent's Composio call with no key tells the human on every open socket", async () => {
   const user = fresh()
