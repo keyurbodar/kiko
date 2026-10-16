@@ -1,8 +1,6 @@
+import { createSignal } from "solid-js"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { withMade } from "../files/api"
-import { fileHits, listFiles } from "../files/go-to"
-import { HOME } from "../files/model"
-import { recentFiles } from "../files/recent"
 import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleCard } from "../chat/side/card-state"
@@ -24,6 +22,11 @@ import { useApp } from "../lib/store"
 import { openBotPicker, openNewAgentFlow } from "../chat/bot-picker-state"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
+
+/** The file ranking loads with the "Go to file" view, so the shell does not carry it. */
+const [goTo, setGoTo] = createSignal<typeof import("../files/go-to") & { HOME: string; recentFiles: typeof import("../files/recent").recentFiles }>()
+const loadGoTo = () =>
+  void Promise.all([import("../files/go-to"), import("../files/model"), import("../files/recent")]).then(([g, m, r]) => setGoTo(() => ({ ...g, HOME: m.HOME, recentFiles: r.recentFiles })))
 
 const CHAT_PATH = /^\/chat\/([^/]+)$/
 
@@ -61,12 +64,17 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         })),
       fileSearch: (query) => {
         const id = activeId()
+        const mod = goTo()
         if (!id) return []
-        const hits = fileHits(
+        if (!mod) {
+          loadGoTo()
+          return []
+        }
+        const hits = mod.fileHits(
           withMade(id, useApp.activeFiles()).map((f) => f.name),
-          withMade(HOME, useApp.homeFiles()).map((f) => f.name),
+          withMade(mod.HOME, useApp.homeFiles()).map((f) => f.name),
         )
-        return listFiles(hits, query, recentFiles(id)).map(({ hit, group }) => ({
+        return mod.listFiles(hits, query, mod.recentFiles(id)).map(({ hit, group }) => ({
           id: hit.path,
           title: hit.name,
           detail: hit.shown,
