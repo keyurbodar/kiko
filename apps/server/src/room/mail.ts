@@ -144,8 +144,10 @@ export class Mail {
 			this.count(rootId, recipients.length)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
 			if (askId) this.asks.sent(askId, stored.id)
-			const answered = askId || input.to === "all" ? null : this.asks.answer(from, input.to, text, input.id)
+			const heard = askId || input.to === "all" ? null : this.asks.answer(from, input.to, text, input.id)
+			const answered = heard?.open ?? null
 			if (!answered) this.enqueue(from, send)
+			if (!askId && !heard?.answered) for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now())
 			this.prune()
 			return { ok: true, send, events: stored.event ? [stored.event] : [], answered }
 		})

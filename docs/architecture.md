@@ -337,9 +337,7 @@ Agent mail is queued in the room's `mail_queue` table in the same transaction th
 
 The stored message records who it was for (`Message.to`: a slug, or `all`). The client folds a stretch of such messages into one collapsed thread by that field and never by the text, so a reply to the human that starts with a teammate's name stays in view.
 
-A plain reply bubble wakes nobody. Only `send_message`, a finished task, and a schedule wake an agent. An agent that answers another agent must call `send_message`. This removes the commonest loop, where two agents thank each other forever.
-
-The one exception is an open `ask`. When a run that read a teammate's question ends without a `send_message` back to the asker, its reply bubbles are the answer: the agent tells the room which agent envelopes the run read (`endRun`), and the room pushes the bubbles to the waiting tool. If the asker's wait already ran out, the bubbles go to it as mail on the answering agent's chain, under the same limits. A question sent with `ask` never answers the recipient's own open ask, and an agent whose teammate waits on its answer may not ask that teammate back, because the two waits would hold each other until both ran out. A replayed `send_message` answers no second ask. A batch dropped for a missing credential answers the asks it carried with the reason, so no asker waits for nothing.
+A message from agent A to agent B expects one answer, and the answer goes back to A. An answer expects nothing. `send_message` opens an expectation per recipient (an `agent_asks` row, closed from the start, so nothing waits), and `to: all` opens one per recipient. `ask` opens the same row but waits for it inside the run. B answers by calling `send_message` back, or by ending its run with reply bubbles: the agent tells the room which agent envelopes the run read (`endRun`), and the room relays the bubbles to each asker, pushed into a waiting `ask` or delivered as mail on B's chain, under the same limits. A `send_message` to someone who expects an answer from the sender is that answer and opens nothing, and a relayed answer opens nothing either, so two agents cannot thank each other forever. A run whose reply is empty, `[skip]`, or only reactions (none of which become messages) relays nothing and settles the expectations; a waiting `ask` then returns that the teammate had nothing to add. When A's run reads only answers, its reply bubbles go to the chat for the human. A question sent with `ask` never answers the recipient's own open ask, and an agent whose teammate waits on its answer may not ask that teammate back, because the two waits would hold each other until both ran out. A replayed `send_message` answers no second ask. A batch dropped for a missing credential answers the asks it carried with the reason, so no asker waits for nothing.
 
 ### 7.6 Tasks and waking
 
@@ -357,8 +355,8 @@ Three limits apply, all enforced in `RoomDO`. ASSUMPTION: the default numbers.
 
 | Limit | Default | When it trips |
 | --- | --- | --- |
-| Hop count | 8 | the room rejects the send. The tool returns an error that tells the agent to summarize for the human |
-| Agent deliveries per human message (`rootId`) | 40 | the same, plus a system event in the chat |
+| Hop count | 24 | the room rejects the send. The tool returns an error that tells the agent to summarize for the human |
+| Agent deliveries per human message (`rootId`) | 60 | the same, plus a system event in the chat |
 | Members per room | 8 | `spawn_agent` fails |
 
 An envelope carries `hop` and `rootId`. A message sent during a run inherits the run's `rootId` and carries `hop + 1`. The room records each member's chain from what it delivers. Agent or system mail delivered to a busy member waits in its inbox for the next run, so its chain waits too and takes over when the run ends. A human message sets the chain at once, since it joins the run or starts the next one.
@@ -1376,7 +1374,7 @@ Experiment 1 is the gate. Nothing else starts until it passes.
 | # | Assumption | Section |
 | --- | --- | --- |
 | A1 | debounce is 1000 ms, 2500 ms while typing, 8000 ms cap (lowered from 1500 ms so a reply starts sooner) | 6.1 |
-| A2 | loop limits are 8 hops, 40 deliveries per root, 8 members | 7.7 |
+| A2 | loop limits are 24 hops, 60 deliveries per root, 8 members | 7.7 |
 | A3 | sign-in is Google and GitHub only | 10 |
 | A4 | subscription sign-in for model providers is off by default | 11.4 |
 | A5 | a chat is quiet after 6 hours and rolls up into the life log | 13.2 |

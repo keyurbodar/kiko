@@ -1,6 +1,6 @@
 
-export const MAX_HOP = 8
-export const MAX_DELIVERIES_PER_ROOT = 40
+export const MAX_HOP = 24
+export const MAX_DELIVERIES_PER_ROOT = 60
 
 export type Limit = "hop" | "root"
 
