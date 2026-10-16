@@ -254,6 +254,31 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.proposals.create(slug, id)
 	}
 
+	async addToChat(slug: AgentSlug, handles: readonly string[]): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+		const home = this.home()
+		if (!home) return { ok: false, error: "this chat is not set up yet" }
+		if (slug !== CHIEF) return { ok: false, error: "only kiko adds agents to a chat" }
+		const mine = await userStub(this.env.USER, home.userId).listAgents()
+		const wanted = [...new Set(handles.map((h) => h.trim().toLowerCase().replace(/^@/, "")).filter(Boolean))]
+		const unknown = wanted.filter((h) => !mine.some((a) => a.slug === h))
+		if (unknown.length) return { ok: false, error: `no agent ${unknown.map((h) => `@${h}`).join(", ")}. the human has: ${mine.map((a) => `@${a.slug}`).join(", ") || "no agents yet"}` }
+		const added: string[] = []
+		const already: string[] = []
+		for (const handle of wanted) {
+			const agent = mine.find((a) => a.slug === handle)!
+			if (this.members.get(agent.slug)) {
+				already.push(`@${handle}`)
+				continue
+			}
+			const role = tagline(agent.prompt)
+			const refused = this.memberOp({ op: "add", slug: agent.slug as AgentSlug, name: agent.name, ...(role ? { role } : {}), ...(agent.model ? { model: agent.model } : {}) })
+			if (refused) return { ok: false, error: `@${handle} was not added: ${refused}` }
+			added.push(`@${handle}`)
+		}
+		const said = [added.length ? `added ${added.join(", ")} to this chat` : "", already.length ? `${already.join(", ")} already here` : ""].filter(Boolean).join("; ")
+		return { ok: true, text: `${said}. say one short line.` }
+	}
+
 	async introduce(userId: string, slug: AgentSlug, text: string): Promise<void> {
 		const home = this.adopt(userId)
 		if (!home) return

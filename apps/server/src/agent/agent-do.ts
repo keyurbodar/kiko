@@ -42,6 +42,7 @@ import { pickJudge } from "../user/turn-context"
 import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
+import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
 
 // Read by the dev methods in agent/dev.ts too, so they share one key per setting.
 export const DEV_FAKE_KEY = "dev-fake"
@@ -282,6 +283,7 @@ export class AgentDO extends DurableObject<Env> {
       agents: () => userStub(this.env.USER, home.userId).listAgents(),
       propose: (input) => room().propose(home.slug, input),
       create: (id) => room().createProposal(home.slug, id),
+      addToChat: (handles) => room().addToChat(home.slug, handles),
       overview: () => userStub(this.env.USER, home.userId).overview(),
     }
   }
@@ -517,7 +519,8 @@ export class AgentDO extends DurableObject<Env> {
       // The request crosses as plain data: a request body streamed over RPC can be cut off before the
       const request = new Request(input as RequestInfo, { ...init, signal: null })
       const body = request.body ? await request.arrayBuffer() : null
-      const response = await self().egress({ url: request.url, method: request.method, headers: [...request.headers], body })
+      const sent = await orStall(self().egress({ url: request.url, method: request.method, headers: [...request.headers], body }), FIRST_BYTE_MS)
+      const response = guardStall(sent, STALL_MS)
       if (!signal || !response.body) return response
       const { readable, writable } = new TransformStream()
       response.body.pipeTo(writable, { signal }).catch(() => {})

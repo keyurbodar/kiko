@@ -336,3 +336,37 @@ test("batched human questions persist choices, reject incomplete answers, and re
   expect(await rpc(room, "humanAskState", "skip-batch")).toEqual({ state: "skipped", answer: null })
   c.close()
 })
+
+test("an agent that cannot run for want of a key tells every open client with a run_error frame, once per request", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r1", [])
+	expect(await c.take((f) => f.t === "run_error")).toEqual({ t: "run_error", slug: "ada", kind: "no_key", provider: "opencode-go" })
+	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r1", [])
+	expect(await quiet(c)).toBe(0)
+	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r2", [])
+	await c.take((f) => f.t === "run_error")
+	c.close()
+})
+
+test("a provider error the agent reports reaches clients as a run_error frame", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	await rpc(room, "runError", "ada", { kind: "rate_limit", provider: "opencode-go" })
+	expect(await c.take((f) => f.t === "run_error")).toEqual({ t: "run_error", slug: "ada", kind: "rate_limit", provider: "opencode-go" })
+	c.close()
+})
+
+test("kiko adds an agent the human already has to this chat, with a joined divider, and never twice", async () => {
+	const room = fresh()
+	const c = await withAgent(room, "kiko")
+	expect(await rpc(room, "addToChat", "kiko", ["@Scout"])).toEqual({ ok: true, text: "added @scout to this chat. say one short line." })
+	await c.take((f) => f.t === "events" && f.events.some((e) => e.t === "member" && e.member.slug === "scout"))
+	const snap = await snapshot(room)
+	expect(snap.members.map((m) => m.slug)).toEqual(["kiko", "scout"])
+	expect(snap.messages.some((m) => m.event?.kind === "member_added")).toBe(true)
+	expect(await rpc(room, "addToChat", "kiko", ["scout"])).toEqual({ ok: true, text: "@scout already here. say one short line." })
+	expect(await rpc(room, "addToChat", "kiko", ["ghost"])).toMatchObject({ ok: false })
+	expect(await rpc(room, "addToChat", "scout", ["scout"])).toMatchObject({ ok: false })
+	c.close()
+})

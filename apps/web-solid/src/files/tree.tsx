@@ -169,6 +169,13 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			onSelectionChange: (selected) => {
 				if (syncing) return
 				const path = selected.at(-1)
+				// A folder only opens and closes. It is not the open file, so it must not stay highlighted.
+				if (path?.endsWith("/") && !pending.has(path)) {
+					syncing = true
+					tree?.getItem(path)?.deselect()
+					syncing = false
+					return
+				}
 				if (path && !path.endsWith("/") && !pending.has(path) && filePaths().includes(path)) props.onOpen?.(path)
 			},
 			unsafeCSS: TREE_CSS,
