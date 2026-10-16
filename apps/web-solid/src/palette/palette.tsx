@@ -3,9 +3,10 @@ import { HugeIcon } from "@kiko/ui/huge-icon"
 import { ArrowUpIcon, ChevronRightIcon, CheckIcon } from "@kiko/ui/icons"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { displayShortcut } from "../commands/hotkeys"
+import { EntryIcon } from "../lib/EntryIcon"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
-import { backspaceLeaves, iconFor, keyChips, matchScore, viewFor, type Item } from "./model"
+import { backspaceLeaves, emptyText, enterLabel, iconFor, keyChips, matchScore, searchGroups, viewFor, type Item } from "./model"
 import { backView, closePalette, enterView, paletteStack } from "./state"
 import "./palette.css"
 
@@ -26,6 +27,18 @@ function Chips(props: { keys: string[] }) {
 }
 
 function Leading(props: { item: Item }) {
+  return (
+    <Show when={props.item.file} fallback={<Plain item={props.item} />}>
+      {(path) => (
+        <span class="palette-file-icon">
+          <EntryIcon path={path()} />
+        </span>
+      )}
+    </Show>
+  )
+}
+
+function Plain(props: { item: Item }) {
   return (
     <Show when={props.item.chatId ?? props.item.seed} fallback={<HugeIcon icon={iconFor(props.item.icon ?? "command")} size={16} />}>
       <Show when={props.item.chatId} fallback={<IdentityAvatar seed={props.item.seed!} size={18} />}>
@@ -53,6 +66,12 @@ export default function Palette() {
 
   const [query, setQuery] = createSignal("")
   const view = createMemo(() => viewFor(stack()))
+  // A search view ranks its own rows, so it follows the query. The other views leave filtering to cmdk.
+  const searching = () => view().parent?.search
+  const groups = createMemo(() => {
+    const parent = view().parent
+    return parent?.search ? searchGroups(parent, query()) : view().groups
+  })
   let input: HTMLInputElement | undefined
 
   // Focus goes back to where it was, so closing the palette does not strand the person on the page body.
@@ -84,6 +103,7 @@ export default function Palette() {
           class="palette-panel"
           label="Command palette"
           loop
+          shouldFilter={!searching()}
           filter={(_value, search, keywords) => matchScore(search, keywords?.[0] ?? "", keywords?.[1] ?? "")}
           onKeyDown={(e: KeyboardEvent) => {
             if (e.key === "Escape") {
@@ -97,15 +117,29 @@ export default function Palette() {
         >
           <Cmdk.Input ref={input} class="palette-input" placeholder={view().placeholder} value={query()} onValueChange={setQuery} autofocus />
           <Cmdk.List class="palette-list">
-            <Cmdk.Empty class="palette-empty">No results</Cmdk.Empty>
-            <For each={view().groups}>
+            <Show
+              when={searching()}
+              fallback={<Cmdk.Empty class="palette-empty">No results</Cmdk.Empty>}
+            >
+              <Show when={groups().length === 0}>
+                <div class="palette-empty" role="status">{emptyText(view().parent, query())}</div>
+              </Show>
+            </Show>
+            <For each={groups()}>
               {(group) => (
                 <Cmdk.Group class="palette-group" heading={group.label ?? undefined}>
                   <For each={group.items}>
                     {(item) => (
                       <Cmdk.Item class="palette-row" value={item.key} keywords={[item.title, group.label ?? ""]} onSelect={() => choose(item)}>
                         <Leading item={item} />
-                        <span class="palette-label">{item.title}</span>
+                        <Show when={item.detail} fallback={<span class="palette-label">{item.title}</span>}>
+                          {(detail) => (
+                            <span class="palette-text">
+                              <span class="palette-label">{item.title}</span>
+                              <span class="palette-detail">{detail()}</span>
+                            </span>
+                          )}
+                        </Show>
                         <Show when={item.current}>
                           <HugeIcon icon={CheckIcon} size={14} class="palette-trail" />
                         </Show>
@@ -126,7 +160,7 @@ export default function Palette() {
               <kbd class="palette-kbd palette-kbd-down"><HugeIcon icon={ArrowUpIcon} size={12} /></kbd>
               Navigate
             </span>
-            <span class="palette-hint"><kbd class="palette-kbd">Enter</kbd>Select</span>
+            <span class="palette-hint"><kbd class="palette-kbd">Enter</kbd>{enterLabel(view())}</span>
             <Show when={stack().length > 0}>
               <span class="palette-hint"><kbd class="palette-kbd">Backspace</kbd>Back</span>
             </Show>

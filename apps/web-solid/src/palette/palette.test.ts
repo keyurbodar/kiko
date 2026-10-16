@@ -3,7 +3,8 @@ import { testDeps } from "../commands/deps.fixture"
 import { katCommands } from "../commands/kat-commands"
 import { registerCommands, type Choice } from "../commands/registry"
 import { runSlash, slashSuggestions } from "../composer/slash"
-import { backspaceLeaves, keyChips, listed, matchScore, viewFor } from "./model"
+import { fileHits, listFiles } from "../files/go-to"
+import { backspaceLeaves, emptyText, enterLabel, keyChips, listed, matchScore, searchGroups, viewFor } from "./model"
 import { backView, closePalette, enterView, openPalette, paletteStack } from "./state"
 
 const choice = (id: string, run = () => {}): Choice => ({ id, title: `Option ${id}`, run })
@@ -114,5 +115,45 @@ describe("slash commands", () => {
     expect(slashSuggestions().map((s) => s.label)).toEqual(["/new", "/remind", "/skill"])
     off()
     expect(slashSuggestions().map((s) => s.label)).toEqual(["/remind", "/skill"])
+  })
+})
+
+describe("go to file", () => {
+  const hits = fileHits(["src/app.ts", "notes/todo.md"], ["todo.txt"])
+  const opened: string[] = []
+  const mine = katCommands(
+    testDeps({
+      hasActiveChat: () => true,
+      fileSearch: (query) =>
+        listFiles(hits, query, []).map(({ hit, group }) => ({ id: hit.path, title: hit.name, detail: hit.shown, file: hit.path, group, run: () => opened.push(hit.path) })),
+    }),
+  )
+  const command = mine.find((c) => c.id === "files.go")!
+
+  test("sits in the root list with a chevron, and needs an open chat", () => {
+    expect(viewFor([], mine).groups.flatMap((g) => g.items).find((i) => i.key === "files.go")).toMatchObject({ title: "Go to file…", submenu: "files.go", shortcut: "Mod+Shift+O" })
+    expect(listed(katCommands(testDeps())).map((c) => c.id)).not.toContain("files.go")
+  })
+
+  test("its view takes its rows from the query, with a two line row and an Open file footer", () => {
+    const view = viewFor(["files.go"], mine)
+    expect([view.placeholder, enterLabel(view), view.groups]).toEqual(["Search files…", "Open file", []])
+    const groups = searchGroups(view.parent!, "todo")
+    expect(groups.map((g) => [g.label, g.items.map((i) => [i.title, i.detail, i.file])])).toEqual([
+      ["This chat", [["todo.md", "notes/todo.md", "notes/todo.md"]]],
+      ["Home", [["todo.txt", "todo.txt", "home/todo.txt"]]],
+    ])
+  })
+
+  test("choosing a row opens that file", () => {
+    searchGroups(command, "app")[0]!.items[0]!.run()
+    expect(opened).toEqual(["src/app.ts"])
+  })
+
+  test("a view with no rows says why", () => {
+    expect(emptyText(command, "")).toBe("No files yet")
+    expect(emptyText(command, "zzz")).toBe("No matching files")
+    expect(searchGroups(command, "zzz")).toEqual([])
+    expect(enterLabel(viewFor([], mine))).toBe("Select")
   })
 })

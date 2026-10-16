@@ -26,6 +26,8 @@ export function katCommands(deps: {
   newAgent: () => void
   openPalette: () => void
   openChats: () => void
+  /** The open chat's files and the home files that match the query, best first. */
+  fileSearch: (query: string) => readonly Choice[]
   /** Every chat the sidebar lists, as options for the jump list. */
   chatChoices: () => Choice[]
   reopenClosed: () => void
@@ -64,6 +66,21 @@ export function katCommands(deps: {
     { id: "chat.close", title: "Close chat", group: "chat", icon: "close", when: deps.hasActiveChat, run: deps.closeChat },
     { id: "chat.delete", title: "Delete chat", group: "chat", icon: "trash", when: deps.canMove, run: deps.deleteChat },
     { id: "chats.go", title: "Go to chat…", group: "chats", icon: "chat", shortcut: "Mod+P", global: true, placeholder: "Go to chat…", submenu: deps.chatChoices, run: deps.openChats },
+    // Mod+O attaches a file and Mod+P is the chat jump, so the file jump takes Mod+Shift+O.
+    {
+      id: "files.go",
+      title: "Go to file…",
+      group: "go",
+      icon: "files",
+      shortcut: "Mod+Shift+O",
+      global: true,
+      when: deps.hasActiveChat,
+      placeholder: "Search files…",
+      search: deps.fileSearch,
+      enter: "Open file",
+      empty: { none: "No files yet", noMatch: "No matching files" },
+      run: () => deps.openView("files.go"),
+    },
     // ⌘1 to ⌘9 open the sidebar's chats in order, pinned first, as kat does.
     ...Array.from({ length: 9 }, (_, i): Command => ({
       id: `chats.go-${i + 1}`,

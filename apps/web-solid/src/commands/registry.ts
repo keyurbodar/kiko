@@ -20,6 +20,12 @@ export interface Choice {
   seed?: string
   /** Draws the avatar of the chat with this id, from its members' faces. */
   chatId?: string
+  /** A second, muted line under the title. */
+  detail?: string
+  /** Draws this path's file icon. */
+  file?: string
+  /** The heading above this option. Consecutive options with one heading share a group. */
+  group?: string
   /** The option that is on now. It gets a check. */
   current?: boolean
   run: () => void
@@ -47,6 +53,15 @@ export interface Command {
   when?: () => boolean
   /** The palette opens these as a second list, under a chevron. `run` then opens that list too, for a shortcut. */
   submenu?: () => readonly Choice[]
+  /**
+   * A submenu that ranks its own options. The palette hands it the query on every keystroke and shows
+   * what it returns in that order, so a long list costs only the rows it returns.
+   */
+  search?: (query: string) => readonly Choice[]
+  /** What Enter does in the submenu, for the footer hint. Defaults to "Select". */
+  enter?: string
+  /** What the search view says when it has no rows: with no query, and with one. */
+  empty?: { none: string; noMatch: string }
   /** The search hint inside the submenu. */
   placeholder?: string
   run: () => void

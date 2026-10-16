@@ -1,8 +1,12 @@
 import { useLocation, useNavigate } from "@solidjs/router"
+import { withMade } from "../files/api"
+import { fileHits, listFiles } from "../files/go-to"
+import { HOME } from "../files/model"
+import { recentFiles } from "../files/recent"
 import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleCard } from "../chat/side/card-state"
-import { fixedSurface, openSurface, toggleSidecar } from "../chat/side/surfaces"
+import { fixedSurface, openFile, openSurface, toggleSidecar } from "../chat/side/surfaces"
 import { answeringMember, canReason } from "../settings/agent-model"
 import { THINKING_LABELS } from "@kiko/protocol"
 import type { Choice } from "./registry"
@@ -54,6 +58,22 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
             if (roomId) navigate(`/chat/${roomId}`)
           },
         })),
+      fileSearch: (query) => {
+        const id = activeId()
+        if (!id) return []
+        const hits = fileHits(
+          withMade(id, useApp.activeFiles()).map((f) => f.name),
+          withMade(HOME, useApp.homeFiles()).map((f) => f.name),
+        )
+        return listFiles(hits, query, recentFiles(id)).map(({ hit, group }) => ({
+          id: hit.path,
+          title: hit.name,
+          detail: hit.shown,
+          file: hit.path,
+          group,
+          run: () => openFile(id, hit.path),
+        }))
+      },
       newGroup: openBotPicker,
       newAgent: openNewAgentFlow,
       toggleSidecar: () => {

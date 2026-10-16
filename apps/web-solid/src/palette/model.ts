@@ -21,6 +21,10 @@ export interface Item {
   icon?: string
   seed?: string
   chatId?: string
+  /** The second, muted line. */
+  detail?: string
+  /** A path whose file icon leads the row. */
+  file?: string
   shortcut?: string
   current?: boolean
   submenu?: string
@@ -39,6 +43,9 @@ export interface View {
   parent?: Command
 }
 
+/** What the footer says Enter does. */
+export const enterLabel = (view: View): string => view.parent?.enter ?? "Select"
+
 const ROOT_PLACEHOLDER = "Search commands and chats…"
 
 /** The palette hides itself, and so do commands that are off or unlisted. */
@@ -49,11 +56,27 @@ const commandItem = (c: Command): Item => ({
   title: c.title,
   icon: c.icon,
   shortcut: c.shortcut,
-  submenu: c.submenu ? c.id : undefined,
+  submenu: c.submenu || c.search ? c.id : undefined,
   run: c.run,
 })
 
-const choiceItem = (c: Choice): Item => ({ key: c.id, title: c.title, icon: c.icon, seed: c.seed, chatId: c.chatId, current: c.current, run: c.run })
+const choiceItem = (c: Choice): Item => ({ key: c.id, title: c.title, icon: c.icon, seed: c.seed, chatId: c.chatId, detail: c.detail, file: c.file, current: c.current, run: c.run })
+
+/** A search view's rows under their headings. A heading starts a new group when it changes. */
+export function searchGroups(parent: Command, query: string): PaletteGroup[] {
+  const groups: PaletteGroup[] = []
+  for (const c of parent.search?.(query) ?? []) {
+    const label = c.group ?? null
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) last.items.push(choiceItem(c))
+    else groups.push({ label, items: [choiceItem(c)] })
+  }
+  return groups
+}
+
+/** What an empty search view says. */
+export const emptyText = (parent: Command | undefined, query: string): string =>
+  (query.trim() ? parent?.empty?.noMatch : parent?.empty?.none) ?? "No results"
 
 /**
  * The list the stack points at. The root groups the enabled commands under their headings, in the
@@ -61,7 +84,8 @@ const choiceItem = (c: Choice): Item => ({ key: c.id, title: c.title, icon: c.ic
  * command is gone or disabled falls back to the root.
  */
 export function viewFor(stack: readonly string[], list: readonly Command[] = commands()): View {
-  const parent = stack.length ? list.find((c) => c.id === stack[stack.length - 1] && c.submenu && isEnabled(c)) : undefined
+  const parent = stack.length ? list.find((c) => c.id === stack[stack.length - 1] && (c.submenu || c.search) && isEnabled(c)) : undefined
+  if (parent?.search) return { parent, placeholder: parent.placeholder ?? "Search…", groups: [] }
   if (parent?.submenu) {
     return { parent, placeholder: parent.placeholder ?? "Search…", groups: [{ label: null, items: parent.submenu().map(choiceItem) }] }
   }
