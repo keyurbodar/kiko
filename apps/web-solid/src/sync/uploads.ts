@@ -27,6 +27,7 @@ const TIMEOUT_MS = 5 * 60_000
 /** The server's largest single request body (`files/upload.ts`). */
 const MAX_SINGLE_PUT = 32 * 1024 * 1024
 const PART_BYTES = 16 * 1024 * 1024
+const TOAST_WINDOW_MS = 5000
 
 type Job = {
   /** The composer's attachment id. */
@@ -118,6 +119,21 @@ async function run(job: Job): Promise<void> {
   await transfer(job)
 }
 
+let toasted: { at: number; reason: string } | null = null
+
+/** True when a failure is news: not the same reason as the last toast, shown within the last few seconds. */
+export function isNewFailure(last: { at: number; reason: string } | null, now: number, reason: string): boolean {
+  return !last || last.reason !== reason || now - last.at >= TOAST_WINDOW_MS
+}
+
+/** One toast for a run of failures: a folder of fifty files on a dead connection says so once, not fifty times. */
+function failToast(name: string, reason: string) {
+  const now = Date.now()
+  if (!isNewFailure(toasted, now, reason)) return
+  toasted = { at: now, reason }
+  showToastV2({ title: `Could not upload ${name}`, description: reason, variant: "error" })
+}
+
 function pump() {
   while (active < MAX_UPLOADS && queue.length) {
     const job = queue.shift()!
@@ -130,7 +146,7 @@ function pump() {
           if (job.cancelled) return
           const reason = e instanceof Error ? e.message : "Upload failed"
           set(job.id, { status: "failed", reason })
-          if (reason !== OFFLINE) showToastV2({ title: `Could not upload ${job.name}`, description: reason, variant: "error" })
+          if (reason !== OFFLINE) failToast(job.name, reason)
         },
       )
       .finally(() => {

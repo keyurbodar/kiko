@@ -210,3 +210,22 @@ test("the agent's envelope of a long human message names the file that holds its
   const envelope: Envelope = { id: `human:${stored.id}`, roomId: ROOM as never, from: { kind: "human" }, body: "x".repeat(16_000), hop: 0, rootId: stored.id, seq: stored.seq }
   expect(withContext(log, envelope).body).toContain("(attached: /attachments/abc-message.txt (text/plain, 39 kb).")
 })
+
+test("the agent's envelope names the workspace files the human dragged into the message, so it reads them", () => {
+  const { log } = setup(null)
+  const text = "compare [a.ts](/src/a.ts) with [Plan (v2).md](</notes/Plan (v2).md>) and [site](https://x.com/a) and [a.ts](/src/a.ts)"
+  const stored = log.addMessage({ from: { kind: "human" }, text, clientId: "c2" })
+  const envelope: Envelope = { id: `human:${stored.id}`, roomId: ROOM as never, from: { kind: "human" }, body: text, hop: 0, rootId: stored.id, seq: stored.seq }
+  expect(withContext(log, envelope).body).toContain("(referenced: /src/a.ts, /notes/Plan (v2).md. open each with read before you answer about it.)")
+})
+
+test("an upload the message carries is attached, not referenced", () => {
+  const { log } = setup(null)
+  const file = { id: "0c4f0c4f-0000-4000-8000-000000000002", name: "attachments/abc-a.txt", type: "text/plain", size: 10 }
+  const text = "see [a.txt](/attachments/abc-a.txt)"
+  const stored = log.addMessage({ from: { kind: "human" }, text, clientId: "c3", files: [file] })
+  const envelope: Envelope = { id: `human:${stored.id}`, roomId: ROOM as never, from: { kind: "human" }, body: text, hop: 0, rootId: stored.id, seq: stored.seq }
+  const body = withContext(log, envelope).body
+  expect(body).toContain("(attached: /attachments/abc-a.txt")
+  expect(body).not.toContain("(referenced:")
+})

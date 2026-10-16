@@ -44,11 +44,11 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     const f = ref()
     return f?.name.startsWith("attachments/") ? formatBytes(f.size) : null
   }
-  const open = () => {
+  const open = (from?: Element | null) => {
     const id = chat()
     if (!id) return
     const src = picture()
-    if (src) return openThreadImages([{ src, name: props.label }], 0)
+    if (src) return openThreadImages([{ src, name: props.label }], 0, from?.querySelector("img") ?? from)
     const found = find(props.file.path)
     if (found.kind === "file") return openFile(id, found.path, props.file.line)
     if (found.kind === "many") return openSurface(id, fixedSurface("files"))
@@ -81,7 +81,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
             if (!file || !event.dataTransfer) return event.preventDefault()
             setFileDrag(event.dataTransfer, file.name)
           }}
-          onClick={open}
+          onClick={(event: MouseEvent) => open(event.currentTarget as Element)}
         >
           <Show when={picture()} fallback={<EntryIcon path={props.file.path} />}>
             {(src) => <img class="file-chip-thumb" src={src()} alt="" loading="lazy" draggable={false} />}
@@ -91,7 +91,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
         </MenuV2.Context.Trigger>
         <MenuV2.Context.Portal>
           <MenuV2.Context.Content class="min-w-[160px]">
-            <MenuV2.Item onSelect={open}>
+            <MenuV2.Item onSelect={() => open()}>
               <OpenIcon class="size-3.5 shrink-0" aria-hidden="true" />
               Open
             </MenuV2.Item>

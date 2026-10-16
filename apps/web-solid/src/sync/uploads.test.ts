@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { forgetUpload, progressLabel, readyAttachments, releaseUpload, retryFailedUploads, retryUpload, startUpload, uploadBlockReason, uploadState } from "./uploads"
+import { forgetUpload, isNewFailure, progressLabel, readyAttachments, releaseUpload, retryFailedUploads, retryUpload, startUpload, uploadBlockReason, uploadState } from "./uploads"
 
 // The composer's upload queue against a fake XMLHttpRequest: three at once, progress in 5% steps,
 // t3code's failure words, retry under the same pending id, and a delete only for what was sent.
@@ -198,5 +198,15 @@ describe("the upload queue", () => {
     await tick()
     expect(uploadState("big")?.status).toBe("ready")
     releaseUpload("big")
+  })
+})
+
+describe("failure toasts", () => {
+  test("fifty files failing for one reason toast once, and a different reason or a later minute toasts again", () => {
+    const first = { at: 1000, reason: "Upload failed" }
+    expect(isNewFailure(null, 1000, "Upload failed")).toBe(true)
+    expect(isNewFailure(first, 1200, "Upload failed")).toBe(false)
+    expect(isNewFailure(first, 1200, "Upload rejected (413)")).toBe(true)
+    expect(isNewFailure(first, 6000, "Upload failed")).toBe(true)
   })
 })

@@ -15,7 +15,7 @@ function preview(roomId: string, file: MessageFile) {
 export function MessageAttachments(props: {
   files: readonly MessageFile[]
   roomId: string
-  onOpenImages?: (images: readonly DialogImage[], index: number) => void
+  onOpenImages?: (images: readonly DialogImage[], index: number, from?: Element | null) => void
 }) {
   const split = () => splitFiles(props.files)
   const images = () => split().images.map((f): DialogImage => ({ src: f.src, name: f.name }))
@@ -33,7 +33,7 @@ export function MessageAttachments(props: {
                 )}
                 aria-label={`Preview ${file.name}`}
                 data-component="chat-attachment-image"
-                onClick={() => props.onOpenImages?.(images(), i())}
+                onClick={(event) => props.onOpenImages?.(images(), i(), event.currentTarget)}
               >
                 <img src={file.src} alt={file.name} class="block size-full object-cover" loading="lazy" draggable={false} />
               </button>

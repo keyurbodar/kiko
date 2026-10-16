@@ -55,7 +55,7 @@ export function MessageRow(props: {
   onReact?: (emoji: string) => void
   onReply?: () => void
   onMore?: (anchor: HTMLElement) => void
-  onOpenImages?: (images: readonly DialogImage[], index: number) => void
+  onOpenImages?: (images: readonly DialogImage[], index: number, from?: Element | null) => void
 }): JSX.Element {
   const own = () => props.message.sender === "user"
   const grouped = () => !!props.group && !own() && props.message.botId !== undefined
