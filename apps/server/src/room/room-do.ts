@@ -550,7 +550,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	private touchBubble(message: Extract<RoomEvent, { t: "message" }>): void {
 		const home = this.home()
-		if (!home || isPrivate(message) || message.to !== undefined) return
+		if (!home || isPrivate(message)) return
 		const touch = bubbleTouch(this.ctx.storage.sql, this.log, message)
 		this.ctx.waitUntil(
 			userStub(this.env.USER, home.userId)

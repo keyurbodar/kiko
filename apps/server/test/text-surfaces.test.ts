@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { AgentSlug, RichText, Sender } from "@kiko/protocol"
-import { chatTouch } from "../src/room/chat-touch"
+import { bubbleTouch, chatTouch } from "../src/room/chat-touch"
 import { RoomLog } from "../src/room/log"
 import { ROOM_STEPS } from "../src/room/schema"
 import { searchMessages, snippetOf } from "../src/room/search"
@@ -47,4 +47,13 @@ test("a snippet is a window of plain words around the first match", () => {
 	expect(out.startsWith("…")).toBe(true)
 	expect(out.endsWith("…")).toBe(true)
 	expect(out).toContain(`${SNIPPET_OPEN}needle${SNIPPET_CLOSE}`)
+})
+
+test("a bubble of mail between agents moves the counts and leaves the last line alone", () => {
+	const { sql, log } = room()
+	const { event } = log.addMessage({ from: agent, text: "@piko take this", to: "piko" as AgentSlug })
+	const posted = event as Extract<NonNullable<typeof event>, { t: "message" }>
+	expect(bubbleTouch(sql, log, posted).last).toBeUndefined()
+	const said = log.addMessage({ from: agent, text: "**hi** there", rich: parseRichText("**hi** there") as RichText }).event as Extract<NonNullable<typeof event>, { t: "message" }>
+	expect(bubbleTouch(sql, log, said).last?.text).toBe("hi there")
 })

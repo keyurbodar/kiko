@@ -24,7 +24,7 @@ const suite: Suite = {
       const after = await waitRoutine(url, s, (all) => all.find((x) => x.id === r.id), "the routine")
       if (after.status !== "done") throw new VerifyError(`a one-off routine should be done after its run, got ${after.status}`)
       console.log(`  ok a human's ask made routine ${r.id} at once; it ran once (seq ${runs[0]?.seq}) and is done`)
-      await poll("the routine divider", () => messages(room).some((m) => m.event?.kind === "routine_created" && m.event.title === "ping"), 5_000)
+      await poll("the routine divider", () => messages(room).some((m) => m.event?.kind === "routine_created" && (m.event as { title?: string }).title === "ping"), 5_000)
       const remind = await ok<{ id: string }>(url, s, "reminders", { text: "book it", time: inSeconds(86_400), tz: "UTC", roomId })
       const listed = await ok<{ reminders: { id: string; text: string }[] }>(url, s, "routines")
       if (!listed.reminders.some((x) => x.id === remind.id && x.text === "book it")) throw new VerifyError(`expected the reminder in the routines list, got ${JSON.stringify(listed.reminders)}`)

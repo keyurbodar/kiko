@@ -13,7 +13,7 @@ const QUOTE = 40
 
 type Candidate = { seq: number; last: ChatLast }
 
-type Posted = { seq: number; at: number; from: Sender; text: string; rich?: RichText | undefined; files?: readonly FileRef[] | undefined }
+type Posted = { seq: number; at: number; from: Sender; text: string; to?: unknown; rich?: RichText | undefined; files?: readonly FileRef[] | undefined }
 
 function messageCandidate(m: Posted, nameOf: (slug: string) => string): Candidate {
 	const { from, files } = m
@@ -23,11 +23,11 @@ function messageCandidate(m: Posted, nameOf: (slug: string) => string): Candidat
 	}
 }
 
-/** The touch for one bubble that just landed: no scan, so a bubble in a long run costs the same as the first. Mentions stay as they are until the run ends. */
+/** The touch for one bubble that just landed: no scan, so a bubble in a long run costs the same as the first. Mentions stay as they are until the run ends. Mail between agents is counted but not quoted as the last line. */
 export function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): Touch {
 	const name = (slug: string) => sql.exec<{ name: string }>("SELECT name FROM members WHERE slug = ?", slug).toArray()[0]?.name ?? slug
 	const group = (sql.exec<{ n: number }>("SELECT count(*) AS n FROM members WHERE removed_at IS NULL").one().n ?? 0) > 1
-	return { lastSeq: log.lastSeq(), lastPreview: row.text, unread: log.unread(), last: messageCandidate(row, name).last, group }
+	return { lastSeq: log.lastSeq(), lastPreview: row.text, unread: log.unread(), ...(row.to === undefined ? { last: messageCandidate(row, name).last } : {}), group }
 }
 
 export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
