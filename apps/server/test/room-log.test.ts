@@ -224,7 +224,7 @@ test("typing is broadcast and never stored", async () => {
 	expect(await a.next((f) => f.t === "typing")).toEqual({ t: "typing", who: [] })
 	a.send({ t: "typing" })
 	a.send({ t: "hello", lastSeq: 0 })
-	expect((await a.events()).map((e) => e.t)).toEqual(["member"])
+	expect((await a.events()).map((e) => e.t)).toEqual(["member", "message"])
 	a.close()
 })
 
