@@ -16,7 +16,7 @@ import type { LoopPort } from "@kiko/memory/loop-tool"
 import { CHIEF } from "../room/chief"
 import { HOME } from "../files/upload"
 import { homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
-import { mergeRecall, RECALL_MAX, tagHits } from "./recall"
+import { mergeRecall, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@kiko/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { MessagingPort } from "./extensions/messaging"
@@ -173,7 +173,10 @@ export class AgentDO extends DurableObject<Env> {
         await room().setStatus(home.slug, state)
       },
       workers: (rows) => room().setWorkers(home.slug, rows),
-      endRun: async (runId, inputs = [], working = false) => room().endRun(home.slug, runId, await this.heard(inputs).catch(() => []), working),
+      endRun: async (runId, inputs = [], working = false) => {
+        const { mail, mailOnly } = await this.heard(inputs).catch(() => ({ mail: [], mailOnly: false }))
+        return room().endRun(home.slug, runId, mail, working, mailOnly)
+      },
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
       runError: (error) => room().runError(home.slug, error),
     }
@@ -230,15 +233,17 @@ export class AgentDO extends DurableObject<Env> {
     await this.host.humanGone()
   }
 
-  private async heard(inputs: readonly SubmissionId[]): Promise<string[]> {
-    if (!inputs.length) return []
+  /** The agent mail a run answered, and whether mail was all it was given: such a run says nothing the human committed to. */
+  private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; mailOnly: boolean }> {
+    if (!inputs.length) return { mail: [], mailOnly: false }
     const { storage } = await this.host.open()
-    const out: string[] = []
+    const all: string[] = []
     for (const input of inputs) {
       const submission = await storage.submission(input, BACKGROUND_CONTEXT)
-      if (submission?.requestId) out.push(...this.host.inbox.envelopeIds(submission.requestId).filter((id) => id.startsWith("agent:")))
+      if (submission?.requestId) all.push(...this.host.inbox.envelopeIds(submission.requestId))
     }
-    return out
+    const mail = all.filter((id) => id.startsWith("agent:"))
+    return { mail, mailOnly: mail.length > 0 && mail.length === all.length }
   }
 
   async askAnswered(id: string, answer: string): Promise<boolean> {
@@ -412,7 +417,7 @@ export class AgentDO extends DurableObject<Env> {
     this.#delta = { requestId: batch.requestId, since }
   }
 
-  #initiative?: Promise<string>
+  #initiative?: Promise<{ text: string; noticedIds: number[] } | null>
 
   private prefetchInitiative(batch: Batch): void {
     this.#initiative = undefined
@@ -421,15 +426,18 @@ export class AgentDO extends DurableObject<Env> {
     if (!home || home.private || !human.length) return
     const ask = userStub(this.env.USER, home.userId)
       .initiativeBrief(home.roomId, home.slug, { text: human.map((e) => e.body).join("\n").slice(0, 4_000) })
-      .then((view) => initiativeBrief(view))
-      .catch(() => "")
-    this.#initiative = Promise.race([ask, scheduler.wait(INITIATIVE_WAIT_MS).then(() => "")])
+      .then((view) => ({ text: initiativeBrief(view), noticedIds: view.noticedIds }))
+      .catch(() => null)
+    this.#initiative = Promise.race([ask, scheduler.wait(INITIATIVE_WAIT_MS).then(() => null)])
   }
 
   private async takeInitiative(): Promise<string> {
     const pending = this.#initiative
     this.#initiative = undefined
-    const text = pending ? await pending : ""
+    const brief = pending ? await pending : null
+    const text = brief?.text ?? ""
+    const home = this.home()
+    if (home && text && brief?.noticedIds.length) this.ctx.waitUntil(userStub(this.env.USER, home.userId).briefShown(brief.noticedIds).catch(() => {}))
     if (DEV && pending) await this.ctx.storage.put(DEV_INITIATIVE_KEY, text)
     return text
   }
@@ -534,7 +542,7 @@ export class AgentDO extends DurableObject<Env> {
         const root = await this.isRootConversation(conversationId)
         const seen = root ? await this.ctx.storage.get<number>(MEMORY_POS_KEY) : undefined
         const [life, chat] = await Promise.all([user().lifeRecall(query), room().memoryRecall(query, seen, root ? this.#seqs : [])])
-        return mergeRecall(tagHits("life", life), tagHits("chat", chat), root ? this.#shown : new Set(), (lines) => user().rerank(query, lines), RECALL_MAX)
+        return mergeRecall(tagHits("life", life), tagHits("chat", chat), root ? this.#shown : new Set())
       },
       zoom: async (raw) => {
         const id = parseZoomId(raw)

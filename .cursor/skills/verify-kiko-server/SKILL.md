@@ -149,7 +149,7 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `memory-edge` | [memory-edge](./features/memory-edge.md) |
 | `memory-tools`, `memory-session`, `memory-eval`, `memory-hard`, `soul` | [memory](./features/memory.md) |
 | `proactive` | [proactive](./features/proactive.md) |
-| `initiative`, `initiative-loops` | the `verify-initiative` skill |
+| `initiative-loops` | the `verify-initiative` skill |
 
 Themes (`apps/server/src/user/theme.ts`) have no suite; `apps/server/test/user.test.ts` covers sync across sockets, snapshots and refused text.
 

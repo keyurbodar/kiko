@@ -19,7 +19,6 @@ apps/server/src/agent/factory.ts:RunAuth
 apps/server/src/agent/factory.ts:workerOnly
 apps/server/src/agent/outbox.ts:DRAFT_INTERVAL_MS
 apps/server/src/agent/prompt.ts:SectionKey
-apps/server/src/agent/recall.ts:Rank
 apps/server/src/agent/recall.ts:RecallHit
 apps/server/src/agent/recall.ts:RecallLog
 apps/server/src/agent/split-bubbles.ts:DRAFT_THRESHOLD
@@ -62,7 +61,6 @@ apps/server/src/room/members.ts:MemberResult
 apps/server/src/room/members.ts:RESERVED_SLUGS
 apps/server/src/room/memory-naps.ts:MemoryNapsDeps
 apps/server/src/room/memory.ts:Compress
-apps/server/src/room/memory.ts:Rollup
 apps/server/src/room/pending.ts:PendingRow
 apps/server/src/room/pending.ts:safeName
 apps/server/src/room/reactions.ts:ReactionNote
@@ -133,7 +131,6 @@ core/memory/src/life.ts:AppendOptions
 core/memory/src/life.ts:CARD_TAGS
 core/memory/src/life.ts:NoteResult
 core/memory/src/loops.ts:LoopSource
-core/memory/src/loops.ts:NapLoopOp
 core/memory/src/loops.ts:NewLoop
 core/memory/src/optmem.ts:ZoomLog
 core/memory/src/optmem.ts:nodeLine

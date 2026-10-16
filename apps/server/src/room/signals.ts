@@ -8,10 +8,9 @@ const By = Schema.Union([Schema.Struct({ kind: Schema.Literal("human") }), Schem
 const base = { roomId: Schema.String, at: Schema.Number }
 
 export const Signal = Schema.Union([
-	// answers: the seq of the initiative bubble this human message replies to.
-	Schema.Struct({ kind: Schema.Literal("burst"), ...base, seq: Schema.Number, text: Schema.String, by: By, answers: Schema.optionalKey(Schema.Number) }),
+	Schema.Struct({ kind: Schema.Literal("burst"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
 	Schema.Struct({ kind: Schema.Literal("agent_final"), ...base, seq: Schema.Number, text: Schema.String, by: By }),
-	Schema.Struct({ kind: Schema.Literal("routine_result"), ...base, routineId: Schema.String, occurrence: Schema.String, outcome: Schema.Literals(["ok", "quiet", "failed", "timeout"]), seq: Schema.NullOr(Schema.Number), text: Schema.optionalKey(Schema.String) }),
+	Schema.Struct({ kind: Schema.Literal("routine_result"), ...base, routineId: Schema.String, occurrence: Schema.String, outcome: Schema.Literals(["ok", "quiet", "failed", "timeout"]), seq: Schema.NullOr(Schema.Number) }),
 ])
 export type Signal = typeof Signal.Type
 
@@ -25,12 +24,12 @@ const MAX_SIGNALS = 20
 type Act = Extract<Signal, { kind: "burst" | "agent_final" }>
 type By = typeof By.Type
 
-export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by: By | null; answers?: number }): Act | null {
+export function signalOf(event: RoomEvent, ctx: { roomId: string; at: number; by: By | null }): Act | null {
 	const { roomId, at, by } = ctx
 	switch (event.t) {
 		case "message":
 			if (event.from.kind === "system" || !by) return null
-			if (event.from.kind === "human") return { kind: "burst", roomId, at, seq: event.seq, text: event.text, by, ...(ctx.answers === undefined ? {} : { answers: ctx.answers }) }
+			if (event.from.kind === "human") return { kind: "burst", roomId, at, seq: event.seq, text: event.text, by }
 			return { kind: "agent_final", roomId, at, seq: event.seq, text: event.text, by }
 		default:
 			return null

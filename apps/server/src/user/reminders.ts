@@ -361,11 +361,6 @@ export class Reminders {
       .map(toReminder)
   }
 
-  async devAge(ms: number): Promise<void> {
-    this.sql.exec("UPDATE reminders SET due_utc = max(due_utc - ?, ?) WHERE status = 'active' AND created_by != 'human' AND json_extract(trigger, '$.on') = 'time' AND rrule IS NULL AND due_utc > 0", ms, this.now())
-    await this.rearm()
-  }
-
   async makeDue(id: string): Promise<void> {
     this.sql.exec("UPDATE reminders SET due_utc = ? WHERE id = ? AND status = 'active' AND due_utc > 0", this.now(), id)
     await this.rearm()

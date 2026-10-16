@@ -13,7 +13,7 @@ const slugOf = (body: { slug?: unknown } | null) => (typeof body?.slug === "stri
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "workers", "seed", "memory", "usage", "trace", "age", "seen", "due", "pending", "policy", "loops", "quiet", "initiative", "attention", "composio", "browser"].includes(action ?? "")) return null
+  if (!["fake", "status", "workers", "seed", "memory", "usage", "trace", "age", "seen", "due", "pending", "policy", "loops", "initiative", "pass", "composio", "browser"].includes(action ?? "")) return null
   if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
   const user = await getSessionUser(request, env)
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -47,23 +47,12 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
       return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 })
     }
   }
-  if (action === "attention") {
-    const body = (await request.json().catch(() => null)) as { action?: unknown; ms?: unknown; mode?: unknown } | null
-    const op =
-      body?.action === "age"
-        ? ({ action: "age", ms: Number(body.ms ?? 0) } as const)
-        : body?.action === "rhythm"
-          ? ({ action: "rhythm", mode: body.mode === "clear" ? "clear" : "now" } as const)
-          : body?.action === "pass"
-            ? ({ action: "pass" } as const)
-            : ({ action: "state" } as const)
-    return Response.json(await userStub(env.USER, user.id).devInitiative(op))
-  }
+  if (action === "pass") return Response.json(await userStub(env.USER, user.id).devPass())
   if (action === "loops") {
     const body = (await request.json().catch(() => null)) as { open?: { roomId?: unknown; text?: unknown; due?: unknown } } | null
     const open = body?.open
     if (open && typeof open.roomId === "string" && isRoomId(open.roomId) && typeof open.text === "string") {
-      await userStub(env.USER, user.id).loopOpen("human", open.roomId, "", { kind: "intention", certainty: "explicit", text: open.text, due: typeof open.due === "string" ? open.due : null })
+      await userStub(env.USER, user.id).loopOpen("human", open.roomId, "", { kind: "intention", text: open.text, due: typeof open.due === "string" ? open.due : null })
     }
     return Response.json({ loops: await userStub(env.USER, user.id).loopList({ status: ["open", "done", "dropped", "snoozed"], limit: 200 }) })
   }
@@ -82,10 +71,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
       return Response.json({ error: "bad turns" }, { status: 400 })
     }
     return Response.json({ turns: await roomStub(env.ROOM, user.id, roomId).devSeed(turns as { from: string; text: string }[]) })
-  }
-  if (action === "quiet") {
-    await roomStub(env.ROOM, user.id, roomId).devQuiet()
-    return Response.json({ ok: true })
   }
   if (action === "memory") return Response.json(await roomStub(env.ROOM, user.id, roomId).devMemory())
   if (action === "pending") return Response.json({ pending: await roomStub(env.ROOM, user.id, roomId).devAgePending(Number((body as { ms?: unknown }).ms ?? 0)) })

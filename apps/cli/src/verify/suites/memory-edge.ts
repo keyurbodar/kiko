@@ -234,14 +234,11 @@ const suite: Suite = {
           throw new VerifyError(`friends missing: ${missing.join(", ")}; lines: ${JSON.stringify(all)}; usage ${JSON.stringify(await usage())}`)
         }
         await settle()
-        const before = (await usage()).rerank_jev ?? 0
         const chat = (await newRoom(s, "memory edge recall")).room
         const reply = await say(chat, "which of my friends like jazz? list names.")
-        const after = (await usage()).rerank_jev ?? 0
         const named = names.filter((nm) => reply.toLowerCase().includes(nm)).length
-        console.log(`  [${stamp()}] rerank_jev ${before} -> ${after}; the reply named ${named} of 8 friends`)
-        if (after === before) console.log("  note: rerank_jev did not move. the agent may have answered from the card or block without recall, or recall returned six hits or fewer.")
-        else ok("rerank", `rerank_jev ${before} -> ${after}`)
+        if (named < 4) throw new VerifyError(`the reply named ${named} of 8 friends: ${JSON.stringify(reply.slice(0, 200))}`)
+        ok("capped recall", `the reply named ${named} of 8 friends`)
         close(chat)
       }
     }

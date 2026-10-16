@@ -5,16 +5,14 @@ import { LINE_BYTES, type Step } from "./optmem"
 
 const LOOP_KINDS = ["goal", "intention", "commitment", "waiting", "project"] as const
 export type LoopKind = (typeof LOOP_KINDS)[number]
-export type Certainty = "explicit" | "tentative"
 export type LoopStatus = "open" | "done" | "dropped" | "snoozed"
-export type LoopSource = "tool" | "jev" | "nap"
+export type LoopSource = "tool" | "jev"
 
 const isLoopKind = (value: unknown): value is LoopKind => LOOP_KINDS.includes(value as LoopKind)
 
 export type Loop = {
   id: number
   kind: LoopKind
-  certainty: Certainty
   owner: string
   room: string
   ref: string
@@ -31,7 +29,6 @@ export type Loop = {
 
 export type NewLoop = {
   kind: LoopKind
-  certainty: Certainty
   owner: string
   text: string
   source: LoopSource
@@ -46,7 +43,6 @@ export type OpenResult = { ok: true; id: number; merged: boolean } | { ok: false
 type Row = {
   id: number
   kind: string
-  certainty: string
   owner: string
   room: string
   ref: string
@@ -122,14 +118,7 @@ export class Loops {
         (same !== undefined ? this.sql.exec<Row>(`SELECT * FROM loops WHERE id = ? AND owner = ? AND room = ? AND ${LIVE}`, same, owner, room).toArray()[0] : undefined) ??
         this.sql.exec<Row>(`SELECT * FROM loops WHERE norm = ? AND owner = ? AND room = ? AND ${LIVE}`, key, owner, room).toArray()[0]
       if (old) {
-        const firmer = input.certainty === "explicit" && old.certainty === "tentative"
-        this.sql.exec(
-          "UPDATE loops SET mentions = mentions + 1, last_seen = max(last_seen, ?), certainty = ?, due = coalesce(?, due), status = 'open', snoozed_until = NULL WHERE id = ?",
-          at,
-          firmer ? "explicit" : old.certainty,
-          due,
-          old.id,
-        )
+        this.sql.exec("UPDATE loops SET mentions = mentions + 1, last_seen = max(last_seen, ?), due = coalesce(?, due), status = 'open', snoozed_until = NULL WHERE id = ?", at, due, old.id)
         return { ok: true, id: old.id, merged: true } as const
       }
       if (input.source === "jev" && input.ref && owner !== "human") {
@@ -137,9 +126,8 @@ export class Loops {
         if (seen) return { ok: true, id: seen.id, merged: true } as const
       }
       this.sql.exec(
-        "INSERT INTO loops (kind, certainty, owner, room, ref, due, text, norm, source, opened_at, last_seen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO loops (kind, certainty, owner, room, ref, due, text, norm, source, opened_at, last_seen) VALUES (?, 'explicit', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         input.kind,
-        input.certainty === "explicit" ? "explicit" : "tentative",
         owner,
         room,
         input.ref ?? "",
@@ -203,11 +191,9 @@ export class Loops {
       .map(toLoop)
   }
 
-  candidates(now = Date.now()): Loop[] {
-    return this.sql
-      .exec<Row>("SELECT * FROM loops WHERE status = 'open' OR (status = 'snoozed' AND snoozed_until <= ?) ORDER BY last_seen DESC LIMIT 200", now)
-      .toArray()
-      .map(toLoop)
+  /** Closes the open loops with no due date that nobody mentioned since `before`: a plan the human let go of. */
+  expire(before: number, now = Date.now()): number {
+    return this.sql.exec("UPDATE loops SET status = 'dropped', closed_at = ? WHERE status = 'open' AND due IS NULL AND last_seen < ?", now, before).rowsWritten
   }
 
   redactRefs(refs: readonly string[]): number {
@@ -246,7 +232,6 @@ function toLoop(r: Row): Loop {
   return {
     id: r.id,
     kind: r.kind as LoopKind,
-    certainty: r.certainty as Certainty,
     owner: r.owner,
     room: r.room,
     ref: r.ref,
@@ -263,7 +248,7 @@ function toLoop(r: Row): Loop {
 }
 
 export function loopLine(l: Loop): string {
-  const meta = [l.kind, l.certainty, l.owner === "human" ? null : `owed by @${l.owner}`, l.due ? `due ${l.due}` : null].filter(Boolean).join(", ")
+  const meta = [l.kind, l.owner === "human" ? null : `owed by @${l.owner}`, l.due ? `due ${l.due}` : null].filter(Boolean).join(", ")
   return `L${l.id} [${meta}] ${l.text}`
 }
 
@@ -276,9 +261,20 @@ const KIND: Record<LoopKind | "none", string> = {
   none: "not a plan: a fact, a feeling, a question, small talk, a report that something is finished, or a request the agent can finish right away",
 }
 
-const CERTAIN = {
-  true: "the human commits to it: they will, must, or have to do it, or they name a day or time",
-  false: "the human is only thinking about it: maybe, someday, would like to, an idea",
+const WHEN = {
+  none: "no day or time is named or implied",
+  today: "it is to happen today, tonight, or right away",
+  tomorrow: "it is to happen tomorrow",
+  week: "it is to happen within the next few days or this week or next",
+  month: "it is to happen within the next month or so",
+}
+
+const WHEN_DAYS = { today: 0, tomorrow: 1, week: 7, month: 30 } as const
+type When = keyof typeof WHEN_DAYS
+
+/** The date a loop is due, from when it was said and how soon the sentence puts it. */
+export function dueAfter(when: When, at: number): string {
+  return new Date(at + WHEN_DAYS[when] * 86_400_000).toISOString().slice(0, 10)
 }
 
 const PROMISE = {
@@ -330,10 +326,11 @@ export function loopQuestions(check: BurstCheck): { state: JsonObject; questions
     const s = `\`sentences[${i}].text\``
     if (sentence.by) {
       questions[`s${i}_promise`] = { type: "bool", instructions: `In ${s}, said by the agent, does the agent promise to come back or follow up later?`, criteria: PROMISE }
+      questions[`s${i}_when`] = { type: "choice", instructions: `When does ${s} say the agent will come back or deliver?`, criteria: WHEN }
       return
     }
     questions[`s${i}_kind`] = { type: "choice", instructions: `Is ${s} the human's own plan, goal, promise, or something they wait on? Which kind?`, criteria: KIND }
-    questions[`s${i}_certain`] = { type: "bool", instructions: `Does ${s} commit to it, rather than only think about it?`, criteria: CERTAIN }
+    questions[`s${i}_when`] = { type: "choice", instructions: `When does ${s} say it is to happen?`, criteria: WHEN }
   })
   for (const { sentence, loop } of check.near) {
     questions[`s${sentence}_l${loop.id}`] = {
@@ -346,7 +343,7 @@ export function loopQuestions(check: BurstCheck): { state: JsonObject; questions
 }
 
 export type LoopOp =
-  | { op: "open"; sentence: number; kind: LoopKind; certainty: Certainty; owner: string; same?: number }
+  | { op: "open"; sentence: number; kind: LoopKind; owner: string; when?: When; same?: number }
   | { op: "close"; sentence: number; id: number; status: "done" | "dropped" }
 
 function decided(answer: Answer | undefined): string | null {
@@ -381,64 +378,15 @@ export function loopOps(check: BurstCheck, answers: Record<string, Answer>): Loo
     if (closed) return
     if (sentence.by && same === undefined && !rels.every((r) => r === "other")) same = near[0]?.loop.id
     const at = same === undefined ? {} : { same }
+    const soon = decided(answers[`s${i}_when`])
+    const when = soon && soon in WHEN_DAYS ? { when: soon as When } : {}
     if (sentence.by) {
-      if (yes(answers[`s${i}_promise`])) ops.push({ op: "open", sentence: i, kind: "commitment", certainty: "explicit", owner: sentence.by, ...at })
+      if (yes(answers[`s${i}_promise`])) ops.push({ op: "open", sentence: i, kind: "commitment", owner: sentence.by, ...when, ...at })
       return
     }
     const kind = loopKind(answers[`s${i}_kind`])
     if (!kind) return
-    ops.push({ op: "open", sentence: i, kind, certainty: yes(answers[`s${i}_certain`]) ? "explicit" : "tentative", owner: "human", ...at })
+    ops.push({ op: "open", sentence: i, kind, owner: "human", ...when, ...at })
   })
   return ops
-}
-
-export const NAP_LOOPS_SYSTEM =
-  "you keep a long-term memory by compressing logs. the first line of your answer is one line of plain lowercase text. after it come only loop lines in the format you are given, or nothing."
-
-const LOOP_LINE = /^loop\s+/i
-
-export function napLoopsPrompt(base: string, known: readonly Loop[], endsAt: number): string {
-  return [
-    base,
-    "",
-    "after that line, list the open loops in these turns, one per line, in these formats:",
-    "loop + <kind> <explicit|tentative> <owner> <due> <text>",
-    "loop done <id>",
-    "loop dropped <id>",
-    "kind is goal, intention (a plan or something they have to do), commitment (a promise to someone), waiting (on someone or something), or project.",
-    "owner is human, or @name for an agent that promised to come back or follow up later.",
-    "explicit when they commit or name a time; tentative for maybe, thinking about, someday.",
-    "due is a date like 2026-10-17 when one is named or clear, else -. text is one short line in the third person.",
-    "list every one, tentative ones too. skip only what the agent finished in these same turns, and an item already known below with the same owner and the same goal. a known loop the turns say is finished is loop done <id>; one no longer wanted, or one the human will handle themselves, is loop dropped <id>.",
-    `the turns end on ${new Date(endsAt).toISOString().slice(0, 10)}.`,
-    "known open loops:",
-    ...(known.length ? known.map((l) => `${l.id}: ${l.text}`) : ["(none)"]),
-  ].join("\n")
-}
-
-export type NapLoopOp =
-  | { op: "open"; kind: LoopKind; certainty: Certainty; owner: string; due: string | null; text: string }
-  | { op: "close"; id: number; status: "done" | "dropped" }
-
-export function parseNapLoops(answer: string, known: ReadonlySet<number>): { summary: string | null; ops: NapLoopOp[] } {
-  const lines = answer.split("\n").map((l) => l.trim()).filter(Boolean)
-  const summary = lines.find((l) => !LOOP_LINE.test(l)) ?? null
-  const ops: NapLoopOp[] = []
-  for (const line of lines) {
-    if (!LOOP_LINE.test(line)) continue
-    const words = line.split(/\s+/)
-    const verb = words[1]?.toLowerCase()
-    if (verb === "done" || verb === "dropped") {
-      const id = Number(words[2]?.replace(/^l/i, ""))
-      if (known.has(id)) ops.push({ op: "close", id, status: verb })
-      continue
-    }
-    if (verb !== "+") continue
-    const [, , kind, certainty, owner, due, ...rest] = words
-    const text = rest.join(" ").trim()
-    if (!isLoopKind(kind) || (certainty !== "explicit" && certainty !== "tentative") || !owner || text.length < 3) continue
-    if (encoder.encode(text).byteLength > LINE_BYTES) continue
-    ops.push({ op: "open", kind, certainty, owner: owner.replace(/^@/, "").toLowerCase(), due: due === "-" ? null : cleanDue(due), text })
-  }
-  return { summary, ops }
 }
