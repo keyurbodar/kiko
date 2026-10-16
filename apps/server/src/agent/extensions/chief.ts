@@ -80,7 +80,7 @@ export function groupsExtension(port: GroupsPort): Extension {
 
   const overview = defineTool({
     name: "overview",
-    description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines and their last runs, reminders due soon.",
+    description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines (reminders are one-time routines) and their last runs.",
     parameters: Type.Object({}),
     replay: "safe",
     execute: async () => ({ content: text(await port.overview()) }),

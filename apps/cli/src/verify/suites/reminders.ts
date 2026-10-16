@@ -25,7 +25,7 @@ const suite: Suite = {
     const runs = await runsOf(url, s, once.routine.id)
     if (runs.length !== 1) throw new VerifyError(`a one-time routine ran ${runs.length} times: ${JSON.stringify(runs)}`)
     if (agentTexts(room).filter((t) => t.includes("time to stretch")).length !== 1) throw new VerifyError("a one-time routine answered twice")
-    if (await find(once.routine.id)) throw new VerifyError("a finished one-time routine is still listed as live")
+    if ((await find(once.routine.id))?.status !== "done") throw new VerifyError("a finished one-time routine is not done")
 
     const tz = "UTC"
     const daily = await ok<{ routine: Routine }>(url, s, "routines", { roomId, name: "water the plants", instructions: "[reply] water the plants", trigger: { on: "time", at: inSeconds(3), rrule: "FREQ=DAILY" } })
@@ -42,7 +42,7 @@ const suite: Suite = {
     next.setUTCDate(next.getUTCDate() + 1)
     expectEqual(afterDay, next.toISOString().slice(0, 10), "the local day of the next occurrence")
     await ok(url, s, `routines/${daily.routine.id}/cancel`, {})
-    console.log("  ok a one-time routine ran once and left the list; a daily one moved a day and was cancelled")
+    console.log("  ok a one-time routine ran once and is done; a daily one moved a day and was cancelled")
     room.raw.close()
   },
 }

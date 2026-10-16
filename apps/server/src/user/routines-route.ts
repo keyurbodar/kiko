@@ -32,8 +32,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
 
   if (!action) {
     if (request.method === "GET") {
-      const routines = (await stub.listRoutines()).filter((r) => r.status === "active" || r.status === "paused")
-      return Response.json({ routines, runs: await stub.routineRuns() })
+      return Response.json({ routines: await stub.listRoutines(), runs: await stub.routineRuns() })
     }
     if (request.method !== "POST") return error(405, "method not allowed")
     const b = await json(request)

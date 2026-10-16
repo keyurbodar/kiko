@@ -29,8 +29,8 @@ const suite: Suite = {
       const listed = await ok<{ routines: Routine[] }>(url, s, "routines")
       if (!listed.routines.some((x) => x.id === later.routine.id && x.status === "active")) throw new VerifyError(`expected the one-time routine in the list, got ${JSON.stringify(listed.routines)}`)
       await ok(url, s, `routines/${later.routine.id}/cancel`, {})
-      if ((await ok<{ routines: Routine[] }>(url, s, "routines")).routines.some((x) => x.id === later.routine.id)) throw new VerifyError("a cancelled routine is still listed")
-      console.log("  ok the routine got a divider; a one-time routine was listed and left the list when cancelled")
+      if ((await ok<{ routines: Routine[] }>(url, s, "routines")).routines.find((x) => x.id === later.routine.id)?.status !== "cancelled") throw new VerifyError("a cancelled routine is not marked cancelled")
+      console.log("  ok the routine got a divider; a one-time routine was listed and marked cancelled")
       room.raw.close()
     }
 

@@ -29,6 +29,13 @@ const suite: Suite = {
     if (!teaCard || mine2.broken.length !== 1 || !mine2.broken[0]?.includes("recipe broken: description is required")) throw new VerifyError(`expected the new recipe as a card and the broken one listed, got ${JSON.stringify({ teaCard: teaCard?.icon, broken: mine2.broken })}`)
     console.log(`  ok ${library.cards.length} built-in recipes were in /home/recipes; a new file became a card (${teaCard.icon}) and a broken one was named`)
 
+    const gated = await api<{ state?: string; links?: unknown[]; reason?: string }>(url, s, "recipes", { installId: crypto.randomUUID(), slug: "morning-briefing", roomId, agent: "kiko" })
+    if (gated.json.state !== "needs_connect" || !gated.json.reason?.includes("Composio") || (await mine()).length || (await ok<RecipeList>(url, s, "recipes")).installs.length) throw new VerifyError(`a recipe that needs apps should wait with nothing made, got ${gated.status} ${JSON.stringify(gated.json)}`)
+    console.log("  ok a recipe that needs apps made nothing and said to add a Composio key")
+    const noApps = "---\ntitle: Morning briefing\ndescription: Your calendar and the emails that need you, every morning.\nwhen: Daily at 7:55\ntriggers:\n  - name: morning briefing\n    every: FREQ=DAILY;BYHOUR=7;BYMINUTE=55\n    run: send the morning briefing. follow the morning-briefing skill.\nagent:\n  name: Briefing\n  handle: briefing\n---\nSend the briefing.\n"
+    const own2 = await s.putFile("home", "recipes/morning-briefing/RECIPE.md", noApps, { type: "text/markdown" })
+    if (!own2.ok) throw new VerifyError(`writing the briefing recipe answered ${own2.status}`)
+
     const installId = crypto.randomUUID()
     const body = { installId, slug: "morning-briefing", roomId, agent: "kiko" }
     const { install } = await ok<{ install: RecipeInstall }>(url, s, "recipes", body)
