@@ -10,6 +10,7 @@ import { runCommand } from "../commands/registry"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { KIKO } from "@kiko/protocol"
 import { ChatPanel } from "./chat-panel"
+const UpdatePill = lazy(() => import("../app/update-pill"))
 import "./sidebar.css"
 
 /*
@@ -138,6 +139,10 @@ function Foot(props: { section: SectionId | null }) {
     return s.status === "signed-in" ? s.user : null
   }
   return (
+    <>
+    <Suspense>
+      <UpdatePill />
+    </Suspense>
     <footer class="panel-foot" data-component="sidebar-foot">
       <A href="/settings/account" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="Account">
         <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
@@ -170,6 +175,7 @@ function Foot(props: { section: SectionId | null }) {
         </A>
       </TooltipV2>
     </footer>
+    </>
   )
 }
 

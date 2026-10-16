@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { checkStall, reduceUpdate, sent, STALL_ERROR, STALL_MS, stageText } from "./update"
+import { checkStall, pillView, reduceUpdate, sent, STALL_ERROR, STALL_MS, stageText } from "./update"
 
 describe("update progress", () => {
 	test.each([
@@ -42,5 +42,24 @@ describe("a backend that never answers", () => {
 		expect(checkStall(null, 1_000_000)).toBeNull()
 		const failed = reduceUpdate({ t: "update.state", stage: "failed", error: "x" })
 		expect(checkStall(failed, 1_000_000)).toBe(failed)
+	})
+})
+
+describe("pillView", () => {
+	const idle = null
+	const running = { stage: "uploading" } as const
+	const failed = { stage: "failed", error: "No." } as const
+	test.each([
+		["nothing to do", "ok", false, idle, { kind: "none" }],
+		["no hello yet", undefined, false, idle, { kind: "none" }],
+		["a backend update", "update", false, idle, { kind: "update", blocked: false }],
+		["a backend too old", "blocked", false, idle, { kind: "update", blocked: true }],
+		["a stale tab", "ok", true, idle, { kind: "reload" }],
+		["a stale tab outranks a backend update, which would install the old version", "update", true, idle, { kind: "reload" }],
+		["a running update", "update", false, running, { kind: "busy", text: "Uploading" }],
+		["a running update outranks a stale tab", "ok", true, running, { kind: "busy", text: "Uploading" }],
+		["a failure", "update", false, failed, { kind: "failed", error: "No." }],
+	] as const)("%s", (_name, skew, behind, progress, expected) => {
+		expect(pillView(skew, behind, progress)).toEqual(expected)
 	})
 })

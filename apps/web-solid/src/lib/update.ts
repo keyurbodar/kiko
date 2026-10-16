@@ -1,6 +1,7 @@
 // Where a one-click update is, as the backend reports it. Pure, so the table is tested in update.test.ts.
 
 import type { UpdateStage, UserToClient } from "@kiko/protocol"
+import type { Skew } from "./version-skew"
 
 /** `sentAt` is set only while the client waits for the backend's first frame. */
 export type UpdateProgress = { stage: UpdateStage; error?: string; sentAt?: number } | null
@@ -34,3 +35,26 @@ export function reduceUpdate(frame: StateFrame): UpdateProgress {
 export function stageText(progress: UpdateProgress): string | undefined {
 	return progress && progress.stage !== "failed" ? STAGE_TEXT[progress.stage] : undefined
 }
+
+/** What the sidebar pill and the composer notice show. */
+export type PillView =
+	| { kind: "none" }
+	| { kind: "busy"; text: string }
+	| { kind: "failed"; error: string }
+	| { kind: "reload" }
+	| { kind: "update"; blocked: boolean }
+
+/**
+ * A running update wins, then a failure. A stale tab comes before the backend update, because the
+ * update installs this tab's own version and would install the old one.
+ */
+export function pillView(skew: Skew | undefined, clientIsBehind: boolean, progress: UpdateProgress): PillView {
+	const text = stageText(progress)
+	if (text) return { kind: "busy", text }
+	if (progress?.stage === "failed") return { kind: "failed", error: progress.error ?? "The update failed. Try again." }
+	if (clientIsBehind) return { kind: "reload" }
+	if (skew === "update" || skew === "blocked") return { kind: "update", blocked: skew === "blocked" }
+	return { kind: "none" }
+}
+
+export const LATEST_POLL_MS = 30 * 60_000

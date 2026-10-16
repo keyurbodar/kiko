@@ -26,6 +26,9 @@ function olderThan(backend: string, client: string): boolean {
 	return false
 }
 
+/** True when the front door serves a newer client than the one this tab runs. */
+export const clientBehind = (client: string, latest: string | undefined): boolean => latest !== undefined && olderThan(client, latest)
+
 export function backendSkew(client: Build, backend: BackendBuild): Skew {
 	if (backend.version === undefined || backend.protocol === undefined) return "update"
 	if (backend.protocol < client.protocol - 1) return "blocked"
