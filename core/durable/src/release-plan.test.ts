@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { ReleaseManifest } from "./release"
-import { type MigrationPlan, buildMetadata, selectMigrations } from "./release-plan"
+import { type FilesBinding, type MigrationPlan, buildMetadata, selectMigrations } from "./release-plan"
 
 const all = [
   { tag: "v1", new_sqlite_classes: ["UserDO", "RoomDO", "AgentDO"] },
@@ -27,14 +27,24 @@ describe("buildMetadata", () => {
   const plan = selectMigrations(all, null)
 
   test("first install carries secrets and no keep_bindings", () => {
-    const meta = buildMetadata(manifest, plan, [{ type: "secret_text", name: "OWNER_ID", text: "u" }])
-    expect(meta.bindings.map((b) => b.name)).toEqual(["USER", "ROOM", "AGENT", "FILES", "OWNER_ID"])
+    const meta = buildMetadata(manifest, plan, [{ type: "secret_text", name: "OWNER_ID", text: "u" }], "r2")
+    expect(meta.bindings.map((b) => b.name)).toEqual(["USER", "ROOM", "AGENT", "FILE", "FILES", "OWNER_ID"])
     expect("keep_bindings" in meta).toBe(false)
   })
 
   test("update keeps secrets and sends none", () => {
-    const meta = buildMetadata(manifest, plan, null)
+    const meta = buildMetadata(manifest, plan, null, "inherit")
     expect(meta).toMatchObject({ keep_bindings: ["secret_text"] })
     expect(meta.bindings.some((b) => b.type === "secret_text")).toBe(false)
+  })
+
+  test.each<[FilesBinding, unknown[]]>([
+    ["r2", [{ type: "r2_bucket", name: "FILES", bucket_name: "kiko-files" }]],
+    ["inherit", [{ type: "inherit", name: "FILES" }]],
+    ["none", []],
+  ])("files %s", (files, expected) => {
+    const meta = buildMetadata(manifest, plan, null, files)
+    expect(meta.bindings.filter((b) => b.name === "FILES") as unknown[]).toEqual(expected)
+    expect(meta.bindings.some((b) => b.name === "FILE" && b.type === "durable_object_namespace")).toBe(true)
   })
 })

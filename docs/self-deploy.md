@@ -18,11 +18,13 @@ Kiko runs on your own Cloudflare account. One deployment serves one owner. You s
    bunx wrangler login
    ```
 
-3. **Create the R2 bucket** for files. The name must match `bucket_name` in `apps/server/wrangler.jsonc`.
+3. **Optional: create the R2 bucket** for files. Skip it and Kiko keeps files in Durable Object storage: up to 100 MB a file and 800 MB a chat or drive. R2 on a Free account asks you to turn it on in the dashboard, possibly with a card. To use it, create the bucket (the name must match `bucket_name` in `apps/server/wrangler.jsonc`). To go without, delete the `r2_buckets` line from `apps/server/wrangler.jsonc`.
 
    ```bash
    bunx wrangler r2 bucket create kiko-files
    ```
+
+   Pick one and keep it. Files saved without R2 are not copied to a bucket you add later.
 
 4. **Install dependencies.**
 

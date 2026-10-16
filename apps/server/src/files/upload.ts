@@ -1,3 +1,5 @@
+import { FILE_TOO_LARGE, STORAGE_FULL } from "./file-limits"
+import { fileStore, type FileBucket, maxFileBytes } from "./store"
 import { sha256Stream } from "@kiko/durable/hash"
 import { type Actor, isRoomId } from "@kiko/protocol"
 import type { Env } from "../index"
@@ -30,9 +32,15 @@ export function fileKey(userId: string, roomId: string, fileId: string): string 
 	return `${userPrefix(userId)}r/${roomId}/${fileId}`
 }
 
-export async function deleteFiles(bucket: R2Bucket, keys: string | readonly string[]): Promise<void> {
+export async function deleteFiles(bucket: FileBucket, keys: string | readonly string[]): Promise<void> {
 	const all = typeof keys === "string" ? [keys] : keys
 	for (let i = 0; i < all.length; i += R2_DELETE_LIMIT) await bucket.delete(all.slice(i, i + R2_DELETE_LIMIT))
+}
+
+/** A refusal the built-in store raises when a file or a chat's storage is over its cap. Across an RPC only the message survives. */
+export function storageRefusal(e: unknown): string | null {
+	const message = e instanceof Error ? e.message : ""
+	return message === STORAGE_FULL || message === FILE_TOO_LARGE ? message : null
 }
 
 export function error(status: number, message: string): Response {
@@ -80,14 +88,14 @@ export async function json(request: Request): Promise<Record<string, unknown> | 
 	}
 }
 
-export function refuse(size: number): Response | null {
-	return size > MAX_FILE_BYTES ? error(413, "file too large") : null
+export function refuse(size: number, env: Env): Response | null {
+	return size > maxFileBytes(env, MAX_FILE_BYTES) ? error(413, "file too large") : null
 }
 
 async function index(env: Env, userId: string, roomId: string, input: NewFile): Promise<Response> {
 	const room = roomId === HOME ? null : roomStub(env.ROOM, userId, roomId)
 	const { file, drop, conflict, refused } = room ? await room.putFile(input) : await userStub(env.USER, userId).homePut(input)
-	if (drop) await deleteFiles(env.FILES, drop)
+	if (drop) await deleteFiles(fileStore(env), drop)
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })
 	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })
 	return Response.json({ file })
@@ -101,14 +109,14 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	if (length > MAX_SINGLE_PUT_BYTES) return error(413, "too large for one request, use a multipart upload")
 	const expectSha256 = expectOf(request.headers.get("x-kiko-if-sha256"))
 	if (!expectSha256) return error(400, EXPECT_ERROR)
-	const refused = refuse(length)
+	const refused = refuse(length, env)
 	if (refused) return refused
 	const id = crypto.randomUUID()
 	const key = fileKey(userId, roomId, id)
 	const type = mime(request.headers.get("content-type"))
 	const [toHash, toStore] = (request.body ?? new Blob([]).stream()).tee()
 	const [, sha256] = await Promise.all([
-		env.FILES.put(key, toStore.pipeThrough(new FixedLengthStream(length)), {
+		fileStore(env).put(key, toStore.pipeThrough(new FixedLengthStream(length)), {
 			httpMetadata: { contentType: type },
 			customMetadata: { path },
 		}),
@@ -126,10 +134,10 @@ async function create(request: Request, env: Env, userId: string, roomId: string
 	if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 0) return error(400, "bad size")
 	const expect = expectOf(body.expect)
 	if (!expect) return error(400, EXPECT_ERROR)
-	const refused = refuse(size)
+	const refused = refuse(size, env)
 	if (refused) return refused
 	const fileId = crypto.randomUUID()
-	const upload = await env.FILES.createMultipartUpload(fileKey(userId, roomId, fileId), {
+	const upload = await fileStore(env).createMultipartUpload(fileKey(userId, roomId, fileId), {
 		httpMetadata: { contentType: mime(body.type) },
 		customMetadata: { path, expect },
 	})
@@ -142,10 +150,11 @@ export async function part(request: Request, env: Env, key: string, uploadId: st
 	if (length > MAX_SINGLE_PUT_BYTES) return error(413, "part too large")
 	try {
 		const body = (request.body ?? new Blob([]).stream()).pipeThrough(new FixedLengthStream(length))
-		const uploaded = await env.FILES.resumeMultipartUpload(key, uploadId).uploadPart(n, body)
+		const uploaded = await fileStore(env).resumeMultipartUpload(key, uploadId).uploadPart(n, body)
 		return Response.json({ partNumber: uploaded.partNumber, etag: uploaded.etag })
-	} catch {
-		return error(404, "no such upload")
+	} catch (e) {
+		const why = storageRefusal(e)
+		return why ? error(413, why) : error(404, "no such upload")
 	}
 }
 
@@ -158,20 +167,20 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 	const key = fileKey(userId, roomId, fileId)
 	let fresh = true
 	try {
-		await env.FILES.resumeMultipartUpload(key, uploadId).complete(parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })))
+		await fileStore(env).resumeMultipartUpload(key, uploadId).complete(parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })))
 	} catch {
 		fresh = false
 	}
-	const object = await env.FILES.get(key)
+	const object = await fileStore(env).get(key)
 	if (!object) return error(404, "no such upload")
 	const path = cleanPath(object.customMetadata?.path)
 	if (!path) {
 		await object.body.cancel()
 		return error(400, "bad path")
 	}
-	if (fresh && object.size > MAX_FILE_BYTES) {
+	if (fresh && object.size > maxFileBytes(env, MAX_FILE_BYTES)) {
 		await object.body.cancel()
-		await env.FILES.delete(key)
+		await fileStore(env).delete(key)
 		return error(413, "file too large")
 	}
 	const sha256 = await sha256Stream(object.body)
@@ -182,6 +191,16 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 }
 
 export async function uploadRoute(request: Request, env: Env, lookup: SessionLookup): Promise<Response | null> {
+	try {
+		return await routeUpload(request, env, lookup)
+	} catch (e) {
+		const why = storageRefusal(e)
+		if (why) return error(413, why)
+		throw e
+	}
+}
+
+async function routeUpload(request: Request, env: Env, lookup: SessionLookup): Promise<Response | null> {
 	const url = new URL(request.url)
 	const route = filesPath(url.pathname)
 	if (!route || request.method === "GET" || request.method === "HEAD") return null
@@ -205,7 +224,7 @@ export async function uploadRoute(request: Request, env: Env, lookup: SessionLoo
 	}
 	if (rest.length === 2 && request.method === "POST") return complete(request, env, user.id, roomId, fileId, uploadId)
 	if (rest.length === 2 && request.method === "DELETE") {
-		await env.FILES.resumeMultipartUpload(key, uploadId)
+		await fileStore(env).resumeMultipartUpload(key, uploadId)
 			.abort()
 			.catch(() => {})
 		return new Response(null, { status: 204 })

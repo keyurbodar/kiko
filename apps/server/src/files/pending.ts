@@ -1,9 +1,10 @@
+import { fileStore } from "./store"
 import { sha256Stream, toHex } from "@kiko/durable/hash"
 import { attachmentError, attachmentType } from "@kiko/protocol"
 import type { Env } from "../index"
 import { roomStub } from "../lib/names"
 import type { RoomDO } from "../room/room-do"
-import { declaredSize, deleteFiles, error, fileKey, HOME, isControl, isFileId, json, MAX_SINGLE_PUT_BYTES, mime, part, refuse } from "./upload"
+import { declaredSize, deleteFiles, error, fileKey, HOME, isControl, isFileId, json, MAX_SINGLE_PUT_BYTES, mime, part, refuse, storageRefusal } from "./upload"
 
 type Room = DurableObjectStub<RoomDO>
 
@@ -13,13 +14,13 @@ function cleanName(raw: unknown): string | null {
 	return name && name.length <= 255 && ![...name].some(isControl) ? name : null
 }
 
-function admit(name: string, type: string, size: number): Response | null {
+function admit(env: Env, name: string, type: string, size: number): Response | null {
 	const why = attachmentError({ name, type, size })
 	if (why) return error(size > 0 ? 413 : 400, why)
-	return refuse(size)
+	return refuse(size, env)
 }
 
-async function store(request: Request, env: Env, key: string, type: string, size: number): Promise<{ sha256: string } | { error: string }> {
+async function store(request: Request, env: Env, key: string, type: string, size: number): Promise<{ sha256: string } | { error: string; status: number }> {
 	let seen = 0
 	const counted = new TransformStream<Uint8Array, Uint8Array>({
 		transform(chunk, controller) {
@@ -31,16 +32,18 @@ async function store(request: Request, env: Env, key: string, type: string, size
 	const digest = new crypto.DigestStream("SHA-256")
 	try {
 		await Promise.all([
-			env.FILES.put(key, toStore.pipeThrough(new FixedLengthStream(size)), { httpMetadata: { contentType: type } }),
+			fileStore(env).put(key, toStore.pipeThrough(new FixedLengthStream(size)), { httpMetadata: { contentType: type } }),
 			toHash.pipeTo(digest),
 		])
-	} catch {
-		await env.FILES.delete(key).catch(() => {})
-		return { error: `Body was ${seen} bytes, expected ${size}.` }
+	} catch (e) {
+		await fileStore(env).delete(key).catch(() => {})
+		const why = storageRefusal(e)
+		if (why) return { error: why, status: 413 }
+		return { error: `Body was ${seen} bytes, expected ${size}.`, status: 400 }
 	}
 	if (seen !== size) {
-		await env.FILES.delete(key)
-		return { error: `Body was ${seen} bytes, expected ${size}.` }
+		await fileStore(env).delete(key)
+		return { error: `Body was ${seen} bytes, expected ${size}.`, status: 400 }
 	}
 	return { sha256: toHex(await digest.digest) }
 }
@@ -48,7 +51,7 @@ async function store(request: Request, env: Env, key: string, type: string, size
 async function finish(env: Env, stub: Room, id: string, key: string, sha256: string, size: number): Promise<Response> {
 	const out = await stub.pendingReady(id, sha256, size)
 	if (out === "ok") return new Response(null, { status: 204 })
-	await env.FILES.delete(key)
+	await fileStore(env).delete(key)
 	return out === "gone" ? error(410, "the upload was removed") : error(400, "Content-Length must match the upload size.")
 }
 
@@ -58,7 +61,7 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	if (!name) return error(400, "bad name")
 	if (size === null) return error(400, "bad size")
 	const type = attachmentType({ name, type: mime(request.headers.get("content-type")) })
-	const refused = admit(name, type, size)
+	const refused = admit(env, name, type, size)
 	if (refused) return refused
 	if (declaredSize(request.headers.get("content-length")) !== size) return error(400, "Content-Length must match the upload size.")
 	if (size > MAX_SINGLE_PUT_BYTES) return error(413, "too large for one request, use a multipart upload")
@@ -69,7 +72,7 @@ async function putOne(request: Request, env: Env, userId: string, roomId: string
 	const stored = await store(request, env, key, type, size)
 	if ("error" in stored) {
 		await stub.pendingRemove(id)
-		return error(400, stored.error)
+		return error(stored.status, stored.error)
 	}
 	return finish(env, stub, id, key, stored.sha256, size)
 }
@@ -82,11 +85,11 @@ async function createParts(request: Request, env: Env, userId: string, roomId: s
 	if (!name) return error(400, "bad name")
 	if (size === null) return error(400, "bad size")
 	const type = attachmentType({ name, type: mime(typeof body.type === "string" ? body.type : "") })
-	const refused = admit(name, type, size)
+	const refused = admit(env, name, type, size)
 	if (refused) return refused
 	const stub = roomStub(env.ROOM, userId, roomId)
 	const key = fileKey(userId, roomId, id)
-	const upload = await env.FILES.createMultipartUpload(key, { httpMetadata: { contentType: type } })
+	const upload = await fileStore(env).createMultipartUpload(key, { httpMetadata: { contentType: type } })
 	const taken = await stub.pendingOpen({ id, name, type, size, r2Key: key, uploadId: upload.uploadId })
 	if (taken) {
 		await upload.abort().catch(() => {})
@@ -103,10 +106,10 @@ async function complete(request: Request, env: Env, userId: string, roomId: stri
 	}
 	const stub = roomStub(env.ROOM, userId, roomId)
 	const key = fileKey(userId, roomId, id)
-	await env.FILES.resumeMultipartUpload(key, uploadId)
+	await fileStore(env).resumeMultipartUpload(key, uploadId)
 		.complete(parts.map((p) => ({ partNumber: p.partNumber, etag: p.etag })))
 		.catch(() => null)
-	const object = await env.FILES.get(key)
+	const object = await fileStore(env).get(key)
 	if (!object) return error(404, "no such upload")
 	return finish(env, stub, id, key, await sha256Stream(object.body), object.size)
 }
@@ -115,8 +118,8 @@ async function remove(env: Env, userId: string, roomId: string, id: string): Pro
 	const stub = roomStub(env.ROOM, userId, roomId)
 	const row = await stub.pendingRemove(id)
 	if (!row) return error(404, "not pending")
-	if (row.uploadId) await env.FILES.resumeMultipartUpload(row.r2Key, row.uploadId).abort().catch(() => {})
-	await deleteFiles(env.FILES, row.r2Key)
+	if (row.uploadId) await fileStore(env).resumeMultipartUpload(row.r2Key, row.uploadId).abort().catch(() => {})
+	await deleteFiles(fileStore(env), row.r2Key)
 	return new Response(null, { status: 204 })
 }
 

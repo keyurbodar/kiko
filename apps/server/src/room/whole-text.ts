@@ -1,3 +1,4 @@
+import type { FileBucket } from "../files/store"
 import { MAX_MESSAGE_TEXT } from "@kiko/protocol"
 import { sha256Hex } from "@kiko/durable/hash"
 import { deleteFiles, fileKey } from "../files/upload"
@@ -37,7 +38,7 @@ export async function fileIdOf(clientId: string): Promise<string> {
  * Writes a send's whole text to R2 before its transaction. The key comes from the client id, which a
  * resend repeats, so the resend writes the same object again.
  */
-export async function putWhole(bucket: R2Bucket, home: { userId: string; roomId: string }, clientId: string, text: string): Promise<WholeText> {
+export async function putWhole(bucket: FileBucket, home: { userId: string; roomId: string }, clientId: string, text: string): Promise<WholeText> {
 	const body = new TextEncoder().encode(text)
 	const id = await fileIdOf(clientId)
 	const r2Key = fileKey(home.userId, home.roomId, id)
@@ -46,6 +47,6 @@ export async function putWhole(bucket: R2Bucket, home: { userId: string; roomId:
 }
 
 /** Deletes a whole text whose send did not store, so a refused send leaves no object behind. */
-export function discardWhole(bucket: R2Bucket, whole: WholeText): Promise<void> {
+export function discardWhole(bucket: FileBucket, whole: WholeText): Promise<void> {
 	return deleteFiles(bucket, whole.r2Key)
 }

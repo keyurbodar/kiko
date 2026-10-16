@@ -9,6 +9,7 @@ import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
+import type { FileDO } from "./files/file-do"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
 import { hooksRoute } from "./user/hooks-route"
@@ -21,6 +22,7 @@ import { faviconRoute } from "./favicon/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
 
 export { AgentDO } from "./agent/agent-do"
+export { FileDO } from "./files/file-do"
 export { RoomDO } from "./room/room-do"
 export { UserDO } from "./user/user-do"
 
@@ -28,7 +30,9 @@ export interface Env extends AuthEnv {
   USER: DurableObjectNamespace<UserDO>
   ROOM: DurableObjectNamespace<RoomDO>
   AGENT: DurableObjectNamespace<AgentDO>
-  FILES: R2Bucket
+  /** Absent on an install without R2. Files then live in `FILE`, one Durable Object per chat (architecture section 18.1). */
+  FILES?: R2Bucket
+  FILE: DurableObjectNamespace<FileDO>
   ASSETS: Fetcher
   CREDENTIALS_KEK: string
   /** The install's Cloudflare grant as JSON. UserDO keeps a rotated copy of its own. */

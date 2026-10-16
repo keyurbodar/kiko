@@ -1,3 +1,4 @@
+import { fileStore } from "../files/store"
 import type { Actor, FileOp, UserEvent } from "@kiko/protocol"
 import type { Env } from "../index"
 import type { CommitResult, FileIndex, FsChange, FsEntry, FsFail, IndexChange, NewFile, PutResult } from "../files/file-index"
@@ -63,7 +64,7 @@ export class HomeWiring {
   }
 
   private dropAfter<T extends FsChange | FsFail>(out: T): T {
-    if (out.ok && out.drop.length) this.d.ctx.waitUntil(deleteFiles(this.d.env.FILES, out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
+    if (out.ok && out.drop.length) this.d.ctx.waitUntil(deleteFiles(fileStore(this.d.env), out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
     return out
   }
 }

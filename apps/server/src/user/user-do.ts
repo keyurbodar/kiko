@@ -1,3 +1,4 @@
+import { fileStore } from "../files/store"
 import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
@@ -154,7 +155,7 @@ export class UserDO extends DurableObject<Env> {
     const owner = () => userIdFromObjectName(this.ctx.id.name)
     const library = new RecipeLibrary({
       sql: this.sql,
-      files: this.env.FILES,
+      files: fileStore(this.env),
       userId: owner,
       list: (dir, recursive) => this.#homeWiring.list(dir, recursive),
       put: (input) => this.#homeWiring.put(input),
