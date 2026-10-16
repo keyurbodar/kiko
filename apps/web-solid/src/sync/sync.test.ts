@@ -69,6 +69,14 @@ describe("the reducer", () => {
 		expect(data).toEqual({ ...fixtures.roomSnapshot } as never)
 	})
 
+	test("an idle status takes the agent off the busy list", () => {
+		const data = emptyRoom()
+		applyStatus(data, { slug: "ada" as never, state: "typing" })
+		expect(data.agents).toHaveLength(1)
+		applyStatus(data, { slug: "ada" as never, state: "idle" })
+		expect(data.agents).toEqual([])
+	})
+
 	test("a change to a current member updates it in place", () => {
 		const data = { ...emptyRoom(), members: [...fixtures.members] }
 		const lead = fixtures.members[0]!

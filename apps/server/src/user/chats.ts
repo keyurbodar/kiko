@@ -154,18 +154,20 @@ function nextLast(current: ChatLast | undefined, touched: ChatLast | undefined):
 
 export function touchChat(sql: SqlStorage, roomId: string, touch: Touch, now: number): ChatChange | null {
   const current = getChat(sql, roomId)
-  if (!current || touch.lastSeq <= current.lastSeq) return null
+  if (!current || touch.lastSeq < current.lastSeq) return null
   const last = nextLast(current.last, touch.last)
-  const mentions = Math.max(0, Math.floor(touch.mentions ?? 0))
+  const mentions = Math.max(0, Math.floor(touch.mentions ?? current.mentions ?? 0))
   const { last: _l, mentions: _m, group: _g, ...rest } = current
-  return write(sql, {
+  const chat: Chat = {
     ...rest,
     lastSeq: touch.lastSeq,
     lastPreview: clip(touch.lastPreview, MAX_PREVIEW),
     unread: Math.max(0, Math.floor(touch.unread)),
-    updatedAt: touch.last ? Math.max(last?.at ?? 0, current.updatedAt) : now,
+    updatedAt: touch.last ? Math.max(last?.at ?? 0, current.updatedAt) : touch.lastSeq === current.lastSeq ? current.updatedAt : now,
     ...(last ? { last } : {}),
     ...(mentions ? { mentions } : {}),
     ...((touch.group ?? current.group) ? { group: true as const } : {}),
-  })
+  }
+  if (touch.lastSeq === current.lastSeq && JSON.stringify(chat) === JSON.stringify(current)) return null
+  return write(sql, chat)
 }

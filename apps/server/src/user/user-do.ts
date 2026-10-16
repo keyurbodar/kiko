@@ -1,7 +1,7 @@
 import { KIKO, newRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeList, RoomId, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, RecipeList, RoomId, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
 import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
@@ -105,7 +105,7 @@ export class UserDO extends DurableObject<Env> {
             return away
           },
         },
-      })
+      }, () => this.changed("routines"))
     })
   }
 
@@ -282,9 +282,18 @@ export class UserDO extends DurableObject<Env> {
     return this.commit(touchChat(this.sql, roomId, touch, Date.now())) !== null
   }
 
+  /** Who is typing in each chat, for a socket that connects mid-run. Memory only: a clear always arrives as a frame. */
+  readonly #typing = new Map<RoomId, readonly string[]>()
+
   async chatTyping(roomId: RoomId, names: readonly string[]): Promise<void> {
     if (!getChat(this.sql, roomId)) return
+    if (names.length) this.#typing.set(roomId, names)
+    else this.#typing.delete(roomId)
     this.broadcast({ t: "typing", roomId, names })
+  }
+
+  private changed(what: UserChange): void {
+    this.broadcast({ t: "changed", what })
   }
 
   async searchChats(query: string): Promise<Chat[]> {
@@ -388,7 +397,10 @@ export class UserDO extends DurableObject<Env> {
     if (!out.ok) return out
     const old = replaces === undefined ? null : /^(?:life:)?\s*#?(\d+)$/i.exec(replaces.trim())
     const replaced = old ? this.life.supersede(Number(old[1]), out.pos) : false
-    if (!out.duplicate || replaced) await this.#mem.armNaps()
+    if (!out.duplicate || replaced) {
+      await this.#mem.armNaps()
+      this.changed("memory")
+    }
     return { ok: true, pos: out.pos, ...(out.duplicate ? { duplicate: true as const } : {}), ...(replaces === undefined ? {} : { replaced }) }
   }
 
@@ -396,7 +408,10 @@ export class UserDO extends DurableObject<Env> {
     const chat = getChat(this.sql, roomId)
     if (!chat || chat.private) return
     const out = this.life.append(text, `chat ${chat.title}`, at, span ? { ref: `room:${roomId}:turns:${span.lo}-${span.hi}` } : {})
-    if (out.ok && !out.duplicate) await this.#mem.armNaps()
+    if (out.ok && !out.duplicate) {
+      await this.#mem.armNaps()
+      this.changed("memory")
+    }
   }
 
   async lifeRecall(query: string): Promise<string[]> {
@@ -420,8 +435,12 @@ export class UserDO extends DurableObject<Env> {
       const m = /^(\d+)-(\d+)$/.exec(ref.slice(prefix.length))
       return m !== null && turns.some((pos) => Number(m[1]) <= pos && pos < Number(m[2]))
     })
-    if (gone.length + this.life.redactRefs(spans).length) await this.#mem.armNaps()
+    if (gone.length + this.life.redactRefs(spans).length) {
+      await this.#mem.armNaps()
+      this.changed("memory")
+    }
     for (const pos of turns) this.#il.loops.forgetTurn(roomId, pos)
+    this.changed("loops")
     await this.captureHuman(roomId, requeue)
   }
 
@@ -739,6 +758,7 @@ export class UserDO extends DurableObject<Env> {
       // The client starts with no browser, so a hello sends a browser only when there is one.
       const browser = this.#kr.browserState()
       if (browser) send(ws, { t: "browserState", state: browser })
+      for (const [roomId, names] of this.#typing) send(ws, { t: "typing", roomId, names })
       const before = ws.deserializeAttachment() as Attachment | null
       ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
       return
@@ -810,12 +830,17 @@ export class UserDO extends DurableObject<Env> {
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
       [REMINDERS_WAKEUP]: () => this.reminders.fire(),
-      [LIFE_WAKEUP]: () => this.#mem.napLife(),
-      [CAPTURE_WAKEUP]: () => this.#mem.captureNow(),
-      [LOOPS_WAKEUP]: () => this.#il.now(),
-      [INITIATIVE_WAKEUP]: () => this.#il.engine.pass(),
+      [LIFE_WAKEUP]: () => this.#mem.napLife().finally(() => this.memoryAndLoopsChanged()),
+      [CAPTURE_WAKEUP]: () => this.#mem.captureNow().finally(() => this.memoryAndLoopsChanged()),
+      [LOOPS_WAKEUP]: () => this.#il.now().finally(() => this.changed("loops")),
+      [INITIATIVE_WAKEUP]: () => this.#il.engine.pass().finally(() => this.changed("loops")),
       [REAP_WAKEUP]: () => this.#kr.reap(),
     })
+  }
+
+  private memoryAndLoopsChanged(): void {
+    this.changed("memory")
+    this.changed("loops")
   }
 
   async devInitiative(op: DevInitiativeOp): Promise<unknown> {
@@ -824,12 +849,16 @@ export class UserDO extends DurableObject<Env> {
 
   /** A reminder an agent set for itself opens its commitment (section 26.2); a dev route opens a loop for the fake-agent suite. */
   async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; certainty: Certainty; text: string; due: string | null; reminderId?: string }): Promise<OpenResult> {
-    return this.#il.open(owner, roomId, ref, input)
+    const out = await this.#il.open(owner, roomId, ref, input)
+    if (out.ok) this.changed("loops")
+    return out
   }
 
   /** `roomId`: an agent's close, which reaches only the loops of its own chat. */
   async loopClose(id: number, status: "done" | "dropped", roomId?: RoomId): Promise<boolean> {
-    return this.#il.close(id, status, roomId)
+    const closed = this.#il.close(id, status, roomId)
+    if (closed) this.changed("loops")
+    return closed
   }
 
   async loopList(filter: { status?: Loop["status"][]; owner?: string; room?: string; limit?: number } = {}): Promise<Loop[]> {
@@ -961,7 +990,9 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async loopAct(id: number, action: LoopAction): Promise<boolean> {
-    return this.#il.act(id, action)
+    const done = await this.#il.act(id, action)
+    if (done) this.changed("loops")
+    return done
   }
 
   async userSettings(): Promise<UserSettings> {

@@ -2,7 +2,7 @@ import { type ChatLast, messageLast, mentionsHuman, oneLine } from "@kiko/protoc
 import type { FileRef, Sender } from "@kiko/protocol"
 import { PUBLIC_MESSAGE, type RoomLog } from "./log"
 
-export type Touch = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions: number; group: boolean }
+export type Touch = { lastSeq: number; lastPreview: string; unread: number; last?: ChatLast; mentions?: number; group: boolean }
 
 export const MEMBER_ACTIVITY = "member_activity"
 export const HUMAN_HANDLE = "human_handle"
@@ -12,6 +12,23 @@ const MENTION_SCAN = 500
 const QUOTE = 40
 
 type Candidate = { seq: number; last: ChatLast }
+
+type Posted = { seq: number; at: number; from: Sender; text: string; files?: readonly FileRef[] | undefined }
+
+function messageCandidate(m: Posted, nameOf: (slug: string) => string): Candidate {
+	const { from, files } = m
+	return {
+		seq: m.seq,
+		last: messageLast({ from: from.kind, ...(from.kind === "agent" ? { name: nameOf(from.slug) } : {}), text: m.text, ...(files?.length ? { files } : {}), at: m.at }),
+	}
+}
+
+/** The touch for one bubble that just landed: no scan, so a bubble in a long run costs the same as the first. Mentions stay as they are until the run ends. */
+export function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): Touch {
+	const name = (slug: string) => sql.exec<{ name: string }>("SELECT name FROM members WHERE slug = ?", slug).toArray()[0]?.name ?? slug
+	const group = (sql.exec<{ n: number }>("SELECT count(*) AS n FROM members WHERE removed_at IS NULL").one().n ?? 0) > 1
+	return { lastSeq: log.lastSeq(), lastPreview: row.text, unread: log.unread(), last: messageCandidate(row, name).last, group }
+}
 
 export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 	const names = new Map(sql.exec<{ slug: string; name: string; removed_at: number | null }>("SELECT slug, name, removed_at FROM members").toArray().map((r) => [r.slug, r]))
@@ -24,14 +41,7 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 			`SELECT seq, at, sender, text, files FROM messages WHERE deleted_at IS NULL AND ${PUBLIC_MESSAGE} ORDER BY seq DESC LIMIT 1`,
 		)
 		.toArray()[0]
-	if (message) {
-		const from = JSON.parse(message.sender) as Sender
-		const files = message.files ? (JSON.parse(message.files) as FileRef[]) : undefined
-		candidates.push({
-			seq: message.seq,
-			last: messageLast({ from: from.kind, ...(from.kind === "agent" ? { name: nameOf(from.slug) } : {}), text: message.text, ...(files ? { files } : {}), at: message.at }),
-		})
-	}
+	if (message) candidates.push(messageCandidate({ ...message, from: JSON.parse(message.sender) as Sender, files: message.files ? (JSON.parse(message.files) as FileRef[]) : undefined }, nameOf))
 
 	const react = sql
 		.exec<{ seq: number; at: number; actor: string; payload: string }>("SELECT seq, at, actor, payload FROM events WHERE kind = 'react' AND actor LIKE 'agent:%' ORDER BY seq DESC LIMIT 1")

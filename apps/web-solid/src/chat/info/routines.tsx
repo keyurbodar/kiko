@@ -7,6 +7,7 @@ import { RecipeIcon } from "../../recipes/icon"
 import { recipeForRoutine } from "../../recipes/model"
 import { triggerLabel } from "./routines-model"
 import { apiFetch } from "../../lib/api"
+import { watchChanged } from "../../sync/changed"
 
 export type Routine = { id: string; name: string; roomId: string; status: "active" | "paused"; trigger: Trigger; tz: string }
 
@@ -25,6 +26,7 @@ function read(value: unknown): Routine[] {
 }
 
 export async function loadRoutines(): Promise<void> {
+  watchChanged("routines", loadRoutines)
   const res = await apiFetch("/api/routines").catch(() => null)
   if (res?.ok) setAll(read(await res.json().catch(() => null)))
   else if (all() === undefined) setAll([])

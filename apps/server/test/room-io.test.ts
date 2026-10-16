@@ -40,7 +40,7 @@ const READ_BOUNDS: Record<string, number> = {
 	"file put (one file)": 100,
 	"alarm (nothing due)": 100,
 	typing: 10,
-	"agent typing on": 10,
+	"agent typing on": 12, // setStatus: the member row, its status frame, the busy set
 	search: 300,
 	"history (50 before, 50 after)": 300,
 	"task create": 300,
@@ -188,7 +188,7 @@ async function actions(room: string, humans: number, agents: number, files: numb
 
 	out.set("agent bubble post", await measure(room, async () => call(room, "post", "ada", "bubble-run", 0, 0, "a bubble")))
 	out.set("agent reacts", await measure(room, async () => call(room, "react", "ada", "👀", firstHuman.id)))
-	out.set("agent typing on", await measure(room, async () => call(room, "setTyping", "ada", true)))
+	out.set("agent typing on", await measure(room, async () => call(room, "setStatus", "ada", "typing")))
 	await call(room, "reportDoing", "ada", "reading the chat", { kind: "writing" })
 	await call(room, "post", "ada", "end-run", 0, 0, "the answer")
 	out.set("agent run ends (trace, answer)", await measure(room, async () => call(room, "endRun", "ada", "end-run", [], false)))

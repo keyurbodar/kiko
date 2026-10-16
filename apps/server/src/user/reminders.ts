@@ -169,6 +169,7 @@ export class Reminders {
     private readonly deliver: Deliver,
     private readonly now: () => number = Date.now,
     private readonly ports?: RoutinePorts,
+    private readonly changed: () => void = () => {},
   ) {
   }
 
@@ -378,6 +379,7 @@ export class Reminders {
       occurrence,
       this.now(),
     )
+    if (added.rowsWritten > 0) this.changed()
     return added.rowsWritten > 0
   }
 
@@ -404,6 +406,7 @@ export class Reminders {
       occurrence,
     )
     if (!changed.rowsWritten) return
+    this.changed()
     if (status === "failed" || status === "timeout") await this.countFailure(routineId, occurrence)
     else this.sql.exec("UPDATE reminders SET fails = 0 WHERE id = ?", routineId)
   }
@@ -598,6 +601,7 @@ export class Reminders {
   }
 
   private async rearm(notBefore = 0): Promise<void> {
+    this.changed()
     const { at } = this.sql
       .exec<{ at: number | null }>("SELECT min(due_utc) AS at FROM reminders WHERE status = 'active' AND due_utc > 0")
       .one()
