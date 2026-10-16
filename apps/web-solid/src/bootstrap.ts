@@ -4,7 +4,7 @@
  * Architecture 19.3.
  */
 
-import { apiUrl, getToken } from "./lib/api-base";
+import { apiUrl, getToken, read } from "./lib/api-base";
 
 const RELOAD_KEY = "kiko:preload-reload";
 
@@ -36,13 +36,7 @@ window.addEventListener("vite:preloadError", (event) => {
 declare global {
   var __kikoBoot: { me?: Promise<Response> } | undefined;
 }
-const signedInBefore = (() => {
-  try {
-    return localStorage.getItem("kiko:session") !== null;
-  } catch {
-    return false;
-  }
-})();
+const signedInBefore = read("kiko:session") !== null;
 const token = getToken();
 globalThis.__kikoBoot = { me: fetch(apiUrl("/api/me"), token ? { headers: { authorization: `Bearer ${token}` } } : undefined) };
 if (!signedInBefore) void import("./app/sign-in").catch(() => {});

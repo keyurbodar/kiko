@@ -4,7 +4,7 @@ import { useFilteredList } from "@kiko/ui/hooks"
 import { createPromptInputV2Attachments, type PromptInputV2AttachmentConfig } from "./attachments"
 import { createPromptInputV2Store, type PromptInputV2StoreInput } from "./store"
 import { composingKey } from "../ime"
-import { fileRefToken } from "../rich/markdown"
+import { fileRefToken } from "../rich/file-ref"
 import type {
   PromptInputV2Attachment,
   PromptInputV2History,
