@@ -48,7 +48,7 @@ export function ModelStep() {
   }
 
   return (
-    <div class="first-run-step flex w-full flex-col gap-3" data-step="model">
+    <div class="welcome-step flex w-full flex-col gap-3" data-step="model">
       <h1 class="text-center text-xl font-medium text-foreground" style={{ "--i": 0 }}>
         Pick Kiko's model
       </h1>

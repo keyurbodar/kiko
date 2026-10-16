@@ -21,7 +21,7 @@ export function ConnectStep() {
     }).slice(0, 5)
   })
   return (
-    <div class="first-run-step flex w-full flex-col gap-3" data-step="connect">
+    <div class="welcome-step flex w-full flex-col gap-3" data-step="connect">
       <h1 class="text-center text-xl font-medium text-foreground" style={{ "--i": 0 }}>
         Connect a model provider
       </h1>

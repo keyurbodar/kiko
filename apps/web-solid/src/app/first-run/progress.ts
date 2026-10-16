@@ -32,7 +32,26 @@ const [saved, setSaved] = createSignal<{ userId: string; step: Step | null } | n
 const [probe, setProbe] = createSignal<{ userId: string; connected: boolean } | null>(null)
 const [fresh, setFresh] = createSignal(false)
 
-/** Call as the access code goes up, so the first frame after sign-in is already the connect step. */
+/** A browser that has signed in before skips the welcome cover and opens on sign in. */
+function signedInBefore(): boolean {
+  try {
+    return localStorage.getItem("kiko:backend") !== null || Object.keys(localStorage).some((k) => k.startsWith("kiko:first-run:"))
+  } catch {
+    return false
+  }
+}
+
+const [started, setStarted] = createSignal(signedInBefore())
+const [needsBackend, setNeedsBackend] = createSignal(hosted && /^\/connect(\/callback)?$/.test(location.pathname))
+
+export const getStarted = () => setStarted(true)
+
+/** Something on the welcome screen is working: a sign-in, a modal loading, an install. The backdrop pulses. */
+export const [working, setWorking] = createSignal(false)
+/** Hosted only: Clerk signed the person in, and they have no backend yet. */
+export const installBackend = () => setNeedsBackend(true)
+
+/** Call as a sign-in goes up, so the first frame after it is already the connect step. */
 export const enteringWithCode = () => setFresh(true)
 export const codeFailed = () => setFresh(false)
 
@@ -50,6 +69,8 @@ export function currentStep(): Step {
   return stepFor({
     signedIn: id !== null,
     hosted,
+    started: started(),
+    needsBackend: needsBackend(),
     saved: savedStep(),
     fresh: fresh(),
     known,
@@ -79,7 +100,7 @@ createRoot(() => {
     const id = userId()
     if (!id) return
     const step = currentStep()
-    if (step === savedStep() || step === "welcome") return
+    if (step === savedStep()) return
     if (savedStep() === null && probe()?.userId !== id) return
     write(id, step)
     setSaved({ userId: id, step })

@@ -10,7 +10,6 @@ import { Shell } from "./app/shell";
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays";
 import { startSnapshots } from "./lib/snapshot";
 
-const SignIn = lazy(() => import("./app/hosted-sign-in"));
 const FirstRun = lazy(() => import("./app/first-run/frame"));
 
 function Root(props: ParentProps) {
@@ -33,9 +32,6 @@ function Root(props: ParentProps) {
       </Match>
       <Match when={session().status === "signed-in"}>
         <Shell>{props.children}</Shell>
-      </Match>
-      <Match when={session().status === "signed-out"}>
-        <SignIn />
       </Match>
     </Switch>
   );
