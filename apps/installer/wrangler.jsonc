@@ -6,6 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "routes": [{ "pattern": "api.kiko.works", "custom_domain": true }],
-  "durable_objects": { "bindings": [{ "name": "INSTALL", "class_name": "InstallDO" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["InstallDO"] }]
+  "durable_objects": { "bindings": [{ "name": "INSTALL", "class_name": "Installer" }] },
+  // v2 starts every install record from scratch (2026-10-16): the old class and all it held are deleted.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["InstallDO"] },
+    { "tag": "v2", "deleted_classes": ["InstallDO"], "new_sqlite_classes": ["Installer"] }
+  ]
 }

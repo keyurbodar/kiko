@@ -31,16 +31,26 @@ function reply(body: unknown, status: number, origin: string | null): Response {
   return new Response(JSON.stringify(body), { status, headers })
 }
 
+/**
+ * The token as Cloudflare wants it. A paste can carry spaces, quotes, or the "Bearer " of the test command
+ * Cloudflare shows. A character a header cannot hold would make fetch throw, which reads as Cloudflare being
+ * down, so it is dropped and Cloudflare answers that the token is invalid.
+ */
+export function cleanToken(raw: string): string {
+  const bearer = /Bearer\s+([^\s"']+)/.exec(raw)
+  return (bearer?.[1] ?? raw).replace(/[^\x21-\x7e]/g, "").replace(/^["']+|["']+$/g, "")
+}
+
 function parseGrant(value: unknown): Grant | null {
   const g = value as Partial<Record<string, unknown>> | null
-  if (g?.kind === "token" && typeof g.token === "string" && g.token) return { kind: "token", token: g.token }
+  if (g?.kind === "token" && typeof g.token === "string" && cleanToken(g.token)) return { kind: "token", token: cleanToken(g.token) }
   if (g?.kind === "oauth" && typeof g.code === "string" && typeof g.verifier === "string" && typeof g.redirectUri === "string") {
     return { kind: "oauth", code: g.code, verifier: g.verifier, redirectUri: g.redirectUri }
   }
   return null
 }
 
-// The Worker only checks who is asking. The upload is built in InstallDO, which has the CPU budget for it.
+// The Worker only checks who is asking. The upload is built in the Installer object, which has the CPU budget for it.
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)

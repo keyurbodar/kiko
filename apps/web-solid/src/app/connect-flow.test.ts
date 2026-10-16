@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { authorizeUrl, challengeOf, connect, failureOf, install, oauthGrant, retryKind, type Fetch } from "./connect-flow"
+import { authorizeUrl, challengeOf, connect, failureOf, install, oauthGrant, retryKind, tokenProblem, type Fetch } from "./connect-flow"
 
 const store = new Map<string, string>()
 Object.assign(globalThis, {
@@ -61,8 +61,15 @@ describe("errors", () => {
   })
   test("Try again signs in again after an install, starts over after a failed Cloudflare sign-in, and repeats otherwise", () => {
     expect(retryKind({ code: "unreachable", message: "x", installed: true })).toBe("sign-in")
-    for (const code of ["oauth_failed", "oauth_denied", "state_mismatch"]) expect(retryKind({ code, message: "x" })).toBe("new-grant")
-    for (const code of ["busy", "cannot_create", "cloudflare_down"]) expect(retryKind({ code, message: "x" })).toBe("same")
+    for (const code of ["oauth_failed", "oauth_denied", "state_mismatch", "busy", "cloudflare_down"]) expect(retryKind({ code, message: "x" }, "oauth")).toBe("new-grant")
+    for (const code of ["busy", "cannot_create", "cloudflare_down"]) expect(retryKind({ code, message: "x" }, "token")).toBe("same")
+    expect(retryKind({ code: "bad_token", message: "x" }, "token")).toBe("token")
+  })
+
+  test("a Global API Key or a token ID is caught before it is sent", () => {
+    expect(tokenProblem("0123456789abcdef0123456789abcdef01234")).toContain("Global API Key")
+    expect(tokenProblem("0123456789abcdef0123456789abcdef")).toContain("token's ID")
+    expect(tokenProblem("Ab3dEf_ghIjkLmn0pQrStuvWxYz0123456789-_A")).toBeNull()
   })
   test("install returns the installer's error shape", async () => {
     const f: Fetch = async () => json({ error: { code: "failed_step", message: "m" } }, 400)

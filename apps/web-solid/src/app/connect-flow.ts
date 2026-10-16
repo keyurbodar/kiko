@@ -106,12 +106,24 @@ const TOKENS_LINK = { href: "https://dash.cloudflare.com/profile/api-tokens", la
 
 /**
  * What "Try again" does after a failure. "sign-in": the backend is installed, only signing in to it failed.
- * "new-grant": the Cloudflare sign-in itself failed, so it starts over. "same": the same grant again; an OAuth
- * code can be sent twice because the installer keeps what it was traded for.
+ * "new-grant": an OAuth sign-in starts over. "token": a token Cloudflare does not know is pasted again.
+ * "same": the same token again.
  */
-export function retryKind(error: InstallError): "sign-in" | "new-grant" | "same" {
+export function retryKind(error: InstallError, grant: Grant["kind"] = "oauth"): "sign-in" | "new-grant" | "token" | "same" {
   if (error.installed) return "sign-in"
-  return ["oauth_failed", "oauth_denied", "state_mismatch"].includes(error.code) ? "new-grant" : "same"
+  if (grant === "token") return error.code === "bad_token" ? "token" : "same"
+  // An OAuth code works once. The installer holds its tokens only while an account is picked.
+  return "new-grant"
+}
+
+/**
+ * What is wrong with a pasted token before it is sent, or null. Cloudflare's token page also shows a token's ID,
+ * and the profile page shows the Global API Key. Both are hex, and neither works as a token.
+ */
+export function tokenProblem(token: string): string | null {
+  if (/^[0-9a-f]{37}$/i.test(token)) return "That looks like your Global API Key. Kiko needs an API token: create one with the link above and paste the value Cloudflare shows."
+  if (/^[0-9a-f]{32}$/i.test(token)) return "That looks like a token's ID. Paste the token value Cloudflare showed once when you created it. If you no longer have it, roll the token or create a new one."
+  return null
 }
 
 /** What to show for an installer error: a plain sentence and at most one link. "Try again" is always offered, and an install that stopped halfway picks up where it left off. */
@@ -122,6 +134,8 @@ export function failureOf(error: InstallError): Failure {
 
 function sentence(error: InstallError): Failure {
   switch (error.code) {
+    case "bad_token":
+      return { message: "Cloudflare does not recognise this token. It may have been deleted, rolled, or copied in part. Paste the token value Cloudflare showed once when you created it.", link: TOKENS_LINK }
     case "cannot_create":
       return { message: "This token may change Workers but not create one. Edit the token, give it Workers Admin (not Workers Editor), then try again.", link: TOKENS_LINK }
     case "oauth_failed":
@@ -139,7 +153,7 @@ function sentence(error: InstallError): Failure {
     case "no_account":
       return { message: "No Cloudflare account was found for this sign-in. Create one, then try again.", link: { href: "https://dash.cloudflare.com/sign-up", label: "Create a Cloudflare account" } }
     case "no_permission":
-      return { message: "Cloudflare did not let this sign-in do a step of the install. Check that you are an admin of the account, or use an API token with the permissions listed below.", link: TOKENS_LINK }
+      return { message: "Cloudflare did not let this sign-in do a step of the install. Check that you are an admin of the account, or use an API token with the permissions Kiko lists under Use an API token instead.", link: TOKENS_LINK }
     case "busy":
       return { message: "Cloudflare is busy. Wait a minute, then try again." }
     case "cloudflare_down":

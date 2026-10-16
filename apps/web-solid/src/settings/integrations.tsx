@@ -3,6 +3,7 @@ import { Show, createSignal, lazy, onCleanup, onMount } from "solid-js"
 import { cn } from "../lib/cn"
 import { Button, Notice, fieldClass } from "./kit"
 import { createComposioClient, createKernelClient, type ComposioClient, type KernelClient } from "./integrations-client"
+import { SECRET_FIELD } from "../lib/secret-field"
 
 export const COMPOSIO_PLATFORM = "https://platform.composio.dev"
 const LiveBrowser = lazy(() => import("./live-browser"))
@@ -42,11 +43,8 @@ function KeyField(props: { id: string; label: string; placeholder: string; submi
 			<input
 				id={props.id}
 				ref={input}
-				type="password"
+				{...SECRET_FIELD}
 				name={`kiko-${props.id}-secret`}
-				autocomplete="off"
-				autocapitalize="off"
-				spellcheck={false}
 				placeholder={props.placeholder}
 				class={cn(fieldClass, "flex-1")}
 				data-component={props.id}

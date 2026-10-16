@@ -25,7 +25,14 @@ const API = "https://api.cloudflare.com/client/v4"
 // UNVERIFIED on a live account: that every denied call carries one of these.
 const DENIED = [10000, 9109]
 
-function codeOf(status: number, codes: number[]): string {
+// A token Cloudflare does not know answers 9109 "Invalid access token" (checked live 2026-10-16), and one that is
+// not a token at all answers 6003 "Invalid request headers". Neither is a missing permission.
+const unknownToken = (errors: { code: number; message: string }[]) =>
+  errors.some((e) => e.code === 6003 || /invalid (access|api) token/i.test(e.message))
+
+function codeOf(status: number, errors: { code: number; message: string }[]): string {
+  const codes = errors.map((e) => e.code)
+  if (unknownToken(errors)) return "bad_token"
   if (status === 401 || status === 403 || codes.some((c) => DENIED.includes(c))) return "no_permission"
   if (status === 429) return "busy"
   if (status >= 500) return "cloudflare_down"
@@ -33,9 +40,10 @@ function codeOf(status: number, codes: number[]): string {
 }
 
 /** A failure that repeating the same call will not fix, so a caller that swallows other errors must not swallow these. */
-export const isBlocking = (e: unknown): e is InstallError => e instanceof InstallError && ["no_permission", "busy", "cloudflare_down"].includes(e.code)
+export const isBlocking = (e: unknown): e is InstallError => e instanceof InstallError && ["bad_token", "no_permission", "busy", "cloudflare_down"].includes(e.code)
 
 const SENTENCE: Record<string, string> = {
+  bad_token: "Cloudflare does not recognise this token. Paste the token value Cloudflare showed once when you created it.",
   no_permission: "Cloudflare did not let this sign-in do a step of the install.",
   busy: "Cloudflare is busy. Wait a minute, then try again.",
   cloudflare_down: "Cloudflare is having trouble right now. Try again in a few minutes.",
@@ -56,7 +64,7 @@ export async function cf<T>(token: string, path: string, init: RequestInit = {},
   if (!res.ok || !body?.success) {
     const errors = body?.errors ?? []
     const codes = errors.flatMap((e) => (typeof e.code === "number" ? [e.code] : []))
-    const code = codeOf(res.status, codes)
+    const code = codeOf(res.status, errors)
     const said = errors[0]?.message ?? `Cloudflare answered ${res.status}.`
     throw new InstallError(code, SENTENCE[code] as string, 502, codes, `${said} (${init.method ?? "GET"} ${path.replace(/\/accounts\/\w+/, "/accounts/…")})`)
   }

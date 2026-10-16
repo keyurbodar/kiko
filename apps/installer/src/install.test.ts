@@ -27,7 +27,7 @@ async function makeRelease(tamper?: "manifest" | "module") {
 
 type Call = { url: string; method: string; body?: unknown }
 
-function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled"; subdomain?: string | null; accounts?: string[]; deniedAccounts?: string[]; scriptsByAccount?: Record<string, { id: string }[]>; status?: { path: string; code: number; error?: number }; dnsAfter?: number }) {
+function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled"; subdomain?: string | null; accounts?: string[]; deniedAccounts?: string[]; scriptsByAccount?: Record<string, { id: string }[]>; status?: { path: string; code: number; error?: number; message?: string }; dnsAfter?: number }) {
   let dnsAsks = 0
   const calls: Call[] = []
   const ok = (result: unknown) => Response.json({ success: true, result })
@@ -52,7 +52,7 @@ function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>
     }
     if (url.host.endsWith(".workers.dev")) return url.host.startsWith("kiko.") ? Response.json({ version: "0.1.0" }) : new Response("no", { status: 404 })
     const path = url.pathname.replace("/client/v4", "")
-    if (opts.status && path.endsWith(opts.status.path)) return Response.json({ success: false, errors: [{ code: opts.status.error ?? 1000, message: "Cloudflare says no" }] }, { status: opts.status.code })
+    if (opts.status && path.endsWith(opts.status.path)) return Response.json({ success: false, errors: [{ code: opts.status.error ?? 1000, message: opts.status.message ?? "Cloudflare says no" }] }, { status: opts.status.code })
     if (opts.deniedAccounts?.some((a) => path.startsWith(`/accounts/${a}/`))) return Response.json({ success: false, errors: [{ code: 10000, message: "Authentication error" }] }, { status: 403 })
     if (path === "/accounts") return ok((opts.accounts ?? ["acc1"]).map((id) => ({ id, name: `${id} name` })))
     if (method === "GET" && path.endsWith("/workers/scripts")) {
@@ -195,12 +195,42 @@ describe("runInstall", () => {
     const release = await makeRelease()
     const { calls, fetcher } = fakeCloudflare({ release, scripts: [], accounts: ["team", "mine"] })
     const kept = new Map<string, { accessToken: string; refreshToken?: string }>()
-    const codes = { get: async (c: string) => kept.get(c), put: async (c: string, t: { accessToken: string }) => void kept.set(c, t) }
+    const take = async (c: string) => {
+      const t = kept.get(c)
+      kept.delete(c)
+      return t
+    }
+    const codes = { take, put: async (c: string, t: { accessToken: string }) => void kept.set(c, t) }
     const deps = { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {}, codes }
     const grant = { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" } as const
     expect(await runInstall(env(release), deps, { sub: "u", grant }).catch((e) => e.code)).toBe("choose_account")
     expect((await runInstall(env(release), deps, { sub: "u", grant, accountId: "mine" })).version).toBe("0.1.0")
     expect(calls.filter((c) => c.url === "https://dash.cloudflare.com/oauth2/token")).toHaveLength(1)
+    expect(kept.size).toBe(0)
+  })
+
+  test("an OAuth sign-in that fails for any other reason keeps nothing", async () => {
+    const release = await makeRelease()
+    const { fetcher } = fakeCloudflare({ release, scripts: [], status: { path: "/workers/scripts", code: 503 } })
+    const kept = new Map<string, unknown>()
+    const codes = { take: async () => undefined, put: async (c: string, t: unknown) => void kept.set(c, t) }
+    const deps = { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {}, codes }
+    const grant = { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" } as const
+    expect(await runInstall(env(release), deps, { sub: "u", grant }).catch((e) => e.code)).toBe("cloudflare_down")
+    expect(kept.size).toBe(0)
+  })
+
+  test("a token Cloudflare does not know is a bad token, not a missing permission, and an OAuth one means sign in again", async () => {
+    const release = await makeRelease()
+    const status = { path: "/accounts", code: 403, error: 9109, message: "Invalid access token" }
+    const token = await install({ release, scripts: [], status }).catch((e) => e)
+    expect([token.code, token.detail]).toEqual(["bad_token", "Invalid access token (GET /accounts)"])
+    const { fetcher } = fakeCloudflare({ release, scripts: [], status })
+    const deps = { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }
+    const grant = { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" } as const
+    expect(await runInstall(env(release), deps, { sub: "u", grant }).catch((e) => e.code)).toBe("oauth_failed")
+    const garbage = await install({ release, scripts: [], status: { path: "/accounts", code: 400, error: 6003, message: "Invalid request headers" } }).catch((e) => e)
+    expect(garbage.code).toBe("bad_token")
   })
 
   test("an account that already runs Kiko is used without asking", async () => {

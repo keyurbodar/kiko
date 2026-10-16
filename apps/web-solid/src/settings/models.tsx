@@ -15,6 +15,7 @@ import { AgentModels } from "./agent-models"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TabsV2 as Tabs } from "@kiko/ui/v2/tabs-v2"
 import { modelsTab, setModelsTab, type ModelsTab } from "./models-tab"
+import { SECRET_FIELD } from "../lib/secret-field"
 
 const METHOD_LABEL: Record<ConnectMethod, string> = {
   api_key: "API key",
@@ -413,11 +414,8 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; onClose
                 <input
                   id="provider-key"
                   ref={input}
-                  type="password"
+                  {...SECRET_FIELD}
                   name="kiko-provider-secret"
-                  autocomplete="off"
-                  autocapitalize="off"
-                  spellcheck={false}
                   autofocus
                   class={cn(fieldClass, "w-full")}
                   data-component="provider-key"

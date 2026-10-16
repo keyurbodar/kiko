@@ -17,7 +17,8 @@ export type InstallDeps = {
   sleep: (ms: number) => Promise<void>
   setMetadata: (sub: string, metadata: { backendUrl: string; accountId: string; version: string }) => Promise<void>
   /** Tokens an OAuth code was already traded for. A code works once, and picking an account sends it again. */
-  codes?: { get(code: string): Promise<OAuthTokens | undefined>; put(code: string, tokens: OAuthTokens): Promise<void> }
+  /** Holds an OAuth code's tokens while the person picks an account. `take` hands them over once. */
+  codes?: { take(code: string): Promise<OAuthTokens | undefined>; put(code: string, tokens: OAuthTokens): Promise<void> }
 }
 
 export type OAuthTokens = { accessToken: string; refreshToken?: string }
@@ -155,10 +156,10 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const f = deps.fetch
   let stored: Omit<StoredGrant, "accountId" | "scriptName">
   let token: string
+  let oauth: { code: string; tokens: OAuthTokens } | null = null
   if (req.grant.kind === "oauth") {
-    const known = await deps.codes?.get(req.grant.code)
-    const tokens = known ?? (await exchange(env, req.grant, f))
-    if (!known) await deps.codes?.put(req.grant.code, tokens)
+    oauth = { code: req.grant.code, tokens: (await deps.codes?.take(req.grant.code)) ?? (await exchange(env, req.grant, f)) }
+    const { tokens } = oauth
     token = tokens.accessToken
     stored = { kind: "oauth", clientId: env.CF_OAUTH_CLIENT_ID, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }
   } else {
@@ -166,12 +167,22 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
     stored = { kind: "token", token }
   }
 
-  const accounts = await cf<Account[]>(token, "/accounts", {}, f)
+  const accounts = await cf<Account[]>(token, "/accounts", {}, f).catch((e: unknown) => {
+    // A fresh sign-in that Cloudflare already calls invalid was revoked or replaced, so only a new sign-in helps.
+    if (req.grant.kind === "oauth" && e instanceof InstallError && e.code === "bad_token") {
+      throw new InstallError("oauth_failed", "Cloudflare did not accept the sign-in. Try connecting again.", 400, e.cfCodes, e.detail)
+    }
+    throw e
+  })
   if (req.accountId && !accounts.some((a) => a.id === req.accountId)) {
     throw new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
   }
   const ours = await ownScriptName(req.sub)
-  const { accountId, scripts } = await pickAccount(token, accounts, req.accountId, ours, f)
+  const { accountId, scripts } = await pickAccount(token, accounts, req.accountId, ours, f).catch(async (e: unknown) => {
+    // An OAuth code works once, so the tokens it was traded for wait for the person's pick, and only for that.
+    if (oauth && e instanceof InstallError && e.code === "choose_account") await deps.codes?.put(oauth.code, oauth.tokens)
+    throw e
+  })
 
   const { subdomain, made: freshAddress } = await ensureSubdomain(token, accountId, f)
   const host = (name: string) => `https://${name}.${subdomain}.workers.dev`
