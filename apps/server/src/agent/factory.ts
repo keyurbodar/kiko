@@ -94,10 +94,11 @@ export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse
 /** pi-ai APIs whose adapter throws on a custom fetch (`api/google-generative-ai.js`, `api/google-vertex.js`). */
 const NO_CUSTOM_FETCH = new Set(["google-generative-ai", "google-vertex"])
 
-function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream: S): S {
+function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream: S, reasoning?: string): S {
   const t = performance.now()
   count("model.turns")
   count(`model.id.${modelId}`)
+  count(`model.reasoning.${reasoning ?? "off"}`)
   void stream.result().then(() => count("model.ms", Math.round(performance.now() - t)), () => {})
   return stream
 }
@@ -117,7 +118,7 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
     const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
     const routed = {
       stream: ((model, context, options) => timed(model.id, provider.stream(model, context, via(model, options) as never))) as typeof provider.stream,
-      streamSimple: ((model, context, options) => timed(model.id, provider.streamSimple(model, context, via(model, options) as never))) as typeof provider.streamSimple,
+      streamSimple: ((model, context, options) => timed(model.id, provider.streamSimple(model, context, via(model, options) as never), options?.reasoning)) as typeof provider.streamSimple,
     }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }
