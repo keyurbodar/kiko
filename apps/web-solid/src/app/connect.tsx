@@ -11,6 +11,7 @@ import {
   failureOf,
   finish,
   retryKind,
+  tokenProblem,
   loadOAuthConfig,
   loadTokenLink,
   makePkce,
@@ -23,6 +24,7 @@ import {
 import "./first-run/first-run.css"
 import { enteringFresh, setWorking } from "./first-run/progress"
 import { signInToInstalledBackend } from "./session"
+import { SECRET_FIELD } from "../lib/secret-field"
 
 type View =
   | { name: "start" }
@@ -107,10 +109,18 @@ export function ConnectCloudflare() {
     return signInToInstalledBackend()
   }
 
-  const show = (error: InstallError | null, again: () => void) => {
+  const pasteAgain = (message: string) => {
+    setView({ name: "start" })
+    setToken("")
+    setNote(message)
+    void openToken()
+  }
+
+  const show = (error: InstallError | null, again: () => void, grant: Grant["kind"] = "oauth") => {
     if (!error) return navigate("/", { replace: true })
-    const retry = { "sign-in": () => void finishOnly(), "new-grant": startAgain, same: again }[retryKind(error)]
-    setView({ name: "failed", failure: failureOf(error), retry })
+    const failure = failureOf(error)
+    const retry = { "sign-in": () => void finishOnly(), "new-grant": () => void withCloudflare(), token: () => pasteAgain(failure.message), same: again }[retryKind(error, grant)]
+    setView({ name: "failed", failure, retry })
   }
 
   const finishOnly = async () => {
@@ -128,7 +138,7 @@ export function ConnectCloudflare() {
       if (error?.code === "choose_account" && error.accounts?.length) {
         return setView({ name: "choose", accounts: error.accounts, pick: (id) => void run(grant, id) })
       }
-      show(error, again)
+      show(error, again, grant.kind)
     } catch (e) {
       setView({ name: "failed", failure: { message: e instanceof Error ? e.message : "Could not finish connecting. Try again." }, retry: again })
     }
@@ -241,7 +251,10 @@ export function ConnectCloudflare() {
                     data-field="token-form"
                     onSubmit={(e) => {
                       e.preventDefault()
-                      if (token().trim()) void run({ kind: "token", token: token().trim() })
+                      const value = token().trim()
+                      const problem = tokenProblem(value)
+                      if (problem) setNote(problem)
+                      else if (value) void run({ kind: "token", token: value })
                     }}
                   >
                     <Show when={tokenLink()} fallback={<p class="text-sm text-muted-foreground">Loading the token steps</p>}>
@@ -258,13 +271,15 @@ export function ConnectCloudflare() {
                       )}
                     </Show>
                     <input
-                      type="password"
+                      {...SECRET_FIELD}
                       class="kit-field"
-                      autocomplete="off"
                       placeholder="Paste your API token"
                       aria-label="API token"
                       value={token()}
-                      onInput={(e) => setToken(e.currentTarget.value)}
+                      onInput={(e) => {
+                        setToken(e.currentTarget.value)
+                        setNote("")
+                      }}
                       data-field="token"
                     />
                     <Button variant="primary" type="submit" disabled={!token().trim()} data-action="install">

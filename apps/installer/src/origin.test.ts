@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import worker, { type Env } from "./handler"
+import worker, { cleanToken, type Env } from "./handler"
 
 const env = { TRUSTED_ORIGINS: "https://app.kiko.codes, https://b.example", CF_OAUTH_CLIENT_ID: "cid" } as Env
 const call = (path: string, origin?: string, method = "GET") =>
@@ -31,4 +31,11 @@ test("the token link opens the create form with Workers create rights, account r
   ])
   expect([url.searchParams.get("accountId"), url.searchParams.get("zoneId")]).toEqual(["*", "all"])
   expect(body.permissions[0]).toContain("Workers Admin")
+})
+
+test("a pasted token is cleaned to what Cloudflare takes", () => {
+  expect(cleanToken("  abc_DEF-123\n")).toBe("abc_DEF-123")
+  expect(cleanToken('"abc123"')).toBe("abc123")
+  expect(cleanToken('curl "https://api.cloudflare.com/client/v4/user/tokens/verify" -H "Authorization: Bearer abc123"')).toBe("abc123")
+  expect(cleanToken("abc​123")).toBe("abc123")
 })

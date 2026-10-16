@@ -12,7 +12,7 @@ function randomSecret(): string {
 }
 
 
-/** Long enough to pick an account after the first answer. */
+/** Long enough to pick an account. Nothing else is kept. */
 const CODE_KEEP_MS = 10 * 60_000
 
 async function sha(text: string): Promise<string> {
@@ -20,7 +20,7 @@ async function sha(text: string): Promise<string> {
 }
 
 // One object per Clerk user, so two clicks of "install" never run at once.
-export class InstallDO extends DurableObject<Env> {
+export class Installer extends DurableObject<Env> {
   async install(req: { sub: string; grant: Grant; accountId?: string }): Promise<InstallOutcome> {
     const clerk = createClerkClient({ secretKey: this.env.CLERK_SECRET_KEY })
     try {
@@ -34,12 +34,14 @@ export class InstallDO extends DurableObject<Env> {
             await clerk.users.updateUserMetadata(sub, { publicMetadata })
           },
           codes: {
-            get: async (code) => {
-              const kept = await this.ctx.storage.get<{ tokens: OAuthTokens; at: number }>(`code:${await sha(code)}`)
+            take: async (code) => {
+              const key = `code:${await sha(code)}`
+              const kept = await this.ctx.storage.get<{ tokens: OAuthTokens; at: number }>(key)
+              await this.ctx.storage.delete(key)
               return kept && Date.now() - kept.at < CODE_KEEP_MS ? kept.tokens : undefined
             },
             put: async (code, tokens) => {
-              for (const key of (await this.ctx.storage.list({ prefix: "code:" })).keys()) await this.ctx.storage.delete(key)
+              await this.ctx.storage.deleteAll()
               await this.ctx.storage.put(`code:${await sha(code)}`, { tokens, at: Date.now() })
             },
           },
