@@ -1,5 +1,6 @@
 import { DEFAULT_MODEL } from "../agent/factory"
-import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent } from "@kiko/protocol"
+import { supportedThinking, thinkingFor } from "../agent/thinking"
+import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent, ThinkingLevel } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 
 import { CHIEF } from "./chief"
@@ -16,6 +17,7 @@ export type MemberRow = {
 	name: string
 	role: string
 	model: string
+	thinking: ThinkingLevel | ""
 	lead: boolean
 	status: AgentState
 }
@@ -27,6 +29,7 @@ type Row = {
 	name: string
 	role: string
 	model: string
+	thinking: string
 	lead: number
 	status: string
 }
@@ -36,12 +39,19 @@ const toRow = (r: Row): MemberRow => ({
 	name: r.name,
 	role: r.role,
 	model: r.model,
+	thinking: r.thinking as ThinkingLevel | "",
 	lead: r.lead === 1,
 	status: r.status as AgentState,
 })
 
+export function modelRef(ref: string): { provider: string; modelId: string } {
+	const at = ref.indexOf("/")
+	return at > 0 ? { provider: ref.slice(0, at), modelId: ref.slice(at + 1) } : { provider: DEFAULT_MODEL.provider, modelId: DEFAULT_MODEL.modelId }
+}
+
 export function toMember(m: MemberRow): Member {
-	return { slug: m.slug, name: m.name, lead: m.lead, ...(m.role ? { role: m.role } : {}), model: m.model || `${DEFAULT_MODEL.provider}/${DEFAULT_MODEL.modelId}` }
+	const model = m.model || `${DEFAULT_MODEL.provider}/${DEFAULT_MODEL.modelId}`
+	return { slug: m.slug, name: m.name, lead: m.lead, ...(m.role ? { role: m.role } : {}), model, thinking: thinkingFor(modelRef(model), m.thinking || undefined), thinkingLevels: supportedThinking(modelRef(model)) }
 }
 
 const clip = (text: string | undefined, max: number) => (text ?? "").trim().slice(0, max)
@@ -115,6 +125,7 @@ export class Members {
 			name: clip(input.name, MAX_NAME) || input.slug,
 			role: clip(input.role, MAX_ROLE),
 			model: clip(input.model, MAX_MODEL),
+			thinking: "",
 			lead,
 			status: "idle",
 		}
@@ -160,6 +171,16 @@ export class Members {
 		const event = this.log.append("human", { t: "member", member: toMember({ ...current, name: next }) })
 		this.sql.exec("UPDATE members SET name = ? WHERE slug = ?", next, slug)
 		return { ok: true, events: [event] }
+	}
+
+	/** Records the model and level a member now runs at. Returns the member event, or null when nothing changed. */
+	setModel(slug: AgentSlug, model: string, thinking: ThinkingLevel): RoomEvent | null {
+		const current = this.get(slug)
+		if (!current) return null
+		const next = { ...current, model, thinking }
+		if (JSON.stringify(toMember(next)) === JSON.stringify(toMember(current))) return null
+		this.sql.exec("UPDATE members SET model = ?, thinking = ? WHERE slug = ?", model, thinking, slug)
+		return this.log.append("human", { t: "member", member: toMember(next) })
 	}
 
 	setStatus(slug: AgentSlug, status: AgentState): boolean {

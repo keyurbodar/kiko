@@ -5,7 +5,11 @@ import { createEffect, createMemo, createResource, createSignal, createUniqueId,
 import { Portal } from "solid-js/web"
 import { VList, type VListHandle } from "virtua/solid"
 import { loadCatalog, modelRef, searchModels, type ModelRow } from "./catalog"
-import { chatModel, setChatModel } from "./chat-model"
+import { IdentityAvatar } from "../lib/IdentityAvatar"
+import { useApp } from "../lib/store"
+import type { Member, ThinkingLevel } from "@kiko/protocol"
+import { answeringMember, levelFor } from "./agent-model"
+import { ReasoningMenu } from "./reasoning-menu"
 import { connectedProviders } from "./connected"
 import { favoriteModels, hiddenModels, toggleFavorite } from "./model-prefs"
 import { hasModelProvider, modelProviders } from "./provider-kinds"
@@ -29,7 +33,7 @@ function Star(props: { on: boolean }) {
  * The model picker: a rail of providers with favorites first, a search across all of them, and
  * one virtual list, so a hundred providers with a thousand models each still open at once.
  */
-export function ModelPicker(props: { current?: string; onPick: (ref: string) => void; open: boolean; onOpenChange: (open: boolean) => void; children: JSX.Element; class?: string; title?: string }) {
+export function ModelPicker(props: { current?: string; onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void; open: boolean; onOpenChange: (open: boolean) => void; children: JSX.Element; class?: string; title?: string }) {
   const [catalog] = createResource(() => props.open || undefined, loadCatalog)
   const providers = createMemo(() => {
     const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
@@ -98,7 +102,7 @@ export function ModelPicker(props: { current?: string; onPick: (ref: string) => 
   }
   const pick = (row: ModelRow | undefined) => {
     if (!row) return
-    props.onPick(modelRef(row.provider.id, row.model.id))
+    props.onPick(modelRef(row.provider.id, row.model.id), row.model.thinking)
     close()
   }
   const close = () => {
@@ -240,25 +244,44 @@ export function ModelPicker(props: { current?: string; onPick: (ref: string) => 
   )
 }
 
-/** The composer's model control: the chat's model, and the picker above it. */
-export function ModelPickerButton(props: { chatId: string | null }) {
-  const current = () => chatModel(props.chatId)
+/**
+ * The composer's model and reasoning controls, for the agent that will answer: the lead, or the
+ * agent the draft tags. In a group the avatar says whose model it is.
+ */
+export function ModelPickerButton(props: { draft: string }) {
+  const members = () => useApp.roomMembers()
+  const target = () => answeringMember(members(), props.draft)
+  const pick = (member: Member, ref: string, levels: readonly ThinkingLevel[]) => {
+    if (ref !== member.model) useApp.room()?.model(member.slug, ref, levelFor(levels, member.thinking), levels)
+  }
   return (
-    <Show when={hasModelProvider(connectedProviders())}>
-      <ModelPicker
-        current={current()}
-        open={pickerOpen()}
-        onOpenChange={setPickerOpen}
-        onPick={(ref) => setChatModel(props.chatId, ref)}
-        title="Choose model"
-        class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
-      >
-        <Show when={current()?.split("/")[0]}>{(provider) => <ProviderIcon id={provider()} width="13" height="13" />}</Show>
-        <span class="truncate">{current()?.split("/").slice(1).join("/") ?? "Choose model"}</span>
-        <svg class="size-2.5 shrink-0 opacity-70" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M3 4.5L6 7.5l3-3" />
-        </svg>
-      </ModelPicker>
+    <Show when={hasModelProvider(connectedProviders()) ? target() : undefined}>
+      {(member) => (
+        <>
+          <ModelPicker
+            current={member().model}
+            open={pickerOpen()}
+            onOpenChange={setPickerOpen}
+            onPick={(ref, levels) => pick(member(), ref, levels)}
+            title={members().length > 1 ? `Choose model for ${member().name}` : "Choose model"}
+            class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
+          >
+            <Show when={members().length > 1}>
+              <IdentityAvatar seed={member().slug} size={14} />
+            </Show>
+            <Show when={member().model?.split("/")[0]}>{(provider) => <ProviderIcon id={provider()} width="13" height="13" />}</Show>
+            <span class="truncate" data-component="composer-model">{member().model?.split("/").slice(1).join("/") ?? "Choose model"}</span>
+            <svg class="size-2.5 shrink-0 opacity-70" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 4.5L6 7.5l3-3" />
+            </svg>
+          </ModelPicker>
+          <ReasoningMenu
+            levels={member().thinkingLevels}
+            value={member().thinking}
+            onChange={(level) => useApp.room()?.model(member().slug, member().model ?? "", level)}
+          />
+        </>
+      )}
     </Show>
   )
 }

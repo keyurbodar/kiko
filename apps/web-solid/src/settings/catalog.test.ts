@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { formatContext, formatPrice, modelRef, searchModels, type CatalogProvider } from "./catalog"
+import { formatContext, formatPrice, modelRef, searchModels, type CatalogModel, type CatalogProvider } from "./catalog"
 
-const model = (id: string, name: string) => ({
+const model = (id: string, name: string): CatalogModel => ({
   id,
   name,
   contextWindow: 128_000,
   maxTokens: 8192,
   reasoning: false,
+  thinking: ["off"],
   pricing: { input: 1, output: 2 },
 })
 const providers: CatalogProvider[] = [

@@ -1,5 +1,5 @@
 import { humanAnswerText, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
-import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
+import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, SystemReason, TaskOp, ThinkingLevel, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
@@ -32,7 +32,7 @@ import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
 import { readWorkers, statusOf, workersKey } from "./status"
 import { workerMessages } from "./work-events"
 import { parseRichText } from "./rich-text"
-import { type MemberRow, Members, type NewMember } from "./members"
+import { type MemberRow, Members, modelRef, type NewMember } from "./members"
 import { agentReact, reactionBrief } from "./reactions"
 import { attachmentPath, claim, ClaimRefused, type NewPending, PENDING_TTL_MS, PENDING_WAKEUP, PendingUploads } from "./pending"
 import { bubbleOf, discardWhole, putWhole, WHOLE_NAME, WHOLE_TYPE, type WholeText } from "./whole-text"
@@ -210,6 +210,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!agents.length) agents = [{ slug: DEFAULT_AGENT, name: CHIEF_NAME }]
 		else if (agents.length > 1) agents = [{ slug: DEFAULT_AGENT, name: CHIEF_NAME }, ...agents.filter((a) => a.slug !== DEFAULT_AGENT)]
 		this.publish(this.members.seed(agents))
+		for (const a of agents) if (a.model) this.setModel(a.model, a.slug)
 		await this.trySeedChatFile(chat.title)
 	}
 
@@ -822,16 +823,23 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.publish([...result.events, ...notice])
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
+		if (op.op === "add" && op.model) this.setModel(op.model, op.slug)
 		return null
 	}
 
-	setModel(ref: string, slug?: AgentSlug): void {
+	setModel(ref: string, slug?: AgentSlug, thinking?: ThinkingLevel): void {
+		if (ref.indexOf("/") <= 0) return
+		for (const m of this.members.list().filter((m) => !slug || m.slug === slug)) this.ctx.waitUntil(this.applyModel(m.slug, ref, thinking))
+	}
+
+	/** The agent is the truth for its model and level; the member row mirrors them so the member list carries both. */
+	private async applyModel(slug: AgentSlug, ref: string, thinking?: ThinkingLevel): Promise<void> {
 		const home = this.home()
-		const at = ref.indexOf("/")
-		if (!home || at <= 0) return
-		const model = { provider: ref.slice(0, at), modelId: ref.slice(at + 1) }
-		const targets = this.members.list().filter((m) => !slug || m.slug === slug)
-		for (const m of targets) this.ctx.waitUntil(agentStub(this.env.AGENT, home.userId, home.roomId, m.slug).setModel(model).then(() => undefined))
+		if (!home) return
+		const level = await agentStub(this.env.AGENT, home.userId, home.roomId, slug).setModel(modelRef(ref), thinking)
+		if (level === null) return
+		const event = this.members.setModel(slug, ref, level)
+		if (event) this.publish([event])
 	}
 
 	taskOp(op: TaskOp): string | null {

@@ -169,12 +169,16 @@ export const Message = Schema.Struct({
 	event: Schema.optionalKey(Schema.Union([SystemEvent, UnknownSystemEvent])),
 })
 
+export const ThinkingLevel = Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+
 export const Member = Schema.Struct({
 	slug: AgentSlug,
 	name: Schema.String,
 	lead: Schema.Boolean,
 	role: Schema.optionalKey(Schema.String),
 	model: Schema.optionalKey(Schema.String),
+	thinking: Schema.optionalKey(ThinkingLevel),
+	thinkingLevels: Schema.optionalKey(Schema.Array(ThinkingLevel)),
 })
 
 export const MemberOp = Schema.Union([
@@ -310,7 +314,7 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("read"), seq: Count }),
 	Schema.Struct({ t: Schema.Literal("typing") }),
 	Schema.Struct({ t: Schema.Literal("stop") }),
-	Schema.Struct({ t: Schema.Literal("model"), ref: Schema.String, slug: Schema.optional(AgentSlug) }),
+	Schema.Struct({ t: Schema.Literal("model"), ref: Schema.String, slug: Schema.optional(AgentSlug), thinking: Schema.optional(ThinkingLevel) }),
 	Schema.Struct({ t: Schema.Literal("task"), op: TaskOp }),
 	Schema.Struct({ t: Schema.Literal("member"), op: MemberOp }),
 	Schema.Struct({ t: Schema.Literal("files"), op: FileOp }),

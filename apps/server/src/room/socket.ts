@@ -1,5 +1,5 @@
 import { MAX_FRAME, MAX_MESSAGE_TEXT, sendFits } from "@kiko/protocol"
-import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomToClient, TaskOp, FileOp } from "@kiko/protocol"
+import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomToClient, TaskOp, FileOp, ThinkingLevel } from "@kiko/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
@@ -21,7 +21,7 @@ export interface SocketRoom {
 	fileOp(op: FileOp): string | null
 	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<{ ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }>
 	taskOp(op: TaskOp): string | null | void
-	setModel(ref: string, slug?: AgentSlug): void
+	setModel(ref: string, slug?: AgentSlug, thinking?: ThinkingLevel): void
 	answerAsk(id: string, value: string | import("@kiko/protocol").HumanAnswers): Promise<void>
 	skipAsk(id: string): Promise<void>
 }
@@ -138,7 +138,7 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 			room.stop()
 			return null
 		case "model":
-			room.setModel(frame.ref, frame.slug)
+			room.setModel(frame.ref, frame.slug, frame.thinking)
 			return null
 		case "answer":
 			await room.answerAsk(frame.id, frame.value)

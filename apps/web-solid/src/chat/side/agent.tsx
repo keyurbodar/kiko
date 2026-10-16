@@ -1,7 +1,8 @@
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import { openAvatarPicker } from "../../avatar/picker-state"
 import { useApp } from "../../lib/store"
-import { chatModel } from "../../settings/chat-model"
+import { THINKING_LABELS } from "@kiko/protocol"
+import { canReason } from "../../settings/agent-model"
 import { DangerRow, Profile, Properties, Property, roomMembers } from "../info/sections"
 import { SoulCard } from "../info/soul"
 
@@ -30,7 +31,8 @@ export function AgentPage(props: { slug: string; chatId: string; onRemoved: () =
       </Profile>
       <Properties>
         <Property label="Role" field="role">{member()?.lead ? "Lead" : "Agent"}</Property>
-        <Property label="Model" field="model">{(chatModel(props.chatId) ?? member()?.model)?.split("/").slice(1).join("/") ?? "None"}</Property>
+        <Property label="Model" field="model">{member()?.model?.split("/").slice(1).join("/") ?? "None"}</Property>
+        {canReason(member()?.thinkingLevels) && member()?.thinking && <Property label="Reasoning" field="thinking">{THINKING_LABELS[member()!.thinking!]}</Property>}
         <Property label="Status" field="status">{sentence(status())}</Property>
       </Properties>
       <div class="px-2 pb-4">

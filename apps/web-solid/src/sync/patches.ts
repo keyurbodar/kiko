@@ -1,4 +1,4 @@
-import { humanAnswerText } from "@kiko/protocol"
+import { humanAnswerText, type ThinkingLevel } from "@kiko/protocol"
 // Pending patches over the server state. Architecture section 9.3.
 //
 // Every user action becomes a patch first. A patch is the frame the action
@@ -30,7 +30,7 @@ import type {
 } from "@kiko/protocol"
 
 /** The room frames that change state. `hello`, `typing`, and `stop` change nothing to show. */
-export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" } | { t: "search" } | { t: "history" } | { t: "model" }>
+export type RoomPatchFrame = Exclude<ClientToRoom, { t: "hello" } | { t: "typing" } | { t: "stop" } | { t: "search" } | { t: "history" }>
 export type SendFrame = Extract<ClientToRoom, { t: "send" }>
 
 export type RoomPatch = {
@@ -45,6 +45,8 @@ export type RoomPatch = {
 	ack?: { id: MessageId; seq: number }
 	/** A send's attachments from their blob URLs, shown until the room's message names its files. Never in the outbox. */
 	local?: readonly LocalAttachment[]
+	/** A model pick's supported reasoning levels, known from the catalog before the room confirms. Never sent. */
+	levels?: readonly ThinkingLevel[]
 	/** The room refused the send (`send_refused`), and why. It stays on screen and is not sent again. */
 	failed?: boolean
 	reason?: string
@@ -87,6 +89,7 @@ const roomConfirms: Confirms = {
 		f.op.op === "delete" ? e.t === "task_removed" && e.id === f.op.id : e.t === "task" && e.task.id === f.op.id,
 	member: (f, e) =>
 		f.op.op === "remove" ? e.t === "member_removed" && e.slug === f.op.slug : e.t === "member" && e.member.slug === f.op.slug,
+	model: (f, e) => e.t === "member" && (!f.slug || e.member.slug === f.slug) && e.member.model === f.ref && (!f.thinking || e.member.thinking === f.thinking),
 	// ASSUMPTION: the events carry ids, not the paths the frame named, so any removal confirms an rm
 	// and a file landing under the target confirms an mv. A refusal drops the patch at once.
 	files: (f, e) => {
@@ -234,11 +237,15 @@ export function overlayTasks(tasks: readonly Task[], patches: readonly RoomPatch
 	return out
 }
 
-/** The members with pending adds, renames, and removes applied. A new member joins at the end and is never the lead. */
+/** The members with pending adds, renames, removes, and model picks applied. A new member joins at the end and is never the lead. */
 export function overlayMembers(members: readonly Member[], patches: readonly RoomPatch[]): Member[] {
 	let out = members as Member[]
 	for (const p of patches) {
 		const f = p.frame
+		if (f.t === "model") {
+			out = out.map((m) => (!f.slug || m.slug === f.slug ? { ...m, model: f.ref, ...(f.thinking ? { thinking: f.thinking } : {}), ...(p.levels ? { thinkingLevels: p.levels } : {}) } : m))
+			continue
+		}
 		if (f.t !== "member") continue
 		const op = f.op
 		if (op.op === "add") {

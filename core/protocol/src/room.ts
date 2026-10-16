@@ -2,6 +2,7 @@
 import type { Actor, Sender } from "./envelope"
 import type { AgentSlug, MessageId, RoomId } from "./ids"
 import type { RichText } from "./rich-text"
+import type { ThinkingLevel } from "./thinking"
 
 export type AgentState = "idle" | "typing" | "working"
 
@@ -85,6 +86,9 @@ export type Member = {
 	lead: boolean
 	role?: string
 	model?: string
+	thinking?: ThinkingLevel
+	/** The levels the member's model supports, from pi-ai. Only "off" when it cannot reason. */
+	thinkingLevels?: readonly ThinkingLevel[]
 }
 
 export type MemberOp =
@@ -164,7 +168,7 @@ export type ClientToRoom =
 	| { t: "read"; seq: number }
 	| { t: "typing" }
 	| { t: "stop" }
-	| { t: "model"; ref: string; slug?: AgentSlug }
+	| { t: "model"; ref: string; slug?: AgentSlug; thinking?: ThinkingLevel }
 	| { t: "task"; op: TaskOp }
 	| { t: "member"; op: MemberOp }
 	| { t: "files"; op: FileOp }

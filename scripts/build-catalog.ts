@@ -12,6 +12,8 @@ export interface CatalogModel {
   contextWindow: number;
   maxTokens: number;
   reasoning: boolean;
+  /** The reasoning levels pi-ai says the model supports. Only "off" for a model that cannot reason. */
+  thinking: string[];
   input: string[];
   pricing: { input: number; output: number; cacheRead: number; cacheWrite: number };
 }
@@ -38,6 +40,7 @@ interface CatalogSourceModel {
   contextWindow: number;
   maxTokens: number;
   reasoning?: boolean;
+  thinkingLevelMap?: Record<string, string | null>;
   input: string[];
   cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
   type?: string;
@@ -51,8 +54,10 @@ interface SourceProvider {
   getAllModels?(): CatalogSourceModel[];
 }
 
-async function loadPiAi(): Promise<{ builtinProviders: () => SourceProvider[] }> {
-  return import(pathToFileURL(join(piAiDist, "providers/all.js")).href);
+async function loadPiAi(): Promise<{ builtinProviders: () => SourceProvider[]; getSupportedThinkingLevels: (model: CatalogSourceModel) => string[] }> {
+  const all = await import(pathToFileURL(join(piAiDist, "providers/all.js")).href);
+  const models = await import(pathToFileURL(join(piAiDist, "models.js")).href);
+  return { builtinProviders: all.builtinProviders, getSupportedThinkingLevels: models.getSupportedThinkingLevels };
 }
 
 function oauthSource(providerId: string): string | undefined {
@@ -78,7 +83,7 @@ function oauthMethod(providerId: string): ConnectMethod {
 }
 
 export async function buildCatalog(): Promise<Catalog> {
-  const { builtinProviders } = await loadPiAi();
+  const { builtinProviders, getSupportedThinkingLevels } = await loadPiAi();
   const providers: CatalogProvider[] = [];
   for (const provider of builtinProviders()) {
     const connect: ConnectMethod[] = [];
@@ -91,6 +96,7 @@ export async function buildCatalog(): Promise<Catalog> {
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,
       reasoning: Boolean(model.reasoning),
+      thinking: getSupportedThinkingLevels(model),
       input: [...model.input],
       pricing: {
         input: model.cost?.input ?? 0,

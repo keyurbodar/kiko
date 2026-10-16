@@ -24,9 +24,12 @@ import { COMPOSIO, composioExtension } from "../integrations/composio/tools"
 import { BROWSER_EXT, type BrowserToolDeps, browserExtension } from "./browser/tools"
 import { baseSections, type RoleInput } from "./prompt"
 import { count } from "../lib/dev-guard"
+import type { ThinkingLevel } from "@kiko/protocol"
+import { thinkingFor } from "./thinking"
 
 export type BuildAgentInput = RoleInput & {
   model: ModelRef
+  thinkingLevel?: ThinkingLevel
   files?: Omit<FilesOptions, "touched"> & { fs: RoomFs }
   soul?: SoulPort
   runStamp?: () => number
@@ -83,10 +86,7 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   effectTable(builtins)
   const registry = createRegistry()
   for (const extension of builtins) registry.install(extension)
-  // The lowest reasoning a model offers: pi-ai clamps "minimal" up to the first level the model
-  // supports. A chat reply waits on every turn, and on tool-heavy tasks the default level made each
-  // turn take 2 to 5 s longer with the same answers.
-  return { registry, agent: { model: input.model, thinkingLevel: "minimal", extensions: forTalker(builtins) } }
+  return { registry, agent: { model: input.model, thinkingLevel: input.thinkingLevel ?? thinkingFor(input.model), extensions: forTalker(builtins) } }
 }
 
 export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse-spark-1.3-contributor" }
