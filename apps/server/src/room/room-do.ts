@@ -108,7 +108,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.team = new Team(ctx.storage.sql)
 			this.alarms = createAlarms(ctx)
 			this.burst = new Burst(ctx.storage, this.alarms)
-			this.bubbles = new Bubbles(ctx.storage, this.log)
+			this.bubbles = new Bubbles(ctx.storage, this.log, (path) => {
+				const entry = this.files.stat(path)
+				return entry?.kind === "file" && entry.type.startsWith("image/") ? entry.id : null
+			})
 			this.asks = new Asks(ctx.storage.sql)
 			this.humanAsks = new HumanAsks(ctx.storage.sql)
 			this.mail = new Mail(ctx.storage, this.log, this.asks, (slug) => (this.members.get(slug)?.status ?? "idle") !== "idle")
