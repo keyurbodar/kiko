@@ -19,16 +19,23 @@ function showBootError(): void {
   if (el) el.style.display = "block";
 }
 
-// A stale deploy removes old chunks. Reload once, never in a loop.
+// A chunk an older deploy removed, or one this browser cached wrong (a deploy still spreading answered it with
+// index.html, which the one-year cache header kept). Fetch each named file past the cache, then reload once, never
+// in a loop: at most once in 30 seconds, so a later deploy can still recover the same tab.
+async function recover(error: unknown): Promise<void> {
+  try {
+    if (Date.now() - Number(sessionStorage.getItem(RELOAD_KEY) ?? 0) < 30_000) return showBootError();
+    sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+  } catch {
+    return showBootError();
+  }
+  for (const file of String(error).match(/\/assets\/\S+?\.js/g) ?? []) await fetch(file, { cache: "reload" }).catch(() => {});
+  location.reload();
+}
+
 window.addEventListener("vite:preloadError", (event) => {
   event.preventDefault();
-  try {
-    if (sessionStorage.getItem(RELOAD_KEY)) return;
-    sessionStorage.setItem(RELOAD_KEY, "1");
-  } catch {
-    return;
-  }
-  location.reload();
+  void recover((event as Event & { payload?: unknown }).payload);
 });
 
 // The session check and, for a browser with no cached session, the sign-in screen
@@ -44,4 +51,4 @@ if (!signedInBefore) void import("./app/sign-in").catch(() => {});
 const chunk = firstRouteChunk(location.pathname === "/" ? "/chat" : location.pathname);
 void Promise.all([import("./main"), chunk])
   .then(([main]) => main.start())
-  .catch(showBootError);
+  .catch(recover);
