@@ -29,8 +29,9 @@ import { CHIEF, type ProposalInput } from "./chief"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
 import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
-import { readWorkers, statusOf, workersKey } from "./status"
-import { workerMessages } from "./work-events"
+import { statusOf, workersKey } from "./status"
+import { dividerMessage, type Divider } from "./dividers"
+import { findProvider } from "../user/turn-context"
 import { parseRichText } from "./rich-text"
 import { type MemberRow, Members, type NewMember } from "./members"
 import { agentReact, reactionBrief } from "./reactions"
@@ -721,6 +722,19 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return { ok: true, events: [], drop: [] }
 	}
 
+	private divider(id: string, text: string, event: Divider): void {
+		const { event: stored } = this.log.addMessage(dividerMessage(id, text, event))
+		if (stored) this.publish([stored])
+	}
+
+	async routineCreated(slug: AgentSlug, routineId: string, title: string): Promise<void> {
+		this.divider(`routine-created:${routineId}`, `${this.members.get(slug)?.name ?? slug} created a routine: ${title}`, { kind: "routine_created", agent: slug, title, private: true })
+	}
+
+	async compacted(slug: AgentSlug, key: string): Promise<void> {
+		this.divider(`compacted:${slug}:${key}`, `${this.members.get(slug)?.name ?? slug} compacted its context`, { kind: "compacted", agent: slug, private: true })
+	}
+
 	async homeNotice(slug: AgentSlug, text: string): Promise<void> {
 		const { event } = this.log.addMessage({ from: { kind: "system", reason: "files" }, text: `@${slug} ${text}`.slice(0, 300) })
 		if (event) this.publish([event])
@@ -819,6 +833,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			const activity: MemberActivity = { seq: this.log.lastSeq(), at: result.events[0]?.at ?? 0, kind: op.op === "add" ? "joined" : "left", name: op.op === "add" ? op.name : (name ?? op.slug) }
 			this.log.setMeta(MEMBER_ACTIVITY, JSON.stringify(activity))
 		}
+		if (op.op !== "rename") {
+			const joined = op.op === "add"
+			const who = joined ? op.name : (name ?? op.slug)
+			const slug = op.slug
+			const line = this.log.addMessage(
+				dividerMessage(`member:${result.events[0]?.seq}`, `${who} ${joined ? "joined" : "left"}`, joined ? { kind: "member_added", slug, name: who, private: true } : { kind: "member_removed", slug, name: who, private: true }),
+			).event
+			if (line) notice.push(line)
+		}
 		this.publish([...result.events, ...notice])
 		const home = this.home()
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
@@ -831,7 +854,15 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!home || at <= 0) return
 		const model = { provider: ref.slice(0, at), modelId: ref.slice(at + 1) }
 		const targets = this.members.list().filter((m) => !slug || m.slug === slug)
-		for (const m of targets) this.ctx.waitUntil(agentStub(this.env.AGENT, home.userId, home.roomId, m.slug).setModel(model).then(() => undefined))
+		const named = findProvider(model.provider)?.getModels().find((m) => m.id === model.modelId)?.name ?? model.modelId
+		for (const m of targets) {
+			const changed = agentStub(this.env.AGENT, home.userId, home.roomId, m.slug)
+				.setModel(model)
+				.then((ok) => {
+					if (ok) this.divider(`model:${m.slug}:${crypto.randomUUID()}`, `${m.name} now uses ${named}`, { kind: "model_changed", agent: m.slug, model: named, private: true })
+				})
+			this.ctx.waitUntil(changed)
+		}
 	}
 
 	taskOp(op: TaskOp): string | null {
@@ -936,15 +967,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!member) return
 		const next = JSON.stringify(rows)
 		if (this.log.meta(workersKey(slug)) === next) return
-		const before = readWorkers(this.ctx.storage.sql, slug)
-		const events = this.ctx.storage.transactionSync(() => {
-			this.log.setMeta(workersKey(slug), next)
-			return workerMessages(slug, before, rows).flatMap((m) => {
-				const { event } = this.log.addMessage(m)
-				return event ? [event] : []
-			})
-		})
-		this.publish(events)
+		this.log.setMeta(workersKey(slug), next)
 		if (member.status !== "idle") this.broadcastStatus(slug)
 	}
 

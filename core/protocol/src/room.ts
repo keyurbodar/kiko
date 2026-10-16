@@ -30,10 +30,14 @@ export type AgentStatus = { slug: AgentSlug; state: AgentState; doing?: string; 
 export type SystemEvent =
 	| { kind: "created"; roomId: RoomId; title: string }
 	| { kind: "delegated"; from: AgentSlug; to: AgentSlug; title: string }
-	| { kind: "subagent"; agent: AgentSlug; state: "started" | "done" | "failed" | "stopped"; title: string; private: true }
 	| { kind: "routine"; title: string }
 	| { kind: "agent_message"; from: AgentSlug; to: AgentSlug }
 	| { kind: "activity"; count: number }
+	| { kind: "routine_created"; agent: AgentSlug; title: string; private: true }
+	| { kind: "model_changed"; agent: AgentSlug; model: string; private: true }
+	| { kind: "compacted"; agent: AgentSlug; private: true }
+	| { kind: "member_added"; slug: AgentSlug; name: string; private: true }
+	| { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
 
 /** An event kind a newer server sent. Only its kind is kept. */
 export type UnknownSystemEvent = { kind: string }
