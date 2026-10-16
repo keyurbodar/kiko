@@ -23,6 +23,7 @@ import { setGo } from "../lib/errors";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
 import { botPickerOpen } from "../chat/bot-picker-state";
+import { newAgentOpen } from "../newagent/state";
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
 import { hintsShown, watchHold } from "../commands/hints";
 const HintLayer = lazy(() => import("../commands/HintLayer"));
@@ -64,6 +65,7 @@ const watchPanel = (el: HTMLElement) => {
 };
 const AvatarPicker = lazy(() => import("../avatar/picker"));
 const BotPicker = lazy(() => import("../chat/bot-picker"));
+const NewAgent = lazy(() => import("../newagent/dialog"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
 const KEY = "kiko:sidebar-collapsed";
@@ -394,6 +396,11 @@ export function Shell(props: ParentProps) {
         <Show when={botPickerOpen()}>
           <Suspense>
             <BotPicker />
+          </Suspense>
+        </Show>
+        <Show when={newAgentOpen()}>
+          <Suspense>
+            <NewAgent />
           </Suspense>
         </Show>
         <Show when={hintsShown()}>

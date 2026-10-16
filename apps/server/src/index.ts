@@ -18,6 +18,7 @@ import { routinesRoute } from "./user/routines-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
 import { recipesRoute } from "./recipes/route"
+import { newAgentRoute } from "./user/new-agent-route"
 import { faviconRoute } from "./favicon/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
 
@@ -67,6 +68,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (soul) return soul
     const searched = await searchRoute(request, env)
     if (searched) return searched
+    const made = await newAgentRoute(request, env)
+    if (made) return made
     const recipes = await recipesRoute(request, env)
     if (recipes) return recipes
     const themed = await openVsxRoute(request, env)

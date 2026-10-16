@@ -19,7 +19,8 @@ import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openAvatarPicker } from "../avatar/picker-state"
 import { useApp } from "../lib/store"
-import { openBotPicker, openNewAgentFlow } from "../chat/bot-picker-state"
+import { openBotPicker } from "../chat/bot-picker-state"
+import { openNewAgent } from "../newagent/state"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 
@@ -84,7 +85,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         }))
       },
       newGroup: openBotPicker,
-      newAgent: openNewAgentFlow,
+      newAgent: openNewAgent,
       toggleSidecar: () => {
         const id = activeId()
         if (id) toggleSidecar(id)

@@ -2,7 +2,8 @@ import { type Agent, type AgentSlug, type RoomEvent, tagline } from "@kiko/proto
 import { sha256Hex } from "@kiko/durable/hash"
 import type { Env } from "../index"
 import { roomStub, userStub } from "../lib/names"
-import { CHIEF, checkGroup, checkNewAgent, groupChatFile, type GroupInput, introduction, type NewAgentSpec } from "./chief"
+import { CHIEF, checkGroup, groupChatFile, type GroupInput, type NewAgentSpec } from "./chief"
+import { makeAgentChat } from "./new-agent"
 import type { Home } from "./home"
 import type { RoomLog } from "./log"
 import type { Members } from "./members"
@@ -32,18 +33,24 @@ export class Groups {
 		const done = this.d.log.meta(key)
 		if (done) return { ok: true, text: done }
 		const user = userStub(this.d.env.USER, home.userId)
-		const checked = checkNewAgent(spec, await user.listAgents())
-		if ("error" in checked) return { ok: false, error: checked.error }
 		try {
-			const agent = await this.make(home, checked)
-			const { roomId } = await user.openChat(agent.name, [agent.id])
+			const model = this.model()
+			const made = await makeAgentChat(
+				{
+					agents: () => user.listAgents(),
+					make: (spec) => user.makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model }),
+					openChat: (title, agentIds) => user.openChat(title, agentIds),
+					recipes: (description) => user.recipeHints(description),
+					introduce: (roomId, agent, text) => roomStub(this.d.env.ROOM, home.userId, roomId).introduce(home.userId, agent.slug, text),
+				},
+				spec,
+				"kiko",
+			)
+			if (!made.ok) return made
+			const { agent, roomId } = made
 			const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `${agent.name} is ready.`, clientId: key, goto: roomId, event: { kind: "created", roomId, title: agent.name } })
 			if (event) this.d.publish([event])
-			this.d.ctx.waitUntil(
-				roomStub(this.d.env.ROOM, home.userId, roomId)
-					.introduce(home.userId, agent.slug, introduction(checked))
-					.catch((e: unknown) => console.error(`introduce failed: ${e instanceof Error ? e.message : String(e)}`)),
-			)
+			this.d.ctx.waitUntil(made.introduced)
 			const text = `made @${agent.slug}. the human can open its chat now; say one short line, nothing more.`
 			this.d.log.setMeta(key, text)
 			return { ok: true, text }
@@ -95,9 +102,12 @@ export class Groups {
 		return a
 	}
 
+	private model(): string {
+		return this.d.members.list().find((m) => m.slug === CHIEF)?.model ?? ""
+	}
+
 	private async make(home: Home, spec: NewAgentSpec): Promise<Agent> {
-		const model = this.d.members.list().find((m) => m.slug === CHIEF)?.model ?? ""
-		const agent = await userStub(this.d.env.USER, home.userId).makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model })
+		const agent = await userStub(this.d.env.USER, home.userId).makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: this.model() })
 		if (!agent) throw new Error(`@${spec.handle} could not be made (the handle may be taken)`)
 		return agent
 	}
