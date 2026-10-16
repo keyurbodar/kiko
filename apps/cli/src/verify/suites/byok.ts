@@ -1,5 +1,5 @@
 import { newRoom, poll, seen, statuses } from "../kit"
-import type { RoomEvent, RoomToClient } from "@kiko/protocol"
+import type { RoomEvent, RoomToClient, SystemEvent } from "@kiko/protocol"
 import { connectTestModel, expectEqual, type RoomHandle, TEST_PROVIDER, VerifyError } from "../client"
 import type { Suite } from "../runner"
 import { send } from "./mid-run"
@@ -9,11 +9,14 @@ import { must } from "../must"
 const ANSWER_MS = 60_000
 const QUIET_MS = 5_000
 
-function noProviders(room: RoomHandle): Extract<RoomEvent, { t: "no_provider" }>[] {
+type NoKey = Extract<RoomEvent, { t: "message" }> & { event: Extract<SystemEvent, { kind: "run_error" }> }
+
+function noProviders(room: RoomHandle): NoKey[] {
   return room.raw.log.flatMap((e) => {
     if (e.dir !== "in") return []
     const frame = e.frame as RoomToClient
-    return frame.t === "events" ? frame.events.filter((ev) => ev.t === "no_provider") : []
+    if (frame.t !== "events") return []
+    return frame.events.filter((ev): ev is NoKey => ev.t === "message" && (ev.event as { kind?: string; reason?: string } | undefined)?.kind === "run_error" && (ev.event as { reason?: string }).reason === "no_key")
   })
 }
 
@@ -32,7 +35,8 @@ async function refused(room: RoomHandle, before: number): Promise<void> {
   await send(room, "reply with the single word ok.")
   await poll("a no_provider event", () => noProviders(room).length > before, 15_000)
   const event = must(noProviders(room).at(-1), "no_provider event")
-  expectEqual({ slug: event.slug, provider: event.provider }, { slug: "kiko", provider: TEST_PROVIDER }, "the no_provider event")
+  expectEqual(event.event.slug, "kiko", "the agent the no_provider line names")
+  expectEqual(event.event.actions.includes("open_settings"), true, "the no_provider line offers settings")
   const bubbles = seen(room).all.length
   await Bun.sleep(QUIET_MS)
   expectEqual(runSigns(room, from), [], "signs of a run after no_provider")

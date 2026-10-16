@@ -25,6 +25,7 @@ export interface SocketRoom {
 	setModel(ref: string, slug?: AgentSlug): void
 	answerAsk(id: string, value: string | import("@kiko/protocol").HumanAnswers): Promise<void>
 	skipAsk(id: string): Promise<void>
+	retryRun(messageId: MessageId): Promise<void>
 }
 
 export const BAD_FRAME = 1008
@@ -147,6 +148,9 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 			return null
 		case "skip":
 			await room.skipAsk(frame.id)
+			return null
+		case "retry":
+			await room.retryRun(frame.messageId)
 			return null
 		case "member": {
 			const refused = room.memberOp(frame.op)

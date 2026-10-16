@@ -1,9 +1,9 @@
-import type { AgentSlug } from "@kiko/protocol"
+import type { AgentSlug, Message } from "@kiko/protocol"
 
-/** `mentions` are the slugs the whole text names, from `tags`, so a long message routes on all of it. */
+/** `mentions` are the slugs the whole text names, from `tags`, so a long message routes on all of it. `replyTo` are the agents the message it answers was for. */
 export type RecipientMessage = {
 	mentions: readonly string[]
-	replyToAgent?: AgentSlug
+	replyTo?: readonly string[]
 }
 
 export type RecipientMember = { slug: AgentSlug; lead: boolean }
@@ -23,8 +23,23 @@ export function tags(text: string): string[] {
 export function resolveRecipients(message: RecipientMessage, members: readonly RecipientMember[]): AgentSlug[] {
 	if (message.mentions.includes("all")) return members.map((m) => m.slug)
 	const chosen = new Set<string>(message.mentions)
-	if (message.replyToAgent) chosen.add(message.replyToAgent)
+	for (const slug of message.replyTo ?? []) chosen.add(slug)
 	const addressed = members.filter((m) => chosen.has(m.slug))
 	if (addressed.length) return addressed.map((m) => m.slug)
 	return members.filter((m) => m.lead).map((m) => m.slug)
+}
+
+const REPLY_DEPTH = 6
+
+/**
+ * Who a reply is for. A reply to an agent's bubble is for that agent. A reply to the human's own
+ * message is for whoever that message was for: the agents it tags, and the agents of the message it
+ * answered in turn, so a chain of replies keeps talking to the same agent.
+ */
+export function replyAddressees(find: (id: string) => Pick<Message, "from" | "text" | "replyTo"> | null, id: string | undefined, depth = REPLY_DEPTH): string[] {
+	const target = id !== undefined && depth > 0 ? find(id) : null
+	if (!target) return []
+	if (target.from.kind === "agent") return [target.from.slug]
+	if (target.from.kind !== "human") return []
+	return [...new Set([...tags(target.text), ...replyAddressees(find, target.replyTo, depth - 1)])]
 }

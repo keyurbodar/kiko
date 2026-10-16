@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ChatMessage } from "../../lib/types";
-import { jumboEmojiClass, replyQuoteText, replySummary } from "./reply";
+import { jumboEmojiClass, quoteOf, replyQuoteText, replySummary } from "./reply";
 
 const base: ChatMessage = { id: "m", threadId: "t", sender: "bot", body: "", sentAt: 0 };
 const img = (src: string) => ({ name: src.slice(1), size: 1, type: "image/jpeg", src });
@@ -144,5 +144,41 @@ describe("jumboEmojiClass", () => {
 
   test("a flag is one emoji, not two regional indicators", () => {
     expect(jumboEmojiClass("\u{1F1EF}\u{1F1F5}")).toBe("jumbo-single");
+  });
+});
+describe("quoteOf", () => {
+  const name = (slug: string) => ({ ada: "Ada" })[slug];
+  const reply: ChatMessage = { ...base, id: "r", sender: "user", body: "yes", replyToId: "p" };
+  const parent: ChatMessage = { ...base, id: "p", seq: 7, botId: "ada", body: "shall we go" };
+
+  test("a message that answers nothing has no quote", () => {
+    expect(quoteOf({ ...base }, parent, name)).toBeNull();
+  });
+
+  test("a loaded original is quoted by its own words and its author's name", () => {
+    expect(quoteOf(reply, parent, name)).toEqual({ id: "p", seq: 7, label: "Ada", summary: { text: "shall we go" }, gone: false, botId: "ada" });
+  });
+
+  test("the human's own message is quoted as You", () => {
+    expect(quoteOf({ ...reply, sender: "bot", botId: "ada" }, { ...base, id: "p", sender: "user", seq: 3, body: "hello" }, name)).toMatchObject({ label: "You", summary: { text: "hello" } });
+  });
+
+  test("the words the human picked replace the whole original", () => {
+    expect(quoteOf({ ...reply, quote: "shall we" }, parent, name)?.summary).toEqual({ text: "“shall we”" });
+  });
+
+  test("an original outside the window is quoted from what the room kept, and a tap can load it by seq", () => {
+    const kept = { ...reply, reply: { seq: 4, from: { kind: "agent" as const, slug: "ada" as never }, text: "an old answer" } };
+    expect(quoteOf(kept, undefined, name)).toEqual({ id: "p", seq: 4, label: "Ada", summary: { text: "an old answer" }, gone: false, botId: "ada" });
+    expect(quoteOf({ ...kept, reply: { seq: 4, from: { kind: "human" as const }, text: "mine" } }, undefined, name)).toMatchObject({ label: "You", summary: { text: "mine" } });
+  });
+
+  test("a deleted original stays as a quote with no words and nowhere to go", () => {
+    const gone = { ...reply, reply: { seq: 4, from: { kind: "human" as const }, text: "", gone: true as const } };
+    expect(quoteOf(gone, undefined, name)).toMatchObject({ gone: true, summary: { text: "Deleted message" } });
+  });
+
+  test("a reply with nothing kept and no original loaded has no quote", () => {
+    expect(quoteOf(reply, undefined, name)).toBeNull();
   });
 });

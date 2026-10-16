@@ -18,6 +18,7 @@ export function MessageList(props: {
   firstUnreadMessageId: string | null
   onJumpToMessage: (messageId: string) => void
   onReplyTarget: (messageId: string) => void
+  onJumpToSeq?: (messageId: string, seq: number) => void
   scrollRef: (element: HTMLDivElement | undefined) => void
   onStateChange: (state: VirtualThreadState) => void
   waitingNames: readonly string[]

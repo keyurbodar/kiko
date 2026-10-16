@@ -151,8 +151,8 @@ export type UserToClient =
 	| { t: "login.prompt"; loginId: string; promptId: string; prompt: LoginPrompt }
 	| { t: "login.done"; loginId: string; provider: { provider: string; kind: "api_key" | "oauth"; last4: string } }
 	| { t: "login.error"; loginId: string; reason: LoginErrorReason; message: string }
-	/** Not stored. Something the human must know about, as one toast. */
-	| { t: "error"; error: KikoError }
+	/** Not stored. Something the human must know about, as one toast. `roomId` names the chat it happened in, so the client can skip the toast for the chat on screen. */
+	| { t: "error"; error: KikoError; roomId?: RoomId }
 	| { t: "chat_refused"; roomId: RoomId; existing: RoomId }
 	| { t: "home_refused"; op: FileOp; reason: string }
 	| { t: "typing"; roomId: RoomId; names: readonly string[] }

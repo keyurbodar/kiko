@@ -37,12 +37,12 @@ function referencedFiles(text: string, attached: readonly FileRef[] = []): strin
 export function route(
 	pending: readonly Pending[],
 	members: readonly RecipientMember[],
-	replyAuthor: (messageId: string) => AgentSlug | undefined,
+	addressees: (messageId: string) => readonly string[],
 ): Map<AgentSlug, Envelope[]> {
 	const out = new Map<AgentSlug, Envelope[]>()
 	for (const { envelope: e, mentions } of pending) {
-		const replyToAgent = e.replyTo ? replyAuthor(e.replyTo) : undefined
-		for (const slug of resolveRecipients({ mentions, ...(replyToAgent ? { replyToAgent } : {}) }, members)) {
+		const replyTo = e.replyTo ? addressees(e.replyTo) : []
+		for (const slug of resolveRecipients({ mentions, replyTo }, members)) {
 			out.set(slug, [...(out.get(slug) ?? []), e])
 		}
 	}

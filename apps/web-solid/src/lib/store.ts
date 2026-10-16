@@ -19,8 +19,7 @@ import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, Cha
 import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { isListed } from "../sidebar/activity"
 import { agentDisplayName } from "./names"
-import { showFailure, showKikoError } from "./errors"
-import { hintCoversRunError, showRunError } from "./run-error"
+import { seenInChat, showFailure, showKikoError } from "./errors"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
@@ -87,7 +86,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 export function signature(m: ViewMessage): string {
   let reactions = ""
   for (const r of m.reactions ?? []) reactions += `${reactionKey(r)}=${r.emoji},`
-  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}`
+  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}`
 }
 
 /** The transcript's view of one protocol message. */
@@ -103,6 +102,7 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (!m.pending) out.seq = m.seq
   if (m.rich) out.rich = m.rich
   if (m.replyTo) out.replyToId = m.replyTo
+  if (m.reply) out.reply = m.reply
   if (m.editedAt !== undefined) out.edited = true
   if (m.event) out.event = m.event
   if (m.goto) out.goto = m.goto
@@ -372,10 +372,6 @@ export function createApp(options: AppOptions = {}) {
       // A send the room refused stays in the transcript, marked failed. The toast says why.
       next.onTaskRefused(showFailure)
       next.onSendRefused(showFailure)
-      next.onRunError(async (frame) => {
-        if (hintCoversRunError(frame, (await import("../settings/connected")).noModelKey())) return
-        await showRunError(frame, next.state.members.find((m) => m.slug === frame.slug)?.name ?? "The agent")
-      })
       setRoom(next)
     }
 
@@ -520,7 +516,7 @@ export function createApp(options: AppOptions = {}) {
           batch(() => {
             setLocalLast(readLast())
             setDrafts(createDraftBook(warm))
-            setUserStore(createUserStore({ warm, url: urls.user(), connect: transport.user, backoff: options.backoff, onError: showKikoError }))
+            setUserStore(createUserStore({ warm, url: urls.user(), connect: transport.user, backoff: options.backoff, onError: (error, roomId) => seenInChat(roomId, activeId(), document.visibilityState === "visible") || showKikoError(error) }))
             openRoom(activeId())
           })
         })()
@@ -741,6 +737,12 @@ export function createApp(options: AppOptions = {}) {
         return room()?.members() ?? []
       },
 
+      /** True once the owner's agent models have loaded, from disk or the server. Before that, a missing model means nothing. */
+      modelsSynced(): boolean {
+        const user = userStore()
+        return !!user && user.state.loaded && (user.state.synced || Object.keys(user.state.agentModels).length > 0)
+      },
+
       /** An agent's model and reasoning level. It is the same in every chat. */
       agentModel(slug: string): AgentModel | undefined {
         return userStore()?.agentModel(slug)
@@ -823,6 +825,11 @@ export function createApp(options: AppOptions = {}) {
         r.edit(m.id, text)
       },
 
+      /** Runs again the input of a failed run, from its error line. The human message is not sent again. */
+      retryRun(messageId: string) {
+        room()?.retry(messageId as MessageId)
+      },
+
       /** Deletes one of the human's own stored messages. Applies at once. */
       deleteMessage(messageId: string) {
         const r = room()
@@ -836,7 +843,6 @@ export function createApp(options: AppOptions = {}) {
       },
 
       appendReply(message: OutgoingMessage, replyToId: string, quote?: string): string | undefined {
-        if (!replyToId || !findView(replyToId)) return undefined
         return send(message, replyToId, quote)
       },
 

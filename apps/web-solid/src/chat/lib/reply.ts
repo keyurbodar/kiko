@@ -57,6 +57,43 @@ export function replySummary(message: ChatMessage): ReplySummary {
   return summary;
 }
 
+/** What a reply shows above its words: who and what it answers, and whether a tap can still find it. */
+export type QuoteModel = {
+  /** The message it answers. */
+  id: string;
+  /** Where that message sits, so a tap can load it when it is not in the window. */
+  seq?: number;
+  label: string;
+  summary: ReplySummary;
+  /** The original was deleted: the quote stays, with no words and nowhere to go. */
+  gone: boolean;
+  /** The agent whose words these are, for its colour in a group. */
+  botId?: string;
+};
+
+/**
+ * The quote of a reply, from the original when the window holds it, else from what the room sent
+ * with the reply. Null when there is nothing to quote, such as a reply to a system line.
+ */
+export function quoteOf(message: ChatMessage, parent: ChatMessage | undefined, name: (slug: string) => string | undefined): QuoteModel | null {
+  const id = message.replyToId;
+  if (!id) return null;
+  const chosen = message.quote ? quoteSummary(message.quote) : undefined;
+  if (parent) {
+    const model: QuoteModel = { id, label: parent.sender === "user" ? "You" : (name(parent.botId ?? "") ?? "Bot"), summary: chosen ?? replySummary(parent), gone: false };
+    if (parent.seq !== undefined) model.seq = parent.seq;
+    if (parent.botId !== undefined) model.botId = parent.botId;
+    return model;
+  }
+  const kept = message.reply;
+  if (!kept) return null;
+  const botId = kept.from.kind === "agent" ? kept.from.slug : undefined;
+  const label = botId === undefined ? "You" : (name(botId) ?? botId);
+  const model: QuoteModel = { id, seq: kept.seq, label, summary: kept.gone ? { text: "Deleted message" } : (chosen ?? { text: kept.text }), gone: kept.gone === true };
+  if (botId !== undefined) model.botId = botId;
+  return model;
+}
+
 function isEmoji(grapheme: string): boolean {
   if (KEYCAP.test(grapheme)) return true;
   const base = grapheme.replace(EMOJI_VARIATION, "").replace(SKIN_TONE, "");

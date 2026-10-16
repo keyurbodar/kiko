@@ -20,6 +20,11 @@ describe("the text of a divider", () => {
     expect(line(event)).toBe(want);
   });
 
+  test("a failed run shows its sentence", () => {
+    const event = { kind: "run_error", slug: "ada", reason: "quota", actions: ["change_model"], private: true };
+    expect(line(event, { body: "OpenAI says the account is out of credit." })).toBe("OpenAI says the account is out of credit.");
+  });
+
   test("a kind from a newer server has no line", () => {
     expect(line({ kind: "from_a_newer_server" })).toBeNull();
     expect(line({ kind: "subagent", agent: "kiko", state: "started", title: "x", private: true })).toBeNull();

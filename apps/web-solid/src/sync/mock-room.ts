@@ -174,6 +174,7 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 	const handlers: { [K in ClientToRoom["t"]]: (peer: Peer<RoomToClient>, f: Extract<ClientToRoom, { t: K }>) => void } = {
 		// The mock has no agents to run a model, so the choice is dropped.
 		model() {},
+		retry() {},
 		hello(peer, f) {
 			const last = log[log.length - 1]?.seq ?? 0
 			if (f.lastSeq > last || last - f.lastSeq > resetAfter) return peer.push({ t: "reset", snapshot: snapshot() })
@@ -191,7 +192,10 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 			const claimed: FileRef[] = (f.attachments ?? []).map((a, i) => ({ id: a.pendingId, name: `attachments/${(now() + i).toString(36)}-${a.name}`, size: a.size, type: a.type }))
 			const seq = nextSeq() + claimed.length
 			const m: Omit<Message, "seq" | "at"> = { id: `m${seq}` as MessageId, from: { kind: "human" }, text: f.text }
+			const parent = f.replyTo ? data.messages.find((x) => x.id === f.replyTo) : undefined
 			if (f.replyTo) m.replyTo = f.replyTo
+			if (f.replyTo && f.quote) m.quote = f.quote
+			if (parent && parent.from.kind !== "system") m.reply = { seq: parent.seq, from: parent.from, text: parent.text }
 			if (claimed.length) m.files = claimed
 			const fileEvents = claimed.map((file): WithoutStored<RoomEvent> => ({ t: "file", file }) as WithoutStored<RoomEvent>)
 			if (mock.loseNextAck) {

@@ -2,7 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
-import { classifyRunError, scrubDetail } from "./run-error"
+import { classifyRunError } from "./run-error"
 import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
@@ -16,7 +16,7 @@ export interface RoomPort {
   workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
-  runError(error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void>
+  runError(runId: string, error: { kind: RunErrorKind; provider: string }): Promise<void>
 }
 
 type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number }
@@ -263,16 +263,14 @@ export class Outbox {
     const before = run.blocks.length
     const lost = this.finishGeneration(run, entry)
     const failed = assistant(entry)
-    if (failed?.stopReason === "error") await this.reportError(failed)
+    if (failed?.stopReason === "error") await this.reportError(run.id, failed)
     if (lost && run.posted > before) this.rebase(run)
     this.save(run)
     await this.flush()
   }
 
-  private async reportError(message: AssistantLike): Promise<void> {
-    const kind = classifyRunError(message.errorMessage)
-    const detail = kind === "other" && message.errorMessage ? scrubDetail(message.errorMessage) : undefined
-    await this.room()?.runError({ kind, provider: message.provider ?? "", ...(detail ? { detail } : {}) })
+  private async reportError(runId: string, message: AssistantLike): Promise<void> {
+    await this.room()?.runError(runId, { kind: classifyRunError(message.errorMessage), provider: message.provider ?? "" })
   }
 
   private finishGeneration(run: Run, entry: EntryRecord): boolean {
@@ -283,6 +281,7 @@ export class Outbox {
     const streamed = run.generation?.blocks ?? []
     run.generation = null
     if (message.stopReason === "aborted") return true
+    if (message.stopReason === "error") return false
     if (run.quiet && hasToolCall(message)) return false
     const { blocks: final, reactions } = partsOf(textOf(message))
     run.blocks.push(...final)

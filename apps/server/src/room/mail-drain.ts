@@ -4,6 +4,7 @@ import { agentStub, roomStub } from "../lib/names"
 import type { Asks } from "./asks"
 import type { Burst } from "./burst"
 import { route } from "./deliver"
+import { replyAddressees } from "./recipients"
 import type { Home } from "./home"
 import type { Team } from "./team"
 import type { Members } from "./members"
@@ -133,11 +134,7 @@ export class RoomMail {
 
 	burstAddressed(home: Home): Set<AgentSlug> {
 		if (!this.d.burst.pending()) return new Set()
-		const replyAuthor = (id: string) => {
-			const from = this.d.log.message(id)?.from
-			return from?.kind === "agent" ? from.slug : undefined
-		}
-		return new Set(route(this.d.burst.envelopes(home.roomId), this.d.members.list(), replyAuthor).keys())
+		return new Set(route(this.d.burst.envelopes(home.roomId), this.d.members.list(), (id) => replyAddressees((at) => this.d.log.message(at), id)).keys())
 	}
 
 	/** A replay pushes again: the first push may have died with the caller that made it. */

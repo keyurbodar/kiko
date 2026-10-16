@@ -351,22 +351,58 @@ test("batched human questions persist choices, reject incomplete answers, and re
   c.close()
 })
 
-test("an agent that cannot run for want of a key tells every open client with a run_error frame, once per request", async () => {
+type RunErrorLine = Extract<RoomEvent, { t: "message" }> & { event: { kind: "run_error"; slug: string; reason: string; actions: string[]; private: true } }
+const runErrors = async (room: string) => (await snapshot(room)).messages.filter((m): m is RunErrorLine => (m.event as { kind?: string } | undefined)?.kind === "run_error") as unknown as RunErrorLine[]
+const notices = async () => (await (await fetch(`${origin}/errors/x/x`)).json()) as { error: { code: string; message: string; action?: string }; roomId: string }[]
+
+test("an agent that cannot run for want of a key leaves one line in the transcript for each request, and no raw frame", async () => {
 	const room = fresh()
 	const c = await withAgent(room)
+	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r1", [], ["h1"])
+	const line = await c.take((f) => f.t === "events" && f.events.some((e) => e.t === "message" && (e.event as { kind?: string } | undefined)?.kind === "run_error"))
+	expect(JSON.stringify(line)).toContain("cannot answer yet")
 	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r1", [])
-	expect(await c.take((f) => f.t === "run_error")).toEqual({ t: "run_error", slug: "ada", kind: "no_key", provider: "opencode-go" })
-	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r1", [])
-	expect(await quiet(c)).toBe(0)
+	expect(await runErrors(room)).toHaveLength(1)
 	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r2", [])
-	await c.take((f) => f.t === "run_error")
+	const [first, second] = await runErrors(room)
+	expect(first!.event).toMatchObject({ slug: "ada", reason: "no_key", private: true })
+	expect(first!.text).toBe("ada cannot answer yet. OpenCode Go is not connected.")
+	expect(second).toBeDefined()
 	c.close()
 })
 
-test("a provider error the agent reports reaches clients as a run_error frame", async () => {
+test("a provider error becomes a fixed sentence with actions, never the provider's words, and a toast for another chat", async () => {
 	const room = fresh()
 	const c = await withAgent(room)
-	await rpc(room, "runError", "ada", { kind: "rate_limit", provider: "opencode-go" })
-	expect(await c.take((f) => f.t === "run_error")).toEqual({ t: "run_error", slug: "ada", kind: "rate_limit", provider: "opencode-go" })
+	await rpc(room, "runError", "ada", "run-1", { kind: "invalid_key", provider: "opencode-go", inputs: [] })
+	const [line] = await runErrors(room)
+	expect(line!.text).toBe("OpenCode Go did not accept the key. Check the key, then retry.")
+	expect(line!.event.actions).toEqual(["open_settings", "change_model"])
+	await rpc(room, "runError", "ada", "run-1", { kind: "invalid_key", provider: "opencode-go", inputs: [] })
+	expect(await runErrors(room)).toHaveLength(1)
+	const sent = (await notices()).filter((n) => n.error.message === line!.text)
+	expect(sent).toEqual([{ error: { code: "model", message: line!.text, action: "open_models" }, roomId: room }])
+	c.close()
+})
+
+test("retry is offered only when the failed run answered a human message that is still there", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	c.send({ t: "send", clientId: "c1", text: "plan my trip" })
+	const ack = (await c.take((f) => f.t === "ack")) as Extract<RoomToClient, { t: "ack" }>
+	await rpc(room, "runError", "ada", "run-a", { kind: "timeout", provider: "opencode-go", inputs: [ack.id] })
+	await rpc(room, "runError", "ada", "run-b", { kind: "timeout", provider: "opencode-go", inputs: [] })
+	const [withInput, without] = await runErrors(room)
+	expect(withInput!.event.actions).toEqual(["retry", "change_model"])
+	expect(without!.event.actions).toEqual(["change_model"])
+	c.close()
+})
+
+test("an error line is private to the owner: it is not unread, and a chat row never previews it", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	await rpc(room, "runError", "ada", "run-1", { kind: "overloaded", provider: "opencode-go", inputs: [] })
+	await Bun.sleep(100)
+	expect((await touches(room)).filter((t) => t.lastPreview.includes("overloaded"))).toEqual([])
 	c.close()
 })

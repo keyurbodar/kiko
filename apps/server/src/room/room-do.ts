@@ -33,6 +33,7 @@ import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
 import { agentStatuses, statusOf, workersKey } from "./status"
 import { dividerMessage, type Divider } from "./dividers"
 import { findProvider } from "../user/turn-context"
+import { describeRunError } from "../agent/run-error"
 import { parseModelRef } from "../agent/thinking"
 import { parseRichText } from "./rich-text"
 import { type MemberRow, Members, type NewMember } from "./members"
@@ -989,30 +990,52 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return event !== null
 	}
 
-	async noProvider(slug: AgentSlug, provider: string, requestId: string, heard: readonly string[] = []): Promise<boolean> {
+	async noProvider(slug: AgentSlug, provider: string, requestId: string, heard: readonly string[] = [], inputs: readonly string[] = []): Promise<boolean> {
 		const key = `no_provider:${slug}:${requestId}`
-		const event = this.ctx.storage.transactionSync(() => {
-			if (this.log.meta(key) !== null) return null
-			const event = this.log.append(`agent:${slug}`, { t: "no_provider", slug, provider })
-			this.log.setMeta(key, String(event.seq))
-			return event
-		})
-		if (event) {
-			this.publish([event])
-			this.broadcast({ t: "run_error", slug, kind: "no_key", provider })
-		}
+		const stored = this.reportRunError(slug, key, "no_key", provider, inputs)
 		const home = this.home()
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because the human has not connected ${provider}. tell the human, or go on without it.)`
-			this.mailer.answerHeard(home, slug, heard, why, { id: key, seq: Number(this.log.meta(key)) })
+			this.mailer.answerHeard(home, slug, heard, why, { id: key, seq: stored?.seq ?? this.log.sentBefore(key)?.seq ?? 0 })
 		}
 		this.reports.run(this.routines.dropped(slug), "failed")
-		return event !== null
+		return stored !== null
 	}
 
-	async runError(slug: AgentSlug, error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void> {
-		if (!this.members.get(slug)) return
-		this.broadcast({ t: "run_error", slug, kind: error.kind, ...(error.provider ? { provider: error.provider } : {}), ...(error.detail ? { detail: error.detail } : {}) })
+	async runError(slug: AgentSlug, runId: string, error: { kind: RunErrorKind; provider: string; inputs: readonly string[] }): Promise<void> {
+		this.reportRunError(slug, `run-error:${slug}:${runId}`, error.kind, error.provider, error.inputs)
+	}
+
+	/**
+	 * A failed run is a line in the transcript the human can act on, and one toast for a human who is
+	 * in another chat. `key` makes a repeat store nothing. Retry needs the human messages the run
+	 * answered, so it is offered only when there are some.
+	 */
+	private reportRunError(slug: AgentSlug, key: string, kind: RunErrorKind, provider: string, inputs: readonly string[]): { id: MessageId; seq: number } | null {
+		const member = this.members.get(slug)
+		const home = this.home()
+		if (!member || !home) return null
+		const heard = inputs.filter((id) => this.log.message(id)?.from.kind === "human")
+		const failure = describeRunError(kind, findProvider(provider)?.name ?? (provider || "The provider"), member.name)
+		const actions = heard.length ? failure.actions : failure.actions.filter((a) => a !== "retry")
+		const stored = this.log.addMessage(dividerMessage(key, failure.message, { kind: "run_error", slug, reason: kind, actions, private: true }))
+		if (!stored.event) return null
+		this.log.setMeta(`retry:${stored.id}`, JSON.stringify({ slug, inputs: heard }))
+		this.publish([stored.event])
+		this.ctx.waitUntil(
+			userStub(this.env.USER, home.userId)
+				.notifyError({ code: "model", message: failure.message, ...(failure.toast ? { action: failure.toast } : {}) }, home.roomId)
+				.catch((e: unknown) => console.error(`run error notice failed: ${e instanceof Error ? e.message : String(e)}`)),
+		)
+		return stored
+	}
+
+	/** Runs again the input of a failed run, as new deliveries of the same human messages. Nothing is sent again. */
+	async retryRun(messageId: MessageId): Promise<void> {
+		const saved = this.log.meta(`retry:${messageId}`)
+		if (!saved) return
+		const { slug, inputs } = JSON.parse(saved) as { slug: AgentSlug; inputs: string[] }
+		await this.burstFlush.redeliver(slug, inputs, messageId)
 	}
 
 	async runDropped(slug: AgentSlug): Promise<void> {

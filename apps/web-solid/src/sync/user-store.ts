@@ -94,7 +94,8 @@ export type UserStoreOptions = {
 	/** Where the socket is shared with the look, memory, and Composio. The app's channel by default. */
 	channel?: UserChannelHost
 	/** Something the human must know about, from the server. */
-	onError?: (error: KikoError) => void
+	/** `roomId` is the chat the error belongs to, when it has one. */
+	onError?: (error: KikoError, roomId?: RoomId) => void
 }
 
 export type UserStore = {
@@ -254,7 +255,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				setState("refused", frame.roomId, frame.existing)
 				setPatches((list) => list.filter((p) => p.op.roomId !== frame.roomId))
 			})
-		} else if (frame.t === "error") options.onError?.(frame.error)
+		} else if (frame.t === "error") options.onError?.(frame.error, frame.roomId)
 		else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
 		else if (frame.t === "home_refused") {
 			const same = JSON.stringify(frame.op)

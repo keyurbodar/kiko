@@ -6,7 +6,7 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
 import { type Effect, declareEffect } from "@kiko/agent/effects"
 import { plainReport } from "@kiko/agent/workers"
 import { boundedWait } from "@kiko/durable/bounded-wait"
-import { type BuildAgentInput, buildAgent } from "./factory"
+import { type BuildAgentInput, buildAgent, RUN_SETTINGS } from "./factory"
 import { withTextToolCalls } from "./tool-markup"
 import type { AgentSetup } from "@kiko/agent/host"
 import type { RoleInput } from "./prompt"
@@ -271,5 +271,5 @@ export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider({ ...faux.provider, streamSimple: withTextToolCalls(faux.provider.streamSimple), stream: withTextToolCalls(faux.provider.stream as never) as never })
-  return { models, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION] }) } satisfies AgentSetup
+  return { models, settings: RUN_SETTINGS, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION] }) } satisfies AgentSetup
 }

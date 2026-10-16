@@ -115,6 +115,12 @@ export type RunAuth = (provider: string) => Promise<AuthResult | undefined>
  * answers 400 MissingSessionID without the `x-opencode-session` header (P0-05), and pi-durable
  * passes headers only through `settings.stream.headers`.
  */
+/**
+ * A model error ends the run at once, and the human decides: the transcript shows the failure with a
+ * Retry button. pi-durable's own retries would keep the agent typing for about 15 seconds first.
+ */
+export const RUN_SETTINGS: HarnessSettings = { toolExecution: "parallel", retry: { enabled: false } }
+
 export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of builtinProviders()) {
@@ -125,5 +131,5 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
     }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }
-  return { models, settings: { toolExecution: "parallel", stream: { headers: { "x-opencode-session": sessionId } } } }
+  return { models, settings: { ...RUN_SETTINGS, stream: { headers: { "x-opencode-session": sessionId } } } }
 }

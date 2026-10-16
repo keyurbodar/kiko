@@ -6,6 +6,7 @@ import type {
 	Message,
 	MessageId,
 	Reaction,
+	ReplyPreview,
 	RichText,
 	RoomEvent,
 	RoomSnapshot,
@@ -31,6 +32,20 @@ const PUBLIC_MESSAGE = "(event IS NULL OR json_extract(event, '$.private') IS NO
 
 // Mail between agents sits behind a divider in the transcript, so a preview or a search result does not quote it either.
 export const LISTED_MESSAGE = `${PUBLIC_MESSAGE} AND addressed IS NULL`
+
+const PREVIEW_CHARS = 140
+
+/** What a reply's quote shows for a message: its words cut short, or what its files are. */
+export function previewText(text: string, files: readonly Pick<FileRef, "name" | "type">[] = []): string {
+	const body = text.replace(/\s+/g, " ").trim()
+	if (body) return body.length > PREVIEW_CHARS ? `${Array.from(body).slice(0, PREVIEW_CHARS - 1).join("")}…` : body
+	const images = files.filter((f) => f.type.startsWith("image/")).length
+	const others = files.filter((f) => !f.type.startsWith("image/"))
+	if (!files.length) return ""
+	if (!others.length) return images > 1 ? `${images} photos` : "Photo"
+	const rest = files.length - 1
+	return rest > 0 ? `${others[0]!.name} and ${rest} more` : others[0]!.name
+}
 
 export const isPrivate = (m: { event?: { kind: string } }): boolean => (m.event as { private?: boolean } | undefined)?.private === true
 
@@ -163,9 +178,29 @@ export class RoomLog {
 		return this.withReactions([...older, ...newer])
 	}
 
+	/** What each message in `ids` says now, deleted or not, so a reply to it can quote it. Another kind of sender has no quote. */
+	private previews(ids: readonly string[]): Map<string, ReplyPreview> {
+		const out = new Map<string, ReplyPreview>()
+		if (!ids.length) return out
+		for (const r of this.sql
+			.exec<MessageRow>("SELECT * FROM messages WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(ids))
+			.toArray()) {
+			const from = JSON.parse(r.sender) as Sender
+			if (from.kind === "system") continue
+			out.set(
+				r.id,
+				r.deleted_at !== null
+					? { seq: r.seq, from, text: "", gone: true }
+					: { seq: r.seq, from, text: previewText(r.text, r.files ? (JSON.parse(r.files) as FileRef[]) : undefined) },
+			)
+		}
+		return out
+	}
+
 	/** Messages for rows, with the reactions of every row read in one query, not one per message. */
 	private withReactions(rows: MessageRow[]): Message[] {
 		if (!rows.length) return []
+		const replies = this.previews([...new Set(rows.flatMap((r) => (r.reply_to ? [r.reply_to] : [])))])
 		const reactions = new Map<string, Reaction[]>()
 		for (const x of this.sql
 			.exec<{ message_id: string; actor: string; emoji: string }>(
@@ -177,7 +212,7 @@ export class RoomLog {
 			list.push({ by: actorFromKey(x.actor), emoji: x.emoji })
 			reactions.set(x.message_id, list)
 		}
-		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? []))
+		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies))
 	}
 
 	/** A live (not deleted) message, or null. */
@@ -251,12 +286,14 @@ export class RoomLog {
 			const earlier = input.clientId ? this.sentBefore(input.clientId) : input.run ? this.messageForRun(input.run) : null
 			if (earlier) return { ...earlier, event: null }
 			const id = crypto.randomUUID() as MessageId
+			const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
 			const message: Omit<Message, "seq" | "at"> = {
 				id,
 				from: input.from,
 				text: input.text,
 				...(input.rich ? { rich: input.rich } : {}),
 				...(input.replyTo ? { replyTo: input.replyTo } : {}),
+				...(reply ? { reply } : {}),
 				...(input.files?.length ? { files: input.files } : {}),
 				...(input.run ? { run: input.run } : {}),
 				...(input.goto ? { goto: input.goto } : {}),
@@ -432,7 +469,8 @@ export class RoomLog {
 	}
 
 	/** `reactions` are the message's, when the caller loaded them for many rows at once. */
-	private toMessage(r: MessageRow, preloaded?: Reaction[]): Message {
+	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>): Message {
+		const reply = r.reply_to ? (replies ?? this.previews([r.reply_to])).get(r.reply_to) : undefined
 		const reactions: Reaction[] =
 			preloaded ??
 			this.sql
@@ -450,6 +488,7 @@ export class RoomLog {
 			text: r.text,
 			...(r.rich ? { rich: JSON.parse(r.rich) as RichText } : {}),
 			...(r.reply_to ? { replyTo: r.reply_to as MessageId } : {}),
+			...(reply ? { reply } : {}),
 			...(r.files ? { files: JSON.parse(r.files) as FileRef[] } : {}),
 			...(r.run_id !== null
 				? { run: { runId: r.run_id, attempt: r.run_attempt ?? 0, index: r.run_index ?? 0 } }

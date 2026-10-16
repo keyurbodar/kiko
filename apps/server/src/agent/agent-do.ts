@@ -178,7 +178,7 @@ export class AgentDO extends DurableObject<Env> {
         return room().endRun(home.slug, runId, mail, working, mailOnly)
       },
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
-      runError: (error) => room().runError(home.slug, error),
+      runError: (runId, error) => room().runError(home.slug, runId, { ...error, inputs: this.#humanInputs }),
     }
   }
 
@@ -386,6 +386,7 @@ export class AgentDO extends DurableObject<Env> {
     const seqs = [...batch.envelopes.map((e) => e.seq), ...joined]
     this.#seqs = seqs
     this.#heard = batch.envelopes.findLast((e) => e.from.kind === "human")?.rootId ?? null
+    this.#humanInputs = batch.envelopes.filter((e) => e.from.kind === "human").map((e) => e.rootId)
     const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
     if (!fresh && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
@@ -402,6 +403,8 @@ export class AgentDO extends DurableObject<Env> {
 
   #seqs: number[] = []
   #heard: string | null = null
+  /** The human messages the run in flight is answering, so a failed run can be run again. */
+  #humanInputs: string[] = []
   #shown = new Set<string>()
   #delta?: { requestId: string; since: Promise<{ text: string; count: number } | null> }
 
@@ -572,8 +575,10 @@ export class AgentDO extends DurableObject<Env> {
       await this.ctx.storage.put(MODEL_APPLIED_KEY, applied)
     }
     if (turn.auth) return true
-    const heard = this.host.inbox.envelopeIds(requestId).filter((id) => id.startsWith("agent:"))
-    await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId, heard)
+    const ids = this.host.inbox.envelopeIds(requestId)
+    const heard = ids.filter((id) => id.startsWith("agent:"))
+    const humans = ids.filter((id) => id.startsWith("human:")).map((id) => id.slice("human:".length).split("#")[0]!)
+    await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId, heard, humans)
     return false
   }
 

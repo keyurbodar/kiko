@@ -7,7 +7,7 @@ const never = <T>() => new Promise<T>(() => {})
 test("a request that never answers fails as a provider timeout", async () => {
   const error = await orStall(never<void>(), 20).catch((e) => e)
   expect(error).toBeInstanceOf(StallError)
-  expect(classifyRunError((error as Error).message)).toBe("provider_down")
+  expect(classifyRunError((error as Error).message)).toBe("timeout")
 })
 
 test("a quick answer passes through", async () => {

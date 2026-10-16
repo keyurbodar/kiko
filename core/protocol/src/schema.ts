@@ -16,6 +16,7 @@ export const KikoError = Schema.Struct({
 		"kernel_rejected",
 		"kernel_down",
 		"storage",
+		"model",
 	]),
 	message: Id,
 	action: Schema.optionalKey(Schema.Literals(["open_models", "open_integrations"])),
@@ -111,6 +112,8 @@ export const AgentStatus = Schema.Struct({
 	activity: Schema.optionalKey(Activity),
 })
 
+export const RunErrorKind = Schema.Literals(["no_key", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "refused", "too_long", "other"])
+
 export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("created"), roomId: RoomId, title: Schema.String }),
 	Schema.Struct({ kind: Schema.Literal("delegated"), from: AgentSlug, to: AgentSlug, title: Schema.String }),
@@ -123,6 +126,7 @@ export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("group_formed"), private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("member_added"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("member_removed"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
+	Schema.Struct({ kind: Schema.Literal("run_error"), slug: AgentSlug, reason: RunErrorKind, actions: Schema.Array(Schema.Literals(["retry", "change_model", "open_settings"])), private: Schema.Literal(true) }),
 ])
 
 const UnknownSystemEvent = Schema.Struct({ kind: Schema.String })
@@ -165,6 +169,8 @@ export const RunRef = Schema.Struct({ runId: Id, attempt: Count, index: Count })
 
 const stored = { seq: Count, at: Count }
 
+const ReplyPreview = Schema.Struct({ seq: Count, from: Actor, text: Schema.String, gone: Schema.optionalKey(Schema.Literal(true)) })
+
 export const Message = Schema.Struct({
 	id: MessageId,
 	...stored,
@@ -172,6 +178,7 @@ export const Message = Schema.Struct({
 	text: Schema.String,
 	rich: Schema.optionalKey(RichText),
 	replyTo: Schema.optionalKey(MessageId),
+	reply: Schema.optionalKey(ReplyPreview),
 	files: Schema.optionalKey(Schema.Array(FileRef)),
 	run: Schema.optionalKey(RunRef),
 	editedAt: Schema.optionalKey(Count),
@@ -275,7 +282,6 @@ export const RoomEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file_removed"), ids: Schema.Array(Id) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("folders"), folders: Schema.Array(Schema.String) }),
-	Schema.Struct({ ...stored, t: Schema.Literal("no_provider"), slug: AgentSlug, provider: Schema.String }),
 	Schema.Struct({ ...stored, t: Schema.Literal("ask"), ...HumanAsk.fields }),
 	Schema.Struct({ ...stored, t: Schema.Literal("ask_resolved"), id: Id, how: Schema.Literals(["answered", "skipped"]) }),
 ])
@@ -331,6 +337,7 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("history"), seq: Count, before: Count, after: Count }),
 	Schema.Struct({ t: Schema.Literal("answer"), id: Id, value: Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Array(Schema.String)]))]) }),
 	Schema.Struct({ t: Schema.Literal("skip"), id: Id }),
+	Schema.Struct({ t: Schema.Literal("retry"), messageId: MessageId }),
 ])
 
 export const RoomToClient = Schema.Union([
@@ -347,13 +354,6 @@ export const RoomToClient = Schema.Union([
 	}),
 	Schema.Struct({ t: Schema.Literal("send_refused"), clientId: Id, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("task_refused"), op: TaskOp, reason: Schema.String }),
-	Schema.Struct({
-		t: Schema.Literal("run_error"),
-		slug: AgentSlug,
-		kind: Schema.Literals(["no_key", "invalid_key", "rate_limit", "provider_down", "refused", "too_long", "other"]),
-		provider: Schema.optionalKey(Schema.String),
-		detail: Schema.optionalKey(Schema.String),
-	}),
 	Schema.Struct({ t: Schema.Literal("error"), error: KikoError }),
 	Schema.Struct({ t: Schema.Literal("files_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({
@@ -569,7 +569,7 @@ export const LoginErrorReason = Schema.Literals(["unsupported", "disabled", "unk
 
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent), version: Schema.optionalKey(Schema.String), protocol: Schema.optionalKey(Schema.Number), fileToken: Schema.optionalKey(Schema.String) }),
-	Schema.Struct({ t: Schema.Literal("error"), error: KikoError }),
+	Schema.Struct({ t: Schema.Literal("error"), error: KikoError, roomId: Schema.optionalKey(RoomId) }),
 	Schema.Struct({ t: Schema.Literal("home_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("chat_refused"), roomId: RoomId, existing: RoomId }),
 	Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),

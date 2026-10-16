@@ -42,10 +42,3 @@ const [providers, actions] = createRoot(() => {
 export const connectedProviders = (): ProviderInfo[] => providers() ?? []
 export const refreshConnected = () => actions.refetch()
 export const connectedReady = () => providers.state === "ready"
-
-/** True once the saved list has loaded and holds no provider that can run a model. */
-export const noModelKey = () => !providers.loading && !hasModelProvider(providers() ?? [])
-
-/** The composer hint shows when no model key is saved, or when the server said this chat's agent has no provider and that provider is still not saved. Saving the key clears it. */
-export const showNoKeyHint = (roomNoProvider?: { provider: string } | null) =>
-  noModelKey() || (!!roomNoProvider && !providers.loading && !connectedProviders().some((p) => p.provider === roomNoProvider.provider && !p.refused))

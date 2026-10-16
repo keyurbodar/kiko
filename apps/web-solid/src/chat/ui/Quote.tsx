@@ -1,19 +1,18 @@
 import { Show, type JSX } from "solid-js"
+import { Dynamic } from "solid-js/web"
 import { cn } from "../../lib/cn"
 import { EntryIcon } from "../../lib/EntryIcon"
-import type { ChatMessage } from "../../lib/types"
-import type { ReplySummary } from "../lib/reply"
+import type { QuoteModel } from "../lib/reply"
 
 export function Quote(props: {
-  parent: ChatMessage
-  label: string
-  summary: ReplySummary
+  quote: QuoteModel
   side?: "user" | "bot"
   /** The quoted author's colour in a group: it tints the name, the bar, and the background. */
   tint?: string
-  onOpenReplyTarget: (messageId: string) => void
+  onOpenReplyTarget: (messageId: string, seq?: number) => void
   class?: string
 }) {
+  const summary = () => props.quote.summary
   const tone = (): JSX.CSSProperties =>
     props.tint
       ? {
@@ -33,24 +32,28 @@ export function Quote(props: {
           "--quote-name": "var(--in-quote-name)",
         }
 
+  const Box = (): "div" | "button" => (props.quote.gone ? "div" : "button")
   return (
-    <button
-      type="button"
+    <Dynamic
+      component={Box()}
+      {...(props.quote.gone ? {} : { type: "button", "aria-label": `Go to the message from ${props.quote.label}` })}
       data-component="chat-quote"
+      data-gone={props.quote.gone ? "" : undefined}
       style={tone()}
       class={cn(
-        "relative flex w-full cursor-pointer flex-row items-center gap-2 overflow-hidden",
+        "relative flex w-full flex-row items-center gap-2 overflow-hidden",
+        props.quote.gone ? "cursor-default italic" : "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--quote-bar)]",
         "mb-1 py-[3px] ps-2.5 pe-2 text-start text-inherit text-sm leading-[1.35]",
         "rounded-[4px] bg-[var(--quote-bg)]",
         "before:absolute before:inset-y-0 before:start-0 before:w-[2px] before:bg-[var(--quote-bar)] before:content-['']",
         props.class,
       )}
-      onClick={() => props.onOpenReplyTarget(props.parent.id)}
+      onClick={() => !props.quote.gone && props.onOpenReplyTarget(props.quote.id, props.quote.seq)}
     >
       <Show
-        when={props.summary.thumb}
+        when={summary().thumb}
         fallback={
-          <Show when={props.summary.glyph}>
+          <Show when={summary().glyph}>
             {(name) => (
               <span class="chat-quote__thumb flex size-8 shrink-0 items-center justify-center rounded-full bg-[oklch(from_currentColor_l_c_h/15%)]">
                 <EntryIcon path={name()} />
@@ -71,12 +74,12 @@ export function Quote(props: {
       </Show>
       <span class="chat-quote__body flex min-w-0 flex-1 flex-col">
         <span class="chat-quote__label min-w-0 truncate font-semibold text-[var(--quote-name)]">
-          {props.label}
+          {props.quote.label}
         </span>
         <span class="chat-quote__text min-w-0 truncate opacity-75">
-          {props.summary.text}
+          {summary().text}
         </span>
       </span>
-    </button>
+    </Dynamic>
   )
 }

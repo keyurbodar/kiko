@@ -249,13 +249,17 @@
   display: flex;
   flex: 0 0 100%;
   align-items: center;
+  gap: 4px;
   order: -2;
   min-width: 0;
-  padding: 2px 2px 4px;
+  margin-bottom: 4px;
+  padding: 0 2px 0 0;
   overflow: hidden;
   font-size: var(--font-size-prompt);
-  line-height: 20px;
+  line-height: 18px;
   cursor: default;
+  background: color-mix(in oklab, var(--reply-bar-accent) 10%, transparent);
+  border-radius: 8px;
 }
 
 .composer-dock .reply-bar-jump {
@@ -264,43 +268,59 @@
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 6px;
-  padding: 0 0 0 12px;
+  gap: 8px;
+  padding: 4px 0 4px 14px;
   color: inherit;
   background: none;
   border: 0;
+  border-radius: 8px;
   font: inherit;
   text-align: start;
   cursor: pointer;
 }
 
+.composer-dock .reply-bar-jump:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
 .composer-dock .reply-bar-jump::before {
   position: absolute;
-  top: 1px;
-  bottom: 1px;
-  left: 2px;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
   width: 2px;
-  background: color-mix(in oklab, var(--foreground) 25%, transparent);
+  background: var(--reply-bar-accent);
   border-radius: 1px;
   content: "";
 }
 
+.composer-dock .reply-bar-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
 .composer-dock .reply-bar-role {
-  flex-shrink: 0;
-  color: var(--muted-foreground);
+  overflow: hidden;
+  color: var(--reply-bar-name);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .composer-dock .reply-bar-preview {
   min-width: 0;
   overflow: hidden;
-  color: var(--muted-foreground);
+  color: var(--reply-bar-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .composer-dock .reply-bar-thumb {
-  width: 20px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   border-radius: 4px;
   object-fit: cover;
@@ -313,8 +333,8 @@
 
 .composer-dock .reply-bar-dismiss {
   display: flex;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -359,6 +379,12 @@
   font-size: var(--font-size-prompt);
   line-height: 20px;
   color: var(--muted-foreground);
+}
+
+.composer-dock .no-key-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
 }
 
 .composer-dock .no-key-hint button {

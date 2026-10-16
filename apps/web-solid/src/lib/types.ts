@@ -97,6 +97,8 @@ export interface ChatMessage {
   reactions?: Reaction[];
   /** The message this one answers. Absent on a root message. */
   replyToId?: string;
+  /** What that message said when the room last read it, for the quote when it is not in the window. */
+  reply?: import("@kiko/protocol").ReplyPreview;
   /** The human's attachments, in the order they were added. */
   files?: MessageFile[]
   /** Shows the edited marker. The body is never rewritten, only flagged. */
@@ -159,6 +161,10 @@ export interface ComposerProps {
   onCancelEdit?: () => void;
   /** Up arrow in an empty composer: edit the human's last message, as in Telegram. */
   onEditLast?: () => void;
+  /** Why Send is off: no model to answer, or a provider that cannot. The words stay in the box. */
+  sendBlock?: import("../settings/send-block").SendBlock | null;
+  /** The agent the block is about, so Choose model opens the picker for it. */
+  sendBlockAgent?: string;
   /** The words of the reply target being answered, shown in the reply bar in place of its start. */
   replyQuote?: string;
   /** Scroll the transcript to the quoted message. */

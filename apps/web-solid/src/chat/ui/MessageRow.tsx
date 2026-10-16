@@ -3,7 +3,7 @@ import { unnamedFiles } from "../../lib/attachments"
 import { lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, RosterBot } from "../../lib/types"
-import { quoteSummary, replySummary } from "../lib/reply"
+import type { QuoteModel } from "../lib/reply"
 import { MessageAttachments } from "./Attachments"
 import type { DialogImage } from "./image-dialog"
 import { Quote } from "./Quote"
@@ -29,18 +29,12 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
   return "mid"
 }
 
-function quoteSender(message: ChatMessage, parentBot: RosterBot | undefined): string {
-  if (message.sender === "user") return "You"
-  return parentBot?.name ?? "Bot"
-}
-
 const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 export function MessageRow(props: {
   message: ChatMessage
   bot: RosterBot | undefined
-  parent: ChatMessage | undefined
-  parentBot?: RosterBot
+  quote: QuoteModel | null
 
   isRunStart: boolean
   isRunEnd: boolean
@@ -51,7 +45,7 @@ export function MessageRow(props: {
   highlighted?: boolean
   jumboClass?: "jumbo-single" | "jumbo-group"
   class?: string
-  onOpenReplyTarget: (messageId: string) => void
+  onOpenReplyTarget: (messageId: string, seq?: number) => void
   onContextMenu?: (event: MouseEvent) => void
   onReact?: (emoji: string) => void
   onReply?: () => void
@@ -100,13 +94,13 @@ export function MessageRow(props: {
         }
       >
         <BubbleContent
-          measureLines={!hasFiles() && !props.parent && !props.jumboClass}
+          measureLines={!hasFiles() && !props.quote && !props.jumboClass}
           class={cn(
             "relative",
             "after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:content-['']",
             "after:rounded-[inherit] after:opacity-0",
             own() ? "after:bg-message-user-foreground" : "after:bg-ring",
-            props.highlighted && "after:opacity-[0.22]",
+            props.highlighted ? "after:opacity-[0.22]" : props.replying && "after:opacity-[0.1]",
           )}
         >
           <Show when={grouped() && props.isRunStart && !props.jumboClass}>
@@ -118,13 +112,11 @@ export function MessageRow(props: {
               {senderName()}
             </div>
           </Show>
-          <Show when={props.parent}>
-            {(parent) => (
+          <Show when={props.quote}>
+            {(quote) => (
               <Quote
-                parent={parent()}
-                label={quoteSender(parent(), props.parentBot)}
-                tint={props.group && parent().botId !== undefined ? identityLook(parent().botId!).color : undefined}
-                summary={props.message.quote ? quoteSummary(props.message.quote) : replySummary(parent())}
+                quote={quote()}
+                tint={props.group && quote().botId !== undefined ? identityLook(quote().botId!).color : undefined}
                 side={props.message.sender}
                 onOpenReplyTarget={props.onOpenReplyTarget}
               />
