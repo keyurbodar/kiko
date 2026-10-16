@@ -33,7 +33,7 @@ export type SystemEvent =
 	| { kind: "routine"; title: string }
 	| { kind: "agent_message"; from: AgentSlug; to: AgentSlug }
 	| { kind: "activity"; count: number }
-	| { kind: "routine_created"; agent: AgentSlug; title: string; private: true }
+	| { kind: "routine_created"; agent: AgentSlug; title: string; byAgent?: true; private: true }
 	| { kind: "model_changed"; agent: AgentSlug; model: string; private: true }
 	| { kind: "compacted"; agent: AgentSlug; private: true }
 	| { kind: "group_formed"; private: true }

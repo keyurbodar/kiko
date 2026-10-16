@@ -102,7 +102,7 @@ export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("routine"), title: Schema.String }),
 	Schema.Struct({ kind: Schema.Literal("agent_message"), from: AgentSlug, to: AgentSlug }),
 	Schema.Struct({ kind: Schema.Literal("activity"), count: Count }),
-	Schema.Struct({ kind: Schema.Literal("routine_created"), agent: AgentSlug, title: Schema.String, private: Schema.Literal(true) }),
+	Schema.Struct({ kind: Schema.Literal("routine_created"), agent: AgentSlug, title: Schema.String, byAgent: Schema.optionalKey(Schema.Literal(true)), private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("model_changed"), agent: AgentSlug, model: Schema.String, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("compacted"), agent: AgentSlug, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("group_formed"), private: Schema.Literal(true) }),

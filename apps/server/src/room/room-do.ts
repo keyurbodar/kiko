@@ -739,8 +739,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (stored) this.publish([stored])
 	}
 
-	async routineCreated(slug: AgentSlug, routineId: string, title: string): Promise<void> {
-		this.divider(`routine-created:${routineId}`, `${this.members.get(slug)?.name ?? slug} created a routine: ${title}`, { kind: "routine_created", agent: slug, title, private: true })
+	async routineCreated(slug: AgentSlug, routineId: string, title: string, byAgent = false): Promise<void> {
+		const text = byAgent ? `${this.members.get(slug)?.name ?? slug} created a routine: ${title}` : `Routine added: ${title}`
+		this.divider(`routine-created:${routineId}`, text, { kind: "routine_created", agent: slug, title, ...(byAgent ? { byAgent: true as const } : {}), private: true })
 	}
 
 	async compacted(slug: AgentSlug, key: string): Promise<void> {

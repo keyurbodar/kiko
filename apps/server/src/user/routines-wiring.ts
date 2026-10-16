@@ -37,9 +37,17 @@ export class RoutineWiring {
         throw e
       }
       const { routine } = out
-      await roomStub(this.d.env.ROOM, owner, routine.roomId).routineCreated(routine.target as AgentSlug, routine.id, routine.name ?? input.name).catch(() => {})
+      await this.postDivider(owner, routine)
       return out
     })
+  }
+
+  private async postDivider(owner: string, routine: Reminder): Promise<void> {
+    const byAgent = routine.createdBy !== "human"
+    const slug = (byAgent ? routine.createdBy : routine.target) as AgentSlug
+    try {
+      await roomStub(this.d.env.ROOM, owner, routine.roomId).routineCreated(slug, routine.id, routine.name ?? routine.text, byAgent)
+    } catch {}
   }
 
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> {

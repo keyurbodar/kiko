@@ -9,7 +9,7 @@ export function eventText(message: ChatMessage, name: (slug: string) => string):
     case "created":
       return `${e.title} is ready`
     case "routine_created":
-      return `${name(e.agent)} created a routine: ${e.title}`
+      return e.byAgent ? `${name(e.agent)} created a routine: ${e.title}` : `Routine added: ${e.title}`
     case "model_changed":
       return `${name(e.agent)} now uses ${e.model}`
     case "compacted":

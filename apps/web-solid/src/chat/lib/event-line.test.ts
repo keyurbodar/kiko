@@ -7,7 +7,8 @@ const line = (event: unknown, extra: Partial<ChatMessage> = {}) =>
 
 describe("the text of a divider", () => {
   test.each([
-    [{ kind: "routine_created", agent: "kiko", title: "Morning summary", private: true }, "KIKO created a routine: Morning summary"],
+    [{ kind: "routine_created", agent: "kiko", title: "Morning summary", byAgent: true, private: true }, "KIKO created a routine: Morning summary"],
+    [{ kind: "routine_created", agent: "kiko", title: "Morning summary", private: true }, "Routine added: Morning summary"],
     [{ kind: "model_changed", agent: "ada", model: "Claude Opus 4.6", private: true }, "ADA now uses Claude Opus 4.6"],
     [{ kind: "compacted", agent: "ada", private: true }, "ADA compacted its context"],
     [{ kind: "group_formed", private: true }, "Group formed"],
