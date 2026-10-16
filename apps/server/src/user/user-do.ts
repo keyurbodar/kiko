@@ -55,6 +55,7 @@ import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
 import { AWAY_MS, LAST_SEEN } from "./keys"
 import { UpdateWiring } from "./update-wiring"
+import { ANNOUNCE_WAKEUP, Announcements, COMPOSIO_CHANGE, KERNEL_CHANGE, providerChange, updateChange } from "./announce"
 
 const REPLAY_LIMIT = 500
 
@@ -474,12 +475,14 @@ export class UserDO extends DurableObject<Env> {
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
     const info = await this.#credentials.connect(provider, apiKey)
     await this.#mem.keyChanged(provider)
+    await this.#announce.note(providerChange(provider, apiKey)).catch(() => {})
     return this.#mem.describe(info)
   }
 
   async disconnectProvider(provider: string): Promise<boolean> {
     const removed = await this.#credentials.disconnect(provider)
     await this.#mem.keyChanged(provider)
+    await this.#announce.note(providerChange(provider, null)).catch(() => {})
     return removed
   }
 
@@ -620,6 +623,7 @@ export class UserDO extends DurableObject<Env> {
     }
     send(ws, { t: "composio", reqId: frame.reqId, result })
     if (result.ok && frame.t !== "composioStatus") {
+      await this.#announce.note({ ...COMPOSIO_CHANGE, secret: frame.t === "connectComposio" ? frame.apiKey : null }).catch(() => {})
       const { tools: _, ...others } = result
       const text = JSON.stringify({ t: "composio", result: others } satisfies UserToClient)
       for (const other of this.ctx.getWebSockets()) {
@@ -729,6 +733,23 @@ export class UserDO extends DurableObject<Env> {
     return this.#logins
   }
 
+  #announcements?: Announcements
+  get #announce(): Announcements {
+    this.#announcements ??= new Announcements({
+      sql: this.sql,
+      alarms: this.alarms,
+      now: Date.now,
+      send: async (id, body) => {
+        const roomId = kikoChatRoom(this.sql)
+        if (roomId) {
+          const owner = userIdFromObjectName(this.ctx.id.name)
+          await roomStub(this.env.ROOM, owner, roomId).announce(owner, id, body)
+        }
+      },
+    })
+    return this.#announcements
+  }
+
   #updateWiring?: UpdateWiring
   get #update(): UpdateWiring {
     this.#updateWiring ??= new UpdateWiring({
@@ -736,6 +757,7 @@ export class UserDO extends DurableObject<Env> {
       sql: this.sql,
       userId: () => userIdFromObjectName(this.ctx.id.name),
       broadcast: (frame) => this.broadcast(frame),
+      landed: (version) => this.#announce.note(updateChange(version)),
     })
     return this.#updateWiring
   }
@@ -773,7 +795,8 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "connectKernel" || frame.t === "disconnectKernel" || frame.t === "kernelStatus") {
-      await this.#kr.kernelFrame(ws, frame)
+      const result = await this.#kr.kernelFrame(ws, frame)
+      if (result.ok && frame.t !== "kernelStatus") await this.#announce.note({ ...KERNEL_CHANGE, secret: frame.t === "connectKernel" ? frame.apiKey : null }).catch(() => {})
       return
     }
     if (frame.t === "memory") {
@@ -836,6 +859,7 @@ export class UserDO extends DurableObject<Env> {
       [LOOPS_WAKEUP]: () => this.#il.now().finally(() => this.changed("loops")),
       [INITIATIVE_WAKEUP]: () => this.#il.engine.pass().finally(() => this.changed("loops")),
       [REAP_WAKEUP]: () => this.#kr.reap(),
+      [ANNOUNCE_WAKEUP]: () => this.#announce.flush(),
     })
   }
 

@@ -15,7 +15,7 @@ export const MessageId = opaque<P.MessageId>()
 export const AgentSlug = Schema.String.pipe(Schema.refine(isAgentSlug))
 
 
-export const SystemReason = Schema.Literals(["task_updated", "task_unblocked", "reminder", "run_budget", "limit", "files", "created", "routine", "stalled", "initiative", "divider"])
+export const SystemReason = Schema.Literals(["task_updated", "task_unblocked", "reminder", "run_budget", "limit", "files", "created", "routine", "stalled", "initiative", "divider", "system"])
 
 const Human = Schema.Struct({ kind: Schema.Literal("human") })
 const AgentRef = Schema.Struct({ kind: Schema.Literal("agent"), slug: AgentSlug })
