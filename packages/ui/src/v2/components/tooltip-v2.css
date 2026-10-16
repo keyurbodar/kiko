@@ -8,6 +8,7 @@
 
 [data-component="tooltip-v2"] {
   z-index: 1000;
+  max-width: var(--kb-popper-content-available-width);
   box-sizing: border-box;
   display: inline-flex;
   flex-direction: row;

@@ -84,9 +84,7 @@ export function Page(props: { title: string; description?: string; children: JSX
     <div class="flex flex-col" data-component="settings-page">
       <header class="pb-5">
         <h1 class="text-lg font-semibold leading-tight text-foreground">{props.title}</h1>
-        <Show when={props.description}>
-          <p class={cn("mt-1 max-w-xl text-md leading-relaxed", muted)}>{props.description}</p>
-        </Show>
+        <Show when={props.description}>{(description) => <p class={cn("mt-1 max-w-xl text-md leading-relaxed", muted)}>{description()}</p>}</Show>
       </header>
       {props.children}
     </div>
@@ -100,16 +98,10 @@ export function Group(props: { title?: JSX.Element; description?: JSX.Element; a
       <Show when={local.title || local.action}>
         <div class="flex items-end gap-4 px-1 pb-2">
           <div class="min-w-0 flex-1">
-            <Show when={local.title}>
-              <h2 class="text-sm font-medium text-muted-foreground">{local.title}</h2>
-            </Show>
-            <Show when={local.description}>
-              <div class={cn("mt-0.5 text-sm leading-relaxed", muted)}>{local.description}</div>
-            </Show>
+            <Show when={local.title}>{(title) => <h2 class="text-sm font-medium text-muted-foreground">{title()}</h2>}</Show>
+            <Show when={local.description}>{(description) => <div class={cn("mt-0.5 text-sm leading-relaxed", muted)}>{description()}</div>}</Show>
           </div>
-          <Show when={local.action}>
-            <div class="flex shrink-0 items-center gap-2 pb-0.5">{local.action}</div>
-          </Show>
+          <Show when={local.action}>{(action) => <div class="flex shrink-0 items-center gap-2 pb-0.5">{action()}</div>}</Show>
         </div>
       </Show>
       <Show when={!local.bare} fallback={local.children}>
@@ -146,17 +138,13 @@ export function Row(props: { label: JSX.Element; description?: JSX.Element; id?:
             </button>
           </Show>
         </div>
-        <Show when={local.description}>
-          <div class={cn("mt-0.5 max-w-xl text-sm leading-normal", muted)}>{local.description}</div>
-        </Show>
+        <Show when={local.description}>{(description) => <div class={cn("mt-0.5 max-w-xl text-sm leading-normal", muted)}>{description()}</div>}</Show>
       </div>
       <Show when={local.children}>
-        <div class="settings-row-control flex min-w-0 max-w-[60%] shrink-0 flex-wrap items-center justify-end gap-2">{local.children}</div>
+        {(control) => <div class="settings-row-control flex min-w-0 max-w-[60%] shrink-0 flex-wrap items-center justify-end gap-2">{control()}</div>}
       </Show>
     </div>
-    <Show when={local.details}>
-      <div class="pb-3.5">{local.details}</div>
-    </Show>
+    <Show when={local.details}>{(details) => <div class="pb-3.5">{details()}</div>}</Show>
     </div>
   )
 }
@@ -178,9 +166,7 @@ export function Item(props: {
       {...rest}
     >
       <Show when={local.icon}>
-        <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-control text-muted-foreground">
-          {local.icon}
-        </span>
+        {(icon) => <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-control text-muted-foreground">{icon()}</span>}
       </Show>
       <div class="flex min-h-7 min-w-0 flex-col justify-center">
         <div class="flex items-center gap-1.5 truncate text-md font-medium text-foreground">
@@ -189,14 +175,10 @@ export function Item(props: {
             <span class="size-1.5 shrink-0 rounded-full bg-[var(--error)]" aria-hidden="true" />
           </Show>
         </div>
-        <Show when={local.meta}>
-          <div class={cn("text-sm leading-snug", muted)}>{local.meta}</div>
-        </Show>
+        <Show when={local.meta}>{(meta) => <div class={cn("text-sm leading-snug", muted)}>{meta()}</div>}</Show>
       </div>
       <div class="flex shrink-0 items-center gap-1.5">{local.actions}</div>
-      <Show when={local.children}>
-        <div class={cn("col-span-2 min-w-0 pt-3 pb-1", local.icon && "col-start-2")}>{local.children}</div>
-      </Show>
+      <Show when={local.children}>{(body) => <div class={cn("col-span-2 min-w-0 pt-3 pb-1", local.icon && "col-start-2")}>{body()}</div>}</Show>
     </div>
   )
 }

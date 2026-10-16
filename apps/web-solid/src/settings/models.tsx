@@ -13,6 +13,8 @@ import { hiddenModels, setHidden } from "./model-prefs"
 import { cn } from "../lib/cn"
 import { AgentModels } from "./agent-models"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
+import { TabsV2 as Tabs } from "@kiko/ui/v2/tabs-v2"
+import { modelsTab, setModelsTab, type ModelsTab } from "./models-tab"
 
 const METHOD_LABEL: Record<ConnectMethod, string> = {
   api_key: "API key",
@@ -87,7 +89,6 @@ export function ModelsPage() {
 
   return (
     <div class="flex flex-col gap-6" data-component="models-page">
-      <AgentModels />
       <Show when={cheer()}>
         <p class="rounded-md bg-ring-wash px-3 py-2 text-md text-foreground" data-component="first-provider-cheer" role="status">
           Connected. Your agents can reply now.
@@ -97,6 +98,15 @@ export function ModelsPage() {
         <Notice data-component="catalog-error">The model catalog did not load. Reload to try again.</Notice>
       </Show>
 
+      <Tabs value={modelsTab()} onChange={(tab) => setModelsTab(tab as ModelsTab)} class="flex flex-col gap-5" data-component="models-tabs">
+        <Tabs.List class="kit-tabs" aria-label="Models">
+          <Tabs.Trigger value="agents" class="kit-tab" data-tab="agents">Agents</Tabs.Trigger>
+          <Tabs.Trigger value="providers" class="kit-tab" data-tab="providers">Providers</Tabs.Trigger>
+        </Tabs.List>
+        <Show when={modelsTab() === "agents"}>
+          <AgentModels />
+        </Show>
+        <Show when={modelsTab() === "providers"}>
       <Show
         when={connected().length}
         fallback={
@@ -232,6 +242,8 @@ export function ModelsPage() {
           </section>
         </div>
       </Show>
+        </Show>
+      </Tabs>
 
       <AddProviderDialog
         open={browsing()}

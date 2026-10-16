@@ -2,6 +2,7 @@ import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
 import { For, Show, createSignal, createUniqueId, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
 import { selectClass } from "./kit"
+import { placePanel } from "../lib/place-panel"
 
 export type SelectOption<T> = {
   value: T
@@ -26,11 +27,10 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
 
   const show = () => {
     const r = trigger!.getBoundingClientRect()
-    const below = window.innerHeight - r.bottom - 8 >= PANEL_H
+    const width = Math.max(r.width, props.width ?? 0)
     setPlace({
-      right: `${Math.max(8, window.innerWidth - r.right)}px`,
-      "min-width": `${Math.max(r.width, props.width ?? 0)}px`,
-      ...(below ? { top: `${r.bottom + 4}px` } : { bottom: `${window.innerHeight - r.top + 4}px` }),
+      ...placePanel(r, width, PANEL_H, { width: window.innerWidth, height: window.innerHeight }, "below", "end"),
+      "min-width": `${width}px`,
     })
     setActive(chosenIndex())
     setOpen(true)
@@ -119,7 +119,7 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="bg-popover fixed z-50 flex max-h-[320px] max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-xl p-1 shadow-popover"
+            class="bg-popover fixed z-50 flex max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-xl p-1 shadow-popover"
             style={place()}
             onKeyDown={onPanelKey}
           >
