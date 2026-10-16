@@ -107,3 +107,7 @@
 	margin: 4px 6px;
 	background: var(--border);
 }
+
+.kt-host[data-pointer] {
+	--trees-focus-ring-color-override: transparent;
+}

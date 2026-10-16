@@ -1,13 +1,14 @@
 import type { FileRef } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { FileTree as Pierre, type ContextMenuItem as FileTreeContextMenuItem, type ContextMenuOpenContext as FileTreeContextMenuOpenContext } from "@pierre/trees"
+import { FILE_TREE_TAG_NAME, FileTree as Pierre, type ContextMenuItem as FileTreeContextMenuItem, type ContextMenuOpenContext as FileTreeContextMenuOpenContext } from "@pierre/trees"
 import { ChevronsDownUp, ChevronsUpDown, FilePlus, FolderPlus } from "lucide-solid"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { KIKO_FILE_ICONS } from "../lib/entry-icon-pierre"
 import { setFileDrag } from "../lib/file-drag"
 import "./tree.css"
-import { dirname, HOME, join, loadExpanded, pathsUnder, ROOT, saveExpanded } from "./model"
+import { createParent, dirname, HOME, join, loadExpanded, pathsUnder, ROOT, saveExpanded } from "./model"
+import { syncTree } from "./tree-sync"
 
 export type FileTreeProps = {
 	roomId: string
@@ -48,6 +49,8 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 	let host!: HTMLDivElement
 	let tree: Pierre | undefined
 	let syncing = false
+	let touched: string | null = null
+	const watchers = new Map<string, () => void>()
 	const pending = new Map<string, "file" | "folder">()
 	const [query, setQuery] = createSignal("")
 
@@ -56,12 +59,11 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 	const wanted = createMemo(() => [...filePaths(), ...folderPaths().map(asFolder)])
 	let held = new Set<string>()
 
-	const selectedPath = () => tree?.getSelectedPaths().at(-1) ?? null
-
+	// The row the user last clicked or focused. The tree itself focuses its first row before any touch, and it
+	// does not keep a folder selected, so neither says where the user is working.
 	const parentForNew = () => {
-		const path = selectedPath()
-		if (!path) return ROOT
-		return path.endsWith("/") ? plain(path) : dirname(path)
+		const path = touched && tree?.getItem(touched) ? touched : tree?.getSelectedPaths().at(-1)
+		return createParent(path)
 	}
 
 	const freshName = (parent: string, kind: "file" | "folder") => {
@@ -72,9 +74,74 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		}
 	}
 
-	const startNew = (kind: "file" | "folder") => {
+	// Pierre only reports a rename that changes the name, so a row committed as typed is found by its input leaving.
+	const watchNew = (id: string, kind: "file" | "folder") => {
+		const root = host.querySelector(FILE_TREE_TAG_NAME)?.shadowRoot
+		if (!root) return
+		const input = () => root.querySelector("[data-item-rename-input]")
+		let seen = false
+		let escaped = false
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape") escaped = true
+		}
+		host.addEventListener("keydown", onKey, true)
+		const stop = () => {
+			watch.disconnect()
+			host.removeEventListener("keydown", onKey, true)
+			watchers.delete(id)
+		}
+		const watch = new MutationObserver(() => {
+			if (input()) return void (seen = true)
+			if (!seen) return
+			stop()
+			if (!pending.delete(id)) return
+			if (!tree?.getItem(id)) {
+				if (!escaped) showToastV2({ title: "A name can't be empty", variant: "error" })
+				return
+			}
+			created(id, kind)
+		})
+		watch.observe(root, { childList: true, subtree: true })
+		watchers.set(id, stop)
+	}
+
+	const created = (id: string, kind: "file" | "folder") => {
+		touched = id
+		if (kind === "folder") props.onNewFolder?.(plain(id))
+		else props.onNewFile?.(plain(id))
+	}
+
+	// Renaming selects the row. A selection is an open, and renaming a file must not open it.
+	const quietly = <T,>(run: () => T): T => {
+		syncing = true
+		try {
+			return run()
+		} finally {
+			syncing = false
+		}
+	}
+
+	const beginNew = (id: string, kind: "file" | "folder") => {
+		if (!quietly(() => tree?.startRenaming(id, { removeIfCanceled: true }))) return false
+		watchNew(id, kind)
+		return true
+	}
+
+	// The tree ends the rename on a refused name and leaves the row. A new row asks again, so it is neither lost nor saved as it stands.
+	const refused = (error: string) => {
+		showToastV2({ title: error, variant: "error" })
+		for (const [id, kind] of pending) {
+			if (!tree?.getItem(id)) continue
+			watchers.get(id)?.()
+			queueMicrotask(() => {
+				if (!beginNew(id, kind)) return
+				requestAnimationFrame(() => host.querySelector(FILE_TREE_TAG_NAME)?.shadowRoot?.querySelector<HTMLInputElement>("[data-item-rename-input]")?.select())
+			})
+		}
+	}
+
+	const startNew = (kind: "file" | "folder", parent = parentForNew()) => {
 		if (!tree) return
-		const parent = parentForNew()
 		if (parent !== ROOT) {
 			const dir = tree.getItem(asFolder(parent))
 			if (dir?.isDirectory() && "expand" in dir) dir.expand()
@@ -83,7 +150,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		const id = kind === "folder" ? asFolder(path) : path
 		pending.set(id, kind)
 		tree.add(id)
-		if (!tree.startRenaming(id, { removeIfCanceled: true })) pending.delete(id)
+		if (!beginNew(id, kind)) pending.delete(id)
 	}
 
 	const remove = (path: string) => {
@@ -117,18 +184,12 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		}
 		const isHome = plain(item.path) === HOME
 		if (item.kind === "directory") {
-			add("New file", () => {
-				tree?.getItem(item.path)?.select()
-				startNew("file")
-			})
-			add("New folder", () => {
-				tree?.getItem(item.path)?.select()
-				startNew("folder")
-			})
+			add("New file", () => startNew("file", createParent(item.path)))
+			add("New folder", () => startNew("folder", createParent(item.path)))
 			if (!isHome) sep()
 		}
 		if (!isHome) {
-			add("Rename", () => void tree?.startRenaming(item.path))
+			add("Rename", () => void quietly(() => tree?.startRenaming(item.path)))
 			add("Delete", () => remove(item.path))
 		}
 		return root
@@ -149,21 +210,21 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			dragAndDrop: { canDrag: () => false, canDrop: () => false },
 			renaming: {
 				canRename: (item) => plain(item.path) !== HOME,
-				onError: (error) => showToastV2({ title: error, variant: "error" }),
-				onRename: (event) => {
-					const from = plain(event.sourcePath)
-					const to = plain(event.destinationPath)
-					const key = pending.has(event.sourcePath) ? event.sourcePath : asFolder(from)
-					const kind = pending.get(key)
-					if (kind) {
-						pending.delete(key)
-						if (kind === "folder") props.onNewFolder?.(to)
-						else props.onNewFile?.(to)
-						return
-					}
-					if (from === to) return
-					props.onRename?.(from, to, pathsUnder(filePaths(), from))
-				},
+				onError: refused,
+				// The tree moves the row after this returns. A change the room echoes first would find the old path.
+				onRename: (event) =>
+					queueMicrotask(() => {
+						const from = plain(event.sourcePath)
+						const to = plain(event.destinationPath)
+						const key = pending.has(event.sourcePath) ? event.sourcePath : asFolder(from)
+						const kind = pending.get(key)
+						if (kind) {
+							pending.delete(key)
+							created(kind === "folder" ? asFolder(to) : to, kind)
+							return
+						}
+						props.onRename?.(from, to, pathsUnder(filePaths(), from))
+					}),
 			},
 			composition: { contextMenu: { triggerMode: "right-click", render: menu } },
 			onSelectionChange: (selected) => {
@@ -185,14 +246,24 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		instance.render({ containerWrapper: host })
 		// A file row drags to the composer under Kiko's own type. The listener runs first and keeps the drag from the tree's own
 		// drag session, which would select the row (opening the file under the pointer) and refuses to start while a search is on.
+		const rowPath = (event: Event) => event.composedPath().find((node): node is HTMLElement => node instanceof HTMLElement && node.dataset.itemPath !== undefined)?.dataset.itemPath
 		const dragFile = (event: DragEvent) => {
 			event.stopPropagation()
-			const row = event.composedPath().find((node): node is HTMLElement => node instanceof HTMLElement && node.dataset.itemPath !== undefined)
-			const path = row?.dataset.itemPath
+			const path = rowPath(event)
 			if (!path || path.endsWith("/") || !filePaths().includes(path) || !event.dataTransfer) return event.preventDefault()
 			setFileDrag(event.dataTransfer, path)
 		}
 		host.addEventListener("dragstart", dragFile, true)
+		const touch = (event: Event) => {
+			touched = rowPath(event) ?? touched
+		}
+		// The tree rings its focused row. A click must not show it, and the next key brings it back.
+		const pointer = () => host.setAttribute("data-pointer", "")
+		const keyboard = () => host.removeAttribute("data-pointer")
+		host.addEventListener("click", touch)
+		host.addEventListener("focusin", touch)
+		host.addEventListener("pointerdown", pointer, true)
+		host.addEventListener("keydown", keyboard, true)
 
 		let timer: ReturnType<typeof setTimeout> | undefined
 		const stop = instance.subscribe(() => {
@@ -208,7 +279,12 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		})
 		onCleanup(() => {
 			host.removeEventListener("dragstart", dragFile, true)
+			host.removeEventListener("click", touch)
+			host.removeEventListener("focusin", touch)
+			host.removeEventListener("pointerdown", pointer, true)
+			host.removeEventListener("keydown", keyboard, true)
 			stop()
+			for (const stop of [...watchers.values()]) stop()
 			clearTimeout(timer)
 			instance.unmount()
 			tree = undefined
@@ -223,13 +299,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 
 	createEffect(
 		on(wanted, (next) => {
-			if (!tree) return
-			const target = new Set(next)
-			const ops: Parameters<Pierre["batch"]>[0][number][] = []
-			for (const path of target) if (!held.has(path)) ops.push({ type: "add", path })
-			for (const path of held) if (!target.has(path) && !pending.has(path)) ops.push({ type: "remove", path, recursive: true })
-			held = target
-			if (ops.length) tree.batch(ops)
+			if (tree) held = syncTree(tree, held, new Set(next), pending)
 		}),
 	)
 
