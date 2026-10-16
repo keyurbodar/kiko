@@ -134,8 +134,6 @@ export interface OutgoingMessage {
 
 export interface ComposerProps {
   room?: import("../sync/room-store").RoomStore
-  stopping?: boolean
-  onStop?: () => void
   tray?: JSX.Element
   /** Conversation a sent message lands in. */
   threadId: string;

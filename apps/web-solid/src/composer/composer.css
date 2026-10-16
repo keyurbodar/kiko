@@ -17,7 +17,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 10px 10px 16px;
+  padding: 10px 10px 8px 16px;
   background: var(--composer-fill);
   border: 1px solid var(--composer-edge);
   border-radius: 22px;
@@ -34,8 +34,6 @@
 
 .composer-dock .composer-main {
   display: flex;
-  align-items: flex-end;
-  gap: 6px;
   min-width: 0;
   cursor: text;
 }
@@ -93,6 +91,14 @@
   .composer-dock .composer-placeholder {
     font-size: 16px;
   }
+}
+
+.composer-dock .composer-footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .composer-dock .composer-actions {
@@ -153,9 +159,10 @@
 
 .composer-dock .composer-tray {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 4px;
-  margin: 0 0 -2px -8px;
+  margin-left: -6px;
 }
 
 .composer-dock .composer-attachments {
@@ -339,10 +346,6 @@
   white-space: nowrap;
 }
 
-
-.composer-dock .composer-tray:empty {
-  display: none;
-}
 
 .composer-dock .composer-box > .no-key-hint {
   display: flex;

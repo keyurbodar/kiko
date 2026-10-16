@@ -139,7 +139,6 @@ export const dict: Record<string, string> = {
   "ui.promptInput.chooseVariant": "Choose model variant",
   "ui.promptInput.send": "Send",
   "ui.promptInput.preparing": "Preparing attachments",
-  "ui.promptInput.stop": "Stop",
 
   "ui.tabs.close": "Close tab",
 

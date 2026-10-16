@@ -1,7 +1,8 @@
-import { createMemo, createSignal, getOwner, lazy, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
+import { createMemo, createSignal, For, getOwner, lazy, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
-import { ArrowUpIcon, CornerDownLeftIcon, PaperclipIcon, SquareIcon } from "lucide-solid"
+import { ArrowUpIcon, AtSignIcon, CornerDownLeftIcon, PaperclipIcon } from "lucide-solid"
 import { useI18n } from "@kiko/ui/context/i18n"
+import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import type { PromptInputV2Interaction } from "./interaction"
 import { createComposerEmoji, createShortcodes } from "../emoji"
@@ -9,6 +10,7 @@ import type { RichBinding } from "../rich/bind"
 import { setRichLoaded } from "../rich/loaded"
 import { mountLite, type LiteField } from "../rich/lite"
 import { isImage } from "../../lib/attachments"
+import { IdentityAvatar } from "../../lib/IdentityAvatar"
 
 export type {
   PromptInputV2Attachment,
@@ -163,36 +165,54 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 <div class="composer-placeholder">{view.placeholder?.() ?? i18n.t("ui.promptInput.label")}</div>
               </Show>
             </div>
+          </div>
+          <div class="composer-footer">
+            <div class="composer-tray">
+              <Show when={!props.answering && !props.readOnly && props.controller.agents().length > 0}>
+                <MenuV2 gutter={6} placement="top-start">
+                  <MenuV2.Trigger class="composer-icon" aria-label="Mention an agent" title="Mention an agent" data-action="composer-mention">
+                    <AtSignIcon class="size-4" />
+                  </MenuV2.Trigger>
+                  <MenuV2.Portal>
+                    <MenuV2.Content class="z-[80] min-w-44" data-component="mention-menu">
+                      <For each={props.controller.agents()}>
+                        {(item) => (
+                          <MenuV2.Item onSelect={() => props.controller.mention(item)} data-agent={item.mention?.type === "agent" ? item.mention.name : undefined}>
+                            <IdentityAvatar seed={item.mention?.type === "agent" ? item.mention.name : item.id} size={18} />
+                            <span class="truncate">{item.title ?? item.label}</span>
+                          </MenuV2.Item>
+                        )}
+                      </For>
+                    </MenuV2.Content>
+                  </MenuV2.Portal>
+                </MenuV2>
+              </Show>
+              {props.tray}
+            </div>
             <div class="composer-actions">
               <Show when={!props.readOnly}>{emoji.trigger}</Show>
               <Show when={!props.answering}>
-              <TooltipV2 placement="top" openDelay={400} value={i18n.t("ui.promptInput.add")}>
-                <button
-                  type="button"
-                  class="composer-icon"
-                  data-hint="chat.attach"
-                  aria-label={i18n.t("ui.promptInput.add")}
-                  onClick={() => props.controller.attach()}
-                >
-                  <PaperclipIcon class="size-4" />
-                </button>
-              </TooltipV2>
-              </Show>
-              <Show when={!props.answering}>
-              <PromptInputV2SubmitButton
-                mode={state.mode}
-                stopping={view.submit.stopping()}
-                disabled={!props.controller.canSubmit()}
-                blocked={view.submit.blocked?.() ?? null}
-                sendLabel={i18n.t(view.submit.preparing?.() ? "ui.promptInput.preparing" : "ui.promptInput.send")}
-                stopLabel={i18n.t("ui.promptInput.stop")}
-                onSubmit={props.controller.submit}
-                onStop={props.controller.stop}
-              />
+                <TooltipV2 placement="top" openDelay={400} value={i18n.t("ui.promptInput.add")}>
+                  <button
+                    type="button"
+                    class="composer-icon"
+                    data-hint="chat.attach"
+                    aria-label={i18n.t("ui.promptInput.add")}
+                    onClick={() => props.controller.attach()}
+                  >
+                    <PaperclipIcon class="size-4" />
+                  </button>
+                </TooltipV2>
+                <PromptInputV2SubmitButton
+                  mode={state.mode}
+                  disabled={!props.controller.canSubmit()}
+                  blocked={view.submit.blocked?.() ?? null}
+                  sendLabel={i18n.t(view.submit.preparing?.() ? "ui.promptInput.preparing" : "ui.promptInput.send")}
+                  onSubmit={props.controller.submit}
+                />
               </Show>
             </div>
           </div>
-          <div class="composer-tray">{props.tray}</div>
         </div>
       </form>
     </div>
@@ -201,25 +221,18 @@ export function PromptInputV2(props: PromptInputV2Props) {
 
 export function PromptInputV2SubmitButton(props: {
   mode: PromptInputV2Mode
-  stopping: boolean
   disabled: boolean
   blocked?: string | null
   sendLabel: string
-  stopLabel: string
   onSubmit: () => void
-  onStop: () => void
 }) {
-  const label = () => (props.stopping ? props.stopLabel : (props.blocked ?? props.sendLabel))
+  const label = () => props.blocked ?? props.sendLabel
   return (
-    <TooltipV2
-      placement="top"
-      inactive={!props.stopping && props.disabled && !props.blocked}
-      value={label()}
-    >
+    <TooltipV2 placement="top" inactive={props.disabled && !props.blocked} value={label()}>
       <button
         data-action="prompt-submit"
         type="button"
-        disabled={!props.stopping && props.disabled}
+        disabled={props.disabled}
         tabIndex={props.mode === "normal" ? undefined : -1}
         class="composer-send"
         aria-label={label()}
@@ -227,16 +240,10 @@ export function PromptInputV2SubmitButton(props: {
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
-          if (props.stopping) {
-            props.onStop()
-            return
-          }
           props.onSubmit()
         }}
       >
-        {props.stopping ? (
-          <SquareIcon class="size-3 fill-current" aria-hidden="true" />
-        ) : props.mode === "shell" ? (
+        {props.mode === "shell" ? (
           <CornerDownLeftIcon class="size-4" aria-hidden="true" />
         ) : (
           <ArrowUpIcon class="size-4" aria-hidden="true" />
