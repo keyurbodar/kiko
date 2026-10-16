@@ -53,7 +53,7 @@ export const [working, setWorking] = createSignal(false)
 export const installBackend = () => setNeedsBackend(true)
 
 /** Call as a sign-in goes up, so the first frame after it is already the connect step. */
-export const enteringWithCode = () => setFresh(true)
+export const enteringFresh = () => setFresh(true)
 export const codeFailed = () => setFresh(false)
 
 const savedStep = (): Step | null => {

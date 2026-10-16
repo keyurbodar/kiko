@@ -64,7 +64,7 @@ export function ClerkStep() {
         Sign in
       </h1>
       <p class="mb-2 text-center text-sm text-muted-foreground" style={{ "--i": 1 }}>
-        Use Google or GitHub. Your account keeps your Kiko in sync on every device.
+        Use Google or GitHub. Kiko finds your backend from any device you sign in on.
       </p>
       <div style={{ "--i": 2 }}>
         <button type="button" class={primary} disabled={busy()} data-action="sign-in" onClick={() => void open()}>

@@ -256,7 +256,7 @@
     animation-delay: calc(var(--i, 0) * 40ms);
   }
   .welcome-steps > li > span { transition: background-color 240ms var(--motion-ease-settle), color 240ms var(--motion-ease-settle); }
-  .welcome-meter > i { transition: transform 40s cubic-bezier(0.1, 0.6, 0.2, 1); }
+  .welcome-meter > i { transition: transform 60s cubic-bezier(0.1, 0.6, 0.2, 1); }
   .welcome-meter > i[data-on] { transform: scaleX(0.92); }
   .welcome-meter > i[data-done] { transform: scaleX(1); transition-duration: 300ms; }
   .first-run-skeleton { animation: welcome-pulse-text 1.4s ease-in-out infinite; }

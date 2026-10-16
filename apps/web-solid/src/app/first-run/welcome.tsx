@@ -1,6 +1,6 @@
 import { Show, createSignal } from "solid-js"
 import { signInAsDev, signInWithAccessCode } from "../session"
-import { codeFailed, enteringWithCode, getStarted, setWorking } from "./progress"
+import { codeFailed, enteringFresh, getStarted, setWorking } from "./progress"
 
 export const primary =
   "flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-medium text-background hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
@@ -36,7 +36,7 @@ export function AccessCode() {
     setBusy(true)
     setWorking(true)
     setError("")
-    enteringWithCode()
+    enteringFresh()
     try {
       await start()
     } catch (e) {

@@ -18,7 +18,7 @@ import {
   type TokenLink,
 } from "./connect-flow"
 import "./first-run/first-run.css"
-import { enteringWithCode, setWorking } from "./first-run/progress"
+import { enteringFresh, setWorking } from "./first-run/progress"
 import { signInToInstalledBackend } from "./session"
 
 type View = { name: "start" } | { name: "installing" } | { name: "failed"; failure: Failure; retry: () => void }
@@ -60,7 +60,11 @@ function InstallProgress() {
           {(step, i) => (
             <li class="flex items-center gap-2" data-state={i < stage() ? "done" : i === stage() ? "current" : "next"}>
               <span class={`grid size-4 place-items-center ${i === stage() ? "first-run-skeleton" : ""}`} aria-hidden="true">
-                <span class={`size-1.5 rounded-full ${i <= stage() ? "bg-foreground" : "bg-[var(--muted-foreground)] opacity-40"}`} />
+                <Show when={i < stage()} fallback={<span class={`size-1.5 rounded-full ${i === stage() ? "bg-foreground" : "bg-[var(--muted-foreground)] opacity-40"}`} />}>
+                  <svg viewBox="0 0 16 16" class="size-3.5 text-foreground" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3.5 8.5l3 3 6-7" />
+                  </svg>
+                </Show>
               </span>
               <span class={i <= stage() ? "text-foreground" : "text-muted-foreground"}>{step()}</span>
             </li>
@@ -97,7 +101,7 @@ export function ConnectCloudflare() {
       const clerkToken = await import("./clerk").then((m) => m.clerkSignIn()).then((c) => c?.token)
       if (!clerkToken) throw new Error("Sign in again to continue")
       const error = await connect(clerkToken, grant, () => {
-        if (!reconnect()) enteringWithCode()
+        if (!reconnect()) enteringFresh()
         return signInToInstalledBackend()
       })
       if (!error) return navigate("/", { replace: true })
