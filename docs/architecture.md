@@ -273,6 +273,7 @@ type Envelope = {
 }
 type SystemReason = "task_unblocked" | "reminder" | "files" | "created"
 	| "routine" | "stalled" | "initiative"   // section 25, 26
+	| "system"                                // section 9.4, announcements
 ```
 
 `from` is set by the room from the authenticated WebSocket or from the calling agent's own Durable Object name. Message text cannot change it.
@@ -453,6 +454,8 @@ How it works:
   | Extension | Talker | Worker |
   | --- | --- | --- |
   | `web` (`web_fetch`) | no | yes |
+| `browser` (the page tools) | no | yes |
+| `browser-info` (`browser_status`, `browser_link`) | yes | yes |
   | `composio` (every `composio_*` tool) | no | yes |
   | `ext:<name>/tools` (a user extension's tools) | no | yes |
   | `ext:<name>` (its sections, hooks, and wraps) | yes | yes |
@@ -600,6 +603,8 @@ Every client action is applied locally first. The client keeps a list of pending
 **Reconnect.** `RoomSnapshot.agents` lists every member that is not idle with its `state`, `doing` and `activity`, so a client that reconnects paints the live row without waiting for a frame. `agents` and `asks` are optional in the type because the client builds snapshots too; the server always sends both.
 
 **Workers.** The agent reports its worker rows (`id`, `task`, `status`, `step`, `steps`, `startedAt`; the newest 8) to the room when the set of running workers changes (`Workers.onChange`). It does not report each step, so the frame rate does not follow the worker's tool calls. The room stores the rows in `meta` and, when they changed, posts one system line for each worker that started and one for each that ended (`done`, `failed`, `stopped`). The line has an id from the agent, worker id, start time and state, so a repeated report stores nothing. A steered worker that runs again adds no second start line.
+
+**Announcements.** When the human adds, replaces, or removes a Composio key, a Kernel key, or a model provider, or an update lands, Kiko tells them in the Kiko chat what it can do now (`user/announce.ts`). `UserDO` compares each change with the last state it announced (a hash, never the key), so saving the same key twice says nothing. Changes wait one minute on an alarm (`announce`) and leave as one `system` wake to Kiko in the Kiko chat, with id `system:<window start>:<hash of the states>` so a retry wakes once. The wake only says what changed and asks for one or two lines in Kiko's own voice; the integration line in `<context>` already says what is set up. A Composio app connected is not announced: the server learns it only by polling.
 
 **System events.** A system message may carry `event`, a `SystemEvent`:
 
@@ -1595,6 +1600,8 @@ A switch to the other mode deletes the browser, waits for the profile save, and 
 
 `dead` marks the lease when an agent reports that its socket died. The next lease deletes the browser, ignoring a 404, makes a new one, and answers `restarted: true` with the caller's last tab URLs.
 
+A takeover lasts at most 30 minutes (`TAKEOVER_MS`). Taking control sets `watch_until` to 30 minutes ahead, so a human who walks away does not pause the agents for ever. `humanHolds(row, now)` is the one test of who has control: the flag is set and `watch_until` is 0 (a row from before the limit) or in the future. The reaper clears an expired flag and the client's state follows. Handing back clears the flag and the extra time.
+
 Known gap (U21): two agents on one browser can still pass the tab cap together, because an agent's opens in flight are not visible to another agent until it touches the lease. Closing it needs a reservation in the UserDO lease.
 
 ### 27.3 The reaper
@@ -1604,7 +1611,7 @@ The reaper is the wakeup `kernel_reap` in `alarm.ts`. It is set when a browser i
 | Row | Verdict |
 | --- | --- |
 | dead | delete |
-| takeover is set | keep, look again in 1 min |
+| the human holds control (takeover set and under 30 min old) | keep, look again in 1 min |
 | watch-until is in the future | keep until then |
 | idle for 5 min, or 30 min old | delete |
 | otherwise | keep until the earlier of those two times |
@@ -1644,12 +1651,33 @@ The human sees and drives the browser from a button, and the link never leaves t
 
 - `browserState` is pushed on hello, on `kernelStatus`, and on every change: `{ mode, tabs: [{ agent, slug, host }], takeover, switching, since }` or null. It holds a hostname per tab and never a page URL. A touch that changes nothing the client shows sends nothing.
 - `browserLink { mode: "watch" | "control" }` answers once, to that socket, with the live view URL (`readOnly=true` for watch). The URL is in no room log and no stored row. A headless browser has no live view, so the frame first sets takeover (control) or watch-until of 10 minutes (watch), pushes `switching: true`, switches to headful (about 5 s), and pushes the new state before the answer. The takeover flag is set before the switch so agents stop at once. `handBack` clears the flag. `closeBrowser` deletes the browser, which saves the profile.
-- `UserDO.browserShare(agentId, roomId, reason)` posts the reason as a plain agent message through `RoomDO.browserShare`. There is no card, by the owner's rule against card UI, and no link. The browser bar above the composer carries Watch and Take over. `agentId` ends in the agent's slug after the last `/` or `:`.
+- `UserDO.browserLive(agentId, roomId, mode, reason?)` gives an agent the live view link (section 27.8). `agentId` ends in the agent's slug after the last `/` or `:`.
 - `UserDO.browserTakeover()` tells a tool whether the human is driving.
 - The client opens `about:blank` in a new tab on the click, because a tab opened later from a socket frame is blocked, and sets its location when the answer arrives. Take over shows at once as taken over. Close in Settings empties the state at once.
-- Check: `bun kiko verify browser-takeover` (needs `KERNEL_API_KEY`) and `test/kernel-browser-state.test.ts`. The dev routes `POST /api/dev/user/browser-tabs` and `browser-share` call the same RPCs a tool uses.
+- Check: `bun kiko verify browser-takeover` (needs `KERNEL_API_KEY`) and `test/kernel-browser-state.test.ts`. The dev routes `POST /api/dev/user/browser-tabs` and `browser-link` call the same RPCs a tool uses (`browser-link` never returns the URL).
+- Control is data on the server: the lease row's `takeover` flag, read through `humanHolds`. The two owners are the agents (flag clear) and the human (flag set and in time). It is pushed in `browserState.takeover` on every change and on hello, so it survives a reconnect. While the human holds it, every browser tool answers "The human is using the browser" and does nothing, including a step loop between two steps. The pause check is remembered for one second per agent so a ten-step `browser_act` costs one subrequest, not ten.
 - DEVIATION: the chip sits above the composer with the other room banners, not in the header.
 
+
+### 27.8 What agents know and can do
+
+The browser is two extensions. `browser` (worker only, because it holds a CDP socket and a worker is where a long call may run) has the page tools. `browser-info` (talker and workers) has the two tools that only call `UserDO`: `browser_status` and `browser_link`. The talker therefore shows the human the browser without a worker. Each extension has a prompt section: `browser` holds the full guide (web_fetch first, `browse` and control ids as refs, `browser_act`, tabs, screenshots, handing over), `browser-info` holds the short talker guide. The capabilities prompt has one line that points to both tools. A talker that wants a page read still calls `start_work`.
+
+| Tool | Where | What it does |
+| --- | --- | --- |
+| `browse`, `browser_extract`, `browser_act`, `browser_run`, `browser_eval`, `browser_dialog`, `browser_fetch`, `browser_files` | worker | read a page as text with control ids (refs) or as extracted links, tables, forms, headings; act by id (click, type, select, press, scroll, hover, back, forward, reload, wait, upload) |
+| `browser_tabs` | worker | list (own tabs with id, title, address, `*` on the current one, then other agents' tabs as theirs), open (switches to the new tab), switch, close, close_all |
+| `browser_look` | worker | a screenshot. With `save` or a model that cannot read images it is saved to the chat files as `/browser-<time>.jpg` and the agent shares it as `![alt](/path)` |
+| `browser_status` | talker and worker | every open tab with its owner, the mode, and who has control. Other agents' addresses lose their query and fragment |
+| `browser_link` | talker and worker | `watch` (view only) or `control` (the human clicks and types; agents pause). Without `reason` it returns the link and the agent replies with it as a markdown link. With `reason` the link is posted to the chat as the agent (`RoomDO.browserShare`), because a worker never posts |
+
+Tab ownership. The CDP session of one agent adopts only the tabs it opened, so it cannot see or close another agent's tab. This is also checked against the lease (`mine` in `BrowserConnection`): a tab the lease lists under another agent is refused with "belongs to <slug>". A released tab has no row, so it is free. Inside one agent, a worker is a scope: `BrowserConnection` keeps one current tab per scope (the tool's `conversationId`), so two workers never drive one tab, and `close_all` spares the tabs the agent's other workers are on. Idle (15 s with no call) closes every tab the connection holds, then the socket, then releases the lease row. Before this, only the current tab was closed and the others leaked in the browser with no connection able to close them.
+
+The judge key is optional. `chooseDecider` finds a judge by looking at the user's providers and treats any error while looking as having none. With no judge, the agent's own model decides each step and passages rank lexically. With a judge, an error from it (HTTP, no classifier model, a bad choice) falls back to the same model and ranker for that call; only a stopped call is not retried. The choice is remembered for a minute so a browse loop does not look it up on each call.
+
+DEVIATION from 27.7: the live link now reaches the chat. The owner asked for agents to send it. It is a bearer capability for the life of the browser, so it is in the room log and in the asking agent's history. A headless browser has no live view, so asking switches it to headful once (about 5 s); the current tab of each agent reopens at its last address and the rest are lost.
+
+Checks: `test/browser-agents.test.ts` (ownership, scopes, idle close, takeover, talker tools, no-judge and failing-judge paths), `test/kernel-lease.test.ts` (control limit), `bun kiko verify browser --fake` (talker `browser_status`, a Take control link posted, `browse` refused during control and working after hand back) and `bun kiko verify browser` (a real model with no TypeSafe key reads Hacker News and answers a request for the live link with a markdown link). The three suites were run on 2026-10-16 against Kernel from `wrangler dev` with a Kernel key and no TypeSafe key, together with `browser-takeover`, which still passes.
 
 ### Agent-managed task delivery
 

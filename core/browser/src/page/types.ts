@@ -29,6 +29,8 @@ export type Step =
   | { op: "press"; key: string }
   | { op: "scroll"; direction: "up" | "down" }
   | { op: "back" }
+  | { op: "forward" }
+  | { op: "reload" }
   | { op: "goto"; url: string }
 
 type StepFailure = "stale" | "gone" | "hidden" | "dialog" | "timeout" | "crashed"

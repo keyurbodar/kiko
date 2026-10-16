@@ -1,4 +1,4 @@
-import { humanAnswerText, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
+import { humanAnswerText, KIKO, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
 import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
@@ -654,6 +654,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async systemNotice(id: string, text: string, reason: SystemReason = "run_budget"): Promise<void> {
 		const event = this.deliveries.notice(id, text, reason, reason === "routine" ? { kind: "routine", title: oneLine(text, DELEGATED_TITLE) } : undefined)
 		if (event) this.publish([event])
+	}
+
+	/** Tells Kiko what the human changed in the system. The id makes a repeat a duplicate. */
+	announce(userId: string, id: string, body: string): Promise<WakeResult> {
+		this.adopt(userId)
+		return this.wakes.wake({ id, to: KIKO as AgentSlug, why: "system", body, chain: null })
 	}
 
 	wake(w: Wake): Promise<WakeResult> {
