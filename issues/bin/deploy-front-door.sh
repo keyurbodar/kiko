@@ -1,7 +1,7 @@
 #!/bin/sh
 # Usage: issues/bin/deploy-front-door.sh
 # Builds the hosted client from main in a clean worktree, adds the signed release that installs and one-click
-# updates read, and deploys both to the kiko-app Worker on app.kiko.works (apps/server/wrangler.front-door.jsonc).
+# updates read (and every earlier release, kept in ~/.local/share/kiko/releases), and deploys both to the kiko-app Worker on app.kiko.works (apps/server/wrangler.front-door.jsonc).
 # Reads the kiko.works account token from ~/.config/kiko/cf-kiko-works.env and the Clerk publishable key from
 # ~/.config/kiko/clerk-prod.env. Prints no secret.
 set -eu
@@ -27,7 +27,12 @@ if [ -n "$live" ] && [ "$live" != "$(cat "dist-release/$version/manifest.json")"
   cd "$root" && git worktree remove --force "$dir"
   exit 1
 fi
-rm -rf apps/web-solid/dist/releases && cp -r dist-release apps/web-solid/dist/releases
+# Every release stays served: a tab on an older app updates its backend to that app's version.
+store="$HOME/.local/share/kiko/releases"
+mkdir -p "$store"
+bun "$root/issues/bin/keep-release.ts" "$store" https://app.kiko.works/releases
+rm -rf "${store:?}/$version" && cp -r "dist-release/$version" "$store/$version"
+rm -rf apps/web-solid/dist/releases && cp -r "$store" apps/web-solid/dist/releases && cp dist-release/latest.json apps/web-solid/dist/releases/
 cd apps/server
 bunx wrangler deploy --config wrangler.front-door.jsonc 2>&1 | grep -E "Uploaded|Version ID|kiko.works"
 cd "$root" && git worktree remove --force "$dir"
