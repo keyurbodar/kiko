@@ -1,12 +1,13 @@
 import { fileName } from "@kiko/protocol"
 import { Brain, ChevronRight, CircleCheck, FolderOpen, ListChecks, Repeat, Sparkles, type LucideProps } from "lucide-solid"
-import { type Component, For, onMount, Show } from "solid-js"
+import { type Component, createEffect, For, onCleanup, onMount, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 import { loadLoops, loopsOf } from "../info/loops"
 import { useMemoryStore } from "../info/memory/views"
 import { loadRoutines, remindersOf, routinesOf } from "../info/routines"
 import { triggerLabel } from "../info/routines-model"
+import { cardBeside, dismissCard } from "./card-state"
 import { isGroup, liveLine, statusChip, workingLine } from "./overview-model"
 import { agentSurface, type FixedKind, fixedSurface, openSurface } from "./surfaces"
 
@@ -55,9 +56,27 @@ export default function ChatCard(props: { chatId: string }) {
     return n ? `${n} ${n === 1 ? "reminder" : "reminders"}` : "None"
   }
   const next = () => routines().find((r) => r.status === "active")
+  let card: HTMLElement | undefined
+  createEffect(() => {
+    if (cardBeside()) return
+    const away = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element) || card?.contains(target) || target.closest('[data-action="toggle-card"]')) return
+      dismissCard()
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) dismissCard()
+    }
+    document.addEventListener("pointerdown", away, true)
+    document.addEventListener("keydown", escape)
+    onCleanup(() => {
+      document.removeEventListener("pointerdown", away, true)
+      document.removeEventListener("keydown", escape)
+    })
+  })
 
   return (
-    <aside class="flex w-full flex-col rounded-2xl border border-border/60 bg-popover p-1.5 shadow-card" data-component="chat-card" aria-label="This chat">
+    <aside ref={card} class="flex w-full flex-col rounded-2xl border border-border/60 bg-popover p-1.5 shadow-card" data-component="chat-card" aria-label="This chat">
       <div class="flex items-center gap-3 px-2.5 pt-2 pb-2.5">
         <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={32} />
         <div class="flex min-w-0 flex-1 flex-col">

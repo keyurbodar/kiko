@@ -213,7 +213,10 @@ export default function ChatRoute() {
         >
 
           <Show when={mentions().length > 0}>
-            <div class="pointer-events-none absolute right-3 bottom-[calc(100%+8px)] z-6">
+            <div
+              class="pointer-events-none absolute right-3 z-6 transition-[bottom] duration-150 ease-out motion-reduce:transition-none"
+              classList={{ "bottom-[calc(100%+8px)]": !scrolled(), "bottom-[calc(100%+42px)]": scrolled() }}
+            >
               <button
                 type="button"
                 class={`${JUMP_CLASS} text-sm font-medium text-ring`}
@@ -233,7 +236,7 @@ export default function ChatRoute() {
             </div>
           </Show>
 
-          <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+6px)] z-6 flex justify-center">
+          <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+6px)] z-6 flex justify-end px-3">
             <button
               type="button"
               class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border border-[color-mix(in_oklab,var(--foreground)_10%,transparent)] bg-[color-mix(in_oklab,var(--background)_80%,transparent)] px-2.5 text-xs font-medium text-foreground shadow-md backdrop-blur-md transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none data-[hidden]:pointer-events-none data-[hidden]:scale-95 data-[hidden]:opacity-0"

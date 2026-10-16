@@ -81,7 +81,7 @@ export function chatTouch(sql: SqlStorage, log: RoomLog): Touch {
 	const mentions = sql
 		.exec<{ text: string; reply_sender: string | null }>(
 			`SELECT m.text, r.sender AS reply_sender FROM messages m LEFT JOIN messages r ON r.id = m.reply_to
-			 WHERE m.deleted_at IS NULL AND m.seq > ? AND json_extract(m.sender, '$.kind') = 'agent' ORDER BY m.seq DESC LIMIT ?`,
+			 WHERE m.deleted_at IS NULL AND m.seq > ? AND json_extract(m.sender, '$.kind') = 'agent' AND m.addressed IS NULL ORDER BY m.seq DESC LIMIT ?`,
 			readSeq,
 			MENTION_SCAN,
 		)

@@ -18,8 +18,8 @@ import { cn } from "../lib/cn"
  * It is a session cache: a reload starts everything clamped again.
  */
 
-/** A body past this height is clamped. About nine lines at the 14px type step. */
-export const COLLAPSE_THRESHOLD_PX = 176
+/** A body past this height is clamped. Nine lines of 20px, so a plain body ends on a whole line. */
+export const COLLAPSE_THRESHOLD_PX = 180
 /** Content this close to the threshold is not worth hiding a line or two of. */
 const SLACK_PX = 40
 

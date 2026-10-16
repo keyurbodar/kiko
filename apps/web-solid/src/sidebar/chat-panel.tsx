@@ -1,5 +1,5 @@
 import { HugeIcon } from "@kiko/ui/huge-icon"
-import { FilterIcon, MuteIcon, SearchIcon } from "@kiko/ui/icons"
+import { CloseIcon, FilterIcon, MuteIcon, SearchIcon } from "@kiko/ui/icons"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -81,13 +81,28 @@ function ChatMenuItems(props: { id: string }) {
 
 const [openPreview, setOpenPreview] = createSignal<string | null>(null)
 
+// A preview shows only while the pointer or focus rests on its row. Any click or key
+// elsewhere, such as Ctrl+K or opening the chat card, ends it.
+if (typeof document !== "undefined") {
+  const close = () => setOpenPreview(null)
+  document.addEventListener("pointerdown", close, true)
+  document.addEventListener("keydown", (event) => {
+    if (!["Tab", "Shift", "Control", "Alt", "Meta"].includes(event.key)) close()
+  }, true)
+}
+
+function previewState(id: string) {
+  const open = () => openPreview() === id
+  const set = (on: boolean) => {
+    if (on) setOpenPreview(id)
+    else if (open()) setOpenPreview(null)
+  }
+  return [open, set] as const
+}
+
 function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void; hint?: string }) {
   const [menuOpen, setMenuOpen] = createSignal(false)
-  const previewOpen = () => openPreview() === props.bot.id
-  const setPreviewOpen = (open: boolean) => {
-    if (open) setOpenPreview(props.bot.id)
-    else if (previewOpen()) setOpenPreview(null)
-  }
+  const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
   return (
     <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
@@ -162,7 +177,7 @@ function ChatPreview(props: { bot: RosterBot }) {
           <For each={tail()}>
             {(message) => (
               <p class="line-clamp-2 text-[12px] leading-snug text-muted-foreground">
-                <span class="font-medium text-muted-foreground">{message.sender === "user" ? "You" : (useApp.memberById(message.botId)?.name ?? props.bot.name)}:</span>{" "}
+                <span class="font-semibold text-foreground">{message.sender === "user" ? "You" : (useApp.memberById(message.botId)?.name ?? props.bot.name)}:</span>{" "}
                 {quoteOf(message, name)}
               </p>
             )}
@@ -216,7 +231,7 @@ function RowTitle(props: { id: string; title: string }) {
 
 function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: number; hint?: string }) {
   const [menuOpen, setMenuOpen] = createSignal(false)
-  const [previewOpen, setPreviewOpen] = createSignal(false)
+  const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
   const navigate = useNavigate()
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
   const draft = () => {
@@ -368,6 +383,11 @@ function SearchRow(props: {
             }
           }}
         />
+        <Show when={props.query !== ""}>
+          <button type="button" class="chat-search-clear" data-component="sidebar-search-clear" aria-label="Clear search" onClick={() => props.onQuery("")}>
+            <HugeIcon icon={CloseIcon} size={13} />
+          </button>
+        </Show>
       </label>
       <TooltipV2 placement="bottom" openDelay={400} value="Unread only">
         <button
