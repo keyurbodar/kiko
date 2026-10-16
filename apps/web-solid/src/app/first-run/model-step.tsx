@@ -2,7 +2,7 @@ import { useNavigate } from "@solidjs/router"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { For, Show, createMemo, createResource, createSignal } from "solid-js"
-import { KIKO, type AgentSlug } from "@kiko/protocol"
+import { KIKO, KIKO_HOME_ROOM, type AgentSlug } from "@kiko/protocol"
 import { useApp } from "../../lib/store"
 import { loadCatalog, modelRef } from "../../settings/catalog"
 import { connectedProviders } from "../../settings/connected"
@@ -42,8 +42,7 @@ export function ModelStep() {
     const row = rows().find((r) => r.ref === current())
     if (row) useApp.setAgentModel(KIKO as AgentSlug, { ref: row.ref, levels: row.model.thinking })
     move("next")
-    const kiko = useApp.kikoChatId()
-    navigate(kiko ? `/chat/${kiko}` : "/chat", { replace: true })
+    navigate(`/chat/${useApp.kikoChatId() ?? KIKO_HOME_ROOM}`, { replace: true })
     focusComposer()
   }
 
