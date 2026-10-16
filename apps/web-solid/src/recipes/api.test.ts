@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, expect, test } from "bun:test"
 import type { RecipeCard, RoomId } from "@kiko/protocol"
 import { RECIPES } from "./catalog.gen"
-import { fetchListing, loadCards, loadListing, postInstall, deleteInstall } from "./api"
+import { setToken } from "../lib/api"
+import { fetchListing, loadCards, loadListing, postEdit, postInstall, deleteInstall } from "./api"
 
 const realFetch = globalThis.fetch
 const store = new Map<string, string>()
@@ -17,6 +18,7 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = realFetch
+  setToken(null)
   delete (globalThis as { localStorage?: unknown }).localStorage
 })
 
@@ -85,4 +87,13 @@ test("removal is scoped to one install and an already removed install succeeds",
   expect(request).toEqual(["/api/recipes/one-install", "DELETE"])
   globalThis.fetch = (async () => { throw new TypeError("offline") }) as unknown as typeof fetch
   expect((await deleteInstall("one-install")).ok).toBe(false)
+})
+
+test("opening a recipe's file carries the session token, as the server's signed-in check needs", async () => {
+  setToken("session-token")
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    if (new Headers(init?.headers).get("authorization") !== "Bearer session-token") return json({ error: "sign in" }, 401)
+    return url === "/api/recipes/pollen-alert/edit" && init?.method === "POST" ? json({ path: "recipes/pollen-alert/RECIPE.md" }) : json({}, 404)
+  }) as unknown as typeof fetch
+  expect(await postEdit("pollen-alert")).toBe("recipes/pollen-alert/RECIPE.md")
 })
