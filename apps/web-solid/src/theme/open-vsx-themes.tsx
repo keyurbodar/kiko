@@ -1,40 +1,17 @@
 // Settings, themes: the installed VS Code themes, which one each appearance uses, and the Open VSX
 // browser. The importer loads on the first search, so the settings route does not carry it.
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
-import { appearanceOf, importedThemes, saveImported } from "@kiko/theme/apply"
+import { appearanceOf } from "@kiko/theme/apply"
 import { MAX_IMPORTED, type Imported, type ImportedTheme } from "@kiko/theme/imported"
 import { apiFetch } from "../lib/api"
 import type { OpenVsxItem } from "@kiko/theme/open-vsx"
 import { Dialog } from "../lib/dialog"
 import { Button, IconButton, Notice } from "../settings/kit"
-import { look, updateLook } from "./live"
+import { choose, commit, look, remove, themes, updateLook } from "./live"
+
+export { DEFAULT } from "./live"
 
 const importer = () => import("@kiko/theme/open-vsx")
-export const DEFAULT = ""
-
-const [state, setState] = createSignal<Imported>(importedThemes())
-
-/** The installed themes and which one each appearance uses. */
-export const themes = state
-
-function commit(next: Imported) {
-  saveImported(next)
-  setState(next)
-}
-
-export function choose(appearance: "light" | "dark", id: string) {
-  const active = { ...state().active }
-  if (id === DEFAULT) delete active[appearance]
-  else active[appearance] = id
-  commit({ ...state(), active })
-}
-
-export function remove(theme: ImportedTheme) {
-  const active = { ...state().active }
-  for (const appearance of ["light", "dark"] as const) if (active[appearance] === theme.id) delete active[appearance]
-  commit({ themes: state().themes.filter((other) => other.id !== theme.id), active })
-}
-
 export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
   const [query, setQuery] = createSignal("")
   const [results, setResults] = createSignal<OpenVsxItem[] | null>(null)
@@ -70,16 +47,16 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
   )
 
   const keyOf = (item: OpenVsxItem) => `${item.namespace}.${item.name}`
-  const installed = (item: OpenVsxItem) => state().themes.some((t) => t.source === keyOf(item))
+  const installed = (item: OpenVsxItem) => themes().themes.some((t) => t.source === keyOf(item))
 
   async function install(item: OpenVsxItem) {
     setInstalling(keyOf(item))
     setError(null)
     try {
-      const themes = await (await importer()).installTheme(item, undefined, apiFetch)
-      const kept = state().themes.filter((theme) => !themes.some((added) => added.id === theme.id))
-      commit({ ...state(), themes: [...kept, ...themes].slice(-MAX_IMPORTED) })
-      const theme = themes.find((t) => t.appearance === appearanceOf(look().mode)) ?? themes[0]!
+      const added = await (await importer()).installTheme(item, undefined, apiFetch)
+      const kept = themes().themes.filter((theme) => !added.some((a) => a.id === theme.id))
+      commit({ ...themes(), themes: [...kept, ...added].slice(-MAX_IMPORTED) })
+      const theme = added.find((t) => t.appearance === appearanceOf(look().mode)) ?? added[0]!
       choose(theme.appearance, theme.id)
       updateLook({ mode: theme.appearance })
     } catch (cause) {
@@ -114,7 +91,7 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
           fallback={
             <>
               <li class="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">Installed</li>
-              <For each={state().themes} fallback={<li class="px-2 py-1 text-sm text-muted-foreground">None yet. Search for one above.</li>}>
+              <For each={themes().themes} fallback={<li class="px-2 py-1 text-sm text-muted-foreground">None yet. Search for one above.</li>}>
                 {(theme) => (
                   <li class="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-accent" data-theme={theme.id}>
                     <span class="min-w-0 flex-1 truncate text-md text-foreground">{theme.name}</span>

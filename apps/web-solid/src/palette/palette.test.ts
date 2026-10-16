@@ -4,7 +4,7 @@ import { katCommands } from "../commands/kat-commands"
 import { registerCommands, type Choice } from "../commands/registry"
 import { runSlash, slashSuggestions } from "../composer/slash"
 import { fileHits, listFiles } from "../files/go-to"
-import { backspaceLeaves, emptyText, enterLabel, keyChips, listed, matchScore, rowScore, searchGroups, viewFor } from "./model"
+import { backspaceLeaves, createPreview, emptyText, enterLabel, keyChips, listed, matchScore, rowScore, searchGroups, viewFor } from "./model"
 import { backView, closePalette, enterView, openPalette, paletteStack } from "./state"
 
 const choice = (id: string, run = () => {}): Choice => ({ id, title: `Option ${id}`, run })
@@ -214,5 +214,58 @@ describe("message search view", () => {
     expect(command.onQuery).toBeFunction()
     expect(command.search!("")).toEqual([])
     expect(emptyText(command, "")).toBe("Type to search every chat")
+  })
+})
+
+describe("live preview of the highlighted row", () => {
+  const row = (key: string, log: string[], previews = true) => ({
+    key,
+    title: key,
+    run() {},
+    ...(previews ? { preview: () => (log.push(`show ${key}`), () => log.push(`restore ${key}`)) } : {}),
+  })
+
+  test("highlighting a row shows it, and the next row replaces it", () => {
+    const log: string[] = []
+    const preview = createPreview()
+    preview.show(row("a", log))
+    preview.show(row("b", log))
+    preview.restore()
+    expect(log).toEqual(["show a", "show b", "restore b"])
+  })
+
+  test("closing without Enter restores once, and a second close restores nothing", () => {
+    const log: string[] = []
+    const preview = createPreview()
+    preview.show(row("a", log))
+    preview.restore()
+    preview.restore()
+    expect(log).toEqual(["show a", "restore a"])
+  })
+
+  test("Enter keeps what was shown: nothing is restored afterwards", () => {
+    const log: string[] = []
+    const preview = createPreview()
+    preview.show(row("a", log))
+    preview.keep()
+    preview.restore()
+    expect(log).toEqual(["show a"])
+  })
+
+  test("moving onto a row with no preview puts the saved look back", () => {
+    const log: string[] = []
+    const preview = createPreview()
+    preview.show(row("a", log))
+    preview.show(row("plain", log, false))
+    expect(log).toEqual(["show a", "restore a"])
+  })
+
+  test("a submenu's choices keep their headings and previews", () => {
+    const log: string[] = []
+    const command = { id: "x", title: "X", group: "view" as const, icon: "menu", run() {}, submenu: () => [{ id: "m", title: "M", group: "Mode", preview: () => () => {}, run() {} }, { id: "t", title: "T", group: "Theme", run() {} }] }
+    const groups = viewFor(["x"], [command]).groups
+    expect(groups.map((g) => g.label)).toEqual(["Mode", "Theme"])
+    expect(typeof groups[0]!.items[0]!.preview).toBe("function")
+    expect(log).toEqual([])
   })
 })
