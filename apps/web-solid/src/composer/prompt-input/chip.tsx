@@ -1,5 +1,5 @@
 import { render } from "solid-js/web"
-import { isImage } from "../../lib/attachments"
+import { isImage, saveFile } from "../../lib/attachments"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { formatBytes } from "../../chat/info/format"
 import { progressLabel, retryUpload, uploadState } from "../../sync/uploads"
@@ -36,7 +36,7 @@ function Chip(props: { id: string; name: string; source: Source }) {
     if (!p) return
     if (upload()?.status === "failed") return retryUpload(props.id)
     if (image()) return props.source.openAttachment(p)
-    window.open(p.blob.url, "_blank", "noopener")
+    saveFile(p.blob.url, p.filename)
   }
   return (
     <button

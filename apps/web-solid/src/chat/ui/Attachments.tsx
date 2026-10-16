@@ -1,7 +1,7 @@
 import { For, Show } from "solid-js"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { cn } from "../../lib/cn"
-import { splitFiles, tileSpan } from "../../lib/attachments"
+import { saveFile, splitFiles, tileSpan } from "../../lib/attachments"
 import type { MessageFile } from "../../lib/types"
 import { setFileDrag } from "../../lib/file-drag"
 import { openFile } from "../side/surfaces"
@@ -19,7 +19,7 @@ const dragProps = (file: MessageFile) => ({
 
 function preview(roomId: string, file: MessageFile) {
   if (file.path) openFile(roomId, file.path)
-  else window.open(file.src, "_blank", "noopener")
+  else saveFile(file.src, file.name)
 }
 
 export function MessageAttachments(props: {

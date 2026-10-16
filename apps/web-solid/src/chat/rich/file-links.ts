@@ -10,7 +10,7 @@ export type FileTarget = { path: string; line?: number; column?: number }
 
 const RELATIVE_PREFIX = /^(~\/|\.{1,2}\/)/
 const RELATIVE_FILE_PATH = /^(?:[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*\/)+[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*(?::\d+){0,2}$/
-const RELATIVE_FILE_NAME = /^[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*\.[A-Za-z0-9_-]+(?::\d+){0,2}$/
+const RELATIVE_FILE_NAME = /^[A-Za-z0-9._-]+(?: +[A-Za-z0-9._-]+)*(?::\d+){0,2}$/
 const SCHEME = /^([A-Za-z][A-Za-z0-9+.-]*):(.*)$/
 const URL_PREFIX = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//
 const POSITION = /:\d+(?::\d+)?$/
@@ -118,7 +118,6 @@ function looksLikeFilePath(path: string, authored: string): boolean {
     const name = path.slice(path.lastIndexOf("/") + 1)
     return POSITION.test(authored) || EXTENSIONLESS.has(name) || EXTENSION.test(name)
   }
-  if (EXTENSIONLESS.has(path)) return true
   return RELATIVE_FILE_PATH.test(authored) || RELATIVE_FILE_NAME.test(path)
 }
 

@@ -22,6 +22,8 @@ export function parseRange(header: string | null, size: number): Span | null | "
 	return { start, end }
 }
 
+const ACTIVE_TYPE = /^(text\/(html|xml|javascript|ecmascript)|application\/(xhtml\+xml|xml|javascript|ecmascript)|image\/svg\+xml|[^;]+\+xml)$/
+
 function headersFor(object: R2Object): Headers {
 	const headers = new Headers()
 	object.writeHttpMetadata(headers)
@@ -31,6 +33,8 @@ function headersFor(object: R2Object): Headers {
 	// A user's HTML or SVG must not run as kiko's origin.
 	headers.set("x-content-type-options", "nosniff")
 	headers.set("content-security-policy", "sandbox")
+	// A page that can run script is saved, never shown, when someone opens its address.
+	if (ACTIVE_TYPE.test(headers.get("content-type")?.toLowerCase() ?? "")) headers.set("content-disposition", "attachment")
 	return headers
 }
 
