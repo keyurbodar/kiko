@@ -2,6 +2,9 @@ import type { RoomToClient } from "@kiko/protocol"
 import { loadCatalog } from "../settings/catalog"
 import { showToastV2, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
 
+/** A model error is the reason a reply never came, so it outlasts the default toast. */
+const RUN_ERROR_TOAST_MS = 15_000
+
 export type RunErrorFrame = Extract<RoomToClient, { t: "run_error" }>
 
 let go: (href: string) => void = () => {}
@@ -40,6 +43,7 @@ export async function showRunError(frame: RunErrorFrame, name: string): Promise<
   showToastV2({
     ...toast,
     variant: "error",
+    duration: RUN_ERROR_TOAST_MS,
     ...(settings ? { action: { label: "Open settings", onClick: () => go("/settings/models") } } : {}),
   })
 }
