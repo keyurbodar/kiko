@@ -41,6 +41,5 @@ export function recipeWake(r: Recipe, routines: readonly Reminder[]): string {
   lines.push(routines.length ? `it made these routines: ${routines.map((t) => `"${t.name}" (id ${t.id})`).join(", ")}. it runs: ${r.when.toLowerCase()}.` : `it runs: ${r.when.toLowerCase()}.`)
   lines.push("now say hi in one short bubble with what it will do for them.")
   if (r.setup.length) lines.push(`then ask, one short bubble each: ${r.setup.join(" / ")}. when they answer, change the routine to fit with update_routine, and keep what they said in memory.`)
-  if (r.apps.length) lines.push(`it needs ${r.apps.join(" and ")}. if one is not connected, say which and send the connect link once.`)
   return lines.join("\n")
 }

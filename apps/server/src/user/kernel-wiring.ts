@@ -1,12 +1,13 @@
 import type { Alarms } from "@kiko/durable/alarm"
 import { keyringFromEnv } from "@kiko/durable/crypto"
-import { isAgentSlug, isRoomId, type BrowserLinkResult, type BrowserState, type ClientToUser as UserFrame, type KernelResult, type KernelStatus, type UserToClient } from "@kiko/protocol"
+import { isAgentSlug, isRoomId, type BrowserLinkResult, type BrowserState, type ClientToUser as UserFrame, type KernelResult, type KernelStatus, type KikoError, type UserToClient } from "@kiko/protocol"
 import type { Env } from "../index"
 import { type CurlRequest, type CurlResponse, type KernelClient, KernelError, REJECTED, sdkClient } from "../integrations/kernel/client"
 import { browserState, checkAgentId, checkTabs, kernelErrorText, profileName, UPLOAD_DIR, WATCH_MS } from "../integrations/kernel/connect"
 import { FETCH_METHODS, URL_CAP } from "../integrations/kernel/files"
 import { humanHolds, KernelLease, type LeaseInfo, REAP_WAKEUP } from "../integrations/kernel/lease"
 import { KernelStore } from "../integrations/kernel/store"
+import { kernelFailure } from "./user-errors"
 import { roomStub } from "../lib/names"
 import { checkApiKey } from "./credentials"
 import { type Attachment, send, trySend } from "./sockets"
@@ -28,6 +29,8 @@ type KernelDeps = {
   env: Env
   alarms: Alarms
   userId: () => string
+  /** Tells the human a browser start failed and why. */
+  notify?: (error: KikoError) => void
   /** Tests pass a fake store and Kernel client. */
   store?: KernelStore
   clientFor?: (key: string) => KernelClient
@@ -91,7 +94,11 @@ export class KernelWiring {
 
   /** The user's browser for `agentId`, headless unless the human asked to watch. Creates it when there is none. */
   async lease(agentId: string): Promise<LeaseInfo> {
-    const info = await this.browser.lease(checkAgentId(agentId))
+    const info = await this.browser.lease(checkAgentId(agentId)).catch((e) => {
+      const error = kernelFailure(e)
+      if (error) this.d.notify?.(error)
+      throw e
+    })
     this.push()
     return info
   }

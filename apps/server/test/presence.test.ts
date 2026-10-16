@@ -23,7 +23,7 @@ test("a call carries a typed activity, so the client never reads the words", () 
   expect(kind("write", { path: "a" })).toMatchObject({ tool: "edit" })
   expect(kind("bash", { command: "ls" })).toMatchObject({ tool: "run" })
   expect(kind("web_fetch")).toMatchObject({ tool: "web" })
-  expect(kind("create_reminder")).toMatchObject({ tool: "other" })
+  expect(kind("create_routine")).toMatchObject({ tool: "other" })
   expect(kind("some_new_tool")).toMatchObject({ tool: "other" })
 })
 

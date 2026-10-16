@@ -1,7 +1,6 @@
 import type { ChatTasks } from "../user/overview"
 
-// Architecture section 26.6. Each room reports its open tasks to `UserDO.chatTasks` when they change.
-// The initiative pass reads them as candidates; kiko's `overview` lists them.
+// Each room reports its open tasks to `UserDO.chatTasks` when they change. Kiko's `overview` lists them.
 
 type TaskRow = { id: string; title: string; status: string; owner: string | null; updated_at: number }
 

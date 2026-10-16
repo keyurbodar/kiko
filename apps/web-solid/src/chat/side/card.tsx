@@ -7,7 +7,7 @@ import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 import { loadLoops, loopsOf } from "../info/loops"
 import { useMemoryStore } from "../info/memory/views"
-import { loadRoutines, remindersOf, routinesOf } from "../info/routines"
+import { loadRoutines, routinesOf } from "../info/routines"
 import { triggerLabel } from "../info/routines-model"
 import { groupTitle, roomFor } from "../bot-picker-model"
 import { addable, addOp } from "../members/model"
@@ -62,10 +62,6 @@ export default function ChatCard(props: { chatId: string }) {
   const loops = () => loopsOf(props.chatId) ?? []
   const tasks = () => useApp.room()?.tasks() ?? []
   const open = () => tasks().filter((t) => t.status !== "done" && t.status !== "cancelled").length
-  const reminderMeta = () => {
-    const n = remindersOf(props.chatId).length
-    return n ? `${n} ${n === 1 ? "reminder" : "reminders"}` : "None"
-  }
   const next = () => routines().find((r) => r.status === "active")
   let card: HTMLElement | undefined
   createEffect(() => {
@@ -155,7 +151,7 @@ export default function ChatCard(props: { chatId: string }) {
           meta={files().length ? `${files().slice(-2).map((f) => fileName(f.name)).join(", ")}${files().length > 2 ? ` +${files().length - 2}` : ""}` : "None yet"}
         />
         <Row icon={Brain} label="Memory" kind="memory" chatId={props.chatId} meta={memory()?.state.lines.length ? plural(memory()!.state.lines.length, "note") : "Empty"} />
-        <Row icon={Repeat} label="Routines" kind="routines" chatId={props.chatId} meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : reminderMeta()} />
+        <Row icon={Repeat} label="Routines" kind="routines" chatId={props.chatId} meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"} />
         <Row icon={CircleCheck} label="On your plate" kind="plate" chatId={props.chatId} meta={loops().length ? plural(loops().length, "item") : "Clear"} />
         <Show when={isGroup(members())}>
           <Row icon={ListChecks} label="Tasks" kind="tasks" chatId={props.chatId} meta={tasks().length ? `${open()} open` : "None"} />

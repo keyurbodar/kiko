@@ -42,5 +42,6 @@ export async function recipesRoute(request: Request, env: Env): Promise<Response
   const input = parseInstall(await request.json().catch(() => null))
   if (!input) return error(400, "need installId, slug, and roomId with agent, or own")
   const out = await stub.installRecipe(user.id, input)
+  if (!out.ok && "needsConnect" in out) return Response.json(out.needsConnect)
   return out.ok ? Response.json({ install: out.install }) : error(400, out.error)
 }

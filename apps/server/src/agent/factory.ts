@@ -14,7 +14,7 @@ import { type MemoryPort, memoryExtensions } from "@kiko/memory/tools"
 import { type LoopPort, loopExtension } from "@kiko/memory/loop-tool"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
-import { type RemindersPort, remindersExtension } from "./extensions/reminders"
+import { type RoutinesPort, routinesExtension } from "./extensions/routines"
 import { type RecipesPort, skillsExtension } from "./extensions/skills"
 import { selfExtension } from "./extensions/self"
 import { type GroupsPort, groupsExtension } from "./extensions/chief"
@@ -42,7 +42,7 @@ export type BuildAgentInput = RoleInput & {
   workspace?: WorkspacePort
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
   browser?: BrowserToolDeps
-  reminders?: { port: () => RemindersPort | null; tz: () => string }
+  routines?: { port: () => RoutinesPort | null }
   recipes?: RecipesPort
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
@@ -74,7 +74,7 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     ...(input.messaging ? [messagingExtension(input.messaging)] : []),
     ...(input.groups ? [groupsExtension(input.groups)] : []),
     ...(input.presence ? [presenceExtension(input.presence)] : []),
-    ...(input.reminders ? [remindersExtension(input.reminders.port, input.reminders.tz)] : []),
+    ...(input.routines ? [routinesExtension(input.routines.port)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
     ...(input.composio?.tools.length ? connectAppExtension(input.composio.tools, input.composio.call) : []),
     ...(input.browser ? [browserExtension(input.browser), browserInfoExtension(input.browser)] : []),

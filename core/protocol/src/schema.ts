@@ -7,6 +7,20 @@ import type * as P from "./index"
 
 const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 const Id = Schema.String.check(Schema.isMinLength(1))
+export const KikoError = Schema.Struct({
+	code: Schema.Literals([
+		"composio_missing",
+		"composio_rejected",
+		"composio_down",
+		"kernel_missing",
+		"kernel_rejected",
+		"kernel_down",
+		"storage",
+	]),
+	message: Id,
+	action: Schema.optionalKey(Schema.Literals(["open_models", "open_integrations"])),
+})
+
 const opaque = <T extends string>() => Id.pipe(Schema.refine((value): value is T => true))
 
 export const UserId = opaque<P.UserId>()
@@ -57,6 +71,7 @@ export const Block: Schema.Codec<P.Block, unknown> = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("quote"), children: blocks }),
 	Schema.Struct({ t: Schema.Literal("rule") }),
 	Schema.Struct({ t: Schema.Literal("code_block"), lang: Schema.optionalKey(Schema.String), text: Schema.String }),
+	Schema.Struct({ t: Schema.Literal("image"), alt: Schema.String, url: Schema.optionalKey(Schema.String), fileId: Schema.optionalKey(Schema.String) }),
 	Schema.Struct({
 		t: Schema.Literal("table"),
 		align: Schema.Array(Schema.NullOr(Schema.Literals(["left", "center", "right"]))),
@@ -203,16 +218,8 @@ export const WebhookMatch = Schema.Struct({
 
 export const Trigger = Schema.Union([
 	Schema.Struct({ on: Schema.Literal("time"), at: Short(64), rrule: Schema.optionalKey(Short(300)) }),
-	Schema.Struct({ on: Schema.Literal("task"), status: Schema.optionalKey(Schema.Array(TaskStatus)) }),
 	Schema.Struct({ on: Schema.Literal("message"), contains: Schema.optionalKey(Short(200)) }),
-	Schema.Struct({ on: Schema.Literal("file"), path: Short(300) }),
 	Schema.Struct({ on: Schema.Literal("webhook"), match: Schema.optionalKey(Schema.Array(WebhookMatch).check(Schema.isMaxLength(8))) }),
-	Schema.Struct({
-		on: Schema.Literal("watch"),
-		url: Short(2000),
-		everyMinutes: Schema.Int.check(Schema.isGreaterThanOrEqualTo(15), Schema.isLessThanOrEqualTo(10_080)),
-		headers: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
-	}),
 ])
 
 export const Task = Schema.Struct({
@@ -347,6 +354,7 @@ export const RoomToClient = Schema.Union([
 		provider: Schema.optionalKey(Schema.String),
 		detail: Schema.optionalKey(Schema.String),
 	}),
+	Schema.Struct({ t: Schema.Literal("error"), error: KikoError }),
 	Schema.Struct({ t: Schema.Literal("files_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({
 		t: Schema.Literal("search"),
@@ -561,6 +569,7 @@ export const LoginErrorReason = Schema.Literals(["unsupported", "disabled", "unk
 
 export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("events"), events: Schema.Array(UserEvent), version: Schema.optionalKey(Schema.String), protocol: Schema.optionalKey(Schema.Number), fileToken: Schema.optionalKey(Schema.String) }),
+	Schema.Struct({ t: Schema.Literal("error"), error: KikoError }),
 	Schema.Struct({ t: Schema.Literal("home_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("chat_refused"), roomId: RoomId, existing: RoomId }),
 	Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),

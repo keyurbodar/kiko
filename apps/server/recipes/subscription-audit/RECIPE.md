@@ -24,4 +24,3 @@ rules
 - one bubble per flag. one bubble for the total. keep each to one line.
 - never guess an amount you cannot see in mail. leave it out.
 - if there are no recurring charges at all, reply with only [skip].
-- if gmail is not connected, say so and send the connect link once.

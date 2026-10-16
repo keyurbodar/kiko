@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { Block } from "@kiko/protocol"
 import { richText } from "@kiko/protocol/fixtures"
-import { block, richNodes, type RichNode } from "./model"
+import { block, linkHost, linkLead, richNodes, type RichNode } from "./model"
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 
@@ -11,6 +11,7 @@ function html(node: RichNode): string {
   if (node.kind === "code") return `<code-block lang="${node.lang ?? ""}">${esc(node.text)}</code-block>`
   if (node.kind === "mention") return `<mention slug="${node.slug}">`
   if (node.kind === "masked") return `<masked href="${node.href}">${node.children.map(html).join("")}</masked>`
+  if (node.kind === "image") return `<image alt="${node.alt}" ${node.url ? `url="${node.url}"` : `file="${node.fileId}"`}>`
   if (node.kind === "file") return `<file path="${node.file.path}"${node.file.line ? ` line="${node.file.line}"` : ""}>${esc(node.label)}</file>`
   const attrs = Object.entries(node.attrs).map(([k, v]) => ` ${k}="${v}"`).join("")
   return `<${node.tag}${attrs}>${node.children.map(html).join("")}</${node.tag}>`
@@ -22,6 +23,18 @@ const p = (text: string): Block => ({ t: "paragraph", children: [t(text)] })
 const cases: [string, Block, string][] = [
   ["paragraph", p("hi"), "<p>hi</p>"],
   ["a hard break is a br and a soft break stays text", { t: "paragraph", children: [t("a\nb"), t("\n"), t("c")] }, "<p>a\nb<br></br>c</p>"],
+  ["an https image block", { t: "image", alt: "cat", url: "https://a.com/c.png" }, '<image alt="cat" url="https://a.com/c.png">'],
+  ["a chat file image block", { t: "image", alt: "map", fileId: "f1" }, '<image alt="map" file="f1">'],
+  [
+    "a link whose address does not parse renders as plain text, not a crash",
+    { t: "paragraph", children: [{ t: "link", href: "https://", children: [t("x")] }] },
+    "<p><span>x</span></p>",
+  ],
+  [
+    "a link to a masked-looking bad address does not throw",
+    { t: "paragraph", children: [{ t: "link", href: "https://a.com:99999/", children: [t("docs.example.com")] }] },
+    "<p><span>docs.example.com</span></p>",
+  ],
   ["heading level", { t: "heading", level: 3, children: [t("x")] }, "<h3>x</h3>"],
   [
     "nested inline",
@@ -119,6 +132,28 @@ describe("rich text tree to DOM", () => {
       expect(out).toContain(tag)
     }
     expect(out).not.toContain("<b>")
+  })
+})
+
+describe("the host a favicon is asked for", () => {
+  test.each([
+    ["https://www.example.com/a?b=1", "www.example.com"],
+    ["http://Example.com", "example.com"],
+    ["mailto:a@b.co", null],
+    ["https://", null],
+  ])("%s", (href, host) => {
+    expect(linkHost(href)).toBe(host)
+  })
+})
+
+describe("the lead that keeps a link's icon beside its first characters", () => {
+  test.each([
+    ["docs", ["d", "ocs"]],
+    ["https://a.com/x", ["https://", "a.com/x"]],
+    ["\u{1F600} yes", ["\u{1F600}", " yes"]],
+    ["", ["", ""]],
+  ])("%s", (text, split) => {
+    expect(linkLead(text)).toEqual(split as [string, string])
   })
 })
 

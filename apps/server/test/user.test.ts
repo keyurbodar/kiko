@@ -12,7 +12,7 @@ beforeAll(async () => {
     script: await bundleWorker(new URL("./user-worker.ts", import.meta.url)),
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
-    bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
+    bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars", CREDENTIALS_KEK: "test-kek-at-least-32-characters-long" },
     durableObjects: { USER: { className: "UserDO", useSQLite: true } },
   })
 })
@@ -142,7 +142,7 @@ test("a routine, a memory note, and an open loop each push a change frame", asyn
   const made = await rpc(user, "createRoutine", "u", { name: "daily", instructions: "say hi", trigger: { on: "time", at }, tz: "UTC", roomId: ROOM_A, target: "kiko", createdBy: "kiko" })
   expect(made.ok).toBe(true)
   await rpc(user, "lifeNote", "ada", "likes tea at four")
-  await rpc(user, "loopOpen", "u", ROOM_A, "room:x:msg:1", { kind: "commitment", certainty: "explicit", text: "send the plan", due: null })
+  await rpc(user, "loopOpen", "u", ROOM_A, "room:x:msg:1", { kind: "commitment", text: "send the plan", due: null })
   const changed = (await ws.settle()).filter((f: Frame) => f.t === "changed").map((f: any) => f.what)
   expect(new Set(changed)).toEqual(new Set(["routines", "memory", "loops"]))
   ws.close()
@@ -393,4 +393,22 @@ test("an agent name is unique, ignoring case and surrounding spaces", async () =
   expect(await rpc(user, "createAgent", agent("a2", " pollen ", "pollen-2"))).toBeNull()
   expect(await rpc(user, "createAgent", agent("a3", "KIKO", "kikoo"))).toBeNull()
   expect(await rpc(user, "listAgents")).toHaveLength(1)
+})
+
+test("an agent's Composio call with no key tells the human on every open socket", async () => {
+  const user = fresh()
+  const ws = await socket(user)
+  await rpc(user, "composioCall", "COMPOSIO_SEARCH_TOOLS", {}).catch(() => undefined)
+  const got = (await ws.settle()).filter((f: any) => f.t === "error")
+  expect(got).toEqual([{ t: "error", error: { code: "composio_missing", message: "Composio is not connected. Add your key in integrations.", action: "open_integrations" } }])
+  ws.close()
+})
+
+test("an agent's browser lease with no Kernel key tells the human", async () => {
+  const user = fresh()
+  const ws = await socket(user)
+  await rpc(user, "browserLease", "room/ada").catch(() => undefined)
+  const got = (await ws.settle()).filter((f: any) => f.t === "error")
+  expect(got).toMatchObject([{ error: { code: "kernel_missing", action: "open_integrations" } }])
+  ws.close()
 })

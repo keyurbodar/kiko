@@ -14,10 +14,10 @@ import type { UserDO } from "./user/user-do"
 import { hooksRoute } from "./user/hooks-route"
 import { loopsRoute } from "./user/loops-route"
 import { routinesRoute } from "./user/routines-route"
-import { remindersRoute } from "./user/reminders-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
 import { recipesRoute } from "./recipes/route"
+import { faviconRoute } from "./favicon/route"
 import { openVsxRoute } from "./themes/open-vsx-route"
 
 export { AgentDO } from "./agent/agent-do"
@@ -45,8 +45,6 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (routed) return routed
     const credentials = await credentialsRoute(request, env)
     if (credentials) return credentials
-    const reminders = await remindersRoute(request, env)
-    if (reminders) return reminders
     const hooked = await hooksRoute(request, env)
     if (hooked) return hooked
     const routines = await routinesRoute(request, env)
@@ -61,6 +59,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (recipes) return recipes
     const themed = await openVsxRoute(request, env)
     if (themed) return themed
+    const icon = await faviconRoute(request, env)
+    if (icon) return icon
     const filed = (await uploadRoute(request, env, getSessionUser)) ?? (await downloadRoute(request, env, getSessionUser))
     if (filed) return filed
     const dev = await devResponse(request, env)

@@ -22,5 +22,4 @@ each weekday, find the mail the human sent that nobody answered.
 
 rules
 - if no thread qualifies, reply with only [skip].
-- if gmail is not connected, say so and send the connect link once.
 - drafts sound like the human: plain and polite. no "just circling back".

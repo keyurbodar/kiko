@@ -13,6 +13,7 @@ describe("capabilities", () => {
     for (const lead of [true, false]) {
       const text = render(lead)
       for (const tool of ["send_message", "create_group", "connect_app", "start_work"]) expect(text).toContain(tool)
+      expect(text).toMatch(/never wait to be asked/i)
       expect(text).not.toContain("wakes nobody")
     }
   })

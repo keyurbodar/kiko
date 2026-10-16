@@ -8,8 +8,9 @@ import { useApp } from "../lib/store"
 import { buttonClass } from "../settings/kit"
 import { byChatOrder, filterRecipes, recipeTags, type TagFilter, tagLabel } from "./model"
 import { InstallCard } from "./row"
+import { ConnectSheet } from "./connect"
 import { RecipeSheet } from "./sheet"
-import { addToTarget, broken, cards, installs, isAdded, refreshListing, targetsForChat } from "./state"
+import { addToTarget, broken, connectAsk, cards, installs, isAdded, refreshListing, targetsForChat } from "./state"
 import { RecipeTile } from "./tile"
 
 type Section = "yours" | "discover"
@@ -72,12 +73,12 @@ export default function RecipesPage() {
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden" data-component="recipes-page">
       <div ref={scroller} class="@container/recipes flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div class="mx-auto flex w-full max-w-[880px] flex-col px-5 pb-20 @min-[560px]/recipes:px-8">
-          <header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pt-8 pb-4 max-[767px]:pt-14 @min-[560px]/recipes:pt-10">
+          <header class="flex flex-col gap-4 pt-8 pb-4 max-[767px]:pt-14 @min-[560px]/recipes:pt-10">
             <div class="flex flex-col gap-1">
               <h1 class="text-[26px] font-semibold tracking-[-0.02em] text-foreground">Recipes</h1>
               <p class="text-[14px] text-muted-foreground">Little routines your agents can pick up.</p>
             </div>
-            <label class="flex h-9 w-full items-center gap-2 rounded-full bg-control px-3.5 text-muted-foreground @min-[560px]/recipes:w-64">
+            <label class="flex h-9 w-full max-w-[480px] items-center gap-2 rounded-full bg-control px-3.5 text-muted-foreground">
               <HugeIcon icon={SearchIcon} size={15} />
               <input
                 type="search"
@@ -175,7 +176,9 @@ export default function RecipesPage() {
             </TabsV2.Content>
           </TabsV2>
 
-          <Show when={open()}>{(o) => <RecipeSheet roomId={roomId()} recipe={o().card} mode={o().mode} onClose={() => setOpen(null)} />}</Show>
+          <Show when={connectAsk()} fallback={<Show when={open()}>{(o) => <RecipeSheet roomId={roomId()} recipe={o().card} mode={o().mode} onClose={() => setOpen(null)} />}</Show>}>
+            <ConnectSheet />
+          </Show>
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@
 // in IndexedDB and go out again after a reload or a reconnect. Each carries a
 // stable id (a create names its room), so a replay changes nothing twice.
 
-import type { Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, FileRef, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, FileRef, KikoError, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { allAgentModels, allAgents, allChats, getHome, getPendingChats, getUserSeq, putAgentModels, putAgents, putChats, putHome, putPendingChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
@@ -93,6 +93,8 @@ export type UserStoreOptions = {
 	ttlMs?: number
 	/** Where the socket is shared with the look, memory, and Composio. The app's channel by default. */
 	channel?: UserChannelHost
+	/** Something the human must know about, from the server. */
+	onError?: (error: KikoError) => void
 }
 
 export type UserStore = {
@@ -247,7 +249,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				setState("refused", frame.roomId, frame.existing)
 				setPatches((list) => list.filter((p) => p.op.roomId !== frame.roomId))
 			})
-		} else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
+		} else if (frame.t === "error") options.onError?.(frame.error)
+		else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
 		else if (frame.t === "home_refused") {
 			const same = JSON.stringify(frame.op)
 			setState("pendingHome", (list) => list.filter((p) => p.frame.t !== "files" || JSON.stringify(p.frame.op) !== same))

@@ -17,9 +17,9 @@ import { chatFaces, chatSeed } from "./identity"
 
 import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
 import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
-import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { isListed } from "../sidebar/activity"
 import { agentDisplayName } from "./names"
+import { showFailure, showKikoError } from "./errors"
 import { hintCoversRunError, showRunError } from "./run-error"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
@@ -367,10 +367,11 @@ export function createApp(options: AppOptions = {}) {
         url: urls.room(roomId),
         connect: session.transport.room(roomId),
         backoff: options.backoff,
+        onError: showKikoError,
       })
       // A send the room refused stays in the transcript, marked failed. The toast says why.
-      next.onTaskRefused((reason) => showToastV2({ title: reason, variant: "error" }))
-      next.onSendRefused((reason) => showToastV2({ title: reason, variant: "error" }))
+      next.onTaskRefused(showFailure)
+      next.onSendRefused(showFailure)
       next.onRunError(async (frame) => {
         if (hintCoversRunError(frame, (await import("../settings/connected")).noModelKey())) return
         await showRunError(frame, next.state.members.find((m) => m.slug === frame.slug)?.name ?? "The agent")
@@ -519,7 +520,7 @@ export function createApp(options: AppOptions = {}) {
           batch(() => {
             setLocalLast(readLast())
             setDrafts(createDraftBook(warm))
-            setUserStore(createUserStore({ warm, url: urls.user(), connect: transport.user, backoff: options.backoff }))
+            setUserStore(createUserStore({ warm, url: urls.user(), connect: transport.user, backoff: options.backoff, onError: showKikoError }))
             openRoom(activeId())
           })
         })()

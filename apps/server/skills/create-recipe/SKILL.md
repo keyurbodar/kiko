@@ -24,7 +24,7 @@ the instructions, in short plain steps, lowercase, as you would tell a teammate.
 rules
 - <name> is lowercase words joined by dashes, the same as its folder.
 - leave out triggers for a recipe that runs only when the human asks or while you chat. a schedule repeats at most every 30 minutes. for a page to watch, the steps say to make a watch routine with create_routine after setup.
-- apps run through composio. name each app the recipe needs; the steps should say what to read or do in it, and to send the connect link once when it is not connected.
+- apps run through composio. name each app the recipe needs; the steps should say what to read or do in it. kiko checks the apps are connected before it adds the recipe.
 - a run with nothing to say replies with only [skip]. bubbles stay short.
 - a broken header is not loaded. if add_recipe or the recipes page says why, fix the file.
 - a built-in recipe has no file in /home/recipes until the human edits it. a file with the same name wins over the built-in. to change a recipe, write its file; the next run uses it.

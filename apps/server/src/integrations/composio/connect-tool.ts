@@ -6,7 +6,7 @@ import { composioErrorText } from "./connect"
 import { fillFlags } from "./tools"
 
 const CONNECT_APP = "composio_connect"
-const MANAGE_CONNECTIONS = "COMPOSIO_MANAGE_CONNECTIONS"
+export const MANAGE_CONNECTIONS = "COMPOSIO_MANAGE_CONNECTIONS"
 
 const text = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) })
 
@@ -41,6 +41,23 @@ function connectLink(out: ComposioCallResult): string | undefined {
   return body.match(/https:\/\/[^\s"'<>)\]\\]+/)?.[0]
 }
 
+type ConnectLink = { kind: "link"; link: string } | { kind: "none"; reply: string } | { kind: "error"; error: string }
+
+/** One link that connects one app, made the one way both the connect_app tool and the recipe gate make it. */
+export async function connectLinkFor(manage: ComposioTool, call: ComposioCall, app: string): Promise<ConnectLink> {
+  const slug = app.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
+  if (!slug) return { kind: "error", error: "name the app to connect." }
+  try {
+    const out = await call(MANAGE_CONNECTIONS, toolkitArgs(manage, slug))
+    const body = out.content.map((b) => (b.type === "text" ? b.text : "")).join(" ")
+    if (out.isError) return { kind: "error", error: body.slice(0, 400) || "composio could not make a link." }
+    const link = connectLink(out)
+    return link ? { kind: "link", link } : { kind: "none", reply: body.slice(0, 300) }
+  } catch (e) {
+    return { kind: "error", error: composioErrorText(e) }
+  }
+}
+
 /** The talker's one way to get a link that connects an app, so it never writes a how-to. Absent when the session has no connections tool. */
 export function connectAppExtension(tools: readonly ComposioTool[], call: ComposioCall): Extension[] {
   const manage = tools.find((t) => t.name === MANAGE_CONNECTIONS)
@@ -57,17 +74,10 @@ export function connectAppExtension(tools: readonly ComposioTool[], call: Compos
             parameters: Type.Object({ app: Type.String({ description: "the app as people say it, like gmail or google calendar" }) }),
             replay: "safe",
             execute: async ({ app }) => {
-              const slug = String(app).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
-              if (!slug) return text("name the app to connect.", true)
-              try {
-                const out = await call(MANAGE_CONNECTIONS, toolkitArgs(manage, slug))
-                if (out.isError) return text(out.content.map((b) => (b.type === "text" ? b.text : "")).join("\n").slice(0, 400) || "composio could not make a link.", true)
-                const link = connectLink(out)
-                if (!link) return text(`no link came back for ${app}. it may already be connected. reply: ${out.content.map((b) => (b.type === "text" ? b.text : "")).join(" ").slice(0, 300)}`)
-                return text(`connect link for ${app}: ${link}\nsend it as a markdown link in one line, like [Connect ${app}](${link}). add no steps and no guide.`)
-              } catch (e) {
-                return text(composioErrorText(e), true)
-              }
+              const out = await connectLinkFor(manage, call, String(app))
+              if (out.kind === "error") return text(out.error, true)
+              if (out.kind === "none") return text(`no link came back for ${app}. it may already be connected. reply: ${out.reply}`)
+              return text(`connect link for ${app}: ${out.link}\nsend it as a markdown link in one line, like [Connect ${app}](${out.link}). add no steps and no guide.`)
             },
           }),
         ),

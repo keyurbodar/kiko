@@ -19,7 +19,7 @@ import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
 import { Bubbles, replyTag } from "./bubbles"
 import { bubbleTouch, chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
-import { Deliveries, type ReminderDelivery, withContext } from "./deliver"
+import { Deliveries, withContext } from "./deliver"
 import { type AgentSend, type Chain, Mail } from "./mail"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
@@ -42,9 +42,10 @@ import { tags } from "./recipients"
 import { migrate } from "@kiko/durable/migrate"
 import { ROOM_STEPS } from "./schema"
 import { searchMessages, type SearchOptions } from "./search"
+import { STORAGE_ERROR } from "../lib/storage-error"
 import { type Attachment, attachment, handleFrame, send, type SocketRoom } from "./socket"
 import type { RoomDev } from "./dev"
-import { MemoryNaps, MEMORY_WAKEUP, QUIET_WAKEUP } from "./memory-naps"
+import { MemoryNaps, MEMORY_WAKEUP } from "./memory-naps"
 import { applyTaskOp, RoomWorkspace, runCall, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
 import { Reports } from "./reports"
 import { Groups, type GroupResult } from "./groups"
@@ -108,7 +109,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.team = new Team(ctx.storage.sql)
 			this.alarms = createAlarms(ctx)
 			this.burst = new Burst(ctx.storage, this.alarms)
-			this.bubbles = new Bubbles(ctx.storage, this.log)
+			this.bubbles = new Bubbles(ctx.storage, this.log, (path) => {
+				const entry = this.files.stat(path)
+				return entry?.kind === "file" && entry.type.startsWith("image/") ? entry.id : null
+			})
 			this.asks = new Asks(ctx.storage.sql)
 			this.humanAsks = new HumanAsks(ctx.storage.sql)
 			this.mail = new Mail(ctx.storage, this.log, this.asks, (slug) => (this.members.get(slug)?.status ?? "idle") !== "idle")
@@ -327,7 +331,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			[WAKES_WAKEUP]: () => this.deliverWakes(),
 			[MAIL_WAKEUP]: () => this.mailer.drain(),
 			[MEMORY_WAKEUP]: () => this.memoryNaps.naps(),
-			[QUIET_WAKEUP]: () => this.memoryNaps.rollupQuiet(),
 			[SIGNALS_WAKEUP]: () => this.reports.flush(),
 			[PENDING_WAKEUP]: () => this.sweepPending(),
 		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [SIGNALS_WAKEUP]: 5_000 } })
@@ -521,7 +524,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-		await handleFrame(this, ws, message)
+		try {
+			await handleFrame(this, ws, message)
+		} catch (e) {
+			console.error(`room frame failed: ${e instanceof Error ? e.message : String(e)}`)
+			send(ws, { t: "error", error: STORAGE_ERROR })
+		}
 	}
 
 	async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
@@ -581,20 +589,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return searchMessages(this.ctx.storage.sql, query, options)
 	}
 
-	deliverReminder(id: string, reminder: ReminderDelivery): Promise<WakeResult | "posted"> {
-		return this.wakes.deliverReminder(id, reminder)
-	}
-
 	initiativeWake(input: { id: string; to: AgentSlug | null; body: string; reason: string }): Promise<WakeResult | "busy"> {
 		return this.wakes.initiativeWake(input)
 	}
 
 	deliverRoutine(deliveryId: string, input: { target: string; body: string }): Promise<WakeResult> {
 		return this.wakes.deliverRoutine(deliveryId, input)
-	}
-
-	async chainOf(slug: AgentSlug): Promise<Chain> {
-		return this.mail.chain(slug)
 	}
 
 	async setRoutines(list: RoomRoutine[]): Promise<void> {
@@ -1009,7 +1009,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (member.status !== "idle") this.broadcastStatus(slug)
 	}
 
-	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false): Promise<void> {
+	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false, mailOnly = false): Promise<void> {
 		const settled = this.bubbles.settle(slug, runId)
 		if (settled) this.publish([settled], { touch: false })
 		const home = this.home()
@@ -1023,7 +1023,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const changed = await this.setStatus(slug, working ? "working" : "idle")
 		if (working && !changed) this.broadcastStatus(slug)
 		if (!home || !first) return
-		await this.captureAnswer(home, slug, runId)
+		if (!mailOnly) await this.captureAnswer(home, slug, runId)
 		await this.memoryNaps.arm()
 		await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
 		this.bubbles.markEnded(runId)
@@ -1068,7 +1068,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			pending: this.pending,
 			publish: (events) => this.publish(events),
 			armMemory: () => this.memoryNaps.arm(),
-			rollupQuiet: () => this.memoryNaps.rollupQuiet(),
 			tasksChanged: () => this.tasksChanged(),
 			sweepPending: () => this.sweepPending(),
 		}))
@@ -1083,9 +1082,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return (await this.dev()).memory()
 	}
 
-	async devQuiet(): Promise<void> {
-		return (await this.dev()).quiet()
-	}
 
 	async devAge(ms: number): Promise<number> {
 		return (await this.dev()).age(ms)
