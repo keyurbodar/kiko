@@ -210,7 +210,7 @@ function ZoomableImage(props: { src: string; name: string; from: Element | null;
           width: width() ? `${width()}px` : undefined,
           height: height() ? `${height()}px` : undefined,
           "max-height": `${maxHeight(window_())}px`,
-          visibility: waiting() ? "hidden" : undefined,
+          opacity: waiting() ? 0 : undefined,
           cursor: zoom() > 1 ? (dragging() ? "grabbing" : "grab") : "zoom-in",
         }}
         data-component="image-dialog-viewport"

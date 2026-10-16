@@ -145,8 +145,8 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			initialExpandedPaths: expanded,
 			fileTreeSearchMode: "hide-non-matches",
 			search: false,
-			// Rows are draggable so a file can be dropped on the composer. The tree itself never moves a file by drag.
-			dragAndDrop: { canDrag: (paths) => paths.length > 0 && paths.every((path) => !path.endsWith("/") && filePaths().includes(path)), canDrop: () => false },
+			// Rows are only draggable if the tree's drag is on. It never moves a file: `dragFile` below takes every drag.
+			dragAndDrop: { canDrag: () => false, canDrop: () => false },
 			renaming: {
 				canRename: (item) => plain(item.path) !== HOME,
 				onError: (error) => showToastV2({ title: error, variant: "error" }),
@@ -176,12 +176,16 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		tree = instance
 		held = new Set(wanted())
 		instance.render({ containerWrapper: host })
-		// The tree starts the drag in its shadow root and puts the row's path in `text/plain`. The composer reads it under its own type.
-		const markDrag = (event: DragEvent) => {
-			const path = event.dataTransfer?.getData("text/plain")
-			if (event.dataTransfer && path) setFileDrag(event.dataTransfer, path)
+		// A file row drags to the composer under Kiko's own type. The listener runs first and keeps the drag from the tree's own
+		// drag session, which would select the row (opening the file under the pointer) and refuses to start while a search is on.
+		const dragFile = (event: DragEvent) => {
+			event.stopPropagation()
+			const row = event.composedPath().find((node): node is HTMLElement => node instanceof HTMLElement && node.dataset.itemPath !== undefined)
+			const path = row?.dataset.itemPath
+			if (!path || path.endsWith("/") || !filePaths().includes(path) || !event.dataTransfer) return event.preventDefault()
+			setFileDrag(event.dataTransfer, path)
 		}
-		host.addEventListener("dragstart", markDrag)
+		host.addEventListener("dragstart", dragFile, true)
 
 		let timer: ReturnType<typeof setTimeout> | undefined
 		const stop = instance.subscribe(() => {
@@ -196,7 +200,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			}, 250)
 		})
 		onCleanup(() => {
-			host.removeEventListener("dragstart", markDrag)
+			host.removeEventListener("dragstart", dragFile, true)
 			stop()
 			clearTimeout(timer)
 			instance.unmount()

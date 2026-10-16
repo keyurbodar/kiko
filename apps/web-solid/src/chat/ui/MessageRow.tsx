@@ -1,4 +1,4 @@
-import { isImage } from "../../lib/attachments"
+import { unnamedFiles } from "../../lib/attachments"
 import { lazy, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import type { ChatMessage, RosterBot } from "../../lib/types"
@@ -61,7 +61,7 @@ export function MessageRow(props: {
   const grouped = () => !!props.group && !own() && props.message.botId !== undefined
   const senderName = () => props.bot?.name ?? props.message.botId ?? ""
   // A file the human named in the text is its chip there, so the list under the pictures leaves it out.
-  const files = () => (props.message.files ?? []).filter((f) => isImage(f) || !f.path || !props.message.body.includes(`(/${f.path})`))
+  const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
   const hasFiles = () => files().length > 0
   return (
     <div
