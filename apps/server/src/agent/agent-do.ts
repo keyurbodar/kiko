@@ -10,7 +10,7 @@ import type { AgentHome } from "../room/room-do"
 import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
-import type { ChiefPort } from "./extensions/chief"
+import type { GroupsPort } from "./extensions/chief"
 import { initiativeBrief, shortBrief } from "../room/brief"
 import type { LoopPort } from "@kiko/memory/loop-tool"
 import { CHIEF } from "../room/chief"
@@ -275,15 +275,15 @@ export class AgentDO extends DurableObject<Env> {
     if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportDoing(home.slug, doing, activity)
   }
 
-  private chiefPort(): ChiefPort | undefined {
+  private groupsPort(): GroupsPort | undefined {
     const home = this.home()
-    if (home?.slug !== CHIEF) return undefined
+    if (!home) return undefined
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     return {
+      chief: home.slug === CHIEF,
       agents: () => userStub(this.env.USER, home.userId).listAgents(),
-      propose: (input) => room().propose(home.slug, input),
-      create: (id) => room().createProposal(home.slug, id),
-      addToChat: (handles) => room().addToChat(home.slug, handles),
+      createAgent: (spec) => room().createAgent(home.slug, spec),
+      createGroup: (input) => room().createGroup(home.slug, input),
       overview: () => userStub(this.env.USER, home.userId).overview(),
     }
   }
@@ -319,7 +319,7 @@ export class AgentDO extends DurableObject<Env> {
       const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, {
         ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), decider: noModel, acceptsImages: () => false } } : {}),
         reminders: { port: () => this.remindersPort(), tz: () => "UTC" },
-        chief: this.chiefPort(),
+        groups: this.groupsPort(),
         loops: () => this.loopPort(),
         work: this.host.workers,
         presence: (doing, activity) => this.report(doing, activity),
@@ -354,7 +354,7 @@ export class AgentDO extends DurableObject<Env> {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: picked.model, thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: picked.model, thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,

@@ -3,7 +3,7 @@ import { type Agent, type AgentChange, configure, defineExtension, defineTool, t
 import { declareEffect } from "@kiko/agent/effects"
 import { MAX_WORKERS, type Workers } from "@kiko/agent/workers"
 import { MEMORY_NOTE } from "@kiko/memory/tools"
-import { CHIEF_EXT } from "./chief"
+import { GROUPS_EXT } from "./chief"
 import { MESSAGING } from "./messaging"
 import { REMINDERS } from "./reminders"
 import { WORKSPACE } from "./workspace"
@@ -13,7 +13,7 @@ import { count } from "../../lib/dev-guard"
 export const WORK = "work"
 export const WORK_STEPS = "work-steps"
 
-const NOT_FOR_WORKERS: readonly string[] = [WORK, MESSAGING, MEMORY_NOTE, CHIEF_EXT, REMINDERS, WORKSPACE]
+const NOT_FOR_WORKERS: readonly string[] = [WORK, MESSAGING, MEMORY_NOTE, GROUPS_EXT, REMINDERS, WORKSPACE]
 
 const WORKER_PROMPT =
   "You are a background worker. The agent who talks with the human gave you a task. Do it with your tools and check the result. Make independent tool calls together, in one message, not one by one. You cannot talk to the human. A later message is the agent passing on a change from the human: follow it. End with a short, complete report of what you found or did, in plain sentences. Never quote a tool error or markup in it."

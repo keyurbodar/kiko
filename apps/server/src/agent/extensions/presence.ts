@@ -39,10 +39,8 @@ export function describeCall(name: string, args: Record<string, unknown>): Descr
     case "list_reminders":
     case "cancel_reminder":
       return tool(name, "handling a reminder")
-    case "propose_agent":
-    case "propose_group":
-    case "add_to_chat":
-    case "create":
+    case "create_agent":
+    case "create_group":
       return tool(name, "setting up agents")
     case "ask": {
       const to = typeof args.to === "string" ? args.to.replace(/^@/, "").toLowerCase() : ""

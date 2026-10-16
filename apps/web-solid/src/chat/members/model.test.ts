@@ -34,6 +34,7 @@ describe("member list model", () => {
     ["unknown", { op: "remove", slug: "ada" }, "ada is not in this chat"],
     ["last", { op: "remove", slug: "ada" }, "A chat keeps at least one agent"],
     ["reserved", { op: "add", slug: "all", name: "all" }, "@all is a reserved handle"],
+    ["kiko", { op: "add", slug: "ada", name: "Ada" }, "The Kiko chat stays with Kiko. Start a new group instead"],
   ] as const)("a %s refusal says why", (reason, op, want) => expect(refusalText(op as never, reason)).toBe(want))
 
   test.each([

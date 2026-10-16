@@ -305,7 +305,8 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async getChat(roomId: RoomId): Promise<Chat | null> {
-    return getChat(this.sql, roomId)
+    const chat = getChat(this.sql, roomId)
+    return chat && markKikoChat(this.sql, chat)
   }
 
   async createAgent(agent: Agent): Promise<Agent | null> {
