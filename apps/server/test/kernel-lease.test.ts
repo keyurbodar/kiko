@@ -112,13 +112,13 @@ describe("reaper decision table", () => {
 })
 
 describe("lease", () => {
-  test("two agents asking at once share one browser, made headless on the user's profile", async () => {
+  test("two agents asking at once share one browser, made headful (it has a live view) on the user's profile", async () => {
     const t = setup()
     const [a, b] = await Promise.all([t.lease.lease("room/ada"), t.lease.lease("room/bob")])
     expect(a.cdpUrl).toBe(b.cdpUrl)
-    expect(a).toMatchObject({ mode: "headless", restarted: false })
-    expect(t.kernel.calls).toEqual(["profile kiko-test", "create headless kiko-test"])
-    expect(t.lease.status()).toEqual({ mode: "headless", tabs: { "room/ada": 0, "room/bob": 0 } })
+    expect(a).toMatchObject({ mode: "headful", restarted: false })
+    expect(t.kernel.calls).toEqual(["profile kiko-test", "create headful kiko-test"])
+    expect(t.lease.status()).toEqual({ mode: "headful", tabs: { "room/ada": 0, "room/bob": 0 } })
   })
 
   test("the profile is created once", async () => {
@@ -133,19 +133,19 @@ describe("lease", () => {
     const t = setup()
     await t.lease.lease("room/ada")
     t.lease.touch("room/ada", { t1: "https://a.test/", t2: "https://b.test/" })
-    const switched = await t.lease.switchMode("headful")
-    expect(t.kernel.calls.slice(2)).toEqual(["delete s1", "create headful kiko-test"])
+    const switched = await t.lease.switchMode("headless")
+    expect(t.kernel.calls.slice(2)).toEqual(["delete s1", "create headless kiko-test"])
     expect(t.kernel.maxLive()).toBe(1)
-    expect(switched).toEqual({ cdpUrl: "wss://cdp/s2", mode: "headful", tabs: { "room/ada": ["https://a.test/", "https://b.test/"] } })
-    expect((await t.lease.lease("room/bob")).mode).toBe("headful")
+    expect(switched).toEqual({ cdpUrl: "wss://cdp/s2", mode: "headless", tabs: { "room/ada": ["https://a.test/", "https://b.test/"] } })
+    expect((await t.lease.lease("room/bob")).mode).toBe("headless")
     expect(t.kernel.calls.filter((c) => c.startsWith("create"))).toHaveLength(2)
   })
 
   test("a switch to the mode already running changes nothing", async () => {
     const t = setup()
     await t.lease.lease("a")
-    await t.lease.switchMode("headless")
-    expect(t.kernel.calls.filter((c) => c.startsWith("create") || c.startsWith("delete"))).toEqual(["create headless kiko-test"])
+    await t.lease.switchMode("headful")
+    expect(t.kernel.calls.filter((c) => c.startsWith("create") || c.startsWith("delete"))).toEqual(["create headful kiko-test"])
   })
 
   test("a forgotten takeover ends after the limit: the flag clears and the idle rule deletes the browser", async () => {
@@ -172,7 +172,7 @@ describe("lease", () => {
     const t = setup()
     await t.lease.lease("a")
     t.lease.setTakeover(true)
-    await t.lease.switchMode("headful")
+    await t.lease.switchMode("headless")
     expect(t.store.lease()?.takeover).toBe(true)
   })
 
@@ -185,7 +185,7 @@ describe("lease", () => {
     expect(t.lease.touch("a")).toBe(false)
     const next = await t.lease.lease("a")
     expect(next).toMatchObject({ restarted: true, reopen: ["https://a.test/"], cdpUrl: "wss://cdp/s2" })
-    expect(t.kernel.calls.slice(-2)).toEqual(["delete s1", "create headless kiko-test"])
+    expect(t.kernel.calls.slice(-2)).toEqual(["delete s1", "create headful kiko-test"])
     expect(t.kernel.maxLive()).toBe(1)
   })
 
@@ -275,7 +275,7 @@ describe("reaper", () => {
 describe("Kernel failures", () => {
   test("a 429 with a short Retry-After waits once and retries", async () => {
     const t = setup({ createErrors: [new KernelError("rate_limited", "busy", 2)] })
-    expect((await t.lease.lease("a")).mode).toBe("headless")
+    expect((await t.lease.lease("a")).mode).toBe("headful")
     expect(t.sleeps).toEqual([2_000])
   })
 
@@ -308,6 +308,6 @@ describe("Kernel failures", () => {
   test("a failed lease does not wedge the queue", async () => {
     const t = setup({ createErrors: [new KernelError("failed", "boom")] })
     await expect(t.lease.lease("a")).rejects.toThrow("boom")
-    expect((await t.lease.lease("a")).mode).toBe("headless")
+    expect((await t.lease.lease("a")).mode).toBe("headful")
   })
 })

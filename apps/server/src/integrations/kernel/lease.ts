@@ -87,9 +87,11 @@ export class KernelLease {
       }
       const reopen = row ? Object.values(row.tabs[agentId] ?? {}) : []
       if (row) await this.#destroy(row)
-      const made = await this.#create("headless", { takeover: false, watchUntil: 0 })
+      // Always headful: a live view link then reads the open browser's URL. Switching a headless one under a
+      // working agent took seconds, timed out on Kernel's side, and closed the agent's pages.
+      const made = await this.#create("headful", { takeover: false, watchUntil: 0 })
       this.#touch(made.row, agentId)
-      return { sessionId: made.row.sessionId, cdpUrl: made.cdpUrl, mode: "headless", restarted: row?.dead === true, reopen: row?.dead ? reopen : [] }
+      return { sessionId: made.row.sessionId, cdpUrl: made.cdpUrl, mode: "headful", restarted: row?.dead === true, reopen: row?.dead ? reopen : [] }
     })
   }
 

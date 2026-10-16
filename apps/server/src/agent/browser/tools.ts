@@ -39,7 +39,7 @@ const BROWSER_INFO = [
   "without a worker: browser_status lists the open tabs and who holds them, and says whether the human has control. browser_link returns the live view link.",
   "to show the human the browser, call browser_link (mode watch) and reply with a markdown link in one line, such as [Watch the browser](url). Never write a link from memory.",
   "for a login, captcha, or payment, call browser_link with mode control and a reason. It posts a Take control link to the chat and pauses every agent's browser until the human gives it back. Never ask for a password or card number in the chat, and never type one.",
-  "a link opens the browser when none is open, and restarts a headless one as a visible one (about 5 s). An agent's current page reopens at its last address; other tabs are lost. Never tell the human there is no live view: call browser_link.",
+  "a link opens the browser when none is open (about 5 s).",
 ].join("\n")
 
 export type DeciderChoice = { name: "model" | "jev"; decider: Decider; ranker: Ranker }
@@ -405,7 +405,7 @@ export function browserInfoExtension(deps: BrowserToolDeps): Extension {
   const link = defineTool({
     name: "browser_link",
     description:
-      "the live view link to the browser. mode watch is view only. mode control lets the human click and type, and pauses every agent's browser tools until they give it back, so use it for a login, a captcha, or a payment. with a reason, the link is also posted to the chat as you, which is what a worker does (it cannot post). without one it only returns the link: reply with it as a markdown link yourself, in one line. the link is a bearer secret for the human, so only post it in the chat. with no browser open it opens one, and it restarts a headless browser as a visible one, so allow about 5 s.",
+      "the live view link to the browser. mode watch is view only. mode control lets the human click and type, and pauses every agent's browser tools until they give it back, so use it for a login, a captcha, or a payment. with a reason, the link is also posted to the chat as you, which is what a worker does (it cannot post). without one it only returns the link: reply with it as a markdown link yourself, in one line. the link is a bearer secret for the human, so only post it in the chat. with no browser open it opens one, so allow about 5 s.",
     parameters: Type.Object({
       mode: Type.Union([Type.Literal("watch"), Type.Literal("control")]),
       reason: Type.Optional(Type.String({ description: "one short sentence for the human, such as \"please sign in to github.com\". posts the link to the chat" })),

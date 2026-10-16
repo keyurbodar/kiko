@@ -209,6 +209,8 @@ function withSlash(url: string) {
  * CLI signs in through the access code instead, as the owner would. Every name then shares the one owner.
  */
 export async function devSession(url: string, name: string): Promise<{ auth: string; userId: string }> {
+  // A hosted backend signs in through Clerk, so the CLI takes a session token minted for it instead.
+  if (process.env.KIKO_BEARER) return { auth: `Bearer ${process.env.KIKO_BEARER}`, userId: "owner" }
   const code = process.env.KIKO_ACCESS_CODE
   const res = await fetch(new URL(code ? "api/auth/access-code" : "api/auth/dev/session", withSlash(url)), {
     method: "POST",

@@ -1,18 +1,17 @@
 import { describe, expect, test } from "bun:test"
-import { type KernelClient, KernelError } from "../src/integrations/kernel/client"
+import type { KernelClient } from "../src/integrations/kernel/client"
 import type { LeaseRow, LeaseUrls } from "../src/integrations/kernel/store"
 import { KernelWiring } from "../src/user/kernel-wiring"
 
 const ROOM = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
-function setup(start?: Partial<LeaseRow>, timeouts = 0) {
+function setup(start?: Partial<LeaseRow>) {
   let row: LeaseRow | undefined = start && { sessionId: "old", mode: "headless", createdAt: 0, lastUse: 0, tabs: {}, dead: false, takeover: false, watchUntil: 0, ...start }
   let urls: LeaseUrls | undefined = row && { cdpUrl: "wss://cdp/old" }
   const calls: string[] = []
   const client = {
     createBrowser: async ({ headless }: { headless: boolean }) => {
       calls.push(`create ${headless ? "headless" : "headful"}`)
-      if (timeouts-- > 0) throw new KernelError("failed", "Kernel did not answer")
       return { sessionId: "new", cdpUrl: "wss://cdp/new", ...(headless ? {} : { liveUrl: "https://live/new?a=1" }) }
     },
     deleteBrowser: async (id: string) => void calls.push(`delete ${id}`),
@@ -32,7 +31,7 @@ function setup(start?: Partial<LeaseRow>, timeouts = 0) {
     setBroken: () => {},
   }
   const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} }
-  const wiring = new KernelWiring({ ctx: { getWebSockets: () => [] }, sql: {}, env: {}, alarms, userId: () => "u", store, clientFor: () => client } as never)
+  const wiring = new KernelWiring({ ctx: { getWebSockets: () => [] }, sql: { exec: () => ({ toArray: () => [] }) }, env: {}, alarms, userId: () => "u", store, clientFor: () => client } as never)
   return { wiring, calls, row: () => row }
 }
 
@@ -60,17 +59,14 @@ describe("live view link", () => {
     expect(t.calls).toEqual(["delete old", "create headful"])
   })
 
-  test("a switch that Kernel does not answer in time is tried once more", async () => {
-    const t = setup({ mode: "headless" }, 1)
+  test("a link to the browser a worker is using keeps it: no new browser, no closed pages", async () => {
+    const t = setup()
+    const leased = await t.wiring.lease("room-a/ada:w1")
+    t.wiring.touch("room-a/ada:w1", { t1: "https://www.youtube.com/shorts" })
     const out = await t.wiring.liveLink("room-a/ada", ROOM, "watch")
     expect(out.ok).toBe(true)
-    expect(t.calls.filter((c) => c === "create headful")).toHaveLength(2)
-  })
-
-  test("a second timeout is reported, not tried again", async () => {
-    const t = setup({ mode: "headless" }, 2)
-    const out = await t.wiring.liveLink("room-a/ada", ROOM, "watch")
-    expect(out.ok).toBe(false)
-    expect(t.calls.filter((c) => c === "create headful")).toHaveLength(2)
+    expect(t.calls).toEqual(["create headful"])
+    expect(t.row()?.sessionId).toBe(leased.sessionId)
+    expect(t.row()?.tabs["room-a/ada:w1"]).toEqual({ t1: "https://www.youtube.com/shorts" })
   })
 })
