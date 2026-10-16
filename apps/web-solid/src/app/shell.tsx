@@ -12,6 +12,10 @@ import { avatarPickerSlug } from "../avatar/picker-state";
 import { createEffect, createMemo, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces";
 import { preloadRoute } from "./routes";
+import { preloadMessageMenu } from "../chat/ui/MessageMenu";
+import { preloadModelPicker } from "../settings/model-picker";
+import { preloadMessageSearch } from "../commands/message-search";
+
 import { richLoaded } from "../composer/rich/loaded";
 import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../chat/side/card-state";
 import { useKatCommands } from "../commands/use-kat-commands";
@@ -29,6 +33,9 @@ import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
 import { VersionBanner } from "./version-banner";
 import { CHAT_MIN, INFO, initialSizes, readWidth, saveWidth, SIDEBAR } from "./widths";
+
+/** Lazy menu and picker chunks, warmed once the rich editor is in, so no first right click or open waits on the network. */
+const idlePreloads = [preloadMessageMenu, preloadModelPicker, preloadMessageSearch];
 
 const fill = (
   text: string,
@@ -202,7 +209,9 @@ export function Shell(props: ParentProps) {
   });
   // After the composer's rich editor has loaded, so the settings download never races it.
   createEffect(() => {
-    if (richLoaded()) preloadRoute("/settings");
+    if (!richLoaded()) return;
+    preloadRoute("/settings");
+    for (const load of idlePreloads) load();
   });
   onMount(() => onCleanup(watchHold()));
   onMount(() => {

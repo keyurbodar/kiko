@@ -15,6 +15,7 @@ export { favoriteModels, hiddenModels, toggleFavorite } from "./model-prefs"
 const loadPanel = () => import("./model-picker-panel")
 /** The panel loads on first open, or on the first hover or focus of the button. */
 const ModelPickerPanel = lazy(loadPanel)
+export const preloadModelPicker = () => void loadPanel()
 
 const [pickerOpen, setPickerOpen] = createSignal(false)
 /** Opens the composer's model picker, from the palette or Mod+Shift+M. */

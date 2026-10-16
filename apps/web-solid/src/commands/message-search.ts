@@ -13,6 +13,8 @@ const [engine, setEngine] = createSignal<Engine>()
 let loading: Promise<Engine> | undefined
 const load = () => (loading ??= import("./message-search-engine").then((m) => (setEngine(() => m.searchEngine), m.searchEngine)))
 
+export const preloadMessageSearch = () => void load()
+
 export function messageSearchCommand(deps: { open: (hit: Hit) => void; openView: (id: string) => void }): Command {
   return {
     id: "chats.search-all",

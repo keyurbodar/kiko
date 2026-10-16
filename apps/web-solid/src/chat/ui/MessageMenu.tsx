@@ -4,6 +4,7 @@ import type { ChatMessage } from "../../lib/types"
 /** The menu body loads on the first right click or long press, or when the thread is idle. */
 const loadView = () => import("./MessageMenuView")
 const MessageMenu = lazy(loadView)
+export const preloadMessageMenu = () => void loadView()
 
 export interface MessageMenuOptions {
   message: ChatMessage
