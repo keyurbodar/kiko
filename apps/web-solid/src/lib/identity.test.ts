@@ -48,6 +48,13 @@ describe("render sites", () => {
     }
   })
 
+  test("a chat's faces come from its record alone, so the open chat and its tile agree", () => {
+    const store = files.find((f) => f.path.endsWith("lib/store.ts"))!.text
+    const body = store.slice(store.indexOf("chatFaces(roomId: string)"), store.indexOf("roomMembers()"))
+    expect(body).toContain("chatFaces(chat ?? { roomId }")
+    expect(body).not.toMatch(/members\(\)|room\(\)/)
+  })
+
   test("no other file derives an avatar colour", () => {
     for (const f of files) {
       if (f.path.endsWith("lib/identity.ts")) continue
@@ -72,16 +79,11 @@ describe("chatFaces", () => {
     { id: "a2", slug: "bo" },
   ]
   test.each([
-    ["one agent wears its own face", { roomId: "r1", agents: ["a1"] }, undefined, ["ada"]],
-    ["a chat made without a pick is the default agent", { roomId: "r2" }, undefined, ["kiko"]],
-    ["a group stacks its members, the built-in agent by its slug", { roomId: "r3", agents: ["kiko", "a1", "a2"] }, undefined, ["kiko", "ada", "bo"]],
-    ["a group shows at most three", { roomId: "r4", agents: ["kiko", "a1", "a2", "zz"] }, undefined, ["kiko", "ada", "bo"]],
-    ["a chat with one picked agent stays one-to-one", { roomId: "r7", agents: ["a2"] }, undefined, ["bo"]],
-    ["a closed group shows kiko as its chief, the faces it has once open", { roomId: "r8", agents: ["a1", "a2"] }, undefined, ["kiko", "ada", "bo"]],
-    ["opening that group changes nothing", { roomId: "r8", agents: ["a1", "a2"] }, ["kiko", "ada", "bo"], ["kiko", "ada", "bo"]],
-    ["the open room's live members win", { roomId: "r5", agents: ["a1", "a2"] }, ["bo", "cy"], ["bo", "cy"]],
-    ["a group that lost all but one wears that one's face", { roomId: "r6", agents: ["a1", "a2"] }, ["bo"], ["bo"]],
-  ] as const)("%s", (_name, chat, members, want) =>
-    expect(chatFaces(chat, agents, members as readonly string[] | undefined)).toEqual([...want]),
-  )
+    ["one agent wears its own face", { roomId: "r1", agents: ["a1"] }, ["ada"]],
+    ["a chat made without a pick is the default agent", { roomId: "r2" }, ["kiko"]],
+    ["a group stacks its members, the built-in agent by its slug", { roomId: "r3", agents: ["kiko", "a1", "a2"] }, ["kiko", "ada", "bo"]],
+    ["a group shows at most three", { roomId: "r4", agents: ["kiko", "a1", "a2", "zz"] }, ["kiko", "ada", "bo"]],
+    ["a chat with one picked agent stays one-to-one", { roomId: "r7", agents: ["a2"] }, ["bo"]],
+    ["a closed group shows kiko as its chief, the faces it has once open", { roomId: "r8", agents: ["a1", "a2"] }, ["kiko", "ada", "bo"]],
+  ] as const)("%s", (_name, chat, want) => expect(chatFaces(chat, agents)).toEqual([...want]))
 })
