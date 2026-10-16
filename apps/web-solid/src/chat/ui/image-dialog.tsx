@@ -8,15 +8,15 @@ const ImageDialog = lazy(() => import("./ImageDialog"))
 export type DialogImage = { src: string; name: string }
 
 export interface ImageDialogController {
-  /** Opens on `images[index]`. The arrows move through the rest. */
-  open(images: readonly DialogImage[], index: number): void
+  /** Opens on `images[index]`. The arrows move through the rest. `from` is the thumbnail the picture grows out of and shrinks back to. */
+  open(images: readonly DialogImage[], index: number, from?: Element | null): void
   /** Render this once, anywhere in the tree. */
   view: JSX.Element
 }
 
 /** One dialog per surface: one for the whole transcript, and one for the composer's strip. */
 export function createImageDialog(): ImageDialogController {
-  const [shown, setShown] = createSignal<{ images: readonly DialogImage[]; index: number } | null>(null)
+  const [shown, setShown] = createSignal<{ images: readonly DialogImage[]; index: number; from: Element | null } | null>(null)
   /** What had focus when the dialog opened, usually the picture clicked. Focus goes back to it on close. */
   let opener: HTMLElement | null = null
   const close = () => {
@@ -27,15 +27,15 @@ export function createImageDialog(): ImageDialogController {
     requestAnimationFrame(() => back?.isConnected && back.focus({ preventScroll: true }))
   }
   return {
-    open: (images, index) => {
+    open: (images, index, from) => {
       // The modal shell is in the deferred overlay chunk. A page that has not loaded it yet loads it now.
       void loadOverlaysV2()
       opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-      setShown({ images, index })
+      setShown({ images, index, from: from ?? null })
     },
     view: (
       <Show when={shown()}>
-        {(s) => <ImageDialog images={s().images} index={s().index} onClose={close} />}
+        {(s) => <ImageDialog images={s().images} index={s().index} from={s().from} onClose={close} />}
       </Show>
     ),
   }

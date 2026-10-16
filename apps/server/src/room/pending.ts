@@ -89,8 +89,14 @@ export class PendingUploads {
 	}
 }
 
+/** The name as a path under `attachments/`: a dropped folder keeps its folders, and nothing climbs out. */
 export function safeName(name: string): string {
-	return name.split("").map((c) => (c === "/" || c === "\\" || isControl(c) ? "_" : c)).join("").slice(-120) || "file"
+	const parts = name
+		.replaceAll("\\", "/")
+		.split("/")
+		.map((part) => part.split("").map((c) => (isControl(c) ? "_" : c)).join("").trim())
+		.filter((part) => part !== "" && part !== "." && part !== "..")
+	return parts.join("/").slice(-120).replace(/^\/+/, "") || "file"
 }
 
 /**
