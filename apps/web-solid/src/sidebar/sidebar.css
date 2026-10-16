@@ -83,7 +83,7 @@
     linear-gradient(var(--brand-grid) 1px, transparent 0) 0 0 / 10px 10px,
     color-mix(in oklab, var(--ring) 8%, var(--sidebar));
   mask-image: linear-gradient(#000 40%, transparent);
-  --brand-grid: color-mix(in oklab, var(--foreground) 6%, transparent);
+  --brand-grid: color-mix(in oklab, var(--foreground) 4.5%, transparent);
 }
 
 .sidebar-shell .brand-art::before,
