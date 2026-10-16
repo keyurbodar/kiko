@@ -78,3 +78,11 @@ export function admit<T extends Named & { size: number }>(held: number, files: r
 export function unnamedFiles<T extends Named & { path?: string }>(files: readonly T[], body: string): T[] {
   return files.filter((f) => isImage(f) || !f.path || !body.includes(`(${linkTarget(`/${f.path}`)})`))
 }
+
+/** Saves a file by its address. An attached page or script is never opened on the app's origin. */
+export function saveFile(src: string, name: string) {
+  const a = document.createElement("a")
+  a.href = src
+  a.download = name
+  a.click()
+}
