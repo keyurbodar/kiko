@@ -362,7 +362,6 @@ export type RoomStore = {
 	remove(messageId: MessageId): void
 	markRead(seq: number): void
 	typing(): void
-	stop(): void
 	/** Closes the socket and keeps the store. Pings are dropped, sends wait in the outbox. Section 19.6. */
 	suspend(): void
 	/** Reconnects with `hello {lastSeq}` and sends every pending frame again. */
@@ -855,9 +854,6 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			const t = now()
 			if (lastTypingAt !== undefined && t - lastTypingAt < TYPING_EVERY_MS) return
 			if (socket?.send({ t: "typing" })) lastTypingAt = t
-		},
-		stop() {
-			if (socket?.send({ t: "stop" })) setState({ typing: [], status: {}, doing: {}, agents: [] })
 		},
 		suspend() {
 			suspended = true

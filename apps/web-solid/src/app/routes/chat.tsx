@@ -264,8 +264,6 @@ export default function ChatRoute() {
 
           <Composer
             room={useApp.room() ?? undefined}
-            stopping={!!useApp.room()?.state.agents.length}
-            onStop={() => useApp.room()?.stop()}
             tray={<ModelPickerButton draft={draft()} />}
             threadId={useApp.activeThreadId() ?? ""}
             title={useApp.chatById(useApp.activeThreadId() ?? "")?.name}

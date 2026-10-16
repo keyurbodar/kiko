@@ -223,6 +223,7 @@ export function Composer(props: ComposerProps) {
       id: `agent-${bot.id}`,
       kind: "agent",
       label: `@${bot.id}`,
+      title: bot.name,
       description: [bot.name.toLowerCase() === bot.id ? "" : bot.name, bot.persona ?? "Agent"].filter(Boolean).join(" · "),
       mention: { type: "agent", name: bot.id, content: `@${bot.id}`, start: 0, end: 0 },
     }))
@@ -275,8 +276,6 @@ export function Composer(props: ComposerProps) {
       placeholder,
       submit: {
         canSubmit: () => question.ask() ? (question.progress().isLastQuestion ? question.progress().isComplete : question.progress().canAdvance) : undefined,
-        stopping: () => !question.ask() && !!props.stopping && !draftText().trim() && !boxed().length,
-        working: () => !!props.stopping,
         blocked,
         onSubmit: () => {
           if (props.busy || blocked()) return
@@ -316,7 +315,6 @@ export function Composer(props: ComposerProps) {
           props.onSend(files.length ? { body, files, attachments } : { body })
           props.onClearReply?.()
         },
-        onStop: () => props.onStop?.(),
       },
     },
   })
