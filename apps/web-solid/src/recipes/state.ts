@@ -13,6 +13,7 @@ import { cardsOf, fetchListing, loadListing, type Listing, postEdit, postInstall
 
 const [listing, setListing] = createSignal<Listing>(loadListing())
 const [owning, setOwning] = createSignal<ReadonlySet<string>>(new Set())
+const [editing, setEditing] = createSignal<ReadonlySet<string>>(new Set())
 let pending: Promise<void> | undefined
 let revision = 0
 let mutations = 0
@@ -36,10 +37,15 @@ export const refreshListing = (): Promise<void> => {
 /** Why each recipe file that did not load was refused, so the page can say what to fix. */
 export const broken = (): readonly string[] => listing().broken ?? []
 
+/** True while a recipe's file is being made ready to open. */
+export const isEditing = (slug: string): boolean => editing().has(slug)
+
 /** Opens a recipe's file in the Kiko chat's files. A built-in is written to the drive first, so there is a file to edit. */
 export async function editRecipe(slug: string, navigate: (to: string) => void): Promise<void> {
+  if (editing().has(slug)) return
   const roomId = useApp.kikoChatId()
-  const path = await postEdit(slug)
+  setEditing((set) => new Set(set).add(slug))
+  const path = await postEdit(slug).finally(() => setEditing((set) => new Set([...set].filter((s) => s !== slug))))
   if (!roomId || !path) return void showToastV2({ title: "Could not open the recipe", variant: "error" })
   openFile(roomId, `home/${path}`)
   navigate(`/chat/${roomId}`)

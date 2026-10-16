@@ -7,10 +7,10 @@ import { Show } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
-import { iconButtonClass } from "../settings/kit"
+import { iconButtonClass, Spinner } from "../settings/kit"
 import { RecipeIcon } from "./icon"
 import { installStatus, nextLabel } from "./model"
-import { agentName, editRecipe, removeInstall, setInstallPaused, targetsForChat } from "./state"
+import { agentName, editRecipe, isEditing, removeInstall, setInstallPaused, targetsForChat } from "./state"
 
 export const pillClass = "h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
 
@@ -69,7 +69,9 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; le
       </Show>
       <MenuV2 gutter={4} placement="bottom-end">
         <MenuV2.Trigger class={cn(iconButtonClass, "rounded-full")} aria-label={`More for ${props.card.title}`}>
-          <HugeIcon icon={MoreIcon} size={16} />
+          <Show when={isEditing(props.card.slug)} fallback={<HugeIcon icon={MoreIcon} size={16} />}>
+            <Spinner size={16} />
+          </Show>
         </MenuV2.Trigger>
         <MenuV2.Portal>
           <MenuV2.Content class="z-[80]">

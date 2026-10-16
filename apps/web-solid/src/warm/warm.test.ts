@@ -82,19 +82,26 @@ for (const [mode, make] of backends) {
 			warm.close()
 		})
 
-		test("writes 10,000 messages and reads the newest 50 in under 50 ms", async () => {
+		test("reads the newest 50 of 10,000 messages as fast as the newest 50 of 100", async () => {
 			const warm = await openWarm({ userId: "u1", ...make() })
-			const all = range(1, 10_000)
-			const start = performance.now()
-			putMessages(warm, A, all)
+			putMessages(warm, A, range(1, 10_000))
+			putMessages(warm, B, range(1, 100))
 			await warm.flush()
-			const wrote = performance.now()
-			const newest = await newestMessages(warm, A, 50)
-			const read = performance.now()
-			console.log(`${mode}: write 10000 in ${(wrote - start).toFixed(1)} ms, read newest 50 in ${(read - wrote).toFixed(1)} ms`)
-			expect(newest.length).toBe(50)
-			expect(newest[49].seq).toBe(10_000)
-			expect(read - wrote).toBeLessThan(50)
+			// Reads alternate so a pause on a loaded machine hits both rooms alike. A read that scans the room scales with its size, 100 times here.
+			const big: number[] = []
+			const small: number[] = []
+			for (let i = 0; i < 15; i++) {
+				for (const [room, into] of [[A, big], [B, small]] as const) {
+					const start = performance.now()
+					const newest = await newestMessages(warm, room, 50)
+					into.push(performance.now() - start)
+					expect(newest.length).toBe(50)
+				}
+			}
+			const median = (xs: number[]) => [...xs].sort((x, y) => x - y)[xs.length >> 1]
+			console.log(`${mode}: newest 50 of 10000 in ${median(big).toFixed(2)} ms, of 100 in ${median(small).toFixed(2)} ms`)
+			expect((await newestMessages(warm, A, 50))[49].seq).toBe(10_000)
+			expect(median(big)).toBeLessThan(median(small) * 5 + 2)
 			warm.close()
 		})
 	})
