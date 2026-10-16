@@ -14,9 +14,15 @@ export function listAgents(sql: SqlStorage): Agent[] {
     .map((row) => ({ id: row.id, name: row.name, slug: row.slug as AgentSlug, prompt: row.prompt, model: row.model }))
 }
 
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+
+/** The agent that already has this name, ignoring case and surrounding spaces. */
+export const agentNamed = (sql: SqlStorage, name: string): Agent | null => listAgents(sql).find((a) => sameName(a.name, name)) ?? null
+
 export function createAgent(sql: SqlStorage, agent: Agent, now: number): Agent | null {
   const name = agent.name.trim().slice(0, MAX_NAME)
   if (!name || !/^[a-z0-9-]{1,32}$/.test(agent.slug)) return null
+  if (sameName(name, "kiko") || agentNamed(sql, name)) return null
   if (sql.exec("SELECT 1 FROM agents WHERE id = ? OR slug = ?", agent.id, agent.slug).toArray().length) return null
   if (sql.exec<{ n: number }>("SELECT count(*) AS n FROM agents").one().n >= MAX_AGENTS) return null
   const row: Row = { id: agent.id, name, slug: agent.slug, prompt: agent.prompt.trim().slice(0, MAX_PROMPT), model: agent.model.slice(0, MAX_MODEL) }

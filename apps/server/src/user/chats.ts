@@ -35,7 +35,7 @@ export type ChatChange = { t: "chat"; chat: Chat } | { t: "chat_removed"; roomId
 const clip = (text: string, max: number) => text.trim().slice(0, max)
 
 function toChat(row: Row): Chat {
-  const agents = JSON.parse(row.agents || "[]") as string[]
+  const agents = agentIds(JSON.parse(row.agents || "[]") as string[])
   return {
     ...(agents.length ? { agents } : {}),
     roomId: row.room_id as RoomId,
@@ -68,13 +68,9 @@ export function searchChats(sql: SqlStorage, query: string): Chat[] {
     .map(toChat)
 }
 
-/**
- * Temporary chats are gone. An older build left them marked, and some hold a real talk with
- * kiko, so the mark is cleared rather than the chat deleted. Each held kiko alone, which the
- * sidebar already leaves out beside the kiko chat.
- */
-export function clearTempMarks(sql: SqlStorage): void {
-  sql.exec("UPDATE chats SET draft = NULL WHERE draft IS NOT NULL")
+/** Chats made before the rename name Kiko "yuki". They name it "kiko" from here on. */
+export function renameLegacyAgent(sql: SqlStorage): void {
+  sql.exec(`UPDATE chats SET agents = replace(agents, '"yuki"', '"kiko"') WHERE agents LIKE '%"yuki"%'`)
 }
 
 export function listChats(sql: SqlStorage): Chat[] {

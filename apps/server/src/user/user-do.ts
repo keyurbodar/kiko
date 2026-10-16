@@ -23,11 +23,11 @@ import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadlin
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "@kiko/durable/crypto"
 import { CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
-import { createAgent, listAgents } from "./agents"
+import { agentNamed, createAgent, listAgents } from "./agents"
 import { firstSoul, type Soul, Souls, type SoulWrite } from "./souls"
 import { type CommitResult, type FileBody, FileIndex, type IndexChange, type FsChange, type FsEntry, type FsFail, HOME_TABLES, type NewFile, type PutResult } from "../files/file-index"
 import { actorKey } from "../room/log"
-import { applyChatOp, type ChatChange, clearTempMarks, getChat, listChats, searchChats, type Touch, touchChat } from "./chats"
+import { applyChatOp, type ChatChange, getChat, listChats, renameLegacyAgent, searchChats, type Touch, touchChat } from "./chats"
 import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
@@ -162,6 +162,7 @@ export class UserDO extends DurableObject<Env> {
       cancelRoutine: (id) => this.cancelReminder(id),
       routine: (id) => this.reminders.get(id),
       timezone: () => this.timezone(),
+      agentNamed: (name) => agentNamed(this.sql, name),
       makeAgent: async (name, handle, description, model) => {
         for (const slug of [handle, ...[2, 3, 4, 5].map((n) => `${handle}-${n}`)]) {
           const agent = await this.makeAgent({ name, slug, description, soul: firstSoul(name, description), model })
@@ -845,9 +846,9 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async ensureHome(): Promise<void> {
-    clearTempMarks(this.sql)
+    renameLegacyAgent(this.sql)
     this.ctx.waitUntil(this.#recipes.retireSeeded().catch((e: unknown) => console.error(`recipe cleanup failed: ${e instanceof Error ? e.message : String(e)}`)))
-    for (const op of kikoChatOps(this.sql, (roomId) => getChat(this.sql, roomId) !== null)) this.apply(op)
+    for (const op of kikoChatOps(this.sql, listChats(this.sql))) this.apply(op)
     const old = this.setting(OLD_CHECK_IN)
     if (old !== null) {
       await this.reminders.cancel(old)

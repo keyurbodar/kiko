@@ -19,15 +19,18 @@ const clean = (s: string, max: number) => s.trim().slice(0, max)
 
 export function checkProposal(input: ProposalInput, agents: readonly Agent[]): ProposalInput | { error: string } {
   const taken = new Set([CHIEF, ...agents.map((a) => a.slug as string)])
+  const names = new Set(["kiko", ...agents.map((a) => a.name.trim().toLowerCase())])
   const checkAgent = (a: NewAgentSpec): NewAgentSpec | string => {
     const handle = a.handle.trim().toLowerCase().replace(/^@/, "")
     const name = clean(a.name, 60)
     if (!name) return "every new agent needs a name"
+    if (names.has(name.toLowerCase())) return `an agent named ${name} already exists. pick another name, or use that agent`
     if (!isAgentSlug(handle)) return `"${a.handle}" is not a usable handle: lowercase letters, digits, and dashes`
     if (taken.has(handle)) return `@${handle} is taken. pick another handle`
     if (!a.soul.trim()) return `@${handle} needs a soul`
     if (a.soul.length > MAX_SOUL) return `@${handle}'s soul is ${a.soul.length} characters; it holds ${MAX_SOUL}. tighten it`
     taken.add(handle)
+    names.add(name.toLowerCase())
     const description = clean(a.description, 200) || tagline(a.soul.replace(/^#.*\n+/, ""))
     return { name, handle, description, soul: `${a.soul.trim()}\n` }
   }

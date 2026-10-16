@@ -709,11 +709,10 @@ describe("the user store", () => {
 		second.close()
 	})
 
-	test("a second direct chat with an agent is refused: it leaves the list and points at the first", async () => {
+	test("a second direct chat made before the list arrived is refused: it leaves the list and points at the first", async () => {
 		const mock = createMockUser({ chats: [{ ...fixtures.chat, roomId: fixtures.otherRoomId, agents: ["id-ada"] }] })
 		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
 		await store.ready
-		await until(() => store.state.synced)
 		const second = store.createChat("ada", ["id-ada"])
 		expect(store.chats().some((c) => c.roomId === second)).toBe(true)
 		await until(() => store.state.refused[second] !== undefined)
@@ -722,16 +721,35 @@ describe("the user store", () => {
 		store.close()
 	})
 
-	test("a group with the same agents as one there is refused, in any order", async () => {
+	test("creating a chat with the same agents as one there returns that chat and sends nothing", async () => {
 		const mock = createMockUser({ chats: [{ ...fixtures.chat, roomId: fixtures.otherRoomId, agents: ["kiko", "id-ada"] }] })
 		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
 		await store.ready
 		await until(() => store.state.synced)
-		const again = store.createChat("kiko, ada", ["id-ada", "kiko"])
-		await until(() => store.state.refused[again] !== undefined)
-		expect(store.state.refused[again]).toBe(fixtures.otherRoomId)
-		expect(store.chats().map((c) => c.roomId)).toEqual([fixtures.otherRoomId])
+		expect(store.createChat("kiko, ada", ["id-ada", "kiko"])).toBe(fixtures.otherRoomId)
+		expect(store.state.patches).toEqual([])
+		expect(mock.received.some((f) => f.t === "chat")).toBe(false)
 		store.close()
+	})
+
+	test("chat edits made before the server answered survive a reload and go out after it", async () => {
+		const warm = await freshWarm()
+		const offline = createMockUser()
+		offline.online = false
+		const first = createUserStore({ warm, url: "ws://mock/user", connect: offline.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await first.ready
+		const made = first.createChat("ada", ["id-ada"])
+		first.pin(made, true)
+		await warm.flush()
+		first.close()
+
+		const mock = createMockUser()
+		const second = createUserStore({ warm, url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await second.ready
+		expect(second.chats().find((c) => c.roomId === made)).toMatchObject({ title: "ada", pinned: true })
+		await until(() => second.state.patches.length === 0)
+		expect(second.state.chats.find((c) => c.roomId === made)).toMatchObject({ pinned: true })
+		second.close()
 	})
 
 	test("opening chats tells the server once, after the user settles", async () => {
