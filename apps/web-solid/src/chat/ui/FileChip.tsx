@@ -5,6 +5,7 @@ import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Show, type JSX } from "solid-js"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { isImage } from "../../lib/attachments"
+import { setFileDrag } from "../../lib/file-drag"
 import { urls, useApp } from "../../lib/store"
 import { formatBytes } from "../info/format"
 import { openThreadImages } from "./image-dialog"
@@ -74,6 +75,12 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
           data-path={props.file.path}
           data-missing={find(props.file.path).kind === "none" ? "" : undefined}
           aria-label={`Open ${full()}`}
+          draggable={ref() !== undefined}
+          onDragStart={(event: DragEvent) => {
+            const file = ref()
+            if (!file || !event.dataTransfer) return event.preventDefault()
+            setFileDrag(event.dataTransfer, file.name)
+          }}
           onClick={open}
         >
           <Show when={picture()} fallback={<EntryIcon path={props.file.path} />}>

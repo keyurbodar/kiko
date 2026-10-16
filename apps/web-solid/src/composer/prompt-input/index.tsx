@@ -129,7 +129,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
             >
               <div role="status" class="flex items-center gap-2 rounded-full border border-ring/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg">
                 <PaperclipIcon class="size-4 text-ring" />
-                {i18n.t("ui.promptInput.dropFiles")}
+                {i18n.t(props.controller.dragKind() === "reference" ? "ui.promptInput.dropReference" : "ui.promptInput.dropFiles")}
               </div>
             </div>
           </Portal>

@@ -75,6 +75,8 @@ export const attachmentMessages = {
 	tooLargeCompressed: (name: string) => `'${name}' is too large to attach, even after compression.`,
 	unreadable: (name: string) => `'${name}' could not be read as an image.`,
 	unsupportedImage: (name: string) => `'${name}' is not a supported image type. Attach GIF, JPEG, PNG, or WebP images.`,
+	folderCut: "Only part of that folder was read. Drop fewer files at a time.",
+	folderEmpty: "That folder has no files to attach.",
 	imagesTotal: "Images can total up to 80 MB per message. Use smaller images or send fewer at once.",
 	notSendable: (name: string, why: string) => `Attachment '${name}' cannot be sent: ${why}.`,
 }

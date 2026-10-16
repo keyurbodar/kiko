@@ -343,3 +343,13 @@
 .composer-dock .composer-tray:empty {
   display: none;
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-component="composer-drop-overlay"] {
+    animation: composer-drop-in var(--motion-fast) var(--motion-ease-out) both;
+  }
+  @keyframes composer-drop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}

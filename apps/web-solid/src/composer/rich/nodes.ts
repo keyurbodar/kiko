@@ -1,3 +1,4 @@
+import { fileName } from "@kiko/protocol"
 import { Mark, mergeAttributes, Node } from "@tiptap/core"
 import "../../lib/chip.css"
 import { identityLook, identityTint } from "../../lib/identity"
@@ -68,6 +69,35 @@ export function attachmentExtension(view: ChipView) {
         stopEvent: (event) => event.target instanceof Element && event.target.closest("button") !== null,
         destroy: dispose,
       }
+    },
+  })
+}
+
+export type FileRefView = (dom: HTMLElement, ref: { path: string }) => () => void
+
+/**
+ * A file of the chat's workspace named in the text, dragged in from the Files tree or a chat chip.
+ * Nothing uploads: the text holds `[name](/path)` (markdown.ts), which points the agent at the file.
+ */
+export function fileRefExtension(view: FileRefView) {
+  return Node.create({
+    name: "fileRef",
+    group: "inline",
+    inline: true,
+    atom: true,
+    selectable: true,
+    draggable: false,
+    addAttributes: () => ({ path: { default: "" } }),
+    parseHTML: () => [{ tag: "span[data-file-ref]" }],
+    renderHTML: ({ node }) => ["span", { "data-file-ref": String(node.attrs.path) }, fileName(String(node.attrs.path))],
+    renderText: ({ node }) => fileName(String(node.attrs.path)),
+    addNodeView: () => ({ node }) => {
+      const dom = document.createElement("span")
+      dom.className = "composer-chip-node"
+      dom.contentEditable = "false"
+      dom.dataset.fileRef = String(node.attrs.path)
+      const dispose = view(dom, { path: String(node.attrs.path) })
+      return { dom, ignoreMutation: () => true, destroy: dispose }
     },
   })
 }
