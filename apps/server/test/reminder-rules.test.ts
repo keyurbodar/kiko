@@ -94,7 +94,7 @@ test("aging the initiative clock moves an agent's own reminder with it, a day at
 
 test("snooze moves only time reminders, and a paused time routine stays paused", async () => {
   const { clock, reminders } = setup()
-  const message = await reminders.createRoutine("u", { name: "talk", instructions: "say hi", trigger: { on: "message", from: "human" }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" })
+  const message = await reminders.createRoutine("u", { name: "talk", instructions: "say hi", trigger: { on: "message" }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" })
   await expect(reminders.snooze(message.routine.id, new Date(clock.now + MIN).toISOString())).rejects.toThrow("snooze works on time reminders")
   const timed = await reminders.createRoutine("u", { name: "daily", instructions: "check in", trigger: { on: "time", at: new Date(clock.now + DAY).toISOString() }, tz: "UTC", roomId: ROOM, target: "kiko", createdBy: "human" })
   await reminders.updateRoutine(timed.routine.id, { status: "paused" })

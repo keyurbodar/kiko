@@ -204,7 +204,7 @@ export const WebhookMatch = Schema.Struct({
 export const Trigger = Schema.Union([
 	Schema.Struct({ on: Schema.Literal("time"), at: Short(64), rrule: Schema.optionalKey(Short(300)) }),
 	Schema.Struct({ on: Schema.Literal("task"), status: Schema.optionalKey(Schema.Array(TaskStatus)) }),
-	Schema.Struct({ on: Schema.Literal("message"), from: Schema.Literals(["human", "agent", "any"]), contains: Schema.optionalKey(Short(200)) }),
+	Schema.Struct({ on: Schema.Literal("message"), contains: Schema.optionalKey(Short(200)) }),
 	Schema.Struct({ on: Schema.Literal("file"), path: Short(300) }),
 	Schema.Struct({ on: Schema.Literal("webhook"), match: Schema.optionalKey(Schema.Array(WebhookMatch).check(Schema.isMaxLength(8))) }),
 	Schema.Struct({

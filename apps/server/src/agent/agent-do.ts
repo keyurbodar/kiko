@@ -24,6 +24,7 @@ import type { RemindersPort } from "./extensions/reminders"
 import type { RecipesPort } from "./extensions/skills"
 import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
 import { learnedNote } from "../integrations/composio/tools"
+import { integrationNote } from "./prompt"
 
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { parseModelRef, thinkingFor } from "./thinking"
@@ -368,10 +369,11 @@ export class AgentDO extends DurableObject<Env> {
         const tz = this.#run?.timezone ?? "UTC"
         const clock = `now: ${new Date().toISOString()} (${tz}, ${new Date().toLocaleString("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit" })})`
         const down = composio === "unreachable" ? "composio (the human's connected apps) is unreachable right now, so its tools are missing this run." : undefined
+        const integrations = integrationNote(composio, browserOn)
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
         const initiative = await this.takeInitiative()
-        return [clock, down, learned, quiet, initiative].filter(Boolean).join("\n\n")
+        return [clock, integrations, down, learned, quiet, initiative].filter(Boolean).join("\n\n")
       },
       ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),

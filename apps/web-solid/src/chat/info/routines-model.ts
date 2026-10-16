@@ -62,7 +62,7 @@ export function triggerLabel(trigger: Trigger, timeZone?: string): string {
     case "task":
       return trigger.status?.length ? `When a task moves to ${trigger.status.join(" or ")}` : "When a task changes"
     case "message": {
-      const who = trigger.from === "human" ? "When you send a message" : trigger.from === "agent" ? "When an agent posts" : "When a message arrives"
+      const who = "When you send a message"
       return trigger.contains ? `${who} with “${trigger.contains}”` : who
     }
     case "file":

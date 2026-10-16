@@ -663,7 +663,7 @@ export function describeTrigger(trigger: Trigger, tz: string, due: number): stri
     case "task":
       return `when a task here moves to ${trigger.status?.length ? trigger.status.join(" or ") : "any status"}`
     case "message":
-      return `when ${trigger.from === "any" ? "anyone" : trigger.from === "human" ? "the human" : "an agent"} posts here${trigger.contains ? ` a message containing "${trigger.contains}"` : ""}`
+      return `when the human posts here${trigger.contains ? ` a message containing "${trigger.contains}"` : ""}`
     case "file":
       return `when a file under /${trigger.path.replace(/^\/+/, "")} changes`
     case "webhook":

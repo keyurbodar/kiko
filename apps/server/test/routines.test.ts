@@ -16,7 +16,6 @@ describe("triggers (section 25.4)", () => {
     expect(() => decode({ on: "watch", url: "https://example.com", everyMinutes: 15 })).not.toThrow()
     expect(() => decode({ on: "watch", url: "https://example.com", everyMinutes: 5 })).toThrow()
     expect(() => decode({ on: "webhook", match: Array.from({ length: 9 }, () => ({ path: "a", equals: 1 })) })).toThrow()
-    expect(() => decode({ on: "message", from: "robot" })).toThrow()
     expect(() => decode({ on: "cron", spec: "* * * * *" })).toThrow()
   })
 
@@ -41,8 +40,7 @@ describe("triggers (section 25.4)", () => {
     expect(matches(r({ on: "task", status: ["review"] }), task)).toBe(true)
     expect(matches(r({ on: "task", status: ["done"] }), task)).toBe(false)
     expect(matches(r({ on: "task" }), task)).toBe(true)
-    expect(matches(r({ on: "message", from: "human", contains: "deploy" }), human)).toBe(true)
-    expect(matches(r({ on: "message", from: "agent" }), human)).toBe(false)
+    expect(matches(r({ on: "message", contains: "deploy" }), human)).toBe(true)
     expect(matches(r({ on: "file", path: "/reports/" }), file)).toBe(true)
     expect(matches(r({ on: "file", path: "report" }), file)).toBe(false)
     expect(signalOf({ ...at, t: "message", id: "m", from: { kind: "system", reason: "reminder" }, text: "x" } as RoomEvent, ctx)).toBeNull()
@@ -52,9 +50,12 @@ describe("triggers (section 25.4)", () => {
     const say = (text: string, by: Parameters<typeof signalOf>[1]["by"]) => signalOf({ ...at, t: "message", id: "m", from: by?.kind === "agent" ? { kind: "agent", slug: by.slug } : { kind: "human" }, text } as RoomEvent, { ...ctx, by })!
     const agent = (slug: string, eventRun = false) => ({ kind: "agent" as const, slug, name: slug, eventRun })
     const batch = (...signals: Signal[]) => ({ roomId: "r1", openedAt: 0, signals, more: 0 })
-    const any = r({ on: "message", from: "any" })
+    const any = r({ on: "message" })
     expect(routineRun(any, batch(say("mine", agent("kiko")), say("loop", agent("ada", true))))).toBeNull()
-    expect(routineRun(any, batch(say("hi", { kind: "human" }), say("read a page", agent("ada"))))).toEqual({ body: 'what happened:\n- the human wrote: "hi"\n- @ada wrote: "read a page"' })
+    expect(routineRun(any, batch(say("hi", { kind: "human" }), say("read a page", agent("ada"))))).toEqual({ body: 'what happened:\n- the human wrote: "hi"' })
+    expect(routineRun(any, batch(say("only an agent spoke", agent("ada"))))).toBeNull()
+    const stored = r({ on: "message", from: "agent" } as never)
+    expect(routineRun(stored, batch(say("hi", { kind: "human" }), say("from ada", agent("ada"))))).toEqual({ body: 'what happened:\n- the human wrote: "hi"' })
     expect(routineRun(any, { ...batch(say("hi", { kind: "human" })), more: 3 })!.body.endsWith("- and more")).toBe(true)
   })
 
