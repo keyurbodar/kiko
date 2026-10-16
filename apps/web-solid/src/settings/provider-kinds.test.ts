@@ -6,7 +6,7 @@ const entry = (models: number, classifiers: number): CatalogProvider => ({
   id: "x",
   name: "x",
   connect: ["api_key"],
-  models: Array.from({ length: models }, (_, i) => ({ id: `m${i}`, name: `m${i}`, contextWindow: 1, maxTokens: 1, reasoning: false, pricing: { input: 0, output: 0 } })),
+  models: Array.from({ length: models }, (_, i) => ({ id: `m${i}`, name: `m${i}`, contextWindow: 1, maxTokens: 1, reasoning: false, thinking: ["off"], pricing: { input: 0, output: 0 } })),
   classifiers,
 })
 

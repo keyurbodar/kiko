@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
-import type { Activity, Envelope, RoomId, WorkerRow } from "@kiko/protocol"
+import type { Activity, Envelope, RoomId, ThinkingLevel, WorkerRow } from "@kiko/protocol"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@kiko/agent/answers"
 import { roomStub, userStub } from "../lib/names"
@@ -26,6 +26,7 @@ import { type ComposioTool, learnedSignature } from "../integrations/composio/cl
 import { learnedNote } from "../integrations/composio/tools"
 
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
+import { parseModelRef, thinkingFor } from "./thinking"
 import { createAlarms } from "@kiko/durable/alarm"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
@@ -36,7 +37,7 @@ import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { jevPort, modelPort, pickDecider } from "./browser/deciders"
 import type { DeciderChoice } from "./browser/tools"
-import { findProvider, pickJudge } from "../user/turn-context"
+import { pickJudge } from "../user/turn-context"
 
 import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
@@ -52,7 +53,6 @@ const USAGE_CARRIED_KEY = "usage:carried"
 const COMPACTIONS_KEY = "compactions"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 const RECENT_WORKERS = 8
-const MODEL_KEY = "model"
 const MODEL_APPLIED_KEY = "model:applied"
 
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
@@ -353,7 +353,8 @@ export class AgentDO extends DurableObject<Env> {
     const browser = browserOn && home
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: await this.model(), files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const picked = await this.picked()
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: picked.model, thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, chief: this.chiefPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, reminders: { port: () => this.remindersPort(), tz: () => this.#run?.timezone ?? "UTC" }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -560,14 +561,15 @@ export class AgentDO extends DurableObject<Env> {
     const home = this.home()
     if (!home) return false
     this.#runStamp++
-    const chosen = await this.ctx.storage.get<ModelRef>(MODEL_KEY)
-    if (chosen && JSON.stringify(chosen) !== JSON.stringify(await this.ctx.storage.get(MODEL_APPLIED_KEY))) {
-      await root.configure({ model: chosen }, BACKGROUND_CONTEXT)
-      await this.ctx.storage.put(MODEL_APPLIED_KEY, chosen)
+    const turn = await userStub(this.env.USER, home.userId).agentTurn(home.slug)
+    const model = parseModelRef(turn.model) ?? DEFAULT_MODEL
+    this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.agent ? { soul: turn.agent.soul } : {}) }
+    const applied = { model, thinkingLevel: turn.thinking }
+    if (JSON.stringify(applied) !== JSON.stringify(await this.ctx.storage.get(MODEL_APPLIED_KEY))) {
+      await root.configure(applied, BACKGROUND_CONTEXT)
+      await this.ctx.storage.put(MODEL_APPLIED_KEY, applied)
     }
-    const model = chosen ?? DEFAULT_MODEL
-    const auth = await this.loadAuth(model.provider)
-    if (auth) return true
+    if (turn.auth) return true
     const heard = this.host.inbox.envelopeIds(requestId).filter((id) => id.startsWith("agent:"))
     await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId, heard)
     return false
@@ -585,14 +587,16 @@ export class AgentDO extends DurableObject<Env> {
     return this.#run.auth
   }
 
-  async model(): Promise<ModelRef> {
-    return (await this.ctx.storage.get<ModelRef>(MODEL_KEY)) ?? DEFAULT_MODEL
+  /** The model and level this agent runs on. Kept by the user, so every chat with this agent agrees. */
+  private async picked(): Promise<{ model: ModelRef; thinking: ThinkingLevel }> {
+    const home = this.home()
+    if (!home) return { model: DEFAULT_MODEL, thinking: thinkingFor(DEFAULT_MODEL) }
+    const picked = await userStub(this.env.USER, home.userId).agentModel(home.slug)
+    return { model: parseModelRef(picked.model) ?? DEFAULT_MODEL, thinking: picked.thinking }
   }
 
-  async setModel(model: ModelRef): Promise<boolean> {
-    if (!findProvider(model.provider)?.getModels().some((m) => m.id === model.modelId)) return false
-    await this.ctx.storage.put(MODEL_KEY, { provider: model.provider, modelId: model.modelId })
-    return true
+  async model(): Promise<ModelRef> {
+    return (await this.picked()).model
   }
 
   async alarm() {

@@ -12,6 +12,7 @@ import { humanAnswerText } from "@kiko/protocol"
 import type {
 	Chat,
 	ClientToRoom,
+	AgentModel,
 	ClientToUser,
 	FileOp,
 	FileRef,
@@ -382,6 +383,7 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 	const data: UserData = { seq: 0, chats: [], agents: [], home: { files: [], folders: [] } }
 	const peers = new Set<Peer<UserToClient>>()
 	const received: ClientToUser[] = []
+	const agentModels: Record<string, AgentModel> = {}
 
 	function store(...events: WithoutStored<UserEvent>[]): UserEvent[] {
 		const stored = events.map((e) => {
@@ -406,11 +408,18 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 			if (frame.t === "hello") {
 				const last = log[log.length - 1]?.seq ?? 0
 				if (frame.lastSeq > last || last - frame.lastSeq > resetAfter)
-					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents, home: data.home }) })
+					return peer.push({ t: "reset", snapshot: structuredClone({ seq: data.seq, chats: data.chats, agents: data.agents, agentModels: agentModels, home: data.home }) })
 				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
 			}
 			if (frame.t === "agent") {
 				if (!data.agents.some((a) => a.id === frame.op.agent.id || a.slug === frame.op.agent.slug)) store({ t: "agent", agent: frame.op.agent })
+				return
+			}
+			if (frame.t === "agent_model") {
+				const before = agentModels[frame.slug]
+				const next = { model: frame.ref ?? before?.model ?? "a/one", thinking: frame.thinking ?? before?.thinking ?? "low", thinkingLevels: before?.thinkingLevels ?? ["off", "low", "high"] } satisfies AgentModel
+				agentModels[frame.slug] = next
+				store({ t: "agent_model", slug: frame.slug, ...next })
 				return
 			}
 			if (frame.t === "home") {

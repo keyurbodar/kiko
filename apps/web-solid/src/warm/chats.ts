@@ -1,6 +1,6 @@
 // The chat list and the user socket's cursor.
 
-import type { Agent, Chat, RoomId } from "@kiko/protocol"
+import type { Agent, AgentModel, Chat, RoomId } from "@kiko/protocol"
 import type { UserPatch } from "../sync/patches"
 import type { Home } from "../sync/user-store"
 import type { Warm } from "./db"
@@ -10,6 +10,7 @@ import { clearRoom } from "./messages"
 const USER_SEQ = "userSeq"
 const AGENTS = "agents"
 const HOME = "home"
+const AGENT_MODELS = "agentModels"
 const PENDING_CHATS = "pendingChats"
 
 export function putChats(warm: Warm, chats: readonly Chat[]) {
@@ -61,4 +62,10 @@ export const putPendingChats = (warm: Warm, patches: readonly UserPatch[]) => wa
 
 export async function getPendingChats(warm: Warm): Promise<UserPatch[]> {
 	return [...((await warm.get<UserPatch[]>("meta", PENDING_CHATS)) ?? [])]
+}
+
+export const putAgentModels = (warm: Warm, models: Readonly<Record<string, AgentModel>>) => warm.put("meta", AGENT_MODELS, models)
+
+export async function allAgentModels(warm: Warm): Promise<Record<string, AgentModel>> {
+	return { ...((await warm.get<Record<string, AgentModel>>("meta", AGENT_MODELS)) ?? {}) }
 }

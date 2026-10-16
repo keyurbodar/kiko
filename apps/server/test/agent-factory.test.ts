@@ -46,6 +46,34 @@ async function firstRequest(input: BuildAgentInput, extra: Parameters<typeof def
 
 const at = (text: string, key: string) => text.indexOf(`<${key}>`)
 
+async function reasoningSeen(thinkingLevel?: BuildAgentInput["thinkingLevel"]) {
+  const built = buildAgent({ role: "", lead: true, model: FAUX, ...(thinkingLevel ? { thinkingLevel } : {}) })
+  const faux = fauxProvider({ models: [{ id: "faux-1", reasoning: true }] })
+  let seen: unknown = "unset"
+  faux.setResponses([
+    (_request, options) => {
+      seen = options?.reasoning
+      return fauxAssistantMessage("ok")
+    },
+  ])
+  const models = createModels()
+  models.setProvider(faux.provider)
+  const harness = await Harness.open(new MemoryStorage(), { models, registry: built.registry }, context)
+  const root = await harness.root(context, { agent: built.agent })
+  await (await root.submit({ type: "input", content: "hi" }, context)).wait(context)
+  await harness.close(context)
+  return seen
+}
+
+describe("reasoning level", () => {
+  test("the level an agent was given reaches the model request", async () => {
+    expect(await reasoningSeen("high")).toBe("high")
+  })
+  test("a level of off sends no reasoning", async () => {
+    expect(await reasoningSeen("off")).toBeUndefined()
+  })
+})
+
 describe("buildAgent", () => {
   test("the system prompt has the base sections in a fixed order", async () => {
     const { system } = await firstRequest({ role: "you plan trips.", lead: true, model: FAUX })

@@ -3,6 +3,9 @@ import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, tog
 import { signOut } from "../app/session"
 import { toggleCard } from "../chat/side/card-state"
 import { fixedSurface, openSurface, toggleSidecar } from "../chat/side/surfaces"
+import { answeringMember, canReason } from "../settings/agent-model"
+import { THINKING_LABELS } from "@kiko/protocol"
+import type { Choice } from "./registry"
 import { openModelPicker } from "../settings/model-picker"
 import { openPalette } from "../palette/state"
 import { agentList } from "../lib/chats"
@@ -107,6 +110,8 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
     }),
   )
+  // The agent the composer's model chip targets when the draft tags no one: the lead.
+  const chipAgent = () => answeringMember(useApp.roomMembers(), "")
   useCommands(
     navCommands({
       go: (href) => navigate(href),
@@ -117,6 +122,13 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
         openModelPicker()
       },
       openView: openPalette,
+      canReason: () => canReason(useApp.agentModel(chipAgent()?.slug ?? "")?.thinkingLevels),
+      reasoningChoices: () => {
+        const agent = chipAgent()
+        const picked = agent ? useApp.agentModel(agent.slug) : undefined
+        if (!agent || !picked) return []
+        return picked.thinkingLevels.map((level): Choice => ({ id: level, title: THINKING_LABELS[level], current: level === picked.thinking, run: () => useApp.setAgentModel(agent.slug, { thinking: level }) }))
+      },
     }),
   )
   const live = () => import("../theme/live")

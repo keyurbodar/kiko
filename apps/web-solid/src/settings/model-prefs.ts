@@ -1,8 +1,8 @@
 import { createSignal } from "solid-js"
 
 // Which models the chat's model picker leaves out, after opencode's models settings (MIT,
-// packages/app/src/components/settings-v2/models.tsx). Refs are `provider/model`. Like the chosen
-// model (chat-model.ts) they live in this browser's localStorage and hold no secret.
+// packages/app/src/components/settings-v2/models.tsx). Refs are `provider/model`. They live in this
+// browser's localStorage and hold no secret.
 const KEY = "kiko.model-prefs"
 
 /** Stored hidden refs, or none for anything unreadable. */
