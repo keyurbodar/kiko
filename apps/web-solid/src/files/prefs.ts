@@ -28,5 +28,5 @@ export const PREFS = {
 	table: stored("kiko:file-render-table", true),
 	html: stored("kiko:file-render-html", true),
 }
-export const [wrap, setWrap] = stored("kiko:file-word-wrap", false)
+export const [wrap, setWrap] = stored("kiko:file-word-wrap", true)
 export const [fullSize, setFullSize] = createSignal(false)

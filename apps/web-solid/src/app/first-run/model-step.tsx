@@ -42,7 +42,8 @@ export function ModelStep() {
     const row = rows().find((r) => r.ref === current())
     if (row) useApp.setAgentModel(KIKO as AgentSlug, { ref: row.ref, levels: row.model.thinking })
     move("next")
-    navigate("/", { replace: true })
+    const kiko = useApp.kikoChatId()
+    navigate(kiko ? `/chat/${kiko}` : "/chat", { replace: true })
     focusComposer()
   }
 
@@ -69,7 +70,7 @@ export function ModelStep() {
                   type="button"
                   role="radio"
                   aria-checked={current() === row.ref}
-                  class="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent aria-checked:border-[var(--ring)] aria-checked:bg-accent"
+                  class="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent aria-checked:border-[color-mix(in_oklab,var(--foreground)_40%,transparent)] aria-checked:bg-accent"
                   data-model={row.ref}
                   onClick={() => setChosen(row.ref)}
                 >
