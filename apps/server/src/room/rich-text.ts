@@ -2,7 +2,10 @@
 // protocol tree. The `marked` lexer is confined to this file. Nothing here
 // emits HTML: a raw HTML token becomes text. A link keeps its href when it is
 // http, https, or mailto, or when it names a file (no scheme, or `file:`). The
-// client draws a file href as a chip that opens the files tab, never as a link.
+// client draws a file href as a chip that opens the files tab, never as a link. A link whose href
+// does not parse as a URL loses its href. A paragraph that is only an image becomes an image
+// block: an https address as is, a path as the id of the chat file it names, and a path with no
+// image file behind it as a file link.
 
 import { isAgentSlug, type Block, type ColumnAlign, type HeadingLevel, type Inline, type RichText } from "@kiko/protocol"
 import { Lexer, type Token, type Tokens } from "marked"
@@ -13,26 +16,39 @@ const SCHEME = /^[a-z][a-z0-9+.-]*:(?!\d)/i
 const MENTION = /(^|[^\w@/.-])@([a-z0-9-]{1,32})(?![\w-])/g
 const TASK_MARKER = /^\[[ xX]\]\s*/
 
-export function parseRichText(markdown: string): RichText {
-	// `breaks`: a single newline is a line break. In a chat bubble a new line is meant, and
-	// joining the lines of a quote or a short list of facts into one run of text misreads it.
-	return blocks(Lexer.lex(markdown, { gfm: true, breaks: true }))
+function parses(href: string): boolean {
+	try {
+		return new URL(href).href !== ""
+	} catch {
+		return false
+	}
 }
 
-function blocks(tokens: readonly Token[]): Block[] {
+/** The id of the image file at a path in the chat, or null. */
+export type ImageFile = (path: string) => string | null
+
+export function parseRichText(markdown: string, imageFile: ImageFile = () => null): RichText {
+	// `breaks`: a single newline is a line break. In a chat bubble a new line is meant, and
+	// joining the lines of a quote or a short list of facts into one run of text misreads it.
+	return blocks(Lexer.lex(markdown, { gfm: true, breaks: true }), imageFile)
+}
+
+function blocks(tokens: readonly Token[], imageFile: ImageFile): Block[] {
 	const out: Block[] = []
 	for (const token of tokens) {
-		const block = toBlock(token)
+		const block = toBlock(token, imageFile)
 		if (block) out.push(block)
 	}
 	return out
 }
 
-function toBlock(token: Token): Block | null {
+function toBlock(token: Token, imageFile: ImageFile): Block | null {
 	switch (token.type) {
 		case "paragraph":
 		case "text": {
 			const t = token as Tokens.Paragraph | Tokens.Text
+			const only = token.type === "paragraph" && t.tokens?.length === 1 ? t.tokens[0] : undefined
+			if (only?.type === "image") return imageBlock(only as Tokens.Image, imageFile)
 			return { t: "paragraph", children: t.tokens ? inlines(t.tokens) : mentions(t.text) }
 		}
 		case "heading": {
@@ -41,12 +57,12 @@ function toBlock(token: Token): Block | null {
 		}
 		case "list": {
 			const t = token as Tokens.List
-			const items = t.items.map((item) => (item.task ? ticked(blocks(item.tokens), item.checked === true) : blocks(item.tokens)))
+			const items = t.items.map((item) => (item.task ? ticked(blocks(item.tokens, imageFile), item.checked === true) : blocks(item.tokens, imageFile)))
 			const loose = t.loose ? { loose: true as const } : {}
 			return t.ordered ? { t: "list", start: t.start === "" ? 1 : t.start, ...loose, items } : { t: "list", ...loose, items }
 		}
 		case "blockquote":
-			return { t: "quote", children: blocks((token as Tokens.Blockquote).tokens) }
+			return { t: "quote", children: blocks((token as Tokens.Blockquote).tokens, imageFile) }
 		case "hr":
 			return { t: "rule" }
 		case "code": {
@@ -70,6 +86,15 @@ function toBlock(token: Token): Block | null {
 		default:
 			return null // space, def
 	}
+}
+
+function imageBlock(image: Tokens.Image, imageFile: ImageFile): Block {
+	const alt = image.text
+	const href = image.href.trim()
+	if (/^https:/i.test(href)) return parses(href) ? { t: "image", alt, url: href } : { t: "paragraph", children: [{ t: "text", text: alt }] }
+	if (SCHEME.test(href)) return { t: "paragraph", children: [{ t: "text", text: alt }] }
+	const fileId = imageFile(href.replace(/[?#].*$/, "").replace(/^(\.?\/)+/, ""))
+	return fileId ? { t: "image", alt, fileId } : { t: "paragraph", children: [{ t: "link", href, children: [{ t: "text", text: alt }] }] }
 }
 
 /**
@@ -118,7 +143,8 @@ function push(out: Inline[], token: Token): void {
 			const t = token as Tokens.Link
 			const children = inlines(t.tokens)
 			const href = t.href.trim()
-			if (SAFE_LINK.test(href) || !SCHEME.test(href)) out.push({ t: "link", href, children })
+			const web = !/^(https?):/i.test(href) || parses(href)
+			if (web && (SAFE_LINK.test(href) || !SCHEME.test(href))) out.push({ t: "link", href, children })
 			else out.push(...children)
 			return
 		}
