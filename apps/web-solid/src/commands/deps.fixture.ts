@@ -17,6 +17,7 @@ export const testDeps = (over: Partial<Parameters<typeof katCommands>[0]> = {}):
   openPalette() {},
   openChats() {},
   chatChoices: () => [],
+  fileSearch: () => [],
   reopenClosed() {},
   attach() {},
   rename() {},
@@ -27,6 +28,5 @@ export const testDeps = (over: Partial<Parameters<typeof katCommands>[0]> = {}):
   stepChat() {},
   chatCount: () => 0,
   searchChat() {},
-  searchAll() {},
   ...over,
 })

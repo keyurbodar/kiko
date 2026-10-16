@@ -1,8 +1,12 @@
 import { useLocation, useNavigate } from "@solidjs/router"
+import { withMade } from "../files/api"
+import { fileHits, listFiles } from "../files/go-to"
+import { HOME } from "../files/model"
+import { recentFiles } from "../files/recent"
 import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleCard } from "../chat/side/card-state"
-import { fixedSurface, openSurface, toggleSidecar } from "../chat/side/surfaces"
+import { fixedSurface, openFile, openSurface, toggleSidecar } from "../chat/side/surfaces"
 import { answeringMember, canReason } from "../settings/agent-model"
 import { THINKING_LABELS } from "@kiko/protocol"
 import type { Choice } from "./registry"
@@ -11,7 +15,8 @@ import { openPalette } from "../palette/state"
 import { agentList } from "../lib/chats"
 import { readCache } from "@kiko/theme/apply"
 import { parseLook } from "@kiko/theme/look"
-import { openSearch } from "../search/state"
+import { openSearch, requestJump } from "../search/state"
+import { messageSearchCommand } from "./message-search"
 import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openAvatarPicker } from "../avatar/picker-state"
@@ -54,6 +59,22 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
             if (roomId) navigate(`/chat/${roomId}`)
           },
         })),
+      fileSearch: (query) => {
+        const id = activeId()
+        if (!id) return []
+        const hits = fileHits(
+          withMade(id, useApp.activeFiles()).map((f) => f.name),
+          withMade(HOME, useApp.homeFiles()).map((f) => f.name),
+        )
+        return listFiles(hits, query, recentFiles(id)).map(({ hit, group }) => ({
+          id: hit.path,
+          title: hit.name,
+          detail: hit.shown,
+          file: hit.path,
+          group,
+          run: () => openFile(id, hit.path),
+        }))
+      },
       newGroup: openBotPicker,
       newAgent: openNewAgentFlow,
       toggleSidecar: () => {
@@ -86,7 +107,6 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
       chatCount: () => useApp.bots().length,
       searchChat: () => openSearch("chat"),
-      searchAll: () => openSearch("all"),
       reopenClosed: () => {
         const id = reopenClosedChat()
         if (id) navigate(`/chat/${id}`)
@@ -110,6 +130,15 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
     }),
   )
+  useCommands([
+    messageSearchCommand({
+      open: (hit) => {
+        requestJump({ roomId: hit.roomId, id: hit.id, seq: hit.seq })
+        if (hit.roomId !== activeId()) navigate(`/chat/${hit.roomId}`)
+      },
+      openView: openPalette,
+    }),
+  ])
   // The agent the composer's model chip targets when the draft tags no one: the lead.
   const chipAgent = () => answeringMember(useApp.roomMembers(), "")
   useCommands(

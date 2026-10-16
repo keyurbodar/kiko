@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { recentFiles } from "../../files/recent"
 import {
   activateSurface,
   activeSurface,
@@ -275,5 +276,15 @@ describe("the launcher and file tabs", () => {
     openSurface(chat, memory)
     dropFileSurfaces(chat, "notes")
     expect([ids(chat), activeSurface(chat)?.id]).toEqual([["file:notes2/c.md", "memory"], "memory"])
+  })
+})
+
+describe("recent files", () => {
+  test("every open puts the file first, once, per chat", () => {
+    openFile("chat-recent", "a.md")
+    openFile("chat-recent", "b.md")
+    openFile("chat-recent", "a.md", 3)
+    expect(recentFiles("chat-recent")).toEqual(["a.md", "b.md"])
+    expect(recentFiles("other-chat")).toEqual([])
   })
 })

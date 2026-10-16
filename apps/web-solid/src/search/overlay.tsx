@@ -1,13 +1,13 @@
 import { useNavigate } from "@solidjs/router"
 import { Icon } from "@kiko/ui/v2/icon"
-import { type ChatSearchPage, type RoomId, snippetParts } from "@kiko/protocol"
+import { type RoomId, snippetParts } from "@kiko/protocol"
 import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js"
 import { dividerLabel } from "../chat/lib/time-label"
 import { useApp } from "../lib/store"
-import { createSearch, type Hit, type HitPage, type SearchView, senderName } from "./model"
+import { fetchHits } from "./fetch"
+import { createSearch, type Hit, type SearchView, senderName } from "./model"
 import { closeSearch, requestJump, type SearchScope, searchScope, setSearchScope } from "./state"
 import "./search.css"
-import { apiFetch } from "../lib/api"
 
 /*
  * Message search, as kat has it (⌘F, ⌘⇧F): a rounded bar at the top of the chat panel with the
@@ -18,31 +18,13 @@ import { apiFetch } from "../lib/api"
  * recently active chats (room/search-route.ts on the server).
  */
 
-async function searchAll(query: string, before?: number): Promise<HitPage | null> {
-  const params = new URLSearchParams({ q: query })
-  if (before !== undefined) params.set("before", String(before))
-  try {
-    const res = await apiFetch(`/api/search?${params}`, { credentials: "same-origin" })
-    return res.ok ? ((await res.json()) as ChatSearchPage) : null
-  } catch {
-    return null
-  }
-}
-
-async function searchChat(query: string, before?: number): Promise<HitPage | null> {
-  const roomId = useApp.activeThreadId() as RoomId | null
-  if (!roomId) return { results: [], next: null }
-  const page = await useApp.searchRoom(query, before)
-  return page && { results: page.results.map((hit) => ({ ...hit, roomId })), next: page.next }
-}
-
 export default function SearchOverlay() {
   const navigate = useNavigate()
   const [view, setView] = createSignal<SearchView>()
   const hasChat = () => !!useApp.activeThreadId()
   const search = createSearch({
     scope: searchScope() === "chat" && hasChat() ? "chat" : "all",
-    fetch: (scope, query, before) => (scope === "chat" ? searchChat(query, before) : searchAll(query, before)),
+    fetch: fetchHits,
     onChange: setView,
   })
   setView(search.view())
