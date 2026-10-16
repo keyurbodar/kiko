@@ -3,6 +3,9 @@ import type { Chat } from "./user"
 
 export const KIKO = "kiko"
 
+/** The room id of the Kiko chat a new account gets. Fixed, so the client can paint the pinned tile before the server answers. */
+export const KIKO_HOME_ROOM = "00000000-0000-7000-8000-6b696b6f0000" as RoomId
+
 /** Two agent lists name the same chat when they hold the same agents, in any order, with repeats counted once. */
 export function sameAgents(a: readonly string[], b: readonly string[]): boolean {
 	const x = new Set(a)

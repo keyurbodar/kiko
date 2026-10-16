@@ -1,5 +1,5 @@
 import { getSetting, setSetting } from "../lib/settings"
-import { isRoomId, KIKO, newRoomId, sameAgentChat, type Chat, type ChatOp, type RoomId } from "@kiko/protocol"
+import { isRoomId, KIKO, KIKO_HOME_ROOM, sameAgentChat, type Chat, type ChatOp, type RoomId } from "@kiko/protocol"
 
 const KEY = "kiko_home"
 // The key and agent id from before the rename. An account made then still holds them.
@@ -27,7 +27,7 @@ export function kikoChatOps(sql: SqlStorage, chats: readonly Chat[]): ChatOp[] {
       ...(found.title === LEGACY_TITLE ? [{ op: "rename" as const, roomId: found.roomId, title: TITLE }] : []),
     ]
   }
-  const roomId = newRoomId()
+  const roomId = KIKO_HOME_ROOM
   setSetting(sql, KEY, roomId)
   return [
     { op: "create", roomId, title: TITLE, agents: [KIKO] },

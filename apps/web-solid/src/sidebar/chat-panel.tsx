@@ -55,7 +55,7 @@ function ChatMenuItems(props: { id: string }) {
     <>
       <MenuV2.Item onSelect={() => startRename(props.id)} shortcut="F2">Rename</MenuV2.Item>
 
-      <Show when={!chat()?.kiko}>
+      <Show when={!chat()?.kiko} fallback={<MenuV2.Item disabled>Always pinned</MenuV2.Item>}>
         <MenuV2.Item onSelect={() => togglePin(props.id)}>{chat()?.pinned ? "Unpin" : "Pin"}</MenuV2.Item>
       </Show>
       <MenuV2.Item onSelect={() => toggleMute(props.id)}>{chat()?.muted ? "Unmute" : "Mute"}</MenuV2.Item>
@@ -65,9 +65,8 @@ function ChatMenuItems(props: { id: string }) {
       <MenuV2.Separator />
       <MenuV2.Item onSelect={() => markUnread(props.id)}>Mark as unread</MenuV2.Item>
       <MenuV2.Item onSelect={() => closeChat(props.id, active(), navigate)}>Close</MenuV2.Item>
-      <Show when={!chat()?.kiko}>
-        <MenuV2.Separator />
-
+      <MenuV2.Separator />
+      <Show when={!chat()?.kiko} fallback={<MenuV2.Item disabled>Kiko can't be deleted</MenuV2.Item>}>
         <MenuV2.Item
           class="text-error"
           closeOnSelect={false}
