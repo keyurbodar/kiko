@@ -17,14 +17,14 @@
   }
 
   .first-run-step {
-    animation: first-run-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: first-run-in 260ms var(--motion-ease-settle) both;
   }
   .first-run-step > * {
-    animation: first-run-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: first-run-in 300ms var(--motion-ease-settle) both;
     animation-delay: calc(var(--i, 0) * 40ms);
   }
   .first-run-bar > i {
-    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 280ms var(--motion-ease-settle);
   }
   .first-run-skeleton {
     animation: first-run-pulse 1.4s ease-in-out infinite;
