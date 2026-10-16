@@ -15,7 +15,8 @@ import { openPalette } from "../palette/state"
 import { agentList } from "../lib/chats"
 import { readCache } from "@kiko/theme/apply"
 import { parseLook } from "@kiko/theme/look"
-import { openSearch } from "../search/state"
+import { openSearch, requestJump } from "../search/state"
+import { messageSearchCommand } from "./message-search"
 import { katCommands } from "./kat-commands"
 import { themeCommands } from "./theme-commands"
 import { openAvatarPicker } from "../avatar/picker-state"
@@ -106,7 +107,6 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
       chatCount: () => useApp.bots().length,
       searchChat: () => openSearch("chat"),
-      searchAll: () => openSearch("all"),
       reopenClosed: () => {
         const id = reopenClosedChat()
         if (id) navigate(`/chat/${id}`)
@@ -130,6 +130,15 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
     }),
   )
+  useCommands([
+    messageSearchCommand({
+      open: (hit) => {
+        requestJump({ roomId: hit.roomId, id: hit.id, seq: hit.seq })
+        if (hit.roomId !== activeId()) navigate(`/chat/${hit.roomId}`)
+      },
+      openView: openPalette,
+    }),
+  ])
   // The agent the composer's model chip targets when the draft tags no one: the lead.
   const chipAgent = () => answeringMember(useApp.roomMembers(), "")
   useCommands(

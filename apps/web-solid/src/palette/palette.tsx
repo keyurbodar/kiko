@@ -1,12 +1,14 @@
 import { Command as Cmdk } from "cmdk-solid"
 import { HugeIcon } from "@kiko/ui/huge-icon"
 import { ArrowUpIcon, ChevronRightIcon, CheckIcon } from "@kiko/ui/icons"
+import { snippetParts } from "@kiko/protocol"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
 import { displayShortcut } from "../commands/hotkeys"
+import { commands } from "../commands/registry"
 import { EntryIcon } from "../lib/EntryIcon"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
-import { backspaceLeaves, emptyText, enterLabel, iconFor, keyChips, matchScore, searchGroups, viewFor, type Item } from "./model"
+import { backspaceLeaves, emptyText, enterLabel, iconFor, keyChips, rowScore, searchGroups, viewFor, type Item } from "./model"
 import { backView, closePalette, enterView, paletteStack } from "./state"
 import "./palette.css"
 
@@ -24,6 +26,21 @@ function Chips(props: { keys: string[] }) {
       <For each={props.keys}>{(key) => <kbd class="palette-kbd">{key}</kbd>}</For>
     </span>
   )
+}
+
+/** The query inside a line, in bold where it matches, as t3code marks a search hit. */
+function Marked(props: { text: string; query?: string }) {
+  const parts = createMemo(() => {
+    const q = props.query?.trim().toLowerCase()
+    const at = q ? props.text.toLowerCase().indexOf(q) : -1
+    if (!q || at < 0) return [{ text: props.text, match: false }]
+    return [
+      { text: props.text.slice(0, at), match: false },
+      { text: props.text.slice(at, at + q.length), match: true },
+      { text: props.text.slice(at + q.length), match: false },
+    ].filter((p) => p.text)
+  })
+  return <For each={parts()}>{(part) => (part.match ? <mark class="palette-mark">{part.text}</mark> : part.text)}</For>
 }
 
 function Leading(props: { item: Item }) {
@@ -49,6 +66,7 @@ function Plain(props: { item: Item }) {
 }
 
 export default function Palette() {
+  const [query, setQuery] = createSignal("")
   // The panel stays mounted for a short exit, but stops taking input the moment the palette closes.
   const [kept, setKept] = createSignal<readonly string[] | null>(null)
   const open = () => paletteStack() !== null
@@ -64,8 +82,9 @@ export default function Palette() {
   })
   onCleanup(() => clearTimeout(timer))
 
-  const [query, setQuery] = createSignal("")
-  const view = createMemo(() => viewFor(stack()))
+  // Only whether something is typed changes the root list, so a keystroke keeps its rows and the highlight.
+  const typed = createMemo(() => query().trim() !== "")
+  const view = createMemo(() => viewFor(stack(), commands(), typed()))
   // A search view ranks its own rows, so it follows the query. The other views leave filtering to cmdk.
   const searching = () => view().parent?.search
   const groups = createMemo(() => {
@@ -83,6 +102,9 @@ export default function Palette() {
     }
   })
   createEffect(on(() => stack().length, () => setQuery(""), { defer: true }))
+  // A search that fills in later is told what is typed, and told to stand down when its view closes.
+  createEffect(() => view().parent?.onQuery?.(query()))
+  createEffect(on(() => view().parent, (_now, before) => before?.onQuery?.(""), { defer: true }))
   const close = () => {
     closePalette()
     const el = before
@@ -104,7 +126,7 @@ export default function Palette() {
           label="Command palette"
           loop
           shouldFilter={!searching()}
-          filter={(_value, search, keywords) => matchScore(search, keywords?.[0] ?? "", keywords?.[1] ?? "")}
+          filter={(_value, search, keywords) => rowScore(search, keywords?.[0] ?? "", keywords?.[1] ?? "", Boolean(keywords?.[2]))}
           onKeyDown={(e: KeyboardEvent) => {
             if (e.key === "Escape") {
               e.preventDefault()
@@ -115,7 +137,10 @@ export default function Palette() {
             }
           }}
         >
-          <Cmdk.Input ref={input} class="palette-input" placeholder={view().placeholder} value={query()} onValueChange={setQuery} autofocus />
+          <div class="palette-bar">
+            <Show when={view().parent}>{(parent) => <span class="palette-addon" aria-hidden="true"><HugeIcon icon={iconFor(parent().icon)} size={16} /></span>}</Show>
+            <Cmdk.Input ref={input} class="palette-input" placeholder={view().placeholder} value={query()} onValueChange={setQuery} autofocus />
+          </div>
           <Cmdk.List class="palette-list">
             <Show
               when={searching()}
@@ -130,16 +155,20 @@ export default function Palette() {
                 <Cmdk.Group class="palette-group" heading={group.label ?? undefined}>
                   <For each={group.items}>
                     {(item) => (
-                      <Cmdk.Item class="palette-row" value={item.key} keywords={[item.title, group.label ?? ""]} onSelect={() => choose(item)}>
+                      <Cmdk.Item class="palette-row" value={item.key} keywords={[item.title, group.label ?? "", item.chat ? "chat" : ""]} onSelect={() => choose(item)}>
                         <Leading item={item} />
-                        <Show when={item.detail} fallback={<span class="palette-label">{item.title}</span>}>
-                          {(detail) => (
-                            <span class="palette-text">
-                              <span class="palette-label">{item.title}</span>
-                              <span class="palette-detail">{detail()}</span>
-                            </span>
-                          )}
+                        <Show
+                          when={item.detail || item.snippet}
+                          fallback={<span class="palette-label"><Marked text={item.title} query={item.mark} /></span>}
+                        >
+                          <span class="palette-text">
+                            <span class="palette-label"><Marked text={item.title} query={item.mark} /></span>
+                            <Show when={item.detail} fallback={<span class="palette-detail"><For each={snippetParts(item.snippet ?? "")}>{(part) => (part.match ? <mark class="palette-mark">{part.text}</mark> : part.text)}</For></span>}>
+                              {(detail) => <span class="palette-detail"><Marked text={detail()} query={item.mark} /></span>}
+                            </Show>
+                          </span>
                         </Show>
+                        <Show when={item.swatch}>{(color) => <span class="palette-swatch" style={{ background: color() }} aria-hidden="true" />}</Show>
                         <Show when={item.current}>
                           <HugeIcon icon={CheckIcon} size={14} class="palette-trail" />
                         </Show>

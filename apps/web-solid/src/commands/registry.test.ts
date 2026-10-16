@@ -65,7 +65,6 @@ describe("kat commands", () => {
       "Previous chat": "Alt+ArrowUp",
       "Next chat": "Alt+ArrowDown",
       "Search messages in this chat": "Mod+F",
-      "Search all chats": "Mod+Shift+F",
       "Open command palette": "Mod+K",
     })
     // Sentence case, and no group prefix: the palette shows the group as a heading.
@@ -78,7 +77,7 @@ describe("kat commands", () => {
   })
 
   test("the sidebar toggle, new chat, chat info, chat stepping, search, and the palette are global", () => {
-    expect(list.filter((c) => c.global && !c.unlisted).map((c) => c.id).sort()).toEqual(["chat.info", "chat.new", "chats.go", "chats.next", "chats.previous", "chats.search-all", "chats.search-current", "files.go", "palette.open", "view.toggle-sidebar"])
+    expect(list.filter((c) => c.global && !c.unlisted).map((c) => c.id).sort()).toEqual(["chat.info", "chat.new", "chats.go", "chats.next", "chats.previous", "chats.search-current", "files.go", "palette.open", "view.toggle-sidebar"])
   })
 
   test("non-global shortcuts ignore text fields, global ones do not", () => {

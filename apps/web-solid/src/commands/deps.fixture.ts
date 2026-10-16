@@ -28,6 +28,5 @@ export const testDeps = (over: Partial<Parameters<typeof katCommands>[0]> = {}):
   stepChat() {},
   chatCount: () => 0,
   searchChat() {},
-  searchAll() {},
   ...over,
 })

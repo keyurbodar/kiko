@@ -22,6 +22,10 @@ export interface Choice {
   chatId?: string
   /** A second, muted line under the title. */
   detail?: string
+  /** A message excerpt for the second line, with the search's match markers. */
+  snippet?: string
+  /** A color dot before the check. */
+  swatch?: string
   /** Draws this path's file icon. */
   file?: string
   /** The heading above this option. Consecutive options with one heading share a group. */
@@ -58,6 +62,12 @@ export interface Command {
    * what it returns in that order, so a long list costs only the rows it returns.
    */
   search?: (query: string) => readonly Choice[]
+  /** A search whose rows arrive later is told the query on each keystroke, and with "" when the view closes. */
+  onQuery?: (query: string) => void
+  /** Whether the rows of a late search are still coming or could not come. */
+  state?: () => "loading" | "error" | undefined
+  /** The query is marked in each row's title and detail. */
+  highlight?: boolean
   /** What Enter does in the submenu, for the footer hint. Defaults to "Select". */
   enter?: string
   /** What the search view says when it has no rows: with no query, and with one. */

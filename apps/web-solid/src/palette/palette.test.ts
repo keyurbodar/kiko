@@ -4,7 +4,7 @@ import { katCommands } from "../commands/kat-commands"
 import { registerCommands, type Choice } from "../commands/registry"
 import { runSlash, slashSuggestions } from "../composer/slash"
 import { fileHits, listFiles } from "../files/go-to"
-import { backspaceLeaves, emptyText, enterLabel, keyChips, listed, matchScore, searchGroups, viewFor } from "./model"
+import { backspaceLeaves, emptyText, enterLabel, keyChips, listed, matchScore, rowScore, searchGroups, viewFor } from "./model"
 import { backView, closePalette, enterView, openPalette, paletteStack } from "./state"
 
 const choice = (id: string, run = () => {}): Choice => ({ id, title: `Option ${id}`, run })
@@ -20,7 +20,6 @@ describe("palette rows", () => {
       "New agent",
       "Reopen closed chat",
       "Go to chat…",
-      "Search all chats",
     ])
   })
 
@@ -29,7 +28,8 @@ describe("palette rows", () => {
     expect(groups).toEqual([
       ["View", ["view.toggle-sidebar"]],
       ["Chat", ["chat.new", "chat.new-with", "chat.new-group", "chat.new-agent", "chat.reopen"]],
-      ["Chats", ["chats.go", "chats.search-all"]],
+      ["Chats", ["chats.go"]],
+      ["Recent chats", ["a", "b"]],
     ])
   })
 
@@ -155,5 +155,64 @@ describe("go to file", () => {
     expect(emptyText(command, "zzz")).toBe("No matching files")
     expect(searchGroups(command, "zzz")).toEqual([])
     expect(enterLabel(viewFor([], mine))).toBe("Select")
+  })
+})
+
+describe("chats in the root list", () => {
+  const many = Array.from({ length: 8 }, (_, i) => choice(`c${i}`))
+  const chats = katCommands(testDeps({ chatChoices: () => many }))
+  const group = (typed: boolean) => viewFor([], chats, typed).groups.find((g) => g.items.some((i) => i.chat))
+
+  test("nothing typed lists the five latest as recent chats", () => {
+    expect([group(false)?.label, group(false)?.items.map((i) => i.key)]).toEqual(["Recent chats", ["c0", "c1", "c2", "c3", "c4"]])
+  })
+
+  test("typing offers every chat to search", () => {
+    expect([group(true)?.label, group(true)?.items.length]).toEqual(["Chats", 8])
+  })
+
+  test("a leading > asks for commands only", () => {
+    expect(rowScore(">new", "New chat", "Chat", false)).toBeGreaterThan(0)
+    expect(rowScore(">new", "New project", "Chats", true)).toBe(0)
+    expect(rowScore("new", "New project", "Chats", true)).toBeGreaterThan(0)
+    expect(rowScore(">", "New chat", "Chat", false)).toBe(1)
+  })
+})
+
+describe("marking a search", () => {
+  test("a search view that highlights carries the query to every row", () => {
+    const parent = { ...katCommands(testDeps({ hasActiveChat: () => true, fileSearch: () => [choice("x")] })).find((c) => c.id === "files.go")!, highlight: true }
+    expect(searchGroups(parent, " Opt ")[0]!.items[0]!.mark).toBe("Opt")
+    expect(searchGroups({ ...parent, highlight: false }, "Opt")[0]!.items[0]!.mark).toBeUndefined()
+  })
+
+  test("a late search says it is searching or cannot be reached, then falls back to its empty text", () => {
+    const base = katCommands(testDeps({ hasActiveChat: () => true })).find((c) => c.id === "files.go")!
+    expect(emptyText({ ...base, state: () => "loading" }, "a")).toBe("Searching…")
+    expect(emptyText({ ...base, state: () => "error" }, "a")).toBe("Search is not reachable")
+    expect(emptyText({ ...base, state: () => undefined }, "a")).toBe("No matching files")
+  })
+})
+
+describe("slash openers", () => {
+  test("/file opens the file search once a chat is open", () => {
+    const off = registerCommands(katCommands(testDeps({ hasActiveChat: () => true, openView: (id) => openPalette(id) })))
+    expect(slashSuggestions().map((s) => s.label)).toContain("/file")
+    expect(runSlash("/file")).toBe(true)
+    expect(paletteStack()).toEqual(["files.go"])
+    closePalette()
+    off()
+    expect(slashSuggestions().map((s) => s.label)).not.toContain("/file")
+  })
+})
+
+describe("message search view", () => {
+  test("is the Mod+Shift+F command: a search view that asks for hits as you type and opens the message on Enter", async () => {
+    const { messageSearchCommand } = await import("../commands/message-search")
+    const command = messageSearchCommand({ open() {}, openView() {} })
+    expect([command.id, command.shortcut, command.global, command.enter, command.highlight]).toEqual(["chats.search-all", "Mod+Shift+F", true, "Open message", undefined])
+    expect(command.onQuery).toBeFunction()
+    expect(command.search!("")).toEqual([])
+    expect(emptyText(command, "")).toBe("Type to search every chat")
   })
 })
