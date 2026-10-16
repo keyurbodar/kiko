@@ -69,19 +69,19 @@ const suite: Suite = {
       const sends = agentSends(room)
       expectEqual(
         sends.map((m) => `${m.from.kind === "agent" ? m.from.slug : ""}: ${m.text}`),
-        Array.from({ length: 8 }, (_, i) => (i % 2 === 0 ? "ana: @ben [echo]" : "ben: @ana [echo]")),
+        Array.from({ length: 24 }, (_, i) => (i % 2 === 0 ? "ana: @ben [echo]" : "ben: @ana [echo]")),
         "agent messages, one per hop",
       )
       expectEqual(notices(room).length, 1, "system events")
       const refused = bubbles(room).filter((m) => m.text.includes("summarize what the team has so far for the human"))
       expectEqual(refused.length, 1, "bubbles that answered a refused send")
-      expectEqual(await received(), 9, "envelopes the two inboxes stored")
-      console.log(`  ok echo: 8 hops sent, hop 9 refused; notice: ${JSON.stringify(notices(room)[0]?.text)}`)
+      expectEqual(await received(), 25, "envelopes the two inboxes stored")
+      console.log(`  ok echo: 24 hops sent, hop 25 refused; notice: ${JSON.stringify(notices(room)[0]?.text)}`)
 
       await send(room, "@ana [team]")
       await poll("ana's look at the team", () => bubbles(room).some((m) => m.text.startsWith("heard: @ana [team]") && m.text.includes("@ben:")), 15_000)
       await Bun.sleep(1_500)
-      expectEqual(await received(), 10, "envelopes after team (only the human's)")
+      expectEqual(await received(), 26, "envelopes after team (only the human's)")
       console.log("  ok team: read what ben is doing, woke nobody")
       room.raw.close()
     }
@@ -93,9 +93,9 @@ const suite: Suite = {
       await settle(() => messages(room).length, 5_000, 60_000)
       const deliveries = agentSends(room).length * (members.length - 1)
       const stored = (await received()) - 1
-      if (stored > 40 || deliveries > 40) throw new VerifyError(`${stored} agent deliveries stored, ${deliveries} sent: more than 40`)
-      expectEqual(stored, 40, "agent deliveries the inboxes stored")
-      expectEqual(notices(room).map((m) => m.text.includes("40 messages")), [true], "one system event, for the root limit")
+      if (stored > 60 || deliveries > 60) throw new VerifyError(`${stored} agent deliveries stored, ${deliveries} sent: more than 60`)
+      expectEqual(stored, 60, "agent deliveries the inboxes stored")
+      expectEqual(notices(room).map((m) => m.text.includes("60 messages")), [true], "one system event, for the root limit")
       console.log(`  ok broadcast: ${agentSends(room).length} broadcasts, ${stored} agent deliveries, then: ${JSON.stringify(notices(room)[0]?.text)}`)
       room.raw.close()
     }

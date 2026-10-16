@@ -53,8 +53,8 @@ export class RoomMail {
 			.toArray()
 		const text = bubbles.map((b) => b.text).join("\n\n").trim()
 		const last = bubbles.at(-1)
-		if (!last || !text) return this.nothingToAdd(home, slug, heard)
-		this.answerHeard(home, slug, heard, text, { id: last.id, seq: last.seq })
+		if (last && text) this.answerHeard(home, slug, heard, text, { id: last.id, seq: last.seq })
+		else this.nothingToAdd(home, slug, heard)
 	}
 
 	/** A run with no reply bubbles (empty, `[skip]`, or only reactions, none of which become messages) has nothing to relay. Its asks settle with an empty answer, and a waiting `ask` returns that. */
