@@ -2,16 +2,14 @@
 //
 // Same shape as the room store, smaller. It paints the chat list from
 // IndexedDB, connects with `hello {lastSeq}`, applies events in `seq` order,
-// and lays pending chat edits over the server's list. Pending edits go out
-// again after a reconnect.
-//
-// ASSUMPTION: chat edits are not written to the outbox, which holds sends
-// only. A chat edit made offline is lost on reload.
+// and lays pending chat edits over the server's list. Pending edits are kept
+// in IndexedDB and go out again after a reload or a reconnect. Each carries a
+// stable id (a create names its room), so a replay changes nothing twice.
 
 import type { Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, FileRef, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
-import { allAgentModels, allAgents, allChats, getHome, getUserSeq, putAgentModels, putAgents, putChats, putHome, removeChat, replaceChats, setUserSeq } from "../warm/chats"
+import { allAgentModels, allAgents, allChats, getHome, getPendingChats, getUserSeq, putAgentModels, putAgents, putChats, putHome, putPendingChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
 import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
@@ -51,7 +49,7 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	return true
 }
 
-import { clampThinking, KIKO, newRoomId, PROTOCOL } from "@kiko/protocol"
+import { clampThinking, newRoomId, PROTOCOL, sameAgentChat } from "@kiko/protocol"
 export { newRoomId }
 
 // The app's own build. The backend's answer is checked against it.
@@ -62,8 +60,6 @@ export type UserState = UserData & {
 	loaded: boolean
 	connection: SocketStatus
 	patches: UserPatch[]
-	/** Agents made here that the server has not confirmed yet. Sent again after a reconnect. */
-	pendingAgents: Agent[]
 	/** Drive changes the server has not confirmed yet, laid over `home`. */
 	pendingHome: RoomPatch[]
 	/** Every agent's model and reasoning level, Kiko included, as the server last said. One entry per agent, whatever chat is open. */
@@ -103,15 +99,16 @@ export type UserStore = {
 	/** Pinned first, then the most recently updated, with pending edits applied. */
 	chats(): Chat[]
 	readonly ready: Promise<void>
-	/** The user's agents, with the ones not yet confirmed. */
+	/** The user's agents. */
 	agents(): Agent[]
 	/** The agent's model and level, with a pending pick applied. Undefined until the server has said. */
 	agentModel(slug: string): AgentModel | undefined
 	/** Sets an agent's model, its level, or both, for every chat. Shown at once; the server confirms it. `levels` are the new model's supported levels. */
 	setAgentModel(slug: AgentSlug, pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[]; roomId?: RoomId }): void
-	/** Adds an agent at once and sends it after. The caller makes the id and the unique handle. */
-	createAgent(agent: Agent): void
-	/** Returns the new room's id. `agents` are the ids of the agents it starts with. */
+	/**
+	 * The room that holds exactly these agents: the one already there, else a new one, shown at
+	 * once. The server decides the same way, so a refusal only follows a race with another device.
+	 */
 	createChat(title: string, agents?: readonly string[]): RoomId
 	/** Tells the server the user is in this chat, at most once every `OPEN_DEBOUNCE_MS`. */
 	open(roomId: RoomId): void
@@ -149,7 +146,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		loaded: false,
 		connection: "closed",
 		patches: [],
-		pendingAgents: [],
 		pendingHome: [],
 		agentModels: {},
 		pendingModels: {},
@@ -167,6 +163,11 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	// True from each `hello` until the first events or reset that answers it. That answer carries the backend's build.
 	let awaitingHello = false
 
+	function setPatches(next: UserPatch[] | ((list: UserPatch[]) => UserPatch[])) {
+		setState("patches", next)
+		putPendingChats(warm, unwrap(state.patches).map(({ clientId, op, at }) => ({ clientId, op, at })))
+	}
+
 	function transmit(p: UserPatch) {
 		if (!socket?.send({ t: "chat", op: p.op })) return
 		const sentAt = now()
@@ -174,13 +175,13 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		if (expiry === undefined)
 			expiry = setTimeout(() => {
 				expiry = undefined
-				setState("patches", (list) => expire(list, now(), ttl))
+				setPatches((list) => expire(list, now(), ttl))
 			}, ttl)
 	}
 
 	function act(op: ChatOp) {
 		const p: UserPatch = { clientId: newId(), op, at: now() }
-		setState("patches", (list) => [...list, p])
+		setPatches((list) => [...list, p])
 		transmit(p)
 	}
 
@@ -193,10 +194,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 					for (const e of sorted) if (applyUserEvent(s, e)) applied.push(e)
 				}),
 			)
-			const confirmed = applied.flatMap((e) => (e.t === "agent" ? [e.agent.id] : []))
-			if (confirmed.length) setState("pendingAgents", (list) => list.filter((a) => !confirmed.includes(a.id)))
 			const next = settleUser(state.patches, applied)
-			if (next.length !== state.patches.length) setState("patches", next)
+			if (next.length !== state.patches.length) setPatches(next)
 			for (const e of applied) {
 				if (e.t === "theme") setState("theme", e.theme)
 				else if (e.t === "agent_model") {
@@ -225,7 +224,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		const agentModels = { ...snapshot.agentModels }
 		setState({ agentModels, pendingModels: {} })
 		putAgentModels(warm, agentModels)
-		setState("pendingAgents", (list) => list.filter((a) => !agents.some((x) => x.id === a.id)))
 		replaceChats(warm, snapshot.chats, snapshot.seq)
 		putAgents(warm, agents)
 		putHome(warm, home)
@@ -246,7 +244,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			// Nothing was made. The create is dropped, and a reader in it is sent to the agent's one chat.
 			batch(() => {
 				setState("refused", frame.roomId, frame.existing)
-				setState("patches", (list) => list.filter((p) => p.op.roomId !== frame.roomId))
+				setPatches((list) => list.filter((p) => p.op.roomId !== frame.roomId))
 			})
 		} else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
 		else if (frame.t === "home_refused") {
@@ -257,10 +255,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	}
 
 	async function boot() {
-		const [chats, seq, agents, home, agentModels] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm), allAgentModels(warm)])
+		const [chats, seq, agents, home, pending, agentModels] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm), getPendingChats(warm), allAgentModels(warm)])
 		if (closed) return
 		// A cache with no drive predates the drive cache. Ask for a snapshot, not the events after `seq`.
-		setState({ chats, seq: home ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, loaded: true })
+		setState({ chats, seq: home ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, patches: [...pending, ...state.patches], loaded: true })
 		socket = createSyncSocket<UserToClient>({
 			url: options.url,
 			connect: options.connect,
@@ -271,7 +269,6 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			},
 			onOpen: () => {
 				for (const p of [...unwrap(state.patches)]) transmit(p)
-				for (const agent of [...unwrap(state.pendingAgents)]) socket?.send({ t: "agent", op: { op: "create", agent } })
 				channel.opened()
 			},
 			onFrame,
@@ -288,22 +285,19 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		state,
 		chats: () => overlayChats(state.chats, state.patches),
 		ready,
-		agents: () => [...state.agents, ...state.pendingAgents.filter((p) => !state.agents.some((a) => a.id === p.id))],
+		agents: () => state.agents,
 		agentModel: (slug) => state.pendingModels[slug] ?? state.agentModels[slug],
 		setAgentModel(slug, { ref, thinking, levels, roomId }) {
 			const current = state.pendingModels[slug] ?? state.agentModels[slug]
 			if (current) {
 				const nextLevels = levels ?? current.thinkingLevels
-				const next = { model: ref ?? current.model, thinking: clampThinking(nextLevels, thinking ?? current.thinking), thinkingLevels: nextLevels }
-				setState("pendingModels", slug, next)
+				setState("pendingModels", slug, { model: ref ?? current.model, thinking: clampThinking(nextLevels, thinking ?? current.thinking), thinkingLevels: nextLevels })
 			}
 			socket?.send({ t: "agent_model", slug, ...(ref ? { ref } : {}), ...(thinking ? { thinking } : {}), ...(roomId ? { roomId } : {}) })
 		},
-		createAgent(agent) {
-			setState("pendingAgents", (list) => [...list, agent])
-			socket?.send({ t: "agent", op: { op: "create", agent } })
-		},
 		createChat(title, agents) {
+			const existing = agents?.length ? sameAgentChat(overlayChats(state.chats, state.patches), agents) : null
+			if (existing) return existing.roomId
 			const roomId = newRoomId()
 			act({ op: "create", roomId, title, ...(agents?.length ? { agents } : {}) })
 			return roomId

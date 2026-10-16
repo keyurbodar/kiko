@@ -125,7 +125,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
       data-component="emoji-picker"
     >
       <div class="px-2.5 pt-2.5 pb-1">
-        <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--secondary)] px-3 focus-within:shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_22%,transparent)]">
+        <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--secondary)] px-3">
           <SearchIcon size={16} class="shrink-0 text-muted-foreground" />
           <input
             ref={(element) => queueMicrotask(() => element.focus({ preventScroll: true }))}

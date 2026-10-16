@@ -42,7 +42,7 @@ export function ConnectStep() {
             {({ provider, note }) => (
               <button
                 type="button"
-                class="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left outline-none hover:bg-accent"
+                class="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent"
                 data-provider={provider.id}
                 data-action="connect"
                 onClick={() => setDialog(provider)}
@@ -58,10 +58,10 @@ export function ConnectStep() {
         </Show>
       </div>
       <div class="mt-1 flex items-center justify-between" style={{ "--i": 3 }}>
-        <button type="button" class="cursor-pointer text-sm text-muted-foreground outline-none hover:text-foreground" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
+        <button type="button" class="cursor-pointer text-sm text-muted-foreground hover:text-foreground" data-action="view-all-providers" onClick={() => setBrowsing(true)}>
           All providers
         </button>
-        <button type="button" class="cursor-pointer text-sm text-muted-foreground outline-none hover:text-foreground" data-action="skip-first-run" onClick={() => move("skip")}>
+        <button type="button" class="cursor-pointer text-sm text-muted-foreground hover:text-foreground" data-action="skip-first-run" onClick={() => move("skip")}>
           Skip for now
         </button>
       </div>

@@ -351,7 +351,7 @@
     0 12px 40px oklch(0% 0 none / 0.45), 0 2px 6px oklch(0% 0 none / 0.12);
   --menu-shadow:
     0 0 0 0.5px oklch(0% 0 none / 0.4), 0 10px 28px oklch(0% 0 none / 0.32);
-  --card-shadow: none;
+  --card-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
   --row-shadow: 0 6px 18px oklch(0% 0 none / 0.35);
   --segment-shadow: 0 2px 8px oklch(0% 0 none / 0.35);
 }
@@ -360,7 +360,7 @@
   color-scheme: light;
   --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.16), 0 2px 6px oklch(0% 0 none / 0.08);
   --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.1), 0 10px 28px oklch(0% 0 none / 0.12);
-  --card-shadow: 0 1px 2px oklch(0% 0 none / 0.05);
+  --card-shadow: 0 12px 28px -18px rgb(0 0 0 / 40%);
   --segment-shadow: 0 1px 4px oklch(0% 0 none / 0.12);
   --out-quote-bg: oklch(0% 0 none / 0.14);
   --count-bg: var(--foreground);
@@ -647,6 +647,17 @@
       [role="alertdialog"],
       [role="tooltip"]
     ) {
+    outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
+    outline-offset: -2px;
+  }
+
+  /* A pointer never lights a text field. Tabbing into one does. */
+  :root[data-input="keys"] :is(input, textarea, select):not(.kit-field, :is(.kt-field, .chat-search-field, .settings-search) input):focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
+    outline-offset: -2px;
+  }
+
+  :root[data-input="keys"] :is(.kt-field, .chat-search-field, .settings-search):has(input:focus-visible) {
     outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
     outline-offset: -2px;
   }

@@ -33,9 +33,9 @@ export function Dialog(props: {
   return (
     <ModalV2 open={props.open} onOpenChange={(open: boolean) => !open && props.onClose()}>
       <ModalV2.Portal>
-        <ModalV2.Overlay class="animate-none" />
+        <ModalV2.Overlay />
         <ModalV2.Content
-          class={cn("max-h-[calc(100dvh-32px)] animate-none flex-col overflow-hidden rounded-xl border border-border bg-popover text-foreground shadow-popover", WIDTH[props.size ?? "sm"], props.class)}
+          class={cn("max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-xl border border-border bg-popover text-foreground shadow-popover", WIDTH[props.size ?? "sm"], props.class)}
           aria-describedby={props.description ? describedBy : undefined}
         >
 

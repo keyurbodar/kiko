@@ -14,6 +14,7 @@ type Ports = {
   cancelRoutine(id: string): Promise<unknown>
   routine(id: string): Reminder | null
   timezone(): Promise<string | null>
+  agentNamed(name: string): Agent | null
   makeAgent(name: string, handle: string, description: string, model: string): Promise<Agent | null>
   openChat(title: string, agentIds: readonly string[]): Promise<RoomId>
   chiefModel(): Promise<string>
@@ -64,7 +65,7 @@ export class RecipeService {
     let roomId: RoomId
     let agent: string
     if ("own" in input) {
-      const made = await this.p.makeAgent(recipe.agent.name, recipe.agent.handle, recipe.description, await this.p.chiefModel())
+      const made = this.p.agentNamed(recipe.agent.name) ?? (await this.p.makeAgent(recipe.agent.name, recipe.agent.handle, recipe.description, await this.p.chiefModel()))
       if (!made) return { ok: false, error: `@${recipe.agent.handle} could not be made. pick a chat instead.` }
       roomId = await this.p.openChat(made.name, [made.id])
       agent = made.slug

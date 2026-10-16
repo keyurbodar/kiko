@@ -4,10 +4,10 @@ import { signInAsDev, signInWithAccessCode } from "../session"
 import { codeFailed, enteringWithCode } from "./progress"
 
 export const primary =
-  "flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-medium text-background outline-none hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+  "flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-medium text-background hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
 const secondary =
-  "flex h-11 w-full cursor-pointer items-center justify-center rounded-lg bg-control px-4 text-sm font-medium text-foreground outline-none hover:bg-control-strong disabled:cursor-wait disabled:opacity-60"
-const field = "h-11 w-full rounded-lg bg-control px-4 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+  "flex h-11 w-full cursor-pointer items-center justify-center rounded-lg bg-control px-4 text-sm font-medium text-foreground hover:bg-control-strong disabled:cursor-wait disabled:opacity-60"
+const field = "h-11 w-full rounded-lg bg-control px-4 text-sm text-foreground placeholder:text-muted-foreground"
 
 /** The access code, as the first step. A wrong code keeps the person here with the server's message. */
 export function Welcome() {

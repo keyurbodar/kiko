@@ -1,4 +1,4 @@
-import { type Agent, type AgentSlug, type Chat, dmFor, KIKO, kikoOnly, type RoomId } from "@kiko/protocol"
+import { type Agent, type AgentSlug, type Chat, KIKO, type RoomId } from "@kiko/protocol"
 
 /*
  * The pure rules of the chat list (architecture section 7.11): which chats the sidebar shows, and
@@ -13,21 +13,10 @@ export function agentList(stored: readonly Agent[]): Agent[] {
   return [BUILTIN_AGENT, ...stored.filter((a) => a.id !== BUILTIN_AGENT.id)]
 }
 
-/**
- * The chats the sidebar lists, in its order. Left out: rooms with kiko alone that are not the kiko
- * chat (old drafts and second kiko chats), and every direct chat with an agent but the one that
- * counts. The kiko chat comes first; it is the first pinned tile. Otherwise the order is kept.
- */
+/** The chats the sidebar lists: all of them, with the Kiko chat first, since it is the first pinned tile. */
 export function rosterChats(chats: readonly Chat[]): Chat[] {
-  const out = chats.filter((c) => {
-    if (c.kiko) return true
-    if (kikoOnly(c)) return false
-    const agent = c.agents?.length === 1 ? c.agents[0]! : null
-    return agent === null || dmFor(chats, agent)?.roomId === c.roomId
-  })
-  const kiko = out.findIndex((c) => c.kiko)
-  if (kiko > 0) out.unshift(...out.splice(kiko, 1))
-  return out
+  const kiko = chats.findIndex((c) => c.kiko)
+  return kiko > 0 ? [chats[kiko]!, ...chats.slice(0, kiko), ...chats.slice(kiko + 1)] : [...chats]
 }
 
 /**
@@ -50,4 +39,20 @@ export function chatAfter(ids: readonly string[], id: string): string | null {
   const at = ids.indexOf(id)
   const rest = ids.filter((other) => other !== id)
   return rest[at] ?? rest[at - 1] ?? null
+}
+
+/**
+ * Chats that share a title (older installs made several agents with one name) get " 2", " 3" so
+ * no two rows look alike. The lowest room id keeps the plain title. Nothing is hidden or deleted.
+ */
+export function distinctTitles(chats: readonly Chat[]): Chat[] {
+  const seen = new Map<string, number>()
+  const suffix = new Map<string, string>()
+  for (const c of [...chats].sort((a, b) => (a.roomId < b.roomId ? -1 : 1))) {
+    const key = c.title.trim().toLowerCase()
+    const n = (seen.get(key) ?? 0) + 1
+    seen.set(key, n)
+    if (n > 1) suffix.set(c.roomId, `${c.title.trim()} ${n}`)
+  }
+  return suffix.size ? chats.map((c) => (suffix.has(c.roomId) ? { ...c, title: suffix.get(c.roomId)! } : c)) : [...chats]
 }
