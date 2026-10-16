@@ -1,25 +1,31 @@
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import type { Agent } from "@kiko/protocol"
-import type { ProposalInput } from "../../room/chief"
+import type { GroupInput, NewAgentSpec } from "../../room/chief"
 import { declareEffect } from "@kiko/agent/effects"
 
-export const CHIEF_EXT = "chief"
+export const GROUPS_EXT = "groups"
 
-export type ChiefPort = {
+type Made = { ok: true; text: string } | { ok: false; error: string }
+
+export type GroupsPort = {
+  /** Only Kiko makes agents and sees the overview. */
+  chief: boolean
   agents(): Promise<Agent[]>
-  propose(input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }>
-  addToChat(handles: readonly string[]): Promise<{ ok: true; text: string } | { ok: false; error: string }>
-  create(id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }>
+  createAgent(spec: NewAgentSpec): Promise<Made>
+  createGroup(input: GroupInput): Promise<Made>
   overview(): Promise<string>
 }
 
-const CHIEF_RULES = `you're the chief: you make the human's agents and groups, and only you can. they never fill in a form.
+const CHIEF_RULES = `you're the chief: you make the human's agents, and your own chat with them is only ever you and them.
 - for something ongoing (a trip, a habit, a project, a craft), a specialist usually beats you doing it all: offer one. a one-off question, just answer.
-- an agent: get the goal (one question at most), then propose_agent with a short memorable name, a handle, one line on what it does, and its soul. write the soul as the agent, in first person: who it is, how it talks, how it works for this human, what it won't do. specific beats generic, under 1500 characters, casual and direct like you. end it with "## what i've learned about working with them".
-- a group: list_agents first. reuse agents that fit; make new ones only for roles nobody covers. propose_group with a title, the members, the new agents with their souls, and /chat.md: the goal, who does what, empty decisions.
-- to put an agent the human already has into the chat you are in, call add_to_chat. never make a new group for that. the agent must already exist; make it first with propose_agent and create if it does not.
-- then create it, and show what you made in two or three lines (name, what it does, its vibe). if they want changes, propose again and create.`
+- an agent: get the goal (one question at most), then create_agent with a short memorable name, a handle, one line on what it does, and its soul. write the soul as the agent, in first person: who it is, how it talks, how it works for this human, what it won't do. specific beats generic, under 1500 characters, casual and direct like you. end it with "## what i've learned about working with them".
+- a quick one-off for an agent the human already has goes to it privately: send_message or ask. no group.
+- a team effort goes in a new group: list_agents first, reuse agents that fit, make new ones only for roles nobody covers. call create_group with a title, the members, the goal, the new agents with their souls, and a kickoff. the kickoff is your first message to everyone in it, so they start at once. you stay in the group; when they answer, drive the rounds yourself and tell the human the result.
+- this chat never gets members, not even when asked. to bring an agent into a conversation with you, create_group with kiko and that agent.
+- after you make something, show it in two or three lines (name, what it does, its vibe). to change it, ask the human what, then make it again.`
+
+const MEMBER_RULES = `you can start a group with create_group when a job needs several agents working together: list_agents to see who the human has, then a title, the members, the goal, and a kickoff, your first message to everyone in it. kiko is in every group. for a quick one-off with another agent, send_message or ask them privately instead. only kiko makes new agents; ask kiko when none fits.`
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
 const fail = (t: string) => ({ content: text(t), isError: true })
@@ -31,62 +37,43 @@ const NewAgent = Type.Object({
   soul: Type.String({ description: "its soul.md, in its own first person" }),
 })
 
-type Spec = { name: string; handle: string; description: string; soul: string }
-
-export function chiefExtension(port: ChiefPort): Extension {
+export function groupsExtension(port: GroupsPort): Extension {
   const list = defineTool({
     name: "list_agents",
-    description: "the human's agents: handle, name, and what each does. use it before proposing a group.",
+    description: "the human's agents: handle, name, and what each does. use it before you make a group.",
     parameters: Type.Object({}),
     replay: "safe",
     execute: async () => {
       const agents = await port.agents()
-      return { content: text(agents.length ? agents.map((a) => `@${a.slug} (${a.name}): ${a.prompt.split("\n")[0]}`).join("\n") : "no agents yet, only you") }
+      return { content: text(agents.length ? agents.map((a) => `@${a.slug} (${a.name}): ${a.prompt.split("\n")[0]}`).join("\n") : "no agents yet, only kiko") }
     },
   })
 
-  const proposed = (out: { ok: true; id: string } | { ok: false; error: string }) =>
-    out.ok ? { content: text(`proposal ${out.id} saved. call create to make it.`) } : fail(out.error)
-
-  const proposeAgent = defineTool({
-    name: "propose_agent",
-    description: "propose a new agent for the human: its name, handle, one line on what it does, and its soul. create makes it.",
+  const createAgent = defineTool({
+    name: "create_agent",
+    description: "make a new agent for the human: its name, handle, one line on what it does, and its soul. it gets its own chat and says hi. only kiko can.",
     parameters: NewAgent,
     replay: "safe",
-    execute: async (a) => proposed(await port.propose({ kind: "agent", agent: a as Spec })),
-  })
-
-  const proposeGroup = defineTool({
-    name: "propose_group",
-    description: "propose a group: a title, the human's agents to include, new agents to make for it, and its /chat.md. create makes it.",
-    parameters: Type.Object({
-      title: Type.String(),
-      members: Type.Array(Type.String(), { description: "handles of the human's existing agents to include" }),
-      new_agents: Type.Array(NewAgent, { description: "agents to make for this group; empty when the existing ones cover it" }),
-      chat_md: Type.String({ description: "/chat.md: the goal, who does what, and an empty decisions section" }),
-    }),
-    replay: "safe",
-    execute: async (g) => proposed(await port.propose({ kind: "group", title: g.title, members: g.members, agents: g.new_agents as Spec[], chat: g.chat_md })),
-  })
-
-  const create = defineTool({
-    name: "create",
-    description: "make what your newest proposal describes.",
-    parameters: Type.Object({ proposal: Type.Optional(Type.String({ description: "a proposal id; leave it out for the newest" })) }),
-    replay: "safe",
-    execute: async ({ proposal }) => {
-      const out = await port.create((proposal ?? "").trim())
+    execute: async (a) => {
+      const out = await port.createAgent(a as NewAgentSpec)
       return out.ok ? { content: text(out.text) } : fail(out.error)
     },
   })
 
-  const addToChat = defineTool({
-    name: "add_to_chat",
-    description: "add agents the human already has to this chat, by handle. use it when asked to add someone to the group or chat you are in.",
-    parameters: Type.Object({ handles: Type.Array(Type.String(), { description: "handles of the human's existing agents" }) }),
+  const createGroup = defineTool({
+    name: "create_group",
+    description:
+      "start a new group chat for a team effort. kiko is always in it, and you are too. members are the human's existing agents by handle. goal becomes /chat.md with who does what. kickoff is your first message to everyone in the group: it is posted as yours and delivered at once, so they start without the human. asking again for the same agents reuses the chat and sends the kickoff there. only kiko may pass new_agents.",
+    parameters: Type.Object({
+      title: Type.String(),
+      members: Type.Array(Type.String(), { description: "handles of the human's existing agents to include" }),
+      goal: Type.String({ description: "what the group is for, in a few lines" }),
+      kickoff: Type.String({ description: "your first message to everyone in the group: the task and what you need from each" }),
+      new_agents: Type.Optional(Type.Array(NewAgent, { description: "kiko only: agents to make for this group, with souls" })),
+    }),
     replay: "safe",
-    execute: async ({ handles }) => {
-      const out = await port.addToChat(handles)
+    execute: async (g) => {
+      const out = await port.createGroup({ title: g.title, members: g.members, goal: g.goal, kickoff: g.kickoff, newAgents: (g.new_agents ?? []) as NewAgentSpec[] })
       return out.ok ? { content: text(out.text) } : fail(out.error)
     },
   })
@@ -100,8 +87,10 @@ export function chiefExtension(port: ChiefPort): Extension {
   })
 
   return defineExtension({
-    name: CHIEF_EXT,
-    sections: [section("chief", () => CHIEF_RULES)],
-    tools: [declareEffect("read", list), declareEffect("write", proposeAgent), declareEffect("write", proposeGroup), declareEffect("write", create), declareEffect("write", addToChat), declareEffect("read", overview)],
+    name: GROUPS_EXT,
+    sections: [section("groups", () => (port.chief ? CHIEF_RULES : MEMBER_RULES))],
+    tools: port.chief
+      ? [declareEffect("read", list), declareEffect("write", createAgent), declareEffect("message", createGroup), declareEffect("read", overview)]
+      : [declareEffect("read", list), declareEffect("message", createGroup)],
   })
 }

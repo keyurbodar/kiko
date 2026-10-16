@@ -10,7 +10,7 @@ describe("how a working agent's dots move", () => {
       ["web_fetch", {}, "scan"],
       ["write", { path: "/a.html" }, "hop"],
       ["edit", { path: "a.html" }, "hop"],
-      ["propose_agent", {}, "hop"],
+      ["create_agent", {}, "hop"],
       ["start_work", {}, "orbit"],
       ["create_reminder", {}, "orbit"],
       ["composio_remote_workbench", {}, "orbit"],

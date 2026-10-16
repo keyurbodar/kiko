@@ -68,7 +68,6 @@ apps/server/src/room/memory.ts:Compress
 apps/server/src/room/memory.ts:Rollup
 apps/server/src/room/pending.ts:PendingRow
 apps/server/src/room/pending.ts:safeName
-apps/server/src/room/proposals.ts:ProposalsDeps
 apps/server/src/room/reactions.ts:ReactionNote
 apps/server/src/room/reactions.ts:defaultTarget
 apps/server/src/room/reports.ts:ReportsDeps

@@ -137,7 +137,6 @@ test("the worst human message fits its inbox entry, and the test prints the meas
     tasks,
     reactions,
     human: "&".repeat(60),
-    proposal: "&".repeat(500),
     team,
   })
   expect(new TextEncoder().encode(brief).length).toBeGreaterThan(MAX_BOARD_BYTES)
@@ -154,19 +153,16 @@ test("the worst human message fits its inbox entry, and the test prints the meas
   expect(inbox.admit([envelope], brief)).toEqual({ admitted: ["human:m1"], inserted: 1 })
 })
 
-test("a long proposal, a long doing text and a long handle are cut in the brief", () => {
+test("a long doing text and a long handle are cut in the brief", () => {
   const brief = buildBrief(ada, {
     goal: "g",
     members: [ada, { ...bob, role: "" }],
     tasks: [],
     reactions: null,
     human: "h".repeat(300),
-    proposal: "p".repeat(5_000),
     team: { bob: { doing: "d".repeat(5_000), holds: [] } },
   })
   const lines = brief.split("\n")
-  // The proposal line: 400 characters and the ellipsis.
-  expect(lines.find((l) => l.startsWith("p"))?.length).toBe(403)
   expect(lines.find((l) => l.includes("now "))).toContain(`now ${"d".repeat(80)}...`)
   // The human line: a 40-character handle, then the hint.
   expect(lines.find((l) => l.startsWith("the human is"))?.length).toBeLessThan(300)

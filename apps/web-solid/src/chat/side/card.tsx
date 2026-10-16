@@ -1,6 +1,7 @@
-import { fileName } from "@kiko/protocol"
+import { type Agent, fileName, KIKO } from "@kiko/protocol"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { Brain, Plus, ChevronRight, CircleCheck, FolderOpen, ListChecks, Repeat, Sparkles, type LucideProps } from "lucide-solid"
+import { useNavigate } from "@solidjs/router"
 import { type Component, createEffect, For, onCleanup, onMount, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
@@ -8,6 +9,7 @@ import { loadLoops, loopsOf } from "../info/loops"
 import { useMemoryStore } from "../info/memory/views"
 import { loadRoutines, remindersOf, routinesOf } from "../info/routines"
 import { triggerLabel } from "../info/routines-model"
+import { groupTitle, roomFor } from "../bot-picker-model"
 import { addable, addOp } from "../members/model"
 import { cardBeside, dismissCard } from "./card-state"
 import { isGroup, liveLine, statusChip, workingLine } from "./overview-model"
@@ -33,6 +35,7 @@ function Row(props: { icon: Component<LucideProps>; label: string; meta?: string
 
 /** The chat card beside the transcript: who is here and what they are doing, then one row per surface. */
 export default function ChatCard(props: { chatId: string }) {
+  const navigate = useNavigate()
   const memory = useMemoryStore()
   onMount(() => {
     void loadRoutines()
@@ -40,6 +43,12 @@ export default function ChatCard(props: { chatId: string }) {
   })
   const members = () => useApp.roomMembers()
   const chat = () => useApp.chatById(props.chatId)
+  /** The Kiko chat never gets members, so an add there opens a group of Kiko and the agent. */
+  const add = (agent: Agent) => {
+    if (props.chatId !== useApp.kikoChatId()) return useApp.memberOp(addOp(agent))
+    const roomId = useApp.user()?.createChat(groupTitle(["Kiko", agent.name]), roomFor([KIKO, agent.id]))
+    if (roomId) navigate(`/chat/${roomId}`)
+  }
   const working = () => {
     const doings = useApp.typingDoings()
     return workingLine(
@@ -124,7 +133,7 @@ export default function ChatCard(props: { chatId: string }) {
                   <Show when={addable(useApp.agents(), members()).length > 0} fallback={<MenuV2.Item disabled>No other agents</MenuV2.Item>}>
                     <For each={addable(useApp.agents(), members())}>
                       {(agent) => (
-                        <MenuV2.Item data-add-member={agent.slug} onSelect={() => useApp.memberOp(addOp(agent))}>
+                        <MenuV2.Item data-add-member={agent.slug} onSelect={() => add(agent)}>
                           <IdentityAvatar seed={agent.slug} size={18} />
                           {agent.name}
                         </MenuV2.Item>

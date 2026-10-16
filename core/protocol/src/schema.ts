@@ -336,7 +336,7 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({
 		t: Schema.Literal("member_refused"),
 		op: MemberOp,
-		reason: Schema.Literals(["limit", "exists", "unknown", "last", "reserved", "chief"]),
+		reason: Schema.Literals(["limit", "exists", "unknown", "last", "reserved", "chief", "kiko"]),
 	}),
 	Schema.Struct({ t: Schema.Literal("send_refused"), clientId: Id, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("task_refused"), op: TaskOp, reason: Schema.String }),

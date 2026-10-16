@@ -25,7 +25,7 @@ import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
 import { Team } from "./team"
-import { CHIEF, type ProposalInput } from "./chief"
+import { CHIEF, type GroupInput, type NewAgentSpec } from "./chief"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
 import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
@@ -47,7 +47,7 @@ import type { RoomDev } from "./dev"
 import { MemoryNaps, MEMORY_WAKEUP, QUIET_WAKEUP } from "./memory-naps"
 import { applyTaskOp, RoomWorkspace, runCall, type WorkspaceAnswer, type WorkspaceCall } from "./workspace"
 import { Reports } from "./reports"
-import { Proposals } from "./proposals"
+import { Groups, type GroupResult } from "./groups"
 import type { ReceiveDeps } from "./receive"
 import type { AgentHome, Home } from "./home"
 import { RoomWakes, WAKES_WAKEUP } from "./wake-delivery"
@@ -61,6 +61,7 @@ const edit = (caption: string): Activity => ({ kind: "tool", tool: "edit", capti
 
 export const DEFAULT_AGENT = CHIEF
 const CHIEF_NAME = "Kiko"
+const KIKO_CHAT = "kiko_chat"
 export type { AgentHome }
 
 
@@ -78,7 +79,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private mail!: Mail
 	private memory!: RoomMemory
 	private memoryNaps!: MemoryNaps
-	private proposals!: Proposals
+	private groups!: Groups
 	private asks!: Asks
 	private humanAsks!: HumanAsks
 	members!: Members
@@ -127,7 +128,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
 			this.memoryNaps = new MemoryNaps({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, memory: this.memory, home: () => this.home() })
-			this.proposals = new Proposals({ ctx, env: this.env, log: this.log, members: this.members, home: () => this.home(), publish: (events) => this.publish(events) })
+			this.groups = new Groups({ ctx, env: this.env, log: this.log, members: this.members, home: () => this.home(), publish: (events) => this.publish(events) })
 			this.pending = new PendingUploads(ctx.storage.sql)
 			this.signals = new SignalWindow(ctx.storage.sql, () => this.log.meta("room_id"))
 			this.reports = new Reports({ ctx, env: this.env, alarms: this.alarms, log: this.log, members: this.members, mail: this.mail, routines: this.routines, signals: this.signals, home: () => this.home() })
@@ -195,11 +196,20 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 	private remember(chat: Chat): void {
 		this.setPrivate(chat.private ?? false)
+		this.setKiko(chat.kiko === true)
 		if (this.log.meta("title") !== chat.title) this.log.setMeta("title", chat.title)
 	}
 
 	private async title(home: Home): Promise<string> {
 		return this.log.meta("title") ?? (await this.chat(home))?.title ?? ""
+	}
+
+	/** The Kiko chat is always Kiko alone. A member that got in before this rule is removed once, so its agent stops. */
+	private setKiko(value: boolean): void {
+		const stored = value ? "1" : "0"
+		if (this.log.meta(KIKO_CHAT) !== stored) this.log.setMeta(KIKO_CHAT, stored)
+		if (!value) return
+		for (const m of this.members.list()) if (m.slug !== CHIEF) this.memberOp({ op: "remove", slug: m.slug })
 	}
 
 	setPrivate(value: boolean): void {
@@ -286,37 +296,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return (await userStub(this.env.USER, home.userId).agentModel(member.slug)).model
 	}
 
-	async propose(slug: AgentSlug, input: ProposalInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-		return this.proposals.propose(slug, input)
+	async createAgent(slug: AgentSlug, spec: NewAgentSpec): Promise<GroupResult> {
+		return this.groups.createAgent(slug, spec)
 	}
 
-	async createProposal(slug: AgentSlug, id: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-		return this.proposals.create(slug, id)
-	}
-
-	async addToChat(slug: AgentSlug, handles: readonly string[]): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-		const home = this.home()
-		if (!home) return { ok: false, error: "this chat is not set up yet" }
-		if (slug !== CHIEF) return { ok: false, error: "only kiko adds agents to a chat" }
-		const mine = await userStub(this.env.USER, home.userId).listAgents()
-		const wanted = [...new Set(handles.map((h) => h.trim().toLowerCase().replace(/^@/, "")).filter(Boolean))]
-		const unknown = wanted.filter((h) => !mine.some((a) => a.slug === h))
-		if (unknown.length) return { ok: false, error: `no agent ${unknown.map((h) => `@${h}`).join(", ")}. the human has: ${mine.map((a) => `@${a.slug}`).join(", ") || "no agents yet"}` }
-		const added: string[] = []
-		const already: string[] = []
-		for (const handle of wanted) {
-			const agent = mine.find((a) => a.slug === handle)!
-			if (this.members.get(agent.slug)) {
-				already.push(`@${handle}`)
-				continue
-			}
-			const role = tagline(agent.prompt)
-			const refused = this.memberOp({ op: "add", slug: agent.slug as AgentSlug, name: agent.name, ...(role ? { role } : {}), ...(agent.model ? { model: agent.model } : {}) })
-			if (refused) return { ok: false, error: `@${handle} was not added: ${refused}` }
-			added.push(`@${handle}`)
-		}
-		const said = [added.length ? `added ${added.join(", ")} to this chat` : "", already.length ? `${already.join(", ")} already here` : ""].filter(Boolean).join("; ")
-		return { ok: true, text: `${said}. say one short line.` }
+	async createGroup(slug: AgentSlug, input: GroupInput): Promise<GroupResult> {
+		return this.groups.createGroup(slug, input)
 	}
 
 	async introduce(userId: string, slug: AgentSlug, text: string): Promise<void> {
@@ -332,14 +317,19 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		await agentStub(this.env.AGENT, home.userId, home.roomId, slug).receive(d.envelopes, d.brief, this.agentHome(home, slug, member))
 	}
 
-	async startGroup(userId: string, chatFile: string): Promise<void> {
+	/** Opens a new group: its /chat.md when `chat` is set, then the creator's kickoff to every other member, as the creator's first message. */
+	async startGroup(userId: string, input: { chat: string | null; creator: AgentSlug; kickoff: string }): Promise<void> {
 		const home = this.adopt(userId)
 		if (!home) return
 		const chat = await this.chat(home)
 		if (!chat) return
+		if (input.chat !== null && this.log.meta("chat_file") === null) {
+			await this.writeChatFile(CHIEF, input.chat)
+			this.log.setMeta("chat_file", "1")
+		}
 		await this.seedMembers(home, chat)
-		await this.writeChatFile(CHIEF, chatFile)
-		this.log.setMeta("chat_file", "1")
+		const id = `kickoff:${(await sha256Hex(`${input.creator}\n${input.kickoff}`)).slice(0, 16)}`
+		await this.mailer.send(input.creator, { id, to: "all", text: input.kickoff }, null)
 	}
 
 	private adopt(userId: string): Home | null {
@@ -427,8 +417,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const now = Date.now()
 		const team = Object.fromEntries(members.map((m) => [m.slug, { doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }]))
 		const human = this.log.meta(HUMAN_HANDLE) ?? undefined
-		const proposal = member.slug === CHIEF ? this.proposals.open() : null
-		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, reactions.text), team, ...(human ? { human } : {}), ...(proposal ? { proposal } : {}) }
+		const view = { ...readBriefView(this.ctx.storage.sql, member, members, goal, reactions.text), team, ...(human ? { human } : {}) }
 		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
 	}
 
@@ -559,9 +548,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const handle = request.headers.get(HANDLE_HEADER)
 		if (handle && handle !== this.log.meta(HUMAN_HANDLE)) this.log.setMeta(HUMAN_HANDLE, handle)
 		const home = this.home()
-		if (home && !this.members.seeded()) {
+		if (home && (!this.members.seeded() || this.log.meta(KIKO_CHAT) === null)) {
 			const chat = await this.chat(home).catch(() => null)
-			if (chat) await this.seedMembers(home, chat).catch(() => undefined)
+			if (chat && !this.members.seeded()) await this.seedMembers(home, chat).catch(() => undefined)
 		}
 		const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
 		this.ctx.acceptWebSocket(server)
@@ -894,6 +883,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	memberOp(op: MemberOp): MemberRefusal | null {
+		if (op.op === "add" && this.log.meta(KIKO_CHAT) === "1") return "kiko"
 		const name = op.op === "remove" ? this.members.get(op.slug)?.name : undefined
 		const result = this.members.apply(op)
 		if (!result.ok) return result.reason

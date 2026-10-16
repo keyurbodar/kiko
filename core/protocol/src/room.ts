@@ -101,7 +101,7 @@ export type FileOp = { op: "rm"; paths: readonly string[]; recursive?: boolean }
 
 type FileRefusal = string
 
-export type MemberRefusal = "limit" | "exists" | "unknown" | "last" | "reserved" | "chief"
+export type MemberRefusal = "limit" | "exists" | "unknown" | "last" | "reserved" | "chief" | "kiko"
 
 export type TaskStatus = "todo" | "doing" | "blocked" | "review" | "done" | "cancelled"
 

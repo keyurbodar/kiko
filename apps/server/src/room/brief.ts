@@ -22,7 +22,6 @@ export type BriefView = {
 	reactions: string | null
 	team?: Record<string, { doing: string | null; holds: readonly string[] }>
 	human?: string
-	proposal?: string
 }
 
 const oneLine = (text: string, max = MAX_LINE) => {
@@ -85,7 +84,6 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 	}
 	lines.push(member.lead ? "room tasks:" : "your tasks:")
 	lines.push(...(view.tasks.length ? boardLines(view.tasks) : ["- none"]))
-	if (view.proposal) lines.push(oneLine(view.proposal))
 	if (view.reactions) lines.push(escapeXml(view.reactions))
 	return lines.join("\n")
 }
