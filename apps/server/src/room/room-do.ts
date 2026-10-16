@@ -922,7 +922,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (op.op === "remove" && home) this.stopAgent(home, op.slug)
 		if (op.op !== "rename" && home) {
 			const slugs = this.members.list().map((m) => m.slug)
-			this.ctx.waitUntil(Promise.resolve(userStub(this.env.USER, home.userId).chatMembers(home.roomId, slugs)).catch((e: unknown) => console.error(`chat members not saved: ${e instanceof Error ? e.message : String(e)}`)))
+			this.ctx.waitUntil((async () => userStub(this.env.USER, home.userId).chatMembers(home.roomId, slugs))().catch((e: unknown) => console.error(`chat members not saved: ${e instanceof Error ? e.message : String(e)}`)))
 		}
 		return null
 	}
