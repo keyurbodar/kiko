@@ -301,6 +301,7 @@ flowchart LR
 | Releases on GitHub, overridable with `T3CODE_RELEASE_BASE_URL`, with `SHA256SUMS` | Releases on GitHub, overridable with `RELEASE_BASE_URL`. The manifest is signed with Ed25519, and the public key ships in the bundle |
 | A nightly channel picked by a cookie | None |
 
+- Every deploy that changes the backend bumps the version in the root `package.json`. A backend compares versions only, so a release that replaced code under the same version would never reach it. `issues/bin/deploy-front-door.sh` refuses to do that.
 - The release URL does not depend on the front door's hostname, so a domain move changes nothing here.
 - The grant used for updates is the install grant. An OAuth grant keeps its refresh token, encrypted in `UserDO` like a model key. A pasted API token is kept the same way.
 - If the grant fails, the button runs the install flow again, and the installer uploads the bundle.
