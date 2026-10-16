@@ -77,6 +77,20 @@ async function ensureBucket(token: string, accountId: string, f: FetchLike) {
   }
 }
 
+const randomLabel = () => `kiko-${[...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, "0")).join("")}`
+
+// A new Cloudflare account has no workers.dev address until someone opens Workers in the dashboard, so make one.
+async function ensureSubdomain(token: string, accountId: string, f: FetchLike, label = randomLabel): Promise<string> {
+  const path = `/accounts/${accountId}/workers/subdomain`
+  const sub = await cf<{ subdomain?: string } | null>(token, path, {}, f).catch(() => null)
+  if (sub?.subdomain) return sub.subdomain
+  for (let i = 0; i < 3; i++) {
+    const made = await cf<{ subdomain?: string } | null>(token, path, json({ subdomain: label() }, "PUT"), f).catch(() => null)
+    if (made?.subdomain) return made.subdomain
+  }
+  throw new InstallError("no_subdomain", "Open Workers once in your Cloudflare dashboard to create your workers.dev address, then try again.", 409)
+}
+
 export async function runInstall(env: InstallEnv, deps: InstallDeps, req: InstallRequest): Promise<InstallResult> {
   const f = deps.fetch
   let stored: Omit<StoredGrant, "accountId" | "scriptName">
@@ -96,11 +110,8 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
     throw new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
   }
 
-  const sub = await cf<{ subdomain?: string } | null>(token, `/accounts/${accountId}/workers/subdomain`, {}, f).catch(() => null)
-  if (!sub?.subdomain) {
-    throw new InstallError("no_subdomain", "Open Workers once in your Cloudflare dashboard to create your workers.dev address, then try again.", 409)
-  }
-  const host = (name: string) => `https://${name}.${sub.subdomain}.workers.dev`
+  const subdomain = await ensureSubdomain(token, accountId, f)
+  const host = (name: string) => `https://${name}.${subdomain}.workers.dev`
 
   await ensureBucket(token, accountId, f)
 

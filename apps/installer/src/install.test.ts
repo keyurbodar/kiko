@@ -27,7 +27,7 @@ async function makeRelease(tamper?: "manifest" | "module") {
 
 type Call = { url: string; method: string; body?: unknown }
 
-function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled" }) {
+function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled"; subdomain?: string | null }) {
   const calls: Call[] = []
   const ok = (result: unknown) => Response.json({ success: true, result })
   const fail = (code: number, message: string) => Response.json({ success: false, errors: [{ code, message }] }, { status: 400 })
@@ -48,7 +48,10 @@ function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>
     if (url.host.endsWith(".workers.dev")) return url.host.startsWith("kiko.") ? Response.json({ version: "0.1.0" }) : new Response("no", { status: 404 })
     const path = url.pathname.replace("/client/v4", "")
     if (path === "/accounts") return ok([{ id: "acc1" }])
-    if (path.endsWith("/workers/subdomain")) return ok({ subdomain: "me" })
+    if (path.endsWith("/workers/subdomain")) {
+      if (method === "PUT") return ok({ subdomain: (body as { subdomain: string }).subdomain })
+      return opts.subdomain === null ? fail(10007, "This account does not have a workers.dev subdomain") : ok({ subdomain: opts.subdomain ?? "me" })
+    }
     if (path.endsWith("/r2/buckets")) {
       if (opts.r2 === "disabled") return fail(10042, "Please enable R2 through the Cloudflare Dashboard.")
       return opts.r2 === "exists" ? fail(10004, "The bucket you tried to create already exists") : ok({})
@@ -75,6 +78,21 @@ async function install(cfg: Parameters<typeof fakeCloudflare>[0], grant: Paramet
 const secretNames = (upload: Call) => ((upload.body as { bindings: { type: string; name: string }[] }).bindings).filter((b) => b.type === "secret_text").map((b) => b.name)
 
 describe("runInstall", () => {
+  test("an account with no workers.dev address gets one made for it", async () => {
+    const release = await makeRelease()
+    const { calls, result } = await install({ release, scripts: [], subdomain: null })
+    const made = calls.find((c) => c.method === "PUT" && c.url.endsWith("/workers/subdomain"))
+    const label = (made?.body as { subdomain: string } | undefined)?.subdomain ?? ""
+    expect(label).toMatch(/^kiko-[0-9a-f]{8}$/)
+    expect(result.backendUrl).toBe(`https://kiko.${label}.workers.dev`)
+  })
+
+  test("an account that has a workers.dev address keeps it", async () => {
+    const release = await makeRelease()
+    const { calls } = await install({ release, scripts: [] })
+    expect(calls.some((c) => c.method === "PUT" && c.url.endsWith("/workers/subdomain"))).toBe(false)
+  })
+
   test("first install sets the six secrets and the full migration list", async () => {
     const release = await makeRelease()
     const { upload, result, metadata, calls } = await install({ release, scripts: [] })
