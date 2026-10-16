@@ -2,7 +2,7 @@
  * An error the human must know about, in words they can act on. The server writes the message in
  * sentence case with no stack, no provider JSON, and no key. The client shows it as one toast.
  */
-export type ErrorCode =
+type ErrorCode =
 	| "composio_missing"
 	| "composio_rejected"
 	| "composio_down"
