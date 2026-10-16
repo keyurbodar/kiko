@@ -255,6 +255,7 @@ export function Composer(props: ComposerProps) {
       viewer.open(
         all.map((p) => ({ src: p.blob.url, name: p.filename })),
         Math.max(0, all.findIndex((p) => p.id === attachment.id)),
+        document.querySelector(`[data-component="composer-attachment"][data-id="${attachment.id}"] img`),
       )
     },
     attachments: {

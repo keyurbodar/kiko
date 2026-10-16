@@ -1,4 +1,4 @@
-import { attachmentToken } from "@kiko/protocol"
+import { attachmentToken, fileName, linkTarget } from "@kiko/protocol"
 export type Json = {
   type: string
   attrs?: Record<string, unknown>
@@ -139,9 +139,15 @@ function sameMark(head: Json, node: Json, mark: string): boolean {
   return !!b && JSON.stringify(a?.attrs ?? null) === JSON.stringify(b.attrs ?? null)
 }
 
+/** A workspace file as text: a link to its path, which the agent reads and the bubble draws as a chip. */
+export function fileRefToken(path: string): string {
+  return `[${fileName(path).replace(/[[\]\n\\]/g, "")}](${linkTarget(`/${path}`)})`
+}
+
 function leaf(node: Json): string {
   if (node.type === "hardBreak") return "\n"
   if (node.type === "mention") return `@${String(node.attrs?.slug ?? "")}`
+  if (node.type === "fileRef") return fileRefToken(String(node.attrs?.path ?? ""))
   if (node.type === "attachment") return attachmentToken(String(node.attrs?.id ?? ""), String(node.attrs?.name ?? ""))
   if (node.type === "text") return node.text ?? ""
   return ""
@@ -330,6 +336,14 @@ function inlines(text: string, options: ParseOptions, marks: Mark[]): Json[] {
       flush()
       out.push({ type: "attachment", attrs: { id: attachment[2], name: attachment[1] } })
       at += attachment[0].length
+      continue
+    }
+    const ref = /^\[([^\]\n]*)\]\((?:<(\/[^>\n]+)>|(\/[^)\s<>]+))\)/.exec(rest)
+    if (ref && !(ref[2] ?? ref[3])!.startsWith("//")) {
+      flush()
+      const path = (ref[2] ?? ref[3])!.replace(/^\/+/, "")
+      out.push({ type: "fileRef", attrs: { path } })
+      at += ref[0].length
       continue
     }
     const link = /^\[([^\]]+)\]\(([^)\s]+)\)/.exec(rest)

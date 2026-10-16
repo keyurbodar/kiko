@@ -5,6 +5,7 @@ import { ChevronsDownUp, ChevronsUpDown, FilePlus, FolderPlus } from "lucide-sol
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { KIKO_FILE_ICONS } from "../lib/entry-icon-pierre"
+import { setFileDrag } from "../lib/file-drag"
 import "./tree.css"
 import { dirname, HOME, join, loadExpanded, pathsUnder, ROOT, saveExpanded } from "./model"
 
@@ -144,7 +145,8 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			initialExpandedPaths: expanded,
 			fileTreeSearchMode: "hide-non-matches",
 			search: false,
-			dragAndDrop: false,
+			// Rows are only draggable if the tree's drag is on. It never moves a file: `dragFile` below takes every drag.
+			dragAndDrop: { canDrag: () => false, canDrop: () => false },
 			renaming: {
 				canRename: (item) => plain(item.path) !== HOME,
 				onError: (error) => showToastV2({ title: error, variant: "error" }),
@@ -174,6 +176,16 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		tree = instance
 		held = new Set(wanted())
 		instance.render({ containerWrapper: host })
+		// A file row drags to the composer under Kiko's own type. The listener runs first and keeps the drag from the tree's own
+		// drag session, which would select the row (opening the file under the pointer) and refuses to start while a search is on.
+		const dragFile = (event: DragEvent) => {
+			event.stopPropagation()
+			const row = event.composedPath().find((node): node is HTMLElement => node instanceof HTMLElement && node.dataset.itemPath !== undefined)
+			const path = row?.dataset.itemPath
+			if (!path || path.endsWith("/") || !filePaths().includes(path) || !event.dataTransfer) return event.preventDefault()
+			setFileDrag(event.dataTransfer, path)
+		}
+		host.addEventListener("dragstart", dragFile, true)
 
 		let timer: ReturnType<typeof setTimeout> | undefined
 		const stop = instance.subscribe(() => {
@@ -188,6 +200,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 			}, 250)
 		})
 		onCleanup(() => {
+			host.removeEventListener("dragstart", dragFile, true)
 			stop()
 			clearTimeout(timer)
 			instance.unmount()

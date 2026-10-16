@@ -4,6 +4,7 @@ import { useFilteredList } from "@kiko/ui/hooks"
 import { createPromptInputV2Attachments, type PromptInputV2AttachmentConfig } from "./attachments"
 import { createPromptInputV2Store, type PromptInputV2StoreInput } from "./store"
 import { composingKey } from "../ime"
+import { fileRefToken } from "../rich/markdown"
 import type {
   PromptInputV2Attachment,
   PromptInputV2History,
@@ -56,7 +57,8 @@ export type PromptInputV2ViewConfig = {
 export type PromptInputV2Rich = {
   insertText: (text: string) => void
   insertMention: (slug: string) => void
-  insertAttachments: (items: readonly { id: string; name: string }[]) => void
+  insertAttachments: (items: readonly { id: string; name: string }[], at?: { x: number; y: number }) => void
+  insertFileRefs: (paths: readonly string[], at?: { x: number; y: number }) => void
   removeAttachment: (id: string) => void
 }
 
@@ -110,7 +112,11 @@ export function createPromptInputV2Controller(input: {
         editor: () => editor,
         focusEditor: () => editor?.focus(),
         addPart,
-        chip: (items) => rich?.insertAttachments(items),
+        chip: (items, at) => rich?.insertAttachments(items, at),
+        fileRef: (paths, at) => {
+          if (rich) rich.insertFileRefs(paths, at)
+          else for (const path of paths) addPart({ type: "text", content: `${fileRefToken(path)} `, start: 0, end: 0 })
+        },
         hasText: () => draft.state.prompt.some((part) => part.type === "text" && part.content.trim() !== ""),
         setDragging: (dragging) => {
           if ((state.drag === "active") !== dragging) dispatch({ type: dragging ? "drag.enter" : "drag.leave" })
@@ -416,6 +422,7 @@ export function createPromptInputV2Controller(input: {
     setFileInput(element: HTMLInputElement) {
       fileInput = element
     },
+    dragKind: () => attachments?.dragKind() ?? "files",
     addAttachments(files: File[]) {
       if (attachments) void attachments.addAttachments(files)
     },

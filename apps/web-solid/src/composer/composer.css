@@ -374,3 +374,13 @@
     background: color-mix(in oklab, var(--foreground) 8%, transparent);
   }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-component="composer-drop-overlay"] {
+    animation: composer-drop-in var(--motion-fast) var(--motion-ease-out) both;
+  }
+  @keyframes composer-drop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}

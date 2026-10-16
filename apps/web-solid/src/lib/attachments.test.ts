@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { admit, attachmentType, isImage, MAX_ATTACHMENTS, sendRefusal, splitFiles, tileSpan, wrapIndex } from "./attachments"
+import { admit, attachmentType, isImage, MAX_ATTACHMENTS, sendRefusal, splitFiles, tileSpan, unnamedFiles, wrapIndex } from "./attachments"
 
 const MB = 1024 * 1024
 const file = (name: string, type: string, size = 1000) => ({ name, type, size })
@@ -96,5 +96,19 @@ describe("a draft too long to send stays in the box", () => {
   test("an edit is held to the bubble limit, since it cannot carry a file", () => {
     expect(sendRefusal("x".repeat(16_000), true)).toBeNull()
     expect(sendRefusal("x".repeat(16_001), true)).toBe("Edits can be up to 16,000 characters.")
+  })
+})
+
+describe("files a bubble lists beside its text", () => {
+  const stored = (name: string, path: string, type = "text/plain") => ({ ...file(name, type), path })
+  test("a file the text shows as a chip is not listed again, even with a space or parenthesis in its name", () => {
+    const files = [stored("a.txt", "attachments/k1-a.txt"), stored("Plan (v2).md", "attachments/k1-Plan (v2).md"), stored("b.txt", "attachments/k1-b.txt")]
+    const body = "[a.txt](/attachments/k1-a.txt) [Plan (v2).md](</attachments/k1-Plan (v2).md>)"
+    expect(unnamedFiles(files, body).map((f) => f.name)).toEqual(["b.txt"])
+  })
+  test("a picture is always listed, and a file with no stored path is too", () => {
+    const picture = stored("p.png", "attachments/k1-p.png", "image/png")
+    const uploading = file("u.txt", "text/plain")
+    expect(unnamedFiles([picture, uploading], "[p.png](/attachments/k1-p.png)")).toEqual([picture, uploading])
   })
 })

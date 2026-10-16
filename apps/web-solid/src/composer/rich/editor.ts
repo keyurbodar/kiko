@@ -22,9 +22,11 @@ import { Fragment, Slice, type Node as PMNode, type NodeType } from "@tiptap/pm/
 import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from "@tiptap/pm/state"
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
 import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, selectionInOneCodeBlock, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
+import { hasFileDrag } from "../../lib/file-drag"
 import { BINDINGS } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
-import { attachmentExtension, type ChipView, Link, Mention } from "./nodes"
+import { attachmentExtension, type ChipView, fileRefExtension, type FileRefView, Link, Mention } from "./nodes"
+import { chipFragment, type Point } from "./insert"
 import { markdownSlice } from "./paste"
 import { groupUndoByChangeKind, UNDO_GROUP_DELAY, type ChangeKind } from "./undo-grouping"
 
@@ -36,6 +38,7 @@ export type RichOptions = {
   label: string
   isMention: (slug: string) => boolean
   chip: ChipView
+  fileRef: FileRefView
   onChange: (snapshot: Snapshot) => void
   onCursor: (cursor: number) => void
   onKeyDown: (event: KeyboardEvent) => boolean
@@ -300,6 +303,7 @@ export function mountRichEditor(options: RichOptions) {
       Link,
       Mention,
       attachmentExtension(options.chip),
+      fileRefExtension(options.fileRef),
       Keys,
     ],
     editorProps: {
@@ -352,7 +356,7 @@ export function mountRichEditor(options: RichOptions) {
         view.state.selection.$from.parent.type.spec.code
           ? slice.content.textBetween(0, slice.content.size, "\n")
           : docToMarkdown({ type: "doc", content: slice.content.toJSON() ?? [] }),
-      handleDrop: (_view, event) => !!event.dataTransfer?.types.includes("Files"),
+      handleDrop: (_view, event) => !!event.dataTransfer && (event.dataTransfer.types.includes("Files") || hasFileDrag(event.dataTransfer)),
     },
     onUpdate: () => {
       options.onChange(snapshot())
@@ -378,6 +382,16 @@ export function mountRichEditor(options: RichOptions) {
       if (line) nodes.push(schema.text(line))
     })
     return new Slice(Fragment.from(nodes), 0, 0)
+  }
+
+  function insertChips(chips: readonly { type: string; attrs: Record<string, unknown> }[], at?: Point) {
+    const { view } = editor
+    const hit = at ? view.posAtCoords({ left: at.x, top: at.y }) : null
+    const base = hit ? view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(hit.pos))) : view.state.tr
+    const { $from } = base.selection
+    const before = $from.nodeBefore
+    const fragment = chipFragment(view.state.schema, chips, before ? (before.isText ? before.text?.at(-1) : "x") : undefined)
+    view.dispatch(base.replaceSelection(new Slice(fragment, 0, 0)).scrollIntoView())
   }
 
   return {
@@ -414,12 +428,13 @@ export function mountRichEditor(options: RichOptions) {
       view.dispatch(state.tr.replaceWith(from, state.selection.from, [mention, state.schema.text(" ")]).scrollIntoView())
       editor.commands.focus(undefined, { scrollIntoView: false })
     },
-    /** Puts a chip per attachment at the caret, each followed by a space. */
-    insertAttachments(items: readonly { id: string; name: string }[]) {
-      const { view } = editor
-      const { state } = view
-      const nodes = items.flatMap((item) => [state.schema.nodes.attachment!.create(item), state.schema.text(" ")])
-      view.dispatch(state.tr.replaceSelection(new Slice(Fragment.from(nodes), 0, 0)).scrollIntoView())
+    /** Puts a chip per attachment where `at` points on screen, or at the caret, each followed by a space. */
+    insertAttachments(items: readonly { id: string; name: string }[], at?: Point) {
+      insertChips(items.map((item) => ({ type: "attachment", attrs: item })), at)
+    },
+    /** Puts a chip per workspace file where `at` points on screen, or at the caret. */
+    insertFileRefs(paths: readonly string[], at?: Point) {
+      insertChips(paths.map((path) => ({ type: "fileRef", attrs: { path } })), at)
     },
     /** Takes every chip of attachment `id` out of the text. */
     removeAttachment(id: string) {
