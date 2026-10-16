@@ -281,6 +281,7 @@ export class Outbox {
     const streamed = run.generation?.blocks ?? []
     run.generation = null
     if (message.stopReason === "aborted") return true
+    if (message.stopReason === "error") return false
     if (run.quiet && hasToolCall(message)) return false
     const { blocks: final, reactions } = partsOf(textOf(message))
     run.blocks.push(...final)

@@ -36,7 +36,7 @@ const REPLIES: Record<RunErrorKind, Reply> = {
   other: { message: (_p, n) => `${n} hit an error and could not answer. Retry, or pick another model.`, actions: ["retry", "change_model", "open_settings"] },
 }
 
-export type RunFailure = { kind: RunErrorKind; message: string; actions: readonly RunErrorAction[]; toast: ErrorAction | undefined }
+type RunFailure = { kind: RunErrorKind; message: string; actions: readonly RunErrorAction[]; toast: ErrorAction | undefined }
 
 /** `provider` is the provider's display name, `agent` the agent's. */
 export function describeRunError(kind: RunErrorKind, provider: string, agent: string): RunFailure {
