@@ -100,7 +100,7 @@ export async function runUpdate(deps: UpdateDeps, version: string): Promise<void
     } catch (e) {
       throw new UpdateFailure(e instanceof Error ? e.message : "The release does not fit this backend.")
     }
-    await cf(deps, token, `/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, null)) })
+    await cf(deps, token, `/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, null, "inherit")) })
 
     deps.report("restarting")
   } catch (e) {

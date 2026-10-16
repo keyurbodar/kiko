@@ -1,3 +1,4 @@
+import type { FileBucket } from "../src/files/store"
 import { expect, test } from "bun:test"
 import { sha256Hex } from "@kiko/durable/hash"
 import type { FsEntry, NewFile } from "../src/files/file-index"
@@ -18,14 +19,14 @@ function drive(sql = sqlWith(USER_STEPS)) {
   const removed: string[][] = []
   const files = {
     put: async (key: string, body: Uint8Array) => void bodies.set(key, body),
-    get: async (key: string) => (bodies.has(key) ? { text: async () => new TextDecoder().decode(bodies.get(key)) } : null),
+    get: async (key: string) => (bodies.has(key) ? { arrayBuffer: async () => bodies.get(key)!.slice().buffer } : null),
     delete: async (keys: string | string[]) => {
       for (const k of Array.isArray(keys) ? keys : [keys]) bodies.delete(k)
     },
   }
   const library = new RecipeLibrary({
     sql,
-    files: files as unknown as R2Bucket,
+    files: files as unknown as FileBucket,
     userId: () => "owner",
     list: (dir) => entries.filter((e) => e.path.startsWith(`${dir}/`) || e.path === dir),
     put: (input) => {

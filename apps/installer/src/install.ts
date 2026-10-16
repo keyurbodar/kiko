@@ -1,6 +1,6 @@
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
-import { BUCKET, buildMetadata, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
-import { type FetchLike, InstallError, cf, json } from "./cf"
+import { BUCKET, type FilesBinding, buildMetadata, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
+import { type FetchLike, InstallError, cf, isBlocking, json } from "./cf"
 import { DEFAULT_SCRIPT, type Grant, type StoredGrant, firstInstallSecrets, ownScriptName } from "./plan"
 
 export type InstallEnv = {
@@ -63,18 +63,22 @@ async function isKiko(f: FetchLike, url: string): Promise<boolean> {
   }
 }
 
-async function ensureBucket(token: string, accountId: string, f: FetchLike) {
+// Files live in R2 when the account has it, and in the Worker's own storage when it does not. R2 on a Free
+// account needs a plan that Cloudflare only lets the owner turn on in the dashboard, so no failure here stops
+// the install: the Worker reads whether the binding exists.
+async function hasBucket(token: string, accountId: string, f: FetchLike): Promise<boolean> {
   try {
     await cf(token, `/accounts/${accountId}/r2/buckets`, json({ name: BUCKET }), f)
+    return true
   } catch (e) {
-    if (!(e instanceof InstallError)) throw e
-    // UNVERIFIED: Cloudflare error codes 10004 (bucket exists) and 10042 (R2 not enabled).
-    if (e.cfCodes.includes(10004) || /already exists/i.test(e.message)) return
-    if (e.cfCodes.includes(10042) || /enable R2/i.test(e.message)) {
-      throw new InstallError("r2_disabled", "Turn on R2 in your Cloudflare dashboard, then try again.", 409)
-    }
-    throw e
+    // 10073 is "Bucket name already exists" (https://developers.cloudflare.com/r2/api/error-codes/).
+    return e instanceof InstallError && (e.cfCodes.includes(10073) || /already exists/i.test(e.message))
   }
+}
+
+function blockingOrNull(e: unknown): null {
+  if (isBlocking(e)) throw e
+  return null
 }
 
 const randomLabel = () => `kiko-${[...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, "0")).join("")}`
@@ -82,13 +86,25 @@ const randomLabel = () => `kiko-${[...crypto.getRandomValues(new Uint8Array(4))]
 // A new Cloudflare account has no workers.dev address until someone opens Workers in the dashboard, so make one.
 async function ensureSubdomain(token: string, accountId: string, f: FetchLike, label = randomLabel): Promise<string> {
   const path = `/accounts/${accountId}/workers/subdomain`
-  const sub = await cf<{ subdomain?: string } | null>(token, path, {}, f).catch(() => null)
+  const sub = await cf<{ subdomain?: string } | null>(token, path, {}, f).catch(blockingOrNull)
   if (sub?.subdomain) return sub.subdomain
   for (let i = 0; i < 3; i++) {
-    const made = await cf<{ subdomain?: string } | null>(token, path, json({ subdomain: label() }, "PUT"), f).catch(() => null)
+    const made = await cf<{ subdomain?: string } | null>(token, path, json({ subdomain: label() }, "PUT"), f).catch(blockingOrNull)
     if (made?.subdomain) return made.subdomain
   }
   throw new InstallError("no_subdomain", "Open Workers once in your Cloudflare dashboard to create your workers.dev address, then try again.", 409)
+}
+
+async function pickAccount(token: string, accounts: { id: string }[], f: FetchLike): Promise<{ accountId: string; scripts: Script[] }> {
+  let first: unknown = null
+  for (const { id } of accounts) {
+    try {
+      return { accountId: id, scripts: await cf<Script[]>(token, `/accounts/${id}/workers/scripts`, {}, f) }
+    } catch (e) {
+      first ??= e
+    }
+  }
+  throw first ?? new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
 }
 
 export async function runInstall(env: InstallEnv, deps: InstallDeps, req: InstallRequest): Promise<InstallResult> {
@@ -105,22 +121,21 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   }
 
   const accounts = await cf<{ id: string }[]>(token, "/accounts", {}, f)
-  const accountId = req.accountId ?? accounts[0]?.id
-  if (!accountId || !accounts.some((a) => a.id === accountId)) {
+  if (req.accountId && !accounts.some((a) => a.id === req.accountId)) {
     throw new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
   }
+  // A sign-in can list accounts where the person may not change Workers. Use the first that lets us list them.
+  const { accountId, scripts } = await pickAccount(token, req.accountId ? accounts.filter((a) => a.id === req.accountId) : accounts, f)
 
   const subdomain = await ensureSubdomain(token, accountId, f)
   const host = (name: string) => `https://${name}.${subdomain}.workers.dev`
 
-  await ensureBucket(token, accountId, f)
-
-  const scripts = await cf<Script[]>(token, `/accounts/${accountId}/workers/scripts`, {}, f)
   const byName = new Map(scripts.map((s) => [s.id, s]))
   const ours = await ownScriptName(req.sub)
   let name = DEFAULT_SCRIPT
   if (byName.has(DEFAULT_SCRIPT) && !(await isKiko(f, `${host(DEFAULT_SCRIPT)}/api/version`))) name = ours
   const existing = byName.get(name)
+  const fileStore: FilesBinding = existing ? "inherit" : (await hasBucket(token, accountId, f)) ? "r2" : "none"
 
   const { manifest, files } = await loadRelease(env, f)
   const grant: StoredGrant = { ...stored, accountId, scriptName: name }
@@ -134,7 +149,7 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
         trustedOrigins: env.FRONT_DOOR_ORIGIN,
         grant,
       })
-  await cf(token, `/accounts/${accountId}/workers/scripts/${name}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets)) }, f)
+  await cf(token, `/accounts/${accountId}/workers/scripts/${name}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets, fileStore)) }, f)
 
   if (existing) {
     for (const [secretName, text] of [

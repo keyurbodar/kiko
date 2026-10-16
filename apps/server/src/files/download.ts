@@ -1,4 +1,5 @@
 
+import { fileStore, type StoredObject } from "./store"
 import { getFileUser, signToken } from "../auth/auth"
 import type { Env } from "../index"
 import type { SessionLookup } from "../router"
@@ -24,7 +25,7 @@ export function parseRange(header: string | null, size: number): Span | null | "
 
 const ACTIVE_TYPE = /^(text\/(html|xml|javascript|ecmascript)|application\/(xhtml\+xml|xml|javascript|ecmascript)|image\/svg\+xml|[^;]+\+xml)$/
 
-function headersFor(object: R2Object): Headers {
+function headersFor(object: StoredObject): Headers {
 	const headers = new Headers()
 	object.writeHttpMetadata(headers)
 	headers.set("etag", object.httpEtag)
@@ -57,7 +58,7 @@ export async function downloadRoute(
 	if (!isSpace(route.roomId) || !isFileId(fileId) || extra.length) return error(404, "not found")
 	const key = fileKey(user.id, route.roomId, fileId)
 
-	const head = await env.FILES.head(key)
+	const head = await fileStore(env).head(key)
 	if (!head) return error(404, "not found")
 	const headers = headersFor(head)
 	const span = parseRange(request.headers.get("range"), head.size)
@@ -71,7 +72,7 @@ export async function downloadRoute(
 	const status = span ? 206 : 200
 	if (request.method === "HEAD") return new Response(null, { status, headers })
 
-	const object = await env.FILES.get(key, span ? { range: { offset: span.start, length } } : {})
+	const object = await fileStore(env).get(key, span ? { range: { offset: span.start, length } } : {})
 	if (!object || !("body" in object)) return error(404, "not found")
 	return new Response(object.body, { status, headers })
 }

@@ -11,8 +11,21 @@ const BINDINGS = [
   { type: "durable_object_namespace", name: "USER", class_name: "UserDO" },
   { type: "durable_object_namespace", name: "ROOM", class_name: "RoomDO" },
   { type: "durable_object_namespace", name: "AGENT", class_name: "AgentDO" },
-  { type: "r2_bucket", name: "FILES", bucket_name: BUCKET },
+  { type: "durable_object_namespace", name: "FILE", class_name: "FileDO" },
 ] as const
+
+/**
+ * Where file bytes live. "r2" binds the bucket (a new install whose bucket exists). "inherit" keeps the
+ * binding the running script has, or none (an update, or a new upload to an existing script). "none"
+ * leaves it out: files then live in FileDO.
+ */
+export type FilesBinding = "r2" | "inherit" | "none"
+
+function filesBinding(files: FilesBinding) {
+  if (files === "r2") return [{ type: "r2_bucket", name: "FILES", bucket_name: BUCKET }] as const
+  if (files === "inherit") return [{ type: "inherit", name: "FILES" }] as const
+  return []
+}
 
 // Which migration steps to send. A new script sends them all. An existing script sends the steps after the tag
 // it already ran. A script at the latest tag sends none.
@@ -27,12 +40,12 @@ export function selectMigrations(all: ReleaseMigration[], currentTag: string | n
 
 export type SecretBinding = { type: "secret_text"; name: string; text: string }
 
-export function buildMetadata(manifest: ReleaseManifest, migrations: MigrationPlan, secrets: SecretBinding[] | null) {
+export function buildMetadata(manifest: ReleaseManifest, migrations: MigrationPlan, secrets: SecretBinding[] | null, files: FilesBinding) {
   return {
     main_module: manifest.main_module,
     compatibility_date: manifest.compatibility_date,
     compatibility_flags: manifest.compatibility_flags,
-    bindings: [...BINDINGS, ...(secrets ?? [])],
+    bindings: [...BINDINGS, ...filesBinding(files), ...(secrets ?? [])],
     migrations,
     ...(secrets ? {} : { keep_bindings: ["secret_text"] }),
   }

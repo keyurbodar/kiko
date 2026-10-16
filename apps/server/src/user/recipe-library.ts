@@ -1,3 +1,4 @@
+import type { FileBucket } from "../files/store"
 import { sha256Hex } from "@kiko/durable/hash"
 import type { FsEntry, FsFail, NewFile } from "../files/file-index"
 import { deleteFiles, fileKey, HOME } from "../files/upload"
@@ -17,7 +18,7 @@ const encoder = new TextEncoder()
 
 type Deps = {
   sql: SqlStorage
-  files: R2Bucket
+  files: FileBucket
   userId: () => string
   list: (dir: string, recursive: boolean) => FsEntry[] | FsFail
   put: (input: NewFile) => { drop: string | null; entry: FsEntry | null; conflict?: boolean }
@@ -126,7 +127,7 @@ export class RecipeLibrary {
     const object = await this.d.files.get(f.r2Key)
     if (!object) return `recipe ${slug}: the file is missing`
     try {
-      return parseRecipe(await object.text(), slug)
+      return parseRecipe(new TextDecoder().decode(await object.arrayBuffer()), slug)
     } catch (e) {
       return e instanceof Error ? e.message : String(e)
     }

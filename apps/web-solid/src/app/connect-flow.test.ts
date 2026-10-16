@@ -45,14 +45,17 @@ describe("callback", () => {
 
 describe("errors", () => {
   test("each installer code maps to a sentence and at most one link", () => {
-    expect(failureOf({ code: "r2_disabled", message: "x" }).link?.href).toContain("r2")
+    for (const code of ["no_permission", "not_ready", "cloudflare_error"]) expect(failureOf({ code, message: "raw" }).link?.href).toContain("workers-and-pages")
+    expect(failureOf({ code: "cloudflare_error", message: "raw cloudflare text" }).message).not.toContain("raw")
+    expect(failureOf({ code: "no_account", message: "x" }).link?.href).toContain("sign-up")
+    expect(failureOf({ code: "cloudflare_down", message: "x" }).link?.href).toContain("cloudflarestatus")
+    expect(failureOf({ code: "busy", message: "x" }).link).toBeUndefined()
     expect(failureOf({ code: "no_subdomain", message: "x" }).link?.href).toContain("workers")
     expect(failureOf({ code: "oauth_failed", message: "Cloudflare said no." })).toEqual({ message: "Cloudflare said no." })
-    expect(failureOf({ code: "not_ready", message: "Still starting." }).link).toBeUndefined()
   })
   test("install returns the installer's error shape", async () => {
-    const f: Fetch = async () => json({ error: { code: "r2_disabled", message: "m" } }, 400)
-    expect(await install("t", { kind: "token", token: "k" }, f)).toEqual({ ok: false, error: { code: "r2_disabled", message: "m" } })
+    const f: Fetch = async () => json({ error: { code: "failed_step", message: "m" } }, 400)
+    expect(await install("t", { kind: "token", token: "k" }, f)).toEqual({ ok: false, error: { code: "failed_step", message: "m" } })
   })
   test("a network failure is an error, not a throw", async () => {
     const f: Fetch = async () => {

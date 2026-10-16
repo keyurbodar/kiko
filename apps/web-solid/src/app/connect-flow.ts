@@ -93,16 +93,26 @@ export interface Failure {
   link?: { href: string; label: string }
 }
 
-const R2_DASHBOARD = "https://dash.cloudflare.com/?to=/:account/r2/overview"
 const WORKERS_DASHBOARD = "https://dash.cloudflare.com/?to=/:account/workers-and-pages"
+const WORKERS_LINK = { href: WORKERS_DASHBOARD, label: "Open Workers in Cloudflare" }
 
-/** What to show for an installer error: a sentence-case message and at most one link. "Try again" is always offered. */
+/** What to show for an installer error: a plain sentence and at most one link. "Try again" is always offered, and an install that stopped halfway picks up where it left off. */
 export function failureOf(error: InstallError): Failure {
   switch (error.code) {
-    case "r2_disabled":
-      return { message: "Cloudflare R2 is not turned on for this account. Turn it on, then try again.", link: { href: R2_DASHBOARD, label: "Open R2 in Cloudflare" } }
     case "no_subdomain":
-      return { message: "This account has no workers.dev address yet. Create one, then try again.", link: { href: WORKERS_DASHBOARD, label: "Open Workers in Cloudflare" } }
+      return { message: "This account has no workers.dev address yet. Create one, then try again.", link: WORKERS_LINK }
+    case "no_account":
+      return { message: "No Cloudflare account was found for this sign-in. Create one, then try again.", link: { href: "https://dash.cloudflare.com/sign-up", label: "Create a Cloudflare account" } }
+    case "no_permission":
+      return { message: "Cloudflare did not let this sign-in change Workers on your account. Open Workers and check that you can create one there, then try again.", link: WORKERS_LINK }
+    case "busy":
+      return { message: "Cloudflare is busy. Wait a minute, then try again." }
+    case "cloudflare_down":
+      return { message: "Cloudflare is having trouble right now. Try again in a few minutes.", link: { href: "https://www.cloudflarestatus.com/", label: "Open Cloudflare status" } }
+    case "not_ready":
+      return { message: "Kiko is installed but has not started answering yet. Wait a minute, then try again.", link: WORKERS_LINK }
+    case "cloudflare_error":
+      return { message: "Cloudflare did not accept a step of the install. Try again. If it keeps failing, open Workers in your dashboard once.", link: WORKERS_LINK }
     case "unauthorized":
       return { message: "Your Kiko sign-in expired. Reload the page and sign in again." }
     default:

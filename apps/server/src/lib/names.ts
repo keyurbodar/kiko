@@ -1,5 +1,6 @@
 import { type AgentSlug, isAgentSlug, isRoomId, type RoomId, type UserId } from "@kiko/protocol"
 import type { AgentDO } from "../agent/agent-do"
+import type { FileDO } from "../files/file-do"
 import type { RoomDO } from "../room/room-do"
 import type { UserDO } from "../user/user-do"
 import { rpc } from "./dev-guard"
@@ -42,6 +43,10 @@ export function roomName(userId: string, roomId: string): string {
   return `room:${checkUser(userId)}:${checkRoom(roomId)}`
 }
 
+export function fileName(userId: string, spaceId: string): string {
+  return `files:${checkUser(userId)}:${spaceId === "home" ? spaceId : checkRoom(spaceId)}`
+}
+
 export function agentName(userId: string, roomId: string, slug: string): string {
   return `agent:${checkUser(userId)}:${checkRoom(roomId)}:${checkSlug(slug)}`
 }
@@ -61,4 +66,8 @@ export function agentStub(
   slug: string,
 ): DurableObjectStub<AgentDO> {
   return rpc(ns.get(ns.idFromName(agentName(userId, roomId, slug))), "agent")
+}
+
+export function fileStub(ns: DurableObjectNamespace<FileDO>, userId: string, spaceId: string): DurableObjectStub<FileDO> {
+  return rpc(ns.get(ns.idFromName(fileName(userId, spaceId))), "file")
 }

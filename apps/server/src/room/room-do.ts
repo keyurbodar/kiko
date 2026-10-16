@@ -1,3 +1,4 @@
+import { fileStore } from "../files/store"
 import { humanAnswerText, KIKO, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
 import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
@@ -278,10 +279,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const id = crypto.randomUUID()
 		const r2Key = fileKey(home.userId, home.roomId, id)
 		const sha256 = await sha256Hex(body)
-		await this.env.FILES.put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
+		await fileStore(this.env).put(r2Key, body, { httpMetadata: { contentType: "text/markdown" } })
 		const { drop, file, events } = this.files.put({ id, path: CHAT_PATH, r2Key, size: body.length, type: "text/markdown", sha256, author: { kind: "agent", slug: author }, expectSha256: "none" })
 		if (events.length) this.publish(events)
-		if (drop) await deleteFiles(this.env.FILES, drop)
+		if (drop) await deleteFiles(fileStore(this.env), drop)
 		return file !== null
 	}
 
@@ -683,7 +684,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			if (text.length < frame.text.length && !this.log.sentBefore(frame.clientId)) {
 				const home = this.home()
 				if (!home) throw new ClaimRefused("This chat is not ready. Send again in a moment.")
-				whole = await putWhole(this.env.FILES, home, frame.clientId, frame.text)
+				whole = await putWhole(fileStore(this.env), home, frame.clientId, frame.text)
 			}
 			return this.ctx.storage.transactionSync(() => {
 				const earlier = this.log.sentBefore(frame.clientId)
@@ -714,7 +715,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				return { ack: { id: stored.id, seq: stored.seq }, events: [...claimed.events, ...(filed?.events ?? []), ...(stored.event ? [stored.event] : [])] }
 			})
 		} catch (error) {
-			if (whole) await discardWhole(this.env.FILES, whole).catch((e: unknown) => console.error(`whole text delete failed: ${e instanceof Error ? e.message : String(e)}`))
+			if (whole) await discardWhole(fileStore(this.env), whole).catch((e: unknown) => console.error(`whole text delete failed: ${e instanceof Error ? e.message : String(e)}`))
 			if (error instanceof ClaimRefused) return { refused: error.message }
 			throw error
 		}
@@ -738,9 +739,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async sweepPending(now = Date.now()): Promise<number> {
 		const stale = this.pending.expired(now - PENDING_TTL_MS)
 		for (const row of stale) {
-			if (row.upload_id) await this.env.FILES.resumeMultipartUpload(row.r2_key, row.upload_id).abort().catch(() => {})
+			if (row.upload_id) await fileStore(this.env).resumeMultipartUpload(row.r2_key, row.upload_id).abort().catch(() => {})
 		}
-		if (stale.length) await deleteFiles(this.env.FILES, stale.map((r) => r.r2_key))
+		if (stale.length) await deleteFiles(fileStore(this.env), stale.map((r) => r.r2_key))
 		this.pending.drop(stale.map((r) => r.id))
 		await this.armPending()
 		return stale.length
@@ -863,7 +864,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private applyFs<T extends FsChange<RoomEvent> | FsFail>(out: T): T {
 		if (!out.ok) return out
 		if (out.events.length) this.publish(out.events)
-		if (out.drop.length) this.ctx.waitUntil(deleteFiles(this.env.FILES, out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
+		if (out.drop.length) this.ctx.waitUntil(deleteFiles(fileStore(this.env), out.drop).catch((e: unknown) => console.error(`r2 delete failed: ${e instanceof Error ? e.message : String(e)}`)))
 		return out
 	}
 
