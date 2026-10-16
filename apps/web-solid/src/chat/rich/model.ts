@@ -12,6 +12,8 @@ export type RichNode =
   /** `bare` is a name, not a path: it shows as code unless the chat has a file of that name. */
   | { kind: "file"; file: FileTarget; label: string; bare?: true }
   | { kind: "masked"; href: string; children: RichNode[] }
+  /** A paragraph that is only a picture: an https `url`, or the id of one of the chat's files. */
+  | { kind: "image"; alt: string; url?: string; fileId?: string }
   /** `copy` is set on a table: the Markdown and CSV text its footer copies, read from the source cells. */
   | { kind: "el"; tag: string; attrs: Record<string, string>; children: RichNode[]; copy?: TableCopy }
 
@@ -27,7 +29,10 @@ const el = (tag: string, children: RichNode[], attrs: Record<string, string> = {
 const text = (value: string): RichNode => ({ kind: "text", text: value })
 
 /** Only these become links. A file href becomes a chip, and anything else renders as plain text. */
-export const safeHref = (href: string): boolean => /^(https?:|mailto:)/i.test(href)
+export const safeHref = (href: string): boolean => /^(https?:|mailto:)/i.test(href) && URL.canParse(href)
+
+/** The host a web link goes to, or null for a mail link. The favicon is asked for by this name. */
+export const linkHost = (href: string): string | null => (/^https?:/i.test(href) && URL.canParse(href) ? new URL(href).hostname : null)
 
 const fileChip = (file: FileTarget): RichNode => ({ kind: "file", file, label: chipLabel(file) })
 
@@ -41,6 +46,12 @@ const bareHost = (host: string): string => host.toLowerCase().replace(/^www\./, 
 const shownHosts = (label: string): string[] => {
   const whole = SHOWN_HOST.exec(label.trim())?.[1]
   return whole ? [whole] : Array.from(label.matchAll(EMBEDDED_HOST), (m) => m[1]!)
+}
+
+/** Where a link's first text splits: the icon and this lead share one unbreakable run, so the icon never wraps alone. */
+export function linkLead(text: string): [string, string] {
+  const lead = /^https?:\/\//i.exec(text)?.[0] ?? Array.from(text)[0] ?? ""
+  return [lead, text.slice(lead.length)]
 }
 
 export function maskedLink(href: string, label: string): boolean {
@@ -183,6 +194,8 @@ export function block(node: Block): RichNode {
       return el("hr", [], { class: "rich-rule" })
     case "code_block":
       return { kind: "code", lang: node.lang, text: node.text }
+    case "image":
+      return { kind: "image", alt: node.alt, ...(node.url ? { url: node.url } : {}), ...(node.fileId ? { fileId: node.fileId } : {}) }
     case "table": {
       const row = (cells: readonly (readonly Inline[])[], tag: "th" | "td") =>
         el("tr", cells.map((cell, i) => el(tag, cell.map(inline))))

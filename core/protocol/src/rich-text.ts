@@ -24,6 +24,8 @@ export type Block =
 	| { t: "quote"; children: readonly Block[] }
 	| { t: "rule" }
 	| { t: "code_block"; lang?: string; text: string }
+	/** A paragraph that is only an image. `url` is an https address; `fileId` is a file of this chat. Exactly one is set. */
+	| { t: "image"; alt: string; url?: string; fileId?: string }
 	| { t: "table"; align: readonly ColumnAlign[]; head: readonly (readonly Inline[])[]; rows: readonly (readonly (readonly Inline[])[])[] }
 
 export type RichText = readonly Block[]
@@ -56,6 +58,8 @@ const blockText = (block: Block, name: (slug: string) => string): string => {
 			return ""
 		case "code_block":
 			return block.text
+		case "image":
+			return block.alt
 		case "table":
 			return [block.head, ...block.rows].map((row) => row.map((cell) => inlineText(cell, name)).join(" ")).join("\n")
 	}
