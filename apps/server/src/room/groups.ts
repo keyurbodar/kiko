@@ -80,8 +80,8 @@ export class Groups {
 			const { event } = this.d.log.addMessage({ from: { kind: "system", reason: "created" }, text: `${checked.title} is ready.`, clientId: key, event: { kind: "created", roomId, title: checked.title }, goto: roomId })
 			if (event) this.d.publish([event])
 			const text = created
-				? `the group ${checked.title} is made, in its own chat, and your kickoff is sent. its answers come back to you. say one short line.`
-				: `the group ${checked.title} is already in its own chat. your kickoff is sent there. say one short line.`
+				? `the group ${checked.title} is made, in its own chat, and your kickoff is sent. you lead it there from here, so do not relay it in this chat. say one short line.`
+				: `the group ${checked.title} is already in its own chat. your kickoff is sent there, and you lead it there. say one short line.`
 			this.d.log.setMeta(key, text)
 			return { ok: true, text }
 		} catch (error) {
