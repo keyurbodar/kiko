@@ -1,4 +1,5 @@
 import { BACKEND } from "../src/lib/version"
+import { KIKO_HOME_ROOM } from "@kiko/protocol"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { Miniflare } from "miniflare"
 import { bundleWorker } from "./bundle"
@@ -295,6 +296,15 @@ test("every account has one pinned kiko chat that cannot be deleted or unpinned"
   const snap = ws.frames.find((f) => f.t === "reset")!.snapshot
   expect(snap.chats.find((c: { roomId: string }) => c.roomId === home[0].roomId)).toMatchObject({ kiko: true })
   ws.close()
+})
+
+test("a new account gets its pinned kiko chat with the fixed id the client paints", async () => {
+  const user = fresh()
+  await rpc(user, "ensureHome")
+  const ws = await socket(user, 0)
+  const snap = ws.frames.find((f) => f.t === "reset")!.snapshot
+  ws.close()
+  expect(snap.chats).toMatchObject([{ roomId: KIKO_HOME_ROOM, title: "Kiko", pinned: true, kiko: true, agents: ["kiko"] }])
 })
 
 async function homeOf(user: string) {

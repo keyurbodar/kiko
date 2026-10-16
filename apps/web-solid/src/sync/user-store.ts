@@ -14,6 +14,7 @@ import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
 import { type UserChannelHost, userChannel } from "./user-channel"
+import { kikoPlaceholder } from "../lib/chats"
 import { setFileToken } from "../lib/file-token"
 import { APP_VERSION, backendSkew, type Skew } from "../lib/version-skew"
 
@@ -258,7 +259,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		const [chats, seq, agents, home, pending, agentModels] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm), getPendingChats(warm), allAgentModels(warm)])
 		if (closed) return
 		// A cache with no drive predates the drive cache. Ask for a snapshot, not the events after `seq`.
-		setState({ chats, seq: home ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, patches: [...pending, ...state.patches], loaded: true })
+		const first = chats.length ? chats : [kikoPlaceholder(now())]
+		setState({ chats: first, seq: home ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, patches: [...pending, ...state.patches], loaded: true })
 		socket = createSyncSocket<UserToClient>({
 			url: options.url,
 			connect: options.connect,

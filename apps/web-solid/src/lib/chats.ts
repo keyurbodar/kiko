@@ -1,4 +1,4 @@
-import { type Agent, type AgentSlug, type Chat, KIKO, type RoomId } from "@kiko/protocol"
+import { type Agent, type AgentSlug, type Chat, KIKO, KIKO_HOME_ROOM, type RoomId } from "@kiko/protocol"
 
 /*
  * The pure rules of the chat list (architecture section 7.11): which chats the sidebar shows, and
@@ -11,6 +11,11 @@ export const BUILTIN_AGENT: Agent = { id: KIKO, name: "Kiko", slug: KIKO as Agen
 /** The user's agents with the built-in one first. */
 export function agentList(stored: readonly Agent[]): Agent[] {
   return [BUILTIN_AGENT, ...stored.filter((a) => a.id !== BUILTIN_AGENT.id)]
+}
+
+/** The pinned Kiko tile of an account whose cache is empty. It has the id the server gives a new account, so the server copy replaces it in place. */
+export function kikoPlaceholder(now: number): Chat {
+  return { roomId: KIKO_HOME_ROOM, title: "Kiko", pinned: true, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: now, agents: [KIKO], kiko: true }
 }
 
 /** The chats the sidebar lists: all of them, with the Kiko chat first, since it is the first pinned tile. */
