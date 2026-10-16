@@ -3,6 +3,7 @@
   "name": "kiko-app",
   "main": "src/front-door.ts",
   "compatibility_date": "2026-09-01",
+  "routes": [{ "pattern": "app.kiko.works", "custom_domain": true }],
   "assets": {
     "directory": "../web-solid/dist",
     "binding": "ASSETS",
