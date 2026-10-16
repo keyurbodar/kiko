@@ -24,9 +24,9 @@ const suite: Suite = {
     a.send({ t: "agent", op: { op: "create", agent: ada } })
     a.send({ t: "agent", op: { op: "create", agent: bo } })
     // A new agent whose pick equals its fallback still reaches a live device, so its chip never says "Choose model".
-    const cy = make("cy")
+    const cy = make(`cy${Date.now().toString(36)}`)
     a.send({ t: "agent", op: { op: "create", agent: cy } })
-    const born = modelEvents(await b.expect((f) => modelEvents(f, "cy").length > 0), "cy")[0]
+    const born = modelEvents(await b.expect((f) => modelEvents(f, cy.slug).length > 0), cy.slug)[0]
     if (!born?.model || born.thinkingLevels.length === 0) throw new VerifyError(`a new agent has no model event: ${JSON.stringify(born)}`)
     const chatA = newRoomId() as RoomId
     const chatB = newRoomId() as RoomId
