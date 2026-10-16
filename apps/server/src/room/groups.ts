@@ -9,7 +9,7 @@ import type { Members } from "./members"
 
 export type GroupResult = { ok: true; text: string } | { ok: false; error: string }
 
-export type GroupsDeps = {
+type GroupsDeps = {
 	ctx: DurableObjectState
 	env: Env
 	log: RoomLog

@@ -45,7 +45,7 @@ export default function ChatCard(props: { chatId: string }) {
   const chat = () => useApp.chatById(props.chatId)
   /** The Kiko chat never gets members, so an add there opens a group of Kiko and the agent. */
   const add = (agent: Agent) => {
-    if (!chat()?.kiko) return useApp.memberOp(addOp(agent))
+    if (props.chatId !== useApp.kikoChatId()) return useApp.memberOp(addOp(agent))
     const roomId = useApp.user()?.createChat(groupTitle(["Kiko", agent.name]), roomFor([KIKO, agent.id]))
     if (roomId) navigate(`/chat/${roomId}`)
   }
