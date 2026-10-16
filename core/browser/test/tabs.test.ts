@@ -27,6 +27,12 @@ function page(runtime: (expression: string) => unknown) {
     "Target.createTarget": () => ({ targetId: "T1" }),
     "Target.attachToTarget": (m) => ({ sessionId: `S-${String(m.params.targetId)}` }),
     "Target.getTargetInfo": () => ({ targetInfo: { url: "https://x.test/", title: "X" } }),
+    "Target.getTargets": () => ({
+      targetInfos: [
+        { targetId: "T1", type: "page", url: "https://x.test/", title: "X" },
+        { targetId: "OTHER", type: "page", url: "https://other.test/", title: "Other agent" },
+      ],
+    }),
     "Page.getLayoutMetrics": () => ({ cssContentSize: { width: 800, height: 2000 } }),
     "Page.captureScreenshot": () => ({ data: btoa("hi") }),
     "Runtime.evaluate": (m) => {
@@ -220,11 +226,12 @@ test("closing a tab with an open dialog drops the dialog", async () => {
   await browser.close()
 })
 
-test("listTabs reports url and title of the tabs the session opened", async () => {
+test("listTabs reports url and title of the tabs the session opened, in one call, and never another session's tab", async () => {
   fake = page(() => ok(null))
   const browser = await connect(fake.url)
   await browser.openTab()
   expect(await browser.listTabs()).toEqual([{ id: "T1", url: "https://x.test/", title: "X" }])
+  expect(sentTo("Target.getTargetInfo")).toHaveLength(0)
   await browser.close()
 })
 
@@ -242,5 +249,30 @@ test("fullPage screenshots clip to the layout size beyond the viewport", async (
   })
   await tab.screenshot()
   expect(sentTo("Page.captureScreenshot").at(-1)?.params).not.toHaveProperty("clip")
+  await browser.close()
+})
+
+test("forward and reload navigate the page and wait for its load", async () => {
+  fake = fakeCdp({
+    "Target.createTarget": () => ({ targetId: "T1" }),
+    "Target.attachToTarget": () => ({ sessionId: "S1" }),
+    "Page.getNavigationHistory": () => ({ currentIndex: 0, entries: [{ id: 1 }, { id: 2 }] }),
+    "Page.navigateToHistoryEntry": (_m, _ws, f) => {
+      queueMicrotask(() => f.emit("Page.loadEventFired", { timestamp: 1 }, "S1"))
+      return {}
+    },
+    "Page.reload": (_m, _ws, f) => {
+      queueMicrotask(() => f.emit("Page.loadEventFired", { timestamp: 2 }, "S1"))
+      return {}
+    },
+    "Runtime.evaluate": () => ok(true),
+  })
+  const browser = await connect(fake.url)
+  const tab = await browser.openTab()
+  expect(await tab.act({ op: "back" })).toEqual({ ok: false, reason: "gone", detail: "There is no page to go back to." })
+  expect(await tab.act({ op: "forward" })).toEqual({ ok: true })
+  expect(sentTo("Page.navigateToHistoryEntry").at(-1)?.params).toEqual({ entryId: 2 })
+  expect(await tab.act({ op: "reload" })).toEqual({ ok: true })
+  expect(sentTo("Page.reload")).toHaveLength(1)
   await browser.close()
 })

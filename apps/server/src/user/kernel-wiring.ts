@@ -5,12 +5,23 @@ import type { Env } from "../index"
 import { type CurlRequest, type CurlResponse, type KernelClient, KernelError, REJECTED, sdkClient } from "../integrations/kernel/client"
 import { browserState, checkAgentId, checkTabs, kernelErrorText, profileName, UPLOAD_DIR, WATCH_MS } from "../integrations/kernel/connect"
 import { FETCH_METHODS, URL_CAP } from "../integrations/kernel/files"
-import { KernelLease, type LeaseInfo, REAP_WAKEUP } from "../integrations/kernel/lease"
+import { humanHolds, KernelLease, type LeaseInfo, REAP_WAKEUP } from "../integrations/kernel/lease"
 import { KernelStore } from "../integrations/kernel/store"
 import { kernelFailure } from "./user-errors"
 import { roomStub } from "../lib/names"
 import { checkApiKey } from "./credentials"
 import { type Attachment, send, trySend } from "./sockets"
+
+export type LiveLinkResult = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
+
+/** What an agent reads before a browser call. `list` holds every open tab with its owner's agent id. */
+export type BrowserCheck = {
+  connected: boolean
+  takeover: boolean
+  mode: "headless" | "headful" | null
+  tabs: Record<string, number>
+  list: { id: string; agent: string; url: string }[]
+}
 
 type KernelDeps = {
   ctx: DurableObjectState
@@ -100,17 +111,38 @@ export class KernelWiring {
   }
 
   /**
-   * An agent asks the human to look at the browser, for a sign-in or a captcha. Posts the reason as a plain
-   * message, with no link: the browser bar's Watch and Take over ask for it. `agentId` ends in the agent's slug
-   * (after the last "/" or ":"). Returns false when the agent is not in that room.
+   * The live view link, for an agent to hand to the human. `control` pauses every agent's browser tools until the
+   * human hands back, so it is the request for a login, a captcha, or a payment. With a `reason` the link is posted
+   * to the room as a plain message from the agent: a worker never posts, and it is the worker that hits the login.
+   * The link is a bearer capability for the life of the browser; the owner asked for it in the chat (section 27.7).
+   * `agentId` ends in the agent's slug (after the last "/" or ":").
    */
-  async share(agentId: string, roomId: string, reason: string): Promise<boolean> {
+  async liveLink(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {
     checkAgentId(agentId)
     const slug = slugOf(agentId)
-    if (!isRoomId(roomId) || !isAgentSlug(slug) || typeof reason !== "string") return false
-    const text = reason.trim().slice(0, 300)
-    if (!text) return false
-    return roomStub(this.d.env.ROOM, this.d.userId(), roomId).browserShare(slug, text)
+    if (!isRoomId(roomId) || !isAgentSlug(slug)) return { ok: false, error: "Unknown room or agent" }
+    let url: string
+    try {
+      url = await this.link(mode)
+    } catch (e) {
+      return { ok: false, error: kernelErrorText(e) }
+    } finally {
+      this.push()
+    }
+    const why = typeof reason === "string" ? reason.trim().slice(0, 300) : ""
+    if (!why) return { ok: true, url, posted: false }
+    const label = mode === "control" ? "Take control" : "Watch the browser"
+    const posted = await roomStub(this.d.env.ROOM, this.d.userId(), roomId).browserShare(slug, `${why} [${label}](${url})`)
+    return { ok: true, url, posted }
+  }
+
+  /** Every open tab with its owner, for an agent to see. Other agents' addresses lose their query and fragment. */
+  tabList(agentId: string): { id: string; agent: string; url: string }[] {
+    const row = this.store.connected() ? this.store.lease() : undefined
+    if (!row || row.dead) return []
+    return Object.entries(row.tabs).flatMap(([owner, tabs]) =>
+      Object.entries(tabs).map(([id, url]) => ({ id, agent: owner, url: owner === agentId ? url : url.replace(/[?#].*$/, "") })),
+    )
   }
 
   /** The agent's socket died: the next lease makes a new browser. */
@@ -133,16 +165,19 @@ export class KernelWiring {
     this.push()
   }
 
-  check(): { connected: boolean; takeover: boolean; tabs: Record<string, number> } {
-    return { connected: this.store.connected(), takeover: this.takeover(), tabs: this.browser.status()?.tabs ?? {} }
+  check(agentId?: string): BrowserCheck {
+    const status = this.browser.status()
+    return { connected: this.store.connected(), takeover: this.takeover(), mode: status?.mode ?? null, tabs: status?.tabs ?? {}, list: this.tabList(agentId ?? "") }
   }
 
   takeover(): boolean {
-    return this.store.lease()?.takeover === true
+    const row = this.store.lease()
+    return row !== undefined && humanHolds(row, Date.now())
   }
 
   browserState(): BrowserState {
-    return browserState(this.store.connected() ? this.store.lease() : undefined, this.switching, (agentId) => {
+    const row = this.store.connected() ? this.store.lease() : undefined
+    return browserState(row && { ...row, takeover: humanHolds(row, Date.now()) }, this.switching, (agentId) => {
       const slug = slugOf(agentId)
       const row = this.d.sql.exec<{ name: string }>("SELECT name FROM agents WHERE slug = ?", slug).toArray()[0]
       return { slug, name: row?.name ?? slug }
@@ -173,6 +208,13 @@ export class KernelWiring {
     const url = new URL(live)
     url.searchParams.set("readOnly", "true")
     return url.toString()
+  }
+
+  private link(mode: "watch" | "control"): Promise<string> {
+    return this.openLink(mode, (on) => {
+      this.switching = on
+      this.push()
+    })
   }
 
   /** The current browser's Kernel session id. It is no secret: it names the browser, it does not reach it. */
@@ -213,7 +255,7 @@ export class KernelWiring {
   /** DEVELOPMENT ONLY. Moves the browser's clocks back, so the reaper's time is up. */
   age(ms: number): void {
     const row = this.store.lease()
-    if (row) this.store.patchLease({ lastUse: row.lastUse - ms })
+    if (row) this.store.patchLease({ lastUse: row.lastUse - ms, ...(row.watchUntil ? { watchUntil: Math.max(1, row.watchUntil - ms) } : {}) })
   }
 
   private liveSession(): string {
@@ -252,10 +294,7 @@ export class KernelWiring {
     } else {
       let result: BrowserLinkResult
       try {
-        const url = await this.openLink(frame.mode, (on) => {
-          this.switching = on
-          this.push()
-        })
+        const url = await this.link(frame.mode)
         result = { ok: true, url }
       } catch (e) {
         result = { ok: false, error: kernelErrorText(e) }

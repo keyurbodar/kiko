@@ -84,12 +84,21 @@ export async function goto(page: PageState, url: string): Promise<StepResult> {
   return { ok: true }
 }
 
-async function back(page: PageState): Promise<StepResult> {
+const NAVIGATES = new Set<Step["op"]>(["goto", "back", "forward", "reload"])
+
+async function walk(page: PageState, by: -1 | 1): Promise<StepResult> {
   const history = await page.channel.send("Page.getNavigationHistory")
-  const entry = history.entries[history.currentIndex - 1]
-  if (!entry) return { ok: false, reason: "gone", detail: "There is no page to go back to." }
+  const entry = history.entries[history.currentIndex + by]
+  if (!entry) return { ok: false, reason: "gone", detail: by < 0 ? "There is no page to go back to." : "There is no page to go forward to." }
   const loaded = page.channel.waitFor("Page.loadEventFired", BROWSER.loadMs)
   await page.channel.send("Page.navigateToHistoryEntry", { entryId: entry.id })
+  await loaded
+  return { ok: true }
+}
+
+async function reload(page: PageState): Promise<StepResult> {
+  const loaded = page.channel.waitFor("Page.loadEventFired", BROWSER.loadMs)
+  await page.channel.send("Page.reload")
   await loaded
   return { ok: true }
 }
@@ -187,7 +196,11 @@ async function perform(page: PageState, step: Step): Promise<StepResult | { ok: 
       await evaluate(page, `window.scrollBy(0, ${step.direction === "down" ? "" : "-"}window.innerHeight)`)
       return { ok: true }
     case "back":
-      return back(page)
+      return walk(page, -1)
+    case "forward":
+      return walk(page, 1)
+    case "reload":
+      return reload(page)
     case "goto":
       return goto(page, step.url)
   }
@@ -204,12 +217,12 @@ export async function act(page: PageState, step: Step): Promise<StepResult> {
   const early = dialogResult(page)
   if (early) return early
   try {
-    if (step.op === "goto" || step.op === "back") page.settle = undefined
+    if (NAVIGATES.has(step.op)) page.settle = undefined
     else if (step.op === "press") await flush(page)
     const done = await perform(page, step)
     if (!done.ok) return dialogResult(page) ?? done
     // The settle, and the load of a navigation it starts, are paid by the next page script: usually the read.
-    if (step.op !== "goto" && step.op !== "back") page.settle = "menu" in done && done.menu
+    if (!NAVIGATES.has(step.op)) page.settle = "menu" in done && done.menu
     return dialogResult(page) ?? { ok: true }
   } catch (error) {
     if (page.crashed) return { ok: false, reason: "crashed" }

@@ -10,15 +10,22 @@ export const TAKEOVER_RECHECK_MS = 60_000
 const KERNEL_TIMEOUT_SECONDS = 600
 const MAX_RETRY_AFTER_S = 5
 export const MAX_TABS = 8
+/** The longest the human holds control. A takeover older than this is over, so a forgotten live view cannot pause agents for ever. */
+export const TAKEOVER_MS = 30 * 60_000
 
 export const REAP_WAKEUP = "kernel_reap"
 
 export type ReapDecision = { delete: true } | { delete: false; at: number }
 
+/** Control is data: the human holds it from the flag until `watchUntil`; a row from before the limit (`watchUntil` 0) holds until handed back. */
+export function humanHolds(row: Pick<LeaseRow, "takeover" | "watchUntil">, now: number): boolean {
+  return row.takeover && (row.watchUntil === 0 || row.watchUntil > now)
+}
+
 /** The whole reaper policy, as data in and a verdict out. A browser an agent used inside the idle window is never deleted, whatever its age. */
 export function reapDecision(row: Pick<LeaseRow, "lastUse" | "takeover" | "watchUntil" | "dead">, now: number): ReapDecision {
   if (row.dead) return { delete: true }
-  if (row.takeover) return { delete: false, at: now + TAKEOVER_RECHECK_MS }
+  if (humanHolds(row, now)) return { delete: false, at: now + TAKEOVER_RECHECK_MS }
   if (row.watchUntil > now) return { delete: false, at: row.watchUntil }
   const at = row.lastUse + IDLE_MS
   return at <= now ? { delete: true } : { delete: false, at }
@@ -124,11 +131,14 @@ export class KernelLease {
   }
 
   setTakeover(on: boolean): void {
-    this.deps.store.patchLease({ takeover: on, lastUse: this.#now() })
+    const now = this.#now()
+    const row = this.deps.store.lease()
+    this.deps.store.patchLease(on ? { takeover: true, watchUntil: Math.max(row?.watchUntil ?? 0, now + TAKEOVER_MS), lastUse: now } : { takeover: false, watchUntil: 0, lastUse: now })
   }
 
   watchUntil(until: number): void {
-    this.deps.store.patchLease({ watchUntil: until, lastUse: this.#now() })
+    const row = this.deps.store.lease()
+    this.deps.store.patchLease({ watchUntil: Math.max(row?.watchUntil ?? 0, until), lastUse: this.#now() })
   }
 
   /**
@@ -153,7 +163,9 @@ export class KernelLease {
     return this.#serial(async () => {
       const row = this.deps.store.lease()
       if (!row) return this.deps.wake.clear()
-      const verdict = reapDecision(row, this.#now())
+      const now = this.#now()
+      if (row.takeover && !humanHolds(row, now)) this.deps.store.patchLease({ takeover: false })
+      const verdict = reapDecision(row, now)
       if (verdict.delete) await this.#destroy(row)
       else await this.deps.wake.set(verdict.at)
     })

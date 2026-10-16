@@ -7,6 +7,7 @@ import type { JevPort, ModelPort } from "@kiko/browser/decide/ports"
 import type { Decider } from "@kiko/browser/decide/types"
 import { jevRanker, lexicalRanker, type Ranker } from "@kiko/browser/plan/rank"
 import { count } from "../../lib/dev-guard"
+import type { DeciderChoice } from "./tools"
 
 /**
  * A decision is one option key, but Muse Spark thinks about 140 tokens even at minimal, and at 256 about 1 answer
@@ -73,8 +74,45 @@ export function jevPort(models: Models, key: JevKey, egress: typeof fetch | unde
 
 export type Picked = { decider: Decider; ranker: Ranker }
 
-/** Jev when the user has a TypeSafe key, with the agent's own model for any step Jev is unsure of. Both use the same loop. */
+/** A judge that fails is not the browser failing. The agent's own model and the lexical ranker take over, unless the call was stopped. */
+function fallingBack(primary: Decider, backup: Decider): Decider {
+  return {
+    name: primary.name,
+    async decide(input, signal) {
+      try {
+        return await primary.decide(input, signal)
+      } catch (e) {
+        if (signal.aborted) throw e
+        count("browser.jev.fallback")
+        return backup.decide(input, signal)
+      }
+    },
+  }
+}
+
+function rankingWithFallback(primary: Ranker, backup: Ranker): Ranker {
+  return {
+    async rank(find, passages, signal) {
+      try {
+        return await primary.rank(find, passages, signal)
+      } catch (e) {
+        if (signal.aborted) throw e
+        count("browser.jev.fallback")
+        return backup.rank(find, passages, signal)
+      }
+    },
+  }
+}
+
+/** Jev when the user has a TypeSafe key, with the agent's own model for any step Jev is unsure of or cannot answer. Both use the same loop. */
 export function pickDecider(model: ModelPort, jev: JevPort | null): Picked {
-  if (jev) return { decider: escalating(jevDecider(jev), modelDecider(model)), ranker: jevRanker(jev) }
-  return { decider: modelDecider(model), ranker: lexicalRanker }
+  const own = modelDecider(model)
+  if (!jev) return { decider: own, ranker: lexicalRanker }
+  return { decider: fallingBack(escalating(jevDecider(jev), own), own), ranker: rankingWithFallback(jevRanker(jev), lexicalRanker) }
+}
+
+/** The browser needs no judge key. Finding one is best effort: an error while looking is the same as having none. */
+export async function chooseDecider(model: ModelPort, judge: () => Promise<JevPort | null>): Promise<DeciderChoice> {
+  const jev = await judge().catch(() => null)
+  return { name: jev ? "jev" : "model", ...pickDecider(model, jev) }
 }

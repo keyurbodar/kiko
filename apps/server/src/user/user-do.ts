@@ -53,7 +53,7 @@ import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/e
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import type { DevBrowserOp } from "./dev"
 import { InitiativeLoops, LOOPS_WAKEUP } from "./initiative-loops"
-import { KernelWiring } from "./kernel-wiring"
+import { type BrowserCheck, KernelWiring, type LiveLinkResult } from "./kernel-wiring"
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
 import { AWAY_MS, LAST_SEEN } from "./keys"
@@ -658,13 +658,9 @@ export class UserDO extends DurableObject<Env> {
     return this.#kr.takeover()
   }
 
-  /**
-   * An agent asks the human to look at the browser, for a sign-in or a captcha. Posts the reason as a plain
-   * message, with no link: the browser bar's Watch and Take over ask for it. `agentId` ends in the agent's slug
-   * (after the last "/" or ":"). Returns false when the agent is not in that room.
-   */
-  async browserShare(agentId: string, roomId: string, reason: string): Promise<boolean> {
-    return this.#kr.share(agentId, roomId, reason)
+  /** The live view link for the human, with a reason it is also posted to the room (section 27.7). */
+  async browserLive(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {
+    return this.#kr.liveLink(agentId, roomId, mode, reason)
   }
 
   /** The agent's socket died: the next lease makes a new browser. */
@@ -700,8 +696,8 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** Read before each browser call. Holds no URL. */
-  async browserCheck(): Promise<{ connected: boolean; takeover: boolean; tabs: Record<string, number> }> {
-    return this.#kr.check()
+  async browserCheck(agentId?: string): Promise<BrowserCheck> {
+    return this.#kr.check(agentId)
   }
 
   async devBrowser(op: DevBrowserOp): Promise<Record<string, unknown>> {
