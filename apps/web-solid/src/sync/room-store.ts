@@ -243,7 +243,8 @@ export function applyRoomEvent(data: RoomData, e: RoomEvent): Change | null {
 }
 
 export function applyStatus(data: RoomData, status: AgentStatus): void {
-	upsert(data.agents, status, (x) => x.slug === status.slug)
+	if (status.state === "idle") removeWhere(data.agents, (x) => x.slug === status.slug)
+	else upsert(data.agents, status, (x) => x.slug === status.slug)
 }
 
 /** Two oldest-first lists as one, oldest first, one message per seq; `b` wins a tie. */
