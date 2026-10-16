@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import type { MemoryOp, MemoryResult } from "@kiko/protocol"
 import type { MemoryClient } from "./client"
-import { replacedMark } from "./lines"
+import { matching, mergeResults, ordered, originOf, replacedMark } from "./lines"
 import { createMockMemory } from "./mock"
 import { createMemoryStore } from "./store"
 
@@ -60,4 +60,24 @@ test("a refused change is undone and says why", async () => {
 	await Bun.sleep(0)
 	expect(store.state.lines[0]!.pinned).toBe(false)
 	expect(store.state.error).toBe("at most 10 pinned memories. unpin one first.")
+})
+
+test("origins read as the human, an agent, or a chat, never a slug label", () => {
+	expect(originOf({ source: "you" })).toEqual({ kind: "you" })
+	expect(originOf({ source: "@pollen-2" })).toEqual({ kind: "agent", slug: "pollen-2" })
+	expect(originOf({ source: "chat trip" })).toEqual({ kind: "chat", title: "trip" })
+	expect(originOf({ source: "" })).toEqual({ kind: "agent", slug: "kiko" })
+})
+
+test("pinned lines come first, removed lines drop out, search matches every word at once", async () => {
+	const store = createMemoryStore(createMockMemory())
+	await store.load()
+	store.pin(1, true)
+	store.redact(2)
+	const { pinned, recent } = ordered(store.state.lines)
+	expect(pinned.map((l) => l.pos)).toEqual([1])
+	expect(recent.map((l) => l.pos)).toEqual([4, 3, 0])
+	expect(matching(store.state.lines, "SAM sunday").map((l) => l.pos)).toEqual([1])
+	expect(matching(store.state.lines, "japan").map((l) => l.pos)).toEqual([])
+	expect(mergeResults(matching(store.state.lines, "porto"), [4, 1, 0].map((pos) => store.state.lines.find((l) => l.pos === pos)!)).map((l) => l.pos)).toEqual([4, 1, 0])
 })

@@ -166,7 +166,7 @@ function MemoryBody() {
   return (
     <Show when={store()}>
       {(s) => (
-        <div class="flex flex-col gap-3 px-2.5 pb-3" data-component="info-memory">
+        <div class="flex min-h-0 flex-1 flex-col gap-2" data-component="info-memory">
           <MemoryError store={s()} />
           <MemoryList store={s()} />
         </div>
@@ -190,7 +190,7 @@ function SurfaceBody(props: { chatId: string; surface: Surface }) {
     observer.observe(el.firstElementChild!)
     onCleanup(() => observer?.disconnect())
   })
-  const selfScrolling = props.surface.kind === "file" || props.surface.kind === "files"
+  const selfScrolling = props.surface.kind === "file" || props.surface.kind === "files" || props.surface.kind === "memory"
   return (
     <div
       ref={scroller}
