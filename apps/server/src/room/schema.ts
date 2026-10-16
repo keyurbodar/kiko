@@ -230,6 +230,9 @@ export const ROOM_STEPS: Step[] = [
 		answer TEXT
 	) STRICT`,
 	addColumn("human_asks", "questions", "TEXT"),
+	// The other room of a private talk. On an ask row, the room the ask went to (or came from). On a queued mail row, where to send it (JSON: room, ask id, and back for an answer).
+	addColumn("agent_asks", "remote", "TEXT"),
+	addColumn("mail_queue", "remote", "TEXT"),
 	`CREATE TABLE IF NOT EXISTS ws_task_reports (
 		seq INTEGER PRIMARY KEY,
 		recipient TEXT NOT NULL,

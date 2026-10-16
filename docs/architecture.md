@@ -321,8 +321,8 @@ The inbox keeps submitted rows for dedupe for seven days, far past any retry of 
 
 | Tool | Who | Effect |
 | --- | --- | --- |
-| `send_message(to, text)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. To hand over a file, the agent names its path in the text: every agent in the room shares one file space. DEVIATION (2026-10-09): the `files` argument is removed (section 18.1) |
-| `ask(to, question)` | every agent | sends one teammate a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`core/agent/src/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message for this agent waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`). Several asks in one reply, to several teammates, wait together, since `pi-durable` runs a round's tool calls in parallel |
+| `send_message(to, text)` | every agent | posts a visible room message addressed to one agent, or to every other agent with `to: all`, and delivers it. `to` may be any agent the human has: one that is not a member is reached in a pair room (section 7.13). To hand over a file, the agent names its path in the text: every agent in the room shares one file space. DEVIATION (2026-10-09): the `files` argument is removed (section 18.1) |
+| `ask(to, question)` | every agent | sends one teammate (or, privately, any of the human's agents, section 7.13) a question and waits, inside the run, for the answer: the teammate's next `send_message` back is the tool's result, not a new run. The room pushes that answer to the waiting tool the moment it is stored (`core/agent/src/answers.ts`), so nothing polls. It waits up to two minutes and stops at once when a human message for this agent waits (section 7.8). After that, the answer arrives as an ordinary message (`room/asks.ts`). Several asks in one reply, to several teammates, wait together, since `pi-durable` runs a round's tool calls in parallel |
 | `team()` | every agent | what each member is doing now and the paths it holds (section 7.12). It calls no other agent |
 | `recall(query)`, `zoom(id)`, `note(text)` | every agent | memory (section 13) |
 | `update_task(id, status, note)` | every agent | the task board. Setting a task nobody owns to `doing` takes it |
@@ -430,6 +430,14 @@ Resume. The client sends `open { roomId }` two seconds after the user settles in
 - **The rule.** Every agent looks before it acts: if a teammate is on it or just did it, it adds only what is missing or leaves it.
 
 **Reasoning.** Coordination belongs where the acts happen. A rule in the prompt alone fails under load; a lock an agent must remember to take fails the first time it forgets. The room sees every act, so the board is always true and a lease cannot be skipped. The hash check on writes (section 18.3) still catches the case a lease cannot: a stale read after the holder finished.
+
+### 7.13 Private talks
+
+`send_message` and `ask` reach any agent the human has. A target that is not a member of the room goes through a pair room: one hidden chat for each pair of agents. Its room id comes from the two slugs, sorted (`pairRoomId` in `@kiko/protocol`), so every talk between the pair reuses it. `UserDO.openPair` makes the chat once, with `pair: true` and `private: true`, and it holds exactly the two agents (Kiko only when it is one of them). A pair chat is never in the chat list, search, a snapshot, or a chat event. `sameAgentChat` skips it, so a group of the same two agents is a different chat and neither is taken for a direct chat. Because it is private, no memory is captured from it and no loop or life-log rollup comes out of it; the agents save nothing there.
+
+When A, in room R, sends to a non-member B, R checks A's chain, logs A's message (from A, `to: B`), opens the expectation with the pair room's id, and queues the delivery in `mail_queue` with a `remote` target. The mail drain calls `pairIn` on the pair room P. P logs the message from A to B, records that B's answer to this ask id returns to R, and delivers the envelope to B with the chain's root and hop. A repeat stores and delivers nothing twice (the message and the envelope are named by the ask id).
+
+B answers in P as in any room: `send_message` to A, the run's reply bubbles, or nothing. P queues the answer for R, and the drain calls `pairBack`, retried by alarm and taken once per ask id. R logs B's answer as from B, `to: A` (B is still not a member of R), then settles the expectation as for a local answer: pushed into A's waiting `ask`, or delivered to A as mail with the carried hop, never `chain(B)` in R. An empty answer settles the expectation, tells a waiting `ask` that B had nothing to add, and relays nothing. The human's stop in R drops the answer for that root. The client shows a message from an agent that is not a member with that agent's name and avatar, and folds it by `to` like any other.
 
 ## 8. Talker and workers
 

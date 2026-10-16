@@ -65,6 +65,14 @@
           "notnull": 0,
           "dflt_value": null,
           "pk": 0
+        },
+        {
+          "cid": 8,
+          "name": "remote",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
         }
       ],
       "indexes": [
@@ -398,6 +406,14 @@
         {
           "cid": 3,
           "name": "recipient",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        },
+        {
+          "cid": 4,
+          "name": "remote",
           "type": "TEXT",
           "notnull": 0,
           "dflt_value": null,
@@ -1966,6 +1982,14 @@
         {
           "cid": 13,
           "name": "grp",
+          "type": "INTEGER",
+          "notnull": 1,
+          "dflt_value": "0",
+          "pk": 0
+        },
+        {
+          "cid": 14,
+          "name": "pair",
           "type": "INTEGER",
           "notnull": 1,
           "dflt_value": "0",

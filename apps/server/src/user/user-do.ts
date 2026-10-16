@@ -1,4 +1,4 @@
-import { KIKO, newRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
+import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
 import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, RecipeList, RoomId, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
@@ -379,6 +379,20 @@ export class UserDO extends DurableObject<Env> {
     if (existing) return { roomId: existing, created: false }
     this.apply(op)
     return { roomId: op.roomId, created: true }
+  }
+
+  /** The hidden chat where two of the human's agents talk. It is made once, from the two slugs, and no client hears of it. */
+  async openPair(a: string, b: string): Promise<{ ok: true; roomId: RoomId } | { ok: false; error: string }> {
+    const mine = listAgents(this.sql)
+    const idOf = (slug: string) => (slug === KIKO ? KIKO : mine.find((x) => x.slug === slug)?.id)
+    const ids = [idOf(a), idOf(b)]
+    if (ids[0] === undefined || ids[1] === undefined) {
+      const known = [KIKO, ...mine.map((x) => x.slug)].filter((s) => s !== a)
+      return { ok: false, error: `not sent: no agent @${ids[1] === undefined ? b : a}. the human has: ${known.map((s) => `@${s}`).join(", ")}.` }
+    }
+    const roomId = pairRoomId(a, b)
+    if (!getChat(this.sql, roomId)) this.commit(applyChatOp(this.sql, { op: "create", roomId, title: [a, b].sort().map((s) => `@${s}`).join(" and "), agents: ids as string[] }, Date.now(), true))
+    return { ok: true, roomId }
   }
 
   async seedSoul(slug: string, name: string, role: string): Promise<Soul> {
@@ -987,7 +1001,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private commit(change: ChatChange | { t: "agent"; agent: Agent } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
-    if (!change) return null
+    if (!change || (change.t === "chat" && change.chat.pair)) return null
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
     const at = Date.now()
     const seq = this.currentSeq() + 1
