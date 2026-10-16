@@ -20,7 +20,7 @@ import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/p
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { isListed } from "../sidebar/activity"
 import { agentDisplayName } from "./names"
-import { showRunError } from "./run-error"
+import { hintCoversRunError, showRunError } from "./run-error"
 import { session as signedIn } from "../app/session"
 import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
@@ -371,7 +371,10 @@ export function createApp(options: AppOptions = {}) {
       // A send the room refused stays in the transcript, marked failed. The toast says why.
       next.onTaskRefused((reason) => showToastV2({ title: reason, variant: "error" }))
       next.onSendRefused((reason) => showToastV2({ title: reason, variant: "error" }))
-      next.onRunError((frame) => showRunError(frame, next.state.members.find((m) => m.slug === frame.slug)?.name ?? "The agent"))
+      next.onRunError(async (frame) => {
+        if (hintCoversRunError(frame, (await import("../settings/connected")).noModelKey())) return
+        await showRunError(frame, next.state.members.find((m) => m.slug === frame.slug)?.name ?? "The agent")
+      })
       setRoom(next)
     }
 

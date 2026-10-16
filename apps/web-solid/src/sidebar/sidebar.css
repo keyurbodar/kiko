@@ -363,7 +363,7 @@
 .sidebar-shell .chat-skeleton {
   display: block;
   height: 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
 }
 
@@ -371,7 +371,7 @@
   width: 36px;
   height: 36px;
   flex: none;
-  border-radius: 999px;
+  border-radius: 50%;
 }
 
 .sidebar-shell .chat-skeleton-text {

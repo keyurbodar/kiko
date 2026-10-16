@@ -1,5 +1,4 @@
 import type { RoomToClient } from "@kiko/protocol"
-import { noModelKey } from "../settings/connected"
 import { loadCatalog } from "../settings/catalog"
 import { showToastV2, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
 
@@ -37,8 +36,10 @@ export function runErrorToast(frame: Pick<RunErrorFrame, "kind" | "provider" | "
 const catalogName = (id: string | undefined) =>
   id ? loadCatalog().then((catalog) => catalog.providers.find((p) => p.id === id)?.name).catch(() => undefined) : Promise.resolve(undefined)
 
+/** The composer's inline hint already says it, so a no-key run error adds no toast over the first bubble. */
+export const hintCoversRunError = (frame: RunErrorFrame, noKey: boolean): boolean => frame.kind === "no_key" && noKey
+
 export async function showRunError(frame: RunErrorFrame, name: string): Promise<void> {
-  if (frame.kind === "no_key" && noModelKey()) return
   const { settings, ...toast } = runErrorToast(frame, name, await catalogName(frame.provider))
   showToastV2({
     ...toast,

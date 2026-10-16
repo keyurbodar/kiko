@@ -1,25 +1,13 @@
-import { beforeEach, expect, mock, test } from "bun:test"
+import { expect, test } from "bun:test"
+import { hintCoversRunError } from "./run-error"
 
-let noKey = true
-const toasts: unknown[] = []
-mock.module("../settings/connected", () => ({ noModelKey: () => noKey }))
-mock.module("@kiko/ui/v2/toast-v2", () => ({ showToastV2: (options: unknown) => void toasts.push(options) }))
-const { showRunError } = await import("./run-error")
+const frame = (kind: "no_key" | "rate_limit") => ({ t: "run_error" as const, kind, provider: "anthropic" }) as Parameters<typeof hintCoversRunError>[0]
 
-beforeEach(() => {
-  toasts.length = 0
+test("the inline hint covers a no-key error only while no key is saved", () => {
+  expect(hintCoversRunError(frame("no_key"), true)).toBe(true)
+  expect(hintCoversRunError(frame("no_key"), false)).toBe(false)
 })
 
-test("the no-key toast stays away while the composer's inline hint is showing", async () => {
-  noKey = true
-  await showRunError({ t: "run_error", kind: "no_key", provider: "anthropic" } as never, "Kiko")
-  expect(toasts).toEqual([])
-})
-
-test("the no-key toast shows when a key is saved, and other errors always show", async () => {
-  noKey = false
-  await showRunError({ t: "run_error", kind: "no_key", provider: "anthropic" } as never, "Kiko")
-  noKey = true
-  await showRunError({ t: "run_error", kind: "rate_limit", provider: "anthropic" } as never, "Kiko")
-  expect(toasts).toHaveLength(2)
+test("every other error still shows its toast", () => {
+  expect(hintCoversRunError(frame("rate_limit"), true)).toBe(false)
 })
