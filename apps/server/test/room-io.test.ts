@@ -40,7 +40,7 @@ const READ_BOUNDS: Record<string, number> = {
 	"file put (one file)": 100,
 	"alarm (nothing due)": 100,
 	typing: 10,
-	"agent typing on": 10,
+	"agent typing on": 12, // setStatus: the member row, its status frame, the busy set
 	search: 300,
 	"history (50 before, 50 after)": 300,
 	"task create": 300,

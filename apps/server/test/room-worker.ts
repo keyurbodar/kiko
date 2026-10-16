@@ -1,4 +1,5 @@
 import { ROOM_ID_HEADER, USER_ID_HEADER } from "../src/lib/names"
+import type { AgentSlug } from "@kiko/protocol"
 import { RoomDO } from "../src/room/room-do"
 
 export { RoomDO }
@@ -6,6 +7,11 @@ export { RoomDO }
 // The stored row count, which only the test measures. It counts what main's wipe counted, minus the meta and
 // search tables, so the log's growth is measured the same way it was before the wipe was removed.
 export class RoomProbe extends RoomDO {
+	async typingProbe(slug: AgentSlug, on: boolean): Promise<void> {
+		if (!this.members.get(slug)) this.memberOp({ op: "add", slug, name: slug })
+		await this.setStatus(slug, on ? "typing" : "idle")
+	}
+
 	async storedRows(): Promise<number> {
 		const sql = this.ctx.storage.sql
 		const tables = sql
@@ -31,7 +37,7 @@ export default {
 		}
 		if (kind === "rows") return Response.json(await stub.storedRows())
 		if (kind === "typing") {
-			await stub.setTyping(slug as never, on === "1")
+			await stub.typingProbe(slug as never, on === "1")
 			return new Response("ok")
 		}
 		const headers = new Headers(request.headers)

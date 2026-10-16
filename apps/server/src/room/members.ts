@@ -58,6 +58,14 @@ export class Members {
 		this.sql = storage.sql
 	}
 
+	#busy: Map<AgentSlug, { name: string; status: AgentState }> | null = null
+
+	/** The members that are not idle, in order. Kept in memory and rebuilt from the table after a wake, so reading it costs no rows. */
+	busy(): ReadonlyMap<AgentSlug, { name: string; status: AgentState }> {
+		this.#busy ??= new Map(this.list().filter((m) => m.status !== "idle").map((m) => [m.slug, { name: m.name, status: m.status }]))
+		return this.#busy
+	}
+
 	list(): MemberRow[] {
 		return this.sql
 			.exec<Row>("SELECT * FROM members WHERE removed_at IS NULL ORDER BY lead DESC, added_seq, slug")
@@ -107,6 +115,7 @@ export class Members {
 	}
 
 	private addInside(input: NewMember, lead: boolean): MemberResult {
+		this.#busy = null
 		if (RESERVED_SLUGS.has(input.slug)) return { ok: false, reason: "reserved" }
 		if (this.get(input.slug)) return { ok: false, reason: "exists" }
 		if (this.list().length >= MAX_MEMBERS) return { ok: false, reason: "limit" }
@@ -135,6 +144,7 @@ export class Members {
 	}
 
 	private removeInside(slug: AgentSlug): MemberResult {
+		this.#busy = null
 		const current = this.get(slug)
 		if (!current) return { ok: false, reason: "unknown" }
 		if (slug === CHIEF) return { ok: false, reason: "chief" }
@@ -153,6 +163,7 @@ export class Members {
 	}
 
 	private renameInside(slug: AgentSlug, name: string): MemberResult {
+		this.#busy = null
 		const current = this.get(slug)
 		if (!current) return { ok: false, reason: "unknown" }
 		const next = clip(name, MAX_NAME)
@@ -163,8 +174,13 @@ export class Members {
 	}
 
 	setStatus(slug: AgentSlug, status: AgentState): boolean {
-		return this.sql.exec("UPDATE members SET status = ? WHERE slug = ? AND removed_at IS NULL AND status != ?", status, slug, status)
+		const changed = this.sql.exec("UPDATE members SET status = ? WHERE slug = ? AND removed_at IS NULL AND status != ?", status, slug, status)
 			.rowsWritten > 0
+		if (changed && this.#busy) {
+			if (status === "idle") this.#busy.delete(slug)
+			else this.#busy.set(slug, { name: this.#busy.get(slug)?.name ?? this.get(slug)?.name ?? slug, status })
+		}
+		return changed
 	}
 
 }

@@ -219,11 +219,12 @@ test("typing is broadcast and never stored", async () => {
 	const a = await Client.open(room)
 	await fetch(`${origin}/typing/${room}/ada/1`)
 	expect(await a.next((f) => f.t === "typing")).toEqual({ t: "typing", who: ["ada"] })
+	await a.events()
 	await fetch(`${origin}/typing/${room}/ada/0`)
 	expect(await a.next((f) => f.t === "typing")).toEqual({ t: "typing", who: [] })
 	a.send({ t: "typing" })
 	a.send({ t: "hello", lastSeq: 0 })
-	expect(await a.events()).toEqual([])
+	expect((await a.events()).map((e) => e.t)).toEqual(["member"])
 	a.close()
 })
 

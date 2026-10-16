@@ -971,7 +971,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	private activeFrame(): RoomToClient {
-		return { t: "typing", who: this.members.list().filter((m) => m.status !== "idle").map((m) => m.slug) }
+		return { t: "typing", who: [...this.members.busy().keys()] }
 	}
 
 	/** What a new room socket needs to know: who is busy and what each is doing. Statuses are not part of a catch-up. */
@@ -986,7 +986,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!home) return Promise.resolve()
 		this.typingChain = this.typingChain
 			.then(async () => {
-				const names = this.members.list().filter((m) => m.status === "typing").map((m) => m.name)
+				const names = [...this.members.busy().values()].filter((m) => m.status === "typing").map((m) => m.name)
 				const key = JSON.stringify(names)
 				if (key === this.typingSent) return
 				await userStub(this.env.USER, home.userId).chatTyping(home.roomId, names)
