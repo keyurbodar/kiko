@@ -4,7 +4,7 @@ import type { ToastV2Options } from "@kiko/ui/v2/toast-v2"
 const shown: ToastV2Options[] = []
 mock.module("@kiko/ui/v2/toast-v2", () => ({ showToastV2: (options: ToastV2Options) => void shown.push(options) }))
 
-const { setGo, showKikoError } = await import("./errors")
+const { seenInChat, setGo, showKikoError } = await import("./errors")
 
 beforeEach(() => {
   shown.length = 0
@@ -45,3 +45,15 @@ describe("showKikoError", () => {
     expect(key(shown[0]!)).toBe(key(shown[1]!))
   })
 })
+
+describe("an error the open chat already shows", () => {
+  test.each([
+    ["r1", "r1", true, true],
+    ["r1", "r2", true, false],
+    ["r1", "r1", false, false],
+    [undefined, "r1", true, false],
+    ["r1", null, true, false],
+  ])("room %s, open %s, visible %s", (roomId, open, visible, want) => {
+    expect(seenInChat(roomId, open, visible)).toBe(want);
+  });
+});

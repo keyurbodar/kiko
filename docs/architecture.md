@@ -166,10 +166,12 @@ Not taken: handing pi's long waits to the alarm, because pi caps its retry wait 
 
 A human message takes this path.
 
-1. The client renders the bubble at once and sends `send {clientId, text, replyTo, quote, attachments}` on the room WebSocket.
+1. The client renders the bubble at once and sends `send {clientId, text, replyTo, quote, attachments}` on the room WebSocket. The composer does not send, and applies nothing, while no model can answer: no provider is connected, the addressed agent has no model, or its model needs a provider that is not connected or did not accept its key (`settings/send-block.ts`). Send is disabled with the reason and an action ("Open settings", "Choose model"). Typing and drafts still work.
 2. `RoomDO` stores the message, assigns the next `seq`, acknowledges, and broadcasts. `clientId` has a unique index, so a resend after a reconnect stores nothing twice.
 3. `RoomDO` adds the message to the `pending` burst and sets the debounce wakeup.
 4. When the wakeup fires with no newer message, `RoomDO` resolves the recipients (section 7.2) and delivers the whole burst to each one in a single `receive()` call. Recipients come from the mentions of each message's whole text, which the row keeps at send time, so a mention past the bubble limit still routes.
+
+A message that replies carries `replyTo`, the id of its parent. The server stores it and adds `Message.reply`, a preview of the parent (`seq`, `from`, up to 140 characters of text, `gone` when the parent was deleted), read in one query per page, so a quote still draws when the original is not loaded or is deleted. A quote whose original is not held jumps by `seq`. A reply routes to the parent's addressees when it has no tag of its own: an agent's message gives its author, a human message gives its tags and, through its own `replyTo`, its parent's (up to six levels). So a reply to the human's own message, or to a reply, reaches the agent that message was for.
 
 The debounce window uses the human's typing signal, which the room already receives.
 
@@ -214,6 +216,22 @@ The table is `decide()` in `core/agent/src/mid-run.ts`, and `AgentHost.drain()` 
 **Reasoning.** Restart is the cheapest way to get one coherent answer, and it is safe only before anything visible or irreversible happened. Steering is what `pi-durable` offers once tools are in play (`README.md`, "Busy Conversations"). A steer never rewrites bubbles the human has already read: it joins after the current tool round, or when the run answers. Slow work runs in workers (section 8), so a run that holds the human up is short. An interrupt stops a slow read or `bash` at once, so the steer lands sooner. A write, a message, or an outside call is never stopped mid-call, because a half-finished effect is worse than a late answer. `bash` is the exception among writes: it saves nothing it did not finish.
 
 Human messages always outrank agent messages. The inbox sorts by priority first, so a human burst is placed before any waiting agent message, and the table above applies even when the current run was started by another agent.
+
+### 6.2.1 A run fails
+
+A run that ends with a model or provider error does not retry on its own: the harness runs with `retry.enabled = false` (`RUN_SETTINGS` in `agent/factory.ts`). Its default of three retries with growing delays kept the agent typing for about 15 seconds before the human heard anything. `classifyRunError` sorts the error into a `RunErrorKind`, and `describeRunError` gives one fixed sentence and the actions for it (`agent/run-error.ts`). The provider's own words, JSON and keys never leave the server.
+
+| Kind | Sentence | Actions |
+| --- | --- | --- |
+| `no_key`, `invalid_key`, `quota` | the provider is not connected, did not accept the key, or has no credit left | Open settings, Change model, Retry |
+| `rate_limit`, `overloaded`, `timeout`, `network` | the provider is busy or unreachable, retry | Retry, Change model |
+| `model_not_found` | the provider does not offer the model | Change model, Open settings |
+| `too_long` | the chat is too long for the model | Change model |
+| `refused`, `other` | the request was refused, or an unknown error | Retry, Change model (and Open settings for `other`) |
+
+The typing state clears at once. `RoomDO.reportRunError` stores one private `run_error` system line in the chat, where the answer would have been, with the sentence as its text, the agent's slug, the kind and the actions. Its id comes from the run, so a repeated report stores nothing. It is owner-only like other private events: not unread, not previewed, and not seen by agents. It also sends a typed `error` frame through `UserDO` with the chat's `roomId`, and the client shows the toast only when the human is not looking at that chat. The line keeps the human inputs of the failed run in room meta. The client shows the buttons on the newest line only.
+
+Retry is the client frame `retry {messageId}`, with the error line's id. `RoomDO.retryRun` reads the saved inputs and delivers them again to the same agent with new envelope ids built from the error line's id (`human:<id>#<errorId>`). The human message is not stored or sent again. A second click on the same line is the same delivery. A message the human deleted, or an agent that left, is skipped. With no live input the Retry action is dropped. ASSUMPTION: Retry re-runs the same inputs even when the human has since written something newer.
 
 ### 6.3 Outgoing bubbles
 
@@ -600,6 +618,7 @@ Every client action is applied locally first. The client keeps a list of pending
 | `delegated` | `from`, `to`, `title` | the lead adds an agent with `spawn_agent` and hands it a task |
 | `subagent` | `agent`, `state` (`started`, `done`, `failed`, `stopped`), `title`, `private: true` | a worker starts or ends |
 | `routine` | `title` | a routine's notice, such as a failed run |
+| `run_error` | `slug`, `reason` (`RunErrorKind`), `actions`, `private: true` | an agent's run failed. The message text is the fixed sentence of section 6.2.1 |
 | `agent_message` | `from`, `to` | reserved. The client derives the fold from `Message.to` today |
 | `activity` | `count` | reserved |
 
@@ -625,7 +644,7 @@ A second `answer` or `skip` for a closed ask does nothing. `RoomSnapshot.asks` h
 | `KernelWiring.lease`, when an agent asks for the browser | `kernel_missing`, `kernel_rejected`, `kernel_down` |
 | `webSocketMessage` in `RoomDO` and `UserDO`, when handling a frame threw | `storage` |
 
-A model or provider error keeps its own frame, `run_error`, which `RunErrorKind` already classifies and the client shows through the same toaster. The agent still gets its tool error as text, so it can tell the human in its own words. The toast is the part the human cannot miss. A tool that failed on its own arguments is the agent's, so `composioFailure` and `kernelFailure` return nothing for it.
+A model or provider error has no frame of its own. It is a stored private `run_error` line (section 6.2.1) plus this `error` frame with code `model`, sent over the user socket with the chat's `roomId`, so the client can skip the toast when the human is in that chat. The agent still gets its tool error as text, so it can tell the human in its own words. The toast is the part the human cannot miss. A tool that failed on its own arguments is the agent's, so `composioFailure` and `kernelFailure` return nothing for it.
 
 Refusals the client caused (`send_refused`, `task_refused`, `member_refused`, `files_refused`, `home_refused`, `chat_refused`) stay as they are: the optimistic patch is dropped, the view rolls back, and a toast gives the reason.
 
@@ -691,9 +710,9 @@ Disconnecting a provider deletes its rows in `UserDO` at once. A run already in 
 How kiko does it:
 
 - `UserDO.turnContext(provider)` (`apps/server/src/user/turn-context.ts`) resolves the auth with pi-ai's `Models.getAuth` over the vault, so an OAuth token is refreshed and written back inside `UserDO`. It also returns the timezone (setting `timezone`, ASSUMPTION: default UTC). Memory joins the same call later.
-- The host calls the setup's `beginRun` before a batch starts a new run, never for a batch that steers or queues into a live one. No auth means no submit: the batch is dropped and `RoomDO.noProvider` stores one `no_provider` room event per agent and input. The human's messages stay in the log.
+- The host calls the setup's `beginRun` before a batch starts a new run, never for a batch that steers or queues into a live one. No auth means no submit: the batch is dropped and `RoomDO.noProvider` stores one `run_error` line with kind `no_key` for the agent and input (section 6.2.1). The human's messages stay in the log.
 - DEVIATION: the harness keeps one `Models` per process, because pi-durable takes it at open. Its providers (all of pi-ai's built-in ones) read auth only from the run's `turnContext` answer, never from env or files. A run resumed after an eviction calls `turnContext` again. With every provider bundled, `wrangler deploy --dry-run` reports 8157 KiB, 1313 KiB gzip.
-- DEVIATION: a run that is already going when the owner disconnects keeps its auth until it ends, not only for its current request. The next run gets `no_provider`.
+- DEVIATION: a run that is already going when the owner disconnects keeps its auth until it ends, not only for its current request. The next run gets a `no_key` error line.
 - The chosen model lives in each `AgentDO` (one per room and agent), set by the `setModel` RPC and applied with `configure` at the next run start. ASSUMPTION: without a choice, the model is the test model of section 11.6.
 
 ### 11.4 Sign-in flows

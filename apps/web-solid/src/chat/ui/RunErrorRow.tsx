@@ -32,9 +32,9 @@ export default function RunErrorRow(props: { message: ChatMessage; slug: string;
   }
   return (
     <div role="alert" class="mx-auto flex w-full max-w-(--chat-content-max-width) justify-center px-4 py-2" data-component="run-error" data-message-id={props.message.id}>
-      <div class="flex max-w-full flex-col items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-foreground">
+      <div class="flex max-w-full flex-col items-start gap-2 rounded-xl bg-error-surface px-3 py-2 text-sm text-foreground">
         <div class="flex min-w-0 items-start gap-2">
-          <CircleAlertIcon class="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+          <CircleAlertIcon class="mt-0.5 size-4 shrink-0 text-error" aria-hidden="true" />
           <span class="min-w-0">{props.message.body}</span>
         </div>
         <Show when={props.latest && props.actions.length > 0}>
