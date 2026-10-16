@@ -134,6 +134,7 @@ const RESET_AFTER = 3
 const UNRECOVERABLE = /unresolvable path|unsafe path|sqlite database is closed|malformed/i
 const MAX_RESUMES = 3
 const RESUMES_KEY = "crash:resumes"
+const EXTENSIONS_KEY = "agent:extensions"
 const PI_DURABLE_TABLES = ["document_revisions", "documents", "submissions", "tasks", "entries", "conversations", "record_ids", "durable_metadata", "durable_schema"]
 
 // Everything the host's objects store. Its object's schema list spreads this, so the host adds its tables in one place.
@@ -245,6 +246,15 @@ export class AgentHost {
     const env = setup.env
     const harness = await Harness.open(storage, { models: setup.models, registry: setup.registry, settings: setup.settings, ...(env ? { env: (target) => env(target.conversationId) } : {}) }, context)
     const root = await harness.root(context, { agent: setup.agent })
+    // `root` keeps the agent it was first made with. An integration added later (a browser key) changes the extensions, so write them again.
+    const extensions = setup.agent.extensions
+    if (Array.isArray(extensions)) {
+      const names = extensions.map((e) => e.name)
+      if (JSON.stringify(names) !== JSON.stringify(await this.ctx.storage.get(EXTENSIONS_KEY))) {
+        await root.configure({ extensions }, context)
+        await this.ctx.storage.put(EXTENSIONS_KEY, names)
+      }
+    }
     return { harness, root, storage, setup }
   }
 

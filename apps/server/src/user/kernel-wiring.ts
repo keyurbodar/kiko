@@ -186,21 +186,23 @@ export class KernelWiring {
 
   /**
    * The live view URL for the human. A headless browser has none, so it is switched to headful first
-   * (about 5 s, `onSwitching` tells the caller). `control` sets the takeover flag before the switch,
-   * so agents stop at once, and the switch carries it over. Watch keeps the browser for `WATCH_MS`.
+   * (about 5 s, `onSwitching` tells the caller). With no browser open, one is made headful straight away: asking
+   * to watch is a reason to open it. `control` sets the takeover flag before the switch, so agents stop at once,
+   * and the switch carries it over. Watch keeps the browser for `WATCH_MS`.
    */
   private async openLink(mode: "watch" | "control", onSwitching: (on: boolean) => void): Promise<string> {
-    const row = this.store.connected() ? this.store.lease() : undefined
-    if (!row || row.dead) throw new KernelError("failed", "No browser is open")
-    if (mode === "control") this.browser.setTakeover(true)
-    else this.browser.watchUntil(Date.now() + WATCH_MS)
-    if (row.mode === "headless") {
+    if (!this.store.connected()) throw new KernelError("failed", "Kernel is not connected")
+    const hold = () => (mode === "control" ? this.browser.setTakeover(true) : this.browser.watchUntil(Date.now() + WATCH_MS))
+    const row = this.store.lease()
+    if (row && !row.dead) hold()
+    if (!row || row.dead || row.mode === "headless") {
       onSwitching(true)
       try {
         await this.browser.switchMode("headful")
       } finally {
         onSwitching(false)
       }
+      hold()
     }
     const live = (await this.store.urls())?.liveUrl
     if (!live) throw new KernelError("failed", "Kernel gave no live view for this browser")
