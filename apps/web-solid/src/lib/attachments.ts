@@ -3,7 +3,7 @@
 // a picture in the box exactly when it is one in the bubble. The limits and their words come from
 // `@kiko/protocol`, which the server enforces too. No Solid and no DOM.
 
-import { attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS, MAX_MESSAGE_TEXT, type PendingAttachment, sendFits } from "@kiko/protocol"
+import { linkTarget, attachmentError, attachmentKind, attachmentMessages, attachmentType, isImageType, MAX_ATTACHMENTS, MAX_MESSAGE_TEXT, type PendingAttachment, sendFits } from "@kiko/protocol"
 
 export { attachmentType, MAX_ATTACHMENTS }
 
@@ -72,4 +72,17 @@ export function admit<T extends Named & { size: number }>(held: number, files: r
     else others.push(f)
   }
   return { images, files: others, error }
+}
+
+/** The files a bubble lists under its pictures: every one the text does not already show as its chip. */
+export function unnamedFiles<T extends Named & { path?: string }>(files: readonly T[], body: string): T[] {
+  return files.filter((f) => isImage(f) || !f.path || !body.includes(`(${linkTarget(`/${f.path}`)})`))
+}
+
+/** Saves a file by its address. An attached page or script is never opened on the app's origin. */
+export function saveFile(src: string, name: string) {
+  const a = document.createElement("a")
+  a.href = src
+  a.download = name
+  a.click()
 }

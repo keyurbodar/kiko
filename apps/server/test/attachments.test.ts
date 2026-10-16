@@ -119,6 +119,46 @@ test("a pending upload is not the chat's until a send claims it, then it is a fi
 	c.close()
 })
 
+test("a file with a space or a parenthesis in its name reaches the bubble as a link, and a dropped folder keeps its folders", async () => {
+	const room = fresh()
+	const spaced = crypto.randomUUID()
+	const nested = crypto.randomUUID()
+	expect((await upload(room, spaced, "a", { name: "Screen shot (1).txt" })).status).toBe(204)
+	expect((await upload(room, nested, "b", { name: "docs/../sub/deep/b.txt" })).status).toBe(204)
+	const c = await Client.open(room)
+	c.send(
+		sendFrame(
+			"c-names",
+			[
+				{ pendingId: spaced, name: "Screen shot (1).txt", type: "text/plain", size: 1 },
+				{ pendingId: nested, name: "docs/../sub/deep/b.txt", type: "text/plain", size: 1 },
+			],
+			`${"[Screen shot (1).txt](attachment:" + spaced + ")"} ${"[b.txt](attachment:" + nested + ")"}`,
+		),
+	)
+	await c.next((f) => f.t === "ack")
+	const events = await c.next((f) => f.t === "events")
+	const message = events.t === "events" ? events.events.find((e) => e.t === "message") : undefined
+	const links = message?.t === "message" ? JSON.stringify(message.rich) : ""
+	expect(links).toMatch(/"t":"link","href":"\/attachments\/[0-9a-z]+-Screen shot \(1\)\.txt"/)
+	expect(links).toMatch(/"href":"\/attachments\/[0-9a-z]+-docs\/sub\/deep\/b\.txt"/)
+	c.close()
+})
+
+test("an upload retried under its own id writes over itself, so a folder of retries leaves one object each", async () => {
+	const room = fresh()
+	const id = crypto.randomUUID()
+	expect((await upload(room, id, "first try")).status).toBe(204)
+	expect((await upload(room, id, "first try")).status).toBe(204)
+	expect(await keys(room)).toEqual([`u/alice/r/${room}/${id}`])
+	// The same id with another size is another file, not a retry.
+	const clash = await upload(room, id, "a longer second body")
+	expect(clash.status).toBe(409)
+	await clash.body?.cancel()
+	expect(await (await fetch(`${origin}/api/files/${room}/pending/${id}`, { method: "DELETE", headers: as })).status).toBe(204)
+	expect(await keys(room)).toEqual([])
+})
+
 test("a send names files only by pending upload: a files field from an old client carries nothing", async () => {
 	const room = fresh()
 	const c = await Client.open(room)

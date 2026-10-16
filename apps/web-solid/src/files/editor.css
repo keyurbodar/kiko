@@ -79,3 +79,14 @@
     padding: 0 16px;
   }
 }
+
+/* A file opening in the panel fades in. It is only opacity, so it can be read and clicked from the first frame. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-component="file-viewer"] {
+    animation: file-view-in var(--motion-fast) var(--motion-ease-out) both;
+  }
+  @keyframes file-view-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}

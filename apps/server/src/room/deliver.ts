@@ -22,6 +22,19 @@ export function attachedLine(files: readonly FileRef[]): string {
 	return `(attached: ${names.join(", ")}. open each with read before you answer about it.)`
 }
 
+const WORKSPACE_LINK = /\]\((?:<(\/[^>\n]+)>|(\/[^)\s<>]+))\)/g
+
+/** The workspace files a human's text links to, as the composer's file chips write them: `[name](/path)`. */
+function referencedFiles(text: string, attached: readonly FileRef[] = []): string[] {
+	const named = new Set(attached.map((f) => `/${f.name}`))
+	const out = new Set<string>()
+	for (const m of text.matchAll(WORKSPACE_LINK)) {
+		const path = (m[1] ?? m[2])!
+		if (!path.startsWith("//") && !named.has(path)) out.add(path)
+	}
+	return [...out].slice(0, 20)
+}
+
 export function route(
 	pending: readonly Pending[],
 	members: readonly RecipientMember[],
@@ -53,6 +66,8 @@ export function withContext(log: RoomLog, e: Envelope): Envelope {
 	}
 	if (e.body.trim()) lines.push(e.body)
 	if (message.files?.length) lines.push(attachedLine(message.files))
+	const referenced = referencedFiles(e.body, message.files)
+	if (referenced.length) lines.push(`(referenced: ${referenced.join(", ")}. open each with read before you answer about it.)`)
 	return lines.length ? { ...e, body: lines.join("\n") } : e
 }
 

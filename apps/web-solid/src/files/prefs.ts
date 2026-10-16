@@ -26,7 +26,7 @@ function stored(key: string, fallback: boolean) {
 export const PREFS = {
 	markdown: stored("kiko:file-render-markdown", false),
 	table: stored("kiko:file-render-table", true),
-	html: stored("kiko:file-render-html", true),
+	html: stored("kiko:file-render-html", false),
 }
 export const [wrap, setWrap] = stored("kiko:file-word-wrap", true)
 export const [fullSize, setFullSize] = createSignal(false)

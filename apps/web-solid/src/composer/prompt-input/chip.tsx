@@ -1,9 +1,10 @@
 import { render } from "solid-js/web"
-import { isImage } from "../../lib/attachments"
+import { isImage, saveFile } from "../../lib/attachments"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { formatBytes } from "../../chat/info/format"
 import { progressLabel, retryUpload, uploadState } from "../../sync/uploads"
-import type { ChipView } from "../rich/nodes"
+import { fileName } from "@kiko/protocol"
+import type { ChipView, FileRefView } from "../rich/nodes"
 import { middleTruncate } from "../rich/nodes"
 import type { PromptInputV2Attachment } from "./types"
 
@@ -35,7 +36,7 @@ function Chip(props: { id: string; name: string; source: Source }) {
     if (!p) return
     if (upload()?.status === "failed") return retryUpload(props.id)
     if (image()) return props.source.openAttachment(p)
-    window.open(p.blob.url, "_blank", "noopener")
+    saveFile(p.blob.url, p.filename)
   }
   return (
     <button
@@ -61,3 +62,15 @@ export const chipView =
   (source: Source): ChipView =>
   (dom, attachment) =>
     render(() => <Chip id={attachment.id} name={attachment.name} source={source} />, dom)
+
+function FileRef(props: { path: string }) {
+  const name = () => fileName(props.path)
+  return (
+    <span class="file-chip" data-component="composer-file-ref" data-kind="file" title={`/${props.path}`} aria-label={name()}>
+      <EntryIcon path={name()} />
+      <span class="file-chip-label">{middleTruncate(name(), 28)}</span>
+    </span>
+  )
+}
+
+export const fileRefView: FileRefView = (dom, ref) => render(() => <FileRef path={ref.path} />, dom)

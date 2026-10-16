@@ -30,6 +30,7 @@ import { TypingIndicator } from "./typing/TypingIndicator"
 import { cn } from "../lib/cn"
 import { createMessageMenu } from "./ui/MessageMenu"
 import { ScrollFades } from "./ui/ScrollFades"
+import { chatImages } from "./ui/chat-images"
 import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
 import type { DraftBook } from "../warm/drafts"
 
@@ -579,7 +580,12 @@ export function VirtualThread(props: {
             menu.openAt(message.id, box.left, box.bottom)
           }}
           onContextMenu={menu.onContextMenu}
-          onOpenImages={(images, index) => viewer.open(images, index)}
+          onOpenImages={(images, index, from) => {
+            const clicked = images[index]
+            // The arrows walk every picture of the chat, not only this message's.
+            const chat = clicked ? chatImages(items().flatMap((entry) => (entry.kind === "message" ? [entry.message] : [])), clicked) : { images, index }
+            viewer.open(chat.images, chat.index, from)
+          }}
         />
         {menu.view}
       </>

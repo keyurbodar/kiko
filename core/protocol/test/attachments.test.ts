@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { attachmentError, attachmentIds, attachmentKind, attachmentsError, attachmentToken, limitLabel, linkAttachments, MAX_IMAGE_BYTES, sendFits } from "../src/attachments"
+import { linkTarget, attachmentError, attachmentIds, attachmentKind, attachmentsError, attachmentToken, limitLabel, linkAttachments, MAX_IMAGE_BYTES, sendFits } from "../src/attachments"
 
 
 const MB = 1024 * 1024
@@ -50,6 +50,13 @@ describe("attachment tokens", () => {
 		const text = `see ${attachmentToken("a1", "notes [v2].pdf")} and ${attachmentToken("b2", "shot.png")} please`
 		expect(attachmentIds(text)).toEqual(["a1", "b2"])
 		expect(linkAttachments(text, (id) => (id === "a1" ? "/attachments/k3-notes.pdf" : undefined))).toBe("see [notes v2.pdf](/attachments/k3-notes.pdf) and shot.png please")
+	})
+
+	test("a stored path with a space or a parenthesis is a link target the markdown can end", () => {
+		const text = `see ${attachmentToken("a1", "Screen shot (1).png")}`
+		expect(linkAttachments(text, () => "/attachments/k3-Screen shot (1).png")).toBe("see [Screen shot (1).png](</attachments/k3-Screen shot (1).png>)")
+		expect(linkTarget("/attachments/k3-plain.png")).toBe("/attachments/k3-plain.png")
+		expect(linkTarget("/a/b>c")).toBe("</a/b%3Ec>")
 	})
 
 	test("an ordinary link is left alone", () => {

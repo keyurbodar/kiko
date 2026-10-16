@@ -1,8 +1,10 @@
-import { onMount } from "solid-js"
+import { createSignal, onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { MAX_IMAGE_BYTES, attachmentMessages } from "@kiko/protocol"
 import { admit, attachmentType, isImage } from "../../lib/attachments"
+import { droppedFilePath, hasFileDrag } from "../../lib/file-drag"
 import { prepareImageForAttachment } from "../../lib/image-compression"
+import { entriesOf, hasFolder, walkEntries } from "./dropped"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
 /*
@@ -33,8 +35,10 @@ export function createPromptInputV2Attachments(
     editor: () => HTMLElement | undefined
     focusEditor: () => void
     addPart: (part: PromptInputV2Prompt[number]) => boolean
-    /** Puts chips for these attachments at the caret. */
-    chip: (items: readonly { id: string; name: string }[]) => void
+    /** Puts chips for these attachments where `at` points on screen, or at the caret. */
+    chip: (items: readonly { id: string; name: string }[], at?: { x: number; y: number }) => void
+    /** Puts a reference chip for each workspace file where `at` points, or at the caret. */
+    fileRef: (paths: readonly string[], at?: { x: number; y: number }) => void
     hasText: () => boolean
     setDragging: (dragging: boolean) => void
   },
@@ -44,12 +48,13 @@ export function createPromptInputV2Attachments(
     const editor = input.editor()
     return { ...prompt, cursor: () => prompt.cursor() ?? (editor ? cursorPosition(editor) : undefined) }
   }
-  const addAttachments = async (files: File[], target = capture()) => {
+  const [dragKind, setDragKind] = createSignal<"files" | "reference">("files")
+  const addAttachments = async (files: File[], target = capture(), at?: { x: number; y: number }, notes: string[] = []) => {
     const blocked = input.blocked?.()
     if (blocked) return void input.refuse([blocked])
     const held = target.current().filter((part) => part.type === "image")
     const { images, files: others, error } = admit(held.length, files)
-    const refusals = error ? [error] : []
+    const refusals = [...notes, ...(error ? [error] : [])]
     const added: PromptInputV2Attachment[] = []
     const take = async (file: File) => {
       const id = await blobId(file)
@@ -80,7 +85,7 @@ export function createPromptInputV2Attachments(
     const prose = input.hasText()
     target.set([...target.current(), ...added], target.cursor())
     const named = added.filter((part) => prose || !isImage({ name: part.filename, type: part.mime }))
-    if (named.length) input.chip(named.map((part) => ({ id: part.id, name: part.filename })))
+    if (named.length) input.chip(named.map((part) => ({ id: part.id, name: part.filename })), at)
   }
   const handlePaste = async (event: ClipboardEvent) => {
     const clipboardData = event.clipboardData
@@ -111,25 +116,39 @@ export function createPromptInputV2Attachments(
   }
   const handleDrop = async (event: DragEvent) => {
     input.setDragging(false)
-    const plainText = event.dataTransfer?.getData("text/plain")
-    const files = event.dataTransfer?.files
-    // Only a file or a file mention is ours. Text dropped anywhere else keeps its own drop, such as a text field.
-    if (!files?.length && !plainText?.startsWith("file:")) return
-    event.preventDefault()
-    if (plainText?.startsWith("file:")) {
-      const path = plainText.slice("file:".length)
-      input.focusEditor()
-      input.addPart({ type: "file", path, content: `@${path}`, start: 0, end: 0 })
+    const transfer = event.dataTransfer
+    const at = { x: event.clientX, y: event.clientY }
+    // A file of the chat's own, dragged from the tree or a chip, is named in the text, not uploaded again.
+    const path = droppedFilePath(transfer)
+    if (path) {
+      event.preventDefault()
+      const blocked = input.blocked?.()
+      if (blocked) return input.refuse([blocked])
+      input.fileRef([path], at)
       return
     }
-    if (files?.length) await addAttachments(Array.from(files))
+    // Only a file is ours. Text dropped anywhere else keeps its own drop, such as a text field.
+    if (!transfer?.files.length) return
+    event.preventDefault()
+    // The browser empties the drop's list when this handler yields, so a folder is read first.
+    const entries = entriesOf(transfer.items)
+    const files = Array.from(transfer.files)
+    const target = capture()
+    if (!hasFolder(entries)) return void addAttachments(files, target, at)
+    const walked = await walkEntries(entries)
+    const notes = walked.truncated ? [attachmentMessages.folderCut] : []
+    if (!walked.files.length) return input.refuse([attachmentMessages.folderEmpty])
+    await addAttachments(walked.files, target, at, notes)
   }
 
   // A drop anywhere on the page attaches, so the overlay shows while files are dragged over it.
   onMount(() => {
     makeEventListener(document, "dragover", (event) => {
-      if (!event.dataTransfer?.types.includes("Files")) return
+      const reference = hasFileDrag(event.dataTransfer)
+      if (!reference && !event.dataTransfer?.types.includes("Files")) return
       event.preventDefault()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy"
+      setDragKind(reference ? "reference" : "files")
       input.setDragging(true)
     })
     makeEventListener(document, "dragleave", (event) => {
@@ -140,7 +159,7 @@ export function createPromptInputV2Attachments(
     makeEventListener(document, "drop", handleDrop)
   })
 
-  return { addAttachments, handlePaste, handleDrop }
+  return { addAttachments, handlePaste, handleDrop, dragKind }
 }
 
 /** How much of each end of a file the duplicate check reads. */

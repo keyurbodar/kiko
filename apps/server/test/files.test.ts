@@ -28,10 +28,10 @@ const as = (user: string) => ({ "x-test-user": user })
 
 type FileBody = { file: { id: string; name: string; size: number; type: string } }
 
-async function put(room: string, path: string, body: string, expect = "none") {
+async function put(room: string, path: string, body: string, expect = "none", type = "text/plain") {
 	const res = await fetch(`${origin}/api/files/${room}?path=${encodeURIComponent(path)}`, {
 		method: "PUT",
-		headers: { ...as("alice"), "content-type": "text/plain", "x-kiko-if-sha256": expect },
+		headers: { ...as("alice"), "content-type": type, "x-kiko-if-sha256": expect },
 		body,
 	})
 	return { status: res.status, body: (await res.json()) as FileBody }
@@ -83,6 +83,26 @@ test("a download serves ranges to the owner and 404 to anyone else", async () =>
 	const anon = await fetch(url)
 	expect(anon.status).toBe(401)
 	await anon.body?.cancel()
+})
+
+test("a file that can run script downloads as an attachment, never inline", async () => {
+	const room = fresh()
+	const types: [string, string, boolean][] = [
+		["page.html", "text/html", true],
+		["pic.svg", "image/svg+xml", true],
+		["feed.xml", "application/xml", true],
+		["app.js", "text/javascript", true],
+		["notes.txt", "text/plain", false],
+		["pic.png", "image/png", false],
+	]
+	for (const [name, type, active] of types) {
+		const { body } = await put(room, name, "<script>alert(1)</script>", "none", type)
+		const res = await fetch(`${origin}/api/files/${room}/${body.file.id}`, { headers: as("alice") })
+		expect(res.headers.get("x-content-type-options")).toBe("nosniff")
+		expect(res.headers.get("content-security-policy")).toBe("sandbox")
+		expect(res.headers.get("content-disposition")).toBe(active ? "attachment" : null)
+		await res.body?.cancel()
+	}
 })
 
 test("a range on an empty file serves the empty body, not 416", async () => {

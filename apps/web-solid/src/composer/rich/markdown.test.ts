@@ -78,6 +78,18 @@ const cases: { name: string; doc: Json; markdown: string; rich: RichText }[] = [
     markdown: "```ts\nconst a = 1\n\nlet b\n```",
     rich: [{ t: "code_block", lang: "ts", text: "const a = 1\n\nlet b" }] as RichText,
   },
+  {
+    name: "file reference",
+    doc: doc(p(t("read "), { type: "fileRef", attrs: { path: "src/app.ts" } }, t(" please"))),
+    markdown: "read [app.ts](/src/app.ts) please",
+    rich: [para(text("read "), { t: "link", href: "/src/app.ts", children: [text("app.ts")] }, text(" please"))] as RichText,
+  },
+  {
+    name: "file reference with a space and a parenthesis",
+    doc: doc(p({ type: "fileRef", attrs: { path: "notes/Plan (v2).md" } })),
+    markdown: "[Plan (v2).md](</notes/Plan (v2).md>)",
+    rich: [para({ t: "link", href: "/notes/Plan (v2).md", children: [text("Plan (v2).md")] })] as RichText,
+  },
   { name: "code block with fence inside", doc: doc({ type: "codeBlock", attrs: { language: "", fence: "````", close: "\n````" }, content: [t("```\nx\n```")] }), markdown: "````\n```\nx\n```\n````", rich: [{ t: "code_block", text: "```\nx\n```" }] as RichText },
 ]
 
@@ -180,4 +192,8 @@ test("an attachment chip survives a trip through markdown, so a restored draft k
   const doc = markdownToDoc(text)
   expect(doc.content?.[0]?.content?.[1]).toEqual({ type: "attachment", attrs: { id: "a1", name: "notes.pdf" } })
   expect(docToMarkdown(doc)).toBe(text)
+})
+
+test("a web link to another site and a protocol-relative link are not file references", () => {
+  expect(markdownToDoc("[a](https://x.com/a) [b](//x.com/b)").content?.[0]?.content?.some((n) => n.type === "fileRef")).toBe(false)
 })
