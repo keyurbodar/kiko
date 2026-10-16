@@ -198,7 +198,12 @@ export class KernelWiring {
     if (!row || row.dead || row.mode === "headless") {
       onSwitching(true)
       try {
-        await this.browser.switchMode("headful")
+        // A switch while a worker drives the browser sometimes outlasts the SDK's timeout. One more try finds the
+        // old browser gone and only starts the new one.
+        await this.browser.switchMode("headful").catch((e: unknown) => {
+          if (e instanceof KernelError && e.message === "Kernel did not answer") return this.browser.switchMode("headful")
+          throw e
+        })
       } finally {
         onSwitching(false)
       }

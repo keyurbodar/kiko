@@ -1,17 +1,18 @@
 import { describe, expect, test } from "bun:test"
-import type { KernelClient } from "../src/integrations/kernel/client"
+import { type KernelClient, KernelError } from "../src/integrations/kernel/client"
 import type { LeaseRow, LeaseUrls } from "../src/integrations/kernel/store"
 import { KernelWiring } from "../src/user/kernel-wiring"
 
 const ROOM = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
-function setup(start?: Partial<LeaseRow>) {
+function setup(start?: Partial<LeaseRow>, timeouts = 0) {
   let row: LeaseRow | undefined = start && { sessionId: "old", mode: "headless", createdAt: 0, lastUse: 0, tabs: {}, dead: false, takeover: false, watchUntil: 0, ...start }
   let urls: LeaseUrls | undefined = row && { cdpUrl: "wss://cdp/old" }
   const calls: string[] = []
   const client = {
     createBrowser: async ({ headless }: { headless: boolean }) => {
       calls.push(`create ${headless ? "headless" : "headful"}`)
+      if (timeouts-- > 0) throw new KernelError("failed", "Kernel did not answer")
       return { sessionId: "new", cdpUrl: "wss://cdp/new", ...(headless ? {} : { liveUrl: "https://live/new?a=1" }) }
     },
     deleteBrowser: async (id: string) => void calls.push(`delete ${id}`),
@@ -57,5 +58,19 @@ describe("live view link", () => {
     const out = await t.wiring.liveLink("room-a/ada", ROOM, "watch")
     expect(out.ok).toBe(true)
     expect(t.calls).toEqual(["delete old", "create headful"])
+  })
+
+  test("a switch that Kernel does not answer in time is tried once more", async () => {
+    const t = setup({ mode: "headless" }, 1)
+    const out = await t.wiring.liveLink("room-a/ada", ROOM, "watch")
+    expect(out.ok).toBe(true)
+    expect(t.calls.filter((c) => c === "create headful")).toHaveLength(2)
+  })
+
+  test("a second timeout is reported, not tried again", async () => {
+    const t = setup({ mode: "headless" }, 2)
+    const out = await t.wiring.liveLink("room-a/ada", ROOM, "watch")
+    expect(out.ok).toBe(false)
+    expect(t.calls.filter((c) => c === "create headful")).toHaveLength(2)
   })
 })
