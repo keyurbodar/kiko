@@ -119,7 +119,7 @@ function next(current: Chat | null, op: ChatOp, now: number, pair: boolean): Cha
         unread: 0,
         updatedAt: now,
         ...(op.agents?.length ? { agents: agentIds(op.agents) } : {}),
-        ...(pair ? { pair: true as const } : {}),
+        ...(pair ? { pair: true as const, private: true as const } : {}),
       }
     case "rename": {
       const title = clip(op.title, MAX_TITLE)

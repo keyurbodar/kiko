@@ -405,7 +405,7 @@ test("a private talk's pair chat is made once, hidden from every list, and never
   const roomId = pairRoomId("ada", "bob")
   expect(await rpc(user, "openPair", "ada", "bob")).toEqual({ ok: true, roomId })
   expect(await rpc(user, "openPair", "bob", "ada")).toEqual({ ok: true, roomId })
-  expect(await rpc(user, "getChat", roomId)).toMatchObject({ roomId, pair: true, agents: ["id-ada", "id-bob"] })
+  expect(await rpc(user, "getChat", roomId)).toMatchObject({ roomId, pair: true, private: true, agents: ["id-ada", "id-bob"] })
   expect((await rpc(user, "listChats")).map((c: { roomId: string }) => c.roomId)).not.toContain(roomId)
   expect((await rpc(user, "searchChats", "ada")).map((c: { roomId: string }) => c.roomId)).not.toContain(roomId)
   await rpc(user, "touchChat", roomId, { lastSeq: 2, lastPreview: "hi", unread: 1 })

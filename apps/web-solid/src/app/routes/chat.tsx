@@ -6,7 +6,7 @@ import { Composer } from "../../composer/composer";
 import { ModelPickerButton } from "../../settings/model-picker";
 import { useApp } from "../../lib/store";
 import type { MessageId } from "@kiko/protocol";
-import type { ChatMessage } from "../../lib/types";
+import type { ChatMessage, RosterBot } from "../../lib/types";
 import { jumpRequest, requestJump } from "../../search/state";
 import { eventText } from "../../chat/lib/event-line";
 import { EmptyState } from "../../chat/ui/EmptyState";
@@ -83,6 +83,13 @@ export default function ChatRoute() {
   });
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
   const messages = createMemo(() => useApp.activeMessages());
+  const speaker = (id: string): RosterBot | undefined => {
+    const member = members().get(id);
+    if (member) return member;
+    const name = id === "kiko" ? "Kiko" : useApp.agents().find((a) => a.slug === id)?.name;
+    return name ? { id, name, preview: "", updatedAt: 0, presence: "idle", unread: 0, pinned: false } : undefined;
+  };
+  const outsiders = createMemo(() => messages().some((m) => m.botId !== undefined && !members().has(m.botId)));
   const byId = createMemo(
     () => new Map<string, ChatMessage>(messages().map((message) => [message.id, message])),
   );
@@ -171,7 +178,7 @@ export default function ChatRoute() {
         <div class="flex min-h-0 flex-1 flex-col" ref={transcript} data-component="chat-transcript">
           <MessageList
             messages={messages()}
-            botById={(id) => (id === undefined ? undefined : members().get(id))}
+            botById={(id) => (id === undefined ? undefined : speaker(id))}
             replyParent={(id) => (id === undefined ? undefined : byId().get(id))}
             firstUnreadMessageId={useApp.firstUnreadMessageId()}
             onJumpToMessage={() => {}}
@@ -183,7 +190,7 @@ export default function ChatRoute() {
             waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
             waitingDoings={useApp.typingDoings()}
-            groupChat={members().size > 1}
+            groupChat={members().size > 1 || outsiders()}
             memberSlugs={[...members().keys()]}
             onReact={useApp.toggleReaction}
             onEdit={startEdit}

@@ -21,7 +21,7 @@ export function sameAgents(a: readonly string[], b: readonly string[]): boolean 
 export function sameAgentChat(chats: readonly Chat[], agents: readonly string[], except?: RoomId): Chat | null {
 	let best: Chat | null = null
 	for (const c of chats) {
-		if (c.roomId === except || !sameAgents(c.agents ?? [], agents)) continue
+		if (c.pair || c.roomId === except || !sameAgents(c.agents ?? [], agents)) continue
 		if (!best || rank(c, best) < 0) best = c
 	}
 	return best
