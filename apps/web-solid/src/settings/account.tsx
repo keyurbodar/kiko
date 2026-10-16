@@ -1,6 +1,6 @@
 import { PROTOCOL } from "@kiko/protocol"
 import { useNavigate } from "@solidjs/router"
-import { Show, createResource } from "solid-js"
+import { Show, createResource, createSignal } from "solid-js"
 import { hosted, profile } from "../app/hosted"
 import { session, signOut } from "../app/session"
 import { apiFetch } from "../lib/api"
@@ -51,8 +51,12 @@ export function Account() {
     const s = session()
     return s.status === "signed-in" ? s.user : null
   }
-  const signOutButton = (
-    <Button data-action="sign-out" onClick={() => void signOut()}>
+  const [leaving, setLeaving] = createSignal(false)
+  const signOutButton = () => (
+    <Button data-action="sign-out" busy={leaving()} onClick={() => {
+        setLeaving(true)
+        void signOut().finally(() => setLeaving(false))
+      }}>
       Sign out
     </Button>
   )
@@ -62,7 +66,7 @@ export function Account() {
         when={hosted}
         fallback={
           <Group title="Account">
-            <Item icon={<IdentityAvatar seed={user()?.id ?? "you"} size={24} />} title={user()?.name ?? "You"} actions={signOutButton} />
+            <Item icon={<IdentityAvatar seed={user()?.id ?? "you"} size={24} />} title={user()?.name ?? "You"} actions={signOutButton()} />
           </Group>
         }
       >
@@ -83,7 +87,7 @@ export function Account() {
         <Backend />
         <Group>
           <Row label="Sign out" description="Ends this session. Your backend and its data stay as they are.">
-            {signOutButton}
+            {signOutButton()}
           </Row>
         </Group>
       </Show>

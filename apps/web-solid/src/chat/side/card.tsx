@@ -53,7 +53,7 @@ export default function ChatCard(props: { chatId: string }) {
   const next = () => routines().find((r) => r.status === "active")
 
   return (
-    <aside class="flex w-full flex-col rounded-2xl border border-border bg-popover p-1.5 shadow-card" data-component="chat-card" aria-label="This chat">
+    <aside class="flex w-full flex-col rounded-2xl border border-border/60 bg-popover p-1.5 shadow-card" data-component="chat-card" aria-label="This chat">
       <div class="flex items-center gap-3 px-2.5 pt-2 pb-2.5">
         <ChatAvatar faces={useApp.chatFaces(props.chatId)} size={32} />
         <div class="flex min-w-0 flex-1 flex-col">

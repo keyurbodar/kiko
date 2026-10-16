@@ -51,7 +51,7 @@ function KeyField(props: { id: string; label: string; placeholder: string; submi
 				class={cn(fieldClass, "flex-1")}
 				data-component={props.id}
 			/>
-			<Button type="submit" variant="primary" disabled={props.busy} data-action={props["data-action"]}>
+			<Button type="submit" variant="primary" busy={props.busy} data-action={props["data-action"]}>
 				{props.submit}
 			</Button>
 		</form>
@@ -176,7 +176,7 @@ export function AppDetail(props: { id: AppId; api: Integrations }) {
 			>
 				<div class="flex items-center justify-between gap-3">
 					<span class="text-md text-success">Connected</span>
-					<Button variant="danger" data-action={`${props.id}-disconnect`} disabled={props.api.busy()} onClick={props.id === "composio" ? props.api.disconnectComposio : props.api.disconnectKernel}>
+					<Button variant="danger" data-action={`${props.id}-disconnect`} busy={props.api.busy()} onClick={props.id === "composio" ? props.api.disconnectComposio : props.api.disconnectKernel}>
 						Disconnect
 					</Button>
 				</div>
