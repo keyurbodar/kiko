@@ -42,9 +42,13 @@ export class ModelCatalog {
     return this.#syncing
   }
 
-  /** The catalog json, or null when the caller already holds this revision. Syncs first when the last check is old. */
+  /**
+   * The catalog json, or null when the caller already holds this revision. An old check starts a sync
+   * without waiting for it, so opening settings never waits on pi.dev; a changed overlay reaches the
+   * client as a `changed: models` frame.
+   */
   async catalog(have: string | null): Promise<{ revision: string; json: string | null }> {
-    if (isStale(this.d.sql, this.d.now())) await this.sync()
+    if (isStale(this.d.sql, this.d.now())) void this.sync()
     const revision = overlayRevision()
     if (have === revision) return { revision, json: null }
     if (this.#built?.revision !== revision) {
