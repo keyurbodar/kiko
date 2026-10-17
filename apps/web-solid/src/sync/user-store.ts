@@ -211,7 +211,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			for (const e of applied) {
 				if (e.t === "theme") setState("theme", e.theme)
 				else if (e.t === "agent_model") {
-					setState("agentModels", e.slug, { model: e.model, thinking: e.thinking, thinkingLevels: e.thinkingLevels })
+					setState("agentModels", e.slug, { model: e.model, name: e.name, thinking: e.thinking, thinkingLevels: e.thinkingLevels })
 					setState("pendingModels", e.slug, undefined!)
 					unsentModels.delete(e.slug)
 				}

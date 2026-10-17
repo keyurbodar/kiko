@@ -34,7 +34,7 @@ export type Agent = {
 }
 
 /** What an agent runs on, for every chat it is in. `thinkingLevels` are the levels pi-ai says the model supports. */
-export type AgentModel = { model: string; thinking: ThinkingLevel; thinkingLevels: readonly ThinkingLevel[] }
+export type AgentModel = { model: string; name?: string; thinking: ThinkingLevel; thinkingLevels: readonly ThinkingLevel[] }
 
 export type AgentOp = { op: "create"; agent: Agent }
 

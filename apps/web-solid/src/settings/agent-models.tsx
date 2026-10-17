@@ -31,7 +31,7 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
         class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
       >
         <Show when={current()?.model.split("/")[0]}>{(provider) => <ProviderIcon id={provider()} width="13" height="13" />}</Show>
-        <span class="truncate" data-field="model">{current()?.model.split("/").slice(1).join("/") ?? "Choose model"}</span>
+        <span class="truncate" data-field="model">{current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"}</span>
       </ModelPicker>
       <ReasoningMenu levels={current()?.thinkingLevels} value={current()?.thinking} placement="bottom-end" onChange={(thinking) => useApp.setAgentModel(props.slug, { thinking })} />
     </Row>

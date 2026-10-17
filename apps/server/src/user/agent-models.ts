@@ -1,5 +1,5 @@
 import { type AgentModel, type AgentSlug, KIKO, type ThinkingLevel } from "@kiko/protocol"
-import { isKnownModel, parseModelRef, supportedThinking, thinkingFor } from "../agent/thinking"
+import { isKnownModel, modelName, parseModelRef, supportedThinking, thinkingFor } from "../agent/thinking"
 import { getSetting, setSetting } from "../lib/settings"
 
 const PREFIX = "agentModel:"
@@ -19,7 +19,8 @@ const resolve = (sql: SqlStorage, slug: string, pick: Pick): AgentModel | null =
   const made = sql.exec<{ model: string }>("SELECT model FROM agents WHERE slug = ?", slug).toArray()[0]?.model
   const ref = [pick.model, made].map((r) => (r ? parseModelRef(r) : null)).find((r) => r !== null)
   if (!ref) return null
-  return { model: `${ref.provider}/${ref.modelId}`, thinking: thinkingFor(ref, pick.thinking), thinkingLevels: supportedThinking(ref) }
+  const name = modelName(ref)
+  return { model: `${ref.provider}/${ref.modelId}`, ...(name ? { name } : {}), thinking: thinkingFor(ref, pick.thinking), thinkingLevels: supportedThinking(ref) }
 }
 
 /** The model and reasoning level an agent runs on in every chat, or null when the human has not picked one. */

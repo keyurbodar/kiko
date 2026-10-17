@@ -439,7 +439,7 @@ export const ChatOp = Schema.Union([
 	Schema.Struct({ op: Schema.Literal("delete"), roomId: RoomId }),
 ])
 
-export const AgentModel = Schema.Struct({ model: Schema.String, thinking: ThinkingLevel, thinkingLevels: Schema.Array(ThinkingLevel) })
+export const AgentModel = Schema.Struct({ model: Schema.String, name: Schema.optionalKey(Schema.String), thinking: ThinkingLevel, thinkingLevels: Schema.Array(ThinkingLevel) })
 
 export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat }),

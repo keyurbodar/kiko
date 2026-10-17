@@ -17,6 +17,11 @@ function lookup(ref: { provider: string; modelId: string }) {
   return findProvider(ref.provider)?.getModels().find((m) => m.id === ref.modelId)
 }
 
+/** The model's display name from pi-ai, such as "DeepSeek V4.1 Flash", or undefined for one it does not know. */
+export function modelName(ref: { provider: string; modelId: string }): string | undefined {
+  return lookup(ref)?.name
+}
+
 /** The reasoning levels pi-ai says the model supports, or only "off" for a model it does not know. */
 export function supportedThinking(ref: { provider: string; modelId: string }): ThinkingLevel[] {
   const model = lookup(ref)

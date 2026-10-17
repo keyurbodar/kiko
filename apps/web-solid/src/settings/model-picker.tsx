@@ -84,7 +84,7 @@ export function ModelPickerButton(props: { draft: string }) {
                 <IdentityAvatar seed={member().slug} size={14} />
               </Show>
               <Show when={current()?.model.split("/")[0]}>{(provider) => <ProviderIcon id={provider()} width="13" height="13" />}</Show>
-              <span class="truncate" data-component="composer-model">{current()?.model.split("/").slice(1).join("/") ?? "Choose model"}</span>
+              <span class="truncate" data-component="composer-model">{current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"}</span>
               <svg class="size-2.5 shrink-0 opacity-70" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M3 4.5L6 7.5l3-3" />
               </svg>
