@@ -47,12 +47,14 @@ test("a connected app's call reads as the app and the action, from the tool's ow
     { name: "COMPOSIO_MULTI_EXECUTE_TOOL", inputSchema: {} },
     { name: "COMPOSIO_SEARCH_TOOLS", inputSchema: {} },
     { name: "COMPOSIO_REMOTE_WORKBENCH", inputSchema: {} },
+    { name: "COMPOSIO_SEARCH_WEB", inputSchema: {}, direct: { slug: "COMPOSIO_SEARCH_WEB", toolkit: "composio_search" } },
   ]
   const describe = composioDescribe(tools)
   expect(stepOf(toolName("GMAIL_SEND_EMAIL"), { to: "a@b.c" }, describe)).toMatchObject({ label: "Send email", app: "gmail", name: "composio_gmail_send_email", tool: "other" })
   const many = { tools: [{ tool_slug: "GOOGLECALENDAR_CREATE_EVENT", arguments: {} }, { tool_slug: "GMAIL_FETCH_EMAILS", arguments: {} }] }
   expect(stepOf(toolName("COMPOSIO_MULTI_EXECUTE_TOOL"), many, describe)).toMatchObject({ label: "Create event and 1 more", app: "googlecalendar" })
   expect(stepOf(toolName("COMPOSIO_SEARCH_TOOLS"), { queries: [] }, describe)?.label).toBe("Searched connected apps")
+  expect(stepOf(toolName("COMPOSIO_SEARCH_WEB"), { query: "kyoto" }, describe)).toMatchObject({ label: "Search web", app: "composio_search" })
   expect(stepOf(toolName("COMPOSIO_REMOTE_WORKBENCH"), {}, describe)).toMatchObject({ label: "Remote workbench", app: "composio" })
   expect(stepOf("read", { path: "/a" }, describe)?.app).toBeUndefined()
 })
