@@ -251,7 +251,10 @@
   user-select: none;
 }
 
-/* The shine's look. Its motion is in motion.css; with reduced motion or forced colors the label is plain text. */
+/*
+ * The shine's look, t3code's live-tool-shine: a band of the foreground sweeps over the label's own
+ * tone. Its motion is in motion.css. With reduced motion or forced colors the label is plain text.
+ */
 @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
   .motion-shine {
     color: transparent;
@@ -263,4 +266,59 @@
     -webkit-background-clip: text;
     background-clip: text;
   }
+}
+
+/*
+ * t3code's ActivityShimmerOverlay (live-activity-focus): the label in muted tone, and over it a copy
+ * in the foreground that a moving mask reveals. The copy stays still; the mask and its counter
+ * move apart. Reduced motion hides the copy.
+ */
+.run-working {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.run-focus {
+  --run-focus-width: 4.5rem;
+  position: absolute;
+  inset-block: 0;
+  left: calc(-1 * var(--run-focus-width));
+  width: calc(100% + var(--run-focus-width) + var(--run-focus-width));
+  display: none;
+  pointer-events: none;
+  user-select: none;
+}
+.run-focus-counter {
+  display: block;
+  width: 100%;
+}
+.run-focus-aligned {
+  display: block;
+  width: calc(100% - var(--run-focus-width) - var(--run-focus-width));
+  margin-left: var(--run-focus-width);
+  color: var(--foreground);
+}
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  .run-focus {
+    display: block;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, rgb(0 0 0 / 12%) 0.675rem, rgb(0 0 0 / 55%) 1.575rem, black 2.25rem, rgb(0 0 0 / 55%) 2.925rem, rgb(0 0 0 / 12%) 3.825rem, transparent var(--run-focus-width), transparent 100%);
+    -webkit-mask-repeat: no-repeat;
+    mask-image: linear-gradient(to right, transparent 0, rgb(0 0 0 / 12%) 0.675rem, rgb(0 0 0 / 55%) 1.575rem, black 2.25rem, rgb(0 0 0 / 55%) 2.925rem, rgb(0 0 0 / 12%) 3.825rem, transparent var(--run-focus-width), transparent 100%);
+    mask-repeat: no-repeat;
+  }
+}
+
+/* t3code shows a work row's time only while the row is hovered or focused, with no fade. */
+.run-at {
+  display: none;
+  flex: none;
+  color: var(--muted-foreground);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+.run-line:hover .run-at,
+.run-line:focus-visible .run-at {
+  display: inline;
 }

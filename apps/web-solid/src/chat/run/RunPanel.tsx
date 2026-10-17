@@ -18,12 +18,15 @@ import {
   iconOf,
   keepEntries,
   liveLabel,
+  type Placement,
+  placementOf,
   startOf,
   type StepIcon,
   summarizeSteps,
   totalDuration,
 } from "./run-log"
 import { closeRun, openRun, runAnchor } from "./run-panel-state"
+import { observeVisibleAnimation } from "./visible-animation"
 import "./run-panel.css"
 
 /*
@@ -98,6 +101,17 @@ function StepGlyph(props: { step: RunStep }) {
   )
 }
 
+/** Runs t3code's visible-only animation on an element while `active`: on screen, tab visible, motion allowed. */
+function shineRef(active: () => boolean) {
+  let element: HTMLElement | undefined
+  createEffect(() => {
+    if (!active() || !element) return
+    const off = observeVisibleAnimation(element)
+    if (off) onCleanup(off)
+  })
+  return (el: HTMLElement) => (element = el)
+}
+
 /** Whole seconds since `from`, ticking once a second while `live`. */
 function createElapsed(from: () => number | undefined, live: () => boolean) {
   const [now, setNow] = createSignal(Date.now())
@@ -112,7 +126,7 @@ function createElapsed(from: () => number | undefined, live: () => boolean) {
 
 function RowChevron(props: { open: boolean }) {
   return (
-    <span class="run-chevron" data-open={props.open ? "" : undefined} aria-hidden="true">
+    <span class="run-chevron" data-component="run-panel-chevron" data-open={props.open ? "" : undefined} aria-hidden="true">
       <HugeIcon icon={glyphs.ChevronRightIcon} size={12} />
     </span>
   )
@@ -133,6 +147,7 @@ function StepRow(props: { step: RunStep; child: boolean; open: boolean; loading:
   const step = () => props.step
   const running = () => step().status === "running"
   const took = () => (step().endedAt === undefined ? undefined : step().endedAt! - step().startedAt)
+  const labelRef = shineRef(running)
   return (
     <div class="run-row" data-child={props.child ? "" : undefined} data-status={step().status} data-component="run-step">
       <div
@@ -148,9 +163,10 @@ function StepRow(props: { step: RunStep; child: boolean; open: boolean; loading:
         }}
       >
         <StepGlyph step={step()} />
-        <span class={cn("run-label", running() && "motion-shine")} data-failed={step().status === "failed" ? "" : undefined}>
+        <span ref={labelRef} class={cn("run-label", running() && "motion-shine")}>
           {liveLabel(step())}
         </span>
+        <span class="run-at">{clockTime(step().startedAt)}</span>
         <Show when={took() !== undefined && took()! >= 1000}>
           <span class="run-took">{formatDuration(took()!)}</span>
         </Show>
@@ -179,6 +195,7 @@ function WorkerRow(props: { entry: Extract<Entry, { kind: "worker" }>; onToggle:
   const elapsed = createElapsed(() => startOf(steps()), live)
   const sum = () => summarizeSteps(steps()).summary
   const took = () => totalDuration(steps())
+  const stateRef = shineRef(live)
   return (
     <div class="run-row" data-component="run-worker" data-open={props.entry.open ? "" : undefined}>
       <div
@@ -198,7 +215,7 @@ function WorkerRow(props: { entry: Extract<Entry, { kind: "worker" }>; onToggle:
         </span>
         <span class="run-worker-text">
           <span class="run-label run-worker-task">{props.entry.task}</span>
-          <span class={cn("run-worker-state", live() && "motion-shine")}>{live() ? `Working for ${elapsed()}` : `${sum()}${took() === undefined ? "" : `, ${formatDuration(took()!)}`}`}</span>
+          <span ref={stateRef} class={cn("run-worker-state", live() && "motion-shine")}>{live() ? `Working for ${elapsed()}` : `${sum()}${took() === undefined ? "" : `, ${formatDuration(took()!)}`}`}</span>
         </span>
         <RowChevron open={props.entry.open} />
       </div>
@@ -210,11 +227,19 @@ function Header(props: { steps: readonly RunStep[]; live: boolean }) {
   const elapsed = createElapsed(() => startOf(props.steps), () => props.live)
   const sum = createMemo(() => summarizeSteps(props.steps))
   const took = () => totalDuration(props.steps)
+  const workingRef = shineRef(() => props.live)
   return (
     <div class="run-header">
       <PopoverV2.Title class="run-title" data-live={props.live ? "" : undefined}>
         <Show when={props.live} fallback={props.steps.length ? sum().summary : "No steps yet"}>
-          <span class="motion-shine">Working for {elapsed()}</span>
+          <span ref={workingRef} class="run-working">
+            Working for {elapsed()}
+            <span aria-hidden="true" class="run-focus motion-activity-focus">
+              <span class="run-focus-counter motion-activity-counter">
+                <span class="run-focus-aligned">Working for {elapsed()}</span>
+              </span>
+            </span>
+          </span>
         </Show>
       </PopoverV2.Title>
       <Show when={!props.live && took() !== undefined}>
@@ -238,6 +263,8 @@ const runAnchorFocus = () => {
 }
 
 const AT_END = 4
+
+const clockTime = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
 
 function Body(props: { runId: string }) {
   focusRun = props.runId
@@ -363,17 +390,37 @@ export default function RunPanel() {
   })
   createEffect(on(() => useApp.activeThreadId(), closeRun, { defer: true }))
 
+  // The side is chosen once, when the panel opens, and kept while it stays open. A row that opens
+  // or a step that lands then makes the list scroll in place of moving the card to another side.
+  const [locked, setLocked] = createSignal<Placement>()
+  let content: HTMLElement | undefined
+  createEffect(
+    on(visible, (open) => {
+      if (!open) return
+      setLocked(undefined)
+      // The first position is computed a frame after the card mounts. Read the side it landed on.
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          const from = anchor()
+          if (!from || !content || !visible()) return
+          setLocked(placementOf(from.getBoundingClientRect(), content.getBoundingClientRect()))
+        }),
+      )
+    }),
+  )
+
   return (
     <PopoverV2
       open={visible()}
       onOpenChange={(open) => !open && closeRun()}
       anchorRef={anchor}
-      placement="right-start"
-      flip="bottom-start top-start left-start"
+      placement={locked() ?? "right-start"}
+      flip={locked() ? false : "bottom-start top-start left-start"}
       hideWhenDetached
     >
       <PopoverV2.Portal>
         <PopoverV2.Content
+          ref={(element: HTMLElement) => (content = element)}
           class="run-panel"
           onCloseAutoFocus={(event) => event.preventDefault()}
           onEscapeKeyDown={() => queueMicrotask(runAnchorFocus)}

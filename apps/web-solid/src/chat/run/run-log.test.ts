@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RunStep, ToolKind } from "@kiko/protocol"
-import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, runHeads, summarizeSteps, totalDuration, upsertStep } from "./run-log"
+import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, runHeads, summarizeSteps, totalDuration, upsertStep } from "./run-log"
 
 const step = (id: string, over: Partial<RunStep> = {}): RunStep => ({
   id,
@@ -170,4 +170,16 @@ describe("buildEntries", () => {
     expect(second[0]).toBe(first[0])
     expect(second[1]).not.toBe(first[1])
   })
+})
+
+describe("placementOf", () => {
+  const anchor = { left: 100, right: 132, top: 200, bottom: 232 }
+  const table: [string, { left: number; right: number; top: number; bottom: number }, ReturnType<typeof placementOf>][] = [
+    ["beside it on the right", { left: 138, right: 650, top: 200, bottom: 600 }, "right-start"],
+    ["beside it on the left", { left: -400, right: 94, top: 200, bottom: 600 }, "left-start"],
+    ["under it", { left: 100, right: 600, top: 238, bottom: 700 }, "bottom-start"],
+    ["over it", { left: 100, right: 600, top: -100, bottom: 194 }, "top-start"],
+    ["covering it", { left: 90, right: 600, top: 190, bottom: 700 }, undefined],
+  ]
+  for (const [name, card, want] of table) test(name, () => expect(placementOf(anchor, card)).toBe(want))
 })

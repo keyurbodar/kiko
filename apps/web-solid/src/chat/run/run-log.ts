@@ -316,3 +316,21 @@ export function keepEntries(previous: ReadonlyMap<string, Entry>, next: readonly
 
 /** Whether any step of the run, a worker's included, is still going. */
 export const anyRunning = (steps: readonly Pick<RunStep, "status">[]): boolean => steps.some((s) => s.status === "running")
+
+// Where the panel sits
+
+export type Placement = "right-start" | "left-start" | "bottom-start" | "top-start"
+
+type Box = { left: number; right: number; top: number; bottom: number }
+
+/**
+ * The side of its anchor that a positioned card landed on, as a start-aligned placement. The panel
+ * keeps this side while it is open. Undefined when the card overlaps the anchor on every side.
+ */
+export function placementOf(anchor: Box, card: Box): Placement | undefined {
+  if (card.left >= anchor.right - 1) return "right-start"
+  if (card.right <= anchor.left + 1) return "left-start"
+  if (card.top >= anchor.bottom - 1) return "bottom-start"
+  if (card.bottom <= anchor.top + 1) return "top-start"
+  return undefined
+}
