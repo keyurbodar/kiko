@@ -35,7 +35,7 @@ async function runSuite(suite: Suite) {
   return results
 }
 
-const CONFORMANCE_CASES = 23
+const CONFORMANCE_CASES = 24
 
 test("pi-durable storage conformance passes over ctx.storage.sql", async () => {
   const results = await runSuite("fresh")

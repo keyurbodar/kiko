@@ -24,7 +24,7 @@ afterAll(async () => {
 
 let n = 0
 const fresh = () => `01JZ8Q4T7B${String(++n).padStart(16, "0")}`
-type Out = { ok: boolean; text: string; ms: number; touched?: string[] }
+type Out = { ok: boolean; text: string; notes?: string; ms: number; touched?: string[] }
 
 function agent(room: string, slug = "ada") {
   const run = async (name: string, args: Record<string, unknown>, headers: Record<string, string> = {}): Promise<Out> => {
@@ -64,7 +64,7 @@ test("a failing command reports its error and exit code", async () => {
   const out = await a.bash("cat /missing.txt")
   expect(out.ok).toBe(false)
   expect(out.text).toContain("No such file")
-  expect(out.text).toContain("exited with code 1")
+  expect(out.notes).toContain("exited with code 1")
 })
 
 test("a command that touches nothing leaves the files as they were", async () => {

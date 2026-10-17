@@ -137,7 +137,7 @@ export default {
     if (!tool) return Response.json({ error: `no tool ${name}` }, { status: 404 })
     let streamed = ""
     let reported: unknown
-    const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID(), output: (t: string) => void (streamed += t), diagnostic: () => {}, details: async (d: unknown) => void (reported = d) } as unknown as ToolExecutionApi
+    const api = { env: fs, agent: async () => ({ model: { provider: "faux", modelId: "faux-1" } }), conversationId: "c1", callId: crypto.randomUUID(), output: (t: string) => void (streamed += t), retainedOutput: () => ({ text: streamed, truncated: false }), diagnostic: () => {}, details: async (d: unknown) => void (reported = d) } as unknown as ToolExecutionApi
     const started = performance.now()
     try {
       const result = await tool.execute(args as never, api, { ...BACKGROUND_CONTEXT, abortSignal: stop.signal })

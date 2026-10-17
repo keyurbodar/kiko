@@ -12,7 +12,7 @@ describe("composio retry", () => {
     let n = 0
     const t = tool(true, async () => {
       if (++n < 2) throw new ComposioError("slow down", 429)
-      return { output: [{ type: "text", text: "done" }] }
+      return { content: [{ type: "text", text: "done" }] }
     })
     const out = await t.execute({}, ctx)
     expect(n).toBe(2)
