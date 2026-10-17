@@ -121,7 +121,7 @@ async function pasteLogin(interaction: ProviderAuthInteraction, options?: LoginO
   interaction.notify({
     type: "auth_url",
     url: authorizeUrl({ hostId, state, nonce, challenge, ...(options?.agentName ? { agentName: options.agentName } : {}) }),
-    instructions: "Approve kiko in the browser tab that opens.",
+    instructions: "Approve Kiko in the browser tab that opens.",
   })
   const pasted = await interaction.prompt({ type: "manual_code", message: PASTE_MESSAGE, placeholder: REDIRECT_URI, signal: interaction.signal })
   const { code, clientId } = parseCallback(pasted, state)
