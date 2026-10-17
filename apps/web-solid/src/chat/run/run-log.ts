@@ -6,20 +6,80 @@ import type { RunStep, ToolKind } from "@kiko/protocol"
  * six tool kinds. Nothing here touches the DOM, so every rule has a table in `run-log.test.ts`.
  */
 
-export type StepIcon = "eye" | "pen" | "terminal" | "search" | "globe" | "wrench" | "alert"
+/** A glyph id: `file-view` is `FileViewIcon` in `@kiko/ui/icons`. `app` is a Composio toolkit's logo. */
+export type StepIcon =
+  | "file-view" | "folder" | "file-add" | "edit" | "copy" | "trash" | "folder-add" | "move" | "terminal" | "link" | "globe" | "search"
+  | "cursor" | "eye" | "code" | "file-text" | "browser" | "monitor" | "chat" | "help" | "memory" | "notes" | "book" | "clock" | "tasks"
+  | "group" | "integrations" | "sparkles" | "scan" | "worker" | "stop" | "send" | "skills" | "wrench" | "alert-circle" | "app"
 
-/** t3code's icons: read is an eye, edit a pen, run a terminal, search a magnifier, web a globe, other a wrench. */
-export const STEP_ICON: Record<ToolKind, StepIcon> = {
-  read: "eye",
-  edit: "pen",
+/** What each tool kiko ships looks like, by the name the model calls it. */
+export const NAME_ICON: Record<string, StepIcon> = {
+  read: "file-view",
+  ls: "folder",
+  write: "file-add",
+  edit: "edit",
+  cp: "copy",
+  mv: "move",
+  rm: "trash",
+  mkdir: "folder-add",
+  bash: "terminal",
+  web_fetch: "link",
+  web_search: "search",
+  browse: "browser",
+  browser_look: "eye",
+  browser_act: "cursor",
+  browser_eval: "code",
+  browser_extract: "file-text",
+  browser_fetch: "globe",
+  browser_files: "folder",
+  browser_dialog: "chat",
+  browser_tabs: "browser",
+  browser_status: "monitor",
+  browser_link: "link",
+  browser_run: "terminal",
+  zoom: "scan",
+  ask: "help",
+  ask_human: "help",
+  send_message: "send",
+  recall: "memory",
+  note: "notes",
+  loop: "memory",
+  jev: "memory",
+  read_skill: "book",
+  create_routine: "clock",
+  update_routine: "clock",
+  cancel_routine: "clock",
+  list_routines: "clock",
+  create_task: "tasks",
+  update_task: "tasks",
+  start_work: "worker",
+  steer_work: "worker",
+  stop_work: "stop",
+  create_agent: "group",
+  create_group: "group",
+  list_agents: "group",
+  team: "group",
+  overview: "group",
+  model: "sparkles",
+  connect_app: "integrations",
+  add_recipe: "sparkles",
+}
+
+/** The icon for a tool kind, for a name the table does not know. t3code's: eye, pen, terminal, search, globe, wrench. */
+export const KIND_ICON: Record<ToolKind, StepIcon> = {
+  read: "file-view",
+  edit: "edit",
   run: "terminal",
   search: "search",
   web: "globe",
   other: "wrench",
 }
 
-/** A failed call shows the alert glyph in place of its kind's. */
-export const iconOf = (step: Pick<RunStep, "tool" | "status">): StepIcon => (step.status === "failed" ? "alert" : STEP_ICON[step.tool])
+/** A failed call shows the alert glyph. Else the tool's own by name, then its Composio app, then its kind. */
+export function iconOf(step: Pick<RunStep, "tool" | "status" | "name" | "app">): StepIcon {
+  if (step.status === "failed") return "alert-circle"
+  return NAME_ICON[step.name] ?? (step.app ? "app" : KIND_ICON[step.tool])
+}
 
 // Summary
 
@@ -174,3 +234,83 @@ export function upsertStep(steps: readonly RunStep[], step: RunStep): RunStep[] 
   next[at] = step
   return next.sort(byStart)
 }
+
+// Which bubble opens a run
+
+export type RunHead = { id: string; known: number }
+
+/**
+ * The first bubble of each server run, in list order, and the most steps any bubble of that run
+ * says it had. The chevron sits beside the first bubble only, and the panel asks the room for more
+ * when it holds fewer steps than `known`.
+ */
+export function runHeads(messages: readonly { id: string; runId?: string; steps?: number }[]): Map<string, RunHead> {
+  const heads = new Map<string, RunHead>()
+  for (const m of messages) {
+    if (!m.runId) continue
+    const head = heads.get(m.runId)
+    if (head) head.known = Math.max(head.known, m.steps ?? 0)
+    else heads.set(m.runId, { id: m.id, known: m.steps ?? 0 })
+  }
+  return heads
+}
+
+// The panel's rows
+
+export type Entry =
+  | { key: string; kind: "step"; step: RunStep; child: boolean }
+  | { key: string; kind: "worker"; id: string; task: string; steps: readonly RunStep[]; open: boolean }
+
+/**
+ * The panel's flat list. Steps in start order. The steps of one background worker fold into a
+ * single row placed after the last step that began before the worker's first step, which is the
+ * call that started it. An open worker is followed by its steps.
+ */
+export function buildEntries(steps: readonly RunStep[], open: ReadonlySet<string>): Entry[] {
+  type Item = { at: number; order: number; step?: RunStep; worker?: { id: string; task: string; steps: RunStep[] } }
+  const items: Item[] = []
+  const workers = new Map<string, { id: string; task: string; steps: RunStep[] }>()
+  for (const step of steps) {
+    if (!step.worker) {
+      items.push({ at: step.startedAt, order: 0, step })
+      continue
+    }
+    const group = workers.get(step.worker.id)
+    if (group) group.steps.push(step)
+    else {
+      const created = { id: step.worker.id, task: step.worker.task, steps: [step] }
+      workers.set(step.worker.id, created)
+      items.push({ at: step.startedAt, order: 1, worker: created })
+    }
+  }
+  items.sort((a, b) => a.at - b.at || a.order - b.order)
+  const out: Entry[] = []
+  for (const item of items) {
+    if (item.step) {
+      out.push({ key: `s:${item.step.id}`, kind: "step", step: item.step, child: false })
+      continue
+    }
+    const w = item.worker!
+    const isOpen = open.has(w.id)
+    out.push({ key: `w:${w.id}`, kind: "worker", id: w.id, task: w.task, steps: w.steps, open: isOpen })
+    if (isOpen) for (const step of w.steps) out.push({ key: `s:${step.id}`, kind: "step", step, child: true })
+  }
+  return out
+}
+
+const sameEntry = (a: Entry, b: Entry): boolean => {
+  if (a.kind === "step" && b.kind === "step") return a.step === b.step && a.child === b.child
+  if (a.kind === "worker" && b.kind === "worker") return a.open === b.open && a.task === b.task && a.steps.length === b.steps.length && a.steps.every((s, i) => s === b.steps[i])
+  return false
+}
+
+/** Keeps the object of every entry that did not change, so the list re-renders only the rows that did. */
+export function keepEntries(previous: ReadonlyMap<string, Entry>, next: readonly Entry[]): Entry[] {
+  return next.map((entry) => {
+    const before = previous.get(entry.key)
+    return before && sameEntry(before, entry) ? before : entry
+  })
+}
+
+/** Whether any step of the run, a worker's included, is still going. */
+export const anyRunning = (steps: readonly Pick<RunStep, "status">[]): boolean => steps.some((s) => s.status === "running")

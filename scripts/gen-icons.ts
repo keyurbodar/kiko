@@ -96,6 +96,18 @@ const ICONS = {
   "file-pdf": "Pdf01Icon",
   "file-audio": "FileAudioIcon",
   "file-video": "FileVideoIcon",
+  terminal: "SquareTerminalIcon",
+  "alert-circle": "AlertCircleIcon",
+  wrench: "Wrench01Icon",
+  "file-view": "FileViewIcon",
+  cursor: "CursorPointer01Icon",
+  worker: "Robot01Icon",
+  move: "FolderTransferIcon",
+  help: "QuestionIcon",
+  browser: "BrowserIcon",
+  notes: "Notebook01Icon",
+  book: "BookOpen01Icon",
+  send: "SentIcon",
 } as const
 
 const SHARED: Record<string, string> = { stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round" }

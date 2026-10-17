@@ -462,6 +462,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	})
 
 	let socket: SyncSocket | null = null
+	/** The runs whose steps were asked for. */
+	const fetchedRuns = new Set<string>()
 	/** Questions waiting for their answer (search, history), by a key the answer repeats. */
 	const asked = new Map<string, ((answer: unknown) => void)[]>()
 	const searchKey = (query: string, before: number | undefined) => `search:${before ?? ""}:${query}`
@@ -886,7 +888,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			if (socket?.send({ t: "typing" })) lastTypingAt = t
 		},
 		requestSteps(runId) {
-			if (state.fetching[runId] || !socket?.send({ t: "steps", runId })) return
+			// Once per run and session: a fetched run is cached, and live steps keep it current.
+			if (state.fetching[runId] || fetchedRuns.has(runId) || !socket?.send({ t: "steps", runId })) return
+			fetchedRuns.add(runId)
 			setState("fetching", runId, true)
 			// An answer that never comes must not leave "Loading output" up for good.
 			setTimeout(() => setState("fetching", runId, undefined), ASK_TIMEOUT_MS)

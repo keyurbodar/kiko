@@ -15,7 +15,7 @@ import { chatFaces, chatSeed } from "./identity"
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
+import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp, RunStep } from "@kiko/protocol"
 import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { isListed } from "../sidebar/activity"
 import { agentDisplayName } from "./names"
@@ -25,6 +25,7 @@ import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
 import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
+import { runHeads } from "../chat/run/run-log"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
@@ -355,6 +356,9 @@ export function createApp(options: AppOptions = {}) {
       views = next
       return rows
     })
+
+    /** The first bubble of each run in view, for the run panel's chevron. */
+    const runs = shared(() => runHeads(activeRows()))
 
     function openRoom(roomId: RoomId | null) {
       const current = room()
@@ -778,6 +782,50 @@ export function createApp(options: AppOptions = {}) {
       typingDoings(): (string | undefined)[] {
         const r = room()
         return this.typingSlugs().map((slug) => r?.state.doing[slug] ?? (r?.state.status[slug as never] === "working" ? "using a tool" : undefined))
+      },
+
+      /**
+       * The run this bubble opens in the run panel, or undefined when it opens none: it is not the
+       * first bubble of its run, or the run made no steps.
+       */
+      runChevron(m: ChatMessage): string | undefined {
+        const head = m.runId ? runs().get(m.runId) : undefined
+        if (!m.runId || head?.id !== m.id) return undefined
+        return head.known > 0 || (room()?.state.steps[m.runId]?.length ?? 0) > 0 ? m.runId : undefined
+      },
+
+      /**
+       * The run an agent is in now, once it has made a step and has no bubble in view yet. After its
+       * first bubble lands the bubble's chevron opens the run instead.
+       */
+      typingRun(slug: string): string | undefined {
+        const r = room()
+        const runId = r?.state.live[slug]
+        if (!r || !runId || !r.state.steps[runId]?.length || runs().has(runId)) return undefined
+        return runId
+      },
+
+      /** Every step this client holds for a run, in start order. */
+      runSteps(runId: string): readonly RunStep[] {
+        return room()?.state.steps[runId] ?? []
+      },
+
+      /** True while an agent is in this run. */
+      runLive(runId: string): boolean {
+        const live = room()?.state.live
+        return !!live && Object.values(live).includes(runId)
+      },
+
+      /** Asks the room for the run's steps when this client holds fewer than the bubbles say it made. */
+      loadRunSteps(runId: string) {
+        const r = room()
+        const known = runs().get(runId)?.known ?? 0
+        if (r && (r.state.steps[runId]?.length ?? 0) < known) r.requestSteps(runId)
+      },
+
+      /** True while the steps of a run are on their way. */
+      runFetching(runId: string): boolean {
+        return !!room()?.state.fetching[runId]
       },
 
       /** The slugs of the agents typing now, for the typing bubble's avatar. */

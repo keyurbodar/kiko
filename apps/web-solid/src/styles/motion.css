@@ -38,6 +38,7 @@
   --motion-collapse: 200ms;
   --motion-switch: 150ms;
   --motion-skeleton: 2400ms;
+  --motion-shine: 2200ms;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -147,6 +148,7 @@
 
   [data-component="menu-v2-content"][data-expanded],
   [data-component="hover-card-v2-content"][data-expanded],
+  [data-component="popover-v2-content"][data-expanded],
   [data-component="tooltip-v2"][data-expanded],
   .motion-popover-in {
     animation: motion-popover-in var(--motion-popover) var(--motion-ease-out) both;
@@ -154,6 +156,7 @@
 
   [data-component="menu-v2-content"][data-closed],
   [data-component="hover-card-v2-content"][data-closed],
+  [data-component="popover-v2-content"][data-closed],
   [data-component="tooltip-v2"][data-closed] {
     animation: motion-popover-out var(--motion-popover) var(--motion-ease-in) both;
   }
@@ -204,6 +207,18 @@
   .motion-skeleton {
     background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
     animation: motion-skeleton var(--motion-skeleton) var(--motion-ease-linear) infinite;
+  }
+
+  /* A step that is running shines across its label, as in t3code's work log. A waiting state. */
+  @keyframes motion-shine {
+    from { background-position: -4.5rem 0, 0 0; }
+    to { background-position: calc(100% + 4.5rem) 0, 0 0; }
+  }
+
+  @media (forced-colors: none) {
+    .motion-shine {
+      animation: motion-shine var(--motion-shine) steps(30) infinite;
+    }
   }
 
   /* A busy label fades in, so a save that takes a moment does not flash. */

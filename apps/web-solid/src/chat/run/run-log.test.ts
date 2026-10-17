@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import type { RunStep, ToolKind } from "@kiko/protocol"
-import { extraInput, formatClock, formatDuration, iconOf, liveLabel, programOf, summarizeSteps, totalDuration, upsertStep } from "./run-log"
+import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, runHeads, summarizeSteps, totalDuration, upsertStep } from "./run-log"
 
 const step = (id: string, over: Partial<RunStep> = {}): RunStep => ({
   id,
   runId: "r1",
   slug: "kiko" as RunStep["slug"],
   tool: "read",
+  name: "read",
   label: "Read /a.md",
   status: "done",
   startedAt: 1000,
@@ -58,10 +59,22 @@ test("extraInput only shows what the label hides", () => {
   expect(extraInput({ label: "Ran bun test" })).toBeUndefined()
 })
 
-test("a failed step shows the alert glyph", () => {
-  expect(iconOf({ tool: "run", status: "failed" })).toBe("alert")
-  expect(iconOf({ tool: "run", status: "done" })).toBe("terminal")
-  expect(iconOf({ tool: "web", status: "running" })).toBe("globe")
+describe("iconOf", () => {
+  const table: [string, Parameters<typeof iconOf>[0], StepIcon][] = [
+    ["a known tool by name", { tool: "read", name: "read", status: "done" }, "file-view"],
+    ["the name outranks the kind", { tool: "run", name: "browser_act", status: "done" }, "cursor"],
+    ["a Composio call shows its app", { tool: "other", name: "GMAIL_SEND_EMAIL", app: "gmail", status: "done" }, "app"],
+    ["a known name outranks the app", { tool: "other", name: "ls", app: "gmail", status: "done" }, "folder"],
+    ["an unknown name falls back to its kind", { tool: "web", name: "mystery", status: "running" }, "globe"],
+    ["an unknown other tool is a wrench", { tool: "other", name: "mystery", status: "done" }, "wrench"],
+    ["failure wins", { tool: "run", name: "bash", status: "failed" }, "alert-circle"],
+  ]
+  for (const [name, step, want] of table) test(name, () => expect(iconOf(step)).toBe(want))
+  test("every icon the tables name is a glyph kiko has", async () => {
+    const glyphs = await import("@kiko/ui/icons")
+    const id = (key: string) => `${key.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase())}Icon`
+    for (const key of new Set([...Object.values(NAME_ICON), ...Object.values(KIND_ICON), "alert-circle" as const])) expect(id(key) in glyphs).toBe(true)
+  })
 })
 
 describe("durations", () => {
@@ -105,5 +118,56 @@ describe("upsertStep", () => {
   test("a failed step stays failed against a late running frame", () => {
     const failed = step("a", { status: "failed", output: "boom" })
     expect(upsertStep([failed], step("a", { status: "running" }))[0].status).toBe("failed")
+  })
+})
+
+describe("runHeads", () => {
+  test("the first bubble of a run heads it, and known is the most steps any bubble reports", () => {
+    const heads = runHeads([
+      { id: "m1" },
+      { id: "m2", runId: "r1" },
+      { id: "m3", runId: "r1", steps: 2 },
+      { id: "m4", runId: "r2", steps: 1 },
+      { id: "m5", runId: "r1", steps: 5 },
+    ])
+    expect([...heads]).toEqual([
+      ["r1", { id: "m2", known: 5 }],
+      ["r2", { id: "m4", known: 1 }],
+    ])
+  })
+})
+
+describe("buildEntries", () => {
+  const w = (id: string, workerId: string, at: number, over: Partial<RunStep> = {}) => step(id, { startedAt: at, worker: { id: workerId, task: "Check the build" }, ...over })
+
+  test("steps keep start order and a worker folds into one row after the step that started it", () => {
+    const list = [step("a", { startedAt: 1000 }), step("start", { startedAt: 2000, name: "start_work" }), w("w1", "k1", 2500), w("w2", "k1", 3000), step("b", { startedAt: 4000 })]
+    const entries = buildEntries(list, new Set())
+    expect(entries.map((e) => e.key)).toEqual(["s:a", "s:start", "w:k1", "s:b"])
+    const worker = entries[2]
+    expect(worker.kind === "worker" && worker.steps.map((s) => s.id)).toEqual(["w1", "w2"])
+  })
+
+  test("a worker that keeps working after the run ended still sits where it started", () => {
+    const list = [step("a", { startedAt: 1000 }), step("b", { startedAt: 2000 }), w("w1", "k1", 2100), w("w2", "k1", 90_000, { status: "running" })]
+    expect(buildEntries(list, new Set()).map((e) => e.key)).toEqual(["s:a", "s:b", "w:k1"])
+  })
+
+  test("an open worker is followed by its steps, and two workers stay apart", () => {
+    const list = [step("a", { startedAt: 1000 }), w("w1", "k1", 1500), w("x1", "k2", 1600)]
+    const entries = buildEntries(list, new Set(["k1"]))
+    expect(entries.map((e) => e.key)).toEqual(["s:a", "w:k1", "s:w1", "w:k2"])
+    expect(entries[2]).toMatchObject({ kind: "step", child: true })
+  })
+
+  test("keepEntries hands back the same object for a row that did not change", () => {
+    const a = step("a")
+    const b = step("b", { startedAt: 2000, status: "running" })
+    const first = keepEntries(new Map(), buildEntries([a, b], new Set()))
+    const previous = new Map(first.map((e) => [e.key, e]))
+    const b2 = { ...b, status: "done" as const, output: "ok" }
+    const second = keepEntries(previous, buildEntries([a, b2], new Set()))
+    expect(second[0]).toBe(first[0])
+    expect(second[1]).not.toBe(first[1])
   })
 })

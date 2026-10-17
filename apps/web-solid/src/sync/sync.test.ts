@@ -649,7 +649,7 @@ describe("the room store", () => {
 
 describe("run steps", () => {
 	const ada = fixtures.ada
-	const make1 = (id: string, over: Partial<RunStep> = {}): RunStep => ({ id, runId: "run1", slug: ada, tool: "read", label: "Read /a.md", status: "running", startedAt: 1000, ...over })
+	const make1 = (id: string, over: Partial<RunStep> = {}): RunStep => ({ id, runId: "run1", slug: ada, tool: "read", name: "read", label: "Read /a.md", status: "running", startedAt: 1000, ...over })
 
 	test("a step frame files under its run, replaces by id, and a late running frame cannot undo done", async () => {
 		const { mock, make } = setup()
@@ -690,6 +690,8 @@ describe("run steps", () => {
 		await until(() => store.state.steps.run9?.length === 1)
 		expect(store.state.fetching.run9).toBeUndefined()
 		expect(store.state.steps.run9[0].output).toBe("hello")
+		store.requestSteps("run9")
+		await sleep(20)
 		expect(mock.received.filter((f) => f.t === "steps")).toEqual([{ t: "steps", runId: "run9" }])
 		store.close()
 	})

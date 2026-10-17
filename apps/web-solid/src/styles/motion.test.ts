@@ -9,7 +9,7 @@ const FORBIDDEN =
   /(^|[^a-z])(nav|button|btn|menu-?item|tab|tabs|tablist|composer|rail|sidebar|route)([^a-z]|$)|\[role=["']?(button|menuitem|tab|tablist|navigation)/i;
 
 // Overlays that may enter and leave. They are named by their component, never by a class of a surface.
-const OVERLAYS = ["modal-v2-overlay", "modal-v2-content", "menu-v2-content", "hover-card-v2-content", "tooltip-v2"];
+const OVERLAYS = ["modal-v2-overlay", "modal-v2-content", "menu-v2-content", "hover-card-v2-content", "popover-v2-content", "tooltip-v2"];
 const OVERLAY = new RegExp(`^\\[data-component="(${OVERLAYS.join("|")})"\\]\\[data-(expanded|closed)\\]$`);
 const MOTION_CLASS = /^\.motion-[a-z-]+(\[data-[a-z]+\])?( > span)?$/;
 
@@ -121,7 +121,8 @@ test("keyframes move only transform and opacity, and a collapse also moves heigh
   expect(frames.length).toBeGreaterThanOrEqual(5);
   for (const f of frames) {
     const props = [...f.body.matchAll(/(?<![a-z-])([a-z-]+)\s*:/g)].map((m) => m[1]).filter((p) => p !== "animation-timing-function");
-    const allowed = f.selector.startsWith("@keyframes motion-collapse") ? ["height"] : ["transform", "opacity"];
+    // The shine moves a gradient across clipped text, which no transform can do.
+    const allowed = f.selector.startsWith("@keyframes motion-collapse") ? ["height"] : f.selector === "@keyframes motion-shine" ? ["background-position"] : ["transform", "opacity"];
     for (const p of props) expect(allowed, `${f.selector} ${p}`).toContain(p);
   }
 });
