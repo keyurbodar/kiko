@@ -78,8 +78,11 @@ describe("buildAgent", () => {
   test("the system prompt has the base sections in a fixed order", async () => {
     const { system } = await firstRequest({ role: "you plan trips.", lead: true, model: FAUX })
     for (const key of ["voice", "reactions", "role"]) expect(at(system, key)).toBeGreaterThanOrEqual(0)
+    expect(at(system, "role")).toBeLessThan(at(system, "kiko"))
+    expect(at(system, "kiko")).toBeLessThan(at(system, "tools"))
+    expect(at(system, "tools")).toBeLessThan(at(system, "pacing"))
+    expect(at(system, "pacing")).toBeLessThan(at(system, "voice"))
     expect(at(system, "voice")).toBeLessThan(at(system, "reactions"))
-    expect(at(system, "reactions")).toBeLessThan(at(system, "role"))
     expect(system).toContain("[react:👍]")
     expect(system).toContain("Your job here: you plan trips.")
     expect(at(system, "skills")).toBeGreaterThan(at(system, "role"))

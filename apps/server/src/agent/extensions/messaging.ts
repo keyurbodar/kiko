@@ -110,7 +110,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
         defineTool({
           name: "send_message",
           description:
-            "send a message to one of the human's agents, or to every other agent in this room with to: all. an agent that is not in this room is reached in private, and the exchange shows in this chat. it wakes them. the teammate's answer comes back to you as a message, so you need not wait. a plain reply to a teammate's message is your answer and goes back to them, so use send_message to start a conversation or to say something extra, not to answer.",
+            "Send a message to one of the human's agents, or to every other agent in this room with to: all. An agent that is not in this room is reached in private, and the exchange shows in this chat. It wakes them. Their answer comes back to you as a message, so you do not wait. A plain reply to a teammate's message is your answer and goes back to them; use send_message to start a conversation or to add something, not to answer.",
           parameters: Type.Object({ to: slug("the agent's slug, without @, or all"), text: Type.String({ description: "the message" }) }),
           replay: "safe",
           execute: async ({ to, text: body }, api) => {

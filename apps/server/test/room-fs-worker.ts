@@ -6,6 +6,7 @@ import "@kiko/agent/effects"
 import { filesExtension } from "../src/agent/extensions/files"
 import { HOME } from "../src/files/upload"
 import { type FilesBackend, homeBackend, RoomFs, roomBackend, withMount, withSoul } from "../src/files/room-fs"
+import { kikoDocsBackend, KIKO } from "../src/files/kiko-docs"
 import { FileIndex, HOME_TABLES, type IndexChange, type NewFile } from "../src/files/file-index"
 import { actorKey } from "../src/room/log"
 import type { Actor } from "@kiko/protocol"
@@ -124,7 +125,7 @@ export default {
       const user = () => users.get(users.idFromName("user:alice"))
       const soul = { get: () => user().soul(slug!), set: (body: string, expect: string) => user().setSoul(slug!, body, expect) }
       const drive = homeBackend(env, () => home, async (text) => void notices.push(`@${slug} ${text}`), undefined, () => (slug === "quiet" ? "this chat is private" : null))
-      fs = new RoomFs(`test:${key}`, withSoul(withMount(counted(key, roomBackend(env, () => home), env), HOME, drive), soul))
+      fs = new RoomFs(`test:${key}`, withSoul(withMount(withMount(counted(key, roomBackend(env, () => home), env), HOME, drive), KIKO, kikoDocsBackend()), soul))
       systems.set(key, fs)
     }
     const { name, args } = (await request.json()) as { name: string; args: Record<string, unknown> }
