@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RunStep, ToolKind } from "@kiko/protocol"
-import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, bubbleSegment, parseSegment, runBubbles, runTotal, segmentSize, tailSegment, summarizeSteps, totalDuration, upsertStep } from "./run-log"
+import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, inWindow, stepWindows, summarizeSteps, windowKey, totalDuration, upsertStep } from "./run-log"
 
 const step = (id: string, over: Partial<RunStep> = {}): RunStep => ({
   id,
@@ -11,6 +11,7 @@ const step = (id: string, over: Partial<RunStep> = {}): RunStep => ({
   label: "Read /a.md",
   status: "done",
   startedAt: 1000,
+  pos: 0,
   ...over,
 })
 const kinds = (...tools: ToolKind[]) => tools.map((tool) => ({ tool, status: "done" as const }))
@@ -121,44 +122,30 @@ describe("upsertStep", () => {
   })
 })
 
-describe("run segments", () => {
+describe("step windows", () => {
   const list = [
-    { id: "m1" },
-    { id: "m2", runId: "r1", steps: 2 },
-    { id: "m3", runId: "r1", steps: 2 },
-    { id: "m4", runId: "r2", steps: 1 },
-    { id: "m5", runId: "r1", steps: 5 },
+    { seq: 1 },
+    { seq: 2, botId: "kiko", steps: 2, stepAfter: 0 },
+    { seq: 3, botId: "ada", steps: 1, stepAfter: 0 },
+    { seq: 4, botId: "kiko" },
+    { seq: 6, botId: "kiko", steps: 3, stepAfter: 4 },
   ]
 
-  test("each bubble opens the steps since the previous bubble of its run", () => {
-    const r1 = runBubbles(list).get("r1") ?? []
-    expect(r1.map((b) => [b.id, b.steps])).toEqual([["m2", 2], ["m3", 2], ["m5", 5]])
-    const sizes = r1.map((_, i) => bubbleSegment("r1", r1, i, true)).map((s) => segmentSize(s, 0, 5))
-    expect(sizes).toEqual([2, 0, 3])
+  test("each agent message opens its agent's steps since that agent's previous message", () => {
+    const { closed, open } = stepWindows(list)
+    expect([...closed.values()].map((w) => [w.key, w.after, w.upTo, w.steps])).toEqual([["kiko#0", 0, 2, 2], ["ada#0", 0, 3, 1], ["kiko#4", 4, 6, 3]])
+    expect([...open]).toEqual([["kiko", 6], ["ada", 3]])
   })
 
-  test("a live run's later steps open from the typing row, and join the last bubble once it ends", () => {
-    const r1 = runBubbles(list).get("r1") ?? []
-    expect(segmentSize(bubbleSegment("r1", r1, 2, true), 8, 5)).toBe(3)
-    expect(segmentSize(tailSegment("r1", r1), 8, 5)).toBe(3)
-    expect(segmentSize(bubbleSegment("r1", r1, 2, false), 8, 5)).toBe(6)
+  test("the typing row's window and the bubble that lands for it share a key", () => {
+    const before = stepWindows(list.slice(0, 4)).open.get("kiko") ?? 0
+    expect(stepWindows(list).closed.get("kiko#4")?.key).toBe(windowKey("kiko", before))
   })
 
-  test("the typing row's slice and the bubble that lands for it share a key", () => {
-    const before = runBubbles(list.slice(0, 3)).get("r1") ?? []
-    const after = runBubbles(list).get("r1") ?? []
-    expect(tailSegment("r1", before).key).toBe(bubbleSegment("r1", after, 2, true).key)
-    expect(parseSegment(tailSegment("r1", before).key)).toEqual({ runId: "r1", start: 2 })
-  })
-
-  test("a bubble never reports fewer steps than the one before it", () => {
-    expect(runBubbles([{ id: "a", runId: "r", steps: 3 }, { id: "b", runId: "r" }]).get("r")?.map((b) => b.steps)).toEqual([3, 3])
-  })
-
-  test("after a reload the run's last bubble still opens the steps after it, such as a worker's", () => {
-    const bubbles = runBubbles([{ id: "a", runId: "r", steps: 1, runSteps: 4 }]).get("r") ?? []
-    expect(runTotal(bubbles)).toBe(4)
-    expect(segmentSize(bubbleSegment("r", bubbles, 0, false), 0, runTotal(bubbles))).toBe(4)
+  test("a window holds the steps heard from its start up to its message", () => {
+    const steps = [step("a", { pos: 1 }), step("b", { pos: 4 }), step("c", { pos: 5 }), step("d", { pos: 6 })]
+    expect(inWindow(steps, 4, 6).map((s) => s.id)).toEqual(["b", "c"])
+    expect(inWindow(steps, 6).map((s) => s.id)).toEqual(["d"])
   })
 })
 

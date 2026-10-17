@@ -138,7 +138,7 @@ export function failedCall(described: Described, content: readonly { type: strin
 }
 
 /** One tool call, as the agent hands it to the room: the step, and what the agent is doing now. */
-export type StepItem = { step: Omit<RunStep, "slug">; doing?: string; activity?: Activity }
+export type StepItem = { step: Omit<RunStep, "slug" | "pos">; doing?: string; activity?: Activity }
 
 /** Whose call it is: the run it belongs to, and the worker that made it. */
 type StepScope = { runId: string; worker?: { id: string; task: string } }

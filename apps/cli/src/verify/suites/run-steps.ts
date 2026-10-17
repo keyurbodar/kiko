@@ -23,12 +23,15 @@ async function snapshot(s: Session, roomId: string) {
   return reset.snapshot
 }
 
-async function stepsOf(room: RoomHandle, runId: string): Promise<readonly RunStep[]> {
-  room.raw.send({ t: "steps", runId })
-  const answer = await room.expect((f) => f.t === "steps" && f.runId === runId, 5_000)
+async function stepsOf(room: RoomHandle, slug: string, after: number, upTo?: number): Promise<readonly RunStep[]> {
+  room.raw.send({ t: "steps", slug: slug as RunStep["slug"], after, ...(upTo !== undefined ? { upTo } : {}) })
+  const answer = await room.expect((f) => f.t === "steps" && f.slug === slug && f.after === after && f.upTo === upTo, 5_000)
   if (answer.t !== "steps") throw new VerifyError("no steps answer")
   return answer.steps
 }
+
+/** The steps a bubble opens, as the room answers for its window. */
+const opens = (room: RoomHandle, m: Message) => (m.from.kind === "agent" && m.steps ? stepsOf(room, m.from.slug, m.stepAfter ?? 0, m.seq) : Promise.resolve([]))
 
 let base = 0
 const go = async (room: RoomHandle, text: string) => {
@@ -65,21 +68,21 @@ const suite: Suite = {
     await poll("the run's bubble", () => bubbles(room).find((m) => m.run?.runId === started.runId), FAKE_MS)
     await poll("the agent to go idle", () => idle(room), FAKE_MS)
     const bubble = must(bubbles(room).find((m) => m.run?.runId === started.runId), "the run's bubble")
-    expectEqual(bubble.steps, 1, "the step count on the bubble the run posted")
-    expectEqual((await snapshot(s, roomId)).steps, undefined, "the steps in a snapshot once the run has ended")
-    console.log("  ok the bubble the run posted carries its step count, and a snapshot after the run carries no live steps")
+    expectEqual([bubble.steps, bubble.stepAfter], [1, 0], "the step count and window start on the agent's first bubble")
+    expectEqual((await snapshot(s, roomId)).steps, undefined, "the steps in a snapshot once every step has a bubble")
+    console.log("  ok the bubble carries the count of steps since the agent's last bubble, and a snapshot after it carries no tail")
 
     // The answer to a request, twice, and from a second socket: the same steps, no duplicates.
-    const first = await stepsOf(room, started.runId)
-    expectEqual(first.map((x) => [x.id, x.status, x.label]), [[started.id, "done", "Used slow_tool"]], "the steps of the run")
-    expectEqual(await stepsOf(room, started.runId), first, "the steps asked for a second time")
+    const first = await opens(room, bubble)
+    expectEqual(first.map((x) => [x.id, x.status, x.label]), [[started.id, "done", "Used slow_tool"]], "the steps the bubble opens")
+    expectEqual(await opens(room, bubble), first, "the steps asked for a second time")
     const other = await s.room(roomId)
-    expectEqual(await stepsOf(other, started.runId), first, "the steps asked for on a second socket")
+    expectEqual(await opens(other, bubble), first, "the steps asked for on a second socket")
     other.raw.close()
-    expectEqual(await stepsOf(room, "no-such-run"), [], "the steps of a run that never was")
+    expectEqual(await stepsOf(room, "nobody", 0), [], "the steps of an agent that never was")
     const seen = new Set(stepFrames(room).map((x) => `${x.runId}/${x.id}/${x.status}`))
     expectEqual(seen.size, stepFrames(room).length, "step frames that repeat")
-    console.log("  ok asking for a run's steps answers the same list every time, and only the asker hears it")
+    console.log("  ok asking for a bubble's steps answers the same list every time, and only the asker hears it")
 
     // A run that posts, calls a tool, then posts again: each bubble counts the steps its run had started when it was posted.
     const split = stepFrames(room).length
@@ -96,9 +99,10 @@ const suite: Suite = {
       ],
       "the step counts of a run's two bubbles",
     )
+    expectEqual((await opens(room, must(parts[1], "the second part"))).map((x) => x.id), [splitStep.id], "the steps the second part opens")
     const reloaded = (await snapshot(s, roomId)).messages.filter((m) => parts.some((p) => p.id === m.id))
-    expectEqual(reloaded.map((m) => m.steps ?? 0), parts.map((m) => m.steps ?? 0), "the step counts a reload reads")
-    console.log("  ok a run's bubbles count the steps started before each, live and after a reload, so each bubble opens only its own")
+    expectEqual(reloaded.map((m) => [m.steps, m.stepAfter]), parts.map((m) => [m.steps, m.stepAfter]), "the step windows a reload reads")
+    console.log("  ok a run's bubbles each open the steps made since the one before, live and after a reload")
 
     // The lead's own tools: a failing one, and an internal tool that makes no step.
     const before = stepFrames(room).length
@@ -126,17 +130,20 @@ const suite: Suite = {
     expectEqual(stats["rpc.room.reportDoing"] ?? 0, 0, "separate doing reports")
     console.log("  ok parallel tool calls are batched into few requests, with no separate doing report")
 
-    // A background worker: its calls are steps of the run that started it, marked with the worker.
+    // A background worker: its calls come after the run that started it posted, so the agent's report opens them.
     const fromWorker = stepFrames(room).length
+    const fromReport = bubbles(room).length
     await go(room, '[tool web_fetch {"url":"http://localhost:1/page"}]')
     const work = await poll("the worker's read step to end", () => stepFrames(room).slice(fromWorker).find((x) => x.worker && x.label === "Fetched localhost:1" && x.status !== "running"), FAKE_MS * 2)
     const startedWork = must(stepFrames(room).slice(fromWorker).find((x) => x.name === "start_work"), "the start_work step")
     expectEqual(work.runId, startedWork.runId, "the run a worker's step belongs to")
     expectEqual({ status: work.status, tool: work.tool, name: work.name, worker: work.worker?.id }, { status: "failed", tool: "web", name: "web_fetch", worker: "w1" }, "the worker's step")
+    const report = await poll("the worker's report", () => bubbles(room).slice(fromReport).find((m) => m.text.startsWith("report w1")), FAKE_MS * 2)
     await poll("the agent to go idle", () => idle(room), FAKE_MS * 2)
-    const all = await stepsOf(room, work.runId)
-    expectEqual(all.some((x) => x.id === work.id && x.worker?.id === "w1"), true, "the worker's step among the run's steps")
-    console.log(`  ok a worker's tool call is a step of the run that started it: ${JSON.stringify(work)}`)
+    expectEqual((await opens(room, report)).map((x) => x.name), ["start_work", "web_fetch"], "the steps the report opens")
+    const again = must((await snapshot(s, roomId)).messages.find((m) => m.id === report.id), "the report after a reload")
+    expectEqual([again.steps, again.stepAfter], [report.steps, report.stepAfter], "the report's window after a reload")
+    console.log(`  ok a worker's tool call is opened by the agent's report, live and after a reload: ${JSON.stringify(work)}`)
   },
 }
 

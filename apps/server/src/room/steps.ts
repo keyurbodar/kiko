@@ -3,9 +3,9 @@ import type { AgentSlug, RunStep, RunStepStatus, ToolKind } from "@kiko/protocol
 /** Architecture section 9.5. A room keeps the newest KEEP_STEPS finished steps. It deletes down to that only when the count passes HIGH_WATER. */
 export const KEEP_STEPS = 2_000
 export const HIGH_WATER = 2_200
-/** A snapshot carries the finished steps of runs still going, at most this many, none older than a day. */
-const LIVE_LIMIT = 300
-const LIVE_WINDOW_MS = 24 * 60 * 60 * 1000
+/** A snapshot carries at most this many steps after the agents' last messages, none older than a day. */
+const TAIL_LIMIT = 300
+const TAIL_WINDOW_MS = 24 * 60 * 60 * 1000
 
 type Row = {
 	run_id: string
@@ -21,9 +21,10 @@ type Row = {
 	started_at: number
 	ended_at: number
 	output: string | null
+	pos: number
 }
 
-const COLUMNS = "run_id, id, slug, tool, name, app, worker, label, input, status, started_at, ended_at, output"
+const COLUMNS = "run_id, id, slug, tool, name, app, worker, label, input, status, started_at, ended_at, output, pos"
 
 const toStep = (r: Row): RunStep => ({
 	id: r.id,
@@ -39,13 +40,20 @@ const toStep = (r: Row): RunStep => ({
 	startedAt: r.started_at,
 	endedAt: r.ended_at,
 	...(r.output !== null ? { output: r.output } : {}),
+	pos: r.pos,
 })
 
 const keyOf = (runId: string, id: string) => `${runId}\u0000${id}`
 
+const byStart = (a: RunStep, b: RunStep) => a.startedAt - b.startedAt || (a.id < b.id ? -1 : 1)
+
+/** What a report says of a step: all of it but where the room heard it. */
+export type HeardStep = Omit<RunStep, "pos">
+
 /**
- * The tool calls of runs, as the human sees them. A running step lives in memory only and is sent
+ * The tool calls of agents, as the human sees them. A running step lives in memory only and is sent
  * on the wire. A step is written once, when it ends: one row, and a replay writes nothing.
+ * Each step is stamped with the room's last seq when it is first heard, so it belongs to the agent's next message.
  */
 export class RunSteps {
 	private readonly sql: SqlStorage
@@ -63,19 +71,26 @@ export class RunSteps {
 		return this.sql.exec("SELECT 1 FROM run_steps WHERE run_id = ? AND id = ?", runId, id).toArray().length > 0
 	}
 
-	/** A step began. Returns it when the panel should hear of it: not a repeat, and not a step that already ended. */
-	start(step: RunStep): RunStep | null {
-		const key = keyOf(step.runId, step.id)
-		if (this.running.has(key) || this.isStored(step.runId, step.id)) return null
+	/** A step began, heard at `pos`. Returns it when it is new: not a repeat, and not a step that already ended. */
+	start(heard: HeardStep, pos: number): RunStep | null {
+		const key = keyOf(heard.runId, heard.id)
+		if (this.running.has(key) || this.isStored(heard.runId, heard.id)) return null
+		const step = { ...heard, pos }
 		this.running.set(key, step)
 		return step
 	}
 
-	/** A step ended. Returns it when this write stored it, null when it was stored before. Needs the whole step: the room may have lost the start. */
-	finish(step: RunStep): RunStep | null {
-		this.running.delete(keyOf(step.runId, step.id))
+	/**
+	 * A step ended. Returns it when this write stored it, null when it was stored before. Needs the whole step:
+	 * the room may have lost the start. `fresh` is true when the room had not heard of the step before.
+	 */
+	finish(heard: HeardStep, pos: number): { step: RunStep; fresh: boolean } | null {
+		const key = keyOf(heard.runId, heard.id)
+		const began = this.running.get(key)
+		this.running.delete(key)
+		const step: RunStep = { ...heard, endedAt: heard.endedAt ?? this.now(), pos: began?.pos ?? pos }
 		const cursor = this.sql.exec(
-			`INSERT INTO run_steps (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (run_id, id) DO NOTHING`,
+			`INSERT INTO run_steps (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (run_id, id) DO NOTHING`,
 			step.runId,
 			step.id,
 			step.slug,
@@ -87,13 +102,14 @@ export class RunSteps {
 			step.input ?? null,
 			step.status,
 			step.startedAt,
-			step.endedAt ?? this.now(),
+			step.endedAt,
 			step.output ?? null,
+			step.pos,
 		)
 		cursor.toArray()
 		if (cursor.rowsWritten === 0) return null
 		this.prune()
-		return { ...step, endedAt: step.endedAt ?? this.now() }
+		return { step, fresh: !began }
 	}
 
 	private prune(): void {
@@ -109,48 +125,34 @@ export class RunSteps {
 	/** The talker's steps still running when their run ends were cut off. Marks them failed, stores them, and returns them. A worker's steps outlive the run. */
 	abandon(runId: string): RunStep[] {
 		const cut = [...this.running.values()].filter((s) => s.runId === runId && !s.worker)
-		return cut.flatMap((s) => this.finish({ ...s, status: "failed", endedAt: this.now() }) ?? [])
+		return cut.flatMap((s) => this.finish({ ...s, status: "failed", endedAt: this.now() }, s.pos)?.step ?? [])
 	}
 
-	private finished(where: string, ...args: unknown[]): RunStep[] {
-		return this.sql
-			.exec<Row>(`SELECT ${COLUMNS} FROM run_steps WHERE ${where}`, ...args)
+	/** One agent's steps heard from `after` up to, not including, `upTo`, oldest first. Reads the whole table: no index costs a write per step. */
+	window(slug: string, after: number, upTo = Number.MAX_SAFE_INTEGER): RunStep[] {
+		const done = this.sql
+			.exec<Row>(`SELECT ${COLUMNS} FROM run_steps WHERE slug = ? AND pos >= ? AND pos < ?`, slug, after, upTo)
 			.toArray()
 			.map(toStep)
+		const own = [...this.running.values()].filter((s) => s.slug === slug && s.pos >= after && s.pos < upTo)
+		return [...done, ...own].sort(byStart)
 	}
 
-	/** Every step of a run, oldest first. */
-	of(runId: string): RunStep[] {
-		const own = [...this.running.values()].filter((s) => s.runId === runId)
-		return [...this.finished("run_id = ?", runId), ...own].sort((a, b) => a.startedAt - b.startedAt || (a.id < b.id ? -1 : 1))
+	/** How many steps one agent made from `after` on that the room has heard of: stored, and running now. */
+	count(slug: string, after: number): number {
+		const done = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM run_steps WHERE slug = ? AND pos >= ?", slug, after).one().n
+		return done + [...this.running.values()].filter((s) => s.slug === slug && s.pos >= after).length
 	}
 
-	/** The steps of runs that have not ended, oldest first: those running now, and those finished. */
-	live(): RunStep[] {
-		const done = this.finished(
-			"started_at > ? AND run_id NOT IN (SELECT run_id FROM ended_runs) ORDER BY started_at DESC LIMIT ?",
-			this.now() - LIVE_WINDOW_MS,
-			LIVE_LIMIT,
-		)
-		return [...done, ...this.running.values()].sort((a, b) => a.startedAt - b.startedAt || (a.id < b.id ? -1 : 1))
-	}
-
-	/** How many steps each run has made that the room has heard of: stored, and running now. One query for the batch, by primary key. */
-	counts(runIds: readonly string[]): Map<string, number> {
-		const out = new Map<string, number>()
-		if (!runIds.length) return out
-		for (const r of this.sql
-			.exec<{ run_id: string; n: number }>(
-				"SELECT run_id, count(*) AS n FROM run_steps WHERE run_id IN (SELECT value FROM json_each(?)) GROUP BY run_id",
-				JSON.stringify(runIds),
-			)
-			.toArray())
-			out.set(r.run_id, r.n)
-		for (const s of this.running.values()) if (runIds.includes(s.runId)) out.set(s.runId, (out.get(s.runId) ?? 0) + 1)
-		return out
-	}
-
-	count(runId: string): number {
-		return this.counts([runId]).get(runId) ?? 0
+	/** Each agent's steps from its `after` on: the steps no message opens yet. At most TAIL_LIMIT, the newest, none older than a day. */
+	tails(after: ReadonlyMap<string, number>): RunStep[] {
+		if (!after.size) return []
+		const from = Math.min(...after.values())
+		const since = this.now() - TAIL_WINDOW_MS
+		const done = this.sql
+			.exec<Row>(`SELECT ${COLUMNS} FROM run_steps WHERE pos >= ? AND started_at > ? ORDER BY started_at DESC LIMIT ?`, from, since, TAIL_LIMIT)
+			.toArray()
+			.map(toStep)
+		return [...done, ...this.running.values()].filter((s) => s.pos >= (after.get(s.slug) ?? Number.MAX_SAFE_INTEGER)).sort(byStart)
 	}
 }

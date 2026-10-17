@@ -15,22 +15,22 @@ const [anchors, setAnchors] = createSignal<Readonly<Record<string, readonly HTML
 
 export { openRun }
 
-export const toggleRun = (runId: string) => setOpenRun((open) => (open === runId ? null : runId))
+export const toggleRun = (windowKey: string) => setOpenRun((open) => (open === windowKey ? null : windowKey))
 export const closeRun = () => setOpenRun(null)
 
 /** Registers a chevron of a run. Returns the call that takes it back. */
-export function registerRunAnchor(runId: string, element: HTMLElement): () => void {
-  setAnchors((all) => ({ ...all, [runId]: [...(all[runId] ?? []), element] }))
+export function registerRunAnchor(windowKey: string, element: HTMLElement): () => void {
+  setAnchors((all) => ({ ...all, [windowKey]: [...(all[windowKey] ?? []), element] }))
   return () =>
     setAnchors((all) => {
-      const left = (all[runId] ?? []).filter((e) => e !== element)
-      const { [runId]: _, ...rest } = all
-      return left.length ? { ...rest, [runId]: left } : rest
+      const left = (all[windowKey] ?? []).filter((e) => e !== element)
+      const { [windowKey]: _, ...rest } = all
+      return left.length ? { ...rest, [windowKey]: left } : rest
     })
 }
 
 /** The newest chevron of a run that is in the page, or undefined. */
-export const runAnchor = (runId: string): HTMLElement | undefined => anchors()[runId]?.findLast((e) => e.isConnected)
+export const runAnchor = (windowKey: string): HTMLElement | undefined => anchors()[windowKey]?.findLast((e) => e.isConnected)
 
 /** Loads the panel's chunk ahead of the click. */
 export const preloadRunPanel = () => void import("./RunPanel")

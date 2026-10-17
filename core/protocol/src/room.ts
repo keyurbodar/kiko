@@ -41,7 +41,7 @@ export type RunStep = {
 	name: string
 	/** The Composio toolkit slug when the call went to a Composio app, such as "gmail". */
 	app?: string
-	/** Set when a background worker made the call. Its steps belong to the run that started the worker. */
+	/** Set when a background worker made the call. Its steps belong to the agent's next bubble, as every step does. */
 	worker?: { id: string; task: string }
 	/** What the call does, in words: "Read /plan.md", "Ran bun test". */
 	label: string
@@ -52,6 +52,8 @@ export type RunStep = {
 	endedAt?: number
 	/** The result as text, cut to 4,000 characters, credentials removed. Absent while running. */
 	output?: string
+	/** The room's last event seq when it heard of the step. The agent's first bubble at a later seq opens it. */
+	pos: number
 }
 
 export type SystemEvent =
@@ -114,10 +116,13 @@ export type Message = {
 	to?: AgentSlug | "all"
 	initiative?: { reason: string }
 	event?: SystemEvent | UnknownSystemEvent
-	/** How many steps the run that posted this bubble had started when the bubble was posted. The bubble opens those since the run's previous bubble. Absent when none. */
+	/**
+	 * How many steps the agent made since its previous message, counted when this one was posted. The bubble opens them:
+	 * the steps whose `pos` is at least `stepAfter` and below this message's seq. Absent when none.
+	 */
 	steps?: number
-	/** How many steps its run has made by now. The run's last bubble also opens the steps after it once the run ends, such as a background worker's. Absent when none. */
-	runSteps?: number
+	/** The seq of the agent's previous message, or 0. Set with `steps`. */
+	stepAfter?: number
 }
 
 export type Member = {
@@ -186,7 +191,7 @@ export type RoomSnapshot = {
 	folders: readonly string[]
 	agents?: readonly AgentStatus[]
 	asks?: readonly HumanAsk[]
-	/** The steps of every run still going, so a client that reconnects paints the open panel at once. */
+	/** Each agent's steps since its last message, so a client that reconnects paints the typing row's panel at once. */
 	steps?: readonly RunStep[]
 }
 
@@ -216,8 +221,8 @@ export type ClientToRoom =
 	| { t: "skip"; id: string }
 	/** Runs the input again that a `run_error` message reports. `messageId` is that message. */
 	| { t: "retry"; messageId: MessageId }
-	/** Asks for every step of one run. The room answers with a `steps` frame. */
-	| { t: "steps"; runId: string }
+	/** Asks for one agent's steps with `pos` from `after` up to, not including, `upTo`. The room answers with a `steps` frame. */
+	| { t: "steps"; slug: AgentSlug; after: number; upTo?: number }
 
 export type RunErrorKind = "no_key" | "signed_out" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "refused" | "too_long" | "other"
 
@@ -237,8 +242,8 @@ export type RoomToClient =
 	| ({ t: "status" } & AgentStatus)
 	/** Not stored in the log. A step started or ended. The whole step each time; the client replaces the one it has. */
 	| { t: "step"; step: RunStep }
-	/** Not stored in the log. Every step of one run, the answer to a `steps` request. */
-	| { t: "steps"; runId: string; steps: readonly RunStep[] }
+	/** Not stored in the log. The answer to a `steps` request, with the request's window. */
+	| { t: "steps"; slug: AgentSlug; after: number; upTo?: number; steps: readonly RunStep[] }
 	/** Not stored. Sent only to the socket whose `member` frame changed nothing, so it can drop its optimistic patch. */
 	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
 	/** Not stored. Sent only to the socket whose `send` stored nothing because its attachments could not be claimed. */

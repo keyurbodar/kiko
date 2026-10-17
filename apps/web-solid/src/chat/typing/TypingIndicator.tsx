@@ -61,7 +61,7 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
           <span class="typing-dot" />
         </span>
       </div>
-      <Show when={useApp.typingRun(props.seed)}>{(runId) => <RunChevron runId={runId()} class="typing-run" />}</Show>
+      <Show when={useApp.typingRun(props.seed)}>{(windowKey) => <RunChevron windowKey={windowKey()} class="typing-run" />}</Show>
       <span class="typing-doing" data-component="typing-doing" aria-hidden="true">
         {caption()}
       </span>

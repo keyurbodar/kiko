@@ -124,8 +124,8 @@ export type MockRoom = {
 	store(...events: WithoutStored<RoomEvent>[]): RoomEvent[]
 	/** Sends a frame that is not stored, such as `typing` or `draft`. */
 	broadcast(frame: RoomToClient): void
-	/** Every step sent through `step`, by run id. A `steps` request is answered from here. */
-	readonly runSteps: Record<string, RunStep[]>
+	/** Every step sent through `step`, by agent. A `steps` request is answered from here. */
+	readonly agentSteps: Record<string, RunStep[]>
 	/** Sends one step live and keeps it, as the room does. */
 	step(step: RunStep): void
 	/** When set, the next send is stored and then the socket drops before the `ack`. */
@@ -174,7 +174,7 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		return structuredClone({ ...data })
 	}
 
-	const runSteps: Record<string, RunStep[]> = {}
+	const agentSteps: Record<string, RunStep[]> = {}
 
 	const has = (id: MessageId) => data.messages.some((m) => m.id === id)
 
@@ -236,7 +236,8 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		typing() {},
 		stop() {},
 		steps(peer, f) {
-			peer.push({ t: "steps", runId: f.runId, steps: structuredClone(runSteps[f.runId] ?? []) })
+			const steps = (agentSteps[f.slug] ?? []).filter((s) => s.pos >= f.after && (f.upTo === undefined || s.pos < f.upTo))
+			peer.push({ t: "steps", slug: f.slug, after: f.after, ...(f.upTo !== undefined ? { upTo: f.upTo } : {}), steps: structuredClone(steps) })
 		},
 		// A plain substring match stands in for the room's index. Every word must appear.
 		search(peer, f) {
@@ -341,9 +342,9 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		broadcast(frame) {
 			for (const p of peers) p.push(frame)
 		},
-		runSteps,
+		agentSteps,
 		step(step) {
-			const list = (runSteps[step.runId] ??= [])
+			const list = (agentSteps[step.slug] ??= [])
 			const at = list.findIndex((x) => x.id === step.id)
 			if (at === -1) list.push(step)
 			else list[at] = step

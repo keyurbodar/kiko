@@ -11,6 +11,7 @@ import type {
 	RoomEvent,
 	RoomSnapshot,
 	RunRef,
+	RunStep,
 	Sender,
 	SystemEvent,
 	RoomId } from "@kiko/protocol"
@@ -18,7 +19,7 @@ import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
 import { listAsks } from "./human-asks"
 import { agentStatuses } from "./status"
-import { RunSteps } from "./steps"
+import { type HeardStep, RunSteps } from "./steps"
 import { listTasks } from "./workspace"
 
 export const REPLAY_LIMIT = 500
@@ -71,6 +72,7 @@ type MessageRow = {
 	addressed: string | null
 	initiative: string | null
 	steps: number | null
+	step_after: number | null
 	event: string | null
 }
 
@@ -99,8 +101,10 @@ function actorFromKey(key: string): Actor {
 }
 
 export class RoomLog {
-	/** The tool calls of runs. The log reads them for the counts and the snapshot; the room writes them. */
+	/** The tool calls of agents. The log stamps them as it hears them and counts each agent's since its last message. */
 	readonly steps: RunSteps
+	/** Each agent's open window: the seq of its last message, and how many steps it made since. Read once per wake. */
+	private readonly windows = new Map<string, { after: number; count: number }>()
 
 	constructor(
 		private readonly storage: DurableObjectStorage,
@@ -111,6 +115,41 @@ export class RoomLog {
 
 	private get sql() {
 		return this.storage.sql
+	}
+
+	private window(slug: string): { after: number; count: number } {
+		let open = this.windows.get(slug)
+		if (!open) {
+			const after =
+				this.sql
+					.exec<{ seq: number }>(
+						"SELECT seq FROM messages WHERE json_extract(sender, '$.kind') = 'agent' AND json_extract(sender, '$.slug') = ? ORDER BY seq DESC LIMIT 1",
+						slug,
+					)
+					.toArray()[0]?.seq ?? 0
+			open = { after, count: this.steps.count(slug, after) }
+			this.windows.set(slug, open)
+		}
+		return open
+	}
+
+	/** A step began or ended. Stamps it with the last seq and returns it when the panel should hear of it. */
+	hearStep(heard: HeardStep): RunStep | null {
+		const pos = this.lastSeq()
+		if (heard.status === "running") {
+			const step = this.steps.start(heard, pos)
+			if (step) this.counted(step.slug)
+			return step
+		}
+		const ended = this.steps.finish(heard, pos)
+		if (ended?.fresh) this.counted(ended.step.slug)
+		return ended?.step ?? null
+	}
+
+	// A window not read yet counts the step when it is read.
+	private counted(slug: string): void {
+		const open = this.windows.get(slug)
+		if (open) open.count++
 	}
 
 	lastSeq(): number {
@@ -156,11 +195,15 @@ export class RoomLog {
 				SNAPSHOT_MESSAGES,
 			)
 			.toArray()
-		const steps = this.steps.live()
+		const members = listMembers(this.storage)
+		// Only an agent with steps since its last message has a tail to send.
+		const open = new Map(members.map((m) => [m.slug as string, this.window(m.slug)] as const))
+		const pending = new Map([...open].flatMap(([slug, w]) => (w.count ? [[slug, w.after] as const] : [])))
+		const steps = this.steps.tails(pending)
 		return {
 			seq: this.lastSeq(),
 			readSeq: this.readSeq(),
-			members: listMembers(this.storage),
+			members,
 			messages: this.withReactions(rows),
 			tasks: listTasks(this.storage),
 			...listSpace(this.storage, ROOM_TABLES),
@@ -221,8 +264,7 @@ export class RoomLog {
 			list.push({ by: actorFromKey(x.actor), emoji: x.emoji })
 			reactions.set(x.message_id, list)
 		}
-		const totals = this.steps.counts([...new Set(rows.flatMap((r) => (r.run_id !== null ? [r.run_id] : [])))])
-		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies, totals))
+		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies))
 	}
 
 	/** A live (not deleted) message, or null. */
@@ -296,8 +338,9 @@ export class RoomLog {
 			const earlier = input.clientId ? this.sentBefore(input.clientId) : input.run ? this.messageForRun(input.run) : null
 			if (earlier) return { ...earlier, event: null }
 			const id = crypto.randomUUID() as MessageId
-			// Counted once, when the bubble is posted, and kept: the steps the room has heard of by then are the bubble's and its run's earlier bubbles'.
-			const runSteps = input.run ? this.steps.count(input.run.runId) : 0
+			// Counted once, when the message is posted, and kept: the agent's steps the room has heard of since its last message.
+			const open = input.from.kind === "agent" ? this.window(input.from.slug) : null
+			const steps = open?.count ?? 0
 			const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
 			const message: Omit<Message, "seq" | "at"> = {
 				id,
@@ -308,7 +351,7 @@ export class RoomLog {
 				...(reply ? { reply } : {}),
 				...(input.files?.length ? { files: input.files } : {}),
 				...(input.run ? { run: input.run } : {}),
-				...(runSteps ? { steps: runSteps, runSteps } : {}),
+				...(open && steps ? { steps, stepAfter: open.after } : {}),
 				...(input.goto ? { goto: input.goto } : {}),
 				...(input.quote ? { quote: input.quote } : {}),
 				...(input.to ? { to: input.to } : {}),
@@ -321,8 +364,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps, step_after)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -339,8 +382,10 @@ export class RoomLog {
 				input.to ?? null,
 				input.initiative?.reason ?? null,
 				input.event ? JSON.stringify(input.event) : null,
-				runSteps || null,
+				steps || null,
+				open && steps ? open.after : null,
 			)
+			if (input.from.kind === "agent") this.windows.set(input.from.slug, { after: event.seq, count: 0 })
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
 			}
@@ -483,10 +528,7 @@ export class RoomLog {
 	}
 
 	/** `reactions` are the message's, when the caller loaded them for many rows at once. */
-	/** `totals` are the step counts of the rows' runs, when the caller loaded them for many rows at once. */
-	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>, totals?: ReadonlyMap<string, number>): Message {
-		const steps = r.steps ?? 0
-		const runSteps = r.run_id === null ? 0 : ((totals ?? this.steps.counts([r.run_id])).get(r.run_id) ?? 0)
+	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>): Message {
 		const reply = r.reply_to ? (replies ?? this.previews([r.reply_to])).get(r.reply_to) : undefined
 		const reactions: Reaction[] =
 			preloaded ??
@@ -510,8 +552,7 @@ export class RoomLog {
 			...(r.run_id !== null
 				? { run: { runId: r.run_id, attempt: r.run_attempt ?? 0, index: r.run_index ?? 0 } }
 				: {}),
-			...(steps ? { steps } : {}),
-			...(runSteps ? { runSteps } : {}),
+			...(r.steps ? { steps: r.steps, stepAfter: r.step_after ?? 0 } : {}),
 			...(r.edited_at !== null ? { editedAt: r.edited_at } : {}),
 			...(r.goto ? { goto: r.goto as RoomId } : {}),
 			...(r.quote ? { quote: r.quote } : {}),

@@ -237,64 +237,40 @@ export function upsertStep(steps: readonly RunStep[], step: RunStep): RunStep[] 
   return next.sort(byStart)
 }
 
-// Which bubble opens a run
-
-/** A bubble of a run, how many steps the run had made when the bubble was posted, and how many it has made by now. */
-export type RunBubble = { id: string; steps: number; total: number }
+// Which bubble opens which steps
 
 /**
- * The bubbles of each server run, in list order. Each bubble opens the steps the run made since
- * its previous bubble, as t3code puts each group of tool calls before the message that follows it.
+ * A run panel opens one window of an agent's steps: those heard from `after` up to, not including, `upTo`.
+ * Its key names the agent and the start, so the typing row's window and the bubble that later lands for it
+ * share a key, and an open panel follows from one to the other.
  */
-export function runBubbles(messages: readonly { id: string; runId?: string; steps?: number; runSteps?: number }[]): Map<string, RunBubble[]> {
-  const runs = new Map<string, RunBubble[]>()
+export type StepWindow = { key: string; slug: string; after: number; upTo: number; steps: number }
+
+export const windowKey = (slug: string, after: number) => `${slug}#${after}`
+
+/**
+ * The windows of the agents' messages in view, by key, and each agent's open window after its last message.
+ * Each message opens its agent's steps since that agent's previous message, as t3code puts each group of
+ * tool calls before the message that follows it.
+ */
+export function stepWindows(messages: readonly { seq?: number; botId?: string; steps?: number; stepAfter?: number }[]): {
+  closed: Map<string, StepWindow>
+  open: Map<string, number>
+} {
+  const closed = new Map<string, StepWindow>()
+  const open = new Map<string, number>()
   for (const m of messages) {
-    if (!m.runId) continue
-    const list = runs.get(m.runId)
-    const steps = Math.max(m.steps ?? 0, list?.at(-1)?.steps ?? 0)
-    const bubble = { id: m.id, steps, total: Math.max(steps, m.runSteps ?? 0) }
-    if (list) list.push(bubble)
-    else runs.set(m.runId, [bubble])
+    if (!m.botId || m.seq === undefined) continue
+    open.set(m.botId, Math.max(open.get(m.botId) ?? 0, m.seq))
+    if (!m.steps) continue
+    const after = m.stepAfter ?? 0
+    closed.set(windowKey(m.botId, after), { key: windowKey(m.botId, after), slug: m.botId, after, upTo: m.seq, steps: m.steps })
   }
-  return runs
+  return { closed, open }
 }
 
-/**
- * A slice of a run's steps in start order: `[start, end)`. Its key names it by the run and the first
- * step it holds, so the typing row's slice and the bubble that later lands for it share a key, and an
- * open panel follows from one to the other.
- */
-export type Segment = { key: string; runId: string; start: number; end: number }
-
-export const segmentKey = (runId: string, start: number) => `${runId}#${start}`
-
-export function parseSegment(key: string): { runId: string; start: number } {
-  const at = key.lastIndexOf("#")
-  return { runId: key.slice(0, at), start: Number(key.slice(at + 1)) }
-}
-
-/**
- * The slice a bubble opens. While its run goes on, the steps after its last bubble belong to the
- * typing row. Once the run ends they join the last bubble, so a background worker's steps land there.
- */
-export function bubbleSegment(runId: string, bubbles: readonly RunBubble[], index: number, live: boolean): Segment {
-  const start = index > 0 ? (bubbles[index - 1]?.steps ?? 0) : 0
-  const last = index === bubbles.length - 1
-  const end = last && !live ? Number.POSITIVE_INFINITY : (bubbles[index]?.steps ?? start)
-  return { key: segmentKey(runId, start), runId, start, end }
-}
-
-/** The slice the typing row opens while the run goes on: every step after the run's last bubble. */
-export function tailSegment(runId: string, bubbles: readonly RunBubble[]): Segment {
-  const start = bubbles.at(-1)?.steps ?? 0
-  return { key: segmentKey(runId, start), runId, start, end: Number.POSITIVE_INFINITY }
-}
-
-/** How many steps a run has made, as the newest word from any of its bubbles says. */
-export const runTotal = (bubbles: readonly RunBubble[]) => bubbles.reduce((n, b) => Math.max(n, b.total), 0)
-
-/** How many steps a slice holds, from what is loaded and what the bubbles report. */
-export const segmentSize = (segment: Segment, loaded: number, known: number) => Math.min(segment.end, Math.max(loaded, known)) - segment.start
+/** The steps of one agent that fall in a window, in start order. */
+export const inWindow = (steps: readonly RunStep[], after: number, upTo = Number.POSITIVE_INFINITY) => steps.filter((s) => s.pos >= after && s.pos < upTo)
 
 // The panel's rows
 

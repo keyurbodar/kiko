@@ -179,6 +179,7 @@ export const RunStep = Schema.Struct({
 	startedAt: Count,
 	endedAt: Schema.optionalKey(Count),
 	output: Schema.optionalKey(Schema.String),
+	pos: Count,
 })
 
 export const RunRef = Schema.Struct({ runId: Id, attempt: Count, index: Count })
@@ -205,7 +206,7 @@ export const Message = Schema.Struct({
 	initiative: Schema.optionalKey(Schema.Struct({ reason: Schema.String })),
 	event: Schema.optionalKey(Schema.Union([SystemEvent, UnknownSystemEvent])),
 	steps: Schema.optionalKey(Count),
-	runSteps: Schema.optionalKey(Count),
+	stepAfter: Schema.optionalKey(Count),
 })
 
 export const ThinkingLevel = Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
@@ -357,7 +358,7 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("answer"), id: Id, value: Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Array(Schema.String)]))]) }),
 	Schema.Struct({ t: Schema.Literal("skip"), id: Id }),
 	Schema.Struct({ t: Schema.Literal("retry"), messageId: MessageId }),
-	Schema.Struct({ t: Schema.Literal("steps"), runId: Id }),
+	Schema.Struct({ t: Schema.Literal("steps"), slug: AgentSlug, after: Count, upTo: Schema.optionalKey(Count) }),
 ])
 
 export const RoomToClient = Schema.Union([
@@ -368,7 +369,7 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("status"), ...AgentStatus.fields }),
 	Schema.Struct({ t: Schema.Literal("step"), step: RunStep }),
-	Schema.Struct({ t: Schema.Literal("steps"), runId: Id, steps: Schema.Array(RunStep) }),
+	Schema.Struct({ t: Schema.Literal("steps"), slug: AgentSlug, after: Count, upTo: Schema.optionalKey(Count), steps: Schema.Array(RunStep) }),
 	Schema.Struct({
 		t: Schema.Literal("member_refused"),
 		op: MemberOp,

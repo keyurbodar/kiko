@@ -61,7 +61,7 @@ export function MessageRow(props: {
   const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
   const hasFiles = () => files().length > 0
   // The first bubble of a run that made steps opens the run panel. A bubble the pacer holds is not in the list yet.
-  const runId = () => (own() ? undefined : useApp.runChevron(props.message))
+  const windowKey = () => (own() ? undefined : useApp.runChevron(props.message))
   return (
     <div
       class={cn(
@@ -158,11 +158,11 @@ export function MessageRow(props: {
           side={props.message.sender}
           onToggle={props.onReact}
         />
-        <Show when={runId()}>{(id) => <RunChevron runId={id()} class="absolute top-0 left-full ml-1" />}</Show>
+        <Show when={windowKey()}>{(id) => <RunChevron windowKey={id()} class="absolute top-0 left-full ml-1" />}</Show>
         <Show when={props.onReact && props.onReply && props.onMore}>
           <MessageActions
             side={props.message.sender}
-            reserve={runId() ? CHEVRON_SIZE + 4 : 0}
+            reserve={windowKey() ? CHEVRON_SIZE + 4 : 0}
             onReact={(emoji) => props.onReact!(emoji)}
             onReply={() => props.onReply!()}
             onMore={(anchor) => props.onMore!(anchor)}

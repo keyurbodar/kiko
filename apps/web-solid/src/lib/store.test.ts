@@ -86,12 +86,12 @@ describe("projections", () => {
     expect(pending.seq).toBeUndefined()
   })
 
-  test("a bubble keeps its run and its step count, and a new step count rebuilds its row", () => {
+  test("a bubble keeps its step window, and a new window rebuilds its row", () => {
     const base = { id: "m4" as MessageId, seq: 4, at: 1, from: ada, text: "done", run: { runId: "run1", attempt: 0, index: 0 } }
-    expect(toChatMessage({ ...base, steps: 3 }, fixtures.roomId)).toMatchObject({ runId: "run1", steps: 3 })
+    expect(toChatMessage({ ...base, steps: 3, stepAfter: 2 }, fixtures.roomId)).toMatchObject({ steps: 3, stepAfter: 2 })
     expect(toChatMessage(base, fixtures.roomId).steps).toBeUndefined()
     expect(signature({ ...base, steps: 3 })).not.toBe(signature({ ...base, steps: 4 }))
-    expect(signature(base)).not.toBe(signature({ ...base, run: { runId: "run2", attempt: 0, index: 0 } }))
+    expect(signature({ ...base, steps: 3, stepAfter: 1 })).not.toBe(signature({ ...base, steps: 3, stepAfter: 2 }))
   })
 
   test("a message stored with the old media fields draws as plain attachments", () => {

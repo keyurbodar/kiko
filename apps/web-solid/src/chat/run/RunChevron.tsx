@@ -12,13 +12,13 @@ export const CHEVRON_SIZE = 32
  * Opens the run panel for a run. Always visible and muted, beside the run's first bubble or its
  * typing row. A click is the only way the panel opens. State changes at once, with no motion.
  */
-export function RunChevron(props: { runId: string; class?: string }) {
+export function RunChevron(props: { windowKey: string; class?: string }) {
   let button: HTMLButtonElement | undefined
   createEffect(() => {
     const element = button
-    if (element) onCleanup(registerRunAnchor(props.runId, element))
+    if (element) onCleanup(registerRunAnchor(props.windowKey, element))
   })
-  const open = () => openRun() === props.runId
+  const open = () => openRun() === props.windowKey
   return (
     <button
       ref={button}
@@ -38,8 +38,8 @@ export function RunChevron(props: { runId: string; class?: string }) {
       onPointerEnter={preloadRunPanel}
       onFocus={preloadRunPanel}
       onClick={() => {
-        toggleRun(props.runId)
-        useApp.loadRunSteps(props.runId)
+        toggleRun(props.windowKey)
+        useApp.loadRunSteps(props.windowKey)
       }}
     >
       <HugeIcon icon={ChevronRightIcon} size={16} />

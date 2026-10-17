@@ -649,22 +649,22 @@ describe("the room store", () => {
 
 describe("run steps", () => {
 	const ada = fixtures.ada
-	const make1 = (id: string, over: Partial<RunStep> = {}): RunStep => ({ id, runId: "run1", slug: ada, tool: "read", name: "read", label: "Read /a.md", status: "running", startedAt: 1000, ...over })
+	const make1 = (id: string, over: Partial<RunStep> = {}): RunStep => ({ id, runId: "run1", slug: ada, tool: "read", name: "read", label: "Read /a.md", status: "running", startedAt: 1000, pos: 5, ...over })
 
-	test("a step frame files under its run, replaces by id, and a late running frame cannot undo done", async () => {
+	test("a step frame files under its agent, replaces by id, and a late running frame cannot undo done", async () => {
 		const { mock, make } = setup()
 		const { store } = await make()
 		await until(() => store.state.seq === LAST)
 		mock.broadcast({ t: "step", step: make1("a", { startedAt: 2000 }) })
 		mock.broadcast({ t: "step", step: make1("b", { startedAt: 1000 }) })
-		await until(() => store.state.steps.run1?.length === 2)
-		expect(store.state.steps.run1.map((s) => s.id)).toEqual(["b", "a"])
-		expect(store.state.live[ada]).toBe("run1")
+		await until(() => store.state.steps[ada]?.length === 2)
+		expect(store.state.steps[ada].map((s) => s.id)).toEqual(["b", "a"])
+		expect(store.state.live[ada]).toBe(true)
 		mock.broadcast({ t: "step", step: make1("a", { startedAt: 2000, status: "done", output: "ok", endedAt: 2400 }) })
 		mock.broadcast({ t: "step", step: make1("a", { startedAt: 2000 }) })
-		await until(() => store.state.steps.run1.find((s) => s.id === "a")?.status === "done")
+		await until(() => store.state.steps[ada].find((s) => s.id === "a")?.status === "done")
 		await sleep(10)
-		expect(store.state.steps.run1.find((s) => s.id === "a")).toMatchObject({ status: "done", output: "ok" })
+		expect(store.state.steps[ada].find((s) => s.id === "a")).toMatchObject({ status: "done", output: "ok" })
 		store.close()
 	})
 
@@ -673,26 +673,26 @@ describe("run steps", () => {
 		const { store } = await make()
 		await until(() => store.state.seq === LAST)
 		mock.broadcast({ t: "step", step: make1("a") })
-		await until(() => store.state.live[ada] === "run1")
+		await until(() => store.state.live[ada] === true)
 		mock.broadcast({ t: "status", slug: ada, state: "idle" })
 		await until(() => store.state.live[ada] === undefined)
-		expect(store.state.steps.run1).toHaveLength(1)
+		expect(store.state.steps[ada]).toHaveLength(1)
 		store.close()
 	})
 
-	test("requestSteps asks the room, shows fetching, and the answer fills the run", async () => {
+	test("requestSteps asks for one window, shows fetching, and the answer fills only that window", async () => {
 		const { mock, make } = setup()
 		const { store } = await make()
 		await until(() => store.state.seq === LAST)
-		mock.runSteps.run9 = [make1("x", { runId: "run9", status: "done", output: "hello", endedAt: 1100 })]
-		store.requestSteps("run9")
-		expect(store.state.fetching.run9).toBe(true)
-		await until(() => store.state.steps.run9?.length === 1)
-		expect(store.state.fetching.run9).toBeUndefined()
-		expect(store.state.steps.run9[0].output).toBe("hello")
-		store.requestSteps("run9")
+		mock.agentSteps[ada] = [make1("x", { status: "done", output: "hello", endedAt: 1100, pos: 3 }), make1("y", { status: "done", endedAt: 1100, pos: 9 })]
+		store.requestSteps(ada, 2, 6)
+		expect(store.state.fetching[`${ada}#2`]).toBe(true)
+		await until(() => store.state.steps[ada]?.length === 1)
+		expect(store.state.fetching[`${ada}#2`]).toBeUndefined()
+		expect(store.state.steps[ada].map((s) => s.output)).toEqual(["hello"])
+		store.requestSteps(ada, 2, 6)
 		await sleep(20)
-		expect(mock.received.filter((f) => f.t === "steps")).toEqual([{ t: "steps", runId: "run9" }])
+		expect(mock.received.filter((f) => f.t === "steps")).toEqual([{ t: "steps", slug: ada, after: 2, upTo: 6 }])
 		store.close()
 	})
 
@@ -704,8 +704,8 @@ describe("run steps", () => {
 		await until(() => store.state.seq === LAST)
 		const reset = { t: "reset" as const, snapshot: { ...snapshot, seq: LAST + 1 } }
 		mock.broadcast(reset)
-		await until(() => store.state.steps.run1?.length === 1)
-		expect(store.state.live[ada]).toBe("run1")
+		await until(() => store.state.steps[ada]?.length === 1)
+		expect(store.state.live[ada]).toBe(true)
 		store.close()
 	})
 
@@ -714,11 +714,11 @@ describe("run steps", () => {
 		const { store } = await make()
 		await until(() => store.state.seq === LAST)
 		mock.broadcast({ t: "step", step: make1("a") })
-		await until(() => store.state.live[ada] === "run1")
+		await until(() => store.state.live[ada] === true)
 		mock.drop()
 		await until(() => store.state.connection !== "open")
 		expect(store.state.live).toEqual({})
-		expect(store.state.steps.run1).toHaveLength(1)
+		expect(store.state.steps[ada]).toHaveLength(1)
 		store.close()
 	})
 })

@@ -266,10 +266,10 @@ const AT_END = 4
 
 const clockTime = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
 
-function Body(props: { runId: string }) {
-  focusRun = props.runId
-  const steps = createMemo(() => unwrap(useApp.runSteps(props.runId)) as readonly RunStep[])
-  const live = createMemo(() => useApp.runLive(props.runId) || anyRunning(steps()))
+function Body(props: { windowKey: string }) {
+  focusRun = props.windowKey
+  const steps = createMemo(() => unwrap(useApp.runSteps(props.windowKey)) as readonly RunStep[])
+  const live = createMemo(() => useApp.runLive(props.windowKey) || anyRunning(steps()))
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set())
   const [workers, setWorkers] = createSignal<ReadonlySet<string>>(new Set())
   const toggle = (set: typeof setExpanded, id: string) =>
@@ -350,7 +350,7 @@ function Body(props: { runId: string }) {
                     step={entry.step}
                     child={entry.child}
                     open={expanded().has(entry.step.id)}
-                    loading={useApp.runFetching(props.runId)}
+                    loading={useApp.runFetching(props.windowKey)}
                     onToggle={() => toggle(setExpanded, entry.step.id)}
                   />
                 )
@@ -430,7 +430,7 @@ export default function RunPanel() {
           }}
         >
           <Show when={shown()} keyed>
-            {(run) => <Body runId={run} />}
+            {(run) => <Body windowKey={run} />}
           </Show>
         </PopoverV2.Content>
       </PopoverV2.Portal>

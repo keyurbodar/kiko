@@ -25,7 +25,7 @@ import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
 import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
-import { bubbleSegment, parseSegment, runBubbles, runTotal, segmentSize, tailSegment } from "../chat/run/run-log"
+import { inWindow, stepWindows, windowKey } from "../chat/run/run-log"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
@@ -87,7 +87,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 export function signature(m: ViewMessage): string {
   let reactions = ""
   for (const r of m.reactions ?? []) reactions += `${reactionKey(r)}=${r.emoji},`
-  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}|${m.run?.runId ?? ""}|${m.steps ?? 0}|${m.runSteps ?? 0}`
+  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}|${m.steps ?? 0}|${m.stepAfter ?? 0}`
 }
 
 /** The transcript's view of one protocol message. */
@@ -110,9 +110,10 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.quote) out.quote = m.quote
   if (m.to) out.to = m.to
   if (m.initiative) out.initiative = m.initiative.reason
-  if (m.run) out.runId = m.run.runId
-  if (m.steps) out.steps = m.steps
-  if (m.runSteps) out.runSteps = m.runSteps
+  if (m.steps) {
+    out.steps = m.steps
+    out.stepAfter = m.stepAfter ?? 0
+  }
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   // A stored file keeps only what today's bubble reads, so an old message's media fields fall away here.
@@ -358,8 +359,8 @@ export function createApp(options: AppOptions = {}) {
       return rows
     })
 
-    /** The first bubble of each run in view, for the run panel's chevron. */
-    const runs = shared(() => runBubbles(activeRows()))
+    /** The step window of each agent message in view, and each agent's open one, for the run panel's chevron. */
+    const windows = shared(() => stepWindows(activeRows()))
 
     function openRoom(roomId: RoomId | null) {
       const current = room()
@@ -785,58 +786,49 @@ export function createApp(options: AppOptions = {}) {
         return this.typingSlugs().map((slug) => r?.state.doing[slug] ?? (r?.state.status[slug as never] === "working" ? "using a tool" : undefined))
       },
 
-      /**
-       * The slice of its run this bubble opens in the run panel, or undefined when it opens none.
-       * A bubble opens the steps its run made since the run's previous bubble.
-       */
+      /** The window of steps this bubble opens in the run panel, or undefined when it opens none. */
       runChevron(m: ChatMessage): string | undefined {
-        const bubbles = m.runId ? runs().get(m.runId) : undefined
-        const index = bubbles?.findIndex((b) => b.id === m.id) ?? -1
-        if (!m.runId || !bubbles || index < 0) return undefined
-        const segment = bubbleSegment(m.runId, bubbles, index, this.runLive(m.runId))
-        const loaded = room()?.state.steps[m.runId]?.length ?? 0
-        return segmentSize(segment, loaded, runTotal(bubbles)) > 0 ? segment.key : undefined
+        return m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined
       },
 
-      /** The slice an agent's typing row opens: the steps its run made since its last bubble, once there is one. */
+      /** The window an agent's typing row opens: its steps since its last message, once there is one. */
       typingRun(slug: string): string | undefined {
         const r = room()
-        const runId = r?.state.live[slug]
-        if (!r || !runId) return undefined
-        const segment = tailSegment(runId, runs().get(runId) ?? [])
-        return (r.state.steps[runId]?.length ?? 0) > segment.start ? segment.key : undefined
+        if (!r?.state.live[slug]) return undefined
+        const after = windows().open.get(slug) ?? 0
+        return inWindow(r.state.steps[slug] ?? [], after).length ? windowKey(slug, after) : undefined
       },
 
-      /** The steps of a slice this client holds, in start order. */
+      /** The steps of a window this client holds, in start order. */
       runSteps(key: string): readonly RunStep[] {
-        const { runId, start } = parseSegment(key)
-        const all = room()?.state.steps[runId] ?? []
-        const bubbles = runs().get(runId) ?? []
-        const index = bubbles.findIndex((b) => b.steps > start)
-        const end = index < 0 || (index === bubbles.length - 1 && !this.runLive(runId)) ? undefined : bubbles[index]?.steps
-        return all.slice(start, end)
+        const { slug, after, upTo } = this.stepWindow(key)
+        return inWindow(room()?.state.steps[slug] ?? [], after, upTo)
       },
 
-      /** True while an agent is in this run. A slice is live only while it is the run's open end. */
-      runLive(keyOrRun: string): boolean {
-        const live = room()?.state.live
-        if (!live) return false
-        if (!keyOrRun.includes("#")) return Object.values(live).includes(keyOrRun)
-        const { runId, start } = parseSegment(keyOrRun)
-        return Object.values(live).includes(runId) && start >= (runs().get(runId)?.at(-1)?.steps ?? 0)
+      /** A window by its key: a bubble's, or the open one after the agent's last message. */
+      stepWindow(key: string): { slug: string; after: number; upTo?: number; steps: number } {
+        const known = windows().closed.get(key)
+        if (known) return known
+        const at = key.lastIndexOf("#")
+        return { slug: key.slice(0, at), after: Number(key.slice(at + 1)), steps: 0 }
       },
 
-      /** Asks the room for the run's steps when this client holds fewer than the bubbles say it made. */
+      /** True while the agent is mid-run and the window is its open one, after its last message. */
+      runLive(key: string): boolean {
+        const { slug, upTo } = this.stepWindow(key)
+        return upTo === undefined && !!room()?.state.live[slug]
+      },
+
+      /** Asks the room for a bubble's steps when this client holds fewer than the bubble says it opens. */
       loadRunSteps(key: string) {
         const r = room()
-        const { runId } = parseSegment(key)
-        const known = runTotal(runs().get(runId) ?? [])
-        if (r && (r.state.steps[runId]?.length ?? 0) < known) r.requestSteps(runId)
+        const w = this.stepWindow(key)
+        if (r && w.upTo !== undefined && inWindow(r.state.steps[w.slug] ?? [], w.after, w.upTo).length < w.steps) r.requestSteps(w.slug, w.after, w.upTo)
       },
 
-      /** True while the steps of a slice's run are on their way. */
+      /** True while a window's steps are on their way. */
       runFetching(key: string): boolean {
-        return !!room()?.state.fetching[parseSegment(key).runId]
+        return !!room()?.state.fetching[key]
       },
 
       /** The slugs of the agents typing now, for the typing bubble's avatar. */

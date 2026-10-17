@@ -30,6 +30,7 @@ import { Team } from "./team"
 import { CHIEF, type GroupInput, type NewAgentSpec } from "./chief"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
+import type { HeardStep } from "./steps"
 import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
 import { agentStatuses, statusOf, workersKey } from "./status"
 import { dividerMessage, type Divider } from "./dividers"
@@ -853,14 +854,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const over = new Map<string, boolean>()
 		let latest: StepItem | undefined
 		for (const item of items) {
-			const step: RunStep = { ...item.step, slug }
-			// A worker's steps share the run that started it and keep coming after that run ends.
+			const step: HeardStep = { ...item.step, slug }
+			// A worker's steps keep coming after the run that started it ends.
 			if (step.status === "running" && !step.worker) {
 				const done = over.get(step.runId) ?? this.bubbles.ended(step.runId)
 				over.set(step.runId, done)
 				if (done) continue
 			}
-			const stored = step.status === "running" ? this.log.steps.start(step) : this.log.steps.finish(step)
+			const stored = this.log.hearStep(step)
 			if (stored) this.broadcast({ t: "step", step: stored })
 			if (item.doing && item.activity) latest = item
 		}
@@ -871,8 +872,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	runSteps(runId: string): RunStep[] {
-		return this.log.steps.of(runId)
+	stepWindow(slug: AgentSlug, after: number, upTo?: number): RunStep[] {
+		return this.log.steps.window(slug, after, upTo)
 	}
 
 	async teamNow(): Promise<{ slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]> {

@@ -852,6 +852,14 @@
           "notnull": 0,
           "dflt_value": null,
           "pk": 0
+        },
+        {
+          "cid": 21,
+          "name": "step_after",
+          "type": "INTEGER",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
         }
       ],
       "indexes": [
@@ -1347,6 +1355,14 @@
           "name": "output",
           "type": "TEXT",
           "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        },
+        {
+          "cid": 13,
+          "name": "pos",
+          "type": "INTEGER",
+          "notnull": 1,
           "dflt_value": null,
           "pk": 0
         }
