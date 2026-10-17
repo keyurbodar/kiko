@@ -1072,7 +1072,7 @@ export class UserDO extends DurableObject<Env> {
     if (!saved) return null
     if (!announce && JSON.stringify(saved) === JSON.stringify(before)) return saved
     this.commit({ t: "agent_model", slug, ...saved })
-    if (roomId && saved.model !== before?.model) this.ctx.waitUntil(Promise.resolve(roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).modelChanged(slug, saved.model)).catch(() => {}))
+    if (roomId && saved.model !== before?.model) this.ctx.waitUntil(Promise.resolve(roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).modelChanged(slug, saved.model, before?.model)).catch(() => {}))
     return saved
   }
 

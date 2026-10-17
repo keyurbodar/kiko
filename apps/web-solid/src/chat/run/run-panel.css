@@ -218,6 +218,20 @@
   padding-left: 40px;
 }
 
+/*
+ * The words a run wrote between two calls. It sits in the pane rather than the chat, so it reads as
+ * prose: no icon cell, no chevron, and the same indentation as a step's label.
+ */
+.run-note-text {
+  margin: 0;
+  padding: 2px 8px 2px 40px;
+  color: var(--run-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  cursor: auto;
+}
+
 .run-mono {
   margin: 0;
   font-family: var(--font-family-mono);

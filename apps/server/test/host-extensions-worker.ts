@@ -16,7 +16,7 @@ const stub = new Proxy({}, { get: () => () => ({}) }) as never
 
 export class T extends AgentDO {
 	protected override roomPort(): RoomPort {
-		return { post: async () => {}, draft: async () => {}, status: async () => {}, workers: async () => {}, endRun: async () => {}, react: async () => {} }
+		return { post: async () => {}, draft: async () => {}, note: async () => {}, status: async () => {}, workers: async () => {}, endRun: async () => {}, react: async () => {} }
 	}
 
 	protected override async setup(): Promise<AgentSetup> {

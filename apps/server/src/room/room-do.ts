@@ -65,6 +65,12 @@ const MAX_DOING = 160
 const DELEGATED_TITLE = 100
 const edit = (caption: string): Activity => ({ kind: "tool", tool: "edit", caption })
 
+/** A model reference as the human reads it, such as "Claude Opus 4.6", else the reference itself. */
+const modelNamed = (ref: string): string => {
+	const found = parseModelRef(ref)
+	return (found && findProvider(found.provider)?.getModels().find((m) => m.id === found.modelId)?.name) || ref
+}
+
 export const DEFAULT_AGENT = CHIEF
 const CHIEF_NAME = "Kiko"
 const KIKO_CHAT = "kiko_chat"
@@ -949,13 +955,17 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.ctx.waitUntil(userStub(this.env.USER, home.userId).setAgentModels(slugs, ref, home.roomId))
 	}
 
-	/** The user calls this when an agent in this chat changes model here. */
-	async modelChanged(slug: AgentSlug, ref: string): Promise<void> {
+	/** The user calls this when an agent in this chat changes model here. `was` is the model it ran on before. */
+	async modelChanged(slug: AgentSlug, ref: string, was?: string): Promise<void> {
 		const member = this.members.get(slug)
 		if (!member) return
-		const found = parseModelRef(ref)
-		const named = (found && findProvider(found.provider)?.getModels().find((m) => m.id === found.modelId)?.name) || ref
-		this.divider(`model:${slug}:${crypto.randomUUID()}`, `${member.name} now uses ${named}`, { kind: "model_changed", agent: slug, model: named, private: true })
+		const to = modelNamed(ref)
+		const from = was ? modelNamed(was) : undefined
+		this.divider(
+			`model:${slug}:${crypto.randomUUID()}`,
+			from ? `Context handoff from ${from} to ${to}` : `${member.name} now uses ${to}`,
+			{ kind: "model_changed", agent: slug, model: to, ...(from ? { from } : {}), private: true },
+		)
 	}
 
 	taskOp(op: TaskOp): string | null {
@@ -1083,14 +1093,28 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.broadcast({ t: "draft", slug, runId, index, text: replyTag(text).text })
 	}
 
-	async setStatus(slug: AgentSlug, state: AgentState): Promise<boolean> {
+	/**
+	 * The words a run wrote between two tool calls, as a step of its own. It is not a call: the panel shows it as a
+	 * paragraph, in order with the calls around it, so the chat keeps only the ack and the answer.
+	 */
+	async note(slug: AgentSlug, runId: string, id: string, text: string): Promise<void> {
+		if (!this.members.list().some((m) => m.slug === slug)) return
+		const at = Date.now()
+		const step: HeardStep = { id, runId, slug, tool: "other", name: "note", note: true, label: text, status: "done", startedAt: at, endedAt: at }
+		const stored = this.log.hearStep(step)
+		if (stored) this.broadcast({ t: "step", step: stored })
+	}
+
+	async setStatus(slug: AgentSlug, state: AgentState, detail?: string | null): Promise<boolean> {
 		if (state === "idle") {
 			this.team.clear(slug)
 			this.reports.run(this.routines.ended(slug), "ended")
 		}
 		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
 		if (!this.members.setStatus(slug, state)) return false
-		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
+		// What the typing row says. A string sets it, null puts back "writing a reply", and no argument leaves a tool's caption.
+		if (state === "typing" && detail !== undefined) this.team.doing(slug, detail ?? "writing a reply", Date.now(), { kind: "writing" })
+		else if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
 		this.broadcastStatus(slug)
 		this.broadcast(this.activeFrame())
 		await this.pushTyping()

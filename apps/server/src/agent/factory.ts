@@ -25,6 +25,7 @@ import { baseSections, type RoleInput } from "./prompt"
 import { count } from "../lib/dev-guard"
 import type { ThinkingLevel } from "@kiko/protocol"
 import { thinkingFor } from "./thinking"
+import { RETRY } from "./retry"
 
 export type BuildAgentInput = RoleInput & {
   /** Absent until the human picks one. A run then stops before it reaches a model. */
@@ -113,18 +114,17 @@ function unanchored<M extends { compat?: object }>(model: M): M {
 export type RunAuth = (provider: string) => Promise<AuthResult | undefined>
 
 /**
+ * A run retries a transient model error on its own; see `retry.ts`.
+ */
+export const RUN_SETTINGS: HarnessSettings = { toolExecution: "parallel", retry: { ...RETRY } }
+
+/**
  * A `Models` whose every provider takes its auth from `auth` and nothing else: no environment, no
  * files, no stored credential. The host fills `auth` once per run, so each run answers with the
  * user's credential as it was when the run began. `sessionId` must be stable per agent: OpenCode Go
  * answers 400 MissingSessionID without the `x-opencode-session` header (P0-05), and pi-durable
  * passes headers only through `settings.stream.headers`.
  */
-/**
- * A model error ends the run at once, and the human decides: the transcript shows the failure with a
- * Retry button. pi-durable's own retries would keep the agent typing for about 15 seconds first.
- */
-export const RUN_SETTINGS: HarnessSettings = { toolExecution: "parallel", retry: { enabled: false } }
-
 export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
   for (const provider of providers()) {

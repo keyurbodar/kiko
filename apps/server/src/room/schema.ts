@@ -259,4 +259,6 @@ export const ROOM_STEPS: Step[] = [
 	) WITHOUT ROWID`,
 	addColumn("messages", "steps", "INTEGER"),
 	addColumn("messages", "step_after", "INTEGER"),
+	// The words a run wrote between two tool calls. They stay in the step pane, not in the chat.
+	addColumn("run_steps", "note", "INTEGER"),
 ]

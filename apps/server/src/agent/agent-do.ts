@@ -47,6 +47,7 @@ import { StepBatch } from "./step-batch"
 
 const WORKER_TASK_CHARS = 200
 import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
+import { type Applied, modelName, renderHandoff, sameApplied, switchedModel } from "./handoff"
 
 // Read by the dev methods in agent/dev.ts too, so they share one key per setting.
 export const DEV_FAKE_KEY = "dev-fake"
@@ -57,6 +58,8 @@ const COMPACTIONS_KEY = "compactions"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 const RECENT_WORKERS = 8
 const MODEL_APPLIED_KEY = "model:applied"
+/** Set before a handoff resets the context and cleared once the new model is configured, so a crash between them is not redone. */
+const HANDOFF_KEY = "model:handoff"
 const HUMAN_INPUTS_KEY = "run:human-inputs"
 
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
@@ -174,8 +177,9 @@ export class AgentDO extends DurableObject<Env> {
     return {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
       draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
-      status: async (state) => {
-        await room().setStatus(home.slug, state)
+      note: (runId, id, text) => room().note(home.slug, runId, id, text),
+      status: async (state, detail) => {
+        await room().setStatus(home.slug, state, detail)
       },
       workers: (rows) => room().setWorkers(home.slug, rows),
       endRun: async (runId, inputs = [], working = false) => {
@@ -564,6 +568,31 @@ export class AgentDO extends DurableObject<Env> {
     return conversationId === (await this.host.rootId())
   }
 
+  /** The model and level the conversation was last configured with, and the one it needs now. */
+  private async applied(): Promise<Applied | undefined> {
+    return this.ctx.storage.get<Applied>(MODEL_APPLIED_KEY)
+  }
+
+  /** True when the conversation has model context to hand over. A fresh conversation has none. */
+  private async hasContext(root: Conversation): Promise<boolean> {
+    return (await root.context(BACKGROUND_CONTEXT)).messages.length > 0
+  }
+
+  /**
+   * A new model reads a plain-text handoff of the old model's context, never its native history. The marker is stored
+   * before the reset and cleared after the configure, so a crash between them configures without resetting twice.
+   */
+  private async handoff(root: Conversation, was: Applied, next: Applied): Promise<void> {
+    const marked = await this.ctx.storage.get<Applied>(HANDOFF_KEY)
+    if (JSON.stringify(marked) !== JSON.stringify(next)) {
+      const { entries } = await root.context(BACKGROUND_CONTEXT)
+      const text = renderHandoff(entries, { from: modelName(was.model), to: modelName(next.model) })
+      await this.ctx.storage.put(HANDOFF_KEY, next)
+      await root.reset(text, BACKGROUND_CONTEXT)
+    }
+    await root.configure(next, BACKGROUND_CONTEXT)
+  }
+
   #run: { provider: string; auth: AuthResult | null; timezone: string; captures: boolean; soul?: Soul; credential?: "api_key" | "oauth"; problem?: ProviderProblem; errored?: boolean } | null = null
   #runStamp = 0
 
@@ -579,9 +608,14 @@ export class AgentDO extends DurableObject<Env> {
     if (model && listed) {
       this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.credential ? { credential: turn.credential } : {}), ...(turn.problem ? { problem: turn.problem } : {}), ...(turn.agent ? { soul: turn.agent.soul } : {}) }
       const applied = { model, thinkingLevel: turn.thinking }
-      if (JSON.stringify(applied) !== JSON.stringify(await this.ctx.storage.get(MODEL_APPLIED_KEY))) {
-        await root.configure(applied, BACKGROUND_CONTEXT)
+      const was = await this.ctx.storage.get<Applied>(MODEL_APPLIED_KEY)
+      if (!sameApplied(was, applied)) {
+        // A new model never reads the old model's native history: a thinking signature or tool-call shape it does not
+        // know answers 400 on every later message. It reads a plain-text handoff instead.
+        if (was && switchedModel(was, applied) && (await this.hasContext(root))) await this.handoff(root, was, applied)
+        else await root.configure(applied, BACKGROUND_CONTEXT)
         await this.ctx.storage.put(MODEL_APPLIED_KEY, applied)
+        await this.ctx.storage.delete(HANDOFF_KEY)
       }
       if (turn.auth) return true
     }

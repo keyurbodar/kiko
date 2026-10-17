@@ -118,6 +118,7 @@ export class T extends AgentDO {
 				this.posted++
 			},
 			draft: async () => {},
+			note: async () => {},
 			status: async () => {},
 			workers: async () => {},
 			// The real endRun reads the human messages a run answered; keep that read, drop the RPC.

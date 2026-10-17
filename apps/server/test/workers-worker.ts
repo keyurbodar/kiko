@@ -100,6 +100,7 @@ export class T extends AgentDO {
         this.table().exec("INSERT OR REPLACE INTO t_posts (run, idx, text) VALUES (?, ?, ?)", runId, index, block)
       },
       draft: async () => {},
+      note: async () => {},
       status: async () => {},
       workers: async () => {},
       endRun: async () => {},

@@ -3,6 +3,8 @@ import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, ty
 import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
 import { classifyRunError, runErrorDetail } from "./run-error"
+import { retrying } from "./retry"
+import { type Assistant, ackOf, hasToolCall, noteOf, postOf } from "./pacing"
 import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
@@ -12,7 +14,9 @@ export const DRAFT_INTERVAL_MS = 300
 export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
   draft(runId: string, index: number, text: string): Promise<void>
-  status(state: AgentState): Promise<void>
+  /** Words the run wrote between two calls: a step of its own in the panel, not a bubble. */
+  note(runId: string, id: string, text: string): Promise<void>
+  status(state: AgentState, detail?: string | null): Promise<void>
   workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
@@ -21,7 +25,7 @@ export interface RoomPort {
 
 type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number }
 
-type AssistantLike = { role?: string; stopReason?: string; errorMessage?: string; provider?: string; content?: readonly { type: string; text?: string }[] }
+type AssistantLike = Assistant
 
 export function textOf(message: AssistantLike | undefined, final = true): string {
   return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [scrubToolMarkup(part.text, final)] : [])).join("\n\n")
@@ -55,6 +59,8 @@ type Run = {
   toolStarted: boolean
   tools: Map<string, string>
   quiet: boolean
+  /** The narration the run wrote between two calls, waiting to be pushed to the step pane. */
+  notes: { id: string; text: string }[]
 }
 
 const quietInput = (entry: EntryRecord): boolean => {
@@ -63,7 +69,8 @@ const quietInput = (entry: EntryRecord): boolean => {
   return text.includes("<system-event") && !text.includes("<context>message id")
 }
 
-const hasToolCall = (message: AssistantLike | undefined) => (message?.content ?? []).some((part) => part.type === "toolCall")
+/** A narration's step id: stable across a replay, so a note is stored once. */
+const noteId = (entry: number) => `note:${entry}`
 
 export class Outbox {
   private readonly sql: SqlStorage
@@ -71,6 +78,8 @@ export class Outbox {
   private lastEntry = 0
   private lastDraft = 0
   private state: AgentState = "idle"
+  /** What the current state says beside the three dots, such as "retrying, 2 of 3". */
+  private detail: string | undefined
   private backgroundRunning = false
 
   constructor(
@@ -180,6 +189,11 @@ export class Outbox {
         this.see(event.entry)
         this.run?.tools.delete(event.toolCallId)
         return this.setStatus("typing")
+      // pi-durable waits out a transient error and tries again; the typing line says so instead of "writing a reply".
+      case "auto_retry_start":
+        return this.setStatus("typing", retrying(event.attempt))
+      case "auto_retry_end":
+        return this.setStatus("typing")
       case "run_end":
         return this.end(`${this.prefix()}:${event.inputs[0]}`, event.inputs)
       default:
@@ -209,6 +223,7 @@ export class Outbox {
       this.run = run
       if (run.posted > run.blocks.length + (run.generation?.blocks.length ?? 0)) this.rebase(run)
       this.save(run)
+      await this.notes(run)
       if (row.run_id !== liveId) await this.end(row.run_id)
     }
     if (liveId && this.run?.id !== liveId) {
@@ -222,6 +237,7 @@ export class Outbox {
         if (entry.id > input) this.finishGeneration(run, entry)
       }
       this.save(run)
+      await this.notes(run)
     }
     if (!this.run) return
     const answered = entries.findLastIndex((e) => {
@@ -272,6 +288,14 @@ export class Outbox {
     if (lost && run.posted > before) this.rebase(run)
     this.save(run)
     await this.flush()
+    await this.notes(run)
+  }
+
+  /** The narration a run wrote between two calls, pushed to the step pane in the order it was written. */
+  private async notes(run: Run): Promise<void> {
+    const port = this.room()
+    if (!run.notes.length || !port) return
+    for (const note of run.notes.splice(0)) await port.note(run.id, note.id, note.text)
   }
 
   private async reportError(runId: string, message: AssistantLike): Promise<void> {
@@ -290,11 +314,18 @@ export class Outbox {
     const streamed = run.generation?.blocks ?? []
     run.generation = null
     if (message.stopReason === "aborted") return true
+    // A failed message says nothing new. What it streamed before the failure stays: a cut-off answer is still the
+    // best the human got, and the run's error row offers Retry.
     if (message.stopReason === "error") return false
-    if (run.quiet && hasToolCall(message)) return false
-    const { blocks: final, reactions } = partsOf(textOf(message))
+    const post = postOf(message, { posted: run.blocks.length > 0, quiet: run.quiet })
+    const text = textOf(message)
+    // A run's narration belongs to the step pane, not the chat, so eight tool calls never stack eight bubbles.
+    if (post === "none" && !run.quiet && hasToolCall(message) && text.trim()) run.notes.push({ id: noteId(entry.id), text: noteOf(text) })
+    const { blocks: final, reactions } = partsOf(post === "ack" ? ackOf(text) : post === "answer" ? text : "")
     run.blocks.push(...final)
     run.reactions.push(...reactions)
+    // True when the words streamed while this message grew are not what it turned out to be: the caller then
+    // raises the attempt, which makes the room drop those bubbles and adopt the ones that stay.
     return streamed.some((block, i) => block !== final[i])
   }
 
@@ -340,10 +371,13 @@ export class Outbox {
     if (!this.run) await this.setStatus(this.backgroundRunning ? "working" : "idle")
   }
 
-  private async setStatus(state: AgentState): Promise<void> {
-    if (state === this.state) return
+  private async setStatus(state: AgentState, detail?: string | null): Promise<void> {
+    // Undefined means "the same as last time", and null means "the default wording": a retry's end passes null.
+    const next = detail === undefined ? this.detail : (detail ?? undefined)
+    if (state === this.state && next === this.detail) return
     this.state = state
-    await this.room()?.status(state)
+    this.detail = next
+    await this.room()?.status(state, detail)
   }
 
   private openRows(): Row[] {
@@ -363,6 +397,7 @@ export class Outbox {
       toolStarted: false,
       tools: new Map(),
       quiet: false,
+      notes: [],
     }
   }
 

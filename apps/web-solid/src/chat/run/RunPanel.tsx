@@ -94,7 +94,7 @@ function StepGlyph(props: { step: RunStep }) {
   const icon = () => iconOf(props.step)
   return (
     <span class="run-icon" data-failed={props.step.status === "failed" ? "" : undefined}>
-      <Show when={icon() === "app" && props.step.app} fallback={<HugeIcon icon={GLYPH[icon()]} size={16} />}>
+      <Show when={icon() === "app" && props.step.app} fallback={<Show when={icon()}>{(glyph) => <HugeIcon icon={GLYPH[glyph()]} size={16} />}</Show>}>
         {(slug) => <AppMark slug={slug()} />}
       </Show>
     </span>
@@ -148,6 +148,14 @@ function StepRow(props: { step: RunStep; child: boolean; open: boolean; loading:
   const running = () => step().status === "running"
   const took = () => (step().endedAt === undefined ? undefined : step().endedAt! - step().startedAt)
   const labelRef = shineRef(running)
+  // The words a run wrote between two calls: one plain paragraph, with nothing to open.
+  if (step().note === true) {
+    return (
+      <div class="run-row" data-note="" data-status={step().status} data-component="run-note">
+        <p class="run-note-text">{step().label}</p>
+      </div>
+    )
+  }
   return (
     <div class="run-row" data-child={props.child ? "" : undefined} data-status={step().status} data-component="run-step">
       <div
