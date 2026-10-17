@@ -107,7 +107,7 @@ describe("runInstall", () => {
   test("first install sets the six secrets and the full migration list", async () => {
     const release = await makeRelease()
     const { upload, result, metadata, calls } = await install({ release, scripts: [] })
-    expect(secretNames(upload).sort()).toEqual(["CF_GRANT", "CLERK_JWT_KEY", "CREDENTIALS_KEK", "OWNER_ID", "SESSION_SECRET", "TRUSTED_ORIGINS"])
+    expect(secretNames(upload).sort()).toEqual(["CF_GRANT", "CLERK_JWT_KEY", "CREDENTIALS_KEK", "OWNER_ID", "RELEASE_BASE_URL", "SESSION_SECRET", "TRUSTED_ORIGINS"])
     expect((upload.body as { migrations: unknown }).migrations).toMatchObject({ new_tag: "v2", steps: [{ tag: "v1" }, { tag: "v2" }] })
     expect(upload.body).not.toHaveProperty("keep_bindings")
     expect(result).toEqual({ backendUrl: "https://kiko.me.workers.dev", version: "0.1.0" })
@@ -125,7 +125,7 @@ describe("runInstall", () => {
     expect(secretNames(upload)).toEqual([])
     expect(body.migrations).toEqual({ old_tag: "v1", new_tag: "v2", steps: [{ tag: "v2", deleted_classes: ["WorkDO"] }] })
     const secretPuts = calls.filter((c) => c.url.endsWith("/secrets")).map((c) => (c.body as { name: string }).name)
-    expect(secretPuts).toEqual(["OWNER_ID", "CF_GRANT"])
+    expect(secretPuts).toEqual(["OWNER_ID", "CLERK_JWT_KEY", "TRUSTED_ORIGINS", "RELEASE_BASE_URL", "CF_GRANT"])
   })
 
   test("a kiko script owned by someone else's app gets our own name", async () => {

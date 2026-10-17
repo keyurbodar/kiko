@@ -1,7 +1,7 @@
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
 import { BUCKET, type FilesBinding, buildMetadata, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
 import { type FetchLike, InstallError, cf, isBlocking, json } from "./cf"
-import { DEFAULT_SCRIPT, type Grant, type StoredGrant, firstInstallSecrets, ownScriptName } from "./plan"
+import { DEFAULT_SCRIPT, type Grant, type StoredGrant, boundSecrets, firstInstallSecrets, ownScriptName } from "./plan"
 
 export type InstallEnv = {
   CF_OAUTH_CLIENT_ID: string
@@ -196,15 +196,8 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const { manifest, files } = await loadRelease(env, f)
   const grant: StoredGrant = { ...stored, accountId, scriptName: name }
   const migrations = selectMigrations(manifest.migrations, existing ? (existing.migration_tag ?? null) : null)
-  const secrets = existing
-    ? null
-    : firstInstallSecrets({
-        random: deps.randomSecret,
-        ownerId: req.sub,
-        clerkJwtKey: env.CLERK_JWT_KEY,
-        trustedOrigins: env.FRONT_DOOR_ORIGIN,
-        grant,
-      })
+  const bound = { ownerId: req.sub, clerkJwtKey: env.CLERK_JWT_KEY, trustedOrigins: env.FRONT_DOOR_ORIGIN, releaseBase: env.RELEASE_BASE_URL, grant }
+  const secrets = existing ? null : firstInstallSecrets({ ...bound, random: deps.randomSecret })
   await cf(token, `/accounts/${accountId}/workers/scripts/${name}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets, fileStore)) }, f).catch((e: unknown) => {
     // Since Cloudflare's Workers roles (2026-09), Workers Editor may change a Worker but not create one.
     if (!existing && e instanceof InstallError && e.code === "no_permission") {
@@ -214,11 +207,8 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   })
 
   if (existing) {
-    for (const [secretName, text] of [
-      ["OWNER_ID", req.sub],
-      ["CF_GRANT", JSON.stringify(grant)],
-    ] as const) {
-      await cf(token, `/accounts/${accountId}/workers/scripts/${name}/secrets`, json({ name: secretName, text, type: "secret_text" }, "PUT"), f)
+    for (const s of boundSecrets(bound)) {
+      await cf(token, `/accounts/${accountId}/workers/scripts/${name}/secrets`, json(s, "PUT"), f)
     }
   }
 

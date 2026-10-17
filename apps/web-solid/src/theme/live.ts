@@ -33,9 +33,9 @@ let owner: string | null = null
 /** What still has to reach the server. `undefined` means nothing. */
 let outbox: string | null | undefined
 
-function adopt(text: string | null): void {
+function adopt(text: string | null, withImported = true): void {
   const next = parseLook(text)
-  applyCommitted(next)
+  applyCommitted(next, withImported)
   setAvatarPicks(next.avatars)
   writeCache(text, next)
   if (text !== saved()) setSaved(text)
@@ -67,6 +67,7 @@ export function startTheme(userId: string, shared: UserChannel = userChannel): v
   if (owner === userId) return
   stopTheme()
   owner = userId
+  applyCommitted(look())
   // The dev mock has no theme record, so the cache is the only copy there.
   if (mocked() && shared === userChannel) return void setSynced(true)
   channel = shared
@@ -98,11 +99,11 @@ export function stopTheme(): void {
   owner = null
 }
 
-/** Signing out: the next person on this browser starts on the default look, not on this user's. */
+/** Signing out: the signed-out screens and the next person on this browser get the default look, not this user's. */
 export function forgetTheme(): void {
   stopTheme()
   outbox = undefined
-  adopt(null)
+  adopt(null, false)
 }
 
 /** The imported themes and which one each appearance uses. `""` is Kiko's own theme. */

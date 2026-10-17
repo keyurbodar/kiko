@@ -180,17 +180,18 @@ async function errorOf(res: Response): Promise<InstallError> {
   }
 }
 
-export async function loadOAuthConfig(f: Fetch = fetch): Promise<OAuthConfig> {
-  const res = await f(`${INSTALLER_URL}/oauth/config`)
-  if (!res.ok) throw new Error("Could not reach the installer. Try again.")
-  return (await res.json()) as OAuthConfig
+/** A GET to the installer. Anything but a JSON answer, such as a page from a host with no installer, is one error. */
+async function installerGet<T>(path: string, valid: (body: Record<string, unknown>) => boolean, f: Fetch): Promise<T> {
+  const res = await f(`${INSTALLER_URL}${path}`).catch(() => null)
+  const body = res?.ok ? ((await res.json().catch(() => null)) as Record<string, unknown> | null) : null
+  if (!body || typeof body !== "object" || !valid(body)) throw new Error("Could not reach the installer. Try again.")
+  return body as T
 }
 
-export async function loadTokenLink(f: Fetch = fetch): Promise<TokenLink> {
-  const res = await f(`${INSTALLER_URL}/token-link`)
-  if (!res.ok) throw new Error("Could not reach the installer. Try again.")
-  return (await res.json()) as TokenLink
-}
+export const loadOAuthConfig = (f: Fetch = fetch) =>
+  installerGet<OAuthConfig>("/oauth/config", (b) => typeof b.clientId === "string" && typeof b.authorizeUrl === "string" && Array.isArray(b.scopes), f)
+
+export const loadTokenLink = (f: Fetch = fetch) => installerGet<TokenLink>("/token-link", (b) => typeof b.url === "string" && Array.isArray(b.permissions), f)
 
 export type InstallResult = { ok: true; backendUrl: string } | { ok: false; error: InstallError }
 

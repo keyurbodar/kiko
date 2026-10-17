@@ -16,22 +16,27 @@ export type StoredGrant = {
 
 export const DEFAULT_SCRIPT = "kiko"
 
-export function firstInstallSecrets(input: {
-  random: () => string
-  ownerId: string
-  clerkJwtKey: string
-  trustedOrigins: string
-  grant: StoredGrant
-}): SecretBinding[] {
-  const secret = (name: string, text: string): SecretBinding => ({ type: "secret_text", name, text })
+type BoundInput = { ownerId: string; clerkJwtKey: string; trustedOrigins: string; releaseBase: string; grant: StoredGrant }
+
+const secret = (name: string, text: string): SecretBinding => ({ type: "secret_text", name, text })
+
+/**
+ * What ties a backend to this front door. Set on every install, so a backend that was deployed by hand, or by an
+ * older installer, can be adopted: it learns the owner, the Clerk key, the origin, and where updates come from.
+ */
+export function boundSecrets(input: BoundInput): SecretBinding[] {
   return [
-    secret("SESSION_SECRET", input.random()),
-    secret("CREDENTIALS_KEK", input.random()),
     secret("OWNER_ID", input.ownerId),
     secret("CLERK_JWT_KEY", input.clerkJwtKey),
     secret("TRUSTED_ORIGINS", input.trustedOrigins),
+    secret("RELEASE_BASE_URL", input.releaseBase),
     secret("CF_GRANT", JSON.stringify(input.grant)),
   ]
+}
+
+/** A new backend also gets its own keys. An existing one keeps them, or its sessions and stored credentials break. */
+export function firstInstallSecrets(input: BoundInput & { random: () => string }): SecretBinding[] {
+  return [secret("SESSION_SECRET", input.random()), secret("CREDENTIALS_KEK", input.random()), ...boundSecrets(input)]
 }
 
 export async function ownScriptName(sub: string): Promise<string> {
