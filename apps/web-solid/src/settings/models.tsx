@@ -394,7 +394,8 @@ export function AddProviderDialog(props: { open: boolean; loading: boolean; prov
   )
 }
 
-export function ConnectDialog(props: { provider: CatalogProvider | null; onClose: () => void }) {
+/** `only` limits the dialog to one way in, so a first-run "sign in" row opens straight into the sign-in. */
+export function ConnectDialog(props: { provider: CatalogProvider | null; only?: "sign_in" | "api_key"; onClose: () => void }) {
   const [error, setError] = createSignal<string | null>(null)
   const [busy, setBusy] = createSignal(false)
   let input: HTMLInputElement | undefined
@@ -429,8 +430,9 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; onClose
   const methods = () => {
     const provider = props.provider
     const saved = provider ? connectedProviders().find((p) => p.provider === provider.id) : undefined
-    if (!provider || !saved?.problem) return provider?.connect ?? []
-    return provider.connect.filter((m) => (saved.kind === "oauth" ? m !== "api_key" : m === "api_key"))
+    const offered = (provider?.connect ?? []).filter((m) => !props.only || (props.only === "api_key") === (m === "api_key"))
+    if (!provider || !saved?.problem) return offered
+    return offered.filter((m) => (saved.kind === "oauth" ? m !== "api_key" : m === "api_key"))
   }
   const byKey = () => methods().includes("api_key")
 

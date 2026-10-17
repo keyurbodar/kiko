@@ -756,7 +756,7 @@ How kiko runs them (`apps/server/src/user/provider-login.ts`):
 
 A caution for the owner.
 
-- The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. Using it may break the provider's terms. The owner decides whether to use that flow. API keys work for every provider.
+- The Anthropic flow in pi-ai signs in with Claude Code's client id, as pi itself does. Kiko serves one owner, who uses their own Claude Pro or Max plan for their own chats. What Anthropic forbids is serving one account's tokens to other people, and one Worker never serves anyone but its owner. UNVERIFIED: this reading of Anthropic's terms comes from the owner, not from Kiko's own review of the terms. First run offers the Claude plan sign-in next to ChatGPT and GitHub Copilot.
 - pi-ai's published npm package contains the generated model catalog as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5).
 
 ### 11.4.1 Provider health
