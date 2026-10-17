@@ -16,6 +16,7 @@ import { shortBrief } from "../room/brief"
 import { CHIEF } from "../room/chief"
 import { HOME } from "../files/upload"
 import { homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
+import { kikoDocsBackend, KIKO } from "../files/kiko-docs"
 import { mergeRecall, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@kiko/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
@@ -376,7 +377,7 @@ export class AgentDO extends DurableObject<Env> {
       return h ? roomStub(this.env.ROOM, h.userId, h.roomId).homeNotice(h.slug, text) : Promise.resolve()
     }
     const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
-    const backend = withMount(roomBackend(this.env, where, cache), HOME, homeBackend(this.env, where, notice, cache, locked))
+    const backend = withMount(withMount(roomBackend(this.env, where, cache), HOME, homeBackend(this.env, where, notice, cache, locked)), KIKO, kikoDocsBackend())
     const id = `room-files:${this.ctx.id.toString()}`
     const space = withSoul(backend, soul)
     const views = roomViews(id, space)

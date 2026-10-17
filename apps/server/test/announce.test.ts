@@ -38,6 +38,16 @@ test("adding a Composio key schedules one announcement that names the change", a
   expect(sent[0]?.body).not.toContain("ck_1")
 })
 
+test("a setup change wakes the agent as information, and asks for no bubble about it", async () => {
+  const { announce, sent } = setup()
+  await announce.note(providerChange("anthropic", "sk-1"))
+  await announce.flush()
+  const body = sent[0]?.body ?? ""
+  expect(body).toContain("Connected the model provider anthropic")
+  expect(body).toContain("Reply only [skip]")
+  expect(body).not.toMatch(/tell them/i)
+})
+
 test("saving the same key again announces nothing", async () => {
   const { announce, wakeups, sent } = setup()
   await announce.note(composio("ck_1"))

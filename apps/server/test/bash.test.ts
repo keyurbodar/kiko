@@ -369,3 +369,22 @@ test("one command reads a bounded number of files, and says how to narrow it", a
   expect(out.text).not.toContain("No such file")
   expect((await a.bash("cat /big/1*.txt | wc -l")).text).toBe("111\n")
 }, 30_000)
+
+test("/kiko reads like any folder, and a write there says it is read-only", async () => {
+  const a = agent(fresh())
+  expect(await a.read("/kiko/index.md")).toStartWith("# Kiko")
+  expect(await a.bash("grep -c '^#' /kiko/index.md")).toMatchObject({ ok: true })
+  const read = await a.bash("cat /kiko/browser.md | head -1")
+  expect(read.text).toBe("# Browser\n")
+  const write = await a.bash("echo mine > /kiko/index.md")
+  expect(write.ok).toBe(false)
+  expect(write.text).toContain("/kiko is read-only")
+  expect(await a.read("/kiko/index.md")).toStartWith("# Kiko")
+})
+
+test("a command that copies /kiko to the chat's files saves the copy and leaves /kiko alone", async () => {
+  const a = agent(fresh())
+  const out = await a.bash("cp /kiko/browser.md /browser-notes.md")
+  expect(out.ok).toBe(true)
+  expect(await a.read("browser-notes.md")).toStartWith("# Browser")
+})

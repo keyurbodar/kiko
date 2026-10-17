@@ -82,10 +82,11 @@ type Change =
   | { op: "rmdir"; path: string; files: Readonly<Record<string, string>> }
   | { op: "mkdir"; path: string }
 
-const SPACES = ["chat", "home", "me"] as const
+const SPACES = ["chat", "home", "me", "kiko"] as const
 type Space = (typeof SPACES)[number]
-const SPACE_NAME: Record<Space, string> = { home: "the drive (/home)", me: "/me", chat: "the chat's files" }
-const spaceOf = (path: string): Space => (path === `/${HOME}` || path.startsWith(`/${HOME}/`) ? "home" : path.startsWith("/me/") || path === "/me" ? "me" : "chat")
+const SPACE_NAME: Record<Space, string> = { home: "the drive (/home)", me: "/me", chat: "the chat's files", kiko: "/kiko" }
+const spaceOf = (path: string): Space =>
+  path === `/${HOME}` || path.startsWith(`/${HOME}/`) ? "home" : path.startsWith("/me/") || path === "/me" ? "me" : path === "/kiko" || path.startsWith("/kiko/") ? "kiko" : "chat"
 
 function plan(start: ReadonlyMap<string, Node>, tree: ReadonlyMap<string, Node>): Change[] {
   const moves: Change[] = []

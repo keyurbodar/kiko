@@ -75,7 +75,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         defineTool({
           name: "create_routine",
           description:
-            "give an agent in this chat a job that runs on its own and answers here. use it whenever the human wants a reminder, or something done on a schedule (every day, each monday) or when something happens (whenever they post, a service posts to a webhook); saying \"got it\" sets nothing. a reminder is a routine that runs once: trigger {on:'time', in_seconds:600} or {on:'time', at:'<iso with offset>'}, and instructions that say what to tell the human. triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and tell them which zone you used; never ask for a zone first); {on:'message', contains?} when the human posts here (agent messages never match; never make a routine to talk with another agent, message the agent with send_message); {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service. to come back to something yourself later, make a one-time routine for yourself.",
+            "Give an agent in this chat a job that runs on its own and answers here. Use it whenever the human wants a reminder, or something done on a schedule (every day, each Monday) or when something happens (whenever they post, a service posts to a webhook). Saying \"got it\" sets nothing. A reminder is a routine that runs once: trigger {on:'time', in_seconds:600} or {on:'time', at:'<iso with offset>'}, with instructions that say what to tell the human. Triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and say which zone you used; never ask for a zone first); {on:'message', contains?} when the human posts here (agent messages never match; never make a routine to talk with another agent, message the agent with send_message); {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service. To return to something yourself later, make a one-time routine for yourself.",
           parameters: Type.Object({
             name: Type.String({ description: "short, lowercase" }),
             instructions: Type.String({ description: "what to do each run, and what to do when a source is missing" }),
@@ -98,7 +98,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         "write",
         defineTool({
           name: "update_routine",
-          description: "change, pause, resume, or run now a routine by its id from list_routines.",
+          description: "Change, pause, resume, or run now a routine by its id from list_routines.",
           parameters: Type.Object({
             id: Type.String(),
             name: Type.Optional(Type.String()),
@@ -134,7 +134,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         "read",
         defineTool({
           name: "list_routines",
-          description: "list the routines in this chat, with each routine's last run.",
+          description: "List the routines in this chat, with each routine's last run.",
           parameters: Type.Object({}),
           replay: "safe",
           execute: async () => {
@@ -148,7 +148,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         "write",
         defineTool({
           name: "add_recipe",
-          description: "add one of the human's recipes (from /home/recipes, listed with the skills) to this chat, run by you. it makes the recipe's routines at once. use it when the human wants a recipe set up here.",
+          description: "Add one of the human's recipes (from /home/recipes, listed with the skills) to this chat, run by you. It makes the recipe's routines at once. Use it when the human wants a recipe set up here.",
           parameters: Type.Object({ slug: Type.String({ description: "the recipe's folder name, like morning-briefing" }) }),
           replay: "unsafe",
           execute: async ({ slug }) => {
@@ -161,7 +161,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         "write",
         defineTool({
           name: "cancel_routine",
-          description: "cancel a reminder or routine by its id from list_routines.",
+          description: "Cancel a reminder or routine by its id from list_routines.",
           parameters: Type.Object({ id: Type.String() }),
           replay: "safe",
           execute: async ({ id }) => {

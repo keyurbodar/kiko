@@ -49,7 +49,9 @@ export class Announcements {
     if (!pending) return
     const entries = Object.entries(pending.changes).sort(([a], [b]) => a.localeCompare(b))
     const id = `system:${pending.since}:${(await sha256Hex(JSON.stringify(entries.map(([k, c]) => [k, c.state])))).slice(0, 16)}`
-    const body = `The human just changed your setup:\n${entries.map(([, c]) => `- ${c.line}`).join("\n")}\nTell them in one or two short lines, in your own voice, what you can do now. Do not give a guide or a list.`
+    // This wakes Kiko so its next run sees the new setup. It is not news for the human: telling them
+    // their own change back produced a stray "your model provider is connected now" bubble.
+    const body = `Your setup changed:\n${entries.map(([, c]) => `- ${c.line}`).join("\n")}\nNo reply is needed. The human made this change, so do not report it back. Reply only [skip].`
     await this.d.send(id, body)
     for (const [kind, c] of entries) {
       if (c.state === null) deleteSetting(this.d.sql, SETTLED + kind)

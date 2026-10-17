@@ -639,7 +639,8 @@ export function withMount(base: FilesBackend, at: string, mounted: FilesBackend)
       const all = await mounted.list("", true)
       return [self, ...(Array.isArray(all) ? all.map(add) : []), ...out]
     },
-    bytes: (key, max) => (key.includes(`/r/${HOME}/`) ? mounted.bytes(key, max) : base.bytes(key, max)),
+    // A mount names its bytes either by its own prefix (`kiko:index.md`) or by a store key under it.
+    bytes: (key, max) => (key.startsWith(`${at}:`) || key.includes(`/r/${at}/`) ? mounted.bytes(key, max) : base.bytes(key, max)),
     async write(path, bytes, type, expect) {
       if (!inside(path)) return base.write(path, bytes, type, expect)
       if (path === at) return { ok: false, code: "is_directory", message: `/${at} is a folder` }
