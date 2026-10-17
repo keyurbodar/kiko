@@ -160,6 +160,10 @@ describe("composio learned tools", () => {
       const body = JSON.parse(String(init?.body)) as { id: number; method: string; params: { name: string; arguments: unknown } }
       if (body.method === "tools/list") return new Response(`data: ${JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { tools: [] } })}\n\n`, { headers: { "content-type": SSE } })
       state.sent.push(body.params)
+      // A search answers with a schemaRef for some tools. The session then loads those schemas by their slugs.
+      if (body.params.name === "COMPOSIO_GET_TOOL_SCHEMAS") {
+        return new Response(text({ successful: true, data: { tool_schemas: { GMAIL_GET_ATTACHMENT: { toolkit: "gmail", tool_slug: "GMAIL_GET_ATTACHMENT", description: "Get an attachment.", input_schema: { type: "object", properties: { message_id: { type: "string" } } } } } } }).replace('"__ID__"', String(body.id)), { headers: { "content-type": SSE } })
+      }
       return new Response(text(state.replies.shift()).replace('"__ID__"', String(body.id)), { headers: { "content-type": SSE } })
     }) as unknown as typeof fetch
     const connection = new ComposioConnection(store as unknown as ComposioStore, async () => "kiko_u1", fetcher, (work) => background.push(work))

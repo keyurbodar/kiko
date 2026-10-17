@@ -56,7 +56,7 @@ const suite: Suite = {
       const stats = await readStats(v, s)
       const calls = (who: string) => Object.entries(stats).filter(([k]) => k.startsWith(`tool.${who}.`)).map(([k, n]) => `${k.split(".")[2]}=${n}`)
       console.log(`  talker tools ${calls("talker").join(" ")}; worker tools ${calls("worker").join(" ")}`)
-      const web = (who: string) => Object.entries(stats).filter(([k, n]) => n && (k === `tool.${who}.web_fetch` || k.startsWith(`tool.${who}.composio_`))).map(([k]) => k.split(".")[2])
+      const web = (who: string) => Object.entries(stats).filter(([k, n]) => n && k.startsWith(`tool.${who}.composio_`)).map(([k]) => k.split(".")[2])
       if (web("talker").length) throw new VerifyError(`the talker read the web itself: ${web("talker").join(", ")}`)
       if (!web("worker").length) throw new VerifyError("no worker read the web")
       step("only workers fetched pages")

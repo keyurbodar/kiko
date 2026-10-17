@@ -1,8 +1,8 @@
 import type { ComposioStatus } from "@kiko/protocol"
 import { CredentialError, checkApiKey } from "../../user/credentials"
 import { count } from "../../lib/dev-guard"
-import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkKey, connectedAccounts, createSession, deleteSession, learnedSignature, listTools, sessionGone, type Target } from "./client"
-import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, SEARCH, succeeded } from "./learn"
+import { type ComposioCallResult, ComposioError, type ComposioTool, callTool, catalogReadOnly, checkKey, connectedAccounts, createSession, deleteSession, learnedSignature, listTools, resolveToolkit as catalogToolkit, sessionGone, type Target } from "./client"
+import { type Candidate, candidates, failed, forget, MULTI_EXECUTE, remember, resultJson, SCHEMAS, schemaRefs, SEARCH, succeeded } from "./learn"
 import type { ComposioStore, StoredTarget } from "./store"
 
 const LISTING_FRESH_MS = 10 * 60_000
@@ -53,6 +53,13 @@ export class ComposioConnection {
 
   async sessionId(): Promise<string | null> {
     return (await this.store.target())?.session ?? null
+  }
+
+  /** The real toolkit slug for an app a person named. A Connect key has no catalog, so it squeezes the name. */
+  async resolveToolkit(app: string): Promise<string | null> {
+    const target = await this.store.target()
+    if (!target) return null
+    return catalogToolkit(target.key, app, this.fetcher)
   }
 
   status(): ComposioStatus {
@@ -142,7 +149,10 @@ export class ComposioConnection {
     if (name === MULTI_EXECUTE) {
       this.forgetFailed(failed(args, body), generation)
       const learned = this.store.learned()
-      const used = succeeded(args, body).flatMap((slug) => this.candidates.get(slug) ?? learned.find((t) => t.slug === slug) ?? [])
+      const listed = this.listedNames()
+      // A tool the session already mounts needs no learned copy, and learning it would reopen every agent
+      // for a tool it already had.
+      const used = succeeded(args, body).flatMap((slug) => (listed.has(slug) ? [] : (this.candidates.get(slug) ?? learned.find((t) => t.slug === slug) ?? [])))
       if (used.length) this.store.putLearned(remember(learned, used, Date.now()), generation)
       for (const c of used) if (!learned.some((t) => t.slug === c.slug)) this.classify(c.slug, generation)
       return out
@@ -151,11 +161,36 @@ export class ComposioConnection {
       this.candidates.delete(c.slug)
       this.candidates.set(c.slug, c)
     }
+    const missing = schemaRefs(body)
+    if (missing.length) this.loadSchemas(missing, generation)
     for (const slug of this.candidates.keys()) {
       if (this.candidates.size <= CANDIDATES_MAX) break
       this.candidates.delete(slug)
     }
     return out
+  }
+
+  /** The slugs the session mounts by its own name, which therefore need no learned copy. */
+  private listedNames(): ReadonlySet<string> {
+    return new Set((this.store.listing()?.tools ?? []).map((t) => t.name))
+  }
+
+  /** A search names some tools with a `schemaRef` and no schema. Load the schemas so those can be learned too. */
+  private loadSchemas(slugs: string[], generation: number): void {
+    const work = this.session((target) => callTool(target, SCHEMAS, { tool_slugs: slugs }, this.fetcher)).then((out) => {
+      const body = resultJson(out)
+      if (!body) return
+      for (const c of candidates(body)) {
+        this.candidates.delete(c.slug)
+        this.candidates.set(c.slug, c)
+      }
+      if (generation !== this.store.generation) return
+      for (const slug of this.candidates.keys()) {
+        if (this.candidates.size <= CANDIDATES_MAX) break
+        this.candidates.delete(slug)
+      }
+    })
+    this.waitUntil(work.catch(() => undefined))
   }
 
   /** When the lookup fails, the tool stays `external`. */

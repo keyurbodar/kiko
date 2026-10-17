@@ -16,7 +16,7 @@ function command(args: Record<string, unknown>): string {
 
 type Described = { doing: string; activity: Activity }
 
-const KINDS: Readonly<Record<string, ToolKind>> = { read: "read", ls: "search", write: "edit", edit: "edit", bash: "run", web_fetch: "web" }
+const KINDS: Readonly<Record<string, ToolKind>> = { read: "read", ls: "search", write: "edit", edit: "edit", bash: "run" }
 
 const tool = (name: string, doing: string): Described => ({ doing, activity: { kind: "tool", tool: KINDS[name] ?? "other", caption: doing } })
 
@@ -32,8 +32,6 @@ export function describeCall(name: string, args: Record<string, unknown>): Descr
       return tool(name, `editing${path(args)}`)
     case "bash":
       return tool(name, command(args))
-    case "web_fetch":
-      return tool(name, "reading a web page")
     case "start_work":
       return tool(name, "starting background work")
     case "create_routine":
@@ -66,13 +64,6 @@ const OUTPUT_CHARS = 4_000
 
 const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
 const str = (v: unknown) => (typeof v === "string" ? v : "")
-const host = (url: string) => {
-  try {
-    return new URL(url).host || url
-  } catch {
-    return url
-  }
-}
 
 /** The past-tense words for a call, keyed by tool name. A tool that is not here reads "Used <name>". */
 const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>> = {
@@ -84,7 +75,6 @@ const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>
     const line = str(a.command).replace(/\s+/g, " ").trim()
     return line ? `Ran ${cut(line, COMMAND_CHARS)}` : "Ran a command on the files"
   },
-  web_fetch: (a) => (str(a.url) ? `Fetched ${host(str(a.url))}` : "Fetched a web page"),
   start_work: () => "Started background work",
   create_routine: () => "Created a routine",
   update_routine: () => "Updated a routine",
@@ -108,7 +98,7 @@ const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>
 const PATH_TOOLS = new Set(["read", "ls", "write", "edit", "mkdir"])
 
 function inputOf(name: string, args: Record<string, unknown>): string | undefined {
-  const full = name === "bash" ? str(args.command) : name === "web_fetch" ? str(args.url) : PATH_TOOLS.has(name) || !Object.keys(args).length ? "" : JSON.stringify(args)
+  const full = name === "bash" ? str(args.command) : PATH_TOOLS.has(name) || !Object.keys(args).length ? "" : JSON.stringify(args)
   return full ? cut(redact(full), INPUT_CHARS) : undefined
 }
 

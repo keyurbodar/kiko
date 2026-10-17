@@ -11,7 +11,6 @@ test("a step reads as past tense words the human can follow, and internal tools 
   expect(label("ls", { path: "/drafts" })).toBe("Listed /drafts")
   expect(label("ls")).toBe("Listed the files")
   expect(label("bash", { command: "bun   test" })).toBe("Ran bun test")
-  expect(label("web_fetch", { url: "https://example.com/a/b?x=1" })).toBe("Fetched example.com")
   expect(label("ask", { to: "@Ada" })).toBe("Asked ada")
   expect(label("mkdir", { path: "trip" })).toBe("Made folder /trip")
   expect(label("mv", { from: "/a.md", to: "b.md" })).toBe("Moved /a.md to /b.md")
@@ -24,7 +23,6 @@ test("a step reads as past tense words the human can follow, and internal tools 
   expect(stepOf("ask", {})).toBeNull()
   expect(stepOf("read", { path: "/a" })?.tool).toBe("read")
   expect(stepOf("bash", { command: "ls" })?.tool).toBe("run")
-  expect(stepOf("web_fetch", {})?.tool).toBe("web")
   expect(stepOf("ask", { to: "ada" })?.tool).toBe("other")
 })
 
