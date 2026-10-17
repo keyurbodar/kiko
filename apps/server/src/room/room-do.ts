@@ -17,7 +17,7 @@ import { sha256Hex } from "@kiko/durable/hash"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
-import { Asks, type AskState } from "./asks"
+import { Asks } from "./asks"
 import { Bubbles, replyTag } from "./bubbles"
 import type { StepItem } from "../agent/extensions/presence"
 import { bubbleTouch, chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
@@ -347,7 +347,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 		await this.seedMembers(home, chat)
 		const id = `kickoff:${(await sha256Hex(`${input.creator}\n${input.kickoff}`)).slice(0, 16)}`
-		await this.mailer.send(input.creator, { id, to: "all", text: input.kickoff }, null)
+		await this.mailer.send(input.creator, { id, to: "all", text: input.kickoff })
 	}
 
 	private adopt(userId: string): Home | null {
@@ -440,27 +440,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async agentMessage(slug: AgentSlug, send: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }> {
-		return this.mailer.send(slug, send, null)
-	}
-
-	async ask(slug: AgentSlug, send: AgentSend): Promise<{ ok: true; to: AgentSlug[] } | { ok: false; error: string }> {
-		if (send.to === "all") return { ok: false, error: "not sent: ask one agent at a time" }
-		if (send.to === slug) return { ok: false, error: "not sent: you cannot ask yourself" }
-		if (this.asks.get(send.id) === null && this.asks.waiting(send.to, slug)) {
-			return { ok: false, error: `not sent: @${send.to} is waiting for your answer to its question. answer it first with send_message, or in your reply.` }
-		}
-		this.asks.open(send.id, slug, send.to, Date.now())
-		const out = await this.mailer.send(slug, send, send.id)
-		if (!out.ok) this.asks.close(send.id)
-		return out
-	}
-
-	async askState(id: string): Promise<AskState | null> {
-		return this.asks.get(id)
-	}
-
-	async closeAsk(id: string): Promise<AskState | null> {
-		return this.asks.close(id)
+		return this.mailer.send(slug, send)
 	}
 
 	async askHuman(slug: AgentSlug, input: { id: string; question?: string; options?: readonly string[]; questions?: readonly HumanQuestion[] }): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -1053,7 +1033,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (home) {
 			const why = `(no answer: @${slug} cannot run, because ${because}. tell the human, or go on without it.)`
-			this.mailer.answerHeard(home, slug, heard, why, { id: key, seq: stored?.seq ?? this.log.sentBefore(key)?.seq ?? 0 })
+			this.mailer.relayHeard(slug, heard, why, { id: key, seq: stored?.seq ?? this.log.sentBefore(key)?.seq ?? 0 })
 		}
 		this.reports.run(this.routines.dropped(slug), "failed")
 		return stored !== null
@@ -1150,7 +1130,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const first = !this.bubbles.ended(runId)
 		if (home && first) {
 			this.memory.trace(slug, runId, Date.now())
-			this.mailer.answerAsks(home, slug, runId, heard)
+			this.mailer.answerAsks(slug, runId, heard)
 		}
 		this.mail.runEnded(slug)
 		if (working) this.team.clearDoing(slug)

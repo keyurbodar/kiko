@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { Database } from "bun:sqlite"
 import type { ConversationId } from "@earendil-works/pi-durable"
-import { WORKERS_RUN, WORKERS_STEPS, WORKERS_TAIL, Workers } from "@kiko/agent/workers"
+import { ended, transition, WORKERS_RUN, WORKERS_STEPS, WORKERS_TAIL, Workers } from "@kiko/agent/workers"
 import { sqlWith } from "./sql-shim"
 
 const conversation = 1 as ConversationId
@@ -63,4 +63,31 @@ test("a worker's report loses the harness's own diagnostics", async () => {
   const { plainReport } = await import("@kiko/agent/workers")
   expect(plainReport("<harness>\n[error] Tool mkdir is not available\n</harness>")).toBe("")
   expect(plainReport("Listed 3 files.\n<harness>\n[error] Tool x is not available\n</harness>\nDone.")).toBe("Listed 3 files.\n\nDone.")
+})
+
+test("a worker holds its slot from the moment it is reserved, so a fourth is refused before any runs", () => {
+  const workers = store()
+  for (const task of ["one", "two", "three"]) expect(workers.reserve(`task-${task}`, task)).not.toBeNull()
+  expect(workers.reserve("task-four", "four")).toBeNull()
+  expect(workers.list().map((w) => w.status)).toEqual(["pending", "pending", "pending"])
+})
+
+test("an ended worker takes no event but a submit, so a late report cannot reopen it", () => {
+  expect(transition("done", "stop")).toBe("done")
+  expect(transition("done", "lose")).toBe("done")
+  expect(transition("stopped", "done")).toBe("stopped")
+  expect(transition("failed", "stop")).toBe("failed")
+  expect(transition("done", "submit")).toBe("running")
+  expect(ended("pending")).toBe(false)
+  expect(ended("running")).toBe(false)
+  for (const status of ["done", "failed", "stopped"] as const) expect(ended(status)).toBe(true)
+})
+
+test("a reserved worker that is stopped before it is placed never runs", async () => {
+  const workers = store()
+  const work = workers.reserve("task-1", "tidy the folder")!
+  expect((await workers.stop(work.id))?.status).toBe("stopped")
+  expect(await workers.stop(work.id)).toMatchObject({ status: "stopped" })
+  workers.placed(work.id, conversation)
+  expect(workers.get(work.id)?.status).toBe("stopped")
 })

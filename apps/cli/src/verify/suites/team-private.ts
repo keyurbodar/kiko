@@ -25,10 +25,11 @@ const suite: Suite = {
 
     await send(room, "@ana [ask ben] [question] which port does the server use?")
     await poll("ana's reply", () => bubbles(room).some((m) => m.from.kind === "agent" && m.from.slug === "ana"), 30_000)
-    const reply = bubbles(room).find((m) => m.from.kind === "agent" && m.from.slug === "ana")
-    if (!reply?.text.includes("@ben answered: [answer] 42")) throw new VerifyError(`ana's reply does not carry ben's answer: ${JSON.stringify(reply?.text)}`)
+    await poll("ana's later reply carrying ben's answer", () => bubbles(room).filter((m) => m.from.kind === "agent" && m.from.slug === "ana").some((m) => m.text.includes("[answer] 42")), 30_000)
+    const replies = bubbles(room).filter((m) => m.from.kind === "agent" && m.from.slug === "ana")
+    expectEqual(replies.length, 2, "ana's runs: the message, then the answer")
     expectEqual(agentSends(room).map(line), ["ana: @ben [question] which port does the server use?", "ben: @ana [answer] 42"], "the messages in the origin chat")
-    console.log("  ok ana asked ben, who is not in the chat, and got his answer as the tool result")
+    console.log("  ok ana messaged ben, who is not in the chat, and his answer reached her as its own delivery")
 
     await send(room, "@ana [send ben] [question] and the database?")
     await poll("ben's second answer", () => agentSends(room).filter((m) => m.from.kind === "agent" && m.from.slug === "ben").length === 2, 30_000)

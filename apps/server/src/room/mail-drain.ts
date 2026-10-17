@@ -1,6 +1,6 @@
 import type { AgentSlug, RoomId } from "@kiko/protocol"
 import type { Alarms } from "@kiko/durable/alarm"
-import { agentStub, roomStub } from "../lib/names"
+import { roomStub } from "../lib/names"
 import type { Asks } from "./asks"
 import type { Burst } from "./burst"
 import { route } from "./deliver"
@@ -34,7 +34,7 @@ export class RoomMail {
 
 	constructor(private readonly d: MailDeps) {}
 
-	async send(slug: AgentSlug, send: AgentSend, askId: string | null): Promise<MailOutcome> {
+	async send(slug: AgentSlug, send: AgentSend): Promise<MailOutcome> {
 		const home = this.d.home()
 		const members = this.d.members.list()
 		if (!home || !members.some((m) => m.slug === slug)) return { ok: false, error: "not sent: you are not a member of this room." }
@@ -44,43 +44,32 @@ export class RoomMail {
 			if (!made.ok) return made
 			pair = made.roomId
 		}
-		const out = this.d.mail.send(slug, send, members, askId, pair)
+		const out = this.d.mail.send(slug, send, members, pair)
 		if (out.ok) {
-			const doing = askId && send.to !== "all" ? `waiting on @${send.to}` : `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`
-			this.d.team.doing(slug, doing, Date.now(), askId && send.to !== "all" ? { kind: "waiting", on: send.to } : { kind: "tool", tool: "other", caption: doing })
+			const doing = `messaging ${send.to === "all" ? "everyone" : `@${send.to}`}`
+			this.d.team.doing(slug, doing, Date.now(), { kind: "tool", tool: "other", caption: doing })
 		}
 		this.d.publish(out.events)
 		if (!out.ok) return out
-		if (out.answered) this.answer(home, send.to as AgentSlug, out.answered, out.send.text)
-		else this.d.ctx.waitUntil(this.drain())
+		this.d.ctx.waitUntil(this.drain())
 		return { ok: true, to: out.send.recipients }
 	}
 
-	answerAsks(home: Home, slug: AgentSlug, runId: string, heard: readonly string[]): void {
+	/**
+	 * Sends what `slug` posted in this run back to whoever messaged it, as mail. The answer reaches
+	 * the asker as a new delivery, which is the one path every agent message takes.
+	 */
+	answerAsks(slug: AgentSlug, runId: string, heard: readonly string[]): void {
 		const bubbles = this.d.ctx.storage.sql
 			.exec<{ id: string; seq: number; text: string }>("SELECT id, seq, text FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
 			.toArray()
 		const text = bubbles.map((b) => b.text).join("\n\n").trim()
 		const last = bubbles.at(-1)
-		if (last && text) this.answerHeard(home, slug, heard, text, { id: last.id, seq: last.seq })
-		else this.nothingToAdd(home, slug, heard)
+		this.relayHeard(slug, heard, text, last ? { id: last.id, seq: last.seq } : null)
 	}
 
-	/** A run with no reply bubbles (empty, `[skip]`, or only reactions, none of which become messages) has nothing to relay. Its asks settle with an empty answer, and a waiting `ask` returns that. */
-	private nothingToAdd(home: Home, slug: AgentSlug, heard: readonly string[]): void {
-		let returned = false
-		for (const ask of this.d.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
-			if (ask.remote) {
-				this.d.mail.giveBack(ask.id, slug, ask.asker, "", ask.remote)
-				returned = true
-			}
-			if (this.d.asks.settle(ask.id, "") && ask.state === "open") this.answer(home, ask.asker, ask.id, "")
-		}
-		if (returned) this.d.ctx.waitUntil(this.drain())
-	}
-
-	/** Answers the asks `slug` heard. An open ask gets the text pushed to its asker. A closed one gets it as mail, and is settled only once the mail is accepted, so a refused answer is not lost. */
-	answerHeard(home: Home, slug: AgentSlug, heard: readonly string[], text: string, message: { id: string; seq: number }): void {
+	/** A run with no reply bubbles (empty, `[skip]`, or only reactions, none of which become messages) has nothing to say: its asks settle empty and are not relayed. */
+	relayHeard(slug: AgentSlug, heard: readonly string[], text: string, message: { id: string; seq: number } | null): void {
 		let relayed = false
 		for (const ask of this.d.asks.unanswered(slug, heard.flatMap((id) => messageIdOf(id) ?? []))) {
 			if (ask.remote) {
@@ -89,8 +78,8 @@ export class RoomMail {
 				relayed = true
 				continue
 			}
-			if (ask.state === "open") {
-				if (this.d.asks.settle(ask.id, text)) this.answer(home, ask.asker, ask.id, text)
+			if (!message) {
+				this.d.asks.settle(ask.id, "")
 				continue
 			}
 			if (!this.d.mail.relay(`answer:${ask.id}`, slug, ask.asker, { ...message, text })) continue
@@ -137,15 +126,6 @@ export class RoomMail {
 		return new Set(route(this.d.burst.envelopes(home.roomId), this.d.members.list(), (id) => replyAddressees((at) => this.d.log.message(at), id)).keys())
 	}
 
-	/** A replay pushes again: the first push may have died with the caller that made it. */
-	answer(home: Home, asker: AgentSlug, askId: string, text: string): void {
-		this.d.ctx.waitUntil(
-			agentStub(this.d.env.AGENT, home.userId, home.roomId, asker)
-				.askAnswered(askId, text)
-				.catch((e: unknown) => console.error(`ask answer push failed: ${e instanceof Error ? e.message : String(e)}`)),
-		)
-	}
-
 	/** The answer from a pair room. It is taken once, whatever the retries. */
 	async pairBack(input: { askId: string; from: AgentSlug; text: string } & Chain): Promise<void> {
 		const home = this.d.home()
@@ -153,7 +133,6 @@ export class RoomMail {
 		const out = this.d.mail.returned(input.askId, input.from, input.text, input)
 		if (!out) return
 		this.d.publish(out.events)
-		if (out.waiting) this.answer(home, out.asker, input.askId, input.text)
 		if (out.queued) this.d.ctx.waitUntil(this.drain())
 	}
 

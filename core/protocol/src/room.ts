@@ -8,7 +8,7 @@ export type AgentState = "idle" | "typing" | "working"
 
 export type ToolKind = "read" | "edit" | "search" | "run" | "web" | "other"
 
-type WorkerState = "running" | "done" | "failed" | "stopped"
+type WorkerState = "pending" | "running" | "done" | "failed" | "stopped"
 
 export type WorkerRow = {
 	id: string
@@ -22,7 +22,6 @@ export type WorkerRow = {
 export type Activity =
 	| { kind: "writing" }
 	| { kind: "tool"; tool: ToolKind; caption: string }
-	| { kind: "waiting"; on: AgentSlug }
 	| { kind: "failed"; caption: string }
 	| { kind: "background"; workers: readonly WorkerRow[] }
 

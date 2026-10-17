@@ -16,7 +16,6 @@ apps/server/src/agent/extensions/messaging.ts:ASK_WAIT_MS
 apps/server/src/agent/extensions/self.ts:SELF
 apps/server/src/agent/factory.ts:BuiltAgent
 apps/server/src/agent/factory.ts:RunAuth
-apps/server/src/agent/factory.ts:workerOnly
 apps/server/src/agent/outbox.ts:DRAFT_INTERVAL_MS
 apps/server/src/agent/prompt.ts:SectionKey
 apps/server/src/agent/recall.ts:RecallHit

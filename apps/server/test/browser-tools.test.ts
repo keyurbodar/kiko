@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { BrowserSession, PageView, Step, Tab } from "@kiko/browser/page/types"
 import { BrowserConnection } from "../src/agent/browser/connection"
-import { WORKER_ONLY } from "../src/agent/factory"
+import { hasRole } from "../src/agent/roles"
 import type { BrowserState, Lease, LeasePort } from "../src/agent/browser/lease"
 import { browserExtension, PAUSED, toStep, type BrowserToolDeps } from "../src/agent/browser/tools"
 
@@ -117,7 +117,8 @@ describe("browser tool list", () => {
     for (const name of ["browser_tabs", "browser_extract", "browser_eval", "browser_dialog", "browser_fetch", "browser_files", "browse", "browser_act", "browser_run"]) {
       expect(names).toContain(name)
     }
-    expect(WORKER_ONLY).toContain("browser")
+    expect(hasRole("browser", "worker")).toBe(true)
+    expect(hasRole("browser", "talker")).toBe(false)
   })
 })
 

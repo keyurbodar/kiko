@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RunErrorKind } from "@kiko/protocol"
-import { classifyRunError, describeRunError, runErrorDetail } from "../src/agent/run-error"
+import { classifyRunError, describeRunError, runErrorDetail, stopsWorkers } from "../src/agent/run-error"
 
 describe("classifyRunError", () => {
   const cases: [string, RunErrorKind][] = [
@@ -91,5 +91,15 @@ describe("a web page instead of an answer", () => {
 
   test("shows the page's title and heading, not its markup", () => {
     expect(runErrorDetail(page)).toBe("The provider answered with a web page instead of an answer: Access denied. Request blocked")
+  })
+})
+
+describe("stopsWorkers", () => {
+  test("a failure the provider will repeat stops the workers with the run", () => {
+    for (const kind of ["no_key", "signed_out", "invalid_key", "quota", "no_model", "model_not_found", "refused", "too_long"] as const) expect(stopsWorkers(kind)).toBe(true)
+  })
+
+  test("a busy or unreachable provider leaves the workers to finish and report", () => {
+    for (const kind of ["rate_limit", "network", "overloaded", "timeout", "too_slow", "cut_off", "not_started", "other"] as const) expect(stopsWorkers(kind)).toBe(false)
   })
 })

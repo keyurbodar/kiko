@@ -98,7 +98,6 @@ export const activities: readonly Activity[] = [
 	{ kind: "writing" },
 	{ kind: "tool", tool: "edit", caption: "editing /plan.md" },
 	{ kind: "tool", tool: "run", caption: "running bun test" },
-	{ kind: "waiting", on: bob },
 	{ kind: "failed", caption: "failed: reading /plan.md (no such file)" },
 	{ kind: "background", workers: [worker] },
 	{ kind: "background", workers: [] },

@@ -20,6 +20,33 @@ const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
 
 const DETAIL_MAX = 300
 
+/**
+ * Whether a failed run leaves its workers running. A failure the provider will repeat on the next
+ * request (a key, a plan, a model that is gone, a request the model rejects) is fatal: the lead
+ * cannot go on, so its workers stop too. A busy or unreachable provider is transient: the lead's
+ * failure says nothing about the workers, so they finish and report.
+ */
+const FATAL: Readonly<Record<RunErrorKind, boolean>> = {
+  no_key: true,
+  signed_out: true,
+  invalid_key: true,
+  quota: true,
+  no_model: true,
+  model_not_found: true,
+  refused: true,
+  too_long: true,
+  rate_limit: false,
+  network: false,
+  overloaded: false,
+  timeout: false,
+  too_slow: false,
+  cut_off: false,
+  not_started: false,
+  other: false,
+}
+
+export const stopsWorkers = (kind: RunErrorKind): boolean => FATAL[kind]
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** Cuts out anything that looks like a key or a bearer token. A UUID is an id, not a key, so it stays. */
@@ -37,7 +64,7 @@ const HTML = /<!doctype html|<html[\s>]/i
  * styles are not words, and their keywords ("blocked", "safety") would pick the wrong kind. Keeps the text before
  * the page (often the status code), the page's title, and its first heading.
  */
-export function providerWords(message: string | undefined): string {
+function providerWords(message: string | undefined): string {
   const text = message ?? ""
   const start = text.search(HTML)
   if (start < 0) return text

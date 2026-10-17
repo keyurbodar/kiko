@@ -2,28 +2,20 @@ import { Type } from "@earendil-works/pi-ai"
 import { type Agent, type AgentChange, configure, defineExtension, defineTool, type Extension, hook, ToolTask, wrapSection } from "@earendil-works/pi-durable"
 import { declareEffect } from "@kiko/agent/effects"
 import { MAX_WORKERS, type Workers } from "@kiko/agent/workers"
-import { MEMORY_NOTE } from "@kiko/memory/tools"
-import { GROUPS_EXT } from "./chief"
-import { MESSAGING } from "./messaging"
-import { ROUTINES } from "./routines"
-import { WORKSPACE } from "./workspace"
+import { forRole } from "../roles"
 import { WORK_LINES } from "../prompt"
 import { count } from "../../lib/dev-guard"
+import { WORK, WORK_STEPS } from "./names"
 
-export const WORK = "work"
-export const WORK_STEPS = "work-steps"
-
-const NOT_FOR_WORKERS: readonly string[] = [WORK, MESSAGING, MEMORY_NOTE, GROUPS_EXT, ROUTINES, WORKSPACE]
+export { WORK, WORK_STEPS }
 
 const WORKER_PROMPT =
   "You are a background worker. The agent who talks with the human gave you a task. Do it with your tools and check the result. Make independent tool calls together, in one message, not one by one. You cannot talk to the human. A later message is the agent passing on a change from the human: follow it. End with a short, complete report of what you found or did, in plain sentences. Never quote a tool error or markup in it. If an app the task needs is not connected, or a key is missing, stop at once and report only which app or key is missing; do not try other routes."
 
 const say = (text: string) => ({ output: [{ type: "text" as const, text }] })
 
-const forWorker = (all: readonly Extension[]): Extension[] => all.filter((e) => !NOT_FOR_WORKERS.includes(e.name))
-
 function workerAgent(agent: Agent, all: readonly Extension[]): AgentChange {
-  return { model: agent.model ?? null, thinkingLevel: agent.thinkingLevel, extensions: forWorker(all), instructions: WORKER_PROMPT }
+  return { model: agent.model ?? null, thinkingLevel: agent.thinkingLevel, extensions: forRole(all, "worker"), instructions: WORKER_PROMPT }
 }
 
 const brief = (args: unknown) => {
@@ -40,7 +32,7 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
     execute: async ({ task }, api, ctx) => {
       const work = workers.byTask(String(api.taskId)) ?? workers.reserve(String(api.taskId), task, runId())
       if (!work) {
-        const ids = workers.running().map((w) => w.id).join(", ")
+        const ids = workers.live().map((w) => w.id).join(", ")
         return say(`${MAX_WORKERS} workers are running (${ids}). wait for one to report, or stop one with stop_work.`)
       }
       let conversationId = work.conversationId
@@ -90,8 +82,10 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
     execute: async ({ id }) => {
       const work = workers.get(id)
       if (!work) return say(`there is no worker ${id}.`)
-      if (work.status !== "running") return say(`${id} already ended: ${work.status}.`)
-      workers.stop(id)
+      if (work.status !== "running" && work.status !== "pending") return say(`${id} already ended: ${work.status}.`)
+      // Not awaited: the abort has to finish before this tool can return, and it cannot finish while
+      // this run still holds the object. The status is written first, so the stop shows at once.
+      void workers.stop(id)
       return say(`stopped ${id}.`)
     },
   })

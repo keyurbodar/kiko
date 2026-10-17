@@ -95,6 +95,18 @@ describe("inbox entries in flight", () => {
     expect(await call(id, "admit", { envelopes: [e] })).toEqual({ admitted: [e.id], inserted: 0 })
     expect(await call<Batch[]>(id, "claim", { now: T0 + 2 * RECLAIM_MS })).toEqual([])
   })
+
+  test("two worker reports that land while the lead is busy are one submission", async () => {
+    const id = fresh()
+    const first = envelope("job one done", { kind: "system", reason: "work" })
+    const second = envelope("job two done", { kind: "system", reason: "work" })
+    await call(id, "admit", { envelopes: [first] })
+    await call(id, "admit", { envelopes: [second] })
+    const claimed = await call<Batch[]>(id, "claim", { now: T0 })
+    expect(claimed).toHaveLength(1)
+    expect(claimed[0]!.envelopes.map((e) => e.id)).toEqual([first.id, second.id])
+    expect(await call<Batch[]>(id, "claim", { now: T0 + 1 })).toEqual([])
+  })
 })
 
 describe("inbox caps", () => {
