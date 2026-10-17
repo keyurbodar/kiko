@@ -380,7 +380,7 @@ test("a provider error becomes a fixed sentence with actions, never the provider
 	const c = await withAgent(room)
 	await rpc(room, "runError", "ada", "run-1", { kind: "invalid_key", provider: "opencode-go", inputs: [] })
 	const [line] = await runErrors(room)
-	expect(line!.text).toBe("OpenCode Go did not accept the key. Check the key, then retry.")
+	expect(line!.text).toBe("OpenCode Go did not accept the key or sign-in. Check it in Settings, or connect again, then retry.")
 	expect(line!.event.actions).toEqual(["open_settings", "change_model"])
 	await rpc(room, "runError", "ada", "run-1", { kind: "invalid_key", provider: "opencode-go", inputs: [] })
 	expect(await runErrors(room)).toHaveLength(1)

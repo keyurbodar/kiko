@@ -7,6 +7,7 @@ import { receive, type ReceiveDeps } from "./receive"
 import type { Members } from "./members"
 import { DELIVERY_RETRY_MS } from "./wake-delivery"
 import type { Home } from "./home"
+import type { StartCheck } from "./start-check"
 
 export type BurstDeps = ReceiveDeps & {
 	ctx: DurableObjectState
@@ -16,6 +17,7 @@ export type BurstDeps = ReceiveDeps & {
 	chat: (home: Home) => Promise<Chat | null>
 	seedMembers: (home: Home, chat: Chat) => Promise<void>
 	drainMail: () => Promise<void>
+	startCheck: StartCheck
 }
 
 export class BurstFlush {
@@ -60,7 +62,9 @@ export class BurstFlush {
 			if (!m) return []
 			return [{ id: `${envelopeId(id)}#${errorId}`, roomId: home.roomId, from: { kind: "human" }, body: m.text, ...(m.replyTo ? { replyTo: m.replyTo } : {}), hop: 0, rootId: id, seq: m.seq }]
 		})
-		if (envelopes.length) await receive(this.d, home, member, members, chat.title, envelopes)
+		if (!envelopes.length) return
+		if (member.status === "idle") await this.d.startCheck.arm(slug, ids)
+		await receive(this.d, home, member, members, chat.title, envelopes)
 	}
 
 	private async deliverBurst(home: Home, batch: Pending[]): Promise<Set<AgentSlug> | "full"> {
@@ -78,6 +82,9 @@ export class BurstFlush {
 			[...routes].map(async ([slug, mine]) => {
 				const member = members.find((m) => m.slug === slug)
 				if (!member) throw new Error(`no member @${slug}`)
+				const humans = mine.filter((e) => e.from.kind === "human").map((e) => e.rootId)
+				// Armed before the delivery, so a run that starts at once clears it.
+				if (member.status === "idle" && humans.length) await this.d.startCheck.arm(slug, humans)
 				return receive(this.d, home, member, members, chat.title, mine)
 			}),
 		)

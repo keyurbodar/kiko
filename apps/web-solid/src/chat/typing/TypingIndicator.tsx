@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { IdentityAvatar } from "../../lib/IdentityAvatar";
-import { motionOf, type Motion } from "./action";
+import { captionOf, motionOf, SLOW_AFTER_MS } from "./action";
 import { describe } from "./create-typing-presence";
 import { useApp } from "../../lib/store";
 import { RunChevron } from "../run/RunChevron";
@@ -32,23 +32,25 @@ const ROWS = 3;
 /** How long an act runs before its caption shows, so a quick tool call never flashes words. */
 const CAPTION_AFTER_MS = 2000;
 
-/** The room reports "reading a web page"; a caption on its own line starts with a capital. */
-const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-
 function Row(props: { seed: string; doing?: string; group?: boolean }) {
   const motion = () => motionOf(props.doing);
-  const [caption, setCaption] = createSignal<string>();
+  const started = Date.now();
+  const [now, setNow] = createSignal(started);
+  const tick = setInterval(() => setNow(Date.now()), 1000);
+  onCleanup(() => clearInterval(tick));
+  // A quick tool call never flashes words: its act shows only once it has run a while.
+  const [settled, setSettled] = createSignal(false);
   createEffect(
     on(
-      () => (motion() === "wave" ? undefined : props.doing),
-      (doing) => {
-        setCaption(undefined);
-        if (!doing) return;
-        const timer = setTimeout(() => setCaption(sentence(doing)), CAPTION_AFTER_MS);
+      () => props.doing,
+      () => {
+        setSettled(false);
+        const timer = setTimeout(() => setSettled(true), CAPTION_AFTER_MS);
         onCleanup(() => clearTimeout(timer));
       },
     ),
   );
+  const caption = () => captionOf(settled() ? props.doing : undefined, now() - started);
   return (
     <div class="typing" data-component="typing-row" data-motion={motion()}>
       <Show when={props.group}>
@@ -62,7 +64,7 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
         </span>
       </div>
       <Show when={useApp.typingRun(props.seed)}>{(windowKey) => <RunChevron windowKey={windowKey()} class="typing-run" />}</Show>
-      <span class="typing-doing" data-component="typing-doing" aria-hidden="true">
+      <span class="typing-doing" data-component="typing-doing" data-slow={now() - started >= SLOW_AFTER_MS ? "" : undefined} aria-hidden="true">
         {caption()}
       </span>
     </div>

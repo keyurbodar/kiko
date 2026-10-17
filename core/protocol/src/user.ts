@@ -154,6 +154,8 @@ export type UserToClient =
 	/** Not stored. Something the human must know about, as one toast. `roomId` names the chat it happened in, so the client can skip the toast for the chat on screen. */
 	| { t: "error"; error: KikoError; roomId?: RoomId }
 	| { t: "chat_refused"; roomId: RoomId; existing: RoomId }
+	/** The server kept the agent's model as it was. `message` says why, in words for the human. */
+	| { t: "model_refused"; slug: AgentSlug; message: string }
 	| { t: "home_refused"; op: FileOp; reason: string }
 	| { t: "typing"; roomId: RoomId; names: readonly string[] }
 	/** A list the user socket does not carry changed: reload it. */

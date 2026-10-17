@@ -81,18 +81,19 @@ test("indexOf places each step in the stepper, with Cloudflare only when hosted"
   expect(steps.map((s) => indexOf(s, true))).toEqual([-1, 0, 1, 2, 3, 4])
 })
 
-describe("the model step never changes a model the human did not pick", () => {
-  test("Start chatting without a click saves nothing", () => {
-    expect(modelToSave(null, "opencode-go/muse-spark-1.3-contributor")).toBeNull()
-    expect(modelToSave(null, undefined)).toBeNull()
+describe("the model step saves only the model the human sees picked", () => {
+  test("Start chatting on the running model saves nothing", () => {
+    expect(modelToSave("opencode-go/muse-spark-1.3-contributor", "opencode-go/muse-spark-1.3-contributor")).toBeNull()
+    expect(modelToSave(undefined, undefined)).toBeNull()
   })
-  test("a click on another model saves it, a click on the running one saves nothing", () => {
+  test("Start chatting saves the highlighted row when Kiko runs on another model", () => {
     expect(modelToSave("opencode-go/b", "opencode-go/a")).toBe("opencode-go/b")
-    expect(modelToSave("opencode-go/a", "opencode-go/a")).toBeNull()
+    expect(modelToSave("anthropic/a", "opencode-go/muse-spark-1.3-contributor")).toBe("anthropic/a")
   })
-  test("the highlighted row is the running model when listed, else the first", () => {
+  test("the highlighted row is the running model when listed, else none: Kiko never picks for the human", () => {
     expect(shownModel(null, "p/b", ["p/a", "p/b"])).toBe("p/b")
-    expect(shownModel(null, "p/x", ["p/a", "p/b"])).toBe("p/a")
+    expect(shownModel(null, "p/x", ["p/a", "p/b"])).toBeUndefined()
+    expect(shownModel(null, undefined, ["p/a", "p/b"])).toBeUndefined()
     expect(shownModel("p/b", "p/a", ["p/a", "p/b"])).toBe("p/b")
   })
 })

@@ -58,6 +58,7 @@ import type { ReceiveDeps } from "./receive"
 import type { AgentHome, Home } from "./home"
 import { RoomWakes, WAKES_WAKEUP } from "./wake-delivery"
 import { MAIL_WAKEUP, RoomMail } from "./mail-drain"
+import { START_WAKEUP, StartCheck } from "./start-check"
 import { BurstFlush } from "./burst-flush"
 import { type PairIn, RoomPair } from "./pair"
 
@@ -80,6 +81,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private burstFlush!: BurstFlush
 	private deliveries!: Deliveries
 	private alarms!: Alarms
+	private startCheck!: StartCheck
 	private burst!: Burst
 	private bubbles!: Bubbles
 	private mail!: Mail
@@ -115,6 +117,12 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.files = roomFiles(ctx.storage, this.log)
 			this.team = new Team(ctx.storage.sql)
 			this.alarms = createAlarms(ctx)
+			this.startCheck = new StartCheck({
+				sql: ctx.storage.sql,
+				alarms: this.alarms,
+				idle: (slug) => this.members.get(slug)?.status === "idle",
+				report: (slug, inputs, key) => void this.reportRunError(slug, key, "not_started", "", inputs),
+			})
 			this.burst = new Burst(ctx.storage, this.alarms)
 			this.bubbles = new Bubbles(ctx.storage, this.log, (path) => {
 				const entry = this.files.stat(path)
@@ -187,6 +195,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				chat: (home) => this.chat(home),
 				seedMembers: (home, chat) => this.seedMembers(home, chat),
 				drainMail: () => this.mailer.drain(),
+				startCheck: this.startCheck,
 			})
 		})
 	}
@@ -302,7 +311,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		const member = this.members.list().find((m) => m.slug === slug)
 		if (!home || !member) return ""
-		return (await userStub(this.env.USER, home.userId).agentModel(member.slug)).model
+		return (await userStub(this.env.USER, home.userId).agentModel(member.slug))?.model ?? ""
 	}
 
 	async createAgent(slug: AgentSlug, spec: NewAgentSpec): Promise<GroupResult> {
@@ -378,6 +387,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			[MEMORY_WAKEUP]: () => this.memoryNaps.naps(),
 			[SIGNALS_WAKEUP]: () => this.reports.flush(),
 			[PENDING_WAKEUP]: () => this.sweepPending(),
+			[START_WAKEUP]: () => this.startCheck.due(),
 		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [SIGNALS_WAKEUP]: 5_000 } })
 		if (!due.includes(MAIL_WAKEUP) && this.mail.queued()) await this.mailer.drain()
 	}
@@ -1024,11 +1034,24 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async noProvider(slug: AgentSlug, provider: string, requestId: string, heard: readonly string[] = [], inputs: readonly string[] = [], kind: "no_key" | "signed_out" | "network" = "no_key"): Promise<boolean> {
-		const key = `no_provider:${slug}:${requestId}`
-		const stored = this.reportRunError(slug, key, kind, provider, inputs)
+		const because = kind === "signed_out" ? `the human's ${provider} sign-in expired` : kind === "network" ? `kiko could not reach ${provider}` : `the human has not connected ${provider}`
+		return this.cannotRun(slug, `no_provider:${slug}:${requestId}`, kind, provider, because, heard, inputs)
+	}
+
+	/** The agent's model is one pi-ai does not list, such as a retired one. It stays picked; the human picks another. */
+	async modelGone(slug: AgentSlug, provider: string, model: string, requestId: string, heard: readonly string[] = [], inputs: readonly string[] = []): Promise<boolean> {
+		return this.cannotRun(slug, `model_gone:${slug}:${requestId}`, "model_not_found", provider, `its model ${model} is not one Kiko can run`, heard, inputs, `${model} is not in the model list this version of Kiko knows.`)
+	}
+
+	/** The agent has no model because the human never picked one. Kiko does not pick for them. */
+	async noModel(slug: AgentSlug, requestId: string, heard: readonly string[] = [], inputs: readonly string[] = []): Promise<boolean> {
+		return this.cannotRun(slug, `no_model:${slug}:${requestId}`, "no_model", "", "the human has not picked a model for it", heard, inputs)
+	}
+
+	private cannotRun(slug: AgentSlug, key: string, kind: RunErrorKind, provider: string, because: string, heard: readonly string[], inputs: readonly string[], detail?: string): boolean {
+		const stored = this.reportRunError(slug, key, kind, provider, inputs, detail)
 		const home = this.home()
 		if (home) {
-			const because = kind === "signed_out" ? `the human's ${provider} sign-in expired` : kind === "network" ? `kiko could not reach ${provider}` : `the human has not connected ${provider}`
 			const why = `(no answer: @${slug} cannot run, because ${because}. tell the human, or go on without it.)`
 			this.mailer.answerHeard(home, slug, heard, why, { id: key, seq: stored?.seq ?? this.log.sentBefore(key)?.seq ?? 0 })
 		}
@@ -1046,6 +1069,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * answered, so it is offered only when there are some.
 	 */
 	private reportRunError(slug: AgentSlug, key: string, kind: RunErrorKind, provider: string, inputs: readonly string[], detail?: string): { id: MessageId; seq: number } | null {
+		this.startCheck.started(slug)
 		const member = this.members.get(slug)
 		const home = this.home()
 		if (!member || !home) return null
@@ -1090,7 +1114,10 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.team.clear(slug)
 			this.reports.run(this.routines.ended(slug), "ended")
 		}
-		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
+		else {
+			this.startCheck.started(slug)
+			if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
+		}
 		if (!this.members.setStatus(slug, state)) return false
 		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
 		this.broadcastStatus(slug)

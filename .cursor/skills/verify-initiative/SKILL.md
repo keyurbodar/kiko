@@ -19,7 +19,7 @@ Builds on `verify-kiko-server` (same CLI client and dev server). Real models onl
 
 ## Models and keys
 
-- Agent model: provider `opencode-go`, model id `muse-spark-1.3-contributor` (display name "Muse Spark 1.3 Contributor"). This is `DEFAULT_MODEL` in `apps/server/src/agent/factory.ts`; connecting the provider is enough, no per-agent override.
+- Agent model: provider `opencode-go`, model id `muse-spark-1.3-contributor` (display name "Muse Spark 1.3 Contributor"), or `KIKO_TEST_MODEL`. Kiko has no default model, so `connectTestModel` connects the provider and then picks Kiko's model, as the human does.
 - Jev judge: provider id `typesafe`, key `TYPESAFE_API_KEY`.
 - `kit.ts` reads both from the shell or `apps/server/.dev.vars` and stores them with `PUT /api/credentials/<provider>` (`connectTestModel`, `connectProvider`). Without the typesafe credential there is no judge; capture `auto` then costs nothing.
 

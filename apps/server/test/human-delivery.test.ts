@@ -81,6 +81,7 @@ function setup(refusal: string | null, members: MemberRow[] = [ada, bob]) {
     },
     seedMembers: async () => {},
     drainMail: async () => {},
+    startCheck: { arm: async () => {} } as never,
     retryHeld: async () => {},
   }
   return { flush: new BurstFlush(deps), burst, log, wakes, wakeups, received, to, clock, published, deps, storage, sql, state }

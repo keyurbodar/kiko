@@ -19,6 +19,8 @@ describe("classifyRunError", () => {
     ["503 service unavailable", "overloaded"],
     ["the model stopped responding and the request timed out", "timeout"],
     ["504 gateway timeout", "timeout"],
+    ["Stream ended without finish_reason", "cut_off"],
+    ["terminated", "cut_off"],
     ["fetch failed", "network"],
     ["ECONNRESET", "network"],
     ["prompt is too long: 250000 tokens > 200000 maximum", "too_long"],
@@ -32,7 +34,7 @@ describe("classifyRunError", () => {
 })
 
 describe("describeRunError", () => {
-  const KINDS: RunErrorKind[] = ["no_key", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "refused", "too_long", "other"]
+  const KINDS: RunErrorKind[] = ["no_key", "no_model", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "too_slow", "not_started", "cut_off", "refused", "too_long", "other"]
 
   test("every failure has one plain sentence that names the provider and holds nothing the provider said", () => {
     for (const kind of KINDS) {
@@ -51,6 +53,8 @@ describe("describeRunError", () => {
     expect(actions("model_not_found")).toEqual(["change_model", "open_settings"])
     expect(actions("overloaded")).toEqual(["retry", "change_model"])
     expect(actions("too_long")).toEqual(["change_model"])
+    expect(actions("no_model")).toEqual(["change_model", "retry"])
+    expect(actions("cut_off")).toEqual(["retry", "change_model"])
   })
 
   test("a failure the settings fix toasts with the settings action, and a transient one has none", () => {

@@ -276,7 +276,10 @@ export class Outbox {
 
   private async reportError(runId: string, message: AssistantLike): Promise<void> {
     const detail = runErrorDetail(message.errorMessage)
-    await this.room()?.runError(runId, { kind: classifyRunError(message.errorMessage), provider: message.provider ?? "", ...(detail ? { detail } : {}) })
+    // A failed report must not stop the run from being saved and its bubbles flushed.
+    await this.room()
+      ?.runError(runId, { kind: classifyRunError(message.errorMessage), provider: message.provider ?? "", ...(detail ? { detail } : {}) })
+      .catch((e: unknown) => console.error(`run error not reported: ${e instanceof Error ? e.message : String(e)}`))
   }
 
   private finishGeneration(run: Run, entry: EntryRecord): boolean {

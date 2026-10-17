@@ -223,7 +223,7 @@ export type ClientToRoom =
 	/** Asks for one agent's steps with this `after`. The room answers with a `steps` frame. */
 	| { t: "steps"; slug: AgentSlug; after: number }
 
-export type RunErrorKind = "no_key" | "signed_out" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "refused" | "too_long" | "other"
+export type RunErrorKind = "no_key" | "signed_out" | "no_model" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "too_slow" | "not_started" | "cut_off" | "refused" | "too_long" | "other"
 
 /** What the human can do about a failed run. The client draws one button for each. */
 export type RunErrorAction = "retry" | "change_model" | "open_settings"

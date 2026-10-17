@@ -4,9 +4,11 @@ import type { Life } from "@kiko/memory/life"
 import { cleanLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@kiko/memory/optmem"
 import { candidates, type CaptureCount, type CapturePolicy, captureWithJudge, mergePolicy } from "@kiko/memory/capture"
 import type { Answer, Judge, Question } from "@kiko/memory/judge"
-import type { MemoryModel, MemoryOp, MemoryResult, ProviderInfo, RoomId } from "@kiko/protocol"
+import { KIKO, type MemoryModel, type MemoryOp, type MemoryResult, type ProviderInfo, type RoomId } from "@kiko/protocol"
 import type { UserSettingsPatch } from "@kiko/protocol/schema"
-import { DEFAULT_MODEL, userModels } from "../agent/factory"
+import { userModels } from "../agent/factory"
+import { parseModelRef } from "../agent/thinking"
+import { agentModel } from "./agent-models"
 import { DEV } from "../lib/dev-guard"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import type { CredentialVault } from "./credentials"
@@ -205,7 +207,11 @@ export class MemoryCapture {
     if (this.#compressing >= MAX_NAPS) return { retryAt: Date.now() + 5_000 + Math.floor(Math.random() * 5_000) }
     this.#compressing++
     try {
-      const answer = await this.complete(this.memoryModel() ?? DEFAULT_MODEL, NAP_SYSTEM, prompt)
+      // Summaries run on the model the human set for them, else on Kiko's. Never on one nobody picked.
+      const kiko = agentModel(this.sql, KIKO)
+      const ref = this.memoryModel() ?? (kiko ? parseModelRef(kiko.model) : null)
+      if (!ref) return { retryAt: Date.now() + 10 * 60_000 }
+      const answer = await this.complete(ref, NAP_SYSTEM, prompt)
       if (answer === null) return { retryAt: Date.now() + 10 * 60_000 }
       const line = cleanLine(answer)
       return line ? { text: line } : { error: "the model wrote no line" }
