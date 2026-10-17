@@ -96,15 +96,15 @@ test("(b) steer_work reaches the worker after its tool, and its answer reflects 
   expect(last.roles).toEqual(["user", "assistant", "toolResult", "user"])
 }, 30_000)
 
-test("(c) stop_work aborts the hanging tool, and the talker hears the worker stopped", async () => {
+test("(c) stop_work aborts the hanging tool, and a stopped worker that changed nothing sends no report", async () => {
   const a = await agent()
   await working(a)
   await a.say("STOP")
   await until(a.hangs, (h) => h.aborted === 1)
-  const posts = await until(a.posts, (p) => p.some((t) => t.startsWith("reported w1 stopped")))
-  expect(posts.filter((t) => t.startsWith("reported w1")).length).toBe(1)
-  expect((await a.transcript()).users.filter((u) => u.includes('<work id="w1" status="stopped">')).length).toBe(1)
-  expect((await a.workers())[0]!.status).toBe("stopped")
+  await until(a.workers, (w) => w[0]?.status === "stopped")
+  await new Promise((r) => setTimeout(r, 1_500))
+  expect((await a.posts()).filter((t) => t.startsWith("reported w1"))).toEqual([])
+  expect((await a.transcript()).users.filter((u) => u.includes('<work id="w1"')).length).toBe(0)
 }, 30_000)
 
 test("(d) a finished worker reaches the talker once, even when its delivery runs twice", async () => {

@@ -331,6 +331,11 @@ export class Workers {
     }
     const marked = this.get(id)?.status
     const status: WorkStatus = marked === "stopped" || marked === "failed" ? marked : settled?.status === "done" ? transition("running", "done") : transition("running", "lose")
+    // The agent stopped it, so it already knows. A report would only wake it to say so again, unless files changed.
+    if (status === "stopped" && !this.changedPaths(id).paths.length) {
+      this.sql.exec("UPDATE workers SET status = 'stopped', delivered = 1, resumes = 0, updated_at = ? WHERE id = ? AND submission_id = ?", this.now(), id, submissionId)
+      return this.changed()
+    }
     const report = marked === "failed" ? GAVE_UP : await this.report(harness, work.conversationId, status, settled)
     const now = this.get(id)
     if (harness !== this.harness || !now || now.delivered || now.submissionId !== submissionId) return
