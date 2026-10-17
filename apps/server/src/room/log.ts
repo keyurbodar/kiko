@@ -18,6 +18,7 @@ import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
 import { listAsks } from "./human-asks"
 import { agentStatuses } from "./status"
+import { liveSteps, stepCounts } from "./steps"
 import { listTasks } from "./workspace"
 
 export const REPLAY_LIMIT = 500
@@ -149,6 +150,7 @@ export class RoomLog {
 				SNAPSHOT_MESSAGES,
 			)
 			.toArray()
+		const steps = liveSteps(this.sql, this.now())
 		return {
 			seq: this.lastSeq(),
 			readSeq: this.readSeq(),
@@ -158,6 +160,7 @@ export class RoomLog {
 			...listSpace(this.storage, ROOM_TABLES),
 			agents: agentStatuses(this.storage.sql),
 			asks: listAsks(this.storage.sql),
+			...(steps.length ? { steps } : {}),
 		}
 	}
 
@@ -212,7 +215,8 @@ export class RoomLog {
 			list.push({ by: actorFromKey(x.actor), emoji: x.emoji })
 			reactions.set(x.message_id, list)
 		}
-		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies))
+		const steps = stepCounts(this.sql, [...new Set(rows.flatMap((r) => (r.run_id !== null ? [r.run_id] : [])))])
+		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies, steps))
 	}
 
 	/** A live (not deleted) message, or null. */
@@ -286,6 +290,7 @@ export class RoomLog {
 			const earlier = input.clientId ? this.sentBefore(input.clientId) : input.run ? this.messageForRun(input.run) : null
 			if (earlier) return { ...earlier, event: null }
 			const id = crypto.randomUUID() as MessageId
+			const runSteps = input.run ? (stepCounts(this.sql, [input.run.runId]).get(input.run.runId) ?? 0) : 0
 			const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
 			const message: Omit<Message, "seq" | "at"> = {
 				id,
@@ -296,6 +301,7 @@ export class RoomLog {
 				...(reply ? { reply } : {}),
 				...(input.files?.length ? { files: input.files } : {}),
 				...(input.run ? { run: input.run } : {}),
+				...(runSteps ? { steps: runSteps } : {}),
 				...(input.goto ? { goto: input.goto } : {}),
 				...(input.quote ? { quote: input.quote } : {}),
 				...(input.to ? { to: input.to } : {}),
@@ -469,7 +475,8 @@ export class RoomLog {
 	}
 
 	/** `reactions` are the message's, when the caller loaded them for many rows at once. */
-	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>): Message {
+	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>, stepsOf?: ReadonlyMap<string, number>): Message {
+		const steps = r.run_id === null ? 0 : (stepsOf ?? stepCounts(this.sql, [r.run_id])).get(r.run_id) ?? 0
 		const reply = r.reply_to ? (replies ?? this.previews([r.reply_to])).get(r.reply_to) : undefined
 		const reactions: Reaction[] =
 			preloaded ??
@@ -493,6 +500,7 @@ export class RoomLog {
 			...(r.run_id !== null
 				? { run: { runId: r.run_id, attempt: r.run_attempt ?? 0, index: r.run_index ?? 0 } }
 				: {}),
+			...(steps ? { steps } : {}),
 			...(r.edited_at !== null ? { editedAt: r.edited_at } : {}),
 			...(r.goto ? { goto: r.goto as RoomId } : {}),
 			...(r.quote ? { quote: r.quote } : {}),

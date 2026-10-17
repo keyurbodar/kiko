@@ -178,6 +178,7 @@ export class AgentDO extends DurableObject<Env> {
         return room().endRun(home.slug, runId, mail, working, mailOnly)
       },
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
+      step: (step) => room().reportStep(home.slug, { ...step, slug: home.slug }),
       runError: (runId, error) => room().runError(home.slug, runId, { ...error, inputs: this.#humanInputs }),
     }
   }

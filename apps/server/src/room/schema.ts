@@ -239,4 +239,19 @@ export const ROOM_STEPS: Step[] = [
 		body TEXT NOT NULL,
 		chain TEXT
 	) STRICT`,
+	// One tool call of a run, as the human sees it (architecture 9.5). Kept to the newest KEEP_STEPS rows.
+	`CREATE TABLE IF NOT EXISTS run_steps (
+		run_id TEXT NOT NULL,
+		id TEXT NOT NULL,
+		slug TEXT NOT NULL,
+		tool TEXT NOT NULL,
+		label TEXT NOT NULL,
+		input TEXT,
+		status TEXT NOT NULL,
+		started_at INTEGER NOT NULL,
+		ended_at INTEGER,
+		output TEXT,
+		PRIMARY KEY (run_id, id)
+	) WITHOUT ROWID`,
+	"CREATE INDEX IF NOT EXISTS run_steps_started ON run_steps (started_at)",
 ]

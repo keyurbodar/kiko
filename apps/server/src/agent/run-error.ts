@@ -16,17 +16,20 @@ const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
 
 const DETAIL_MAX = 300
 
+/** Cuts out anything that looks like a key or a bearer token. */
+export function redact(text: string): string {
+  return text
+    .replace(/(bearer\s+)\S+/gi, "$1[hidden]")
+    .replace(/\b(sk|pk|rk|key|tok|ghp|xox[abp])[-_][A-Za-z0-9_-]{8,}/gi, "[hidden]")
+    .replace(/[A-Za-z0-9_-]{32,}/g, "[hidden]")
+}
+
 /**
  * The provider's own words, shown small under kiko's sentence so the human sees what actually went wrong.
  * Anything that looks like a key or a bearer token is cut out, and the text is capped.
  */
 export function runErrorDetail(message: string | undefined): string | undefined {
-  const text = (message ?? "")
-    .replace(/(bearer\s+)\S+/gi, "$1[hidden]")
-    .replace(/\b(sk|pk|rk|key|tok|ghp|xox[abp])[-_][A-Za-z0-9_-]{8,}/gi, "[hidden]")
-    .replace(/[A-Za-z0-9_-]{32,}/g, "[hidden]")
-    .replace(/\s+/g, " ")
-    .trim()
+  const text = redact(message ?? "").replace(/\s+/g, " ").trim()
   if (!text) return undefined
   return text.length > DETAIL_MAX ? `${text.slice(0, DETAIL_MAX - 1)}…` : text
 }

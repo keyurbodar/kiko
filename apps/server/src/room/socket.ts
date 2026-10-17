@@ -1,5 +1,5 @@
 import { MAX_FRAME, MAX_MESSAGE_TEXT, sendFits } from "@kiko/protocol"
-import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomToClient, TaskOp, FileOp } from "@kiko/protocol"
+import type { AgentSlug, ClientToRoom, MemberOp, MemberRefusal, MessageId, RoomEvent, RunStep, RoomToClient, TaskOp, FileOp } from "@kiko/protocol"
 import { ClientToRoom as ClientToRoomSchema } from "@kiko/protocol/schema"
 import { Schema } from "effect"
 import type { RoomLog } from "./log"
@@ -18,6 +18,7 @@ export interface SocketRoom {
 	presence(): RoomToClient[]
 	stop(): void
 	search(query: string, options?: SearchOptions): SearchPage
+	runSteps(runId: string): RunStep[]
 	memberOp(op: MemberOp): MemberRefusal | null
 	fileOp(op: FileOp): string | null
 	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<{ ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }>
@@ -137,6 +138,9 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 			send(ws, { t: "history", seq: frame.seq, before: frame.before, after: frame.after, messages })
 			return null
 		}
+		case "steps":
+			send(ws, { t: "steps", runId: frame.runId, steps: room.runSteps(frame.runId) })
+			return null
 		case "stop":
 			room.stop()
 			return null

@@ -1,5 +1,6 @@
 import { defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable"
-import type { Activity, AgentSlug, ToolKind } from "@kiko/protocol"
+import type { Activity, AgentSlug, RunStep, ToolKind } from "@kiko/protocol"
+import { redact } from "../run-error"
 
 export const PRESENCE = "presence"
 
@@ -58,6 +59,64 @@ export function describeCall(name: string, args: Record<string, unknown>): Descr
     default:
       return tool(name, `using ${name.replace(/_/g, " ")}`)
   }
+}
+
+const INPUT_CHARS = 2_000
+export const OUTPUT_CHARS = 4_000
+
+const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
+const str = (v: unknown) => (typeof v === "string" ? v : "")
+const host = (url: string) => {
+  try {
+    return new URL(url).host || url
+  } catch {
+    return url
+  }
+}
+
+/** The past-tense words for a call, keyed by tool name. A tool that is not here reads "Used <name>". */
+const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>> = {
+  read: (a) => `Read${path(a)}`,
+  ls: (a) => `Listed${path(a) || " the files"}`,
+  write: (a) => `Wrote${path(a)}`,
+  edit: (a) => `Edited${path(a)}`,
+  bash: (a) => {
+    const line = str(a.command).replace(/\s+/g, " ").trim()
+    return line ? `Ran ${cut(line, COMMAND_CHARS)}` : "Ran a command on the files"
+  },
+  web_fetch: (a) => (str(a.url) ? `Fetched ${host(str(a.url))}` : "Fetched a web page"),
+  start_work: () => "Started background work",
+  create_routine: () => "Created a routine",
+  update_routine: () => "Updated a routine",
+  list_routines: () => "Listed routines",
+  cancel_routine: () => "Cancelled a routine",
+  create_agent: () => "Created an agent",
+  create_group: () => "Created a group",
+  ask: (a) => `Asked ${str(a.to).replace(/^@/, "").toLowerCase()}`,
+  ask_human: () => "Asked the human",
+}
+
+const PATH_TOOLS = new Set(["read", "ls", "write", "edit"])
+
+function inputOf(name: string, args: Record<string, unknown>): string | undefined {
+  const full = name === "bash" ? str(args.command) : name === "web_fetch" ? str(args.url) : PATH_TOOLS.has(name) || !Object.keys(args).length ? "" : JSON.stringify(args)
+  return full ? cut(redact(full), INPUT_CHARS) : undefined
+}
+
+/** What the run panel shows for one call, or null for a call the human should not see. It asks `describeCall` first, so the two cannot drift. */
+export function stepOf(name: string, args: Record<string, unknown>): Pick<RunStep, "tool" | "label" | "input"> | null {
+  const described = describeCall(name, args)
+  if (!described) return null
+  const tool = described.activity.kind === "tool" ? described.activity.tool : "other"
+  const label = LABELS[name]?.(args) ?? `Used ${name}`
+  const input = inputOf(name, args)
+  return { tool, label: PATH_TOOLS.has(name) ? label : redact(label), ...(input ? { input } : {}) }
+}
+
+/** A tool result as the panel's output text: its text parts, credentials removed, cut to 4,000 characters. */
+export function outputOf(content: readonly { type: string; text?: string }[] | undefined): string | undefined {
+  const text = (content ?? []).flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join("\n")
+  return text ? cut(redact(text), OUTPUT_CHARS) : undefined
 }
 
 const ERROR_CHARS = 60

@@ -1,6 +1,6 @@
 import { fileStore } from "../files/store"
 import { humanAnswerText, KIKO, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
-import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
+import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, RunStep, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
@@ -19,6 +19,7 @@ import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
 import { Bubbles, replyTag } from "./bubbles"
+import { RunSteps } from "./steps"
 import { bubbleTouch, chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
 import { Deliveries, withContext } from "./deliver"
 import { type AgentSend, type Chain, Mail } from "./mail"
@@ -79,6 +80,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private alarms!: Alarms
 	private burst!: Burst
 	private bubbles!: Bubbles
+	private steps!: RunSteps
 	private mail!: Mail
 	private memory!: RoomMemory
 	private memoryNaps!: MemoryNaps
@@ -117,6 +119,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				const entry = this.files.stat(path)
 				return entry?.kind === "file" && entry.type.startsWith("image/") ? entry.id : null
 			})
+			this.steps = new RunSteps(ctx.storage)
 			this.asks = new Asks(ctx.storage.sql)
 			this.humanAsks = new HumanAsks(ctx.storage.sql)
 			this.mail = new Mail(ctx.storage, this.log, this.asks, (slug) => (this.members.get(slug)?.status ?? "idle") !== "idle")
@@ -847,6 +850,18 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		this.working(slug, [], caption, "caption" in activity ? { ...activity, caption } : activity)
 	}
 
+	/** A tool call started or ended. Not awaited by the agent. A step of a non-member or of a finished run that only now starts is dropped. */
+	async reportStep(slug: AgentSlug, step: RunStep): Promise<void> {
+		if (!this.members.list().some((m) => m.slug === slug)) return
+		if (step.status === "running" && this.bubbles.ended(step.runId)) return
+		const stored = this.steps.record({ ...step, slug })
+		if (stored) this.broadcast({ t: "step", step: stored })
+	}
+
+	runSteps(runId: string): RunStep[] {
+		return this.steps.of(runId)
+	}
+
 	async teamNow(): Promise<{ slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]> {
 		const now = Date.now()
 		return this.members.list().map((m) => ({ slug: m.slug, name: m.name, status: m.status, doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }))
@@ -1086,6 +1101,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false, mailOnly = false): Promise<void> {
 		const settled = this.bubbles.settle(slug, runId)
 		if (settled) this.publish([settled], { touch: false })
+		for (const step of this.steps.abandon(runId)) this.broadcast({ t: "step", step })
 		const home = this.home()
 		const first = !this.bubbles.ended(runId)
 		if (home && first) {
