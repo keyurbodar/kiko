@@ -27,6 +27,8 @@ export type Work = {
   step: string | null
   steps: number
   delivered: boolean
+  /** The run that started it. Its tool calls show in that run's steps. */
+  runId: string | null
   startedAt: number
   updatedAt: number
 }
@@ -40,6 +42,7 @@ type Row = {
   step: string | null
   steps: number
   delivered: number
+  run_id: string | null
   started_at: number
   updated_at: number
 }
@@ -53,6 +56,7 @@ const toWork = (r: Row): Work => ({
   step: r.step,
   steps: r.steps,
   delivered: r.delivered === 1,
+  runId: r.run_id,
   startedAt: r.started_at,
   updatedAt: r.updated_at,
 })
@@ -94,6 +98,9 @@ export const WORKERS_STEPS: Step[] = [
 // Appended after every other step of the object that spreads WORKERS_STEPS: the run origin is gone, and its NOT NULL column would reject every new row.
 export const WORKERS_TAIL: Step[] = [dropColumn("workers", "origin")]
 
+// The run that started a worker. Appended after HOST_TAIL, never before a step that exists.
+export const WORKERS_RUN: Step[] = [addColumn("workers", "run_id", "TEXT")]
+
 export class Workers {
   private readonly sql: SqlStorage
   private readonly now: () => number
@@ -126,18 +133,24 @@ export class Workers {
     return this.list().filter((w) => w.status === "running")
   }
 
-  reserve(taskId: string, task: string): Work | null {
+  byConversation(conversationId: ConversationId): Work | null {
+    const row = this.sql.exec<Row>("SELECT * FROM workers WHERE conversation_id = ?", conversationId).toArray()[0]
+    return row ? toWork(row) : null
+  }
+
+  reserve(taskId: string, task: string, runId: string | null = null): Work | null {
     if (this.running().length >= MAX_WORKERS) return null
     const now = this.now()
     this.sql.exec("DELETE FROM workers WHERE delivered = 1 AND updated_at < ? AND n < (SELECT max(n) FROM workers)", now - KEEP_DELIVERED_MS)
     this.sql.exec("DELETE FROM worker_changes WHERE work_id NOT IN (SELECT id FROM workers)")
     const n = this.sql.exec<{ n: number }>("SELECT coalesce(max(n), 0) + 1 AS n FROM workers").one().n
     this.sql.exec(
-      "INSERT INTO workers (n, id, task_id, task, status, started_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?)",
+      "INSERT INTO workers (n, id, task_id, task, status, run_id, started_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)",
       n,
       `w${n}`,
       taskId,
       task,
+      runId,
       now,
       now,
     )

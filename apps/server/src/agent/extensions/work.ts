@@ -31,14 +31,14 @@ const brief = (args: unknown) => {
   return text === "{}" ? "" : ` ${text.length > 80 ? `${text.slice(0, 79)}…` : text}`
 }
 
-export function workExtensions(workers: Workers, all: () => readonly Extension[]): Extension[] {
+export function workExtensions(workers: Workers, all: () => readonly Extension[], runId: () => string | null = () => null): Extension[] {
   const start = defineTool({
     name: "start_work",
     description: "Start one background worker for a whole job, with everything it needs. A job with many parts (say, 20 lookups) is one call: the worker runs the parts at once, so never one worker per part. The only way to fetch web pages, use the human's connected apps, or run extension tools; also for slow work. Returns its id at once; its report comes back later as <work>.",
     parameters: Type.Object({ task: Type.String({ description: "The whole task, with everything the worker needs to know" }) }),
     replay: "safe",
     execute: async ({ task }, api, ctx) => {
-      const work = workers.byTask(String(api.taskId)) ?? workers.reserve(String(api.taskId), task)
+      const work = workers.byTask(String(api.taskId)) ?? workers.reserve(String(api.taskId), task, runId())
       if (!work) {
         const ids = workers.running().map((w) => w.id).join(", ")
         return say(`${MAX_WORKERS} workers are running (${ids}). wait for one to report, or stop one with stop_work.`)

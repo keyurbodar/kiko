@@ -2,6 +2,8 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from
 import { IdentityAvatar } from "../../lib/IdentityAvatar";
 import { motionOf, type Motion } from "./action";
 import { describe } from "./create-typing-presence";
+import { useApp } from "../../lib/store";
+import { RunChevron } from "../run/RunChevron";
 import "./typing.css";
 
 /*
@@ -59,6 +61,7 @@ function Row(props: { seed: string; doing?: string; group?: boolean }) {
           <span class="typing-dot" />
         </span>
       </div>
+      <Show when={useApp.typingRun(props.seed)}>{(windowKey) => <RunChevron windowKey={windowKey()} class="typing-run" />}</Show>
       <span class="typing-doing" data-component="typing-doing" aria-hidden="true">
         {caption()}
       </span>

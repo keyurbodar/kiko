@@ -1,6 +1,6 @@
 import { fileStore } from "../files/store"
 import { humanAnswerText, KIKO, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
-import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
+import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, RunStep, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
@@ -19,6 +19,7 @@ import { buildBrief, readBriefView } from "./brief"
 import { RoomMemory } from "./memory"
 import { Asks, type AskState } from "./asks"
 import { Bubbles, replyTag } from "./bubbles"
+import type { StepItem } from "../agent/extensions/presence"
 import { bubbleTouch, chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
 import { Deliveries, withContext } from "./deliver"
 import { type AgentSend, type Chain, Mail } from "./mail"
@@ -29,6 +30,7 @@ import { Team } from "./team"
 import { CHIEF, type GroupInput, type NewAgentSpec } from "./chief"
 import { type FsChange, type FsEntry, type FsFail, type NewFile, type PutResult, roomFiles } from "./files"
 import { isPrivate, RoomLog } from "./log"
+import type { HeardStep } from "./steps"
 import { cleanOptions, HumanAsks, MAX_QUESTION } from "./human-asks"
 import { agentStatuses, statusOf, workersKey } from "./status"
 import { dividerMessage, type Divider } from "./dividers"
@@ -842,10 +844,36 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return out
 	}
 
-	async reportDoing(slug: AgentSlug, doing: string, activity: Activity): Promise<void> {
+	/**
+	 * Tool calls that started or ended, in order, from one agent in one message. A running step is kept in memory and sent on;
+	 * an ended one is written once. Each item may also say what the agent is doing now, so a call costs no second request.
+	 * A non-member's report is dropped, and a step that starts after its run ended.
+	 */
+	async reportSteps(slug: AgentSlug, items: readonly StepItem[]): Promise<void> {
 		if (!this.members.list().some((m) => m.slug === slug)) return
-		const caption = doing.slice(0, MAX_DOING)
-		this.working(slug, [], caption, "caption" in activity ? { ...activity, caption } : activity)
+		const over = new Map<string, boolean>()
+		let latest: StepItem | undefined
+		for (const item of items) {
+			const step: HeardStep = { ...item.step, slug }
+			// A worker's steps keep coming after the run that started it ends.
+			if (step.status === "running" && !step.worker) {
+				const done = over.get(step.runId) ?? this.bubbles.ended(step.runId)
+				over.set(step.runId, done)
+				if (done) continue
+			}
+			const stored = this.log.hearStep(step)
+			if (stored) this.broadcast({ t: "step", step: stored })
+			if (item.doing && item.activity) latest = item
+		}
+		// Only the newest caption shows, so a batch writes it once.
+		if (latest?.doing && latest.activity) {
+			const doing = latest.doing.slice(0, MAX_DOING)
+			this.working(slug, [], doing, "caption" in latest.activity ? { ...latest.activity, caption: doing } : latest.activity)
+		}
+	}
+
+	stepWindow(slug: AgentSlug, after: number): RunStep[] {
+		return this.log.steps.window(slug, after)
 	}
 
 	async teamNow(): Promise<{ slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]> {
@@ -1090,6 +1118,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false, mailOnly = false): Promise<void> {
 		const settled = this.bubbles.settle(slug, runId)
 		if (settled) this.publish([settled], { touch: false })
+		for (const step of this.log.steps.abandon(runId)) this.broadcast({ t: "step", step })
 		const home = this.home()
 		const first = !this.bubbles.ended(runId)
 		if (home && first) {

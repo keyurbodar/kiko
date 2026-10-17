@@ -45,6 +45,10 @@ import { pickJudge } from "../user/turn-context"
 import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
+import type { StepItem, StepsPort } from "./extensions/presence"
+import { StepBatch } from "./step-batch"
+
+const WORKER_TASK_CHARS = 200
 import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
 
 // Read by the dev methods in agent/dev.ts too, so they share one key per setting.
@@ -90,6 +94,7 @@ export class AgentDO extends DurableObject<Env> {
       setup: () => this.setup(),
       onOpen: async (opened) => {
         await this.hostOptions.onOpen?.(opened)
+        this.#rootId = opened.root.id
         await this.outbox.attach(opened.harness, opened.root.id)
       },
       onGiveUp: async () => {
@@ -286,9 +291,25 @@ export class AgentDO extends DurableObject<Env> {
     }
   }
 
-  private async report(doing: string, activity: Activity): Promise<void> {
+  /** Every tool call goes to the room in these batches. See `StepBatch`. */
+  readonly #steps = new StepBatch<StepItem>(async (items) => {
     const home = this.home()
-    if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportDoing(home.slug, doing, activity)
+    if (home) await roomStub(this.env.ROOM, home.userId, home.roomId).reportSteps(home.slug, items)
+  })
+  #rootId: ConversationId | null = null
+
+  private stepsPort(): StepsPort {
+    return {
+      push: (item) => this.#steps.push(item),
+      scope: (conversationId) => {
+        if (conversationId === this.#rootId) {
+          const runId = this.outbox.runId()
+          return runId ? { runId } : null
+        }
+        const work = this.host.workers.byConversation(conversationId)
+        return work?.runId ? { runId: work.runId, worker: { id: work.id, task: work.task.slice(0, WORKER_TASK_CHARS) } } : null
+      },
+    }
   }
 
   private groupsPort(): GroupsPort | undefined {
@@ -338,7 +359,7 @@ export class AgentDO extends DurableObject<Env> {
         groups: this.groupsPort(),
         loops: () => this.loopPort(),
         work: this.host.workers,
-        presence: (doing, activity) => this.report(doing, activity),
+        presence: this.stepsPort(), runId: () => this.outbox.runId(),
       })
       return {
         ...fake,
@@ -370,7 +391,7 @@ export class AgentDO extends DurableObject<Env> {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: picked.model, thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: picked.model, thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, loops: () => this.loopPort(), messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,

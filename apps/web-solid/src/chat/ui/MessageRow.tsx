@@ -9,6 +9,8 @@ import type { DialogImage } from "./image-dialog"
 import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { MessageActions } from "./MessageActions"
+import { useApp } from "../../lib/store"
+import { CHEVRON_SIZE, RunChevron } from "../run/RunChevron"
 import { RichText } from "./RichText"
 const RichTree = lazy(() => import("../rich/RichText").then((m) => ({ default: m.RichText })))
 import { Collapsible } from "../Collapsible"
@@ -58,6 +60,8 @@ export function MessageRow(props: {
   // A file the human named in the text is its chip there, so the list under the pictures leaves it out.
   const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
   const hasFiles = () => files().length > 0
+  // The first bubble of a run that made steps opens the run panel. A bubble the pacer holds is not in the list yet.
+  const windowKey = () => (own() ? undefined : useApp.runChevron(props.message))
   return (
     <div
       class={cn(
@@ -154,9 +158,11 @@ export function MessageRow(props: {
           side={props.message.sender}
           onToggle={props.onReact}
         />
+        <Show when={windowKey()}>{(id) => <RunChevron windowKey={id()} class="absolute top-0 left-full ml-1" />}</Show>
         <Show when={props.onReact && props.onReply && props.onMore}>
           <MessageActions
             side={props.message.sender}
+            reserve={windowKey() ? CHEVRON_SIZE + 4 : 0}
             onReact={(emoji) => props.onReact!(emoji)}
             onReply={() => props.onReply!()}
             onMore={(anchor) => props.onMore!(anchor)}

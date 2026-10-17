@@ -1,0 +1,324 @@
+/*
+ * The run panel. Rows follow t3code's work log: a 24px icon cell, a muted label, a 12px chevron
+ * that turns a quarter when the row is open, detail indented under the label. State changes are
+ * instant. The only motion is the card entering and leaving (motion.css) and the running label's
+ * shine, which is a waiting state.
+ */
+
+.run-panel {
+  /* One readable tone for every label, as in t3code. Failure tints only the icon. */
+  --run-text: color-mix(in oklab, var(--foreground) 78%, transparent);
+  width: min(32rem, var(--kb-popper-content-available-width, 32rem));
+  max-height: min(30rem, var(--kb-popper-content-available-height, 30rem));
+  min-width: min(18rem, var(--kb-popper-content-available-width, 18rem));
+  font-size: var(--font-md);
+  line-height: 1.5;
+}
+
+.run-header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+.run-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  /* Two lines before it cuts, so a sentence never ends mid-word. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  padding-block: 3px;
+  color: var(--run-text);
+  font-size: var(--font-md);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+.run-total {
+  flex: none;
+  padding-block: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-close {
+  display: grid;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border-radius: 9999px;
+  color: var(--muted-foreground);
+  cursor: default;
+}
+.run-close:hover,
+.run-close:focus-visible {
+  background: var(--accent-strong);
+  color: var(--foreground);
+  outline: none;
+}
+
+/* The list scrolls inside the card, with t3code's fade where more is hidden. */
+.run-scroll {
+  --fade-top: 0px;
+  --fade-bottom: 0px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent 100%);
+}
+.run-scroll[data-top] {
+  --fade-top: 20px;
+}
+.run-scroll[data-bottom] {
+  --fade-bottom: 20px;
+}
+
+.run-row {
+  min-width: 0;
+}
+.run-row[data-child] {
+  padding-left: 14px;
+}
+
+.run-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  min-width: 0;
+  padding: 0 8px 0 8px;
+  border-radius: var(--radius-sm);
+  color: var(--run-text);
+  cursor: default;
+  user-select: none;
+}
+.run-line:hover,
+.run-line:focus-visible {
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+  outline: none;
+}
+.run-line:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--ring) 70%, transparent);
+}
+.run-line-worker {
+  min-height: 44px;
+  padding-block: 4px;
+}
+
+.run-icon {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: var(--muted-foreground);
+}
+.run-icon[data-failed] {
+  color: var(--error, #e5484d);
+}
+
+.run-logo {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 9999px;
+  background: #fff;
+}
+.run-logo img {
+  width: 62%;
+  height: 62%;
+}
+
+.run-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.run-took {
+  flex: none;
+  color: var(--muted-foreground);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-chevron {
+  display: grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+.run-chevron[data-open] {
+  transform: rotate(90deg);
+}
+
+.run-worker-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.run-worker-task {
+  flex: none;
+  color: var(--foreground);
+}
+.run-worker-state {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Detail sits under the label: the icon cell and its gap are 32px, the row's padding 8px. */
+.run-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 8px 8px 40px;
+}
+.run-row[data-child] .run-detail {
+  padding-left: 40px;
+}
+
+.run-mono {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-code);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  cursor: auto;
+}
+
+/* The input and the output share one block, on the surface kiko's code blocks use. */
+.run-block {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--muted);
+}
+.run-input {
+  max-height: 8rem;
+  padding: 8px 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  color: var(--foreground);
+}
+/* One huge output cannot take over the list: it keeps its own height and scrolls inside. */
+.run-out {
+  max-height: 16rem;
+  padding: 8px 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  color: color-mix(in oklab, var(--foreground) 72%, transparent);
+}
+.run-input + .run-out {
+  border-top: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+/* A failure tints the text only a little. */
+.run-out[data-failed] {
+  color: color-mix(in oklab, var(--error, #e5484d) 38%, var(--foreground));
+}
+
+.run-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-style: italic;
+  user-select: none;
+}
+
+/*
+ * The shine's look, t3code's live-tool-shine: a band of the foreground sweeps over the label's own
+ * tone. Its motion is in motion.css. With reduced motion or forced colors the label is plain text.
+ */
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  .motion-shine {
+    color: transparent;
+    background-image:
+      linear-gradient(to right, transparent, var(--foreground), transparent),
+      linear-gradient(var(--run-text), var(--run-text));
+    background-size: 4.5rem 100%, 100% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+}
+
+/*
+ * t3code's ActivityShimmerOverlay (live-activity-focus): the label in muted tone, and over it a copy
+ * in the foreground that a moving mask reveals. The copy stays still; the mask and its counter
+ * move apart. Reduced motion hides the copy.
+ */
+.run-working {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.run-focus {
+  --run-focus-width: 4.5rem;
+  position: absolute;
+  inset-block: 0;
+  left: calc(-1 * var(--run-focus-width));
+  width: calc(100% + var(--run-focus-width) + var(--run-focus-width));
+  display: none;
+  pointer-events: none;
+  user-select: none;
+}
+.run-focus-counter {
+  display: block;
+  width: 100%;
+}
+.run-focus-aligned {
+  display: block;
+  width: calc(100% - var(--run-focus-width) - var(--run-focus-width));
+  margin-left: var(--run-focus-width);
+  color: var(--foreground);
+}
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  .run-focus {
+    display: block;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, rgb(0 0 0 / 12%) 0.675rem, rgb(0 0 0 / 55%) 1.575rem, black 2.25rem, rgb(0 0 0 / 55%) 2.925rem, rgb(0 0 0 / 12%) 3.825rem, transparent var(--run-focus-width), transparent 100%);
+    -webkit-mask-repeat: no-repeat;
+    mask-image: linear-gradient(to right, transparent 0, rgb(0 0 0 / 12%) 0.675rem, rgb(0 0 0 / 55%) 1.575rem, black 2.25rem, rgb(0 0 0 / 55%) 2.925rem, rgb(0 0 0 / 12%) 3.825rem, transparent var(--run-focus-width), transparent 100%);
+    mask-repeat: no-repeat;
+  }
+}
+
+/* t3code shows a work row's time only while the row is hovered or focused, with no fade. */
+.run-at {
+  display: none;
+  flex: none;
+  color: var(--muted-foreground);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+.run-line:hover .run-at,
+.run-line:focus-visible .run-at {
+  display: inline;
+}

@@ -9,8 +9,11 @@ const FORBIDDEN =
   /(^|[^a-z])(nav|button|btn|menu-?item|tab|tabs|tablist|composer|rail|sidebar|route)([^a-z]|$)|\[role=["']?(button|menuitem|tab|tablist|navigation)/i;
 
 // Overlays that may enter and leave. They are named by their component, never by a class of a surface.
-const OVERLAYS = ["modal-v2-overlay", "modal-v2-content", "menu-v2-content", "hover-card-v2-content", "tooltip-v2"];
+const OVERLAYS = ["modal-v2-overlay", "modal-v2-content", "menu-v2-content", "hover-card-v2-content", "popover-v2-content", "tooltip-v2"];
 const OVERLAY = new RegExp(`^\\[data-component="(${OVERLAYS.join("|")})"\\]\\[data-(expanded|closed)\\]$`);
+// The run panel's one transition, t3code's chevron turn. It is named by its component so the
+// allowance covers nothing else: no button, tab, or row of the app can use it.
+const RUN_PANEL = /^\[data-component="run-panel-chevron"\]$/;
 const MOTION_CLASS = /^\.motion-[a-z-]+(\[data-[a-z]+\])?( > span)?$/;
 
 type Rule = { selector: string; body: string; inMedia: string[] };
@@ -57,7 +60,7 @@ test("motion hangs only off an opt-in motion class or a named overlay", () => {
     if (!/transition|animation/.test(r.body)) continue;
     for (const raw of r.selector.split(",")) {
       const sel = raw.trim();
-      expect(MOTION_CLASS.test(sel) || OVERLAY.test(sel), sel).toBe(true);
+      expect(MOTION_CLASS.test(sel) || OVERLAY.test(sel) || RUN_PANEL.test(sel), sel).toBe(true);
     }
   }
 });
@@ -77,6 +80,7 @@ test("the scanner flags navigation, button, menu item, tab, and composer selecto
 test("a transition belongs only to the switch", () => {
   for (const r of styled) {
     if (!/transition\s*:/.test(r.body)) continue;
+    if (RUN_PANEL.test(r.selector)) continue;
     expect(r.selector, r.selector).toMatch(/^\.motion-switch/);
   }
 });
@@ -95,6 +99,9 @@ test("overlay timings follow t3code", () => {
   expect(tokens.collapse).toBe("200ms");
   expect(tokens.switch).toBe("150ms");
   expect(tokens.skeleton).toBe("2400ms");
+  // t3code's live-tool-shine runs 2.2s, and its chevron turn takes duration-200.
+  expect(tokens.shine).toBe("2200ms");
+  expect(tokens["run-chevron"]).toBe("200ms");
 });
 
 test("all motion is inside prefers-reduced-motion: no-preference", () => {
@@ -121,7 +128,8 @@ test("keyframes move only transform and opacity, and a collapse also moves heigh
   expect(frames.length).toBeGreaterThanOrEqual(5);
   for (const f of frames) {
     const props = [...f.body.matchAll(/(?<![a-z-])([a-z-]+)\s*:/g)].map((m) => m[1]).filter((p) => p !== "animation-timing-function");
-    const allowed = f.selector.startsWith("@keyframes motion-collapse") ? ["height"] : ["transform", "opacity"];
+    // The shine moves a gradient across clipped text, which no transform can do.
+    const allowed = f.selector.startsWith("@keyframes motion-collapse") ? ["height"] : f.selector === "@keyframes motion-shine" ? ["background-position"] : ["transform", "opacity"];
     for (const p of props) expect(allowed, `${f.selector} ${p}`).toContain(p);
   }
 });

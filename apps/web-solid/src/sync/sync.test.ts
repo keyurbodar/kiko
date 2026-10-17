@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto"
 import { describe, expect, test } from "bun:test"
-import type { AgentSlug, Message, MessageId, RoomEvent, RoomId } from "@kiko/protocol"
+import type { AgentSlug, Message, MessageId, RoomEvent, RoomId, RunStep } from "@kiko/protocol"
 import { KIKO_HOME_ROOM } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
 import { IDBFactory } from "fake-indexeddb"
@@ -643,6 +643,82 @@ describe("the room store", () => {
 		mock.drop()
 		await until(() => store.state.connection !== "open")
 		expect(store.state.typing).toEqual([])
+		store.close()
+	})
+})
+
+describe("run steps", () => {
+	const ada = fixtures.ada
+	const make1 = (id: string, over: Partial<RunStep> = {}): RunStep => ({ id, runId: "run1", slug: ada, tool: "read", name: "read", label: "Read /a.md", status: "running", startedAt: 1000, after: 5, ...over })
+
+	test("a step frame files under its agent, replaces by id, and a late running frame cannot undo done", async () => {
+		const { mock, make } = setup()
+		const { store } = await make()
+		await until(() => store.state.seq === LAST)
+		mock.broadcast({ t: "step", step: make1("a", { startedAt: 2000 }) })
+		mock.broadcast({ t: "step", step: make1("b", { startedAt: 1000 }) })
+		await until(() => store.state.steps[ada]?.length === 2)
+		expect(store.state.steps[ada].map((s) => s.id)).toEqual(["b", "a"])
+		expect(store.state.live[ada]).toBe(true)
+		mock.broadcast({ t: "step", step: make1("a", { startedAt: 2000, status: "done", output: "ok", endedAt: 2400 }) })
+		mock.broadcast({ t: "step", step: make1("a", { startedAt: 2000 }) })
+		await until(() => store.state.steps[ada].find((s) => s.id === "a")?.status === "done")
+		await sleep(10)
+		expect(store.state.steps[ada].find((s) => s.id === "a")).toMatchObject({ status: "done", output: "ok" })
+		store.close()
+	})
+
+	test("the live run ends when the agent goes idle", async () => {
+		const { mock, make } = setup()
+		const { store } = await make()
+		await until(() => store.state.seq === LAST)
+		mock.broadcast({ t: "step", step: make1("a") })
+		await until(() => store.state.live[ada] === true)
+		mock.broadcast({ t: "status", slug: ada, state: "idle" })
+		await until(() => store.state.live[ada] === undefined)
+		expect(store.state.steps[ada]).toHaveLength(1)
+		store.close()
+	})
+
+	test("requestSteps asks for one window, shows fetching, and the answer fills only that window", async () => {
+		const { mock, make } = setup()
+		const { store } = await make()
+		await until(() => store.state.seq === LAST)
+		mock.agentSteps[ada] = [make1("x", { status: "done", output: "hello", endedAt: 1100, after: 2 }), make1("y", { status: "done", endedAt: 1100, after: 9 })]
+		store.requestSteps(ada, 2)
+		expect(store.state.fetching[`${ada}#2`]).toBe(true)
+		await until(() => store.state.steps[ada]?.length === 1)
+		expect(store.state.fetching[`${ada}#2`]).toBeUndefined()
+		expect(store.state.steps[ada].map((s) => s.output)).toEqual(["hello"])
+		store.requestSteps(ada, 2)
+		await sleep(20)
+		expect(mock.received.filter((f) => f.t === "steps")).toEqual([{ t: "steps", slug: ada, after: 2 }])
+		store.close()
+	})
+
+	test("a snapshot's steps paint at once and mark their agents mid-run", async () => {
+		const { mock, make } = setup({ resetAfter: 0 })
+		const snapshot = mock.snapshot()
+		snapshot.steps = [make1("s1", { status: "done", endedAt: 1100 })]
+		const { store } = await make()
+		await until(() => store.state.seq === LAST)
+		const reset = { t: "reset" as const, snapshot: { ...snapshot, seq: LAST + 1 } }
+		mock.broadcast(reset)
+		await until(() => store.state.steps[ada]?.length === 1)
+		expect(store.state.live[ada]).toBe(true)
+		store.close()
+	})
+
+	test("the live run clears when the socket drops", async () => {
+		const { mock, make } = setup()
+		const { store } = await make()
+		await until(() => store.state.seq === LAST)
+		mock.broadcast({ t: "step", step: make1("a") })
+		await until(() => store.state.live[ada] === true)
+		mock.drop()
+		await until(() => store.state.connection !== "open")
+		expect(store.state.live).toEqual({})
+		expect(store.state.steps[ada]).toHaveLength(1)
 		store.close()
 	})
 })

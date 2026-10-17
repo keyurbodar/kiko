@@ -113,6 +113,11 @@ export class Outbox {
     this.sql.exec("DELETE FROM outbox")
   }
 
+  /** The run that is going now, or null between runs. */
+  runId(): string | null {
+    return this.run?.id ?? null
+  }
+
   progress(): RunProgress | null {
     const run = this.run
     if (!run) return null

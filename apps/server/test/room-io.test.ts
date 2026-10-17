@@ -189,7 +189,7 @@ async function actions(room: string, humans: number, agents: number, files: numb
 	out.set("agent bubble post", await measure(room, async () => call(room, "post", "ada", "bubble-run", 0, 0, "a bubble")))
 	out.set("agent reacts", await measure(room, async () => call(room, "react", "ada", "👀", firstHuman.id)))
 	out.set("agent typing on", await measure(room, async () => call(room, "setStatus", "ada", "typing")))
-	await call(room, "reportDoing", "ada", "reading the chat", { kind: "writing" })
+	await call(room, "reportSteps", "ada", [{ step: { id: "t1", runId: "doing-run", tool: "other", name: "x", label: "x", status: "running", startedAt: 1 }, doing: "reading the chat", activity: { kind: "writing" } }])
 	await call(room, "post", "ada", "end-run", 0, 0, "the answer")
 	out.set("agent run ends (trace, answer)", await measure(room, async () => call(room, "endRun", "ada", "end-run", [], false)))
 	out.set("memory recall", await measure(room, async () => call(room, "memoryRecall", "plan agent line", undefined, [])))

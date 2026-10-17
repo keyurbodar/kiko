@@ -11,7 +11,7 @@ import { stoppable } from "./effects"
 import { type Arrival, decide, FRESH_RUN, type RunProgress, type RunState } from "./mid-run"
 import type { Envelope } from "./envelope"
 import { openDurableObjectSqlite } from "./sqlite"
-import { WORKERS_STEPS, WORKERS_TAIL, Workers } from "./workers"
+import { WORKERS_RUN, WORKERS_STEPS, WORKERS_TAIL, Workers } from "./workers"
 
 const context = BACKGROUND_CONTEXT
 
@@ -147,7 +147,7 @@ export const HOST_STEPS: Step[] = [
 ]
 
 // What the host retired. The object that spreads HOST_STEPS appends these after its own steps, so no earlier step moves.
-export const HOST_TAIL: Step[] = [...WORKERS_TAIL, "DROP TABLE IF EXISTS run_origin"]
+export const HOST_TAIL: Step[] = [...WORKERS_TAIL, "DROP TABLE IF EXISTS run_origin", ...WORKERS_RUN]
 
 export class AgentHost {
   readonly inbox: Inbox

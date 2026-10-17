@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test"
 import { Database } from "bun:sqlite"
 import type { ConversationId } from "@earendil-works/pi-durable"
-import { WORKERS_STEPS, WORKERS_TAIL, Workers } from "@kiko/agent/workers"
+import { WORKERS_RUN, WORKERS_STEPS, WORKERS_TAIL, Workers } from "@kiko/agent/workers"
 import { sqlWith } from "./sql-shim"
 
 const conversation = 1 as ConversationId
 
 function store(db = new Database(":memory:")) {
-  return new Workers({ sql: sqlWith([...WORKERS_STEPS, ...WORKERS_TAIL], db) } as unknown as DurableObjectStorage, { deliver: async () => {} })
+  return new Workers({ sql: sqlWith([...WORKERS_STEPS, ...WORKERS_TAIL, ...WORKERS_RUN], db) } as unknown as DurableObjectStorage, { deliver: async () => {} })
 }
 
 // The workers table as core/agent created it before the changed list and the step count.

@@ -15,7 +15,7 @@ import { chatFaces, chatSeed } from "./identity"
 // `@kiko/protocol`. The view shapes in `types.ts` are built from them here, by
 // the pure functions below, and nowhere else.
 
-import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp } from "@kiko/protocol"
+import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp, RunStep } from "@kiko/protocol"
 import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { isListed } from "../sidebar/activity"
 import { agentDisplayName } from "./names"
@@ -25,6 +25,7 @@ import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
 import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
+import { inWindow, newestAfter, parseWindow, stepWindows, windowKey } from "../chat/run/run-log"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
@@ -86,7 +87,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 export function signature(m: ViewMessage): string {
   let reactions = ""
   for (const r of m.reactions ?? []) reactions += `${reactionKey(r)}=${r.emoji},`
-  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}`
+  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}|${m.steps ?? 0}|${m.stepAfter ?? 0}`
 }
 
 /** The transcript's view of one protocol message. */
@@ -109,6 +110,10 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.quote) out.quote = m.quote
   if (m.to) out.to = m.to
   if (m.initiative) out.initiative = m.initiative.reason
+  if (m.steps) {
+    out.steps = m.steps
+    out.stepAfter = m.stepAfter ?? 0
+  }
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   // A stored file keeps only what today's bubble reads, so an old message's media fields fall away here.
@@ -353,6 +358,9 @@ export function createApp(options: AppOptions = {}) {
       views = next
       return rows
     })
+
+    /** The step window each agent message in view opens, for the run panel. */
+    const windows = shared(() => stepWindows(activeRows()))
 
     function openRoom(roomId: RoomId | null) {
       const current = room()
@@ -778,6 +786,42 @@ export function createApp(options: AppOptions = {}) {
         return this.typingSlugs().map((slug) => r?.state.doing[slug] ?? (r?.state.status[slug as never] === "working" ? "using a tool" : undefined))
       },
 
+      /** The window of steps this bubble opens in the run panel, or undefined when it opens none. */
+      runChevron(m: ChatMessage): string | undefined {
+        return m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined
+      },
+
+      /** The window an agent's typing row opens: the steps no message in view opens yet, once there are some. */
+      typingRun(slug: string): string | undefined {
+        const r = room()
+        if (!r?.state.live[slug]) return undefined
+        const after = newestAfter(r.state.steps[slug] ?? [])
+        return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
+      },
+
+      /** The steps of a window this client holds, in start order. */
+      runSteps(key: string): readonly RunStep[] {
+        const { slug, after } = parseWindow(key)
+        return inWindow(room()?.state.steps[slug] ?? [], after)
+      },
+
+      /** True while the agent is mid-run and no message in view opens the window yet. */
+      runLive(key: string): boolean {
+        return !windows().has(key) && !!room()?.state.live[parseWindow(key).slug]
+      },
+
+      /** Asks the room for a bubble's steps when this client holds fewer than the bubble says it opens. */
+      loadRunSteps(key: string) {
+        const r = room()
+        const w = windows().get(key)
+        if (r && w && inWindow(r.state.steps[w.slug] ?? [], w.after).length < w.steps) r.requestSteps(w.slug, w.after)
+      },
+
+      /** True while a window's steps are on their way. */
+      runFetching(key: string): boolean {
+        return !!room()?.state.fetching[key]
+      },
+
       /** The slugs of the agents typing now, for the typing bubble's avatar. */
       typingSlugs(): string[] {
         const r = room()
@@ -904,6 +948,8 @@ function devTransport(mock: MockModule, fixtureRoom: RoomId): Transport {
   const count = Number(new URLSearchParams(globalThis.location?.search).get("mockChats")) || 0
   const user = mock.createMockUser(count > 0 ? { chats: manyChats(count) } : {})
   const rooms = new Map<string, MockRoom>()
+  // Dev only: the rooms are reachable from the console, so a check can send steps by hand.
+  ;(globalThis as { __mockRooms?: unknown }).__mockRooms = rooms
   return {
     user: user.connect,
     room: (roomId) => {

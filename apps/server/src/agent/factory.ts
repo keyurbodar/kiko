@@ -5,7 +5,6 @@ import { type AgentChange, createRegistry, defineExtension, type Extension, type
 import { workExtensions } from "./extensions/work"
 import { withTextToolCalls } from "./tool-markup"
 import type { Workers } from "@kiko/agent/workers"
-import type { Activity } from "@kiko/protocol"
 import { effectTable } from "@kiko/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
 import { WEB, webExtension } from "./extensions/web"
@@ -18,7 +17,8 @@ import { type RoutinesPort, routinesExtension } from "./extensions/routines"
 import { type RecipesPort, skillsExtension } from "./extensions/skills"
 import { selfExtension } from "./extensions/self"
 import { type GroupsPort, groupsExtension } from "./extensions/chief"
-import { presenceExtension } from "./extensions/presence"
+import { presenceExtension, type StepsPort } from "./extensions/presence"
+import { composioDescribe } from "../integrations/composio/step"
 import type { RoomFs, SoulPort } from "../files/room-fs"
 import type { ComposioCall, ComposioTool } from "../integrations/composio/client"
 import { COMPOSIO, composioExtension } from "../integrations/composio/tools"
@@ -36,7 +36,9 @@ export type BuildAgentInput = RoleInput & {
   soul?: SoulPort
   runStamp?: () => number
   groups?: GroupsPort
-  presence?: (doing: string, activity: Activity) => Promise<unknown>
+  presence?: StepsPort
+  /** The run the agent is in now, so a worker it starts knows whose steps its calls are. */
+  runId?: () => string | null
   memory?: MemoryPort
   loops?: () => LoopPort | null
   workspace?: WorkspacePort
@@ -73,12 +75,12 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     webExtension(input.egress, input.files?.fs),
     ...(input.messaging ? [messagingExtension(input.messaging)] : []),
     ...(input.groups ? [groupsExtension(input.groups)] : []),
-    ...(input.presence ? [presenceExtension(input.presence)] : []),
+    ...(input.presence ? [presenceExtension({ ...input.presence, ...(input.composio?.tools.length ? { describe: composioDescribe(input.composio.tools) } : {}) })] : []),
     ...(input.routines ? [routinesExtension(input.routines.port)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
     ...(input.composio?.tools.length ? connectAppExtension(input.composio.tools, input.composio.call) : []),
     ...(input.browser ? [browserExtension(input.browser), browserInfoExtension(input.browser)] : []),
-    ...(input.work ? workExtensions(input.work, all) : []),
+    ...(input.work ? workExtensions(input.work, all, input.runId) : []),
     ...(input.testExtensions ?? []),
   ]
 }

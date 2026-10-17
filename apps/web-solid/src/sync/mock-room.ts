@@ -21,6 +21,7 @@ import type {
 	RoomEvent,
 	RoomSnapshot,
 	RoomToClient,
+	RunStep,
 	UserEvent,
 	UserToClient,
 } from "@kiko/protocol"
@@ -123,6 +124,10 @@ export type MockRoom = {
 	store(...events: WithoutStored<RoomEvent>[]): RoomEvent[]
 	/** Sends a frame that is not stored, such as `typing` or `draft`. */
 	broadcast(frame: RoomToClient): void
+	/** Every step sent through `step`, by agent. A `steps` request is answered from here. */
+	readonly agentSteps: Record<string, RunStep[]>
+	/** Sends one step live and keeps it, as the room does. */
+	step(step: RunStep): void
 	/** When set, the next send is stored and then the socket drops before the `ack`. */
 	loseNextAck: boolean
 	/** When set, the next send is refused with this reason, as the room refuses a claim of an expired upload. */
@@ -168,6 +173,8 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 	function snapshot(): RoomSnapshot {
 		return structuredClone({ ...data })
 	}
+
+	const agentSteps: Record<string, RunStep[]> = {}
 
 	const has = (id: MessageId) => data.messages.some((m) => m.id === id)
 
@@ -228,6 +235,10 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		},
 		typing() {},
 		stop() {},
+		steps(peer, f) {
+			const steps = (agentSteps[f.slug] ?? []).filter((s) => s.after === f.after)
+			peer.push({ t: "steps", slug: f.slug, after: f.after, steps: structuredClone(steps) })
+		},
 		// A plain substring match stands in for the room's index. Every word must appear.
 		search(peer, f) {
 			const words = f.query.toLowerCase().split(/\s+/).filter(Boolean)
@@ -330,6 +341,14 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		store,
 		broadcast(frame) {
 			for (const p of peers) p.push(frame)
+		},
+		agentSteps,
+		step(step) {
+			const list = (agentSteps[step.slug] ??= [])
+			const at = list.findIndex((x) => x.id === step.id)
+			if (at === -1) list.push(step)
+			else list[at] = step
+			for (const p of peers) p.push({ t: "step", step: structuredClone(step) })
 		},
 		loseNextAck: false,
 		refuseNextSend: null,

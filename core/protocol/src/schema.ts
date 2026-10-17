@@ -165,6 +165,23 @@ export const PendingAttachment = Schema.Struct({
 
 export const Reaction = Schema.Struct({ by: Actor, emoji: Schema.String })
 
+export const RunStep = Schema.Struct({
+	id: Id,
+	runId: Id,
+	slug: AgentSlug,
+	tool: ToolKind,
+	name: Schema.String,
+	app: Schema.optionalKey(Schema.String),
+	worker: Schema.optionalKey(Schema.Struct({ id: Id, task: Schema.String })),
+	label: Schema.String,
+	input: Schema.optionalKey(Schema.String),
+	status: Schema.Literals(["running", "done", "failed"]),
+	startedAt: Count,
+	endedAt: Schema.optionalKey(Count),
+	output: Schema.optionalKey(Schema.String),
+	after: Count,
+})
+
 export const RunRef = Schema.Struct({ runId: Id, attempt: Count, index: Count })
 
 const stored = { seq: Count, at: Count }
@@ -188,6 +205,8 @@ export const Message = Schema.Struct({
 	to: Schema.optionalKey(Schema.Union([AgentSlug, Schema.Literal("all")])),
 	initiative: Schema.optionalKey(Schema.Struct({ reason: Schema.String })),
 	event: Schema.optionalKey(Schema.Union([SystemEvent, UnknownSystemEvent])),
+	steps: Schema.optionalKey(Count),
+	stepAfter: Schema.optionalKey(Count),
 })
 
 export const ThinkingLevel = Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
@@ -296,6 +315,7 @@ export const RoomSnapshot = Schema.Struct({
 	folders: Schema.Array(Schema.String),
 	agents: Schema.optionalKey(Schema.Array(AgentStatus)),
 	asks: Schema.optionalKey(Schema.Array(HumanAsk)),
+	steps: Schema.optionalKey(Schema.Array(RunStep)),
 })
 
 const Hello = Schema.Struct({ t: Schema.Literal("hello"), lastSeq: Count })
@@ -338,6 +358,7 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("answer"), id: Id, value: Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Array(Schema.String)]))]) }),
 	Schema.Struct({ t: Schema.Literal("skip"), id: Id }),
 	Schema.Struct({ t: Schema.Literal("retry"), messageId: MessageId }),
+	Schema.Struct({ t: Schema.Literal("steps"), slug: AgentSlug, after: Count }),
 ])
 
 export const RoomToClient = Schema.Union([
@@ -347,6 +368,8 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("typing"), who: Schema.Array(AgentSlug) }),
 	Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("status"), ...AgentStatus.fields }),
+	Schema.Struct({ t: Schema.Literal("step"), step: RunStep }),
+	Schema.Struct({ t: Schema.Literal("steps"), slug: AgentSlug, after: Count, steps: Schema.Array(RunStep) }),
 	Schema.Struct({
 		t: Schema.Literal("member_refused"),
 		op: MemberOp,
@@ -613,6 +636,7 @@ export type InSync = Assert<
 	| Same<typeof Trigger.Type, P.Trigger>
 	| Same<typeof RichText.Type, P.RichText>
 	| Same<typeof Message.Type, P.Message>
+	| Same<typeof RunStep.Type, P.RunStep>
 	| Same<typeof TaskOp.Type, P.TaskOp>
 	| Same<typeof MemberOp.Type, P.MemberOp>
 	| Same<typeof Member.Type, P.Member>

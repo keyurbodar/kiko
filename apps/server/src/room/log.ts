@@ -11,6 +11,7 @@ import type {
 	RoomEvent,
 	RoomSnapshot,
 	RunRef,
+	RunStep,
 	Sender,
 	SystemEvent,
 	RoomId } from "@kiko/protocol"
@@ -18,6 +19,7 @@ import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
 import { listAsks } from "./human-asks"
 import { agentStatuses } from "./status"
+import { type HeardStep, RunSteps } from "./steps"
 import { listTasks } from "./workspace"
 
 export const REPLAY_LIMIT = 500
@@ -69,6 +71,8 @@ type MessageRow = {
 	quote: string | null
 	addressed: string | null
 	initiative: string | null
+	steps: number | null
+	step_after: number | null
 	event: string | null
 }
 
@@ -97,13 +101,49 @@ function actorFromKey(key: string): Actor {
 }
 
 export class RoomLog {
+	/** The tool calls of agents. The log stamps them as it hears them and counts each agent's since its last message. */
+	readonly steps: RunSteps
+	/** Each agent's open window: the seq of its last message to the human, and how many steps it made since. Read once per wake. */
+	private readonly windows = new Map<string, { after: number; count: number }>()
+
 	constructor(
 		private readonly storage: DurableObjectStorage,
 		private readonly now: () => number = Date.now,
-	) {}
+	) {
+		this.steps = new RunSteps(storage, now)
+	}
 
 	private get sql() {
 		return this.storage.sql
+	}
+
+	private window(slug: string): { after: number; count: number } {
+		let open = this.windows.get(slug)
+		if (!open) {
+			const after =
+				this.sql
+					.exec<{ seq: number }>(
+						"SELECT seq FROM messages WHERE json_extract(sender, '$.kind') = 'agent' AND json_extract(sender, '$.slug') = ? AND addressed IS NULL ORDER BY seq DESC LIMIT 1",
+						slug,
+					)
+					.toArray()[0]?.seq ?? 0
+			open = { after, count: this.steps.count(slug, after) }
+			this.windows.set(slug, open)
+		}
+		return open
+	}
+
+	/** A step began or ended. Stamps it with its agent's open window and returns it when the panel should hear of it. */
+	hearStep(heard: HeardStep): RunStep | null {
+		const open = this.window(heard.slug)
+		if (heard.status === "running") {
+			const step = this.steps.start(heard, open.after)
+			if (step) open.count++
+			return step
+		}
+		const ended = this.steps.finish(heard, open.after)
+		if (ended?.fresh) open.count++
+		return ended?.step ?? null
 	}
 
 	lastSeq(): number {
@@ -149,15 +189,21 @@ export class RoomLog {
 				SNAPSHOT_MESSAGES,
 			)
 			.toArray()
+		const members = listMembers(this.storage)
+		// Only an agent with steps since its last message has a tail to send.
+		const open = new Map(members.map((m) => [m.slug as string, this.window(m.slug)] as const))
+		const pending = new Map([...open].flatMap(([slug, w]) => (w.count ? [[slug, w.after] as const] : [])))
+		const steps = this.steps.tails(pending)
 		return {
 			seq: this.lastSeq(),
 			readSeq: this.readSeq(),
-			members: listMembers(this.storage),
+			members,
 			messages: this.withReactions(rows),
 			tasks: listTasks(this.storage),
 			...listSpace(this.storage, ROOM_TABLES),
 			agents: agentStatuses(this.storage.sql),
 			asks: listAsks(this.storage.sql),
+			...(steps.length ? { steps } : {}),
 		}
 	}
 
@@ -286,6 +332,10 @@ export class RoomLog {
 			const earlier = input.clientId ? this.sentBefore(input.clientId) : input.run ? this.messageForRun(input.run) : null
 			if (earlier) return { ...earlier, event: null }
 			const id = crypto.randomUUID() as MessageId
+			// Counted once, when the message is posted, and kept: the agent's steps the room has heard of since its last message.
+			// Mail to another agent is not one: the human reads it behind a divider, so the steps wait for the next message.
+			const open = input.from.kind === "agent" && !input.to ? this.window(input.from.slug) : null
+			const steps = open?.count ?? 0
 			const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
 			const message: Omit<Message, "seq" | "at"> = {
 				id,
@@ -296,6 +346,7 @@ export class RoomLog {
 				...(reply ? { reply } : {}),
 				...(input.files?.length ? { files: input.files } : {}),
 				...(input.run ? { run: input.run } : {}),
+				...(open && steps ? { steps, stepAfter: open.after } : {}),
 				...(input.goto ? { goto: input.goto } : {}),
 				...(input.quote ? { quote: input.quote } : {}),
 				...(input.to ? { to: input.to } : {}),
@@ -308,8 +359,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps, step_after)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -326,7 +377,10 @@ export class RoomLog {
 				input.to ?? null,
 				input.initiative?.reason ?? null,
 				input.event ? JSON.stringify(input.event) : null,
+				steps || null,
+				open && steps ? open.after : null,
 			)
+			if (open && input.from.kind === "agent") this.windows.set(input.from.slug, { after: event.seq, count: 0 })
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
 			}
@@ -493,6 +547,7 @@ export class RoomLog {
 			...(r.run_id !== null
 				? { run: { runId: r.run_id, attempt: r.run_attempt ?? 0, index: r.run_index ?? 0 } }
 				: {}),
+			...(r.steps ? { steps: r.steps, stepAfter: r.step_after ?? 0 } : {}),
 			...(r.edited_at !== null ? { editedAt: r.edited_at } : {}),
 			...(r.goto ? { goto: r.goto as RoomId } : {}),
 			...(r.quote ? { quote: r.quote } : {}),

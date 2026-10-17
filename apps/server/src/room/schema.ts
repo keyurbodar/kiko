@@ -239,4 +239,24 @@ export const ROOM_STEPS: Step[] = [
 		body TEXT NOT NULL,
 		chain TEXT
 	) STRICT`,
+	// One finished tool call (architecture 9.5): one row, written when it ends. `after_seq` is the seq of the agent's message before it. No secondary index: each would cost a write.
+	`CREATE TABLE IF NOT EXISTS run_steps (
+		run_id TEXT NOT NULL,
+		id TEXT NOT NULL,
+		slug TEXT NOT NULL,
+		tool TEXT NOT NULL,
+		name TEXT NOT NULL,
+		app TEXT,
+		worker TEXT,
+		label TEXT NOT NULL,
+		input TEXT,
+		status TEXT NOT NULL,
+		started_at INTEGER NOT NULL,
+		ended_at INTEGER NOT NULL,
+		output TEXT,
+		after_seq INTEGER NOT NULL,
+		PRIMARY KEY (run_id, id)
+	) WITHOUT ROWID`,
+	addColumn("messages", "steps", "INTEGER"),
+	addColumn("messages", "step_after", "INTEGER"),
 ]

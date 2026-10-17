@@ -112,6 +112,10 @@ export interface ChatMessage {
   initiative?: string
   /** The teammate, or "all", an agent's message was sent to. Absent on a reply meant for the human. */
   to?: string
+  /** How many steps the agent made since its previous message. They open in the run panel. Absent when none. */
+  steps?: number;
+  /** The seq of the agent's previous message: the bubble opens its steps heard from there up to its own seq. */
+  stepAfter?: number;
   /** Marks the message as pinned in its thread. */
   pinned?: boolean
   /**

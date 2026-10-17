@@ -112,7 +112,6 @@ core/browser/src/cdp/session.ts:Method
 core/browser/src/cdp/session.ts:Params
 core/browser/src/cdp/session.ts:Payload
 core/browser/src/config.ts:BrowserConfig
-core/browser/src/page/extract.ts:Form
 core/browser/src/page/extract.ts:formatForms
 core/browser/src/page/extract.ts:formatHeadings
 core/browser/src/page/extract.ts:formatLinks
@@ -140,7 +139,6 @@ core/memory/src/tools.ts:noteRule
 core/protocol/src/attachments.ts:MAX_ATTACHMENT_FILE_BYTES
 core/protocol/src/attachments.ts:MAX_TOTAL_IMAGE_BYTES
 core/protocol/src/attachments.ts:attachmentLimit
-core/protocol/src/ids.ts:AGENT_SLUG_PATTERN
 core/protocol/src/ids.ts:ULID_PATTERN
 core/protocol/src/ids.ts:UUID_V7_PATTERN
 core/protocol/src/loops.ts:CAPTURE_MODES
