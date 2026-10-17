@@ -27,7 +27,7 @@ export class Channel<In, Out> {
     private readonly auth: string,
     private readonly incoming: Schema.Codec<In, unknown>,
     private readonly outgoing: Schema.Codec<Out, unknown>,
-    private readonly hello: Out,
+    private readonly hello: Out | null,
   ) {}
 
   async connect(): Promise<void> {
@@ -56,7 +56,7 @@ export class Channel<In, Out> {
       socket.onopen = () => resolve()
       socket.onerror = () => reject(new VerifyError(`${this.label}: cannot connect to ${this.target}`))
     })
-    this.send(this.hello)
+    if (this.hello) this.send(this.hello)
   }
 
   private now() {
@@ -179,6 +179,8 @@ export interface Session {
   userId: string
   auth: string
   user(): Promise<UserChannel>
+  /** A user socket that never sends hello, as the client's sign-in socket does. */
+  signInSocket(): Promise<UserChannel>
   room(roomId: string): Promise<RoomHandle>
   connectProvider(provider: string, apiKey: string): Promise<void>
   disconnectProvider(provider: string): Promise<void>
@@ -265,6 +267,12 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
           open.push(user)
           await user.connect()
           return user
+        },
+        async signInSocket() {
+          const socket: UserChannel = new Channel(`${name}/sign-in`, wsUrl("api/ws/user"), auth, UserToClient, ClientToUser, null)
+          open.push(socket)
+          await socket.connect()
+          return socket
         },
         async room(roomId) {
           const raw: RoomChannel = new Channel(

@@ -741,13 +741,15 @@ How kiko does it:
 | GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | enabled. The GitHub Copilot flow ran under `wrangler dev` up to the device code from github.com. No flow has been completed against a real account. |
 | Anthropic | loopback server, with a copy-code fallback | enabled, copy-code path only. The server answers the method question itself. |
 | OpenRouter | loopback server always, with a manual paste fallback | not enabled. The flow starts its loopback server before it offers the paste path, and a Worker cannot listen. |
-| OpenAI ChatGPT | imports `node:http` and `node:crypto` at the top of the module | not enabled. Loopback server only. |
+| OpenAI ChatGPT | loopback server on 127.0.0.1:1455, with a manual paste fallback | enabled, paste path only (`apps/server/src/user/chatgpt-signin.ts`). The person approves in the browser, which then fails to load `http://127.0.0.1:1455/auth/callback`, and pastes that full address back. The redirect address cannot change because OpenAI registered it, and a Worker cannot listen on a port. kiko ports pi's flow with the server removed, PKCE through Web Crypto, and a per-owner installation id kept in `UserDO` settings. Refresh and token use are pi's own. UNVERIFIED: no real ChatGPT account has completed it. |
 
 How kiko runs them (`apps/server/src/user/provider-login.ts`):
 
 - The client sends `login.start`, gets `login.notify` and `login.prompt` frames, answers with `login.answer`, and ends with `login.done` or `login.error`. A sign-in opens its own user socket.
 - A login lives in `UserDO` memory, tied to its socket. It ends when the credential is stored, the flow fails, the user cancels, or the socket closes. Each ending removes all of its state. A login does not survive an eviction; the client hears `unknown` and starts again.
 - pi-ai loads flow modules with a computed `import()` that a Worker bundle cannot follow. `registerBunOAuthFlows()` from `@earendil-works/pi-ai/bun-oauth` fills pi-ai's loader table with the bundled flows instead. ASSUMPTION: the helper is named for Bun binaries but does only that. The token refresh depends on it too.
+- The catalog gives each provider a `signIn` offer with pi-ai's own label (`loginLabel`, else `name`), so the connect dialog says "Sign in with ChatGPT" or "Sign in with SuperGrok or X Premium".
+- A failed sign-in maps to one fixed sentence (wrong pasted address, expired code, refused, network) with the provider's words after it, keys stripped by `runErrorDetail`.
 - Subscription sign-in is always available. A development bundle also offers the `kiko-fake` provider for `bun kiko verify provider-login --fake`.
 - UNVERIFIED: pi-ai's device-code polling waits with `setTimeout` between `fetch` calls. Whether a deployed Durable Object stays awake through a long poll has not been measured.
 

@@ -431,6 +431,7 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; onClose
               <SignInMethod
                 provider={props.provider!.id}
                 method={method}
+                label={props.provider!.signIn?.method === method ? props.provider!.signIn.label : undefined}
                 onDone={async () => {
                   await refreshConnected()
                   props.onClose()
@@ -444,7 +445,7 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; onClose
   )
 }
 
-function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: () => void }) {
+function SignInMethod(props: { provider: string; method: ConnectMethod; label?: string | undefined; onDone: () => void }) {
   const [state, setState] = createSignal<SignIn | null>(null)
   let handle: SignInHandle | undefined
   let input: HTMLInputElement | undefined
@@ -472,7 +473,7 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; onDone: 
   return (
     <div class="flex flex-col gap-2" data-method={props.method} data-sign-in={state()?.status ?? "idle"}>
       <div class="flex items-center justify-between gap-2">
-        <span class="text-[13px] text-foreground">{METHOD_LABEL[props.method]}</span>
+        <span class="text-[13px] text-foreground">{props.label ?? METHOD_LABEL[props.method]}</span>
         <Show
           when={running()}
           fallback={

@@ -9,6 +9,7 @@ function setup(options: { fake?: boolean } = {}) {
   const frames: { owner: string; frame: UserToClient }[] = []
   const logins = new ProviderLogins<string>({
     store,
+    deviceId: () => "0b9f0a7e-5c1d-4a52-9d57-2f6c3b5f1a11",
     info: (provider) => (provider === FAKE_PROVIDER ? { provider, kind: "oauth", last4: "" } : null),
     send: (owner, frame) => void frames.push({ owner, frame }),
     ...((options.fake ?? true) ? { devProvider: async (id: string) => fakeProvider(id) } : {}),
@@ -49,7 +50,7 @@ test("a wrong code fails and stores nothing", async () => {
   const prompt = await s.next("login.prompt")
   s.logins.answer("ws1", "l1", prompt.promptId, "nope")
   await run
-  expect(await s.next("login.error")).toMatchObject({ reason: "failed", message: "that code is wrong" })
+  expect(await s.next("login.error")).toMatchObject({ reason: "failed", message: "The sign-in did not finish. Start again. that code is wrong" })
   expect(await s.store.read(FAKE_PROVIDER)).toBeUndefined()
   expect(s.logins.size).toBe(0)
 })
