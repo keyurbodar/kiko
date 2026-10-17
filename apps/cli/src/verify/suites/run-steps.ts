@@ -81,6 +81,23 @@ const suite: Suite = {
     expectEqual(seen.size, stepFrames(room).length, "step frames that repeat")
     console.log("  ok asking for a run's steps answers the same list every time, and only the asker hears it")
 
+    // A run that posts, calls a tool, then posts again: each bubble counts the steps its run had started when it was posted.
+    const split = stepFrames(room).length
+    const splitFrom = bubbles(room).length
+    await go(room, "[two-part] go")
+    await poll("the agent to go idle", () => idle(room), FAKE_MS)
+    const parts = bubbles(room).slice(splitFrom)
+    const splitStep = must(stepFrames(room).slice(split).find((x) => x.status === "done"), "the step between the two bubbles")
+    expectEqual(
+      parts.map((m) => [m.run?.runId, m.steps ?? 0]),
+      [
+        [splitStep.runId, 0],
+        [splitStep.runId, 1],
+      ],
+      "the step counts of a run's two bubbles",
+    )
+    console.log("  ok a run's bubbles count the steps started before each, so each bubble opens only its own")
+
     // The lead's own tools: a failing one, and an internal tool that makes no step.
     const before = stepFrames(room).length
     await go(room, '[tool update_task {"id":"no-such-task","status":"done"}]')
