@@ -9,6 +9,8 @@ export function buildCatalog(all: readonly Provider[], signInMethod: (providerId
     if (provider.auth?.apiKey) connect.push("api_key")
     const signIn = provider.auth?.oauth ? signInMethod(provider.id) : undefined
     if (signIn) connect.push(signIn)
+    const oauth = provider.auth?.oauth
+    const offer = signIn && oauth ? { method: signIn, label: oauth.loginLabel ?? oauth.name } : undefined
     const models: CatalogModel[] = [...provider.getModels()]
       .map((model) => ({
         id: model.id,
@@ -21,7 +23,7 @@ export function buildCatalog(all: readonly Provider[], signInMethod: (providerId
       }))
       .sort((a, b) => a.id.localeCompare(b.id))
     const classifiers = (provider.getAllModels?.() ?? []).filter((model) => model.type === "classifier").length
-    return { id: provider.id, name: provider.name ?? provider.id, connect, models, classifiers }
+    return { id: provider.id, name: provider.name ?? provider.id, connect, ...(offer ? { signIn: offer } : {}), models, classifiers }
   })
   return { providers: providers.sort((a, b) => a.id.localeCompare(b.id)) }
 }

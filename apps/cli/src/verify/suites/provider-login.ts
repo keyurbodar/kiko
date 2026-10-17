@@ -35,6 +35,32 @@ const suite: Suite = {
     user.send({ t: "login.cancel", loginId: stray })
     expectEqual(((await user.expect(ofLogin("login.error", stray))) as Frame<"login.error">).reason, "unknown", "cancel of no login")
 
+    const hostIds: (string | null)[] = []
+    for (let round = 0; round < 2; round++) {
+      const chatgpt = id()
+      user.send({ t: "login.start", loginId: chatgpt, provider: "openai" })
+      const opened = (await user.expect(ofLogin("login.notify", chatgpt))) as Frame<"login.notify">
+      if (opened.event.type !== "auth_url") throw new VerifyError(`expected an auth_url, got ${opened.event.type}`)
+      const authorize = new URL(opened.event.url)
+      expectEqual(authorize.searchParams.get("code_challenge_method"), "S256", "ChatGPT sign-in PKCE method")
+      hostIds.push(authorize.searchParams.get("ext_agent_host_id"))
+      const paste = (await user.expect(ofLogin("login.prompt", chatgpt))) as Frame<"login.prompt">
+      expectEqual(paste.prompt.type, "manual_code", "ChatGPT sign-in prompt type")
+      user.send({
+        t: "login.answer",
+        loginId: chatgpt,
+        promptId: paste.promptId,
+        value: "http://127.0.0.1:1455/auth/callback?code=x&state=another&client_id=app",
+      })
+      const mismatch = (await user.expect(ofLogin("login.error", chatgpt))) as Frame<"login.error">
+      expectEqual(
+        mismatch.message.startsWith("That address does not match this sign-in. Start again and paste the address from the same tab."),
+        true,
+        "ChatGPT sign-in state mismatch sentence",
+      )
+    }
+    if (!hostIds[0]?.startsWith("urn:uuid:") || hostIds[0] !== hostIds[1]) throw new VerifyError(`the ChatGPT host id is not stable: ${hostIds.join(" ")}`)
+
     if (!v.fake) {
       console.log("  provider-login: run with --fake for the sign-in flow itself")
       return
@@ -53,7 +79,7 @@ const suite: Suite = {
     const done = (await user.expect(ofLogin("login.done", good))) as Frame<"login.done">
     expectEqual(done.provider, { provider: FAKE, kind: "oauth", last4: "" }, "login.done provider")
     const listed = (await credentials()).providers.find((p) => p.provider === FAKE)
-    expectEqual(listed, { provider: FAKE, kind: "oauth", last4: "" }, "the stored row")
+    expectEqual(listed, { provider: FAKE, kind: "oauth", last4: "", chat: false, judge: false }, "the stored row")
     expectEqual(await credentials("DELETE", `/${FAKE}`), { removed: true }, "disconnect")
 
     const wrong = id()

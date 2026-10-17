@@ -70,8 +70,13 @@ test("the client's catalog lists an overlay model and changes revision with it",
 test("the catalog offers only the sign-ins the server runs", async () => {
   const user = fresh()
   await rpc(user, "devModelOverlay", {})
-  const catalog = JSON.parse((await rpc(user, "modelCatalog", null)).json) as { providers: { id: string; connect: string[] }[] }
+  const catalog = JSON.parse((await rpc(user, "modelCatalog", null)).json) as { providers: { id: string; connect: string[]; signIn?: { method: string; label: string } }[] }
   const connect = (id: string) => catalog.providers.find((p) => p.id === id)?.connect
+  const signIn = (id: string) => catalog.providers.find((p) => p.id === id)?.signIn
+  expect(signIn("openai")).toEqual({ method: "paste_code", label: "Sign in with ChatGPT" })
+  expect(signIn("xai")).toEqual({ method: "device_code", label: "Sign in with SuperGrok or X Premium" })
+  expect(signIn("anthropic")?.label).toContain("Claude Pro/Max")
+  expect(signIn("opencode-go")).toBeUndefined()
   expect(connect("anthropic")).toContain("paste_code")
   expect(connect("github-copilot")).toContain("device_code")
   expect(connect("opencode-go")).toEqual(["api_key"])

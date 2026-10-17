@@ -18,6 +18,8 @@ export interface CatalogProvider {
 	id: string
 	name: string
 	connect: ConnectMethod[]
+	/** pi-ai's own label for the sign-in, such as "Sign in with ChatGPT". */
+	signIn?: { method: ConnectMethod; label: string }
 	models: CatalogModel[]
 	/** How many classifier models the provider serves. */
 	classifiers: number

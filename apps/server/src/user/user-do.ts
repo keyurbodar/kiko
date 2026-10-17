@@ -72,6 +72,7 @@ const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 
 const AWAY_NOTICE = "away_notice"
 const PUBLIC_ORIGIN = "public_origin"
+const DEVICE_ID = "device_id"
 const OLD_CHECK_IN = "check_in"
 const OLD_CHECK_IN_SEEN = "check_in_seen"
 
@@ -800,10 +801,19 @@ export class UserDO extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client })
   }
 
+  private deviceId(): string {
+    const existing = this.setting(DEVICE_ID)
+    if (existing) return existing
+    const id = crypto.randomUUID()
+    this.putSetting(DEVICE_ID, id)
+    return id
+  }
+
   #logins?: ProviderLogins<WebSocket>
   get #loginState(): ProviderLogins<WebSocket> {
     this.#logins ??= new ProviderLogins<WebSocket>({
       store: this.#credentials,
+      deviceId: () => this.deviceId(),
       info: (provider) => this.#credentials.listProviders().find((p) => p.provider === provider) ?? null,
       send,
       devProvider: async (id) => {
