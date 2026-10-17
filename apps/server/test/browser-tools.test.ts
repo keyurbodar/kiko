@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { BrowserSession, PageView, Step, Tab } from "@kiko/browser/page/types"
 import { BrowserConnection } from "../src/agent/browser/connection"
-import { WORKER_ONLY } from "../src/agent/factory"
+import { hasRole } from "../src/agent/roles"
 import type { BrowserState, Lease, LeasePort } from "../src/agent/browser/lease"
 import { browserExtension, browserInfoExtension, BROWSER_INFO_EXT, PAUSED, toStep, type BrowserToolDeps } from "../src/agent/browser/tools"
 import { type FilesBackend, RoomFs } from "../src/files/room-fs"
@@ -116,7 +116,8 @@ describe("the browser has four tools", () => {
     const names = browserExtension(depsWith(lease)).tools.map((t) => t.name)
     expect(names.sort()).toEqual(["browse", "browser_act", "browser_look"])
     expect(browserInfoExtension(depsWith(lease)).tools.map((t) => t.name)).toEqual(["browser_link"])
-    expect(WORKER_ONLY).toContain("browser")
+    expect(hasRole("browser", "worker")).toBe(true)
+    expect(hasRole("browser", "talker")).toBe(false)
   })
 })
 

@@ -69,52 +69,20 @@ test("a worker gets the agent's tools but no chat, notes, routines, board, or mo
   expect(reports[0]).toMatchObject({ id: "work:w1:" + workers.get("w1")!.submissionId, body: "the page says hi", work: { id: "w1", status: "done" } })
   expect(workers.get("w1")!.step).toBe("fake_lookup")
   expect(workerTools).toContain("fake_lookup")
-  const withheld = ["start_work", "steer_work", "stop_work", "send_message", "ask", "create_task", "update_task", "create_routine", "cancel_routine", "update_routine", "note"]
+  const withheld = ["start_work", "steer_work", "stop_work", "send_message", "ask_human", "create_task", "update_task", "create_routine", "cancel_routine", "update_routine", "note"]
   for (const name of withheld) {
     expect(talkerTools).toContain(name)
     expect(workerTools).not.toContain(name)
   }
 })
 
-test("two asks in one reply, to two teammates, wait together and each gets its own answer", async () => {
-  let waiting = 0
-  let peak = 0
-  const port: MessagingPort = {
-    send: async () => ({ ok: true, to: [] }),
-    ask: async (input) => ({ ok: true, to: [input.to as never] }),
-    askState: async () => null,
-    waitAnswer: async (id) => {
-      waiting++
-      peak = Math.max(peak, waiting)
-      await new Promise((resolve) => setTimeout(resolve, 200))
-      waiting--
-      return `answer for ${id.split(":").at(-1)}`
-    },
-    closeAsk: async () => null,
-    humanWaiting: () => false,
-    team: async () => [],
-  }
-  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, messaging: () => port })
-  const faux = fauxProvider()
-  let results: string[] = []
-  faux.setResponses([
-    () =>
-      fauxAssistantMessage([fauxToolCall("ask", { to: "ada", question: "which port?" }), fauxToolCall("ask", { to: "bob", question: "which host?" })], { stopReason: "toolUse" }),
-    (r: Request) => {
-      results = (r.messages as Msg[]).filter((m) => m.role === "toolResult" && m.toolName === "ask").map((m) => (m.content ?? []).map((p) => p.text ?? "").join(""))
-      return fauxAssistantMessage("done")
-    },
-  ])
-  const models = createModels()
-  models.setProvider(faux.provider)
-  const harness = await Harness.open(new MemoryStorage(), { models, registry: built.registry }, context)
-  const root = await harness.root(context, { agent: built.agent })
-  expect((await (await root.submit({ type: "input", content: "go" }, context)).wait(context)).status).toBe("done")
-  await harness.close(context)
-  expect(peak).toBe(2)
-  expect(results).toHaveLength(2)
-  expect(results.filter((r) => r.startsWith("@ada answered: ")).length).toBe(1)
-  expect(results.filter((r) => r.startsWith("@bob answered: ")).length).toBe(1)
+test("a worker cannot ask the human", () => {
+  const { workers } = registry()
+  const messaging = () => ({}) as MessagingPort
+  const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, messaging, work: workers })
+  const talker = built.agent.extensions.flatMap((e) => e.tools ?? []).map((t) => t.name)
+  expect(talker).toContain("ask_human")
+  expect(talker).not.toContain("ask")
 })
 
 function strictFiles() {

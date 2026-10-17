@@ -29,7 +29,6 @@ export const NAME_ICON: Record<string, StepIcon> = {
   browser_act: "cursor",
   browser_link: "link",
   zoom: "scan",
-  ask: "help",
   ask_human: "help",
   send_message: "send",
   recall: "memory",

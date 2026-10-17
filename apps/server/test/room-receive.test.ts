@@ -86,7 +86,7 @@ test("a send the room has seen before is delivered once", async () => {
 		ctx: { waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
 		members: { list: () => members } as never,
 		burst: { pending: () => false } as never,
-		asks: { sent: () => {}, answer: () => ({ answered: false, open: null }), expect: () => {}, answeredBy: () => null } as never,
+		asks: { expect: () => {}, answerRemote: () => [], remote: () => null, settle: () => true } as never,
 		team: { doing: () => {} } as never,
 		alarms: {} as never,
 		home: () => home,
@@ -111,7 +111,7 @@ test("a send that failed after it was recorded is still delivered once when the 
 		ctx: { waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never,
 		members: { list: () => members } as never,
 		burst: { pending: () => false } as never,
-		asks: { sent: () => {}, answer: () => ({ answered: false, open: null }), expect: () => {}, answeredBy: () => null } as never,
+		asks: { expect: () => {}, answerRemote: () => [], remote: () => null, settle: () => true } as never,
 		team: { doing: () => {} } as never,
 		alarms: {} as never,
 		home: () => home,
@@ -149,13 +149,11 @@ test("a held result batch keeps its opening time across retries", async () => {
 	expect(sent).toEqual([5_000, 5_000])
 })
 
-/** Ada asked bob. The ask timed out, so it is closed. Bob's reply to it is the answer the room has to relay. */
+/** Ada messaged bob, and this room expects his answer. Bob's reply to it is what the room relays. */
 function closedAsk(s: ReturnType<typeof setup>) {
 	const pending: Promise<unknown>[] = []
 	const asks = new Asks(s.storage.sql)
-	asks.open("ask1", "ada" as AgentSlug, "bob" as AgentSlug, 1)
-	asks.sent("ask1", "m-ask1")
-	asks.close("ask1")
+	asks.expect("ask1:bob", "ada" as AgentSlug, "bob" as AgentSlug, "m-ask1", 1)
 	s.mail.delivered("bob" as AgentSlug, [human("human:m0")])
 	const room = new RoomMail({
 		...s.deps,
@@ -175,9 +173,9 @@ test("a closed ask's answer reaches its asker as mail", async () => {
 	const s = setup(null)
 	const { room, asks, pending } = closedAsk(s)
 	s.log.addMessage({ from: { kind: "agent", slug: "bob" as AgentSlug }, text: "yes", run: { runId: "r1", attempt: 1, index: 0 } })
-	room.answerAsks(home, "bob" as AgentSlug, "r1", ["agent:m-ask1:bob"])
+	room.answerAsks("bob" as AgentSlug, "r1", ["agent:m-ask1:bob"])
 	await Promise.all(pending)
-	expect(asks.get("ask1")).toEqual({ state: "closed", answer: "yes" })
+	expect(asks.get("ask1:bob")).toEqual({ asker: "ada", state: "closed", answer: "yes" })
 	expect(s.received.filter((r) => r.slug === "ada")).toHaveLength(1)
 })
 
@@ -186,9 +184,9 @@ test("a closed ask whose answer the room refuses to relay keeps its answer, not 
 	const { room, asks, pending } = closedAsk(s)
 	s.mail.stop()
 	s.log.addMessage({ from: { kind: "agent", slug: "bob" as AgentSlug }, text: "yes", run: { runId: "r1", attempt: 1, index: 0 } })
-	room.answerAsks(home, "bob" as AgentSlug, "r1", ["agent:m-ask1:bob"])
+	room.answerAsks("bob" as AgentSlug, "r1", ["agent:m-ask1:bob"])
 	await Promise.all(pending)
-	expect(asks.get("ask1")).toEqual({ state: "closed", answer: null })
+	expect(asks.get("ask1:bob")).toEqual({ asker: "ada", state: "closed", answer: null })
 	expect(s.received.filter((r) => r.slug === "ada")).toHaveLength(0)
 })
 
@@ -196,9 +194,9 @@ test("a closed ask gets the no-provider notice as mail", async () => {
 	const s = setup(null)
 	const { room, asks, pending } = closedAsk(s)
 	const why = "(no answer: @bob cannot run, because the human has not connected Anthropic.)"
-	room.answerHeard(home, "bob" as AgentSlug, ["agent:m-ask1:bob"], why, { id: "no_provider:bob:r1", seq: 9 })
+	room.relayHeard("bob" as AgentSlug, ["agent:m-ask1:bob"], why, { id: "no_provider:bob:r1", seq: 9 })
 	await Promise.all(pending)
-	expect(asks.get("ask1")).toEqual({ state: "closed", answer: why })
+	expect(asks.get("ask1:bob")).toEqual({ asker: "ada", state: "closed", answer: why })
 	expect(s.received.filter((r) => r.slug === "ada").flatMap((r) => r.ids)).toEqual(["agent:no_provider:bob:r1:ada"])
 })
 
@@ -235,7 +233,7 @@ test("a teammate's plain reply to a send_message reaches the sender as an agent 
 	const { s, room, pending, A, B, heardBy, sendOf } = exchange()
 	const first = sendOf(A, B, "s1")
 	s.log.addMessage({ from: { kind: "agent", slug: B }, text: "done", run: { runId: "r1", attempt: 1, index: 0 } })
-	room.answerAsks(home, B, "r1", heardBy(B, first))
+	room.answerAsks(B, "r1", heardBy(B, first))
 	await Promise.all(pending)
 	const toAda = s.received.filter((r) => r.slug === "ada").flatMap((r) => r.ids)
 	expect(toAda).toHaveLength(1)
@@ -246,10 +244,10 @@ test("a send_message back to the asker answers the expectation and opens none", 
 	const { s, room, asks, pending, A, B, heardBy, sendOf } = exchange()
 	const first = sendOf(A, B, "s1")
 	const back = sendOf(B, A, "s2")
-	expect(asks.get("s1:bob")).toEqual({ state: "closed", answer: "s2" })
+	expect(asks.get("s1:bob")).toEqual({ asker: "ada", state: "closed", answer: "s2" })
 	expect(asks.get("s2:ada")).toBeNull()
 	s.log.addMessage({ from: { kind: "agent", slug: A }, text: "thanks", run: { runId: "r2", attempt: 1, index: 0 } })
-	room.answerAsks(home, A, "r2", heardBy(A, back))
+	room.answerAsks(A, "r2", heardBy(A, back))
 	await room.drain()
 	await Promise.all(pending)
 	expect(s.received.filter((r) => r.slug === "bob").flatMap((r) => r.ids)).toEqual(heardBy(B, first))
@@ -259,10 +257,10 @@ test("a relayed answer opens no expectation", async () => {
 	const { s, room, asks, pending, A, B, heardBy, sendOf } = exchange()
 	const first = sendOf(A, B, "s1")
 	const bubble = s.log.addMessage({ from: { kind: "agent", slug: B }, text: "done", run: { runId: "r1", attempt: 1, index: 0 } })
-	room.answerAsks(home, B, "r1", heardBy(B, first))
+	room.answerAsks(B, "r1", heardBy(B, first))
 	await Promise.all(pending)
 	s.log.addMessage({ from: { kind: "agent", slug: A }, text: "great", run: { runId: "r2", attempt: 1, index: 0 } })
-	room.answerAsks(home, A, "r2", [`agent:${bubble.id}:ada`])
+	room.answerAsks(A, "r2", [`agent:${bubble.id}:ada`])
 	await room.drain()
 	expect(asks.unanswered(B, [bubble.id])).toEqual([])
 	expect(s.received.filter((r) => r.slug === "bob").flatMap((r) => r.ids)).toEqual(heardBy(B, first))
@@ -271,16 +269,16 @@ test("a relayed answer opens no expectation", async () => {
 test("a run with no reply bubbles relays nothing and settles the expectation", async () => {
 	const { s, room, asks, pending, A, B, heardBy, sendOf } = exchange()
 	const first = sendOf(A, B, "s1")
-	room.answerAsks(home, B, "r1", heardBy(B, first))
+	room.answerAsks(B, "r1", heardBy(B, first))
 	await Promise.all(pending)
-	expect(asks.get("s1:bob")).toEqual({ state: "closed", answer: "" })
+	expect(asks.get("s1:bob")).toEqual({ asker: "ada", state: "closed", answer: "" })
 	expect(s.received.filter((r) => r.slug === "ada")).toHaveLength(0)
 })
 
 test("a broadcast expects an answer from each recipient", () => {
 	const { asks, mail, A } = exchange()
 	expect(mail.send(A, { id: "b1", to: "all", text: "hi" }, members, null).ok).toBe(true)
-	expect(asks.get("b1:bob")).toEqual({ state: "closed", answer: null })
+	expect(asks.get("b1:bob")).toEqual({ asker: "ada", state: "closed", answer: null })
 })
 
 test("the hop limit is 24", () => {

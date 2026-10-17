@@ -94,10 +94,10 @@ test("a status frame carries the typed activity, and a reconnect snapshot shows 
 	await c.take((f) => f.t === "status" && f.state === "typing" && f.activity?.kind === "tool")
 	expect((await snapshot(room)).agents).toEqual([{ slug: "ada", state: "typing", doing: "reading /plan.md", activity: read }])
 
-	const waiting: Activity = { kind: "waiting", on: "bob" as never }
-	await doing(room, "waiting on @bob", waiting)
-	await c.take(statusOf(waiting))
-	expect((await snapshot(room)).agents?.[0]?.activity).toEqual(waiting)
+	const messaging: Activity = { kind: "tool", tool: "other", caption: "messaging @bob" }
+	await doing(room, "messaging @bob", messaging)
+	await c.take(statusOf(messaging))
+	expect((await snapshot(room)).agents?.[0]?.activity).toEqual(messaging)
 
 	await rpc(room, "setStatus", "ada", "idle")
 	const idle = await c.take((f) => f.t === "status" && f.state === "idle")

@@ -91,7 +91,7 @@ export const ToolKind = Schema.Literals(["read", "edit", "search", "run", "web",
 export const WorkerRow = Schema.Struct({
 	id: Id,
 	task: Schema.String,
-	status: Schema.Literals(["running", "done", "failed", "stopped"]),
+	status: Schema.Literals(["pending", "running", "done", "failed", "stopped"]),
 	step: Schema.NullOr(Schema.String),
 	steps: Count,
 	startedAt: Count,
@@ -100,7 +100,6 @@ export const WorkerRow = Schema.Struct({
 export const Activity = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("writing") }),
 	Schema.Struct({ kind: Schema.Literal("tool"), tool: ToolKind, caption: Schema.String }),
-	Schema.Struct({ kind: Schema.Literal("waiting"), on: AgentSlug }),
 	Schema.Struct({ kind: Schema.Literal("failed"), caption: Schema.String }),
 	Schema.Struct({ kind: Schema.Literal("background"), workers: Schema.Array(WorkerRow) }),
 ])

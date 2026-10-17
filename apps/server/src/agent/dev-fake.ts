@@ -257,7 +257,7 @@ function teamCall(turn: string) {
   const agent = [...turn.matchAll(/<agent-message from="([^"]+)"[^>]*>([\s\S]*?)<\/agent-message>/g)].at(-1)
   if (agent && capture(agent, 2).includes("[question]")) return fauxToolCall("send_message", { to: capture(agent, 1), text: "[answer] 42" })
   const asked = /\[ask ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
-  if (asked) return fauxToolCall("ask", { to: capture(asked, 1), question: capture(asked, 2) })
+  if (asked) return fauxToolCall("send_message", { to: capture(asked, 1), text: capture(asked, 2) })
   if (agent && capture(agent, 2).includes("[echo]")) return fauxToolCall("send_message", { to: capture(agent, 1), text: "[echo]" })
   const send = /\[send ([a-z0-9-]+)\]\s*([\s\S]*)$/.exec(turn)
   if (send) return fauxToolCall("send_message", { to: capture(send, 1), text: capture(send, 2) })

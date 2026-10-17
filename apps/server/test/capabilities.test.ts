@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { effectOf } from "@kiko/agent/effects"
-import { buildAgent, forTalker } from "../src/agent/factory"
+import { buildAgent } from "../src/agent/factory"
+import { forRole } from "../src/agent/roles"
 import { baseSections, integrationNote } from "../src/agent/prompt"
 import { connectAppExtension } from "../src/integrations/composio/connect-tool"
 
@@ -32,7 +33,7 @@ describe("capabilities", () => {
       sent.push([name, args])
       return { content: [{ type: "text", text: JSON.stringify({ data: { results: { gmail: { redirect_url: "https://connect.composio.dev/link/abc" } } } }) }] }
     })
-    expect(forTalker([ext!])).toHaveLength(1)
+    expect(forRole([ext!], "talker")).toHaveLength(1)
     const tool = ext!.tools![0]!
     expect(effectOf(tool)).toBe("external")
     const out = await (tool as unknown as { execute: Run }).execute({ app: "Gmail" }, { conversationId: "c", callId: "1" })

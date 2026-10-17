@@ -16,7 +16,26 @@ const KEEP_DELIVERED_MS = 7 * 86_400_000
 export const MAX_WORKER_RESUMES = 3
 const GAVE_UP = "it stopped after repeated restarts."
 
-export type WorkStatus = "running" | "done" | "failed" | "stopped"
+export type WorkStatus = "pending" | "running" | "done" | "failed" | "stopped"
+
+type WorkEvent = "submit" | "done" | "lose" | "stop"
+
+/**
+ * What a worker becomes when an event reaches it. A row that already ended takes no event but
+ * `submit`, so a late report cannot reopen a stopped worker, and a stop cannot revive a done one.
+ */
+const TRANSITIONS: Readonly<Record<WorkStatus, Partial<Record<WorkEvent, WorkStatus>>>> = {
+  pending: { submit: "running", stop: "stopped", lose: "failed" },
+  running: { done: "done", lose: "failed", stop: "stopped" },
+  done: { submit: "running" },
+  failed: { submit: "running" },
+  stopped: { submit: "running" },
+}
+
+export const transition = (from: WorkStatus, event: WorkEvent): WorkStatus => TRANSITIONS[from][event] ?? from
+
+/** No event moves a worker out of these. */
+export const ended = (status: WorkStatus): boolean => status === "done" || status === "failed" || status === "stopped"
 
 export type Work = {
   id: string
@@ -133,23 +152,29 @@ export class Workers {
     return this.list().filter((w) => w.status === "running")
   }
 
+  /** Every worker that holds a slot: one still being placed, and one at work. */
+  live(): Work[] {
+    return this.list().filter((w) => !ended(w.status))
+  }
+
   byConversation(conversationId: ConversationId): Work | null {
     const row = this.sql.exec<Row>("SELECT * FROM workers WHERE conversation_id = ?", conversationId).toArray()[0]
     return row ? toWork(row) : null
   }
 
   reserve(taskId: string, task: string, runId: string | null = null): Work | null {
-    if (this.running().length >= MAX_WORKERS) return null
+    if (this.live().length >= MAX_WORKERS) return null
     const now = this.now()
     this.sql.exec("DELETE FROM workers WHERE delivered = 1 AND updated_at < ? AND n < (SELECT max(n) FROM workers)", now - KEEP_DELIVERED_MS)
     this.sql.exec("DELETE FROM worker_changes WHERE work_id NOT IN (SELECT id FROM workers)")
     const n = this.sql.exec<{ n: number }>("SELECT coalesce(max(n), 0) + 1 AS n FROM workers").one().n
     this.sql.exec(
-      "INSERT INTO workers (n, id, task_id, task, status, run_id, started_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)",
+      "INSERT INTO workers (n, id, task_id, task, status, run_id, started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       n,
       `w${n}`,
       taskId,
       task,
+      "pending" satisfies WorkStatus,
       runId,
       now,
       now,
@@ -159,13 +184,18 @@ export class Workers {
   }
 
   placed(id: string, conversationId: ConversationId): void {
-    this.sql.exec("UPDATE workers SET conversation_id = ?, updated_at = ? WHERE id = ?", conversationId, this.now(), id)
+    const work = this.get(id)
+    if (!work) return
+    // A placement only promotes a reserved worker. One stopped in between stays stopped.
+    this.sql.exec("UPDATE workers SET conversation_id = ?, status = ?, updated_at = ? WHERE id = ?", conversationId, work.status === "pending" ? transition(work.status, "submit") : work.status, this.now(), id)
+    if (work.status === "pending") this.changed()
   }
 
   follow(id: string, submissionId: SubmissionId): void {
-    const was = this.get(id)?.status
-    this.sql.exec("UPDATE workers SET submission_id = ?, status = 'running', delivered = 0, updated_at = ? WHERE id = ?", submissionId, this.now(), id)
-    if (was !== "running") this.changed()
+    const work = this.get(id)
+    if (!work) return
+    this.sql.exec("UPDATE workers SET submission_id = ?, status = ?, delivered = 0, updated_at = ? WHERE id = ?", submissionId, transition(work.status, "submit"), this.now(), id)
+    this.changed()
     this.watch(id)
   }
 
@@ -190,27 +220,33 @@ export class Workers {
     return { paths: paths.map((r) => r.path), more: total - paths.length }
   }
 
-  stop(id: string): Work | null {
+  /**
+   * Stops a worker. The status is written first, so a crash between the write and the abort still
+   * converges, and the wait on the abort cannot be awaited from a run that holds this object: the
+   * abort needs an invocation of its own. A caller that must know the work is idle awaits `settle`.
+   */
+  async stop(id: string): Promise<Work | null> {
     const work = this.get(id)
-    if (work?.status !== "running") return work
-    this.sql.exec("UPDATE workers SET status = 'stopped', updated_at = ? WHERE id = ?", this.now(), id)
+    if (!work || ended(work.status)) return work
+    const next = transition(work.status, "stop")
+    this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ?", next, this.now(), id)
     this.changed()
-    this.abort(work)
+    void this.abort(work)
     return this.get(id)
   }
 
-  stopAll(): void {
-    const running = this.running()
-    if (!running.length) return
-    this.sql.exec("UPDATE workers SET status = 'stopped', delivered = 1, updated_at = ? WHERE status = 'running'", this.now())
+  async stopAll(): Promise<void> {
+    const live = this.live()
+    if (!live.length) return
+    this.sql.exec("UPDATE workers SET status = 'stopped', delivered = 1, updated_at = ? WHERE status IN ('pending', 'running')", this.now())
     this.changed()
-    for (const work of running) this.abort(work)
+    await Promise.all(live.map((work) => this.abort(work)))
   }
 
   // Their ids start over, so no row may point into them.
   forget(): void {
     this.sql.exec(
-      "UPDATE workers SET status = CASE WHEN status = 'running' THEN 'failed' ELSE status END, delivered = 1, task_id = 'gone:' || id, conversation_id = NULL, submission_id = NULL, updated_at = ? WHERE task_id NOT LIKE 'gone:%'",
+      "UPDATE workers SET status = CASE WHEN status IN ('pending', 'running') THEN 'failed' ELSE status END, delivered = 1, task_id = 'gone:' || id, conversation_id = NULL, submission_id = NULL, updated_at = ? WHERE task_id NOT LIKE 'gone:%'",
       this.now(),
     )
     this.changed()
@@ -221,7 +257,7 @@ export class Workers {
     this.watching.clear()
     for (const work of this.list()) {
       if (work.delivered) continue
-      if (work.status === "stopped" || work.status === "failed") this.abort(work)
+      if (ended(work.status)) void this.abort(work)
       this.watch(work.id)
     }
     this.changed()
@@ -253,13 +289,16 @@ export class Workers {
     this.options.onChange?.(this.running().length)
   }
 
-  private abort(work: Work): void {
+  private async abort(work: Work): Promise<void> {
     const harness = this.harness
     if (!harness || !work.conversationId) return
-    void harness
-      .conversation(work.conversationId, context)
-      .then((c) => c?.abort(context))
-      .catch((error: unknown) => console.error(`worker ${work.id} abort failed: ${error instanceof Error ? error.message : String(error)}`))
+    try {
+      const conversation = await harness.conversation(work.conversationId, context)
+      await conversation?.abort(context)
+    } catch (error) {
+      // The status is written before this runs, so a failed abort is logged and the next open retries.
+      console.error(`worker ${work.id} abort failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   private watch(id: string): void {
@@ -291,7 +330,7 @@ export class Workers {
       return this.watch(id)
     }
     const marked = this.get(id)?.status
-    const status: WorkStatus = marked === "stopped" || marked === "failed" ? marked : settled?.status === "done" ? "done" : "failed"
+    const status: WorkStatus = marked === "stopped" || marked === "failed" ? marked : settled?.status === "done" ? transition("running", "done") : transition("running", "lose")
     const report = marked === "failed" ? GAVE_UP : await this.report(harness, work.conversationId, status, settled)
     const now = this.get(id)
     if (harness !== this.harness || !now || now.delivered || now.submissionId !== submissionId) return

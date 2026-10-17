@@ -25,9 +25,8 @@ test("a call carries a typed activity, so the client never reads the words", () 
   expect(kind("some_new_tool")).toMatchObject({ tool: "other" })
 })
 
-test("asking a teammate shows as waiting on them, not as silence", () => {
-  expect(describeCall("ask", { to: "@Ben", question: "which port?" })).toEqual({ doing: "waiting on @ben", activity: { kind: "waiting", on: "ben" } })
-  expect(describeCall("ask", {})).toBeNull()
+test("a call to a removed tool reads as a plain tool call, never as a wait", () => {
+  expect(describeCall("ask", { to: "@Ben", question: "which port?" })).toEqual({ doing: "using ask", activity: { kind: "tool", tool: "other", caption: "using ask" } })
 })
 
 test("a failed call keeps its tool words and says what failed", () => {

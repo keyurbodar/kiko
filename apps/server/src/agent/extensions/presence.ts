@@ -1,5 +1,5 @@
 import { type ConversationId, defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable"
-import type { Activity, AgentSlug, RunStep, ToolKind } from "@kiko/protocol"
+import type { Activity, RunStep, ToolKind } from "@kiko/protocol"
 import { redact } from "../run-error"
 
 export const PRESENCE = "presence"
@@ -42,10 +42,6 @@ export function describeCall(name: string, args: Record<string, unknown>): Descr
     case "create_agent":
     case "create_group":
       return tool(name, "setting up agents")
-    case "ask": {
-      const to = typeof args.to === "string" ? args.to.replace(/^@/, "").toLowerCase() : ""
-      return to ? { doing: `waiting on @${to}`, activity: { kind: "waiting", on: to as AgentSlug } } : null
-    }
     case "ask_human":
       return tool(name, "asking the human")
     case "team":
@@ -82,7 +78,6 @@ const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>
   cancel_routine: () => "Cancelled a routine",
   create_agent: () => "Created an agent",
   create_group: () => "Created a group",
-  ask: (a) => `Asked ${str(a.to).replace(/^@/, "").toLowerCase()}`,
   ask_human: () => "Asked the human",
   mkdir: (a) => `Made folder${path(a)}`,
   mv: (a) => `Moved${path({ path: a.from })} to${path({ path: a.to })}`,

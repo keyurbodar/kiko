@@ -42,6 +42,7 @@ import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
 import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
 import { Outbox, type RoomPort } from "./outbox"
+import { stopsWorkers } from "./run-error"
 import type { StepItem, StepsPort } from "./extensions/presence"
 import { StepBatch } from "./step-batch"
 
@@ -134,6 +135,7 @@ export class AgentDO extends DurableObject<Env> {
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
     if (home) this.setHome(home)
     const result = await this.host.receive(envelopes, brief)
+    // A human message ends whatever ask_human is waiting on, so the agent answers them first.
     if (!result.refused && envelopes.some((e) => e.from.kind === "human")) this.answers.interrupt()
     return result
   }
@@ -196,7 +198,12 @@ export class AgentDO extends DurableObject<Env> {
       runError: async (runId, error) => {
         const run = this.#run?.provider === error.provider ? this.#run : null
         if (run) run.errored = true
-        return room().runError(home.slug, runId, { ...error, kind: runKindFor(error.kind, run?.credential), inputs: (await this.ctx.storage.get<string[]>(HUMAN_INPUTS_KEY)) ?? this.#humanInputs })
+        const kind = runKindFor(error.kind, run?.credential)
+        const out = await room().runError(home.slug, runId, { ...error, kind, inputs: (await this.ctx.storage.get<string[]>(HUMAN_INPUTS_KEY)) ?? this.#humanInputs })
+        // A failure the provider repeats on the next request ends the work with the run. A busy or
+        // unreachable provider leaves the workers alone: they may still finish and report.
+        if (stopsWorkers(kind)) await this.host.workers.stopAll()
+        return out
       },
     }
   }
@@ -287,10 +294,7 @@ export class AgentDO extends DurableObject<Env> {
     const room = () => roomStub(this.env.ROOM, home.userId, home.roomId)
     return {
       send: (input) => room().agentMessage(home.slug, input),
-      ask: (input) => room().ask(home.slug, input),
-      askState: (id) => room().askState(id),
       waitAnswer: (id, ms, signal) => this.answers.wait(id, ms, signal),
-      closeAsk: (id) => room().closeAsk(id),
       askHuman: (input) => room().askHuman(home.slug, input),
       humanAskState: (id) => room().humanAskState(id),
       humanWaiting: () => this.host.humanWaiting(),

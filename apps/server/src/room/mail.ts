@@ -8,8 +8,7 @@ export type AgentSend = { id: string; to: AgentSlug | "all"; text: string }
 
 export type StoredSend = { messageId: string; seq: number; text: string; hop: number; rootId: string; recipients: AgentSlug[] }
 
-/** `answered` is the ask this send answered, if any: its bubbles go to the asker, not to the inbox. */
-export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[]; answered: string | null } | { ok: false; error: string; events: RoomEvent[] }
+export type SendOutcome = { ok: true; send: StoredSend; events: RoomEvent[] } | { ok: false; error: string; events: RoomEvent[] }
 
 export type Chain = { rootId: string; hop: number }
 
@@ -19,7 +18,7 @@ type Remote = { room: RoomId; askId: string; back?: true }
 export type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend; remote: Remote | null }
 
 /** What the room does after an answer came back from a pair room. */
-type Returned = { events: RoomEvent[]; asker: AgentSlug; waiting: boolean; queued: boolean }
+type Returned = { events: RoomEvent[]; asker: AgentSlug; queued: boolean }
 
 export const KEEP_SENDS_MS = 7 * 86_400_000
 const PRUNE_EVERY_MS = 3_600_000
@@ -125,11 +124,11 @@ export class Mail {
 		return this.sql.exec<{ n: number }>("SELECT deliveries AS n FROM root_counts WHERE root_id = ?", rootId).toArray()[0]?.n ?? 0
 	}
 
-	/** Records the send, queues it for each recipient, and links it to `askId`, all in one transaction. A replay returns the first record and queues nothing. A `pair` room means the one recipient is not a member and is reached there. */
-	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], askId: string | null, pair: RoomId | null = null): SendOutcome {
+	/** Records the send, queues it for each recipient, and links it to a pair room if it has one, all in one transaction. A replay returns the first record and queues nothing. */
+	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], pair: RoomId | null = null): SendOutcome {
 		return this.storage.transactionSync((): SendOutcome => {
 			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", input.id).toArray()[0]
-			if (earlier) return { ok: true, send: JSON.parse(earlier.send) as StoredSend, events: [], answered: this.asks.answeredBy(input.id) }
+			if (earlier) return { ok: true, send: JSON.parse(earlier.send) as StoredSend, events: [] }
 			const text = input.text.trim()
 			if (!text) return { ok: false, error: "not sent: the message is empty.", events: [] }
 			if (input.to === from) return { ok: false, error: "not sent: you cannot message yourself.", events: [] }
@@ -149,15 +148,15 @@ export class Mail {
 			const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop, rootId, recipients }
 			this.count(rootId, recipients.length)
 			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
-			if (askId) this.asks.sent(askId, stored.id, pair)
-			const heard = askId || pair || input.to === "all" ? null : this.asks.answer(from, input.to, text, input.id)
-			const back = askId || pair || input.to === "all" ? [] : this.asks.answerRemote(from, input.to, text)
+			const settled = pair || input.to === "all" ? false : this.asks.answer(from, input.to, text)
+			const back = pair || input.to === "all" ? [] : this.asks.answerRemote(from, input.to, text)
 			for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
-			const answered = heard?.open ?? null
-			if (!answered && !back.length) this.enqueue(from, send, pair ? { room: pair, askId: askId ?? `${input.id}:${input.to}` } : null)
-			if (!askId && !heard?.answered && !back.length) for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now(), pair)
+			// A send that answers another room's message is relayed there, so no recipient needs it.
+			if (!back.length) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
+			// An answer to a message opens no expectation of its own.
+			if (!back.length && !settled) for (const to of recipients) this.asks.expect(`${input.id}:${to}`, from, to, stored.id, this.now(), pair)
 			this.prune()
-			return { ok: true, send, events: stored.event ? [stored.event] : [], answered }
+			return { ok: true, send, events: stored.event ? [stored.event] : [] }
 		})
 	}
 
@@ -197,26 +196,25 @@ export class Mail {
 
 	/**
 	 * The answer to a private talk, back from the pair room. It settles the asker's expectation, logs the answer
-	 * as a message from the agent that is not in this room, and queues it for the asker unless the asker waits in an `ask`.
+	 * as a message from the agent that is not in this room, and delivers it to the asker as mail.
 	 * Null when the answer was already taken, the ask is unknown, or the human stopped this root.
 	 */
 	returned(askId: string, from: AgentSlug, text: string, chain: Chain): Returned | null {
 		return this.storage.transactionSync((): Returned | null => {
 			const ask = this.asks.remote(askId)
 			if (!ask || ask.answer !== null || this.stopped(chain.rootId)) return null
-			const waiting = ask.state === "open"
 			this.asks.settle(askId, text)
-			if (!text) return { events: [], asker: ask.asker, waiting, queued: false }
+			if (!text) return { events: [], asker: ask.asker, queued: false }
 			const shown = `@${ask.asker} ${text}`
 			const stored = this.log.addMessage({ from: { kind: "agent", slug: from }, text: shown, rich: parseRichText(shown), to: ask.asker })
-			const queued = !waiting && checkSend(chain.hop, this.deliveries(chain.rootId), 1).ok
+			const queued = checkSend(chain.hop, this.deliveries(chain.rootId), 1).ok
 			if (queued) {
 				const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop: chain.hop, rootId: chain.rootId, recipients: [ask.asker] }
 				this.count(chain.rootId, 1)
 				this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", `answer:${askId}`, JSON.stringify(send), this.now())
 				this.enqueue(from, send)
 			}
-			return { events: stored.event ? [stored.event] : [], asker: ask.asker, waiting, queued }
+			return { events: stored.event ? [stored.event] : [], asker: ask.asker, queued }
 		})
 	}
 

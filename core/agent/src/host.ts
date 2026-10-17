@@ -310,7 +310,7 @@ export class AgentHost {
   private async drain({ harness, root, storage, setup }: Opened): Promise<void> {
     const { registry, beginRun, joinRun, inputContext, inputMemory } = setup
     if (await this.ctx.storage.get<boolean>(STOP_KEY)) {
-      this.workers.stopAll()
+      await this.workers.stopAll()
       await root.abort(context)
       await this.ctx.storage.delete([STOP_KEY, RESTARTS_KEY])
     }

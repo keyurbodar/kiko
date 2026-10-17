@@ -29,11 +29,11 @@ test("the snapshot lists every member that is not idle, with its typed activity"
 	const { sql, team } = room()
 	expect(agentStatuses(sql)).toEqual([])
 	sql.exec("UPDATE members SET status = 'typing' WHERE slug = ?", ada)
-	team.doing(ada, "waiting on @bob", 1, { kind: "waiting", on: bob })
+	team.doing(ada, "using ask", 1, { kind: "tool", tool: "other", caption: "using ask" })
 	sql.exec("UPDATE members SET status = 'working' WHERE slug = ?", bob)
 	sql.exec("INSERT INTO meta (key, value) VALUES (?, ?)", workersKey(bob), JSON.stringify([w("running")]))
 	expect(agentStatuses(sql)).toEqual([
-		{ slug: ada, state: "typing", doing: "waiting on @bob", activity: { kind: "waiting", on: bob } },
+		{ slug: ada, state: "typing", doing: "using ask", activity: { kind: "tool", tool: "other", caption: "using ask" } },
 		{ slug: bob, state: "working", activity: { kind: "background", workers: [w("running")] } },
 	])
 	expect(statusOf(sql, bob)?.state).toBe("working")

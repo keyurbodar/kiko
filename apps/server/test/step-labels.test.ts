@@ -11,7 +11,6 @@ test("a step reads as past tense words the human can follow, and internal tools 
   expect(label("ls", { path: "/drafts" })).toBe("Listed /drafts")
   expect(label("ls")).toBe("Listed the files")
   expect(label("bash", { command: "bun   test" })).toBe("Ran bun test")
-  expect(label("ask", { to: "@Ada" })).toBe("Asked ada")
   expect(label("mkdir", { path: "trip" })).toBe("Made folder /trip")
   expect(label("mv", { from: "/a.md", to: "b.md" })).toBe("Moved /a.md to /b.md")
   expect(label("rm", { paths: ["/a.md"] })).toBe("Deleted /a.md")
@@ -20,10 +19,8 @@ test("a step reads as past tense words the human can follow, and internal tools 
   expect(label("note", { text: "window seats" })).toBe("Saved a note")
   expect(label("linear_create_issue", { title: "x" })).toBe("Used linear_create_issue")
   for (const quiet of ["memory_write", "read_skill", "team", "send_message", "steer_work"]) expect(stepOf(quiet, {})).toBeNull()
-  expect(stepOf("ask", {})).toBeNull()
   expect(stepOf("read", { path: "/a" })?.tool).toBe("read")
   expect(stepOf("bash", { command: "ls" })?.tool).toBe("run")
-  expect(stepOf("ask", { to: "ada" })?.tool).toBe("other")
 })
 
 test("a step keeps the whole input when the label shortens it, with keys removed and a cap", () => {

@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import type { BrowserSession, PageView, Step, Tab } from "@kiko/browser/page/types"
 import { BrowserConnection } from "../src/agent/browser/connection"
-import { buildAgent, forTalker } from "../src/agent/factory"
+import { buildAgent } from "../src/agent/factory"
+import { forRole } from "../src/agent/roles"
 import type { BrowserState, LeasePort, LiveLink } from "../src/agent/browser/lease"
 import { BROWSER_INFO_EXT, browserExtension, browserInfoExtension, PAUSED, type BrowserToolDeps } from "../src/agent/browser/tools"
 
@@ -170,7 +171,7 @@ describe("the talker can hand the browser over without a worker", () => {
     const { lease } = leaseWith()
     const w = world()
     const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, browser: deps(conn(w, lease), lease) })
-    const talker = forTalker(built.registry.snapshot().installed() as never) as { name: string; tools?: { name: string }[] }[]
+    const talker = forRole(built.registry.snapshot().installed() as never, "talker") as { name: string; tools?: { name: string }[] }[]
     const names = talker.flatMap((e) => (e.tools ?? []).map((t) => t.name))
     expect(names).toContain("browser_link")
     expect(names).not.toContain("browse")

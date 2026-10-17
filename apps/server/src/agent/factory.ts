@@ -18,10 +18,11 @@ import { presenceExtension, type StepsPort } from "./extensions/presence"
 import { composioDescribe } from "../integrations/composio/step"
 import type { RoomFs, SoulPort } from "../files/room-fs"
 import type { ComposioCall, ComposioTool } from "../integrations/composio/client"
-import { COMPOSIO, composioExtension } from "../integrations/composio/tools"
+import { composioExtension } from "../integrations/composio/tools"
 import { connectAppExtension } from "../integrations/composio/connect-tool"
-import { BROWSER_EXT, type BrowserToolDeps, browserExtension, browserInfoExtension } from "./browser/tools"
+import { type BrowserToolDeps, browserExtension, browserInfoExtension } from "./browser/tools"
 import { baseSections, type RoleInput } from "./prompt"
+import { forRole } from "./roles"
 import { count } from "../lib/dev-guard"
 import type { ThinkingLevel } from "@kiko/protocol"
 import { thinkingFor } from "./thinking"
@@ -56,10 +57,6 @@ export type BuiltAgent = {
 
 export const BASE = "base"
 
-export const WORKER_ONLY: readonly string[] = [COMPOSIO, BROWSER_EXT]
-export const workerOnly = (name: string): boolean => WORKER_ONLY.includes(name)
-export const forTalker = (extensions: readonly Extension[]): Extension[] => extensions.filter((e) => !workerOnly(e.name))
-
 function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]): Extension[] {
   return [
     defineExtension({ name: BASE, sections: baseSections(input) }),
@@ -86,7 +83,7 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   effectTable(builtins)
   const registry = createRegistry()
   for (const extension of builtins) registry.install(extension)
-  return { registry, agent: { ...(input.model ? { model: input.model } : {}), thinkingLevel: input.thinkingLevel ?? (input.model ? thinkingFor(input.model) : "off"), extensions: forTalker(builtins) } }
+  return { registry, agent: { ...(input.model ? { model: input.model } : {}), thinkingLevel: input.thinkingLevel ?? (input.model ? thinkingFor(input.model) : "off"), extensions: forRole(builtins, "talker") } }
 }
 
 /** pi-ai APIs whose adapter throws on a custom fetch (`api/google-generative-ai.js`, `api/google-vertex.js`). */
