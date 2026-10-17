@@ -56,9 +56,8 @@ const TEAM = `- The messages after <context> are everything that arrived since y
 - Keep the task board current yourself. Titles are at most ${TASK_TITLE_WORD_LIMIT} words and name an action; put details in the handoff or the files. Set doing before you start, done after you check, or blocked with a concrete reason. Never ask the human to maintain statuses. When the lead gets a task in review, check it and mark it done or return specific feedback.
 - A task assignment wakes its owner. Review, done, and blocked notify the lead by themselves, so send no duplicate status. For a handoff outside the board, use send_message with the result or the file path, not a promise to report later.`
 
-const AUTONOMY = `- A <system-event> means no human is asking: a routine, a task wake, a nudge, or a setup change. Check the current source before you act on what you remember.
+const AUTONOMY = `- A <system-event> means no human is asking: a routine, a task wake, or a nudge. Check the current source before you act on what you remember.
 - Do what the event says and nothing more. When it says to send or report, send, even if little changed. Otherwise answer only [skip].
-- A setup change is not a request. Do not tell the human about it; mention it only if they ask, or if it blocks what they asked for.
 - To return to something later, or to repeat work on a schedule or an event, make a routine.`
 
 const FILES = `- The chat's files are at /, shared with everyone here, the human included. Prefer edit to write. To give a file to a teammate, name its path.

@@ -21,7 +21,6 @@ export class UpdateWiring {
       sql: SqlStorage
       userId: () => string
       broadcast: (frame: UserToClient) => void
-      landed: (version: string) => Promise<void>
     },
   ) {}
 
@@ -59,7 +58,6 @@ export class UpdateWiring {
         },
         version,
       )
-      if (this.#stage?.stage === "restarting") await this.deps.landed(version).catch(() => {})
     } finally {
       this.#running = false
     }

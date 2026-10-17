@@ -631,12 +631,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (event) this.publish([event])
 	}
 
-	/** Tells Kiko what the human changed in the system. The id makes a repeat a duplicate. */
-	announce(userId: string, id: string, body: string): Promise<WakeResult> {
-		this.adopt(userId)
-		return this.wakes.wake({ id, to: KIKO as AgentSlug, why: "system", body, chain: null })
-	}
-
 	wake(w: Wake): Promise<WakeResult> {
 		return this.wakes.wake(w)
 	}
