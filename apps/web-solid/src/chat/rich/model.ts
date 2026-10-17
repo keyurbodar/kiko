@@ -218,6 +218,26 @@ function chips(nodes: readonly RichNode[], out: Extract<RichNode, { kind: "file"
   return out
 }
 
+/** Words a caption may have under a photo and the message is still a photo. Past this it is prose. */
+const PHOTO_CAPTION_CHARS = 120
+
+/**
+ * True when the tree is a photo: one image or more, and nothing but images and one caption line
+ * of a few words. The bubble then never collapses under "Show full message", because clamping a
+ * picture to a text height cuts it in half, and the picture's own height is the bubble's.
+ */
+export function isPhotoTree(tree: RichText): boolean {
+  if (!tree.some((block) => block.t === "image")) return false
+  let captions = 0
+  for (const block of tree) {
+    if (block.t === "image") continue
+    if (block.t !== "paragraph") return false
+    if (plain(block.children).trim().length > PHOTO_CAPTION_CHARS) return false
+    captions += 1
+  }
+  return captions <= 1
+}
+
 /** The message's tree. Two chips that share a file name show the parent folders that tell them apart. */
 export function richNodes(tree: RichText): RichNode[] {
   const nodes = tree.map(block)

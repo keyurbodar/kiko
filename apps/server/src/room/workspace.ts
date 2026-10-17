@@ -12,7 +12,7 @@ const MAX_NOTE = 2_000
 const MAX_DEPS = 20
 
 export type WorkspaceCall =
-	| { op: "update_task"; id: string; status?: string; note?: string; title?: string }
+	| { op: "update_task"; id: string; status?: string; note?: string; title?: string; owner?: string }
 	| { op: "create_task"; id: string; title: string; owner?: string; dependsOn?: readonly string[] }
 
 export type WorkspaceAnswer = { ok: true; text: string } | { ok: false; error: string }
@@ -33,7 +33,6 @@ export interface Workspace {
 	briefTasks(slug: AgentSlug): Task[]
 	create(by: Actor, input: { id: string; title: string; owner?: string | null; dependsOn?: readonly string[] }, members: readonly AgentSlug[], chain?: Chain): Result<Task>
 	update(by: Actor, id: string, patch: { title?: string; status?: string; owner?: string | null; note?: string }, members: readonly AgentSlug[], lead: boolean): Result<Task>
-	claim(slug: AgentSlug, id: string): Result<Task>
 	remove(id: string): Result<null>
 	pendingWakes(): Wake[]
 	markWoken(taskId: string): void
@@ -172,17 +171,26 @@ export class RoomWorkspace implements Workspace {
 		return this.storage.transactionSync(() => {
 			const current = this.task(id)
 			if (!current) return fail(`no task ${id}`)
-			if (by.kind === "agent" && !lead && current.owner !== by.slug) {
-				return fail(current.owner ? `task ${id} is owned by @${current.owner}` : `task ${id} has no owner. set it to doing to take it`)
-			}
 			if (patch.status !== undefined && !isStatus(patch.status)) return fail(`status must be one of ${TASK_STATUSES.join(", ")}`)
-			const status = (patch.status as TaskStatus | undefined) ?? current.status
+			const asked = patch.owner === undefined ? undefined : patch.owner || null
+			let owner = asked === undefined ? (current.owner ?? null) : asked
+			// Taking a task is a claim: only for yourself unless you lead, never out of a closed task,
+			// and it starts the work when the task has not started. Starting an unowned task takes it.
+			const taking = owner !== null && owner !== current.owner
+			if (by.kind === "agent" && !lead && taking && owner !== by.slug) return fail(`task ${id} can only be assigned to @${by.slug}`)
+			if (by.kind === "agent" && !lead && current.owner && current.owner !== by.slug) return fail(`task ${id} is owned by @${current.owner}`)
+			if (taking && CLOSED.has(current.status)) return fail(`task ${id} is ${current.status}`)
+			if (asked === undefined && !owner && by.kind === "agent" && patch.status === "doing") owner = by.slug
+			if (owner && owner !== current.owner && !members.includes(owner as AgentSlug)) return fail(`@${owner} is not a member of this room`)
+			// An agent names a task by taking it. Only a lead can leave one unowned.
+			if (by.kind === "agent" && !owner && asked === undefined) return fail(`task ${id} has no owner. set it to doing to take it`)
+			// Taking a task starts it, unless something it waits on is still open.
+			const starts = patch.status === undefined && taking && !current.owner && (current.status === "todo" || current.status === "blocked") && !this.openDeps(id).length
+			const status = (patch.status as TaskStatus | undefined) ?? (starts ? "doing" : current.status)
 			if (status === "done" && current.status !== "done") {
 				const open = this.openDeps(id)
 				if (open.length) return fail(`task ${id} waits on ${open.join(", ")}, which are not done`)
 			}
-			const owner = patch.owner === undefined ? (current.owner ?? null) : patch.owner || null
-			if (owner && owner !== current.owner && !members.includes(owner as AgentSlug)) return fail(`@${owner} is not a member of this room`)
 			const title = patch.title === undefined ? current.title : clip(patch.title, MAX_TITLE) || current.title
 			const note = patch.note === undefined ? (current.note ?? null) : clip(patch.note, MAX_NOTE) || null
 			const next: Task = { ...current, title, status, ...(owner ? { owner: owner as AgentSlug } : {}), ...(note ? { note } : {}) }
@@ -204,22 +212,6 @@ export class RoomWorkspace implements Workspace {
 			if (!t || CLOSED.has(t.status) || this.openDeps(id).length) continue
 			this.sql.exec("UPDATE ws_tasks SET unblocked_seq = ? WHERE id = ? AND unblocked_seq IS NULL", seq, id)
 		}
-	}
-
-	claim(slug: AgentSlug, id: string): Result<Task> {
-		return this.storage.transactionSync(() => {
-			const current = this.task(id)
-			if (!current) return fail(`no task ${id}`)
-			if (current.owner && current.owner !== slug) return fail(`task ${id} is owned by @${current.owner}. ask them or the lead`)
-			if (CLOSED.has(current.status)) return fail(`task ${id} is ${current.status}`)
-			const open = this.openDeps(id)
-			const status: TaskStatus = open.length ? current.status : current.status === "todo" || current.status === "blocked" ? "doing" : current.status
-			if (current.owner === slug && status === current.status) return { ok: true as const, value: current, events: [] }
-			this.sql.exec("UPDATE ws_tasks SET owner = ?, status = ?, updated_at = ? WHERE id = ?", slug, status, this.now(), id)
-			const next: Task = { ...current, owner: slug, status }
-			const event = this.emit({ kind: "agent", slug }, next)
-			return { ok: true as const, value: next, events: [event] }
-		})
 	}
 
 	remove(id: string): Result<null> {
@@ -291,12 +283,11 @@ export function runCall(ws: Workspace, slug: AgentSlug, lead: boolean, call: Wor
 		r.ok ? { answer: { ok: true as const, text: text(r.value) }, events: r.events } : { answer: fail(r.error), events: [] }
 	switch (call.op) {
 		case "update_task": {
-			const current = ws.task(call.id)
-			if (current && !current.owner && !lead && (call.status === undefined || call.status === "doing")) {
-				const claimed = ws.claim(slug, call.id)
-				if (!claimed.ok || call.note === undefined) return done(claimed, (t) => `took ${line(t)}`)
-			}
-			return done(ws.update(by, call.id, { status: call.status, note: call.note, title: call.title }, members, lead), (t) => `updated ${line(t)}`)
+			// `update` follows the claim rules itself: setting doing takes an unowned task for the caller,
+			// and `owner` takes it for the named agent or ("me") for the caller.
+			const owner = call.owner?.replace(/^@/, "").trim().toLowerCase()
+			const who = owner === "me" ? slug : owner
+			return done(ws.update(by, call.id, { status: call.status, note: call.note, title: call.title, ...(who ? { owner: who } : {}) }, members, lead), (t) => `updated ${line(t)}`)
 		}
 		case "create_task":
 			if (!lead) return { answer: fail("only the lead creates tasks"), events: [] }

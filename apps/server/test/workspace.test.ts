@@ -51,6 +51,58 @@ test("taking a task another agent owns fails and names the owner; doing takes a 
 	expect(claimed.events.map((e: any) => [e.task.owner, e.task.status])).toEqual([["cy", "doing"]])
 })
 
+test("a lead that starts an unowned task owns it, and an agent can assign itself with owner me", async () => {
+  const r = room()
+  await call(r, "bob", true, { op: "create_task", id: "a", title: "write it" })
+  const started = await call(r, "bob", true, { op: "update_task", id: "a", status: "doing" })
+  expect(started.answer.ok).toBe(true)
+  expect(started.events.map((e: any) => [e.task.owner, e.task.status])).toEqual([["bob", "doing"]])
+  expect(started.answer.text).toContain("@bob")
+
+  await call(r, "bob", true, { op: "create_task", id: "b", title: "test it" })
+  const mine = await call(r, "ada", false, { op: "update_task", id: "b", status: "doing", owner: "me" })
+  expect(mine.events.map((e: any) => [e.task.owner, e.task.status])).toEqual([["ada", "doing"]])
+  expect(mine.answer.text).toContain("@ada")
+})
+
+test("a task taken for someone else follows the claim rules, and a refused change is an error", async () => {
+  const r = room()
+  await call(r, "bob", true, { op: "create_task", id: "a", title: "write it" })
+  const given = await call(r, "bob", true, { op: "update_task", id: "a", owner: "@cy" })
+  expect(given.events.map((e: any) => [e.task.owner, e.task.status])).toEqual([["cy", "doing"]])
+
+  // Reassigning someone else's task is a lead's act, and it does not restart work that has begun.
+  const moved = await call(r, "bob", true, { op: "update_task", id: "a", owner: "ada" })
+  expect(moved.events.map((e: any) => [e.task.owner, e.task.status])).toEqual([["ada", "doing"]])
+
+  const stranger = await call(r, "cy", false, { op: "update_task", id: "a", status: "doing" })
+  expect(stranger.answer).toEqual({ ok: false, error: "task a is owned by @ada" })
+  expect(stranger.events).toEqual([])
+  const grab = await call(r, "cy", false, { op: "update_task", id: "a", status: "review" })
+  expect(grab.answer).toEqual({ ok: false, error: "task a is owned by @ada" })
+
+  // Taking a closed task is refused, and the refusal leaves the task as it was.
+  await call(r, "bob", true, { op: "create_task", id: "closed", title: "old", owner: "cy" })
+  await call(r, "cy", false, { op: "update_task", id: "closed", status: "done" })
+  const reopen = await call(r, "bob", true, { op: "update_task", id: "closed", status: "doing", owner: "ada" })
+  expect(reopen.answer).toEqual({ ok: false, error: "task closed is done" })
+  expect(reopen.events).toEqual([])
+  expect((await state(r)).tasks.find((t: any) => t.id === "closed")).toMatchObject({ status: "done", owner: "cy" })
+
+  // An owner who is not in the room is refused, and so is a task someone else owns.
+  const nobody = await call(r, "bob", true, { op: "update_task", id: "a", owner: "eve" })
+  expect(nobody.answer).toEqual({ ok: false, error: "@eve is not a member of this room" })
+  expect(nobody.events).toEqual([])
+})
+
+test("a task waiting on another is taken without starting, as a claim does", async () => {
+  const r = room()
+  await call(r, "bob", true, { op: "create_task", id: "first", title: "first" })
+  await call(r, "bob", true, { op: "create_task", id: "second", title: "second", dependsOn: ["first"] })
+  const held = await call(r, "ada", false, { op: "update_task", id: "second", owner: "me" })
+  expect(held.events.map((e: any) => [e.task.owner, e.task.status])).toEqual([["ada", "todo"]])
+})
+
 test("the status set is enforced, and an agent changes only its own tasks", async () => {
 	const r = room()
 	await call(r, "bob", true, { op: "create_task", id: "a", title: "write it", owner: "ada" })

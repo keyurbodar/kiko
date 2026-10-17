@@ -4,12 +4,13 @@ import { urls, useApp } from "../../lib/store"
 import { openThreadImages } from "../ui/image-dialog"
 
 /**
- * An image a message shows on its own, after t3code's ChatMarkdownImage. The box holds a slot
- * until the picture decodes, then takes the picture's own proportions, never above 30rem wide or
- * tall. A click opens the image dialog. A picture that fails to load says so in a small box.
+ * An image a message shows on its own, after t3code's ChatMarkdownImage. A slot holds the place
+ * until the picture decodes, then the bubble takes the picture's own proportions, never above
+ * 30rem wide and never above the viewport. A click opens the image dialog. A picture that fails
+ * to load leaves one small line saying so, with the address when it is a web one.
  */
 export function RichImage(props: { alt: string; url?: string; fileId?: string }): JSX.Element {
-  const [size, setSize] = createSignal<{ w: number; h: number } | null>(null)
+  const [loaded, setLoaded] = createSignal(false)
   const [broken, setBroken] = createSignal(false)
   const src = () => {
     const chat = useApp.activeThreadId()
@@ -19,26 +20,31 @@ export function RichImage(props: { alt: string; url?: string; fileId?: string })
   return (
     <Show when={src()}>
       {(href) => (
-        <button
-          type="button"
-          class="rich-image"
-          data-component="chat-image"
-          data-state={broken() ? "broken" : size() ? "ready" : "loading"}
-          style={size() ? { "aspect-ratio": `${size()!.w} / ${size()!.h}`, "max-width": `${size()!.w}px` } : undefined}
-          aria-label={`View ${name()}`}
-          onClick={(event) => openThreadImages([{ src: href(), name: name() }], 0, event.currentTarget.querySelector("img"))}
+        <Show
+          when={!broken()}
+          fallback={
+            <span class="rich-image-broken" data-component="chat-image-broken">
+              <ImageIcon class="size-4 shrink-0" aria-hidden="true" />
+              <span>Image could not load</span>
+              <Show when={/^https?:/i.test(href())}>
+                <a class="rich-link" href={href()} target="_blank" rel="noopener noreferrer">
+                  {name()}
+                </a>
+              </Show>
+            </span>
+          }
         >
-          <Show when={!broken()} fallback={<><ImageIcon class="size-4 shrink-0" aria-hidden="true" /><span class="truncate">{name()}</span></>}>
-            <img
-              src={href()}
-              alt={props.alt}
-              decoding="async"
-              draggable={false}
-              onLoad={(event) => setSize({ w: event.currentTarget.naturalWidth, h: event.currentTarget.naturalHeight })}
-              onError={() => setBroken(true)}
-            />
-          </Show>
-        </button>
+          <button
+            type="button"
+            class="rich-image"
+            data-component="chat-image"
+            data-state={loaded() ? "ready" : "loading"}
+            aria-label={`View ${name()}`}
+            onClick={(event) => openThreadImages([{ src: href(), name: name() }], 0, event.currentTarget.querySelector("img"))}
+          >
+            <img src={href()} alt={props.alt} decoding="async" draggable={false} onLoad={() => setLoaded(true)} onError={() => setBroken(true)} />
+          </button>
+        </Show>
       )}
     </Show>
   )

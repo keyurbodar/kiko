@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { Block } from "@kiko/protocol"
 import { richText } from "@kiko/protocol/fixtures"
-import { block, linkHost, linkLead, richNodes, type RichNode } from "./model"
+import { block, isPhotoTree, linkHost, linkLead, richNodes, type RichNode } from "./model"
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 
@@ -132,6 +132,25 @@ describe("rich text tree to DOM", () => {
       expect(out).toContain(tag)
     }
     expect(out).not.toContain("<b>")
+  })
+})
+
+describe("a photo bubble", () => {
+  const img = (alt = "cat"): Block => ({ t: "image", alt, url: "https://a.com/c.png" })
+
+  test("images with no words, or with one short caption line, are a photo", () => {
+    expect(isPhotoTree([img()])).toBe(true)
+    expect(isPhotoTree([img(), p("the Eiffel Tower at dusk")])).toBe(true)
+    expect(isPhotoTree([p("the Eiffel Tower at dusk"), img()])).toBe(true)
+    expect(isPhotoTree([img("one"), img("two")])).toBe(true)
+  })
+
+  test("prose, or a heading, makes it a message that may fold", () => {
+    expect(isPhotoTree([p("no picture here")])).toBe(false)
+    expect(isPhotoTree([img(), p("x".repeat(200))])).toBe(false)
+    expect(isPhotoTree([img(), { t: "heading", level: 2, children: [t("a heading")] }])).toBe(false)
+    expect(isPhotoTree([img(), p("a caption that runs on and on, past the length a caption has: it reads as prose under the picture, so the bubble folds like any other message")])).toBe(false)
+    expect(isPhotoTree([img(), p("a"), p("b")])).toBe(false)
   })
 })
 

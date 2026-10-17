@@ -21,15 +21,26 @@ export function workspaceExtension(port: WorkspacePort, lead: boolean): Extensio
   const updateTask = defineTool({
     name: "update_task",
     description:
-      "take a task nobody owns by setting it to doing, or change the status of a task you own, with an optional short note. set doing before work, done after verifying the result, blocked with a reason when stuck, and review only when the lead must check it. Changes to review, done or blocked automatically notify the lead. Keep titles under 12 words; put findings and file paths in note. Never ask the human to change task status.",
+      "take a task nobody owns by setting it to doing, or change a task you own, with an optional short note. assign a task with owner: \"me\" takes it for you, and a member's handle gives it to that agent. setting doing on an unowned task takes it. set doing before work, done after verifying the result, blocked with a reason when stuck, and review only when the lead must check it. Changes to review, done or blocked automatically notify the lead. Keep titles under 12 words; put findings and file paths in note. Never ask the human to change task status. A refused change returns an error: read it, do not claim the change happened.",
     parameters: Type.Object({
       id: Type.String(),
       status: Type.Union(TASK_STATUSES.map((s) => Type.Literal(s))),
       note: Type.Optional(Type.String()),
       title: Type.Optional(Type.String({ maxLength: 80, description: `action label of at most ${TASK_TITLE_WORD_LIMIT} words, without instructions, handles, or report-to text` })),
+      owner: Type.Optional(Type.String({ description: "the agent that owns the task: \"me\" for yourself, or a member's slug without @" })),
     }),
     replay: "safe",
-    execute: async (args) => answer(await port.call({ op: "update_task", id: args.id, status: args.status, ...(args.note ? { note: args.note } : {}), ...(args.title ? { title: args.title } : {}) })),
+    execute: async (args) =>
+      answer(
+        await port.call({
+          op: "update_task",
+          id: args.id,
+          status: args.status,
+          ...(args.note ? { note: args.note } : {}),
+          ...(args.title ? { title: args.title } : {}),
+          ...(args.owner ? { owner: args.owner } : {}),
+        }),
+      ),
   })
 
   const createTask = defineTool({

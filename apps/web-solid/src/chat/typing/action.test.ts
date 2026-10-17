@@ -27,16 +27,21 @@ describe("how a working agent's dots move", () => {
 })
 
 describe("captionOf", () => {
-  test("a quick run shows only its act, and writing shows nothing", () => {
-    expect(captionOf(undefined, 5_000)).toBeUndefined()
-    expect(captionOf("writing a reply", 5_000)).toBeUndefined()
+  test("the line names the activity, and a run that is only writing says it is thinking", () => {
+    expect(captionOf(undefined, 5_000)).toBe("Thinking")
+    expect(captionOf("writing a reply", 5_000)).toBe("Thinking")
     expect(captionOf("editing /hello.html", 5_000)).toBe("Editing /hello.html")
+    expect(captionOf("reading a web page", 5_000)).toBe("Reading a web page")
   })
-  test("a run past 30 seconds says for how long", () => {
-    expect(captionOf(undefined, 45_000)).toBe("Working for 45s.")
+
+  test("the clock is the activity's own, and shows only after 30 seconds", () => {
+    expect(captionOf("editing /hello.html", 29_000)).toBe("Editing /hello.html")
+    expect(captionOf("editing /hello.html", 30_000)).toBe("Editing /hello.html for 30s.")
     expect(captionOf("editing /hello.html", 72_000)).toBe("Editing /hello.html for 1m 12s.")
+    expect(captionOf(undefined, 45_000)).toBe("Thinking for 45s.")
   })
-  test("a run past 2 minutes says a slow model is why", () => {
-    expect(captionOf(undefined, 125_000)).toBe("Working for 2m 5s. Slow models can take a few minutes. Kiko stops a request at 5 minutes.")
+
+  test("a long activity says nothing about a cap: there is none", () => {
+    expect(captionOf("reading a web page", 605_000)).toBe("Reading a web page for 10m 5s.")
   })
 })

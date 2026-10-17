@@ -16,6 +16,9 @@ import { cn } from "../lib/cn"
  * The expanded set lives at module level, so a row that unmounts when it
  * scrolls out of the virtual window comes back in the state it was left in.
  * It is a session cache: a reload starts everything clamped again.
+ *
+ * A `fixed` body, such as a photo, is never clamped and shows no button: the
+ * picture owns the bubble's height, and clamping it to nine lines cuts it apart.
  */
 
 /** A body past this height is clamped. Nine lines of 20px, so a plain body ends on a whole line. */
@@ -50,6 +53,8 @@ function scrollParent(element: HTMLElement): HTMLElement | undefined {
 
 export function Collapsible(props: {
   messageId: string
+  /** A body whose height is the content's own, such as a photo: it is never clamped and shows no button. */
+  fixed?: boolean
   children: JSX.Element
 }): JSX.Element {
   const [overflowing, setOverflowing] = createSignal(false)
@@ -59,7 +64,7 @@ export function Collapsible(props: {
 
   const measure = () => {
     if (!inner) return
-    setOverflowing(inner.offsetHeight > COLLAPSE_THRESHOLD_PX + SLACK_PX)
+    setOverflowing(!props.fixed && inner.offsetHeight > COLLAPSE_THRESHOLD_PX + SLACK_PX)
   }
   onMount(() => {
     measure()

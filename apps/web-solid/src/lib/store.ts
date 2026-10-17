@@ -263,6 +263,8 @@ export function createApp(options: AppOptions = {}) {
 
     /** The unread anchor, frozen once per visit so it does not move while the reader looks. */
     const anchors = new WeakMap<RoomStore, MessageId | null>()
+    /** The read marker the room had when its stored state painted, before the socket and any read. */
+    const openRead = new WeakMap<RoomStore, number>()
     /** Built views by message id, so an unchanged message keeps its object. */
     let views = new Map<string, { sig: string; view: ChatMessage }>()
 
@@ -365,6 +367,8 @@ export function createApp(options: AppOptions = {}) {
     function openRoom(roomId: RoomId | null) {
       const current = room()
       if (current?.state.roomId === roomId) return
+      // Leaving a chat drops its divider: the next visit works out a fresh one from the new marker.
+      if (current) anchors.delete(current)
       current?.close()
       views = new Map()
       setUnseen([])
@@ -391,6 +395,33 @@ export function createApp(options: AppOptions = {}) {
       const lastSeq = chat(r.state.roomId)?.lastSeq
       return r.state.loaded && lastSeq !== undefined && r.state.seq >= lastSeq && (lastSeq > 0 || r.state.connection === "open")
     }
+
+    /**
+     * Fixes the unread divider's place, once per visit, to the first message the reader had not
+     * read when the chat opened. It waits for the room to catch up, because before that the
+     * transcript has no trustworthy beginning. The marker is the one the stored state painted
+     * with, so a read the reader makes now cannot move it. A message that lands after this never
+     * moves it either: the reader is at the bottom of the open chat, so nothing arrives unseen.
+     */
+    function freezeAnchor(): void {
+      const r = room()
+      if (!r || anchors.has(r) || !caughtUp(r)) return
+      anchors.set(r, firstUnread(roomMessages(), openRead.get(r) ?? r.state.readSeq))
+    }
+
+    // The stored state paints once, before the socket opens. That marker is what the chat opened with.
+    createComputed(() => {
+      const r = room()
+      if (!r) return
+      const loaded = r.state.loaded
+      const read = r.state.readSeq
+      untrack(() => {
+        if (loaded && !openRead.has(r)) {
+          openRead.set(r, read)
+          freezeAnchor()
+        }
+      })
+    })
 
     /*
      * The chat list as rows, built once per change. A row that did not change keeps its object,
@@ -712,16 +743,15 @@ export function createApp(options: AppOptions = {}) {
       },
 
       /**
-       * Where the unread divider goes. It follows the server until the room has
-       * caught up or the reader marks it read, then stays put for this visit.
+       * Where the unread divider goes: the first message the reader had not read when this chat
+       * opened, frozen for the visit. Null when everything was read at open, when the human has
+       * since sent a message, or when the human has left the chat.
        */
       firstUnreadMessageId(): string | null {
         const r = room()
         if (!r) return null
-        if (anchors.has(r)) return anchors.get(r) ?? null
-        const live = firstUnread(roomMessages(), r.state.readSeq)
-        if (caughtUp(r)) anchors.set(r, live)
-        return live
+        freezeAnchor()
+        return anchors.get(r) ?? null
       },
 
       /** The display names of the agents typing in the open room. */
@@ -894,7 +924,7 @@ export function createApp(options: AppOptions = {}) {
       markRead(threadId: string) {
         const r = room()
         if (!r || r.state.roomId !== threadId) return
-        if (!anchors.has(r)) anchors.set(r, firstUnread(roomMessages(), r.state.readSeq))
+        // The divider is frozen already, from the marker the chat opened with. Reading now does not move it.
         const read = r.readSeq()
         const fresh = roomMentions().filter((m) => m.seq > read && !unseen().includes(m.id))
         if (fresh.length) setUnseen((list) => [...list, ...fresh.map((m) => m.id)])
