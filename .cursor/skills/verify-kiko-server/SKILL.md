@@ -144,6 +144,7 @@ A task that changes backend behavior adds or extends its suite in the same pull 
 | `skills` | [skills](./features/skills.md) |
 | `routines`, `reminders`, `routine-triggers`, `routines-model`, `routines-scale` | [routines](./features/routines.md) |
 | `credentials`, `byok`, `provider-login` | [account](./features/account.md) |
+| `agent-models`, `model-pinned`, `model-sweep` | [models](./features/models.md) |
 | `overhead`, `token-cost`, `latency`, `latency-model` | [limits](./features/limits.md) |
 | `memory-jev` | [memory-jev](./features/memory-jev.md) |
 | `memory-edge` | [memory-edge](./features/memory-edge.md) |

@@ -21,8 +21,8 @@ function focusComposer(tries = 40): void {
 }
 
 /*
- * Pick Kiko's model. The list is the connected providers' models, reasoning and large context first, so the
- * first row is a good default. Start chatting sets Kiko's model, then lands in the chat.
+ * Pick Kiko's model. The list is the connected providers' models, reasoning and large context first. Nothing
+ * is picked for the human: Start chatting waits for a row, then sets Kiko's model and lands in the chat.
  */
 export function ModelStep() {
   const navigate = useNavigate()
@@ -41,7 +41,7 @@ export function ModelStep() {
   const current = () => shownModel(chosen(), running(), rows().map((r) => r.ref))
 
   const land = () => {
-    const row = rows().find((r) => r.ref === modelToSave(chosen(), running()))
+    const row = rows().find((r) => r.ref === modelToSave(current(), running()))
     if (row) useApp.setAgentModel(KIKO as AgentSlug, { ref: row.ref, levels: row.model.thinking })
     move("next")
     navigate(`/chat/${useApp.kikoChatId() ?? KIKO_HOME_ROOM}`, { replace: true })
@@ -54,7 +54,7 @@ export function ModelStep() {
         Pick Kiko's model
       </h1>
       <p class="mb-2 text-center text-sm text-muted-foreground" style={{ "--i": 1 }}>
-        You can change it any time from the composer.
+        {current() ? "You can change it any time from the composer." : "Pick one to start. Kiko does not pick for you."}
       </p>
       <div
         class="flex max-h-[min(340px,45dvh)] flex-col gap-1.5 overflow-y-auto"
@@ -85,7 +85,7 @@ export function ModelStep() {
         </Show>
       </div>
       <div class="mt-1 flex flex-col gap-3" style={{ "--i": 3 }}>
-        <button type="button" class={primary} data-action="finish-first-run" onClick={land}>
+        <button type="button" class={primary.replace("disabled:cursor-wait", "disabled:cursor-not-allowed")} data-action="finish-first-run" disabled={!current()} onClick={land}>
           Start chatting
         </button>
         <Show when={!all() && rows().length > FEW}>

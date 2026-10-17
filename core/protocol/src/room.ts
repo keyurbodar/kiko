@@ -185,7 +185,7 @@ export type ClientToRoom =
 	/** Runs the input again that a `run_error` message reports. `messageId` is that message. */
 	| { t: "retry"; messageId: MessageId }
 
-export type RunErrorKind = "no_key" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "refused" | "too_long" | "other"
+export type RunErrorKind = "no_key" | "no_model" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "too_slow" | "not_started" | "cut_off" | "refused" | "too_long" | "other"
 
 /** What the human can do about a failed run. The client draws one button for each. */
 export type RunErrorAction = "retry" | "change_model" | "open_settings"

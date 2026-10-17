@@ -34,11 +34,10 @@ export class Groups {
 		if (done) return { ok: true, text: done }
 		const user = userStub(this.d.env.USER, home.userId)
 		try {
-			const model = this.model()
 			const made = await makeAgentChat(
 				{
 					agents: () => user.listAgents(),
-					make: (spec) => user.makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model }),
+					make: (spec) => user.makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" }),
 					openChat: (title, agentIds) => user.openChat(title, agentIds),
 					recipes: (description) => user.recipeHints(description),
 					introduce: (roomId, agent, text) => roomStub(this.d.env.ROOM, home.userId, roomId).introduce(home.userId, agent.slug, text),
@@ -102,12 +101,9 @@ export class Groups {
 		return a
 	}
 
-	private model(): string {
-		return this.d.members.list().find((m) => m.slug === CHIEF)?.model ?? ""
-	}
-
+	/** No model is passed: the user object starts a new agent on Kiko's current pick. The room's member row can be stale. */
 	private async make(home: Home, spec: NewAgentSpec): Promise<Agent> {
-		const agent = await userStub(this.d.env.USER, home.userId).makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: this.model() })
+		const agent = await userStub(this.d.env.USER, home.userId).makeAgent({ name: spec.name, slug: spec.handle, description: spec.description, soul: spec.soul, model: "" })
 		if (!agent) throw new Error(`@${spec.handle} could not be made (the handle may be taken)`)
 		return agent
 	}

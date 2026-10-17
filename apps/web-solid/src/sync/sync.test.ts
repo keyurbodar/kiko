@@ -702,6 +702,34 @@ describe("the user store", () => {
 		expect(memory).toEqual([])
 	})
 
+	test("a model picked while the socket is down stays on screen and reaches the server when it opens", async () => {
+		const mock = createMockUser()
+		mock.online = false
+		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 } })
+		await store.ready
+		store.setAgentModel("kiko" as AgentSlug, { ref: "p/picked", levels: ["off", "low"] })
+		expect(store.agentModel("kiko")?.model).toBe("p/picked")
+		mock.online = true
+		await until(() => store.state.agentModels.kiko?.model === "p/picked")
+		expect(mock.received.filter((f) => f.t === "agent_model")).toEqual([{ t: "agent_model", slug: "kiko" as AgentSlug, ref: "p/picked" }])
+		expect(store.agentModel("kiko")?.model).toBe("p/picked")
+		store.close()
+	})
+
+	test("a pick the server refuses goes back to the real model and says why", async () => {
+		const mock = createMockUser()
+		const heard: unknown[] = []
+		const store = createUserStore({ warm: await freshWarm(), url: "ws://mock/user", connect: mock.connect, backoff: { baseMs: 5, maxMs: 20 }, onError: (e) => heard.push(e) })
+		await until(() => store.state.synced)
+		store.setAgentModel("kiko" as AgentSlug, { ref: "p/gone", levels: ["off"] })
+		expect(store.agentModel("kiko")?.model).toBe("p/gone")
+		mock.broadcast({ t: "model_refused", slug: "kiko" as AgentSlug, message: "The model did not change. Kiko does not know p/gone. Pick another one." })
+		await until(() => heard.length === 1)
+		expect(store.agentModel("kiko")?.model).not.toBe("p/gone")
+		expect(heard).toEqual([{ code: "model", message: "The model did not change. Kiko does not know p/gone. Pick another one.", action: "open_models" }])
+		store.close()
+	})
+
 	test("an empty cache paints the pinned Kiko tile before the network answers", async () => {
 		const mock = createMockUser()
 		mock.online = false

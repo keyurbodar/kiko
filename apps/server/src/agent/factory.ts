@@ -30,7 +30,8 @@ import type { ThinkingLevel } from "@kiko/protocol"
 import { thinkingFor } from "./thinking"
 
 export type BuildAgentInput = RoleInput & {
-  model: ModelRef
+  /** Absent until the human picks one. A run then stops before it reaches a model. */
+  model?: ModelRef
   thinkingLevel?: ThinkingLevel
   files?: Omit<FilesOptions, "touched"> & { fs: RoomFs }
   soul?: SoulPort
@@ -89,10 +90,8 @@ export function buildAgent(input: BuildAgentInput): BuiltAgent {
   effectTable(builtins)
   const registry = createRegistry()
   for (const extension of builtins) registry.install(extension)
-  return { registry, agent: { model: input.model, thinkingLevel: input.thinkingLevel ?? thinkingFor(input.model), extensions: forTalker(builtins) } }
+  return { registry, agent: { ...(input.model ? { model: input.model } : {}), thinkingLevel: input.thinkingLevel ?? (input.model ? thinkingFor(input.model) : "off"), extensions: forTalker(builtins) } }
 }
-
-export const DEFAULT_MODEL: ModelRef = { provider: "opencode-go", modelId: "muse-spark-1.3-contributor" }
 
 /** pi-ai APIs whose adapter throws on a custom fetch (`api/google-generative-ai.js`, `api/google-vertex.js`). */
 const NO_CUSTOM_FETCH = new Set(["google-generative-ai", "google-vertex"])
@@ -104,6 +103,16 @@ function timed<S extends { result(): Promise<unknown> }>(modelId: string, stream
   count(`model.reasoning.${reasoning ?? "off"}`)
   void stream.result().then(() => count("model.ms", Math.round(performance.now() - t)), () => {})
   return stream
+}
+
+/**
+ * pi-durable writes a run's system entries after its first input, so the transcript never opens with a system
+ * message. For a model that may add tools mid-conversation (Kimi K3), pi-ai then sends the agent's whole tool list
+ * as a `{ role: "system", tools }` message with no content, and OpenCode Go answers 400 "Invalid request
+ * parameters". With the flag off, every tool goes in the request's `tools` field, as for every other model.
+ */
+function unanchored<M extends { compat?: object }>(model: M): M {
+  return { ...model, compat: { ...model.compat, supportsMidConvoToolAdditions: false } }
 }
 
 export type RunAuth = (provider: string) => Promise<AuthResult | undefined>
@@ -126,8 +135,8 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
   for (const provider of builtinProviders()) {
     const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
     const routed = {
-      stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(model, context, via(model, options) as never))) as typeof provider.stream,
-      streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(model, context, via(model, options) as never), options?.reasoning)) as typeof provider.streamSimple,
+      stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(unanchored(model), context, via(model, options) as never))) as typeof provider.stream,
+      streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(unanchored(model), context, via(model, options) as never), options?.reasoning)) as typeof provider.streamSimple,
     }
     models.setProvider({ ...provider, ...routed, auth: { apiKey: { name: provider.name, resolve: () => auth(provider.id) } } })
   }

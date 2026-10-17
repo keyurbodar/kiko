@@ -26,8 +26,8 @@ import { type ComposioTool, learnedSignature } from "../integrations/composio/cl
 import { learnedNote } from "../integrations/composio/tools"
 import { integrationNote } from "./prompt"
 
-import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
-import { parseModelRef, thinkingFor } from "./thinking"
+import { buildAgent, userModels } from "./factory"
+import { isKnownModel, parseModelRef, thinkingFor } from "./thinking"
 import { createAlarms } from "@kiko/durable/alarm"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
@@ -56,6 +56,7 @@ const COMPACTIONS_KEY = "compactions"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 const RECENT_WORKERS = 8
 const MODEL_APPLIED_KEY = "model:applied"
+const HUMAN_INPUTS_KEY = "run:human-inputs"
 
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
 const PRIVATE_NOTE = "this chat is private. use what you know, but save nothing from it: no memory, no soul edits, nothing in /home."
@@ -178,7 +179,8 @@ export class AgentDO extends DurableObject<Env> {
         return room().endRun(home.slug, runId, mail, working, mailOnly)
       },
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
-      runError: (runId, error) => room().runError(home.slug, runId, { ...error, inputs: this.#humanInputs }),
+      // Read from storage: a long run can outlive this instance, and Retry needs the human messages it answered.
+      runError: async (runId, error) => room().runError(home.slug, runId, { ...error, inputs: (await this.ctx.storage.get<string[]>(HUMAN_INPUTS_KEY)) ?? this.#humanInputs }),
     }
   }
 
@@ -351,7 +353,7 @@ export class AgentDO extends DurableObject<Env> {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, model: picked.model, thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: (doing, activity) => this.report(doing, activity), memory, loops: () => this.loopPort(), messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
@@ -387,6 +389,7 @@ export class AgentDO extends DurableObject<Env> {
     this.#seqs = seqs
     this.#heard = batch.envelopes.findLast((e) => e.from.kind === "human")?.rootId ?? null
     this.#humanInputs = batch.envelopes.filter((e) => e.from.kind === "human").map((e) => e.rootId)
+    await this.ctx.storage.put(HUMAN_INPUTS_KEY, this.#humanInputs)
     const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
     if (!fresh && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
@@ -567,18 +570,26 @@ export class AgentDO extends DurableObject<Env> {
     if (!home) return false
     this.#runStamp++
     const turn = await userStub(this.env.USER, home.userId).agentTurn(home.slug)
-    const model = parseModelRef(turn.model) ?? DEFAULT_MODEL
-    this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.agent ? { soul: turn.agent.soul } : {}) }
-    const applied = { model, thinkingLevel: turn.thinking }
-    if (JSON.stringify(applied) !== JSON.stringify(await this.ctx.storage.get(MODEL_APPLIED_KEY))) {
-      await root.configure(applied, BACKGROUND_CONTEXT)
-      await this.ctx.storage.put(MODEL_APPLIED_KEY, applied)
+    const model = turn.model ? parseModelRef(turn.model) : null
+    // pi-durable ends a run on a model it cannot find as unanswered, with no error entry, so the human would see nothing.
+    const listed = model ? isKnownModel(model) : false
+    if (model && listed) {
+      this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.agent ? { soul: turn.agent.soul } : {}) }
+      const applied = { model, thinkingLevel: turn.thinking }
+      if (JSON.stringify(applied) !== JSON.stringify(await this.ctx.storage.get(MODEL_APPLIED_KEY))) {
+        await root.configure(applied, BACKGROUND_CONTEXT)
+        await this.ctx.storage.put(MODEL_APPLIED_KEY, applied)
+      }
+      if (turn.auth) return true
     }
-    if (turn.auth) return true
     const ids = this.host.inbox.envelopeIds(requestId)
     const heard = ids.filter((id) => id.startsWith("agent:"))
     const humans = ids.filter((id) => id.startsWith("human:")).map((id) => id.slice("human:".length).split("#")[0]!)
-    await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId, heard, humans)
+    const room = roomStub(this.env.ROOM, home.userId, home.roomId)
+    if (!model) await room.noModel(home.slug, requestId, heard, humans)
+    else if (!listed) await room.modelGone(home.slug, model.provider, `${model.provider}/${model.modelId}`, requestId, heard, humans)
+    else if (turn.authFailed) await room.keyRefused(home.slug, model.provider, requestId, heard, humans)
+    else await room.noProvider(home.slug, model.provider, requestId, heard, humans)
     return false
   }
 
@@ -595,14 +606,13 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /** The model and level this agent runs on. Kept by the user, so every chat with this agent agrees. */
-  private async picked(): Promise<{ model: ModelRef; thinking: ThinkingLevel }> {
+  private async picked(): Promise<{ model: ModelRef | null; thinking: ThinkingLevel }> {
     const home = this.home()
-    if (!home) return { model: DEFAULT_MODEL, thinking: thinkingFor(DEFAULT_MODEL) }
-    const picked = await userStub(this.env.USER, home.userId).agentModel(home.slug)
-    return { model: parseModelRef(picked.model) ?? DEFAULT_MODEL, thinking: picked.thinking }
+    const picked = home ? await userStub(this.env.USER, home.userId).agentModel(home.slug) : null
+    return { model: picked ? parseModelRef(picked.model) : null, thinking: picked?.thinking ?? "off" }
   }
 
-  async model(): Promise<ModelRef> {
+  async model(): Promise<ModelRef | null> {
     return (await this.picked()).model
   }
 
@@ -652,7 +662,9 @@ export class AgentDO extends DurableObject<Env> {
 
   private async pickBrowserDecider(models: Models, egress: typeof fetch): Promise<DeciderChoice> {
     const home = this.home()
-    const own = modelPort(models, await this.model(), this.ctx.id.toString())
+    const ref = await this.model()
+    if (!ref) throw new Error("this agent has no model. the human has not picked one")
+    const own = modelPort(models, ref, this.ctx.id.toString())
     return chooseDecider(own, async () => {
       if (!home) return null
       const user = userStub(this.env.USER, home.userId)

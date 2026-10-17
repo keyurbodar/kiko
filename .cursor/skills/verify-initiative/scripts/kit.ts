@@ -27,7 +27,7 @@ export async function setup(opts: { name: string; jev: boolean; policy?: Record<
   mkdirSync(dir, { recursive: true })
   const v = createVerifier(URL_)
   const s = await v.as(opts.name)
-  await connectTestModel(s) // opencode-go from OPENCODE_API_KEY; the default model is muse-spark-1.3-contributor
+  await connectTestModel(s) // opencode-go from OPENCODE_API_KEY, then picks Kiko's model (KIKO_TEST_MODEL, else muse-spark-1.3-contributor)
   const ctx: Ctx = { v, s, user: await s.user(), dir, jev: false, n: 0 }
   await setJev(ctx, opts.jev)
   await dev(URL_, s, "policy", { policy: { batch: 2, idleMs: 3_000, jevDelayMs: 1_000, ...opts.policy } })

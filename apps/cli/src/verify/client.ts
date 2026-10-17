@@ -1,4 +1,5 @@
 import type {
+  AgentSlug,
   ClientToRoom as RoomOut,
   ClientToUser as UserOut,
   RoomToClient as RoomIn,
@@ -187,10 +188,16 @@ export interface Session {
 
 export const TEST_PROVIDER = "opencode-go"
 
+export const TEST_MODEL = process.env.KIKO_TEST_MODEL ?? "opencode-go/muse-spark-1.3-contributor"
+
+/** Connects the test provider and picks Kiko's model, as the human does. Kiko never picks one on its own. */
 export async function connectTestModel(s: Session): Promise<void> {
   const key = process.env.OPENCODE_API_KEY
   if (!key) throw new VerifyError("OPENCODE_API_KEY is not set in this shell. source the dev vars first")
   await s.connectProvider(TEST_PROVIDER, key)
+  const user = await s.user()
+  user.send({ t: "agent_model", slug: "kiko" as AgentSlug, ref: TEST_MODEL })
+  await user.expect((f) => (f.t === "reset" && f.snapshot.agentModels?.kiko?.model === TEST_MODEL) || (f.t === "events" && f.events.some((e) => e.t === "agent_model" && e.slug === "kiko" && e.model === TEST_MODEL)))
 }
 
 export interface Verifier {
@@ -239,7 +246,8 @@ export function createVerifier(baseUrl: string, options: { fake?: boolean } = {}
       method,
       headers: body === undefined ? { authorization: auth } : { authorization: auth, "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(5000),
+      // A PUT asks the provider whether it takes the key, which alone can pass 5 seconds.
+      signal: AbortSignal.timeout(20_000),
     })
     if (!res.ok) throw new VerifyError(`${method} api/credentials/${provider} answered ${res.status}`)
   }

@@ -1,4 +1,3 @@
-import { DEFAULT_MODEL } from "../agent/factory"
 import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent } from "@kiko/protocol"
 import type { RoomLog } from "./log"
 
@@ -41,7 +40,7 @@ const toRow = (r: Row): MemberRow => ({
 })
 
 export function toMember(m: MemberRow): Member {
-	return { slug: m.slug, name: m.name, lead: m.lead, ...(m.role ? { role: m.role } : {}), model: m.model || `${DEFAULT_MODEL.provider}/${DEFAULT_MODEL.modelId}` }
+	return { slug: m.slug, name: m.name, lead: m.lead, ...(m.role ? { role: m.role } : {}), model: m.model }
 }
 
 const clip = (text: string | undefined, max: number) => (text ?? "").trim().slice(0, max)

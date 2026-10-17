@@ -517,28 +517,17 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async connectProvider(provider: string, apiKey: string): Promise<ProviderInfo> {
-    const before = allAgentModels(this.sql)
     const info = await this.#credentials.connect(provider, apiKey)
-    this.announceModels(before)
     await this.#mem.keyChanged(provider)
     await this.#announce.note(providerChange(provider, apiKey)).catch(() => {})
     return this.#mem.describe(info)
   }
 
   async disconnectProvider(provider: string): Promise<boolean> {
-    const before = allAgentModels(this.sql)
     const removed = await this.#credentials.disconnect(provider)
-    this.announceModels(before)
     await this.#mem.keyChanged(provider)
     await this.#announce.note(providerChange(provider, null)).catch(() => {})
     return removed
-  }
-
-  /** An agent nobody picked a model for follows the connected providers, so a key change can move it. */
-  private announceModels(before: Record<string, AgentModel>): void {
-    for (const [slug, now] of Object.entries(allAgentModels(this.sql))) {
-      if (JSON.stringify(now) !== JSON.stringify(before[slug])) this.commit({ t: "agent_model", slug: slug as AgentSlug, ...now })
-    }
   }
 
   async listProviders(): Promise<ProviderInfo[]> {
@@ -563,7 +552,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** What an agent runs on, for every chat. */
-  async agentModel(slug: string): Promise<AgentModel> {
+  async agentModel(slug: string): Promise<AgentModel | null> {
     return agentModel(this.sql, slug)
   }
 
@@ -573,8 +562,9 @@ export class UserDO extends DurableObject<Env> {
   }
 
   /** One round trip for a run: the agent's model and level, then the credentials for that model's provider. */
-  async agentTurn(slug: string): Promise<TurnContext & { model: string; thinking: ThinkingLevel }> {
+  async agentTurn(slug: string): Promise<TurnContext & { model: string | null; thinking: ThinkingLevel }> {
     const picked = agentModel(this.sql, slug)
+    if (!picked) return { ...(await this.turnContext("", slug)), model: null, thinking: "off" }
     return { ...(await this.turnContext(picked.model.slice(0, picked.model.indexOf("/")), slug)), model: picked.model, thinking: picked.thinking }
   }
 
@@ -893,7 +883,9 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "agent_model") {
-      this.setAgentModel(frame.slug, frame.ref, frame.thinking, frame.roomId)
+      if (!this.setAgentModel(frame.slug, frame.ref, frame.thinking, frame.roomId)) {
+        send(ws, { t: "model_refused", slug: frame.slug, message: frame.ref ? `The model did not change. Kiko does not know ${frame.ref}. Pick another one.` : "The model did not change. Pick a model first." })
+      }
       return
     }
     if (frame.t === "open") {
@@ -1029,9 +1021,10 @@ export class UserDO extends DurableObject<Env> {
     const stored = createAgent(this.sql, agent, Date.now())
     if (!stored) return null
     this.commit({ t: "agent", agent: stored })
-    // A new agent starts on the model it was made with, or on Kiko's.
-    // Always announce it: the pick can equal the fallback, and the client still needs an entry for the new agent.
-    this.setAgentModel(stored.slug, stored.model || agentModel(this.sql, KIKO).model, undefined, undefined, true)
+    // A new agent starts on the model it was made with, or on Kiko's. With neither it has none, and its first run asks.
+    // Always announce it: the pick can equal what it already resolves to, and the client still needs an entry for the new agent.
+    const model = stored.model || agentModel(this.sql, KIKO)?.model
+    if (model) this.setAgentModel(stored.slug, model, undefined, undefined, true)
     return stored
   }
 
@@ -1042,7 +1035,7 @@ export class UserDO extends DurableObject<Env> {
     if (!saved) return null
     if (!announce && JSON.stringify(saved) === JSON.stringify(before)) return saved
     this.commit({ t: "agent_model", slug, ...saved })
-    if (roomId && saved.model !== before.model) this.ctx.waitUntil(Promise.resolve(roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).modelChanged(slug, saved.model)).catch(() => {}))
+    if (roomId && saved.model !== before?.model) this.ctx.waitUntil(Promise.resolve(roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).modelChanged(slug, saved.model)).catch(() => {}))
     return saved
   }
 

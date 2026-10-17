@@ -11,6 +11,8 @@ export const DEFAULT_TIMEZONE = "UTC"
 export type TurnContext = {
   provider: string
   auth: AuthResult | null
+  /** The provider is connected, but its credential could not be used, such as an OAuth refresh that failed. */
+  authFailed?: true
   timezone: string
   captures: boolean
   agent?: { soul: { body: string; sha: string; at: number } }
@@ -49,6 +51,6 @@ export async function resolveTurnContext(
     return { ...base, auth: (await models.getAuth(provider)) ?? null }
   } catch (error) {
     console.error(`turn auth failed for ${provider}: ${error instanceof Error ? error.name : "error"}`)
-    return { ...base, auth: null }
+    return { ...base, auth: null, authFailed: true }
   }
 }

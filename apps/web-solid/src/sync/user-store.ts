@@ -6,7 +6,7 @@
 // in IndexedDB and go out again after a reload or a reconnect. Each carries a
 // stable id (a create names its room), so a replay changes nothing twice.
 
-import type { Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, FileRef, KikoError, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { Agent, AgentModel, AgentSlug, Chat, ChatOp, ClientToUser, FileOp, FileRef, KikoError, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { allAgentModels, allAgents, allChats, getHome, getPendingChats, getUserSeq, putAgentModels, putAgents, putChats, putHome, putPendingChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
@@ -15,6 +15,8 @@ import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type 
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
 import { type UserChannelHost, userChannel } from "./user-channel"
 import { kikoPlaceholder } from "../lib/chats"
+
+type AgentModelFrame = Extract<ClientToUser, { t: "agent_model" }>
 import { setFileToken } from "../lib/file-token"
 import { APP_VERSION, backendSkew, type Skew } from "../lib/version-skew"
 
@@ -171,6 +173,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	let expiry: ReturnType<typeof setTimeout> | undefined
 	// True from each `hello` until the first events or reset that answers it. That answer carries the backend's build.
 	let awaitingHello = false
+	const unsentModels = new Map<string, AgentModelFrame>()
 
 	function setPatches(next: UserPatch[] | ((list: UserPatch[]) => UserPatch[])) {
 		setState("patches", next)
@@ -210,6 +213,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				else if (e.t === "agent_model") {
 					setState("agentModels", e.slug, { model: e.model, thinking: e.thinking, thinkingLevels: e.thinkingLevels })
 					setState("pendingModels", e.slug, undefined!)
+					unsentModels.delete(e.slug)
 				}
 			}
 			const home = state.pendingHome.filter((p) => !applied.some((e) => roomConfirmedBy(p, e as never)))
@@ -231,7 +235,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, lastChat: snapshot.lastChat ?? null })
 		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
 		const agentModels = { ...snapshot.agentModels }
-		setState({ agentModels, pendingModels: {} })
+		// A pick the server has not confirmed stays on screen: it is sent again when the socket opens.
+		setState({ agentModels, pendingModels: Object.fromEntries(Object.entries(unwrap(state.pendingModels)).filter(([slug]) => unsentModels.has(slug))) })
 		putAgentModels(warm, agentModels)
 		replaceChats(warm, snapshot.chats, snapshot.seq)
 		putAgents(warm, agents)
@@ -255,6 +260,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				setState("refused", frame.roomId, frame.existing)
 				setPatches((list) => list.filter((p) => p.op.roomId !== frame.roomId))
 			})
+		} else if (frame.t === "model_refused") {
+			unsentModels.delete(frame.slug)
+			setState("pendingModels", frame.slug, undefined!)
+			options.onError?.({ code: "model", message: frame.message, action: "open_models" })
 		} else if (frame.t === "error") options.onError?.(frame.error, frame.roomId)
 		else if (frame.t === "typing") setState("typing", frame.roomId, frame.names.length ? [...frame.names] : undefined!)
 		else if (frame.t === "home_refused") {
@@ -280,6 +289,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			},
 			onOpen: () => {
 				for (const p of [...unwrap(state.patches)]) transmit(p)
+				for (const frame of unsentModels.values()) socket?.send(frame)
 				channel.opened()
 			},
 			onFrame,
@@ -303,7 +313,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			const nextLevels = levels ?? current?.thinkingLevels
 			const model = ref ?? current?.model
 			if (model && nextLevels) setState("pendingModels", slug, { model, thinking: clampThinking(nextLevels, thinking ?? current?.thinking ?? defaultThinking(nextLevels)), thinkingLevels: nextLevels })
-			socket?.send({ t: "agent_model", slug, ...(ref ? { ref } : {}), ...(thinking ? { thinking } : {}), ...(roomId ? { roomId } : {}) })
+			// Kept until the server answers, and sent again on every open, so a pick made while offline is not lost.
+			const frame: AgentModelFrame = { ...unsentModels.get(slug), t: "agent_model", slug, ...(ref ? { ref } : {}), ...(thinking ? { thinking } : {}), ...(roomId ? { roomId } : {}) }
+			unsentModels.set(slug, frame)
+			socket?.send(frame)
 		},
 		createChat(title, agents) {
 			const existing = agents?.length ? sameAgentChat(overlayChats(state.chats, state.patches), agents) : null

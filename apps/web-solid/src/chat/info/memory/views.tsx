@@ -158,7 +158,7 @@ function MemoryModelRow(props: { store: MemoryStore }) {
 				}}
 				class="max-w-44 truncate rounded-md px-1.5 py-0.5 text-sm text-foreground hover:bg-accent"
 			>
-				{current()?.split("/").slice(1).join("/") ?? "Default model"}
+				{current()?.split("/").slice(1).join("/") ?? "Kiko's model"}
 			</ModelPicker>
 			<Show when={current()}>
 				<button type="button" class={quiet} onClick={() => void props.store.setModel(null)}>
