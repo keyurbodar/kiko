@@ -51,6 +51,9 @@ jobs:
             echo "SESSION_SECRET=$(openssl rand -hex 32)"
             echo "CREDENTIALS_KEK=$(openssl rand -base64 32)"
           } > .dev.vars
+      - name: write a throwaway release key
+        # The update suite builds a signed release locally. This key signs only test artifacts.
+        run: bun scripts/release.ts --init-key
       - name: start the worker
         working-directory: apps/server
         env:
