@@ -1,10 +1,11 @@
 import { ButtonV2 } from "@kiko/ui/v2/button-v2"
-import type { RunErrorAction } from "@kiko/protocol"
+import type { RunErrorAction, RunErrorKind } from "@kiko/protocol"
 import { CircleAlertIcon } from "lucide-solid"
 import { createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { openSettings } from "../../lib/errors"
 import { useApp } from "../../lib/store"
 import { openModelPicker } from "../../settings/model-picker"
+import { reconnect } from "../../settings/provider-problem"
 import type { ChatMessage } from "../../lib/types"
 
 /** A click that the room never answered frees the button again, so one lost frame is not the end of Retry. */
@@ -17,7 +18,7 @@ const LABELS: Record<RunErrorAction, string> = { retry: "Retry", change_model: "
  * sentence, and what the human can do. The buttons are for the newest line of the chat only, since
  * an older failure has been answered by what came after it.
  */
-export default function RunErrorRow(props: { message: ChatMessage; slug: string; actions: readonly RunErrorAction[]; detail?: string | undefined; latest: boolean }): JSX.Element {
+export default function RunErrorRow(props: { message: ChatMessage; slug: string; actions: readonly RunErrorAction[]; detail?: string | undefined; reason?: RunErrorKind | undefined; provider?: string | undefined; latest: boolean }): JSX.Element {
   const [retrying, setRetrying] = createSignal(false)
   let timer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(timer))
@@ -28,8 +29,10 @@ export default function RunErrorRow(props: { message: ChatMessage; slug: string;
       timer = setTimeout(() => setRetrying(false), RETRY_WAIT_MS)
       useApp.retryRun(props.message.id)
     } else if (action === "change_model") openModelPicker(props.slug)
+    else if (props.reason === "signed_out" && props.provider) reconnect(props.provider)
     else openSettings()
   }
+  const label = (action: RunErrorAction) => (action === "open_settings" && props.reason === "signed_out" && props.provider ? "Sign in again" : LABELS[action])
   return (
     <div role="alert" class="mx-auto flex w-full max-w-(--chat-content-max-width) justify-center px-4 py-2" data-component="run-error" data-message-id={props.message.id}>
       <div class="flex max-w-full flex-col items-start gap-2 rounded-xl bg-error-surface px-3 py-2 text-sm text-foreground">
@@ -54,7 +57,7 @@ export default function RunErrorRow(props: { message: ChatMessage; slug: string;
             <For each={props.actions.filter((action) => !(action === "retry" && busy()))}>
               {(action) => (
                 <ButtonV2 variant="outline" size="small" icon={action === "retry" ? "outline-reset" : undefined} data-action={action} onClick={() => run(action)}>
-                  {LABELS[action]}
+                  {label(action)}
                 </ButtonV2>
               )}
             </For>

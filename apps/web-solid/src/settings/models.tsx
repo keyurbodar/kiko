@@ -4,7 +4,8 @@ import "@kiko/ui/provider-icon.css"
 import { formatContext, loadCatalog, modelRef, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
-import { connectProvider, disconnectProvider } from "./credentials"
+import { checkProvider, connectProvider, disconnectProvider } from "./credentials"
+import { clearReconnect, FIX_LABEL, PROBLEM_LINE, PROBLEM_SHORT, reconnectTarget } from "./provider-problem"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
 import { Button, Empty, fieldClass, Group, Hint, muted, Notice, Skeleton, Spinner, Toggle } from "./kit"
 import { VList } from "virtua/solid"
@@ -38,6 +39,11 @@ type Pick = { kind: "all" } | { kind: "provider"; id: string }
 export function ModelsPage() {
   const [catalog] = createResource(loadCatalog)
   const saved = (id: string) => connectedProviders().find((p) => p.provider === id)
+  const status = (id: string) => {
+    const info = saved(id)
+    if (info?.problem) return PROBLEM_LINE[info.problem]
+    return info?.kind === "api_key" ? `API key ••${info.last4}` : "Signed in"
+  }
   const connected = createMemo(() => (catalog()?.providers ?? []).filter((p) => saved(p.id)))
   const available = createMemo(() => (catalog()?.providers ?? []).filter((p) => !saved(p.id)))
   const popular = createMemo(() =>
@@ -47,6 +53,14 @@ export function ModelsPage() {
     }).concat(available().filter(isJudgeOnly).map((provider) => ({ provider, note: JUDGE_NOTE }))),
   )
   const [dialog, setDialog] = createSignal<CatalogProvider | null>(null)
+  createEffect(() => {
+    const wanted = reconnectTarget()
+    const provider = wanted ? catalog()?.providers.find((p) => p.id === wanted) : undefined
+    if (!provider) return
+    setPick({ kind: "provider", id: provider.id })
+    setDialog(provider)
+    clearReconnect()
+  })
   const [browsing, setBrowsing] = createSignal(false)
   const [pick, setPick] = createSignal<Pick>({ kind: "all" })
   const [query, setQuery] = createSignal("")
@@ -152,13 +166,13 @@ export function ModelsPage() {
                     aria-current={on() ? "true" : undefined}
                     data-provider={provider.id}
                     data-connected="true"
-                    data-refused={info()?.refused ? "true" : undefined}
+                    data-problem={info()?.problem}
                     onClick={() => setPick({ kind: "provider", id: provider.id })}
                   >
                     <ProviderIcon id={provider.id} width="14" height="14" />
                     <span class="min-w-0 flex-1 truncate">{provider.name}</span>
-                    <Show when={info()?.refused} fallback={<span class="shrink-0 text-xs tabular-nums text-secondary-label">{provider.models.length || ""}</span>}>
-                      <span class="size-1.5 shrink-0 rounded-full bg-error" role="img" aria-label="Key refused" />
+                    <Show when={info()?.problem} fallback={<span class="shrink-0 text-xs tabular-nums text-secondary-label">{provider.models.length || ""}</span>}>
+                      {(problem) => <span class="size-1.5 shrink-0 rounded-full bg-error" role="img" aria-label={PROBLEM_SHORT[problem()]} />}
                     </Show>
                   </button>
                 )
@@ -178,12 +192,19 @@ export function ModelsPage() {
                 <div class="flex items-center gap-3 px-1" data-component="provider-detail" data-provider={provider().id}>
                   <div class="flex min-w-0 flex-1 flex-col">
                     <span class="truncate text-md font-medium text-foreground">{provider().name}</span>
-                    <span class={cn("truncate text-sm", saved(provider().id)?.refused ? "text-error" : muted)}>
-                      {saved(provider().id)?.refused ? "Key refused. Connect again with a new key." : saved(provider().id)?.kind === "api_key" ? `API key ••${saved(provider().id)?.last4}` : "Signed in"}
+                    <span class={cn("truncate text-sm", saved(provider().id)?.problem ? "text-error" : muted)} data-part="provider-status">
+                      {status(provider().id)}
                     </span>
                   </div>
-                  <Show when={saved(provider().id)?.refused}>
-                    <Button data-action="reconnect" onClick={() => setDialog(provider())}>Reconnect</Button>
+                  <Show when={saved(provider().id)?.problem}>
+                    {(problem) => (
+                      <>
+                        <Show when={FIX_LABEL[problem()]}>
+                          {(label) => <Button data-action="reconnect" onClick={() => setDialog(provider())}>{label()}</Button>}
+                        </Show>
+                        <CheckAgain id={provider().id} />
+                      </>
+                    )}
                   </Show>
                   <DisconnectButton id={provider().id} />
                 </div>
@@ -266,6 +287,26 @@ function ProviderSkeletons() {
     <For each={[0, 1, 2, 3]}>
       {() => <Skeleton class="h-[58px] rounded-lg" />}
     </For>
+  )
+}
+
+function CheckAgain(props: { id: string }) {
+  const [checking, setChecking] = createSignal(false)
+  async function run() {
+    setChecking(true)
+    try {
+      await checkProvider(props.id)
+    } catch (e) {
+      showToastV2({ title: "Could not check the provider", description: e instanceof Error ? e.message : undefined, variant: "error" })
+    } finally {
+      setChecking(false)
+      await refreshConnected()
+    }
+  }
+  return (
+    <Button variant="ghost" data-action="check-again" busy={checking()} onClick={() => void run()}>
+      {checking() ? "Checking" : "Check again"}
+    </Button>
   )
 }
 
@@ -384,7 +425,14 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; onClose
     setError(null)
     props.onClose()
   }
-  const byKey = () => props.provider?.connect.includes("api_key") ?? false
+  // A provider that has a problem is fixed the way it was connected: a new key, or a new sign-in.
+  const methods = () => {
+    const provider = props.provider
+    const saved = provider ? connectedProviders().find((p) => p.provider === provider.id) : undefined
+    if (!provider || !saved?.problem) return provider?.connect ?? []
+    return provider.connect.filter((m) => (saved.kind === "oauth" ? m !== "api_key" : m === "api_key"))
+  }
+  const byKey = () => methods().includes("api_key")
 
   return (
     <Dialog
@@ -404,7 +452,7 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; onClose
       }
     >
       <div class="flex flex-col gap-4">
-        <For each={props.provider?.connect ?? []}>
+        <For each={methods()}>
           {(method) =>
             method === "api_key" ? (
               <form id="provider-key-form" class="flex flex-col gap-2" onSubmit={submit} data-method="api_key">

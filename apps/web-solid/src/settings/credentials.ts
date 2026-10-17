@@ -4,16 +4,9 @@ import { apiFetch } from "../lib/api"
 // characters. The key is never kept on the client: not in a store that outlives
 // the dialog, not in IndexedDB, not in a URL.
 
-export interface ProviderInfo {
-  provider: string
-  kind: string
-  last4: string
-  /** The provider turned this key down; the row says so. */
-  refused?: boolean
-  /** From pi-ai's catalog, so a list without the catalog can tell a chat provider from a judge. */
-  chat?: boolean
-  judge?: boolean
-}
+import type { ProviderInfo } from "@kiko/protocol"
+
+export type { ProviderInfo }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await apiFetch(`/api/credentials${path}`, init)
@@ -37,4 +30,9 @@ export async function connectProvider(provider: string, apiKey: string): Promise
 
 export async function disconnectProvider(provider: string): Promise<void> {
   await request(`/${encodeURIComponent(provider)}`, { method: "DELETE" })
+}
+
+/** "Check again": the server refreshes the sign-in, sends its cheapest request, and answers with the provider's row. */
+export async function checkProvider(provider: string): Promise<ProviderInfo> {
+  return (await request<{ provider: ProviderInfo }>(`/${encodeURIComponent(provider)}/check`, { method: "POST" })).provider
 }

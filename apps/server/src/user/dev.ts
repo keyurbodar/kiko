@@ -72,6 +72,13 @@ export async function devPass(engine: () => InitiativeEngine): Promise<unknown> 
 export const FAKE_PROVIDER = "kiko-fake"
 export const FAKE_CODE = "KIKO-0000"
 
+let fakeRefresh: "fail" | "ok" = "ok"
+
+// `verify provider-health` flips this to make the fake sign-in's token refresh fail the way a revoked sign-in does.
+export function setFakeRefresh(mode: "fail" | "ok"): void {
+  fakeRefresh = mode
+}
+
 export function fakeProvider(id: string): Provider | undefined {
   if (id !== FAKE_PROVIDER) return undefined
   return {
@@ -92,7 +99,10 @@ export function fakeProvider(id: string): Provider | undefined {
           interaction.notify({ type: "progress", message: "code accepted" })
           return { type: "oauth", access: `fake-${crypto.randomUUID()}`, refresh: "fake", expires: Date.now() + 3_600_000 }
         },
-        refresh: async (credential) => credential,
+        refresh: async (credential) => {
+          if (fakeRefresh === "fail") throw new Error("OAuth token request failed (400): invalid_grant")
+          return { ...credential, expires: Date.now() + 3_600_000 }
+        },
         toAuth: async (credential) => ({ apiKey: credential.access }),
       },
     },

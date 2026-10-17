@@ -236,4 +236,7 @@ export const USER_STEPS: Step[] = [
   addColumn("chats", "pair", "INTEGER NOT NULL DEFAULT 0"),
   // The remote models pi.dev lists that the bundled catalog lacks or lists differently (models/sync.ts), one row per provider.
   "CREATE TABLE IF NOT EXISTS model_catalog (provider_id TEXT PRIMARY KEY, models TEXT NOT NULL)",
+  // Why a connected provider stopped working (ProviderProblem), and when it was first seen. A new key or sign-in clears both.
+  addColumn("credentials", "problem", "TEXT"),
+  addColumn("credentials", "problem_at", "INTEGER"),
 ]

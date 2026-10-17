@@ -15,10 +15,10 @@ import { metaProvider } from "@earendil-works/pi-ai/providers/meta"
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai"
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex"
 import { xaiProvider } from "@earendil-works/pi-ai/providers/xai"
-import type { ConnectMethod, LoginErrorReason, LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
+import type { ConnectMethod, LoginErrorReason, LoginEvent, LoginPrompt, ProviderInfo, UserToClient } from "@kiko/protocol"
 import { runErrorDetail } from "../agent/run-error"
 import { withPasteLogin } from "./chatgpt-signin"
-import { isProviderId, type ProviderInfo } from "./credentials"
+import { isProviderId } from "./credentials"
 
 export const MAX_LOGINS = 4
 

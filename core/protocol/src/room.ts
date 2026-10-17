@@ -40,7 +40,7 @@ export type SystemEvent =
 	| { kind: "group_formed"; private: true }
 	| { kind: "member_added"; slug: AgentSlug; name: string; private: true }
 	| { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
-	| { kind: "run_error"; slug: AgentSlug; reason: RunErrorKind; actions: readonly RunErrorAction[]; /** The provider's own words, keys removed. */ detail?: string; private: true }
+	| { kind: "run_error"; slug: AgentSlug; reason: RunErrorKind; actions: readonly RunErrorAction[]; /** The provider the run used, so a sign-in or key problem opens that provider. */ provider?: string; /** The provider's own words, keys removed. */ detail?: string; private: true }
 
 /** An event kind a newer server sent. Only its kind is kept. */
 export type UnknownSystemEvent = { kind: string }
@@ -185,7 +185,7 @@ export type ClientToRoom =
 	/** Runs the input again that a `run_error` message reports. `messageId` is that message. */
 	| { t: "retry"; messageId: MessageId }
 
-export type RunErrorKind = "no_key" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "refused" | "too_long" | "other"
+export type RunErrorKind = "no_key" | "signed_out" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "refused" | "too_long" | "other"
 
 /** What the human can do about a failed run. The client draws one button for each. */
 export type RunErrorAction = "retry" | "change_model" | "open_settings"

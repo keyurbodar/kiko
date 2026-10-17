@@ -4,12 +4,12 @@ import type { Life } from "@kiko/memory/life"
 import { cleanLine, MAX_NAP_FAILS, NAP_SYSTEM, spanOf } from "@kiko/memory/optmem"
 import { candidates, type CaptureCount, type CapturePolicy, captureWithJudge, mergePolicy } from "@kiko/memory/capture"
 import type { Answer, Judge, Question } from "@kiko/memory/judge"
-import type { MemoryModel, MemoryOp, MemoryResult, RoomId } from "@kiko/protocol"
+import type { MemoryModel, MemoryOp, MemoryResult, ProviderInfo, RoomId } from "@kiko/protocol"
 import type { UserSettingsPatch } from "@kiko/protocol/schema"
 import { DEFAULT_MODEL, userModels } from "../agent/factory"
 import { DEV } from "../lib/dev-guard"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
-import type { CredentialVault, ProviderInfo } from "./credentials"
+import type { CredentialVault } from "./credentials"
 import { getChat } from "./chats"
 import { findProvider } from "../models/catalog"
 import { pickJudge, providerUses, type TurnContext } from "./turn-context"
@@ -21,7 +21,6 @@ const COMPRESS_TIMEOUT_MS = 120_000
 const MEMORY_USAGE = "memory_usage"
 const MEMORY_MODEL = "memory_model"
 const MEMORY_POLICY = "memory_policy"
-const refusedKey = (provider: string) => `${provider}_refused`
 const REFUSED = /\((401|403)\)/
 export const CAPTURE_WAKEUP = "life_capture"
 const CAPTURE_QUEUE_MAX = 200
@@ -67,12 +66,8 @@ export class MemoryCapture {
     return this.policy().capture !== "off" && this.judgeKey() !== null
   }
 
-  private refused(p: ProviderInfo): boolean {
-    return getSetting(this.sql, refusedKey(p.provider)) === p.last4
-  }
-
   judgeKey(): ProviderInfo | null {
-    return pickJudge(this.d.credentials().listProviders(), (p) => this.refused(p))
+    return pickJudge(this.d.credentials().listProviders(), (p) => p.problem === "key_refused")
   }
 
   judgeFor(timeoutMs: number): Judge | null {
@@ -93,7 +88,7 @@ export class MemoryCapture {
         this.count({ jev_input: result.usage?.input ?? 0, jev_output: result.usage?.output ?? 0 })
         if (result.stopReason === "stop") return result.answers as Record<K, Answer>
         if (REFUSED.test(result.errorMessage ?? "")) {
-          setSetting(this.sql, refusedKey(key.provider), key.last4)
+          this.d.credentials().setProblem(key.provider, "key_refused")
           this.count({ jev_refused: 1 })
         } else {
           this.count({ jev_errors: 1 })
@@ -293,13 +288,11 @@ export class MemoryCapture {
   }
 
   describe(p: ProviderInfo): ProviderInfo {
-    const uses = providerUses(p.provider)
-    return { ...p, ...uses, ...(uses.judge && this.refused(p) ? { refused: true as const } : {}) }
+    return { ...p, ...providerUses(p.provider) }
   }
 
   async keyChanged(provider: string): Promise<void> {
     if (!providerUses(provider).judge) return
-    deleteSetting(this.sql, refusedKey(provider))
     await this.armCapture()
   }
 }

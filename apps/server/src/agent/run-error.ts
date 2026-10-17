@@ -41,6 +41,7 @@ type Reply = { message: (provider: string, name: string) => string; actions: rea
 /** The fixed sentence for each failure and what the human can do. Never the provider's own words. */
 const REPLIES: Record<RunErrorKind, Reply> = {
   no_key: { message: (p, n) => `${n} cannot answer yet. ${p} is not connected.`, actions: ["open_settings", "retry"] },
+  signed_out: { message: (p) => `Your ${p} sign-in expired. Sign in again to keep chatting.`, actions: ["open_settings", "retry"] },
   invalid_key: { message: (p) => `${p} did not accept the key. Check the key, then retry.`, actions: ["open_settings", "change_model", "retry"] },
   quota: { message: (p) => `${p} says the quota or credit is used up. Check the plan or the billing.`, actions: ["open_settings", "change_model", "retry"] },
   rate_limit: { message: (p) => `${p} is rate limiting requests. Wait a moment, then retry.`, actions: ["retry", "change_model"] },
