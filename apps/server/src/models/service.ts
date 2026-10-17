@@ -1,5 +1,6 @@
 import type { Alarms } from "@kiko/durable/alarm"
 import type { Catalog, ConnectMethod } from "@kiko/protocol"
+import { BACKEND } from "../lib/version"
 import { buildCatalog } from "./build"
 import { overlayRevision, providers } from "./catalog"
 import { isStale, restoreOverlay, SYNC_INTERVAL_MS, type SyncDeps, syncCatalog } from "./sync"
@@ -49,7 +50,8 @@ export class ModelCatalog {
    */
   async catalog(have: string | null): Promise<{ revision: string; json: string | null }> {
     if (isStale(this.d.sql, this.d.now())) void this.sync()
-    const revision = overlayRevision()
+    // The catalog's shape also comes from this code (which providers Kiko can connect), so a new release is a new revision.
+    const revision = `${BACKEND.version}:${overlayRevision()}`
     if (have === revision) return { revision, json: null }
     if (this.#built?.revision !== revision) {
       const catalog: Catalog = buildCatalog(providers(), this.d.signInMethod)

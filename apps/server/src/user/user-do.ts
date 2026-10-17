@@ -979,7 +979,9 @@ export class UserDO extends DurableObject<Env> {
       // A sign-in socket never sends hello, and a person takes longer than the hello deadline to approve in the browser.
       const before = ws.deserializeAttachment() as Attachment | null
       if (!before?.ready) ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
-      return void this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {})
+      // The person leaves to approve in another tab, often for minutes. A promise outside waitUntil does not keep
+      // the object awake, so it would hibernate after 10 s and forget the sign-in. waitUntil holds it up to 15 min.
+      return void this.ctx.waitUntil(this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {}))
     }
     if (frame.t === "login.answer") return this.#loginState.answer(ws, frame.loginId, frame.promptId, frame.value)
     if (frame.t === "login.cancel") return this.#loginState.cancel(ws, frame.loginId)

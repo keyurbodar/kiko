@@ -434,7 +434,9 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
     if (!provider || !saved?.problem) return offered
     return offered.filter((m) => (saved.kind === "oauth" ? m !== "api_key" : m === "api_key"))
   }
-  const byKey = () => methods().includes("api_key")
+  // While a sign-in runs, the key field and its buttons would compete with it, so only the sign-in shows.
+  const [signingIn, setSigningIn] = createSignal(false)
+  const byKey = () => methods().includes("api_key") && !signingIn()
 
   return (
     <Dialog
@@ -457,6 +459,7 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
         <For each={methods()}>
           {(method) =>
             method === "api_key" ? (
+              <Show when={!signingIn()}>
               <form id="provider-key-form" class="flex flex-col gap-2" onSubmit={submit} data-method="api_key">
                 <label class="text-[13px] font-medium text-foreground" for="provider-key">
                   API key
@@ -477,11 +480,13 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
                   <Notice data-component="connect-error">{error()!}</Notice>
                 </Show>
               </form>
+              </Show>
             ) : (
               <SignInMethod
                 provider={props.provider!.id}
                 method={method}
                 label={props.provider!.signIn?.method === method ? props.provider!.signIn.label : undefined}
+                onRunning={setSigningIn}
                 onDone={async () => {
                   await refreshConnected()
                   props.onClose()
@@ -495,7 +500,7 @@ export function ConnectDialog(props: { provider: CatalogProvider | null; only?: 
   )
 }
 
-function SignInMethod(props: { provider: string; method: ConnectMethod; label?: string | undefined; onDone: () => void }) {
+function SignInMethod(props: { provider: string; method: ConnectMethod; label?: string | undefined; onRunning: (running: boolean) => void; onDone: () => void }) {
   const [state, setState] = createSignal<SignIn | null>(null)
   let handle: SignInHandle | undefined
   let input: HTMLInputElement | undefined
@@ -519,6 +524,8 @@ function SignInMethod(props: { provider: string; method: ConnectMethod; label?: 
   }
 
   const running = () => state()?.status === "running"
+  createEffect(() => props.onRunning(running()))
+  onCleanup(() => props.onRunning(false))
 
   return (
     <div class="flex flex-col gap-2" data-method={props.method} data-sign-in={state()?.status ?? "idle"}>

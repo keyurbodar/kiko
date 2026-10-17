@@ -70,7 +70,13 @@ export function workExtensions(workers: Workers, all: () => readonly Extension[]
     execute: async ({ id, text }, api, ctx) => {
       const work = workers.get(id)
       const child = work?.conversationId ? await api.conversation(work.conversationId, ctx) : undefined
-      if (!work || !child) return say(`there is no worker ${id}.`)
+      if (!work || !child || !work.conversationId) return say(`there is no worker ${id}.`)
+      // A worker keeps the model it started with. One that ended is picked up on the agent's model now, so a worker that failed on a model since changed or removed does not fail the same way again.
+      if (work.status !== "running") {
+        const agent = workerAgent(await api.agent(ctx), all())
+        const conversationId = work.conversationId
+        await api.commit((tx) => configure(tx, conversationId, agent), ctx)
+      }
       const submission = await child.submit({ type: "input", content: text, requestId: `steer:${api.taskId}`, whenBusy: "steer" }, ctx)
       workers.follow(id, submission.id)
       return say(work.status === "running" ? `sent to ${id}.` : `${id} took it up again. it reports back when done.`)
