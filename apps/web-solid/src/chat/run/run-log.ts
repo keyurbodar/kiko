@@ -239,23 +239,58 @@ export function upsertStep(steps: readonly RunStep[], step: RunStep): RunStep[] 
 
 // Which bubble opens a run
 
-export type RunHead = { id: string; known: number }
+/** A bubble of a run, and how many steps the run had started when the bubble was posted. */
+export type RunBubble = { id: string; steps: number }
 
 /**
- * The first bubble of each server run, in list order, and the most steps any bubble of that run
- * says it had. The chevron sits beside the first bubble only, and the panel asks the room for more
- * when it holds fewer steps than `known`.
+ * The bubbles of each server run, in list order. Each bubble opens the steps the run made since
+ * its previous bubble, as t3code puts each group of tool calls before the message that follows it.
  */
-export function runHeads(messages: readonly { id: string; runId?: string; steps?: number }[]): Map<string, RunHead> {
-  const heads = new Map<string, RunHead>()
+export function runBubbles(messages: readonly { id: string; runId?: string; steps?: number }[]): Map<string, RunBubble[]> {
+  const runs = new Map<string, RunBubble[]>()
   for (const m of messages) {
     if (!m.runId) continue
-    const head = heads.get(m.runId)
-    if (head) head.known = Math.max(head.known, m.steps ?? 0)
-    else heads.set(m.runId, { id: m.id, known: m.steps ?? 0 })
+    const list = runs.get(m.runId)
+    const bubble = { id: m.id, steps: Math.max(m.steps ?? 0, list?.at(-1)?.steps ?? 0) }
+    if (list) list.push(bubble)
+    else runs.set(m.runId, [bubble])
   }
-  return heads
+  return runs
 }
+
+/**
+ * A slice of a run's steps in start order: `[start, end)`. Its key names it by the run and the first
+ * step it holds, so the typing row's slice and the bubble that later lands for it share a key, and an
+ * open panel follows from one to the other.
+ */
+export type Segment = { key: string; runId: string; start: number; end: number }
+
+export const segmentKey = (runId: string, start: number) => `${runId}#${start}`
+
+export function parseSegment(key: string): { runId: string; start: number } {
+  const at = key.lastIndexOf("#")
+  return { runId: key.slice(0, at), start: Number(key.slice(at + 1)) }
+}
+
+/**
+ * The slice a bubble opens. While its run goes on, the steps after its last bubble belong to the
+ * typing row. Once the run ends they join the last bubble, so a background worker's steps land there.
+ */
+export function bubbleSegment(runId: string, bubbles: readonly RunBubble[], index: number, live: boolean): Segment {
+  const start = index > 0 ? (bubbles[index - 1]?.steps ?? 0) : 0
+  const last = index === bubbles.length - 1
+  const end = last && !live ? Number.POSITIVE_INFINITY : (bubbles[index]?.steps ?? start)
+  return { key: segmentKey(runId, start), runId, start, end }
+}
+
+/** The slice the typing row opens while the run goes on: every step after the run's last bubble. */
+export function tailSegment(runId: string, bubbles: readonly RunBubble[]): Segment {
+  const start = bubbles.at(-1)?.steps ?? 0
+  return { key: segmentKey(runId, start), runId, start, end: Number.POSITIVE_INFINITY }
+}
+
+/** How many steps a slice holds, from what is loaded and what the bubbles report. */
+export const segmentSize = (segment: Segment, loaded: number, known: number) => Math.min(segment.end, Math.max(loaded, known)) - segment.start
 
 // The panel's rows
 

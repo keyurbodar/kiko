@@ -135,18 +135,24 @@ export class RunSteps {
 		return [...done, ...this.running.values()].sort((a, b) => a.startedAt - b.startedAt || (a.id < b.id ? -1 : 1))
 	}
 
-	/** How many steps each run has made, finished and running, from one query for the whole batch. */
-	counts(runIds: readonly string[]): Map<string, number> {
+	/**
+	 * How many steps each bubble's run had started by the time the bubble was posted, from one query for the whole batch.
+	 * A bubble opens the steps since the previous bubble of its run, so the client subtracts the two.
+	 */
+	before(bubbles: readonly { id: string; runId: string; at: number }[]): Map<string, number> {
 		const out = new Map<string, number>()
-		if (!runIds.length) return out
+		if (!bubbles.length) return out
 		for (const r of this.sql
-			.exec<{ run_id: string; n: number }>(
-				"SELECT run_id, count(*) AS n FROM run_steps WHERE run_id IN (SELECT value FROM json_each(?)) GROUP BY run_id",
-				JSON.stringify(runIds),
+			.exec<{ id: string; n: number }>(
+				`SELECT json_extract(b.value, '$[0]') AS id, count(*) AS n FROM json_each(?) b
+				JOIN run_steps s ON s.run_id = json_extract(b.value, '$[1]') AND s.started_at <= json_extract(b.value, '$[2]')
+				GROUP BY b.key`,
+				JSON.stringify(bubbles.map((b) => [b.id, b.runId, b.at])),
 			)
 			.toArray())
-			out.set(r.run_id, r.n)
-		for (const s of this.running.values()) if (runIds.includes(s.runId)) out.set(s.runId, (out.get(s.runId) ?? 0) + 1)
+			out.set(r.id, r.n)
+		for (const s of this.running.values())
+			for (const b of bubbles) if (b.runId === s.runId && s.startedAt <= b.at) out.set(b.id, (out.get(b.id) ?? 0) + 1)
 		return out
 	}
 }

@@ -669,7 +669,7 @@ The client has one coordinator, `lib/errors.ts`. `showKikoError` shows a server 
 
 ### 9.5 Run steps
 
-The owner could not tell whether an agent was making progress (complaint of 2026-10-17). So the human sees every tool call of a run, live and afterward. A bubble has a chevron that opens the panel of the run that made it.
+The owner could not tell whether an agent was making progress (complaint of 2026-10-17). So the human sees every tool call of a run, live and afterward. A bubble has a chevron that opens the steps its run made since the run's previous bubble, as t3code puts each group of tool calls before the message that follows it. While the run goes on, the steps after its last bubble open from the typing row. Once it ends they join the last bubble, so a background worker's steps land there. In a group each agent's runs, bubbles, and typing row carry their own chevrons.
 
 What is recorded. One `RunStep` per tool call: the tool call id, the run id, the raw tool name, a past-tense label ("Read /plan.md", "Send email" beside the Gmail logo), the full input when the label shortens it, the status, the times, and the output. A Composio call also carries the toolkit slug as `app`. A background worker's call carries `worker`, and belongs to the run that started the worker (`workers.run_id`). Internal tools that `describeCall` hides (messages, memory, team) make no step. `stepOf` in `agent/extensions/presence.ts` builds the step from the same table as `describeCall`, so the two cannot drift. Input is cut to 2,000 characters and output to 4,000, and keys are removed with the same `redact` as the run error detail.
 
@@ -677,10 +677,10 @@ Where. The `presence` extension reports in `beforeTool` and `afterTool`, for the
 
 The room.
 - A running step is held in memory and broadcast as `{ t: "step", step }`. It is not written.
-- An ended step is written once, as one row of `run_steps` (primary key `(run_id, id)`, no other index), and broadcast. `INSERT ... ON CONFLICT DO NOTHING` means a replay writes nothing. A start that arrives after the step ended, or after its run ended, is dropped. The end of a run marks the steps still running as failed.
+- An ended step is written once, as one row of `run_steps` (primary key `(run_id, id)`, no other index), and broadcast. `INSERT ... ON CONFLICT DO NOTHING` means a replay writes nothing. A start that arrives after the step ended, or after its run ended, is dropped, except a worker's, which outlives the run. The end of a run marks the talker's steps still running as failed.
 - `{ t: "steps", runId }` is answered to the asking socket only, with the stored and running steps of that run.
 - A snapshot carries `steps`: the running steps, and the stored steps of runs that have not ended (at most 300, none older than a day).
-- Every message with a run id carries `steps`, the count for its run. One grouped query per batch, through `json_each`.
+- Every message with a run id carries `steps`: how many steps its run had started when it was posted. The client subtracts the previous bubble's count to find the bubble's own slice. One grouped query per batch, through `json_each`.
 
 Bounds. The table keeps the newest 2,000 steps. Past 2,200 one statement deletes down to 2,000, so pruning costs a few reads per write. The row count is read once per wake, then kept in memory.
 

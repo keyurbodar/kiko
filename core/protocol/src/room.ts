@@ -114,7 +114,7 @@ export type Message = {
 	to?: AgentSlug | "all"
 	initiative?: { reason: string }
 	event?: SystemEvent | UnknownSystemEvent
-	/** How many steps the run that posted this bubble has made so far. Absent when it made none. */
+	/** How many steps the run that posted this bubble had started when the bubble was posted. The bubble opens those since the run's previous bubble. Absent when none. */
 	steps?: number
 }
 

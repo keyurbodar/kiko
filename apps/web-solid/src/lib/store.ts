@@ -25,7 +25,7 @@ import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
 import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
-import { runHeads } from "../chat/run/run-log"
+import { bubbleSegment, parseSegment, runBubbles, segmentSize, tailSegment } from "../chat/run/run-log"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
@@ -358,7 +358,7 @@ export function createApp(options: AppOptions = {}) {
     })
 
     /** The first bubble of each run in view, for the run panel's chevron. */
-    const runs = shared(() => runHeads(activeRows()))
+    const runs = shared(() => runBubbles(activeRows()))
 
     function openRoom(roomId: RoomId | null) {
       const current = room()
@@ -785,47 +785,57 @@ export function createApp(options: AppOptions = {}) {
       },
 
       /**
-       * The run this bubble opens in the run panel, or undefined when it opens none: it is not the
-       * first bubble of its run, or the run made no steps.
+       * The slice of its run this bubble opens in the run panel, or undefined when it opens none.
+       * A bubble opens the steps its run made since the run's previous bubble.
        */
       runChevron(m: ChatMessage): string | undefined {
-        const head = m.runId ? runs().get(m.runId) : undefined
-        if (!m.runId || head?.id !== m.id) return undefined
-        return head.known > 0 || (room()?.state.steps[m.runId]?.length ?? 0) > 0 ? m.runId : undefined
+        const bubbles = m.runId ? runs().get(m.runId) : undefined
+        const index = bubbles?.findIndex((b) => b.id === m.id) ?? -1
+        if (!m.runId || !bubbles || index < 0) return undefined
+        const segment = bubbleSegment(m.runId, bubbles, index, this.runLive(m.runId))
+        const loaded = room()?.state.steps[m.runId]?.length ?? 0
+        return segmentSize(segment, loaded, bubbles.at(-1)?.steps ?? 0) > 0 ? segment.key : undefined
       },
 
-      /**
-       * The run an agent is in now, once it has made a step and has no bubble in view yet. After its
-       * first bubble lands the bubble's chevron opens the run instead.
-       */
+      /** The slice an agent's typing row opens: the steps its run made since its last bubble, once there is one. */
       typingRun(slug: string): string | undefined {
         const r = room()
         const runId = r?.state.live[slug]
-        if (!r || !runId || !r.state.steps[runId]?.length || runs().has(runId)) return undefined
-        return runId
+        if (!r || !runId) return undefined
+        const segment = tailSegment(runId, runs().get(runId) ?? [])
+        return (r.state.steps[runId]?.length ?? 0) > segment.start ? segment.key : undefined
       },
 
-      /** Every step this client holds for a run, in start order. */
-      runSteps(runId: string): readonly RunStep[] {
-        return room()?.state.steps[runId] ?? []
+      /** The steps of a slice this client holds, in start order. */
+      runSteps(key: string): readonly RunStep[] {
+        const { runId, start } = parseSegment(key)
+        const all = room()?.state.steps[runId] ?? []
+        const bubbles = runs().get(runId) ?? []
+        const index = bubbles.findIndex((b) => b.steps > start)
+        const end = index < 0 || (index === bubbles.length - 1 && !this.runLive(runId)) ? undefined : bubbles[index]?.steps
+        return all.slice(start, end)
       },
 
-      /** True while an agent is in this run. */
-      runLive(runId: string): boolean {
+      /** True while an agent is in this run. A slice is live only while it is the run's open end. */
+      runLive(keyOrRun: string): boolean {
         const live = room()?.state.live
-        return !!live && Object.values(live).includes(runId)
+        if (!live) return false
+        if (!keyOrRun.includes("#")) return Object.values(live).includes(keyOrRun)
+        const { runId, start } = parseSegment(keyOrRun)
+        return Object.values(live).includes(runId) && start >= (runs().get(runId)?.at(-1)?.steps ?? 0)
       },
 
       /** Asks the room for the run's steps when this client holds fewer than the bubbles say it made. */
-      loadRunSteps(runId: string) {
+      loadRunSteps(key: string) {
         const r = room()
-        const known = runs().get(runId)?.known ?? 0
+        const { runId } = parseSegment(key)
+        const known = runs().get(runId)?.at(-1)?.steps ?? 0
         if (r && (r.state.steps[runId]?.length ?? 0) < known) r.requestSteps(runId)
       },
 
-      /** True while the steps of a run are on their way. */
-      runFetching(runId: string): boolean {
-        return !!room()?.state.fetching[runId]
+      /** True while the steps of a slice's run are on their way. */
+      runFetching(key: string): boolean {
+        return !!room()?.state.fetching[parseSegment(key).runId]
       },
 
       /** The slugs of the agents typing now, for the typing bubble's avatar. */

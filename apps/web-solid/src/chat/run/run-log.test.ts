@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RunStep, ToolKind } from "@kiko/protocol"
-import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, runHeads, summarizeSteps, totalDuration, upsertStep } from "./run-log"
+import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, bubbleSegment, parseSegment, runBubbles, segmentSize, tailSegment, summarizeSteps, totalDuration, upsertStep } from "./run-log"
 
 const step = (id: string, over: Partial<RunStep> = {}): RunStep => ({
   id,
@@ -121,19 +121,38 @@ describe("upsertStep", () => {
   })
 })
 
-describe("runHeads", () => {
-  test("the first bubble of a run heads it, and known is the most steps any bubble reports", () => {
-    const heads = runHeads([
-      { id: "m1" },
-      { id: "m2", runId: "r1" },
-      { id: "m3", runId: "r1", steps: 2 },
-      { id: "m4", runId: "r2", steps: 1 },
-      { id: "m5", runId: "r1", steps: 5 },
-    ])
-    expect([...heads]).toEqual([
-      ["r1", { id: "m2", known: 5 }],
-      ["r2", { id: "m4", known: 1 }],
-    ])
+describe("run segments", () => {
+  const list = [
+    { id: "m1" },
+    { id: "m2", runId: "r1", steps: 2 },
+    { id: "m3", runId: "r1", steps: 2 },
+    { id: "m4", runId: "r2", steps: 1 },
+    { id: "m5", runId: "r1", steps: 5 },
+  ]
+
+  test("each bubble opens the steps since the previous bubble of its run", () => {
+    const r1 = runBubbles(list).get("r1") ?? []
+    expect(r1).toEqual([{ id: "m2", steps: 2 }, { id: "m3", steps: 2 }, { id: "m5", steps: 5 }])
+    const sizes = r1.map((_, i) => bubbleSegment("r1", r1, i, true)).map((s) => segmentSize(s, 0, 5))
+    expect(sizes).toEqual([2, 0, 3])
+  })
+
+  test("a live run's later steps open from the typing row, and join the last bubble once it ends", () => {
+    const r1 = runBubbles(list).get("r1") ?? []
+    expect(segmentSize(bubbleSegment("r1", r1, 2, true), 8, 5)).toBe(3)
+    expect(segmentSize(tailSegment("r1", r1), 8, 5)).toBe(3)
+    expect(segmentSize(bubbleSegment("r1", r1, 2, false), 8, 5)).toBe(6)
+  })
+
+  test("the typing row's slice and the bubble that lands for it share a key", () => {
+    const before = runBubbles(list.slice(0, 3)).get("r1") ?? []
+    const after = runBubbles(list).get("r1") ?? []
+    expect(tailSegment("r1", before).key).toBe(bubbleSegment("r1", after, 2, true).key)
+    expect(parseSegment(tailSegment("r1", before).key)).toEqual({ runId: "r1", start: 2 })
+  })
+
+  test("a bubble never reports fewer steps than the one before it", () => {
+    expect(runBubbles([{ id: "a", runId: "r", steps: 3 }, { id: "b", runId: "r" }]).get("r")).toEqual([{ id: "a", steps: 3 }, { id: "b", steps: 3 }])
   })
 })
 

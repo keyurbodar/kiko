@@ -59,12 +59,19 @@ test("an end that arrives alone is stored whole, and a cut-off run's running ste
 	expect(steps.of("r1").map((s) => [s.id, s.status])).toEqual([["t1", "done"], ["t2", "failed"], ["w2", "running"]])
 })
 
-test("counts include running steps from one query, and live skips ended runs", () => {
+test("a bubble counts the steps its run had started when it was posted, running ones too, and live skips ended runs", () => {
 	const { sql, steps } = room()
 	steps.finish(ended())
 	steps.start(step({ id: "t2", startedAt: 101 }))
 	steps.finish(ended({ runId: "r2", startedAt: 102 }))
-	expect(Object.fromEntries(steps.counts(["r1", "r2", "r3"]))).toEqual({ r1: 2, r2: 1 })
+	const bubbles = [
+		{ id: "m0", runId: "r1", at: 99 },
+		{ id: "m1", runId: "r1", at: 100 },
+		{ id: "m2", runId: "r1", at: 200 },
+		{ id: "m3", runId: "r2", at: 200 },
+		{ id: "m4", runId: "r3", at: 200 },
+	]
+	expect(Object.fromEntries(steps.before(bubbles))).toEqual({ m1: 1, m2: 2, m3: 1 })
 	expect(steps.live().map((s) => [s.runId, s.status])).toEqual([["r1", "done"], ["r1", "running"], ["r2", "done"]])
 	sql.exec("INSERT INTO ended_runs (run_id, at) VALUES (?, ?)", "r1", 1)
 	expect(steps.live().filter((s) => s.status === "done").map((s) => s.runId)).toEqual(["r2"])

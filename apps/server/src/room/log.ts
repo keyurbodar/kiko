@@ -220,7 +220,7 @@ export class RoomLog {
 			list.push({ by: actorFromKey(x.actor), emoji: x.emoji })
 			reactions.set(x.message_id, list)
 		}
-		const steps = this.steps.counts([...new Set(rows.flatMap((r) => (r.run_id !== null ? [r.run_id] : [])))])
+		const steps = this.steps.before(rows.flatMap((r) => (r.run_id !== null ? [{ id: r.id, runId: r.run_id, at: r.at }] : [])))
 		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies, steps))
 	}
 
@@ -295,7 +295,7 @@ export class RoomLog {
 			const earlier = input.clientId ? this.sentBefore(input.clientId) : input.run ? this.messageForRun(input.run) : null
 			if (earlier) return { ...earlier, event: null }
 			const id = crypto.randomUUID() as MessageId
-			const runSteps = input.run ? (this.steps.counts([input.run.runId]).get(input.run.runId) ?? 0) : 0
+			const runSteps = input.run ? (this.steps.before([{ id, runId: input.run.runId, at: Date.now() }]).get(id) ?? 0) : 0
 			const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
 			const message: Omit<Message, "seq" | "at"> = {
 				id,
@@ -481,7 +481,7 @@ export class RoomLog {
 
 	/** `reactions` are the message's, when the caller loaded them for many rows at once. */
 	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>, stepsOf?: ReadonlyMap<string, number>): Message {
-		const steps = r.run_id === null ? 0 : (stepsOf ?? this.steps.counts([r.run_id])).get(r.run_id) ?? 0
+		const steps = r.run_id === null ? 0 : ((stepsOf ?? this.steps.before([{ id: r.id, runId: r.run_id, at: r.at }])).get(r.id) ?? 0)
 		const reply = r.reply_to ? (replies ?? this.previews([r.reply_to])).get(r.reply_to) : undefined
 		const reactions: Reaction[] =
 			preloaded ??
