@@ -761,10 +761,11 @@ How kiko does it:
 | Flow in pi-ai | Mechanism | On Workers |
 | --- | --- | --- |
 | API key (every provider, including `opencode` and `opencode-go`) | paste | works |
-| GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | enabled. The GitHub Copilot flow ran under `wrangler dev` up to the device code from github.com. No flow has been completed against a real account. |
+| GitHub Copilot, Kimi, Meta, xAI device code | device code, `fetch` only | enabled. The GitHub Copilot flow ran under `wrangler dev` up to the device code from github.com. No flow has been completed against a real account. |
 | Anthropic | loopback server, with a copy-code fallback | enabled, copy-code path only. The server answers the method question itself. |
 | OpenRouter | loopback server always, with a manual paste fallback | not enabled. The flow starts its loopback server before it offers the paste path, and a Worker cannot listen. |
 | OpenAI ChatGPT | loopback server on 127.0.0.1:1455, with a manual paste fallback | enabled, paste path only (`apps/server/src/user/chatgpt-signin.ts`). The person approves in the browser, which then fails to load `http://127.0.0.1:1455/auth/callback`, and pastes that full address back. The redirect address cannot change because OpenAI registered it, and a Worker cannot listen on a port. kiko ports pi's flow with the server removed, PKCE through Web Crypto, and a per-owner installation id kept in `UserDO` settings. Refresh and token use are pi's own. UNVERIFIED: no real ChatGPT account has completed it. |
+| OpenAI Codex | device code | removed. chatgpt.com answers every request from a Cloudflare Worker with a 403 "Unable to load site" page, whatever the headers (checked from a `wrangler dev --remote` probe, 2026-10-17). "Sign in with ChatGPT" under OpenAI reaches api.openai.com instead. |
 
 How kiko runs them (`apps/server/src/user/provider-login.ts`):
 

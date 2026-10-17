@@ -13,7 +13,6 @@ import { githubCopilotProvider } from "@earendil-works/pi-ai/providers/github-co
 import { kimiCodingProvider } from "@earendil-works/pi-ai/providers/kimi-coding"
 import { metaProvider } from "@earendil-works/pi-ai/providers/meta"
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai"
-import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex"
 import { xaiProvider } from "@earendil-works/pi-ai/providers/xai"
 import type { ConnectMethod, LoginErrorReason, LoginEvent, LoginPrompt, ProviderInfo, UserToClient } from "@kiko/protocol"
 import { runErrorDetail } from "../agent/run-error"
@@ -25,14 +24,15 @@ export const MAX_LOGINS = 4
 // Workers cannot dynamically import pi-ai's OAuth modules, so the flows are registered statically here.
 registerBunOAuthFlows()
 
-// Flows that need a loopback server are left out, since a Worker cannot listen on a port.
+// Flows that need a loopback server are left out, since a Worker cannot listen on a port. So is OpenAI Codex:
+// chatgpt.com answers every request from a Worker with a 403 "Unable to load site" page. "Sign in with ChatGPT"
+// under OpenAI uses api.openai.com and works.
 const FLOWS: Record<string, { provider: () => Provider; method: ConnectMethod; select?: string }> = {
   anthropic: { provider: anthropicProvider, method: "paste_code", select: "copy_code" },
   "github-copilot": { provider: githubCopilotProvider, method: "device_code" },
   "kimi-coding": { provider: kimiCodingProvider, method: "device_code" },
   meta: { provider: metaProvider, method: "device_code" },
   openai: { provider: chatgptProvider, method: "paste_code" },
-  "openai-codex": { provider: openaiCodexProvider, method: "device_code", select: "device_code" },
   xai: { provider: xaiProvider, method: "device_code" },
 }
 
