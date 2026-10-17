@@ -28,6 +28,7 @@ import { integrationNote } from "./prompt"
 
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { parseModelRef, thinkingFor } from "./thinking"
+import { setOverlay } from "../models/catalog"
 import { createAlarms } from "@kiko/durable/alarm"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
@@ -567,6 +568,7 @@ export class AgentDO extends DurableObject<Env> {
     if (!home) return false
     this.#runStamp++
     const turn = await userStub(this.env.USER, home.userId).agentTurn(home.slug)
+    setOverlay(turn.provider, turn.catalog.models)
     const model = parseModelRef(turn.model) ?? DEFAULT_MODEL
     this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.agent ? { soul: turn.agent.soul } : {}) }
     const applied = { model, thinkingLevel: turn.thinking }
@@ -590,6 +592,7 @@ export class AgentDO extends DurableObject<Env> {
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
     const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider, home.slug) : null
+    if (context) setOverlay(provider, context.catalog.models)
     this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", captures: context?.captures ?? false, ...(context?.agent ? { soul: context.agent.soul } : {}) }
     return this.#run.auth
   }

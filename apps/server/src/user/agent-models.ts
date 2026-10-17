@@ -3,7 +3,7 @@ import type { ModelRef } from "@earendil-works/pi-durable"
 import { DEFAULT_MODEL } from "../agent/factory"
 import { isKnownModel, parseModelRef, supportedThinking, thinkingFor } from "../agent/thinking"
 import { getSetting, setSetting } from "../lib/settings"
-import { findProvider } from "./turn-context"
+import { findProvider } from "../models/catalog"
 
 const PREFIX = "agentModel:"
 

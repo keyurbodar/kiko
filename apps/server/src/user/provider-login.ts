@@ -14,7 +14,7 @@ import { kimiCodingProvider } from "@earendil-works/pi-ai/providers/kimi-coding"
 import { metaProvider } from "@earendil-works/pi-ai/providers/meta"
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex"
 import { xaiProvider } from "@earendil-works/pi-ai/providers/xai"
-import type { LoginErrorReason, LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
+import type { ConnectMethod, LoginErrorReason, LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
 import { isProviderId, type ProviderInfo } from "./credentials"
 
 export const MAX_LOGINS = 4
@@ -23,17 +23,22 @@ export const MAX_LOGINS = 4
 registerBunOAuthFlows()
 
 // Flows that need a loopback server are left out, since a Worker cannot listen on a port.
-const FLOWS: Record<string, { provider: () => Provider; select?: string }> = {
-  anthropic: { provider: anthropicProvider, select: "copy_code" },
-  "github-copilot": { provider: githubCopilotProvider },
-  "kimi-coding": { provider: kimiCodingProvider },
-  meta: { provider: metaProvider },
-  "openai-codex": { provider: openaiCodexProvider, select: "device_code" },
-  xai: { provider: xaiProvider },
+const FLOWS: Record<string, { provider: () => Provider; method: ConnectMethod; select?: string }> = {
+  anthropic: { provider: anthropicProvider, method: "paste_code", select: "copy_code" },
+  "github-copilot": { provider: githubCopilotProvider, method: "device_code" },
+  "kimi-coding": { provider: kimiCodingProvider, method: "device_code" },
+  meta: { provider: metaProvider, method: "device_code" },
+  "openai-codex": { provider: openaiCodexProvider, method: "device_code", select: "device_code" },
+  xai: { provider: xaiProvider, method: "device_code" },
 }
 
 export function hasSignIn(provider: string): boolean {
   return Object.hasOwn(FLOWS, provider)
+}
+
+/** How the client offers a provider's sign-in, or undefined when the server refuses it. */
+export function signInMethod(provider: string): ConnectMethod | undefined {
+  return hasSignIn(provider) ? FLOWS[provider]?.method : undefined
 }
 
 const NO_AMBIENT: AuthContext = { env: async () => undefined, fileExists: async () => false }

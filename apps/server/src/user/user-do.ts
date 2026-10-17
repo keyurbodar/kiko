@@ -41,7 +41,9 @@ import { applyChatOp, type ChatChange, getChat, listChats, renameLegacyAgent, se
 import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
-import { ProviderLogins } from "./provider-login"
+import { ProviderLogins, signInMethod } from "./provider-login"
+import { CATALOG_WAKEUP, ModelCatalog } from "../models/service"
+import type { CatalogOverlay } from "../models/catalog"
 import { type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview } from "./overview"
@@ -81,6 +83,7 @@ type NewAgentOutcome = { ok: true; agent: Agent; roomId: RoomId } | { ok: false;
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
   private alarms!: Alarms
+  private models!: ModelCatalog
   private life!: Life
   private souls!: Souls
   private home!: FileIndex<UserEvent>
@@ -94,6 +97,9 @@ export class UserDO extends DurableObject<Env> {
     void ctx.blockConcurrencyWhile(async () => {
       migrate(ctx.storage, USER_STEPS)
       this.alarms = createAlarms(ctx)
+      // check-rules: allow egress the one pi.dev request an hour, made in this object's own invocation
+      this.models = new ModelCatalog({ sql: this.sql, alarms: this.alarms, now: Date.now, fetch: (url, init) => fetch(url, init), signInMethod, changed: () => this.changed("models") })
+      await this.models.init()
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => {
@@ -541,6 +547,16 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
+  /** The model catalog json for the client, or null json when it already holds `have`. */
+  async modelCatalog(have: string | null): Promise<{ revision: string; json: string | null }> {
+    return this.models.catalog(have)
+  }
+
+  async devModelOverlay(overlay: CatalogOverlay): Promise<void> {
+    await (await this.dev()).devModelOverlay(this.sql, overlay)
+    this.changed("models")
+  }
+
   async listProviders(): Promise<ProviderInfo[]> {
     return this.#credentials.listProviders().map((p) => this.#mem.describe(p))
   }
@@ -930,6 +946,7 @@ export class UserDO extends DurableObject<Env> {
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
+      [CATALOG_WAKEUP]: () => this.models.wake(),
       [REMINDERS_WAKEUP]: () => this.reminders.fire(),
       [LIFE_WAKEUP]: () => this.#mem.napLife().finally(() => this.memoryAndLoopsChanged()),
       [CAPTURE_WAKEUP]: () => this.#mem.captureNow().finally(() => this.memoryAndLoopsChanged()),
