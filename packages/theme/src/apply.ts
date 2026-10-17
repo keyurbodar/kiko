@@ -14,6 +14,8 @@ const systemDark = () => typeof matchMedia !== "function" || !matchMedia("(prefe
 export const appearanceOf = (mode: ThemeMode): ThemeAppearance => resolveAppearance(mode, systemDark())
 
 let imported: Imported = parseImported(storedImported())
+// Imported themes belong to this browser, not to a person, so the signed-out screens skip them.
+let importedOn = true
 
 function storedImported(): string | null {
   try {
@@ -23,7 +25,10 @@ function storedImported(): string | null {
   }
 }
 
-const half = (look: Look, h: ThemeAppearance) => ({ ...tokensFor(h, look.accent, look.display.contrast, themeFor(imported, h)), ...displayVars(look.display) })
+const half = (look: Look, h: ThemeAppearance) => ({
+  ...tokensFor(h, look.accent, look.display.contrast, importedOn ? themeFor(imported, h) : undefined),
+  ...displayVars(look.display),
+})
 
 export const resolveLook = (look: Look): Record<ThemeAppearance, Record<string, string>> => ({ light: half(look, "light"), dark: half(look, "dark") })
 
@@ -67,7 +72,8 @@ function watch(): void {
   })
 }
 
-export function applyCommitted(look: Look): void {
+export function applyCommitted(look: Look, withImported = true): void {
+  importedOn = withImported
   committed = look
   paint(look)
   watch()

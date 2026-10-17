@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import solid from "vite-plugin-solid";
 import { buildCatalog, catalogFile, type CatalogFile } from "../../scripts/build-catalog";
 import pkg from "../../package.json";
@@ -39,7 +39,17 @@ function modelCatalog(): Plugin {
   };
 }
 
-export default defineConfig({
+// A hosted build (one with a Clerk key) sends people to the installer, so it cannot ship without one.
+function requireInstaller(mode: string): void {
+  const env = { ...loadEnv(mode, import.meta.dirname, "VITE_"), ...process.env };
+  if (mode === "production" && env.VITE_CLERK_PUBLISHABLE_KEY && !env.VITE_INSTALLER_URL) {
+    throw new Error("VITE_CLERK_PUBLISHABLE_KEY is set but VITE_INSTALLER_URL is not. Set it to the installer Worker's URL.");
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  requireInstaller(mode);
+  return {
   plugins: [solid(), tailwindcss(), modelCatalog()],
   // The build version, from the root package.json. The client compares it with the backend (src/lib/version-skew.ts).
   define: { __KIKO_VERSION__: JSON.stringify(pkg.version) },
@@ -59,4 +69,5 @@ export default defineConfig({
       },
     },
   },
+};
 });

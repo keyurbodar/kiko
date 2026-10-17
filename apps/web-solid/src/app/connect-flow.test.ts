@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { authorizeUrl, challengeOf, connect, failureOf, install, oauthGrant, type Fetch } from "./connect-flow"
+import { authorizeUrl, challengeOf, connect, failureOf, install, loadOAuthConfig, loadTokenLink, oauthGrant, type Fetch } from "./connect-flow"
 
 const store = new Map<string, string>()
 Object.assign(globalThis, {
@@ -81,5 +81,20 @@ describe("connect", () => {
     expect(error?.code).toBe("not_ready")
     expect(exchanged).toBe(false)
     expect(localStorage.getItem("kiko:backend")).toBeNull()
+  })
+})
+
+describe("installer reads", () => {
+  const page: Fetch = async () => new Response("<!doctype html><html></html>", { status: 200, headers: { "content-type": "text/html" } })
+  test("a page instead of JSON, as from a host with no installer, is a plain error", async () => {
+    await expect(loadOAuthConfig(page)).rejects.toThrow("Could not reach the installer. Try again.")
+    await expect(loadTokenLink(page)).rejects.toThrow("Could not reach the installer. Try again.")
+  })
+  test("a network failure is the same error", async () => {
+    await expect(loadOAuthConfig(async () => Promise.reject(new TypeError("Failed to fetch")))).rejects.toThrow("Could not reach the installer. Try again.")
+  })
+  test("a JSON answer of the right shape passes through", async () => {
+    const config = { clientId: "cid", authorizeUrl: "https://dash.cloudflare.com/oauth2/auth", scopes: ["workers-scripts.write"] }
+    expect(await loadOAuthConfig(async () => json(config))).toEqual(config)
   })
 })

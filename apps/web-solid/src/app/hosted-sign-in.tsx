@@ -1,18 +1,15 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { Show, createSignal, lazy, onMount } from "solid-js"
-import { IdentityAvatar } from "../lib/IdentityAvatar"
+import { For, Show, createSignal, lazy, onMount, type JSX } from "solid-js"
 import type { Provider } from "./hosted"
 import { signInWithClerk } from "./session"
+import { GitHubMark, GoogleMark, Option, Wizard, WizardTitle } from "./wizard"
 
 const Connect = lazy(() => import("./connect"))
 const connecting = (path: string) => path === "/connect" || path === "/connect/callback"
 
-const button =
-  "flex h-11 w-full items-center justify-center rounded-lg bg-control px-4 text-sm font-medium text-foreground outline-none hover:bg-control-strong disabled:cursor-wait disabled:opacity-60"
-
-const PROVIDERS: { id: Provider; label: string }[] = [
-  { id: "google", label: "Continue with Google" },
-  { id: "github", label: "Continue with GitHub" },
+const PROVIDERS: { id: Provider; label: string; icon: () => JSX.Element }[] = [
+  { id: "google", label: "Continue with Google", icon: GoogleMark },
+  { id: "github", label: "Continue with GitHub", icon: GitHubMark },
 ]
 
 /*
@@ -66,31 +63,20 @@ export default function HostedSignIn() {
   }
 
   return (
-    <Show
-      when={!connecting(location.pathname)}
-      fallback={
-        <div class="h-dvh overflow-y-auto bg-background" data-component="sign-in">
-          <Connect />
+    <Show when={!connecting(location.pathname)} fallback={<Connect />}>
+      <Wizard stage={0}>
+        <WizardTitle title="Sign in to Kiko">Kiko runs in your own Cloudflare account. Sign in, then connect it.</WizardTitle>
+        <div class="mt-5 flex flex-col gap-2">
+          <For each={PROVIDERS}>
+            {(p) => <Option icon={p.icon()} label={p.label} disabled={busy()} data-action={`sign-in-${p.id}`} onClick={() => void start(p.id)} />}
+          </For>
         </div>
-      }
-    >
-      <div class="flex h-dvh items-center justify-center bg-background px-4" data-component="sign-in">
-        <div class="flex w-full max-w-72 flex-col items-center gap-3">
-          <IdentityAvatar seed="kiko" size={72} />
-          <h1 class="mt-1 text-xl font-medium text-foreground">Sign in to Kiko</h1>
-          <p class="mb-3 text-center text-sm text-muted-foreground">Use the account you signed up with.</p>
-          {PROVIDERS.map((p) => (
-            <button type="button" class={button} disabled={busy()} data-action={`sign-in-${p.id}`} onClick={() => void start(p.id)}>
-              {p.label}
-            </button>
-          ))}
-          <Show when={error()}>
-            <p class="text-sm text-[var(--error)]" role="alert">
-              {error()}
-            </p>
-          </Show>
-        </div>
-      </div>
+        <Show when={error()}>
+          <p class="mt-4 text-sm text-[var(--error)]" role="alert">
+            {error()}
+          </p>
+        </Show>
+      </Wizard>
     </Show>
   )
 }

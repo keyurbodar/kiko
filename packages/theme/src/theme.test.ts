@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { CACHE_KEY, resolveLook, writeCache } from "./apply"
+import { applyCommitted, CACHE_KEY, resolveLook, saveImported, writeCache } from "./apply"
 import { withPalette } from "../scripts/gen-palette"
 import { MONO_STACK, SANS_STACK, fontFamily } from "./display"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
@@ -186,6 +186,20 @@ describe("the pre-paint script", () => {
     writeCache("text", { ...DEFAULT_LOOK, mode: "dark", accent: "lavender" })
     expect(boot(store[CACHE_KEY]!).style["--ring"]).toBe(ACCENTS.lavender.dark)
     delete (globalThis as { localStorage?: unknown }).localStorage
+  })
+})
+
+describe("imported themes", () => {
+  test("paint while signed in and never on the signed-out screens", () => {
+    const canvas = "#1e1e2e"
+    const palette = { ...PALETTES.dark, canvas }
+    saveImported({ themes: [{ id: "mocha", name: "Mocha", source: "catppuccin.catppuccin-vsc", appearance: "dark", accent: "#cba6f7", palette }], active: { dark: "mocha" } })
+    expect(resolveLook(DEFAULT_LOOK).dark["--background"]).toBe(canvas)
+    applyCommitted(DEFAULT_LOOK, false)
+    expect(resolveLook(DEFAULT_LOOK).dark["--background"]).toBe(PALETTES.dark.canvas)
+    applyCommitted(DEFAULT_LOOK)
+    expect(resolveLook(DEFAULT_LOOK).dark["--background"]).toBe(canvas)
+    saveImported({ themes: [], active: {} })
   })
 })
 
