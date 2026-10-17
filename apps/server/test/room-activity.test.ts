@@ -179,15 +179,14 @@ test("a socket that connects mid-run is told who is busy", async () => {
 
 const row = (status: WorkerRow["status"], over: Partial<WorkerRow> = {}): WorkerRow => ({ id: "w1", task: "find the pricing pages", status, step: null, steps: 0, startedAt: 5, ...over })
 
-test("workers show as a background activity and add one row when they start and one when they end", async () => {
+test("workers show as a background activity and add no rows to the chat", async () => {
 	const room = fresh()
 	const c = await withAgent(room)
 	const joined = (await snapshot(room)).messages.map((m) => m.event)
 	expect(joined).toEqual([{ kind: "member_added", slug: "ada", name: "ada", private: true }])
 	await rpc(room, "setWorkers", "ada", [row("running")])
 	await rpc(room, "setWorkers", "ada", [row("running", { steps: 1 })])
-	const task = row("running").task
-	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual([...joined, { kind: "worker", agent: "ada", state: "started", title: task, private: true }])
+	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual(joined)
 
 	await rpc(room, "setStatus", "ada", "working")
 	const background = await c.take((f) => f.t === "status" && f.state === "working")
@@ -197,11 +196,7 @@ test("workers show as a background activity and add one row when they start and 
 	const after = await c.take((f) => f.t === "status")
 	expect(after).toEqual({ t: "status", slug: "ada", state: "working" })
 	await rpc(room, "setWorkers", "ada", [row("done", { steps: 4 })])
-	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual([
-		...joined,
-		{ kind: "worker", agent: "ada", state: "started", title: task, private: true },
-		{ kind: "worker", agent: "ada", state: "done", title: task, private: true },
-	])
+	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual(joined)
 	c.close()
 })
 

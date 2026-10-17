@@ -8,7 +8,7 @@ import type { ComposioCall, ComposioCallResult, ComposioTool } from "./client"
 import { directResult, MULTI_EXECUTE } from "./learn"
 import { withRetry } from "./retry"
 
-export const COMPOSIO = "composio"
+const COMPOSIO = "composio"
 
 const requiredFlags = (schema: unknown): string[] => {
   const s = schema as { properties?: Record<string, { type?: unknown }>; required?: unknown } | null
