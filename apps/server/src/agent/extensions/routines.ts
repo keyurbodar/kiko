@@ -85,12 +85,12 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
           replay: "unsafe",
           execute: async (args) => {
             const trigger = parseTrigger(args.trigger)
-            if (typeof trigger === "string") return { content: text(trigger), isError: true }
+            if (typeof trigger === "string") return { output: text(trigger), isError: true }
             const target = otherAgent(args.agent)
             const out = await user().createRoutine({ name: args.name, instructions: args.instructions, trigger, ...(target ? { target } : {}) })
-            if (!out.ok) return { content: text(`not set: ${out.error}`), isError: true }
+            if (!out.ok) return { output: text(`not set: ${out.error}`), isError: true }
             const hook = out.token ? `\nits webhook url is ${(await user().origin()) ?? ""}/api/hooks/${out.token} . tell the human this url once; it is not shown again.` : ""
-            return { content: text(`routine set: ${routineLine(out.routine, [])}${hook}`) }
+            return { output: text(`routine set: ${routineLine(out.routine, [])}${hook}`) }
           },
         }),
       ),
@@ -110,9 +110,9 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
           replay: "unsafe",
           execute: async (args) => {
             const trigger = args.trigger === undefined ? undefined : parseTrigger(args.trigger)
-            if (typeof trigger === "string") return { content: text(trigger), isError: true }
+            if (typeof trigger === "string") return { output: text(trigger), isError: true }
             const current = (await user().list()).find((r) => r.id === args.id && r.trigger)
-            if (!current) return { content: text("no such routine in this chat"), isError: true }
+            if (!current) return { output: text("no such routine in this chat"), isError: true }
             const changes = args.name !== undefined || args.instructions !== undefined || trigger !== undefined || args.status === "active"
             let routine = current
             if (changes || args.status) {
@@ -122,11 +122,11 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
                 ...(trigger !== undefined ? { trigger } : {}),
                 ...(args.status ? { status: args.status } : {}),
               })
-              if (!out.ok) return { content: text(`not changed: ${out.error}`), isError: true }
+              if (!out.ok) return { output: text(`not changed: ${out.error}`), isError: true }
               routine = out.routine
             }
             const ran = args.run_now ? await user().runRoutine(args.id) : null
-            return { content: text(`${routineLine(routine, [])}${args.run_now ? `\nrun now: ${ran ?? "not run: it is not active"}` : ""}`) }
+            return { output: text(`${routineLine(routine, [])}${args.run_now ? `\nrun now: ${ran ?? "not run: it is not active"}` : ""}`) }
           },
         }),
       ),
@@ -140,7 +140,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
           execute: async () => {
             const all = (await user().list()).filter((r) => r.status === "active" || r.status === "paused")
             const lines = await Promise.all(all.map(async (r) => routineLine(r, await user().runs(r.id))))
-            return { content: text(lines.length ? lines.join("\n") : "no routines") }
+            return { output: text(lines.length ? lines.join("\n") : "no routines") }
           },
         }),
       ),
@@ -153,7 +153,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
           replay: "unsafe",
           execute: async ({ slug }) => {
             const out = await user().addRecipe(slug.trim())
-            return out.ok ? { content: text(out.existed ? out.setup : `added.\n${out.setup}`) } : { content: text(`not added: ${out.error}`), isError: true }
+            return out.ok ? { output: text(out.existed ? out.setup : `added.\n${out.setup}`) } : { output: text(`not added: ${out.error}`), isError: true }
           },
         }),
       ),
@@ -166,7 +166,7 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
           replay: "safe",
           execute: async ({ id }) => {
             const out = await user().cancel(id)
-            return out.ok ? { content: text("cancelled") } : { content: text(out.error), isError: true }
+            return out.ok ? { output: text("cancelled") } : { output: text(out.error), isError: true }
           },
         }),
       ),

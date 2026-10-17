@@ -116,10 +116,10 @@ const text = (t: string) => [{ type: "text" as const, text: t }]
 
 function asResult(value: unknown, logs: readonly string[]): ToolExecutionResult {
   const body = value === undefined || value === null ? "(no output)" : typeof value === "string" ? value : JSON.stringify(value, null, 2)
-  return logs.length ? { content: text(body), details: { logs: [...logs] } } : { content: text(body) }
+  return logs.length ? { output: text(body), details: { logs: [...logs] } } : { output: text(body) }
 }
 
-const resultText = (r: ToolExecutionResult) => (r.content ?? []).flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n")
+const resultText = (r: ToolExecutionResult) => (r.output ?? []).flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n")
 
 async function callThroughHooks(agent: Agent, tool: ToolRegistration, call: ToolCall, api: ToolExecutionApi, context: Context): Promise<ToolExecutionResult> {
   const hooks = agent.extensions.flatMap((e) => (e.hooks ?? []).filter((h) => h.task === ToolTask.definition.name).map((h) => h.handlers as Partial<ToolHooks>))
@@ -278,7 +278,7 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
             return asResult(value, logs)
           } catch (e) {
             const why = e instanceof Error ? e.message : String(e)
-            return { content: text(`${toolName} failed: ${why}`), isError: true, ...(logs.length ? { details: { logs } } : {}) }
+            return { output: text(`${toolName} failed: ${why}`), isError: true, ...(logs.length ? { details: { logs } } : {}) }
           }
         },
       }),
@@ -319,8 +319,8 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
               afterTool: async (call, result) => {
                 const out = await quiet("afterTool", [{ name: call.name, arguments: call.arguments }, { text: resultText(result), isError: result.isError === true }])
                 if (typeof out !== "string") return undefined
-                const others = (result.content ?? []).filter((p) => p.type !== "text")
-                return { ...result, content: [...text(out), ...others] }
+                const others = (result.output ?? []).filter((p) => p.type !== "text")
+                return { ...result, output: [...text(out), ...others] }
               },
             }
           : {}),
@@ -378,7 +378,7 @@ export function compileExtension(installed: Installed, pool: VmPool, ports: Scri
             const value = await run({ group: "wrapTools", name: target }, [args ?? {}], env, toolBridge(effect, target, api, context, logs, next))
             return asResult(value, logs)
           } catch (e) {
-            return { content: text(`${target} failed: ${e instanceof Error ? e.message : String(e)}`), isError: true }
+            return { output: text(`${target} failed: ${e instanceof Error ? e.message : String(e)}`), isError: true }
           }
         },
       })),

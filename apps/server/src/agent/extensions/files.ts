@@ -42,7 +42,7 @@ function isBinary(bytes: Uint8Array): boolean {
 }
 
 const text = (value: string) => [{ type: "text" as const, text: value }]
-const refused = (message: string) => ({ content: text(message), isError: true })
+const refused = (message: string) => ({ output: text(message), isError: true })
 
 // The paths a tool saved, in its result's details.
 type Saved = { changed: string[] }
@@ -86,18 +86,18 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
         const entry = found.value
         if (IMAGE_TYPES.has(entry.type)) {
           const agent = await api.agent(context)
-          if (!acceptsImages(agent.model)) return { content: text(`${args.path} is an image (${entry.type}, ${size(entry.size)}). this model cannot read images.`) }
+          if (!acceptsImages(agent.model)) return { output: text(`${args.path} is an image (${entry.type}, ${size(entry.size)}). this model cannot read images.`) }
           if (entry.size > MAX_IMAGE_BYTES) return refused(`${args.path} is an image of ${size(entry.size)}, over the ${size(MAX_IMAGE_BYTES)} limit`)
           const bytes = await fs.bytesOf(entry)
           if (!bytes) return refused(`no file at ${args.path}`)
-          return { content: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: entry.type }] }
+          return { output: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: entry.type }] }
         }
         if (entry.type === "application/pdf" || entry.path.toLowerCase().endsWith(".pdf")) {
           if (entry.size > MAX_PDF_BYTES) return refused(`${args.path} is a pdf of ${size(entry.size)}, over the ${size(MAX_PDF_BYTES)} limit`)
           const bytes = await fs.bytesOf(entry)
           const extracted = bytes ? await pdfText(bytes) : null
           if (!extracted) return refused(`${args.path} is a pdf whose text could not be read (it may be scanned images)`)
-          return { content: text(`${args.path}: a pdf of ${extracted.pages} pages.\n\n${extracted.text}`) }
+          return { output: text(`${args.path}: a pdf of ${extracted.pages} pages.\n\n${extracted.text}`) }
         }
       }
       if (found.ok && found.value.kind === "file") {
@@ -121,10 +121,10 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     execute: async (args, api) => {
       const path = args.path || "/"
       const out = getOrThrow(await filesOf(api).list(path, args.recursive ?? false))
-      if (!out.length) return { content: text(path === "/" ? "no files yet" : `${path} is empty`) }
+      if (!out.length) return { output: text(path === "/" ? "no files yet" : `${path} is empty`) }
       const shown = out.slice(0, MAX_LISTED).map(line)
       const more = out.length > MAX_LISTED ? `\n[${out.length - MAX_LISTED} more. ls a folder inside to see them]` : ""
-      return { content: text(shown.join("\n") + more) }
+      return { output: text(shown.join("\n") + more) }
     },
   })
 
@@ -141,7 +141,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
       const out = getOrThrow(await filesOf(api).removeAll(args.paths, args.recursive ?? false))
       const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`
       const parts = [out.changed ? count(out.changed, "file") : "", out.folders ? count(out.folders, "folder") : ""].filter(Boolean)
-      return { content: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete"), details: saved(api, parts.length ? out.paths : []) }
+      return { output: text(parts.length ? `deleted ${parts.join(" and ")}` : "nothing to delete"), details: saved(api, parts.length ? out.paths : []) }
     },
   })
 
@@ -153,8 +153,8 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     replay: "safe",
     execute: async (args, api) => {
       const out = getOrThrow(await filesOf(api).move(args.from, args.to))
-      if (!out.changed) return { content: text(`${args.from} is already there`) }
-      return { content: text(`moved ${args.from} to ${out.to.slice(1)}`), details: saved(api, [out.to]) }
+      if (!out.changed) return { output: text(`${args.from} is already there`) }
+      return { output: text(`moved ${args.from} to ${out.to.slice(1)}`), details: saved(api, [out.to]) }
     },
   })
 
@@ -165,7 +165,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
     replay: "safe",
     execute: async (args, api) => {
       const out = getOrThrow(await filesOf(api).mkdir(args.path))
-      return { content: text(out.changed ? `made ${args.path}` : `${args.path} already exists`), details: saved(api, out.changed ? [roomPathOf(api, args.path)] : []) }
+      return { output: text(out.changed ? `made ${args.path}` : `${args.path} already exists`), details: saved(api, out.changed ? [roomPathOf(api, args.path)] : []) }
     },
   })
 
@@ -184,7 +184,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
         const bytes = await fs.bytesOf(src)
         if (!bytes) return refused(`no file at ${args.from}`)
         getOrThrow(await fs.write(target, bytes, src.type))
-        return { content: text(`copied ${args.from} to ${target}`), details: saved(api, [roomPathOf(api, target)]) }
+        return { output: text(`copied ${args.from} to ${target}`), details: saved(api, [roomPathOf(api, target)]) }
       }
       if (!args.recursive) return refused(`${args.from} is a folder. copy it with recursive`)
       if ((await fs.stat(target)).ok) return refused(`${target} already exists`)
@@ -203,7 +203,7 @@ export function filesExtension({ acceptsImages, touched }: FilesOptions): Extens
       const done = copies.flatMap((c) => (c.status === "fulfilled" ? [c.value] : []))
       const failed = copies.flatMap((c) => (c.status === "rejected" ? [c.reason instanceof Error ? c.reason.message : String(c.reason)] : []))
       const content = failed.length ? `copied ${done.length} of ${files.length} files to ${target}. ${failed.length} not copied: ${failed[0]}` : `copied ${files.length} files to ${target}`
-      return { content: text(content), details: saved(api, done), isError: failed.length > 0 }
+      return { output: text(content), details: saved(api, done), isError: failed.length > 0 }
     },
   })
 

@@ -14,7 +14,7 @@ export interface WorkspacePort {
 }
 
 const text = (value: string) => [{ type: "text" as const, text: value }]
-const answer = (a: WorkspaceAnswer) => (a.ok ? { content: text(a.text) } : { content: text(a.error), isError: true })
+const answer = (a: WorkspaceAnswer) => (a.ok ? { output: text(a.text) } : { output: text(a.error), isError: true })
 const newTaskId = () => `t${crypto.randomUUID().replaceAll("-", "").slice(0, 6)}`
 
 export function workspaceExtension(port: WorkspacePort, lead: boolean): Extension {

@@ -44,8 +44,8 @@ function ports(world: World): ScriptPorts {
 }
 
 const sent: string[] = []
-const fakeSend = declareEffect("external", defineTool({ name: "fake_send", description: "sends", parameters: Type.Object({}), execute: async () => (sent.push("sent"), { content: [{ type: "text" as const, text: "sent" }] }) }))
-const fakeNote = declareEffect("write", defineTool({ name: "fake_note", description: "notes", parameters: Type.Object({ text: Type.String() }), execute: async ({ text }) => ({ content: [{ type: "text" as const, text: `noted ${text}` }] }) }))
+const fakeSend = declareEffect("external", defineTool({ name: "fake_send", description: "sends", parameters: Type.Object({}), execute: async () => (sent.push("sent"), { output: [{ type: "text" as const, text: "sent" }] }) }))
+const fakeNote = declareEffect("write", defineTool({ name: "fake_note", description: "notes", parameters: Type.Object({ text: Type.String() }), execute: async ({ text }) => ({ output: [{ type: "text" as const, text: `noted ${text}` }] }) }))
 const TEST_TOOLS = defineExtension({ name: "test-tools", tools: [fakeSend, fakeNote] })
 
 const ext = (manifest: Record<string, unknown>, source = ""): { name: string; hash: string; bundle: ExtensionBundle } => ({

@@ -85,10 +85,10 @@ describe("composio tools", () => {
       calls.push(name)
       throw new Error("offline")
     }).tools ?? []
-    const out = await (search as unknown as { execute: (a: unknown, api: unknown) => Promise<{ content: { text?: string }[]; isError?: boolean }> }).execute({ queries: [] }, { conversationId: "c", callId: "1" })
+    const out = await (search as unknown as { execute: (a: unknown, api: unknown) => Promise<{ output: { text?: string }[]; isError?: boolean }> }).execute({ queries: [] }, { conversationId: "c", callId: "1" })
     expect(calls).toEqual(["COMPOSIO_SEARCH_TOOLS"])
     expect(out.isError).toBe(true)
-    expect(out.content[0]!.text).toContain("offline")
+    expect(out.output[0]!.text).toContain("offline")
   })
 })
 
@@ -165,7 +165,7 @@ describe("composio learned tools", () => {
     const connection = new ComposioConnection(store as unknown as ComposioStore, async () => "kiko_u1", fetcher, (work) => background.push(work))
     return { state, connection, background }
   }
-  type Tool = { name: string; description: string; execute: (a: unknown, api: unknown) => Promise<{ content: { text: string }[]; isError?: boolean }> }
+  type Tool = { name: string; description: string; execute: (a: unknown, api: unknown) => Promise<{ output: { text: string }[]; isError?: boolean }> }
 
   test("a searched tool that runs successfully becomes a direct tool that skips the search", async () => {
     const { state, connection } = setup()
@@ -188,7 +188,7 @@ describe("composio learned tools", () => {
     const out = await web.execute({ query: "who maintains bun" }, { conversationId: "c", callId: "1" })
     expect(state.sent.at(-1)).toEqual({ name: "COMPOSIO_MULTI_EXECUTE_TOOL", arguments: { tools: [{ tool_slug: "COMPOSIO_SEARCH_WEB", arguments: { query: "who maintains bun" } }], sync_response_to_workbench: false, thought: "direct call" } })
     expect(out.isError).toBeFalsy()
-    expect(JSON.parse(out.content[0]!.text)).toEqual(ran("", true).data.results[0]!.response)
+    expect(JSON.parse(out.output[0]!.text)).toEqual(ran("", true).data.results[0]!.response)
   })
 
   test("a learned tool Composio's catalog tags read-only is a read, safe to replay; others stay external", async () => {
@@ -243,7 +243,7 @@ describe("composio learned tools", () => {
 
     const [web] = composioExtension([{ name: "COMPOSIO_SEARCH_WEB", inputSchema: webSchema, direct: { slug: "COMPOSIO_SEARCH_WEB", toolkit: "composio_search" } }], async () => ({ content: [{ type: "text", text: JSON.stringify(ran("COMPOSIO_SEARCH_WEB", false)) }] })).tools as unknown as Tool[]
     const out = await web!.execute({ query: "x" }, { conversationId: "c", callId: "1" })
-    expect(out).toEqual({ content: [{ type: "text", text: "no connection" }], isError: true })
+    expect(out).toEqual({ output: [{ type: "text", text: "no connection" }], isError: true })
   })
 
   test("a learned tool whose run fails is forgotten, so the next run searches again", async () => {

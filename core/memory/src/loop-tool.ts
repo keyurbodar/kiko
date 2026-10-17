@@ -22,7 +22,7 @@ export function loopExtension(port: () => LoopPort | null): Extension {
     execute: async (args) => {
       const p = port()
       if (!p) throw new Error("this agent is not in a room yet")
-      return (await p.close(args.id, args.status)) ? { content: text(`closed L${args.id}`) } : { content: text(`no open loop L${args.id}`), isError: true }
+      return (await p.close(args.id, args.status)) ? { output: text(`closed L${args.id}`) } : { output: text(`no open loop L${args.id}`), isError: true }
     },
   })
   return defineExtension({ name: LOOPS, tools: [declareEffect("write", loop)], sections: [section(LOOPS, () => LOOP_RULE)] })

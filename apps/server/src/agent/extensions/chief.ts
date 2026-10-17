@@ -28,7 +28,7 @@ const CHIEF_RULES = `you're the chief: you make the human's agents, and your own
 const MEMBER_RULES = `you can start a group with create_group when a job needs several agents working together: list_agents to see who the human has, then a title, the members, the goal, and a kickoff, your first message to everyone in it. kiko is in every group. for a quick one-off with another agent, send_message or ask them privately instead. only kiko makes new agents; ask kiko when none fits.`
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
-const fail = (t: string) => ({ content: text(t), isError: true })
+const fail = (t: string) => ({ output: text(t), isError: true })
 
 const NewAgent = Type.Object({
   name: Type.String({ description: "a short display name, capitalized like a name (Scout)" }),
@@ -45,7 +45,7 @@ export function groupsExtension(port: GroupsPort): Extension {
     replay: "safe",
     execute: async () => {
       const agents = await port.agents()
-      return { content: text(agents.length ? agents.map((a) => `@${a.slug} (${a.name}): ${a.prompt.split("\n")[0]}`).join("\n") : "no agents yet, only kiko") }
+      return { output: text(agents.length ? agents.map((a) => `@${a.slug} (${a.name}): ${a.prompt.split("\n")[0]}`).join("\n") : "no agents yet, only kiko") }
     },
   })
 
@@ -56,7 +56,7 @@ export function groupsExtension(port: GroupsPort): Extension {
     replay: "safe",
     execute: async (a) => {
       const out = await port.createAgent(a as NewAgentSpec)
-      return out.ok ? { content: text(out.text) } : fail(out.error)
+      return out.ok ? { output: text(out.text) } : fail(out.error)
     },
   })
 
@@ -74,7 +74,7 @@ export function groupsExtension(port: GroupsPort): Extension {
     replay: "safe",
     execute: async (g) => {
       const out = await port.createGroup({ title: g.title, members: g.members, goal: g.goal, kickoff: g.kickoff, newAgents: (g.new_agents ?? []) as NewAgentSpec[] })
-      return out.ok ? { content: text(out.text) } : fail(out.error)
+      return out.ok ? { output: text(out.text) } : fail(out.error)
     },
   })
 
@@ -83,7 +83,7 @@ export function groupsExtension(port: GroupsPort): Extension {
     description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines (reminders are one-time routines) and their last runs.",
     parameters: Type.Object({}),
     replay: "safe",
-    execute: async () => ({ content: text(await port.overview()) }),
+    execute: async () => ({ output: text(await port.overview()) }),
   })
 
   return defineExtension({

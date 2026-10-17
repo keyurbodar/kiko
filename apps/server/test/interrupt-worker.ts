@@ -59,7 +59,7 @@ export class I extends AgentDO {
     await this.ctx.storage.put(key, ((await this.ctx.storage.get<number>(key)) ?? 0) + 1)
   }
 
-  private async pause(name: string, abortable: boolean, ctx: { abortSignal?: AbortSignal }): Promise<{ content: { type: "text"; text: string }[] }> {
+  private async pause(name: string, abortable: boolean, ctx: { abortSignal?: AbortSignal }): Promise<{ output: { type: "text"; text: string }[] }> {
     await this.bump(`${name}:started`)
     await new Promise<void>((resolve, reject) => {
       this.waiters.add(resolve)
@@ -75,7 +75,7 @@ export class I extends AgentDO {
       }
     })
     await this.bump(`${name}:finished`)
-    return { content: [{ type: "text", text: "released" }] }
+    return { output: [{ type: "text", text: "released" }] }
   }
 
   protected override async setup(): Promise<AgentSetup> {

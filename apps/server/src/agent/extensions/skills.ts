@@ -56,15 +56,15 @@ export function skillsExtension(files?: RoomFs, stamp?: () => number, recipes?: 
           replay: "safe",
           execute: async ({ name, path }) => {
             const skill = (await all()).find((s) => s.name === name.trim())
-            if (!skill) return { content: [{ type: "text" as const, text: `no skill named ${name}` }], isError: true }
+            if (!skill) return { output: [{ type: "text" as const, text: `no skill named ${name}` }], isError: true }
             if (!path) {
               const body = skill.source === "recipe" ? await recipes?.body(skill.name) : skill.body
-              return body ? { content: [{ type: "text" as const, text: body }] } : { content: [{ type: "text" as const, text: `no skill named ${name}` }], isError: true }
+              return body ? { output: [{ type: "text" as const, text: body }] } : { output: [{ type: "text" as const, text: `no skill named ${name}` }], isError: true }
             }
-            if (skill.source === "builtin" || !files || path.split("/").includes("..")) return { content: [{ type: "text" as const, text: `${skill.name} has no readable file ${path}` }], isError: true }
+            if (skill.source === "builtin" || !files || path.split("/").includes("..")) return { output: [{ type: "text" as const, text: `${skill.name} has no readable file ${path}` }], isError: true }
             const file = await files.readTextFile(`${skill.source === "recipe" ? "home/recipes" : ROOM_PREFIX}/${skill.name}/${path.replace(/^\/+/, "")}`)
-            if (!file.ok) return { content: [{ type: "text" as const, text: file.error.message }], isError: true }
-            return { content: [{ type: "text" as const, text: file.value }] }
+            if (!file.ok) return { output: [{ type: "text" as const, text: file.error.message }], isError: true }
+            return { output: [{ type: "text" as const, text: file.value }] }
           },
         }),
       ),

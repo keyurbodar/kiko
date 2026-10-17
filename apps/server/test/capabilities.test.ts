@@ -5,7 +5,7 @@ import { baseSections, integrationNote } from "../src/agent/prompt"
 import { connectAppExtension } from "../src/integrations/composio/connect-tool"
 
 const manage = { name: "COMPOSIO_MANAGE_CONNECTIONS", inputSchema: { type: "object", properties: { toolkits: { type: "array", items: { type: "string" } }, reinitiate_all: { type: "boolean" } }, required: ["toolkits", "reinitiate_all"] } }
-type Run = (args: unknown, api: unknown) => Promise<{ content: { text?: string }[]; isError?: boolean }>
+type Run = (args: unknown, api: unknown) => Promise<{ output: { text?: string }[]; isError?: boolean }>
 
 describe("capabilities", () => {
   test("every agent's prompt names the tools for private talk, groups, apps, and work", () => {
@@ -37,8 +37,8 @@ describe("capabilities", () => {
     expect(effectOf(tool)).toBe("external")
     const out = await (tool as unknown as { execute: Run }).execute({ app: "Gmail" }, { conversationId: "c", callId: "1" })
     expect(sent).toEqual([["COMPOSIO_MANAGE_CONNECTIONS", { toolkits: ["gmail"], reinitiate_all: false }]])
-    expect(out.content[0]!.text).toContain("https://connect.composio.dev/link/abc")
-    expect(out.content[0]!.text).toContain("markdown link in one line")
+    expect(out.output[0]!.text).toContain("https://connect.composio.dev/link/abc")
+    expect(out.output[0]!.text).toContain("markdown link in one line")
   })
 
   test("connect_app is absent without composio", () => {
