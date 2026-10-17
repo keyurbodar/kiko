@@ -1,10 +1,9 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
-import type { AgentState, RunErrorKind, RunStep, WorkerRow } from "@kiko/protocol"
+import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
 import { classifyRunError, runErrorDetail } from "./run-error"
 import { scrubToolMarkup } from "./tool-markup"
-import { outputOf, stepOf } from "./extensions/presence"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
 const context = BACKGROUND_CONTEXT
@@ -17,8 +16,6 @@ export interface RoomPort {
   workers(rows: readonly WorkerRow[]): Promise<void>
   endRun(runId: string, inputs?: readonly SubmissionId[], working?: boolean): Promise<void>
   react(emoji: string, messageId?: string): Promise<unknown>
-  /** Optional so a test room need not take steps. Never awaited: a step must not slow the run. */
-  step?(step: Omit<RunStep, "slug">): Promise<unknown>
   runError(runId: string, error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void>
 }
 
@@ -57,7 +54,6 @@ type Run = {
   bubbled: boolean
   toolStarted: boolean
   tools: Map<string, string>
-  steps: Map<string, Omit<RunStep, "slug">>
   quiet: boolean
 }
 
@@ -117,6 +113,11 @@ export class Outbox {
     this.sql.exec("DELETE FROM outbox")
   }
 
+  /** The run that is going now, or null between runs. */
+  runId(): string | null {
+    return this.run?.id ?? null
+  }
+
   progress(): RunProgress | null {
     const run = this.run
     if (!run) return null
@@ -173,12 +174,10 @@ export class Outbox {
         if (this.run) {
           this.run.toolStarted = true
           this.run.tools.set(event.toolCallId, event.toolName)
-          this.stepStart(this.run, event.toolCallId, event.toolName, event.args)
         }
         return this.setStatus("working")
       case "tool_execution_end":
         this.see(event.entry)
-        if (this.run) this.stepEnd(this.run, event.toolCallId, event.toolName, event.entry)
         this.run?.tools.delete(event.toolCallId)
         return this.setStatus("typing")
       case "run_end":
@@ -199,7 +198,6 @@ export class Outbox {
         run.bubbled = this.run.bubbled
         run.toolStarted = this.run.toolStarted
         run.tools = this.run.tools
-        run.steps = this.run.steps
         run.quiet = this.run.quiet
       }
       for (const entry of entries) {
@@ -339,32 +337,6 @@ export class Outbox {
     if (!this.run) await this.setStatus(this.backgroundRunning ? "working" : "idle")
   }
 
-  /** A tool call the human should see. The room keeps it and sends it on; a lost report costs one line in the panel, never the run. */
-  private stepStart(run: Run, id: string, name: string, args: unknown): void {
-    const shown = stepOf(name, (args ?? {}) as Record<string, unknown>)
-    if (!shown) return
-    const step: Omit<RunStep, "slug"> = { id, runId: run.id, ...shown, status: "running", startedAt: this.now() }
-    run.steps.set(id, step)
-    this.reportStep(step)
-  }
-
-  private stepEnd(run: Run, id: string, name: string, entry: EntryRecord | undefined): void {
-    // After a restart the start is gone. The room keeps the label the start gave and takes only the end.
-    const started = run.steps.get(id) ?? (() => {
-      const shown = stepOf(name, {})
-      return shown ? ({ id, runId: run.id, ...shown, status: "running", startedAt: this.now() } satisfies Omit<RunStep, "slug">) : undefined
-    })()
-    if (!started) return
-    run.steps.delete(id)
-    const result = entry?.model?.[0] as { isError?: boolean; content?: readonly { type: string; text?: string }[] } | undefined
-    const output = outputOf(result?.content)
-    this.reportStep({ ...started, status: result?.isError ? "failed" : "done", endedAt: this.now(), ...(output ? { output } : {}) })
-  }
-
-  private reportStep(step: Omit<RunStep, "slug">): void {
-    void this.room()?.step?.(step)?.catch(() => undefined)
-  }
-
   private async setStatus(state: AgentState): Promise<void> {
     if (state === this.state) return
     this.state = state
@@ -387,7 +359,6 @@ export class Outbox {
       bubbled: false,
       toolStarted: false,
       tools: new Map(),
-      steps: new Map(),
       quiet: false,
     }
   }

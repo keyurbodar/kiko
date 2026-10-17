@@ -1,4 +1,4 @@
-import { defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable"
+import { type ConversationId, defineExtension, type Extension, hook, ToolTask } from "@earendil-works/pi-durable"
 import type { Activity, AgentSlug, RunStep, ToolKind } from "@kiko/protocol"
 import { redact } from "../run-error"
 
@@ -62,7 +62,7 @@ export function describeCall(name: string, args: Record<string, unknown>): Descr
 }
 
 const INPUT_CHARS = 2_000
-export const OUTPUT_CHARS = 4_000
+const OUTPUT_CHARS = 4_000
 
 const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
 const str = (v: unknown) => (typeof v === "string" ? v : "")
@@ -103,14 +103,20 @@ function inputOf(name: string, args: Record<string, unknown>): string | undefine
   return full ? cut(redact(full), INPUT_CHARS) : undefined
 }
 
+/** What a tool knows about its own call that the table above cannot: a connected app's name and what it did. */
+export type Describe = (name: string, args: Record<string, unknown>) => { label: string; app?: string; input?: string } | null
+
+type StepShown = Pick<RunStep, "tool" | "name" | "label" | "input" | "app">
+
 /** What the run panel shows for one call, or null for a call the human should not see. It asks `describeCall` first, so the two cannot drift. */
-export function stepOf(name: string, args: Record<string, unknown>): Pick<RunStep, "tool" | "label" | "input"> | null {
+export function stepOf(name: string, args: Record<string, unknown>, describe?: Describe): StepShown | null {
   const described = describeCall(name, args)
   if (!described) return null
   const tool = described.activity.kind === "tool" ? described.activity.tool : "other"
-  const label = LABELS[name]?.(args) ?? `Used ${name}`
-  const input = inputOf(name, args)
-  return { tool, label: PATH_TOOLS.has(name) ? label : redact(label), ...(input ? { input } : {}) }
+  const own = describe?.(name, args)
+  const label = own?.label ?? LABELS[name]?.(args) ?? `Used ${name}`
+  const input = own?.input ?? inputOf(name, args)
+  return { tool, name, label: PATH_TOOLS.has(name) ? label : redact(label), ...(input ? { input: cut(redact(input), INPUT_CHARS) } : {}), ...(own?.app ? { app: own.app } : {}) }
 }
 
 /** A tool result as the panel's output text: its text parts, credentials removed, cut to 4,000 characters. */
@@ -131,22 +137,57 @@ export function failedCall(described: Described, content: readonly { type: strin
   return { doing: caption, activity: { kind: "failed", caption } }
 }
 
-export function presenceExtension(report: (doing: string, activity: Activity) => Promise<unknown>): Extension {
+/** One tool call, as the agent hands it to the room: the step, and what the agent is doing now. */
+export type StepItem = { step: Omit<RunStep, "slug">; doing?: string; activity?: Activity }
+
+/** Whose call it is: the run it belongs to, and the worker that made it. */
+type StepScope = { runId: string; worker?: { id: string; task: string } }
+
+export type StepsPort = {
+  /** Null for a call that is no one's to show. */
+  scope(conversationId: ConversationId): StepScope | null
+  push(item: StepItem): void
+  describe?: Describe
+}
+
+/** Reports every tool call the human should see, when it starts and when it ends. The end carries the whole step, so it stands alone after a restart. */
+export function presenceExtension(port: StepsPort): Extension {
+  const started = new Map<string, number>()
+  const key = (conversationId: ConversationId, id: string) => `${conversationId}:${id}`
+  const build = (call: { name: string; arguments?: unknown }, conversationId: ConversationId) => {
+    const args = (call.arguments ?? {}) as Record<string, unknown>
+    const scope = port.scope(conversationId)
+    const shown = scope ? stepOf(call.name, args, port.describe) : null
+    const described = describeCall(call.name, args)
+    return scope && shown && described ? { scope, shown, described } : null
+  }
   return defineExtension({
     name: PRESENCE,
     hooks: [
       hook(ToolTask, {
-        beforeTool: async (call) => {
-          const described = describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>)
-          if (described) void report(described.doing, described.activity).catch(() => undefined)
+        beforeTool: async (call, api) => {
+          const built = build(call, api.conversationId)
+          if (!built) return undefined
+          const startedAt = Date.now()
+          started.set(key(api.conversationId, call.id), startedAt)
+          const { scope, shown, described } = built
+          port.push({ step: { id: call.id, runId: scope.runId, ...(scope.worker ? { worker: scope.worker } : {}), ...shown, status: "running", startedAt }, doing: described.doing, activity: described.activity })
           return undefined
         },
-        afterTool: async (call, result) => {
-          const described = result.isError ? describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>) : null
-          if (described) {
-            const out = failedCall(described, result.content)
-            void report(out.doing, out.activity).catch(() => undefined)
-          }
+        afterTool: async (call, result, api) => {
+          const built = build(call, api.conversationId)
+          if (!built) return undefined
+          const at = key(api.conversationId, call.id)
+          const endedAt = Date.now()
+          const startedAt = started.get(at) ?? endedAt
+          started.delete(at)
+          const { scope, shown, described } = built
+          const output = outputOf(result.content)
+          const out = result.isError ? failedCall(described, result.content) : null
+          port.push({
+            step: { id: call.id, runId: scope.runId, ...(scope.worker ? { worker: scope.worker } : {}), ...shown, status: result.isError ? "failed" : "done", startedAt, endedAt, ...(output ? { output } : {}) },
+            ...(out ? { doing: out.doing, activity: out.activity } : {}),
+          })
           return undefined
         },
       }),

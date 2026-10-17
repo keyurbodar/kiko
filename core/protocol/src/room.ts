@@ -37,6 +37,12 @@ export type RunStep = {
 	runId: string
 	slug: AgentSlug
 	tool: ToolKind
+	/** The raw tool name the model called, such as "bash" or "GMAIL_SEND_EMAIL". The client picks the icon from it. */
+	name: string
+	/** The Composio toolkit slug when the call went to a Composio app, such as "gmail". */
+	app?: string
+	/** Set when a background worker made the call. Its steps belong to the run that started the worker. */
+	worker?: { id: string; task: string }
 	/** What the call does, in words: "Read /plan.md", "Ran bun test". */
 	label: string
 	/** The full input when `label` shortens it: the whole command, the query, the arguments as JSON. */

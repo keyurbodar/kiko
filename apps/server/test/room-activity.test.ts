@@ -68,6 +68,10 @@ async function withAgent(room: string, slug = "ada"): Promise<Client> {
 	return c
 }
 
+let calls = 0
+const doing = (room: string, text: string, activity: Activity) =>
+	rpc(room, "reportSteps", "ada", [{ step: { id: `t${calls++}`, runId: "r1", tool: "other", name: "x", label: "x", status: "running", startedAt: 1 }, doing: text, activity }])
+
 const quiet = async (c: Client, ms = 300) => {
 	const before = c.frames.length
 	await Bun.sleep(ms)
@@ -82,7 +86,7 @@ test("a status frame carries the typed activity, and a reconnect snapshot shows 
 	const read: Activity = { kind: "tool", tool: "read", caption: "reading /plan.md" }
 	await rpc(room, "setStatus", "ada", "working")
 	await c.take((f) => f.t === "status" && f.state === "working")
-	await rpc(room, "reportDoing", "ada", "reading /plan.md", read)
+	await doing(room, "reading /plan.md", read)
 	const first = await c.take(statusOf(read))
 	expect(first).toEqual({ t: "status", slug: "ada", state: "working", doing: "reading /plan.md", activity: read })
 
@@ -91,7 +95,7 @@ test("a status frame carries the typed activity, and a reconnect snapshot shows 
 	expect((await snapshot(room)).agents).toEqual([{ slug: "ada", state: "typing", doing: "reading /plan.md", activity: read }])
 
 	const waiting: Activity = { kind: "waiting", on: "bob" as never }
-	await rpc(room, "reportDoing", "ada", "waiting on @bob", waiting)
+	await doing(room, "waiting on @bob", waiting)
 	await c.take(statusOf(waiting))
 	expect((await snapshot(room)).agents?.[0]?.activity).toEqual(waiting)
 
@@ -105,7 +109,7 @@ test("a status frame carries the typed activity, and a reconnect snapshot shows 
 test("an idle member that reports doing is never shown as working", async () => {
 	const room = fresh()
 	const c = await withAgent(room)
-	await rpc(room, "reportDoing", "ada", "reading /plan.md", { kind: "tool", tool: "read", caption: "reading /plan.md" })
+	await doing(room, "reading /plan.md", { kind: "tool", tool: "read", caption: "reading /plan.md" })
 	const frame = await c.take((f) => f.t === "status")
 	expect(frame).toEqual({ t: "status", slug: "ada", state: "idle" })
 	expect((await snapshot(room)).agents).toEqual([])

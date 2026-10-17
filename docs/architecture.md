@@ -667,7 +667,26 @@ The client has one coordinator, `lib/errors.ts`. `showKikoError` shows a server 
 
 **Reasoning.** Composio and Kernel failures reached only the agent, as tool text, so a bad key looked like an agent that gave up. One frame, one table of sentences, and one coordinator keep the wording in one place and let a new source add a row instead of a toast.
 
-### 9.5 Composer cards
+### 9.5 Run steps
+
+The owner could not tell whether an agent was making progress (complaint of 2026-10-17). So the human sees every tool call of a run, live and afterward. A bubble has a chevron that opens the panel of the run that made it.
+
+What is recorded. One `RunStep` per tool call: the tool call id, the run id, the raw tool name, a past-tense label ("Read /plan.md", "Gmail: send email"), the full input when the label shortens it, the status, the times, and the output. A Composio call also carries the toolkit slug as `app`. A background worker's call carries `worker`, and belongs to the run that started the worker (`workers.run_id`). Internal tools that `describeCall` hides (messages, memory, team) make no step. `stepOf` in `agent/extensions/presence.ts` builds the step from the same table as `describeCall`, so the two cannot drift. Input is cut to 2,000 characters and output to 4,000, and keys are removed with the same `redact` as the run error detail.
+
+Where. The `presence` extension reports in `beforeTool` and `afterTool`, for the talker and for workers alike. The end carries the whole step, so it stands alone after a restart. `StepBatch` sends the reports to `RoomDO.reportSteps(slug, items)` one request at a time. Reports that pile up while a request is in flight go in the next one, so parallel calls share a request. It uses no timer. Each item may carry the agent's doing and activity, so there is no separate `reportDoing`. The agent never waits on the room.
+
+The room.
+- A running step is held in memory and broadcast as `{ t: "step", step }`. It is not written.
+- An ended step is written once, as one row of `run_steps` (primary key `(run_id, id)`, no other index), and broadcast. `INSERT ... ON CONFLICT DO NOTHING` means a replay writes nothing. A start that arrives after the step ended, or after its run ended, is dropped. The end of a run marks the steps still running as failed.
+- `{ t: "steps", runId }` is answered to the asking socket only, with the stored and running steps of that run.
+- A snapshot carries `steps`: the running steps, and the stored steps of runs that have not ended (at most 300, none older than a day).
+- Every message with a run id carries `steps`, the count for its run. One grouped query per batch, through `json_each`.
+
+Bounds. The table keeps the newest 2,000 steps. Past 2,200 one statement deletes down to 2,000, so pruning costs a few reads per write. The row count is read once per wake, then kept in memory.
+
+Cost of one tool call. Two agent requests to the room at most (start, end), one when the call is quick enough to share a batch with another, and no `reportDoing`. One room row written, at the end. Measured with `bun kiko verify run-steps`: three parallel calls made 2 `reportSteps` requests. The talker still writes its own `workers` row for each worker call (the step count), as before.
+
+### 9.6 Composer cards
 
 **Decision.** The composer has one attached front card. Open human questions lead, followed by open room tasks. Writing, tool activity, provider failures, and model failover do not create cards. The transcript typing indicator retains live progress. Creation receipts appear only in transcript history, so refresh never resurrects a floating Open chat card. Background start and completion events stay in the message log but do not create transcript rows or dividers. Failures and other retained activity events use plain wrapping text with no disclosure. Other cards peek behind it. Kobalte HoverCard handles pointer travel and dismissal. Its button also opens on click or tap. Kobalte Collapsible handles each drawer. Expanded content is bounded to 40 percent of the viewport. There are no transitions.
 

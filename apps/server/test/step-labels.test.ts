@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test"
 import { outputOf, stepOf } from "../src/agent/extensions/presence"
+import { composioDescribe } from "../src/integrations/composio/step"
+import { toolName } from "../src/integrations/composio/tools"
 
 test("a step reads as past tense words the human can follow, and internal tools make none", () => {
   const label = (name: string, args: Record<string, unknown> = {}) => stepOf(name, args)?.label
@@ -31,6 +33,20 @@ test("a step keeps the whole input when the label shortens it, with keys removed
   expect(stepOf("read", { path: "/a" })?.input).toBeUndefined()
   expect(stepOf("linear_create_issue", { title: "t", apiKey: "sk-abcdefghijklmnop" })?.input).toBe('{"title":"t","apiKey":"[hidden]"}')
   expect(stepOf("linear_create_issue", {})?.input).toBeUndefined()
+})
+
+test("a connected app's call reads as the app and the action, from the tool's own slug", () => {
+  const tools = [
+    { name: "GMAIL_SEND_EMAIL", inputSchema: {}, direct: { slug: "GMAIL_SEND_EMAIL", toolkit: "gmail" } },
+    { name: "COMPOSIO_MULTI_EXECUTE_TOOL", inputSchema: {} },
+    { name: "COMPOSIO_SEARCH_TOOLS", inputSchema: {} },
+  ]
+  const describe = composioDescribe(tools)
+  expect(stepOf(toolName("GMAIL_SEND_EMAIL"), { to: "a@b.c" }, describe)).toMatchObject({ label: "Gmail: send email", app: "gmail", name: "composio_gmail_send_email", tool: "other" })
+  const many = { tools: [{ tool_slug: "GOOGLECALENDAR_CREATE_EVENT", arguments: {} }, { tool_slug: "GMAIL_FETCH_EMAILS", arguments: {} }] }
+  expect(stepOf(toolName("COMPOSIO_MULTI_EXECUTE_TOOL"), many, describe)).toMatchObject({ label: "Googlecalendar: create event and 1 more", app: "googlecalendar" })
+  expect(stepOf(toolName("COMPOSIO_SEARCH_TOOLS"), { queries: [] }, describe)?.label).toBe("Searched connected apps")
+  expect(stepOf("read", { path: "/a" }, describe)?.app).toBeUndefined()
 })
 
 test("a result becomes the output text, cut and without keys", () => {
