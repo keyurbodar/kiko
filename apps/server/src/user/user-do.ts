@@ -932,7 +932,12 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "update.start") return this.#update.start(frame.version)
-    if (frame.t === "login.start") return void this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {})
+    if (frame.t === "login.start") {
+      // A sign-in socket never sends hello, and a person takes longer than the hello deadline to approve in the browser.
+      const before = ws.deserializeAttachment() as Attachment | null
+      if (!before?.ready) ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
+      return void this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {})
+    }
     if (frame.t === "login.answer") return this.#loginState.answer(ws, frame.loginId, frame.promptId, frame.value)
     if (frame.t === "login.cancel") return this.#loginState.cancel(ws, frame.loginId)
     const existing = this.existingFor(frame.op)

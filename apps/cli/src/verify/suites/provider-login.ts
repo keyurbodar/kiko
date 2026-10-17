@@ -67,6 +67,15 @@ const suite: Suite = {
     }
     await credentials("DELETE", `/${FAKE}`)
 
+    const slow = id()
+    const signIn = await s.signInSocket()
+    signIn.send({ t: "login.start", loginId: slow, provider: FAKE })
+    const slowPrompt = (await signIn.expect(ofLogin("login.prompt", slow))) as Frame<"login.prompt">
+    await new Promise((resolve) => setTimeout(resolve, 6_500))
+    signIn.send({ t: "login.answer", loginId: slow, promptId: slowPrompt.promptId, value: CODE })
+    await signIn.expect(ofLogin("login.done", slow))
+    await credentials("DELETE", `/${FAKE}`)
+
     const good = id()
     user.send({ t: "login.start", loginId: good, provider: FAKE })
     const notify = (await user.expect(ofLogin("login.notify", good))) as Frame<"login.notify">
