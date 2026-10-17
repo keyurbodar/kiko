@@ -81,6 +81,8 @@ export function fakeReply(transcript: readonly Message[]) {
   const last = messages.at(-1)
   const handOff = (m: Message | undefined) => {
     if (m?.role !== "user") return null
+    const work = /(?<=\[work\]\s*)\S[\s\S]*/.exec(textOf(m))
+    if (work) return work
     const browseAsk = BROWSE_LINE.exec(textOf(m))
     if (browseAsk && !offered.has("browse")) return browseAsk
     const call = directCall(textOf(m))

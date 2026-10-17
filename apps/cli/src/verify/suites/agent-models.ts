@@ -16,14 +16,17 @@ const suite: Suite = {
     const a = await s.user()
     const b = await s.user()
     await a.expect(() => true)
-    await b.expect(() => true)
+    const first = await b.expect(() => true)
 
+    // Agents start on Kiko's model, so Kiko needs one first.
+    a.send({ t: "agent_model", slug: "kiko" as AgentSlug, ref: PLAIN })
+    if (first.t !== "reset" || (first.snapshot.agentModels as Record<string, AgentModel>).kiko?.model !== PLAIN) await b.expect((f) => modelEvents(f, "kiko").some((e) => e.model === PLAIN))
     const make = (slug: string): Agent => ({ id: crypto.randomUUID(), name: slug, slug: slug as AgentSlug, prompt: "", model: "" })
     const ada = make("ada")
-    const bo = make("bo")
+    const bo = make(`bo${Date.now().toString(36)}`)
     a.send({ t: "agent", op: { op: "create", agent: ada } })
     a.send({ t: "agent", op: { op: "create", agent: bo } })
-    // A new agent whose pick equals its fallback still reaches a live device, so its chip never says "Choose model".
+    // A new agent starts on Kiko's model, and the pick reaches a live device even when it equals that fallback.
     const cy = make(`cy${Date.now().toString(36)}`)
     a.send({ t: "agent", op: { op: "create", agent: cy } })
     const born = modelEvents(await b.expect((f) => modelEvents(f, cy.slug).length > 0), cy.slug)[0]
@@ -50,7 +53,7 @@ const suite: Suite = {
     const reset = await third.expect((f) => f.t === "reset")
     const models = (reset.t === "reset" ? reset.snapshot.agentModels : undefined) as Record<string, AgentModel> | undefined
     expectEqual([models?.ada?.model, models?.ada?.thinking], [REASONER, "max"], "ada's model in a fresh snapshot, whatever chat is open")
-    if (!models?.kiko || !models.bo) throw new VerifyError(`the snapshot lacks Kiko or Bo: ${JSON.stringify(Object.keys(models ?? {}))}`)
+    if (!models?.kiko || !models[bo.slug]) throw new VerifyError(`the snapshot lacks Kiko or Bo: ${JSON.stringify(Object.keys(models ?? {}))}`)
     if (models.kiko.model === REASONER) throw new VerifyError("Kiko moved when Ada's model changed")
   },
 }

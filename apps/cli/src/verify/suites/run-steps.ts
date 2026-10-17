@@ -133,14 +133,14 @@ const suite: Suite = {
     // A background worker: its calls come after the run that started it posted, so the agent's report opens them.
     const fromWorker = stepFrames(room).length
     const fromReport = bubbles(room).length
-    await go(room, '[tool no_such_tool {}]')
-    const work = await poll("the worker's failing step to end", () => stepFrames(room).slice(fromWorker).find((x) => x.worker && x.label === "Used no_such_tool" && x.status !== "running"), FAKE_MS * 2)
+    await go(room, "[work] [steps 1]")
+    const work = await poll("the worker's step to end", () => stepFrames(room).slice(fromWorker).find((x) => x.worker && x.name === "slow_tool" && x.status !== "running"), FAKE_MS * 2)
     const startedWork = must(stepFrames(room).slice(fromWorker).find((x) => x.name === "start_work"), "the start_work step")
     expectEqual(work.runId, startedWork.runId, "the run a worker's step belongs to")
-    expectEqual({ status: work.status, tool: work.tool, name: work.name, worker: work.worker?.id }, { status: "failed", tool: "other", name: "no_such_tool", worker: "w1" }, "the worker's step")
+    expectEqual({ status: work.status, tool: work.tool, name: work.name, worker: work.worker?.id }, { status: "done", tool: "other", name: "slow_tool", worker: "w1" }, "the worker's step")
     const report = await poll("the worker's report", () => bubbles(room).slice(fromReport).find((m) => m.text.startsWith("report w1")), FAKE_MS * 2)
     await poll("the agent to go idle", () => idle(room), FAKE_MS * 2)
-    expectEqual((await opens(room, report)).map((x) => x.name), ["start_work", "no_such_tool"], "the steps the report opens")
+    expectEqual((await opens(room, report)).map((x) => x.name), ["start_work", "slow_tool"], "the steps the report opens")
     const again = must((await snapshot(s, roomId)).messages.find((m) => m.id === report.id), "the report after a reload")
     expectEqual([again.steps, again.stepAfter], [report.steps, report.stepAfter], "the report's window after a reload")
     console.log(`  ok a worker's tool call is opened by the agent's report, live and after a reload: ${JSON.stringify(work)}`)
