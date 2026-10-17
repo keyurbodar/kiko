@@ -28,6 +28,26 @@ export type Activity =
 
 export type AgentStatus = { slug: AgentSlug; state: AgentState; doing?: string; activity?: Activity }
 
+export type RunStepStatus = "running" | "done" | "failed"
+
+/** One tool call inside a run, as the human sees it in the run panel. Architecture section 9.5. */
+export type RunStep = {
+	/** The tool call id, unique within its run. */
+	id: string
+	runId: string
+	slug: AgentSlug
+	tool: ToolKind
+	/** What the call does, in words: "Read /plan.md", "Ran bun test". */
+	label: string
+	/** The full input when `label` shortens it: the whole command, the query, the arguments as JSON. */
+	input?: string
+	status: RunStepStatus
+	startedAt: number
+	endedAt?: number
+	/** The result as text, cut to 4,000 characters, credentials removed. Absent while running. */
+	output?: string
+}
+
 export type SystemEvent =
 	| { kind: "created"; roomId: RoomId; title: string }
 	| { kind: "delegated"; from: AgentSlug; to: AgentSlug; title: string }
@@ -88,6 +108,8 @@ export type Message = {
 	to?: AgentSlug | "all"
 	initiative?: { reason: string }
 	event?: SystemEvent | UnknownSystemEvent
+	/** How many steps the run that posted this bubble has made so far. Absent when it made none. */
+	steps?: number
 }
 
 export type Member = {
@@ -156,6 +178,8 @@ export type RoomSnapshot = {
 	folders: readonly string[]
 	agents?: readonly AgentStatus[]
 	asks?: readonly HumanAsk[]
+	/** The steps of every run still going, so a client that reconnects paints the open panel at once. */
+	steps?: readonly RunStep[]
 }
 
 export type SearchHit = { id: MessageId; seq: number; at: number; from: Sender; snippet: string }
@@ -184,6 +208,8 @@ export type ClientToRoom =
 	| { t: "skip"; id: string }
 	/** Runs the input again that a `run_error` message reports. `messageId` is that message. */
 	| { t: "retry"; messageId: MessageId }
+	/** Asks for every step of one run. The room answers with a `steps` frame. */
+	| { t: "steps"; runId: string }
 
 export type RunErrorKind = "no_key" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "refused" | "too_long" | "other"
 
@@ -201,6 +227,10 @@ export type RoomToClient =
 	 */
 	| { t: "draft"; slug: AgentSlug; runId: string; index: number; text: string }
 	| ({ t: "status" } & AgentStatus)
+	/** Not stored in the log. A step started or ended. The whole step each time; the client replaces the one it has. */
+	| { t: "step"; step: RunStep }
+	/** Not stored in the log. Every step of one run, the answer to a `steps` request. */
+	| { t: "steps"; runId: string; steps: readonly RunStep[] }
 	/** Not stored. Sent only to the socket whose `member` frame changed nothing, so it can drop its optimistic patch. */
 	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
 	/** Not stored. Sent only to the socket whose `send` stored nothing because its attachments could not be claimed. */
