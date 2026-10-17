@@ -75,8 +75,9 @@ export const KIND_ICON: Record<ToolKind, StepIcon> = {
   other: "wrench",
 }
 
-/** A failed call shows the alert glyph. Else the tool's own by name, then its Composio app, then its kind. */
-export function iconOf(step: Pick<RunStep, "tool" | "status" | "name" | "app">): StepIcon {
+/** A failed call shows the alert glyph. Else the tool's own by name, then its Composio app, then its kind. A note has no icon. */
+export function iconOf(step: Pick<RunStep, "tool" | "status" | "name" | "app" | "note">): StepIcon | undefined {
+  if (step.note) return undefined
   if (step.status === "failed") return "alert-circle"
   return NAME_ICON[step.name] ?? (step.app ? "app" : KIND_ICON[step.tool])
 }
@@ -99,16 +100,18 @@ const GROUPS: Record<ToolKind, { label: (count: number) => string; priority: num
  * t3code's `summarizeToolGroup`: at most two kinds of action, picked by priority and shown in the
  * order they first appeared, then "Performed N other actions" for every call left over.
  */
-export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status">[]): { summary: string; hasFailure: boolean } {
+export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status" | "note">[]): { summary: string; hasFailure: boolean } {
+  // A note is not an action: it is words the run wrote, so the summary counts only real calls.
+  const calls = steps.filter((step) => !step.note)
   const groups = new Map<ToolKind, number>()
-  for (const step of steps) groups.set(step.tool, (groups.get(step.tool) ?? 0) + 1)
+  for (const step of calls) groups.set(step.tool, (groups.get(step.tool) ?? 0) + 1)
   const all = [...groups].map(([tool, count], index) => ({ index, count, priority: GROUPS[tool].priority, label: GROUPS[tool].label(count) }))
   const picked = [...all]
     .sort((a, b) => a.priority - b.priority || a.index - b.index)
     .slice(0, 2)
     .sort((a, b) => a.index - b.index)
   const labels: string[] = picked.map((g) => g.label)
-  const rest = steps.length - picked.reduce((n, g) => n + g.count, 0)
+  const rest = calls.length - picked.reduce((n, g) => n + g.count, 0)
   if (rest > 0) labels.push(`Performed ${plural(rest, "other action", "other actions")}`)
   const sentence = labels.map((label, i) => (i === 0 ? label : label.charAt(0).toLowerCase() + label.slice(1)))
   const summary = sentence.length < 3 ? sentence.join(" and ") : `${sentence.slice(0, -1).join(", ")}, and ${sentence.at(-1)}`

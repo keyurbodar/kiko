@@ -11,7 +11,7 @@ export function eventText(message: ChatMessage, name: (slug: string) => string):
     case "routine_created":
       return e.byAgent ? `${name(e.agent)} created a routine: ${e.title}` : `Routine added: ${e.title}`
     case "model_changed":
-      return `${name(e.agent)} now uses ${e.model}`
+      return e.from ? "Context handoff" : `${name(e.agent)} now uses ${e.model}`
     case "compacted":
       return `${name(e.agent)} compacted its context`
     case "group_formed":
@@ -32,6 +32,13 @@ export function eventText(message: ChatMessage, name: (slug: string) => string):
     default:
       return null
   }
+}
+
+/** What a divider says under its label, such as the two models a handoff crossed, or null. */
+export function eventDetail(message: ChatMessage): string | null {
+  const e = message.event
+  if (e?.kind !== "model_changed" || !("from" in e) || !e.from) return null
+  return `${e.from} to ${e.model}`
 }
 
 function joinNames(names: readonly string[]): string {

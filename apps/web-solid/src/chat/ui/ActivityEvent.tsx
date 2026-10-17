@@ -3,7 +3,7 @@ import type { Glyph } from "@kiko/ui/huge-icon"
 import { ChatIcon, ClockIcon, GroupIcon, MemoryIcon, MinusIcon, ModelIcon, PlusIcon } from "@kiko/ui/icons"
 import { Show } from "solid-js"
 import type { ChatMessage } from "../../lib/types"
-import { eventText } from "../lib/event-line"
+import { eventDetail, eventText } from "../lib/event-line"
 import { EventDivider } from "./EventDivider"
 
 const ICONS: Record<string, Glyph> = {
@@ -26,6 +26,7 @@ export function ActivityEvent(props: { message: ChatMessage; name: (slug: string
       {(t) => (
         <EventDivider icon={ICONS[props.message.event?.kind ?? "created"] ?? GroupIcon} data-message-id={props.message.id}>
           <span class="min-w-0 truncate">{t()}</span>
+          <Show when={eventDetail(props.message)}>{(detail) => <span class="min-w-0 shrink-0 truncate text-muted-foreground/70">{detail()}</span>}</Show>
           <Show when={props.message.goto}>
             {(to) => (
               <A class="shrink-0 rounded-md px-1.5 text-foreground hover:bg-accent" href={`/chat/${to()}`}>

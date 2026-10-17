@@ -39,6 +39,11 @@ export type RunStep = {
 	tool: ToolKind
 	/** The raw tool name the model called, such as "bash" or "GMAIL_SEND_EMAIL". The client picks the icon from it. */
 	name: string
+	/**
+	 * Set on the words a run wrote between two tool calls. Such a step is not a call: it has no icon, no input, and no
+	 * output, and the panel shows its `label` as a note. The human reads it here instead of in the chat.
+	 */
+	note?: true
 	/** The Composio toolkit slug when the call went to a Composio app, such as "gmail". */
 	app?: string
 	/** Set when a background worker made the call. Its steps belong to the agent's next bubble, as every step does. */
@@ -63,7 +68,7 @@ export type SystemEvent =
 	| { kind: "agent_message"; from: AgentSlug; to: AgentSlug }
 	| { kind: "activity"; count: number }
 	| { kind: "routine_created"; agent: AgentSlug; title: string; byAgent?: true; private: true }
-	| { kind: "model_changed"; agent: AgentSlug; model: string; private: true }
+	| { kind: "model_changed"; agent: AgentSlug; model: string; from?: string; private: true }
 	| { kind: "compacted"; agent: AgentSlug; private: true }
 	| { kind: "group_formed"; private: true }
 	| { kind: "member_added"; slug: AgentSlug; name: string; private: true }

@@ -15,6 +15,7 @@ type Row = {
 	name: string
 	app: string | null
 	worker: string | null
+	note: number | null
 	label: string
 	input: string | null
 	status: string
@@ -24,7 +25,7 @@ type Row = {
 	after_seq: number
 }
 
-const COLUMNS = "run_id, id, slug, tool, name, app, worker, label, input, status, started_at, ended_at, output, after_seq"
+const COLUMNS = "run_id, id, slug, tool, name, app, worker, note, label, input, status, started_at, ended_at, output, after_seq"
 
 const toStep = (r: Row): RunStep => ({
 	id: r.id,
@@ -34,6 +35,7 @@ const toStep = (r: Row): RunStep => ({
 	name: r.name,
 	...(r.app !== null ? { app: r.app } : {}),
 	...(r.worker !== null ? { worker: JSON.parse(r.worker) as NonNullable<RunStep["worker"]> } : {}),
+	...(r.note ? { note: true as const } : {}),
 	label: r.label,
 	...(r.input !== null ? { input: r.input } : {}),
 	status: r.status as RunStepStatus,
@@ -90,7 +92,7 @@ export class RunSteps {
 		this.running.delete(key)
 		const step: RunStep = { ...heard, endedAt: heard.endedAt ?? this.now(), after: began?.after ?? after }
 		const cursor = this.sql.exec(
-			`INSERT INTO run_steps (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (run_id, id) DO NOTHING`,
+			`INSERT INTO run_steps (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (run_id, id) DO NOTHING`,
 			step.runId,
 			step.id,
 			step.slug,
@@ -98,6 +100,7 @@ export class RunSteps {
 			step.name,
 			step.app ?? null,
 			step.worker ? JSON.stringify(step.worker) : null,
+			step.note ? 1 : null,
 			step.label,
 			step.input ?? null,
 			step.status,

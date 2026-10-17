@@ -10,6 +10,7 @@ test("a 429 leaves no bubble, not even from text the failed turn carried, and re
     post: async (_r: string, _a: number, _i: number, block: string) => void posts.push(block),
     status: async () => {},
     draft: async () => {},
+    note: async () => {},
     workers: async () => {},
     endRun: async () => {},
     react: async () => {},
