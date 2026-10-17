@@ -228,13 +228,15 @@ describe("useApp over the mock room", () => {
     app.stop()
   })
 
-  test("the unread divider stays where it was when the room was opened", async () => {
+  test("the unread divider stays where the room was when it was opened, and a read does not move it", async () => {
     // The fixture log without its read event: both agent messages are unread.
     const unread = fixtures.roomEvents.filter((e) => e.t !== "read")
     const { app, room } = await boot(unread)
+    await until(() => app.firstUnreadMessageId() !== null)
     expect(app.firstUnreadMessageId()).toBe("m2")
     expect(app.hasUnread()).toBe(true)
 
+    // Reading the open chat moves the marker. The divider was fixed from the marker it opened with.
     app.markRead(fixtures.roomId)
     expect(app.hasUnread()).toBe(false)
     await until(() => room.log.at(-1)?.t === "read")
@@ -249,6 +251,7 @@ describe("useApp over the mock room", () => {
   test("sending a message clears the unread divider and it stays gone", async () => {
     const unread = fixtures.roomEvents.filter((e) => e.t !== "read")
     const { app, room } = await boot(unread)
+    await until(() => app.firstUnreadMessageId() !== null)
     expect(app.firstUnreadMessageId()).toBe("m2")
     app.appendMessage({ body: "got it" } as never)
     expect(app.firstUnreadMessageId()).toBeNull()
@@ -258,12 +261,31 @@ describe("useApp over the mock room", () => {
     app.stop()
   })
 
-  test("a message that arrives while the room is open and read gets no divider", async () => {
+  test("a message that lands while the reader sits at the bottom of the open chat gets no divider", async () => {
+    // The room was caught up and read when it opened, so the divider was already settled at nothing.
     const { app, room } = await boot()
-    expect(app.firstUnreadMessageId()).toBeNull()
+    await until(() => app.firstUnreadMessageId() === null)
     room.store({ t: "message", id: "m99" as MessageId, from: ada, text: "fresh" })
     await until(() => texts(app).includes("fresh"))
     expect(app.firstUnreadMessageId()).toBeNull()
+    app.stop()
+  })
+
+  test("a divider leaves with the chat, and the chat opened again works out a fresh one", async () => {
+    const unread = fixtures.roomEvents.filter((e) => e.t !== "read")
+    const { app, other } = await boot(unread)
+    await until(() => app.firstUnreadMessageId() === "m2")
+    app.selectThread("other-room")
+    await until(() => app.room()?.state.roomId === "other-room")
+    expect(app.firstUnreadMessageId()).toBeNull()
+    other.store({ t: "message", id: "o1" as MessageId, from: ada, text: "elsewhere" })
+    await until(() => app.activeMessages().some((m) => m.body === "elsewhere"))
+    // A message in another chat while it is open arrives at the bottom, so it makes no divider.
+    expect(app.firstUnreadMessageId()).toBeNull()
+    app.selectThread(fixtures.roomId)
+    await until(() => app.room()?.state.roomId === fixtures.roomId)
+    // Back in the first chat, its marker is where the read left it: both agent messages are read.
+    await until(() => app.firstUnreadMessageId() === null)
     app.stop()
   })
 

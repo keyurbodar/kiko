@@ -65,7 +65,7 @@
   white-space: nowrap;
 }
 
-.typing-doing[data-slow] {
+.typing-doing[data-elapsed] {
   white-space: normal;
 }
 

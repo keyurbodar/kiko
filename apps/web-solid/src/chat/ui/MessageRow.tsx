@@ -14,6 +14,7 @@ import { CHEVRON_SIZE, RunChevron } from "../run/RunChevron"
 import { RichText } from "./RichText"
 const RichTree = lazy(() => import("../rich/RichText").then((m) => ({ default: m.RichText })))
 import { Collapsible } from "../Collapsible"
+import { isPhotoTree } from "../rich/model"
 import { identityLook } from "../../lib/identity"
 import { RunAvatar } from "./RunAvatar"
 import { Bubble, BubbleContent, type BubblePosition } from "./bubble"
@@ -60,6 +61,8 @@ export function MessageRow(props: {
   // A file the human named in the text is its chip there, so the list under the pictures leaves it out.
   const files = () => unnamedFiles(props.message.files ?? [], props.message.body)
   const hasFiles = () => files().length > 0
+  // A photo carries its own height and would be cut in half by clamping, so its bubble never folds.
+  const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   // The first bubble of a run that made steps opens the run panel. A bubble the pacer holds is not in the list yet.
   const windowKey = () => (own() ? undefined : useApp.runChevron(props.message))
   return (
@@ -141,7 +144,7 @@ export function MessageRow(props: {
             )}
           </Show>
           <Show when={props.message.body.length > 0}>
-            <Collapsible messageId={props.message.id}>
+            <Collapsible messageId={props.message.id} fixed={photo()}>
 
               <Show when={props.message.rich?.length ? props.message.rich : undefined} fallback={<RichText text={props.message.body} />}>
                 {(tree) => (

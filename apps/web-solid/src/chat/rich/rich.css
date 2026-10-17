@@ -47,14 +47,19 @@
 .rich-link-icon-glyph { width: 14px; height: 14px; border-radius: 2px; object-fit: contain; }
 .rich .rich-image {
   display: flex; align-items: center; justify-content: center; gap: 0.4rem;
-  position: relative; width: min(100%, 30rem); max-height: 30rem; margin: 0.65rem 0; padding: 0; overflow: hidden;
+  position: relative; width: fit-content; max-width: 100%; max-height: min(30rem, 65dvh);
+  margin: 0.65rem 0; padding: 0; overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--rich-border) 60%, transparent); border-radius: 0.5rem;
   background: var(--rich-surface); cursor: zoom-in; color: var(--rich-muted); font-size: 0.8125rem;
 }
-.rich .rich-image[data-state="loading"] { aspect-ratio: 4 / 3; }
-.rich .rich-image[data-state="broken"] { height: 2.5rem; cursor: default; }
-.rich .rich-image img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.rich .rich-image[data-state="loading"] img { opacity: 0; position: absolute; inset: 0; }
+.rich .rich-image[data-state="loading"] { width: min(100%, 20rem); max-height: none; aspect-ratio: 4 / 3; }
+.rich .rich-image img { display: block; width: auto; height: auto; max-width: 100%; max-height: min(30rem, 65dvh); object-fit: contain; }
+.rich .rich-image[data-state="loading"] img { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.rich .rich-image-broken {
+  display: inline-flex; align-items: center; gap: 0.4rem; max-width: 100%;
+  margin: 0.65rem 0; color: var(--rich-muted); font-size: 0.8125rem;
+}
+.rich .rich-image-broken > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rich-link { color: oklch(0.707 0.165 254.624); text-decoration: none; }
 :root:not(.dark) .rich-link { color: oklch(0.488 0.243 264.376); }
 .rich-link:hover, .rich-link:focus-visible {
