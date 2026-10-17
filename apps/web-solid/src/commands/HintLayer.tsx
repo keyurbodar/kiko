@@ -1,6 +1,6 @@
 import { For, createSignal, onMount } from "solid-js"
 import { displayShortcut } from "./hotkeys"
-import { findCommand, isEnabled } from "./registry"
+import { findCommand, isEnabled, shortcutOf } from "./registry"
 
 export type Side = "bottom" | "top" | "left" | "right"
 export type Box = { x: number; y: number; w: number; h: number }
@@ -69,13 +69,14 @@ function collect(): Pill[] {
   const pills: Pill[] = []
   for (const el of document.querySelectorAll<HTMLElement>("[data-hint]")) {
     const command = findCommand(el.dataset.hint!)
-    if (!command?.shortcut || !isEnabled(command)) continue
+    const shortcut = command && shortcutOf(command)
+    if (!shortcut || !isEnabled(command)) continue
     const r = el.getBoundingClientRect()
     if (!onScreen(el, r)) continue
     pills.push({
       key: `${command.id}:${pills.length}`,
       label: el.dataset.hintLabel ?? pillLabel(command.title),
-      keys: displayShortcut(command.shortcut).replace(/ /g, ""),
+      keys: displayShortcut(shortcut).replace(/ /g, ""),
       anchor: r,
       side: (el.dataset.hintSide as Side | undefined) ?? "bottom",
     })

@@ -131,7 +131,7 @@ describe("go to file", () => {
   const command = mine.find((c) => c.id === "files.go")!
 
   test("sits in the root list with a chevron, and needs an open chat", () => {
-    expect(viewFor([], mine).groups.flatMap((g) => g.items).find((i) => i.key === "files.go")).toMatchObject({ title: "Go to file…", submenu: "files.go", shortcut: "Mod+Shift+O" })
+    expect(viewFor([], mine).groups.flatMap((g) => g.items).find((i) => i.key === "files.go")).toMatchObject({ title: "Go to file…", submenu: "files.go", shortcut: "Mod+Shift+E" })
     expect(listed(katCommands(testDeps())).map((c) => c.id)).not.toContain("files.go")
   })
 

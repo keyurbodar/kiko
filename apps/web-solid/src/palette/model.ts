@@ -1,18 +1,8 @@
 import * as glyphs from "@kiko/ui/icons"
 import type { Glyph } from "@kiko/ui/icons"
-import { commands, isEnabled, type Choice, type Command, type CommandGroup } from "../commands/registry"
+import { commands, GROUP_LABEL, isEnabled, shortcutOf, type Choice, type Command, type CommandGroup } from "../commands/registry"
 
 /** Each group's heading. A title never repeats it. */
-export const GROUP_LABEL: Record<CommandGroup, string> = {
-  view: "View",
-  chat: "Chat",
-  chats: "Chats",
-  palette: "Palette",
-  go: "Go to",
-  settings: "Settings",
-  account: "Account",
-  theme: "Theme",
-}
 
 /** One row. It either runs, or opens the submenu of the command with id `submenu`. */
 export interface Item {
@@ -62,7 +52,7 @@ const commandItem = (c: Command): Item => ({
   key: c.id,
   title: c.title,
   icon: c.icon,
-  shortcut: c.shortcut,
+  shortcut: shortcutOf(c),
   submenu: c.submenu || c.search ? c.id : undefined,
   run: c.run,
 })

@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js"
+import { lazy, type JSX } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import Appearance from "../theme/appearance"
 import Initiative from "./initiative"
@@ -14,11 +14,17 @@ import Tools from "./tools"
  * them never waits on the network.
  */
 
+// The shortcut page carries the hotkey library, which the shell already loads lazily, so it is its own
+// chunk. It starts loading with the settings chunk, so opening the section never waits on the network.
+const loadKeyboard = () => import("./keyboard")
+void loadKeyboard()
+const KeyboardPage = lazy(loadKeyboard)
+
 function General() {
   return <Initiative />
 }
 
-const COMPONENTS: Record<string, () => JSX.Element> = { models: ModelsPage, tools: Tools, appearance: Appearance, general: General, account: Account }
+const COMPONENTS: Record<string, () => JSX.Element> = { models: ModelsPage, tools: Tools, appearance: Appearance, general: General, keyboard: KeyboardPage, account: Account }
 
 export function SettingsShell(props: { sectionId: string }) {
   const meta = () => SETTINGS_SECTIONS.find((s) => s.id === props.sectionId)

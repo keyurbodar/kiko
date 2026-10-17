@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test"
 import { hotkeyOptions } from "./hotkeys"
 import { testDeps } from "./deps.fixture"
 import { katCommands } from "./kat-commands"
-import { commands, registerCommands, runCommand, shortcuts, type Command } from "./registry"
+import { bindKey, resetAllKeys } from "./bindings"
+import { commands, keysOf, registerCommands, runCommand, shortcutOf, type Command } from "./registry"
 
 const make = (id: string, extra: Partial<Command> = {}): Command => ({
   id, title: `Run ${id}`, group: "chat", icon: "plus", run: () => {}, ...extra,
@@ -45,7 +46,7 @@ describe("kat commands", () => {
     expect(map).toEqual({
       "Toggle sidebar": "Mod+\\",
       "Toggle right panel": undefined,
-      "New chat": "Mod+N",
+      "New chat": "Mod+Shift+O",
       "New chat with…": undefined,
       "New group": undefined,
       "New agent": undefined,
@@ -61,7 +62,7 @@ describe("kat commands", () => {
       "Close chat": undefined,
       "Delete chat": undefined,
       "Go to chat…": "Mod+P",
-      "Go to file…": "Mod+Shift+O",
+      "Go to file…": "Mod+Shift+E",
       "Previous chat": "Alt+ArrowUp",
       "Next chat": "Alt+ArrowDown",
       "Search messages in this chat": "Mod+F",
@@ -71,13 +72,15 @@ describe("kat commands", () => {
     for (const c of list) expect(c.title).toMatch(/^[A-Z][^:A-Z]*$/)
   })
 
-  test("new chat answers to Mod+N and has no alias", () => {
-    const c = list.find((x) => x.id === "chat.new")!
-    expect([c.shortcut, c.alias]).toEqual(["Mod+N", undefined])
+  test("no default key is one the browser keeps or one that switches its tabs", () => {
+    for (const mac of [true, false]) {
+      const keys = katCommands(testDeps({ mac })).flatMap((c) => [c.shortcut, c.alias]).filter(Boolean)
+      for (const k of ["Mod+N", "Mod+T", "Mod+W", "Mod+Shift+N", "Mod+Shift+T", "Mod+Shift+W", ...Array.from({ length: 9 }, (_, i) => `Mod+${i + 1}`)]) expect(keys).not.toContain(k)
+    }
   })
 
   test("the sidebar toggle, new chat, chat info, chat stepping, search, and the palette are global", () => {
-    expect(list.filter((c) => c.global && !c.unlisted).map((c) => c.id).sort()).toEqual(["chat.info", "chat.new", "chats.go", "chats.next", "chats.previous", "chats.search-current", "files.go", "palette.open", "view.toggle-sidebar"])
+    expect(list.filter((c) => c.global && !c.unlisted).map((c) => c.id).sort()).toEqual(["chat.attach", "chat.new", "chats.go", "chats.next", "chats.previous", "chats.search-current", "files.go", "palette.open", "view.toggle-sidebar"])
   })
 
   test("non-global shortcuts ignore text fields, global ones do not", () => {
@@ -90,13 +93,9 @@ describe("kat commands", () => {
     for (const c of list) expect([hotkeyOptions(c).preventDefault, hotkeyOptions(c).stopPropagation]).toEqual([true, true])
   })
 
-  test("the cheatsheet lists every shortcut once", () => {
-    const off = registerCommands(list)
-    const ids = shortcuts().map((s) => s.id)
+  test("every command id is unique, so a saved key names one command", () => {
+    const ids = list.map((c) => c.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ids).toContain("view.toggle-sidebar")
-    expect(ids).not.toContain("chat.delete")
-    off()
   })
 })
 
@@ -110,13 +109,35 @@ describe("Mod+K opens the palette from anywhere", () => {
 })
 
 describe("numbered chat jumps", () => {
-  test("Mod+1 to Mod+9 open the sidebar's chats in order, only as many as there are", () => {
+  test("Control+1 to 9 on a Mac and Alt+1 to 9 elsewhere open the sidebar's chats in order, only as many as there are", () => {
     const went: number[] = []
     const jumps = katCommands(testDeps({ goToChat: (n) => went.push(n), chatCount: () => 2 })).filter((c) => c.id.startsWith("chats.go-"))
-    expect(jumps.map((c) => c.shortcut)).toEqual(["Mod+1", "Mod+2", "Mod+3", "Mod+4", "Mod+5", "Mod+6", "Mod+7", "Mod+8", "Mod+9"])
+    expect(jumps.map((c) => c.shortcut)).toEqual(["Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5", "Alt+6", "Alt+7", "Alt+8", "Alt+9"])
+    expect(katCommands(testDeps({ mac: true })).find((c) => c.id === "chats.go-1")!.shortcut).toBe("Control+1")
     expect(jumps.map((c) => c.when!())).toEqual([true, true, false, false, false, false, false, false, false])
     jumps[1]!.run()
     expect(went).toEqual([2])
     expect(jumps.every((c) => c.unlisted)).toBe(true)
+  })
+})
+
+describe("the owner's own keys", () => {
+  const c = make("k", { shortcut: "Mod+K", alias: "Mod+Shift+P" })
+
+  test("a command answers to its defaults until the owner picks a key, which replaces both", () => {
+    resetAllKeys()
+    expect(keysOf(c)).toEqual(["Mod+K", "Mod+Shift+P"])
+    bindKey("k", "Mod+J")
+    expect(keysOf(c)).toEqual(["Mod+J"])
+    expect(shortcutOf(c)).toBe("Mod+J")
+    resetAllKeys()
+  })
+
+  test("a removed key leaves the command with none, and a reset brings the default back", () => {
+    bindKey("k", null)
+    expect(keysOf(c)).toEqual([])
+    expect(shortcutOf(c)).toBeUndefined()
+    resetAllKeys()
+    expect(shortcutOf(c)).toBe("Mod+K")
   })
 })
