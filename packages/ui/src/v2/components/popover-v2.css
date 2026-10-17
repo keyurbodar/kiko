@@ -1,0 +1,38 @@
+@layer v2 {
+
+  /* Above the sidecar and the chat's own layers, under menus (60) and dialogs (70). */
+  [data-popper-positioner]:has([data-component="popover-v2-content"]) {
+    z-index: 55;
+  }
+
+  [data-component="popover-v2-content"] {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    max-width: var(--kb-popper-content-available-width);
+    max-height: var(--kb-popper-content-available-height);
+    overflow: hidden;
+    z-index: 55;
+    pointer-events: auto;
+
+    background: var(--popover);
+    -webkit-backdrop-filter: var(--popover-blur);
+    backdrop-filter: var(--popover-blur);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--popover-edge), var(--menu-shadow);
+    color: var(--foreground);
+
+    outline: none;
+
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+
+    transform-origin: var(--kb-popover-content-transform-origin);
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+}

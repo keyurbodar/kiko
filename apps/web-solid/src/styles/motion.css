@@ -38,6 +38,8 @@
   --motion-collapse: 200ms;
   --motion-switch: 150ms;
   --motion-skeleton: 2400ms;
+  --motion-shine: 2200ms;
+  --motion-run-chevron: 200ms;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -147,6 +149,7 @@
 
   [data-component="menu-v2-content"][data-expanded],
   [data-component="hover-card-v2-content"][data-expanded],
+  [data-component="popover-v2-content"][data-expanded],
   [data-component="tooltip-v2"][data-expanded],
   .motion-popover-in {
     animation: motion-popover-in var(--motion-popover) var(--motion-ease-out) both;
@@ -154,6 +157,7 @@
 
   [data-component="menu-v2-content"][data-closed],
   [data-component="hover-card-v2-content"][data-closed],
+  [data-component="popover-v2-content"][data-closed],
   [data-component="tooltip-v2"][data-closed] {
     animation: motion-popover-out var(--motion-popover) var(--motion-ease-in) both;
   }
@@ -204,6 +208,51 @@
   .motion-skeleton {
     background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
     animation: motion-skeleton var(--motion-skeleton) var(--motion-ease-linear) infinite;
+  }
+
+  /*
+   * The run panel's motion, ported from t3code's work log (index.css 521-632). It is a named
+   * exception to the 0 ms rule, and it stays inside this panel's own names. The shine and the sweep
+   * are waiting states. They run only while on screen: observeVisibleAnimation sets
+   * --visible-animation-state, and the look of each is in chat/run/run-panel.css.
+   */
+  @keyframes motion-shine {
+    from { background-position: -4.5rem 0, 0 0; }
+    to { background-position: calc(100% + 4.5rem) 0, 0 0; }
+  }
+
+  @keyframes motion-activity-focus {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+  }
+
+  @keyframes motion-activity-counter {
+    from { transform: translateX(0); }
+    to { transform: translateX(-100%); }
+  }
+
+  @media (forced-colors: none) {
+    .motion-shine {
+      animation: motion-shine var(--motion-shine) steps(30) infinite;
+      animation-play-state: var(--visible-animation-state, paused);
+    }
+
+    .motion-activity-focus {
+      animation: motion-activity-focus var(--motion-shine) steps(30) infinite;
+      animation-play-state: var(--visible-animation-state, paused);
+      will-change: var(--visible-animation-will-change, auto);
+    }
+
+    .motion-activity-counter {
+      animation: motion-activity-counter var(--motion-shine) steps(30) infinite;
+      animation-play-state: var(--visible-animation-state, paused);
+      will-change: var(--visible-animation-will-change, auto);
+    }
+  }
+
+  /* The row chevron turns a quarter, t3code's transition-transform duration-200. */
+  [data-component="run-panel-chevron"] {
+    transition: transform var(--motion-run-chevron) var(--motion-ease-in-out);
   }
 
   /* A busy label fades in, so a save that takes a moment does not flash. */

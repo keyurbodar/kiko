@@ -38,6 +38,7 @@ import type {
 	RoomId,
 	RoomSnapshot,
 	RoomToClient,
+	RunStep,
 	SearchHit,
 	Task,
 	TaskOp,
@@ -61,6 +62,7 @@ import {
 	settleRoom,
 	type ViewMessage,
 } from "./patches"
+import { upsertStep } from "../chat/run/run-log"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
 import { retryFailedUploads } from "./uploads"
 
@@ -287,6 +289,12 @@ export type RoomState = RoomData & {
 	/** Not stored. Cleared when the socket drops. */
 	typing: AgentSlug[]
 	status: Record<string, AgentState>
+	/** Every run step this client has, by run id, in start order. Not stored. */
+	steps: Record<string, RunStep[]>
+	/** The run each working agent is in, by slug, from its steps. Cleared when the agent goes idle. */
+	live: Record<string, string | undefined>
+	/** The runs whose steps were asked for and have not come yet. */
+	fetching: Record<string, boolean | undefined>
 	/** Growing blocks, keyed by `runId:index`. A message from the same run and index replaces one. */
 	/**
 	 * A window of older messages the reader jumped to, oldest first, that does not reach the live
@@ -359,6 +367,8 @@ export type RoomStore = {
 	remove(messageId: MessageId): void
 	markRead(seq: number): void
 	typing(): void
+	/** Asks the room for every step of one run. The answer lands in `state.steps`. */
+	requestSteps(runId: string): void
 	/** Closes the socket and keeps the store. Pings are dropped, sends wait in the outbox. Section 19.6. */
 	suspend(): void
 	/** Reconnects with `hello {lastSeq}` and sends every pending frame again. */
@@ -444,11 +454,16 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		patches: [],
 		typing: [],
 		status: {},
+		steps: {},
+		live: {},
+		fetching: {},
 		doing: {},
 		history: null,
 	})
 
 	let socket: SyncSocket | null = null
+	/** The runs whose steps were asked for. */
+	const fetchedRuns = new Set<string>()
 	/** Questions waiting for their answer (search, history), by a key the answer repeats. */
 	const asked = new Map<string, ((answer: unknown) => void)[]>()
 	const searchKey = (query: string, before: number | undefined) => `search:${before ?? ""}:${query}`
@@ -643,6 +658,21 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	const history = (seq: number, before: number, after: number) =>
 		ask<readonly Message[]>(historyKey(seq, before, after), { t: "history", seq, before, after })
 
+	/** Files steps under their runs. A running step makes its agent's live run; a stale one never undoes a finished step. */
+	function takeSteps(incoming: readonly RunStep[], live: boolean) {
+		if (incoming.length === 0) return
+		batch(() => {
+			setState(
+				produce((s) => {
+					for (const step of incoming) {
+						s.steps[step.runId] = upsertStep(s.steps[step.runId] ? raw(s.steps[step.runId]) : [], step)
+						if (live || step.status === "running") s.live[step.slug] = step.runId
+					}
+				}),
+			)
+		})
+	}
+
 	function reset(snapshot: RoomSnapshot) {
 		queue = queue.filter((e) => e.seq > snapshot.seq)
 		const data = fromSnapshot(snapshot)
@@ -652,6 +682,8 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			dropPatches(settleRoom(state.patches, [], snapshot.seq))
 			trimWindow(true)
 		})
+		// The snapshot's steps are those of runs still going, so their agents are mid-run.
+		takeSteps(snapshot.steps ?? [], true)
 		clearRoom(warm, roomId)
 		putMessages(warm, roomId, data.messages)
 		writeMeta()
@@ -675,8 +707,14 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 				setState("status", f.slug, f.state)
 				// What the agent is doing now (section 7.12): shown in place of "typing".
 				setState("doing", f.slug, f.state === "idle" ? undefined : f.doing)
+				if (f.state === "idle") setState("live", f.slug, undefined)
 				setState(produce((s) => applyStatus(s, f)))
 			}),
+		step: (f) => takeSteps([f.step], false),
+		steps: (f) => {
+			setState("fetching", f.runId, undefined)
+			takeSteps(f.steps, false)
+		},
 		// Answers to one socket's questions. Nothing stores them.
 		search: (f) => answer(searchKey(f.query, f.before), { results: f.results, next: f.next }),
 		history: (f) => answer(historyKey(f.seq, f.before, f.after), f.messages),
@@ -722,7 +760,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 
 	function onStatus(connection: SocketStatus) {
 		setState("connection", connection)
-		if (connection !== "open") setState({ typing: [], status: {}, agents: [] })
+		if (connection !== "open") setState({ typing: [], status: {}, agents: [], live: {}, fetching: {} })
 	}
 
 	// Boot.
@@ -848,6 +886,14 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			const t = now()
 			if (lastTypingAt !== undefined && t - lastTypingAt < TYPING_EVERY_MS) return
 			if (socket?.send({ t: "typing" })) lastTypingAt = t
+		},
+		requestSteps(runId) {
+			// Once per run and session: a fetched run is cached, and live steps keep it current.
+			if (state.fetching[runId] || fetchedRuns.has(runId) || !socket?.send({ t: "steps", runId })) return
+			fetchedRuns.add(runId)
+			setState("fetching", runId, true)
+			// An answer that never comes must not leave "Loading output" up for good.
+			setTimeout(() => setState("fetching", runId, undefined), ASK_TIMEOUT_MS)
 		},
 		suspend() {
 			suspended = true

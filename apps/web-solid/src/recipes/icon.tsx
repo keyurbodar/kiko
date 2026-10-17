@@ -2,7 +2,7 @@ import type { RecipeApp, RecipeCard } from "@kiko/protocol"
 import { For, Show } from "solid-js"
 import "./recipe.css"
 
-const logoUrl = (app: RecipeApp) => `https://logos.composio.dev/api/${app.slug}`
+export const logoUrl = (app: Pick<RecipeApp, "slug">) => `https://logos.composio.dev/api/${app.slug}`
 
 /** One app's logo on a white disc, the way it looks in the app's own icon. */
 export function AppLogo(props: { app: RecipeApp; size: number; overlap?: number }) {

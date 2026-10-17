@@ -210,3 +210,9 @@
     opacity: 0;
   }
 }
+
+/* The run chevron sits at the bubble's side, as it does beside a message. */
+.typing-run {
+  align-self: center;
+  margin-left: -4px;
+}
