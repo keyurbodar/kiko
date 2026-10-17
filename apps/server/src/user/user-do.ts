@@ -579,7 +579,7 @@ export class UserDO extends DurableObject<Env> {
     return info ? this.#mem.describe(info) : null
   }
 
-  async devProviderHealth(op: { refresh?: "fail" | "ok"; wake?: boolean }): Promise<void> {
+  async devProviderHealth(op: { refresh?: "fail" | "offline" | "ok"; wake?: boolean }): Promise<void> {
     const dev = await this.dev()
     if (op.refresh) dev.setFakeRefresh(op.refresh)
     if (op.wake) await this.#watch.refreshAll()

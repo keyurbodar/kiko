@@ -8,9 +8,9 @@ import { probeVerdict } from "./provider-health"
 import { resolveAuth } from "./turn-context"
 
 export const PROVIDERS_WAKEUP = "providers"
-export const PROVIDERS_INTERVAL_MS = 6 * 60 * 60 * 1000
+const PROVIDERS_INTERVAL_MS = 6 * 60 * 60 * 1000
 // A touch more than the interval, so a token that would end before the next wake is refreshed now.
-export const PROBE_VALIDITY_MS = 6.5 * 60 * 60 * 1000
+const PROBE_VALIDITY_MS = 6.5 * 60 * 60 * 1000
 
 type Deps = {
   vault: CredentialVault

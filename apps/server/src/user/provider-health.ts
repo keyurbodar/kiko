@@ -1,13 +1,13 @@
 import type { ProviderProblem, RunErrorKind } from "@kiko/protocol"
 import { classifyRunError } from "../agent/run-error"
 
-export type AuthFailure = "signed_out" | "unreachable" | "fresh"
+type AuthFailure = "signed_out" | "unreachable" | "fresh"
 
 // The first row that matches wins. Only a definitive refusal means the sign-in is gone; a network error, a 5xx,
 // a rate limit or a timeout says nothing about the credential, so unmatched text counts as unreachable.
 const AUTH_FAILURES: readonly (readonly [AuthFailure, RegExp])[] = [
   ["fresh", /expires too soon/i],
-  ["unreachable", /\b(429|5\d\d)\b|timed? ?out|timeout|abort|fetch failed|network|econn|enotfound|socket|dns|offline|unavailable/i],
+  ["unreachable", /\b(429|5\d\d)\b|timed? ?out|timeout|abort|fetch failed|network|\beconn|enotfound|socket|\bdns\b|offline|unavailable/i],
   ["signed_out", /\b(400|401|403)\b|invalid_grant|invalid_token|invalid_client|unauthori[sz]ed|forbidden|revoked|expired|reconnect|no longer valid/i],
 ]
 

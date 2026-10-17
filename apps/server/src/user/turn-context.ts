@@ -37,12 +37,12 @@ export function pickJudge<T extends { provider: string }>(connected: readonly T[
 }
 
 /** The vault's side of provider health: what is stored, and a way to note that a sign-in is gone. */
-export type ProblemStore = CredentialStore & {
+type ProblemStore = CredentialStore & {
   problem(provider: string): ProviderProblem | undefined
   setProblem(provider: string, problem: ProviderProblem | null): boolean
 }
 
-export type AuthOutcome = Pick<TurnContext, "auth" | "credential" | "authProblem">
+type AuthOutcome = Pick<TurnContext, "auth" | "credential" | "authProblem">
 
 /**
  * Resolves a provider's auth, refreshing an OAuth token that is near its end (`minOAuthValidityMs` widens near).

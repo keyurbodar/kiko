@@ -192,7 +192,7 @@ export function ModelsPage() {
                 <div class="flex items-center gap-3 px-1" data-component="provider-detail" data-provider={provider().id}>
                   <div class="flex min-w-0 flex-1 flex-col">
                     <span class="truncate text-md font-medium text-foreground">{provider().name}</span>
-                    <span class={cn("truncate text-sm", saved(provider().id)?.problem ? "text-error" : muted)} data-part="provider-status">
+                    <span class={cn("text-sm", saved(provider().id)?.problem ? "text-error" : cn("truncate", muted))} data-part="provider-status">
                       {status(provider().id)}
                     </span>
                   </div>
