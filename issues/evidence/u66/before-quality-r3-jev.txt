@@ -1,9 +1,0 @@
-rooms=3 seeds=10 weeks=8 human=uniform signal=answer jev=true
-persona            nudges/week (mean ± sd)   welcome share (mean ± sd, runs with a nudge)   nudges total
-regular-keen         3.77 ± 0.70           75.3% ± 5.1%                                  302
-regular-ignorer      1.18 ± 0.30           12.1% ± 7.5%                                  94
-irregular-keen       2.98 ± 0.88           73.9% ± 6.3%                                  238
-irregular-ignorer    1.16 ± 0.50           14.9% ± 10.8%                                 93
-kind-split           3.90 ± 0.76           61.0% ± 8.8%                                  312
-weekday-weekend      3.29 ± 0.69           50.2% ± 9.0%                                  263
-hoarder              3.45 ± 1.36           36.6% ± 11.4%                                 276

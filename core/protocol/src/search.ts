@@ -31,8 +31,7 @@ export const snippetText = (snippet: string) => snippetParts(snippet).map((p) =>
 
 /**
  * Merges per-chat pages, each newest first, into one page of at most `limit`, newest first. Scores
- * from different rooms' indexes are not comparable, so the order is by time, as Telegram's global
- * search is; ties go by room id, then seq, so the order never changes between calls. `next` is the
+ * from different rooms' indexes are not comparable, so the order is by time; ties go by room id, then seq, so the order never changes between calls. `next` is the
  * time of the last hit when any chat may have more, else null.
  */
 export function mergeHits(

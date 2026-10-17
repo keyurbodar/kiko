@@ -3,7 +3,7 @@ import type { ChatMessage } from "../../lib/types";
 import { eventRow } from "./event-line";
 import { startsTimeBreak } from "./time-label";
 
-/** Telegram's run window. A gap strictly larger than this splits a run. */
+/** A gap strictly larger than this splits a run. */
 export const MESSAGE_GROUPING_WINDOW_MS = 300_000;
 
 export type TimelineItem =
@@ -66,7 +66,7 @@ export function dayStartOf(sentAt: number): number {
 }
 
 /**
- * Telegram's `canItemsBeGrouped`, reduced to what a text transcript can act on:
+ * Grouping rules, reduced to what a text transcript can act on:
  * same sender (and same bot for bots), same calendar day, a non-negative gap
  * inside the window, and neither side answering another message.
  */
@@ -138,7 +138,7 @@ const entryTime = (e: Entry): number =>
  * their own words.
  *
  * An event line or a thread line between two messages ends the run above it, the way a
- * service message does in Telegram. Messages inside an open thread run among themselves.
+ * service message does. Messages inside an open thread run among themselves.
  */
 export function buildTimelineItems(
   messages: readonly ChatMessage[],

@@ -99,7 +99,7 @@ export function katCommands(deps: {
       when: () => deps.chatCount() > i,
       run: () => deps.goToChat(i + 1),
     })),
-    // Telegram's way through the list without the mouse.
+    // Steps through the list without the mouse.
     { id: "chats.previous", title: "Previous chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowUp", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(-1) },
     { id: "chats.next", title: "Next chat", group: "chats", icon: "chat", shortcut: "Alt+ArrowDown", global: true, when: () => deps.chatCount() > 1, run: () => deps.stepChat(1) },
     { id: "chats.search-current", title: "Search messages in this chat", group: "chats", icon: "search", shortcut: "Mod+F", global: true, when: deps.hasActiveChat, run: deps.searchChat },

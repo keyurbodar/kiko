@@ -500,7 +500,7 @@ export function createApp(options: AppOptions = {}) {
     })
 
     /*
-     * Mentions of the human in the open room (Telegram's @ button). Reading the room marks every
+     * Mentions of the human in the open room (the @ button). Reading the room marks every
      * message read at once, so a mention the reader has not seen yet is tracked here: `markRead`
      * adds each mention it reads past, and the transcript removes one when it is on screen or
      * jumped to. Memory only, per visit.

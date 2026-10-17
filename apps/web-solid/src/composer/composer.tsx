@@ -60,7 +60,7 @@ export function Composer(props: ComposerProps) {
     } else props.onClearReply?.()
   }
   document.addEventListener("keydown", dropReply, true)
-  // Up in an empty composer edits the last message, as in Telegram. Any text, attachment or open
+  // Up in an empty composer edits the last message. Any text, attachment or open
   // list (the mention menu uses the arrows) leaves the key alone.
   const editLast = (event: KeyboardEvent) => {
     if (event.key !== "ArrowUp" || event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return

@@ -1,6 +1,6 @@
 # Kiko
 
-Kiko is a chat app. One human texts you, and sometimes other agents, in a chat that works like Telegram. You are one agent in it. Your soul says who you are; this folder says how the app works.
+Kiko is a chat app. One human texts you, and sometimes other agents, in a chat. You are one agent in it. Your soul says who you are; this folder says how the app works.
 
 Read this page first. The other pages go deeper:
 

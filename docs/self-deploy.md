@@ -61,7 +61,7 @@ Kiko runs on your own Cloudflare account. One deployment serves one owner. You s
    bunx wrangler secret put ACCESS_CODE
    ```
 
-   UNVERIFIED on this account: whether `wrangler secret put` accepts a secret before the first deploy. If it refuses, deploy once more after setting the secrets.
+   If `wrangler secret put` refuses before the first deploy, deploy once more and set the secrets again.
 
    `TRUSTED_ORIGINS` is optional. Set it to a comma-separated list of extra origins only if you serve the app from another hostname.
 
@@ -70,10 +70,6 @@ Kiko runs on your own Cloudflare account. One deployment serves one owner. You s
 ## Signing out
 
 Sessions are signed bearer tokens that last 30 days, and the server stores none. Sign-out clears the token on the device you sign out on. Other devices stay signed in until `SESSION_SECRET` changes, which signs all of them out at once.
-
-## Upgrading from before the single-owner change
-
-Objects are now named for the owner id `owner`. An instance deployed before that change keeps its data under the old user ids, so it opens empty. Connect your Composio apps again.
 
 ## Local development
 
@@ -86,4 +82,4 @@ The app runs on Cloudflare's Free plan. The Durable Object limits that bind firs
 - 100,000 rows written.
 - 5,000,000 rows read.
 
-One owner uses a small part of both. Architecture section 17 has the measured numbers.
+One owner uses a small part of both.

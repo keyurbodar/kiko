@@ -23,7 +23,7 @@ function rowsChanged(runKey: string) {
 /**
  * The avatar of an agent's run of bubbles in a group.
  *
- * Telegram puts the face beside the last bubble, bottom-aligned, and while the run is taller
+ * The face sits beside the last bubble, bottom-aligned, and while the run is taller
  * than the viewport the face sticks to the bottom edge and rides up with the last bubble. The
  * transcript is virtual, so the run is not one element to stick inside, and its last row may
  * not be mounted yet. So every row of the run carries a track, and only the run's last mounted

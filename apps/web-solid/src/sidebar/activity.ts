@@ -1,6 +1,6 @@
 import { type ChatLast, type LastKind, plainText, type RichText } from "@kiko/protocol"
 
-// The chat list's second line, worded the way Telegram words it. The room sends the newest
+// The chat list's second line. The room sends the newest
 // activity as data (`ChatLast`); this file is the one place that turns it into words. A DM names
 // nobody but you; a group names whoever did it. The words are sentence case; names and message
 // text stay as they are.

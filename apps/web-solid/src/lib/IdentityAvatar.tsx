@@ -50,7 +50,7 @@ const BODY = { cx: 0.553, cy: 0.5, rx: 0.39, ry: 0.25 }
 
 /**
  * The mask that cuts a 2 px ring out of a face wherever a face stacked above it sits on it, so
- * each avatar reads on its own, as stacked avatars do in Telegram. The ring follows the avatar's
+ * each avatar reads on its own. The ring follows the avatar's
  * wide body, not its square box. A cut, not a painted ring, so the gap shows whatever surface is
  * behind: a row, a hovered row, a tab, or the panel.
  */

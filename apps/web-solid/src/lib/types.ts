@@ -163,7 +163,7 @@ export interface ComposerProps {
   editing?: ChatMessage | null;
   onEdit?: (messageId: string, text: string) => void;
   onCancelEdit?: () => void;
-  /** Up arrow in an empty composer: edit the human's last message, as in Telegram. */
+  /** Up arrow in an empty composer: edit the human's last message. */
   onEditLast?: () => void;
   /** Why Send is off: no model to answer, or a provider that cannot. The words stay in the box. */
   sendBlock?: import("../settings/send-block").SendBlock | null;
