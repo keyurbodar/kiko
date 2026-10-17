@@ -27,7 +27,7 @@ test("a model that may add tools mid-conversation gets every tool in the tools f
 })
 
 test("other models send the same shape", async () => {
-  const body = await requestBody("deepseek-v4-flash")
+  const body = await requestBody("deepseek-v4.1-flash")
   expect(body.messages.filter((m) => m.content === undefined)).toEqual([])
   expect(body.tools).toHaveLength(1)
 })

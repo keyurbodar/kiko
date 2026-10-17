@@ -153,6 +153,7 @@ test("a problem for a provider that is not connected is dropped", async () => {
 test("a run's turn carries the stored problem and the credential kind, so the agent can report and recover", async () => {
   const user = fresh()
   await rpc(user, "connectProvider", "opencode-go", "sk-test-health-key-0003")
+  await rpc(user, "setAgentModel", "kiko", "opencode-go/deepseek-v4.1-flash", null, null)
   expect(await rpc(user, "agentTurn", "kiko")).toMatchObject({ provider: "opencode-go", credential: "api_key" })
   expect(await rpc(user, "agentTurn", "kiko")).not.toHaveProperty("problem")
   await rpc(user, "recordProviderProblem", "opencode-go", "quota")
