@@ -26,7 +26,8 @@ async function rpc(name: string, method: string, ...args: unknown[]) {
   return ((await res.json()) as { result: any }).result
 }
 
-const NEWER = "Wed, 14 Oct 2026 00:00:00 GMT"
+// The worker turns "newer" into a date one day after the bundled pi-ai data, so a pi upgrade never ages it out.
+const NEWER = "newer"
 const OLDER = "Wed, 01 Jan 2020 00:00:00 GMT"
 
 async function start() {

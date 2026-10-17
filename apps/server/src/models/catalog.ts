@@ -82,7 +82,10 @@ function parseModel(value: unknown, providerId: string): AnyModel | null {
   if (!text(m.id) || !text(m.name) || !text(m.api)) return null
   if (m.type !== undefined && !(typeof m.type === "string" && MODEL_TYPES.has(m.type))) return null
   if ((m.type === undefined || m.type === "chat") && !(num(m.contextWindow) && num(m.maxTokens))) return null
-  if (m.cost !== undefined && !(typeof m.cost === "object" && m.cost !== null && Object.values(m.cost).every(num))) return null
+  if (m.cost !== undefined) {
+    const cost = m.cost as Record<string, unknown> | null
+    if (typeof cost !== "object" || cost === null || !num(cost.input) || !num(cost.output)) return null
+  }
   return { ...m, provider: providerId } as AnyModel
 }
 

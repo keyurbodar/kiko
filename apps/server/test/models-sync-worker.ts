@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
+import { getBuiltinModelDataGeneratedAt } from "@earendil-works/pi-ai/providers/all"
 import { migrate } from "@kiko/durable/migrate"
 import { findProvider, overlayFor, overlayRevision } from "../src/models/catalog"
 import { readOverlay, readState, restoreOverlay, syncCatalog } from "../src/models/sync"
@@ -31,7 +32,7 @@ export class CatalogDO extends DurableObject {
         if (reply.throws) throw new Error("offline")
         const headers = new Headers()
         if (reply.etag) headers.set("etag", reply.etag)
-        if (reply.lastModified) headers.set("last-modified", reply.lastModified)
+        if (reply.lastModified) headers.set("last-modified", reply.lastModified === "newer" ? new Date((getBuiltinModelDataGeneratedAt() ?? 0) + 86_400_000).toUTCString() : reply.lastModified)
         return new Response(reply.status === 304 ? null : JSON.stringify(reply.body ?? {}), { status: reply.status, headers })
       },
     })
