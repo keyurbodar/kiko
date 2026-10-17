@@ -51,9 +51,19 @@ jobs:
             echo "SESSION_SECRET=$(openssl rand -hex 32)"
             echo "CREDENTIALS_KEK=$(openssl rand -base64 32)"
           } > .dev.vars
-      - name: write a throwaway release key
-        # The update suite builds a signed release locally. This key signs only test artifacts.
-        run: bun scripts/release.ts --init-key
+      - name: write the release key
+        # The update suite signs a release that the worker's baked-in public key must trust,
+        # so the real key is written. Where secrets are withheld, a throwaway key stands in.
+        env:
+          RELEASE_KEY_JSON: ${{ secrets.RELEASE_KEY_JSON }}
+        run: |
+          mkdir -p "$HOME/.config/kiko"
+          if [ -n "$RELEASE_KEY_JSON" ]; then
+            printf '%s' "$RELEASE_KEY_JSON" > "$HOME/.config/kiko/release-key.json"
+          else
+            bun scripts/release.ts --init-key
+          fi
+          chmod 600 "$HOME/.config/kiko/release-key.json"
       - name: start the worker
         working-directory: apps/server
         env:
