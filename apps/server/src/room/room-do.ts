@@ -914,6 +914,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		if (!home) return
 		this.mail.stop()
 		for (const member of this.members.list()) {
+			if (member.status !== "idle") this.divider(`stopped:${member.slug}:${crypto.randomUUID()}`, "Stopped", { kind: "run_stopped", agent: member.slug, private: true })
 			this.stopAgent(home, member.slug)
 			this.reports.run(this.routines.dropped(member.slug), "stopped")
 		}
@@ -1064,7 +1065,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	/**
-	 * A failed run is a line in the transcript the human can act on, and one toast for a human who is
+	 * A failed run is a row in the transcript the human can act on, and one toast for a human who is
 	 * in another chat. `key` makes a repeat store nothing. Retry needs the human messages the run
 	 * answered, so it is offered only when there are some.
 	 */
@@ -1074,7 +1075,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const home = this.home()
 		if (!member || !home) return null
 		const heard = inputs.filter((id) => this.log.message(id)?.from.kind === "human")
-		const failure = describeRunError(kind, findProvider(provider)?.name ?? (provider || "The provider"), member.name)
+		const failure = describeRunError(kind, findProvider(provider)?.name ?? provider)
 		const actions = heard.length ? failure.actions : failure.actions.filter((a) => a !== "retry")
 		const stored = this.log.addMessage(dividerMessage(key, failure.message, { kind: "run_error", slug, reason: kind, actions, ...(provider ? { provider } : {}), ...(detail ? { detail } : {}), private: true }))
 		if (!stored.event) return null
@@ -1083,7 +1084,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const user = userStub(this.env.USER, home.userId)
 		this.ctx.waitUntil(
 			Promise.all([
-				user.notifyError({ code: "model", message: failure.message, ...(failure.toast ? { action: failure.toast } : {}) }, home.roomId),
+				user.notifyError({ code: "model", message: `${member.name} could not answer. ${failure.message}`, ...(failure.toast ? { action: failure.toast } : {}) }, home.roomId),
 				problemOfRun(kind) && provider ? user.recordProviderProblem(provider, kind) : undefined,
 			]).catch((e: unknown) => console.error(`run error notice failed: ${e instanceof Error ? e.message : String(e)}`)),
 		)
@@ -1137,9 +1138,23 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const member = this.members.get(slug)
 		if (!member) return
 		const next = JSON.stringify(rows)
-		if (this.log.meta(workersKey(slug)) === next) return
+		const before = this.log.meta(workersKey(slug))
+		if (before === next) return
 		this.log.setMeta(workersKey(slug), next)
+		this.workerRows(slug, before ? (JSON.parse(before) as WorkerRow[]) : [], rows)
 		if (member.status !== "idle") this.broadcastStatus(slug)
+	}
+
+	/** A row for a worker that began and one for a worker that ended. Ids carry the worker and its start, so a repeat push stores nothing. */
+	private workerRows(slug: AgentSlug, before: readonly WorkerRow[], rows: readonly WorkerRow[]): void {
+		const was = new Map(before.map((w) => [w.id, w]))
+		const who = this.members.get(slug)?.name ?? slug
+		for (const w of rows) {
+			const prior = was.get(w.id)
+			const key = `worker:${slug}:${w.id}:${w.startedAt}`
+			if ((!prior || prior.startedAt !== w.startedAt) && w.status === "running") this.divider(`${key}:started`, `${who} started a task: ${w.task}`, { kind: "worker", agent: slug, state: "started", title: w.task, private: true })
+			else if (prior?.status === "running" && prior.startedAt === w.startedAt && w.status !== "running") this.divider(`${key}:${w.status}`, `${who} ${w.status === "done" ? "finished" : w.status} a task: ${w.task}`, { kind: "worker", agent: slug, state: w.status, title: w.task, private: true })
+		}
 	}
 
 	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false, mailOnly = false): Promise<void> {

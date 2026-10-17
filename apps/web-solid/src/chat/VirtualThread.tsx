@@ -19,13 +19,12 @@ import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems, dayStartOf, keepUnchanged, type TimelineItem } from "./lib/grouping"
 import { estimateRowHeight } from "./lib/heights"
 import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
-import { dividerLabel, dividerParts } from "./lib/time-label"
+import { dividerParts } from "./lib/time-label"
 import { jumboEmojiClass, quoteOf } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
 import { DateChip } from "./ui/DateChip"
-import { SystemMessage } from "./SystemMessage"
 import { ActivityEvent } from "./ui/ActivityEvent"
-import { EventDivider } from "./ui/EventDivider"
+import { SystemRow } from "./ui/SystemRow"
 import { agentDisplayName } from "../lib/names"
 import { AgentThread } from "./AgentThread"
 import { MentionLookup } from "./ui/Mention"
@@ -37,7 +36,6 @@ import { chatImages } from "./ui/chat-images"
 import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
 import type { DraftBook } from "../warm/drafts"
 
-const RunErrorRow = lazy(() => import("./ui/RunErrorRow"))
 const BrowserControlRow = lazy(() => import("./BrowserControlRow"))
 
 export interface VirtualThreadState {
@@ -639,19 +637,11 @@ export function VirtualThread(props: {
 
   const renderItem = (item: TimelineItem): JSX.Element => {
     if (item.kind === "day-divider") {
-      return (
-        <SystemMessage variant="divider" label={dividerLabel(item.firstSentAt, now())} data-component="chat-divider">
-          {dividerParts(item.firstSentAt, now()).time}
-        </SystemMessage>
-      )
+      const parts = dividerParts(item.firstSentAt, now())
+      return <SystemRow label={parts.day} detail={parts.time} data-component="chat-divider" />
     }
     if (item.kind === "event" && item.message.event?.kind === "run_error") {
-      const failed = item.message.event as Extract<SystemEvent, { kind: "run_error" }>
-      return (
-        <Suspense fallback={<ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />}>
-          <RunErrorRow message={item.message} slug={failed.slug} actions={failed.actions} detail={failed.detail} reason={failed.reason} provider={failed.provider} latest={props.messages.at(-1)?.id === item.message.id} />
-        </Suspense>
-      )
+      return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} latest={props.messages.at(-1)?.id === item.message.id} />
     }
     if (item.kind === "event" && item.message.event?.kind === "browser_control") {
       const line = <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />
@@ -676,9 +666,7 @@ export function VirtualThread(props: {
     }
     if (item.kind === "unread-divider") {
       return (
-        <EventDivider class="text-ring [&>.line]:bg-ring/45" data-component="chat-unread-rule">
-          New messages
-        </EventDivider>
+        <SystemRow label="New messages" tone="accent" data-component="chat-unread-rule" />
       )
     }
     return renderMessage(item)

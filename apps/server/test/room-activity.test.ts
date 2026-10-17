@@ -193,24 +193,29 @@ test("a socket that connects mid-run is told who is busy", async () => {
 
 const row = (status: WorkerRow["status"], over: Partial<WorkerRow> = {}): WorkerRow => ({ id: "w1", task: "find the pricing pages", status, step: null, steps: 0, startedAt: 5, ...over })
 
-test("workers show as a background activity and add no line to the transcript", async () => {
+test("workers show as a background activity and add one row when they start and one when they end", async () => {
 	const room = fresh()
 	const c = await withAgent(room)
 	const joined = (await snapshot(room)).messages.map((m) => m.event)
 	expect(joined).toEqual([{ kind: "member_added", slug: "ada", name: "ada", private: true }])
 	await rpc(room, "setWorkers", "ada", [row("running")])
-	expect(await quiet(c)).toBe(0)
-	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual(joined)
+	await rpc(room, "setWorkers", "ada", [row("running", { steps: 1 })])
+	const task = row("running").task
+	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual([...joined, { kind: "worker", agent: "ada", state: "started", title: task, private: true }])
 
 	await rpc(room, "setStatus", "ada", "working")
 	const background = await c.take((f) => f.t === "status" && f.state === "working")
-	expect(background).toMatchObject({ activity: { kind: "background", workers: [row("running")] } })
-	expect((await snapshot(room)).agents).toEqual([{ slug: "ada", state: "working", activity: { kind: "background", workers: [row("running")] } }])
+	expect(background).toMatchObject({ activity: { kind: "background", workers: [row("running", { steps: 1 })] } })
 
 	await rpc(room, "setWorkers", "ada", [row("done", { steps: 3 })])
 	const after = await c.take((f) => f.t === "status")
 	expect(after).toEqual({ t: "status", slug: "ada", state: "working" })
-	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual(joined)
+	await rpc(room, "setWorkers", "ada", [row("done", { steps: 4 })])
+	expect((await snapshot(room)).messages.map((m) => m.event)).toEqual([
+		...joined,
+		{ kind: "worker", agent: "ada", state: "started", title: task, private: true },
+		{ kind: "worker", agent: "ada", state: "done", title: task, private: true },
+	])
 	c.close()
 })
 
@@ -364,13 +369,13 @@ test("an agent that cannot run for want of a key leaves one line in the transcri
 	const c = await withAgent(room)
 	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r1", [], ["h1"])
 	const line = await c.take((f) => f.t === "events" && f.events.some((e) => e.t === "message" && (e.event as { kind?: string } | undefined)?.kind === "run_error"))
-	expect(JSON.stringify(line)).toContain("cannot answer yet")
+	expect(JSON.stringify(line)).toContain("OpenCode Go: not connected")
 	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r1", [])
 	expect(await runErrors(room)).toHaveLength(1)
 	await rpc(room, "noProvider", "ada", "opencode-go", "inbox:r2", [])
 	const [first, second] = await runErrors(room)
 	expect(first!.event).toMatchObject({ slug: "ada", reason: "no_key", private: true })
-	expect(first!.text).toBe("ada cannot answer yet. OpenCode Go is not connected.")
+	expect(first!.text).toBe("OpenCode Go: not connected")
 	expect(second).toBeDefined()
 	c.close()
 })
@@ -380,12 +385,12 @@ test("a provider error becomes a fixed sentence with actions, never the provider
 	const c = await withAgent(room)
 	await rpc(room, "runError", "ada", "run-1", { kind: "invalid_key", provider: "opencode-go", inputs: [] })
 	const [line] = await runErrors(room)
-	expect(line!.text).toBe("OpenCode Go did not accept the key or sign-in. Check it in Settings, or connect again, then retry.")
-	expect(line!.event.actions).toEqual(["open_settings", "change_model"])
+	expect(line!.text).toBe("OpenCode Go: key or sign-in not accepted")
+	expect(line!.event.actions).toEqual(["open_settings"])
 	await rpc(room, "runError", "ada", "run-1", { kind: "invalid_key", provider: "opencode-go", inputs: [] })
 	expect(await runErrors(room)).toHaveLength(1)
-	const sent = (await notices()).filter((n) => n.error.message === line!.text)
-	expect(sent).toEqual([{ error: { code: "model", message: line!.text, action: "open_models" }, roomId: room }])
+	const sent = (await notices()).filter((n) => n.error.message.endsWith(line!.text))
+	expect(sent).toEqual([{ error: { code: "model", message: `ada could not answer. ${line!.text}`, action: "open_models" }, roomId: room }])
 	c.close()
 })
 
@@ -424,7 +429,7 @@ test("a run that failed on a key, a sign-in or the credit tells the user object,
 	expect((await problems()).slice(before)).toEqual([["opencode-go", "invalid_key"], ["opencode-go", "quota"], ["anthropic", "signed_out"]])
 	const lines = await runErrors(room)
 	expect(lines.map((l) => l.event.reason)).toEqual(["invalid_key", "quota", "signed_out", "rate_limit"])
-	expect(lines[2]).toMatchObject({ text: "Your Anthropic sign-in expired. Sign in again to keep chatting.", event: { provider: "anthropic", actions: ["open_settings"] } })
+	expect(lines[2]).toMatchObject({ text: "Anthropic: sign-in expired", event: { provider: "anthropic", actions: ["open_settings"] } })
 	c.close()
 })
 
@@ -435,8 +440,8 @@ test("an agent whose sign-in expired, or whose provider could not be reached, sa
 	await rpc(room, "noProvider", "ada", "anthropic", "inbox:s2", [], ["h1"], "network")
 	const [expired, offline] = await runErrors(room)
 	expect(expired!.event).toMatchObject({ reason: "signed_out", provider: "anthropic", actions: ["open_settings"] })
-	expect(expired!.text).toBe("Your Anthropic sign-in expired. Sign in again to keep chatting.")
+	expect(expired!.text).toBe("Anthropic: sign-in expired")
 	expect(offline!.event.reason).toBe("network")
-	expect(offline!.text).toBe("Kiko could not reach Anthropic. Check the connection, then retry.")
+	expect(offline!.text).toBe("Anthropic: could not reach it")
 	c.close()
 })

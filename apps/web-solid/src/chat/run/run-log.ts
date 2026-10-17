@@ -99,7 +99,7 @@ const GROUPS: Record<ToolKind, { label: (count: number) => string; priority: num
  * t3code's `summarizeToolGroup`: at most two kinds of action, picked by priority and shown in the
  * order they first appeared, then "Performed N other actions" for every call left over.
  */
-export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status">[]): { summary: string; hasFailure: boolean } {
+export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status">[]): { summary: string; hasFailure: boolean; failed: number } {
   const groups = new Map<ToolKind, number>()
   for (const step of steps) groups.set(step.tool, (groups.get(step.tool) ?? 0) + 1)
   const all = [...groups].map(([tool, count], index) => ({ index, count, priority: GROUPS[tool].priority, label: GROUPS[tool].label(count) }))
@@ -112,7 +112,8 @@ export function summarizeSteps(steps: readonly Pick<RunStep, "tool" | "status">[
   if (rest > 0) labels.push(`Performed ${plural(rest, "other action", "other actions")}`)
   const sentence = labels.map((label, i) => (i === 0 ? label : label.charAt(0).toLowerCase() + label.slice(1)))
   const summary = sentence.length < 3 ? sentence.join(" and ") : `${sentence.slice(0, -1).join(", ")}, and ${sentence.at(-1)}`
-  return { summary, hasFailure: steps.some((s) => s.status === "failed") }
+  const failed = steps.filter((s) => s.status === "failed").length
+  return { summary, hasFailure: failed > 0, failed }
 }
 
 // Live labels

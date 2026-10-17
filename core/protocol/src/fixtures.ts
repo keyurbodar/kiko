@@ -122,6 +122,8 @@ export const systemEvents: readonly SystemEvent[] = [
 	{ kind: "member_removed", slug: bob, name: "Bob", private: true },
 	{ kind: "browser_control", agent: ada, reason: "please sign in to mail.google.com", private: true },
 	{ kind: "created", roomId, title: "Sunny morning" },
+	{ kind: "worker", agent: ada, state: "started", title: "write the tests", private: true },
+	{ kind: "run_stopped", agent: ada, private: true },
 ]
 
 const humanAsk: HumanAsk = { id: "ask1", from: ada, text: "which database should we use?", options: ["sqlite", "postgres"], messageId: messageId(4) }
