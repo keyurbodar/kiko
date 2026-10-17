@@ -179,7 +179,7 @@ function Foot(props: { section: SectionId | null }) {
   )
 }
 
-/** The compose button in the panel header. It opens the bot picker, the same as `Mod+N` and `/new`. */
+/** The compose button in the panel header. It opens the bot picker, the same as `Mod+Shift+O` and `/new`. */
 function HeaderAction(props: { action: PanelAction }) {
   const navigate = useNavigate()
   return (

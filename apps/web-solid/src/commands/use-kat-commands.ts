@@ -24,6 +24,7 @@ import { openNewAgent } from "../newagent/state"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
 import { browserCommands, startBrowser } from "../chat/browser"
+import { isMac } from "../lib/platform"
 
 /** The file ranking loads with the "Go to file" view, so the shell does not carry it. */
 const [goTo, setGoTo] = createSignal<typeof import("../files/go-to") & { HOME: string; recentFiles: typeof import("../files/recent").recentFiles }>()
@@ -48,6 +49,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   }
   useCommands(
     katCommands({
+      mac: isMac,
       toggleSidebar: deps.toggleSidebar,
       // The one way to start a chat: pick the agent, or several for a group (chat/bot-picker.tsx).
       newChat: openBotPicker,

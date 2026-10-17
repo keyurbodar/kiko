@@ -1,11 +1,12 @@
 import { createHotkey, formatForDisplay, type RegisterableHotkey } from "@tanstack/solid-hotkeys"
 import { createMemo, mapArray } from "solid-js"
-import { commands, isEnabled, type Command } from "./registry"
+import { commands, isEnabled, keysOf, type Command } from "./registry"
 
 /*
  * Binds every registered shortcut through `@tanstack/solid-hotkeys`. Call
- * `bindCommandHotkeys()` once, inside the shell. It follows the registry, so a
- * command that registers later gets its key and one that leaves loses it.
+ * `bindCommandHotkeys()` once, inside the shell. It follows the registry and the
+ * owner's own keys, so a command that registers later gets its key, one that
+ * leaves loses it, and a key changed in settings works at once.
  *
  * Only a global command fires while a text field has focus. The library's own
  * default would let every Mod combo through, so the choice is made here.
@@ -22,9 +23,7 @@ export function hotkeyOptions(command: Command) {
 }
 
 export function bindCommandHotkeys(): void {
-  const bound = createMemo(() =>
-    commands().flatMap((c) => [...(c.shortcut ? [{ command: c, key: c.shortcut }] : []), ...(c.alias ? [{ command: c, key: c.alias }] : [])]),
-  )
+  const bound = createMemo(() => commands().flatMap((c) => keysOf(c).map((key) => ({ command: c, key }))))
   const owners = mapArray(bound, ({ command, key }) => {
     createHotkey(
       key as RegisterableHotkey,

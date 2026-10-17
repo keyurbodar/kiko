@@ -1,4 +1,5 @@
 import { createRoot, createSignal, getOwner, onCleanup } from "solid-js"
+import { bindings } from "./bindings"
 
 /*
  * The one registry of app actions. The keyboard, the palette, and the menus
@@ -9,6 +10,18 @@ import { createRoot, createSignal, getOwner, onCleanup } from "solid-js"
  * its unregister only removes its own entry.
  */
 export type CommandGroup = "view" | "chat" | "chats" | "palette" | "go" | "settings" | "account" | "theme" | "browser"
+
+/** Each group's heading, in the palette and in the shortcut settings. */
+export const GROUP_LABEL: Record<CommandGroup, string> = {
+  view: "View",
+  chat: "Chat",
+  chats: "Chats",
+  palette: "Palette",
+  go: "Go to",
+  settings: "Settings",
+  account: "Account",
+  theme: "Theme",
+}
 
 /** One option inside a command's submenu: an agent, a chat, an appearance. */
 export interface Choice {
@@ -45,9 +58,9 @@ export interface Command {
   group: CommandGroup
   /** An icon name. The palette maps it to a glyph, so this file imports none. */
   icon: string
-  /** A TanStack hotkey string, for example `Mod+Shift+T` or `F2`. */
+  /** The default key, a TanStack hotkey string such as `Mod+Shift+T` or `F2`. Read `shortcutOf` for the key in use. */
   shortcut?: string
-  /** A second key for the same action. The cheatsheet shows `shortcut` only. */
+  /** A second default key for the same action. Only `shortcut` is shown. The owner's own key replaces both. */
   alias?: string
   /** A global shortcut also fires while a text field has focus. */
   global?: boolean
@@ -115,25 +128,14 @@ export function runCommand(id: string): boolean {
   return true
 }
 
-export interface ShortcutEntry {
-  id: string
-  title: string
-  group: CommandGroup
-  shortcut: string
-  global: boolean
-  enabled: boolean
+/** The keys a command answers to: the owner's own, or else its defaults. */
+export function keysOf(command: Command): string[] {
+  const own = bindings()
+  if (command.id in own) return own[command.id] ? [own[command.id]!] : []
+  return [command.shortcut, command.alias].filter((k): k is string => Boolean(k))
 }
 
-/** Every command that has a shortcut. The cheatsheet reads this. */
-export function shortcuts(): ShortcutEntry[] {
-  return list()
-    .filter((c): c is Command & { shortcut: string } => Boolean(c.shortcut))
-    .map((c) => ({
-      id: c.id,
-      title: c.title,
-      group: c.group,
-      shortcut: c.shortcut,
-      global: c.global ?? false,
-      enabled: isEnabled(c),
-    }))
+/** The key shown for a command, if it has one. Reactive. */
+export function shortcutOf(command: Command): string | undefined {
+  return keysOf(command)[0]
 }

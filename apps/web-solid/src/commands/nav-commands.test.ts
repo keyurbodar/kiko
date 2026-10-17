@@ -18,9 +18,9 @@ describe("nav commands", () => {
   test("the settings submenu has every page and goes to its route", () => {
     went.length = 0
     const pages = list.find((c) => c.id === "settings.pages")!.submenu!()
-    expect(pages.map((p) => p.title)).toEqual(["Models", "Tools", "Appearance", "General", "Account"])
+    expect(pages.map((p) => p.title)).toEqual(["Models", "Tools", "Appearance", "General", "Keyboard shortcuts", "Account"])
     for (const p of pages) p.run()
-    expect(went).toEqual(["/settings/models", "/settings/tools", "/settings/appearance", "/settings/general", "/settings/account"])
+    expect(went).toEqual(["/settings/models", "/settings/tools", "/settings/appearance", "/settings/general", "/settings/keyboard", "/settings/account"])
   })
 
   test("the first-run path has a command", () => {
