@@ -25,16 +25,16 @@ export function webExtension(fetcher?: Fetcher, fs?: RoomFs): Extension {
     replay: "safe",
     execute: async (args) => {
       const page = await safeFetch(args.url, fetch, { userAgent: USER_AGENT })
-      if (!page.ok) return { content: text(`could not fetch ${page.url}: ${page.reason}`), isError: true }
+      if (!page.ok) return { output: text(`could not fetch ${page.url}: ${page.reason}`), isError: true }
       const details = { source: page.url }
       const type = (page.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? ""
       if (type && !TEXT_TYPES.test(type)) {
-        return { content: text(`${page.url} answered ${page.status} with ${type}, which is not text`), isError: true, details }
+        return { output: text(`${page.url} answered ${page.status} with ${type}, which is not text`), isError: true, details }
       }
       const raw = new TextDecoder().decode(page.body)
       const body = type === "text/html" || type === "application/xhtml+xml" || (!type && /<html\b/i.test(raw)) ? htmlToText(raw) : raw
       const head = `${page.url} (status ${page.status})${page.truncated ? ", cut at 1 mb" : ""}\n\n`
-      return { content: text(head + (await spill(fs, page.url, body))), isError: page.status >= 400, details }
+      return { output: text(head + (await spill(fs, page.url, body))), isError: page.status >= 400, details }
     },
   })
   return defineExtension({ name: WEB, tools: [declareEffect("read", webFetch)] })

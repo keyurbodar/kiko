@@ -36,7 +36,7 @@ export function memoryExtensions(port: MemoryPort): Extension[] {
     replay: "safe",
     execute: async (args, api) => {
       const found = await port.recall(args.query, api.conversationId)
-      return { content: text(found || `nothing matches "${args.query}"`) }
+      return { output: text(found || `nothing matches "${args.query}"`) }
     },
   })
 
@@ -47,7 +47,7 @@ export function memoryExtensions(port: MemoryPort): Extension[] {
     replay: "safe",
     execute: async (args) => {
       const found = await port.zoom(args.id.trim())
-      return found ? { content: text(found) } : { content: text(`no memory ${args.id}. use an id from the <memory> block, like chat:12.`), isError: true }
+      return found ? { output: text(found) } : { output: text(`no memory ${args.id}. use an id from the <memory> block, like chat:12.`), isError: true }
     },
   })
 
@@ -60,10 +60,10 @@ export function memoryExtensions(port: MemoryPort): Extension[] {
     }),
     execute: async (args) => {
       const out = await port.note(args.text, args.replaces)
-      if (!out.ok) return { content: text(out.error), isError: true }
+      if (!out.ok) return { output: text(out.error), isError: true }
       const said = `${out.duplicate ? "already known" : "noted"} as life:${out.pos}`
-      if (args.replaces === undefined) return { content: text(said) }
-      return { content: text(out.replaced ? `${said}, replaced ${args.replaces}` : `${said}. ${args.replaces} is not a live life line, so nothing was replaced.`) }
+      if (args.replaces === undefined) return { output: text(said) }
+      return { output: text(out.replaced ? `${said}, replaced ${args.replaces}` : `${said}. ${args.replaces} is not a live life line, so nothing was replaced.`) }
     },
   })
 

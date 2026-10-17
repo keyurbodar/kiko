@@ -431,7 +431,7 @@ export async function runCommand(files: RoomFs, command: string, options: ShellE
   const seconds = Math.min(options?.timeout ?? DEFAULT_TIMEOUT_S, MAX_TIMEOUT_S)
   const timer = AbortSignal.timeout(seconds * 1000)
   const outside = context.abortSignal ? AbortSignal.any([context.abortSignal, timer]) : timer
-  const say = (text: string) => void (text && options?.onOutput?.(text, context))
+  const say = (text: string) => void (text && options?.onOutput?.(text, context, { stream: "stdout" }))
   const overRead = (): Result<BashResult, ExecutionError> => {
     say(OVER_READ)
     return ok({ exitCode: LIMIT_EXIT, changed: [] })

@@ -130,7 +130,7 @@ export class T extends AgentDO {
               )
             })
           }
-          return { content: [{ type: "text", text: "released" }] }
+          return { output: [{ type: "text", text: "released" }] }
         },
       }),
     )

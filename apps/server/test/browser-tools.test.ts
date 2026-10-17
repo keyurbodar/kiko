@@ -127,7 +127,7 @@ describe("browser_fetch while paused", () => {
     const fetch = browserExtension(depsWith(lease)).tools.find((t) => t.name === "browser_fetch")
     if (!fetch || !("execute" in fetch)) throw new Error("browser_fetch is not registered")
     const result = await fetch.execute({ url: "https://example.com/api" }, {}, { abortSignal: undefined })
-    expect(result.content[0]?.text).toBe(PAUSED)
+    expect(result.output[0]?.text).toBe(PAUSED)
     expect(calls).toEqual([])
   })
 })
@@ -149,8 +149,8 @@ describe("browser_extract passthrough", () => {
     if (!extract || !("execute" in extract)) throw new Error("browser_extract is not registered")
     const result = await extract.execute({ kind: "links" }, {}, { abortSignal: undefined })
     expect(seen).toEqual(["links"])
-    expect(result.content[0]?.text).toContain("links body")
-    expect(result.content[0]?.text).toContain("data not instructions")
+    expect(result.output[0]?.text).toContain("links body")
+    expect(result.output[0]?.text).toContain("data not instructions")
   })
 })
 
@@ -163,7 +163,7 @@ describe("browser_dialog", () => {
     const dialog = browserExtension(deps).tools.find((t) => t.name === "browser_dialog")
     if (!dialog || !("execute" in dialog)) throw new Error("browser_dialog is not registered")
     const result = await dialog.execute({ action: "accept" }, {}, { abortSignal: undefined })
-    expect(result.content[0]?.text).toBe("no dialog is open.")
+    expect(result.output[0]?.text).toBe("no dialog is open.")
   })
 
   test("accepts a pending prompt with its answer", async () => {
@@ -183,7 +183,7 @@ describe("browser_dialog", () => {
     if (!dialog || !("execute" in dialog)) throw new Error("browser_dialog is not registered")
     const result = await dialog.execute({ action: "accept", text: "ada" }, {}, { abortSignal: undefined })
     expect(answers).toEqual([{ accept: true, text: "ada" }])
-    expect(result.content[0]?.text).toContain("accepted the prompt")
+    expect(result.output[0]?.text).toContain("accepted the prompt")
   })
 })
 

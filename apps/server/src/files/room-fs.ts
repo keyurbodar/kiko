@@ -2,16 +2,22 @@ import { fileStore } from "./store"
 import { sha256Hex } from "@kiko/durable/hash"
 import type { Context } from "@earendil-works/chord"
 import {
+  type BinaryReader,
+  type DirReader,
   err,
   type ExecutionError,
   type ExecutionEnv,
   FileError,
   type FileErrorCode,
   type FileInfo,
+  type FileWatcher,
+  LineScanner,
   ok,
   type Result,
   type ShellExecOptions,
   type TextLineReader,
+  type WatchChange,
+  type WatchTarget,
 } from "@earendil-works/pi-durable/env"
 import type { ConversationId, ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { AgentSlug } from "@kiko/protocol"
@@ -165,6 +171,50 @@ export class RoomFs implements ExecutionEnv {
       },
       close: async () => {},
     })
+  }
+
+  async openBinaryReader(path: string): Promise<Result<BinaryReader, FileError>> {
+    const found = await this.stat(path)
+    if (!found.ok) return found
+    if (found.value.kind === "directory") return err(new FileError("is_directory", `${path} is a folder`, path))
+    const bytes = await this.readBinaryFile(path)
+    if (!bytes.ok) return bytes
+    const data = bytes.value
+    const info = this.info(found.value)
+    return ok({
+      info: async () => ok({ ...info, size: data.length }),
+      read: async (offset, length) => ok(data.slice(offset, offset + length)),
+      scanLines: async (options) => {
+        let scanner: LineScanner
+        try {
+          scanner = new LineScanner(options.startLine, options.endLine)
+        } catch {
+          return err(new FileError("invalid", "Invalid line range", path))
+        }
+        scanner.push(data)
+        return ok(scanner.finish())
+      },
+      close: async () => {},
+    })
+  }
+
+  async openDirReader(path: string): Promise<Result<DirReader, FileError>> {
+    const listed = await this.listDir(path)
+    if (!listed.ok) return listed
+    const entries = listed.value
+    let next = 0
+    return ok({
+      next: async (maxEntries) => {
+        const page = entries.slice(next, next + maxEntries)
+        next += page.length
+        return ok({ entries: page, done: next >= entries.length })
+      },
+      close: async () => {},
+    })
+  }
+
+  async watch(_targets: readonly WatchTarget[], _onChange: (change: WatchChange) => void): Promise<Result<FileWatcher, FileError>> {
+    return err(new FileError("not_supported", "the chat's files cannot be watched"))
   }
 
   async write(path: string, bytes: Uint8Array, type = typeForPath(path)): Promise<Result<FsEntry & { kind: "file" }, FileError>> {
@@ -361,8 +411,9 @@ export class RoomFs implements ExecutionEnv {
     return err(new FileError("not_supported", "the chat's files have no temporary files"))
   }
 
-  async exec(command: string, options: ShellExecOptions | undefined, context: Context): Promise<Result<BashResult, ExecutionError>> {
-    return runCommand(this, command, options, context)
+  async exec(command: string | readonly string[], options: ShellExecOptions | undefined, context: Context): Promise<Result<BashResult, ExecutionError>> {
+    const line = typeof command === "string" ? command : command.map((word) => `'${word.replaceAll("'", "'\\''")}'`).join(" ")
+    return runCommand(this, line, options, context)
   }
 
   async cleanup(_context?: Context): Promise<void> {}

@@ -93,10 +93,10 @@ async function timed(name: string, fs: RoomFs | undefined, run: () => Promise<Co
     const sent = performance.now()
     const out = await run()
     count(`composio.${name}.ms`, Math.round(performance.now() - sent))
-    if (!out.content.length) return { content: [{ type: "text" as const, text: "(no output)" }], isError: out.isError }
+    if (!out.content.length) return { output: [{ type: "text" as const, text: "(no output)" }], isError: out.isError }
     const content = await Promise.all(out.content.map(async (b) => (b.type === "text" ? { ...b, text: await spill(fs, `composio-${name}`, b.text) } : b)))
-    return { content, isError: out.isError }
+    return { output: content, isError: out.isError }
   } catch (e) {
-    return { content: [{ type: "text" as const, text: composioErrorText(e) }], isError: true }
+    return { output: [{ type: "text" as const, text: composioErrorText(e) }], isError: true }
   }
 }

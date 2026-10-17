@@ -85,7 +85,7 @@ export function presenceExtension(report: (doing: string, activity: Activity) =>
         afterTool: async (call, result) => {
           const described = result.isError ? describeCall(call.name, (call.arguments ?? {}) as Record<string, unknown>) : null
           if (described) {
-            const out = failedCall(described, result.content)
+            const out = failedCall(described, result.output)
             void report(out.doing, out.activity).catch(() => undefined)
           }
           return undefined

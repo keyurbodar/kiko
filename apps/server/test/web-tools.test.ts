@@ -13,7 +13,7 @@ function tools(extension: { tools?: readonly ToolRegistration[] }) {
   const byName = new Map((extension.tools ?? []).map((t) => [t.name, t]))
   return async (name: string, args: Record<string, unknown>) => {
     const result = await byName.get(name)!.execute(args as never, api, context)
-    const text = (result.content ?? []).map((p) => (p.type === "text" ? p.text : `[${p.type}]`)).join("")
+    const text = (result.output ?? []).map((p) => (p.type === "text" ? p.text : `[${p.type}]`)).join("")
     return { ...result, text }
   }
 }

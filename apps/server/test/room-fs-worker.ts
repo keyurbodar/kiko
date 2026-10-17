@@ -141,7 +141,7 @@ export default {
     const started = performance.now()
     try {
       const result = await tool.execute(args as never, api, { ...BACKGROUND_CONTEXT, abortSignal: stop.signal })
-      const text = (result.content ?? []).map((p) => (p.type === "text" ? p.text : `[${p.type}]`)).join("") || streamed
+      const text = (result.output ?? []).map((p) => (p.type === "text" ? p.text : `[${p.type}]`)).join("") || streamed
       const notes = (result.diagnostics ?? []).map((d) => d.message).join("\n")
       return Response.json({ ok: !result.isError, text, notes, ms: performance.now() - started, details: reported ?? result.details, touched })
     } catch (error) {

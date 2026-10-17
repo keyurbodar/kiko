@@ -8,7 +8,7 @@ import { fillFlags } from "./tools"
 const CONNECT_APP = "composio_connect"
 export const MANAGE_CONNECTIONS = "COMPOSIO_MANAGE_CONNECTIONS"
 
-const text = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) })
+const text = (t: string, isError = false) => ({ output: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) })
 
 /** The toolkits item is a plain slug or an object, as the session's own schema says. */
 function toolkitArgs(tool: ComposioTool, app: string): Record<string, unknown> {

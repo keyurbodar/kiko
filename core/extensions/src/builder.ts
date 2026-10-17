@@ -18,7 +18,7 @@ export type BuilderPorts = {
   source: (name: string) => Promise<ExtensionBundle | null>
 }
 
-const text = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError: true } : {}) })
+const text = (t: string, isError = false) => ({ output: [{ type: "text" as const, text: t }], ...(isError ? { isError: true } : {}) })
 export function extensionLine(x: ExtensionInfo): string {
   const tools = Object.keys(x.manifest.tools ?? {})
   const unset = x.secrets.filter((s) => !s.set).map((s) => s.name)

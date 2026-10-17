@@ -93,7 +93,7 @@ function deps(connection: BrowserConnection, lease: LeasePort): BrowserToolDeps 
 async function run(extension: ReturnType<typeof browserExtension>, tool: string, args: unknown, api: object = {}) {
   const t = extension.tools.find((x) => x.name === tool)
   if (!t || !("execute" in t)) throw new Error(`${tool} is not registered`)
-  return (t.execute as (a: unknown, api: unknown, ctx: unknown) => Promise<{ content: { text?: string }[]; isError?: boolean }>)(args, api, { abortSignal: undefined })
+  return (t.execute as (a: unknown, api: unknown, ctx: unknown) => Promise<{ output: { text?: string }[]; isError?: boolean }>)(args, api, { abortSignal: undefined })
 }
 
 describe("tabs belong to the agent that opened them", () => {
@@ -139,7 +139,7 @@ describe("tabs belong to the agent that opened them", () => {
     const extra = await c.openTab("https://extra.test")
     const tools = browserExtension(deps(c, lease))
     const out = await run(tools, "browser_tabs", { action: "close_all" }, { conversationId: "w2" })
-    expect(out.content[0]?.text).toBe("closed 2 tabs")
+    expect(out.output[0]?.text).toBe("closed 2 tabs")
     expect([...w.live.keys()]).toEqual([busy.id])
     expect(w.live.has(extra.id)).toBe(false)
   })
@@ -163,7 +163,7 @@ describe("tabs belong to the agent that opened them", () => {
     const c = conn(w, lease)
     await c.goto("https://a.test")
     const out = await run(browserExtension(deps(c, lease)), "browser_tabs", { action: "list" })
-    const lines = out.content[0]?.text?.split("\n") ?? []
+    const lines = out.output[0]?.text?.split("\n") ?? []
     expect(lines[0]).toMatch(/^\* t\d+ https:\/\/a\.test https:\/\/a\.test$/)
     expect(lines[1]).toContain("bob https://b.test/page (theirs)")
   })
@@ -174,7 +174,7 @@ describe("tabs belong to the agent that opened them", () => {
     const c = conn(w, lease)
     await c.goto("https://a.test")
     const out = await run(browserExtension(deps(c, lease)), "browser_tabs", { action: "open", url: "https://b.test" })
-    expect(out.content[0]?.text).toContain("now your current tab")
+    expect(out.output[0]?.text).toContain("now your current tab")
     expect((await (await c.currentTab())?.read())?.url).toBe("https://b.test")
     expect(w.live.size).toBe(2)
   })
@@ -188,7 +188,7 @@ describe("the human's control stops the agent", () => {
     const tab = await c.goto("https://a.test")
     const before = w.live.get(tab.id)?.steps.length
     const out = await run(browserExtension(deps(c, lease)), "browser_act", { steps: [{ op: "click", id: 1 }] })
-    expect(out.content[0]?.text).toBe(PAUSED)
+    expect(out.output[0]?.text).toBe(PAUSED)
     expect(w.live.get(tab.id)?.steps.length).toBe(before)
   })
 
@@ -197,7 +197,7 @@ describe("the human's control stops the agent", () => {
     const { lease } = leaseWith({ takeover: true })
     const tools = browserExtension(deps(conn(w, lease), lease))
     for (const [tool, args] of [["browse", { urls: ["https://a.test"] }], ["browser_tabs", { action: "list" }]] as const) {
-      expect((await run(tools, tool, args)).content[0]?.text).toBe(PAUSED)
+      expect((await run(tools, tool, args)).output[0]?.text).toBe(PAUSED)
     }
     expect(w.live.size).toBe(0)
   })
@@ -221,11 +221,11 @@ describe("the talker can show the browser without a worker", () => {
     const { lease, lives } = leaseWith()
     const info = browserInfoExtension(deps(conn(world(), lease), lease))
     const watch = await run(info, "browser_link", { mode: "watch" })
-    expect(watch.content[0]?.text).toContain("https://live.test/abc")
-    expect(watch.content[0]?.text).toContain("markdown link")
+    expect(watch.output[0]?.text).toContain("https://live.test/abc")
+    expect(watch.output[0]?.text).toContain("markdown link")
     const control = await run(info, "browser_link", { mode: "control", reason: "please sign in to github.com" })
-    expect(control.content[0]?.text).toContain("posted the control link")
-    expect(control.content[0]?.text).not.toContain("https://live.test")
+    expect(control.output[0]?.text).toContain("posted the control link")
+    expect(control.output[0]?.text).not.toContain("https://live.test")
     expect(lives).toEqual([["watch", undefined], ["control", "please sign in to github.com"]])
   })
 
@@ -233,19 +233,19 @@ describe("the talker can show the browser without a worker", () => {
     const { lease } = leaseWith({}, async () => ({ ok: false, error: "No browser is open" }))
     const out = await run(browserInfoExtension(deps(conn(world(), lease), lease)), "browser_link", { mode: "watch" })
     expect(out).toMatchObject({ isError: true })
-    expect(out.content[0]?.text).toBe("No browser is open")
+    expect(out.output[0]?.text).toBe("No browser is open")
   })
 
   test("browser_status lists tabs with owners and who has control", async () => {
     const { lease } = leaseWith({ takeover: true, list: [{ id: "T1", agent: "room:bob", url: "https://b.test/x" }] })
     const out = await run(browserInfoExtension(deps(conn(world(), lease), lease)), "browser_status", {})
-    expect(out.content[0]?.text).toBe("headless browser. the human has control; browser tools are paused.\nT1 bob https://b.test/x")
+    expect(out.output[0]?.text).toBe("headless browser. the human has control; browser tools are paused.\nT1 bob https://b.test/x")
   })
 
   test("browser_status says when no key is connected", async () => {
     const { lease } = leaseWith({ connected: false })
     const out = await run(browserInfoExtension(deps(conn(world(), lease), lease)), "browser_status", {})
-    expect(out.content[0]?.text).toContain("has not connected a Kernel key")
+    expect(out.output[0]?.text).toContain("has not connected a Kernel key")
   })
 })
 
