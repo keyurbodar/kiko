@@ -21,6 +21,7 @@ export const GROUP_LABEL: Record<CommandGroup, string> = {
   settings: "Settings",
   account: "Account",
   theme: "Theme",
+  browser: "Browser",
 }
 
 /** One option inside a command's submenu: an agent, a chat, an appearance. */
