@@ -94,9 +94,18 @@ const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>
   create_group: () => "Created a group",
   ask: (a) => `Asked ${str(a.to).replace(/^@/, "").toLowerCase()}`,
   ask_human: () => "Asked the human",
+  mkdir: (a) => `Made folder${path(a)}`,
+  mv: (a) => `Moved${path({ path: a.from })} to${path({ path: a.to })}`,
+  cp: (a) => `Copied${path({ path: a.from })} to${path({ path: a.to })}`,
+  rm: (a) => (Array.isArray(a.paths) && a.paths.length === 1 ? `Deleted${path({ path: a.paths[0] })}` : "Deleted files"),
+  create_task: (a) => (str(a.title) ? `Added task ${cut(str(a.title), 60)}` : "Added a task"),
+  update_task: () => "Updated a task",
+  note: () => "Saved a note",
+  recall: () => "Searched memory",
+  browse: () => "Browsed the web",
 }
 
-const PATH_TOOLS = new Set(["read", "ls", "write", "edit"])
+const PATH_TOOLS = new Set(["read", "ls", "write", "edit", "mkdir"])
 
 function inputOf(name: string, args: Record<string, unknown>): string | undefined {
   const full = name === "bash" ? str(args.command) : name === "web_fetch" ? str(args.url) : PATH_TOOLS.has(name) || !Object.keys(args).length ? "" : JSON.stringify(args)

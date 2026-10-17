@@ -16,12 +16,14 @@ const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
 
 const DETAIL_MAX = 300
 
-/** Cuts out anything that looks like a key or a bearer token. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Cuts out anything that looks like a key or a bearer token. A UUID is an id, not a key, so it stays. */
 export function redact(text: string): string {
   return text
     .replace(/(bearer\s+)\S+/gi, "$1[hidden]")
     .replace(/\b(sk|pk|rk|key|tok|ghp|xox[abp])[-_][A-Za-z0-9_-]{8,}/gi, "[hidden]")
-    .replace(/[A-Za-z0-9_-]{32,}/g, "[hidden]")
+    .replace(/[A-Za-z0-9_-]{32,}/g, (m) => (UUID.test(m) ? m : "[hidden]"))
 }
 
 /**

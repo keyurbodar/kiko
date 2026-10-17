@@ -38,7 +38,8 @@ export function composioDescribe(tools: readonly ComposioTool[]): Describe {
       case MANAGE_CONNECTIONS:
         return { label: "Managed app connections" }
       default:
-        return null
+        // Another of Composio's own tools, such as its workbench, reads from its slug like an app action.
+        return { label: action(tool.name, "composio"), app: "composio" }
     }
   }
 }

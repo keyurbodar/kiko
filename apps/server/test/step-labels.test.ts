@@ -13,6 +13,12 @@ test("a step reads as past tense words the human can follow, and internal tools 
   expect(label("bash", { command: "bun   test" })).toBe("Ran bun test")
   expect(label("web_fetch", { url: "https://example.com/a/b?x=1" })).toBe("Fetched example.com")
   expect(label("ask", { to: "@Ada" })).toBe("Asked ada")
+  expect(label("mkdir", { path: "trip" })).toBe("Made folder /trip")
+  expect(label("mv", { from: "/a.md", to: "b.md" })).toBe("Moved /a.md to /b.md")
+  expect(label("rm", { paths: ["/a.md"] })).toBe("Deleted /a.md")
+  expect(label("rm", { paths: ["/a.md", "/b.md"] })).toBe("Deleted files")
+  expect(label("create_task", { title: "Buy JR passes" })).toBe("Added task Buy JR passes")
+  expect(label("note", { text: "window seats" })).toBe("Saved a note")
   expect(label("linear_create_issue", { title: "x" })).toBe("Used linear_create_issue")
   for (const quiet of ["memory_write", "read_skill", "team", "send_message", "steer_work"]) expect(stepOf(quiet, {})).toBeNull()
   expect(stepOf("ask", {})).toBeNull()
@@ -40,18 +46,21 @@ test("a connected app's call reads as the app and the action, from the tool's ow
     { name: "GMAIL_SEND_EMAIL", inputSchema: {}, direct: { slug: "GMAIL_SEND_EMAIL", toolkit: "gmail" } },
     { name: "COMPOSIO_MULTI_EXECUTE_TOOL", inputSchema: {} },
     { name: "COMPOSIO_SEARCH_TOOLS", inputSchema: {} },
+    { name: "COMPOSIO_REMOTE_WORKBENCH", inputSchema: {} },
   ]
   const describe = composioDescribe(tools)
   expect(stepOf(toolName("GMAIL_SEND_EMAIL"), { to: "a@b.c" }, describe)).toMatchObject({ label: "Send email", app: "gmail", name: "composio_gmail_send_email", tool: "other" })
   const many = { tools: [{ tool_slug: "GOOGLECALENDAR_CREATE_EVENT", arguments: {} }, { tool_slug: "GMAIL_FETCH_EMAILS", arguments: {} }] }
   expect(stepOf(toolName("COMPOSIO_MULTI_EXECUTE_TOOL"), many, describe)).toMatchObject({ label: "Create event and 1 more", app: "googlecalendar" })
   expect(stepOf(toolName("COMPOSIO_SEARCH_TOOLS"), { queries: [] }, describe)?.label).toBe("Searched connected apps")
+  expect(stepOf(toolName("COMPOSIO_REMOTE_WORKBENCH"), {}, describe)).toMatchObject({ label: "Remote workbench", app: "composio" })
   expect(stepOf("read", { path: "/a" }, describe)?.app).toBeUndefined()
 })
 
 test("a result becomes the output text, cut and without keys", () => {
   expect(outputOf([{ type: "text", text: "ok" }, { type: "image" }, { type: "text", text: "two" }])).toBe("ok\ntwo")
   expect(outputOf([{ type: "text", text: "token sk-abcdefghijklmnop here" }])).toBe("token [hidden] here")
+  expect(outputOf([{ type: "text", text: "routine 01a1481c-e1eb-75a9-afd0-68d6ec82c2c4 set, key a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7" }])).toBe("routine 01a1481c-e1eb-75a9-afd0-68d6ec82c2c4 set, key [hidden]")
   expect(outputOf([{ type: "text", text: "y ".repeat(5_000) }])?.length).toBe(4_000)
   expect(outputOf([])).toBeUndefined()
   expect(outputOf(undefined)).toBeUndefined()
