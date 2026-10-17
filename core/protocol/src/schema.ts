@@ -179,7 +179,7 @@ export const RunStep = Schema.Struct({
 	startedAt: Count,
 	endedAt: Schema.optionalKey(Count),
 	output: Schema.optionalKey(Schema.String),
-	pos: Count,
+	after: Count,
 })
 
 export const RunRef = Schema.Struct({ runId: Id, attempt: Count, index: Count })
@@ -358,7 +358,7 @@ export const ClientToRoom = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("answer"), id: Id, value: Schema.Union([Schema.String, Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Array(Schema.String)]))]) }),
 	Schema.Struct({ t: Schema.Literal("skip"), id: Id }),
 	Schema.Struct({ t: Schema.Literal("retry"), messageId: MessageId }),
-	Schema.Struct({ t: Schema.Literal("steps"), slug: AgentSlug, after: Count, upTo: Schema.optionalKey(Count) }),
+	Schema.Struct({ t: Schema.Literal("steps"), slug: AgentSlug, after: Count }),
 ])
 
 export const RoomToClient = Schema.Union([
@@ -369,7 +369,7 @@ export const RoomToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("draft"), slug: AgentSlug, runId: Id, index: Count, text: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("status"), ...AgentStatus.fields }),
 	Schema.Struct({ t: Schema.Literal("step"), step: RunStep }),
-	Schema.Struct({ t: Schema.Literal("steps"), slug: AgentSlug, after: Count, upTo: Schema.optionalKey(Count), steps: Schema.Array(RunStep) }),
+	Schema.Struct({ t: Schema.Literal("steps"), slug: AgentSlug, after: Count, steps: Schema.Array(RunStep) }),
 	Schema.Struct({
 		t: Schema.Literal("member_refused"),
 		op: MemberOp,

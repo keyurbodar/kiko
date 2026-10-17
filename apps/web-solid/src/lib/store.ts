@@ -25,7 +25,7 @@ import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
 import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
-import { inWindow, stepWindows, windowKey } from "../chat/run/run-log"
+import { inWindow, newestAfter, parseWindow, stepWindows, windowKey } from "../chat/run/run-log"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
@@ -359,7 +359,7 @@ export function createApp(options: AppOptions = {}) {
       return rows
     })
 
-    /** The step window of each agent message in view, and each agent's open one, for the run panel's chevron. */
+    /** The step window each agent message in view opens, for the run panel. */
     const windows = shared(() => stepWindows(activeRows()))
 
     function openRoom(roomId: RoomId | null) {
@@ -791,39 +791,30 @@ export function createApp(options: AppOptions = {}) {
         return m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined
       },
 
-      /** The window an agent's typing row opens: its steps since its last message, once there is one. */
+      /** The window an agent's typing row opens: the steps no message in view opens yet, once there are some. */
       typingRun(slug: string): string | undefined {
         const r = room()
         if (!r?.state.live[slug]) return undefined
-        const after = windows().open.get(slug) ?? 0
-        return inWindow(r.state.steps[slug] ?? [], after).length ? windowKey(slug, after) : undefined
+        const after = newestAfter(r.state.steps[slug] ?? [])
+        return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
       },
 
       /** The steps of a window this client holds, in start order. */
       runSteps(key: string): readonly RunStep[] {
-        const { slug, after, upTo } = this.stepWindow(key)
-        return inWindow(room()?.state.steps[slug] ?? [], after, upTo)
+        const { slug, after } = parseWindow(key)
+        return inWindow(room()?.state.steps[slug] ?? [], after)
       },
 
-      /** A window by its key: a bubble's, or the open one after the agent's last message. */
-      stepWindow(key: string): { slug: string; after: number; upTo?: number; steps: number } {
-        const known = windows().closed.get(key)
-        if (known) return known
-        const at = key.lastIndexOf("#")
-        return { slug: key.slice(0, at), after: Number(key.slice(at + 1)), steps: 0 }
-      },
-
-      /** True while the agent is mid-run and the window is its open one, after its last message. */
+      /** True while the agent is mid-run and no message in view opens the window yet. */
       runLive(key: string): boolean {
-        const { slug, upTo } = this.stepWindow(key)
-        return upTo === undefined && !!room()?.state.live[slug]
+        return !windows().has(key) && !!room()?.state.live[parseWindow(key).slug]
       },
 
       /** Asks the room for a bubble's steps when this client holds fewer than the bubble says it opens. */
       loadRunSteps(key: string) {
         const r = room()
-        const w = this.stepWindow(key)
-        if (r && w.upTo !== undefined && inWindow(r.state.steps[w.slug] ?? [], w.after, w.upTo).length < w.steps) r.requestSteps(w.slug, w.after, w.upTo)
+        const w = windows().get(key)
+        if (r && w && inWindow(r.state.steps[w.slug] ?? [], w.after).length < w.steps) r.requestSteps(w.slug, w.after)
       },
 
       /** True while a window's steps are on their way. */

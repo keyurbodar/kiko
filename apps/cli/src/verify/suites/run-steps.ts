@@ -23,15 +23,15 @@ async function snapshot(s: Session, roomId: string) {
   return reset.snapshot
 }
 
-async function stepsOf(room: RoomHandle, slug: string, after: number, upTo?: number): Promise<readonly RunStep[]> {
-  room.raw.send({ t: "steps", slug: slug as RunStep["slug"], after, ...(upTo !== undefined ? { upTo } : {}) })
-  const answer = await room.expect((f) => f.t === "steps" && f.slug === slug && f.after === after && f.upTo === upTo, 5_000)
+async function stepsOf(room: RoomHandle, slug: string, after: number): Promise<readonly RunStep[]> {
+  room.raw.send({ t: "steps", slug: slug as RunStep["slug"], after })
+  const answer = await room.expect((f) => f.t === "steps" && f.slug === slug && f.after === after, 5_000)
   if (answer.t !== "steps") throw new VerifyError("no steps answer")
   return answer.steps
 }
 
 /** The steps a bubble opens, as the room answers for its window. */
-const opens = (room: RoomHandle, m: Message) => (m.from.kind === "agent" && m.steps ? stepsOf(room, m.from.slug, m.stepAfter ?? 0, m.seq) : Promise.resolve([]))
+const opens = (room: RoomHandle, m: Message) => (m.from.kind === "agent" && m.steps ? stepsOf(room, m.from.slug, m.stepAfter ?? 0) : Promise.resolve([]))
 
 let base = 0
 const go = async (room: RoomHandle, text: string) => {
@@ -108,7 +108,7 @@ const suite: Suite = {
     const before = stepFrames(room).length
     await go(room, '[tool update_task {"id":"no-such-task","status":"done"}]')
     const failedStep = await poll("the failing step to end", () => stepFrames(room).slice(before).find((x) => x.name === "update_task" && x.status !== "running"), FAKE_MS)
-    expectEqual({ status: failedStep.status, label: failedStep.label, hasOutput: Boolean(failedStep.output) }, { status: "failed", label: "Used update_task", hasOutput: true }, "a task update that cannot work")
+    expectEqual({ status: failedStep.status, label: failedStep.label, hasOutput: Boolean(failedStep.output) }, { status: "failed", label: "Updated a task", hasOutput: true }, "a task update that cannot work")
     await poll("the agent to go idle", () => idle(room), FAKE_MS)
     const quiet = stepFrames(room).length
     await go(room, "[tool team {}]")

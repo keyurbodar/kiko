@@ -27,24 +27,24 @@ const step = (over: Partial<HeardStep> = {}): HeardStep => ({
 const ended = (over: Partial<HeardStep> = {}) => step({ status: "done", endedAt: 150, ...over })
 const all = (steps: RunSteps) => steps.window("kiko", 0)
 
-test("a running step is held in memory and writes no row; its end writes exactly one, where it was first heard", () => {
+test("a running step is held in memory and writes no row; its end writes exactly one, in the window it began in", () => {
 	const { sql, steps } = room()
-	expect(steps.start(step(), 4)).toMatchObject({ status: "running", pos: 4 })
+	expect(steps.start(step(), 0)).toMatchObject({ status: "running", after: 0 })
 	expect(steps.start(step(), 6)).toBeNull()
 	expect(rows(sql)).toBe(0)
 	expect(all(steps).map((s) => s.status)).toEqual(["running"])
-	expect(steps.finish(ended({ output: "hi" }), 9)).toMatchObject({ step: { status: "done", output: "hi", endedAt: 150, pos: 4 }, fresh: false })
+	expect(steps.finish(ended({ output: "hi" }), 9)).toMatchObject({ step: { status: "done", output: "hi", endedAt: 150, after: 0 }, fresh: false })
 	expect(rows(sql)).toBe(1)
-	expect(all(steps).map((s) => [s.status, s.pos])).toEqual([["done", 4]])
+	expect(all(steps).map((s) => [s.status, s.after])).toEqual([["done", 0]])
 })
 
 test("a replay writes nothing: a repeated end, a late start, and an end that conflicts", () => {
 	const { sql, steps } = room()
-	expect(steps.finish(ended(), 2)?.fresh).toBe(true)
+	expect(steps.finish(ended(), 0)?.fresh).toBe(true)
 	const written = rows(sql)
-	expect(steps.finish(ended(), 3)).toBeNull()
-	expect(steps.finish(ended({ status: "failed", output: "other" }), 3)).toBeNull()
-	expect(steps.start(step(), 3)).toBeNull()
+	expect(steps.finish(ended(), 0)).toBeNull()
+	expect(steps.finish(ended({ status: "failed", output: "other" }), 0)).toBeNull()
+	expect(steps.start(step(), 0)).toBeNull()
 	expect(all(steps)).toHaveLength(1)
 	expect(all(steps)[0]?.output).toBeUndefined()
 	expect(rows(sql)).toBe(written)
@@ -52,32 +52,32 @@ test("a replay writes nothing: a repeated end, a late start, and an end that con
 
 test("an end that arrives alone is stored whole, and a cut-off run's running steps fail", () => {
 	const { steps } = room()
-	expect(steps.finish(ended({ label: "Used x", worker: { id: "w1", task: "t" }, app: "gmail", input: "{}" }), 1)?.step).toMatchObject({ label: "Used x" })
+	expect(steps.finish(ended({ label: "Used x", worker: { id: "w1", task: "t" }, app: "gmail", input: "{}" }), 0)?.step).toMatchObject({ label: "Used x" })
 	expect(all(steps)[0]).toMatchObject({ worker: { id: "w1", task: "t" }, app: "gmail", input: "{}", name: "read" })
-	steps.start(step({ id: "t2", startedAt: 120 }), 1)
-	steps.start(step({ id: "w2", startedAt: 130, worker: { id: "w1", task: "t" } }), 1)
+	steps.start(step({ id: "t2", startedAt: 120 }), 0)
+	steps.start(step({ id: "w2", startedAt: 130, worker: { id: "w1", task: "t" } }), 0)
 	expect(steps.abandon("r1")).toMatchObject([{ id: "t2", status: "failed", endedAt: 9_000 }])
 	expect(steps.abandon("r1")).toEqual([])
 	expect(all(steps).map((s) => [s.id, s.status])).toEqual([["t1", "done"], ["t2", "failed"], ["w2", "running"]])
 })
 
-test("a window holds one agent's steps from its start up to its end, stored and running", () => {
+test("a window holds one agent's steps after one of its messages, stored and running", () => {
 	const { steps } = room()
-	steps.finish(ended({ id: "a" }), 2)
+	steps.finish(ended({ id: "a" }), 0)
 	steps.finish(ended({ id: "b", startedAt: 101 }), 5)
-	steps.start(step({ id: "c", startedAt: 102 }), 7)
+	steps.start(step({ id: "c", startedAt: 102 }), 5)
 	steps.finish(ended({ id: "x", slug: "ada" as RunStep["slug"] }), 5)
-	expect(steps.window("kiko", 0, 5).map((s) => s.id)).toEqual(["a"])
+	expect(steps.window("kiko", 0).map((s) => s.id)).toEqual(["a"])
 	expect(steps.window("kiko", 5).map((s) => s.id)).toEqual(["b", "c"])
-	expect([steps.count("kiko", 0), steps.count("kiko", 5), steps.count("kiko", 8), steps.count("ada", 0)]).toEqual([3, 2, 0, 1])
-	expect(steps.tails(new Map([["kiko", 7], ["ada", 0]])).map((s) => s.id)).toEqual(["x", "c"])
+	expect([steps.count("kiko", 0), steps.count("kiko", 5), steps.count("kiko", 8), steps.count("ada", 5)]).toEqual([1, 2, 0, 1])
+	expect(steps.tails(new Map([["kiko", 5], ["ada", 0]])).map((s) => s.id)).toEqual(["b", "c"])
 })
 
 test("storage is cut down in one statement only past the high-water mark", () => {
 	const { sql, steps } = room()
-	for (let i = 0; i < HIGH_WATER; i++) steps.finish(ended({ runId: "r9", id: `n${i}`, startedAt: 1_000 + i }), 1)
+	for (let i = 0; i < HIGH_WATER; i++) steps.finish(ended({ runId: "r9", id: `n${i}`, startedAt: 1_000 + i }), 0)
 	expect(rows(sql)).toBe(HIGH_WATER)
-	steps.finish(ended({ runId: "r9", id: "last", startedAt: 99_999 }), 1)
+	steps.finish(ended({ runId: "r9", id: "last", startedAt: 99_999 }), 0)
 	expect(rows(sql)).toBe(KEEP_STEPS)
 	expect(all(steps).at(-1)?.id).toBe("last")
 	expect(all(steps)[0]?.id).toBe(`n${HIGH_WATER - KEEP_STEPS + 1}`)
@@ -102,14 +102,16 @@ test("each message opens its agent's steps since that agent's previous message, 
 	room.hearStep(ended({ id: "w", runId: "r1", startedAt: 101, worker: { id: "w1", task: "t" } }))
 	room.hearStep(step({ id: "b", runId: "r2", startedAt: 102 }))
 	const quiet = room.addMessage({ from: ada, text: "ada" })
+	// Mail to a teammate is read behind a divider: the steps wait for the message to the human.
+	const mail = room.addMessage({ from: kiko, text: "@ada go", to: "ada" as AgentSlug })
 	const second = room.addMessage({ from: kiko, text: "two" })
 	const third = room.addMessage({ from: kiko, text: "three" })
 	const shown = (id: string) => {
 		const m = room.message(id)
 		return [m?.steps, m?.stepAfter]
 	}
-	expect([shown(first.id), shown(quiet.id), shown(second.id), shown(third.id)]).toEqual([[1, 0], [1, 0], [2, first.seq], [undefined, undefined]])
-	expect(room.steps.window("kiko", first.seq, second.seq).map((s) => s.id)).toEqual(["w", "b"])
+	expect([shown(first.id), shown(quiet.id), shown(mail.id), shown(second.id), shown(third.id)]).toEqual([[1, 0], [1, 0], [undefined, undefined], [2, first.seq], [undefined, undefined]])
+	expect(room.steps.window("kiko", first.seq).map((s) => s.id)).toEqual(["w", "b"])
 	expect(room.snapshot().steps).toBeUndefined()
 	room.hearStep(ended({ id: "b", runId: "r2" }))
 	room.hearStep(step({ id: "c", runId: "r2" }))

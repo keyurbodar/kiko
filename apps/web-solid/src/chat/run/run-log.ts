@@ -240,37 +240,35 @@ export function upsertStep(steps: readonly RunStep[], step: RunStep): RunStep[] 
 // Which bubble opens which steps
 
 /**
- * A run panel opens one window of an agent's steps: those heard from `after` up to, not including, `upTo`.
- * Its key names the agent and the start, so the typing row's window and the bubble that later lands for it
- * share a key, and an open panel follows from one to the other.
+ * A run panel opens one window of an agent's steps: those it made after its message at `after`, which its
+ * next message opens. The room stamps each step with it. The key names the agent and `after`, so the typing
+ * row's window and the bubble that later lands for it share a key, and an open panel follows from one to the other.
  */
-export type StepWindow = { key: string; slug: string; after: number; upTo: number; steps: number }
+export type StepWindow = { key: string; slug: string; after: number; steps: number }
 
 export const windowKey = (slug: string, after: number) => `${slug}#${after}`
 
-/**
- * The windows of the agents' messages in view, by key, and each agent's open window after its last message.
- * Each message opens its agent's steps since that agent's previous message, as t3code puts each group of
- * tool calls before the message that follows it.
- */
-export function stepWindows(messages: readonly { seq?: number; botId?: string; steps?: number; stepAfter?: number }[]): {
-  closed: Map<string, StepWindow>
-  open: Map<string, number>
-} {
-  const closed = new Map<string, StepWindow>()
-  const open = new Map<string, number>()
-  for (const m of messages) {
-    if (!m.botId || m.seq === undefined) continue
-    open.set(m.botId, Math.max(open.get(m.botId) ?? 0, m.seq))
-    if (!m.steps) continue
-    const after = m.stepAfter ?? 0
-    closed.set(windowKey(m.botId, after), { key: windowKey(m.botId, after), slug: m.botId, after, upTo: m.seq, steps: m.steps })
-  }
-  return { closed, open }
+export function parseWindow(key: string): { slug: string; after: number } {
+  const at = key.lastIndexOf("#")
+  return { slug: key.slice(0, at), after: Number(key.slice(at + 1)) }
 }
 
-/** The steps of one agent that fall in a window, in start order. */
-export const inWindow = (steps: readonly RunStep[], after: number, upTo = Number.POSITIVE_INFINITY) => steps.filter((s) => s.pos >= after && s.pos < upTo)
+/** The windows the agent messages in view open, by key. Each opens its agent's steps since that agent's previous message. */
+export function stepWindows(messages: readonly { botId?: string; steps?: number; stepAfter?: number }[]): Map<string, StepWindow> {
+  const out = new Map<string, StepWindow>()
+  for (const m of messages) {
+    if (!m.botId || !m.steps) continue
+    const after = m.stepAfter ?? 0
+    out.set(windowKey(m.botId, after), { key: windowKey(m.botId, after), slug: m.botId, after, steps: m.steps })
+  }
+  return out
+}
+
+/** The steps of one agent in one window, in start order. */
+export const inWindow = (steps: readonly RunStep[], after: number) => steps.filter((s) => s.after === after)
+
+/** The newest window an agent's steps reach: the one its typing row opens, unless a message in view opens it already. */
+export const newestAfter = (steps: readonly RunStep[]) => steps.reduce((n, s) => Math.max(n, s.after), -1)
 
 // The panel's rows
 

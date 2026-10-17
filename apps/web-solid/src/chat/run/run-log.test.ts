@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RunStep, ToolKind } from "@kiko/protocol"
-import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, inWindow, stepWindows, summarizeSteps, windowKey, totalDuration, upsertStep } from "./run-log"
+import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, inWindow, newestAfter, parseWindow, stepWindows, summarizeSteps, totalDuration, upsertStep } from "./run-log"
 
 const step = (id: string, over: Partial<RunStep> = {}): RunStep => ({
   id,
@@ -11,7 +11,7 @@ const step = (id: string, over: Partial<RunStep> = {}): RunStep => ({
   label: "Read /a.md",
   status: "done",
   startedAt: 1000,
-  pos: 0,
+  after: 0,
   ...over,
 })
 const kinds = (...tools: ToolKind[]) => tools.map((tool) => ({ tool, status: "done" as const }))
@@ -131,21 +131,16 @@ describe("step windows", () => {
     { seq: 6, botId: "kiko", steps: 3, stepAfter: 4 },
   ]
 
-  test("each agent message opens its agent's steps since that agent's previous message", () => {
-    const { closed, open } = stepWindows(list)
-    expect([...closed.values()].map((w) => [w.key, w.after, w.upTo, w.steps])).toEqual([["kiko#0", 0, 2, 2], ["ada#0", 0, 3, 1], ["kiko#4", 4, 6, 3]])
-    expect([...open]).toEqual([["kiko", 6], ["ada", 3]])
+  test("each agent message with steps opens its agent's window, keyed by agent and start", () => {
+    expect([...stepWindows(list).values()].map((w) => [w.key, w.slug, w.after, w.steps])).toEqual([["kiko#0", "kiko", 0, 2], ["ada#0", "ada", 0, 1], ["kiko#4", "kiko", 4, 3]])
+    expect(parseWindow("kiko#4")).toEqual({ slug: "kiko", after: 4 })
   })
 
-  test("the typing row's window and the bubble that lands for it share a key", () => {
-    const before = stepWindows(list.slice(0, 4)).open.get("kiko") ?? 0
-    expect(stepWindows(list).closed.get("kiko#4")?.key).toBe(windowKey("kiko", before))
-  })
-
-  test("a window holds the steps heard from its start up to its message", () => {
-    const steps = [step("a", { pos: 1 }), step("b", { pos: 4 }), step("c", { pos: 5 }), step("d", { pos: 6 })]
-    expect(inWindow(steps, 4, 6).map((s) => s.id)).toEqual(["b", "c"])
-    expect(inWindow(steps, 6).map((s) => s.id)).toEqual(["d"])
+  test("a window holds the steps stamped with its start, and the newest start is the typing row's", () => {
+    const steps = [step("a", { after: 0 }), step("b", { after: 4 }), step("c", { after: 4 }), step("d", { after: 6 })]
+    expect(inWindow(steps, 4).map((s) => s.id)).toEqual(["b", "c"])
+    expect(newestAfter(steps)).toBe(6)
+    expect(newestAfter([])).toBe(-1)
   })
 })
 

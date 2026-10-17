@@ -18,7 +18,7 @@ export interface SocketRoom {
 	presence(): RoomToClient[]
 	stop(): void
 	search(query: string, options?: SearchOptions): SearchPage
-	stepWindow(slug: AgentSlug, after: number, upTo?: number): RunStep[]
+	stepWindow(slug: AgentSlug, after: number): RunStep[]
 	memberOp(op: MemberOp): MemberRefusal | null
 	fileOp(op: FileOp): string | null
 	humanSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<{ ack: { id: MessageId; seq: number }; events: RoomEvent[] } | { refused: string }>
@@ -139,7 +139,7 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 			return null
 		}
 		case "steps":
-			send(ws, { t: "steps", slug: frame.slug, after: frame.after, ...(frame.upTo !== undefined ? { upTo: frame.upTo } : {}), steps: room.stepWindow(frame.slug, frame.after, frame.upTo) })
+			send(ws, { t: "steps", slug: frame.slug, after: frame.after, steps: room.stepWindow(frame.slug, frame.after) })
 			return null
 		case "stop":
 			room.stop()

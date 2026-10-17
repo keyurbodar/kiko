@@ -103,7 +103,7 @@ function actorFromKey(key: string): Actor {
 export class RoomLog {
 	/** The tool calls of agents. The log stamps them as it hears them and counts each agent's since its last message. */
 	readonly steps: RunSteps
-	/** Each agent's open window: the seq of its last message, and how many steps it made since. Read once per wake. */
+	/** Each agent's open window: the seq of its last message to the human, and how many steps it made since. Read once per wake. */
 	private readonly windows = new Map<string, { after: number; count: number }>()
 
 	constructor(
@@ -123,7 +123,7 @@ export class RoomLog {
 			const after =
 				this.sql
 					.exec<{ seq: number }>(
-						"SELECT seq FROM messages WHERE json_extract(sender, '$.kind') = 'agent' AND json_extract(sender, '$.slug') = ? ORDER BY seq DESC LIMIT 1",
+						"SELECT seq FROM messages WHERE json_extract(sender, '$.kind') = 'agent' AND json_extract(sender, '$.slug') = ? AND addressed IS NULL ORDER BY seq DESC LIMIT 1",
 						slug,
 					)
 					.toArray()[0]?.seq ?? 0
@@ -133,23 +133,17 @@ export class RoomLog {
 		return open
 	}
 
-	/** A step began or ended. Stamps it with the last seq and returns it when the panel should hear of it. */
+	/** A step began or ended. Stamps it with its agent's open window and returns it when the panel should hear of it. */
 	hearStep(heard: HeardStep): RunStep | null {
-		const pos = this.lastSeq()
+		const open = this.window(heard.slug)
 		if (heard.status === "running") {
-			const step = this.steps.start(heard, pos)
-			if (step) this.counted(step.slug)
+			const step = this.steps.start(heard, open.after)
+			if (step) open.count++
 			return step
 		}
-		const ended = this.steps.finish(heard, pos)
-		if (ended?.fresh) this.counted(ended.step.slug)
+		const ended = this.steps.finish(heard, open.after)
+		if (ended?.fresh) open.count++
 		return ended?.step ?? null
-	}
-
-	// A window not read yet counts the step when it is read.
-	private counted(slug: string): void {
-		const open = this.windows.get(slug)
-		if (open) open.count++
 	}
 
 	lastSeq(): number {
@@ -339,7 +333,8 @@ export class RoomLog {
 			if (earlier) return { ...earlier, event: null }
 			const id = crypto.randomUUID() as MessageId
 			// Counted once, when the message is posted, and kept: the agent's steps the room has heard of since its last message.
-			const open = input.from.kind === "agent" ? this.window(input.from.slug) : null
+			// Mail to another agent is not one: the human reads it behind a divider, so the steps wait for the next message.
+			const open = input.from.kind === "agent" && !input.to ? this.window(input.from.slug) : null
 			const steps = open?.count ?? 0
 			const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
 			const message: Omit<Message, "seq" | "at"> = {
@@ -385,7 +380,7 @@ export class RoomLog {
 				steps || null,
 				open && steps ? open.after : null,
 			)
-			if (input.from.kind === "agent") this.windows.set(input.from.slug, { after: event.seq, count: 0 })
+			if (open && input.from.kind === "agent") this.windows.set(input.from.slug, { after: event.seq, count: 0 })
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
 			}

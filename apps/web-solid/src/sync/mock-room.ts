@@ -236,8 +236,8 @@ export function createMockRoom(options: MockRoomOptions = {}): MockRoom {
 		typing() {},
 		stop() {},
 		steps(peer, f) {
-			const steps = (agentSteps[f.slug] ?? []).filter((s) => s.pos >= f.after && (f.upTo === undefined || s.pos < f.upTo))
-			peer.push({ t: "steps", slug: f.slug, after: f.after, ...(f.upTo !== undefined ? { upTo: f.upTo } : {}), steps: structuredClone(steps) })
+			const steps = (agentSteps[f.slug] ?? []).filter((s) => s.after === f.after)
+			peer.push({ t: "steps", slug: f.slug, after: f.after, steps: structuredClone(steps) })
 		},
 		// A plain substring match stands in for the room's index. Every word must appear.
 		search(peer, f) {

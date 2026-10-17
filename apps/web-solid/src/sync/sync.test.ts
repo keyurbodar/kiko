@@ -649,7 +649,7 @@ describe("the room store", () => {
 
 describe("run steps", () => {
 	const ada = fixtures.ada
-	const make1 = (id: string, over: Partial<RunStep> = {}): RunStep => ({ id, runId: "run1", slug: ada, tool: "read", name: "read", label: "Read /a.md", status: "running", startedAt: 1000, pos: 5, ...over })
+	const make1 = (id: string, over: Partial<RunStep> = {}): RunStep => ({ id, runId: "run1", slug: ada, tool: "read", name: "read", label: "Read /a.md", status: "running", startedAt: 1000, after: 5, ...over })
 
 	test("a step frame files under its agent, replaces by id, and a late running frame cannot undo done", async () => {
 		const { mock, make } = setup()
@@ -684,15 +684,15 @@ describe("run steps", () => {
 		const { mock, make } = setup()
 		const { store } = await make()
 		await until(() => store.state.seq === LAST)
-		mock.agentSteps[ada] = [make1("x", { status: "done", output: "hello", endedAt: 1100, pos: 3 }), make1("y", { status: "done", endedAt: 1100, pos: 9 })]
-		store.requestSteps(ada, 2, 6)
+		mock.agentSteps[ada] = [make1("x", { status: "done", output: "hello", endedAt: 1100, after: 2 }), make1("y", { status: "done", endedAt: 1100, after: 9 })]
+		store.requestSteps(ada, 2)
 		expect(store.state.fetching[`${ada}#2`]).toBe(true)
 		await until(() => store.state.steps[ada]?.length === 1)
 		expect(store.state.fetching[`${ada}#2`]).toBeUndefined()
 		expect(store.state.steps[ada].map((s) => s.output)).toEqual(["hello"])
-		store.requestSteps(ada, 2, 6)
+		store.requestSteps(ada, 2)
 		await sleep(20)
-		expect(mock.received.filter((f) => f.t === "steps")).toEqual([{ t: "steps", slug: ada, after: 2, upTo: 6 }])
+		expect(mock.received.filter((f) => f.t === "steps")).toEqual([{ t: "steps", slug: ada, after: 2 }])
 		store.close()
 	})
 

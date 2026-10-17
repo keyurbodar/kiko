@@ -872,8 +872,8 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		}
 	}
 
-	stepWindow(slug: AgentSlug, after: number, upTo?: number): RunStep[] {
-		return this.log.steps.window(slug, after, upTo)
+	stepWindow(slug: AgentSlug, after: number): RunStep[] {
+		return this.log.steps.window(slug, after)
 	}
 
 	async teamNow(): Promise<{ slug: AgentSlug; name: string; status: AgentState; doing: string | null; holds: string[] }[]> {

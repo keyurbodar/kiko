@@ -1360,7 +1360,7 @@
         },
         {
           "cid": 13,
-          "name": "pos",
+          "name": "after_seq",
           "type": "INTEGER",
           "notnull": 1,
           "dflt_value": null,

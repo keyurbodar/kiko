@@ -52,8 +52,8 @@ export type RunStep = {
 	endedAt?: number
 	/** The result as text, cut to 4,000 characters, credentials removed. Absent while running. */
 	output?: string
-	/** The room's last event seq when it heard of the step. The agent's first bubble at a later seq opens it. */
-	pos: number
+	/** The seq of the agent's message before the step, or 0. The agent's next message opens it: the one whose `stepAfter` is this. */
+	after: number
 }
 
 export type SystemEvent =
@@ -116,12 +116,9 @@ export type Message = {
 	to?: AgentSlug | "all"
 	initiative?: { reason: string }
 	event?: SystemEvent | UnknownSystemEvent
-	/**
-	 * How many steps the agent made since its previous message, counted when this one was posted. The bubble opens them:
-	 * the steps whose `pos` is at least `stepAfter` and below this message's seq. Absent when none.
-	 */
+	/** How many steps the agent made since its previous message, counted when this one was posted. The bubble opens them. Absent when none. */
 	steps?: number
-	/** The seq of the agent's previous message, or 0. Set with `steps`. */
+	/** The seq of the agent's previous message, or 0: the `after` of the steps this one opens. Set with `steps`. */
 	stepAfter?: number
 }
 
@@ -221,8 +218,8 @@ export type ClientToRoom =
 	| { t: "skip"; id: string }
 	/** Runs the input again that a `run_error` message reports. `messageId` is that message. */
 	| { t: "retry"; messageId: MessageId }
-	/** Asks for one agent's steps with `pos` from `after` up to, not including, `upTo`. The room answers with a `steps` frame. */
-	| { t: "steps"; slug: AgentSlug; after: number; upTo?: number }
+	/** Asks for one agent's steps with this `after`. The room answers with a `steps` frame. */
+	| { t: "steps"; slug: AgentSlug; after: number }
 
 export type RunErrorKind = "no_key" | "signed_out" | "invalid_key" | "quota" | "rate_limit" | "model_not_found" | "network" | "overloaded" | "timeout" | "refused" | "too_long" | "other"
 
@@ -243,7 +240,7 @@ export type RoomToClient =
 	/** Not stored in the log. A step started or ended. The whole step each time; the client replaces the one it has. */
 	| { t: "step"; step: RunStep }
 	/** Not stored in the log. The answer to a `steps` request, with the request's window. */
-	| { t: "steps"; slug: AgentSlug; after: number; upTo?: number; steps: readonly RunStep[] }
+	| { t: "steps"; slug: AgentSlug; after: number; steps: readonly RunStep[] }
 	/** Not stored. Sent only to the socket whose `member` frame changed nothing, so it can drop its optimistic patch. */
 	| { t: "member_refused"; op: MemberOp; reason: MemberRefusal }
 	/** Not stored. Sent only to the socket whose `send` stored nothing because its attachments could not be claimed. */

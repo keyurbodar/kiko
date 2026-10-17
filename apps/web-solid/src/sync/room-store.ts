@@ -369,7 +369,7 @@ export type RoomStore = {
 	markRead(seq: number): void
 	typing(): void
 	/** Asks the room for one agent's steps in a window. The answer lands in `state.steps`. */
-	requestSteps(slug: string, after: number, upTo: number): void
+	requestSteps(slug: string, after: number): void
 	/** Closes the socket and keeps the store. Pings are dropped, sends wait in the outbox. Section 19.6. */
 	suspend(): void
 	/** Reconnects with `hello {lastSeq}` and sends every pending frame again. */
@@ -888,10 +888,10 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			if (lastTypingAt !== undefined && t - lastTypingAt < TYPING_EVERY_MS) return
 			if (socket?.send({ t: "typing" })) lastTypingAt = t
 		},
-		requestSteps(slug, after, upTo) {
+		requestSteps(slug, after) {
 			// Once per window and session: a fetched window is cached, and live steps keep it current.
 			const key = windowKey(slug, after)
-			if (state.fetching[key] || fetchedWindows.has(key) || !socket?.send({ t: "steps", slug: slug as AgentSlug, after, upTo })) return
+			if (state.fetching[key] || fetchedWindows.has(key) || !socket?.send({ t: "steps", slug: slug as AgentSlug, after })) return
 			fetchedWindows.add(key)
 			setState("fetching", key, true)
 			// An answer that never comes must not leave "Loading output" up for good.
