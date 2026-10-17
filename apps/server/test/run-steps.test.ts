@@ -53,9 +53,10 @@ test("an end that arrives alone is stored whole, and a cut-off run's running ste
 	expect(steps.finish(ended({ label: "Used x", worker: { id: "w1", task: "t" }, app: "gmail", input: "{}" }))).toMatchObject({ label: "Used x" })
 	expect(steps.of("r1")[0]).toMatchObject({ worker: { id: "w1", task: "t" }, app: "gmail", input: "{}", name: "read" })
 	steps.start(step({ id: "t2", startedAt: 120 }))
+	steps.start(step({ id: "w2", startedAt: 130, worker: { id: "w1", task: "t" } }))
 	expect(steps.abandon("r1")).toMatchObject([{ id: "t2", status: "failed", endedAt: 9_000 }])
 	expect(steps.abandon("r1")).toEqual([])
-	expect(steps.of("r1").map((s) => [s.id, s.status])).toEqual([["t1", "done"], ["t2", "failed"]])
+	expect(steps.of("r1").map((s) => [s.id, s.status])).toEqual([["t1", "done"], ["t2", "failed"], ["w2", "running"]])
 })
 
 test("counts include running steps from one query, and live skips ended runs", () => {

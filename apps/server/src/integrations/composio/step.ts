@@ -6,11 +6,11 @@ import { toolName } from "./tools"
 
 const capital = (word: string) => (word ? `${word[0]?.toUpperCase()}${word.slice(1)}` : word)
 
-/** `GMAIL_SEND_EMAIL` in the `gmail` toolkit reads "Gmail: send email". The words come from the slug, so no action is named here. */
+/** `GMAIL_SEND_EMAIL` in the `gmail` toolkit reads "Send email". The app's logo says which app, so the label does not, and a slug like `googlecalendar` never shows as a word. The words come from the slug, so no action is named here. */
 function action(slug: string, toolkit: string): string {
   const prefix = `${toolkit.toLowerCase()}_`
   const rest = slug.toLowerCase().startsWith(prefix) ? slug.slice(prefix.length) : slug
-  return `${capital(toolkit)}: ${rest.toLowerCase().replace(/_+/g, " ").trim()}`
+  return capital(rest.toLowerCase().replace(/_+/g, " ").trim())
 }
 
 const toolkitOf = (slug: string) => slug.split("_")[0]?.toLowerCase() ?? ""

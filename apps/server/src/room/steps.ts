@@ -106,9 +106,9 @@ export class RunSteps {
 		this.stored = KEEP_STEPS
 	}
 
-	/** Steps still running when their run ends were cut off. Marks them failed, stores them, and returns them. */
+	/** The talker's steps still running when their run ends were cut off. Marks them failed, stores them, and returns them. A worker's steps outlive the run. */
 	abandon(runId: string): RunStep[] {
-		const cut = [...this.running.values()].filter((s) => s.runId === runId)
+		const cut = [...this.running.values()].filter((s) => s.runId === runId && !s.worker)
 		return cut.flatMap((s) => this.finish({ ...s, status: "failed", endedAt: this.now() }) ?? [])
 	}
 

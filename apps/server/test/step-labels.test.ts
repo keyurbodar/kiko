@@ -42,9 +42,9 @@ test("a connected app's call reads as the app and the action, from the tool's ow
     { name: "COMPOSIO_SEARCH_TOOLS", inputSchema: {} },
   ]
   const describe = composioDescribe(tools)
-  expect(stepOf(toolName("GMAIL_SEND_EMAIL"), { to: "a@b.c" }, describe)).toMatchObject({ label: "Gmail: send email", app: "gmail", name: "composio_gmail_send_email", tool: "other" })
+  expect(stepOf(toolName("GMAIL_SEND_EMAIL"), { to: "a@b.c" }, describe)).toMatchObject({ label: "Send email", app: "gmail", name: "composio_gmail_send_email", tool: "other" })
   const many = { tools: [{ tool_slug: "GOOGLECALENDAR_CREATE_EVENT", arguments: {} }, { tool_slug: "GMAIL_FETCH_EMAILS", arguments: {} }] }
-  expect(stepOf(toolName("COMPOSIO_MULTI_EXECUTE_TOOL"), many, describe)).toMatchObject({ label: "Googlecalendar: create event and 1 more", app: "googlecalendar" })
+  expect(stepOf(toolName("COMPOSIO_MULTI_EXECUTE_TOOL"), many, describe)).toMatchObject({ label: "Create event and 1 more", app: "googlecalendar" })
   expect(stepOf(toolName("COMPOSIO_SEARCH_TOOLS"), { queries: [] }, describe)?.label).toBe("Searched connected apps")
   expect(stepOf("read", { path: "/a" }, describe)?.app).toBeUndefined()
 })

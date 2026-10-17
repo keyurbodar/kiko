@@ -850,16 +850,23 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	async reportSteps(slug: AgentSlug, items: readonly StepItem[]): Promise<void> {
 		if (!this.members.list().some((m) => m.slug === slug)) return
 		const over = new Map<string, boolean>()
-		for (const { step: raw, doing, activity } of items) {
-			const step: RunStep = { ...raw, slug }
-			if (step.status === "running") {
+		let latest: StepItem | undefined
+		for (const item of items) {
+			const step: RunStep = { ...item.step, slug }
+			// A worker's steps share the run that started it and keep coming after that run ends.
+			if (step.status === "running" && !step.worker) {
 				const done = over.get(step.runId) ?? this.bubbles.ended(step.runId)
 				over.set(step.runId, done)
 				if (done) continue
 			}
 			const stored = step.status === "running" ? this.log.steps.start(step) : this.log.steps.finish(step)
 			if (stored) this.broadcast({ t: "step", step: stored })
-			if (doing && activity) this.working(slug, [], doing.slice(0, MAX_DOING), "caption" in activity ? { ...activity, caption: doing.slice(0, MAX_DOING) } : activity)
+			if (item.doing && item.activity) latest = item
+		}
+		// Only the newest caption shows, so a batch writes it once.
+		if (latest?.doing && latest.activity) {
+			const doing = latest.doing.slice(0, MAX_DOING)
+			this.working(slug, [], doing, "caption" in latest.activity ? { ...latest.activity, caption: doing } : latest.activity)
 		}
 	}
 
