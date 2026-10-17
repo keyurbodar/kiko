@@ -1,9 +1,13 @@
 {
   "name": "kiko",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": true,
   "type": "module",
-  "workspaces": ["apps/*", "packages/*", "core/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "core/*"
+  ],
   "scripts": {
     "dev:server": "bun run --cwd apps/server dev --port 8787",
     "dev:web": "bun run --cwd apps/web-solid dev --port 5173",
