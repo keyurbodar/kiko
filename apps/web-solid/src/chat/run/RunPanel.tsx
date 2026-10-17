@@ -167,6 +167,9 @@ function StepRow(props: { step: RunStep; child: boolean; open: boolean; loading:
           {liveLabel(step())}
         </span>
         <span class="run-at">{clockTime(step().startedAt)}</span>
+        <Show when={step().status === "failed"}>
+          <span class="run-failed">Failed</span>
+        </Show>
         <Show when={took() !== undefined && took()! >= 1000}>
           <span class="run-took">{formatDuration(took()!)}</span>
         </Show>
@@ -245,9 +248,10 @@ function Header(props: { steps: readonly RunStep[]; live: boolean }) {
       <Show when={!props.live && took() !== undefined}>
         <span class="run-total">{formatDuration(took()!)}</span>
       </Show>
-      <Show when={!props.live && sum().hasFailure}>
-        <span class="run-icon" data-failed="" title="A step failed">
+      <Show when={sum().hasFailure}>
+        <span class="run-failures" data-component="run-failures">
           <HugeIcon icon={GLYPH["alert-circle"]} size={14} />
+          {sum().failed} failed
         </span>
       </Show>
       <PopoverV2.CloseButton class="run-close" aria-label="Close steps" onClick={() => queueMicrotask(() => runAnchorFocus())}>

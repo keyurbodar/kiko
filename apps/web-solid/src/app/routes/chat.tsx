@@ -12,7 +12,7 @@ import { openRun } from "../../chat/run/run-panel-state";
 import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage, RosterBot } from "../../lib/types";
 import { jumpRequest, requestJump } from "../../search/state";
-import { eventText } from "../../chat/lib/event-line";
+import { eventRow } from "../../chat/lib/event-line";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 const RunPanel = lazy(() => import("../../chat/run/RunPanel"));
@@ -183,7 +183,7 @@ export default function ChatRoute() {
   };
 
   // A divider is something to read, so a chat that has one is not empty; an event this client does not draw is nothing.
-  const empty = () => messages().every((m) => m.event && eventText(m, String) === null);
+  const empty = () => messages().every((m) => m.event && eventRow(m, String) === null);
   let dock: HTMLDivElement | undefined;
   let launch: Launch | null = null;
   createEffect(

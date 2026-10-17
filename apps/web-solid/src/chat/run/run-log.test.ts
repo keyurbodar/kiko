@@ -33,6 +33,10 @@ describe("summarizeSteps", () => {
     expect(summarizeSteps([{ tool: "run", status: "failed" }]).hasFailure).toBe(true)
     expect(summarizeSteps(kinds("run")).hasFailure).toBe(false)
   })
+
+  test("counts the failures", () => {
+    expect(summarizeSteps([{ tool: "run", status: "failed" }, { tool: "read", status: "done" }, { tool: "read", status: "failed" }]).failed).toBe(2)
+  })
 })
 
 describe("liveLabel", () => {

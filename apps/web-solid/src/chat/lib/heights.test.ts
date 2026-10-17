@@ -66,7 +66,7 @@ describe("estimateRowHeight covers every TimelineItem variant", () => {
     expect(items.map((item) => item.kind)).toEqual(["message", "message", "day-divider", "message"]);
   });
 
-  test("the unread rule is one divider line and the day pill is taller", () => {
+  test("the unread rule and the day rule are one divider line", () => {
     const items = buildTimelineItems(
       [
         bot("a", new Date(2024, 0, 15, 23, 0, 0)),
@@ -82,7 +82,7 @@ describe("estimateRowHeight covers every TimelineItem variant", () => {
       throw new Error("expected both dividers");
     }
     expect(estimateRowHeight(unread)).toBe(32);
-    expect(estimateRowHeight(day)).toBe(48);
+    expect(estimateRowHeight(day)).toBe(32);
   });
 });
 

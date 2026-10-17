@@ -12,14 +12,10 @@ const BUBBLE_PAD_Y = BUBBLE_PAD_TOP * 2;
 const ROW_GAP_PX = 1;
 const RUN_GAP_PX = 11;
 
-// The day divider (SystemMessage.tsx): `py-3` around a `leading-4` line.
-const CENTER_ROW_PAD_Y = 24;
-const CENTER_LINE = 16;
-
-// An event divider is a 16px line with 8px above and below.
+// A system row (SystemRow.tsx) is a 16px line with 8px above and below.
 const EVENT_ROW_PX = 32;
-// A failed run (RunErrorRow.tsx): a bordered sentence with a row of buttons under it.
-const RUN_ERROR_ROW_PX = 96;
+// A failed run adds pills: a 26px pill in the line.
+const RUN_ERROR_ROW_PX = 42;
 // An agent's request for the browser (BrowserControlRow.tsx): one sentence and the browser buttons.
 const BROWSER_ROW_PX = 88;
 
@@ -56,12 +52,10 @@ function bubbleTextLines(body: string): number {
 }
 
 export function estimateRowHeight(item: TimelineItem): number {
-  // Every centred row is one 16px line with 12px above and below. The day pill adds 4px each way.
-  if (item.kind === "day-divider") return CENTER_ROW_PAD_Y + CENTER_LINE + 8;
-  // The unread rule, an event line and a thread line (EventDivider.tsx): `py-2` around a `text-xs` line.
+  // The day, unread, event and thread rows (SystemRow.tsx): `py-2` around a `text-xs` line.
   if (item.kind === "event" && item.message.event?.kind === "run_error") return RUN_ERROR_ROW_PX;
   if (item.kind === "event" && item.message.event?.kind === "browser_control") return BROWSER_ROW_PX;
-  if (item.kind === "unread-divider" || item.kind === "event" || item.kind === "thread") return EVENT_ROW_PX;
+  if (item.kind === "day-divider" || item.kind === "unread-divider" || item.kind === "event" || item.kind === "thread") return EVENT_ROW_PX;
 
   const { message } = item;
   const attachments = attachmentsHeight(message);

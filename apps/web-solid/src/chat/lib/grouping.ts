@@ -1,6 +1,6 @@
 import { createSignal, type Setter } from "solid-js";
 import type { ChatMessage } from "../../lib/types";
-import { eventText } from "./event-line";
+import { eventRow } from "./event-line";
 import { startsTimeBreak } from "./time-label";
 
 /** Telegram's run window. A gap strictly larger than this splits a run. */
@@ -89,7 +89,7 @@ type Entry =
   | { kind: "event"; message: ChatMessage }
   | { kind: "thread"; key: string; messages: ChatMessage[]; slugs: string[]; expanded: boolean };
 
-const visibleMessage = (m: ChatMessage) => !m.event || eventText(m, String) !== null;
+const visibleMessage = (m: ChatMessage) => !m.event || eventRow(m, String) !== null;
 
 const isEvent = (m: ChatMessage) => m.event !== undefined || m.goto !== undefined;
 

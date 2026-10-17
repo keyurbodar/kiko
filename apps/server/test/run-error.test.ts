@@ -36,20 +36,21 @@ describe("classifyRunError", () => {
 describe("describeRunError", () => {
   const KINDS: RunErrorKind[] = ["no_key", "no_model", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "cut_off", "refused", "too_long", "other"]
 
-  test("every failure has one plain sentence that names the provider and holds nothing the provider said", () => {
+  test("every failure is a short reason that names the provider and holds nothing the provider said", () => {
     for (const kind of KINDS) {
-      const { message } = describeRunError(kind, "OpenCode Go", "Kiko")
-      expect(message).toMatch(/^[A-Z].*[.]$/)
+      const { message } = describeRunError(kind, "OpenCode Go")
+      expect(message).toMatch(/^OpenCode Go: [a-z].*[^.]$/)
       expect(message).not.toMatch(/[{}"]|sk-|\b[45]\d\d\b/)
     }
-    expect(describeRunError("rate_limit", "OpenCode Go", "Kiko").message).toBe("OpenCode Go is rate limiting requests. Wait a moment, then retry.")
-    expect(describeRunError("no_key", "OpenCode Go", "Kiko").message).toBe("Kiko cannot answer yet. OpenCode Go is not connected.")
+    expect(describeRunError("rate_limit", "OpenCode Go").message).toBe("OpenCode Go: rate limited")
+    expect(describeRunError("no_model", "").message).toBe("no model picked")
   })
 
   test("what the human can do follows the failure", () => {
-    const actions = (kind: RunErrorKind) => describeRunError(kind, "P", "A").actions
+    const actions = (kind: RunErrorKind) => describeRunError(kind, "P").actions
     expect(actions("no_key")).toEqual(["open_settings", "retry"])
-    expect(actions("invalid_key")).toContain("open_settings")
+    expect(actions("invalid_key")).toEqual(["open_settings", "retry"])
+    for (const kind of KINDS) expect(actions(kind).length).toBeLessThanOrEqual(2)
     expect(actions("model_not_found")).toEqual(["change_model", "open_settings"])
     expect(actions("overloaded")).toEqual(["retry", "change_model"])
     expect(actions("too_long")).toEqual(["change_model"])
@@ -58,9 +59,9 @@ describe("describeRunError", () => {
   })
 
   test("a failure the settings fix toasts with the settings action, and a transient one has none", () => {
-    expect(describeRunError("invalid_key", "P", "A").toast).toBe("open_models")
-    expect(describeRunError("overloaded", "P", "A").toast).toBeUndefined()
-    expect(describeRunError("other", "P", "A").toast).toBeUndefined()
+    expect(describeRunError("invalid_key", "P").toast).toBe("open_models")
+    expect(describeRunError("overloaded", "P").toast).toBeUndefined()
+    expect(describeRunError("other", "P").toast).toBeUndefined()
   })
 })
 

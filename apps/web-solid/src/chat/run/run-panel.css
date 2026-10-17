@@ -152,6 +152,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.run-failed,
+.run-failures {
+  flex: none;
+  color: var(--error, #e5484d);
+  font-size: var(--font-sm);
+}
+
+.run-failures {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-block: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
 .run-took {
   flex: none;
   color: var(--muted-foreground);
