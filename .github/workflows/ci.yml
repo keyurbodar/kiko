@@ -11,6 +11,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
       - uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
@@ -29,6 +31,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
       - uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
@@ -46,9 +50,6 @@ jobs:
             echo "SESSION_SECRET=$(openssl rand -hex 32)"
             echo "CREDENTIALS_KEK=$(openssl rand -base64 32)"
           } > .dev.vars
-      - name: apply the local database migration
-        working-directory: apps/server
-        run: bunx wrangler d1 migrations apply kiko-auth --local
       - name: start the worker
         working-directory: apps/server
         env:
@@ -86,6 +87,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
       - uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
