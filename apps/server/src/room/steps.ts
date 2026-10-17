@@ -135,11 +135,22 @@ export class RunSteps {
 		return [...done, ...this.running.values()].sort((a, b) => a.startedAt - b.startedAt || (a.id < b.id ? -1 : 1))
 	}
 
-	/** How many steps a run has made that the room has heard of: stored, and running now. Reads the run's rows by primary key. */
+	/** How many steps each run has made that the room has heard of: stored, and running now. One query for the batch, by primary key. */
+	counts(runIds: readonly string[]): Map<string, number> {
+		const out = new Map<string, number>()
+		if (!runIds.length) return out
+		for (const r of this.sql
+			.exec<{ run_id: string; n: number }>(
+				"SELECT run_id, count(*) AS n FROM run_steps WHERE run_id IN (SELECT value FROM json_each(?)) GROUP BY run_id",
+				JSON.stringify(runIds),
+			)
+			.toArray())
+			out.set(r.run_id, r.n)
+		for (const s of this.running.values()) if (runIds.includes(s.runId)) out.set(s.runId, (out.get(s.runId) ?? 0) + 1)
+		return out
+	}
+
 	count(runId: string): number {
-		const stored = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM run_steps WHERE run_id = ?", runId).one().n
-		let running = 0
-		for (const s of this.running.values()) if (s.runId === runId) running++
-		return stored + running
+		return this.counts([runId]).get(runId) ?? 0
 	}
 }

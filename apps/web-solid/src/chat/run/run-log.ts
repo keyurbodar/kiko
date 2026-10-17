@@ -90,8 +90,8 @@ const GROUPS: Record<ToolKind, { label: (count: number) => string; priority: num
   run: { label: (n) => `Ran ${plural(n, "command", "commands")}`, priority: 0 },
   edit: { label: (n) => `Changed ${plural(n, "file", "files")}`, priority: 0 },
   read: { label: (n) => `Read ${plural(n, "file", "files")}`, priority: 1 },
-  search: { label: (n) => `Searched code ${plural(n, "time", "times")}`, priority: 1 },
-  web: { label: (n) => `Searched the web ${plural(n, "time", "times")}`, priority: 1 },
+  search: { label: (n) => `Listed ${plural(n, "folder", "folders")}`, priority: 1 },
+  web: { label: (n) => `Fetched ${plural(n, "page", "pages")}`, priority: 1 },
   other: { label: (n) => `Used ${plural(n, "tool", "tools")}`, priority: 2 },
 }
 
@@ -239,19 +239,20 @@ export function upsertStep(steps: readonly RunStep[], step: RunStep): RunStep[] 
 
 // Which bubble opens a run
 
-/** A bubble of a run, and how many steps the run had started when the bubble was posted. */
-export type RunBubble = { id: string; steps: number }
+/** A bubble of a run, how many steps the run had made when the bubble was posted, and how many it has made by now. */
+export type RunBubble = { id: string; steps: number; total: number }
 
 /**
  * The bubbles of each server run, in list order. Each bubble opens the steps the run made since
  * its previous bubble, as t3code puts each group of tool calls before the message that follows it.
  */
-export function runBubbles(messages: readonly { id: string; runId?: string; steps?: number }[]): Map<string, RunBubble[]> {
+export function runBubbles(messages: readonly { id: string; runId?: string; steps?: number; runSteps?: number }[]): Map<string, RunBubble[]> {
   const runs = new Map<string, RunBubble[]>()
   for (const m of messages) {
     if (!m.runId) continue
     const list = runs.get(m.runId)
-    const bubble = { id: m.id, steps: Math.max(m.steps ?? 0, list?.at(-1)?.steps ?? 0) }
+    const steps = Math.max(m.steps ?? 0, list?.at(-1)?.steps ?? 0)
+    const bubble = { id: m.id, steps, total: Math.max(steps, m.runSteps ?? 0) }
     if (list) list.push(bubble)
     else runs.set(m.runId, [bubble])
   }
@@ -288,6 +289,9 @@ export function tailSegment(runId: string, bubbles: readonly RunBubble[]): Segme
   const start = bubbles.at(-1)?.steps ?? 0
   return { key: segmentKey(runId, start), runId, start, end: Number.POSITIVE_INFINITY }
 }
+
+/** How many steps a run has made, as the newest word from any of its bubbles says. */
+export const runTotal = (bubbles: readonly RunBubble[]) => bubbles.reduce((n, b) => Math.max(n, b.total), 0)
 
 /** How many steps a slice holds, from what is loaded and what the bubbles report. */
 export const segmentSize = (segment: Segment, loaded: number, known: number) => Math.min(segment.end, Math.max(loaded, known)) - segment.start

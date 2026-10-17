@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RunStep, ToolKind } from "@kiko/protocol"
-import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, bubbleSegment, parseSegment, runBubbles, segmentSize, tailSegment, summarizeSteps, totalDuration, upsertStep } from "./run-log"
+import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, bubbleSegment, parseSegment, runBubbles, runTotal, segmentSize, tailSegment, summarizeSteps, totalDuration, upsertStep } from "./run-log"
 
 const step = (id: string, over: Partial<RunStep> = {}): RunStep => ({
   id,
@@ -21,7 +21,7 @@ describe("summarizeSteps", () => {
     ["commands and reads, in order of first use", ["run", "run", "run", "read", "read"], "Ran 3 commands and read 2 files"],
     ["order follows first appearance", ["read", "read", "run"], "Read 2 files and ran 1 command"],
     ["edits are changes", ["edit", "edit"], "Changed 2 files"],
-    ["web and code search are told apart", ["web", "search", "search"], "Searched the web 1 time and searched code 2 times"],
+    ["fetched pages and listed folders are told apart", ["web", "search", "search"], "Fetched 1 page and listed 2 folders"],
     ["a third kind folds into other actions", ["run", "edit", "read", "read"], "Ran 1 command, changed 1 file, and performed 2 other actions"],
     ["priority drops the least important kinds", ["other", "other", "read", "run"], "Read 1 file, ran 1 command, and performed 2 other actions"],
     ["other tools only", ["other"], "Used 1 tool"],
@@ -132,7 +132,7 @@ describe("run segments", () => {
 
   test("each bubble opens the steps since the previous bubble of its run", () => {
     const r1 = runBubbles(list).get("r1") ?? []
-    expect(r1).toEqual([{ id: "m2", steps: 2 }, { id: "m3", steps: 2 }, { id: "m5", steps: 5 }])
+    expect(r1.map((b) => [b.id, b.steps])).toEqual([["m2", 2], ["m3", 2], ["m5", 5]])
     const sizes = r1.map((_, i) => bubbleSegment("r1", r1, i, true)).map((s) => segmentSize(s, 0, 5))
     expect(sizes).toEqual([2, 0, 3])
   })
@@ -152,7 +152,13 @@ describe("run segments", () => {
   })
 
   test("a bubble never reports fewer steps than the one before it", () => {
-    expect(runBubbles([{ id: "a", runId: "r", steps: 3 }, { id: "b", runId: "r" }]).get("r")).toEqual([{ id: "a", steps: 3 }, { id: "b", steps: 3 }])
+    expect(runBubbles([{ id: "a", runId: "r", steps: 3 }, { id: "b", runId: "r" }]).get("r")?.map((b) => b.steps)).toEqual([3, 3])
+  })
+
+  test("after a reload the run's last bubble still opens the steps after it, such as a worker's", () => {
+    const bubbles = runBubbles([{ id: "a", runId: "r", steps: 1, runSteps: 4 }]).get("r") ?? []
+    expect(runTotal(bubbles)).toBe(4)
+    expect(segmentSize(bubbleSegment("r", bubbles, 0, false), 0, runTotal(bubbles))).toBe(4)
   })
 })
 

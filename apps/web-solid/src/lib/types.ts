@@ -116,6 +116,8 @@ export interface ChatMessage {
   runId?: string;
   /** How many steps that run had made when it posted this message. Absent when none. */
   steps?: number;
+  /** How many steps that run has made by now, as the room last said. Absent when none. */
+  runSteps?: number;
   /** Marks the message as pinned in its thread. */
   pinned?: boolean
   /**

@@ -205,6 +205,7 @@ export const Message = Schema.Struct({
 	initiative: Schema.optionalKey(Schema.Struct({ reason: Schema.String })),
 	event: Schema.optionalKey(Schema.Union([SystemEvent, UnknownSystemEvent])),
 	steps: Schema.optionalKey(Count),
+	runSteps: Schema.optionalKey(Count),
 })
 
 export const ThinkingLevel = Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh", "max"])

@@ -221,7 +221,8 @@ export class RoomLog {
 			list.push({ by: actorFromKey(x.actor), emoji: x.emoji })
 			reactions.set(x.message_id, list)
 		}
-		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies))
+		const totals = this.steps.counts([...new Set(rows.flatMap((r) => (r.run_id !== null ? [r.run_id] : [])))])
+		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies, totals))
 	}
 
 	/** A live (not deleted) message, or null. */
@@ -307,7 +308,7 @@ export class RoomLog {
 				...(reply ? { reply } : {}),
 				...(input.files?.length ? { files: input.files } : {}),
 				...(input.run ? { run: input.run } : {}),
-				...(runSteps ? { steps: runSteps } : {}),
+				...(runSteps ? { steps: runSteps, runSteps } : {}),
 				...(input.goto ? { goto: input.goto } : {}),
 				...(input.quote ? { quote: input.quote } : {}),
 				...(input.to ? { to: input.to } : {}),
@@ -482,8 +483,10 @@ export class RoomLog {
 	}
 
 	/** `reactions` are the message's, when the caller loaded them for many rows at once. */
-	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>): Message {
+	/** `totals` are the step counts of the rows' runs, when the caller loaded them for many rows at once. */
+	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>, totals?: ReadonlyMap<string, number>): Message {
 		const steps = r.steps ?? 0
+		const runSteps = r.run_id === null ? 0 : ((totals ?? this.steps.counts([r.run_id])).get(r.run_id) ?? 0)
 		const reply = r.reply_to ? (replies ?? this.previews([r.reply_to])).get(r.reply_to) : undefined
 		const reactions: Reaction[] =
 			preloaded ??
@@ -508,6 +511,7 @@ export class RoomLog {
 				? { run: { runId: r.run_id, attempt: r.run_attempt ?? 0, index: r.run_index ?? 0 } }
 				: {}),
 			...(steps ? { steps } : {}),
+			...(runSteps ? { runSteps } : {}),
 			...(r.edited_at !== null ? { editedAt: r.edited_at } : {}),
 			...(r.goto ? { goto: r.goto as RoomId } : {}),
 			...(r.quote ? { quote: r.quote } : {}),

@@ -116,6 +116,8 @@ export type Message = {
 	event?: SystemEvent | UnknownSystemEvent
 	/** How many steps the run that posted this bubble had started when the bubble was posted. The bubble opens those since the run's previous bubble. Absent when none. */
 	steps?: number
+	/** How many steps its run has made by now. The run's last bubble also opens the steps after it once the run ends, such as a background worker's. Absent when none. */
+	runSteps?: number
 }
 
 export type Member = {

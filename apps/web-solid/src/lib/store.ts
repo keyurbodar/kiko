@@ -25,7 +25,7 @@ import { describeLast, typingLine } from "../sidebar/activity"
 import { batch, createComputed, createMemo, createRoot, createSignal, untrack } from "solid-js"
 import { isServer } from "solid-js/web"
 import { createPacer } from "../chat/bubble-pacing"
-import { bubbleSegment, parseSegment, runBubbles, segmentSize, tailSegment } from "../chat/run/run-log"
+import { bubbleSegment, parseSegment, runBubbles, runTotal, segmentSize, tailSegment } from "../chat/run/run-log"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
 import { createRoomStore, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
@@ -87,7 +87,7 @@ export function nextReaction(reactions: readonly WireReaction[] | undefined, emo
 export function signature(m: ViewMessage): string {
   let reactions = ""
   for (const r of m.reactions ?? []) reactions += `${reactionKey(r)}=${r.emoji},`
-  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}|${m.run?.runId ?? ""}|${m.steps ?? 0}`
+  return `${m.id}|${m.seq}|${m.editedAt ?? ""}|${m.pending ? 1 : 0}|${m.failed ? 1 : 0}|${m.replyTo ?? ""}|${m.reply?.gone ? 1 : 0}|${m.files?.length ?? 0}|${m.local?.length ?? 0}|${reactions}|${m.goto ?? ""}|${m.quote?.length ?? ""}|${m.run?.runId ?? ""}|${m.steps ?? 0}|${m.runSteps ?? 0}`
 }
 
 /** The transcript's view of one protocol message. */
@@ -112,6 +112,7 @@ export function toChatMessage(m: ViewMessage, roomId: string): ChatMessage {
   if (m.initiative) out.initiative = m.initiative.reason
   if (m.run) out.runId = m.run.runId
   if (m.steps) out.steps = m.steps
+  if (m.runSteps) out.runSteps = m.runSteps
   const chips = reactionChips(m.reactions)
   if (chips) out.reactions = chips
   // A stored file keeps only what today's bubble reads, so an old message's media fields fall away here.
@@ -794,7 +795,7 @@ export function createApp(options: AppOptions = {}) {
         if (!m.runId || !bubbles || index < 0) return undefined
         const segment = bubbleSegment(m.runId, bubbles, index, this.runLive(m.runId))
         const loaded = room()?.state.steps[m.runId]?.length ?? 0
-        return segmentSize(segment, loaded, bubbles.at(-1)?.steps ?? 0) > 0 ? segment.key : undefined
+        return segmentSize(segment, loaded, runTotal(bubbles)) > 0 ? segment.key : undefined
       },
 
       /** The slice an agent's typing row opens: the steps its run made since its last bubble, once there is one. */
@@ -829,7 +830,7 @@ export function createApp(options: AppOptions = {}) {
       loadRunSteps(key: string) {
         const r = room()
         const { runId } = parseSegment(key)
-        const known = runs().get(runId)?.at(-1)?.steps ?? 0
+        const known = runTotal(runs().get(runId) ?? [])
         if (r && (r.state.steps[runId]?.length ?? 0) < known) r.requestSteps(runId)
       },
 
