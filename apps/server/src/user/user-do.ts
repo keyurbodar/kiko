@@ -653,7 +653,7 @@ export class UserDO extends DurableObject<Env> {
   #providerWatch?: ProviderWatch
   get #watch(): ProviderWatch {
     this.#providerWatch ??= new ProviderWatch({
-      vault: this.#credentials,
+      vault: () => this.#credentials,
       alarms: this.alarms,
       sql: this.sql,
       now: Date.now,
