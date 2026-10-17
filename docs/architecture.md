@@ -681,7 +681,7 @@ The room.
 - An ended step is written once, as one row of `run_steps` (primary key `(run_id, id)`, no other index), and broadcast. `INSERT ... ON CONFLICT DO NOTHING` means a replay writes nothing. A start that arrives after the step ended, or after its run ended, is dropped, except a worker's, which outlives the run. The end of a run marks the talker's steps still running as failed.
 - `{ t: "steps", runId }` is answered to the asking socket only, with the stored and running steps of that run.
 - A snapshot carries `steps`: the running steps, and the stored steps of runs that have not ended (at most 300, none older than a day).
-- Every message with a run id carries `steps`: how many steps its run had started when it was posted. The client subtracts the previous bubble's count to find the bubble's own slice. One grouped query per batch, through `json_each`.
+- Every message with a run id carries `steps`: how many steps of its run the room had heard of when the bubble was posted. It is counted once, at post time, and kept in the message row, so a reload reads it and counts nothing. Counting at read time by timestamps was wrong: a tool call written after the bubble's text can start a few milliseconds before the room stamps the bubble, because the agent and the room keep separate clocks. The client subtracts the previous bubble's count to find the bubble's own slice.
 
 Bounds. The table keeps the newest 2,000 steps. Past 2,200 one statement deletes down to 2,000, so pruning costs a few reads per write. The row count is read once per wake, then kept in memory.
 

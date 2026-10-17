@@ -70,6 +70,7 @@ type MessageRow = {
 	quote: string | null
 	addressed: string | null
 	initiative: string | null
+	steps: number | null
 	event: string | null
 }
 
@@ -220,8 +221,7 @@ export class RoomLog {
 			list.push({ by: actorFromKey(x.actor), emoji: x.emoji })
 			reactions.set(x.message_id, list)
 		}
-		const steps = this.steps.before(rows.flatMap((r) => (r.run_id !== null ? [{ id: r.id, runId: r.run_id, at: r.at }] : [])))
-		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies, steps))
+		return rows.map((r) => this.toMessage(r, reactions.get(r.id) ?? [], replies))
 	}
 
 	/** A live (not deleted) message, or null. */
@@ -295,7 +295,8 @@ export class RoomLog {
 			const earlier = input.clientId ? this.sentBefore(input.clientId) : input.run ? this.messageForRun(input.run) : null
 			if (earlier) return { ...earlier, event: null }
 			const id = crypto.randomUUID() as MessageId
-			const runSteps = input.run ? (this.steps.before([{ id, runId: input.run.runId, at: Date.now() }]).get(id) ?? 0) : 0
+			// Counted once, when the bubble is posted, and kept: the steps the room has heard of by then are the bubble's and its run's earlier bubbles'.
+			const runSteps = input.run ? this.steps.count(input.run.runId) : 0
 			const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
 			const message: Omit<Message, "seq" | "at"> = {
 				id,
@@ -319,8 +320,8 @@ export class RoomLog {
 				...message,
 			} as Body)
 			this.sql.exec(
-				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO messages (id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id,
 				event.seq,
 				event.at,
@@ -337,6 +338,7 @@ export class RoomLog {
 				input.to ?? null,
 				input.initiative?.reason ?? null,
 				input.event ? JSON.stringify(input.event) : null,
+				runSteps || null,
 			)
 			if (input.clientId) {
 				this.sql.exec("INSERT INTO clients (client_id, message_id, seq) VALUES (?, ?, ?)", input.clientId, id, event.seq)
@@ -480,8 +482,8 @@ export class RoomLog {
 	}
 
 	/** `reactions` are the message's, when the caller loaded them for many rows at once. */
-	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>, stepsOf?: ReadonlyMap<string, number>): Message {
-		const steps = r.run_id === null ? 0 : ((stepsOf ?? this.steps.before([{ id: r.id, runId: r.run_id, at: r.at }])).get(r.id) ?? 0)
+	private toMessage(r: MessageRow, preloaded?: Reaction[], replies?: ReadonlyMap<string, ReplyPreview>): Message {
+		const steps = r.steps ?? 0
 		const reply = r.reply_to ? (replies ?? this.previews([r.reply_to])).get(r.reply_to) : undefined
 		const reactions: Reaction[] =
 			preloaded ??

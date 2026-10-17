@@ -96,7 +96,9 @@ const suite: Suite = {
       ],
       "the step counts of a run's two bubbles",
     )
-    console.log("  ok a run's bubbles count the steps started before each, so each bubble opens only its own")
+    const reloaded = (await snapshot(s, roomId)).messages.filter((m) => parts.some((p) => p.id === m.id))
+    expectEqual(reloaded.map((m) => m.steps ?? 0), parts.map((m) => m.steps ?? 0), "the step counts a reload reads")
+    console.log("  ok a run's bubbles count the steps started before each, live and after a reload, so each bubble opens only its own")
 
     // The lead's own tools: a failing one, and an internal tool that makes no step.
     const before = stepFrames(room).length

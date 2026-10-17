@@ -256,4 +256,5 @@ export const ROOM_STEPS: Step[] = [
 		output TEXT,
 		PRIMARY KEY (run_id, id)
 	) WITHOUT ROWID`,
+	addColumn("messages", "steps", "INTEGER"),
 ]
