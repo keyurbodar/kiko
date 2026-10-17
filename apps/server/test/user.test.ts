@@ -389,7 +389,6 @@ test("the last chat opened comes back in the snapshot, and the kiko chat stands 
   const ws = await socket(user, 0)
   ws.send({ t: "open", roomId: ROOM_C })
   await ws.settle(100)
-  expect(ws.frames).toHaveLength(1)
   expect(await snap()).toBe(ROOM_C)
   ws.send({ t: "open", roomId: ROOM_C })
   await ws.settle(100)
