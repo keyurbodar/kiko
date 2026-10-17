@@ -154,10 +154,20 @@ export async function checkKey(key: string, fetchImpl: typeof fetch = fetch): Pr
   await (await api(key, "toolkits?limit=1", fetchImpl)).body?.cancel()
 }
 
+/**
+ * Tools every session mounts as its own tool, so the agent can call them without a search first.
+ * A search that finds a tool worth keeping learns it for the next run; these are the ones worth
+ * having on the first turn of every run, because a web answer needs no connected app.
+ */
+export const PRELOAD = ["COMPOSIO_SEARCH_WEB", "COMPOSIO_SEARCH_NEWS", "COMPOSIO_SEARCH_FETCH_URL_CONTENT"] as const
+
 /** A new session for `userId`. Its MCP url must be on Composio's own origin. */
 export async function createSession(key: string, userId: string, fetchImpl: typeof fetch = fetch): Promise<Session> {
   if (isConnectKey(key)) return { id: "connect", url: CONNECT_URL }
-  const body = (await (await api(key, "tool_router/session", fetchImpl, { method: "POST", body: { user_id: userId } })).json()) as { session_id?: unknown; mcp?: { url?: unknown } }
+  // Without a preload, a session mounts only Composio's meta tools, so the first web question costs
+  // two model turns for a search and a plan the model then has to read. Preloaded tools are mounted
+  // by their own name, and still answer to COMPOSIO_MULTI_EXECUTE_TOOL.
+  const body = (await (await api(key, "tool_router/session", fetchImpl, { method: "POST", body: { user_id: userId, preload: { tools: [...PRELOAD] } } })).json()) as { session_id?: unknown; mcp?: { url?: unknown } }
   const id = body.session_id
   const url = body.mcp?.url
   if (typeof id !== "string" || typeof url !== "string" || new URL(url).origin !== SESSION_ORIGIN) throw new ComposioError("Composio sent no session")
@@ -180,6 +190,25 @@ export async function connectedAccounts(key: string, userId: string, fetchImpl: 
   if (isConnectKey(key)) return null
   const body = (await (await api(key, `connected_accounts?user_ids=${encodeURIComponent(userId)}&statuses=ACTIVE&limit=200`, fetchImpl)).json()) as { items?: { toolkit?: { slug?: unknown } }[] }
   return new Set((body.items ?? []).flatMap((i) => (typeof i.toolkit?.slug === "string" ? [i.toolkit.slug] : [])))
+}
+
+/**
+ * The toolkit a person named, as Composio's slug: "Google Calendar" is `googlecalendar`, not
+ * `google_calendar`. A slug made by squeezing the name out often does not exist, and Composio's
+ * manage tool then answers "toolkit not found" with a successful HTTP body, so the agent gets no
+ * link and no reason. The catalog answers with the real slug.
+ */
+export async function resolveToolkit(key: string, name: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
+  const cleaned = name.trim()
+  if (!cleaned) return null
+  if (isConnectKey(key)) return cleaned.toLowerCase().replace(/[^a-z0-9]/g, "") || null
+  const body = (await (await api(key, `toolkits?search=${encodeURIComponent(cleaned)}&limit=10`, fetchImpl)).json()) as { items?: { slug?: unknown; name?: unknown }[] }
+  const items = (body.items ?? []).flatMap((i) => (typeof i.slug === "string" ? [{ slug: i.slug, name: typeof i.name === "string" ? i.name : "" }] : []))
+  if (!items.length) return null
+  const squeeze = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "")
+  const want = squeeze(cleaned)
+  const exact = items.find((i) => squeeze(i.name) === want || squeeze(i.slug) === want)
+  return (exact ?? items[0]!).slug
 }
 
 /** Whether Composio's tool catalog tags `slug` read-only. */

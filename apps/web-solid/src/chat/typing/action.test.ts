@@ -7,7 +7,6 @@ describe("how a working agent's dots move", () => {
     const cases: [string, Record<string, unknown>, string][] = [
       ["read", { path: "notes.md" }, "scan"],
       ["ls", {}, "scan"],
-      ["web_fetch", {}, "scan"],
       ["write", { path: "/a.html" }, "hop"],
       ["edit", { path: "a.html" }, "hop"],
       ["create_agent", {}, "hop"],

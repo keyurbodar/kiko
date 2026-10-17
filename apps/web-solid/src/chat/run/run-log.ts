@@ -23,7 +23,6 @@ export const NAME_ICON: Record<string, StepIcon> = {
   rm: "trash",
   mkdir: "folder-add",
   bash: "terminal",
-  web_fetch: "link",
   web_search: "search",
   browse: "browser",
   browser_look: "eye",

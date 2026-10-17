@@ -6,7 +6,6 @@ import { defineExtension, Harness, MemoryStorage, wrapSection } from "@earendil-
 import { BASE, type BuildAgentInput, buildAgent } from "../src/agent/factory"
 import { WORK, WORK_STEPS } from "../src/agent/extensions/work"
 import type { Workers } from "@kiko/agent/workers"
-import { WEB } from "../src/agent/extensions/web"
 import { SKILLS } from "../src/agent/extensions/skills"
 import { SECTION_ORDER } from "../src/agent/prompt"
 
@@ -122,7 +121,7 @@ describe("buildAgent", () => {
     for (const input of inputs) {
       const built = buildAgent(input)
       expect(Array.isArray(built.agent.extensions)).toBe(true)
-      expect(built.registry.snapshot().installed().map((e) => e.name).filter((n) => n !== WEB)).toEqual(lists[0])
+      expect(built.registry.snapshot().installed().map((e) => e.name)).toEqual(lists[0])
     }
     const { selected } = await firstRequest(inputs[0])
     expect(selected).toEqual(lists[0])

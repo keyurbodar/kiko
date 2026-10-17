@@ -30,6 +30,42 @@ export const fillFlags = (schema: unknown, args: Record<string, unknown>): Recor
   return flags.length ? { ...args, ...Object.fromEntries(flags.map((k) => [k, false])) } : args
 }
 
+type JsonSchema = { type?: unknown; properties?: Record<string, JsonSchema>; items?: JsonSchema }
+
+const parsed = (value: unknown): unknown => {
+  if (typeof value !== "string") return value
+  const trimmed = value.trim()
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return value
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return value
+  }
+}
+
+/**
+ * A model sometimes sends a JSON object as a string, or a one-item array where the schema says object.
+ * Composio rejects the call with "Invalid request data provided", which reads to the model as a dead
+ * tool. Repair the shapes its schemas name, and leave everything else for the harness to reject.
+ */
+export function repairArguments(schema: unknown, args: Record<string, unknown>): Record<string, unknown> {
+  const s = schema as JsonSchema | null
+  if (!s || s.type !== "object" || !s.properties) return args
+  const out: Record<string, unknown> = { ...args }
+  for (const [key, property] of Object.entries(s.properties)) {
+    const value = out[key]
+    if (value === undefined) continue
+    if (property.type === "array") {
+      const one = parsed(value)
+      out[key] = Array.isArray(one) ? one : [one]
+    } else if (property.type === "object") {
+      const one = parsed(value)
+      out[key] = Array.isArray(one) && one.length === 1 ? one[0] : one
+    }
+  }
+  return out
+}
+
 /** `COMPOSIO_SEARCH_TOOLS` becomes `composio_search_tools`. */
 export const toolName = (name: string) => `composio_${name.replace(/^COMPOSIO_/, "").toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`.slice(0, 64)
 
@@ -71,13 +107,13 @@ export function composioExtension(tools: readonly ComposioTool[], rawCall: Compo
             name,
             description: t.name === MULTI_EXECUTE ? `${base} Slow for many tools at once; for more than 3 independent calls, issue separate parallel tool calls instead.` : base,
             parameters: (t.direct ? t.inputSchema : relaxSchema(t.inputSchema)) as never,
+            prepareArguments: (args) => repairArguments(t.inputSchema, (args ?? {}) as Record<string, unknown>) as never,
             replay: t.readOnly ? "safe" : "unsafe",
             execute: (args) =>
               timed(name, fs, async () => {
-                const given = (args ?? {}) as Record<string, unknown>
+                const given = repairArguments(t.inputSchema, (args ?? {}) as Record<string, unknown>)
                 if (!t.direct) return call(t.name, fillFlags(t.inputSchema, given))
-                const sent = given
-                const { text, isError } = directResult(await call(MULTI_EXECUTE, { tools: [{ tool_slug: t.direct.slug, arguments: sent }], sync_response_to_workbench: false, thought: "direct call" }))
+                const { text, isError } = directResult(await call(MULTI_EXECUTE, { tools: [{ tool_slug: t.direct.slug, arguments: given }], sync_response_to_workbench: false, thought: "direct call" }))
                 return { content: [{ type: "text" as const, text }], isError }
               }),
           }),

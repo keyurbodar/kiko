@@ -222,7 +222,7 @@ export class UserDO extends DurableObject<Env> {
         connected: async () => (this.#composio.status().connected ? await this.#composio.connectedToolkits(Date.now(), true).catch(() => null) : "off"),
         link: async (app) => {
           const manage = (await this.#composio.tools().catch(() => null))?.find((t) => t.name === MANAGE_CONNECTIONS)
-          const out = manage && (await connectLinkFor(manage, (name, args) => this.#composio.call(name, args), app))
+          const out = manage && (await connectLinkFor(manage, (name, args) => this.#composio.call(name, args), app, (named) => this.#composio.resolveToolkit(named)))
           return out && out.kind === "link" ? out.link : null
         },
       },
@@ -711,6 +711,15 @@ export class UserDO extends DurableObject<Env> {
       return await this.#composio.call(name, args)
     } catch (e) {
       return this.fail(composioFailure(e), e)
+    }
+  }
+
+  /** The real toolkit slug for an app the agent named, so a connect link is not made for a slug that does not exist. */
+  async composioToolkit(app: string): Promise<string | null> {
+    try {
+      return await this.#composio.resolveToolkit(app)
+    } catch {
+      return null
     }
   }
 

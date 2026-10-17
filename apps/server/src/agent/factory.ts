@@ -7,8 +7,6 @@ import { withTextToolCalls } from "./tool-markup"
 import type { Workers } from "@kiko/agent/workers"
 import { effectTable } from "@kiko/agent/effects"
 import { type FilesOptions, filesExtension } from "./extensions/files"
-import { WEB, webExtension } from "./extensions/web"
-import type { Fetcher } from "@kiko/durable/safe-fetch"
 import { type MemoryPort, memoryExtensions } from "@kiko/memory/tools"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
@@ -41,13 +39,12 @@ export type BuildAgentInput = RoleInput & {
   runId?: () => string | null
   memory?: MemoryPort
   workspace?: WorkspacePort
-  composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
+  composio?: { tools: readonly ComposioTool[]; call: ComposioCall; resolve?: (app: string) => Promise<string | null> }
   browser?: BrowserToolDeps
   routines?: { port: () => RoutinesPort | null }
   recipes?: RecipesPort
   messaging?: () => MessagingPort | null
   testExtensions?: readonly Extension[]
-  egress?: Fetcher
   work?: Workers
 }
 
@@ -58,7 +55,7 @@ export type BuiltAgent = {
 
 export const BASE = "base"
 
-export const WORKER_ONLY: readonly string[] = [WEB, COMPOSIO, BROWSER_EXT]
+export const WORKER_ONLY: readonly string[] = [COMPOSIO, BROWSER_EXT]
 export const workerOnly = (name: string): boolean => WORKER_ONLY.includes(name)
 export const forTalker = (extensions: readonly Extension[]): Extension[] => extensions.filter((e) => !workerOnly(e.name))
 
@@ -70,13 +67,12 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     ...(input.files ? [filesExtension({ acceptsImages: input.files.acceptsImages, touched: (conversationId, paths) => input.work?.touched(conversationId, paths) })] : []),
     skillsExtension(input.files?.fs, input.runStamp, input.recipes),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),
-    webExtension(input.egress, input.files?.fs),
     ...(input.messaging ? [messagingExtension(input.messaging)] : []),
     ...(input.groups ? [groupsExtension(input.groups)] : []),
     ...(input.presence ? [presenceExtension({ ...input.presence, ...(input.composio?.tools.length ? { describe: composioDescribe(input.composio.tools) } : {}) })] : []),
     ...(input.routines ? [routinesExtension(input.routines.port)] : []),
     ...(input.composio?.tools.length ? [composioExtension(input.composio.tools, input.composio.call, input.files?.fs)] : []),
-    ...(input.composio?.tools.length ? connectAppExtension(input.composio.tools, input.composio.call) : []),
+    ...(input.composio?.tools.length ? connectAppExtension(input.composio.tools, input.composio.call, input.composio.resolve) : []),
     ...(input.browser ? [browserExtension(input.browser), browserInfoExtension(input.browser)] : []),
     ...(input.work ? workExtensions(input.work, all, input.runId) : []),
     ...(input.testExtensions ?? []),

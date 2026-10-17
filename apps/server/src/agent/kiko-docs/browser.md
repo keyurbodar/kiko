@@ -4,7 +4,7 @@ One real browser is shared by every agent: Kernel cloud Chromium. It keeps its t
 
 ## When to use it
 
-A page that needs javascript, a login, or clicks goes to the browser. A plain page, an article, or an API goes to `web_fetch` first: it is faster and cheaper.
+A page that needs javascript, a login, or clicks goes to the browser. A search, a plain page, or an article goes to a connected app first: it is faster and cheaper.
 
 ## The tools
 

@@ -7,7 +7,7 @@ import { readStats, resetStats } from "./latency"
 
 
 const USER = `browser-${Date.now().toString(36)}`
-const ASK = "Use the browse tool (not web_fetch): what is the title of the top story on Hacker News right now? Answer with just the title."
+const ASK = "Use the browse tool: what is the title of the top story on Hacker News right now? Answer with just the title."
 const LIMIT_MS = 20_000
 
 async function topTitle(): Promise<string> {

@@ -35,6 +35,19 @@ export function candidates(body: Obj): Candidate[] {
   )
 }
 
+/**
+ * A search answers with `schemaRef` instead of `input_schema` for some tools. Those cannot be called
+ * without a second lookup, and dropping them from `candidates` left them unlearned forever, so the
+ * model kept searching and then guessed their arguments.
+ */
+export function schemaRefs(body: Obj): string[] {
+  const schemas = isObj(body.data) ? body.data.tool_schemas : undefined
+  const entries = Array.isArray(schemas) ? schemas : isObj(schemas) ? Object.values(schemas) : []
+  return entries.flatMap((e) =>
+    isObj(e) && typeof e.tool_slug === "string" && !isObj(e.input_schema) && isObj(e.schemaRef) ? [e.tool_slug] : [],
+  )
+}
+
 function slugsOf(args: Obj, body: Obj | undefined, keep: (response: Obj) => boolean): string[] {
   const sent = Array.isArray(args.tools) ? args.tools : []
   const results = body && isObj(body.data) && Array.isArray(body.data.results) ? body.data.results : []
@@ -62,8 +75,7 @@ export function remember(learned: readonly LearnedTool[], used: readonly Candida
   return [...fresh, ...learned.filter((t) => !slugs.has(t.slug))].sort((a, b) => b.usedAt - a.usedAt).slice(0, LEARNED_MAX)
 }
 
-export function directResult(out: ComposioCallResult): { text: string; isError: boolean } {
-  const body = resultJson(out)
+export function directResult(out: ComposioCallResult): { text: string; isError: boolean } {  const body = resultJson(out)
   const result = isObj(body?.data) && Array.isArray(body.data.results) ? body.data.results[0] : undefined
   const response = isObj(result) ? result.response : undefined
   if (out.isError || !isObj(response) || response.successful === false) {

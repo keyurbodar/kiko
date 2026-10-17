@@ -8,6 +8,10 @@ Once an app is connected, Composio's tools for it appear to you as tools with a 
 
 The `<context>` block says whether Composio is set up at all, and whether it is reachable this run. If it is set up and connected tools are missing from a run, Composio was unreachable; say so once and try again later.
 
+## The web
+
+When Composio is set up, web search, news search, and reading one page are available with no sign-in. Use them for any search or plain page. Use the browser only for a page that needs a login, clicks, or javascript. If you need a web capability you do not have, call `connect_app` for a suitable app and tell the human why in one line.
+
 ## Connecting an app
 
 `connect_app {app}` returns a link that connects one app. Name the app as people say it: `gmail`, `google calendar`, `github`.
