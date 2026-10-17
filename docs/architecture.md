@@ -728,6 +728,7 @@ How kiko does it:
 - The host calls the setup's `beginRun` before a batch starts a new run, never for a batch that steers or queues into a live one. No auth means no submit: the batch is dropped and `RoomDO.noProvider` stores one `run_error` line with kind `no_key` for the agent and input (section 6.2.1). The human's messages stay in the log.
 - DEVIATION: the harness keeps one `Models` per process, because pi-durable takes it at open. Its providers (all of pi-ai's built-in ones) read auth only from the run's `turnContext` answer, never from env or files. A run resumed after an eviction calls `turnContext` again. With every provider bundled, `wrangler deploy --dry-run` reports 8157 KiB, 1313 KiB gzip.
 - DEVIATION: a run that is already going when the owner disconnects keeps its auth until it ends, not only for its current request. The next run gets a `no_key` error line.
+- The model list is pi-ai's bundled catalog plus a live overlay from pi.dev (section 11.5). `UserDO.agentTurn` returns the overlay for the run's provider and its revision, and `AgentDO` applies it before the run resolves its model, so the two objects agree without another request.
 - The chosen model lives in each `AgentDO` (one per room and agent), set by the `setModel` RPC and applied with `configure` at the next run start. ASSUMPTION: without a choice, the model is the test model of section 11.6.
 
 ### 11.4 Sign-in flows
@@ -757,7 +758,25 @@ A caution for the owner.
 
 ### 11.5 Model catalog for the client
 
-A build step reads the pi-ai catalog and writes a hashed JSON asset. The settings screen loads it lazily. No custom model list exists anywhere in kiko.
+**Decision.** The model list is pi-ai's bundled catalog plus a live overlay synced from pi.dev, so a model that appears in pi's catalog appears in kiko within the hour without a package upgrade. The client reads the merged list from `GET /api/models`. No custom model list exists anywhere in kiko.
+
+**Reasons.**
+
+- pi's own coding agent does the same thing (`withRemoteCatalog` in `remote-catalog-provider.ts`). Kiko ports its rules and does not invent new ones.
+- The Free plan allows 50 subrequests per invocation. pi asks for each provider alone, which is 42 requests. Kiko asks once for `GET https://pi.dev/api/models?types=chat,image,classifier`, the aggregate endpoint (about 1 MB, shape `{ [providerId]: models }`). It sends `If-None-Match`, so an unchanged catalog is a 304.
+
+How kiko does it (`apps/server/src/models/`):
+
+- `catalog.ts` wraps pi-ai's built-in providers once, so `getModels` and `getAllModels` merge the current overlay on every call. The merge key is `type` plus id, and the remote model wins, as in pi. `computeOverlay` keeps a remote model only when its provider id is bundled, its api is one that provider's bundled models already use, the response is newer than the bundled data (`getBuiltinModelDataGeneratedAt`), and it differs from the bundled model of the same type and id. Malformed entries are dropped. A model on an api pi-ai cannot stream is therefore never offered. The overlay is small, so it is cheap to store and to send to `AgentDO`.
+- `sync.ts` makes the conditional request with a 4 second timeout. A 200 stores the overlay and the etag. A 304 moves only `checkedAt`. A 404 or 501 stores an empty overlay and forgets the etag. Any other failure keeps the cached body and the etag and records the error. It never throws out of an alarm.
+- Storage is in `UserDO`: one row per provider in `model_catalog`, and `{ etag, lastModified, checkedAt, revision, error }` in the settings table under `model_catalog`. The revision is a short hash of the overlay. Rows are written only when the revision changes. When the bundled data catches up with the stored `lastModified` (after an upgrade), the stored overlay is ignored, as in pi.
+- The `models` wakeup in `alarm.ts` runs the sync every hour. It is armed when the object first starts. `UserDO` loads the stored overlay when it starts. After a sync that changed the overlay it sends a `changed` frame with `what: "models"`, and an open client loads the catalog again.
+- `UserDO.modelCatalog` builds the client's catalog from the live providers (reasoning levels from pi-ai's `getSupportedThinkingLevels`, prices, the classifier count) and keeps the JSON in memory for one revision. When the last check is older than 15 minutes, it starts a sync and answers at once, so opening settings never waits on pi.dev. A changed overlay reaches open clients as a `changed: models` frame, and open screens load the catalog again.
+- The Worker route (`models/route.ts`) only proxies. It answers with `ETag: "<revision>-<kiko version>"` and `Cache-Control: no-cache`, and with 304 when `If-None-Match` matches. The kiko version is in the tag because the bundled data changes with it.
+- `connect` methods come from the server: `api_key` when the provider has API-key auth, and a sign-in only when `signInMethod` in `user/provider-login.ts` knows the provider. The catalog never offers a sign-in the server refuses.
+- ASSUMPTION: one request an hour is enough. pi itself checks every 4 hours.
+- ASSUMPTION: `pi.dev` keeps `last-modified` and `etag` on the aggregate endpoint. Without `last-modified` the response counts as older than the bundled data and adds nothing.
+- UNVERIFIED: the aggregate endpoint is not documented by pi. It was measured on 2026-10-17 (200, 42 providers, 174 models the bundled catalog lacked). A change of shape makes `computeOverlay` return an empty overlay, so the bundled catalog keeps working.
 
 Providers and models are one settings page, `/settings/models`. Connected providers come first, each with its models under it. The default model for new chats carries a dot, and one click on a model makes it the default. A search and a compact list of the other providers sit below, each one click from its connect dialog. The old `/settings/providers` URL redirects there. A chat's own model is switched from the chip at the right of the top bar, which opens the same picker; it hides while no provider is connected, because the chat's banner already says so.
 
@@ -1259,7 +1278,7 @@ When `document.visibilityState` is `hidden`, the client closes the room socket a
 
 ### 19.7 Static assets
 
-Icons, default avatars, emoji data, theme tokens, the model catalog, and built-in skill metadata are build-time constants in hashed files served with `Cache-Control: immutable`. The four icon systems in the repo today are reduced to one sprite.
+Icons, default avatars, emoji data, theme tokens, and built-in skill metadata are build-time constants in hashed files served with `Cache-Control: immutable`. The four icon systems in the repo today are reduced to one sprite.
 
 ### 19.8 Theme
 

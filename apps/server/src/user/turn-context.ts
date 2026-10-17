@@ -1,7 +1,7 @@
-import type { AuthContext, AuthResult, CredentialStore, Provider } from "@earendil-works/pi-ai"
+import type { AuthContext, AuthResult, CredentialStore } from "@earendil-works/pi-ai"
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth"
 import { createModels, isModelType } from "@earendil-works/pi-ai/models"
-import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
+import { findProvider, overlayFor, overlayRevision, type WireModel } from "../models/catalog"
 
 // Worker bundles cannot follow pi-ai's computed import() for OAuth refresh, so register the bundled flows explicitly.
 registerBunOAuthFlows()
@@ -13,17 +13,11 @@ export type TurnContext = {
   auth: AuthResult | null
   timezone: string
   captures: boolean
+  catalog: { revision: string; models: WireModel[] }
   agent?: { soul: { body: string; sha: string; at: number } }
 }
 
 const NO_AMBIENT: AuthContext = { env: async () => undefined, fileExists: async () => false }
-
-let providers: Map<string, Provider> | undefined
-
-export function findProvider(id: string): Provider | undefined {
-  providers ??= new Map(builtinProviders().map((p) => [p.id, p]))
-  return providers.get(id)
-}
 
 export function providerUses(id: string): { chat: boolean; judge: boolean } {
   const found = findProvider(id)
@@ -40,7 +34,7 @@ export async function resolveTurnContext(
   settings: { timezone: string | null; captures: boolean },
   agent?: TurnContext["agent"],
 ): Promise<TurnContext> {
-  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, captures: settings.captures, ...(agent ? { agent } : {}) }
+  const base = { provider, timezone: settings.timezone ?? DEFAULT_TIMEZONE, captures: settings.captures, catalog: { revision: overlayRevision(), models: overlayFor(provider) }, ...(agent ? { agent } : {}) }
   const found = findProvider(provider)
   if (!found) return { ...base, auth: null }
   const models = createModels({ credentials: store, authContext: NO_AMBIENT })

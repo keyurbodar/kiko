@@ -7,6 +7,8 @@ import type { InitiativeEngine } from "../initiative/engine"
 import { setSetting } from "../lib/settings"
 import type { Reminders } from "./reminders"
 import { LAST_SEEN } from "./keys"
+import { applyOverlay, type CatalogOverlay } from "../models/catalog"
+import { revisionOf, writeOverlay, writeState } from "../models/sync"
 
 // The bodies never reach a production bundle: dev-guard loads this module only in a dev build.
 
@@ -98,6 +100,15 @@ export function fakeProvider(id: string): Provider | undefined {
     stream: noModels,
     streamSimple: noModels,
   }
+}
+
+// Installs a remote overlay as if pi.dev had served it, or clears it with an empty one.
+export async function devModelOverlay(sql: SqlStorage, overlay: CatalogOverlay): Promise<void> {
+  const now = Date.now()
+  const revision = await revisionOf(overlay)
+  writeOverlay(sql, overlay)
+  writeState(sql, { lastModified: now, checkedAt: now, revision })
+  applyOverlay(overlay, revision)
 }
 
 function noModels(): never {

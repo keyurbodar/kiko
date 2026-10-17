@@ -11,7 +11,8 @@ import { DEV } from "../lib/dev-guard"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import type { CredentialVault, ProviderInfo } from "./credentials"
 import { getChat } from "./chats"
-import { findProvider, pickJudge, providerUses, type TurnContext } from "./turn-context"
+import { findProvider } from "../models/catalog"
+import { pickJudge, providerUses, type TurnContext } from "./turn-context"
 
 export const LIFE_WAKEUP = "life_naps"
 const NAPS_PER_ALARM = 4

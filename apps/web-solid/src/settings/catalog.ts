@@ -1,64 +1,43 @@
 // The model catalog the settings screen reads, and the pure helpers around it.
-// The catalog is a hashed static asset (architecture 11.5). It is fetched when
-// settings or the model picker first opens, never bundled.
+// The server serves it at /api/models from its live copy of pi's catalog (architecture 11.5). It is
+// fetched when settings or the model picker first opens, never bundled.
 
-import type { ThinkingLevel } from "@kiko/protocol"
+import type { Catalog, CatalogModel, CatalogProvider, ConnectMethod } from "@kiko/protocol"
+import { apiFetch } from "../lib/api"
+import { watchChanged } from "../sync/changed"
 
-export type ConnectMethod = "api_key" | "device_code" | "paste_code"
-
-export interface CatalogModel {
-  id: string
-  name: string
-  contextWindow: number
-  maxTokens: number
-  reasoning: boolean
-  /** The reasoning levels the model supports, from pi-ai. Only "off" when it cannot reason. */
-  thinking: ThinkingLevel[]
-  /** Dollars per million tokens. */
-  pricing: { input: number; output: number }
-}
-
-export interface CatalogProvider {
-  id: string
-  name: string
-  connect: ConnectMethod[]
-  models: CatalogModel[]
-  /** How many classifier models the provider serves. */
-  classifiers: number
-}
-
-export interface Catalog {
-  providers: CatalogProvider[]
-}
+export type { Catalog, CatalogModel, CatalogProvider, ConnectMethod }
 
 let cached: Promise<Catalog> | undefined
 let forget: ReturnType<typeof setTimeout> | undefined
 /**
  * How long the parsed catalog (about 2 MB) outlives its last request. A screen that reads it holds
- * its own copy while open; after that the file is in the HTTP cache, so the next open costs a parse.
+ * its own copy while open; after that the response is in the HTTP cache, so the next open costs a
+ * revalidation and a parse.
  */
 export const CATALOG_KEEP_MS = 60_000
 
-/** Fetches the file into the HTTP cache without parsing it, so the first open skips the download. */
+/** Fetches the catalog into the HTTP cache without parsing it, so the first open skips the download. */
 export async function prefetchCatalog(): Promise<void> {
   try {
-    const { default: url } = await import("virtual:kiko-model-catalog")
-    await fetch(url)
+    await apiFetch("/api/models")
   } catch {
     // the open retries
   }
 }
 
-/** Loads the catalog once. A failed load is not cached, so the next open retries. */
+/** Loads the catalog once. A failed load is not cached, so the next open retries. The server's `changed: models` frame drops it. */
 export function loadCatalog(): Promise<Catalog> {
+  watchChanged("models", () => {
+    cached = undefined
+  })
   if (forget !== undefined) clearTimeout(forget)
   forget = setTimeout(() => {
     cached = undefined
     forget = undefined
   }, CATALOG_KEEP_MS)
   cached ??= (async () => {
-    const { default: url } = await import("virtual:kiko-model-catalog")
-    const response = await fetch(url)
+    const response = await apiFetch("/api/models")
     if (!response.ok) throw new Error("catalog request failed")
     return (await response.json()) as Catalog
   })().catch((error) => {

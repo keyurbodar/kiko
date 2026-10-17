@@ -9,6 +9,7 @@ import { downloadRoute } from "./files/download"
 import { uploadRoute } from "./files/upload"
 import { route } from "./router"
 import { credentialsRoute } from "./user/credentials-route"
+import { modelsRoute } from "./models/route"
 import type { FileDO } from "./files/file-do"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
@@ -58,6 +59,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (routed) return routed
     const credentials = await credentialsRoute(request, env)
     if (credentials) return credentials
+    const models = await modelsRoute(request, env)
+    if (models) return models
     const hooked = await hooksRoute(request, env)
     if (hooked) return hooked
     const routines = await routinesRoute(request, env)

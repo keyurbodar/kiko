@@ -1,6 +1,6 @@
 import { clampThinkingLevel, getSupportedThinkingLevels } from "@earendil-works/pi-ai/models"
 import { defaultThinking, type ThinkingLevel } from "@kiko/protocol"
-import { findProvider } from "../user/turn-context"
+import { findProvider } from "../models/catalog"
 
 /** `provider/model` as a model reference. A string with no provider names no model. */
 export function parseModelRef(ref: string): { provider: string; modelId: string } | null {
