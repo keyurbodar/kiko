@@ -9,6 +9,11 @@ on:
     types: [completed]
     branches: [main]
   workflow_call:
+    inputs:
+      ref:
+        description: "commit to deploy; defaults to the caller's commit"
+        required: false
+        type: string
   workflow_dispatch:
 
 permissions:
@@ -25,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:

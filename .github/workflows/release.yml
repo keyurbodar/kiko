@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.bump.outputs.version }}
+      sha: ${{ steps.push.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,7 +38,8 @@ jobs:
             exit 1
           fi
           echo "version=$new" >> "$GITHUB_OUTPUT"
-      - name: commit and tag
+      - id: push
+        name: commit and tag
         env:
           VERSION: ${{ steps.bump.outputs.version }}
         run: |
@@ -47,10 +49,14 @@ jobs:
           git commit -m "Bump the version to $VERSION"
           git tag -a "v$VERSION" -m "Release $VERSION"
           git push origin main --follow-tags
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   deploy:
     needs: bump
     uses: ./.github/workflows/deploy.yml
+    with:
+      # github.sha is pinned to the trigger commit, so the bumped commit is passed explicitly.
+      ref: ${{ needs.bump.outputs.sha }}
     secrets: inherit
 
   publish:
