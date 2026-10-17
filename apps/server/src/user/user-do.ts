@@ -835,6 +835,8 @@ export class UserDO extends DurableObject<Env> {
     }
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket]
     this.ctx.acceptWebSocket(server)
+    // Opening the app checks pi.dev for new models, so they show without waiting for the next alarm.
+    this.models.syncIfStale()
     server.serializeAttachment({ ready: false, helloBy: helloBy() } satisfies Attachment)
     const origin = request.headers.get("origin") ?? new URL(request.url).origin
     if (this.setting(PUBLIC_ORIGIN) !== origin) this.putSetting(PUBLIC_ORIGIN, origin)

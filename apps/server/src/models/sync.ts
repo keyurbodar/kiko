@@ -6,8 +6,11 @@ import { applyOverlay, type CatalogOverlay, computeOverlay } from "./catalog"
 // One aggregate request. pi's own client sends one per provider, which would spend 42 of the Free plan's 50 subrequests.
 const CATALOG_URL = "https://pi.dev/api/models?types=chat,image,classifier"
 const ATTEMPT_TIMEOUT_MS = 4_000
-export const SYNC_INTERVAL_MS = 60 * 60 * 1000
-const STALE_AFTER_MS = 15 * 60 * 1000
+// pi.dev has no push, so Kiko polls. A poll whose answer is unchanged is a 304 with no body, so polling often is cheap.
+// The alarm catches a change within 10 minutes. Opening the app, settings, or the picker checks again after 60 s,
+// which is how long pi.dev itself lets its answer be cached (max-age=60).
+export const SYNC_INTERVAL_MS = 10 * 60 * 1000
+const STALE_AFTER_MS = 60 * 1000
 
 const STATE_KEY = "model_catalog"
 

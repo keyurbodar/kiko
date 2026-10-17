@@ -8,14 +8,9 @@ import type {
 } from "@earendil-works/pi-ai"
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth"
 import { createModels } from "@earendil-works/pi-ai/models"
-import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic"
-import { githubCopilotProvider } from "@earendil-works/pi-ai/providers/github-copilot"
-import { kimiCodingProvider } from "@earendil-works/pi-ai/providers/kimi-coding"
-import { metaProvider } from "@earendil-works/pi-ai/providers/meta"
-import { openaiProvider } from "@earendil-works/pi-ai/providers/openai"
-import { xaiProvider } from "@earendil-works/pi-ai/providers/xai"
 import type { ConnectMethod, LoginErrorReason, LoginEvent, LoginPrompt, ProviderInfo, UserToClient } from "@kiko/protocol"
 import { runErrorDetail } from "../agent/run-error"
+import { findProvider } from "../models/catalog"
 import { withPasteLogin } from "./chatgpt-signin"
 import { isProviderId } from "./credentials"
 
@@ -24,31 +19,30 @@ export const MAX_LOGINS = 4
 // Workers cannot dynamically import pi-ai's OAuth modules, so the flows are registered statically here.
 registerBunOAuthFlows()
 
-// Flows that need a loopback server are left out, since a Worker cannot listen on a port. So is OpenAI Codex:
-// chatgpt.com answers every request from a Worker with a 403 "Unable to load site" page. "Sign in with ChatGPT"
-// under OpenAI uses api.openai.com and works.
-const FLOWS: Record<string, { provider: () => Provider; method: ConnectMethod; select?: string }> = {
-  anthropic: { provider: anthropicProvider, method: "paste_code", select: "copy_code" },
-  "github-copilot": { provider: githubCopilotProvider, method: "device_code" },
-  "kimi-coding": { provider: kimiCodingProvider, method: "device_code" },
-  meta: { provider: metaProvider, method: "device_code" },
-  openai: { provider: chatgptProvider, method: "paste_code" },
-  xai: { provider: xaiProvider, method: "device_code" },
+// Every pi-ai provider with a sign-in is offered, so a pi-ai release that adds one needs no change here. These are
+// the exceptions. OpenRouter and Radius only finish on a loopback server, which a Worker cannot run. OpenAI Codex
+// signs in, but chatgpt.com answers every request from a Worker with a 403 "Unable to load site" page.
+// "Sign in with ChatGPT" under OpenAI uses api.openai.com and works.
+const CANNOT_RUN = new Set(["openai-codex", "openrouter", "radius"])
+
+// How a flow differs from the default: a device code, every prompt shown to the person.
+const FLOWS: Record<string, { method: ConnectMethod; select?: string; wrap?: (provider: Provider) => Provider }> = {
+  anthropic: { method: "paste_code", select: "copy_code" },
+  openai: { method: "paste_code", wrap: withChatgptPaste },
 }
 
-function chatgptProvider(): Provider {
-  const provider = openaiProvider()
+function withChatgptPaste(provider: Provider): Provider {
   const oauth = provider.auth.oauth
   return oauth ? { ...provider, auth: { ...provider.auth, oauth: withPasteLogin(oauth) } } : provider
 }
 
 export function hasSignIn(provider: string): boolean {
-  return Object.hasOwn(FLOWS, provider)
+  return !CANNOT_RUN.has(provider) && findProvider(provider)?.auth.oauth !== undefined
 }
 
 /** How the client offers a provider's sign-in, or undefined when the server refuses it. */
 export function signInMethod(provider: string): ConnectMethod | undefined {
-  return hasSignIn(provider) ? FLOWS[provider]?.method : undefined
+  return hasSignIn(provider) ? (FLOWS[provider]?.method ?? "device_code") : undefined
 }
 
 const NO_AMBIENT: AuthContext = { env: async () => undefined, fileExists: async () => false }
@@ -157,7 +151,10 @@ export class ProviderLogins<Owner> {
 
   private async provider(id: string): Promise<Provider | undefined> {
     if (!isProviderId(id)) return undefined
-    return hasSignIn(id) ? FLOWS[id]?.provider() : this.deps.devProvider?.(id)
+    if (!hasSignIn(id)) return this.deps.devProvider?.(id)
+    const provider = findProvider(id)
+    const wrap = FLOWS[id]?.wrap
+    return provider && wrap ? wrap(provider) : provider
   }
 
   private live(login: Login<Owner>): boolean {

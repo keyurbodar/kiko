@@ -31,6 +31,11 @@ export class ModelCatalog {
     await this.sync()
   }
 
+  /** Starts a sync without waiting when the last check is older than pi.dev's own cache time. */
+  syncIfStale(): void {
+    if (isStale(this.d.sql, this.d.now())) void this.sync()
+  }
+
   sync(): Promise<boolean> {
     this.#syncing ??= syncCatalog(this.d)
       .then((changed) => {
