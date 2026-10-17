@@ -9,6 +9,7 @@ import type { ThinkingLevel } from "@kiko/protocol"
 import { connectedProviders } from "./connected"
 import { favoriteModels, hiddenModels, toggleFavorite } from "./model-picker"
 import { modelProviders } from "./provider-kinds"
+import { PROBLEM_SHORT } from "./provider-problem"
 import { placePanel } from "../lib/place-panel"
 
 const ROW_H = 44
@@ -34,6 +35,7 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
     const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
     return catalog()?.providers.filter((p) => ids.has(p.id)) ?? []
   })
+  const problemOf = (id: string) => connectedProviders().find((p) => p.provider === id)?.problem
   const [picked, setRail] = createSignal<string | null>(null)
   /** Favorites when there are any, else the current model's provider, until the human picks a tab. */
   const rail = () => {
@@ -136,6 +138,9 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
                   {(provider) => (
                     <button type="button" class={railButton(rail() === provider.id && !query())} title={provider.name} aria-label={provider.name} data-provider={provider.id} onClick={() => setRail(provider.id)}>
                       <ProviderIcon id={provider.id} width="16" height="16" />
+                      <Show when={problemOf(provider.id)}>
+                        <span class="absolute right-1 top-1 size-1.5 rounded-full bg-error" role="img" aria-label={PROBLEM_SHORT[problemOf(provider.id)!]} />
+                      </Show>
                     </button>
                   )}
                 </For>
@@ -190,6 +195,9 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
                             <span class="flex items-center gap-1 truncate text-xs text-muted-foreground">
                               <ProviderIcon id={row.provider.id} width="11" height="11" />
                               {row.provider.name}
+                              <Show when={problemOf(row.provider.id)}>
+                                {(problem) => <span class="text-error" data-part="provider-problem">{PROBLEM_SHORT[problem()]}</span>}
+                              </Show>
                             </span>
                           </span>
                           <button

@@ -136,7 +136,7 @@ export type ClientToUser =
 /** Where an update is. `restarting` is the last frame the old code sends. */
 export type UpdateStage = "checking" | "authorizing" | "uploading" | "restarting" | "failed"
 
-export type UserChange = "routines" | "memory" | "loops" | "models"
+export type UserChange = "routines" | "memory" | "loops" | "models" | "providers"
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[]; version?: string; protocol?: number; fileToken?: string }

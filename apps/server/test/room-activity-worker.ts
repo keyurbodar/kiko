@@ -27,6 +27,13 @@ export class UserDO extends DurableObject {
 	async errorCalls(): Promise<unknown[]> {
 		return (await this.ctx.storage.get<unknown[]>("errors")) ?? []
 	}
+	async recordProviderProblem(provider: string, kind: string): Promise<void> {
+		const kept = (await this.ctx.storage.get<string[][]>("problems")) ?? []
+		await this.ctx.storage.put("problems", [...kept, [provider, kind]])
+	}
+	async problemCalls(): Promise<string[][]> {
+		return (await this.ctx.storage.get<string[][]>("problems")) ?? []
+	}
 	async chatTyping(_roomId: string, names: string[]): Promise<void> {
 		const kept = (await this.ctx.storage.get<string[][]>("typing")) ?? []
 		await this.ctx.storage.put("typing", [...kept, names])
@@ -89,6 +96,7 @@ export default {
 		if (kind === "touches") return Response.json(await userStub(env.USER, "alice").touchCalls())
 		if (kind === "captured") return Response.json(await userStub(env.USER, "alice").answerCalls())
 		if (kind === "errors") return Response.json(await userStub(env.USER, "alice").errorCalls())
+		if (kind === "problems") return Response.json(await userStub(env.USER, "alice").problemCalls())
 		if (kind === "typing") return Response.json(await userStub(env.USER, "alice").typingCalls())
 		if (kind === "agent") {
 			const agent = env.AGENT.get(env.AGENT.idFromName(`agent:alice:${roomId}:${slug}`))

@@ -224,6 +224,7 @@ A run that ends with a model or provider error does not retry on its own: the ha
 | Kind | Sentence | Actions |
 | --- | --- | --- |
 | `no_key`, `invalid_key`, `quota` | the provider is not connected, did not accept the key, or has no credit left | Open settings, Change model, Retry |
+| `signed_out` | the provider's sign-in expired or was revoked. A refused key on an OAuth credential reads this way too | Open settings (Sign in again, which opens that provider's connect dialog), Retry |
 | `rate_limit`, `overloaded`, `timeout`, `network` | the provider is busy or unreachable, retry | Retry, Change model |
 | `model_not_found` | the provider does not offer the model | Change model, Open settings |
 | `too_long` | the chat is too long for the model | Change model |
@@ -633,7 +634,7 @@ Every client action is applied locally first. The client keeps a list of pending
 | `delegated` | `from`, `to`, `title` | the lead adds an agent with `spawn_agent` and hands it a task |
 | `subagent` | `agent`, `state` (`started`, `done`, `failed`, `stopped`), `title`, `private: true` | a worker starts or ends |
 | `routine` | `title` | a routine's notice, such as a failed run |
-| `run_error` | `slug`, `reason` (`RunErrorKind`), `actions`, `private: true` | an agent's run failed. The message text is the fixed sentence of section 6.2.1 |
+| `run_error` | `slug`, `reason` (`RunErrorKind`), `actions`, `provider` (the provider id, when the run had one), `private: true` | an agent's run failed. The message text is the fixed sentence of section 6.2.1 |
 | `agent_message` | `from`, `to` | reserved. The client derives the fold from `Message.to` today |
 | `activity` | `count` | reserved |
 
@@ -758,6 +759,19 @@ A caution for the owner.
 - The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. Using it may break the provider's terms. The owner decides whether to use that flow. API keys work for every provider.
 - pi-ai's published npm package contains the generated model catalog as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5).
 
+### 11.4.1 Provider health
+
+After a provider is connected, kiko notices when it stops working and says exactly what to do. t3code does this with a provider status it polls (`ProviderStatusBanner`, `CodexChatGptAuth` deleting tokens on `invalid_grant` and asking for a new sign-in). pi tells the person to "/login again" when a refresh fails. kiko cannot poll on the Free plan, so it listens to real signals and keeps the result in the credential row.
+
+- Storage. `credentials.problem` and `problem_at` hold one `ProviderProblem`: `signed_out`, `key_refused` or `no_credit`. `CredentialVault.store()` clears it, because a new key, a new sign-in or a refreshed token means the credential works. `setProblem` tells `UserDO` when the stored value changed, and only then does the user socket get `changed: providers`. The memory judge's old `<provider>_refused` setting is the same column now (`key_refused`); its `jev_refused` counter stays.
+- Refresh failures. `resolveAuth` (`user/turn-context.ts`) catches `ModelsError` code `oauth`. `classifyAuthFailure` (`user/provider-health.ts`, a pure table like `KINDS`) calls a definitive refusal (400, 401, 403, `invalid_grant`, revoked, expired, "reconnect") `signed_out`: it stores the problem and the turn carries `authProblem: "signed_out"`. A network error, a 5xx, a rate limit or a timeout is `unreachable`: the credential is left alone, and `AgentDO` reports `network` instead of `no_key`. A refresh that worked but gave a short-lived token is not a failure.
+- Run failures. A run that fails with `invalid_key` on an OAuth credential is reported as `signed_out` (the turn carries the credential kind). `RoomDO.reportRunError` tells `UserDO.recordProviderProblem` for `invalid_key` (`key_refused`), `signed_out` and `quota` (`no_credit`), in the same `waitUntil` as the error frame. A limit or an outage never sets a problem.
+- Recovery. `agentTurn` returns the stored problem. A run that began with a problem and ended without a model error calls `UserDO.providerRecovered`, one RPC and only then. `POST /api/credentials/<provider>/check` ("Check again") refreshes an OAuth sign-in and sends the cheapest request the provider offers, the one `credentials-check.ts` uses for a new key, then sets or clears the problem and returns the row.
+- Proactive refresh. A `UserDO` alarm, `PROVIDERS_WAKEUP` (`alarm.ts`), runs every six hours. It resolves auth for each OAuth credential with `minOAuthValidityMs` of 6.5 hours, so a token is refreshed before a run needs it and a revoked sign-in is found before the person writes. That is one refresh request per OAuth provider, far below the 50 subrequests of an invocation.
+- Client. The Providers rail and detail show a dot and a sentence, with Sign in again or Replace key and Check again. The model picker marks the models of a provider with a problem. A `signed_out` run line opens the connect dialog of that provider directly, in the mode that fixes it: a new sign-in for OAuth, a new key for a key.
+- Sending is blocked only for `key_refused`, as before. A `signed_out` provider is not blocked, because a send is also a retry of the refresh.
+- ASSUMPTION: a 400 from the refresh endpoint means the grant is gone. OAuth servers answer `invalid_grant` with 400. A transient 400 would show "Sign-in expired" until the next good refresh, check or run clears it. UNVERIFIED: no real provider has been driven through a revoked sign-in. `verify provider-health` drives the same code with the development test provider.
+
 ### 11.5 Model catalog for the client
 
 **Decision.** The model list is pi-ai's bundled catalog plus a live overlay synced from pi.dev, so a model that appears in pi's catalog appears in kiko within the hour without a package upgrade. The client reads the merged list from `GET /api/models`. No custom model list exists anywhere in kiko.
@@ -785,6 +799,8 @@ Providers and models are one settings page, `/settings/models`. Connected provid
 ### 11.6 Test provider
 
 Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 did not pass the `sessionId` that would add it. 1.3.0 passes one, but the host still sets the header through `settings.stream.headers`, so a run keeps one session id. The Worker never reads the key: a verify suite that calls the model runs `connectTestModel(s)`, which saves `OPENCODE_API_KEY` from the CLI's shell through `PUT /api/credentials/opencode-go` like any user.
+
+A development build also offers the sign-in test provider `kiko-fake`. Its first token lasts one minute, and a dev route (`POST /api/dev/user/provider-health`) switches its refresh between working, refused and unreachable, and runs the six-hourly refresh at once. `verify provider-health` uses it to show section 11.4.1 without a model key.
 
 ## 12. Composio integration
 

@@ -9,7 +9,7 @@ beforeEach(() => {
   })
 })
 
-const anthropic = { provider: "anthropic", kind: "api_key", last4: "abcd" }
+const anthropic = { provider: "anthropic", kind: "api_key" as const, last4: "abcd" }
 
 test("the last connected list comes back for the same user, so a reload does not flash empty", () => {
   writeStored("u1", [anthropic])

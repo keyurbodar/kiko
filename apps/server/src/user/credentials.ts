@@ -1,14 +1,6 @@
 import type { AuthOperationOptions, Credential, CredentialInfo, CredentialStore } from "@earendil-works/pi-ai"
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
-
-export interface ProviderInfo {
-  provider: string
-  kind: Credential["type"]
-  last4: string
-  refused?: true
-  chat?: boolean
-  judge?: boolean
-}
+import type { ProviderInfo, ProviderProblem } from "@kiko/protocol"
 
 export class CredentialError extends Error {}
 
@@ -48,6 +40,7 @@ export class CredentialVault implements CredentialStore {
     private readonly sql: SqlStorage,
     private readonly keyring: Keyring,
     private readonly userId: string,
+    private readonly onProblem: () => void = () => {},
   ) {
   }
 
@@ -101,11 +94,30 @@ export class CredentialVault implements CredentialStore {
 
   listProviders(): ProviderInfo[] {
     return this.sql
-      .exec<{ provider_id: string; kind: string; last4: string }>(
-        "SELECT provider_id, kind, last4 FROM credentials ORDER BY provider_id",
+      .exec<{ provider_id: string; kind: string; last4: string; problem: string | null; problem_at: number | null }>(
+        "SELECT provider_id, kind, last4, problem, problem_at FROM credentials ORDER BY provider_id",
       )
       .toArray()
-      .map((r) => ({ provider: r.provider_id, kind: r.kind as ProviderInfo["kind"], last4: r.last4 }))
+      .map((r) => ({
+        provider: r.provider_id,
+        kind: r.kind as ProviderInfo["kind"],
+        last4: r.last4,
+        ...(r.problem ? { problem: r.problem as ProviderProblem, problemAt: r.problem_at ?? 0 } : {}),
+      }))
+  }
+
+  problem(provider: string): ProviderProblem | undefined {
+    return this.info(provider)?.problem
+  }
+
+  /** Notes why a provider stopped working, or clears it with null. Returns whether the stored problem changed. */
+  setProblem(provider: string, problem: ProviderProblem | null): boolean {
+    const row = this.info(provider)
+    if (!row || row.problem === (problem ?? undefined)) return false
+    if (problem === null) this.sql.exec("UPDATE credentials SET problem = NULL, problem_at = NULL WHERE provider_id = ?", provider)
+    else this.sql.exec("UPDATE credentials SET problem = ?, problem_at = ? WHERE provider_id = ?", problem, Date.now(), provider)
+    this.onProblem()
+    return true
   }
 
   private info(provider: string): ProviderInfo | null {
@@ -127,12 +139,13 @@ export class CredentialVault implements CredentialStore {
 
   private async store(providerId: string, credential: Credential): Promise<void> {
     const sealed = await seal(this.keyring, this.userId, providerId, JSON.stringify(credential))
+    const had = this.problem(providerId) !== undefined
     this.sql.exec(
       `INSERT INTO credentials (provider_id, kind, last4, kek_version, iv, ciphertext, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (provider_id) DO UPDATE SET kind = excluded.kind, last4 = excluded.last4,
          kek_version = excluded.kek_version, iv = excluded.iv, ciphertext = excluded.ciphertext,
-         updated_at = excluded.updated_at`,
+         updated_at = excluded.updated_at, problem = NULL, problem_at = NULL`,
       providerId,
       credential.type,
       last4(credential),
@@ -141,6 +154,7 @@ export class CredentialVault implements CredentialStore {
       sealed.ciphertext,
       Date.now(),
     )
+    if (had) this.onProblem()
   }
 
   private enqueue<T>(providerId: string, task: () => Promise<T>): Promise<T> {

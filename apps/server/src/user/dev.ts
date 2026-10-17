@@ -72,6 +72,15 @@ export async function devPass(engine: () => InitiativeEngine): Promise<unknown> 
 export const FAKE_PROVIDER = "kiko-fake"
 export const FAKE_CODE = "KIKO-0000"
 
+type FakeRefresh = "fail" | "offline" | "ok"
+
+let fakeRefresh: FakeRefresh = "ok"
+
+// `verify provider-health` flips this to make the fake sign-in's token refresh fail the way a revoked sign-in does, or like a dead network.
+export function setFakeRefresh(mode: FakeRefresh): void {
+  fakeRefresh = mode
+}
+
 export function fakeProvider(id: string): Provider | undefined {
   if (id !== FAKE_PROVIDER) return undefined
   return {
@@ -90,9 +99,14 @@ export function fakeProvider(id: string): Provider | undefined {
           const code = await interaction.prompt({ type: "manual_code", message: "type the code shown above" })
           if (code.trim() !== FAKE_CODE) throw new Error("that code is wrong")
           interaction.notify({ type: "progress", message: "code accepted" })
-          return { type: "oauth", access: `fake-${crypto.randomUUID()}`, refresh: "fake", expires: Date.now() + 3_600_000 }
+          // Short, so the first turn after sign-in refreshes and `verify provider-health` can make that refresh fail.
+          return { type: "oauth", access: `fake-${crypto.randomUUID()}`, refresh: "fake", expires: Date.now() + 60_000 }
         },
-        refresh: async (credential) => credential,
+        refresh: async (credential) => {
+          if (fakeRefresh === "fail") throw new Error("OAuth token request failed (400): invalid_grant")
+          if (fakeRefresh === "offline") throw new Error("fetch failed")
+          return { ...credential, expires: Date.now() + 3_600_000 }
+        },
         toAuth: async (credential) => ({ apiKey: credential.access }),
       },
     },

@@ -34,6 +34,7 @@ import { agentStatuses, statusOf, workersKey } from "./status"
 import { dividerMessage, type Divider } from "./dividers"
 import { findProvider } from "../models/catalog"
 import { describeRunError } from "../agent/run-error"
+import { problemOfRun } from "../user/provider-health"
 import { parseModelRef } from "../agent/thinking"
 import { parseRichText } from "./rich-text"
 import { type MemberRow, Members, type NewMember } from "./members"
@@ -994,12 +995,13 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return event !== null
 	}
 
-	async noProvider(slug: AgentSlug, provider: string, requestId: string, heard: readonly string[] = [], inputs: readonly string[] = []): Promise<boolean> {
+	async noProvider(slug: AgentSlug, provider: string, requestId: string, heard: readonly string[] = [], inputs: readonly string[] = [], kind: "no_key" | "signed_out" | "network" = "no_key"): Promise<boolean> {
 		const key = `no_provider:${slug}:${requestId}`
-		const stored = this.reportRunError(slug, key, "no_key", provider, inputs)
+		const stored = this.reportRunError(slug, key, kind, provider, inputs)
 		const home = this.home()
 		if (home) {
-			const why = `(no answer: @${slug} cannot run, because the human has not connected ${provider}. tell the human, or go on without it.)`
+			const because = kind === "signed_out" ? `the human's ${provider} sign-in expired` : kind === "network" ? `kiko could not reach ${provider}` : `the human has not connected ${provider}`
+			const why = `(no answer: @${slug} cannot run, because ${because}. tell the human, or go on without it.)`
 			this.mailer.answerHeard(home, slug, heard, why, { id: key, seq: stored?.seq ?? this.log.sentBefore(key)?.seq ?? 0 })
 		}
 		this.reports.run(this.routines.dropped(slug), "failed")
@@ -1022,14 +1024,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const heard = inputs.filter((id) => this.log.message(id)?.from.kind === "human")
 		const failure = describeRunError(kind, findProvider(provider)?.name ?? (provider || "The provider"), member.name)
 		const actions = heard.length ? failure.actions : failure.actions.filter((a) => a !== "retry")
-		const stored = this.log.addMessage(dividerMessage(key, failure.message, { kind: "run_error", slug, reason: kind, actions, ...(detail ? { detail } : {}), private: true }))
+		const stored = this.log.addMessage(dividerMessage(key, failure.message, { kind: "run_error", slug, reason: kind, actions, ...(provider ? { provider } : {}), ...(detail ? { detail } : {}), private: true }))
 		if (!stored.event) return null
 		this.log.setMeta(`retry:${stored.id}`, JSON.stringify({ slug, inputs: heard }))
 		this.publish([stored.event])
+		const user = userStub(this.env.USER, home.userId)
 		this.ctx.waitUntil(
-			userStub(this.env.USER, home.userId)
-				.notifyError({ code: "model", message: failure.message, ...(failure.toast ? { action: failure.toast } : {}) }, home.roomId)
-				.catch((e: unknown) => console.error(`run error notice failed: ${e instanceof Error ? e.message : String(e)}`)),
+			Promise.all([
+				user.notifyError({ code: "model", message: failure.message, ...(failure.toast ? { action: failure.toast } : {}) }, home.roomId),
+				problemOfRun(kind) && provider ? user.recordProviderProblem(provider, kind) : undefined,
+			]).catch((e: unknown) => console.error(`run error notice failed: ${e instanceof Error ? e.message : String(e)}`)),
 		)
 		return stored
 	}
