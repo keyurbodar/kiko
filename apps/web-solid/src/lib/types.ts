@@ -112,6 +112,10 @@ export interface ChatMessage {
   initiative?: string
   /** The teammate, or "all", an agent's message was sent to. Absent on a reply meant for the human. */
   to?: string
+  /** The run that posted an agent's message. Its steps open in the run panel. */
+  runId?: string;
+  /** How many steps that run had made when it posted this message. Absent when none. */
+  steps?: number;
   /** Marks the message as pinned in its thread. */
   pinned?: boolean
   /**
