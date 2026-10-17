@@ -30,7 +30,7 @@ export class T extends AgentDO {
 				return fauxAssistantMessage("ok")
 			}),
 		)
-		const browser = browserOn ? { connection: stub, lease: stub, decider: stub, acceptsImages: () => false } : undefined
+		const browser = browserOn ? { connection: stub, lease: stub, acceptsImages: () => false } : undefined
 		const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, ...(browser ? { browser } : {}), work: this.host.workers })
 		return { models, ...built, beginRun: async () => true }
 	}

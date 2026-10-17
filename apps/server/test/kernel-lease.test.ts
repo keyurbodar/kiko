@@ -57,17 +57,6 @@ function fakeKernel(script: { createErrors?: KernelError[]; deleteError?: Kernel
     async createProfile(name) {
       calls.push(`profile ${name}`)
     },
-    async curl(id, req) {
-      calls.push(`curl ${id} ${req.method ?? "GET"}`)
-      return { status: 200, headers: {}, body: req.url, durationMs: 1 }
-    },
-    async writeFile(id, path) {
-      calls.push(`write ${id} ${path}`)
-    },
-    async readFile(id, path) {
-      calls.push(`read ${id} ${path}`)
-      return new Uint8Array([1])
-    },
   }
   return { client, calls, live, maxLive: () => maxLive }
 }

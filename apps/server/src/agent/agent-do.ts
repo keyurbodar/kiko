@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import type { AuthResult, Models } from "@earendil-works/pi-ai"
+import type { AuthResult } from "@earendil-works/pi-ai"
 import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
 import type { Activity, Envelope, ProviderProblem, RoomId, ThinkingLevel, WorkerRow } from "@kiko/protocol"
 import { runKindFor } from "../user/provider-health"
@@ -38,9 +38,6 @@ import type { Batch } from "@kiko/agent/inbox"
 import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
-import { chooseDecider, jevPort, modelPort } from "./browser/deciders"
-import type { DeciderChoice } from "./browser/tools"
-import { pickJudge } from "../user/turn-context"
 
 import { count, DEV, instrument, loadAgentDev } from "../lib/dev-guard"
 import type { AgentDevHost, Usage } from "./dev"
@@ -110,6 +107,8 @@ export class AgentDO extends DurableObject<Env> {
   private async workersChanged(running: number, pending: boolean): Promise<void> {
     await this.outbox.workers(this.workerRows()).catch(() => undefined)
     await this.outbox.background(running > 0, pending).catch(() => undefined)
+    // The last worker settled and no run is going: its tabs go with it, so the chip hides while the agent is idle.
+    if (running === 0 && !this.outbox.runId()) await this.releaseTabs()
   }
 
   private workerRows(): WorkerRow[] {
@@ -184,7 +183,11 @@ export class AgentDO extends DurableObject<Env> {
       endRun: async (runId, inputs = [], working = false) => {
         const { mail, mailOnly } = await this.heard(inputs).catch(() => ({ mail: [], mailOnly: false }))
         this.recovered(home.userId)
-        return room().endRun(home.slug, runId, mail, working, mailOnly)
+        const ended = await room().endRun(home.slug, runId, mail, working, mailOnly)
+        // The agent's tabs belong to its run: at the end of it the room's browser chip goes away. A worker still
+        // running keeps them, and a human in control keeps them until they press Release control.
+        if (!working) await this.releaseTabs()
+        return ended
       },
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
       // Read from storage: a long run can outlive this instance, and Retry needs the human messages it answered.
@@ -354,9 +357,8 @@ export class AgentDO extends DurableObject<Env> {
     const messaging = () => this.messagingPort()
     if (DEV && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const browserOn = await this.browserOn()
-      const noModel = async (): Promise<DeciderChoice> => { throw new Error("the fake agent has no model for browser_run") }
       const fake = fakeSetup(role, roomWorkspacePort(this.env, () => this.home()), messaging, {
-        ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), decider: noModel, acceptsImages: () => false } } : {}),
+        ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: () => false } } : {}),
         routines: { port: () => this.routinesPort() },
         groups: this.groupsPort(),
         loops: () => this.loopPort(),
@@ -390,7 +392,7 @@ export class AgentDO extends DurableObject<Env> {
     const signature = Array.isArray(composio) ? learnedSignature(composio) : composio
     const browserOn = await this.browserOn()
     const browser = browserOn && home
-      ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
+      ? { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
     const built = buildAgent({ ...(browser ? { browser } : {}), ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, loops: () => this.loopPort(), messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
@@ -674,6 +676,18 @@ export class AgentDO extends DurableObject<Env> {
     return (userStub(this.env.USER, home.userId) as unknown as UserBrowserRpc).browserCheck().then((s) => s.connected, () => false)
   }
 
+  /**
+   * Closes the agent's tabs and drops its claim from the lease, once its run ends. The browser and its logins stay for
+   * the next run; the chip above the composer hides because no tab is left. Safe to call twice, and when no tab was open.
+   */
+  async releaseTabs(): Promise<number> {
+    if (!this.#browser) return 0
+    return this.#browser.release().catch((e: unknown) => {
+      console.error(`browser release failed: ${e instanceof Error ? e.message : String(e)}`)
+      return 0
+    })
+  }
+
   private browserLease(): LeasePort {
     const home = this.homeOrThrow()
     this.#browserLease ??= userLease(() => userStub(this.env.USER, home.userId) as unknown as UserBrowserRpc, `${home.roomId}:${home.slug}`, home.roomId)
@@ -688,36 +702,6 @@ export class AgentDO extends DurableObject<Env> {
       idle: { arm: (at) => createAlarms(this.ctx).setWakeup(BROWSER_IDLE_WAKEUP, at) },
     })
     return this.#browser
-  }
-
-  #decider?: { at: number; choice: Promise<DeciderChoice> }
-
-  /** The judge is looked up through the user's object, so the answer is kept for a minute: a browse loop would otherwise pay 3 subrequests a call. */
-  private browserDecider(models: Models, egress: typeof fetch): Promise<DeciderChoice> {
-    const now = Date.now()
-    if (this.#decider && now - this.#decider.at < 60_000) return this.#decider.choice
-    const choice = this.pickBrowserDecider(models, egress).catch((e) => {
-      this.#decider = undefined
-      throw e
-    })
-    this.#decider = { at: now, choice }
-    return choice
-  }
-
-  private async pickBrowserDecider(models: Models, egress: typeof fetch): Promise<DeciderChoice> {
-    const home = this.home()
-    const ref = await this.model()
-    if (!ref) throw new Error("this agent has no model. the human has not picked one")
-    const own = modelPort(models, ref, this.ctx.id.toString())
-    return chooseDecider(own, async () => {
-      if (!home) return null
-      const user = userStub(this.env.USER, home.userId)
-      const picked = pickJudge(await user.listProviders(), (p) => p.problem === "key_refused")
-      const auth = picked ? (await user.turnContext(picked.provider)).auth : null
-      if (!picked || !auth) return null
-      const jevModels = userModels(async () => auth, `browser-${this.ctx.id.toString()}`, egress).models
-      return jevPort(jevModels, { provider: picked.provider, auth }, egress)
-    })
   }
 
   /**

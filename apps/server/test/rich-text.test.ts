@@ -30,6 +30,8 @@ const cases: [string, string, unknown][] = [
 	["raw html block", '<div onclick="x()">hi</div>', [p(text('<div onclick="x()">hi</div>'))]],
 	["raw html inline", "a <b>x</b> b", [p(text("a "), text("<b>"), text("x"), text("</b>"), text(" b"))]],
 	["an https image alone is an image block", "![cat](https://a.com/c.png)", [{ t: "image", alt: "cat", url: "https://a.com/c.png" }]],
+	["an image on its own line under a caption is an image block", "here it is\n![cat](https://a.com/c.png)", [p(text("here it is")), { t: "image", alt: "cat", url: "https://a.com/c.png" }]],
+	["an image on its own line over a caption is an image block", "![cat](https://a.com/c.png)\nfrom 2019", [{ t: "image", alt: "cat", url: "https://a.com/c.png" }, p(text("from 2019"))]],
 	["an image inside text stays its alt text", "see ![cat](https://a.com/c.png) here", [p(text("see "), text("cat"), text(" here"))]],
 	["an http image is alt text", "![cat](http://a.com/c.png)", [p(text("cat"))]],
 	["a javascript image is alt text", "![cat](javascript:alert(1))", [p(text("cat"))]],

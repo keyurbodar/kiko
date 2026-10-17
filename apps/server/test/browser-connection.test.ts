@@ -4,7 +4,7 @@ import type { BrowserSession, PageView, Step, Tab } from "@kiko/browser/page/typ
 import { BrowserConnection, Busy, CLAIM_MS, IDLE_CLOSE_MS, RESTARTED } from "../src/agent/browser/connection"
 import type { BrowserState, Lease, LeasePort } from "../src/agent/browser/lease"
 
-/** `delay` holds an open for that many ms, so a test can switch tabs while it is in flight. */
+/** `delay` holds an open for that many ms, so a test can open other tabs while it is in flight. */
 function fakeBrowser(delay: (url: string) => number = () => 0) {
   const opened: string[] = []
   const live = new Map<string, { tab: Tab; url: () => string }>()
@@ -21,6 +21,7 @@ function fakeBrowser(delay: (url: string) => number = () => 0) {
       let at = url
       opened.push(url)
       const id = `t${++n}`
+      const notes: string[] = []
       const tab: Tab = {
         id,
         read: async (): Promise<PageView> => ({ key: at, url: at, title: at, controls: [], text: "", omitted: 0 }),
@@ -29,6 +30,7 @@ function fakeBrowser(delay: (url: string) => number = () => 0) {
           return { ok: true }
         },
         screenshot: async () => new Uint8Array(),
+        takeNotes: () => notes.splice(0, notes.length),
         front: async () => {},
         close: async () => {
           live.delete(id)
@@ -68,7 +70,7 @@ function fakeLease(state: Partial<BrowserState> = {}) {
       const restarted = restartNext
       restartNext = false
       if (restarted) session++
-      return { sessionId: `s${session}`, cdpUrl: "wss://fake", mode: "headless", restarted, reopen: [] }
+      return { sessionId: `s${session}`, cdpUrl: "wss://fake", mode: "headful", restarted, reopen: [] }
     },
     touch: async () => true,
     dead: async () => {
@@ -77,9 +79,9 @@ function fakeLease(state: Partial<BrowserState> = {}) {
       return true
     },
     handBack: async () => true,
-    state: async () => ({ connected: true, takeover: false, tabs: {}, ...state }),
+    state: async () => ({ connected: true, takeover: false, tabs: {}, list: [], ...state }),
     paused: async () => false,
-    share: async () => "",
+    live: async () => ({ ok: true, url: "https://live.test/abc", posted: false }),
   }
   return { lease, calls }
 }
@@ -131,8 +133,6 @@ describe("browser connection", () => {
     await before.idle()
     const { lease } = fakeLease({ list: [{ id: tab.id, agent: "r:a", url: "https://mail.test/compose" }] })
     const after = new BrowserConnection({ agentId: "r:a", lease, idle: { arm: async () => {} }, connect: browser.connect })
-    const listed = await after.use(() => after.listTabs("w2"), "w2")
-    expect(listed.map((t) => t.id)).toEqual([tab.id])
     const current = await after.use(() => after.currentTab("w2"), "w2")
     expect(current?.id).toBe(tab.id)
     expect(browser.opened).toHaveLength(1)
@@ -145,7 +145,6 @@ describe("browser connection", () => {
     const conn = new BrowserConnection({ agentId: "r:a", lease, idle: { arm: async () => {} }, connect: browser.connect, now: () => now })
     const tab = await conn.use(() => conn.goto("https://mail.test", "w1"), "w1")
     expect(await conn.use(() => conn.currentTab("w2"), "w2")).toBeNull()
-    await expect(conn.use(() => conn.switchTo(tab.id, "w2"), "w2")).rejects.toThrow("another of your workers")
     now += CLAIM_MS
     expect((await conn.use(() => conn.currentTab("w2"), "w2"))?.id).toBe(tab.id)
   })
@@ -157,7 +156,7 @@ describe("browser connection", () => {
     const conn = new BrowserConnection({ agentId: "r:a", lease, idle: { arm: async () => {} }, connect: browser.connect, now: () => now })
     const old = await conn.use(() => conn.goto("https://old.test", "w1"), "w1")
     now += CLAIM_MS
-    for (let i = 0; i < BROWSER.tabsPerBrowser - 1; i++) await conn.openTab(`https://${i}.test`)
+    for (let i = 0; i < BROWSER.tabsPerBrowser - 1; i++) await conn.borrow([`https://${i}.test`])
     await conn.use(() => conn.goto("https://new.test", "w2"), "w2")
     expect(browser.live.has(old.id)).toBe(false)
     expect(browser.live.size).toBe(BROWSER.tabsPerBrowser)
@@ -179,32 +178,6 @@ describe("browser connection", () => {
     await again.done()
   })
 
-  test("parallel single tabs admit exactly the cap", async () => {
-    const browser = fakeBrowser()
-    const { lease } = fakeLease()
-    const conn = new BrowserConnection({ agentId: "r:a", lease, idle: { arm: async () => {} }, connect: browser.connect })
-    const opens = Array.from({ length: 9 }, (_, i) => conn.openTab(`https://${i}.test`))
-    const results = await Promise.allSettled(opens)
-    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(8)
-    expect(results.filter((r) => r.status === "rejected" && r.reason instanceof Busy)).toHaveLength(1)
-    expect(browser.opened).toHaveLength(8)
-  })
-
-  test("a tab opened while switchTo runs still counts against the cap, and idle keeps it", async () => {
-    const browser = fakeBrowser((url) => (url === "https://slow.test" ? 50 : 0))
-    const { lease } = fakeLease()
-    const conn = new BrowserConnection({ agentId: "r:a", lease, idle: { arm: async () => {} }, connect: browser.connect })
-    const home = await conn.openTab("https://home.test")
-    const opening = conn.goto("https://slow.test")
-    await new Promise((r) => setTimeout(r, 10))
-    await conn.switchTo(home.id)
-    const slow = await opening
-    const admitted = await Promise.allSettled(Array.from({ length: BROWSER.tabsPerBrowser }, (_, i) => conn.openTab(`https://${i}.test`)))
-    expect(admitted.filter((r) => r.status === "fulfilled")).toHaveLength(BROWSER.tabsPerBrowser - 2)
-    expect(await conn.idle()).toBe("closed")
-    expect(browser.live.has(slow.id)).toBe(true)
-  })
-
   test("a ninth tab is refused at once, naming who holds the others", async () => {
     const browser = fakeBrowser()
     const { lease } = fakeLease({ tabs: { "r:scout": 5, "r:writer": 3 } })
@@ -213,5 +186,25 @@ describe("browser connection", () => {
     expect(err).toBeInstanceOf(Busy)
     expect(err.message).toContain("scout has 5")
     expect(err.message).toContain("writer has 3")
+  })
+
+  test("a run's end closes every tab it held and drops the claim", async () => {
+    const browser = fakeBrowser()
+    const states: Record<string, string>[] = []
+    const base = fakeLease()
+    const lease: LeasePort = {
+      ...base.lease,
+      touch: async (tabs) => {
+        states.push(tabs)
+        return true
+      },
+    }
+    const conn = new BrowserConnection({ agentId: "r:a", lease, idle: { arm: async () => {} }, connect: browser.connect })
+    await conn.goto("https://a.test")
+    await conn.goto("https://b.test", "w2")
+    expect(browser.live.size).toBe(2)
+    expect(await conn.release()).toBe(2)
+    expect(browser.live.size).toBe(0)
+    expect(states.at(-1)).toEqual({})
   })
 })

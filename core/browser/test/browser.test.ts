@@ -34,7 +34,7 @@ test("each tab opens in the background, attaches flat, and gets focus emulation"
   await browser.closed
 })
 
-test("a confirm is dismissed and the next act reports it; an alert is accepted and does not", async () => {
+test("an alert and a beforeunload are accepted, and a confirm is accepted and noted for the result", async () => {
   fake = chrome()
   const browser = await connect(fake.url)
   const tab = await browser.openTab()
@@ -44,17 +44,14 @@ test("a confirm is dismissed and the next act reports it; an alert is accepted a
   await Bun.sleep(20)
   expect(sentTo(fake, "Page.handleJavaScriptDialog", session).at(-1)?.params).toEqual({ accept: true })
   expect(await tab.act({ op: "scroll", direction: "down" })).toEqual({ ok: true })
+  expect(tab.takeNotes()).toEqual([])
 
   fake.emit("Page.javascriptDialogOpening", { type: "confirm", message: "Delete?", url: "", hasBrowserHandler: false }, session)
-  await tab.screenshot().catch(() => undefined)
-  expect(sentTo(fake, "Page.handleJavaScriptDialog", session).some((m) => m.params.accept === false)).toBe(false)
-  expect(tab.dialog()).toEqual({ type: "confirm", message: "Delete?" })
-  const result = await tab.act({ op: "scroll", direction: "down" })
-  expect(result.ok).toBe(false)
-  expect(!result.ok && result.reason).toBe("dialog")
-  expect(await tab.answerDialog(false)).toBe(true)
-  expect(sentTo(fake, "Page.handleJavaScriptDialog", session).at(-1)?.params).toEqual({ accept: false })
+  await Bun.sleep(20)
+  expect(sentTo(fake, "Page.handleJavaScriptDialog", session).at(-1)?.params).toEqual({ accept: true })
+  expect(tab.takeNotes()).toEqual(['confirm said "Delete?": accepted'])
   expect(await tab.act({ op: "scroll", direction: "down" })).toEqual({ ok: true })
+  expect(tab.takeNotes()).toEqual([])
   await browser.close()
 })
 

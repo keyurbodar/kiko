@@ -37,20 +37,55 @@ function blocks(tokens: readonly Token[], imageFile: ImageFile): Block[] {
 	const out: Block[] = []
 	for (const token of tokens) {
 		const block = toBlock(token, imageFile)
-		if (block) out.push(block)
+		if (Array.isArray(block)) out.push(...block)
+		else if (block) out.push(block)
 	}
 	return out
 }
 
-function toBlock(token: Token, imageFile: ImageFile): Block | null {
+/**
+ * A picture on a line of its own is a picture, even when a line of words sits above or below it in the same
+ * paragraph: the agent writes "here it is" and the address on the next line, and a paragraph with a stray image in it
+ * used to flatten the whole thing to alt text. An image inside a sentence stays that sentence's alt text.
+ */
+function withImages(t: Tokens.Paragraph | Tokens.Text, imageFile: ImageFile): Block[] {
+	const tokens = t.tokens ?? []
+	if (!tokens.some((each) => each.type === "image")) return [{ t: "paragraph", children: t.tokens ? inlines(t.tokens) : mentions(t.text) }]
+	const lines: Token[][] = []
+	let line: Token[] = []
+	for (const each of tokens) {
+		if (each.type === "br") {
+			lines.push(line)
+			line = []
+		} else line.push(each)
+	}
+	lines.push(line)
+	const out: Block[] = []
+	let run: Token[][] = []
+	const flush = () => {
+		if (!run.length) return
+		const children = run.flatMap((each, i) => (i ? [{ t: "text" as const, text: "\n" }, ...inlines(each)] : inlines(each)))
+		out.push({ t: "paragraph", children })
+		run = []
+	}
+	for (const each of lines) {
+		const sole = each.length === 1 ? each[0] : undefined
+		if (sole?.type === "image") {
+			flush()
+			out.push(imageBlock(sole as Tokens.Image, imageFile))
+			continue
+		}
+		if (each.length) run.push(each)
+	}
+	flush()
+	return out.length ? out : [{ t: "paragraph", children: inlines(tokens) }]
+}
+
+function toBlock(token: Token, imageFile: ImageFile): Block | Block[] | null {
 	switch (token.type) {
 		case "paragraph":
-		case "text": {
-			const t = token as Tokens.Paragraph | Tokens.Text
-			const only = token.type === "paragraph" && t.tokens?.length === 1 ? t.tokens[0] : undefined
-			if (only?.type === "image") return imageBlock(only as Tokens.Image, imageFile)
-			return { t: "paragraph", children: t.tokens ? inlines(t.tokens) : mentions(t.text) }
-		}
+		case "text":
+			return withImages(token as Tokens.Paragraph | Tokens.Text, imageFile)
 		case "heading": {
 			const t = token as Tokens.Heading
 			return { t: "heading", level: Math.min(Math.max(t.depth, 1), 6) as HeadingLevel, children: inlines(t.tokens) }

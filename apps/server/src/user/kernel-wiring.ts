@@ -2,9 +2,8 @@ import type { Alarms } from "@kiko/durable/alarm"
 import { keyringFromEnv } from "@kiko/durable/crypto"
 import { isAgentSlug, isRoomId, type BrowserLinkResult, type BrowserState, type ClientToUser as UserFrame, type KernelResult, type KernelStatus, type KikoError, type UserToClient } from "@kiko/protocol"
 import type { Env } from "../index"
-import { type CurlRequest, type CurlResponse, type KernelClient, KernelError, REJECTED, sdkClient } from "../integrations/kernel/client"
-import { browserState, checkAgentId, checkTabs, kernelErrorText, profileName, UPLOAD_DIR, WATCH_MS } from "../integrations/kernel/connect"
-import { FETCH_METHODS, URL_CAP } from "../integrations/kernel/files"
+import { type KernelClient, KernelError, REJECTED, sdkClient } from "../integrations/kernel/client"
+import { browserState, checkAgentId, checkTabs, kernelErrorText, profileName, WATCH_MS } from "../integrations/kernel/connect"
 import { humanHolds, KernelLease, type LeaseInfo, REAP_WAKEUP } from "../integrations/kernel/lease"
 import { KernelStore } from "../integrations/kernel/store"
 import { kernelFailure } from "./user-errors"
@@ -35,9 +34,6 @@ type KernelDeps = {
   store?: KernelStore
   clientFor?: (key: string) => KernelClient
 }
-
-/** Kernel's downloads directory and `/tmp`, the only places `getFile` reads. */
-const ALLOWED_READ = /^(\/tmp\/|\/home\/kernel\/Downloads\/)/
 
 /** What a paused agent is told when control comes back, by why it came back. */
 const RESUMED = {
@@ -267,46 +263,10 @@ export class KernelWiring {
     return this.store.lease()?.sessionId ?? null
   }
 
-  /** HTTP through the browser's stack, with its cookies and proxy. Only http and https. The client caps the body and says so in `truncated`. */
-  async fetch(req: CurlRequest): Promise<CurlResponse> {
-    if (typeof req?.url !== "string" || req.url.length > URL_CAP || !/^https?:\/\//i.test(req.url)) throw new KernelError("failed", "only http and https urls")
-    if (req.method !== undefined && FETCH_METHODS[req.method] !== true) throw new KernelError("failed", "bad method")
-    const sessionId = this.liveSession()
-    return (await this.client()).curl(sessionId, req)
-  }
-
-  /** Writes a file onto the browser's VM. `name` is already a basename; the path is per session. */
-  async putFile(name: string, bytes: Uint8Array): Promise<{ path: string }> {
-    const sessionId = this.liveSession()
-    const path = `${UPLOAD_DIR}/${sessionId}/${name}`
-    await (await this.client()).writeFile(sessionId, path, bytes)
-    return { path }
-  }
-
-  /** Reads a file from the browser's VM. Only `/tmp` and the Kernel downloads directory. */
-  async getFile(path: string): Promise<Uint8Array> {
-    if (!ALLOWED_READ.test(path) || path.includes("..")) throw new KernelError("failed", "only files under /tmp or the downloads folder")
-    const sessionId = this.liveSession()
-    return (await this.client()).readFile(sessionId, path)
-  }
-
-  /** Names of the files in a folder on the browser's VM. Only `/tmp` and the Kernel downloads directory. */
-  async listFiles(dir: string): Promise<string[]> {
-    if (!ALLOWED_READ.test(`${dir}/`) || dir.includes("..")) throw new KernelError("failed", "only folders under /tmp or the downloads folder")
-    const sessionId = this.liveSession()
-    return (await this.client()).listFiles(sessionId, dir)
-  }
-
   /** DEVELOPMENT ONLY. Moves the browser's clocks back, so the reaper's time is up. */
   age(ms: number): void {
     const row = this.store.lease()
     if (row) this.store.patchLease({ lastUse: row.lastUse - ms, ...(row.watchUntil ? { watchUntil: Math.max(1, row.watchUntil - ms) } : {}) })
-  }
-
-  private liveSession(): string {
-    const row = this.store.connected() ? this.store.lease() : undefined
-    if (!row || row.dead) throw new KernelError("failed", "No browser is open")
-    return row.sessionId
   }
 
   private async closeBrowser(): Promise<void> {

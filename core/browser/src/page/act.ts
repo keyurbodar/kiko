@@ -131,7 +131,6 @@ async function awaitPage(page: PageState, step: Extract<Step, { op: "wait" }>): 
     .join(" and ")
   const deadline = Date.now() + timeoutMs
   for (;;) {
-    if (page.dialog) return dialogResult(page) as StepResult
     const body = await bodyText(page)
     if (body !== undefined && (step.text === undefined || body.includes(step.text)) && (step.gone === undefined || !body.includes(step.gone))) {
       return { ok: true }
@@ -139,20 +138,6 @@ async function awaitPage(page: PageState, step: Extract<Step, { op: "wait" }>): 
     if (Date.now() >= deadline) return { ok: false, reason: "timeout", detail: `timed out after ${timeoutMs} ms waiting for ${want}` }
     await sleep(WAIT_POLL_MS)
   }
-}
-
-const fileInputScript = (id: ControlId) =>
-  `(() => { const el = window.__kiko?.els?.get(${id})?.deref?.(); return el && el.tagName === "INPUT" && el.type === "file" ? el : null })()`
-
-async function upload(page: PageState, id: ControlId, paths: string[]): Promise<StepResult> {
-  if (paths.length === 0) return { ok: false, reason: "gone", detail: "upload needs at least one file path" }
-  if (page.labels.get(id) === undefined) return { ok: false, reason: "gone" }
-  await flush(page)
-  const found = await page.channel.send("Runtime.evaluate", { expression: fileInputScript(id), returnByValue: false })
-  if (found.exceptionDetails) throw new Error(`Page script failed: ${found.exceptionDetails.text}`)
-  if (found.result.objectId === undefined) return { ok: false, reason: "gone", detail: "that control is not a file input" }
-  await page.channel.send("DOM.setFileInputFiles", { files: paths, objectId: found.result.objectId })
-  return { ok: true }
 }
 
 async function perform(page: PageState, step: Step): Promise<StepResult | { ok: true; menu: boolean }> {
@@ -185,8 +170,6 @@ async function perform(page: PageState, step: Step): Promise<StepResult | { ok: 
       if (out !== "ok") return { ok: false, reason: "stale", detail: `${out}: ${step.option}` }
       return { ok: true }
     }
-    case "upload":
-      return upload(page, step.id, step.paths)
     case "wait":
       return awaitPage(page, step)
     case "press":
@@ -206,24 +189,16 @@ async function perform(page: PageState, step: Step): Promise<StepResult | { ok: 
   }
 }
 
-function dialogResult(page: PageState): StepResult | undefined {
-  if (page.dialog === undefined) return undefined
-  const { type, message } = page.dialog
-  return { ok: false, reason: "dialog", detail: `a ${type} dialog says: ${message}` }
-}
-
 export async function act(page: PageState, step: Step): Promise<StepResult> {
   if (page.crashed) return { ok: false, reason: "crashed" }
-  const early = dialogResult(page)
-  if (early) return early
   try {
     if (NAVIGATES.has(step.op)) page.settle = undefined
     else if (step.op === "press") await flush(page)
     const done = await perform(page, step)
-    if (!done.ok) return dialogResult(page) ?? done
+    if (!done.ok) return done
     // The settle, and the load of a navigation it starts, are paid by the next page script: usually the read.
     if (!NAVIGATES.has(step.op)) page.settle = "menu" in done && done.menu
-    return dialogResult(page) ?? { ok: true }
+    return { ok: true }
   } catch (error) {
     if (page.crashed) return { ok: false, reason: "crashed" }
     const message = error instanceof Error ? error.message : String(error)
@@ -231,7 +206,7 @@ export async function act(page: PageState, step: Step): Promise<StepResult> {
     if (error instanceof CdpError && error.kind === "closed") return { ok: false, reason: "crashed", detail: message }
     if (navigates(message)) {
       if (page.loading) await page.loading
-      return dialogResult(page) ?? { ok: true }
+      return { ok: true }
     }
     throw error
   }
