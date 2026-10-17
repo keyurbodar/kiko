@@ -25,6 +25,7 @@ export function eventText(message: ChatMessage, name: (slug: string) => string):
     case "routine":
       return e.title
     case "run_error":
+    case "browser_control":
       return message.body
     case "agent_message":
       return `${name(e.from)} messaged ${name(e.to)}`

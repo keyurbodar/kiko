@@ -720,14 +720,19 @@ export class UserDO extends DurableObject<Env> {
     return this.#kr.touch(agentId, tabs)
   }
 
-  /** Whether the human is driving the browser. A tool returns "The human is using the browser" and waits while it is true. */
-  async browserTakeover(): Promise<boolean> {
-    return this.#kr.takeover()
+  /** Whether the human holds the browser. A paused agent is woken when control comes back. */
+  async browserTakeover(agentId: string, roomId: string): Promise<boolean> {
+    return this.#kr.paused(agentId, roomId)
   }
 
   /** The live view link for the human, with a reason it is also posted to the room (section 27.7). */
   async browserLive(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {
     return this.#kr.liveLink(agentId, roomId, mode, reason)
+  }
+
+  /** An agent gives control back on the human's word in the chat. False when the agents already had it. */
+  async browserHandBack(agentId: string): Promise<boolean> {
+    return this.#kr.handBack(agentId)
   }
 
   /** The agent's socket died: the next lease makes a new browser. */
@@ -755,11 +760,6 @@ export class UserDO extends DurableObject<Env> {
   /** Names of the files in a folder on the browser's VM. The folder must be under /tmp or the downloads folder. */
   async browserListFiles(dir: string): Promise<string[]> {
     return this.#kr.listFiles(dir)
-  }
-
-  /** The agent closed its tabs. */
-  async browserRelease(agentId: string): Promise<void> {
-    this.#kr.release(agentId)
   }
 
   /** Read before each browser call. Holds no URL. */

@@ -165,15 +165,19 @@ test("a tab opened at a url is created there and waits for its load, with no sec
   await browser.close()
 })
 
-test("nothing in src brings a tab to the front", () => {
+// A tab is raised only by `front`, which the server calls when the human takes control. Reading and acting never do.
+test("only the tab's front() brings it to the front", () => {
   const root = join(import.meta.dir, "../src")
   const files = readdirSync(root, { recursive: true }).map(String).filter((f) => f.endsWith(".ts"))
   expect(files.length).toBeGreaterThan(3)
+  const raising: string[] = []
   for (const file of files) {
     const source = readFileSync(join(root, file), "utf8")
-    expect(source.includes("bringToFront")).toBe(false)
+    raising.push(...[...source.matchAll(/bringToFront/g)].map(() => file))
     expect(source.includes("activateTarget")).toBe(false)
   }
+  expect(raising).toEqual(["cdp/browser.ts"])
+  expect(readFileSync(join(root, "cdp/browser.ts"), "utf8")).toMatch(/front: async \(\) => \{\s+await page\.channel\.send\("Page\.bringToFront"\)/)
 })
 
 test("the page script is valid JavaScript", () => {

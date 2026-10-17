@@ -12,6 +12,7 @@ export const GROUP_LABEL: Record<CommandGroup, string> = {
   settings: "Settings",
   account: "Account",
   theme: "Theme",
+  browser: "Browser",
 }
 
 /** One row. It either runs, or opens the submenu of the command with id `submenu`. */
@@ -166,6 +167,7 @@ const ICONS: Record<string, Glyph> = {
   account: glyphs.UserIcon,
   signout: glyphs.SignoutIcon,
   info: glyphs.InfoIcon,
+  globe: glyphs.GlobeIcon,
 }
 
 export const iconFor = (name: string): Glyph => ICONS[name] ?? glyphs.CommandIcon

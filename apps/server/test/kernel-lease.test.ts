@@ -148,7 +148,7 @@ describe("lease", () => {
     expect(t.kernel.calls.filter((c) => c.startsWith("create") || c.startsWith("delete"))).toEqual(["create headful kiko-test"])
   })
 
-  test("a forgotten takeover ends after the limit: the flag clears and the idle rule deletes the browser", async () => {
+  test("a forgotten takeover ends after the limit: the flag clears, the browser stays, and the idle rule deletes it later", async () => {
     const t = setup()
     await t.lease.lease("a")
     t.lease.setTakeover(true)
@@ -156,6 +156,9 @@ describe("lease", () => {
     expect(humanHolds(row(), t.clock.now)).toBe(true)
     t.clock.now += TAKEOVER_MS + 1
     expect(humanHolds(row(), t.clock.now)).toBe(false)
+    await t.lease.reap()
+    expect(t.store.lease()?.takeover).toBe(false)
+    t.clock.now += IDLE_MS
     await t.lease.reap()
     expect(t.store.lease()).toBeUndefined()
   })
@@ -199,13 +202,6 @@ describe("lease", () => {
     expect((await t.lease.lease("a")).sessionId).toBe("s1")
   })
 
-  test("releasing an agent drops its tabs and keeps the browser", async () => {
-    const t = setup()
-    await t.lease.lease("a")
-    await t.lease.lease("b")
-    t.lease.release("a")
-    expect(t.lease.status()?.tabs).toEqual({ b: 0 })
-  })
 })
 
 describe("reaper", () => {
@@ -251,6 +247,7 @@ describe("reaper", () => {
     const t = setup()
     await t.lease.lease("a")
     t.lease.setTakeover(true)
+    t.store.patchLease({ watchUntil: 0 })
     t.clock.now += IDLE_MS * 5
     await t.lease.reap()
     expect(t.store.lease()).toBeDefined()

@@ -56,12 +56,16 @@ export interface Tab {
   answerDialog(accept: boolean, text?: string): Promise<boolean>
   url(): Promise<string>
   title(): Promise<string>
+  /** Brings the tab's window to the front, so the live view shows it. */
+  front(): Promise<void>
   close(): Promise<void>
 }
 
 export interface BrowserSession {
   openTab(url?: string): Promise<Tab>
   tab(id: string): Tab | undefined
+  /** Attaches to a tab this browser already has, such as one opened before the socket closed. Undefined when it is gone. */
+  attach(id: string): Promise<Tab | undefined>
   listTabs(): Promise<{ id: string; url: string; title: string }[]>
   closed: Promise<void>
   close(): Promise<void>

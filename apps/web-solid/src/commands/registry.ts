@@ -8,7 +8,7 @@ import { createRoot, createSignal, getOwner, onCleanup } from "solid-js"
  * they leave on unmount. Registering an id twice keeps the newest entry, and
  * its unregister only removes its own entry.
  */
-export type CommandGroup = "view" | "chat" | "chats" | "palette" | "go" | "settings" | "account" | "theme"
+export type CommandGroup = "view" | "chat" | "chats" | "palette" | "go" | "settings" | "account" | "theme" | "browser"
 
 /** One option inside a command's submenu: an agent, a chat, an appearance. */
 export interface Choice {

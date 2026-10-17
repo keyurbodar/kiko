@@ -60,11 +60,13 @@ async function check(v: Verifier, s: Session): Promise<void> {
     console.log(`  link reply: ${shown.text.slice(0, 200)}`)
     if (!/\]\(https:\/\/[^)\s]*kernel[^)\s]*\)/.test(shown.text)) throw new VerifyError("the agent did not send the live view as a markdown link")
 
+    // The idle close shuts the socket and keeps the tab, so the lease still lists it afterwards.
     for (;;) {
-      const state = await api<{ status: { browser: { tabs: Record<string, number> } | null } }>(v.url, s, "dev/agent/browser", { action: "state" })
-      const held = Object.keys(state.json.status.browser?.tabs ?? {}).some((k) => k.startsWith(`${roomId}:`))
-      if (!held) {
-        console.log(`  socket closed ${((performance.now() - done) / 1000).toFixed(1)} s after the reply`)
+      if (((await readStats(v, s))["browser.idle.closed"] ?? 0) >= 1) {
+        const state = await api<{ status: { browser: { tabs: Record<string, number> } | null } }>(v.url, s, "dev/agent/browser", { action: "state" })
+        const kept = Object.entries(state.json.status.browser?.tabs ?? {}).some(([k, n]) => k.startsWith(`${roomId}:`) && n > 0)
+        if (!kept) throw new VerifyError("the idle close dropped the agent's tab")
+        console.log(`  socket closed ${((performance.now() - done) / 1000).toFixed(1)} s after the reply, tab kept`)
         break
       }
       if (performance.now() - done > 40_000) throw new VerifyError("the browser socket did not close within 40 s")

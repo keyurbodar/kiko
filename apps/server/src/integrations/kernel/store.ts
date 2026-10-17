@@ -21,6 +21,9 @@ export type LeaseRow = {
   dead: boolean
 }
 
+/** One spell of human control: when it began and the agents to wake when it ends. */
+type Control = { at: number; waiters: { agentId: string; roomId: string }[] }
+
 export type LeaseUrls = { cdpUrl: string; liveUrl?: string }
 
 type Sealed = { kek_version: number; iv: ArrayBuffer; ciphertext: ArrayBuffer }
@@ -90,6 +93,17 @@ export class KernelStore {
 
   setProfileReady(on: boolean): void {
     this.setFlag("profile", on)
+  }
+
+  control(): Control | undefined {
+    const r = this.sql.exec<{ value: string }>("SELECT value FROM kernel WHERE name = 'control'").toArray()[0]
+    return r ? (JSON.parse(r.value) as Control) : undefined
+  }
+
+  setControl(control: Control | undefined): void {
+    if (!control) return void this.sql.exec("DELETE FROM kernel WHERE name = 'control'")
+    if (!this.connected()) return
+    this.sql.exec("INSERT OR REPLACE INTO kernel (name, value, updated_at) VALUES ('control', ?, ?)", JSON.stringify(control), Date.now())
   }
 
   private flag(name: string): boolean {

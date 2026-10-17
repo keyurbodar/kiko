@@ -1,5 +1,5 @@
 import { Show, createMemo, onMount, type JSX } from "solid-js"
-import { browser, browserError, handBack, openLive, startBrowser } from "./browser"
+import { browser, handBack, openLive, startBrowser } from "./browser"
 
 const button = "h-7 shrink-0 rounded-md bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-3 text-[12px] font-medium text-foreground disabled:opacity-60"
 const primary = "h-7 shrink-0 rounded-md bg-[var(--primary)] px-3 text-[12px] font-medium text-[var(--primary-foreground)] disabled:opacity-60"
@@ -11,11 +11,11 @@ export function BrowserButtons(): JSX.Element {
 				when={browser()?.takeover}
 				fallback={
 					<>
-						<button type="button" class={button} data-action="browser-watch" disabled={!browser() || browser()?.switching} onClick={() => openLive("watch")}>
+						<button type="button" class={button} data-action="browser-watch" disabled={browser()?.switching} onClick={() => openLive("watch")}>
 							Watch
 						</button>
-						<button type="button" class={primary} data-action="browser-takeover" disabled={!browser() || browser()?.switching} onClick={() => openLive("control")}>
-							Take over
+						<button type="button" class={primary} data-action="browser-takeover" disabled={browser()?.switching} onClick={() => openLive("control")}>
+							Take control
 						</button>
 					</>
 				}
@@ -24,7 +24,7 @@ export function BrowserButtons(): JSX.Element {
 					Open
 				</button>
 				<button type="button" class={primary} data-action="browser-handback" onClick={handBack}>
-					Hand back
+					Release control
 				</button>
 			</Show>
 		</span>
@@ -37,12 +37,12 @@ export default function BrowserChip(props: { slugs: readonly string[] }): JSX.El
 	const label = () => {
 		const state = browser()
 		if (state?.switching) return "Opening browser"
-		if (state?.takeover) return "You are using the browser"
+		if (state?.takeover) return "You have control. Agents are paused."
 		const first = mine()[0]
 		return first ? `${first.agent} is on ${first.host}` : ""
 	}
 	return (
-		<Show when={mine().length > 0}>
+		<Show when={mine().length > 0 || browser()?.takeover}>
 			<div
 				class="mx-1.5 mb-1.5 flex items-center gap-3 rounded-lg bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] py-1 pr-1 pl-3 text-[13px] text-foreground shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_10%,transparent)] backdrop-blur-sm"
 				role="status"
@@ -55,11 +55,6 @@ export default function BrowserChip(props: { slugs: readonly string[] }): JSX.El
 				</span>
 				<BrowserButtons />
 			</div>
-			<Show when={browserError()}>
-				<p class="mx-3 mb-1.5 text-[12px] text-[var(--error)]" data-component="browser-error">
-					{browserError()}
-				</p>
-			</Show>
 		</Show>
 	)
 }

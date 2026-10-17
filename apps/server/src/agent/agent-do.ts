@@ -674,7 +674,6 @@ export class AgentDO extends DurableObject<Env> {
     if (!due.includes(BROWSER_IDLE_WAKEUP)) return false
     await createAlarms(this.ctx).clearWakeup(BROWSER_IDLE_WAKEUP)
     if (this.#browser && (await this.#browser.idle()) === "closed") count("browser.idle.closed")
-    else if (this.home()) await this.browserLease().release().catch(() => {})
     return due.length === 1
   }
 

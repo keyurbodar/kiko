@@ -4,10 +4,16 @@ import type { KernelStore, LeaseRow, Tabs } from "./store"
 
 export type LeaseStore = Pick<KernelStore, "lease" | "urls" | "putLease" | "patchLease" | "deleteLease" | "profileReady" | "setProfileReady" | "setBroken">
 
-export const IDLE_MS = 5 * 60_000
+/**
+ * A browser nobody used for this long is deleted, which saves the profile. Until then it keeps its tabs and pages.
+ * Kernel puts a browser with no CDP or live view connection in standby after 5 s and bills nothing for standby,
+ * so a long life costs a concurrency slot and no usage.
+ */
+export const IDLE_MS = 24 * 60 * 60_000
 /** While the human drives, the reaper looks again this often. */
 export const TAKEOVER_RECHECK_MS = 60_000
-const KERNEL_TIMEOUT_SECONDS = 600
+/** Kernel's own delete after this long in standby, the net if our reaper misses. Kernel allows up to 72 hours. */
+const KERNEL_TIMEOUT_SECONDS = 25 * 60 * 60
 const MAX_RETRY_AFTER_S = 5
 export const MAX_TABS = 8
 /** The longest the human holds control. A takeover older than this is over, so a forgotten live view cannot pause agents for ever. */
@@ -100,13 +106,6 @@ export class KernelLease {
     if (!row || row.dead) return false
     this.#touch(row, agentId, tabs)
     return true
-  }
-
-  release(agentId: string): void {
-    const row = this.deps.store.lease()
-    if (!row) return
-    const { [agentId]: _, ...tabs } = row.tabs
-    this.deps.store.patchLease({ tabs, lastUse: this.#now() })
   }
 
   /**

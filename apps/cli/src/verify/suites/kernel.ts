@@ -7,7 +7,9 @@ import type { Suite } from "../runner"
 const USER = "kernel-alice"
 const BAD_KEY = "sk_not_a_real_key_0000"
 const COOKIE = "kiko_probe"
-const IDLE_PAST_MS = 6 * 60_000
+/** Past the 24 hour idle close. An hour idle is inside it: the browser waits in Kernel's standby, at no usage cost. */
+const IDLE_PAST_MS = 24 * 60 * 60_000 + 60_000
+const HOUR_MS = 60 * 60_000
 
 type Status = { connected: boolean; broken: boolean; browser: { mode: string; tabs: Record<string, number> } | null }
 type Result = { ok: true; status: Status } | { ok: false; error: string }
@@ -93,6 +95,10 @@ const suite: Suite = {
       if (set.status !== 200 || !set.json.success) throw new VerifyError(`setting the cookie answered ${set.status}: ${JSON.stringify(set.json).slice(0, 300)}`)
       if (!(await hasCookie(first?.sessionId))) throw new VerifyError("the cookie was not set")
 
+      await dev({ action: "age", ms: HOUR_MS })
+      await dev({ action: "reap" })
+      expectEqual(await ours(), [first?.sessionId], "Kernel's active browsers of this run after an hour idle")
+      console.error("  browser kept after an hour idle")
       await dev({ action: "age", ms: IDLE_PAST_MS })
       await timed("reap", () => dev({ action: "reap" }))
       expectEqual(await ours(), [], "Kernel's active browsers of this run after the reaper")

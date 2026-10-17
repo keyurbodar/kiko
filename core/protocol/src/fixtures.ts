@@ -120,6 +120,7 @@ export const systemEvents: readonly SystemEvent[] = [
 	{ kind: "group_formed", private: true },
 	{ kind: "member_added", slug: bob, name: "Bob", private: true },
 	{ kind: "member_removed", slug: bob, name: "Bob", private: true },
+	{ kind: "browser_control", agent: ada, reason: "please sign in to mail.google.com", private: true },
 	{ kind: "created", roomId, title: "Sunny morning" },
 ]
 

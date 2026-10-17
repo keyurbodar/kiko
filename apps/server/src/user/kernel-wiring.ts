@@ -39,6 +39,14 @@ type KernelDeps = {
 /** Kernel's downloads directory and `/tmp`, the only places `getFile` reads. */
 const ALLOWED_READ = /^(\/tmp\/|\/home\/kernel\/Downloads\/)/
 
+/** What a paused agent is told when control comes back, by why it came back. */
+const RESUMED = {
+  released: "The human released control of the browser: it is yours again.",
+  expired: "The human's control of the browser timed out after 30 minutes: it is yours again.",
+} as const
+const RESUME =
+  " Carry on with the browser work that was waiting. Tell the worker that was waiting to continue with tell_work; its tabs are still open where the human left them, so it must not load the page again. Say one short line to the human only if there is something to say."
+
 /** The agent slug at the end of a lease id such as `room/slug`. */
 function slugOf(agentId: string): string {
   return agentId.split(/[/:]/).pop() ?? agentId
@@ -112,10 +120,10 @@ export class KernelWiring {
 
   /**
    * The live view link, for an agent to hand to the human. `control` pauses every agent's browser tools until the
-   * human hands back, so it is the request for a login, a captcha, or a payment. With a `reason` the link is posted
-   * to the room as a plain message from the agent: a worker never posts, and it is the worker that hits the login.
-   * The link is a bearer capability for the life of the browser; the owner asked for it in the chat (section 27.7).
-   * `agentId` ends in the agent's slug (after the last "/" or ":").
+   * human releases it, so it is the request for a login, a captcha, or a payment. With a `reason`, a control request
+   * becomes a card in the chat with Take control and Release control buttons, and holds no link. A watch link with a
+   * reason is posted as a plain message from the agent, because the owner asked for it in the chat (section 27.7).
+   * A worker never posts, and it is the worker that hits the login. `agentId` ends in the agent's slug.
    */
   async liveLink(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {
     checkAgentId(agentId)
@@ -129,10 +137,11 @@ export class KernelWiring {
     } finally {
       this.push()
     }
+    if (mode === "control") this.join(agentId, roomId)
     const why = typeof reason === "string" ? reason.trim().slice(0, 300) : ""
     if (!why) return { ok: true, url, posted: false }
-    const label = mode === "control" ? "Take control" : "Watch the browser"
-    const posted = await roomStub(this.d.env.ROOM, this.d.userId(), roomId).browserShare(slug, `${why} [${label}](${url})`)
+    const room = roomStub(this.d.env.ROOM, this.d.userId(), roomId)
+    const posted = mode === "control" ? await room.browserAsk(slug, why, `${this.store.control()?.at ?? Date.now()}`) : await room.browserShare(slug, `${why} [Watch the browser](${url})`)
     return { ok: true, url, posted }
   }
 
@@ -154,15 +163,49 @@ export class KernelWiring {
     return dead
   }
 
-  /** The agent closed its tabs. */
-  release(agentId: string): void {
-    this.browser.release(checkAgentId(agentId))
+  async reap(): Promise<void> {
+    await this.browser.reap()
+    if (!this.takeover() && this.store.control()) this.resume("expired")
     this.push()
   }
 
-  async reap(): Promise<void> {
-    await this.browser.reap()
+  /**
+   * Gives control back to the agents, from any of the human's Release control buttons or from an agent the human
+   * told in the chat. Every agent that asked for control or was paused by it is woken, so its work carries on without
+   * the human saying so; the agent that released is already running. False when the agents already had control.
+   */
+  handBack(by?: string): boolean {
+    const row = this.store.lease()
+    const held = row !== undefined && humanHolds(row, Date.now())
+    if (row) this.browser.setTakeover(false)
+    if (this.store.control()) this.resume("released", by)
     this.push()
+    return held
+  }
+
+  /** The human's control began, or an agent waits on it. One spell of control is one record, so each agent is woken once. */
+  private join(agentId?: string, roomId?: string): void {
+    const now = this.store.control() ?? { at: Date.now(), waiters: [] }
+    if (agentId && roomId && !now.waiters.some((w) => w.agentId === agentId)) now.waiters.push({ agentId, roomId })
+    this.store.setControl(now)
+  }
+
+  private resume(why: keyof typeof RESUMED, except?: string): void {
+    const control = this.store.control()
+    this.store.setControl(undefined)
+    for (const { agentId, roomId } of control?.waiters ?? []) {
+      const slug = slugOf(agentId)
+      if (agentId === except || !isRoomId(roomId) || !isAgentSlug(slug)) continue
+      const wake = roomStub(this.d.env.ROOM, this.d.userId(), roomId).wake({ id: `browser-back:${control?.at}:${slug}`, to: slug, why: "system", body: `${RESUMED[why]}${RESUME}`, chain: null })
+      this.d.ctx.waitUntil(Promise.resolve(wake).catch((e) => console.error(`browser resume wake failed: ${e instanceof Error ? e.message : String(e)}`)))
+    }
+  }
+
+  /** Whether the human holds the browser. An agent that asks while they do is woken when control comes back. */
+  paused(agentId: string, roomId: string): boolean {
+    const held = this.takeover()
+    if (held) this.join(checkAgentId(agentId), roomId)
+    return held
   }
 
   check(agentId?: string): BrowserCheck {
@@ -290,13 +333,15 @@ export class KernelWiring {
 
   async browserFrame(ws: WebSocket, frame: Extract<UserFrame, { t: "browserLink" | "handBack" | "closeBrowser" }>): Promise<void> {
     if (frame.t === "handBack") {
-      if (this.store.lease()) this.browser.setTakeover(false)
+      this.handBack()
     } else if (frame.t === "closeBrowser") {
       await this.browser.close().catch((e) => console.error(`close browser failed: ${kernelErrorText(e)}`))
+      if (this.store.control()) this.resume("released")
     } else {
       let result: BrowserLinkResult
       try {
         const url = await this.link(frame.mode)
+        if (frame.mode === "control") this.join()
         result = { ok: true, url }
       } catch (e) {
         result = { ok: false, error: kernelErrorText(e) }

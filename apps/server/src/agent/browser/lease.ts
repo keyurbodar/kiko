@@ -24,11 +24,12 @@ export interface LeasePort {
   lease(): Promise<Lease>
   touch(tabs: Record<string, string>): Promise<boolean>
   dead(sessionId: string): Promise<boolean>
-  release(): Promise<void>
   state(): Promise<BrowserState>
   paused(): Promise<boolean>
   /** The live view link. With a reason it is also posted to the room as the agent. `control` pauses every agent's browser tools. */
   live(mode: "watch" | "control", reason?: string): Promise<LiveLink>
+  /** Ends the human's control. False when the agents already had it. */
+  handBack(): Promise<boolean>
   /** HTTP through the browser's network stack, with its cookies and proxy. Only http and https. */
   fetchPage(req: FetchRequest): Promise<FetchResult>
   /** Writes an upload into the browser's VM. Returns the VM path to use in an upload step. */
@@ -45,10 +46,10 @@ export type UserBrowserRpc = Pick<
   | "browserLease"
   | "browserTouch"
   | "browserDead"
-  | "browserRelease"
   | "browserCheck"
   | "browserTakeover"
   | "browserLive"
+  | "browserHandBack"
   | "browserFetch"
   | "browserPutFile"
   | "browserGetFile"
@@ -68,7 +69,7 @@ export function userLease(user: () => UserBrowserRpc, agentId: string, roomId: s
   const paused = async (): Promise<boolean> => {
     const now = Date.now()
     if (seen && now - seen.at < PAUSE_MEMO_MS) return seen.on
-    const on = await user().browserTakeover()
+    const on = await user().browserTakeover(agentId, roomId)
     seen = { at: now, on }
     return on
   }
@@ -76,10 +77,13 @@ export function userLease(user: () => UserBrowserRpc, agentId: string, roomId: s
     lease: () => connected(() => user().browserLease(agentId)),
     touch: (tabs) => user().browserTouch(agentId, tabs),
     dead: (sessionId) => user().browserDead(agentId, sessionId),
-    release: () => user().browserRelease(agentId),
     state: () => user().browserCheck(agentId),
     paused: () => paused(),
     live: (mode, reason) => connected(() => user().browserLive(agentId, roomId, mode, reason)),
+    handBack: async () => {
+      seen = undefined
+      return connected(() => user().browserHandBack(agentId))
+    },
     fetchPage: (req) => connected(() => user().browserFetch(req)),
     putFile: (name, base64) => connected(() => user().browserPutFile(name, base64)),
     getFile: (path) => connected(() => user().browserGetFile(path)),
