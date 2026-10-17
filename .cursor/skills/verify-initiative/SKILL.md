@@ -40,11 +40,11 @@ Write a scenario in `scripts/` that imports `./kit` (run with `bun`, from the re
 | `age(ctx, room, ms)` / `seen(ctx, ago)` / `due(ctx, id)` | dev routes below |
 | `save(ctx, name, data)` | writes JSON evidence |
 
-Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. `silent-ab.ts <label>` runs the silent-loop measurement the same way. Loops from real bursts have a suite: `bun kiko verify initiative-loops` (model; `INITIATIVE_MODE=jev|nojev` picks one arm, default both; the Jev arm is skipped without `TYPESAFE_API_KEY`). For a cost A/B, run `smoke.ts` with and without `--jev` and compare the `background tokens` lines.
+Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. For a cost A/B, run `smoke.ts` with and without `--jev` and compare the `background tokens` lines. The daily pass has a suite: `bun kiko verify proactive`.
 
 ### Dev routes that exist (NODE_ENV=development, localhost only), all `POST /api/dev/agent/<name>`
 
-Useful here: `pass` (runs the daily initiative pass now and returns what it woke and which loops it expired), `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages open tasks and reports them to UserDO, for stalled-task candidates), `seen {ago}` (human last seen; a week holds unasked runs), `budget {roomId, ms}` (budget for unasked runs), `due {id}` (routine due now), `pending`, `limits`. Also `loops` (`{open: {roomId, text, due}}` opens a human loop with any due date), `initiative`, `workers`, `composio`, `browser` (the last one is `{action}`: `lease`, `touch`, `dead`, `age`, `reap`, `switch`, `state`). Fake-agent and inspection routes: `fake`, `status`, `seed` (log turns with no run), `memory`, `classic`, `trace`. Also `GET /api/dev/stats`, `POST /api/reminders/<id>/rewind`.
+Useful here: `pass` (runs the daily initiative pass now and returns what it woke), `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages the chat's open tasks and reports the board to UserDO, which is what the pass reads), `seen {ago}` (human last seen; a week holds unasked runs), `budget {roomId, ms}` (budget for unasked runs), `due {id}` (routine due now), `pending`, `limits`. Also `workers`, `composio`, `browser` (the last one is `{action}`: `lease`, `touch`, `dead`, `age`, `reap`, `switch`, `state`). Fake-agent and inspection routes: `fake`, `status`, `seed` (log turns with no run), `memory`, `classic`, `trace`. Also `GET /api/dev/stats`, `POST /api/reminders/<id>/rewind`.
 
 ### Gaps an initiative suite will hit
 
@@ -55,10 +55,10 @@ Useful here: `pass` (runs the daily initiative pass now and returns what it woke
 
 Use these rules when a scenario asserts timing. They are in `apps/server/src/initiative/engine.ts`.
 
-- Daily pass. Once a day at 09:00 in the owner's time zone, one open loop that is due or overdue wakes its chat's lead (a loop with no chat goes to the Kiko chat). The oldest due date goes first. A loop nudged in the last 3 days waits.
+- Input. Each chat reports its open task board to `UserDO.chatTasks` whenever its tasks change, and the pass reads those rows (`chat_tasks`). A task owned by an agent is raised with that agent; any other goes to the chat's lead.
+- Daily pass. Once a day at 09:00 in the owner's time zone, the chat's oldest open task wakes the chat. The oldest change goes first, one chat per pass at `digest` and up to three at `active`. A task raised in the last 3 days waits. A private or deleted chat is skipped.
 - Retry. A wake that was busy, gone, or refused tries again in an hour, not a day.
-- Stale. An open loop with no due date that nobody mentioned for 30 days closes in the pass.
-- Jev failures. A burst gets three Jev passes in all: the first try and two retries, 15 seconds apart (`LOOPS_TRIES` and `LOOPS_DELAY_MS` in `user/initiative-loops.ts`). After the third the burst is let go.
+- Wake ids. `task:<room>:<task>#<day>`, so a second pass the same day is a duplicate, not a second message.
 
 ## Evidence
 

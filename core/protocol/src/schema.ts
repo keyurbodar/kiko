@@ -112,7 +112,7 @@ export const AgentStatus = Schema.Struct({
 	activity: Schema.optionalKey(Activity),
 })
 
-export const RunErrorKind = Schema.Literals(["no_key", "signed_out", "no_model", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "too_slow", "not_started", "cut_off", "refused", "too_long", "other"])
+export const RunErrorKind = Schema.Literals(["no_key", "signed_out", "no_model", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "cut_off", "refused", "too_long", "other"])
 
 export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("created"), roomId: RoomId, title: Schema.String }),
@@ -461,6 +461,23 @@ export const UserSnapshot = Schema.Struct({
 	lastChat: Schema.optionalKey(RoomId),
 })
 
+export const INITIATIVE_LEVELS = ["off", "chat", "digest", "active"] as const
+const CAPTURE_MODES = ["auto", "off"] as const
+export const UserSettings = Schema.Struct({
+	initiative: Schema.Literals(INITIATIVE_LEVELS),
+	capture: Schema.Literals(CAPTURE_MODES),
+	timezone: Schema.optionalKey(Schema.String),
+	/** The owner finished or skipped first run, on any device. */
+	onboarded: Schema.optionalKey(Schema.Boolean),
+})
+export type UserSettings = typeof UserSettings.Type
+export const UserSettingsPatch = Schema.Struct({
+	initiative: Schema.optionalKey(Schema.Literals(INITIATIVE_LEVELS)),
+	capture: Schema.optionalKey(Schema.Literals(CAPTURE_MODES)),
+	timezone: Schema.optionalKey(Schema.String),
+	onboarded: Schema.optionalKey(Schema.Literal(true)),
+})
+export type UserSettingsPatch = typeof UserSettingsPatch.Type
 
 export const LifeLine = Schema.Struct({
 	pos: Count,
@@ -598,7 +615,7 @@ export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("chat_refused"), roomId: RoomId, existing: RoomId }),
 	Schema.Struct({ t: Schema.Literal("model_refused"), slug: AgentSlug, message: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),
-	Schema.Struct({ t: Schema.Literal("changed"), what: Schema.Literals(["routines", "memory", "loops", "models", "providers"]) }),
+	Schema.Struct({ t: Schema.Literal("changed"), what: Schema.Literals(["routines", "memory", "models", "providers"]) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot, version: Schema.optionalKey(Schema.String), protocol: Schema.optionalKey(Schema.Number), fileToken: Schema.optionalKey(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),
@@ -663,4 +680,3 @@ export type InSync = Assert<
 	| Same<typeof UserToClient.Type, P.UserToClient>
 >
 
-export * from "./loops"

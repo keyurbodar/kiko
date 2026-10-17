@@ -11,7 +11,7 @@ beforeAll(async () => {
 		script: await bundleWorker(new URL("./user-reads-worker.ts", import.meta.url), { "process.env.NODE_ENV": '"development"' }),
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
-		durableObjects: { USER: { className: "UserDO", useSQLite: true } },
+		durableObjects: { USER: { className: "UserDO", useSQLite: true }, ROOM: { className: "RoomDO", useSQLite: true } },
 		bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars", CREDENTIALS_KEK: "kek-test-user-reads" },
 	})
 	await mf.ready
@@ -34,13 +34,12 @@ async function seed(user: string, what: string, n: number): Promise<void> {
 	expect(await res.json()).toBe(n)
 }
 
-const ROOM = "r1"
+const ROOM = "0199a000-0000-7000-8000-000000000001"
 let step = 0
 
 const ACTIONS: { name: string; op: string; args: () => unknown[] }[] = [
 	{ name: "human burst: signals (one burst)", op: "signals", args: () => [{ roomId: ROOM, openedAt: Date.now(), more: 0, signals: [{ kind: "burst", roomId: ROOM, at: Date.now(), seq: ++step, text: "hi there", by: { kind: "human" } }] }] },
 	{ name: "send: touchChat", op: "touchChat", args: () => [ROOM, { lastSeq: ++step, lastPreview: "hi", unread: 1 }] },
-	{ name: "agent turn: initiativeBrief", op: "initiativeBrief", args: () => [ROOM, "ada", { text: "hello" }] },
 	{ name: "agent turn: turnContext", op: "turnContext", args: () => ["anthropic", "ada"] },
 	{ name: "agent turn: lifeView", op: "lifeView", args: () => [] },
 	{ name: "agent post: chatTasks (one open task)", op: "chatTasks", args: () => [ROOM, { open: 1, oldest: [{ id: "t1", title: "x", status: "doing", updatedAt: Date.now() - 4 * 3_600_000 }] }] },
@@ -64,19 +63,17 @@ test("rows read and written per user action, fresh and with history", async () =
 	await seed("large", "life", 3000)
 	await seed("large", "chats", 300)
 	await seed("large", "reminders", 500)
-	await seed("large", "loops", 2000)
-	await seed("large", "marks", 1000)
+	await seed("large", "boards", 300)
 	await seed("large", "capture", 200)
-	await seed("large", "seen", 1400)
 	const large = await measureAll("large")
 
 	// Budgets at the large size. Each bound sits well under the cost before the fix and well over the cost after it.
 	// lifeView is not bounded here: with no naps built, every line is still a backlog line and the view reads them all.
 	const BUDGET: Record<string, number> = {
 		"human burst: signals (one burst)": 100,
-		"agent turn: initiativeBrief": 200,
 		"agent post: chatTasks (one open task)": 100,
-		"daily initiative pass": 300,
+		// One row per chat's board, so the pass grows with the chats the owner keeps (300 seeded here), not with history.
+		"daily initiative pass": 400,
 		"capture pass: life nearest, earlier match found": 200,
 		"capture pass: life nearest, no earlier match": 200,
 	}

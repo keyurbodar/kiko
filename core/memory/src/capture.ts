@@ -29,11 +29,11 @@ export function mergePolicy(raw: string | null): CapturePolicy {
   }
 }
 
-export type Heard = { messageId: string; text: string; at: number }
+type Heard = { messageId: string; text: string; at: number }
 
 export type CaptureCount = { added: number; replaced: number; same: number; private: number }
 
-export const SOURCE = "you"
+const SOURCE = "you"
 
 const MAX_CANDIDATES = 6
 const MIN_CHARS = 12

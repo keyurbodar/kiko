@@ -10,7 +10,7 @@ import { capitalized, soulFromDescription } from "../room/chief"
 import { makeAgentChat } from "../room/new-agent"
 import { RecipeService } from "./recipe-service"
 import { recipeCard } from "../recipes/card"
-import { ClientToUser, type LoopAction, type LoopRow, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
+import { ClientToUser, INITIATIVE_LEVELS, type UserSettings, type UserSettingsPatch } from "@kiko/protocol/schema"
 import { DurableObject } from "cloudflare:workers"
 import { instrument, loadUserDev } from "../lib/dev-guard"
 import { signToken } from "../auth/auth"
@@ -49,7 +49,7 @@ import { CATALOG_WAKEUP, ModelCatalog } from "../models/service"
 import { type CatalogOverlay, findProvider } from "../models/catalog"
 import { type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
-import { type ChatTasks, overview } from "./overview"
+import { type ChatTasks, overview, removeBoardRow, setBoardRow } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
 import { roomRoutine, type RoutineResult } from "./routines"
 import { migrate } from "@kiko/durable/migrate"
@@ -57,11 +57,9 @@ import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, roomStub } from "../lib/names"
-import type { Loop, LoopKind, OpenResult } from "@kiko/memory/loops"
-import { INITIATIVE_RUN, INITIATIVE_WAKEUP, REMINDER_RUN } from "../initiative/engine"
+import { INITIATIVE_RUN, INITIATIVE_WAKEUP, InitiativeEngine, type Level } from "../initiative/engine"
 import { REAP_WAKEUP } from "../integrations/kernel/lease"
 import type { DevBrowserOp } from "./dev"
-import { InitiativeLoops, LOOPS_WAKEUP } from "./initiative-loops"
 import { type BrowserCheck, KernelWiring, type LiveLinkResult } from "./kernel-wiring"
 import { CAPTURE_WAKEUP, LIFE_WAKEUP, MemoryCapture } from "./memory-capture"
 import { type Attachment, send, trySend } from "./sockets"
@@ -241,9 +239,8 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async chatTasks(roomId: string, tasks: ChatTasks): Promise<void> {
-    if (!tasks.open) this.sql.exec("DELETE FROM chat_tasks WHERE room_id = ?", roomId)
-    else this.sql.exec("INSERT INTO chat_tasks (room_id, tasks) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET tasks = excluded.tasks", roomId, JSON.stringify(tasks))
-    await this.#il.engine.arm()
+    setBoardRow(this.sql, roomId, tasks)
+    await this.#initiative.arm()
   }
 
   // The dev-only bodies live in user/dev.ts, which only a development build can load. One cached load
@@ -292,8 +289,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async signals(batch: SignalBatch): Promise<void> {
-    this.#il.engine.results(batch)
-    for (const s of batch.signals) if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN && s.routineId !== REMINDER_RUN) await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
+    for (const s of batch.signals) if (s.kind === "routine_result" && s.routineId !== INITIATIVE_RUN) await this.reminders.finishRun(s.routineId, s.occurrence, s.outcome, s.seq)
     if (!batch.signals.some((s) => s.kind === "burst" || s.kind === "agent_final")) return
     for (const routine of this.reminders.roomRoutines(batch.roomId)) {
       const run = routineRun(roomRoutine(routine), batch)
@@ -482,14 +478,12 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async captureHuman(roomId: RoomId, items: { messageId: string; text: string; at: number }[]): Promise<void> {
-    await this.#il.hear(roomId, items)
     await this.#mem.captureHuman(roomId, items)
   }
 
   async forgetMessages(roomId: RoomId, messageIds: string[], requeue: { messageId: string; text: string; at: number }[], turns: number[]): Promise<void> {
     const ids = [...new Set([...messageIds, ...requeue.map((r) => r.messageId)])]
     const gone = this.life.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
-    this.#il.loops.redactRefs(ids.map((id) => `room:${roomId}:msg:${id}`))
     this.sql.exec("DELETE FROM capture_queue WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", roomId, JSON.stringify(ids))
     const prefix = `room:${roomId}:turns:`
     const spans = this.life.refsLike(prefix).filter((ref) => {
@@ -500,9 +494,7 @@ export class UserDO extends DurableObject<Env> {
       await this.#mem.armNaps()
       this.changed("memory")
     }
-    for (const pos of turns) this.#il.loops.forgetTurn(roomId, pos)
-    this.changed("loops")
-    await this.captureHuman(roomId, requeue)
+    if (turns.length) await this.captureHuman(roomId, requeue)
   }
 
   async lifeZoom(id: string): Promise<string | null> {
@@ -678,18 +670,28 @@ export class UserDO extends DurableObject<Env> {
     return this.#memory
   }
 
-  #loopsModule?: InitiativeLoops
-  get #il(): InitiativeLoops {
-    this.#loopsModule ??= new InitiativeLoops({
+  #initiativeModule?: InitiativeEngine
+  get #initiative(): InitiativeEngine {
+    this.#initiativeModule ??= new InitiativeEngine({
       sql: this.sql,
-      transaction: (fn) => this.ctx.storage.transactionSync(fn),
-      alarms: this.alarms,
-      life: this.life,
-      memory: this.#mem,
-      room: this.env.ROOM,
-      userId: userIdFromObjectName(this.ctx.id.name),
+      tz: () => getSetting(this.sql, "timezone") ?? DEFAULT_TIMEZONE,
+      level: () => this.initiativeLevel(),
+      // A chat the human keeps private never reaches initiative.
+      title: (roomId) => {
+        const chat = getChat(this.sql, roomId)
+        return chat && !chat.private ? chat.title : null
+      },
+      wake: (roomId, input) => roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), roomId).initiativeWake(input),
+      count: (delta) => this.#mem.count(delta),
+      setWakeup: (at) => this.alarms.setWakeup(INITIATIVE_WAKEUP, at),
+      clearWakeup: () => this.alarms.clearWakeup(INITIATIVE_WAKEUP),
     })
-    return this.#loopsModule
+    return this.#initiativeModule
+  }
+
+  private initiativeLevel(): Level {
+    const level = this.setting("initiative")
+    return (INITIATIVE_LEVELS as readonly string[]).includes(level ?? "") ? (level as Level) : "digest"
   }
 
   /** Null when no key is stored. A cold object serves the saved listing and refreshes it behind. */
@@ -1011,65 +1013,27 @@ export class UserDO extends DurableObject<Env> {
       [CATALOG_WAKEUP]: () => this.models.wake(),
       [PROVIDERS_WAKEUP]: () => this.#watch.wake(),
       [REMINDERS_WAKEUP]: () => this.reminders.fire(),
-      [LIFE_WAKEUP]: () => this.#mem.napLife().finally(() => this.memoryAndLoopsChanged()),
-      [CAPTURE_WAKEUP]: () => this.#mem.captureNow().finally(() => this.memoryAndLoopsChanged()),
-      [LOOPS_WAKEUP]: () => this.#il.now().finally(() => this.changed("loops")),
-      [INITIATIVE_WAKEUP]: () => this.#il.engine.pass().finally(() => this.changed("loops")),
+      [LIFE_WAKEUP]: () => this.#mem.napLife().finally(() => this.changed("memory")),
+      [CAPTURE_WAKEUP]: () => this.#mem.captureNow().finally(() => this.changed("memory")),
+      [INITIATIVE_WAKEUP]: () => this.#initiative.pass(),
       [REAP_WAKEUP]: () => this.#kr.reap(),
       [ANNOUNCE_WAKEUP]: () => this.#announce.flush(),
     })
   }
 
-  private memoryAndLoopsChanged(): void {
-    this.changed("memory")
-    this.changed("loops")
-  }
-
-  /** A reminder an agent set for itself opens its commitment (section 26.2); a dev route opens a loop for the fake-agent suite. */
-  async loopOpen(owner: string, roomId: RoomId, ref: string, input: { kind: LoopKind; text: string; due: string | null; reminderId?: string }): Promise<OpenResult> {
-    const out = await this.#il.open(owner, roomId, ref, input)
-    if (out.ok) this.changed("loops")
-    return out
-  }
-
-  /** `roomId`: an agent's close, which reaches only the loops of its own chat. */
-  async loopClose(id: number, status: "done" | "dropped", roomId?: RoomId): Promise<boolean> {
-    const closed = this.#il.close(id, status, roomId)
-    if (closed) this.changed("loops")
-    return closed
-  }
-
-  async loopList(filter: { status?: Loop["status"][]; owner?: string; room?: string; limit?: number } = {}): Promise<Loop[]> {
-    return this.#il.loops.list(filter)
-  }
-
-  async initiativeBrief(roomId: RoomId, slug: string, burst: { text: string }): Promise<{ owe: string[]; related: string[]; noticed: string[]; noticedIds: number[] }> {
-    return this.#il.initiative.brief(roomId, slug, burst)
-  }
-
-  /** The "on their plate" lines a run was given, so the next burst does not repeat them. */
+  /** The daily initiative pass runs now. The dev route asks for it. */
   async devPass(): Promise<unknown> {
-    return (await this.dev()).devPass(() => this.#il.engine)
-  }
-
-  async briefShown(loopIds: number[]): Promise<void> {
-    this.#il.engine.briefed(loopIds)
-  }
-
-  /** An agent's answer, for the Jev pass to catch a promise to come back (section 26.2). */
-  async loopsAnswer(roomId: RoomId, slug: string, items: { messageId: string; text: string; at: number }[]): Promise<void> {
-    await this.#il.hear(roomId, items, slug)
+    return (await this.dev()).devPass(() => this.#initiative)
   }
 
   private apply(op: ChatOp): UserEvent | null {
     if (movesKikoChat(this.sql, op) || this.existingFor(op)) return null
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
-    // A private or deleted chat keeps no loops (section 26.1).
-    if (event && ((op.op === "private" && op.private) || op.op === "delete")) this.#il.loops.forgetRoom(op.roomId)
     // A deleted chat keeps no reminders or routines.
     if (event && op.op === "delete") {
       this.ctx.waitUntil(this.reminders.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
       this.ctx.waitUntil(this.#recipes.chatGone(op.roomId).catch((e: unknown) => console.error(`recipes not cleared: ${e instanceof Error ? e.message : String(e)}`)))
+      removeBoardRow(this.sql, op.roomId)
     }
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
@@ -1175,22 +1139,12 @@ export class UserDO extends DurableObject<Env> {
     return { t: "events", events }
   }
 
-  // The human's own surfaces for initiative (architecture section 26): the loops list and two settings.
-
-  async loopsFor(roomId: string | null): Promise<LoopRow[]> {
-    return this.#il.humanLoops(roomId)
-  }
-
-  async loopAct(id: number, action: LoopAction): Promise<boolean> {
-    const done = await this.#il.act(id, action)
-    if (done) this.changed("loops")
-    return done
-  }
+  // How much the initiative engine may speak up unasked, and whether memory capture writes down what it hears.
 
   async userSettings(): Promise<UserSettings> {
     const timezone = this.setting("timezone")
     return {
-      initiative: this.#il.level(),
+      initiative: this.initiativeLevel(),
       capture: this.#mem.policy().capture,
       ...(timezone ? { timezone } : {}),
       ...(this.setting("onboarded") ? { onboarded: true } : {}),
@@ -1201,11 +1155,11 @@ export class UserDO extends DurableObject<Env> {
     // The route checked the zone. The daily pass is at nine in it, so the pass is set again.
     if (patch.timezone) {
       this.putSetting("timezone", patch.timezone)
-      await this.#il.engine.arm()
+      await this.#initiative.arm()
     }
     if (patch.initiative) {
       this.putSetting("initiative", patch.initiative)
-      await this.#il.engine.arm()
+      await this.#initiative.arm()
     }
     if (patch.capture) this.#mem.setCapture(patch.capture)
     if (patch.onboarded) this.putSetting("onboarded", "1")

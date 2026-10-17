@@ -10,7 +10,6 @@ import { type FilesOptions, filesExtension } from "./extensions/files"
 import { WEB, webExtension } from "./extensions/web"
 import type { Fetcher } from "@kiko/durable/safe-fetch"
 import { type MemoryPort, memoryExtensions } from "@kiko/memory/tools"
-import { type LoopPort, loopExtension } from "@kiko/memory/loop-tool"
 import { type WorkspacePort, workspaceExtension } from "./extensions/workspace"
 import { type MessagingPort, messagingExtension } from "./extensions/messaging"
 import { type RoutinesPort, routinesExtension } from "./extensions/routines"
@@ -41,7 +40,6 @@ export type BuildAgentInput = RoleInput & {
   /** The run the agent is in now, so a worker it starts knows whose steps its calls are. */
   runId?: () => string | null
   memory?: MemoryPort
-  loops?: () => LoopPort | null
   workspace?: WorkspacePort
   composio?: { tools: readonly ComposioTool[]; call: ComposioCall }
   browser?: BrowserToolDeps
@@ -69,7 +67,6 @@ function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]):
     defineExtension({ name: BASE, sections: baseSections(input) }),
     ...(input.files && input.soul ? [selfExtension(input.files.fs, input.soul, input.runStamp)] : []),
     ...(input.memory ? memoryExtensions(input.memory) : []),
-    ...(input.loops ? [loopExtension(input.loops)] : []),
     ...(input.files ? [filesExtension({ acceptsImages: input.files.acceptsImages, touched: (conversationId, paths) => input.work?.touched(conversationId, paths) })] : []),
     skillsExtension(input.files?.fs, input.runStamp, input.recipes),
     ...(input.workspace ? [workspaceExtension(input.workspace, input.lead)] : []),

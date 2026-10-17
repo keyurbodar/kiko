@@ -1,4 +1,4 @@
-// A list the user socket does not carry (routines, memory, open loops) changed on the server. The
+// A list the user socket does not carry (routines, memory, models) changed on the server. The
 // first load of a list calls `watchChanged`, and from then on it reloads on the server's `changed`
 // frame and after a reconnect, so an open panel stays true without a reopen.
 

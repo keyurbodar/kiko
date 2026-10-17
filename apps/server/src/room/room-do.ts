@@ -58,7 +58,6 @@ import type { ReceiveDeps } from "./receive"
 import type { AgentHome, Home } from "./home"
 import { RoomWakes, WAKES_WAKEUP } from "./wake-delivery"
 import { MAIL_WAKEUP, RoomMail } from "./mail-drain"
-import { START_WAKEUP, StartCheck } from "./start-check"
 import { BurstFlush } from "./burst-flush"
 import { type PairIn, RoomPair } from "./pair"
 
@@ -81,7 +80,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	private burstFlush!: BurstFlush
 	private deliveries!: Deliveries
 	private alarms!: Alarms
-	private startCheck!: StartCheck
 	private burst!: Burst
 	private bubbles!: Bubbles
 	private mail!: Mail
@@ -117,12 +115,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.files = roomFiles(ctx.storage, this.log)
 			this.team = new Team(ctx.storage.sql)
 			this.alarms = createAlarms(ctx)
-			this.startCheck = new StartCheck({
-				sql: ctx.storage.sql,
-				alarms: this.alarms,
-				idle: (slug) => this.members.get(slug)?.status === "idle",
-				report: (slug, inputs, key) => void this.reportRunError(slug, key, "not_started", "", inputs),
-			})
 			this.burst = new Burst(ctx.storage, this.alarms)
 			this.bubbles = new Bubbles(ctx.storage, this.log, (path) => {
 				const entry = this.files.stat(path)
@@ -195,7 +187,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 				chat: (home) => this.chat(home),
 				seedMembers: (home, chat) => this.seedMembers(home, chat),
 				drainMail: () => this.mailer.drain(),
-				startCheck: this.startCheck,
 			})
 		})
 	}
@@ -387,26 +378,9 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			[MEMORY_WAKEUP]: () => this.memoryNaps.naps(),
 			[SIGNALS_WAKEUP]: () => this.reports.flush(),
 			[PENDING_WAKEUP]: () => this.sweepPending(),
-			[START_WAKEUP]: () => this.startCheck.due(),
 		}, { retryMs: { [BURST_WAKEUP]: 2_000, [WAKES_WAKEUP]: 2_000, [MAIL_WAKEUP]: 2_000, [SIGNALS_WAKEUP]: 5_000 } })
 		if (!due.includes(MAIL_WAKEUP) && this.mail.queued()) await this.mailer.drain()
 	}
-
-	private async captureAnswer(home: Home, slug: AgentSlug, runId: string): Promise<void> {
-		if (this.log.meta("private") === "1") return
-		const items = this.ctx.storage.sql
-			.exec<{ id: string; text: string; at: number }>("SELECT id, text, at FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
-			.toArray()
-		if (!items.length) return
-		try {
-			const last = items.at(-1)
-			if (!last) return
-			await userStub(this.env.USER, home.userId).loopsAnswer(home.roomId, slug, [{ messageId: last.id, text: items.map((m) => m.text).join("\n"), at: last.at }])
-		} catch (error) {
-			console.error(`answer capture failed: ${error instanceof Error ? error.message : String(error)}`)
-		}
-	}
-
 
 	#woke = false
 
@@ -1069,7 +1043,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	 * answered, so it is offered only when there are some.
 	 */
 	private reportRunError(slug: AgentSlug, key: string, kind: RunErrorKind, provider: string, inputs: readonly string[], detail?: string): { id: MessageId; seq: number } | null {
-		this.startCheck.started(slug)
 		const member = this.members.get(slug)
 		const home = this.home()
 		if (!member || !home) return null
@@ -1114,10 +1087,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 			this.team.clear(slug)
 			this.reports.run(this.routines.ended(slug), "ended")
 		}
-		else {
-			this.startCheck.started(slug)
-			if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
-		}
+		else if (this.members.get(slug)?.status === "idle") this.routines.started(slug, this.log.lastSeq())
 		if (!this.members.setStatus(slug, state)) return false
 		if (state === "typing" && !this.team.now(slug)) this.team.doing(slug, "writing a reply", Date.now(), { kind: "writing" })
 		this.broadcastStatus(slug)
@@ -1157,7 +1127,6 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const changed = await this.setStatus(slug, working ? "working" : "idle")
 		if (working && !changed) this.broadcastStatus(slug)
 		if (!home || !first) return
-		if (!mailOnly) await this.captureAnswer(home, slug, runId)
 		await this.memoryNaps.arm()
 		await userStub(this.env.USER, home.userId).touchChat(home.roomId, chatTouch(this.ctx.storage.sql, this.log))
 		this.bubbles.markEnded(runId)

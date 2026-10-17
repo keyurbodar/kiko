@@ -92,8 +92,3 @@ export function readBriefView(sql: SqlStorage, member: MemberRow, members: reado
 	return { goal, members, tasks: briefTasks(sql, member.slug, member.lead), reactions }
 }
 
-export function initiativeBrief(view: { owe: readonly string[]; related: readonly string[]; noticed?: readonly string[] }): string {
-	const lines = [...view.owe.map((l) => `you owe: ${l}`), ...view.related.map((l) => `related: ${l}`), ...(view.noticed ?? []).map((l) => `on their plate: ${l}`)]
-	if (!lines.length) return ""
-	return [...lines, "bring a related line or something on their plate up only when it truly helps the human now, at most one, in passing. keep what you owe, or say why you cannot."].join("\n")
-}

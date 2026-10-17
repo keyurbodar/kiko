@@ -181,7 +181,6 @@ Suites that need a Worker `--var`:
 | `memory-edge` | memory-edge |
 | `memory-tools`, `memory-session`, `memory-eval`, `memory-hard`, `soul` | memory |
 | `proactive` | proactive |
-| `initiative-loops` | the `verify-initiative` skill |
 
 Themes (`apps/server/src/user/theme.ts`) have no suite. `apps/server/test/user.test.ts` covers them.
 

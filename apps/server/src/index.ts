@@ -14,7 +14,7 @@ import type { FileDO } from "./files/file-do"
 import type { RoomDO } from "./room/room-do"
 import type { UserDO } from "./user/user-do"
 import { hooksRoute } from "./user/hooks-route"
-import { loopsRoute } from "./user/loops-route"
+import { settingsRoute } from "./user/settings-route"
 import { routinesRoute } from "./user/routines-route"
 import { soulRoute } from "./user/soul-route"
 import { searchRoute } from "./room/search-route"
@@ -65,8 +65,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (hooked) return hooked
     const routines = await routinesRoute(request, env)
     if (routines) return routines
-    const loops = await loopsRoute(request, env)
-    if (loops) return loops
+    const settings = await settingsRoute(request, env)
+    if (settings) return settings
     const soul = await soulRoute(request, env)
     if (soul) return soul
     const searched = await searchRoute(request, env)

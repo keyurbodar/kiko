@@ -13,7 +13,7 @@ const slugOf = (body: { slug?: unknown } | null) => (typeof body?.slug === "stri
 export async function devAgentRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
   const action = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null
-  if (!["fake", "status", "workers", "seed", "memory", "usage", "trace", "age", "seen", "due", "pending", "policy", "loops", "initiative", "pass", "composio", "browser"].includes(action ?? "")) return null
+  if (!["fake", "status", "workers", "seed", "memory", "usage", "trace", "age", "seen", "due", "pending", "policy", "pass", "composio", "browser"].includes(action ?? "")) return null
   if (!devRequest(url)) return Response.json({ error: "not found" }, { status: 404 })
   const user = await getSessionUser(request, env)
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
@@ -48,14 +48,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     }
   }
   if (action === "pass") return Response.json(await userStub(env.USER, user.id).devPass())
-  if (action === "loops") {
-    const body = (await request.json().catch(() => null)) as { open?: { roomId?: unknown; text?: unknown; due?: unknown } } | null
-    const open = body?.open
-    if (open && typeof open.roomId === "string" && isRoomId(open.roomId) && typeof open.text === "string") {
-      await userStub(env.USER, user.id).loopOpen("human", open.roomId, "", { kind: "intention", text: open.text, due: typeof open.due === "string" ? open.due : null })
-    }
-    return Response.json({ loops: await userStub(env.USER, user.id).loopList({ status: ["open", "done", "dropped", "snoozed"], limit: 200 }) })
-  }
   if (action === "workers") {
     const roomId = url.searchParams.get("roomId") ?? ""
     if (!isRoomId(roomId)) return Response.json({ error: "bad room id" }, { status: 400 })
@@ -78,10 +70,6 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   if (action === "usage") {
     const slug = slugOf(body)
     return Response.json({ agent: await agentStub(env.AGENT, user.id, roomId, slug).devUsage(), memory: await userStub(env.USER, user.id).memoryUsage() })
-  }
-  if (action === "initiative") {
-    const slug = slugOf(body)
-    return Response.json({ text: await agentStub(env.AGENT, user.id, roomId, slug).devInitiative() })
   }
   if (action === "trace") return Response.json(await agentStub(env.AGENT, user.id, roomId, DEFAULT_AGENT).devTrace())
   const slugs = action === "status" ? [body.slug] : (body.slugs ?? [DEFAULT_AGENT])

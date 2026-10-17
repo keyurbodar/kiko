@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test"
-import { Loops } from "@kiko/memory/loops"
-import { INITIATIVE_RUN, InitiativeEngine, type Level, REMINDER_RUN, type WakeInput } from "../src/initiative/engine"
+import { INITIATIVE_WAKEUP, InitiativeEngine, type Level, type WakeInput } from "../src/initiative/engine"
 import type { WakeResult } from "../src/room/wake"
 import { sqlWith } from "./sql-shim"
 import { USER_STEPS } from "../src/user/schema"
@@ -8,22 +7,21 @@ import { USER_STEPS } from "../src/user/schema"
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 const NOW = Date.UTC(2026, 9, 16, 13)
-const base = { kind: "intention" as const, owner: "human", source: "tool" as const }
 
-function world(opts: { level?: Level } = {}) {
+type Task = { id: string; title: string; status: string; owner?: string; updatedAt: number }
+
+function world(opts: { level?: Level; hidden?: string[] } = {}) {
   const sql = sqlWith(USER_STEPS)
-  const loops = new Loops(sql, (fn) => fn())
   const wakes: { room: string; input: WakeInput }[] = []
   const armed: (number | null)[] = []
   const counts: Record<string, number> = {}
+  const hidden = new Set(opts.hidden ?? [])
   let answer: WakeResult | "busy" = "delivered"
   const engine = new InitiativeEngine({
     sql,
-    loops,
     tz: () => "UTC",
     level: () => opts.level ?? "digest",
-    title: (id) => (id === "r1" ? "Taxes" : id === "r2" ? "Other" : null),
-    home: () => "kiko",
+    title: (id) => (hidden.has(id) ? null : id),
     wake: async (room, input) => {
       wakes.push({ room, input })
       return answer
@@ -34,40 +32,40 @@ function world(opts: { level?: Level } = {}) {
     setWakeup: async (at) => void armed.push(at),
     clearWakeup: async () => void armed.push(null),
   })
-  const open = (text: string, due: string | undefined, room = "r1", extra: Record<string, unknown> = {}) => {
-    const out = loops.open({ ...base, text, room, at: NOW - 5 * DAY, ...(due ? { due } : {}), ...extra })
-    if (!out.ok) throw new Error("open failed")
-    return out.id
+  /** What RoomDO pushes to `UserDO.chatTasks` when a chat's board changes. */
+  const board = (room: string, tasks: Task[]) => {
+    sql.exec("INSERT OR REPLACE INTO chat_tasks (room_id, tasks) VALUES (?, ?)", room, JSON.stringify({ open: tasks.length, oldest: tasks }))
   }
-  return { sql, loops, engine, wakes, armed, counts, open, answer: (a: WakeResult | "busy") => void (answer = a) }
+  const task = (id: string, updatedAt: number, extra: Partial<Task> = {}): Task => ({ id, title: `task ${id}`, status: "open", updatedAt, ...extra })
+  return { sql, engine, wakes, armed, counts, board, task, answer: (a: WakeResult | "busy") => void (answer = a) }
 }
 
-test("the daily pass wakes the chat's lead about the oldest loop that is due, and no other", async () => {
-  const { engine, wakes, open } = world()
-  open("send the tax summary", "2026-10-10")
-  const oldest = open("file the tax return", "2026-10-01", "r2")
-  open("renew the passport", "2026-12-01")
-  open("learn the cello", undefined)
+test("the pass wakes the chat's lead about its oldest open task, and no other", async () => {
+  const { board, task, engine, wakes, counts } = world()
+  board("r1", [task("t1", NOW - 2 * DAY)])
+  board("r2", [task("t2", NOW - 5 * DAY)])
+  board("r3", [task("t3", NOW - DAY)])
   const report = await engine.pass(NOW)
   expect(wakes.length).toBe(1)
   expect(wakes[0]!.room).toBe("r2")
   expect(wakes[0]!.input.to).toBeNull()
-  expect(wakes[0]!.input.body).toContain(`L${oldest}`)
+  expect(wakes[0]!.input.body).toContain("t2")
   expect(report.woke.map((w) => w.result)).toEqual(["delivered"])
+  expect(counts.initiative_woke).toBe(1)
 })
 
-test("a loop with no chat goes to the Kiko chat, and one in a private or deleted chat is skipped", async () => {
-  const { engine, wakes, open } = world()
-  open("call the bank", "2026-10-01", "r9")
-  open("book the dentist", "2026-10-05", "")
+test("a chat that is private or gone is skipped", async () => {
+  const { board, task, engine, wakes } = world({ hidden: ["r1"] })
+  board("r1", [task("t1", NOW - 5 * DAY)])
+  board("r2", [task("t2", NOW - DAY)])
   await engine.pass(NOW)
-  expect(wakes.map((w) => w.room)).toEqual(["kiko"])
+  expect(wakes.map((w) => w.room)).toEqual(["r2"])
 })
 
 test("a wake that is busy, gone or refused is tried again in an hour, not a day", async () => {
   for (const result of ["busy", "gone", "refused"] as const) {
-    const { engine, wakes, armed, answer, open } = world()
-    open("file the tax return", "2026-10-01")
+    const { board, task, engine, wakes, armed, answer } = world()
+    board("r1", [task("t1", NOW - DAY)])
     answer(result)
     const first = await engine.pass(NOW)
     expect(first.retryAt).toBe(NOW + HOUR)
@@ -81,15 +79,24 @@ test("a wake that is busy, gone or refused is tried again in an hour, not a day"
   }
 })
 
-test("a loop nudged in the last three days waits, and the next oldest goes first", async () => {
-  const { engine, wakes, open } = world()
-  const a = open("file the tax return", "2026-10-01")
-  const b = open("send the tax summary", "2026-10-05")
+test("a task raised in the last three days waits, and the next oldest goes first", async () => {
+  const { board, task, engine, wakes } = world()
+  board("r1", [task("t1", NOW - 5 * DAY), task("t2", NOW - 4 * DAY)])
   await engine.pass(NOW)
+  // The board reports its oldest row, so the next one gets its turn once t1 is inside the window.
+  board("r1", [task("t2", NOW - 4 * DAY)])
   await engine.pass(NOW + DAY)
+  expect(wakes.map((w) => w.input.body.match(/t\d/)?.[0])).toEqual(["t1", "t2"])
+})
+
+test("the same task is raised again once the three days pass", async () => {
+  const { board, task, engine, wakes } = world()
+  board("r1", [task("t1", NOW - 5 * DAY)])
+  await engine.pass(NOW)
   await engine.pass(NOW + 2 * DAY)
+  expect(wakes.length).toBe(1)
   await engine.pass(NOW + 3 * DAY + HOUR)
-  expect(wakes.map((w) => w.input.body.match(/L(\d+)/)?.[1])).toEqual([String(a), String(b), String(a)])
+  expect(wakes.length).toBe(2)
 })
 
 test("the daily pass runs at nine in the owner's time zone", async () => {
@@ -100,63 +107,37 @@ test("the daily pass runs at nine in the owner's time zone", async () => {
 
 test("levels off and chat never wake a chat and arm no pass", async () => {
   for (const level of ["off", "chat"] as const) {
-    const { engine, wakes, armed, open } = world({ level })
-    open("file the tax return", "2026-10-01")
+    const { board, task, engine, wakes, armed } = world({ level })
+    board("r1", [task("t1", NOW - DAY)])
     await engine.pass(NOW)
     expect(wakes.length).toBe(0)
     expect(armed.at(-1)).toBeNull()
   }
 })
 
-test("a promise is raised with the agent that made it, and that agent speaking keeps it", async () => {
-  const { loops, engine, wakes, open } = world()
-  const promise = open("send the passport checklist", "2026-10-10", "r1", { owner: "ada", kind: "commitment" })
+test("a task with an owner is raised with that agent", async () => {
+  const { board, task, engine, wakes } = world()
+  board("r1", [task("t1", NOW - DAY, { owner: "ada" })])
   await engine.pass(NOW)
   expect(wakes[0]!.input.to).toBe("ada")
-  const result = (occurrence: string, outcome: "ok" | "quiet") => ({ roomId: "r1", openedAt: 1, more: 0, signals: [{ kind: "routine_result" as const, roomId: "r1", at: NOW, routineId: INITIATIVE_RUN, occurrence, outcome, seq: null }] })
-  engine.results(result(wakes[0]!.input.id, "quiet"))
-  expect(loops.get(promise)!.status).toBe("open")
-  engine.results(result(wakes[0]!.input.id, "ok"))
-  expect(loops.get(promise)!.status).toBe("done")
+  expect(wakes[0]!.input.body).toContain("update_task")
 })
 
-test("a nudge to the lead about the human's own loop leaves that loop open", async () => {
-  const { loops, engine, wakes, open } = world()
-  const plan = open("file the tax return", "2026-10-01")
+test("active raises more per pass than digest", async () => {
+  for (const [level, want] of [["digest", 1], ["active", 3]] as const) {
+    const { board, task, engine, wakes } = world({ level })
+    for (const room of ["r1", "r2", "r3", "r4"]) board(room, [task(`${room}t`, NOW - DAY)])
+    await engine.pass(NOW)
+    expect(wakes.length).toBe(want)
+  }
+})
+
+test("a wake id names the task and the day, so a later pass the same day adds nothing", async () => {
+  const { board, task, engine, wakes } = world()
+  board("r1", [task("t1", NOW - DAY)])
   await engine.pass(NOW)
-  engine.results({ roomId: "r1", openedAt: 1, more: 0, signals: [{ kind: "routine_result", roomId: "r1", at: NOW, routineId: INITIATIVE_RUN, occurrence: wakes[0]!.input.id, outcome: "ok", seq: 3 }] })
-  expect(loops.get(plan)!.status).toBe("open")
-})
-
-test("a plan with no date that nobody mentioned for a month closes in the pass", async () => {
-  const { loops, engine, wakes, counts, open } = world()
-  const stale = open("learn the cello", undefined, "r1", { at: NOW - 40 * DAY })
-  const dated = open("file the tax return", "2026-10-20", "r1", { at: NOW - 40 * DAY })
-  const report = await engine.pass(NOW)
-  expect(report.expired).toBe(1)
-  expect(counts.loops_closed).toBe(1)
-  expect(loops.get(stale)!.status).toBe("dropped")
-  expect(loops.get(dated)!.status).toBe("open")
-  expect(wakes.length).toBe(0)
-})
-
-test("a promise whose reminder just fired is not nudged until that run reports, and a run that posted keeps it", async () => {
-  const { sql, loops, engine, wakes } = world()
-  const opened = loops.open({ kind: "commitment", owner: "ada", source: "tool", text: "bring the passport checklist", room: "r1", due: new Date(NOW - HOUR).toISOString() })
-  if (!opened.ok) throw new Error("open failed")
-  engine.link("rem1", opened.id)
-  sql.exec("INSERT INTO reminders (id, text, due_utc, tz, room_id, target, created_by, status, last_fired, created_at) VALUES ('rem1', 'taxes', 0, 'UTC', 'r1', 'kiko', 'human', 'done', ?, 0)", NOW)
-  await engine.pass(NOW + 1_000)
-  expect(wakes.length).toBe(0)
-  const result = (occurrence: string, outcome: "ok" | "quiet") => ({ roomId: "r1", openedAt: 1, more: 0, signals: [{ kind: "routine_result" as const, roomId: "r1", at: NOW, routineId: REMINDER_RUN, occurrence, outcome, seq: null }] })
-  engine.results(result("rem1", "quiet"))
-  expect(loops.get(opened.id)!.status).toBe("open")
-  await engine.pass(NOW + 2_000)
+  await engine.pass(NOW + HOUR)
   expect(wakes.length).toBe(1)
-
-  const kept = loops.open({ kind: "commitment", owner: "ada", source: "tool", text: "send the dentist list", room: "r1" })
-  if (!kept.ok) throw new Error("open failed")
-  engine.link("rem2", kept.id)
-  engine.results(result("rem2", "ok"))
-  expect(loops.get(kept.id)!.status).toBe("done")
+  expect(wakes[0]!.input.id.startsWith("task:r1:t1#")).toBe(true)
+  expect(wakes[0]!.input.reason).toContain("Not touched since")
 })

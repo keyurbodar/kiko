@@ -88,7 +88,7 @@ async function follow(
   }
 }
 
-export type SafeRequest = {
+type SafeRequest = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
   headers: Record<string, string>
   body?: string

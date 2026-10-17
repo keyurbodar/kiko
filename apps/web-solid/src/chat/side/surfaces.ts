@@ -6,13 +6,12 @@ import { rememberFile } from "../../files/recent"
  * sidecar and the card load on first open. Every action is a local state change, so a tab
  * answers at once and never waits on the network.
  */
-export type FixedKind = "files" | "memory" | "plate" | "routines" | "tasks"
+export type FixedKind = "files" | "memory" | "routines" | "tasks"
 
 export type Surface =
   | { id: "files"; kind: "files" }
   | { id: `file:${string}`; kind: "file"; path: string }
   | { id: "memory"; kind: "memory" }
-  | { id: "plate"; kind: "plate" }
   | { id: "routines"; kind: "routines" }
   | { id: "tasks"; kind: "tasks" } // group chats only
   | { id: `agent:${string}`; kind: "agent"; slug: string }
@@ -28,7 +27,6 @@ const EMPTY: SidecarState = { open: false, active: null, surfaces: [] }
 const FIXED: { [K in FixedKind]: Extract<Surface, { kind: K }> } = {
   files: { id: "files", kind: "files" },
   memory: { id: "memory", kind: "memory" },
-  plate: { id: "plate", kind: "plate" },
   routines: { id: "routines", kind: "routines" },
   tasks: { id: "tasks", kind: "tasks" },
 }
@@ -56,7 +54,7 @@ function parseSurface(value: unknown): Surface | null {
   const s = value as { kind?: unknown; path?: unknown; slug?: unknown }
   if (s.kind === "file") return typeof s.path === "string" ? fileSurface(s.path) : null
   if (s.kind === "agent") return typeof s.slug === "string" ? agentSurface(s.slug) : null
-  if (s.kind === "files" || s.kind === "memory" || s.kind === "plate" || s.kind === "routines" || s.kind === "tasks") return fixedSurface(s.kind)
+  if (s.kind === "files" || s.kind === "memory" || s.kind === "routines" || s.kind === "tasks") return fixedSurface(s.kind)
   return null
 }
 
@@ -222,7 +220,6 @@ export type LauncherItem = { kind: FixedKind; label: string; key: string; group?
 export const LAUNCHER: readonly LauncherItem[] = [
   { kind: "files", label: "Files", key: "F" },
   { kind: "memory", label: "Memory", key: "M" },
-  { kind: "plate", label: "On your plate", key: "P" },
   { kind: "routines", label: "Routines", key: "R" },
   { kind: "tasks", label: "Tasks", key: "T", group: true },
 ]

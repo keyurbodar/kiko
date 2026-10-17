@@ -1,12 +1,11 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Bot, Brain, CircleCheck, FileText, FolderOpen, ListChecks, Plus, Repeat, X, type LucideProps } from "lucide-solid"
+import { Bot, Brain, FileText, FolderOpen, ListChecks, Plus, Repeat, X, type LucideProps } from "lucide-solid"
 import { type Component, createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { FileSurface, FilesTree } from "../../files/pane"
 import { useApp } from "../../lib/store"
 import { roomMembers } from "../info/sections"
-import { loadLoops, PlatePage, refreshLoops } from "../info/loops"
 import { MemoryError, MemoryList, useMemoryStore } from "../info/memory/views"
 import { loadRoutines, refreshRoutines, RoutinesPage } from "../info/routines"
 import { TasksView } from "../info/tasks"
@@ -35,7 +34,6 @@ const ICON: Record<Surface["kind"], Icon> = {
   files: FolderOpen,
   file: FileText,
   memory: Brain,
-  plate: CircleCheck,
   routines: Repeat,
   tasks: ListChecks,
   agent: Bot,
@@ -215,9 +213,6 @@ function SurfaceBody(props: { chatId: string; surface: Surface }) {
         <Match when={props.surface.kind === "memory"}>
           <MemoryBody />
         </Match>
-        <Match when={props.surface.kind === "plate"}>
-          <PlatePage chatId={props.chatId} />
-        </Match>
         <Match when={props.surface.kind === "routines"}>
           <RoutinesPage chatId={props.chatId} />
         </Match>
@@ -293,11 +288,9 @@ export default function Sidecar(props: { chatId: string }) {
   }
 
   createEffect(on(() => [props.chatId, kind()] as const, ([, k]) => {
-    if (k === "plate") void loadLoops()
     if (k === "routines") void loadRoutines()
   }))
   createEffect(on(() => [useApp.room()?.state.seq, useApp.room()?.state.status], () => {
-    refreshLoops()
     if (kind() === "routines") refreshRoutines()
   }, { defer: true }))
 

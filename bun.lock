@@ -177,23 +177,6 @@
         "typescript": "^5.9.0",
       },
     },
-    "core/extensions": {
-      "name": "@kiko/extensions",
-      "version": "0.0.1",
-      "dependencies": {
-        "@earendil-works/chord": "1.3.0",
-        "@earendil-works/pi-ai": "^1.3.0",
-        "@earendil-works/pi-durable": "^1.3.0",
-        "@kiko/agent": "workspace:*",
-        "@kiko/protocol": "workspace:*",
-        "@kiko/sandbox": "workspace:*",
-        "quickjs-wasi": "3.6.2",
-      },
-      "devDependencies": {
-        "@cloudflare/workers-types": "^4.20260101.0",
-        "typescript": "^5.9.0",
-      },
-    },
     "core/memory": {
       "name": "@kiko/memory",
       "version": "0.0.1",
@@ -664,8 +647,6 @@
     "@kiko/cli": ["@kiko/cli@workspace:apps/cli"],
 
     "@kiko/durable": ["@kiko/durable@workspace:core/durable"],
-
-    "@kiko/extensions": ["@kiko/extensions@workspace:core/extensions"],
 
     "@kiko/installer": ["@kiko/installer@workspace:apps/installer"],
 

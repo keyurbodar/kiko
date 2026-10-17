@@ -29,8 +29,8 @@ const CAPTURE_QUEUE_MAX = 200
 const CAPTURE_PER_ALARM = 24
 // Rows per judge request. A request grows with rows times candidates times known facts, and a long one times out.
 const CAPTURE_CHUNK = 4
-export const CAPTURE_TEXT_MAX = 8_000
-export const CAPTURE_TIMEOUT_MS = 8_000
+const CAPTURE_TEXT_MAX = 8_000
+const CAPTURE_TIMEOUT_MS = 8_000
 
 export type MemoryDeps = {
   sql: SqlStorage

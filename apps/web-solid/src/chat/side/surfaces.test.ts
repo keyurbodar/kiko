@@ -37,7 +37,6 @@ Object.defineProperty(globalThis, "localStorage", {
 const KEY = "kiko:sidecar:v1"
 const ids = (chat: string) => sidecarSurfaces(chat).map((s) => s.id)
 const memory = fixedSurface("memory")
-const plate = fixedSurface("plate")
 const routines = fixedSurface("routines")
 const files = fixedSurface("files")
 
@@ -79,11 +78,11 @@ describe("closing and activating", () => {
     const chat = "chat-close"
     openSurface(chat, fixedSurface("files"))
     openSurface(chat, memory)
-    openSurface(chat, plate)
+    openSurface(chat, routines)
     activateSurface(chat, "memory")
     closeSurface(chat, "memory")
-    expect([ids(chat), activeSurface(chat)?.id]).toEqual([["files", "plate"], "plate"])
-    closeSurface(chat, "plate")
+    expect([ids(chat), activeSurface(chat)?.id]).toEqual([["files", "routines"], "routines"])
+    closeSurface(chat, "routines")
     expect([ids(chat), activeSurface(chat)?.id]).toEqual([["files"], "files"])
     closeSurface(chat, "files")
     expect([ids(chat), activeSurface(chat)]).toEqual([[], null])
@@ -92,16 +91,16 @@ describe("closing and activating", () => {
   test("closing a tab that is not active keeps the active one", () => {
     const chat = "chat-keep-active"
     openSurface(chat, memory)
-    openSurface(chat, plate)
+    openSurface(chat, routines)
     closeSurface(chat, "memory")
-    expect([ids(chat), activeSurface(chat)?.id]).toEqual([["plate"], "plate"])
+    expect([ids(chat), activeSurface(chat)?.id]).toEqual([["routines"], "routines"])
   })
 
   test("closing the last tab on the right activates the left neighbor", () => {
     const chat = "chat-last"
     openSurface(chat, memory)
-    openSurface(chat, plate)
-    closeSurface(chat, "plate")
+    openSurface(chat, routines)
+    closeSurface(chat, "routines")
     expect(activeSurface(chat)?.id).toBe("memory")
   })
 
@@ -115,7 +114,7 @@ describe("closing and activating", () => {
   test("closeAll keeps the sidecar open with no tab active", () => {
     const chat = "chat-closeall"
     openSurface(chat, memory)
-    openSurface(chat, plate)
+    openSurface(chat, routines)
     closeAll(chat)
     expect([sidecarOpen(chat), ids(chat), activeSurface(chat)]).toEqual([true, [], null])
   })
@@ -132,26 +131,26 @@ describe("closing and activating", () => {
   test("closeOthers keeps one tab and activates it", () => {
     const chat = "chat-others"
     openSurface(chat, memory)
-    openSurface(chat, plate)
     openSurface(chat, routines)
-    closeOthers(chat, "plate")
-    expect([ids(chat), activeSurface(chat)?.id]).toEqual([["plate"], "plate"])
+    openSurface(chat, files)
+    closeOthers(chat, "files")
+    expect([ids(chat), activeSurface(chat)?.id]).toEqual([["files"], "files"])
   })
 
   test("closeToRight removes only the tabs after the one named", () => {
     const chat = "chat-right"
     openSurface(chat, memory)
-    openSurface(chat, plate)
     openSurface(chat, routines)
-    closeToRight(chat, "plate")
-    expect(ids(chat)).toEqual(["memory", "plate"])
+    openSurface(chat, files)
+    closeToRight(chat, "routines")
+    expect(ids(chat)).toEqual(["memory", "routines"])
   })
 
   test("closeToRight moves the active tab back when it was removed", () => {
     const chat = "chat-right-active"
     openSurface(chat, memory)
-    openSurface(chat, plate)
     openSurface(chat, routines)
+    openSurface(chat, files)
     closeToRight(chat, "memory")
     expect([ids(chat), activeSurface(chat)?.id]).toEqual([["memory"], "memory"])
   })
@@ -161,24 +160,24 @@ describe("moving tabs", () => {
   test("moveSurface reorders tabs and clamps the index", () => {
     const chat = "chat-move"
     openSurface(chat, memory)
-    openSurface(chat, plate)
     openSurface(chat, routines)
+    openSurface(chat, files)
     moveSurface(chat, "memory", 2)
-    expect(ids(chat)).toEqual(["plate", "routines", "memory"])
-    moveSurface(chat, "routines", 0)
-    expect(ids(chat)).toEqual(["routines", "plate", "memory"])
+    expect(ids(chat)).toEqual(["routines", "files", "memory"])
+    moveSurface(chat, "files", 0)
+    expect(ids(chat)).toEqual(["files", "routines", "memory"])
     moveSurface(chat, "memory", 99)
-    expect(ids(chat)).toEqual(["routines", "plate", "memory"])
-    moveSurface(chat, "routines", -4)
-    expect(ids(chat)).toEqual(["routines", "plate", "memory"])
+    expect(ids(chat)).toEqual(["files", "routines", "memory"])
+    moveSurface(chat, "files", -4)
+    expect(ids(chat)).toEqual(["files", "routines", "memory"])
   })
 
   test("moveSurface keeps the active tab", () => {
     const chat = "chat-move-active"
     openSurface(chat, memory)
-    openSurface(chat, plate)
-    moveSurface(chat, "plate", 0)
-    expect(activeSurface(chat)?.id).toBe("plate")
+    openSurface(chat, routines)
+    moveSurface(chat, "routines", 0)
+    expect(activeSurface(chat)?.id).toBe("routines")
   })
 })
 
@@ -209,7 +208,7 @@ describe("saved state", () => {
       "chat-bad": {
         open: true,
         active: "file:gone.md",
-        surfaces: [{ kind: "memory" }, { kind: "file" }, { kind: "bogus" }, "memory", { kind: "plate" }],
+        surfaces: [{ kind: "memory" }, { kind: "file" }, { kind: "bogus" }, "memory", { kind: "routines" }],
       },
       "chat-not-object": "tabs",
     }
@@ -217,7 +216,7 @@ describe("saved state", () => {
     const fresh = await reload()
     expect([fresh.sidecarOpen("chat-bad"), fresh.sidecarSurfaces("chat-bad").map((s) => s.id), fresh.activeSurface("chat-bad")]).toEqual([
       true,
-      ["memory", "plate"],
+      ["memory", "routines"],
       null,
     ])
     expect(fresh.sidecarOpen("chat-not-object")).toBe(false)
@@ -233,15 +232,14 @@ describe("saved state", () => {
 
 describe("launcher", () => {
   test("Tasks shows only in a group chat", () => {
-    expect(launcherEntries(false).map((e) => e.key)).toEqual(["F", "M", "P", "R"])
-    expect(launcherEntries(true).map((e) => e.key)).toEqual(["F", "M", "P", "R", "T"])
+    expect(launcherEntries(false).map((e) => e.key)).toEqual(["F", "M", "R"])
+    expect(launcherEntries(true).map((e) => e.key)).toEqual(["F", "M", "R", "T"])
   })
 
   test("the launcher rows, in order, with their letter keys", () => {
     expect(launcherEntries(true).map((e) => [e.label, e.key])).toEqual([
       ["Files", "F"],
       ["Memory", "M"],
-      ["On your plate", "P"],
       ["Routines", "R"],
       ["Tasks", "T"],
     ])

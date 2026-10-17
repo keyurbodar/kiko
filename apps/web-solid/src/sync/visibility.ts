@@ -4,7 +4,7 @@
 // The user socket stays, because the server hibernates it and it is silent.
 // On return the room reconnects with `hello {lastSeq}` and resyncs.
 // `background()` is true while hidden, so typing pings, preloading, animation
-// loops, and idle IndexedDB work can stop on it.
+// work, and idle IndexedDB work can stop on it.
 
 import { createPageVisibility } from "@solid-primitives/page-visibility"
 import { type Accessor, createEffect, createRoot, onCleanup } from "solid-js"

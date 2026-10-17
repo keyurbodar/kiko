@@ -1,8 +1,6 @@
 import { type FileRef, KIKO, type LifeLine, type Member } from "@kiko/protocol"
 import type { BotPresence } from "../../lib/types"
 import { typingLine } from "../../sidebar/activity"
-import type { PlateLoop } from "../info/loops"
-import type { Routine } from "../info/routines"
 
 /*
  * The chat card's rules, as pure functions: which rows appear, what each chip says, which files and
@@ -62,14 +60,6 @@ export function agentRows(members: readonly Member[], presence: (slug: string) =
     chip: statusChip(presence(m.slug)),
     removable: isGroup(members) && m.slug !== KIKO,
   }))
-}
-
-/** Active routines first, then paused ones, each in the order the list gives. Open plate items keep their order. */
-export function comingUp(routines: readonly Routine[], loops: readonly PlateLoop[]): { routines: Routine[]; loops: PlateLoop[] } {
-  return {
-    routines: [...routines.filter((r) => r.status === "active"), ...routines.filter((r) => r.status === "paused")],
-    loops: [...loops],
-  }
 }
 
 /**

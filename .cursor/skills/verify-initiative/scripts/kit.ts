@@ -84,7 +84,7 @@ export async function usage(ctx: Ctx, room: Chat, slug?: string): Promise<{ agen
 /** Background tokens: memory counters whose names say model or jev input/output. */
 export const background = (m: Record<string, number>) => Object.entries(m).filter(([k]) => /(^|_)(input|output)$/.test(k)).reduce((a, [, n]) => a + n, 0)
 
-/** Ages open tasks by `ms` and runs the stall sweep (nudges). Does NOT age memory, loops, or routines. */
+/** Ages the chat's open tasks by `ms` and reports the board. Does NOT age memory or routines. */
 export const age = (ctx: Ctx, room: Chat, ms: number) => dev(URL_, ctx.s, "age", { roomId: room.id, ms })
 /** Says the human was last seen `ago` ms back (holds unasked runs after a week). */
 export const seen = (ctx: Ctx, ago: number) => dev(URL_, ctx.s, "seen", { ago })

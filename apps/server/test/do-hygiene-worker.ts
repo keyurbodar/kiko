@@ -12,7 +12,6 @@ export class UserStub extends DurableObject {
 	async chatTasks(): Promise<void> {}
 	async chatTyping(): Promise<void> {}
 	async forgetMessages(): Promise<void> {}
-	async loopsAnswer(): Promise<void> {}
 	async captureHuman(): Promise<void> {}
 	async getChat(): Promise<null> {
 		return null

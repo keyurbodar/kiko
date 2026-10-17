@@ -2,7 +2,6 @@ import { ALARM_STEPS } from "@kiko/durable/alarm"
 import { addColumn, type Step } from "@kiko/durable/migrate"
 import { fileIndexSteps, HOME_TABLES } from "../files/file-index"
 import { LIFE_STEPS, LIFE_TRI_STEPS } from "@kiko/memory/life"
-import { LOOPS_STEPS } from "@kiko/memory/loops"
 
 // The user's tables, in one list. An object at version N runs only the steps after the first N. A step is
 // appended, never edited or moved, and every step must be safe on a table that already exists. An object
@@ -172,10 +171,33 @@ export const USER_STEPS: Step[] = [
     dead INTEGER NOT NULL DEFAULT 0
   )`,
   ...LIFE_STEPS,
-  ...LOOPS_STEPS,
+  // The open loops' table. Nothing reads it now that loops are gone; it stays so the steps after it
+  // keep their positions on an object that already ran them.
+  `CREATE TABLE IF NOT EXISTS loops (
+    id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    certainty TEXT NOT NULL,
+    owner TEXT NOT NULL,
+    room TEXT NOT NULL DEFAULT '',
+    ref TEXT NOT NULL DEFAULT '',
+    due TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    text TEXT NOT NULL,
+    norm TEXT NOT NULL,
+    source TEXT NOT NULL,
+    opened_at INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    mentions INTEGER NOT NULL DEFAULT 1,
+    closed_at INTEGER,
+    snoozed_until INTEGER
+  )`,
+  "CREATE INDEX IF NOT EXISTS loops_live ON loops (status, owner)",
+  "CREATE INDEX IF NOT EXISTS loops_ref ON loops (ref)",
+  "CREATE VIRTUAL TABLE IF NOT EXISTS loops_fts USING fts5(text)",
   ...fileIndexSteps(HOME_TABLES),
   ...ALARM_STEPS,
-  // How many Jev passes a heard burst has failed (initiative-loops.ts). Past the last try, the two-word touch decides it.
+  // Both `loop_heard` and its attempts column belonged to the Jev pass, which is gone. The step stays so the
+  // steps after it keep their positions on an object that already ran them.
   addColumn("loop_heard", "attempts", "INTEGER NOT NULL DEFAULT 0"),
   // Lookups that read every row of a table that only grows: the pinned lines and the tagged cards of the life log
   // (read on every agent turn), the reminders by how recently they fired, and the day's charged bursts.

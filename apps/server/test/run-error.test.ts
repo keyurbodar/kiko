@@ -34,7 +34,7 @@ describe("classifyRunError", () => {
 })
 
 describe("describeRunError", () => {
-  const KINDS: RunErrorKind[] = ["no_key", "no_model", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "too_slow", "not_started", "cut_off", "refused", "too_long", "other"]
+  const KINDS: RunErrorKind[] = ["no_key", "no_model", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "cut_off", "refused", "too_long", "other"]
 
   test("every failure has one plain sentence that names the provider and holds nothing the provider said", () => {
     for (const kind of KINDS) {

@@ -1,9 +1,0 @@
-{
-  "kiko": 1,
-  "name": "house-style",
-  "version": "1.0.0",
-  "description": "a house style for everything your agents write for you: plain words, no jargon, no hype. edit it to make it yours.",
-  "sections": {
-    "house-style": { "text": "when you write something the human will send or publish (a post, an email, a doc), use the house style: short sentences, plain words, active voice, no jargon, no hype words (unlock, leverage, seamless, delve), numbers as digits, and one idea per paragraph." }
-  }
-}

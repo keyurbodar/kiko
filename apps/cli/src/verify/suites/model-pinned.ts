@@ -86,10 +86,6 @@ const suite: Suite = {
     )
     console.log(`  an unpicked Kiko said ${JSON.stringify(asked.t === "message" ? { text: asked.text, actions: (asked.event as { actions?: unknown }).actions } : asked)}`)
     if (seen(unpicked).live.some((m) => m.from.kind === "agent" && !m.event)) throw new VerifyError("an agent with no model answered anyway")
-    // Past the start check's window: an agent that answered or reported an error must not also be called "did not start".
-    await Bun.sleep(65_000)
-    const notStarted = [room, goneRoom, unpicked].flatMap((r) => frames(r).flatMap((f) => (f.t === "events" ? f.events : []))).filter((e) => e.t === "message" && (e.event as { reason?: string } | undefined)?.reason === "not_started")
-    expectEqual(notStarted.length, 0, "not-started rows for agents that did start")
     if (seen(goneRoom).live.some((m) => m.from.kind === "agent" && !(m.event as { kind?: string } | undefined)?.kind)) throw new VerifyError("an agent on an unlisted model answered on some other model")
   },
 }

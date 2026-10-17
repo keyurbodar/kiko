@@ -3,7 +3,7 @@ import type { Harness } from "@earendil-works/pi-durable"
 import type { Opened } from "@kiko/agent/host"
 import type { Work } from "@kiko/agent/workers"
 import type { AgentHome } from "../room/room-do"
-import { DEV_FAKE_KEY, DEV_INITIATIVE_KEY } from "./agent-do"
+import { DEV_FAKE_KEY } from "./agent-do"
 
 // The bodies never reach a production bundle: dev-guard loads this module only in a dev build.
 
@@ -18,10 +18,6 @@ export interface AgentDevHost {
   usageOf(harness: Harness): Promise<Usage>
   carried(): Promise<Usage>
   workers(): Work[]
-}
-
-export async function devInitiative(host: AgentDevHost): Promise<string | null> {
-  return (await host.storage.get<string>(DEV_INITIATIVE_KEY)) ?? null
 }
 
 export async function devUsage(host: AgentDevHost): Promise<Usage> {

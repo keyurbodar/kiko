@@ -42,13 +42,6 @@ export class UserDO extends DurableObject {
 		return (await this.ctx.storage.get<string[][]>("typing")) ?? []
 	}
 	async captureHuman(): Promise<void> {}
-	async loopsAnswer(_roomId: string, slug: string, items: unknown[]): Promise<void> {
-		const kept = (await this.ctx.storage.get<unknown[]>("answers")) ?? []
-		await this.ctx.storage.put("answers", [...kept, { slug, items }])
-	}
-	async answerCalls(): Promise<unknown[]> {
-		return (await this.ctx.storage.get<unknown[]>("answers")) ?? []
-	}
 	async listAgents(): Promise<unknown[]> {
 		return [{ id: "a1", slug: "scout", name: "Scout", prompt: "Scout\n\nresearches topics", model: "" }]
 	}
@@ -94,7 +87,6 @@ export default {
 			return Response.json((await call!(...args)) ?? null)
 		}
 		if (kind === "touches") return Response.json(await userStub(env.USER, "alice").touchCalls())
-		if (kind === "captured") return Response.json(await userStub(env.USER, "alice").answerCalls())
 		if (kind === "errors") return Response.json(await userStub(env.USER, "alice").errorCalls())
 		if (kind === "problems") return Response.json(await userStub(env.USER, "alice").problemCalls())
 		if (kind === "typing") return Response.json(await userStub(env.USER, "alice").typingCalls())

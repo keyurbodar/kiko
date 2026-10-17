@@ -12,8 +12,7 @@ import type { Soul } from "../user/souls"
 import { fakeSetup } from "./dev-fake"
 import { imageReader } from "./extensions/files"
 import type { GroupsPort } from "./extensions/chief"
-import { initiativeBrief, shortBrief } from "../room/brief"
-import type { LoopPort } from "@kiko/memory/loop-tool"
+import { shortBrief } from "../room/brief"
 import { CHIEF } from "../room/chief"
 import { HOME } from "../files/upload"
 import { homeBackend, ObjectCache, RoomFs, roomBackend, roomViews, type SoulPort, withMount, withSoul } from "../files/room-fs"
@@ -53,8 +52,6 @@ import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
 
 // Read by the dev methods in agent/dev.ts too, so they share one key per setting.
 export const DEV_FAKE_KEY = "dev-fake"
-export const DEV_INITIATIVE_KEY = "dev:initiative"
-const INITIATIVE_WAIT_MS = 1_500
 const MEMORY_POS_KEY = "memory:pos"
 const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
@@ -359,7 +356,6 @@ export class AgentDO extends DurableObject<Env> {
         ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), decider: noModel, acceptsImages: () => false } } : {}),
         routines: { port: () => this.routinesPort() },
         groups: this.groupsPort(),
-        loops: () => this.loopPort(),
         work: this.host.workers,
         presence: this.stepsPort(), runId: () => this.outbox.runId(),
       })
@@ -393,14 +389,13 @@ export class AgentDO extends DurableObject<Env> {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), decider: () => this.browserDecider(user.models, egress), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, loops: () => this.loopPort(), messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
+    const built = buildAgent({ ...(browser ? { browser } : {}), ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => userStub(this.env.USER, home.userId).composioCall(name, args) } } : {}), workspace: roomWorkspacePort(this.env, () => this.home()), work: this.host.workers, ...(DEV ? {} : { egress: (url: string, init: RequestInit) => egress(url, init) }) })
     return {
       ...built,
       ...user,
       env: views,
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
-        this.prefetchInitiative(batch)
         return this.beginRun(batch.requestId, root)
       },
       inputContext: async () => {
@@ -410,8 +405,7 @@ export class AgentDO extends DurableObject<Env> {
         const integrations = integrationNote(composio, browserOn)
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
-        const initiative = await this.takeInitiative()
-        return [clock, integrations, down, learned, quiet, initiative].filter(Boolean).join("\n\n")
+        return [clock, integrations, down, learned, quiet].filter(Boolean).join("\n\n")
       },
       ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
@@ -461,41 +455,6 @@ export class AgentDO extends DurableObject<Env> {
       return roomStub(this.env.ROOM, home.userId, home.roomId).memorySince(home.slug, seen, seqs)
     })().catch(() => null)
     this.#delta = { requestId: batch.requestId, since }
-  }
-
-  #initiative?: Promise<{ text: string; noticedIds: number[] } | null>
-
-  private prefetchInitiative(batch: Batch): void {
-    this.#initiative = undefined
-    const home = this.home()
-    const human = batch.envelopes.filter((e) => e.from.kind === "human")
-    if (!home || home.private || !human.length) return
-    const ask = userStub(this.env.USER, home.userId)
-      .initiativeBrief(home.roomId, home.slug, { text: human.map((e) => e.body).join("\n").slice(0, 4_000) })
-      .then((view) => ({ text: initiativeBrief(view), noticedIds: view.noticedIds }))
-      .catch(() => null)
-    this.#initiative = Promise.race([ask, scheduler.wait(INITIATIVE_WAIT_MS).then(() => null)])
-  }
-
-  private async takeInitiative(): Promise<string> {
-    const pending = this.#initiative
-    this.#initiative = undefined
-    const brief = pending ? await pending : null
-    const text = brief?.text ?? ""
-    const home = this.home()
-    if (home && text && brief?.noticedIds.length) this.ctx.waitUntil(userStub(this.env.USER, home.userId).briefShown(brief.noticedIds).catch(() => {}))
-    if (DEV && pending) await this.ctx.storage.put(DEV_INITIATIVE_KEY, text)
-    return text
-  }
-
-  private loopPort(): LoopPort | null {
-    const home = this.home()
-    if (!home) return null
-    return { close: (id, status) => userStub(this.env.USER, home.userId).loopClose(id, status, home.roomId) }
-  }
-
-  async devInitiative(): Promise<string | null> {
-    return (await this.dev()).devInitiative(this.agentDevHost())
   }
 
   private async beforeCompact(harness: Harness): Promise<void> {

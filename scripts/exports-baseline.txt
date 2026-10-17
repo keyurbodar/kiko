@@ -129,8 +129,6 @@ core/memory/src/capture.ts:CaptureMode
 core/memory/src/life.ts:AppendOptions
 core/memory/src/life.ts:CARD_TAGS
 core/memory/src/life.ts:NoteResult
-core/memory/src/loops.ts:LoopSource
-core/memory/src/loops.ts:NewLoop
 core/memory/src/optmem.ts:ZoomLog
 core/memory/src/optmem.ts:nodeLine
 core/memory/src/tools.ts:MEMORY
@@ -141,7 +139,5 @@ core/protocol/src/attachments.ts:MAX_TOTAL_IMAGE_BYTES
 core/protocol/src/attachments.ts:attachmentLimit
 core/protocol/src/ids.ts:ULID_PATTERN
 core/protocol/src/ids.ts:UUID_V7_PATTERN
-core/protocol/src/loops.ts:CAPTURE_MODES
-core/protocol/src/loops.ts:LoopList
 core/protocol/src/schema.ts:InSync
 core/protocol/src/search.ts:SnippetPart

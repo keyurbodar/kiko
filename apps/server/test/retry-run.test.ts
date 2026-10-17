@@ -44,7 +44,6 @@ function setup() {
 		chat: async () => ({ title: "t" }) as never,
 		seedMembers: async () => {},
 		drainMail: async () => {},
-		startCheck: { arm: async () => {} } as never,
 	})
 	return { flush, log, received }
 }

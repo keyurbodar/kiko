@@ -33,7 +33,6 @@ function setup(refuse?: string) {
     label: "test",
     credentials: () => ({}) as never,
     turn: async () => ({}) as never,
-    loops: () => ({}) as never,
   })
   mem.judgeKey = () => ({}) as never
   mem.judge = () => judge

@@ -9,8 +9,6 @@ const KINDS: readonly (readonly [RunErrorKind, RegExp])[] = [
   ["invalid_key", /\b(401|403)\b|invalid[ _-]?(x-)?api[ _-]?key|incorrect api key|authentication|unauthori[sz]ed|permission[ _]denied|invalid[ _]token|no api key/i],
   ["rate_limit", /\b429\b|rate[ _-]?limit|too many requests|resource[ _]exhausted/i],
   ["refused", /content[ _-]?(filter|policy)|safety|refus|violat|blocked|moderation/i],
-  // Kiko's own cap on one request (`TooSlowError` in stall.ts). Before timeout, whose words it shares.
-  ["too_slow", /still answering after/i],
   ["timeout", /timed? ?out|timeout|deadline exceeded|\b504\b|stalled|stopped responding/i],
   // pi-ai's words when the provider closes the stream before its last chunk (api/openai-completions.js).
   ["cut_off", /stream ended without finish_reason|terminated|premature close|unexpected end of (stream|json input)/i],
@@ -37,7 +35,7 @@ const HTML = /<!doctype html|<html[\s>]/i
  * styles are not words, and their keywords ("blocked", "safety") would pick the wrong kind. Keeps the text before
  * the page (often the status code), the page's title, and its first heading.
  */
-export function providerWords(message: string | undefined): string {
+function providerWords(message: string | undefined): string {
   const text = message ?? ""
   const start = text.search(HTML)
   if (start < 0) return text
@@ -78,8 +76,6 @@ const REPLIES: Record<RunErrorKind, Reply> = {
   network: { message: (p) => `Kiko could not reach ${p}. Check the connection, then retry.`, actions: ["retry", "change_model"] },
   overloaded: { message: (p) => `${p} is overloaded right now. Retry in a moment.`, actions: ["retry", "change_model"] },
   timeout: { message: (p) => `${p} stopped sending the answer and the request timed out. Retry, or pick a faster model.`, actions: ["retry", "change_model"] },
-  too_slow: { message: (p, n) => `${p} was still answering after 5 minutes, so Kiko stopped ${n}'s request. Retry, lower the reasoning level, or pick a faster model.`, actions: ["retry", "change_model"] },
-  not_started: { message: (_p, n) => `${n} did not start on your message within a minute. Retry.`, actions: ["retry", "change_model"] },
   cut_off: { message: (p, n) => `${p} closed the connection before ${n}'s answer was finished. The cut came from ${p}, not from Kiko. Long answers at a high reasoning level hit it most. Retry, lower the reasoning level, or pick another model.`, actions: ["retry", "change_model"] },
   refused: { message: (_p, n) => `The model refused that request. ${n} could not answer it.`, actions: ["retry", "change_model"] },
   too_long: { message: () => "This chat is too long for the model. Pick a model with a larger context, or start a new chat.", actions: ["change_model"] },

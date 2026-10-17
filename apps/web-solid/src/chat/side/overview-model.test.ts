@@ -1,16 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import { type FileRef, KIKO, type LifeLine, type Member } from "@kiko/protocol"
 import type { BotPresence } from "../../lib/types"
-import type { PlateLoop } from "../info/loops"
 import type { Routine } from "../info/routines"
-import { agentRows, comingUp, fileList, liveLine, memoryPick, since, statusChip, workingLine } from "./overview-model"
+import { agentRows, fileList, liveLine, memoryPick, since, statusChip, workingLine } from "./overview-model"
 
 const MIN = 60_000
 const HOUR = 60 * MIN
 
 const member = (slug: string, lead = false): Member => ({ slug, name: slug, lead }) as Member
 const routine = (id: string, status: "active" | "paused"): Routine => ({ id, name: id, roomId: "r", status, trigger: { on: "time", at: "" } as never, tz: "UTC" })
-const loop = (id: number): PlateLoop => ({ id, room: "r", text: `loop ${id}`, due: null, snoozedUntil: null })
 const file = (name: string): FileRef => ({ id: name, name, size: 1, type: "text/plain" })
 const line = (pos: number, at: number, extra: Partial<LifeLine> = {}): LifeLine => ({ pos, at, text: `line ${pos}`, source: "you", pinned: false, redacted: false, ...extra })
 
@@ -92,19 +90,6 @@ describe("agentRows", () => {
       [true, "Idle"],
       [false, "Working"],
     ])
-  })
-})
-
-describe("comingUp", () => {
-  test("active routines come before paused ones, and each keeps its order", () => {
-    const out = comingUp([routine("p1", "paused"), routine("a1", "active"), routine("p2", "paused"), routine("a2", "active")], [])
-    expect(out.routines.map((r) => r.id)).toEqual(["a1", "a2", "p1", "p2"])
-  })
-  test("plate items keep the order they came in", () => {
-    expect(comingUp([], [loop(3), loop(1)]).loops.map((l) => l.id)).toEqual([3, 1])
-  })
-  test("nothing in, nothing out", () => {
-    expect(comingUp([], [])).toEqual({ routines: [], loops: [] })
   })
 })
 

@@ -1,11 +1,10 @@
 import { type Agent, fileName, KIKO } from "@kiko/protocol"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import { Brain, Plus, ChevronRight, CircleCheck, FolderOpen, ListChecks, Repeat, Sparkles, type LucideProps } from "lucide-solid"
+import { Brain, Plus, ChevronRight, FolderOpen, ListChecks, Repeat, Sparkles, type LucideProps } from "lucide-solid"
 import { useNavigate } from "@solidjs/router"
 import { type Component, createEffect, For, onCleanup, onMount, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
-import { loadLoops, loopsOf } from "../info/loops"
 import { useMemoryStore } from "../info/memory/views"
 import { loadRoutines, routinesOf } from "../info/routines"
 import { triggerLabel } from "../info/routines-model"
@@ -39,7 +38,6 @@ export default function ChatCard(props: { chatId: string }) {
   const memory = useMemoryStore()
   onMount(() => {
     void loadRoutines()
-    void loadLoops()
   })
   const members = () => useApp.roomMembers()
   const chat = () => useApp.chatById(props.chatId)
@@ -59,7 +57,6 @@ export default function ChatCard(props: { chatId: string }) {
   const busy = () => statusChip(chat()?.presence).tone === "working" || working() !== null
   const files = () => useApp.activeFiles()
   const routines = () => routinesOf(props.chatId) ?? []
-  const loops = () => loopsOf(props.chatId) ?? []
   const tasks = () => useApp.room()?.tasks() ?? []
   const open = () => tasks().filter((t) => t.status !== "done" && t.status !== "cancelled").length
   const next = () => routines().find((r) => r.status === "active")
@@ -152,7 +149,6 @@ export default function ChatCard(props: { chatId: string }) {
         />
         <Row icon={Brain} label="Memory" kind="memory" chatId={props.chatId} meta={memory()?.state.lines.length ? plural(memory()!.state.lines.length, "note") : "Empty"} />
         <Row icon={Repeat} label="Routines" kind="routines" chatId={props.chatId} meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"} />
-        <Row icon={CircleCheck} label="On your plate" kind="plate" chatId={props.chatId} meta={loops().length ? plural(loops().length, "item") : "Clear"} />
         <Show when={isGroup(members())}>
           <Row icon={ListChecks} label="Tasks" kind="tasks" chatId={props.chatId} meta={tasks().length ? `${open()} open` : "None"} />
         </Show>

@@ -1,3 +1,4 @@
+import { DurableObject } from "cloudflare:workers"
 import { UserDO as User } from "../src/user/user-do"
 
 // Every statement's cursor, read once when a test asks for the totals. A cursor's counts are final once it
@@ -75,17 +76,12 @@ export class UserDO extends User {
 				now - 86_400_000,
 				now - 86_400_000,
 			)
-		} else if (kind === "loops") {
+		} else if (kind === "boards") {
+			// One open task per chat, as each room reports it: the daily pass reads every board.
 			insert(
-				`INSERT INTO loops (kind, certainty, owner, room, ref, status, text, norm, source, opened_at, last_seen) SELECT 'goal', 'explicit', 'human', 'r1', 'ref' || i, 'done', 'old loop ' || i, 'old loop ' || i, 'tool', ?, ? FROM n`,
-				now,
-				now,
+				`INSERT INTO chat_tasks (room_id, tasks) SELECT '0199a000-0001-7000-8000-' || printf('%012d', i), ? FROM n`,
+				JSON.stringify({ open: 1, oldest: [{ id: "t1", title: "task", status: "todo", updatedAt: now - 86_400_000 }] }),
 			)
-		} else if (kind === "marks") {
-			insert(`INSERT INTO initiative_marks (id, surfaced, last_at) SELECT 'loop:' || i, 1, ? FROM n`, now)
-		} else if (kind === "seen") {
-			// A week of bursts, each seen once: rows the window keeps until they age out.
-			insert(`INSERT INTO attention_seen (id, at) SELECT 'burst:r1:' || i, ? - i * 60000 FROM n`, now)
 		} else if (kind === "capture") {
 			insert(`INSERT INTO capture_queue (room_id, message_id, text, at, queued_at) SELECT 'r1', 'q' || i, 'queued line ' || i, ?, ? FROM n`, now, now)
 		}
@@ -93,18 +89,23 @@ export class UserDO extends User {
 	}
 }
 
-type SeedKind = "life" | "chats" | "reminders" | "loops" | "marks" | "capture" | "seen"
+type SeedKind = "life" | "chats" | "reminders" | "boards" | "capture"
 const TABLE: Record<SeedKind, string> = {
 	life: "life",
 	chats: "chats",
 	reminders: "reminders",
-	loops: "loops",
-	marks: "initiative_marks",
-	seen: "attention_seen",
+	boards: "chat_tasks",
 	capture: "capture_queue",
 }
 
-type Env = { USER: DurableObjectNamespace<UserDO> }
+// The daily pass wakes a chat through its room. A stub accepts the wake so the pass reaches the boards table.
+export class RoomDO extends DurableObject {
+	async initiativeWake(): Promise<"busy"> {
+		return "busy"
+	}
+}
+
+type Env = { USER: DurableObjectNamespace<UserDO>; ROOM: DurableObjectNamespace<RoomDO> }
 
 // The user object is named for the test's user. Each request runs one step: `/op/<user>` takes a JSON body
 // of the action and its arguments, and `/seed/<user>` builds history.
@@ -120,7 +121,7 @@ export default {
 		try {
 			return Response.json(await stub.measure(op, args))
 		} catch (error) {
-			return new Response(String(error), { status: 500 })
+			return new Response(error instanceof Error ? (error.stack ?? String(error)) : String(error), { status: 500 })
 		}
 	},
 }

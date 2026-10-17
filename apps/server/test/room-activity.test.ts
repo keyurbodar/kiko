@@ -157,20 +157,6 @@ test("the sidebar hears typing only while an agent writes, and each clear arrive
 	c.close()
 })
 
-const captured = async (room: string) => (await (await fetch(`${origin}/captured/${room}`)).json()) as { slug: string }[]
-
-test("a run's answer is read for promises, unless the run only answered agent mail", async () => {
-	const room = fresh()
-	const c = await withAgent(room)
-	await rpc(room, "post", "ada", "run-human", 0, 0, "I will send the plan tomorrow")
-	await rpc(room, "endRun", "ada", "run-human", [], false)
-	expect((await captured(room)).map((x) => x.slug)).toEqual(["ada"])
-	await rpc(room, "post", "ada", "run-mail", 0, 0, "on it, I will report back tomorrow")
-	await rpc(room, "endRun", "ada", "run-mail", ["agent:bob:1"], false, true)
-	expect((await captured(room)).length).toBe(1)
-	c.close()
-})
-
 test("a background worker is working, not typing, in the sidebar", async () => {
 	const room = fresh()
 	const c = await withAgent(room)

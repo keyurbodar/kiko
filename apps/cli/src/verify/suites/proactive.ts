@@ -18,22 +18,24 @@ const suite: Suite = {
       const a = await v.as(`proactive-pass-${run}`)
       const { roomId, room } = await newRoom(a, "proactive: daily pass")
       await fake(v, a, roomId)
-      const yesterday = new Date(Date.now() - 86_400_000).toISOString()
-      const tomorrow = new Date(Date.now() + 86_400_000).toISOString()
-      await dev(url, a, "loops", { open: { roomId, text: "renew the passport", due: tomorrow } })
-      await dev(url, a, "loops", { open: { roomId, text: "file the tax return", due: yesterday } })
+      room.raw.send({ t: "task", op: { op: "create", id: "taxes", title: "file the tax return" } })
+      await room.expect((f) => f.t === "events" && f.events.some((e) => e.t === "task" && e.task.id === "taxes"))
+      // The room reports its board to UserDO after the task event, and the pass reads that report.
+      await Bun.sleep(1_000)
+      await dev(url, a, "age", { roomId, ms: 5 * 86_400_000 })
+      await Bun.sleep(1_500)
       type P = { woke: { result: string }[] }
       const before = agentTexts(room).length
       const first = (await dev(url, a, "pass", {})) as P
       if (first.woke.length !== 1 || first.woke[0]?.result !== "delivered") throw new VerifyError(`the daily pass woke ${JSON.stringify(first.woke)}, want one delivered wake`)
       await poll("the nudge", () => agentTexts(room).length > before, 30_000)
       const answer = must(messages(room).filter((m) => m.from.kind === "agent").at(-1), "the nudge")
-      if (!answer.text.includes("file the tax return")) throw new VerifyError(`the nudge was not about the loop that is due: ${JSON.stringify(answer.text)}`)
+      if (!answer.text.includes("file the tax return")) throw new VerifyError(`the nudge was not about the task that is stale: ${JSON.stringify(answer.text)}`)
       if (!answer.initiative?.reason) throw new VerifyError(`the nudge has no initiative reason: ${JSON.stringify(answer)}`)
       await Bun.sleep(2_000)
       const second = (await dev(url, a, "pass", {})) as P
-      if (second.woke.length) throw new VerifyError(`a loop was nudged twice in three days: ${JSON.stringify(second.woke)}`)
-      console.log(`  ok the daily pass nudged the loop that is due once (${JSON.stringify(answer.initiative.reason)}) and left the one due tomorrow`)
+      if (second.woke.length) throw new VerifyError(`a task was nudged twice in three days: ${JSON.stringify(second.woke)}`)
+      console.log(`  ok the daily pass nudged the stale task once (${JSON.stringify(answer.initiative.reason)}) and left it alone after that`)
       room.raw.close()
     }
 

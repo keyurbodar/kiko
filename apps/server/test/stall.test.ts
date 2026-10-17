@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { guardStall, orStall, StallError, TooSlowError } from "../src/agent/stall"
+import { guardStall, orStall, StallError } from "../src/agent/stall"
 import { classifyRunError } from "../src/agent/run-error"
 
 const never = <T>() => new Promise<T>(() => {})
@@ -30,12 +30,21 @@ test("a body that keeps flowing and ends is untouched", async () => {
   expect(await response.text()).toBe("one two three")
 })
 
-test("a body that keeps sending chunks past the total limit is stopped, with its own words", async () => {
-  let t = 0
-  const source = new ReadableStream<Uint8Array>({ pull: async (c) => void c.enqueue(new Uint8Array([1])) })
-  const reader = guardStall(new Response(source), 1_000, 100, () => (t += 30)).body!.getReader()
-  let error: unknown
-  for (let i = 0; i < 20 && !error; i++) error = await reader.read().then(() => undefined, (e) => e)
-  expect(error).toBeInstanceOf(TooSlowError)
-  expect(classifyRunError((error as Error).message)).toBe("too_slow")
+test("a body that keeps sending chunks is never stopped for taking long, however small the quiet window", async () => {
+  let sent = 0
+  const source = new ReadableStream<Uint8Array>({
+    pull: async (c) => {
+      if (++sent > 40) return c.close()
+      await Bun.sleep(5)
+      c.enqueue(new Uint8Array([1]))
+    },
+  })
+  const reader = guardStall(new Response(source), 20).body!.getReader()
+  let chunks = 0
+  for (;;) {
+    const next = await reader.read()
+    if (next.done) break
+    chunks++
+  }
+  expect(chunks).toBe(40)
 })

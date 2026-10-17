@@ -3,6 +3,20 @@ import { localTime, type Reminder, type RoutineRun } from "./reminders"
 
 export type ChatTasks = { open: number; oldest: { id?: string; title: string; status: string; owner?: string; updatedAt: number }[] }
 
+/** Writes the board summary a room reports. No open task drops the row, so the initiative pass sees no board. */
+export function setBoardRow(sql: SqlStorage, roomId: string, tasks: ChatTasks): void {
+  if (!tasks.open) {
+    sql.exec("DELETE FROM chat_tasks WHERE room_id = ?", roomId)
+    return
+  }
+  sql.exec("INSERT INTO chat_tasks (room_id, tasks) VALUES (?, ?) ON CONFLICT(room_id) DO UPDATE SET tasks = excluded.tasks", roomId, JSON.stringify(tasks))
+}
+
+/** A deleted chat's board goes with it. */
+export function removeBoardRow(sql: SqlStorage, roomId: string): number {
+  return sql.exec("DELETE FROM chat_tasks WHERE room_id = ?", roomId).rowsWritten
+}
+
 function taskRows(sql: SqlStorage): { room_id: string; tasks: string }[] {
   return sql.exec<{ room_id: string; tasks: string }>("SELECT room_id, tasks FROM chat_tasks").toArray()
 }
