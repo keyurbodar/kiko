@@ -1,4 +1,4 @@
-import type { RunStep, ToolKind } from "@kiko/protocol"
+import type { RunStep, RunStepStatus, ToolKind } from "@kiko/protocol"
 
 /*
  * The run log as data: what each step looks like, how a run reads in one sentence, and how steps
@@ -217,7 +217,9 @@ export function totalDuration(steps: readonly Pick<RunStep, "startedAt" | "ended
 
 // Merging
 
-const rank = (step: Pick<RunStep, "status">) => (step.status === "running" ? 0 : 1)
+/** A step only moves forward: running, then done or failed. */
+const RANK: Record<RunStepStatus, number> = { running: 0, done: 1, failed: 1 }
+const rank = (step: Pick<RunStep, "status">) => RANK[step.status]
 
 /** Array.sort is stable, so steps that start in the same millisecond keep the order they came in. */
 const byStart = (a: RunStep, b: RunStep) => a.startedAt - b.startedAt
