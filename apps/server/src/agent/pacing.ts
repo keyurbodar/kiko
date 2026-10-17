@@ -13,7 +13,7 @@ type Part = { type: string; text?: string }
 export type Assistant = { role?: string; stopReason?: string; errorMessage?: string; provider?: string; content?: readonly Part[] }
 
 /** What one finished assistant message becomes: the ack bubble, the answer's bubbles, or nothing in the chat. */
-export type Post = "ack" | "answer" | "none"
+type Post = "ack" | "answer" | "none"
 
 export const hasToolCall = (message: Assistant | undefined): boolean => (message?.content ?? []).some((part) => part.type === "toolCall")
 

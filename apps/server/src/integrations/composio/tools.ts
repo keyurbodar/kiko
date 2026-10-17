@@ -48,7 +48,7 @@ const parsed = (value: unknown): unknown => {
  * Composio rejects the call with "Invalid request data provided", which reads to the model as a dead
  * tool. Repair the shapes its schemas name, and leave everything else for the harness to reject.
  */
-export function repairArguments(schema: unknown, args: Record<string, unknown>): Record<string, unknown> {
+function repairArguments(schema: unknown, args: Record<string, unknown>): Record<string, unknown> {
   const s = schema as JsonSchema | null
   if (!s || s.type !== "object" || !s.properties) return args
   const out: Record<string, unknown> = { ...args }

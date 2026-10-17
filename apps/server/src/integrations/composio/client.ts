@@ -159,7 +159,7 @@ export async function checkKey(key: string, fetchImpl: typeof fetch = fetch): Pr
  * A search that finds a tool worth keeping learns it for the next run; these are the ones worth
  * having on the first turn of every run, because a web answer needs no connected app.
  */
-export const PRELOAD = ["COMPOSIO_SEARCH_WEB", "COMPOSIO_SEARCH_NEWS", "COMPOSIO_SEARCH_FETCH_URL_CONTENT"] as const
+const PRELOAD = ["COMPOSIO_SEARCH_WEB", "COMPOSIO_SEARCH_NEWS", "COMPOSIO_SEARCH_FETCH_URL_CONTENT"] as const
 
 /** A new session for `userId`. Its MCP url must be on Composio's own origin. */
 export async function createSession(key: string, userId: string, fetchImpl: typeof fetch = fetch): Promise<Session> {

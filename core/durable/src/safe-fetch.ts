@@ -88,27 +88,6 @@ async function follow(
   }
 }
 
-type SafeRequest = {
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
-  headers: Record<string, string>
-  body?: string
-}
-
-export async function safeRequest(rawUrl: string, request: SafeRequest, fetcher: Fetcher = globalFetcher, options: SafeFetchOptions = {}): Promise<SafeFetchResult> {
-  const signal = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS)
-  try {
-    const url = await check(rawUrl, undefined, fetcher, signal, cacheFor(fetcher, options))
-    if (!(url instanceof URL)) return url
-    if (url.protocol !== "https:") return refuse("scheme", url.href)
-    const headers: Record<string, string> = { accept: "*/*", ...request.headers }
-    if (options.userAgent) headers["user-agent"] = options.userAgent
-    const response = await untilAbort(fetcher(url.href, { method: request.method, redirect: "manual", headers, body: request.body, signal }), signal)
-    return read(response, url, signal, options)
-  } catch {
-    return refuse(signal.aborted ? "timeout" : "fetch-failed", rawUrl)
-  }
-}
-
 async function check(
   raw: string,
   base: URL | undefined,

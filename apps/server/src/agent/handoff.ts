@@ -17,13 +17,13 @@ export function modelName(ref: ModelRef): string {
 }
 
 /** About 12k tokens. T3 Code caps a handoff at 16k, and one character per token is pessimistic for a byte-based tokenizer. */
-export const HANDOFF_CHARS = 48_000
+const HANDOFF_CHARS = 48_000
 
 const TOOL_TEXT_CHARS = 300
 
 type Item = { role: "user" | "assistant" | "tool"; text: string }
 
-export type Handoff = { from: string; to: string; budgetChars?: number }
+type Handoff = { from: string; to: string; budgetChars?: number }
 
 const textOf = (content: string | readonly { type: string; text?: string }[]): string =>
   typeof content === "string" ? content : content.flatMap((part) => (part.type === "text" && part.text ? [part.text] : [])).join("\n\n")

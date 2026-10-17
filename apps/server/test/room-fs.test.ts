@@ -42,7 +42,7 @@ function agent(room: string, slug = "ada") {
 const chatOnly = (listing: string) =>
   listing
     .split("\n")
-    .filter((l) => !l.startsWith("/me/") && !l.startsWith("/home/"))
+    .filter((l) => !l.startsWith("/me/") && !l.startsWith("/home/") && !l.startsWith("/kiko/"))
     .join("\n")
 const keys = async (room: string) => (await (await fetch(`${origin}/keys/${room}`)).json()) as string[]
 const human = async (room: string, op: unknown) => ((await (await fetch(`${origin}/op/${room}`, { method: "POST", body: JSON.stringify(op) })).json()) as { refused: string | null }).refused

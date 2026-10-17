@@ -17,7 +17,7 @@ export const BROWSER_EXT = "browser"
 export const BROWSER_INFO_EXT = "browser-info"
 
 export const PAUSED = "The human has control of the browser, so your browser tools are paused. Your tabs stay open. When they press Release control you are told to carry on."
-export const NO_TAB = "You have no tab open yet. Call browse with a url first."
+const NO_TAB = "You have no tab open yet. Call browse with a url first."
 
 const BROWSER_RULES = [
   "browser: one real browser (Kernel) is shared by every agent. you own the tabs you open. this is for a page that needs javascript, a click, or a login; a plain article or an api is faster through a connected app.",

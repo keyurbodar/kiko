@@ -67,7 +67,7 @@ type ConnectLink = { kind: "link"; link: string } | { kind: "none"; reply: strin
  * `googlecalendar`: the manage tool answers "toolkit not found" inside a successful result for
  * `google_calendar`, so an agent that never resolves the name gets no link.
  */
-export type ResolveToolkit = (app: string) => Promise<string | null>
+type ResolveToolkit = (app: string) => Promise<string | null>
 
 /** One link that connects one app, made the one way both the connect_app tool and the recipe gate make it. */
 export async function connectLinkFor(manage: ComposioTool, call: ComposioCall, app: string, resolve?: ResolveToolkit): Promise<ConnectLink> {

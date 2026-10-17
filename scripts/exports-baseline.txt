@@ -1,11 +1,8 @@
 apps/server/src/agent/browser/connection.ts:ConnectionDeps
 apps/server/src/agent/browser/connection.ts:IdleTimer
-apps/server/src/agent/browser/deciders.ts:JevKey
 apps/server/src/agent/browser/lease.ts:BrowserNotConnected
 apps/server/src/agent/browser/tools.ts:StepArgs
 apps/server/src/agent/browser/tools.ts:TextResult
-apps/server/src/agent/browser/tools.ts:dialogNote
-apps/server/src/agent/browser/tools.ts:taskLine
 apps/server/src/agent/dev-fake.ts:FAKE_MODEL
 apps/server/src/agent/dev-fake.ts:SLOW_TOOL
 apps/server/src/agent/dev-fake.ts:SLOW_TOOL_EXTENSION
@@ -39,7 +36,6 @@ apps/server/src/integrations/kernel/client.ts:KernelErrorKind
 apps/server/src/integrations/kernel/lease.ts:LeaseDeps
 apps/server/src/integrations/kernel/lease.ts:ReapDecision
 apps/server/src/integrations/kernel/lease.ts:Switched
-apps/server/src/lib/dev-fixture-fetch.ts:devFixtureFetcher
 apps/server/src/room/asks.ts:KEEP_ASKS_MS
 apps/server/src/room/asks.ts:Unanswered
 apps/server/src/room/brief.ts:BriefView
@@ -112,11 +108,6 @@ core/browser/src/cdp/session.ts:Method
 core/browser/src/cdp/session.ts:Params
 core/browser/src/cdp/session.ts:Payload
 core/browser/src/config.ts:BrowserConfig
-core/browser/src/page/extract.ts:formatForms
-core/browser/src/page/extract.ts:formatHeadings
-core/browser/src/page/extract.ts:formatLinks
-core/browser/src/page/extract.ts:formatTables
-core/browser/src/worker/run.ts:WorkerDeps
 core/durable/src/alarm.ts:WAKEUP_RETRY_MS
 core/durable/src/crypto.ts:Kek
 core/durable/src/crypto.ts:KeyringEnv
