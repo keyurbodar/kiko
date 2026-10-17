@@ -35,14 +35,14 @@ export default function RunErrorRow(props: { message: ChatMessage; slug: string;
   const label = (action: RunErrorAction) => (action === "open_settings" && props.reason === "signed_out" && props.provider ? "Sign in again" : LABELS[action])
   return (
     <div role="alert" class="mx-auto flex w-full max-w-(--chat-content-max-width) justify-center px-4 py-2" data-component="run-error" data-message-id={props.message.id}>
-      <div class="flex max-w-full flex-col items-start gap-2 rounded-xl bg-error-surface px-3 py-2 text-sm text-foreground">
+      <div class="flex min-w-0 max-w-full flex-col items-start gap-2 rounded-xl bg-error-surface px-3 py-2 text-sm text-foreground">
         <div class="flex min-w-0 items-start gap-2">
           <CircleAlertIcon class="mt-0.5 size-4 shrink-0 text-error" aria-hidden="true" />
           <div class="flex min-w-0 flex-col gap-0.5">
-            <span>{props.message.body}</span>
+            <span class="break-words">{props.message.body}</span>
             <Show when={props.detail}>
               {(detail) => (
-                <span class="break-words text-xs text-muted-foreground select-text" data-part="run-error-detail">
+                <span class="line-clamp-3 max-w-full text-xs [overflow-wrap:anywhere] break-words text-muted-foreground select-text" title={detail()} data-part="run-error-detail">
                   {detail()}
                 </span>
               )}

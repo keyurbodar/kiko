@@ -30,19 +30,38 @@ export function redact(text: string): string {
     .replace(/[A-Za-z0-9_-]{32,}/g, (m) => (UUID.test(m) ? m : "[hidden]"))
 }
 
+const HTML = /<!doctype html|<html[\s>]/i
+
+/**
+ * A gateway or a proxy in front of a provider sometimes answers with a web page instead of JSON. Its markup and
+ * styles are not words, and their keywords ("blocked", "safety") would pick the wrong kind. Keeps the text before
+ * the page (often the status code), the page's title, and its first heading.
+ */
+export function providerWords(message: string | undefined): string {
+  const text = message ?? ""
+  const start = text.search(HTML)
+  if (start < 0) return text
+  const page = text.slice(start)
+  const pick = (tag: string) => page.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"))?.[1]?.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+  const said = [...new Set([pick("title"), pick("h1")].filter((t): t is string => !!t))].join(". ")
+  return [text.slice(0, start).trim(), `The provider answered with a web page instead of an answer${said ? `: ${said}` : "."}`].filter(Boolean).join(" ")
+}
+
 /**
  * The provider's own words, shown small under kiko's sentence so the human sees what actually went wrong.
  * Anything that looks like a key or a bearer token is cut out, and the text is capped.
  */
 export function runErrorDetail(message: string | undefined): string | undefined {
-  const text = redact(message ?? "").replace(/\s+/g, " ").trim()
+  const text = redact(providerWords(message)).replace(/\s+/g, " ").trim()
   if (!text) return undefined
   return text.length > DETAIL_MAX ? `${text.slice(0, DETAIL_MAX - 1)}…` : text
 }
 
 export function classifyRunError(message: string | undefined): RunErrorKind {
-  const text = message ?? ""
-  return KINDS.find(([, pattern]) => pattern.test(text))?.[0] ?? "other"
+  const text = providerWords(message)
+  const kind = KINDS.find(([, pattern]) => pattern.test(text))?.[0] ?? "other"
+  // A web page that says "blocked" is a proxy turning the request away, not the model refusing it.
+  return kind === "refused" && HTML.test(message ?? "") ? "other" : kind
 }
 
 type Reply = { message: (provider: string, name: string) => string; actions: readonly RunErrorAction[] }

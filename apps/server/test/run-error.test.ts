@@ -80,3 +80,16 @@ describe("the provider's own words", () => {
     expect(runErrorDetail("   ")).toBeUndefined()
   })
 })
+
+describe("a web page instead of an answer", () => {
+  const page = `<html> <head> <meta name="viewport" content="width=device-width, initial-scale=1" /> <style global>body{font-family:Arial}@keyframes enlarge-appear{0%{opacity:0}} .safety-blocked{}</style><title>Access denied</title></head><body><h1>Request blocked</h1></body></html>`
+
+  test("is never read as the model refusing", () => {
+    expect(classifyRunError(page)).toBe("other")
+    expect(classifyRunError(`403 ${page}`)).toBe("invalid_key")
+  })
+
+  test("shows the page's title and heading, not its markup", () => {
+    expect(runErrorDetail(page)).toBe("The provider answered with a web page instead of an answer: Access denied. Request blocked")
+  })
+})
