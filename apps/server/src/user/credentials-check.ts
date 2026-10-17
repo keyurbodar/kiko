@@ -18,6 +18,12 @@ export const keyRefusedText = (said: string): string => {
  * Returns the provider's words when it refused the key, else null.
  */
 export async function keyRefused(models: Models, provider: string, headers?: Record<string, string>): Promise<string | null> {
+  const said = await providerSaid(models, provider, headers)
+  return said !== null && REJECTED.test(said) ? said : null
+}
+
+/** The provider's error text for the cheapest request it offers, or null when it answered. A provider with no text model answers null. */
+export async function providerSaid(models: Models, provider: string, headers?: Record<string, string>): Promise<string | null> {
   const cheapest = models
     .getModels(provider)
     .filter((m) => m.input.includes("text"))
@@ -29,9 +35,8 @@ export async function keyRefused(models: Models, provider: string, headers?: Rec
       { messages: [{ role: "user", content: "hi", timestamp: Date.now() }] },
       { headers, maxTokens: 16, signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) },
     )
-    const said = reply.stopReason === "error" ? (reply.errorMessage ?? "") : ""
-    return REJECTED.test(said) ? said : null
+    return reply.stopReason === "error" ? (reply.errorMessage ?? "") : null
   } catch (error) {
-    return error instanceof Error && REJECTED.test(error.message) ? error.message : null
+    return error instanceof Error ? error.message : ""
   }
 }

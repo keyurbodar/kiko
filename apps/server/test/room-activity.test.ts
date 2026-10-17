@@ -410,3 +410,33 @@ test("an error line is private to the owner: it is not unread, and a chat row ne
 	expect((await touches(room)).filter((t) => t.lastPreview.includes("overloaded"))).toEqual([])
 	c.close()
 })
+
+test("a run that failed on a key, a sign-in or the credit tells the user object, and a limit does not", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	const problems = async () => (await (await fetch(`${origin}/problems/x/x`)).json()) as string[][]
+	const before = (await problems()).length
+	await rpc(room, "runError", "ada", "p-1", { kind: "invalid_key", provider: "opencode-go", inputs: [] })
+	await rpc(room, "runError", "ada", "p-2", { kind: "quota", provider: "opencode-go", inputs: [] })
+	await rpc(room, "runError", "ada", "p-3", { kind: "signed_out", provider: "anthropic", inputs: [] })
+	await rpc(room, "runError", "ada", "p-4", { kind: "rate_limit", provider: "opencode-go", inputs: [] })
+	await Bun.sleep(100)
+	expect((await problems()).slice(before)).toEqual([["opencode-go", "invalid_key"], ["opencode-go", "quota"], ["anthropic", "signed_out"]])
+	const lines = await runErrors(room)
+	expect(lines.map((l) => l.event.reason)).toEqual(["invalid_key", "quota", "signed_out", "rate_limit"])
+	expect(lines[2]).toMatchObject({ text: "Your Anthropic sign-in expired. Sign in again to keep chatting.", event: { provider: "anthropic", actions: ["open_settings"] } })
+	c.close()
+})
+
+test("an agent whose sign-in expired, or whose provider could not be reached, says so instead of not connected", async () => {
+	const room = fresh()
+	const c = await withAgent(room)
+	await rpc(room, "noProvider", "ada", "anthropic", "inbox:s1", [], ["h1"], "signed_out")
+	await rpc(room, "noProvider", "ada", "anthropic", "inbox:s2", [], ["h1"], "network")
+	const [expired, offline] = await runErrors(room)
+	expect(expired!.event).toMatchObject({ reason: "signed_out", provider: "anthropic", actions: ["open_settings"] })
+	expect(expired!.text).toBe("Your Anthropic sign-in expired. Sign in again to keep chatting.")
+	expect(offline!.event.reason).toBe("network")
+	expect(offline!.text).toBe("Kiko could not reach Anthropic. Check the connection, then retry.")
+	c.close()
+})

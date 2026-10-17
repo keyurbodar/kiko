@@ -51,9 +51,9 @@ export type BrowserToolDeps = {
   acceptsImages: (model: ModelRef | undefined) => boolean
 }
 
-export type TextResult = { content: { type: "text"; text: string }[]; isError: boolean }
+export type TextResult = { output: { type: "text"; text: string }[]; isError: boolean }
 
-export const text = (value: string, isError = false): TextResult => ({ content: [{ type: "text", text: value }], isError })
+export const text = (value: string, isError = false): TextResult => ({ output: [{ type: "text", text: value }], isError })
 
 const StepSchema = Type.Object({
   op: Type.Union([
@@ -352,7 +352,7 @@ export function browserExtension(deps: BrowserToolDeps): Extension {
             const tab = await deps.connection().currentTab(scopeOf(api))
             if (!tab) return text(NO_TAB)
             const bytes = await tab.screenshot({ fullPage: args.fullPage === true })
-            if (sees && args.save !== true) return { content: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: "image/jpeg" }] }
+            if (sees && args.save !== true) return { output: [{ type: "image" as const, data: encodeBase64(bytes), mimeType: "image/jpeg" }] }
             const saved = `/browser-${Date.now().toString(36)}.jpg`
             getOrThrow(await filesOf(api).write(saved, bytes, "image/jpeg"))
             return text(`saved to ${saved}. share it in your reply as ![what it shows](${saved})`)

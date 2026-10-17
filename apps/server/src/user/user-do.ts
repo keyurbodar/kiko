@@ -1,8 +1,9 @@
+import type { Provider } from "@earendil-works/pi-ai"
 import { fileStore } from "../files/store"
 import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
 import { RoutineWiring } from "./routines-wiring"
-import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, RecipeList, RoomId, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
+import type { Actor, Agent, AgentModel, AgentSlug, Chat, ChatOp, FileOp, ClientToUser as UserFrame, ComposioResult, InstallRecipe, KikoError, ProviderInfo, RecipeList, RoomId, RunErrorKind, UserChange, UserEvent, UserToClient } from "@kiko/protocol"
 import { RecipeLibrary } from "./recipe-library"
 import { matchRecipes, type RecipeHint } from "../recipes/match"
 import { capitalized, soulFromDescription } from "../room/chief"
@@ -29,8 +30,10 @@ import { type Alarms, createAlarms, runDue } from "@kiko/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "@kiko/durable/crypto"
-import { checkApiKey, CredentialVault, type ProviderInfo, userIdFromObjectName } from "./credentials"
+import { checkApiKey, CredentialVault, userIdFromObjectName } from "./credentials"
 import { keyRefused } from "./credentials-check"
+import { problemOfRun } from "./provider-health"
+import { PROVIDERS_WAKEUP, ProviderWatch } from "./provider-watch"
 import { userModels } from "../agent/factory"
 import { agentNamed, createAgent, listAgents } from "./agents"
 import { agentModel, allAgentModels, saveAgentModel } from "./agent-models"
@@ -41,7 +44,9 @@ import { applyChatOp, type ChatChange, getChat, listChats, renameLegacyAgent, se
 import { Life } from "@kiko/memory/life"
 import { itemLine, spanOf } from "@kiko/memory/optmem"
 import type { NoteAnswer } from "@kiko/memory/tools"
-import { ProviderLogins } from "./provider-login"
+import { ProviderLogins, signInMethod } from "./provider-login"
+import { CATALOG_WAKEUP, ModelCatalog } from "../models/service"
+import { type CatalogOverlay, findProvider } from "../models/catalog"
 import { type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type RunDelivery } from "./reminders"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview } from "./overview"
@@ -70,6 +75,7 @@ const decodeFrame = Schema.decodeUnknownSync(ClientToUser)
 
 const AWAY_NOTICE = "away_notice"
 const PUBLIC_ORIGIN = "public_origin"
+const DEVICE_ID = "device_id"
 const OLD_CHECK_IN = "check_in"
 const OLD_CHECK_IN_SEEN = "check_in_seen"
 
@@ -81,6 +87,7 @@ type NewAgentOutcome = { ok: true; agent: Agent; roomId: RoomId } | { ok: false;
 export class UserDO extends DurableObject<Env> {
   private readonly sql: SqlStorage
   private alarms!: Alarms
+  private models!: ModelCatalog
   private life!: Life
   private souls!: Souls
   private home!: FileIndex<UserEvent>
@@ -94,6 +101,10 @@ export class UserDO extends DurableObject<Env> {
     void ctx.blockConcurrencyWhile(async () => {
       migrate(ctx.storage, USER_STEPS)
       this.alarms = createAlarms(ctx)
+      // check-rules: allow egress the one pi.dev request an hour, made in this object's own invocation
+      this.models = new ModelCatalog({ sql: this.sql, alarms: this.alarms, now: Date.now, fetch: (url, init) => fetch(url, init), signInMethod, changed: () => this.changed("models") })
+      await this.models.init()
+      await this.#watch.init()
       this.life = new Life(this.sql, (fn) => ctx.storage.transactionSync(fn), { get: (key) => this.setting(key), set: (key, value) => this.putSetting(key, value) })
       this.souls = new Souls(this.sql)
       this.home = new FileIndex<UserEvent>(ctx.storage, HOME_TABLES, (_, body) => {
@@ -541,6 +552,39 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
+  /** The model catalog json for the client, or null json when it already holds `have`. */
+  async modelCatalog(have: string | null): Promise<{ revision: string; json: string | null }> {
+    return this.models.catalog(have)
+  }
+
+  async devModelOverlay(overlay: CatalogOverlay): Promise<void> {
+    await (await this.dev()).devModelOverlay(this.sql, overlay)
+    this.changed("models")
+  }
+
+  /** A run or a probe heard the provider refuse the key, say the credit is gone, or refuse the sign-in. Broadcasts only a change. */
+  async recordProviderProblem(provider: string, kind: RunErrorKind): Promise<void> {
+    const problem = problemOfRun(kind)
+    if (problem) this.#credentials.setProblem(provider, problem)
+  }
+
+  /** A run that began with a problem ended without a model error, so the provider works. */
+  async providerRecovered(provider: string): Promise<void> {
+    this.#credentials.setProblem(provider, null)
+  }
+
+  /** "Check again": refreshes an OAuth sign-in, sends the cheapest request, and sets or clears the problem. */
+  async checkProvider(provider: string): Promise<ProviderInfo | null> {
+    const info = await this.#watch.check(provider)
+    return info ? this.#mem.describe(info) : null
+  }
+
+  async devProviderHealth(op: { refresh?: "fail" | "offline" | "ok"; wake?: boolean }): Promise<void> {
+    const dev = await this.dev()
+    if (op.refresh) dev.setFakeRefresh(op.refresh)
+    if (op.wake) await this.#watch.refreshAll()
+  }
+
   async listProviders(): Promise<ProviderInfo[]> {
     return this.#credentials.listProviders().map((p) => this.#mem.describe(p))
   }
@@ -582,7 +626,7 @@ export class UserDO extends DurableObject<Env> {
     const setting = (key: string) =>
       getSetting(this.sql, key)
     const agent = slug ? { soul: await this.souls.get(slug) } : undefined
-    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), captures: this.#mem.captures() }, agent)
+    return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), captures: this.#mem.captures() }, agent, await this.lookupProvider(provider))
   }
 
   async lifeView(): Promise<string> {
@@ -591,8 +635,32 @@ export class UserDO extends DurableObject<Env> {
 
   #vault?: CredentialVault
   get #credentials(): CredentialVault {
-    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name))
+    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), () => this.changed("providers"))
     return this.#vault
+  }
+
+  /** A provider pi-ai knows, or in a development build the sign-in test provider. */
+  private async lookupProvider(id: string): Promise<Provider | undefined> {
+    const found = findProvider(id)
+    if (found) return found
+    try {
+      return (await loadUserDev()).fakeProvider(id)
+    } catch {
+      return undefined
+    }
+  }
+
+  #providerWatch?: ProviderWatch
+  get #watch(): ProviderWatch {
+    this.#providerWatch ??= new ProviderWatch({
+      vault: () => this.#credentials,
+      alarms: this.alarms,
+      sql: this.sql,
+      now: Date.now,
+      lookup: (id) => this.lookupProvider(id),
+      label: this.ctx.id.toString(),
+    })
+    return this.#providerWatch
   }
 
   #homeWiringCache?: HomeWiring
@@ -784,10 +852,19 @@ export class UserDO extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client })
   }
 
+  private deviceId(): string {
+    const existing = this.setting(DEVICE_ID)
+    if (existing) return existing
+    const id = crypto.randomUUID()
+    this.putSetting(DEVICE_ID, id)
+    return id
+  }
+
   #logins?: ProviderLogins<WebSocket>
   get #loginState(): ProviderLogins<WebSocket> {
     this.#logins ??= new ProviderLogins<WebSocket>({
       store: this.#credentials,
+      deviceId: () => this.deviceId(),
       info: (provider) => this.#credentials.listProviders().find((p) => p.provider === provider) ?? null,
       send,
       devProvider: async (id) => {
@@ -906,7 +983,12 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "update.start") return this.#update.start(frame.version)
-    if (frame.t === "login.start") return void this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {})
+    if (frame.t === "login.start") {
+      // A sign-in socket never sends hello, and a person takes longer than the hello deadline to approve in the browser.
+      const before = ws.deserializeAttachment() as Attachment | null
+      if (!before?.ready) ws.serializeAttachment({ ...before, ready: true } satisfies Attachment)
+      return void this.#loginState.start(ws, frame.loginId, frame.provider).catch(() => {})
+    }
     if (frame.t === "login.answer") return this.#loginState.answer(ws, frame.loginId, frame.promptId, frame.value)
     if (frame.t === "login.cancel") return this.#loginState.cancel(ws, frame.loginId)
     const existing = this.existingFor(frame.op)
@@ -930,6 +1012,8 @@ export class UserDO extends DurableObject<Env> {
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
+      [CATALOG_WAKEUP]: () => this.models.wake(),
+      [PROVIDERS_WAKEUP]: () => this.#watch.wake(),
       [REMINDERS_WAKEUP]: () => this.reminders.fire(),
       [LIFE_WAKEUP]: () => this.#mem.napLife().finally(() => this.memoryAndLoopsChanged()),
       [CAPTURE_WAKEUP]: () => this.#mem.captureNow().finally(() => this.memoryAndLoopsChanged()),

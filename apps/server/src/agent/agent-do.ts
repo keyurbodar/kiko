@@ -2,7 +2,8 @@ import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
-import type { Activity, Envelope, RoomId, ThinkingLevel, WorkerRow } from "@kiko/protocol"
+import type { Activity, Envelope, ProviderProblem, RoomId, ThinkingLevel, WorkerRow } from "@kiko/protocol"
+import { runKindFor } from "../user/provider-health"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@kiko/agent/answers"
 import { roomStub, userStub } from "../lib/names"
@@ -28,6 +29,7 @@ import { integrationNote } from "./prompt"
 
 import { buildAgent, DEFAULT_MODEL, userModels } from "./factory"
 import { parseModelRef, thinkingFor } from "./thinking"
+import { setOverlay } from "../models/catalog"
 import { createAlarms } from "@kiko/durable/alarm"
 import { migrate } from "@kiko/durable/migrate"
 import { AGENT_STEPS } from "./schema"
@@ -180,11 +182,28 @@ export class AgentDO extends DurableObject<Env> {
       workers: (rows) => room().setWorkers(home.slug, rows),
       endRun: async (runId, inputs = [], working = false) => {
         const { mail, mailOnly } = await this.heard(inputs).catch(() => ({ mail: [], mailOnly: false }))
+        this.recovered(home.userId)
         return room().endRun(home.slug, runId, mail, working, mailOnly)
       },
       react: (emoji, messageId) => room().react(home.slug, emoji, messageId),
-      runError: (runId, error) => room().runError(home.slug, runId, { ...error, inputs: this.#humanInputs }),
+      runError: (runId, error) => {
+        const run = this.#run?.provider === error.provider ? this.#run : null
+        if (run) run.errored = true
+        return room().runError(home.slug, runId, { ...error, kind: runKindFor(error.kind, run?.credential), inputs: this.#humanInputs })
+      },
     }
+  }
+
+  /** A run that started with a provider problem and ended without a model error proves the provider works. */
+  private recovered(userId: string): void {
+    const run = this.#run
+    if (!run?.problem || run.errored || !run.auth) return
+    run.problem = undefined
+    this.ctx.waitUntil(
+      userStub(this.env.USER, userId)
+        .providerRecovered(run.provider)
+        .catch((e: unknown) => console.error(`provider recovery failed: ${e instanceof Error ? e.message : String(e)}`)),
+    )
   }
 
   private recipesPort(home: { userId: string; roomId: string; slug: string }): RecipesPort {
@@ -580,7 +599,7 @@ export class AgentDO extends DurableObject<Env> {
     return conversationId === (await this.host.rootId())
   }
 
-  #run: { provider: string; auth: AuthResult | null; timezone: string; captures: boolean; soul?: Soul } | null = null
+  #run: { provider: string; auth: AuthResult | null; timezone: string; captures: boolean; soul?: Soul; credential?: "api_key" | "oauth"; problem?: ProviderProblem; errored?: boolean } | null = null
   #runStamp = 0
 
   private async beginRun(requestId: string, root: Conversation): Promise<boolean> {
@@ -588,8 +607,9 @@ export class AgentDO extends DurableObject<Env> {
     if (!home) return false
     this.#runStamp++
     const turn = await userStub(this.env.USER, home.userId).agentTurn(home.slug)
+    setOverlay(turn.provider, turn.catalog.models)
     const model = parseModelRef(turn.model) ?? DEFAULT_MODEL
-    this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.agent ? { soul: turn.agent.soul } : {}) }
+    this.#run = { provider: model.provider, auth: turn.auth, timezone: turn.timezone, captures: turn.captures, ...(turn.credential ? { credential: turn.credential } : {}), ...(turn.problem ? { problem: turn.problem } : {}), ...(turn.agent ? { soul: turn.agent.soul } : {}) }
     const applied = { model, thinkingLevel: turn.thinking }
     if (JSON.stringify(applied) !== JSON.stringify(await this.ctx.storage.get(MODEL_APPLIED_KEY))) {
       await root.configure(applied, BACKGROUND_CONTEXT)
@@ -599,7 +619,8 @@ export class AgentDO extends DurableObject<Env> {
     const ids = this.host.inbox.envelopeIds(requestId)
     const heard = ids.filter((id) => id.startsWith("agent:"))
     const humans = ids.filter((id) => id.startsWith("human:")).map((id) => id.slice("human:".length).split("#")[0]!)
-    await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId, heard, humans)
+    const why = turn.authProblem === "signed_out" ? "signed_out" : turn.authProblem === "unreachable" ? "network" : "no_key"
+    await roomStub(this.env.ROOM, home.userId, home.roomId).noProvider(home.slug, model.provider, requestId, heard, humans, why)
     return false
   }
 
@@ -611,7 +632,8 @@ export class AgentDO extends DurableObject<Env> {
   private async loadAuth(provider: string): Promise<AuthResult | null> {
     const home = this.home()
     const context = home ? await userStub(this.env.USER, home.userId).turnContext(provider, home.slug) : null
-    this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", captures: context?.captures ?? false, ...(context?.agent ? { soul: context.agent.soul } : {}) }
+    if (context) setOverlay(provider, context.catalog.models)
+    this.#run = { provider, auth: context?.auth ?? null, timezone: context?.timezone ?? "UTC", captures: context?.captures ?? false, ...(context?.credential ? { credential: context.credential } : {}), ...(context?.problem ? { problem: context.problem } : {}), ...(context?.agent ? { soul: context.agent.soul } : {}) }
     return this.#run.auth
   }
 
@@ -677,7 +699,7 @@ export class AgentDO extends DurableObject<Env> {
     return chooseDecider(own, async () => {
       if (!home) return null
       const user = userStub(this.env.USER, home.userId)
-      const picked = pickJudge(await user.listProviders(), (p) => p.refused === true)
+      const picked = pickJudge(await user.listProviders(), (p) => p.problem === "key_refused")
       const auth = picked ? (await user.turnContext(picked.provider)).auth : null
       if (!picked || !auth) return null
       const jevModels = userModels(async () => auth, `browser-${this.ctx.id.toString()}`, egress).models

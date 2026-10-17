@@ -2221,6 +2221,22 @@
           "notnull": 1,
           "dflt_value": null,
           "pk": 0
+        },
+        {
+          "cid": 7,
+          "name": "problem",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
+        },
+        {
+          "cid": 8,
+          "name": "problem_at",
+          "type": "INTEGER",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
         }
       ],
       "indexes": [
@@ -3692,6 +3708,29 @@
       ],
       "indexes": [
         "sqlite_autoindex_meta_1"
+      ]
+    },
+    "model_catalog": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "provider_id",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 1
+        },
+        {
+          "cid": 1,
+          "name": "models",
+          "type": "TEXT",
+          "notnull": 1,
+          "dflt_value": null,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "sqlite_autoindex_model_catalog_1"
       ]
     },
     "nap_applied": {

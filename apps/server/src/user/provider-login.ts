@@ -12,10 +12,13 @@ import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic"
 import { githubCopilotProvider } from "@earendil-works/pi-ai/providers/github-copilot"
 import { kimiCodingProvider } from "@earendil-works/pi-ai/providers/kimi-coding"
 import { metaProvider } from "@earendil-works/pi-ai/providers/meta"
+import { openaiProvider } from "@earendil-works/pi-ai/providers/openai"
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex"
 import { xaiProvider } from "@earendil-works/pi-ai/providers/xai"
-import type { LoginErrorReason, LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
-import { isProviderId, type ProviderInfo } from "./credentials"
+import type { ConnectMethod, LoginErrorReason, LoginEvent, LoginPrompt, ProviderInfo, UserToClient } from "@kiko/protocol"
+import { runErrorDetail } from "../agent/run-error"
+import { withPasteLogin } from "./chatgpt-signin"
+import { isProviderId } from "./credentials"
 
 export const MAX_LOGINS = 4
 
@@ -23,23 +26,37 @@ export const MAX_LOGINS = 4
 registerBunOAuthFlows()
 
 // Flows that need a loopback server are left out, since a Worker cannot listen on a port.
-const FLOWS: Record<string, { provider: () => Provider; select?: string }> = {
-  anthropic: { provider: anthropicProvider, select: "copy_code" },
-  "github-copilot": { provider: githubCopilotProvider },
-  "kimi-coding": { provider: kimiCodingProvider },
-  meta: { provider: metaProvider },
-  "openai-codex": { provider: openaiCodexProvider, select: "device_code" },
-  xai: { provider: xaiProvider },
+const FLOWS: Record<string, { provider: () => Provider; method: ConnectMethod; select?: string }> = {
+  anthropic: { provider: anthropicProvider, method: "paste_code", select: "copy_code" },
+  "github-copilot": { provider: githubCopilotProvider, method: "device_code" },
+  "kimi-coding": { provider: kimiCodingProvider, method: "device_code" },
+  meta: { provider: metaProvider, method: "device_code" },
+  openai: { provider: chatgptProvider, method: "paste_code" },
+  "openai-codex": { provider: openaiCodexProvider, method: "device_code", select: "device_code" },
+  xai: { provider: xaiProvider, method: "device_code" },
+}
+
+function chatgptProvider(): Provider {
+  const provider = openaiProvider()
+  const oauth = provider.auth.oauth
+  return oauth ? { ...provider, auth: { ...provider.auth, oauth: withPasteLogin(oauth) } } : provider
 }
 
 export function hasSignIn(provider: string): boolean {
   return Object.hasOwn(FLOWS, provider)
 }
 
+/** How the client offers a provider's sign-in, or undefined when the server refuses it. */
+export function signInMethod(provider: string): ConnectMethod | undefined {
+  return hasSignIn(provider) ? FLOWS[provider]?.method : undefined
+}
+
 const NO_AMBIENT: AuthContext = { env: async () => undefined, fileExists: async () => false }
 
 export interface LoginDeps<Owner> {
   store: CredentialStore
+  /** The stable id OpenAI keeps for this installation. Created once, then always the same. */
+  deviceId(): string
   info(provider: string): ProviderInfo | null
   send(owner: Owner, frame: UserToClient): void
   /** A provider only a development build offers. */
@@ -101,10 +118,10 @@ export class ProviderLogins<Owner> {
       prompt: (prompt) => this.ask(login, prompt, select),
     }
     try {
-      await models.login(providerId, "oauth", interaction)
+      await models.login(providerId, "oauth", interaction, { getDeviceId: () => this.deps.deviceId(), agentName: "Kiko" })
     } catch (error) {
       // Errors are short and hold no secret, but are never logged.
-      if (this.live(login)) this.end(login, { reason: "failed", message: failure(error) })
+      if (this.live(login)) this.end(login, { reason: "failed", message: signInFailure(error) })
       return
     }
     if (!this.live(login)) return
@@ -199,7 +216,17 @@ function wirePrompt(prompt: AuthPrompt): LoginPrompt {
     : { type: rest.type, message: rest.message, placeholder: rest.placeholder }
 }
 
-function failure(error: unknown): string {
-  const message = error instanceof Error ? error.message : ""
-  return (message || "sign-in failed").slice(0, 200).toLowerCase()
+// The first row that matches wins. The sentence is kiko's; the provider's own words follow as detail.
+const FAILURES: readonly (readonly [RegExp, string])[] = [
+  [/state|pasted|callback|redirect|authorization code|client id|not a web address/i, "That address does not match this sign-in. Start again and paste the address from the same tab."],
+  [/expired|expired_token|code .*invalid|timed? ?out/i, "The sign-in code expired. Start again and finish it sooner."],
+  [/access_denied|denied|refused|cancel/i, "The provider did not approve the sign-in. Start again if that was a mistake."],
+  [/fetch failed|network|econn|enotfound|unable to connect|could not reach/i, "Kiko could not reach the provider. Check the connection, then start again."],
+]
+
+export function signInFailure(error: unknown): string {
+  const raw = error instanceof Error ? error.message : ""
+  const sentence = FAILURES.find(([pattern]) => pattern.test(raw))?.[1] ?? "The sign-in did not finish. Start again."
+  const detail = runErrorDetail(raw)
+  return detail ? `${sentence} ${detail}` : sentence
 }

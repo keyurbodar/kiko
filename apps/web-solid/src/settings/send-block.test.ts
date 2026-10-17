@@ -30,7 +30,7 @@ describe("sendBlock", () => {
   })
 
   test("a provider that turned the key down: check the key or choose another", () => {
-    expect(sendBlock({ ...known, providers: [{ provider: "opencode-go", refused: true }], model: "opencode-go/kimi-k2" })).toEqual({
+    expect(sendBlock({ ...known, providers: [{ provider: "opencode-go", problem: "key_refused" as const }], model: "opencode-go/kimi-k2" })).toEqual({
       reason: "Kiko's provider did not accept your key.",
       actions: ["open_settings", "choose_model"],
     })

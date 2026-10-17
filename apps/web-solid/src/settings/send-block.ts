@@ -1,3 +1,4 @@
+import type { ProviderProblem } from "@kiko/protocol"
 import { modelProviders } from "./provider-kinds"
 
 /** What the human can do about a send that cannot go yet. */
@@ -5,7 +6,7 @@ export type BlockAction = "open_settings" | "choose_model"
 
 export type SendBlock = { reason: string; actions: readonly BlockAction[] }
 
-type Saved = { provider: string; refused?: boolean; chat?: boolean }
+type Saved = { provider: string; problem?: ProviderProblem; chat?: boolean }
 
 /**
  * Why a message to `agent` cannot be sent yet, or null when it can. A message sent in this state
@@ -21,6 +22,6 @@ export function sendBlock(input: { known: boolean; providers: readonly Saved[]; 
   if (!model) return { reason: `Choose a model for ${agent}.`, actions: ["choose_model"] }
   const saved = usable.find((p) => p.provider === model.slice(0, model.indexOf("/")))
   if (!saved) return { reason: `${agent}'s model needs a provider you have not connected.`, actions: ["choose_model", "open_settings"] }
-  if (saved.refused) return { reason: `${agent}'s provider did not accept your key.`, actions: ["open_settings", "choose_model"] }
+  if (saved.problem === "key_refused") return { reason: `${agent}'s provider did not accept your key.`, actions: ["open_settings", "choose_model"] }
   return null
 }

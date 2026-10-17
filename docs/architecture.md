@@ -23,8 +23,8 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 
 | Concern | What pi provides | What kiko must build |
 | --- | --- | --- |
-| Agent loop | `@earendil-works/pi-durable` 1.0.0. Conversations, turns, tool calls, compaction, crash recovery, steering, follow-ups, abort, child conversations | nothing |
-| Model catalog | `@earendil-works/pi-ai` 1.0.0. Providers, models, context limits, pricing | an endpoint that serves the catalog to the settings screen |
+| Agent loop | `@earendil-works/pi-durable` 1.3.0. Conversations, turns, tool calls, compaction, crash recovery, steering, follow-ups, abort, child conversations | nothing |
+| Model catalog | `@earendil-works/pi-ai` 1.3.0. Providers, models, context limits, pricing | an endpoint that serves the catalog to the settings screen |
 | Provider API keys | `Models.getAuth` reads a `CredentialStore` interface | the `CredentialStore` itself, per user, encrypted |
 | Provider sign-in | each provider exposes `login(interaction)`, `refresh`, `toAuth` | the web bridge for `interaction.prompt` and `interaction.notify` |
 | User accounts | nothing. Pi has one local user and no accounts | one owner, signed in with an access code (section 10) |
@@ -35,7 +35,7 @@ The spec says "Pi already handles BYOK, login, auth, the model catalog and the a
 | Code mode | `@earendil-works/pi-codemode`, which needs Node `worker_threads` | nothing. See section 12 |
 | User extensions | the registry, `install` that replaces in place, and per-conversation selection | the manifest, the QuickJS sandbox, and the storage and review. Parked in `core/extensions/` (section 24) |
 
-**Decision.** Kiko depends on `pi-durable`, `pi-ai`, and `chord` from npm. `chord` is declared at `1.0.0`. `pi-durable` and `pi-ai` are declared as `^1.0.0`, and `bun.lock` pins all three at 1.0.0. All three were published at 1.0.0 (checked against the npm registry on 2026-10-02). Kiko extends `pi-durable` only through its documented extension points, which are `defineExtension`, `defineTool`, `PromptSection`, the generation, tool, and compaction hooks, and the `Storage` and `SqliteDatabase` interfaces.
+**Decision.** Kiko depends on `pi-durable`, `pi-ai`, and `chord` from npm. `chord` is declared at `1.3.0`, the version `pi-durable` 1.3.0 depends on, so one copy loads. `pi-durable` and `pi-ai` are declared as `^1.3.0`, and `bun.lock` pins all three at 1.3.0. All three were first published at 1.0.0 (checked against the npm registry on 2026-10-02). The 1.1 to 1.3 upgrade renamed a tool result's `content` to `output`, tagged tool task inputs as `model` or `nested`, added `openBinaryReader`, `openDirReader`, and `watch` to `ExecutionEnv`, made a nonzero `bash` exit an error result, and made any storage error fail the session. Kiko extends `pi-durable` only through its documented extension points, which are `defineExtension`, `defineTool`, `PromptSection`, the generation, tool, and compaction hooks, and the `Storage` and `SqliteDatabase` interfaces.
 
 **Reasoning.** The `pi-durable` README opens with "Experimental. The API changes without notice between releases." A lockfile pin and a thin host layer keep an upgrade to one package's worth of work. Kiko code that touches pi types lives in `apps/server/src/agent/` and in three reusable packages: `@kiko/agent` (the host), `@kiko/memory`, and `@kiko/sandbox`. A breaking release lands there and nowhere else.
 
@@ -224,6 +224,7 @@ A run that ends with a model or provider error does not retry on its own: the ha
 | Kind | Sentence | Actions |
 | --- | --- | --- |
 | `no_key`, `invalid_key`, `quota` | the provider is not connected, did not accept the key, or has no credit left | Open settings, Change model, Retry |
+| `signed_out` | the provider's sign-in expired or was revoked. A refused key on an OAuth credential reads this way too | Open settings (Sign in again, which opens that provider's connect dialog), Retry |
 | `rate_limit`, `overloaded`, `timeout`, `network` | the provider is busy or unreachable, retry | Retry, Change model |
 | `model_not_found` | the provider does not offer the model | Change model, Open settings |
 | `too_long` | the chat is too long for the model | Change model |
@@ -493,7 +494,7 @@ How it works:
 - Evidence, 2026-10-12 (U71). The fan-out suite's 20 lookups went to one worker in about half of runs. In the other runs the talker started one worker per lookup, so the 3-worker cap ran three at a time and each worker made one search per model turn: 72 to 113 turns, wall 76 to 108 s. With one worker, the calls started within 80 ms and the run took about 20 s in 5 turns. `start_work` now says one worker takes a whole job, and the test pins that wording. Three runs after the change, all 5 turns, all passed. ASSUMPTION: the wording stops the split; three runs is a small sample.
 - The registry is a SQLite table in the `AgentDO`: id, task, conversation id, current submission id, status (`running`, `done`, `failed`, `stopped`), step count, last step, origin, and times. A `beforeTool` hook in the `work-steps` extension, which workers keep, records each worker's step count and last step (tool name and a short argument summary).
 - Each worker also records the paths its calls saved. Every file tool that changes files puts the paths RoomFs wrote in its result's `details` (`changed`), and bash puts the paths of each space it saved there too. An `afterTool` hook in `work-steps` stores them in a `worker_changes` table, one row per path, with the key `(work_id, path)`. A replayed call adds no row, and a write costs one row, not a rewrite of the whole list. The note names the first 20 changed paths and how many more ("and N more"); a stopped or failed report says the same, and a done worker's own report stays its words. A `mv` into a folder records where the file landed, such as `/docs/a.md`, not where it came from. DEVIATION (U51 round 3): the table keeps every distinct path, not 20 plus a count. A capped list cannot count the distinct paths past the cap, so a path changed twice would be counted twice.
-- Tool result `details` do not reach the model. pi-ai's providers send a tool result's `content` and `is_error` only; none of its provider modules reads `details` (checked in pi-ai 1.0.0, 2026-10-12).
+- Tool result `details` do not reach the model. pi-ai's providers send a tool result's content and `is_error` only; none of its provider modules reads `details` (checked in pi-ai 1.0.0, 2026-10-12, not rechecked for 1.3.0). In pi-durable 1.2 and later a tool returns that content as `output`.
 - When a worker's newest input settles, its report goes into the agent's own inbox as a system envelope with id `work:<id>:<submissionId>`, through `AgentHost.receive`: store, set the alarm, return. The inbox ignores an id it has, so a repeated delivery is a no-op. It renders as `<work id="w1" status="done">report</work>` and wakes the talker even when the human said nothing. The talker tells the human the outcome in its own words. A report is cut at 16,000 characters (ASSUMPTION), well under the inbox's 128 KB entry limit.
 - Watching is an in-memory `submission.wait()`. `Workers.rearm` starts one for every worker that has not reported, each time the host opens a harness, so a watch lost to eviction comes back with the next alarm. The heartbeat keeps running while any worker lives.
 - After an input settles, the watcher checks for a newer live input of the same worker, such as a steer, and waits for that one instead of reporting early.
@@ -633,7 +634,7 @@ Every client action is applied locally first. The client keeps a list of pending
 | `delegated` | `from`, `to`, `title` | the lead adds an agent with `spawn_agent` and hands it a task |
 | `subagent` | `agent`, `state` (`started`, `done`, `failed`, `stopped`), `title`, `private: true` | a worker starts or ends |
 | `routine` | `title` | a routine's notice, such as a failed run |
-| `run_error` | `slug`, `reason` (`RunErrorKind`), `actions`, `private: true` | an agent's run failed. The message text is the fixed sentence of section 6.2.1 |
+| `run_error` | `slug`, `reason` (`RunErrorKind`), `actions`, `provider` (the provider id, when the run had one), `private: true` | an agent's run failed. The message text is the fixed sentence of section 6.2.1 |
 | `agent_message` | `from`, `to` | reserved. The client derives the fold from `Message.to` today |
 | `activity` | `count` | reserved |
 
@@ -747,6 +748,7 @@ How kiko does it:
 - The host calls the setup's `beginRun` before a batch starts a new run, never for a batch that steers or queues into a live one. No auth means no submit: the batch is dropped and `RoomDO.noProvider` stores one `run_error` line with kind `no_key` for the agent and input (section 6.2.1). The human's messages stay in the log.
 - DEVIATION: the harness keeps one `Models` per process, because pi-durable takes it at open. Its providers (all of pi-ai's built-in ones) read auth only from the run's `turnContext` answer, never from env or files. A run resumed after an eviction calls `turnContext` again. With every provider bundled, `wrangler deploy --dry-run` reports 8157 KiB, 1313 KiB gzip.
 - DEVIATION: a run that is already going when the owner disconnects keeps its auth until it ends, not only for its current request. The next run gets a `no_key` error line.
+- The model list is pi-ai's bundled catalog plus a live overlay from pi.dev (section 11.5). `UserDO.agentTurn` returns the overlay for the run's provider and its revision, and `AgentDO` applies it before the run resolves its model, so the two objects agree without another request.
 - The chosen model lives in each `AgentDO` (one per room and agent), set by the `setModel` RPC and applied with `configure` at the next run start. ASSUMPTION: without a choice, the model is the test model of section 11.6.
 
 ### 11.4 Sign-in flows
@@ -759,30 +761,65 @@ How kiko does it:
 | GitHub Copilot, Kimi, Meta, xAI, Codex device code | device code, `fetch` only | enabled. The GitHub Copilot flow ran under `wrangler dev` up to the device code from github.com. No flow has been completed against a real account. |
 | Anthropic | loopback server, with a copy-code fallback | enabled, copy-code path only. The server answers the method question itself. |
 | OpenRouter | loopback server always, with a manual paste fallback | not enabled. The flow starts its loopback server before it offers the paste path, and a Worker cannot listen. |
-| OpenAI ChatGPT | imports `node:http` and `node:crypto` at the top of the module | not enabled. Loopback server only. |
+| OpenAI ChatGPT | loopback server on 127.0.0.1:1455, with a manual paste fallback | enabled, paste path only (`apps/server/src/user/chatgpt-signin.ts`). The person approves in the browser, which then fails to load `http://127.0.0.1:1455/auth/callback`, and pastes that full address back. The redirect address cannot change because OpenAI registered it, and a Worker cannot listen on a port. kiko ports pi's flow with the server removed, PKCE through Web Crypto, and a per-owner installation id kept in `UserDO` settings. Refresh and token use are pi's own. UNVERIFIED: no real ChatGPT account has completed it. |
 
 How kiko runs them (`apps/server/src/user/provider-login.ts`):
 
 - The client sends `login.start`, gets `login.notify` and `login.prompt` frames, answers with `login.answer`, and ends with `login.done` or `login.error`. A sign-in opens its own user socket.
 - A login lives in `UserDO` memory, tied to its socket. It ends when the credential is stored, the flow fails, the user cancels, or the socket closes. Each ending removes all of its state. A login does not survive an eviction; the client hears `unknown` and starts again.
 - pi-ai loads flow modules with a computed `import()` that a Worker bundle cannot follow. `registerBunOAuthFlows()` from `@earendil-works/pi-ai/bun-oauth` fills pi-ai's loader table with the bundled flows instead. ASSUMPTION: the helper is named for Bun binaries but does only that. The token refresh depends on it too.
+- The catalog gives each provider a `signIn` offer with pi-ai's own label (`loginLabel`, else `name`), so the connect dialog says "Sign in with ChatGPT" or "Sign in with SuperGrok or X Premium".
+- A failed sign-in maps to one fixed sentence (wrong pasted address, expired code, refused, network) with the provider's words after it, keys stripped by `runErrorDetail`.
 - Subscription sign-in is always available. A development bundle also offers the `kiko-fake` provider for `bun kiko verify provider-login --fake`.
 - UNVERIFIED: pi-ai's device-code polling waits with `setTimeout` between `fetch` calls. Whether a deployed Durable Object stays awake through a long poll has not been measured.
 
 A caution for the owner.
 
-- The Anthropic flow in pi-ai uses a client id that belongs to Claude Code. Using it may break the provider's terms. The owner decides whether to use that flow. API keys work for every provider.
+- The Anthropic flow in pi-ai signs in with Claude Code's client id, as pi itself does. Kiko serves one owner, who uses their own Claude Pro or Max plan for their own chats. What Anthropic forbids is serving one account's tokens to other people, and one Worker never serves anyone but its owner. UNVERIFIED: this reading of Anthropic's terms comes from the owner, not from Kiko's own review of the terms. First run offers the Claude plan sign-in next to ChatGPT and GitHub Copilot.
 - pi-ai's published npm package contains the generated model catalog as JSON in `dist/providers/data/`, so no build-time generation is needed (experiment 7). Bundle size is 3.0 MB, 493 KiB gzip (experiment 5).
+
+### 11.4.1 Provider health
+
+After a provider is connected, kiko notices when it stops working and says exactly what to do. t3code does this with a provider status it polls (`ProviderStatusBanner`, `CodexChatGptAuth` deleting tokens on `invalid_grant` and asking for a new sign-in). pi tells the person to "/login again" when a refresh fails. kiko cannot poll on the Free plan, so it listens to real signals and keeps the result in the credential row.
+
+- Storage. `credentials.problem` and `problem_at` hold one `ProviderProblem`: `signed_out`, `key_refused` or `no_credit`. `CredentialVault.store()` clears it, because a new key, a new sign-in or a refreshed token means the credential works. `setProblem` tells `UserDO` when the stored value changed, and only then does the user socket get `changed: providers`. The memory judge's old `<provider>_refused` setting is the same column now (`key_refused`); its `jev_refused` counter stays.
+- Refresh failures. `resolveAuth` (`user/turn-context.ts`) catches `ModelsError` code `oauth`. `classifyAuthFailure` (`user/provider-health.ts`, a pure table like `KINDS`) calls a definitive refusal (400, 401, 403, `invalid_grant`, revoked, expired, "reconnect") `signed_out`: it stores the problem and the turn carries `authProblem: "signed_out"`. A network error, a 5xx, a rate limit or a timeout is `unreachable`: the credential is left alone, and `AgentDO` reports `network` instead of `no_key`. A refresh that worked but gave a short-lived token is not a failure.
+- Run failures. A run that fails with `invalid_key` on an OAuth credential is reported as `signed_out` (the turn carries the credential kind). `RoomDO.reportRunError` tells `UserDO.recordProviderProblem` for `invalid_key` (`key_refused`), `signed_out` and `quota` (`no_credit`), in the same `waitUntil` as the error frame. A limit or an outage never sets a problem.
+- Recovery. `agentTurn` returns the stored problem. A run that began with a problem and ended without a model error calls `UserDO.providerRecovered`, one RPC and only then. `POST /api/credentials/<provider>/check` ("Check again") refreshes an OAuth sign-in and sends the cheapest request the provider offers, the one `credentials-check.ts` uses for a new key, then sets or clears the problem and returns the row.
+- Proactive refresh. A `UserDO` alarm, `PROVIDERS_WAKEUP` (`alarm.ts`), runs every six hours. It resolves auth for each OAuth credential with `minOAuthValidityMs` of 6.5 hours, so a token is refreshed before a run needs it and a revoked sign-in is found before the person writes. That is one refresh request per OAuth provider, far below the 50 subrequests of an invocation.
+- Client. The Providers rail and detail show a dot and a sentence, with Sign in again or Replace key and Check again. The model picker marks the models of a provider with a problem. A `signed_out` run line opens the connect dialog of that provider directly, in the mode that fixes it: a new sign-in for OAuth, a new key for a key.
+- Sending is blocked only for `key_refused`, as before. A `signed_out` provider is not blocked, because a send is also a retry of the refresh.
+- ASSUMPTION: a 400 from the refresh endpoint means the grant is gone. OAuth servers answer `invalid_grant` with 400. A transient 400 would show "Sign-in expired" until the next good refresh, check or run clears it. UNVERIFIED: no real provider has been driven through a revoked sign-in. `verify provider-health` drives the same code with the development test provider.
 
 ### 11.5 Model catalog for the client
 
-A build step reads the pi-ai catalog and writes a hashed JSON asset. The settings screen loads it lazily. No custom model list exists anywhere in kiko.
+**Decision.** The model list is pi-ai's bundled catalog plus a live overlay synced from pi.dev, so a model that appears in pi's catalog appears in kiko within the hour without a package upgrade. The client reads the merged list from `GET /api/models`. No custom model list exists anywhere in kiko.
+
+**Reasons.**
+
+- pi's own coding agent does the same thing (`withRemoteCatalog` in `remote-catalog-provider.ts`). Kiko ports its rules and does not invent new ones.
+- The Free plan allows 50 subrequests per invocation. pi asks for each provider alone, which is 42 requests. Kiko asks once for `GET https://pi.dev/api/models?types=chat,image,classifier`, the aggregate endpoint (about 1 MB, shape `{ [providerId]: models }`). It sends `If-None-Match`, so an unchanged catalog is a 304.
+
+How kiko does it (`apps/server/src/models/`):
+
+- `catalog.ts` wraps pi-ai's built-in providers once, so `getModels` and `getAllModels` merge the current overlay on every call. The merge key is `type` plus id, and the remote model wins, as in pi. `computeOverlay` keeps a remote model only when its provider id is bundled, its api is one that provider's bundled models already use, the response is newer than the bundled data (`getBuiltinModelDataGeneratedAt`), and it differs from the bundled model of the same type and id. Malformed entries are dropped. A model on an api pi-ai cannot stream is therefore never offered. The overlay is small, so it is cheap to store and to send to `AgentDO`.
+- `sync.ts` makes the conditional request with a 4 second timeout. A 200 stores the overlay and the etag. A 304 moves only `checkedAt`. A 404 or 501 stores an empty overlay and forgets the etag. Any other failure keeps the cached body and the etag and records the error. It never throws out of an alarm.
+- Storage is in `UserDO`: one row per provider in `model_catalog`, and `{ etag, lastModified, checkedAt, revision, error }` in the settings table under `model_catalog`. The revision is a short hash of the overlay. Rows are written only when the revision changes. When the bundled data catches up with the stored `lastModified` (after an upgrade), the stored overlay is ignored, as in pi.
+- The `models` wakeup in `alarm.ts` runs the sync every hour. It is armed when the object first starts. `UserDO` loads the stored overlay when it starts. After a sync that changed the overlay it sends a `changed` frame with `what: "models"`, and an open client loads the catalog again.
+- `UserDO.modelCatalog` builds the client's catalog from the live providers (reasoning levels from pi-ai's `getSupportedThinkingLevels`, prices, the classifier count) and keeps the JSON in memory for one revision. When the last check is older than 15 minutes, it starts a sync and answers at once, so opening settings never waits on pi.dev. A changed overlay reaches open clients as a `changed: models` frame, and open screens load the catalog again.
+- The Worker route (`models/route.ts`) only proxies. It answers with `ETag: "<revision>-<kiko version>"` and `Cache-Control: no-cache`, and with 304 when `If-None-Match` matches. The kiko version is in the tag because the bundled data changes with it.
+- `connect` methods come from the server: `api_key` when the provider has API-key auth, and a sign-in only when `signInMethod` in `user/provider-login.ts` knows the provider. The catalog never offers a sign-in the server refuses.
+- ASSUMPTION: one request an hour is enough. pi itself checks every 4 hours.
+- ASSUMPTION: `pi.dev` keeps `last-modified` and `etag` on the aggregate endpoint. Without `last-modified` the response counts as older than the bundled data and adds nothing.
+- UNVERIFIED: the aggregate endpoint is not documented by pi. It was measured on 2026-10-17 (200, 42 providers, 174 models the bundled catalog lacked). A change of shape makes `computeOverlay` return an empty overlay, so the bundled catalog keeps working.
 
 Providers and models are one settings page, `/settings/models`. Connected providers come first, each with its models under it. The default model for new chats carries a dot, and one click on a model makes it the default. A search and a compact list of the other providers sit below, each one click from its connect dialog. The old `/settings/providers` URL redirects there. A chat's own model is switched from the chip at the right of the top bar, which opens the same picker; it hides while no provider is connected, because the chat's banner already says so.
 
 ### 11.6 Test provider
 
-Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 does not pass the `sessionId` that would add it. The host sets it through `settings.stream.headers`. The Worker never reads the key: a verify suite that calls the model runs `connectTestModel(s)`, which saves `OPENCODE_API_KEY` from the CLI's shell through `PUT /api/credentials/opencode-go` like any user.
+Tests use the `opencode-go` provider with the key from `OPENCODE_API_KEY`. The key lives in `.dev.vars` locally and in a CI secret, and both are ignored by git. The test model is `deepseek-v4.1-flash` under `opencode-go`, named "DeepSeek V4.1 Flash" in the pi-ai 1.0.0 catalog (experiment 1). OpenCode Go rejects a request without an `x-opencode-session` header, and `pi-durable` 1.0.0 did not pass the `sessionId` that would add it. 1.3.0 passes one, but the host still sets the header through `settings.stream.headers`, so a run keeps one session id. The Worker never reads the key: a verify suite that calls the model runs `connectTestModel(s)`, which saves `OPENCODE_API_KEY` from the CLI's shell through `PUT /api/credentials/opencode-go` like any user.
+
+A development build also offers the sign-in test provider `kiko-fake`. Its first token lasts one minute, and a dev route (`POST /api/dev/user/provider-health`) switches its refresh between working, refused and unreachable, and runs the six-hourly refresh at once. `verify provider-health` uses it to show section 11.4.1 without a model key.
 
 ## 12. Composio integration
 
@@ -1278,7 +1315,7 @@ When `document.visibilityState` is `hidden`, the client closes the room socket a
 
 ### 19.7 Static assets
 
-Icons, default avatars, emoji data, theme tokens, the model catalog, and built-in skill metadata are build-time constants in hashed files served with `Cache-Control: immutable`. The four icon systems in the repo today are reduced to one sprite.
+Icons, default avatars, emoji data, theme tokens, and built-in skill metadata are build-time constants in hashed files served with `Cache-Control: immutable`. The four icon systems in the repo today are reduced to one sprite.
 
 ### 19.8 Theme
 

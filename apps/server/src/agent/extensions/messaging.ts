@@ -32,8 +32,8 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
   const send = async (to: AgentSlug | "all", body: string, api: Pick<ToolExecutionApi, "conversationId" | "callId">) => {
     const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body })
     return out.ok
-      ? { content: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat, and their answer will reach you as a message. if that was all you had to say, reply with just [skip].`) }
-      : { content: text(out.error), isError: true }
+      ? { output: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat, and their answer will reach you as a message. if that was all you had to say, reply with just [skip].`) }
+      : { output: text(out.error), isError: true }
   }
   const slug = (description: string) => Type.String({ description })
 
@@ -49,8 +49,8 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
         const id = `${api.conversationId}:${api.callId}`
         const who = to.replace(/^@/, "").toLowerCase() as AgentSlug
         const sent = await room().ask({ id, to: who, text: question })
-        if (!sent.ok) return { content: text(sent.error), isError: true }
-        const reply = (answer: Answer) => ({ content: text(answer ? `@${who} answered: ${answer}` : `@${who} had nothing to add.`) })
+        if (!sent.ok) return { output: text(sent.error), isError: true }
+        const reply = (answer: Answer) => ({ output: text(answer ? `@${who} answered: ${answer}` : `@${who} had nothing to add.`) })
         const answered = (s: { state: string; answer: string | null } | null) => (s?.state === "answered" ? reply(s.answer ?? "") : null)
         const stored = answered(await room().askState(id))
         if (stored) return stored
@@ -59,7 +59,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
         const last = answered(await room().closeAsk(id))
         if (last) return last
         const why = room().humanWaiting() ? "the human wrote, so answer them first" : `@${who} has not answered yet`
-        return { content: text(`${why}. @${who}'s answer will reach you as a message; go on with what you can.`) }
+        return { output: text(`${why}. @${who}'s answer will reach you as a message; go on with what you can.`) }
       },
     }),
   )
@@ -86,16 +86,16 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
       execute: async ({ question, options, questions }, api, context) => {
         const id = `${api.conversationId}:${api.callId}`
         const asked = await room().askHuman({ id, ...(question ? { question } : {}), ...(options?.length ? { options } : {}), ...(questions ? { questions } : {}) })
-        if (!asked.ok) return { content: text(asked.error), isError: true }
+        if (!asked.ok) return { output: text(asked.error), isError: true }
         const settled = (s: { state: string; answer: string | null } | null) =>
-          s?.state === "answered" ? { content: text(`the human answered: ${s.answer ?? ""}`) } : s?.state === "skipped" ? { content: text("the human skipped the question. go on without an answer, or ask in your own words later.") } : null
+          s?.state === "answered" ? { output: text(`the human answered: ${s.answer ?? ""}`) } : s?.state === "skipped" ? { output: text("the human skipped the question. go on without an answer, or ask in your own words later.") } : null
         const stored = settled(await room().humanAskState(id))
         if (stored) return stored
         if (!room().humanWaiting()) await room().waitAnswer(id, ASK_WAIT_MS, context.abortSignal)
         const last = settled(await room().humanAskState(id))
         if (last) return last
         const why = room().humanWaiting() ? "the human wrote something else, so answer them first" : "the human has not answered yet"
-        return { content: text(`${why}. the question stays open, and an answer will reach you as a message; go on with what you can.`) }
+        return { output: text(`${why}. the question stays open, and an answer will reach you as a message; go on with what you can.`) }
       },
     }),
   )
@@ -131,7 +131,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
             const rows = await room().team()
             const line = (m: (typeof rows)[number]) =>
               `@${m.slug}: ${m.doing ?? m.status}${m.holds.length ? `, holding ${m.holds.map((p) => `/${p}`).join(", ")}` : ""}`
-            return { content: text(rows.map(line).join("\n")) }
+            return { output: text(rows.map(line).join("\n")) }
           },
         }),
       ),

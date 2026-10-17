@@ -112,7 +112,7 @@ export const AgentStatus = Schema.Struct({
 	activity: Schema.optionalKey(Activity),
 })
 
-export const RunErrorKind = Schema.Literals(["no_key", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "refused", "too_long", "other"])
+export const RunErrorKind = Schema.Literals(["no_key", "signed_out", "invalid_key", "quota", "rate_limit", "model_not_found", "network", "overloaded", "timeout", "refused", "too_long", "other"])
 
 export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("created"), roomId: RoomId, title: Schema.String }),
@@ -126,7 +126,7 @@ export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("group_formed"), private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("member_added"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("member_removed"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),
-	Schema.Struct({ kind: Schema.Literal("run_error"), slug: AgentSlug, reason: RunErrorKind, actions: Schema.Array(Schema.Literals(["retry", "change_model", "open_settings"])), detail: Schema.optionalKey(Schema.String), private: Schema.Literal(true) }),
+	Schema.Struct({ kind: Schema.Literal("run_error"), slug: AgentSlug, reason: RunErrorKind, actions: Schema.Array(Schema.Literals(["retry", "change_model", "open_settings"])), provider: Schema.optionalKey(Schema.String), detail: Schema.optionalKey(Schema.String), private: Schema.Literal(true) }),
 ])
 
 const UnknownSystemEvent = Schema.Struct({ kind: Schema.String })
@@ -594,7 +594,7 @@ export const UserToClient = Schema.Union([
 	Schema.Struct({ t: Schema.Literal("home_refused"), op: FileOp, reason: Schema.String }),
 	Schema.Struct({ t: Schema.Literal("chat_refused"), roomId: RoomId, existing: RoomId }),
 	Schema.Struct({ t: Schema.Literal("typing"), roomId: RoomId, names: Schema.Array(Schema.String) }),
-	Schema.Struct({ t: Schema.Literal("changed"), what: Schema.Literals(["routines", "memory", "loops"]) }),
+	Schema.Struct({ t: Schema.Literal("changed"), what: Schema.Literals(["routines", "memory", "loops", "models", "providers"]) }),
 	Schema.Struct({ t: Schema.Literal("reset"), snapshot: UserSnapshot, version: Schema.optionalKey(Schema.String), protocol: Schema.optionalKey(Schema.Number), fileToken: Schema.optionalKey(Schema.String) }),
 	Schema.Struct({ t: Schema.Literal("memory_result"), reqId: Id, result: MemoryResult }),
 	Schema.Struct({ t: Schema.Literal("search"), query: Schema.String, chats: Schema.Array(Chat) }),

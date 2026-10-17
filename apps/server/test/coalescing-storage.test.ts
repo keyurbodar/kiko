@@ -38,7 +38,7 @@ async function runConformance(policy: string) {
   return results
 }
 
-const CONFORMANCE_CASES = 23
+const CONFORMANCE_CASES = 24
 
 test("the wrapper passes pi-durable storage conformance", async () => {
   const results = await runConformance("default")

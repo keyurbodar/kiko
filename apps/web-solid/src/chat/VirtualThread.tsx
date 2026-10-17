@@ -645,7 +645,7 @@ export function VirtualThread(props: {
       const failed = item.message.event as Extract<SystemEvent, { kind: "run_error" }>
       return (
         <Suspense fallback={<ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />}>
-          <RunErrorRow message={item.message} slug={failed.slug} actions={failed.actions} detail={failed.detail} latest={props.messages.at(-1)?.id === item.message.id} />
+          <RunErrorRow message={item.message} slug={failed.slug} actions={failed.actions} detail={failed.detail} reason={failed.reason} provider={failed.provider} latest={props.messages.at(-1)?.id === item.message.id} />
         </Suspense>
       )
     }

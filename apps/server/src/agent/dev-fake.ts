@@ -190,14 +190,14 @@ const slowTool = (name: string, effect: Effect) =>
       parameters: Type.Object({ ms: Type.Optional(Type.Number()) }),
       execute: async (args, _api, context) => {
         await awaitWithContext(boundedWait(Math.min(args.ms ?? SLOW_TOOL_MS, 300_000)), context)
-        return { content: [{ type: "text", text: "slept" }] }
+        return { output: [{ type: "text", text: "slept" }] }
       },
     }),
   )
 
 export const SLOW_TOOL_EXTENSION: Extension = defineExtension({ name: "test-slow-tool", tools: [slowTool(SLOW_TOOL, "read"), slowTool(SLOW_WRITE_TOOL, "write")] })
 
-const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] })
+const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] })
 const page = Type.Object({ page: Type.String() })
 
 export const FAKE_TOOLS = {

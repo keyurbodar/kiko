@@ -1,6 +1,6 @@
 import type { AuthResult, Models } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
-import { builtinProviders } from "@earendil-works/pi-ai/providers/all"
+import { providers } from "../models/catalog"
 import { type AgentChange, createRegistry, defineExtension, type Extension, type HarnessSettings, type ModelRef, type Registry } from "@earendil-works/pi-durable"
 import { workExtensions } from "./extensions/work"
 import { withTextToolCalls } from "./tool-markup"
@@ -125,7 +125,7 @@ export const RUN_SETTINGS: HarnessSettings = { toolExecution: "parallel", retry:
 
 export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fetch): { models: Models; settings: HarnessSettings } {
   const models = createModels({ authContext: { env: async () => undefined, fileExists: async () => false } })
-  for (const provider of builtinProviders()) {
+  for (const provider of providers()) {
     const via = (model: { api: string }, options: object | undefined) => (egress && !NO_CUSTOM_FETCH.has(model.api) ? { ...options, fetch: egress } : options)
     const routed = {
       stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(model, context, via(model, options) as never))) as typeof provider.stream,

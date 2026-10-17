@@ -182,8 +182,8 @@ export function presenceExtension(port: StepsPort): Extension {
           const startedAt = started.get(at) ?? endedAt
           started.delete(at)
           const { scope, shown, described } = built
-          const output = outputOf(result.content)
-          const out = result.isError ? failedCall(described, result.content) : null
+          const output = outputOf(result.output)
+          const out = result.isError ? failedCall(described, result.output) : null
           port.push({
             step: { id: call.id, runId: scope.runId, ...(scope.worker ? { worker: scope.worker } : {}), ...shown, status: result.isError ? "failed" : "done", startedAt, endedAt, ...(output ? { output } : {}) },
             ...(out ? { doing: out.doing, activity: out.activity } : {}),

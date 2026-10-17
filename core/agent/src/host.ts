@@ -380,7 +380,9 @@ export class AgentHost {
     const ids: TaskId[] = []
     for (const task of live.tasks) {
       if (task.record.kind !== TOOL_TASK || task.record.conversationId !== root.id || task.state.kind !== "running") continue
-      const name = tools.get((task.record.input as ToolTaskInput).callId)
+      const input = task.record.input as ToolTaskInput
+      if (input.kind !== "model") continue
+      const name = tools.get(input.callId)
       const tool = installed.find((t) => t.tool.name === name)?.tool
       if (tool && stoppable(tool)) ids.push(task.record.id)
     }

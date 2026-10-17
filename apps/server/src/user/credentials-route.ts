@@ -6,6 +6,7 @@ import { checkApiKey, CredentialError, isProviderId } from "./credentials"
 
 const PREFIX = "/api/credentials"
 const MAX_BODY = 16_384
+const CHECK = "/check"
 
 async function readApiKey(request: Request): Promise<string> {
   if (!request.headers.get("content-type")?.includes("json")) throw new CredentialError("expected a json body")
@@ -32,7 +33,15 @@ export async function credentialsRoute(request: Request, env: Env): Promise<Resp
     return Response.json({ providers: await stub.listProviders() })
   }
 
-  const provider = url.pathname.slice(PREFIX.length + 1)
+  const rest = url.pathname.slice(PREFIX.length + 1)
+  if (rest.endsWith(CHECK)) {
+    const checked = rest.slice(0, -CHECK.length)
+    if (!isProviderId(checked)) return error(400, "bad provider id")
+    if (request.method !== "POST") return error(405, "method not allowed")
+    const info = await stub.checkProvider(checked)
+    return info ? Response.json({ provider: info }) : error(404, "that provider is not connected")
+  }
+  const provider = rest
   if (!isProviderId(provider)) return error(400, "bad provider id")
   if (request.method === "DELETE") return Response.json({ removed: await stub.disconnectProvider(provider) })
   if (request.method !== "PUT") return error(405, "method not allowed")

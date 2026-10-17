@@ -23,5 +23,5 @@ test("a write, a message, and an outside call run to their end", () => {
 })
 
 test("a tool with no declared effect is not stopped", () => {
-  expect(stoppable(defineTool({ name: "undeclared", description: "none", parameters: Type.Object({}), execute: async () => ({ content: [] }) }))).toBe(false)
+  expect(stoppable(defineTool({ name: "undeclared", description: "none", parameters: Type.Object({}), execute: async () => ({ output: [] }) }))).toBe(false)
 })
