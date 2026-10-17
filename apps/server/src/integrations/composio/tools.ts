@@ -84,10 +84,10 @@ function shown(tools: readonly ComposioTool[]): ComposioTool[] {
 
 const learned = (tools: readonly ComposioTool[]) => shown(tools).flatMap((t) => (t.direct ? [toolName(t.name)] : []))
 
-/** Which learned tools a worker can call, so the talker can name one in its task (architecture section 8). */
+/** The learned connected-app tools the agent and its workers can call. */
 export function learnedNote(tools: readonly ComposioTool[]): string | undefined {
   const names = learned(tools)
-  return names.length ? `connected-app tools a worker can call directly: ${names.join(", ")}.` : undefined
+  return names.length ? `connected-app tools you can call directly: ${names.join(", ")}.` : undefined
 }
 
 export function composioExtension(tools: readonly ComposioTool[], rawCall: ComposioCall, fs?: RoomFs): Extension {

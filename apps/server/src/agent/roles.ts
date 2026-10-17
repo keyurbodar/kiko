@@ -1,6 +1,5 @@
 import type { Extension } from "@earendil-works/pi-durable"
 import { MEMORY_NOTE } from "@kiko/memory/tools"
-import { COMPOSIO } from "../integrations/composio/tools"
 import { BROWSER_EXT } from "./browser/tools"
 import { GROUPS_EXT } from "./extensions/chief"
 import { MESSAGING } from "./extensions/messaging"
@@ -27,8 +26,7 @@ const TABLE: Readonly<Record<string, readonly Role[]>> = {
   [WORKSPACE]: ["talker"],
   [ROUTINES]: ["talker"],
   [GROUPS_EXT]: ["talker"],
-  // The web, the human's connected apps, and the page is the worker's job.
-  [COMPOSIO]: ["worker"],
+  // Driving the browser is slow, so it is the worker's job. Connected apps, web search included, reach both.
   [BROWSER_EXT]: ["worker"],
 }
 

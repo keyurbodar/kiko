@@ -81,7 +81,7 @@ function roleText({ role, lead }: RoleInput): string {
 const slot = (key: SectionKey): PromptSection => section(key, () => undefined)
 
 /** The delegation rules the work extension fills in. Kept here so a talker prompt names workers even when a test agent has none. */
-export const WORK_LINES = `- start_work hands one whole job to a background worker and returns at once. Use it for work that is slow, has many parts, or needs the browser or a connected app.
+export const WORK_LINES = `- start_work hands one whole job to a background worker and returns at once. Use it for work that is slow, has many parts, or needs the browser. A quick search or one connected-app call you make yourself.
 - Give the worker the whole job in one call, with everything it needs. Never one worker per item, and never split a job into batches.
 - Answer small questions yourself while workers run.
 - Your workers are listed in <context>. When the request changes, steer_work the one it affects; stop_work the one they no longer want.
