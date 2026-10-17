@@ -118,20 +118,16 @@ function RowChevron(props: { open: boolean }) {
   )
 }
 
-function Output(props: { step: RunStep; loading: boolean }) {
+function Output(props: { step: RunStep }) {
   return (
-    <Show
-      when={props.step.output}
-      fallback={
-        <p class="run-note">
-          {props.step.status === "running" ? "Running…" : props.loading ? "Loading output…" : "No output."}
-        </p>
-      }
-    >
+    <Show when={props.step.output}>
       {(text) => <pre class="run-mono run-out" data-failed={props.step.status === "failed" ? "" : undefined}>{text()}</pre>}
     </Show>
   )
 }
+
+/** What stands in for output that is not there: still running, on its way, or empty. */
+const emptyNote = (step: RunStep, loading: boolean) => (step.status === "running" ? "Running…" : loading ? "Loading output…" : "No output.")
 
 function StepRow(props: { step: RunStep; child: boolean; open: boolean; loading: boolean; onToggle: () => void }) {
   const step = () => props.step
@@ -162,8 +158,15 @@ function StepRow(props: { step: RunStep; child: boolean; open: boolean; loading:
       </div>
       <Show when={props.open}>
         <div class="run-detail">
-          <Show when={extraInput(step())}>{(input) => <pre class="run-mono run-input">{input()}</pre>}</Show>
-          <Output step={step()} loading={props.loading} />
+          <Show when={extraInput(step()) || step().output} fallback={<p class="run-note">{emptyNote(step(), props.loading)}</p>}>
+            <div class="run-block">
+              <Show when={extraInput(step())}>{(input) => <pre class="run-mono run-input">{input()}</pre>}</Show>
+              <Output step={step()} />
+            </div>
+          </Show>
+          <Show when={!step().output && extraInput(step())}>
+            <p class="run-note">{emptyNote(step(), props.loading)}</p>
+          </Show>
         </div>
       </Show>
     </div>
