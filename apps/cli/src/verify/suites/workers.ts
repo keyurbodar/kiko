@@ -60,10 +60,11 @@ const cases: Case[] = [
       }
       const at = Date.now()
       await send(room, `[tool stop_work ${JSON.stringify({ id: "w1" })}]`)
-      await poll("the stop report", () => texts(room).some((t) => t.startsWith("report w1 stopped")), 15_000)
+      await poll("the worker to stop", async () => (await list())[0]?.status === "stopped", 15_000)
       if (Date.now() - at > 10_000) throw new VerifyError("the stop waited for the worker's steps")
-      expectEqual((await list())[0]?.status, "stopped", "w1")
-      expectEqual(texts(room).filter((t) => t.startsWith("report w1")).length, 1, "reports")
+      // A stopped worker that changed no files sends no report: the agent that stopped it already knows.
+      await Bun.sleep(3_000)
+      expectEqual(texts(room).filter((t) => t.startsWith("report w1")).length, 0, "reports")
     },
   },
   {
