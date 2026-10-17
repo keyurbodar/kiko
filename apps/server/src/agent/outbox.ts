@@ -23,7 +23,10 @@ export interface RoomPort {
   runError(runId: string, error: { kind: RunErrorKind; provider: string; detail?: string }): Promise<void>
 }
 
-type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number }
+type Row = { run_id: string; attempt: number; cursor: number; blocks: string; posted: number; failure: string | null }
+
+/** A model error the run has not recovered from. pi-durable may still retry it, so it is reported only when the run ends. */
+type Failure = { errorMessage?: string; provider?: string }
 
 type AssistantLike = Assistant
 
@@ -61,6 +64,7 @@ type Run = {
   quiet: boolean
   /** The narration the run wrote between two calls, waiting to be pushed to the step pane. */
   notes: { id: string; text: string }[]
+  failure: Failure | null
 }
 
 const quietInput = (entry: EntryRecord): boolean => {
@@ -191,6 +195,10 @@ export class Outbox {
         return this.setStatus("typing")
       // pi-durable waits out a transient error and tries again; the typing line says so instead of "writing a reply".
       case "auto_retry_start":
+        if (this.run?.failure) {
+          this.run.failure = null
+          this.save(this.run)
+        }
         return this.setStatus("typing", retrying(event.attempt))
       case "auto_retry_end":
         return this.setStatus("typing")
@@ -283,8 +291,6 @@ export class Outbox {
     if (!run) return
     const before = run.blocks.length
     const lost = this.finishGeneration(run, entry)
-    const failed = assistant(entry)
-    if (failed?.stopReason === "error") await this.reportError(run.id, failed)
     if (lost && run.posted > before) this.rebase(run)
     this.save(run)
     await this.flush()
@@ -298,7 +304,12 @@ export class Outbox {
     for (const note of run.notes.splice(0)) await port.note(run.id, note.id, note.text)
   }
 
-  private async reportError(runId: string, message: AssistantLike): Promise<void> {
+  private failureOf(runId: string): Failure | null {
+    const row = this.sql.exec<{ failure: string | null }>("SELECT failure FROM outbox WHERE run_id = ?", runId).toArray()[0]
+    return row?.failure ? (JSON.parse(row.failure) as Failure) : null
+  }
+
+  private async reportError(runId: string, message: Failure): Promise<void> {
     const detail = runErrorDetail(message.errorMessage)
     // A failed report must not stop the run from being saved and its bubbles flushed.
     await this.room()
@@ -310,6 +321,7 @@ export class Outbox {
     run.cursor = Math.max(run.cursor, entry.id)
     const message = assistant(entry)
     if (!message) return false
+    run.failure = message.stopReason === "error" ? { ...(message.errorMessage ? { errorMessage: message.errorMessage } : {}), ...(message.provider ? { provider: message.provider } : {}) } : null
     if (hasToolCall(message)) run.toolStarted = true
     const streamed = run.generation?.blocks ?? []
     run.generation = null
@@ -363,6 +375,8 @@ export class Outbox {
       this.save(run)
       await this.flush()
     }
+    const failure = run?.failure ?? this.failureOf(id)
+    if (failure) await this.reportError(id, failure)
     const working = this.backgroundRunning
     await this.room()?.endRun(id, inputs, working)
     this.sql.exec("DELETE FROM outbox WHERE run_id = ?", id)
@@ -381,7 +395,7 @@ export class Outbox {
   }
 
   private openRows(): Row[] {
-    return this.sql.exec<Row>("SELECT run_id, attempt, cursor, blocks, posted FROM outbox ORDER BY rowid").toArray()
+    return this.sql.exec<Row>("SELECT run_id, attempt, cursor, blocks, posted, failure FROM outbox ORDER BY rowid").toArray()
   }
 
   private load(row: Row): Run {
@@ -398,16 +412,18 @@ export class Outbox {
       tools: new Map(),
       quiet: false,
       notes: [],
+      failure: row.failure ? (JSON.parse(row.failure) as Failure) : null,
     }
   }
 
   private save(run: Run): void {
     this.sql.exec(
-      "UPDATE outbox SET attempt = ?, cursor = ?, blocks = ?, posted = ? WHERE run_id = ?",
+      "UPDATE outbox SET attempt = ?, cursor = ?, blocks = ?, posted = ?, failure = ? WHERE run_id = ?",
       run.attempt,
       run.cursor,
       JSON.stringify(run.blocks),
       run.posted,
+      run.failure ? JSON.stringify(run.failure) : null,
       run.id,
     )
   }

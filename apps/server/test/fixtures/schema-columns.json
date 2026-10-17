@@ -4425,6 +4425,14 @@
           "notnull": 1,
           "dflt_value": "0",
           "pk": 0
+        },
+        {
+          "cid": 6,
+          "name": "failure",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 0
         }
       ],
       "indexes": [

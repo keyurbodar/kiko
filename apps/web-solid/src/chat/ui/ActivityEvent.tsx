@@ -1,6 +1,6 @@
 import type { RunErrorAction, RunErrorKind, SystemEvent } from "@kiko/protocol"
 import type { Glyph } from "@kiko/ui/huge-icon"
-import { AlertCircleIcon, ChatIcon, ClockIcon, GroupIcon, MemoryIcon, MinusIcon, ModelIcon, PlusIcon, SparklesIcon, StopIcon } from "@kiko/ui/icons"
+import { AlertCircleIcon, ChatIcon, ClockIcon, GroupIcon, MemoryIcon, MinusIcon, ModelIcon, PlusIcon, StopIcon } from "@kiko/ui/icons"
 import { createMemo, createSignal, onCleanup, Show } from "solid-js"
 import { openSettings } from "../../lib/errors"
 import { useApp } from "../../lib/store"
@@ -21,7 +21,6 @@ const ICONS: Record<string, Glyph> = {
   delegated: ChatIcon,
   routine: ClockIcon,
   agent_message: ChatIcon,
-  worker: SparklesIcon,
   run_stopped: StopIcon,
   run_error: AlertCircleIcon,
 }

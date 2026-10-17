@@ -122,7 +122,6 @@ export const SystemEvent = Schema.Union([
 	Schema.Struct({ kind: Schema.Literal("routine_created"), agent: AgentSlug, title: Schema.String, byAgent: Schema.optionalKey(Schema.Literal(true)), private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("model_changed"), agent: AgentSlug, model: Schema.String, from: Schema.optionalKey(Schema.String), private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("compacted"), agent: AgentSlug, private: Schema.Literal(true) }),
-	Schema.Struct({ kind: Schema.Literal("worker"), agent: AgentSlug, state: Schema.Literals(["started", "done", "failed", "stopped"]), title: Schema.String, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("run_stopped"), agent: AgentSlug, private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("group_formed"), private: Schema.Literal(true) }),
 	Schema.Struct({ kind: Schema.Literal("member_added"), slug: AgentSlug, name: Schema.String, private: Schema.Literal(true) }),

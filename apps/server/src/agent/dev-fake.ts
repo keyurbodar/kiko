@@ -70,6 +70,9 @@ function workerReply(messages: readonly Message[], toolNames: () => string) {
 
 const toolsOf = (transcript: readonly Message[]) => new Set([...JSON.stringify(transcript.filter((m) => m.role === "system")).matchAll(/"name":"([\w-]+)","description"/g)].map((m) => capture(m, 1)))
 
+// The inputs that already failed once: `[model-error-once]` fails the first request and answers the retry.
+const failedOnce = new Set<string>()
+
 export function fakeReply(transcript: readonly Message[]) {
   const toolNames = () => getCurrentTools(transcript as never).map((t) => t.name).sort().join(",")
   const messages = transcript.filter((m) => m.role !== "system")
@@ -129,6 +132,12 @@ export function fakeReply(transcript: readonly Message[]) {
   const missed = briefed.length ? `; missed: ${briefed.flatMap((m) => missedOf(rawOf(m))).join(" | ")}` : ""
   const heard = `heard: ${users.join(" | ")}${results.length ? `; tool: ${results.join(", ")}` : ""}${missed}`
   const newest = last?.role === "user" ? textOf(last) : ""
+  const once = /(?:^|\s)\[model-error-once\]\s*([\s\S]*)$/.exec(newest)
+  if (once && !failedOnce.has(newest)) {
+    failedOnce.add(newest)
+    return fauxAssistantMessage("", { stopReason: "error", errorMessage: capture(once, 1) })
+  }
+  if (once) return fauxAssistantMessage("recovered")
   const failing = /(?:^|\s)\[model-error\]\s*([\s\S]*)$/.exec(newest)
   if (failing) return fauxAssistantMessage("", { stopReason: "error", errorMessage: capture(failing, 1) })
   const scripted = /(?:^|\s)\[reply\]\s*([\s\S]*)$/.exec(newest)

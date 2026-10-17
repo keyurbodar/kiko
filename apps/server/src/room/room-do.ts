@@ -1109,20 +1109,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		const before = this.log.meta(workersKey(slug))
 		if (before === next) return
 		this.log.setMeta(workersKey(slug), next)
-		this.workerRows(slug, before ? (JSON.parse(before) as WorkerRow[]) : [], rows)
 		if (member.status !== "idle") this.broadcastStatus(slug)
-	}
-
-	/** A row for a worker that began and one for a worker that ended. Ids carry the worker and its start, so a repeat push stores nothing. */
-	private workerRows(slug: AgentSlug, before: readonly WorkerRow[], rows: readonly WorkerRow[]): void {
-		const was = new Map(before.map((w) => [w.id, w]))
-		const who = this.members.get(slug)?.name ?? slug
-		for (const w of rows) {
-			const prior = was.get(w.id)
-			const key = `worker:${slug}:${w.id}:${w.startedAt}`
-			if ((!prior || prior.startedAt !== w.startedAt || prior.status === "pending") && w.status === "running") this.divider(`${key}:started`, `${who} started a task: ${w.task}`, { kind: "worker", agent: slug, state: "started", title: w.task, private: true })
-			else if (prior?.status === "running" && prior.startedAt === w.startedAt && w.status !== "running" && w.status !== "pending") this.divider(`${key}:${w.status}`, `${who} ${w.status === "done" ? "finished" : w.status} a task: ${w.task}`, { kind: "worker", agent: slug, state: w.status, title: w.task, private: true })
-		}
 	}
 
 	async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false, mailOnly = false): Promise<void> {

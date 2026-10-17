@@ -69,8 +69,6 @@ export type SystemEvent =
 	| { kind: "routine_created"; agent: AgentSlug; title: string; byAgent?: true; private: true }
 	| { kind: "model_changed"; agent: AgentSlug; model: string; from?: string; private: true }
 	| { kind: "compacted"; agent: AgentSlug; private: true }
-	/** A background worker an agent started began, or ended in `state`. `title` is its task. */
-	| { kind: "worker"; agent: AgentSlug; state: "started" | "done" | "failed" | "stopped"; title: string; private: true }
 	/** The human stopped this agent while it was working. */
 	| { kind: "run_stopped"; agent: AgentSlug; private: true }
 	| { kind: "group_formed"; private: true }

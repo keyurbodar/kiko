@@ -1,4 +1,4 @@
-import type { Step } from "@kiko/durable/migrate"
+import { addColumn, type Step } from "@kiko/durable/migrate"
 import { HOST_STEPS, HOST_TAIL } from "@kiko/agent/host"
 
 // The agent's tables, in one list. An object at version N runs only the steps after the first N. A step is
@@ -21,4 +21,6 @@ export const AGENT_STEPS: Step[] = [
   // An ended run now deletes its row. This clears the ones the old code kept.
   "DELETE FROM outbox WHERE ended = 1",
   ...HOST_TAIL,
+  // A model error waits here until the run ends, so a retry that recovers posts no error row.
+  addColumn("outbox", "failure", "TEXT"),
 ]
