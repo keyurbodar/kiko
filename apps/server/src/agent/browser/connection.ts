@@ -49,6 +49,7 @@ export class BrowserConnection {
   private opening = 0
   private lostSocket = false
   private sessionId: string | null = null
+  private seeded = false
   private note: string | undefined
   private readonly connectTo: (cdpUrl: string) => Promise<BrowserSession>
   private readonly now: () => number
@@ -73,6 +74,7 @@ export class BrowserConnection {
     }
   }
 
+  /** The dialog notes from the calls since the last read, so a confirm the browser answered says what it agreed to. */
   takeNote(): string | undefined {
     const note = this.note
     this.note = undefined
@@ -95,14 +97,13 @@ export class BrowserConnection {
 
   private async open(): Promise<BrowserSession> {
     if (this.lostSocket && this.sessionId) await this.deps.lease.dead(this.sessionId).catch(() => false)
-    const fresh = this.sessionId === null
     const t0 = performance.now()
     const lease = await this.deps.lease.lease()
     const t1 = performance.now()
     const session = await this.connectTo(lease.cdpUrl)
     count("browser.lease.ms", Math.round(t1 - t0))
     count("browser.connect.ms", Math.round(performance.now() - t1))
-    const replaced = lease.restarted || (!fresh && lease.sessionId !== this.sessionId)
+    const replaced = lease.restarted || (this.sessionId !== null && lease.sessionId !== this.sessionId)
     this.borrowed.clear()
     for (const h of this.held.values()) h.tab = undefined
     if (replaced) {
@@ -110,8 +111,7 @@ export class BrowserConnection {
       for (const h of this.held.values()) h.id = undefined
       this.parked.clear()
     } else {
-      // An object that slept lost its maps, but the lease still lists the tabs it had open.
-      if (fresh) for (const t of (await this.deps.lease.state()).list ?? []) if (t.agent === this.deps.agentId) this.parked.set(t.id, t.url)
+      await this.seed()
       await this.reattach(session)
     }
     this.sessionId = lease.sessionId
@@ -141,6 +141,19 @@ export class BrowserConnection {
     ])
   }
 
+  /**
+   * An object that slept comes back with its maps empty, and so does a second worker. The lease still lists the tabs
+   * this agent had open, so they come back as parked tabs: adoptable, and counted against the cap.
+   */
+  private async seed(): Promise<void> {
+    if (this.seeded) return
+    this.seeded = true
+    const { list } = await this.deps.lease.state().catch(() => ({ list: [] }))
+    const known = new Set<string>()
+    for (const h of this.held.values()) if (h.id) known.add(h.id)
+    for (const t of list ?? []) if (t.agent === this.deps.agentId && !known.has(t.id)) this.parked.set(t.id, t.url)
+  }
+
   /** The check and the hold run in one step after the await, so a parallel call counts the slots this one holds. */
   private async slots<T>(extra: number, open: () => Promise<T>): Promise<T> {
     const { tabs } = await this.deps.lease.state()
@@ -156,7 +169,7 @@ export class BrowserConnection {
     }
   }
 
-  /** Tabs stay open after a task, so a full browser first closes the tabs of this agent's workers that stopped calling. */
+  /** A full browser first closes the tabs of this agent's workers that stopped calling. */
   private async reclaim(n: number): Promise<void> {
     const now = this.now()
     const free = [...this.held]
@@ -180,14 +193,14 @@ export class BrowserConnection {
         held.url = view.url
         return view
       },
-      act: (step) => tab.act(step),
-      eval: (expression) => tab.eval(expression),
-      extract: (kind) => tab.extract(kind),
+      act: async (step) => {
+        const result = await tab.act(step)
+        const notes = tab.takeNotes()
+        if (notes.length) this.note = [...(this.note ? [this.note] : []), ...notes].join("\n")
+        return result
+      },
       screenshot: (opts) => tab.screenshot(opts),
-      dialog: () => tab.dialog(),
-      answerDialog: (accept, text) => tab.answerDialog(accept, text),
-      url: () => tab.url(),
-      title: () => tab.title(),
+      takeNotes: () => tab.takeNotes(),
       front: () => tab.front(),
       close: () => tab.close(),
     }
@@ -221,7 +234,7 @@ export class BrowserConnection {
       const t = performance.now()
       const tab = this.track(held, await session.openTab(held.url))
       count("browser.open.ms", Math.round(performance.now() - t))
-      // A switchTo during the open made this held non-current. Its tab must still count as the agent's, or the cap is not enforced.
+      // A new tab elsewhere during the open made this held non-current. Its tab must still count as the agent's, or the cap is not enforced.
       if (this.held.get(scope) !== held) this.parked.set(tab.id, held.url)
       held.id = tab.id
       held.tab = tab
@@ -234,11 +247,12 @@ export class BrowserConnection {
    * agent's one free tab, so it carries on where the last worker stopped instead of loading the page again.
    */
   async currentTab(scope = ""): Promise<Tab | null> {
-    const held = this.held.get(scope) ?? this.adoptFree(scope)
+    const held = this.held.get(scope) ?? (await this.adoptFree(scope))
     return held ? this.tabOf(held, scope) : null
   }
 
-  private adoptFree(scope: string): Held | undefined {
+  private async adoptFree(scope: string): Promise<Held | undefined> {
+    await this.seed()
     const claimed = this.claimed(scope)
     const free = [...this.parked, ...[...this.held.values()].flatMap((h) => (h.id ? [[h.id, h.url] as const] : []))].filter(([id]) => !claimed.has(id))
     if (free.length !== 1) return undefined
@@ -249,12 +263,13 @@ export class BrowserConnection {
     return held
   }
 
+  /** Opens `url` in the scope's tab, or in a new one when it has none. A tab that leaves the agent's pages is kept, not reused. */
   async goto(url: string, scope = ""): Promise<Tab> {
     const held = this.held.get(scope)
     if (held) {
       const tab = await this.tabOf(held, scope)
       const result = await tab.act({ op: "goto", url })
-      if (!result.ok) throw new Error(`could not open ${url}: ${result.reason}${result.detail ? ` (${result.detail})` : ""}${result.reason === "dialog" ? ". a dialog is open: call browser_dialog with accept or dismiss, then try again" : ""}`)
+      if (!result.ok) throw new Error(`could not open ${url}: ${result.reason}${result.detail ? ` (${result.detail})` : ""}`)
       held.url = url
       return tab
     }
@@ -268,96 +283,8 @@ export class BrowserConnection {
     }
   }
 
-  /** Brings the scope's tab to the front of the live view, so a human who takes control lands on the page that needs them. */
-  async front(scope = ""): Promise<void> {
-    const own = Object.keys(this.tabs())
-    const id = this.held.get(scope)?.id ?? (own.length === 1 ? own[0] : undefined)
-    if (!id) return
-    const session = await this.socket()
-    await (session.tab(id) ?? (await session.attach(id)))?.front()
-  }
-
-  /** The tabs this agent holds, each marked when it is this scope's current tab or another worker's. One CDP call. */
-  async listTabs(scope = ""): Promise<{ id: string; url: string; title: string; current: boolean; busy: boolean }[]> {
-    const session = await this.socket()
-    const all = await session.listTabs()
-    const own = this.held.get(scope)?.id
-    const others = this.claimed(scope)
-    return all.map((t) => ({ ...t, current: t.id === own, busy: others.has(t.id) }))
-  }
-
-  /** The tabs other workers of this agent are on: in a call now, or within the last `CLAIM_MS`. */
-  private claimed(scope: string): Set<string> {
-    const now = this.now()
-    const ids = new Set<string>()
-    for (const [key, h] of this.held) {
-      if (key === scope || !h.id) continue
-      const at = this.seen.get(key)
-      if ((this.running.get(key) ?? 0) > 0 || at === undefined || now - at < CLAIM_MS) ids.add(h.id)
-    }
-    return ids
-  }
-
-  /** A tab another agent holds is never ours to drive or close. The session only adopts its own tabs, and the lease names every owner as well. */
-  private async mine(id: string, scope: string): Promise<void> {
-    const { list } = await this.deps.lease.state()
-    const owner = list?.find((t) => t.id === id)?.agent
-    if (owner && owner !== this.deps.agentId) throw new Error(`tab ${id} belongs to ${owner.split(/[:/]/).at(-1)}. open your own tab with browser_tabs open.`)
-    if (this.claimed(scope).has(id)) throw new Error(`tab ${id} is in use by another of your workers. open your own tab with browser_tabs open.`)
-  }
-
-  openTab(url: string): Promise<Tab> {
-    return this.slots(1, async () => {
-      const session = await this.socket()
-      const tab = await session.openTab(url)
-      this.parked.set(tab.id, url)
-      return tab
-    })
-  }
-
-  async switchTo(id: string, scope = ""): Promise<Tab> {
-    const cur = this.held.get(scope)
-    if (cur?.id === id) return this.tabOf(cur, scope)
-    await this.mine(id, scope)
-    const session = await this.socket()
-    const found = (await session.listTabs()).find((t) => t.id === id)
-    if (!found) throw new Error(`no tab ${id}`)
-    const target = session.tab(id)
-    if (!target) throw new Error(`no tab ${id}`)
-    this.park(scope)
-    this.forget(id)
-    const held: Held = { id, url: found.url }
-    held.tab = this.track(held, target)
-    this.held.set(scope, held)
-    return held.tab
-  }
-
-  async closeTab(id: string, scope = ""): Promise<void> {
-    await this.mine(id, scope)
-    const session = await this.socket()
-    const target = session.tab(id)
-    if (!target) throw new Error(`no tab ${id}`)
-    await target.close()
-    this.forget(id)
-  }
-
-  /** Closes every tab this agent holds, except the ones its other workers are on. Returns how many. */
-  async closeAll(scope = ""): Promise<number> {
-    const session = await this.socket()
-    const keep = this.claimed(scope)
-    const mine = (await session.listTabs()).filter((t) => !keep.has(t.id))
-    await Promise.all(mine.map((t) => session.tab(t.id)?.close().catch(() => {})))
-    for (const t of mine) this.forget(t.id)
-    return mine.length
-  }
-
-  private forget(id: string): void {
-    this.borrowed.delete(id)
-    this.parked.delete(id)
-    for (const [key, h] of this.held) if (h.id === id) this.held.delete(key)
-  }
-
-  async borrow(urls: (string | undefined)[]): Promise<{ tabs: Tab[]; done: () => Promise<void> }> {
+  /** Reads a page in a tab of its own, closed as soon as it is read. The tab it opened in is not the scope's current tab. */
+  async borrow(urls: readonly string[]): Promise<{ tabs: Tab[]; done: () => Promise<void> }> {
     const { tabs, failed } = await this.slots(urls.length, async () => {
       const session = await this.socket()
       const opened = await Promise.allSettled(urls.map((url) => session.openTab(url)))
@@ -380,10 +307,60 @@ export class BrowserConnection {
     return { tabs, done }
   }
 
+  /** Brings the scope's tab to the front of the live view, so a human who takes control lands on the page that needs them. */
+  async front(scope = ""): Promise<void> {
+    const own = Object.keys(this.tabs())
+    const id = this.held.get(scope)?.id ?? (own.length === 1 ? own[0] : undefined)
+    if (!id) return
+    const session = await this.socket()
+    await (session.tab(id) ?? (await session.attach(id)))?.front()
+  }
+
+  /** The tabs other workers of this agent are on: in a call now, or within the last `CLAIM_MS`. */
+  private claimed(scope: string): Set<string> {
+    const now = this.now()
+    const ids = new Set<string>()
+    for (const [key, h] of this.held) {
+      if (key === scope || !h.id) continue
+      const at = this.seen.get(key)
+      if ((this.running.get(key) ?? 0) > 0 || at === undefined || now - at < CLAIM_MS) ids.add(h.id)
+    }
+    return ids
+  }
+
+  /**
+   * Closes every tab this agent holds and drops its claim from the lease, so the room's browser chip goes away. The
+   * browser, its profile and its logins stay for the next run. A human in control keeps the tabs: they are mid-task.
+   * Safe to call with no tab, and more than once: the second call finds nothing to close.
+   */
+  async release(): Promise<number> {
+    const state = await this.deps.lease.state()
+    // A human in control is mid-task: their tabs stay where they left them.
+    if (state.takeover) return 0
+    const own = (state.list ?? []).filter((t) => t.agent === this.deps.agentId).map((t) => t.id)
+    const ids = [...new Set([...Object.keys(this.tabs()), ...own])]
+    if (!ids.length) return 0
+    // A browser this agent already holds is worth a socket, so its tabs really close; never create one to close nothing.
+    const session = this.session ?? (own.length ? await this.socket().catch(() => null) : null)
+    for (const id of ids) {
+      const tab = session?.tab(id) ?? (await session?.attach(id).catch(() => undefined))
+      await tab?.close().catch(() => {})
+      this.forget(id)
+    }
+    await this.deps.lease.touch({}).catch(() => false)
+    return ids.length
+  }
+
+  private forget(id: string): void {
+    this.borrowed.delete(id)
+    this.parked.delete(id)
+    for (const [key, h] of this.held) if (h.id === id) this.held.delete(key)
+  }
+
   /**
    * Closes the socket and keeps every tab. A worker waiting on its model, or on the human holding the browser, must come
-   * back to the same page: closing the tabs here is what lost a half-done Gmail session. The tabs end when the agent
-   * closes them, when a full browser reclaims them, or when the user's browser closes after 5 minutes unused.
+   * back to the same page: closing the tabs here is what lost a half-done Gmail session. The tabs end when the agent's
+   * run ends, when a full browser reclaims them, or when the user's browser closes after 24 hours unused.
    */
   async idle(): Promise<"busy" | "closed"> {
     if (this.busy > 0) {

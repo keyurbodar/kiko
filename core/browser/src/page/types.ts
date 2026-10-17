@@ -24,7 +24,6 @@ export type Step =
   | { op: "hover"; id: ControlId }
   | { op: "type"; id: ControlId; text: string; submit?: boolean }
   | { op: "select"; id: ControlId; option: string }
-  | { op: "upload"; id: ControlId; paths: string[] }
   | { op: "wait"; text?: string; gone?: string; ms?: number; navigation?: boolean; timeoutMs?: number }
   | { op: "press"; key: string }
   | { op: "scroll"; direction: "up" | "down" }
@@ -37,25 +36,13 @@ type StepFailure = "stale" | "gone" | "hidden" | "dialog" | "timeout" | "crashed
 
 export type StepResult = { ok: true } | { ok: false; reason: StepFailure; detail?: string }
 
-export type Dialog = { type: "alert" | "beforeunload" | "confirm" | "prompt"; message: string }
-
-export type DialogPolicy = (dialog: Dialog) => "accept" | "stop"
-
-export type ExtractKind = "links" | "tables" | "forms" | "headings" | "all_text"
-
-export type EvalResult = { ok: true; value: string } | { ok: false; error: string }
-
 export interface Tab {
   readonly id: string
   read(): Promise<PageView>
   act(step: Step): Promise<StepResult>
-  eval(expression: string): Promise<EvalResult>
-  extract(kind: ExtractKind): Promise<string>
   screenshot(opts?: { fullPage?: boolean }): Promise<Uint8Array>
-  dialog(): Dialog | null
-  answerDialog(accept: boolean, text?: string): Promise<boolean>
-  url(): Promise<string>
-  title(): Promise<string>
+  /** Dialogs the page raised since the last call, answered automatically. */
+  takeNotes(): string[]
   /** Brings the tab's window to the front, so the live view shows it. */
   front(): Promise<void>
   close(): Promise<void>

@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test"
 import { connect } from "../src/cdp/browser"
-import { BROWSER } from "../src/config"
-import { formatAllText } from "../src/page/extract"
+import type { Control } from "../src/page/types"
+import { findPassages, summarize } from "../src/page/summary"
 import { READ_SCRIPT } from "../src/page/script"
 import { type FakeCdp, fakeCdp } from "./fake-cdp"
 
@@ -16,7 +16,7 @@ const view = {
   omitted: 0,
   controls: [
     { id: 1, role: "button", label: "Go" },
-    { id: 2, role: "file", label: "Resume" },
+    { id: 2, role: "link", label: "Docs", href: "https://x.test/docs" },
   ],
 }
 
@@ -102,127 +102,15 @@ test("hover moves the mouse over the control without pressing", async () => {
   await browser.close()
 })
 
-test("upload sets the files on the file input the id names", async () => {
-  let fileInput = true
-  fake = page((expression) => {
-    if (!expression.includes('el.type === "file"')) return ok(null)
-    return fileInput ? { result: { type: "object", objectId: "O1" } } : { result: { type: "undefined" } }
-  })
-  const browser = await connect(fake.url)
-  const tab = await browser.openTab()
-  await tab.read()
-  expect(await tab.act({ op: "upload", id: 2, paths: ["/tmp/cv.pdf"] })).toEqual({ ok: true })
-  expect(sentTo("DOM.setFileInputFiles").map((m) => m.params)).toEqual([{ files: ["/tmp/cv.pdf"], objectId: "O1" }])
-  fileInput = false
-  expect(await tab.act({ op: "upload", id: 2, paths: ["/tmp/cv.pdf"] })).toEqual({
-    ok: false,
-    reason: "gone",
-    detail: "that control is not a file input",
-  })
-  await browser.close()
-})
-
-test("eval returns the JSON value or the exception", async () => {
-  fake = page((expression) => {
-    if (expression.includes("nope")) {
-      return {
-        result: { type: "object" },
-        exceptionDetails: { text: "Uncaught", exception: { description: "ReferenceError: nope is not defined" } },
-      }
-    }
-    return ok(2)
-  })
-  const browser = await connect(fake.url)
-  const tab = await browser.openTab()
-  expect(await tab.eval("1 + 1")).toEqual({ ok: true, value: "2" })
-  expect(sentTo("Runtime.evaluate").at(-1)?.params).toMatchObject({ returnByValue: true, awaitPromise: true })
-  expect(await tab.eval("nope")).toEqual({ ok: false, error: "ReferenceError: nope is not defined" })
-  await browser.close()
-})
-
-test("extract returns the compact shapes for links, tables, forms, headings, and text", async () => {
-  fake = page((expression) => {
-    if (expression.includes('querySelectorAll("a[href]")')) {
-      return ok(JSON.stringify([["Home", "https://x.test/"], ["Docs", "https://x.test/docs"]]))
-    }
-    if (expression.includes('querySelectorAll("table")')) {
-      return ok(JSON.stringify({ tables: [{ header: ["Item", "Qty"], rows: [["pen", "2"]], moreRows: 0 }], more: 0 }))
-    }
-    if (expression.includes("document.forms")) {
-      return ok(
-        JSON.stringify({
-          forms: [
-            {
-              action: "/search",
-              method: "get",
-              fields: [
-                { id: 2, kind: "text", label: "Query", value: "" },
-                { id: 3, kind: "button", label: "Go", value: "" },
-              ],
-              moreFields: 0,
-            },
-          ],
-          more: 0,
-        }),
-      )
-    }
-    if (expression.includes('querySelectorAll("h1')) return ok(JSON.stringify([[1, "Welcome"], [2, "News"]]))
-    return ok("Welcome to the site")
-  })
-  const browser = await connect(fake.url)
-  const tab = await browser.openTab()
-  expect(await tab.extract("links")).toBe("Home -> https://x.test/\nDocs -> https://x.test/docs")
-  expect(await tab.extract("tables")).toBe("table 1\nItem|Qty\npen|2")
-  expect(await tab.extract("forms")).toBe("form 1 GET /search\n  [2] Query (text)\n  [3] Go (button)")
-  expect(await tab.extract("headings")).toBe("h1 Welcome\nh2 News")
-  expect(await tab.extract("all_text")).toBe("Welcome to the site")
-  expect(formatAllText("x".repeat(13_000))).toHaveLength(12_000)
-  await browser.close()
-})
-
-test("a confirm is held until answered and an alert is accepted", async () => {
-  fake = page(() => ok(null))
-  const browser = await connect(fake.url)
-  const tab = await browser.openTab()
-  fake.emit("Page.javascriptDialogOpening", { type: "alert", message: "hi", url: "" }, "S-T1")
-  fake.emit("Page.javascriptDialogOpening", { type: "confirm", message: "sure?", url: "" }, "S-T1")
-  await tab.read()
-  expect(await tab.eval("1")).toEqual({ ok: false, error: expect.stringContaining("confirm") })
-  expect(sentTo("Page.handleJavaScriptDialog").map((m) => m.params)).toEqual([{ accept: true }])
-  expect(tab.dialog()).toEqual({ type: "confirm", message: "sure?" })
-  expect(await tab.answerDialog(true)).toBe(true)
-  expect(tab.dialog()).toBeNull()
-  expect(sentTo("Page.handleJavaScriptDialog").at(-1)?.params).toEqual({ accept: true })
-  expect(await tab.answerDialog(true)).toBe(false)
-  await browser.close()
-})
-
-test("an unanswered confirm is dismissed by the next call once the hold has passed", async () => {
-  fake = page(() => ok(null))
-  let clock = 0
-  const browser = await connect(fake.url, { now: () => clock })
-  const tab = await browser.openTab()
-  fake.emit("Page.javascriptDialogOpening", { type: "confirm", message: "sure?", url: "" }, "S-T1")
-  await tab.read()
-  clock = BROWSER.dialogHoldMs - 1
-  expect(tab.dialog()).toEqual({ type: "confirm", message: "sure?" })
-  clock = BROWSER.dialogHoldMs
-  expect(tab.dialog()).toBeNull()
-  await Bun.sleep(20)
-  expect(sentTo("Page.handleJavaScriptDialog").at(-1)?.params).toEqual({ accept: false })
-  await browser.close()
-})
-
-test("closing a tab with an open dialog drops the dialog", async () => {
+test("an unanswered dialog never wedges the page: the next call accepts it", async () => {
   fake = page(() => ok(null))
   const browser = await connect(fake.url)
   const tab = await browser.openTab()
   fake.emit("Page.javascriptDialogOpening", { type: "prompt", message: "name?", url: "" }, "S-T1")
-  await tab.read()
-  expect(await tab.eval("1")).toEqual({ ok: false, error: expect.stringContaining("prompt") })
-  expect(tab.dialog()).toEqual({ type: "prompt", message: "name?" })
-  await tab.close()
-  expect(tab.dialog()).toBeNull()
+  await Bun.sleep(20)
+  expect(sentTo("Page.handleJavaScriptDialog").map((m) => m.params)).toEqual([{ accept: true }])
+  expect(tab.takeNotes()).toEqual(['prompt said "name?": accepted'])
+  expect(await tab.act({ op: "scroll", direction: "down" })).toEqual({ ok: true })
   await browser.close()
 })
 
@@ -275,4 +163,50 @@ test("forward and reload navigate the page and wait for its load", async () => {
   expect(await tab.act({ op: "reload" })).toEqual({ ok: true })
   expect(sentTo("Page.reload")).toHaveLength(1)
   await browser.close()
+})
+
+const control = (id: number, label: string, extra: Partial<Control> = {}): Control => ({ id, role: "link", label, ...extra })
+
+test("find returns the paragraphs that mention the terms, with no model call", () => {
+  const text = [
+    "The first paragraph is about nothing in particular.",
+    "Shah Rukh Khan was born in 1965 in New Delhi.",
+    "A third paragraph about films and awards.",
+    "Another line naming Khan, with more detail about his career.",
+  ].join("\n\n")
+  const found = findPassages(text, "shah rukh khan")
+  expect(found).toContain("Shah Rukh Khan was born in 1965 in New Delhi.")
+  expect(found).toContain("Another line naming Khan")
+  expect(found).not.toContain("first paragraph")
+})
+
+test("find caps what it returns and says more follow", () => {
+  const text = Array.from({ length: 60 }, (_, i) => `needle paragraph ${i} ${"x".repeat(200)}`).join("\n\n")
+  const found = findPassages(text, "needle")
+  expect(found.length).toBeLessThanOrEqual(8_000)
+  expect(found).toContain("more mentions follow")
+})
+
+test("find that matches nothing says so", () => {
+  expect(findPassages("nothing here", "zebra")).toBe("")
+})
+
+test("a summary keeps the controls and paragraphs that match find, and everything without one", () => {
+  const view = {
+    key: "k",
+    url: "https://x.test/",
+    title: "Biography",
+    text: "Shah Rukh Khan is an actor.\n\nOther text.",
+    omitted: 0,
+    controls: [control(1, "Khan on Wikimedia Commons"), control(2, "Edit")],
+  }
+  const found = summarize(view, "khan")
+  expect(found).toContain('1 link "Khan on Wikimedia Commons"')
+  expect(found).not.toContain('2 link "Edit"')
+  expect(found).toContain("Shah Rukh Khan is an actor.")
+  expect(found).not.toContain("Other text.")
+  const whole = summarize(view)
+  expect(whole).toContain('2 link "Edit"')
+  expect(whole).toContain("Other text.")
+  expect(summarize(view, "zebra")).toContain("nothing on this page mentions zebra")
 })

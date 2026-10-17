@@ -40,16 +40,10 @@ export async function waitForNoBrowsers(): Promise<void> {
   }
 }
 
-export async function browserUser(v: Verifier, name: string, jev: boolean): Promise<Session> {
+export async function browserUser(v: Verifier, name: string): Promise<Session> {
   const s = await v.as(name)
   await connectTestModel(s)
-  if (jev) {
-    const key = process.env.TYPESAFE_API_KEY
-    if (!key) throw new VerifyError("TYPESAFE_API_KEY is not set in this shell")
-    await s.connectProvider("typesafe", key)
-  } else {
-    await s.disconnectProvider("typesafe").catch(() => {})
-  }
+  await s.disconnectProvider("typesafe").catch(() => {})
   await connectKernel(s)
   return s
 }
@@ -97,13 +91,4 @@ export async function closeBrowser(v: Verifier, s: Session): Promise<void> {
   }
 }
 
-export const p50 = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0
-
-export function stepSamples(counters: Record<string, number>): number[] {
-  return Object.entries(counters).flatMap(([k, n]) => {
-    const m = /^browser\.step\.sample\.(\d+)$/.exec(k)
-    return m ? Array.from({ length: n }, () => Number(m[1])) : []
-  })
-}
-
-export const mainTurns = (c: Record<string, number>) => (c["model.turns"] ?? 0) - (c["browser.decider.calls"] ?? 0)
+export const mainTurns = (c: Record<string, number>) => c["model.turns"] ?? 0

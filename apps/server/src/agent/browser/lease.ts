@@ -1,4 +1,3 @@
-import type { CurlRequest, CurlResponse } from "../../integrations/kernel/client"
 import type { LeaseInfo } from "../../integrations/kernel/lease"
 import type { BrowserCheck } from "../../user/kernel-wiring"
 import type { UserDO } from "../../user/user-do"
@@ -9,10 +8,6 @@ export type BrowserState = BrowserCheck
 
 export type LiveLink = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
 
-export type FetchRequest = CurlRequest
-
-export type FetchResult = CurlResponse
-
 export class BrowserNotConnected extends Error {
   constructor() {
     super("no browser: the human has not connected a Kernel key in settings")
@@ -22,6 +17,7 @@ export class BrowserNotConnected extends Error {
 
 export interface LeasePort {
   lease(): Promise<Lease>
+  /** Stamps the browser's last use and replaces the agent's tabs. An empty object drops the agent's claim. */
   touch(tabs: Record<string, string>): Promise<boolean>
   dead(sessionId: string): Promise<boolean>
   state(): Promise<BrowserState>
@@ -30,31 +26,10 @@ export interface LeasePort {
   live(mode: "watch" | "control", reason?: string): Promise<LiveLink>
   /** Ends the human's control. False when the agents already had it. */
   handBack(): Promise<boolean>
-  /** HTTP through the browser's network stack, with its cookies and proxy. Only http and https. */
-  fetchPage(req: FetchRequest): Promise<FetchResult>
-  /** Writes an upload into the browser's VM. Returns the VM path to use in an upload step. */
-  putFile(name: string, base64: string): Promise<{ path: string }>
-  /** Reads a file from the browser's VM, under /tmp or the downloads folder. */
-  getFile(path: string): Promise<{ name: string; base64: string; size: number }>
-  /** Names of the files in a folder on the browser's VM, under /tmp or the downloads folder. */
-  listFiles(dir: string): Promise<string[]>
 }
 
 /** The user's RPC surface, read from `UserDO` so each signature is declared once. */
-export type UserBrowserRpc = Pick<
-  UserDO,
-  | "browserLease"
-  | "browserTouch"
-  | "browserDead"
-  | "browserCheck"
-  | "browserTakeover"
-  | "browserLive"
-  | "browserHandBack"
-  | "browserFetch"
-  | "browserPutFile"
-  | "browserGetFile"
-  | "browserListFiles"
->
+export type UserBrowserRpc = Pick<UserDO, "browserLease" | "browserTouch" | "browserDead" | "browserCheck" | "browserTakeover" | "browserLive" | "browserHandBack">
 
 const NOT_CONNECTED = /not connected/i
 const PAUSE_MEMO_MS = 1_000
@@ -84,9 +59,5 @@ export function userLease(user: () => UserBrowserRpc, agentId: string, roomId: s
       seen = undefined
       return connected(() => user().browserHandBack(agentId))
     },
-    fetchPage: (req) => connected(() => user().browserFetch(req)),
-    putFile: (name, base64) => connected(() => user().browserPutFile(name, base64)),
-    getFile: (path) => connected(() => user().browserGetFile(path)),
-    listFiles: (dir) => connected(() => user().browserListFiles(dir)),
   }
 }

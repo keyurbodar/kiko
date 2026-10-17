@@ -3,32 +3,34 @@ import type { BrowserSession, PageView, Step, Tab } from "@kiko/browser/page/typ
 import { BrowserConnection } from "../src/agent/browser/connection"
 import { WORKER_ONLY } from "../src/agent/factory"
 import type { BrowserState, Lease, LeasePort } from "../src/agent/browser/lease"
-import { browserExtension, PAUSED, toStep, type BrowserToolDeps } from "../src/agent/browser/tools"
+import { browserExtension, browserInfoExtension, BROWSER_INFO_EXT, PAUSED, toStep, type BrowserToolDeps } from "../src/agent/browser/tools"
+import { type FilesBackend, RoomFs } from "../src/files/room-fs"
+import type { FsEntry } from "../src/room/files"
 
-const view = (url: string): PageView => ({ key: url, url, title: url, controls: [], text: "", omitted: 0 })
+const view = (url: string, controls: PageView["controls"] = [], text = ""): PageView => ({ key: url, url, title: url, controls, text, omitted: 0 })
 
-type FakeTab = Tab & { steps: Step[] }
+type FakeTab = Tab & { steps: Step[]; notes: string[] }
 
-function fakeTab(id: string, url = "about:blank"): FakeTab {
+function fakeTab(id: string, url = "about:blank", gone?: () => void): FakeTab {
   let at = url
   const steps: Step[] = []
+  const notes: string[] = []
   return {
     id,
     steps,
+    notes,
     read: async () => view(at),
     act: async (step: Step) => {
       steps.push(step)
       if (step.op === "goto") at = step.url
       return { ok: true }
     },
-    eval: async (expression: string) => ({ ok: true, value: expression }),
-    extract: async (kind) => `${kind} for ${id}`,
-    screenshot: async () => new Uint8Array(),
-    dialog: () => null,
-    answerDialog: async () => true,
-    url: async () => at,
-    title: async () => at,
-    close: async () => {},
+    screenshot: async () => new Uint8Array([1, 2, 3]),
+    takeNotes: () => notes.splice(0, notes.length),
+    front: async () => {},
+    close: async () => {
+      gone?.()
+    },
   }
 }
 
@@ -37,11 +39,13 @@ function fakeSession(): { session: BrowserSession; tabs: Map<string, FakeTab> } 
   let n = 0
   const session: BrowserSession = {
     openTab: async (url?: string) => {
-      const tab = fakeTab(`t${++n}`, url ?? "about:blank")
-      tabs.set(tab.id, tab)
+      const id = `t${++n}`
+      const tab = fakeTab(id, url ?? "about:blank", () => tabs.delete(id))
+      tabs.set(id, tab)
       return tab
     },
     tab: (id: string) => tabs.get(id),
+    attach: async (id: string) => tabs.get(id),
     listTabs: async () => [...tabs.values()].map((t) => ({ id: t.id, url: "about:blank", title: "" })),
     closed: new Promise<void>(() => {}),
     close: async () => {},
@@ -52,21 +56,16 @@ function fakeSession(): { session: BrowserSession; tabs: Map<string, FakeTab> } 
 function fakeLease(state: Partial<BrowserState> = {}) {
   const calls: string[] = []
   const lease: LeasePort = {
-    lease: async (): Promise<Lease> => ({ sessionId: "s1", cdpUrl: "wss://fake", mode: "headless", restarted: false, reopen: [] }),
-    touch: async () => true,
+    lease: async (): Promise<Lease> => ({ sessionId: "s1", cdpUrl: "wss://fake", mode: "headful", restarted: false, reopen: [] }),
+    touch: async (tabs) => {
+      calls.push(`touch ${JSON.stringify(tabs)}`)
+      return true
+    },
     dead: async () => true,
     handBack: async () => true,
-    state: async () => ({ connected: true, takeover: false, tabs: {}, ...state }),
+    state: async () => ({ connected: true, takeover: false, tabs: {}, list: [], ...state }),
     paused: async () => state.takeover ?? false,
-    share: async () => "",
-    putFile: async (name: string) => {
-      calls.push(`putFile ${name}`)
-      return { path: `/tmp/${name}` }
-    },
-    fetchPage: async (req: { url: string }) => {
-      calls.push(`fetch ${req.url}`)
-      return { status: 200, headers: {}, body: "ok", truncated: false }
-    },
+    live: async () => ({ ok: true, url: "https://live.test/abc", posted: false }),
   }
   return { lease, calls }
 }
@@ -78,14 +77,13 @@ function depsWith(lease: LeasePort, session?: BrowserSession): BrowserToolDeps {
     idle: { arm: async () => {} },
     connect: async () => session ?? fakeSession().session,
   })
-  return {
-    connection: () => connection,
-    lease: () => lease,
-    decider: async () => {
-      throw new Error("unused")
-    },
-    acceptsImages: () => false,
-  }
+  return { connection: () => connection, lease: () => lease, acceptsImages: () => false }
+}
+
+const tool = (extension: ReturnType<typeof browserExtension>, name: string) => {
+  const found = extension.tools.find((t) => t.name === name)
+  if (!found || !("execute" in found)) throw new Error(`${name} is not registered`)
+  return found.execute as (args: unknown, api: unknown, ctx: unknown) => Promise<{ output: { text?: string }[]; isError?: boolean }>
 }
 
 describe("toStep", () => {
@@ -103,114 +101,199 @@ describe("toStep", () => {
     expect(toStep({ op: "wait" })).toBe("wait needs text, gone, ms, or navigation")
   })
 
-  test("upload needs a control id and paths", () => {
-    expect(toStep({ op: "upload", id: 2, paths: ["/tmp/cv.pdf"] })).toEqual({ op: "upload", id: 2, paths: ["/tmp/cv.pdf"] })
-    expect(toStep({ op: "upload", paths: ["/tmp/cv.pdf"] })).toBe("upload needs a control id")
-    expect(toStep({ op: "upload", id: 2 })).toBe("upload needs paths")
+  test("a control step without an id is refused", () => {
+    expect(toStep({ op: "click", id: 2 })).toEqual({ op: "click", id: 2 })
+    expect(toStep({ op: "click" })).toBe("click needs a control id")
+    expect(toStep({ op: "type", text: "ada" })).toBe("type needs a control id")
+    expect(toStep({ op: "select", id: 1 })).toBe("select needs an option")
+    expect(toStep({ op: "press" })).toBe("press needs a key")
   })
 })
 
-describe("browser tool list", () => {
-  test("registers the new tools and helpers stay out", () => {
+describe("the browser has four tools", () => {
+  test("only browse, browser_act, and browser_look carry page work", () => {
     const { lease } = fakeLease()
     const names = browserExtension(depsWith(lease)).tools.map((t) => t.name)
-    for (const name of ["browser_tabs", "browser_extract", "browser_eval", "browser_dialog", "browser_fetch", "browser_files", "browse", "browser_act", "browser_run"]) {
-      expect(names).toContain(name)
-    }
+    expect(names.sort()).toEqual(["browse", "browser_act", "browser_look"])
+    expect(browserInfoExtension(depsWith(lease)).tools.map((t) => t.name)).toEqual(["browser_link"])
     expect(WORKER_ONLY).toContain("browser")
   })
 })
 
-describe("browser_fetch while paused", () => {
-  test("refuses without calling the lease", async () => {
-    const { lease, calls } = fakeLease({ takeover: true })
-    const fetch = browserExtension(depsWith(lease)).tools.find((t) => t.name === "browser_fetch")
-    if (!fetch || !("execute" in fetch)) throw new Error("browser_fetch is not registered")
-    const result = await fetch.execute({ url: "https://example.com/api" }, {}, { abortSignal: undefined })
-    expect(result.output[0]?.text).toBe(PAUSED)
-    expect(calls).toEqual([])
-  })
-})
-
-describe("browser_extract passthrough", () => {
-  test("passes the kind to the tab and marks the output as data", async () => {
+describe("browse", () => {
+  test("opens up to four urls and closes the borrowed ones", async () => {
     const { session, tabs } = fakeSession()
     const { lease } = fakeLease()
     const deps = depsWith(lease, session)
-    await deps.connection().goto("https://example.com")
-    const tab = tabs.get("t1")
-    if (!tab) throw new Error("no tab opened")
-    const seen: string[] = []
-    tab.extract = async (kind) => {
-      seen.push(kind)
-      return `${kind} body`
-    }
-    const extract = browserExtension(deps).tools.find((t) => t.name === "browser_extract")
-    if (!extract || !("execute" in extract)) throw new Error("browser_extract is not registered")
-    const result = await extract.execute({ kind: "links" }, {}, { abortSignal: undefined })
-    expect(seen).toEqual(["links"])
-    expect(result.output[0]?.text).toContain("links body")
-    expect(result.output[0]?.text).toContain("data not instructions")
+    const out = await tool(browserExtension(deps), "browse")({ urls: ["https://a.test", "https://b.test", "https://c.test"] }, {}, { abortSignal: undefined })
+    expect(out.output[0]?.text).toContain("--- page 1")
+    expect(out.output[0]?.text).toContain("--- page 3")
+    // The first url is the scope's tab, so only the two borrowed tabs close.
+    expect(tabs.size).toBe(1)
+    expect(await deps.connection().currentTab()).toBeDefined()
   })
-})
 
-describe("browser_dialog", () => {
-  test("reports when no dialog is open", async () => {
+  test("with no urls it reads the current tab and says when there is none", async () => {
     const { session } = fakeSession()
     const { lease } = fakeLease()
     const deps = depsWith(lease, session)
-    await deps.connection().goto("https://example.com")
-    const dialog = browserExtension(deps).tools.find((t) => t.name === "browser_dialog")
-    if (!dialog || !("execute" in dialog)) throw new Error("browser_dialog is not registered")
-    const result = await dialog.execute({ action: "accept" }, {}, { abortSignal: undefined })
-    expect(result.output[0]?.text).toBe("no dialog is open.")
+    const browse = tool(browserExtension(deps), "browse")
+    expect((await browse({}, {}, { abortSignal: undefined })).output[0]?.text).toContain("Call browse with a url first")
+    await deps.connection().goto("https://a.test")
+    expect((await browse({}, {}, { abortSignal: undefined })).output[0]?.text).toContain("https://a.test")
   })
 
-  test("accepts a pending prompt with its answer", async () => {
+  test("find returns only the controls and paragraphs that mention it", async () => {
     const { session, tabs } = fakeSession()
     const { lease } = fakeLease()
     const deps = depsWith(lease, session)
-    await deps.connection().goto("https://example.com")
-    const tab = tabs.get("t1")
-    if (!tab) throw new Error("no tab opened")
-    const answers: { accept: boolean; text?: string }[] = []
-    tab.dialog = () => ({ type: "prompt", message: "name?" })
-    tab.answerDialog = async (accept, text) => {
-      answers.push({ accept, text })
-      return true
-    }
-    const dialog = browserExtension(deps).tools.find((t) => t.name === "browser_dialog")
-    if (!dialog || !("execute" in dialog)) throw new Error("browser_dialog is not registered")
-    const result = await dialog.execute({ action: "accept", text: "ada" }, {}, { abortSignal: undefined })
-    expect(answers).toEqual([{ accept: true, text: "ada" }])
-    expect(result.output[0]?.text).toContain("accepted the prompt")
+    const tab = await deps.connection().goto("https://a.test")
+    const fake = tabs.get(tab.id) as FakeTab
+    fake.read = async () => ({
+      ...view("https://a.test", [
+        { id: 1, role: "link", label: "Sign in" },
+        { id: 2, role: "link", label: "Privacy" },
+      ], "Welcome to the site.\n\nThe privacy policy is long.\n\nContact us."),
+    })
+    const out = await tool(browserExtension(deps), "browse")({ find: "privacy" }, {}, { abortSignal: undefined })
+    const text = out.output[0]?.text ?? ""
+    expect(text).toContain("2 link \"Privacy\"")
+    expect(text).not.toContain("1 link \"Sign in\"")
+    expect(text).toContain("The privacy policy is long.")
+    expect(text).not.toContain("Welcome to the site.")
+  })
+
+  test("a bad url is refused before a tab opens", async () => {
+    const { session, tabs } = fakeSession()
+    const { lease } = fakeLease()
+    const out = await tool(browserExtension(depsWith(lease, session)), "browse")({ urls: ["file:///etc/passwd"] }, {}, { abortSignal: undefined })
+    expect(out).toMatchObject({ isError: true })
+    expect(tabs.size).toBe(0)
+  })
+
+  test("a page that never answers does not hold the call past its deadline", async () => {
+    const { session, tabs } = fakeSession()
+    const { lease } = fakeLease()
+    const deps = { ...depsWith(lease, session), browseMs: 50 }
+    const tab = await deps.connection().goto("https://a.test")
+    const fake = tabs.get(tab.id) as FakeTab
+    fake.read = () => new Promise<PageView>(() => {})
+    const started = performance.now()
+    const out = await tool(browserExtension(deps), "browse")({}, {}, { abortSignal: undefined })
+    expect(out.output[0]?.text).toContain("no answer within")
+    expect(performance.now() - started).toBeLessThan(5_000)
   })
 })
 
-describe("browser connection tab helpers", () => {
-  test("openTab parks the new tab and leaves the current one current", async () => {
+describe("browser_act", () => {
+  test("runs the steps in order and returns the fresh page", async () => {
     const { session, tabs } = fakeSession()
     const { lease } = fakeLease()
-    const conn = new BrowserConnection({ agentId: "a", lease, idle: { arm: async () => {} }, connect: async () => session })
-    const first = await conn.goto("https://example.com")
-    const opened = await conn.openTab("https://example.org")
-    expect(tabs.has(opened.id)).toBe(true)
-    const all = await conn.listTabs()
-    expect(all.find((t) => t.id === first.id)?.current).toBe(true)
-    expect(all.find((t) => t.id === opened.id)?.current).toBe(false)
+    const deps = depsWith(lease, session)
+    const tab = await deps.connection().goto("https://a.test")
+    const out = await tool(browserExtension(deps), "browser_act")({ steps: [{ op: "click", id: 1 }, { op: "wait", ms: 100 }] }, {}, { abortSignal: undefined })
+    expect(out.output[0]?.text).toContain("did: click 1; wait.")
+    expect((tabs.get(tab.id) as FakeTab).steps).toEqual([{ op: "click", id: 1 }, { op: "wait", ms: 100 }])
   })
 
-  test("switchTo makes the tab current and closeTab removes it", async () => {
+  test("a bad step does nothing", async () => {
     const { session, tabs } = fakeSession()
     const { lease } = fakeLease()
-    const conn = new BrowserConnection({ agentId: "a", lease, idle: { arm: async () => {} }, connect: async () => session })
-    const first = await conn.goto("https://example.com")
-    const second = await conn.openTab("https://example.org")
-    const switched = await conn.switchTo(first.id)
-    expect(switched.id).toBe(first.id)
-    expect((await conn.currentTab())?.id).toBe(first.id)
-    tabs.get(second.id)!.close = async () => void tabs.delete(second.id)
-    await conn.closeTab(second.id)
-    expect((await conn.listTabs()).map((t) => t.id)).not.toContain(second.id)
+    const deps = depsWith(lease, session)
+    const tab = await deps.connection().goto("https://a.test")
+    const out = await tool(browserExtension(deps), "browser_act")({ steps: [{ op: "click" }] }, {}, { abortSignal: undefined })
+    expect(out.output[0]?.text).toBe("step 1: click needs a control id. nothing was done.")
+    expect((tabs.get(tab.id) as FakeTab).steps).toEqual([])
+  })
+
+  test("a dialog the browser answered is reported after the result", async () => {
+    const { session, tabs } = fakeSession()
+    const { lease } = fakeLease()
+    const deps = depsWith(lease, session)
+    const tab = await deps.connection().goto("https://a.test")
+    const fake = tabs.get(tab.id) as FakeTab
+    fake.act = async () => {
+      fake.notes.push('confirm said "delete it?": accepted')
+      return { ok: true }
+    }
+    const out = await tool(browserExtension(deps), "browser_act")({ steps: [{ op: "click", id: 1 }] }, {}, { abortSignal: undefined })
+    expect(out.output[0]?.text).toContain('confirm said "delete it?": accepted')
+  })
+})
+
+describe("browser_look", () => {
+  const memoryFiles = () => {
+    const files = new Map<string, { bytes: Uint8Array; type: string }>()
+    const entry = (path: string): FsEntry & { kind: "file" } => {
+      const f = files.get(path)!
+      return { kind: "file", path, id: path, size: f.bytes.length, type: f.type, sha256: `sha:${path}`, r2Key: `key:${path}`, at: 0 }
+    }
+    const backend: FilesBackend = {
+      stat: async (path) => (files.has(path) ? entry(path) : null),
+      list: async () => [],
+      bytes: async (key) => files.get(key.slice(4))?.bytes ?? null,
+      write: async (path, bytes, type) => {
+        files.set(path, { bytes, type })
+        return { ok: true, entry: entry(path) }
+      },
+      move: async () => ({ ok: false, code: "invalid", message: "no" }),
+      remove: async () => ({ ok: false, code: "invalid", message: "no" }),
+      mkdir: async () => ({ ok: false, code: "invalid", message: "no" }),
+      commit: async () => ({ ok: true }),
+    }
+    return { files, fs: new RoomFs("look", backend) }
+  }
+
+  test("a model that sees images gets the screenshot as an image", async () => {
+    const { session } = fakeSession()
+    const { lease } = fakeLease()
+    const deps = { ...depsWith(lease, session), acceptsImages: () => true }
+    await deps.connection().goto("https://a.test")
+    const out = (await tool(browserExtension(deps), "browser_look")({}, { agent: async () => ({ model: undefined }) }, { abortSignal: undefined })) as { output: { type: string }[] }
+    expect(out.output[0]?.type).toBe("image")
+  })
+
+  test("with save it writes a chat file and returns its path", async () => {
+    const { session } = fakeSession()
+    const { lease } = fakeLease()
+    const { files, fs } = memoryFiles()
+    const deps = { ...depsWith(lease, session), acceptsImages: () => true }
+    await deps.connection().goto("https://a.test")
+    const api = { agent: async () => ({ model: undefined }), env: fs }
+    const out = await tool(browserExtension(deps), "browser_look")({ save: true }, api, { abortSignal: undefined })
+    expect(out.output[0]?.text).toContain("saved to /browser-")
+    const saved = [...files.entries()]
+    expect(saved).toHaveLength(1)
+    expect(saved[0]?.[0]).toStartWith("browser-")
+    expect(saved[0]?.[1].type).toBe("image/jpeg")
+  })
+})
+
+describe("the human's control stops the agent", () => {
+  test("browse and browser_act do nothing while the human has control", async () => {
+    const { session, tabs } = fakeSession()
+    const { lease } = fakeLease({ takeover: true })
+    const deps = depsWith(lease, session)
+    for (const [name, args] of [["browse", { urls: ["https://a.test"] }], ["browser_act", { steps: [{ op: "click", id: 1 }] }]] as const) {
+      expect((await tool(browserExtension(deps), name)(args, {}, { abortSignal: undefined })).output[0]?.text).toBe(PAUSED)
+    }
+    expect(tabs.size).toBe(0)
+  })
+})
+
+describe("browser_link", () => {
+  test("the talker has browser_link and no page tools", async () => {
+    const { lease } = fakeLease()
+    const names = browserInfoExtension(depsWith(lease)).tools.map((t) => t.name)
+    expect(names).toEqual(["browser_link"])
+    expect(BROWSER_INFO_EXT).toBe("browser-info")
+  })
+
+  test("a failure comes back as an error, not a link", async () => {
+    const { lease } = fakeLease()
+    const failing: LeasePort = { ...lease, live: async () => ({ ok: false as const, error: "No browser is open" }) }
+    const out = await tool(browserInfoExtension(depsWith(failing)), "browser_link")({ mode: "watch" }, {}, { abortSignal: undefined })
+    expect(out).toMatchObject({ isError: true })
+    expect(out.output[0]?.text).toBe("No browser is open")
   })
 })

@@ -33,5 +33,5 @@ test("an agent made before the Kernel key was added gets browser_link once the h
 	await call({ op: "reopen" })
 	const after = await call<string[]>({ op: "turn", n: 2 })
 	expect(after).toContain("browser_link")
-	expect(after).toContain("browser_status")
+	expect(after).not.toContain("browse")
 }, 120_000)

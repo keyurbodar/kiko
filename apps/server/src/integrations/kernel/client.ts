@@ -19,29 +19,11 @@ export class KernelError extends Error {
 
 export type CreatedBrowser = { sessionId: string; cdpUrl: string; liveUrl?: string }
 
-export type CurlRequest = {
-  url: string
-  method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE"
-  headers?: Record<string, string>
-  body?: string
-}
-
-export type CurlResponse = { status: number; headers: Record<string, string>; body: string; truncated: boolean }
-
-/** Body text kept from a curl response, in characters. */
-export const CURL_BODY_CAP = 20_000
-
 export interface KernelClient {
   createBrowser(args: { headless: boolean; profile: string; timeoutSeconds: number }): Promise<CreatedBrowser>
   deleteBrowser(sessionId: string): Promise<void>
   listActive(): Promise<string[]>
   alive(sessionId: string): Promise<boolean>
-  /** HTTP through the browser's own network stack, cookies and proxy included. Body capped at `CURL_BODY_CAP`. */
-  curl(sessionId: string, req: CurlRequest): Promise<CurlResponse>
-  writeFile(sessionId: string, path: string, bytes: Uint8Array): Promise<void>
-  readFile(sessionId: string, path: string): Promise<Uint8Array>
-  /** Names of the files, not folders, directly in `path`. A missing folder is `not_found`. */
-  listFiles(sessionId: string, path: string): Promise<string[]>
   createProfile(name: string): Promise<void>
 }
 
@@ -85,24 +67,6 @@ export function sdkClient(apiKey: string): KernelClient {
         })
         return { sessionId: b.session_id, cdpUrl: b.cdp_ws_url, ...(b.browser_live_view_url ? { liveUrl: b.browser_live_view_url } : {}) }
       }),
-    curl: (sessionId, req) =>
-      call(async () => {
-        const res = await kernel.browsers.curl(sessionId, {
-          url: req.url,
-          method: req.method ?? "GET",
-          ...(req.headers ? { headers: req.headers } : {}),
-          ...(req.body !== undefined ? { body: req.body } : {}),
-          response_encoding: "utf8",
-        })
-        const headers = Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, v.join(", ")]))
-        return { status: res.status, headers, body: res.body.slice(0, CURL_BODY_CAP), truncated: res.body.length > CURL_BODY_CAP }
-      }),
-    // A save takes about 3 s, so this waits longer than the other calls.
-    writeFile: (sessionId, path, bytes) => call(() => kernel.browsers.fs.writeFile(sessionId, bytes, { path, mode: "0644" })),
-    readFile: (sessionId, path) =>
-      call(async () => new Uint8Array(await (await kernel.browsers.fs.readFile(sessionId, { path })).arrayBuffer())),
-    listFiles: (sessionId, path) =>
-      call(async () => (await kernel.browsers.fs.listFiles(sessionId, { path })).filter((f) => !f.is_dir).map((f) => f.name)),
     deleteBrowser: (sessionId) => call(() => kernel.browsers.deleteByID(sessionId, { timeout: 60_000 })),
     listActive: () =>
       call(async () => {

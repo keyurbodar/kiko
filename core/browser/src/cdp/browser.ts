@@ -1,17 +1,17 @@
 import { BROWSER } from "../config"
 import { act, schemeError, screenshot } from "../page/act"
-import { extract, evaluateExpression } from "../page/extract"
 import { evaluate, type PageState, read } from "../page/read"
-import type { BrowserSession, Dialog, DialogPolicy, Tab } from "../page/types"
+import type { BrowserSession, Tab } from "../page/types"
 import { openSession, type SessionOptions } from "./session"
 
 export type ConnectOptions = SessionOptions & { now?: () => number }
 
-const policy: DialogPolicy = (dialog) => (dialog.type === "alert" || dialog.type === "beforeunload" ? "accept" : "stop")
-
+/**
+ * A page dialog blocks every later command, so one is always answered for the page: alerts and beforeunload are
+ * accepted, and a confirm or a prompt is accepted and reported back, so the agent can see what its click agreed to.
+ */
 export async function connect(cdpUrl: string, options: ConnectOptions = {}): Promise<BrowserSession> {
   const cdp = await openSession(cdpUrl, options)
-  const now = options.now ?? Date.now
   const tabs = new Map<string, Tab>()
   const opening = new Set<string>()
 
@@ -19,27 +19,11 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
 
   const adopt = async (targetId: string, url?: string): Promise<Tab> => {
     const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true })
-    const page: PageState = { channel: cdp.channel(sessionId), targetId, labels: new Map() }
-    let heldAt = 0
-    // Nobody answered in time: the next call dismisses it, so a stray confirm or prompt cannot wedge the agent.
-    // A timer would run inside a Durable Object between calls, which AGENTS.md forbids.
-    const settle = () => {
-      if (!page.dialog || now() - heldAt < BROWSER.dialogHoldMs) return
-      page.dialog = undefined
-      page.channel.send("Page.handleJavaScriptDialog", { accept: false }).catch(() => {})
-    }
+    const page: PageState = { channel: cdp.channel(sessionId), targetId, labels: new Map(), notes: [] }
     const subscriptions = [
       page.channel.on("Page.javascriptDialogOpening", (dialog) => {
-        const shown: Dialog = { type: dialog.type, message: dialog.message }
-        if (policy(shown) === "accept") {
-          page.channel.send("Page.handleJavaScriptDialog", { accept: true }).catch(() => {})
-          return
-        }
-        page.dialog = shown
-        heldAt = now()
-      }),
-      page.channel.on("Page.javascriptDialogClosed", () => {
-        page.dialog = undefined
+        page.channel.send("Page.handleJavaScriptDialog", { accept: true }).catch(() => {})
+        if (dialog.type === "confirm" || dialog.type === "prompt") page.notes.push(`${dialog.type} said "${dialog.message}": accepted`)
       }),
       // The load waiter is registered from the start event, so it exists before the load can fire.
       page.channel.on("Page.frameStartedLoading", (event) => {
@@ -72,49 +56,16 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       release()
       throw error
     }
-    const info = async () => (await cdp.send("Target.getTargetInfo", { targetId })).targetInfo
     const tab: Tab = {
       id: targetId,
-      read: () => {
-        settle()
-        return read(page)
-      },
-      act: (step) => {
-        settle()
-        return act(page, step)
-      },
-      eval: (expression) => {
-        settle()
-        return evaluateExpression(page, expression)
-      },
-      extract: (kind) => {
-        settle()
-        return extract(page, kind)
-      },
-      screenshot: (opts) => {
-        settle()
-        return screenshot(page, opts)
-      },
-      dialog: () => {
-        settle()
-        return page.dialog ?? null
-      },
-      answerDialog: async (accept, text) => {
-        settle()
-        if (!page.dialog) return false
-        page.dialog = undefined
-        return page.channel
-          .send("Page.handleJavaScriptDialog", { accept, promptText: text })
-          .then(() => true)
-          .catch(() => false)
-      },
-      url: async () => (await info()).url,
-      title: async () => (await info()).title,
+      read: () => read(page),
+      act: (step) => act(page, step),
+      screenshot: (opts) => screenshot(page, opts),
+      takeNotes: () => page.notes.splice(0, page.notes.length),
       front: async () => {
         await page.channel.send("Page.bringToFront")
       },
       close: async () => {
-        page.dialog = undefined
         tabs.delete(targetId)
         await cdp.send("Target.closeTarget", { targetId }).catch(() => {})
       },
@@ -139,7 +90,6 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     releases.delete(targetId)
   })
   await cdp.send("Target.setDiscoverTargets", { discover: true })
-  await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: BROWSER.downloadDir }).catch(() => {})
 
   return {
     openTab: async (url) => {

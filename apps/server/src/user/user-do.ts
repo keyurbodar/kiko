@@ -23,9 +23,7 @@ import { composioFailure } from "./user-errors"
 import { connectLinkFor, MANAGE_CONNECTIONS } from "../integrations/composio/connect-tool"
 import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
-import { basenameOf, decodeBase64, encodeBase64, FILE_CAP } from "../integrations/kernel/files"
-import { KernelError } from "../integrations/kernel/client"
-import type { FetchRequest, FetchResult, Lease } from "../agent/browser/lease"
+import type { Lease } from "../agent/browser/lease"
 import { type Alarms, createAlarms, runDue } from "@kiko/durable/alarm"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
@@ -798,28 +796,6 @@ export class UserDO extends DurableObject<Env> {
   /** The agent's socket died: the next lease makes a new browser. */
   async browserDead(agentId: string, sessionId: string): Promise<boolean> {
     return this.#kr.dead(agentId, sessionId)
-  }
-
-  /** HTTP through the browser's stack. The body is capped at 20000 chars and `truncated` says so; only http and https. */
-  async browserFetch(req: FetchRequest): Promise<FetchResult> {
-    return this.#kr.fetch(req)
-  }
-
-  /** Writes an upload into the browser's VM. `name` is sanitized to a basename; the file is capped at 10 MB. */
-  async browserPutFile(name: string, base64: string): Promise<{ path: string }> {
-    return this.#kr.putFile(basenameOf(name), decodeBase64(base64))
-  }
-
-  /** Reads a file from the browser's VM. The path must be under /tmp or the downloads folder; the file is capped at 10 MB. */
-  async browserGetFile(path: string): Promise<{ name: string; base64: string; size: number }> {
-    const bytes = await this.#kr.getFile(path)
-    if (bytes.byteLength > FILE_CAP) throw new KernelError("failed", "file is over 10 MB")
-    return { name: basenameOf(path), base64: encodeBase64(bytes), size: bytes.byteLength }
-  }
-
-  /** Names of the files in a folder on the browser's VM. The folder must be under /tmp or the downloads folder. */
-  async browserListFiles(dir: string): Promise<string[]> {
-    return this.#kr.listFiles(dir)
   }
 
   /** Read before each browser call. Holds no URL. */

@@ -26,7 +26,7 @@ const suite: Suite = {
   async run(v) {
     if (v.fake) return fakeBrowserRun(v)
     if ((await activeBrowsers()).length) console.log("  note: Kernel already lists active browsers on this key")
-    const s = await browserUser(v, USER, false)
+    const s = await browserUser(v, USER)
     try {
       await check(v, s)
     } finally {
@@ -60,18 +60,18 @@ async function check(v: Verifier, s: Session): Promise<void> {
     console.log(`  link reply: ${shown.text.slice(0, 200)}`)
     if (!/\]\(https:\/\/[^)\s]*kernel[^)\s]*\)/.test(shown.text)) throw new VerifyError("the agent did not send the live view as a markdown link")
 
-    // The idle close shuts the socket and keeps the tab, so the lease still lists it afterwards.
+    // The run ended, so its tabs are gone from the lease and the chip has nothing to show. The browser itself stays.
     for (;;) {
-      if (((await readStats(v, s))["browser.idle.closed"] ?? 0) >= 1) {
-        const state = await api<{ status: { browser: { tabs: Record<string, number> } | null } }>(v.url, s, "dev/agent/browser", { action: "state" })
-        const kept = Object.entries(state.json.status.browser?.tabs ?? {}).some(([k, n]) => k.startsWith(`${roomId}:`) && n > 0)
-        if (!kept) throw new VerifyError("the idle close dropped the agent's tab")
-        console.log(`  socket closed ${((performance.now() - done) / 1000).toFixed(1)} s after the reply, tab kept`)
+      const state = await api<{ status: { browser: { tabs: Record<string, number> } | null } }>(v.url, s, "dev/agent/browser", { action: "state" })
+      const held = Object.entries(state.json.status.browser?.tabs ?? {}).filter(([k, n]) => k.startsWith(`${roomId}:`) && n > 0)
+      if (!held.length) {
+        console.log(`  the run's tabs were released ${((performance.now() - done) / 1000).toFixed(1)} s after the reply, so the chip hides`)
         break
       }
-      if (performance.now() - done > 40_000) throw new VerifyError("the browser socket did not close within 40 s")
+      if (performance.now() - done > 30_000) throw new VerifyError("the run's end did not release its tabs")
       await Bun.sleep(1_000)
     }
+    if (((await readStats(v, s))["browser.idle.closed"] ?? 0) < 1) console.log("  note: the idle socket close has not run yet; it closes 15 s after the last call")
 }
 
 export default suite

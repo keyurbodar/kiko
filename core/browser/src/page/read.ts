@@ -1,21 +1,21 @@
 import type { Channel } from "../cdp/session"
 import { GZIP_MARK, READ_SCRIPT, settleScript } from "./script"
-import type { Dialog, PageView } from "./types"
+import type { PageView } from "./types"
 
 export type PageState = {
   channel: Channel
   targetId: string
   labels: Map<number, string>
-  dialog?: Dialog
   crashed?: boolean
   settle?: boolean
   loading?: Promise<unknown>
+  /** Dialogs the page raised and that were answered for the model, so its next result can say so. */
+  notes: string[]
 }
 
 export const navigates = (message: string) => /context was destroyed|navigated or closed|Cannot find context/i.test(message)
 
 export async function evaluate<T>(page: PageState, expression: string, awaitPromise = false): Promise<T> {
-  if (page.dialog) throw new Error(`A ${page.dialog.type} dialog says "${page.dialog.message}" and blocks the page. Answer it with browser_dialog.`)
   if (page.loading) await page.loading
   const settle = page.settle
   page.settle = undefined
@@ -52,11 +52,6 @@ async function readOnce(page: PageState): Promise<string> {
 }
 
 export async function read(page: PageState): Promise<PageView> {
-  if (page.dialog) {
-    page.labels = new Map()
-    const { type, message } = page.dialog
-    return { key: "dialog", url: "", title: "", controls: [], text: `a ${type} dialog says: ${message}. Answer it before reading the page.`, omitted: 0 }
-  }
   let raw = await readOnce(page)
   // A click that navigates starts loading during the settle while the old document answers: read the new one.
   if (page.loading) raw = await readOnce(page)

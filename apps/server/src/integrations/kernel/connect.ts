@@ -51,8 +51,6 @@ export function browserState(row: LeaseRow | undefined, switching: boolean, reso
   return { mode: row.mode, tabs, takeover: row.takeover, switching, since: row.createdAt }
 }
 
-/** Where uploads land on the browser's VM, one directory per session. */
-export const UPLOAD_DIR = "/tmp/kiko-uploads"
 /** `kiko-` and 16 hex characters of the user's id hash. The name never comes from input. */
 export async function profileName(userId: string): Promise<string> {
   return `kiko-${(await sha256Hex(userId)).slice(0, 16)}`
