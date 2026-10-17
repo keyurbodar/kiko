@@ -20,6 +20,8 @@ const CENTER_LINE = 16;
 const EVENT_ROW_PX = 32;
 // A failed run (RunErrorRow.tsx): a bordered sentence with a row of buttons under it.
 const RUN_ERROR_ROW_PX = 96;
+// An agent's request for the browser (BrowserControlRow.tsx): one sentence and the browser buttons.
+const BROWSER_ROW_PX = 88;
 
 const CHARS_PER_LINE = 87;
 
@@ -58,6 +60,7 @@ export function estimateRowHeight(item: TimelineItem): number {
   if (item.kind === "day-divider") return CENTER_ROW_PAD_Y + CENTER_LINE + 8;
   // The unread rule, an event line and a thread line (EventDivider.tsx): `py-2` around a `text-xs` line.
   if (item.kind === "event" && item.message.event?.kind === "run_error") return RUN_ERROR_ROW_PX;
+  if (item.kind === "event" && item.message.event?.kind === "browser_control") return BROWSER_ROW_PX;
   if (item.kind === "unread-divider" || item.kind === "event" || item.kind === "thread") return EVENT_ROW_PX;
 
   const { message } = item;

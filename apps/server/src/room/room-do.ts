@@ -1198,6 +1198,14 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return (await this.dev()).agePending(ms)
 	}
 
+	/** A card in the chat that asks the human to take control of the browser. `key` names the spell of control, so a retry adds nothing. */
+	async browserAsk(slug: AgentSlug, reason: string, key: string): Promise<boolean> {
+		const member = this.members.get(slug)
+		if (!member) return false
+		this.divider(`browser-ask:${key}:${slug}`, `${member.name} needs you in the browser: ${reason}`, { kind: "browser_control", agent: slug, reason, private: true })
+		return true
+	}
+
 	async browserShare(slug: AgentSlug, reason: string): Promise<boolean> {
 		const member = this.members.get(slug)
 		if (!member) return false

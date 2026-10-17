@@ -110,6 +110,9 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       },
       url: async () => (await info()).url,
       title: async () => (await info()).title,
+      front: async () => {
+        await page.channel.send("Page.bringToFront")
+      },
       close: async () => {
         page.dialog = undefined
         tabs.delete(targetId)
@@ -147,6 +150,13 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
       return adopt(targetId, url)
     },
     tab: (id) => tabs.get(id),
+    attach: async (id) => {
+      const known = tabs.get(id)
+      if (known) return known
+      const { targetInfos } = await cdp.send("Target.getTargets")
+      if (!targetInfos.some((t) => t.targetId === id && t.type === "page")) return undefined
+      return adopt(id)
+    },
     listTabs: async () => {
       const { targetInfos } = await cdp.send("Target.getTargets")
       return targetInfos.filter((t) => tabs.has(t.targetId)).map((t) => ({ id: t.targetId, url: t.url, title: t.title }))

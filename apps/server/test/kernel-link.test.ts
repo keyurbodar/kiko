@@ -29,10 +29,23 @@ function setup(start?: Partial<LeaseRow>) {
     profileReady: () => true,
     setProfileReady: () => {},
     setBroken: () => {},
+    control: () => control && structuredClone(control),
+    setControl: (c: typeof control) => void (control = c),
+  }
+  let control: { at: number; waiters: { agentId: string; roomId: string }[] } | undefined
+  const wakes: { room: string; id: string; to: string; body: string }[] = []
+  const pending: Promise<unknown>[] = []
+  const ROOMS = {
+    idFromName: (name: string) => name,
+    get: (name: string) => ({
+      wake: async (w: { id: string; to: string; body: string }) => void wakes.push({ room: name, id: w.id, to: w.to, body: w.body }),
+      browserAsk: async () => true,
+    }),
   }
   const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} }
-  const wiring = new KernelWiring({ ctx: { getWebSockets: () => [] }, sql: { exec: () => ({ toArray: () => [] }) }, env: {}, alarms, userId: () => "u", store, clientFor: () => client } as never)
-  return { wiring, calls, row: () => row }
+  const ctx = { getWebSockets: () => [], waitUntil: (p: Promise<unknown>) => void pending.push(p) }
+  const wiring = new KernelWiring({ ctx, sql: { exec: () => ({ toArray: () => [] }) }, env: { ROOM: ROOMS }, alarms, userId: () => "u", store, clientFor: () => client } as never)
+  return { wiring, calls, row: () => row, wakes, settled: () => Promise.all(pending), setRow: (p: Partial<LeaseRow>) => void (row &&= { ...row, ...p }) }
 }
 
 describe("live view link", () => {
@@ -50,6 +63,48 @@ describe("live view link", () => {
     const out = await t.wiring.liveLink("room-a/ada", ROOM, "control")
     expect(out.ok).toBe(true)
     expect(t.row()?.takeover).toBe(true)
+  })
+
+  test("Release control wakes the agent that asked and every agent it paused, each once", async () => {
+    const t = setup()
+    await t.wiring.liveLink(`${ROOM}:ada`, ROOM, "control", "please sign in")
+    expect(t.wiring.paused(`${ROOM}:bob`, ROOM)).toBe(true)
+    expect(t.wiring.paused(`${ROOM}:bob`, ROOM)).toBe(true)
+    expect(t.wiring.handBack()).toBe(true)
+    expect(t.wiring.handBack()).toBe(false)
+    await t.settled()
+    expect(t.row()?.takeover).toBe(false)
+    expect(t.wakes.map((w) => w.to).sort()).toEqual(["ada", "bob"])
+    expect(t.wakes[0]?.id).toMatch(/^browser-back:\d+:ada$/)
+    expect(t.wakes[0]?.body).toContain("released control")
+  })
+
+  test("an agent that releases on the human's word wakes the others and not itself", async () => {
+    const t = setup()
+    await t.wiring.liveLink(`${ROOM}:ada`, ROOM, "control")
+    t.wiring.paused(`${ROOM}:bob`, ROOM)
+    expect(t.wiring.handBack(`${ROOM}:ada`)).toBe(true)
+    await t.settled()
+    expect(t.wakes.map((w) => w.to)).toEqual(["bob"])
+  })
+
+  test("control that times out wakes the waiting agents and says so", async () => {
+    const t = setup()
+    await t.wiring.liveLink(`${ROOM}:ada`, ROOM, "control")
+    t.setRow({ watchUntil: Date.now() - 1 })
+    await t.wiring.reap()
+    await t.settled()
+    expect(t.wakes.map((w) => w.to)).toEqual(["ada"])
+    expect(t.wakes[0]?.body).toContain("timed out")
+  })
+
+  test("an agent that asks while the agents have control is not woken later", async () => {
+    const t = setup()
+    await t.wiring.liveLink(`${ROOM}:ada`, ROOM, "watch")
+    expect(t.wiring.paused(`${ROOM}:bob`, ROOM)).toBe(false)
+    t.wiring.handBack()
+    await t.settled()
+    expect(t.wakes).toEqual([])
   })
 
   test("a dead browser is replaced by a visible one", async () => {

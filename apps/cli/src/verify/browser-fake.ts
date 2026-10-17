@@ -1,4 +1,4 @@
-import { agentTexts, newRoom, poll, seen } from "./kit"
+import { agentTexts, frames, newRoom, poll, seen } from "./kit"
 import { activeBrowsers, closeBrowser, connectKernel } from "./browser-kit"
 import { type RoomHandle, type Session, type Verifier, VerifyError } from "./client"
 import { api, inSeconds, ok, type Routine, toolLine } from "./routine-kit"
@@ -9,6 +9,8 @@ const HN = "https://news.ycombinator.com"
 const TABS = 8
 const BUSY_MS = 1_000
 const FOREIGN_WAIT_MS = 10_000
+/** Past the agent's 15 s idle close. */
+const IDLE_WAIT_MS = 22_000
 const TOOLS = ["browse", "browser_act", "browser_run", "browser_look", "browser_tabs"]
 
 const texts = (room: RoomHandle) => seen(room).live.map((m) => m.text)
@@ -90,19 +92,42 @@ export async function fakeBrowserRun(v: Verifier): Promise<void> {
 
     const user = await s.user()
     const posted = await ask(a.room, toolLine("browser_link", { mode: "control", reason: "please sign in to example.com" }), 90_000)
-    await poll("the control call's own answer", () => texts(a.room).some((t) => t.includes("posted the control link")), 30_000)
-    const withLink = texts(a.room).find((t) => t.includes("please sign in to example.com") && /\[Take control\]\(https:\/\/[^)]+\)/.test(t))
-    if (!withLink) throw new VerifyError(`the control request did not post a Take control link: ${JSON.stringify(posted.slice(0, 300))}`)
-    console.log("  ok the talker posted a Take control link to the chat")
+    await poll("the control call's own answer", () => texts(a.room).some((t) => t.includes("posted the Take control card")), 30_000)
+    const card = await poll("the Take control card", () =>
+      frames(a.room).flatMap((f) => (f.t === "events" ? f.events : [])).find((e) => e.t === "message" && e.event?.kind === "browser_control"),
+    30_000)
+    if (!(card && "text" in card && card.text.includes("needs you in the browser: please sign in to example.com"))) throw new VerifyError(`the control request did not post a Take control card: ${JSON.stringify(posted.slice(0, 300))}`)
+    if (texts(a.room).some((t) => /kernel\.sh/.test(t) && !t.includes("posted the"))) throw new VerifyError("a control request put the live view link in the chat")
+    console.log("  ok the talker posted a Take control card to the chat, with no link in it")
     const paused = await ask(a.room, toolLine("browse", { urls: ["https://example.com"] }))
-    if (!paused.includes("The human is using the browser")) throw new VerifyError(`browse ran while the human had control: ${JSON.stringify(paused.slice(0, 200))}`)
+    if (!paused.includes("The human has control of the browser")) throw new VerifyError(`browse ran while the human had control: ${JSON.stringify(paused.slice(0, 200))}`)
+    const bystander = others[0]
+    if (!bystander) throw new VerifyError("no second agent to pause")
+    const waited = await ask(bystander.room, toolLine("browse", { urls: ["https://example.com"] }))
+    if (!waited.includes("The human has control of the browser")) throw new VerifyError(`another agent's browse ran while the human had control: ${JSON.stringify(waited.slice(0, 200))}`)
     user.send({ t: "handBack" })
+    const woken = (h: { room: RoomHandle }) => texts(h.room).some((t) => t.includes("released control of the browser"))
+    await poll("the wakes after Release control", () => woken(a) && woken(bystander), 30_000)
+    console.log("  ok Release control woke the agent that asked for control and the agent it had paused")
     const resumed = await poll("browse after hand back", async () => {
       const out = await ask(a.room, toolLine("browse", { urls: ["https://example.com"] }))
       return out.includes("Example Domain") ? out : undefined
     }, 60_000)
     if (!resumed) throw new VerifyError("browse did not resume after the human handed back")
     console.log("  ok browse waited while the human had control and worked again after hand back")
+
+    const tabIds = (out: string) => out.split("\n").filter((l) => !l.includes("(theirs)")).flatMap((l) => /\b([0-9A-F]{32})\b/.exec(l)?.[1] ?? [])
+    const listing = await ask(a.room, toolLine("browser_tabs", { action: "list" }))
+    const tabsBefore = tabIds(listing)
+    if (!tabsBefore.length) throw new VerifyError(`browser_tabs list showed no tab after browse: ${JSON.stringify(listing.slice(0, 400))}`)
+    await resetStats(v, s)
+    await Bun.sleep(IDLE_WAIT_MS)
+    const idled = (await readStats(v, s))["browser.idle.closed"] ?? 0
+    if (idled < 1) throw new VerifyError(`the idle close did not run in ${IDLE_WAIT_MS} ms`)
+    const after = tabIds(await ask(a.room, toolLine("browser_tabs", { action: "list" })))
+    const lost = tabsBefore.filter((id) => !after.includes(id))
+    if (lost.length) throw new VerifyError(`the idle close lost tabs ${lost.join(", ")}; before ${tabsBefore.join(", ")}, after ${after.join(", ")}`)
+    console.log(`  ok the idle close shut the socket and kept all ${tabsBefore.length} tabs; the next call attached to the same ones`)
 
     const routineText = agentTexts(r.room).find((t) => t.includes("/newest")) ?? ""
     if (!/did: click \d+\./.test(routineText)) throw new VerifyError(`the routine's browser_act did not click: ${JSON.stringify(routineText.slice(0, 300))}`)

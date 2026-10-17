@@ -23,6 +23,7 @@ import { openBotPicker } from "../chat/bot-picker-state"
 import { openNewAgent } from "../newagent/state"
 import { navCommands } from "./nav-commands"
 import { useCommands } from "./registry"
+import { browserCommands, startBrowser } from "../chat/browser"
 
 /** The file ranking loads with the "Go to file" view, so the shell does not carry it. */
 const [goTo, setGoTo] = createSignal<typeof import("../files/go-to") & { HOME: string; recentFiles: typeof import("../files/recent").recentFiles }>()
@@ -37,6 +38,8 @@ const CHAT_PATH = /^\/chat\/([^/]+)$/
  */
 /** Register kat's map for the life of the calling component. Call it in the shell. */
 export function useKatCommands(deps: { toggleSidebar: () => void }): void {
+  startBrowser()
+  useCommands(browserCommands())
   const navigate = useNavigate()
   const location = useLocation()
   const activeId = () => {

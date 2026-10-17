@@ -43,6 +43,7 @@ export function fakeTab(site: Site, start: string, opts: { delayMs?: number } = 
     answerDialog: async () => false,
     url: async () => `https://site.test/${at}`,
     title: async () => "",
+    front: async () => {},
     close: async () => {},
   }
   return { tab, acted, at: () => at }

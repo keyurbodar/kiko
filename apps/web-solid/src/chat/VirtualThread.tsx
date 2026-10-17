@@ -38,6 +38,7 @@ import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
 import type { DraftBook } from "../warm/drafts"
 
 const RunErrorRow = lazy(() => import("./ui/RunErrorRow"))
+const BrowserControlRow = lazy(() => import("./BrowserControlRow"))
 
 export interface VirtualThreadState {
   readonly scrollOffset: number
@@ -633,6 +634,9 @@ export function VirtualThread(props: {
     )
   }
 
+  /** Only the newest browser request in the chat carries buttons; the older ones were answered by it. */
+  const latestBrowserAsk = createMemo(() => props.messages.findLast((m) => m.event?.kind === "browser_control")?.id)
+
   const renderItem = (item: TimelineItem): JSX.Element => {
     if (item.kind === "day-divider") {
       return (
@@ -646,6 +650,14 @@ export function VirtualThread(props: {
       return (
         <Suspense fallback={<ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />}>
           <RunErrorRow message={item.message} slug={failed.slug} actions={failed.actions} detail={failed.detail} reason={failed.reason} provider={failed.provider} latest={props.messages.at(-1)?.id === item.message.id} />
+        </Suspense>
+      )
+    }
+    if (item.kind === "event" && item.message.event?.kind === "browser_control") {
+      const line = <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />
+      return (
+        <Suspense fallback={line}>
+          <BrowserControlRow message={item.message} latest={latestBrowserAsk() === item.message.id} />
         </Suspense>
       )
     }

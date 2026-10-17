@@ -68,6 +68,8 @@ export type SystemEvent =
 	| { kind: "group_formed"; private: true }
 	| { kind: "member_added"; slug: AgentSlug; name: string; private: true }
 	| { kind: "member_removed"; slug: AgentSlug; name: string; private: true }
+	/** An agent needs the human in the browser. The card's buttons follow the browser's state, so it holds no link. */
+	| { kind: "browser_control"; agent: AgentSlug; reason: string; private: true }
 	| { kind: "run_error"; slug: AgentSlug; reason: RunErrorKind; actions: readonly RunErrorAction[]; /** The provider the run used, so a sign-in or key problem opens that provider. */ provider?: string; /** The provider's own words, keys removed. */ detail?: string; private: true }
 
 /** An event kind a newer server sent. Only its kind is kept. */

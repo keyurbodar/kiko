@@ -1,5 +1,5 @@
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js"
-import { browser, closeBrowser, startBrowser } from "../chat/browser"
+import { browser, closeBrowser, handBack, startBrowser } from "../chat/browser"
 import { Button, Item } from "./kit"
 
 function minutesOpen(since: number, now: number): string {
@@ -22,13 +22,20 @@ export default function LiveBrowser(props: { icon: JSX.Element }) {
 					meta={
 						<span data-field="browser-meta">
 							{b().switching ? "Opening browser" : b().mode === "headful" ? "Visible" : "Headless"}, {minutesOpen(b().since, now())}
-							{b().takeover ? ", you are using it" : ""}
+							{b().takeover ? ", you have control" : ""}
 						</span>
 					}
 					actions={
-						<Button variant="danger" data-action="browser-close" onClick={closeBrowser}>
-							Close
-						</Button>
+						<>
+							<Show when={b().takeover}>
+								<Button data-action="browser-handback" onClick={handBack}>
+									Release control
+								</Button>
+							</Show>
+							<Button variant="danger" data-action="browser-close" onClick={closeBrowser}>
+								Close
+							</Button>
+						</>
 					}
 				>
 					<Show when={b().tabs.length} fallback={<p class="text-[13px] text-muted-foreground">No tabs open.</p>}>

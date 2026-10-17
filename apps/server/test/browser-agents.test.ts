@@ -12,6 +12,7 @@ const view = (url: string): PageView => ({ key: url, url, title: url, controls: 
 
 function world() {
   const live = new Map<string, { tab: Tab; steps: Step[]; at: string }>()
+  const fronted: string[] = []
   let n = 0
   const make = (url: string) => {
     const id = `t${++n}`
@@ -32,6 +33,7 @@ function world() {
       answerDialog: async () => true,
       url: async () => rec.at,
       title: async () => rec.at,
+      front: async () => void fronted.push(id),
       close: async () => void live.delete(id),
     }
     live.set(id, rec)
@@ -45,13 +47,18 @@ function world() {
         mine.add(tab.id)
         return tab
       },
-      tab: (id) => live.get(id)?.tab,
+      tab: (id) => (mine.has(id) ? live.get(id)?.tab : undefined),
+      attach: async (id) => {
+        if (!live.has(id)) return undefined
+        mine.add(id)
+        return live.get(id)?.tab
+      },
       listTabs: async () => [...mine].filter((id) => live.has(id)).map((id) => ({ id, url: live.get(id)?.at ?? "", title: live.get(id)?.at ?? "" })),
       closed: new Promise<void>(() => {}),
       close: async () => {},
     }
   }
-  return { live, connect, make }
+  return { live, connect, make, fronted }
 }
 
 function leaseWith(over: Partial<BrowserState> = {}, live?: (mode: "watch" | "control", reason?: string) => Promise<LiveLink>) {
@@ -60,7 +67,7 @@ function leaseWith(over: Partial<BrowserState> = {}, live?: (mode: "watch" | "co
     lease: async () => ({ sessionId: "s1", cdpUrl: "wss://fake", mode: "headless", restarted: false, reopen: [] }),
     touch: async () => true,
     dead: async () => true,
-    release: async () => {},
+    handBack: async () => true,
     state: async () => ({ connected: true, takeover: false, mode: "headless", tabs: {}, list: [], ...over }),
     paused: async () => over.takeover ?? false,
     live:
@@ -144,16 +151,16 @@ describe("tabs belong to the agent that opened them", () => {
     expect(w.live.has(extra.id)).toBe(false)
   })
 
-  test("idle closes the tabs the agent opened and switched away from, not only the current one", async () => {
+  test("idle keeps every tab the agent holds and the next socket attaches to all of them", async () => {
     const w = world()
     const { lease } = leaseWith()
     const c = conn(w, lease)
     await c.goto("https://home.test")
     await c.openTab("https://parked.test")
     await c.openTab("https://parked2.test")
-    expect(w.live.size).toBe(3)
     expect(await c.idle()).toBe("closed")
-    expect(w.live.size).toBe(0)
+    expect(w.live.size).toBe(3)
+    expect((await c.listTabs()).map((t) => t.url).sort()).toEqual(["https://home.test", "https://parked.test", "https://parked2.test"])
   })
 
   test("browser_tabs list shows titles, marks the current tab, and names the other agents' tabs as theirs", async () => {
@@ -212,6 +219,7 @@ describe("the talker can show the browser without a worker", () => {
     const names = talker.flatMap((e) => (e.tools ?? []).map((t) => t.name))
     expect(names).toContain("browser_link")
     expect(names).toContain("browser_status")
+    expect(names).toContain("browser_release")
     expect(names).not.toContain("browse")
     expect(names).not.toContain("browser_act")
     expect(talker.map((e) => e.name)).toContain(BROWSER_INFO_EXT)
@@ -224,9 +232,27 @@ describe("the talker can show the browser without a worker", () => {
     expect(watch.output[0]?.text).toContain("https://live.test/abc")
     expect(watch.output[0]?.text).toContain("markdown link")
     const control = await run(info, "browser_link", { mode: "control", reason: "please sign in to github.com" })
-    expect(control.output[0]?.text).toContain("posted the control link")
+    expect(control.output[0]?.text).toContain("posted the Take control card")
     expect(control.output[0]?.text).not.toContain("https://live.test")
     expect(lives).toEqual([["watch", undefined], ["control", "please sign in to github.com"]])
+  })
+
+  test("a control link brings the asking worker's tab to the front, so the human lands on it", async () => {
+    const w = world()
+    const { lease } = leaseWith()
+    const c = conn(w, lease)
+    await c.goto("https://other.test", "w1")
+    const mail = await c.goto("https://mail.test", "w2")
+    await run(browserInfoExtension(deps(c, lease)), "browser_link", { mode: "control", reason: "please sign in" }, { conversationId: "w2" })
+    expect(w.fronted).toEqual([mail.id])
+  })
+
+  test("browser_release gives control back and says when the agents already had it", async () => {
+    const backs: boolean[] = [true, false]
+    const { lease } = leaseWith()
+    const info = browserInfoExtension(deps(conn(world(), lease), { ...lease, handBack: async () => backs.shift() ?? false }))
+    expect((await run(info, "browser_release", {})).output[0]?.text).toContain("control is back with the agents")
+    expect((await run(info, "browser_release", {})).output[0]?.text).toBe("the agents already had control.")
   })
 
   test("browser_link reports a failure as an error, not a link", async () => {
