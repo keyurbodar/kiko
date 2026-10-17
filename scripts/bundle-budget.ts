@@ -20,6 +20,7 @@ const TIER3 = [
   "src/chat/ui/ImageDialog.tsx",
   "src/chat/ui/EmojiPicker.tsx",
   "src/chat/ui/ReactionPopover.tsx",
+  "src/chat/run/RunPanel.tsx",
   "src/chat/ui/SuspiciousLinkDialog.tsx",
 ];
 const TIER4 = ["src/app/routes/settings.tsx"];

@@ -954,6 +954,8 @@ function devTransport(mock: MockModule, fixtureRoom: RoomId): Transport {
   const count = Number(new URLSearchParams(globalThis.location?.search).get("mockChats")) || 0
   const user = mock.createMockUser(count > 0 ? { chats: manyChats(count) } : {})
   const rooms = new Map<string, MockRoom>()
+  // Dev only: the rooms are reachable from the console, so a check can send steps by hand.
+  ;(globalThis as { __mockRooms?: unknown }).__mockRooms = rooms
   return {
     user: user.connect,
     room: (roomId) => {

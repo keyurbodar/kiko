@@ -28,7 +28,7 @@
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  color: var(--secondary-label);
+  color: var(--muted-foreground);
   font-size: var(--font-md);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -95,7 +95,7 @@
   min-width: 0;
   padding: 0 8px 0 8px;
   border-radius: var(--radius-sm);
-  color: var(--secondary-label);
+  color: var(--muted-foreground);
   cursor: default;
   user-select: none;
 }
@@ -225,7 +225,7 @@
   overscroll-behavior: contain;
   border-radius: 8px;
   background: color-mix(in oklab, var(--foreground) 5%, transparent);
-  color: var(--secondary-label);
+  color: color-mix(in oklab, var(--foreground) 82%, transparent);
 }
 .run-out[data-failed] {
   background: color-mix(in oklab, var(--error, #e5484d) 9%, transparent);
@@ -244,7 +244,7 @@
     color: transparent;
     background-image:
       linear-gradient(to right, transparent, var(--foreground), transparent),
-      linear-gradient(var(--secondary-label), var(--secondary-label));
+      linear-gradient(var(--muted-foreground), var(--muted-foreground));
     background-size: 4.5rem 100%, 100% 100%;
     background-repeat: no-repeat;
     -webkit-background-clip: text;

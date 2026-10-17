@@ -21,6 +21,8 @@ export function MessageActions(props: {
   onReact: (emoji: string) => void
   onReply: () => void
   onMore: (anchor: HTMLElement) => void
+  /** Pixels beside the bubble that the run chevron takes. The actions sit past them. */
+  reserve?: number
 }): JSX.Element {
   let react: HTMLButtonElement | undefined
   const [open, setOpen] = createSignal(false)
@@ -42,7 +44,7 @@ export function MessageActions(props: {
     const measure = () => {
       if (open()) return
       const scroller = row.closest<HTMLElement>('[data-component="chat-scroll"]') ?? document.documentElement
-      setPlacement(actionsPlacement(props.side, bubble.getBoundingClientRect(), scroller.getBoundingClientRect()))
+      setPlacement(actionsPlacement(props.side, bubble.getBoundingClientRect(), scroller.getBoundingClientRect(), props.reserve ?? 0))
     }
     row.addEventListener("pointerenter", measure)
     row.addEventListener("focusin", measure)
@@ -82,6 +84,7 @@ export function MessageActions(props: {
             )
           : cn("top-1/2 -translate-y-1/2", props.side === "user" ? "right-full mr-1.5 flex-row-reverse" : "left-full ml-1.5"),
       )}
+      style={props.reserve && placement() === "outside" ? { "margin-left": `${6 + props.reserve}px` } : undefined}
       data-component="chat-actions"
       data-placement={placement()}
       data-open={open() ? "" : undefined}
