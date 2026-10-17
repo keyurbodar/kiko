@@ -25,5 +25,6 @@ export function buildCatalog(all: readonly Provider[], signInMethod: (providerId
     const classifiers = (provider.getAllModels?.() ?? []).filter((model) => model.type === "classifier").length
     return { id: provider.id, name: provider.name ?? provider.id, connect, ...(offer ? { signIn: offer } : {}), models, classifiers }
   })
-  return { providers: providers.sort((a, b) => a.id.localeCompare(b.id)) }
+  // A provider Kiko has no way to connect (OpenAI Codex, whose host refuses Workers) is not offered at all.
+  return { providers: providers.filter((p) => p.connect.length > 0).sort((a, b) => a.id.localeCompare(b.id)) }
 }
