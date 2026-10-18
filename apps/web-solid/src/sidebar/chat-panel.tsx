@@ -483,8 +483,8 @@ export function ChatPanel() {
       </Show>
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
         {(id) => (
-          <Show when={byId().get(id)}>
-            {(bot) => <ChatRow bot={bot()} muted={muted().has(id)} active={active() === id} now={now()} hint={jumpHint().get(id)} />}
+          <Show when={byId().get(id)} keyed>
+            {(bot) => <ChatRow bot={bot} muted={muted().has(id)} active={active() === id} now={now()} hint={jumpHint().get(id)} />}
           </Show>
         )}
       </VList>

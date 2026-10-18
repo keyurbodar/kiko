@@ -437,10 +437,10 @@ export function Shell(props: ParentProps) {
                     onCollapse={() => dockedSide() && closeSide()}
                   >
                     <GrabPanel onGrab={setSidePanel} />
-                    <Show when={dockedSide()}>
+                    <Show when={dockedSide()} keyed>
                       {(chatId) => (
                         <Suspense>
-                          <Sidecar chatId={chatId()} />
+                          <Sidecar chatId={chatId} />
                         </Suspense>
                       )}
                     </Show>
@@ -450,13 +450,13 @@ export function Shell(props: ParentProps) {
             );
           }}
         </Show>
-        <Show when={overlaidSide()}>
+        <Show when={overlaidSide()} keyed>
           {(chatId) => (
             <>
               <div class="drawer-scrim sidecar-scrim" data-component="sidecar-scrim" aria-hidden="true" onPointerDown={closeSide} />
               <div class="sidecar-overlay" data-component="sidecar-overlay">
                 <Suspense>
-                  <Sidecar chatId={chatId()} />
+                  <Sidecar chatId={chatId} />
                 </Suspense>
               </div>
             </>

@@ -719,15 +719,24 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		queue = queue.filter((e) => e.seq > snapshot.seq)
 		const data = fromSnapshot(snapshot)
 		following = true
+		// The window on screen may hold rows the snapshot also holds. Replacing them with fresh
+		// objects makes every row rebuild and the scroll jump, so a snapshot that continues what is
+		// shown is merged by seq instead. A snapshot that does not touch the window is a real reset.
+		const held = raw(state.messages)
+		const first = snapshot.messages[0]?.seq
+		const last = held.at(-1)?.seq
+		const overlap = held.length > 0 && first !== undefined && last !== undefined && first <= last + 1
+		const messages = overlap ? mergeBySeq(held, snapshot.messages) : data.messages
 		batch(() => {
-			setState({ ...data, history: null })
+			setState({ ...data, messages, history: null })
 			dropPatches(settleRoom(state.patches, [], snapshot.seq))
 			trimWindow(true)
 		})
 		// The snapshot's steps are those no message opens yet, so their agents are mid-run.
 		takeSteps(snapshot.steps ?? [], true)
 		clearRoom(warm, roomId)
-		putMessages(warm, roomId, data.messages)
+		// The disk keeps the merged window, so a reset does not throw away the older rows it still held.
+		putMessages(warm, roomId, messages)
 		writeMeta()
 		setLastSeq(warm, roomId, snapshot.seq)
 		kick()

@@ -361,6 +361,32 @@ describe("the room store", () => {
 		second.store.close()
 	})
 
+	test("a snapshot that overlaps the window keeps the rows it already shows", async () => {
+		const events: RoomEvent[] = Array.from({ length: 300 }, (_, i) => ({
+			t: "message",
+			seq: i + 1,
+			at: i,
+			id: `m${i + 1}` as MessageId,
+			from: { kind: "human" },
+			text: `n${i + 1}`,
+		}))
+		const { mock, make } = setup({ events })
+		const { store } = await make()
+		await until(() => store.state.seq === 300)
+		const before = store.state.messages
+		// A row well inside the window: a replace would hand back a new object for it.
+		const kept = before[before.length - MAX_MESSAGES_IN_MEMORY + 10]!
+		// The room dropped events and answers with a snapshot of its newest rows, which the client
+		// already holds.
+		const snapshot = mock.snapshot()
+		mock.broadcast({ t: "reset", snapshot: { ...snapshot, seq: 301, messages: snapshot.messages.slice(-50) } })
+		await until(() => store.state.seq === 301)
+		expect(store.state.messages.length).toBe(MAX_MESSAGES_IN_MEMORY)
+		// The row the reader was looking at is the same object, so its DOM was never rebuilt.
+		expect(store.state.messages.some((m) => m === kept)).toBe(true)
+		store.close()
+	})
+
 	test("a reset replaces the room and the warm tier", async () => {
 		const events: RoomEvent[] = Array.from({ length: 600 }, (_, i) => ({
 			t: "message",
