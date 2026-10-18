@@ -1,5 +1,6 @@
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "@kiko/ui/icons"
 import { Show, createSignal, createUniqueId, onCleanup, onMount } from "solid-js"
 import { wrapIndex } from "../../lib/attachments"
 import "./image-dialog.css"
@@ -77,11 +78,11 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
             aria-label="Close image preview"
             onClick={close}
           >
-            <XIcon class="size-4" aria-hidden="true" />
+            <RemixIcon icon={CloseIcon} class="size-4" />
           </button>
           <Show when={count() > 1}>
             <button type="button" data-chrome="" class={`${NAV} left-0`} aria-label="Previous image" onClick={() => step(-1)}>
-              <ChevronLeftIcon class="size-5" aria-hidden="true" />
+              <RemixIcon icon={ChevronLeftIcon} class="size-5" />
             </button>
           </Show>
           {/* Keyed, so a new picture starts fitted. */}
@@ -114,7 +115,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           </Show>
           <Show when={count() > 1}>
             <button type="button" data-chrome="" class={`${NAV} right-0`} aria-label="Next image" onClick={() => step(1)}>
-              <ChevronRightIcon class="size-5" aria-hidden="true" />
+              <RemixIcon icon={ChevronRightIcon} class="size-5" />
             </button>
           </Show>
         </ModalV2.Content>

@@ -280,7 +280,6 @@
   user-select: none;
 }
 
-/* The live label is plain text: a run's progress is read, not watched. */
 .run-working {
   color: var(--muted-foreground);
   white-space: nowrap;

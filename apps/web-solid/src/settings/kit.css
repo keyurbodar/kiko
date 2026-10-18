@@ -337,7 +337,6 @@
 .kit-tabs {
   display: flex;
   gap: 4px;
-  border-bottom: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
 }
 
 .kit-tab {
@@ -363,7 +362,7 @@
   content: "";
   position: absolute;
   right: 8px;
-  bottom: -1px;
+  bottom: 2px;
   left: 8px;
   height: 2px;
   border-radius: var(--radius-pill);

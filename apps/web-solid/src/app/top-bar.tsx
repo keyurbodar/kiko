@@ -1,8 +1,7 @@
 import { useLocation } from "@solidjs/router"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { SearchIcon } from "@kiko/ui/icons"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { NotesIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { PanelRight, NotepadText } from "lucide-solid"
 import { Show } from "solid-js"
 import { cardShown, loadCard, toggleCard } from "../chat/side/card-state"
 import { loadSidecar, sidecarOpen, toggleSidecar } from "../chat/side/surfaces"
@@ -45,7 +44,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
             onPointerEnter={preloadSearch}
             onClick={() => runCommand(chatId() ? "chats.search-current" : "chats.search-all")}
           >
-            <HugeIcon icon={SearchIcon} size={16} />
+            <RemixIcon icon={SearchIcon} size={16} />
           </button>
         </TooltipV2>
         <Show when={chatId()} keyed>
@@ -63,7 +62,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
                   onPointerEnter={() => void loadCard()}
                   onClick={toggleCard}
                 >
-                  <NotepadText size={15} strokeWidth={1.75} aria-hidden="true" />
+                  <RemixIcon icon={NotesIcon} size={15} />
                 </button>
               </TooltipV2>
               <TooltipV2 placement="bottom" openDelay={400} value={sidecarOpen(id) ? "Hide side panel" : "Show side panel"}>
@@ -76,7 +75,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
                   onPointerEnter={() => void loadSidecar()}
                   onClick={() => toggleSidecar(id)}
                 >
-                  <PanelRight size={15} strokeWidth={1.75} aria-hidden="true" />
+                  <RemixIcon icon={SidebarRightIcon} size={15} />
                 </button>
               </TooltipV2>
             </>

@@ -1,5 +1,5 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { SearchIcon } from "@kiko/ui/icons"
 import { TabsV2 } from "@kiko/ui/v2/tabs-v2"
 import { useNavigate, useSearchParams } from "@solidjs/router"
@@ -75,11 +75,11 @@ export default function RecipesPage() {
         <div class="mx-auto flex w-full max-w-[880px] flex-col px-5 pb-20 @min-[560px]/recipes:px-8">
           <header class="flex flex-col gap-4 pt-8 pb-4 max-[767px]:pt-14 @min-[560px]/recipes:pt-10">
             <div class="flex flex-col gap-1">
-              <h1 class="text-[26px] font-semibold tracking-[-0.02em] text-foreground">Recipes</h1>
+              <h1 class="font-display text-[26px] font-semibold tracking-[-0.02em] text-foreground">Recipes</h1>
               <p class="text-[14px] text-muted-foreground">Little routines your agents can pick up.</p>
             </div>
             <label class="flex h-9 w-full max-w-[480px] items-center gap-2 rounded-full bg-control px-3.5 text-muted-foreground">
-              <HugeIcon icon={SearchIcon} size={15} />
+              <RemixIcon icon={SearchIcon} size={15} />
               <input
                 type="search"
                 class="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"

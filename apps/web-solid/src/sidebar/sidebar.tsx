@@ -1,22 +1,19 @@
 import { A, useLocation, useNavigate } from "@solidjs/router"
 import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ComposeIcon, SettingsIcon, SidebarLeftIcon, SparklesIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { session } from "../app/session"
 import { profile } from "../app/hosted";
 import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
-import { intentRef } from "../lib/intent"
-import { preloadRoute } from "../app/routes"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { KikoMark, KikoWordmark } from "../lib/brand"
+import { openSettings, settingsSection } from "../settings/dialog-state"
 import { Sky } from "../sky/Sky"
 import { ChatPanel } from "./chat-panel"
 const UpdatePill = lazy(() => import("../app/update-pill"))
 import "./sidebar.css"
-
-const SettingsPanel = lazy(() => import("./settings/sidebar"))
 
 /*
  * One panel per section, chosen from this table. Chat paints with the first frame; the others
@@ -24,13 +21,7 @@ const SettingsPanel = lazy(() => import("./settings/sidebar"))
  */
 const PANELS: Record<SectionId, Component> = {
   chat: ChatPanel,
-  settings: SettingsPanel,
   recipes: lazy(() => import("./recipes/sidebar")),
-}
-
-/** Starts the settings panel's chunk, so opening Settings does not blank the left column as well. */
-export function preloadSettingsSidebar(): void {
-  void SettingsPanel.preload()
 }
 const SECTION_IDS = SECTIONS.map((section) => section.id)
 
@@ -39,13 +30,11 @@ type PanelAction = {
   run: (navigate: (to: string) => void) => void
 }
 
-/** The header's one primary action. Settings has none. */
 const ACTIONS: Record<SectionId, PanelAction | null> = {
   chat: {
     label: "New chat",
     run: () => runCommand("chat.new"),
   },
-  settings: null,
   recipes: null,
 }
 
@@ -115,7 +104,7 @@ export function Sidebar(props: SidebarProps) {
         </For>
       </div>
 
-      <Foot section={props.section} />
+      <Foot />
     </aside>
   )
 }
@@ -134,14 +123,13 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
         data-hint="view.toggle-sidebar"
         onClick={() => props.onToggle()}
       >
-        <HugeIcon icon={SidebarLeftIcon} size={17} />
+        <RemixIcon icon={SidebarLeftIcon} size={17} />
       </button>
     </TooltipV2>
   )
 }
 
-/** You and settings, at the foot of every section. The card opens the account page. */
-function Foot(props: { section: SectionId | null }) {
+function Foot() {
   const location = useLocation()
   const onRecipes = () => location.pathname.startsWith("/recipes")
   const user = () => {
@@ -154,10 +142,10 @@ function Foot(props: { section: SectionId | null }) {
       <UpdatePill />
     </Suspense>
     <footer class="panel-foot" data-component="sidebar-foot">
-      <A href="/settings/account" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="Account">
+      <button type="button" class="panel-me cursor-pointer" data-component="sidebar-me" aria-label="Account" aria-haspopup="dialog" onClick={() => openSettings("account")}>
         <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
         <span class="panel-me-name">{profile()?.name ?? user()?.name ?? "You"}</span>
-      </A>
+      </button>
       <TooltipV2 placement="top" openDelay={400} value="Recipes">
         <A
           href="/recipes"
@@ -167,23 +155,24 @@ function Foot(props: { section: SectionId | null }) {
           aria-current={onRecipes() ? "page" : undefined}
           aria-label="Recipes"
         >
-          <HugeIcon icon={SparklesIcon} size={17} />
+          <RemixIcon icon={SparklesIcon} size={17} />
         </A>
       </TooltipV2>
       <TooltipV2 placement="top" openDelay={400} value="Settings">
-        <A
-          href="/settings"
-          ref={intentRef(() => preloadRoute("/settings"))}
+        <button
+          type="button"
           class="panel-icon-button relative"
           data-component="sidebar-settings"
           data-hint="settings.open"
           data-hint-label="Settings"
-          data-active={props.section === "settings" ? "" : undefined}
-          aria-current={props.section === "settings" ? "page" : undefined}
+          data-active={settingsSection() ? "" : undefined}
+          aria-haspopup="dialog"
+          aria-expanded={settingsSection() !== null}
           aria-label="Settings"
+          onClick={() => openSettings()}
         >
-          <HugeIcon icon={SettingsIcon} size={17} />
-        </A>
+          <RemixIcon icon={SettingsIcon} size={17} />
+        </button>
       </TooltipV2>
     </footer>
     </>
@@ -196,7 +185,7 @@ function HeaderAction(props: { action: PanelAction }) {
   return (
     <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
       <button type="button" class="panel-icon-button" data-component="sidebar-add" aria-label={props.action.label} title={props.action.label} onClick={() => props.action.run(navigate)}>
-        <HugeIcon icon={ComposeIcon} size={17} />
+        <RemixIcon icon={ComposeIcon} size={17} />
       </button>
     </TooltipV2>
   )

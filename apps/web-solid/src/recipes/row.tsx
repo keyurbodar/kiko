@@ -1,5 +1,5 @@
 import type { RecipeCard, RecipeInstall } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { MoreIcon, PauseIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useNavigate } from "@solidjs/router"
@@ -26,7 +26,7 @@ export function StatusChip(props: { status: InstallStatus }) {
           return (
             <>
               <span class={cn(chip, "bg-control text-muted-foreground")}>
-                <HugeIcon icon={PauseIcon} size={11} />
+                <RemixIcon icon={PauseIcon} size={11} />
                 Paused
               </span>
               <span class="truncate text-xs text-muted-foreground">{s.schedule}</span>
@@ -50,7 +50,7 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
       </Show>
       <MenuV2 gutter={4} placement="bottom-end">
         <MenuV2.Trigger class={cn(iconButtonClass, "rounded-full")} aria-label={`More for ${props.card.title}`}>
-          <Show when={isEditing(props.card.slug)} fallback={<HugeIcon icon={MoreIcon} size={16} />}>
+          <Show when={isEditing(props.card.slug)} fallback={<RemixIcon icon={MoreIcon} size={16} />}>
             <Spinner size={16} />
           </Show>
         </MenuV2.Trigger>

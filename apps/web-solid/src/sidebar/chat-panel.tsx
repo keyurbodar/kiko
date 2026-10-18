@@ -1,5 +1,5 @@
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { CloseIcon, FilterIcon, MuteIcon, SearchIcon } from "@kiko/ui/icons"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CloseIcon, MuteIcon, SearchIcon, UnreadIcon } from "@kiko/ui/icons"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -27,7 +27,7 @@ import {
   togglePin,
 } from "./actions"
 import { isListed, quoteOf } from "./activity"
-import { filterRows } from "./filter"
+import { filterRows, pinnedRows } from "./filter"
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -100,13 +100,13 @@ function previewState(id: string) {
   return [open, set] as const
 }
 
-function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void; hint?: string }) {
+function PinTile(props: { bot: RosterBot; active: boolean; main: boolean; onSelect: () => void; hint?: string }) {
   const [menuOpen, setMenuOpen] = createSignal(false)
   const [previewOpen, setPreviewOpen] = previewState(props.bot.id)
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id)
   return (
     <MenuV2.Context gutter={8} onOpenChange={setMenuOpen}>
-      <MenuV2.Context.Trigger as="div" class="pin-tile-slot" data-chat-id={props.bot.id} data-hint={props.hint} data-hint-label="Chat" data-hint-side="right">
+      <MenuV2.Context.Trigger as="div" class="pin-tile-slot" data-chat-id={props.bot.id} data-main={props.main ? "" : undefined} data-hint={props.hint} data-hint-label="Chat" data-hint-side="right">
         <HoverCardV2
           open={previewOpen() && !menuOpen()}
           onOpenChange={setPreviewOpen}
@@ -124,6 +124,7 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void;
             data-chat-id={props.bot.id}
             data-active={props.active ? "" : undefined}
             data-unread={unread() ? "" : undefined}
+            data-main={props.main ? "" : undefined}
             aria-current={props.active ? "true" : undefined}
             onClick={() => {
               setPreviewOpen(false)
@@ -138,7 +139,12 @@ function PinTile(props: { bot: RosterBot; active: boolean; onSelect: () => void;
                 <span class="unread-dot pin-tile-dot" aria-hidden="true" />
               </Show>
             </span>
-            <span class="pin-tile-name">{props.bot.name}</span>
+            <Show when={props.main} fallback={<span class="pin-tile-name">{props.bot.name}</span>}>
+              <span class="pin-tile-text">
+                <span class="pin-tile-name">{props.bot.name}</span>
+                <span class="pin-tile-sub">{props.bot.presence === "idle" ? props.bot.preview || "Your main agent" : PRESENCE[props.bot.presence]}</span>
+              </span>
+            </Show>
           </HoverCardV2.Trigger>
 
           <HoverCardV2.Portal>
@@ -303,7 +309,7 @@ function ChatRow(props: { bot: RosterBot; muted: boolean; active: boolean; now: 
           <span class="chat-line">
             <RowTitle id={props.bot.id} title={props.bot.name} />
             <Show when={props.muted}>
-              <HugeIcon icon={MuteIcon} size={12} class="chat-muted-icon" />
+              <RemixIcon icon={MuteIcon} size={12} class="chat-muted-icon" />
             </Show>
             <span class="chat-time">{rowStamp(props.bot.updatedAt, props.now)}</span>
           </span>
@@ -374,7 +380,7 @@ function SearchRow(props: {
   return (
     <div class="chat-search" data-component="sidebar-search" data-hint="chats.go" data-hint-label="Go to chat">
       <label class="chat-search-field">
-        <HugeIcon icon={SearchIcon} size={15} />
+        <RemixIcon icon={SearchIcon} size={15} />
         <input
           type="text"
           class="chat-search-input"
@@ -394,7 +400,7 @@ function SearchRow(props: {
         />
         <Show when={props.query !== ""}>
           <button type="button" class="chat-search-clear" data-component="sidebar-search-clear" aria-label="Clear search" onClick={() => props.onQuery("")}>
-            <HugeIcon icon={CloseIcon} size={13} />
+            <RemixIcon icon={CloseIcon} size={13} />
           </button>
         </Show>
       </label>
@@ -407,7 +413,7 @@ function SearchRow(props: {
           aria-pressed={props.unreadOnly}
           onClick={() => props.onUnreadOnly(!props.unreadOnly)}
         >
-          <HugeIcon icon={FilterIcon} size={16} />
+          <RemixIcon icon={UnreadIcon} size={16} />
         </button>
       </TooltipV2>
     </div>
@@ -426,7 +432,7 @@ export function ChatPanel() {
   const shown = createMemo(() =>
     filterRows(all(), { query: query(), unreadOnly: unreadOnly() }, (row) => row.unread > 0 || markedUnread(row.id)),
   )
-  const pinned = createMemo(() => shown().filter((bot) => bot.pinned))
+  const pinned = createMemo(() => pinnedRows(shown(), useApp.kikoChatId()))
   const jumpHint = createMemo(() => {
     // The numbers follow the sidebar's own order, and the keyboard jump uses that same order. While
     // the list is filtered the two disagree, so the badge would name a chat that Alt+N does not
@@ -452,6 +458,7 @@ export function ChatPanel() {
                 bot={bot}
                 hint={jumpHint().get(bot.id)}
                 active={active() === bot.id}
+                main={bot.id === useApp.kikoChatId()}
                 onSelect={() => {
                   clearUnreadMark(bot.id)
                   navigate(`/chat/${bot.id}`)
@@ -460,6 +467,9 @@ export function ChatPanel() {
             )}
           </For>
         </div>
+      </Show>
+      <Show when={pinned().length > 0 && rowIds().length > 0}>
+        <div class="chat-section" data-component="sidebar-chats-label">Chats</div>
       </Show>
       <Show when={shown().length === 0 && (query() !== "" || unreadOnly())}>
         <div class="flex flex-col items-center gap-2 py-6" data-component="sidebar-empty">

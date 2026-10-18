@@ -1,4 +1,5 @@
-import { EllipsisIcon, ReplyIcon, SmilePlusIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { MoreIcon, ReactIcon, ReplyIcon } from "@kiko/ui/icons"
 import { createSignal, lazy, onCleanup, onMount, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { warmEmoji } from "../../lib/emoji-data"
@@ -110,10 +111,10 @@ export function MessageActions(props: {
         }}
         onClick={(event) => show(event.detail === 0)}
       >
-        <SmilePlusIcon size={18} />
+        <RemixIcon icon={ReactIcon} size={18} />
       </button>
       <button type="button" class={BUTTON} aria-label="Reply" data-action="reply" onClick={() => props.onReply()}>
-        <ReplyIcon size={18} />
+        <RemixIcon icon={ReplyIcon} size={18} />
       </button>
       <button
         type="button"
@@ -122,7 +123,7 @@ export function MessageActions(props: {
         data-action="more"
         onClick={(event) => props.onMore(event.currentTarget)}
       >
-        <EllipsisIcon size={18} />
+        <RemixIcon icon={MoreIcon} size={18} />
       </button>
       <Show when={open() && react}>
         {(anchor) => (

@@ -1,14 +1,33 @@
 /*
  * The welcome flow. The sky is `sky/sky.css`; this file is the card, the stepper and the mark. Only
  * opacity and transform move, nothing waits on motion, and reduced motion holds every layer still.
+ *
+ * The card floats on the sky with no border: it separates by tone, the way the rest of the shell does.
+ * Its height is capped by what the mark and the stepper leave, and it scrolls inside itself, so the
+ * page never scrolls and the last button on a step stays reachable on a short window.
  */
 .welcome {
-  --welcome-top: max(40px, 14dvh);
+  position: relative;
+  overflow: hidden;
+  background: #08090d;
   --welcome-size: 152px;
-  --welcome-cy: calc(var(--welcome-top) + var(--welcome-size) / 2);
-  --welcome-line: color-mix(in oklab, var(--foreground) 7%, transparent);
-  --welcome-line-strong: color-mix(in oklab, var(--foreground) 12%, transparent);
-  --welcome-ink: color-mix(in oklab, var(--foreground) 34%, transparent);
+  --welcome-pad: clamp(12px, 4dvh, 40px);
+  --welcome-gap: 12px;
+  --welcome-steps: 22px;
+  --welcome-chrome: calc(var(--welcome-pad) * 2 + var(--welcome-size) + var(--welcome-steps) + var(--welcome-gap) * 2 + 8px);
+}
+
+.welcome-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--welcome-gap);
+  padding: var(--welcome-pad) 16px;
+  overflow: hidden;
 }
 
 .welcome-mascot {
@@ -17,6 +36,7 @@
   display: grid;
   width: var(--welcome-size);
   height: var(--welcome-size);
+  flex: none;
   place-items: center;
 }
 .welcome-mascot-mark {
@@ -36,23 +56,136 @@
   }
 }
 
-.welcome-panel {
-  background: color-mix(in oklab, var(--background) 86%, transparent);
-  box-shadow: 0 0 0 1px var(--border), 0 18px 48px -24px color-mix(in oklab, #000 40%, transparent);
+.welcome-steps {
+  --foreground: #f5f5f5;
+  --muted-foreground: #b2b3ba;
+  --background: #08090d;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-
-.welcome-steps > li > span[data-state="done"] {
+.welcome-pill {
+  display: inline-flex;
+  height: var(--welcome-steps);
+  min-width: var(--welcome-steps);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 0 7px;
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: background-color 240ms var(--motion-ease-settle), color 240ms var(--motion-ease-settle);
+}
+.welcome-steps > li[data-state="current"] .welcome-pill {
+  padding: 0 11px;
   background: var(--foreground);
   color: var(--background);
 }
-.welcome-steps > li > span[data-state="current"] {
-  background: color-mix(in oklab, var(--foreground) 10%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 30%, transparent);
+.welcome-steps > li[data-state="done"] .welcome-pill {
+  background: color-mix(in oklab, var(--foreground) 18%, transparent);
   color: var(--foreground);
 }
-.welcome-steps > li > span[data-state="next"] {
-  box-shadow: inset 0 0 0 1px var(--border);
+.welcome-pill-label {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+/*
+ * A phone, or a short window: the mark gives back the room the card needs, so a step with a model line
+ * and "Start chatting" still fits with the page itself holding still.
+ */
+@media (max-width: 480px), (max-height: 760px) {
+  .welcome {
+    --welcome-size: 112px;
+    --welcome-pad: 14px;
+    --welcome-gap: 10px;
+  }
+}
+
+.welcome-card {
+  display: flex;
+  width: min(400px, 100vw - 32px);
+  min-height: 0;
+  max-height: calc(100dvh - var(--welcome-chrome));
+  flex-direction: column;
+  overflow-y: auto;
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--background) 72%, transparent);
+  box-shadow: 0 24px 64px -24px color-mix(in oklab, #000 55%, transparent);
+  padding: 20px;
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  scrollbar-width: none;
+}
+.welcome-card::-webkit-scrollbar {
+  display: none;
+}
+
+.welcome-title {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-family-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-align: center;
+}
+.welcome-lede {
+  margin: 0;
   color: var(--muted-foreground);
+  font-size: 13.5px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.welcome-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.welcome-foot button {
+  cursor: pointer;
+  color: inherit;
+}
+.welcome-foot button:hover {
+  color: var(--foreground);
+}
+
+.welcome-model {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+}
+.welcome-model > p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+.welcome-model-name {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.welcome-model > p button {
+  cursor: pointer;
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 35%, transparent);
+  text-underline-offset: 2px;
 }
 
 .welcome-meter > i {
@@ -62,28 +195,52 @@
 
 @media (prefers-reduced-motion: no-preference) {
   @keyframes welcome-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   @keyframes welcome-pulse-text {
-    50% { opacity: 0.5; }
+    50% {
+      opacity: 0.5;
+    }
   }
 
-
   /* A step fades up as it mounts; its parts follow 40 ms apart, so the first one is readable at once. */
-  .welcome-step { animation: welcome-in 260ms var(--motion-ease-settle) both; }
+  .welcome-step {
+    animation: welcome-in 260ms var(--motion-ease-settle) both;
+  }
   .welcome-step > * {
     animation: welcome-in 280ms var(--motion-ease-settle) both;
     animation-delay: calc(var(--i, 0) * 40ms);
   }
-  .welcome-steps > li > span { transition: background-color 240ms var(--motion-ease-settle), color 240ms var(--motion-ease-settle); }
-  .welcome-meter > i { transition: transform 60s cubic-bezier(0.1, 0.6, 0.2, 1); }
-  .welcome-meter > i[data-on] { transform: scaleX(0.92); }
-  .welcome-meter > i[data-done] { transform: scaleX(1); transition-duration: 300ms; }
-  .first-run-skeleton { animation: welcome-pulse-text 1.4s ease-in-out infinite; }
+  .welcome-model {
+    animation: welcome-in 240ms var(--motion-ease-settle) both;
+  }
+  .welcome-meter > i {
+    transition: transform 60s cubic-bezier(0.1, 0.6, 0.2, 1);
+  }
+  .welcome-meter > i[data-on] {
+    transform: scaleX(0.92);
+  }
+  .welcome-meter > i[data-done] {
+    transform: scaleX(1);
+    transition-duration: 300ms;
+  }
+  .first-run-skeleton {
+    animation: welcome-pulse-text 1.4s ease-in-out infinite;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .welcome-meter > i[data-on] { transform: scaleX(0.5); }
-  .welcome-meter > i[data-done] { transform: scaleX(1); }
+  .welcome-meter > i[data-on] {
+    transform: scaleX(0.5);
+  }
+  .welcome-meter > i[data-done] {
+    transform: scaleX(1);
+  }
 }

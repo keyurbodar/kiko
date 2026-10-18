@@ -113,13 +113,17 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
   const railButton = (active: boolean) =>
     `relative grid size-9 shrink-0 place-items-center rounded-lg ${active ? "bg-accent-strong text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`
 
+  // The panel also opens inside the settings dialog, from a portal outside it. So it sits above the dialog,
+  // takes back the pointer events Kobalte's modal turns off, and `data-kb-top-layer` tells Kobalte that a
+  // click or focus in it is not outside the dialog.
   return (
         <Portal>
           <div
             ref={panel}
-            class="fixed z-50 flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-xl border border-border bg-popover shadow-popover"
+            class="pointer-events-auto fixed z-[80] flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-xl border border-border bg-popover shadow-popover"
             style={place()}
             data-component="model-picker"
+            data-kb-top-layer=""
           >
             <Show
               when={providers().length || catalog.loading}

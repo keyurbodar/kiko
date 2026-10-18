@@ -1,4 +1,5 @@
-import { GlobeIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { GlobeIcon } from "@kiko/ui/icons"
 import { createSignal, Show, type JSX } from "solid-js"
 import { fileUrl } from "../../lib/file-token"
 
@@ -15,7 +16,7 @@ export function LinkIcon(props: { host: string }): JSX.Element {
   return (
     <span class="rich-link-icon" aria-hidden="true" data-component="chat-link-icon">
       <Show when={!GITHUB.test(props.host)} fallback={<svg class="rich-link-icon-glyph" viewBox="0 0 16 16" fill="currentColor"><path d={MARK} /></svg>}>
-      <Show when={!gone()} fallback={<GlobeIcon class="rich-link-icon-glyph" />}>
+      <Show when={!gone()} fallback={<RemixIcon icon={GlobeIcon} class="rich-link-icon-glyph" />}>
         <img
           class="rich-link-icon-glyph"
           src={fileUrl(`/api/favicon/${props.host}`)}

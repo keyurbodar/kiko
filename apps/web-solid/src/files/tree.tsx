@@ -1,7 +1,8 @@
 import type { FileRef } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { FILE_TREE_TAG_NAME, FileTree as Pierre, type ContextMenuItem as FileTreeContextMenuItem, type ContextMenuOpenContext as FileTreeContextMenuOpenContext } from "@pierre/trees"
-import { ChevronsDownUp, ChevronsUpDown, FilePlus, FolderPlus } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CollapseAllIcon, ExpandAllIcon, FileAddIcon, FolderAddIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { KIKO_FILE_ICONS } from "../lib/entry-icon-pierre"
@@ -250,7 +251,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		const dragFile = (event: DragEvent) => {
 			event.stopPropagation()
 			const path = rowPath(event)
-			// A folder drags too: the composer turns it into a link with a trailing slash.
 			const known = path !== undefined && (filePaths().includes(path) || folderPaths().some((dir) => `${dir}/` === path))
 			if (!known || !event.dataTransfer) return event.preventDefault()
 			setFileDrag(event.dataTransfer, path)
@@ -305,8 +305,6 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		}),
 	)
 
-	// The tree is one instance for the whole session, so a search typed in one chat would keep hiding
-	// the next chat's files behind a query that was never meant for them.
 	createEffect(
 		on(
 			() => props.roomId,
@@ -364,19 +362,19 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 				</label>
 				<TooltipV2 placement="bottom" openDelay={400} value="New file">
 					<button type="button" class="kt-btn" aria-label="New file" data-action="new-file" onClick={() => startNew("file")}>
-						<FilePlus size={15} strokeWidth={1.75} aria-hidden="true" />
+						<RemixIcon icon={FileAddIcon} size={15} />
 					</button>
 				</TooltipV2>
 				<TooltipV2 placement="bottom" openDelay={400} value="New folder">
 					<button type="button" class="kt-btn" aria-label="New folder" data-action="new-folder" onClick={() => startNew("folder")}>
-						<FolderPlus size={15} strokeWidth={1.75} aria-hidden="true" />
+						<RemixIcon icon={FolderAddIcon} size={15} />
 					</button>
 				</TooltipV2>
 				<Show when={folderSet().size > 0}>
 					<TooltipV2 placement="bottom" openDelay={400} value={allOpen() ? "Collapse all folders" : "Expand all folders"}>
 						<button type="button" class="kt-btn" aria-label={allOpen() ? "Collapse all folders" : "Expand all folders"} onClick={toggleAll}>
-							<Show when={allOpen()} fallback={<ChevronsUpDown size={15} strokeWidth={1.75} aria-hidden="true" />}>
-								<ChevronsDownUp size={15} strokeWidth={1.75} aria-hidden="true" />
+							<Show when={allOpen()} fallback={<RemixIcon icon={ExpandAllIcon} size={15} />}>
+								<RemixIcon icon={CollapseAllIcon} size={15} />
 							</Show>
 						</button>
 					</TooltipV2>

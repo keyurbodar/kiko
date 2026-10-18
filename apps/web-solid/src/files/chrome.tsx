@@ -1,4 +1,4 @@
-import { HugeIcon, type Glyph } from "@kiko/ui/huge-icon"
+import { RemixIcon, type Glyph } from "@kiko/ui/remix-icon"
 import { DownloadIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Show, type JSX } from "solid-js"
@@ -37,13 +37,13 @@ export function SurfaceAction(props: {
 						data-action={props.action}
 						onClick={() => props.onPress?.()}
 					>
-						<HugeIcon icon={props.icon} size={14} />
+						<RemixIcon icon={props.icon} size={14} />
 					</button>
 				}
 			>
 				{(href) => (
 					<a class={ACTION} href={href()} download={props.download} aria-label={props.label} data-action={props.action}>
-						<HugeIcon icon={props.icon} size={14} />
+						<RemixIcon icon={props.icon} size={14} />
 					</a>
 				)}
 			</Show>
@@ -99,7 +99,7 @@ export function NoPreview(props: { name: string; href: string }) {
 				download={props.name}
 				data-action="download"
 			>
-				<HugeIcon icon={DownloadIcon} size={14} />
+				<RemixIcon icon={DownloadIcon} size={14} />
 				Save file
 			</a>
 		</div>

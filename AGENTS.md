@@ -4,7 +4,7 @@ Kiko is a general-purpose AI chat web app. People text one agent or a team of ag
 
 ## Principles
 
-1. **Instant.** Navigation, tabs, buttons, and the composer do not animate or wait on the network. The app paints from IndexedDB first. Overlays, toasts, and waiting states may animate. Honor `prefers-reduced-motion`.
+1. **Instant.** Navigation, tabs, buttons, and the composer do not animate or wait on the network. The app paints from IndexedDB first. Overlays, toasts, and waiting states may animate, from `styles/motion.css`, which honors `prefers-reduced-motion`. The tool-call panel has no motion, and surfaces separate by tone, never by a border or a ring.
 2. **Optimistic.** Every user action applies locally before the server answers.
 3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles.
 4. **The human outranks every agent.**

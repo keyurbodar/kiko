@@ -1,8 +1,3 @@
-/*
- * Sky scenes. Two shapes of the same idea: a dark field with one source of soft light and a little
- * grain. Nothing here is interactive, nothing animates on the main thread, and every moving part
- * stops under `prefers-reduced-motion`.
- */
 
 .sky {
   position: absolute;
@@ -26,13 +21,11 @@
   -webkit-mask-image: linear-gradient(#000 0, #000 42%, rgb(0 0 0 / 70%) 66%, transparent 100%);
 }
 
-/* ---------- Moonlit ---------- */
 
 .sky[data-sky="moonlit"] {
   background: #08090d;
 }
 
-/* The moon: one soft disc, brighter at its rim, breathing very slowly. */
 .sky[data-sky="moonlit"] .sky-glow {
   top: 0;
   left: 50%;
@@ -51,7 +44,6 @@
   animation: sky-breathe 8s ease-in-out infinite;
 }
 
-/* The beam: moonlight falling through the frame, wider at the bottom. */
 .sky[data-sky="moonlit"] .sky-beam {
   inset: 0;
   clip-path: polygon(44% 0, 56% 0, 86% 100%, 14% 100%);
@@ -63,7 +55,6 @@
   filter: blur(14px);
 }
 
-/* In the band the moon moves to the corner, where a header leaves room for it. */
 .sky[data-sky="moonlit"][data-sky-size="band"] .sky-glow {
   top: -150px;
   right: -120px;
@@ -74,9 +65,9 @@
   transform: none;
   background: radial-gradient(
     closest-side,
-    oklch(0.96 0.03 255 / 55%),
-    oklch(0.74 0.1 262 / 26%) 38%,
-    oklch(0.58 0.12 264 / 8%) 66%,
+    color-mix(in oklab, var(--sky-moon) 45%, transparent),
+    color-mix(in oklab, var(--ring) 24%, transparent) 38%,
+    color-mix(in oklab, var(--ring) 8%, transparent) 66%,
     transparent
   );
 }
@@ -85,7 +76,31 @@
   display: none;
 }
 
-/* ---------- Bokeh ---------- */
+.sky[data-sky="moonlit"][data-sky-size="band"] {
+  background: color-mix(in oklab, var(--ring) 8%, var(--sidebar));
+  --sky-moon: color-mix(in oklab, var(--foreground) 65%, var(--ring));
+}
+
+.sky[data-sky="moonlit"][data-sky-size="band"] .sky-stars {
+  background-image:
+    radial-gradient(circle at 34px 18px, var(--foreground) 0 0.6px, transparent 1.1px),
+    radial-gradient(circle at 96px 44px, var(--foreground) 0 0.5px, transparent 1px),
+    radial-gradient(circle at 152px 10px, var(--foreground) 0 0.65px, transparent 1.1px),
+    radial-gradient(circle at 198px 52px, var(--foreground) 0 0.5px, transparent 0.95px),
+    radial-gradient(circle at 62px 68px, var(--foreground) 0 0.45px, transparent 0.9px),
+    radial-gradient(circle at 244px 26px, var(--foreground) 0 0.55px, transparent 1px);
+  opacity: 0.5;
+}
+
+:root:not(.dark) .sky[data-sky="moonlit"][data-sky-size="band"] {
+  height: 116px;
+  --sky-moon: color-mix(in oklab, var(--background) 90%, var(--ring));
+}
+
+:root:not(.dark) .sky[data-sky="moonlit"][data-sky-size="band"] .sky-stars {
+  display: none;
+}
+
 
 .sky[data-sky="bokeh"] {
   background: #08090d;
@@ -113,15 +128,6 @@
 .sky[data-sky="bokeh"]::after {
   position: absolute;
   inset: 0;
-  background: radial-gradient(120% 90% at 50% 44%, transparent 30%, rgb(3 4 7 / 58%) 100%);
-  content: "";
-  pointer-events: none;
-}
-
-/* Corners stay darker than the middle, so the lights read as lights instead of a lit room. */
-.sky[data-sky="bokeh"]::after {
-  position: absolute;
-  inset: 0;
   background: radial-gradient(115% 85% at 50% 42%, transparent 34%, rgb(3 4 7 / 62%) 100%);
   content: "";
   pointer-events: none;
@@ -133,7 +139,6 @@
   transform: scale(1.15);
 }
 
-/* ---------- Shared ---------- */
 
 /* Stars: a tiled dot field, so the count does not depend on the window size. */
 .sky .sky-stars {

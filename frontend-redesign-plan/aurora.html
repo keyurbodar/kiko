@@ -1,0 +1,231 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kiko: aurora family</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:28px 24px 70px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#eee;background:#0a0a0a}
+p.n{font-size:13px;line-height:1.6;color:#a3a3a3;margin:0 0 18px;max-width:920px}
+p.n b{color:#eee}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(352px,1fr));gap:16px}
+.oc{background:#141416;border-radius:16px;padding:10px 10px 14px}
+.oc h3{margin:12px 4px 2px;font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center}
+.oc p{margin:0 4px;font-size:12px;line-height:1.5;color:#9a9aa3}
+.id{font:600 10.5px ui-monospace,monospace;color:#8fa9ff;background:rgb(52 107 241 / 18%);padding:1px 6px;border-radius:5px}
+.pick{font:600 10.5px system-ui;color:#0a0a0a;background:#f5f5f5;padding:1px 7px;border-radius:999px}
+svg{display:block}
+
+/* frame */
+.f{position:relative;height:300px;border-radius:10px;overflow:hidden;background:#0a0a0a;isolation:isolate}
+.sky{position:absolute;top:0;left:0;right:0;height:300px;overflow:hidden;pointer-events:none}
+.sky>*{position:absolute}
+.ct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:46px;gap:5px;z-index:3}
+.ct .lg{width:68px}
+.ct h4{margin:2px 0 0;font-size:16.5px;font-weight:600;letter-spacing:-.02em}
+.ct .mut{font-size:12px;line-height:1.45;color:#a8aeba;max-width:236px}
+.ct .b{margin-top:9px;height:31px;width:198px;border:0;border-radius:9px;background:#f5f5f5;color:#0a0a0a;font:500 11.5px system-ui}
+.light .ct h4{color:#18181b}
+.light .ct .mut{color:#6b6b78}
+.light .ct .b{background:#18181b;color:#fff}
+
+/* sidebar strip: a window into the top of the same sky */
+.strip{position:relative;height:60px;border-radius:10px;overflow:hidden;margin-top:9px;background:#0a0a0a;isolation:isolate}
+.sh{position:absolute;inset:0;display:flex;align-items:center;gap:8px;padding:0 12px;z-index:3;font-size:13px;font-weight:600;letter-spacing:-.02em}
+.sh .lg{width:26px}
+.sh .pl{margin-left:auto;width:22px;height:22px;border-radius:7px;background:rgb(255 255 255 / .1);color:#e9e9ee;display:grid;place-items:center;font:400 15px/1 system-ui}
+.light .sh{color:#18181b}
+.light .sh .pl{background:rgb(0 0 0 / .07);color:#333}
+
+/* shared texture */
+.grain{inset:0;opacity:.075;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.stars{inset:0;width:100%;height:100%}
+.stars circle{fill:#eef1ff}
+.stars .tw{animation:tw 3.6s ease-in-out infinite}
+.stars .sp{stroke:#dfe6ff;stroke-width:.7;stroke-linecap:round;fill:none;opacity:.7}
+@keyframes tw{50%{opacity:.1}}
+
+/* A1 B4, the pick */
+.a1{background:linear-gradient(#06070d,#0a0a0a 70%)}
+.a1 .w{inset:-10% -15% 35%;filter:blur(30px);mix-blend-mode:screen;mask-image:linear-gradient(#000 25%,transparent 95%)}
+.a1 .w i{position:absolute;border-radius:50%;opacity:.85}
+.a1 .w i:nth-child(1){left:0;top:10%;width:60%;height:38%;background:oklch(.62 .17 262);animation:a1 17s ease-in-out infinite alternate}
+.a1 .w i:nth-child(2){left:36%;top:22%;width:55%;height:28%;background:oklch(.6 .17 295);animation:a2 21s ease-in-out infinite alternate}
+.a1 .w i:nth-child(3){left:20%;top:38%;width:46%;height:20%;background:oklch(.72 .12 200);opacity:.45;animation:a3 15s ease-in-out infinite alternate}
+.a1 .cl{inset:0;background:repeating-linear-gradient(98deg,rgb(255 255 255/.05) 0 1px,transparent 1px 7px);mask-image:linear-gradient(transparent,#000 25%,transparent 65%)}
+
+/* A2 quiet: same sky, held back */
+.a2{background:linear-gradient(#07080e,#0a0a0a 72%)}
+.a2 .w{inset:-14% -20% 42%;filter:blur(48px);mix-blend-mode:screen;mask-image:linear-gradient(#000 12%,transparent 90%)}
+.a2 .w i{position:absolute;border-radius:50%;opacity:.5}
+.a2 .w i:nth-child(1){left:-6%;top:4%;width:64%;height:36%;background:oklch(.58 .15 262);animation:a1 20s ease-in-out infinite alternate}
+.a2 .w i:nth-child(2){left:34%;top:14%;width:58%;height:28%;background:oklch(.56 .15 296);opacity:.4;animation:a2 24s ease-in-out infinite alternate}
+.a2 .w i:nth-child(3){left:14%;top:30%;width:52%;height:20%;background:oklch(.66 .1 200);opacity:.24;animation:a3 18s ease-in-out infinite alternate}
+
+/* A3 curtains */
+.a3{background:linear-gradient(#05060b,#0a0a0a 76%)}
+.a3 .c1,.a3 .c2{inset:-16% -10% 30%;mix-blend-mode:screen;mask-image:linear-gradient(#000 4%,rgb(0 0 0/.55) 40%,transparent 88%)}
+.a3 .c1{filter:blur(8px);background:repeating-linear-gradient(90deg,transparent 0 8px,rgb(108 214 198/.5) 8px 14px,transparent 14px 23px,rgb(132 150 255/.46) 23px 30px,transparent 30px 43px)}
+.a3 .c2{filter:blur(17px);opacity:.65;transform:skewX(-7deg);background:repeating-linear-gradient(90deg,transparent 0 15px,rgb(162 120 255/.42) 15px 24px,transparent 24px 43px,rgb(88 188 212/.36) 43px 50px,transparent 50px 66px)}
+.a3 .tg{inset:-20% -10% 60%;background:radial-gradient(60% 60% at 50% 40%,oklch(.6 .16 265/.3),transparent 72%);filter:blur(20px);mix-blend-mode:screen}
+
+/* A4 horizon: colour low, top stays near black */
+.a4{background:linear-gradient(#07080d,#0a0a0a 52%)}
+.a4 .w{inset:18% -18% -18%;filter:blur(36px);mix-blend-mode:screen;mask-image:linear-gradient(transparent,#000 26%,rgb(0 0 0/.5) 66%,transparent 98%)}
+.a4 .w i{position:absolute;border-radius:50%;opacity:.8}
+.a4 .w i:nth-child(1){left:-10%;top:22%;width:64%;height:22%;background:oklch(.68 .13 198);animation:a1 19s ease-in-out infinite alternate}
+.a4 .w i:nth-child(2){left:16%;top:30%;width:62%;height:20%;background:oklch(.6 .17 264);animation:a2 23s ease-in-out infinite alternate}
+.a4 .w i:nth-child(3){left:48%;top:20%;width:58%;height:24%;background:oklch(.58 .17 296);opacity:.7;animation:a3 17s ease-in-out infinite alternate}
+
+/* A5 veil: one smooth wash, no blobs */
+.a5{background:linear-gradient(168deg,#0c1234,#0a0a16 44%,#0a0a0a 76%)}
+.a5 .v{inset:0;background:radial-gradient(72% 44% at 26% 2%,oklch(.5 .16 264/.55),transparent 72%),radial-gradient(62% 40% at 78% -4%,oklch(.48 .17 298/.42),transparent 72%),radial-gradient(56% 32% at 52% 26%,oklch(.55 .1 205/.22),transparent 74%)}
+
+/* A6 prism: adds rose and amber */
+.a6{background:linear-gradient(#06070c,#0a0a0a 72%)}
+.a6 .w{inset:-10% -14% 32%;filter:blur(32px);mix-blend-mode:screen;mask-image:linear-gradient(#000 22%,transparent 94%)}
+.a6 .w i{position:absolute;border-radius:50%;opacity:.7}
+.a6 .w i:nth-child(1){left:-4%;top:8%;width:52%;height:34%;background:oklch(.62 .17 262);animation:a1 17s ease-in-out infinite alternate}
+.a6 .w i:nth-child(2){left:30%;top:18%;width:44%;height:28%;background:oklch(.6 .19 320);animation:a2 21s ease-in-out infinite alternate}
+.a6 .w i:nth-child(3){left:56%;top:6%;width:40%;height:26%;background:oklch(.72 .16 30);opacity:.5;animation:a3 15s ease-in-out infinite alternate}
+.a6 .w i:nth-child(4){left:18%;top:36%;width:44%;height:18%;background:oklch(.74 .13 200);opacity:.42;animation:a2 19s ease-in-out infinite alternate}
+.a6 .w i:nth-child(5){left:46%;top:32%;width:38%;height:16%;background:oklch(.8 .12 85);opacity:.26;animation:a1 23s ease-in-out infinite alternate}
+
+/* A7 deep: one arc of light at the top edge */
+.a7{background:#08080b}
+.a7 .arc{left:50%;top:-262px;width:780px;height:300px;margin-left:-390px;border-radius:50%;box-shadow:0 0 54px 10px oklch(.6 .18 268/.5),0 0 130px 34px oklch(.58 .18 296/.22),0 0 200px 60px oklch(.55 .12 240/.12)}
+.a7 .gl{inset:-6% -10% 78%;background:radial-gradient(50% 70% at 50% 30%,oklch(.62 .16 270/.22),transparent 76%);filter:blur(18px)}
+
+/* A8 halo: aurora ring behind the logo only */
+.a8{background:#08090d}
+.a8 .halo{left:50%;top:104px;width:330px;height:330px;margin:-165px 0 0 -165px;border-radius:50%;background:conic-gradient(from 140deg,oklch(.62 .18 262),oklch(.6 .17 300),oklch(.72 .12 195),oklch(.6 .17 280),oklch(.62 .18 262));filter:blur(44px);opacity:.5;mask-image:radial-gradient(closest-side,transparent 38%,#000 60%,transparent 92%)}
+.a8 .core{left:50%;top:104px;width:250px;height:250px;margin:-125px 0 0 -125px;background:radial-gradient(closest-side,oklch(.55 .12 265/.2),transparent 72%)}
+
+/* A9 ribbon: one long sweep across the corner */
+.a9{background:linear-gradient(#06070c,#0a0a0a 74%)}
+.a9 .rib{inset:-46% -32% 26%;filter:blur(26px);mix-blend-mode:screen;transform:rotate(-15deg);background:linear-gradient(96deg,transparent 20%,oklch(.6 .18 262/.55) 36%,oklch(.62 .17 292/.5) 49%,oklch(.7 .12 200/.3) 60%,transparent 76%)}
+.a9 .rib2{inset:-34% -30% 48%;filter:blur(34px);mix-blend-mode:screen;transform:rotate(-9deg);opacity:.55;background:linear-gradient(96deg,transparent 32%,oklch(.66 .14 210/.4) 50%,transparent 74%)}
+
+/* A10 bloom: light gathers behind the logo */
+.a10{background:linear-gradient(#07080e,#0a0a0a 68%)}
+.a10 .bloom{left:50%;top:112px;width:430px;height:430px;margin:-215px 0 0 -215px;background:radial-gradient(closest-side,oklch(.56 .18 274/.5),oklch(.52 .17 300/.26) 44%,oklch(.6 .12 205/.1) 66%,transparent 78%);filter:blur(14px)}
+.a10 .w{inset:-12% -18% 46%;filter:blur(40px);mix-blend-mode:screen;mask-image:linear-gradient(#000 10%,transparent 88%)}
+.a10 .w i{position:absolute;border-radius:50%;opacity:.45}
+.a10 .w i:nth-child(1){left:-8%;top:4%;width:56%;height:26%;background:oklch(.6 .16 262);animation:a1 21s ease-in-out infinite alternate}
+.a10 .w i:nth-child(2){left:48%;top:2%;width:56%;height:24%;background:oklch(.6 .16 298);animation:a2 25s ease-in-out infinite alternate}
+
+/* A11 dawn: the light theme */
+.a11{background:linear-gradient(172deg,#dbe6ff,#eef3fc 42%,#fdfdff 86%)}
+.a11 .w{inset:-14% -16% 26%;filter:blur(44px);mask-image:linear-gradient(#000 10%,rgb(0 0 0/.5) 46%,transparent 92%)}
+.a11 .w i{position:absolute;border-radius:50%;opacity:.9}
+.a11 .w i:nth-child(1){left:-6%;top:4%;width:62%;height:34%;background:oklch(.8 .12 258);animation:a1 20s ease-in-out infinite alternate}
+.a11 .w i:nth-child(2){left:34%;top:14%;width:58%;height:26%;background:oklch(.84 .1 300);animation:a2 24s ease-in-out infinite alternate}
+.a11 .w i:nth-child(3){left:16%;top:32%;width:50%;height:18%;background:oklch(.87 .09 200);opacity:.8;animation:a3 18s ease-in-out infinite alternate}
+.a11 .lg svg,.light .sh .lg svg{filter:drop-shadow(0 1px 1.5px rgb(24 24 40 / .22))}
+
+/* A12 starfall: aurora with slow snow */
+.a12{background:linear-gradient(#06070d,#0a0a0a 72%)}
+.a12 .w{inset:-12% -16% 36%;filter:blur(32px);mix-blend-mode:screen;mask-image:linear-gradient(#000 20%,transparent 94%)}
+.a12 .w i{position:absolute;border-radius:50%;opacity:.72}
+.a12 .w i:nth-child(1){left:-4%;top:8%;width:58%;height:34%;background:oklch(.62 .17 262);animation:a1 18s ease-in-out infinite alternate}
+.a12 .w i:nth-child(2){left:32%;top:20%;width:56%;height:26%;background:oklch(.6 .17 296);animation:a2 22s ease-in-out infinite alternate}
+.a12 .w i:nth-child(3){left:18%;top:36%;width:48%;height:18%;background:oklch(.72 .12 200);opacity:.4;animation:a3 16s ease-in-out infinite alternate}
+.a12 .sn{inset:0}
+.a12 .fl{position:absolute;left:0;right:0;top:calc(var(--t) * -1);bottom:0;animation:fall var(--d) linear infinite;opacity:.9}
+
+@keyframes a1{to{transform:translate(12%,6%) scale(1.15,.8) rotate(-4deg)}}
+@keyframes a2{to{transform:translate(-14%,-4%) scale(.9,1.2) rotate(5deg)}}
+@keyframes a3{to{transform:translate(10%,-8%) scale(1.25,.85)}}
+@keyframes fall{to{transform:translateY(var(--t))}}
+
+@media (prefers-reduced-motion:no-preference){
+  .yk .all{transform-box:fill-box;transform-origin:50% 100%;animation:breathe 4s ease-in-out infinite}
+  .yk .lf{transform-box:fill-box;transform-origin:50% 100%;animation:leaf 5s ease-in-out infinite}
+  .yk .lf.r{animation-delay:.3s}
+  .yk .eyes{transform-box:fill-box;transform-origin:50% 50%;animation:blink 5s infinite 1.5s}
+}
+@media (prefers-reduced-motion:reduce){.sky *{animation:none!important}}
+@keyframes breathe{50%{transform:scale(1.03,.97)}}
+@keyframes leaf{50%{transform:rotate(6deg)}}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+</style></head><body>
+
+<p class="n">The family around <b>B4</b>. Same direct onboarding as main, same logo, only the sky changes. Under each frame is the <b>sidebar strip</b>, which is literally the top 60px of that same sky, so you can judge both at once. Every one is pure CSS, keeps the text area near black, and has a light-theme partner in <b>A11</b>.</p>
+<div class="grid" id="g"></div>
+
+<script>
+const BODY = "M28 88Q20 88 20 80C20 58 38 44 60 44C82 44 100 58 100 80Q100 88 92 88Z"
+const LEAF = "M0 0C10-6 10-22 0-32C-10-22-10-6 0 0Z"
+const HALF = "M0 0C10-6 10-22 0-32Z"
+let uid = 0
+const R8 = { body:"#FAFAF7", shade:"#DDE4EE", hi:true, speck:"#C6D3E6", twoTone:true, backDark:"#4c6553", frontDark:"#6f8c77", vein:"#c3d5c6", ring:"#E0453B", spark:true, mouth:true, blushO:.85 }
+function yuki(o) {
+  const k = "c" + uid++
+  const P = Object.assign({ body:"#F7F7F4", back:"#5f7a66", front:"#86a38d", eye:"#C22F2A", blush:"#F2A08E", blushO:.75 }, o)
+  const leaf = (x,y,r,fill,dark,cls) => `<g transform="translate(${x} ${y}) rotate(${r})"><g class="${cls}"><path d="${LEAF}" fill="${fill}"/>${P.twoTone?`<path d="${HALF}" fill="${dark}"/>`:""}${P.vein?`<path d="M0-3Q1.6-16 0-29" stroke="${P.vein}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`:""}</g></g>`
+  const inside = []
+  if (P.shade) inside.push(`<ellipse cx="68" cy="99" rx="50" ry="20" fill="${P.shade}"/>`)
+  if (P.speck) inside.push([[38,60,1],[70,54,.9],[84,70,1.1],[32,74,.8],[58,82,.9],[90,80,.7],[50,55,.7]].map(([x,y,r])=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${P.speck}"/>`).join(""))
+  if (P.rim) inside.push(`<path d="M23 74C25 56 40 47 60 47C80 47 95 56 97 74" stroke="${P.rim}" stroke-width="2.4" fill="none" stroke-linecap="round" transform="translate(0 -1.4)"/>`)
+  if (P.hi) inside.push(`<ellipse cx="38" cy="57" rx="7" ry="3.2" fill="#fff" transform="rotate(-28 38 57)"/>`)
+  const eyes = `<g class="eyes">${[48,72].map((x)=>`<circle cx="${x}" cy="68" r="${P.eyeR||3.6}" fill="${P.eye}"/>${P.ring?`<circle cx="${x}" cy="68.6" r="${(P.eyeR||3.6)-1.1}" fill="${P.ring}"/>`:""}${P.spark?`<circle cx="${x-1.2}" cy="66.6" r="1.25" fill="#fff"/>`:""}`).join("")}</g>`
+  const mouth = P.mouth ? `<path d="M56.6 74.2q1.7 1.8 3.4 0q1.7 1.8 3.4 0" stroke="#9b4b42" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` : ""
+  const feet = P.feet ? `<ellipse cx="42" cy="88.5" rx="7" ry="3.4" fill="${P.shade||'#e3e8ef'}"/><ellipse cx="78" cy="88.5" rx="7" ry="3.4" fill="${P.shade||'#e3e8ef'}"/>` : ""
+  return `<defs><clipPath id="${k}"><path d="${BODY}"/></clipPath></defs><g class="all">${leaf(50,47,-20,P.back,P.backDark,"lf")}${leaf(70,47,20,P.front,P.frontDark,"lf r")}${feet}<path d="${BODY}" fill="${P.body}"/><g clip-path="url(#${k})">${inside.join("")}</g>${eyes}<ellipse cx="41" cy="76" rx="4.8" ry="2.5" fill="${P.blush}" opacity="${P.blushO}"/><ellipse cx="79" cy="76" rx="4.8" ry="2.5" fill="${P.blush}" opacity="${P.blushO}"/>${mouth}</g>`
+}
+const mark = (o, cls) => `<svg class="yk ${cls||''}" viewBox="16 10 88 92">${yuki(o)}</svg>`
+
+function rand(seed){return()=>((seed=(seed*16807)%2147483647)/2147483647)}
+const r = rand(11)
+function stars(n, spark, h=300) {
+  let s = `<svg class="stars" viewBox="0 0 340 ${h}" preserveAspectRatio="xMidYMin slice">`
+  for (let i=0;i<n;i++){ const tw = r()<.3; s += `<circle cx="${(r()*340).toFixed(1)}" cy="${(r()*h*.75).toFixed(1)}" r="${(.3+r()*.55).toFixed(2)}" opacity="${(.3+r()*.65).toFixed(2)}"${tw?` class="tw" style="animation-delay:${(r()*3.6).toFixed(2)}s"`:""}/>` }
+  for (let i=0;i<spark;i++){ const x=r()*340, y=r()*h*.5, z=1.6+r()*1.3; s += `<path class="sp" d="M${x-z} ${y}H${x+z}M${x} ${y-z}V${y+z}"/>` }
+  return s + "</svg>"
+}
+function flakes(n, tile, a, b, op) {
+  const g = []
+  for (let i=0;i<n;i++){ const rad=a+r()*(b-a); g.push(`radial-gradient(circle at ${(r()*tile)|0}px ${(r()*tile)|0}px,rgb(255 255 255 / ${(op*(.6+r()*.4)).toFixed(2)}) 0 ${rad.toFixed(2)}px,transparent ${(rad+.7).toFixed(2)}px)`) }
+  return `background-image:${g.join(",")};background-size:${tile}px ${tile}px`
+}
+const snow = (n,t,a,b,op,d) => `<div class="fl" style="--t:${t}px;--d:${d}s;${flakes(n,t,a,b,op)}"></div>`
+
+const B = [
+  ["A1","B4","The pick, kept as it is. Three soft ribbons drifting across the top, faint curtain lines, a little starlight.", "a1",
+    `${stars(50,0)}<div class="w"><i></i><i></i><i></i></div><div class="cl"></div>`, 1, 0],
+  ["A2","Quiet","Same ribbons at half strength and twice the blur. The calmest way to keep the colour, closest to main's black.", "a2",
+    `${stars(26,0)}<div class="w"><i></i><i></i><i></i></div><div class="grain"></div>`, 0, 0],
+  ["A3","Curtains","Vertical aurora curtains with fine striations, like the real thing. Reads as light falling from above rather than clouds.", "a3",
+    `${stars(34,0)}<div class="c1"></div><div class="c2"></div><div class="tg"></div><div class="grain"></div>`, 0, 0],
+  ["A4","Horizon","The colour sits low and rises behind the logo, so the top of the window stays almost black. Best match for a plain title bar.", "a4",
+    `${stars(30,0)}<div class="w"><i></i><i></i><i></i></div>`, 0, 0],
+  ["A5","Veil","No ribbons and no stars, just one smooth azure-to-violet wash. The most restrained and the most modern.", "a5",
+    `<div class="v"></div><div class="grain"></div>`, 0, 0],
+  ["A6","Prism","Adds rose and a touch of amber to the azure and teal. Warmer and more playful, still dark behind the text.", "a6",
+    `${stars(40,0)}<div class="w"><i></i><i></i><i></i><i></i><i></i></div>`, 0, 0],
+  ["A7","Deep","Nearly black, with one thin arc of aurora light across the very top. The most premium, and the least in the way.", "a7",
+    `${stars(60,4)}<div class="arc"></div><div class="gl"></div><div class="grain"></div>`, 0, 0],
+  ["A8","Halo","The aurora becomes a ring behind the logo only, everything else black. Focus lands on Yuki first.", "a8",
+    `${stars(28,0)}<div class="halo"></div><div class="core"></div><div class="grain"></div>`, 0, 0],
+  ["A9","Ribbon","One long sweep of light across the upper corner instead of separate clouds. Directional, like light through a window.", "a9",
+    `${stars(36,0)}<div class="rib"></div><div class="rib2"></div><div class="grain"></div>`, 0, 0],
+  ["A10","Bloom","Light gathers in a single bloom behind the logo and fades outward. Warm, welcoming, one clear centre.", "a10",
+    `${stars(30,0)}<div class="bloom"></div><div class="w"><i></i><i></i></div>`, 0, 0],
+  ["A11","Dawn","The light theme partner to B4. Pale azure and lavender in the same shapes, on near-white. Pairs with any dark pick above.", "a11",
+    `<div class="w"><i></i><i></i><i></i></div>`, 0, 1],
+  ["A12","Starfall","B4 with slow snow drifting through it. Adds texture and motion at almost no cost to the text.", "a12",
+    `${stars(46,2)}<div class="w"><i></i><i></i><i></i></div><div class="sn">${snow(26,180,.6,1.1,.75,30)}${snow(10,260,1.3,1.9,.7,17)}</div>`, 0, 0],
+]
+const g = document.getElementById("g")
+for (const [id, name, line, cls, bg, pick, light] of B) {
+  const c = document.createElement("div"); c.className = "oc"
+  c.innerHTML =
+    `<div class="f ${cls}${light?" light":""}"><div class="sky ${cls}">${bg}</div>
+       <div class="ct"><div class="lg">${mark(R8)}</div><h4>Welcome to Kiko</h4>
+       <div class="mut">Text one agent or a team of them. It reads what you send and answers like a person.</div>
+       <button class="b">Get started</button></div></div>
+     <div class="strip ${cls}${light?" light":""}"><div class="sky ${cls}">${bg}</div>
+       <div class="sh"><div class="lg">${mark(R8)}</div>Kiko<div class="pl">+</div></div></div>
+     <h3><span class="id">${id}</span>${name}${pick?' <span class="pick">Pick</span>':""}</h3><p>${line}</p>`
+  g.append(c)
+}
+</script>
+</body></html>

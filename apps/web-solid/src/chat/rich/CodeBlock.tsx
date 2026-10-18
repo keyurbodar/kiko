@@ -1,5 +1,6 @@
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js"
-import { CheckIcon, CopyIcon, WrapTextIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon, CopyIcon, WrapTextIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 
 /* One highlighted line: tokens as [token type, text]. Built from sugar-high's
@@ -76,12 +77,12 @@ export function CodeBlock(props: { lang?: string; text: string }): JSX.Element {
               data-active={wrap() ? "" : undefined}
               onClick={() => setWrap(!wrap())}
             >
-              <WrapTextIcon class="size-3" aria-hidden="true" />
+              <RemixIcon icon={WrapTextIcon} class="size-3" />
             </button>
           </TooltipV2>
           <TooltipV2 placement="top" value={copied() ? "Copied" : "Copy code"}>
             <button type="button" class="rich-code-action" aria-label={copied() ? "Copied" : "Copy code"} onClick={copy}>
-              {copied() ? <CheckIcon class="size-3" aria-hidden="true" /> : <CopyIcon class="size-3" aria-hidden="true" />}
+              <RemixIcon icon={copied() ? CheckIcon : CopyIcon} class="size-3" />
             </button>
           </TooltipV2>
         </div>

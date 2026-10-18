@@ -1,4 +1,5 @@
-import { ImageIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ImageIcon } from "@kiko/ui/icons"
 import { createSignal, Show, type JSX } from "solid-js"
 import { urls, useApp } from "../../lib/store"
 import { openThreadImages } from "../ui/image-dialog"
@@ -24,7 +25,7 @@ export function RichImage(props: { alt: string; url?: string; fileId?: string })
           when={!broken()}
           fallback={
             <span class="rich-image-broken" data-component="chat-image-broken">
-              <ImageIcon class="size-4 shrink-0" aria-hidden="true" />
+              <RemixIcon icon={ImageIcon} class="size-4 shrink-0" />
               <span>Image could not load</span>
               <Show when={/^https?:/i.test(href())}>
                 <a class="rich-link" href={href()} target="_blank" rel="noopener noreferrer">

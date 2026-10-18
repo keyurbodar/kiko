@@ -1,6 +1,6 @@
 /**
- * The settings sections, in sidebar order. The URL is `/settings/<id>`. A hint, where a section has
- * one, is the page's one line under its title.
+ * The settings sections, in the dialog's order. An old `/settings/<id>` link opens the dialog on one. A
+ * hint, where a section has one, is the page's one line under its title.
  */
 export const SETTINGS_SECTIONS = [
   { id: "models", group: "all", label: "Models", hint: "Connect providers and pick the models the chat offers.", keywords: "provider key api openai anthropic google opencode connect sign in disconnect model picker hide show" },
@@ -23,6 +23,11 @@ export const SECTION_ALIAS: Record<string, SettingsSection["id"]> = {
   extensions: "tools",
   skills: "tools",
   initiative: "general",
+}
+
+/** The section a `/settings/<id>` link lands on: that one, the one it was merged into, else models. */
+export function landingSection(id = ""): SettingsSection["id"] {
+  return SETTINGS_SECTIONS.find((s) => s.id === id)?.id ?? (Object.hasOwn(SECTION_ALIAS, id) ? SECTION_ALIAS[id] : "models")
 }
 
 /** Sections whose label, hint, or keywords hold every word of the query. Without one, all of them. */

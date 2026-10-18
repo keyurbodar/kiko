@@ -1,5 +1,5 @@
 import { Command as Cmdk } from "cmdk-solid"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ArrowUpIcon, ChevronRightIcon, CheckIcon } from "@kiko/ui/icons"
 import { snippetParts } from "@kiko/protocol"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js"
@@ -57,7 +57,7 @@ function Leading(props: { item: Item }) {
 
 function Plain(props: { item: Item }) {
   return (
-    <Show when={props.item.chatId ?? props.item.seed} fallback={<HugeIcon icon={iconFor(props.item.icon ?? "command")} size={16} />}>
+    <Show when={props.item.chatId ?? props.item.seed} fallback={<RemixIcon icon={iconFor(props.item.icon ?? "command")} size={16} />}>
       <Show when={props.item.chatId} fallback={<IdentityAvatar seed={props.item.seed!} size={18} />}>
         {(id) => <ChatAvatar faces={useApp.chatFaces(id())} size={18} />}
       </Show>
@@ -92,8 +92,6 @@ export default function Palette() {
     return parent?.search ? searchGroups(parent, query()) : view().groups
   })
   let input: HTMLInputElement | undefined
-  // The row the person has moved to. Empty means "no choice yet", which is what lets cmdk select the
-  // first row of whatever list is showing.
   const [highlight, setHighlight] = createSignal("")
 
   // Focus goes back to where it was, so closing the palette does not strand the person on the page body.
@@ -101,7 +99,6 @@ export default function Palette() {
   createEffect(() => {
     if (open()) {
       before ??= document.activeElement
-      // A palette opened again starts on its first row, not the row the last visit left selected.
       setHighlight("")
       queueMicrotask(() => input?.focus())
     }
@@ -124,8 +121,6 @@ export default function Palette() {
       () => stack().join("/"),
       () => {
         engaged = false
-        // The new list has no row with the key the old one held, so nothing would be selected and
-        // Enter would do nothing until an arrow key moved the highlight.
         setHighlight("")
         preview.restore()
       },
@@ -182,7 +177,7 @@ export default function Palette() {
           }}
         >
           <div class="palette-bar">
-            <Show when={view().parent}>{(parent) => <span class="palette-addon" aria-hidden="true"><HugeIcon icon={iconFor(parent().icon)} size={16} /></span>}</Show>
+            <Show when={view().parent}>{(parent) => <span class="palette-addon" aria-hidden="true"><RemixIcon icon={iconFor(parent().icon)} size={16} /></span>}</Show>
             <Cmdk.Input ref={input} class="palette-input" placeholder={view().placeholder} value={query()} onValueChange={setQuery} autofocus />
           </div>
           <Cmdk.List class="palette-list">
@@ -214,11 +209,11 @@ export default function Palette() {
                         </Show>
                         <Show when={item.swatch}>{(color) => <span class="palette-swatch" style={{ background: color() }} aria-hidden="true" />}</Show>
                         <Show when={item.current}>
-                          <HugeIcon icon={CheckIcon} size={14} class="palette-trail" />
+                          <RemixIcon icon={CheckIcon} size={14} class="palette-trail" />
                         </Show>
                         <Show when={item.shortcut}>{(shortcut) => <Chips keys={keyChips(displayShortcut(shortcut()))} />}</Show>
                         <Show when={item.submenu}>
-                          <HugeIcon icon={ChevronRightIcon} size={14} class="palette-trail" />
+                          <RemixIcon icon={ChevronRightIcon} size={14} class="palette-trail" />
                         </Show>
                       </Cmdk.Item>
                     )}
@@ -229,8 +224,8 @@ export default function Palette() {
           </Cmdk.List>
           <div class="palette-footer">
             <span class="palette-hint">
-              <kbd class="palette-kbd"><HugeIcon icon={ArrowUpIcon} size={12} /></kbd>
-              <kbd class="palette-kbd palette-kbd-down"><HugeIcon icon={ArrowUpIcon} size={12} /></kbd>
+              <kbd class="palette-kbd"><RemixIcon icon={ArrowUpIcon} size={12} /></kbd>
+              <kbd class="palette-kbd palette-kbd-down"><RemixIcon icon={ArrowUpIcon} size={12} /></kbd>
               Navigate
             </span>
             <span class="palette-hint"><kbd class="palette-kbd">Enter</kbd>{enterLabel(view())}</span>

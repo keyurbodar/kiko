@@ -114,14 +114,16 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
         </svg>
       </button>
       <Show when={open()}>
+        {/* The list opens inside the settings dialog, from a portal outside it: above the dialog, with pointer events back under Kobalte's modal, and `data-kb-top-layer` so a click or focus in it is not outside the dialog. */}
         <Portal>
           <DismissableLayerV2
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="bg-popover fixed z-50 flex max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-xl p-1 shadow-popover"
+            class="bg-popover pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-xl p-1 shadow-popover"
             style={place()}
             onKeyDown={onPanelKey}
+            data-kb-top-layer=""
           >
             <div
               ref={(el) => {

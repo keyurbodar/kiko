@@ -9,7 +9,7 @@
  * Rules:
  * - Durations and easings are tokens. No literal time appears below the tokens.
  * - Keyframes move `transform` and `opacity`. A collapsing panel also moves `height`, and a switch
- *   uses a transition, because both have a "from" state on screen already.
+ *   and a sliding sidebar use a transition, because each has a "from" state on screen already.
  * - Everything is inside `prefers-reduced-motion: no-preference`. The tokens stay outside because
  *   a custom property is not motion.
  * - Animation for anything that mounts: it has no "from" state for a transition to start at.
@@ -36,6 +36,7 @@
   --motion-dialog: 200ms;
   --motion-popover: 150ms;
   --motion-collapse: 200ms;
+  --motion-slide: 260ms;
   --motion-switch: 150ms;
   --motion-skeleton: 2400ms;
 }
@@ -194,6 +195,12 @@
 
   .motion-switch > span {
     transition: transform var(--motion-switch) var(--motion-ease-out);
+  }
+
+  /* A sidebar opening or closing: the shell puts this on its panels for the length of the slide only,
+     so a drag on a resize handle follows the pointer with no lag. */
+  .motion-slide {
+    transition: flex-basis var(--motion-slide) var(--motion-ease-settle);
   }
 
   /* Placeholder bars while a load is in flight. */

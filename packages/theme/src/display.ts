@@ -30,7 +30,10 @@ export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = 
   full: { label: "Full", width: "100%" },
 }
 
-export const SANS_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+// Kiko's own faces ship with the app (public/fonts). Figtree sets the interface and Bricolage Grotesque the headings.
+// "Figtree Fallback" is the same box as Figtree, so a saved screen painted in it does not move when Figtree arrives.
+export const SANS_STACK = 'Figtree, "Figtree Fallback", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+export const DISPLAY_STACK = `"Bricolage Grotesque", ${SANS_STACK}`
 export const MONO_STACK = '"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace'
 
 export function fontFamily(name: string, stack: string): string {
@@ -74,6 +77,8 @@ export function displayVars(display: Display): Record<string, string> {
     "--font-base": `${b + 1}px`,
     "--chat-content-max-width": CHAT_WIDTHS[display.chatWidth].width,
     "--font-family-sans": fontFamily(display.interfaceFont, SANS_STACK),
+    // A font the person chose sets the headings too, so their choice never sits beside Kiko's.
+    "--font-family-display": display.interfaceFont ? fontFamily(display.interfaceFont, SANS_STACK) : DISPLAY_STACK,
     "--font-family-mono": fontFamily(display.codeFont, MONO_STACK),
     "--font-smoothing": display.smoothing ? "antialiased" : "auto",
   }

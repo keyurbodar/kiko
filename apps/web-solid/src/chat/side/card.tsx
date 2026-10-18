@@ -1,8 +1,9 @@
 import { type Agent, fileName, KIKO } from "@kiko/protocol"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import { Brain, Plus, ChevronRight, FolderOpen, ListChecks, Repeat, Sparkles, type LucideProps } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ChevronRightIcon, FolderOpenIcon, type Glyph, MemoryIcon, PlusIcon, RepeatIcon, SparklesIcon, TasksIcon } from "@kiko/ui/icons"
 import { useNavigate } from "@solidjs/router"
-import { type Component, createEffect, For, onCleanup, onMount, Show } from "solid-js"
+import { createEffect, For, onCleanup, onMount, Show } from "solid-js"
 import { ChatAvatar, IdentityAvatar } from "../../lib/IdentityAvatar"
 import { useApp } from "../../lib/store"
 import { useMemoryStore } from "../info/memory/views"
@@ -16,7 +17,7 @@ import { agentSurface, type FixedKind, fixedSurface, openSurface } from "./surfa
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-function Row(props: { icon: Component<LucideProps>; label: string; meta?: string; kind: FixedKind; chatId: string }) {
+function Row(props: { icon: Glyph; label: string; meta?: string; kind: FixedKind; chatId: string }) {
   return (
     <button
       type="button"
@@ -24,10 +25,10 @@ function Row(props: { icon: Component<LucideProps>; label: string; meta?: string
       data-action={`open-${props.kind}`}
       onClick={() => openSurface(props.chatId, fixedSurface(props.kind))}
     >
-      <props.icon size={15} strokeWidth={1.75} class="shrink-0 text-muted-foreground" />
+      <RemixIcon icon={props.icon} size={15} class="shrink-0 text-muted-foreground" />
       <span class="shrink-0 text-md text-foreground">{props.label}</span>
       <span class="min-w-0 flex-1 truncate text-right text-sm text-muted-foreground">{props.meta}</span>
-      <ChevronRight size={13} strokeWidth={1.75} class="shrink-0 text-secondary-label opacity-0 group-hover/row:opacity-100" />
+      <RemixIcon icon={ChevronRightIcon} size={13} class="shrink-0 text-secondary-label opacity-0 group-hover/row:opacity-100" />
     </button>
   )
 }
@@ -89,7 +90,7 @@ export default function ChatCard(props: { chatId: string }) {
           </span>
           <span class={`flex items-center gap-1 truncate text-xs ${busy() ? "text-ring" : "text-muted-foreground"}`} data-component="card-live">
             <Show when={busy()}>
-              <Sparkles size={11} strokeWidth={2} class="shrink-0" />
+              <RemixIcon icon={SparklesIcon} size={11} class="shrink-0" />
             </Show>
             {liveLine(working(), chat(), Date.now())}
           </span>
@@ -116,7 +117,7 @@ export default function ChatCard(props: { chatId: string }) {
               aria-label="Add agent"
               data-action="add-member"
             >
-              <Plus size={13} strokeWidth={2} />
+              <RemixIcon icon={PlusIcon} size={13} />
               Add
             </MenuV2.Trigger>
             <MenuV2.Portal>
@@ -141,16 +142,16 @@ export default function ChatCard(props: { chatId: string }) {
       </Show>
       <div class="flex flex-col border-t border-border pt-1.5">
         <Row
-          icon={FolderOpen}
+          icon={FolderOpenIcon}
           label="Files"
           kind="files"
           chatId={props.chatId}
           meta={files().length ? `${files().slice(-2).map((f) => fileName(f.name)).join(", ")}${files().length > 2 ? ` +${files().length - 2}` : ""}` : "None yet"}
         />
-        <Row icon={Brain} label="Memory" kind="memory" chatId={props.chatId} meta={memory()?.state.lines.length ? plural(memory()!.state.lines.length, "note") : "Empty"} />
-        <Row icon={Repeat} label="Routines" kind="routines" chatId={props.chatId} meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"} />
+        <Row icon={MemoryIcon} label="Memory" kind="memory" chatId={props.chatId} meta={memory()?.state.lines.length ? plural(memory()!.state.lines.length, "note") : "Empty"} />
+        <Row icon={RepeatIcon} label="Routines" kind="routines" chatId={props.chatId} meta={next() ? triggerLabel(next()!.trigger, next()!.tz) : routines().length ? "Paused" : "None"} />
         <Show when={isGroup(members())}>
-          <Row icon={ListChecks} label="Tasks" kind="tasks" chatId={props.chatId} meta={tasks().length ? `${open()} open` : "None"} />
+          <Row icon={TasksIcon} label="Tasks" kind="tasks" chatId={props.chatId} meta={tasks().length ? `${open()} open` : "None"} />
         </Show>
       </div>
     </aside>

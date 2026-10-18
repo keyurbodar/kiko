@@ -1,5 +1,5 @@
 import type { RunStep } from "@kiko/protocol"
-import { type Glyph, HugeIcon } from "@kiko/ui/huge-icon"
+import { type Glyph, RemixIcon } from "@kiko/ui/remix-icon"
 import * as glyphs from "@kiko/ui/icons"
 import { PopoverV2 } from "@kiko/ui/v2/popover-v2-impl"
 import { createEffect, createMemo, createSignal, on, onCleanup, Show, untrack } from "solid-js"
@@ -80,7 +80,7 @@ const ROW_HEIGHT = 32
 function AppMark(props: { slug: string }) {
   const [broken, setBroken] = createSignal(false)
   return (
-    <Show when={!broken()} fallback={<HugeIcon icon={GLYPH["integrations"]} size={16} />}>
+    <Show when={!broken()} fallback={<RemixIcon icon={GLYPH["integrations"]} size={16} />}>
       <span class="run-logo">
         <img src={logoUrl({ slug: props.slug })} alt="" loading="lazy" draggable={false} onError={() => setBroken(true)} />
       </span>
@@ -92,7 +92,7 @@ function StepGlyph(props: { step: RunStep }) {
   const icon = () => iconOf(props.step)
   return (
     <span class="run-icon" data-failed={props.step.status === "failed" ? "" : undefined}>
-      <Show when={icon() === "app" && props.step.app} fallback={<Show when={icon()}>{(glyph) => <HugeIcon icon={GLYPH[glyph()]} size={16} />}</Show>}>
+      <Show when={icon() === "app" && props.step.app} fallback={<Show when={icon()}>{(glyph) => <RemixIcon icon={GLYPH[glyph()]} size={16} />}</Show>}>
         {(slug) => <AppMark slug={slug()} />}
       </Show>
     </span>
@@ -114,7 +114,7 @@ function createElapsed(from: () => number | undefined, live: () => boolean) {
 function RowChevron(props: { open: boolean }) {
   return (
     <span class="run-chevron" data-component="run-panel-chevron" data-open={props.open ? "" : undefined} aria-hidden="true">
-      <HugeIcon icon={glyphs.ChevronRightIcon} size={12} />
+      <RemixIcon icon={glyphs.ChevronRightIcon} size={12} />
     </span>
   )
 }
@@ -207,7 +207,7 @@ function WorkerRow(props: { entry: Extract<Entry, { kind: "worker" }>; onToggle:
         }}
       >
         <span class="run-icon">
-          <HugeIcon icon={GLYPH["worker"]} size={16} />
+          <RemixIcon icon={GLYPH["worker"]} size={16} />
         </span>
         <span class="run-worker-text">
           <span class="run-label run-worker-task">{props.entry.task}</span>
@@ -237,12 +237,12 @@ function Header(props: { steps: readonly RunStep[]; live: boolean }) {
       </Show>
       <Show when={sum().hasFailure}>
         <span class="run-failures" data-component="run-failures">
-          <HugeIcon icon={GLYPH["alert-circle"]} size={14} />
+          <RemixIcon icon={GLYPH["alert-circle"]} size={14} />
           {sum().failed} failed
         </span>
       </Show>
       <PopoverV2.CloseButton class="run-close" aria-label="Close steps" onClick={() => queueMicrotask(() => runAnchorFocus())}>
-        <HugeIcon icon={glyphs.CloseIcon} size={14} />
+        <RemixIcon icon={glyphs.CloseIcon} size={14} />
       </PopoverV2.CloseButton>
     </div>
   )

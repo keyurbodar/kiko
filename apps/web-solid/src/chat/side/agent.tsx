@@ -28,7 +28,7 @@ export function AgentPage(props: { slug: string; chatId: string; onRemoved: () =
           </button>
         }
       >
-        <h2 class="text-[15px] font-semibold text-foreground">{member()?.name ?? props.slug}</h2>
+        <h2 class="font-display text-[15px] font-semibold text-foreground">{member()?.name ?? props.slug}</h2>
       </Profile>
       <Properties>
         <Property label="Role" field="role">{member()?.lead ? "Lead" : "Agent"}</Property>

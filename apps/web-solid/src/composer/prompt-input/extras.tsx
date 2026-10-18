@@ -1,6 +1,6 @@
 import { For, Show } from "solid-js"
-import { FolderIcon } from "lucide-solid"
-import { Undo2Icon, XIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CloseIcon, FolderIcon, UndoIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
@@ -20,7 +20,7 @@ function RetryButton(props: { name: string; reason: string; onRetry: () => void 
           props.onRetry()
         }}
       >
-        <Undo2Icon size={11} />
+        <RemixIcon icon={UndoIcon} size={11} />
       </button>
     </TooltipV2>
   )
@@ -51,7 +51,7 @@ export function PromptInputV2Attachments(props: {
               </Show>
               <Show when={failure()}>{(reason) => <RetryButton name={attachment.filename} reason={reason()} onRetry={() => retryUpload(attachment.id)} />}</Show>
               <button type="button" class="composer-attachment-remove" aria-label={`Remove ${attachment.filename}`} onClick={() => props.onRemove(attachment)}>
-                <XIcon size={11} />
+                <RemixIcon icon={CloseIcon} size={11} />
               </button>
             </div>
           )
@@ -132,6 +132,6 @@ function PromptInputV2SuggestionIcon(props: { item: PromptInputV2Suggestion }) {
   if (props.item.kind === "agent" && props.item.mention?.type === "agent")
     return <IdentityAvatar seed={props.item.mention.name} size={18} />
   if (props.item.kind === "command") return null
-  if (props.item.kind === "reference") return <FolderIcon class="size-4 shrink-0" aria-hidden="true" />
+  if (props.item.kind === "reference") return <RemixIcon icon={FolderIcon} class="size-4 shrink-0" />
   return <EntryIcon path={props.item.path ?? props.item.label} />
 }

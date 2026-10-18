@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RosterBot } from "../lib/types"
-import { filterRows } from "./filter"
+import { filterRows, pinnedRows } from "./filter"
 
 const row = (id: string, name: string, preview: string, unread = 0): RosterBot => ({
   id, name, preview, updatedAt: 0, presence: "idle", unread, pinned: false,
@@ -22,5 +22,16 @@ describe("filterRows", () => {
   }
   test("a chat marked unread by hand counts", () => {
     expect(filterRows(rows, { query: "", unreadOnly: true }, (r) => r.id === "2").map((r) => r.id)).toEqual(["2"])
+  })
+})
+
+describe("pinnedRows", () => {
+  const pin = (id: string): RosterBot => ({ ...row(id, id, ""), pinned: true })
+  test("Kiko leads the pinned rows, and the rest keep their order", () => {
+    expect(pinnedRows([pin("ada"), row("x", "x", ""), pin("kiko"), pin("bo")], "kiko").map((r) => r.id)).toEqual(["kiko", "ada", "bo"])
+  })
+  test("with Kiko unpinned or unknown, the order is the roster's", () => {
+    expect(pinnedRows([pin("ada"), pin("bo")], "kiko").map((r) => r.id)).toEqual(["ada", "bo"])
+    expect(pinnedRows([pin("ada"), pin("bo")], null).map((r) => r.id)).toEqual(["ada", "bo"])
   })
 })

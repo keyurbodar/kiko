@@ -1,5 +1,6 @@
 import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
-import { XIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CloseIcon } from "@kiko/ui/icons"
 import { Show, Suspense, createSignal, lazy, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { dayChipLabel, formatFullTimestamp } from "../lib/dayLabel"
@@ -94,7 +95,7 @@ export function DateChip(props: {
               aria-label="Close calendar"
               onClick={close}
             >
-              <XIcon class="size-3.5" aria-hidden="true" />
+              <RemixIcon icon={CloseIcon} class="size-3.5" />
             </button>
           </Show>
         </div>

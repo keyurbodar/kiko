@@ -1,5 +1,5 @@
 import type { RunErrorAction, RunErrorKind, SystemEvent } from "@kiko/protocol"
-import type { Glyph } from "@kiko/ui/huge-icon"
+import type { Glyph } from "@kiko/ui/remix-icon"
 import { AlertCircleIcon, ChatIcon, ClockIcon, GroupIcon, MemoryIcon, MinusIcon, ModelIcon, PlusIcon, StopIcon } from "@kiko/ui/icons"
 import { createMemo, createSignal, onCleanup, Show } from "solid-js"
 import { openSettings } from "../../lib/errors"

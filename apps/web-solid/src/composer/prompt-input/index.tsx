@@ -1,6 +1,7 @@
 import { createMemo, createSignal, For, getOwner, lazy, onMount, runWithOwner, Show, Suspense, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
-import { ArrowUpIcon, AtSignIcon, CornerDownLeftIcon, PaperclipIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ArrowUpIcon, AtIcon, AttachIcon, EnterIcon } from "@kiko/ui/icons"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -132,7 +133,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               data-component="composer-drop-overlay"
             >
               <div role="status" class="flex items-center gap-2 rounded-full border border-ring/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg">
-                <PaperclipIcon class="size-4 text-ring" />
+                <RemixIcon icon={AttachIcon} class="size-4 text-ring" />
                 {i18n.t(props.controller.dragKind() === "reference" ? "ui.promptInput.dropReference" : "ui.promptInput.dropFiles")}
               </div>
             </div>
@@ -171,7 +172,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               <Show when={!props.answering && !props.readOnly && props.controller.agents().length > 0}>
                 <MenuV2 gutter={6} placement="top-start">
                   <MenuV2.Trigger class="composer-icon" aria-label="Mention an agent" title="Mention an agent" data-action="composer-mention">
-                    <AtSignIcon class="size-4" />
+                    <RemixIcon icon={AtIcon} class="size-4" />
                   </MenuV2.Trigger>
                   <MenuV2.Portal>
                     <MenuV2.Content class="z-[80] min-w-44" data-component="mention-menu">
@@ -200,7 +201,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
                     aria-label={i18n.t("ui.promptInput.add")}
                     onClick={() => props.controller.attach()}
                   >
-                    <PaperclipIcon class="size-4" />
+                    <RemixIcon icon={AttachIcon} class="size-4" />
                   </button>
                 </TooltipV2>
                 <PromptInputV2SubmitButton
@@ -244,9 +245,9 @@ export function PromptInputV2SubmitButton(props: {
         }}
       >
         {props.mode === "shell" ? (
-          <CornerDownLeftIcon class="size-4" aria-hidden="true" />
+          <RemixIcon icon={EnterIcon} class="size-4" />
         ) : (
-          <ArrowUpIcon class="size-4" aria-hidden="true" />
+          <RemixIcon icon={ArrowUpIcon} class="size-4" />
         )}
       </button>
     </TooltipV2>

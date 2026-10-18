@@ -1,4 +1,5 @@
-import { CopyIcon, FileIcon as OpenIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CopyIcon, FileIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -102,11 +103,11 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
         <MenuV2.Context.Portal>
           <MenuV2.Context.Content class="min-w-[160px]">
             <MenuV2.Item onSelect={() => open()}>
-              <OpenIcon class="size-3.5 shrink-0" aria-hidden="true" />
+              <RemixIcon icon={FileIcon} class="size-3.5 shrink-0" />
               {folder() ? "Show in files" : "Open"}
             </MenuV2.Item>
             <MenuV2.Item onSelect={() => void copy()}>
-              <CopyIcon class="size-3.5 shrink-0" aria-hidden="true" />
+              <RemixIcon icon={CopyIcon} class="size-3.5 shrink-0" />
               Copy path
             </MenuV2.Item>
           </MenuV2.Context.Content>

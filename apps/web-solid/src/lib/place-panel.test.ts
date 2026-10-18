@@ -31,4 +31,11 @@ describe("placePanel", () => {
     expect(placePanel(at(600, 1250), 420, 100, vp, "above", "end").right).toBe("8px")
     expect(placePanel(at(600, 1000), 420, 100, vp, "above", "end").right).toBe("80px")
   })
+
+  test("a panel wider than the window is placed at the window's width, inside the edges", () => {
+    const phone = { width: 390, height: 844 }
+    const p = placePanel(at(600, 300, 28, 240), 420, 380, phone, "above", "end")
+    expect(p.right).toBe("8px")
+    expect(placePanel(at(600, 0, 28, 40), 420, 380, phone, "above").left).toBe("8px")
+  })
 })

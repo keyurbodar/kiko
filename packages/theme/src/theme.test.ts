@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { applyCommitted, CACHE_KEY, resolveLook, saveImported, writeCache } from "./apply"
 import { withPalette } from "../scripts/gen-palette"
-import { MONO_STACK, SANS_STACK, fontFamily } from "./display"
+import { DEFAULT_DISPLAY, DISPLAY_STACK, MONO_STACK, SANS_STACK, displayVars, fontFamily } from "./display"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
 import { ACCENT_IDS, ACCENTS, DEFAULT_ACCENT, PALETTES, tokensFor } from "./palette"
 
@@ -42,7 +42,7 @@ describe("the palette", () => {
   })
 
   test("index.css declares the radius, type and icon scales", () => {
-    for (const token of ["--radius-xs", "--radius-sm", "--radius-md", "--radius-lg", "--radius-bubble", "--radius-pill", "--font-xs", "--font-sm", "--font-md", "--font-base", "--font-lg", "--icon-xs", "--icon-sm", "--icon-md", "--icon-lg"]) {
+    for (const token of ["--radius-xs", "--radius-sm", "--radius-md", "--radius-lg", "--radius-bubble", "--radius-pill", "--font-family-display", "--font-xs", "--font-sm", "--font-md", "--font-base", "--font-lg", "--icon-xs", "--icon-sm", "--icon-md", "--icon-lg"]) {
       expect([token, new RegExp(`^\\s*${token}:`, "m").test(KAT)]).toEqual([token, true])
     }
   })
@@ -207,5 +207,10 @@ describe("the font names", () => {
   test("a typed name goes first, quoted when it has spaces, and the system stack follows", () => {
     expect(fontFamily("", SANS_STACK)).toBe(SANS_STACK)
     expect(fontFamily("Inter, JetBrains Mono", SANS_STACK)).toBe(`Inter, "JetBrains Mono", ${SANS_STACK}`)
+  })
+
+  test("headings take kiko's display face until the person names one of their own", () => {
+    expect(displayVars(DEFAULT_DISPLAY)["--font-family-display"]).toBe(DISPLAY_STACK)
+    expect(displayVars({ ...DEFAULT_DISPLAY, interfaceFont: "Inter" })["--font-family-display"]).toBe(`Inter, ${SANS_STACK}`)
   })
 })

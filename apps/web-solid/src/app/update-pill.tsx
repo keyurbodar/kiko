@@ -1,6 +1,6 @@
 // The quiet update affordance at the foot of the sidebar, after t3code's update pill. Loads after first paint.
 import { Match, onMount, Show, Switch } from "solid-js"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { DownloadIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { APP_VERSION } from "../lib/version-skew"
@@ -40,7 +40,7 @@ export default function UpdatePill() {
 								data-kind={view().kind === "failed" ? "failed" : (view() as { blocked: boolean }).blocked ? "blocked" : "update"}
 								onClick={() => void startUpdate()}
 							>
-								<HugeIcon icon={DownloadIcon} size={14} />
+								<RemixIcon icon={DownloadIcon} size={14} />
 								{view().kind === "failed" ? "Retry update" : (view() as { blocked: boolean }).blocked ? "Update required" : "Update"}
 							</button>
 						</Match>
