@@ -118,6 +118,9 @@ export function VirtualThread(props: {
     })
   const memberSet = createMemo(() => (props.groupChat ? new Set(props.memberSlugs ?? []) : undefined))
   const lastItems = new Map<string, TimelineItem>()
+  // Prepended rows are held in place by `cancelDrift`, which measures the row the reader was
+  // looking at. `virtua`'s own `shift` would move the scroller for the same insert, so the two
+  // corrections landed on top of each other and paging up threw the reader near the top.
   let shifted = false
   let firstKey: string | undefined
   let itemsOwner: string | undefined
@@ -325,9 +328,12 @@ export function VirtualThread(props: {
     if (index < 0) return false
     let tries = 0
     stuck = false
-    // `scrollToIndex` lands on an estimate for a row it has not measured yet, which for a long
-    // jump is many lines off. Each pass reads the row's real position and corrects it, so the
-    // reader lands on the message they left, not near it.
+    /**
+     * `scrollToIndex` lands on an estimate for a row it has not measured yet, and the row it jumps
+     * to is not in the DOM until the next frame. So the first pass only moves, and each later pass
+     * reads the row's real position and corrects it: the reader lands on the message they left, not
+     * a few lines off it.
+     */
     const apply = (pass = 0) => {
       const virtualizer = handle()
       const scroller = scrollElement
@@ -335,14 +341,31 @@ export function VirtualThread(props: {
         if ((tries += 1) < 10) requestAnimationFrame(() => apply(pass))
         return
       }
-      if (pass === 0) virtualizer.scrollToIndex(index, { align: "start" })
+      if (pass === 0) {
+        virtualizer.scrollToIndex(index, { align: "start" })
+        // Rows above the target are estimated until they render, so the first landing is off. Two
+        // frames let the measurement settle before the correction is read.
+        requestAnimationFrame(() => requestAnimationFrame(() => apply(1)))
+        return
+      }
       const row = columnElement?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(saved.messageId)}"]`)
-      const drift = row ? row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - saved.offset : 0
-      if (row && Math.abs(drift) > 1 && pass < 3) {
-        virtualizer.scrollBy(-drift)
+      if (!row) {
+        if (pass < 3) requestAnimationFrame(() => apply(pass + 1))
+        else finish()
+        return
+      }
+      const drift = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - saved.offset
+      // A drift past a screenful means the estimate was wrong, not that the row moved: jumping again
+      // from the corrected offset converges in one step, where nudging scrollTop would crawl.
+      if (Math.abs(drift) > 8 && pass < 3) {
+        if (Math.abs(drift) > scroller.clientHeight) virtualizer.scrollToIndex(index, { align: "start", offset: drift })
+        else scroller.scrollTop += drift
         requestAnimationFrame(() => apply(pass + 1))
         return
       }
+      finish()
+    }
+    const finish = () => {
       seedAnchor()
       commitState(readState())
       restoredOk = true
@@ -484,6 +507,9 @@ export function VirtualThread(props: {
       // Rows measured after they render also move the offset. Only a reader's own scroll lets go of the end.
       if (atEnd) stuck = true
       else if (readerScrolling) stuck = false
+      // A saved place whose message the window does not hold cannot be restored yet. Once the reader
+      // scrolls, their own position is the truth, and saving it must be allowed again.
+      if (readerScrolling && restoredFor === props.scrollKey) restoredOk = true
       commitState(state)
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
@@ -769,7 +795,7 @@ export function VirtualThread(props: {
               data={items()}
               scrollRef={scrollElement}
               bufferSize={BUFFER_SIZE}
-              shift={isShifted()}
+              shift={false}
               ref={setHandle}
             >
               {(item) => (
