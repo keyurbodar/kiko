@@ -18,7 +18,7 @@ import type { SystemEvent } from "@kiko/protocol"
 import type { ChatMessage, RosterBot } from "../lib/types"
 import { buildTimelineItems, dayStartOf, keepUnchanged, type TimelineItem } from "./lib/grouping"
 import { estimateRowHeight } from "./lib/heights"
-import { AT_BOTTOM_THRESHOLD_PX, DRIFT_EPSILON, driftCompensation, isAtBottom } from "./lib/drift"
+import { AT_BOTTOM_THRESHOLD_PX, isAtBottom } from "./lib/drift"
 import { dividerParts } from "./lib/time-label"
 import { jumboEmojiClass, quoteOf } from "./lib/reply"
 import { MessageRow } from "./ui/MessageRow"
@@ -46,10 +46,6 @@ export interface VirtualThreadState {
 
 const BUFFER_SIZE = 600
 
-const BOTTOM_EPSILON = 2
-
-const PIN_SETTLE_MS = 400
-
 const LANDING_MS = 1200
 
 const DATE_CHIP_IDLE_MS = 1200
@@ -59,8 +55,6 @@ const READER_SCROLL_MS = 250
 const DATE_CHIP_EDGE_PX = 56
 
 
-type DriftAnchor = { readonly element: HTMLElement; readonly top: number }
-
 const STAGE_CLASS = "relative flex min-h-0 flex-1 flex-col"
 
 const SCROLLER_CLASS =
@@ -68,8 +62,6 @@ const SCROLLER_CLASS =
 
 const COLUMN_CLASS =
   "mx-auto flex min-h-full w-full max-w-(--chat-content-max-width) self-start flex-col pt-12 pb-12"
-
-const ROW_SELECTOR = '[data-component="chat-vrow"]'
 
 const clampIndex = (index: number, count: number): number =>
   Math.min(Math.max(index, 0), Math.max(count - 1, 0))
@@ -118,9 +110,8 @@ export function VirtualThread(props: {
     })
   const memberSet = createMemo(() => (props.groupChat ? new Set(props.memberSlugs ?? []) : undefined))
   const lastItems = new Map<string, TimelineItem>()
-  // Prepended rows are held in place by `cancelDrift`, which measures the row the reader was
-  // looking at. `virtua`'s own `shift` would move the scroller for the same insert, so the two
-  // corrections landed on top of each other and paging up threw the reader near the top.
+  // Older rows paged in above the reader are held in place by virtua's `shift`, which keeps the
+  // rows on screen where they were while the list grows at its start.
   let shifted = false
   let firstKey: string | undefined
   let itemsOwner: string | undefined
@@ -217,9 +208,7 @@ export function VirtualThread(props: {
     landingGeneration += 1
   })
 
-  let pinRun = 0
   const jumpToMessage = (messageId: string) => {
-    pinRun += 1
     const fold = items().find((item) => item.kind === "thread" && !item.expanded && item.messages.some((m) => m.id === messageId))
     if (fold) toggleThread(fold.key)
     const index = items().findIndex(
@@ -253,11 +242,8 @@ export function VirtualThread(props: {
       (item) => item.kind === "message" && dayStartOf(item.message.sentAt) === dayStart,
     )
     if (index < 0) return
-    // A pin still running from the last arrival would drag the reader back to the end.
-    pinRun += 1
     stuck = false
     handle()?.scrollToIndex(index, { align: "start" })
-    seedAnchor()
     commitState(readState())
   }
 
@@ -366,7 +352,6 @@ export function VirtualThread(props: {
       finish()
     }
     const finish = () => {
-      seedAnchor()
       commitState(readState())
       restoredOk = true
     }
@@ -392,6 +377,7 @@ export function VirtualThread(props: {
   const scrollToLatest = () => {
     const scroller = scrollElement
     if (!scroller) return
+    stuck = true
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     scroller.scrollTo({ top: scroller.scrollHeight, behavior: reduced ? "auto" : "smooth" })
     if (reduced) return
@@ -399,8 +385,8 @@ export function VirtualThread(props: {
     scroller.addEventListener("scrollend", () => scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" }), { once: true })
   }
 
-  let anchor: DriftAnchor | undefined
-  // True while the reader is at the end. Content that grows under them (the typing line, a reply) keeps them there.
+  // True while the reader is at the end. Content that grows under them (the typing line, a reply,
+  // a row measured late) keeps them there. Only the reader's own scroll lets go of it.
   let stuck = true
   let readerScrolling = false
   // A drag that selects text: the browser scrolls the view itself, so nothing here may scroll it back.
@@ -426,86 +412,14 @@ export function VirtualThread(props: {
   }
 
   /**
-   * The row the drift correction holds in place. `scan` walks every rendered row, which is a rect
-   * read each: right at rest, wrong on a scroll event, where a wheel would pay for it dozens of
-   * times a second. A reader's scroll therefore keeps the held row, and the scan waits for the
-   * scroll to end.
+   * Keeps a stuck reader on the last line. It runs from a ResizeObserver, which fires after layout
+   * and before paint, so growth is followed in the same frame and never shows as a jump. Rows that
+   * change size above a reader who scrolled up are virtua's to hold in place, not ours.
    */
-  const seedAnchor = (scan = true) => {
-    if (!scrollElement || !columnElement) return
-    const top = scrollElement.scrollTop
-    const base = columnElement.getBoundingClientRect().top
-    const readingLine = base + top - DRIFT_EPSILON
-
-    const held = anchor?.element.isConnected === true ? anchor.element : undefined
-    const heldRect = held?.getBoundingClientRect()
-    if (held && heldRect && heldRect.top >= readingLine) {
-      anchor = { element: held, top: heldRect.top - base }
-      return
-    }
-    if (!scan) {
-      // Mid-scroll the held row may be recycled out of the window. Drop a dead reference, and let
-      // the scroll-end timer or the next drift correction reseed from the rows on screen.
-      if (!held) anchor = undefined
-      return
-    }
-
-    const rows = columnElement.querySelectorAll<HTMLElement>(ROW_SELECTOR)
-    anchor = undefined
-    for (const node of rows) {
-      const rect = node.getBoundingClientRect()
-      if (rect.top >= readingLine) {
-        anchor = { element: node, top: rect.top - base }
-        return
-      }
-    }
-    for (const node of rows) {
-      const rect = node.getBoundingClientRect()
-      if (rect.bottom > base + top) {
-        anchor = { element: node, top: rect.top - base }
-        return
-      }
-    }
-  }
-
-  const cancelDrift = () => {
-    if (!scrollElement || !columnElement) return
-    const state = readState()
-    if (dragging) {
-      stuck = false
-      seedAnchor()
-      commitState(state)
-      return
-    }
-    const held = anchor?.element.isConnected === true ? anchor : undefined
-    if (!held) {
-      seedAnchor()
-      commitState(state)
-      return
-    }
-    const atBottom =
-      state.scrollOffset + state.viewportSize >= state.scrollSize - BOTTOM_EPSILON
-    if (stuck && !atBottom) {
-      scrollElement.scrollTop = scrollElement.scrollHeight
-      seedAnchor()
-      commitState(readState())
-      return
-    }
-    const drift =
-      held.element.getBoundingClientRect().top -
-      columnElement.getBoundingClientRect().top -
-      held.top
-    const compensation = driftCompensation(drift, atBottom)
-    if (compensation === 0) {
-      seedAnchor()
-      commitState(state)
-      return
-    }
-    const virtualizer = handle()
-    if (virtualizer) virtualizer.scrollBy(compensation)
-    else scrollElement.scrollBy(0, compensation)
-    requestAnimationFrame(() => seedAnchor())
-    commitState(readState())
+  const followEnd = () => {
+    const scroller = scrollElement
+    if (!scroller || !stuck || dragging) return
+    if (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1) scroller.scrollTop = scroller.scrollHeight
   }
 
   onMount(() => {
@@ -513,52 +427,22 @@ export function VirtualThread(props: {
     const column = columnElement
     if (!scroller || !column) return
     const onScroll = () => {
-      // A reader's own scroll keeps the anchor it already holds; every other scroll (a jump, a
-      // restore, a pin, a drift correction) is a discrete move and reseeds once.
-      seedAnchor(!readerScrolling)
       const state = readState()
       const atEnd = isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
-      // Rows measured after they render also move the offset. Only a reader's own scroll lets go of the end.
       if (atEnd) stuck = true
-      else if (readerScrolling) stuck = false
+      else if (readerScrolling || dragging) stuck = false
       // A saved place whose message the window does not hold cannot be restored yet. Once the reader
       // scrolls, their own position is the truth, and saving it must be allowed again.
       if (readerScrolling && restoredFor === props.scrollKey) restoredOk = true
       commitState(state)
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
-    const onViewportResize = () => {
-      const fresh = readState()
-      const atEnd = isAtBottom(fresh.scrollOffset, fresh.scrollSize, fresh.viewportSize, AT_BOTTOM_THRESHOLD_PX)
-      if (atEnd) {
-        scroller.scrollTop = scroller.scrollHeight
-      } else {
-        // A narrower column re-wraps the text above the reading line, so the same scrollTop now
-        // points at different words. The anchor says what the reader was looking at; the view is
-        // moved by exactly that drift. Without this, resizing slid the transcript and saved the
-        // slide as the reader's new place.
-        const held = anchor?.element.isConnected === true ? anchor : undefined
-        const drift = held ? held.element.getBoundingClientRect().top - column.getBoundingClientRect().top - held.top : 0
-        if (Math.abs(drift) > 1) {
-          const virtualizer = handle()
-          if (virtualizer) virtualizer.scrollBy(drift)
-          else scroller.scrollBy(0, drift)
-        }
-      }
-      seedAnchor()
+    const sizes = makeResizeObserver(() => {
+      followEnd()
       commitState(readState())
-    }
-    let driftQueued = false
-    const queueDriftCancel = () => {
-      if (driftQueued) return
-      driftQueued = true
-      requestAnimationFrame(() => {
-        driftQueued = false
-        cancelDrift()
-      })
-    }
-    const viewportObserver = makeResizeObserver(onViewportResize)
-    viewportObserver.observe(scroller)
+    })
+    sizes.observe(scroller)
+    sizes.observe(column)
     createEventListener(() => scroller, "scroll", onScroll, { passive: true })
     let readerScrollEnd: ReturnType<typeof setTimeout> | undefined
     onCleanup(() => clearTimeout(readerScrollEnd))
@@ -570,19 +454,13 @@ export function VirtualThread(props: {
       clearTimeout(readerScrollEnd)
       readerScrollEnd = setTimeout(() => {
         readerScrolling = false
-        // The scroll path only follows the row it already holds. Once the view settles, the anchor
-        // is the row at the reading line again, measured once.
-        seedAnchor()
       }, READER_SCROLL_MS)
     }
-    const onReader = () => {
-      readerMoved()
-    }
-    createEventListener(() => scroller, "wheel", onReader, { passive: true })
-    createEventListener(() => scroller, "touchmove", onReader, { passive: true })
+    createEventListener(() => scroller, "wheel", readerMoved, { passive: true })
+    createEventListener(() => scroller, "touchmove", readerMoved, { passive: true })
     createEventListener(() => scroller, "keydown", readerMoved)
     createEventListener(() => scroller, "pointerdown", (event: PointerEvent) => {
-      if (event.target === scroller) onReader()
+      if (event.target === scroller) readerMoved()
       dragging = event.pointerType === "mouse" && event.button === 0
       dragFrom = dragging ? { id: event.pointerId, x: event.clientX, y: event.clientY } : undefined
     }, { passive: true })
@@ -594,146 +472,40 @@ export function VirtualThread(props: {
       dragFrom = undefined
     }, { passive: true })
     const endDrag = () => {
-      if (!dragging) return
       dragging = false
       dragFrom = undefined
-      seedAnchor()
     }
     createEventListener(document, "pointerup", endDrag, { passive: true })
     createEventListener(document, "pointercancel", endDrag, { passive: true })
     createEventListener(() => scroller, "pointermove", (event: PointerEvent) => setNearTopEdge(event.clientY - scroller.getBoundingClientRect().top < DATE_CHIP_EDGE_PX), { passive: true })
     createEventListener(() => scroller, "pointerleave", () => setNearTopEdge(false), { passive: true })
-    const mutations = new MutationObserver(queueDriftCancel)
-    mutations.observe(column, { childList: true, subtree: true })
-    const heights = new MutationObserver(queueDriftCancel)
-    for (const child of Array.from(column.children)) {
-      heights.observe(child, { attributes: true, attributeFilter: ["style"] })
-    }
-    const tree = new MutationObserver((entries) => {
-      for (const entry of entries) {
-        for (const node of Array.from(entry.addedNodes)) {
-          if (node instanceof HTMLElement) {
-            heights.observe(node, { attributes: true, attributeFilter: ["style"] })
-          }
-        }
-      }
-    })
-    tree.observe(column, { childList: true })
     onCleanup(() => {
-      viewportObserver.unobserve(scroller)
-      mutations.disconnect()
-      heights.disconnect()
-      tree.disconnect()
+      sizes.unobserve(scroller)
+      sizes.unobserve(column)
       props.scrollRef(undefined)
     })
   })
 
-  // A pin keeps the reader at the end while the rows that arrive late are measured. It writes the
-  // end once and then waits on an observation of the column: a frame that changed nothing reads no
-  // layout and does no work, and the pin stops as soon as the height stops growing.
-  let pinObserver: ResizeObserver | undefined
-  let pinDeadline: ReturnType<typeof setTimeout> | undefined
-  let pinFrame = 0
-  const stopPin = () => {
-    pinObserver?.disconnect()
-    pinObserver = undefined
-    clearTimeout(pinDeadline)
-    pinDeadline = undefined
-    cancelAnimationFrame(pinFrame)
-    pinFrame = 0
-  }
-  onCleanup(stopPin)
-
-  const pinToLatest = () => {
-    const scroller = scrollElement
-    const column = columnElement
-    const run = ++pinRun
-    stopPin()
-    // The reader's own scroll outranks the pin: rows measured late must not drag them back down.
-    if (!scroller || !stuck) return
-    let height = scroller.scrollHeight
-    const finish = () => {
-      // A newer pin owns the slot, or the reader scrolled away. Neither may touch the view.
-      if (run !== pinRun) return
-      if (!stuck) return stopPin()
-      stopPin()
-      seedAnchor()
-      commitState(readState())
-    }
-    const alive = () => {
-      if (run !== pinRun) return false
-      if (!stuck) {
-        stopPin()
-        return false
-      }
-      return true
-    }
-    // The end, written once. Every later correction comes from the column's own height.
-    scroller.scrollTo({ top: height, behavior: "auto" })
-    if (column && typeof ResizeObserver === "function") {
-      pinObserver = new ResizeObserver(() => {
-        if (!alive()) return
-        const next = scroller.scrollHeight
-        // The content did not grow, so the end is where the pin left it.
-        if (next <= height) return finish()
-        height = next
-        scroller.scrollTo({ top: next, behavior: "auto" })
-        // One read a frame later says whether that was the last growth.
-        cancelAnimationFrame(pinFrame)
-        pinFrame = requestAnimationFrame(() => {
-          if (!alive()) return
-          if (scroller.scrollHeight <= height) finish()
-        })
-      })
-      pinObserver.observe(column)
-    }
-    // Bounded: a chat that keeps growing cannot hold the pin open. After this the drift correction
-    // is what keeps a stuck reader at the end.
-    pinDeadline = setTimeout(finish, PIN_SETTLE_MS)
-  }
-
   let firstLoad = true
   let lastOwner: unknown
-  let hadRows = false
   createEffect(
     on(items, () => {
       const owner: unknown = props.scrollKey ?? props.messages
       if (owner !== lastOwner) {
         lastOwner = owner
         firstLoad = true
-        hadRows = false
-        anchor = undefined
         restoredFor = undefined
         restoredOk = false
-        // `stuck` is a fact about the chat that was on screen. Left set from a reader who had
-        // scrolled up, it makes the pin for the new chat return at its first line, so the chat
-        // opens a little above the end with its last message clipped.
+        // `stuck` is a fact about the chat that was on screen. A new chat opens at its end.
         stuck = true
         readerScrolling = false
-        // A pin still running from the previous chat would keep forcing the end of this one.
-        pinRun += 1
         setPinnedCount(messageCount())
-        if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
       }
       const rows = items().length > 0
-      // The first rows to arrive for this chat are the real first paint, even when the switch painted
-      // an empty stage first. Landing them in the same pass is what keeps a long chat from showing its
-      // oldest message for a frame.
-      const firstContent = rows && !hadRows
-      hadRows = rows
-      const restoring = restorePosition()
-      const wasAtLatest = firstLoad || stuck || isAtLatest()
-      seedAnchor()
-      if (restoring) {
+      if (restorePosition()) firstLoad = false
+      else if (rows) {
         firstLoad = false
-      } else if (firstLoad || firstContent) {
-        firstLoad = false
-        if (rows) {
-          if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
-          pinToLatest()
-        }
-      } else if (wasAtLatest) {
-        pinToLatest()
+        followEnd()
       }
       commitState(readState())
     }),
@@ -857,7 +629,7 @@ export function VirtualThread(props: {
               data={items()}
               scrollRef={scrollElement}
               bufferSize={BUFFER_SIZE}
-              shift={false}
+              shift={isShifted()}
               ref={setHandle}
             >
               {(item) => (

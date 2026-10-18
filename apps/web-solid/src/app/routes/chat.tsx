@@ -15,7 +15,7 @@ import { jumpRequest, requestJump } from "../../search/state";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 import { clearUnreadMark } from "../../sidebar/unread-mark";
-import { roomEmpty } from "./chat-empty";
+import { roomEmpty, roomSettled } from "./chat-empty";
 const RunPanel = lazy(() => import("../../chat/run/RunPanel"));
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 const UpdateNotice = lazy(() => import("../update-notice"));
@@ -104,7 +104,17 @@ export default function ChatRoute() {
   const block = createMemo(() =>
     sendBlock({ known: connectedReady() && useApp.modelsSynced(), providers: connectedProviders(), model: answering() && useApp.agentModel(answering()!.slug)?.model, agent: answering()?.name }),
   );
-  const messages = createMemo(() => useApp.activeMessages());
+  // A switch to a chat that has nothing to paint yet (not in memory, or a cold browser waiting on the
+  // server) keeps the last chat on screen until the first rows land, so the transcript never blanks.
+  let held: { key: string; rows: ChatMessage[] } | undefined;
+  const shown = createMemo(() => {
+    const key = useApp.activeThreadId() ?? undefined;
+    const rows = useApp.activeMessages();
+    if (key && rows.length > 0) held = { key, rows };
+    const loading = key !== undefined && rows.length === 0 && !roomSettled(useApp.room()?.state, useApp.chat(key)?.lastSeq);
+    return loading && held && held.key !== key ? held : { key, rows };
+  });
+  const messages = createMemo(() => shown().rows);
   const speaker = (id: string): RosterBot | undefined => {
     const member = members().get(id);
     if (member) return member;
@@ -131,7 +141,7 @@ export default function ChatRoute() {
   // A reply restored from a draft whose message is older than the window has nothing to show in the bar, so it is dropped rather than sent unseen.
   createEffect(() => {
     const id = replyTarget();
-    if (id !== null && messages().length > 0 && !useApp.showingHistory() && replyTo() === null) {
+    if (id !== null && useApp.activeMessages().length > 0 && !useApp.showingHistory() && replyTo() === null) {
       setReplyTarget(null);
       setQuote(null);
     }
@@ -251,7 +261,7 @@ export default function ChatRoute() {
               useApp.deleteMessage(id);
             }}
             replyTarget={replyTarget()}
-            scrollKey={useApp.activeThreadId() ?? undefined}
+            scrollKey={shown().key}
             scrollBook={book() ?? undefined}
             onJumpHandle={(handle) => {
               jumpToMessage = handle.jumpToMessage;
@@ -367,7 +377,7 @@ export default function ChatRoute() {
             onEdit={(id, text) => useApp.editMessage(id, text)}
             onCancelEdit={() => setEditTarget(null)}
             onEditLast={() => {
-              const last = [...messages()].reverse().find((m) => m.sender === "user" && m.seq !== undefined && m.body.trim() !== "");
+              const last = [...useApp.activeMessages()].reverse().find((m) => m.sender === "user" && m.seq !== undefined && m.body.trim() !== "");
               if (last) startEdit(last.id);
             }}
             onJumpToReply={(messageId) => jumpToMessage?.(messageId)}

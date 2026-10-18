@@ -262,12 +262,12 @@ export function createApp(options: AppOptions = {}) {
     let bootUser: string | null = null
 
     /**
-     * The last few rooms' windows, kept so going back to a chat paints from memory instead of
+     * Recent rooms' windows, kept so going back to a chat paints from memory instead of
      * waiting on IndexedDB. Each entry is a complete paint: the socket replays everything after
      * `seq`, so a cached window can never be older than the replay that follows it.
      */
     const roomCache = new Map<string, RoomSeed>()
-    const MAX_ROOM_CACHE = 4
+    const MAX_ROOM_CACHE = 32
 
     function keepRoom(r: RoomStore): void {
       const s = r.state
