@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { applyCommitted, CACHE_KEY, resolveLook, saveImported, writeCache } from "./apply"
 import { withPalette } from "../scripts/gen-palette"
-import { DEFAULT_DISPLAY, DISPLAY_STACK, MONO_STACK, SANS_STACK, displayVars, fontFamily } from "./display"
+import { MONO_STACK, SANS_STACK, fontFamily } from "./display"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
-import { ACCENT_IDS, ACCENTS, DEFAULT_ACCENT, PALETTES, tokensFor } from "./palette"
+import { oklchOf } from "./color"
+import { ACCENT_IDS, ACCENTS, DEFAULT_ACCENT, PALETTES, paletteFor, tokensFor } from "./palette"
 
 const KAT = readFileSync(join(import.meta.dir, "../../../apps/web-solid/src/index.css"), "utf8")
 
@@ -42,31 +43,47 @@ describe("the palette", () => {
   })
 
   test("index.css declares the radius, type and icon scales", () => {
-    for (const token of ["--radius-xs", "--radius-sm", "--radius-md", "--radius-lg", "--radius-bubble", "--radius-pill", "--font-family-display", "--font-xs", "--font-sm", "--font-md", "--font-base", "--font-lg", "--icon-xs", "--icon-sm", "--icon-md", "--icon-lg"]) {
+    for (const token of ["--radius-xs", "--radius-sm", "--radius-md", "--radius-lg", "--radius-bubble", "--radius-pill", "--font-xs", "--font-sm", "--font-md", "--font-base", "--font-lg", "--icon-xs", "--icon-sm", "--icon-md", "--icon-lg"]) {
       expect([token, new RegExp(`^\\s*${token}:`, "m").test(KAT)]).toEqual([token, true])
     }
   })
 
-  test.each(["light", "dark"] as const)("%s text reads on its paper, and so does the action button", (mode) => {
-    const p = PALETTES[mode]
-    expect(contrast(p.text, p.canvas)).toBeGreaterThan(12)
-    expect(contrast(p.muted, p.canvas)).toBeGreaterThan(3.5)
-    expect(contrast(p.onAction, p.action)).toBeGreaterThan(12)
+  test.each(["light", "dark"] as const)("with every accent, %s text reads on its paper, and so does the action button", (mode) => {
+    for (const id of ACCENT_IDS) {
+      const p = paletteFor(mode, id)
+      expect([id, contrast(p.text, p.canvas) > 12, contrast(p.muted, p.canvas) > 3.5, contrast(p.onAction, p.action) > 12]).toEqual([id, true, true, true])
+    }
   })
 
-  test.each(["light", "dark"] as const)("every %s accent reads as a link on its paper", (mode) => {
-    for (const id of ACCENT_IDS) expect([id, contrast(ACCENTS[id][mode], PALETTES[mode].canvas) > 3]).toEqual([id, true])
+  test.each(["light", "dark"] as const)("every %s accent reads as a link on the paper it seeds", (mode) => {
+    for (const id of ACCENT_IDS) expect([id, contrast(ACCENTS[id][mode], paletteFor(mode, id).canvas) > 3]).toEqual([id, true])
+  })
+
+  test("an accent tints the whole app: its paper and ink take the accent's hue", () => {
+    for (const mode of ["light", "dark"] as const) {
+      const papers = new Set(ACCENT_IDS.map((id) => paletteFor(mode, id).canvas))
+      expect(papers.size).toBe(ACCENT_IDS.length)
+      for (const id of ["mikan", "azure", "matcha", "lavender"] as const) {
+        const turn = Math.abs(oklchOf(paletteFor(mode, id).sidebar).h - oklchOf(ACCENTS[id][mode]).h)
+        expect([mode, id, Math.min(turn, 360 - turn) < 12]).toEqual([mode, id, true])
+      }
+    }
+    expect(tokensFor("light", "azure")["--background"]).toBe(paletteFor("light", "azure").canvas)
+  })
+
+  test("the default palette is the default accent's", () => {
+    expect(PALETTES).toEqual({ light: paletteFor("light", DEFAULT_ACCENT), dark: paletteFor("dark", DEFAULT_ACCENT) })
   })
 
   test("an accent colors the marks and your bubble, never the send button", () => {
     const vars = tokensFor("dark", "ramune")
     expect(vars["--ring"]).toBe(ACCENTS.ramune.dark)
     expect(vars["--message-user"]).toContain(ACCENTS.ramune.dark)
-    expect(vars["--primary"]).toBe(PALETTES.dark.action)
+    expect(vars["--primary"]).toBe(paletteFor("dark", "ramune").action)
   })
 
   test("contrast scales every neutral", () => {
-    expect(tokensFor("dark", "blush", 150)["--border"]).toBe(`color-mix(in oklab, ${PALETTES.dark.text} 12%, transparent)`)
+    expect(tokensFor("dark", "blush", 150)["--border"]).toBe(`color-mix(in oklab, ${paletteFor("dark", "blush").text} 9%, transparent)`)
   })
 })
 
@@ -156,9 +173,10 @@ describe("the pre-paint script", () => {
   }
   const cacheOf = (look: Look) => JSON.stringify({ v: 5, text: "x", mode: look.mode, vars: resolveLook(look) })
 
-  test("paints the cached tokens for the saved appearance", () => {
+  test("paints the cached tokens for the saved appearance, its own paper included", () => {
     const { style, dataset, classes } = boot(cacheOf({ ...DEFAULT_LOOK, mode: "light", accent: "matcha" }))
-    expect([style["--ring"], style["--boot-bg"], dataset.appearance, classes.has("dark")]).toEqual([ACCENTS.matcha.light, PALETTES.light.canvas, "light", false])
+    const matcha = paletteFor("light", "matcha")
+    expect([style["--ring"], style["--boot-bg"], style["--boot-fg"], dataset.appearance, classes.has("dark")]).toEqual([ACCENTS.matcha.light, matcha.canvas, matcha.text, "light", false])
   })
 
   test("with no cache, or a broken or old one, it paints the dark default whatever the system says", () => {
@@ -189,6 +207,23 @@ describe("the pre-paint script", () => {
   })
 })
 
+describe("painting a look", () => {
+  test("the page's own ink follows the look, not the pre-paint guess", () => {
+    const { root, style } = fakeRoot()
+    const page = { documentElement: { ...root, style: { ...root.style, removeProperty: () => {} } }, querySelectorAll: () => [] }
+    ;(globalThis as { document?: unknown }).document = page
+    try {
+      style["--boot-fg"] = PALETTES.light.text
+      applyCommitted({ ...DEFAULT_LOOK, mode: "dark" })
+      expect([style["--boot-bg"], style["--boot-fg"]]).toEqual([PALETTES.dark.canvas, PALETTES.dark.text])
+      applyCommitted({ ...DEFAULT_LOOK, mode: "light" })
+      expect([style["--boot-bg"], style["--boot-fg"]]).toEqual([PALETTES.light.canvas, PALETTES.light.text])
+    } finally {
+      delete (globalThis as { document?: unknown }).document
+    }
+  })
+})
+
 describe("imported themes", () => {
   test("paint while signed in and never on the signed-out screens", () => {
     const canvas = "#1e1e2e"
@@ -207,10 +242,5 @@ describe("the font names", () => {
   test("a typed name goes first, quoted when it has spaces, and the system stack follows", () => {
     expect(fontFamily("", SANS_STACK)).toBe(SANS_STACK)
     expect(fontFamily("Inter, JetBrains Mono", SANS_STACK)).toBe(`Inter, "JetBrains Mono", ${SANS_STACK}`)
-  })
-
-  test("headings take kiko's display face until the person names one of their own", () => {
-    expect(displayVars(DEFAULT_DISPLAY)["--font-family-display"]).toBe(DISPLAY_STACK)
-    expect(displayVars({ ...DEFAULT_DISPLAY, interfaceFont: "Inter" })["--font-family-display"]).toBe(`Inter, ${SANS_STACK}`)
   })
 })
