@@ -136,7 +136,10 @@ export async function bootstrapSession(): Promise<void> {
     }
     const res = await (early ?? apiFetch("/api/me"))
     if (!current()) return
-    if (res.status === 401) return await signedOut()
+    if (res.status === 401) {
+      if (state().status !== "signed-out") await signedOut()
+      return
+    }
     if (!res.ok) throw new Error(String(res.status))
     const { user } = (await res.json()) as { user: SessionUser }
     if (!current()) return

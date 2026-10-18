@@ -192,3 +192,13 @@ test("installed backend adoption preserves the active setup while exchanging", a
   expect(getToken()).toBe("installed")
   expect(authReset()).toBe(resets)
 })
+
+
+test("an unauthenticated boot does not reset an active installation callback", async () => {
+  const { authReset } = await import("./session")
+  await signOut()
+  const resets = authReset()
+  Object.assign(globalThis, { fetch: mock(async () => json({}, 401)) })
+  await bootstrapSession()
+  expect(authReset()).toBe(resets)
+})
