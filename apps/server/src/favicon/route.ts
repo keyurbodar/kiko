@@ -2,7 +2,7 @@ import { type Fetcher, safeFetch } from "@kiko/durable/safe-fetch"
 import { getFileUser, getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 
-// Architecture section 6.4. A link's icon comes from here, so the reader's browser never asks the
+// A link's icon comes from here, so the reader's browser never asks the
 // linked site, and no third party sees which hosts a chat names. Only a public host with a dot is
 // fetched, through the safe fetch helper, and the result is kept in the Cache API.
 const PREFIX = "/api/favicon/"

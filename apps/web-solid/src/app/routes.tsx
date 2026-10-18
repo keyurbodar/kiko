@@ -6,7 +6,7 @@ import { sectionOf } from "./sections"
 
 /*
  * The route table. One lazy route per rail item (chat and settings), so each section's code
- * loads on intent (architecture 19.3). The array paths are the product document's route list.
+ * loads on intent.
  * The shell is the router's `root`, so it stays mounted across every route change and only the
  * main panel's content swaps.
  */
@@ -27,8 +27,8 @@ export function preloadRoute(href: string): void {
 const activeChat = () => useApp.activeThreadId() ?? useApp.resumeChat()
 
 /*
- * `/` and `/chat` name no chat, so the app goes back to the one the user was last in (architecture
- * section 7.11): this device's copy at once, else the server's, else the kiko chat.
+ * `/` and `/chat` name no chat, so the app goes back to the one the user was last in: this device's
+ * copy at once, else the server's, else the kiko chat.
  */
 function Resume() {
   const navigate = useNavigate()

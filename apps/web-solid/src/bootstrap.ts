@@ -1,7 +1,6 @@
 /*
  * Tier 1 entry. Tiny on purpose: it loads tier 2 with a dynamic import and
  * holds the HTML shell until the first route's chunk is in, then swaps.
- * Architecture 19.3.
  */
 
 import { apiUrl, getToken, read } from "./lib/api-base";

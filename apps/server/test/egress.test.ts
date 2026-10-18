@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { userModels } from "../src/agent/factory"
 
-// Architecture section 17.3. With an egress fetch, a model request goes out through it, so on the
+// With an egress fetch, a model request goes out through it, so on the
 // Free plan each request is its own invocation with its own 50 subrequests.
 
 test("a model request goes out through the egress fetch", async () => {

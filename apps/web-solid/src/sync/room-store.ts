@@ -1,5 +1,5 @@
 import { humanAnswerText, type HumanAnswers, type KikoError } from "@kiko/protocol"
-// The open room. Architecture sections 9.2, 9.3, and 19.2.
+// The open room.
 //
 // It holds the visible message window in a Solid store, keeps the warm tier in
 // step, and talks to the room over one reconnecting socket.
@@ -338,7 +338,7 @@ export type SendOptions = {
 	replyTo?: MessageId
 	/** The words of `replyTo` this message answers. */
 	quote?: string
-	/** Uploads the room claims as it stores the message (section 18.1). Each was uploaded when it was picked. */
+	/** Uploads the room claims as it stores the message. Each was uploaded when it was picked. */
 	attachments?: readonly PendingAttachment[]
 	/** The same files from their blob URLs, so the message shows them until the room's copy arrives. */
 	local?: readonly LocalAttachment[]
@@ -706,7 +706,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		status: ({ t: _, ...f }) =>
 			batch(() => {
 				setState("status", f.slug, f.state)
-				// What the agent is doing now (section 7.12): shown in place of "typing".
+				// What the agent is doing now: shown in place of "typing".
 				setState("doing", f.slug, f.state === "idle" ? undefined : f.doing)
 				if (f.state === "idle") setState("live", f.slug, undefined)
 				setState(produce((s) => applyStatus(s, f)))

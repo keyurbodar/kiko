@@ -1,4 +1,4 @@
-// The integration request clients (Composio, Kernel). Architecture sections 12 and 27. One frame goes
+// The integration request clients (Composio, Kernel). One frame goes
 // out on the user socket with a `reqId`, and the frame of the same type with the same `reqId`
 // answers it. A frame with no `reqId` is a push, for example when another tab connects or
 // disconnects. A request made while the socket is down goes out on connect. No answer in

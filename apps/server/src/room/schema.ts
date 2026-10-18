@@ -239,7 +239,7 @@ export const ROOM_STEPS: Step[] = [
 		body TEXT NOT NULL,
 		chain TEXT
 	) STRICT`,
-	// One finished tool call (architecture 9.5): one row, written when it ends. `after_seq` is the seq of the agent's message before it. No secondary index: each would cost a write.
+	// One finished tool call: one row, written when it ends. `after_seq` is the seq of the agent's message before it. No secondary index: each would cost a write.
 	`CREATE TABLE IF NOT EXISTS run_steps (
 		run_id TEXT NOT NULL,
 		id TEXT NOT NULL,

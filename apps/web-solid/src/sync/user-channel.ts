@@ -1,4 +1,4 @@
-// The one user socket, shared. Architecture section 9.1.
+// The one user socket, shared.
 //
 // The user store owns the socket. Everything else that talks to UserDO (the saved look, memory,
 // Composio) sends and listens through this channel instead of opening a socket of its own: four

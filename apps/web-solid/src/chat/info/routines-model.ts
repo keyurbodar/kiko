@@ -1,6 +1,6 @@
 import type { Trigger } from "@kiko/protocol"
 
-// A chat's routines (architecture section 25), as the panel lists them: what starts each one,
+// A chat's routines, as the panel lists them: what starts each one,
 // in words. Pure, so the table of cases is tested without a DOM.
 
 const DAYS: Record<string, string> = { MO: "Mon", TU: "Tue", WE: "Wed", TH: "Thu", FR: "Fri", SA: "Sat", SU: "Sun" }

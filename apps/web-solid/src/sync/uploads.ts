@@ -4,8 +4,8 @@ import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { apiFetch, apiUrl, getToken } from "../lib/api"
 
 /*
- * Composer attachments upload the moment they are picked, as t3code's do (architecture section
- * 18.1, its `attachmentUploadQueue.ts`). Each lands in the room as a pending upload under an id this
+ * Composer attachments upload the moment they are picked, as t3code's do. Each lands in the room
+ * as a pending upload under an id this
  * queue chose, and the send names those ids; the room claims them as it stores the message. Three
  * upload at once, over XHR so the strip can show progress in 5% steps, and a request gives up after
  * five minutes. A failed upload waits for a retry: the button on its thumbnail, or the room's socket

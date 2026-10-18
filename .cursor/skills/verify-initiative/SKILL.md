@@ -5,23 +5,23 @@ description: "Prove Kiko's proactive behavior (reminders, initiative nudges, Jev
 
 # Verify initiative
 
-Builds on `verify-kiko-server` (same CLI client and dev server). Real models only: the suites in `apps/cli/src/verify/suites/proactive.ts` use fakes; this skill does not. Spends tokens, so keep scenarios short. Never print or commit a key.
+Builds on `verify-kiko` (same CLI client and dev server). Real models only: the `proactive` suite in `apps/cli/src/verify/suites/proactive.ts` uses fakes; this skill does not. Spends tokens, so keep scenarios short. Never print or commit a key.
 
 ## Launch
 
 ```bash
-.cursor/skills/verify-initiative/scripts/server.sh start    # builds apps/web-solid once if dist is missing, starts bun dev:server, waits for /api/health
-.cursor/skills/verify-initiative/scripts/server.sh doctor   # health, dev routes (HTTP 200), port owner, key presence
+.cursor/skills/verify-initiative/scripts/server.sh start    # builds apps/web-solid once if dist is missing, starts the dev server, waits for /api/health
+.cursor/skills/verify-initiative/scripts/server.sh doctor   # health, dev routes, port owner, key presence
 .cursor/skills/verify-initiative/scripts/server.sh stop     # when done
 ```
 
-`start` refuses if something already answers on 8787 (another worktree's server): drive that one or set `KIKO_URL=http://localhost:<your port>`. When `KIKO_URL` is set, every `server.sh` action and every `bun kiko` command targets your own server, and the CLI prints `kiko: target <url>` on its first line. It also needs `apps/server/.dev.vars`, the symlink a git hook adds; it fails without it. Log and pid are in `artifacts/initiative/` (git ignores `artifacts/`). Run `doctor` first whenever anything looks off.
+`start` refuses if something already answers on 8787 (another worktree's server): drive that one, or set `KIKO_URL=http://localhost:<your port>` and every `server.sh` action and `bun kiko` command targets yours. It needs `apps/server/.dev.vars` and fails without it. Log and pid are in `artifacts/initiative/` (git ignores `artifacts/`). Run `doctor` first whenever anything looks off.
 
 ## Models and keys
 
-- Agent model: provider `opencode-go`, model id `muse-spark-1.3-contributor` (display name "Muse Spark 1.3 Contributor"), or `KIKO_TEST_MODEL`. Kiko has no default model, so `connectTestModel` connects the provider and then picks Kiko's model, as the human does.
-- Jev judge: provider id `typesafe`, key `TYPESAFE_API_KEY`.
-- `kit.ts` reads both from the shell or `apps/server/.dev.vars` and stores them with `PUT /api/credentials/<provider>` (`connectTestModel`, `connectProvider`). Without the typesafe credential there is no judge; capture `auto` then costs nothing.
+- Agent model: provider `opencode-go`, model `muse-spark-1.3-contributor`, or `KIKO_TEST_MODEL`. Kiko has no default model, so `connectTestModel` connects the provider and then picks Kiko's model, as the human does.
+- Jev judge: provider `typesafe`, key `TYPESAFE_API_KEY`.
+- `kit.ts` reads both from the shell or `apps/server/.dev.vars` and stores them with `PUT /api/credentials/<provider>`. Without the typesafe credential there is no judge; capture `auto` then costs nothing.
 
 ## Drive
 
@@ -31,41 +31,30 @@ Write a scenario in `scripts/` that imports `./kit` (run with `bun`, from the re
 | --- | --- |
 | `setup({ name, jev, policy? })` | dev login, connect opencode-go, Jev on/off, sets `memory_policy` (batch 2, idle 3 s, jev delay 1 s) |
 | `setJev(ctx, on)` | toggle mid-run: PUT or DELETE the typesafe credential |
-| `openChat(ctx, title)` / `say(room, text)` | new room; human message, waits for the agent idle, returns the agent's bubbles |
-| `transcript(room)` | full room log (human, agent, system) |
-| `lifeLines(ctx)` | memory `list` over the user socket (source "you" = captured, "@slug" = agent note) |
+| `openChat(ctx, title)` / `say(room, text)` | new room; human message, waits for the agent idle, returns its bubbles |
+| `transcript(room)` / `lifeLines(ctx)` | full room log; memory `list` over the user socket (source "you" = captured, "@slug" = agent note) |
 | `reminders(ctx)` / `routines(url, s)` | `GET /api/reminders`; routines and runs |
-| `usage(ctx, room)` | `{ agent, memory }`; `memory` is the `MEMORY_USAGE` counters (capture_model, capture_jev, jev_input, jev_output, jev_errors, facts_replaced...) |
-| `background(memory)` | sum of background input and output tokens, for cost A/B |
+| `usage(ctx, room)` / `background(memory)` | `{ agent, memory }` counters; background input plus output tokens, for cost A/B |
 | `age(ctx, room, ms)` / `seen(ctx, ago)` / `due(ctx, id)` | dev routes below |
 | `save(ctx, name, data)` | writes JSON evidence |
 
-Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. For a cost A/B, run `smoke.ts` with and without `--jev` and compare the `background tokens` lines. The daily pass has a suite: `bun kiko verify proactive`.
+Smoke: `bun .cursor/skills/verify-initiative/scripts/smoke.ts [--jev]`. For a cost A/B, run it with and without `--jev` and compare the `background tokens` lines.
 
-### Dev routes that exist (NODE_ENV=development, localhost only), all `POST /api/dev/agent/<name>`
+### Dev routes (`NODE_ENV=development`, localhost only), all `POST /api/dev/agent/<name>`
 
-Useful here: `pass` (runs the daily initiative pass now and returns what it woke), `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages the chat's open tasks and reports the board to UserDO, which is what the pass reads), `seen {ago}` (human last seen; a week holds unasked runs), `budget {roomId, ms}` (budget for unasked runs), `due {id}` (routine due now), `pending`, `limits`. Also `workers`, `composio`, `browser` (the last one is `{action}`: `lease`, `touch`, `dead`, `age`, `reap`, `switch`, `state`). Fake-agent and inspection routes: `fake`, `status`, `seed` (log turns with no run), `memory`, `classic`, `trace`. Also `GET /api/dev/stats`, `POST /api/reminders/<id>/rewind`.
+Useful here: `pass` (runs the daily pass now and returns what it woke), `usage {roomId, slug?}`, `policy {policy}`, `age {roomId, ms}` (ages the chat's open tasks and reports the board to UserDO, which is what the pass reads), `seen {ago}`, `budget {roomId, ms}`, `due {id}`, `pending`, `limits`. Also `GET /api/dev/stats` and `POST /api/reminders/<id>/rewind`.
 
-### Gaps an initiative suite will hit
-
-- No route ages memory lines or the life log (for staleness or "follow up on a stated deadline" behavior).
-- `usage` memory counters are cumulative per user; take a before and after, or use a fresh user per arm.
+No route ages memory lines or the life log. `usage` memory counters are cumulative per user: take a before and after, or use a fresh user per arm.
 
 ## What the engine does
 
 Use these rules when a scenario asserts timing. They are in `apps/server/src/initiative/engine.ts`.
 
-- Input. Each chat reports its open task board to `UserDO.chatTasks` whenever its tasks change, and the pass reads those rows (`chat_tasks`). A task owned by an agent is raised with that agent; any other goes to the chat's lead.
-- Daily pass. Once a day at 09:00 in the owner's time zone, the chat's oldest open task wakes the chat. The oldest change goes first, one chat per pass at `digest` and up to three at `active`. A task raised in the last 3 days waits. A private or deleted chat is skipped.
-- Retry. A wake that was busy, gone, or refused tries again in an hour, not a day.
-- Wake ids. `task:<room>:<task>#<day>`, so a second pass the same day is a duplicate, not a second message.
+- Each chat reports its open task board to `UserDO.chatTasks` when its tasks change, and the pass reads those rows. A task owned by an agent is raised with that agent; any other goes to the chat's lead.
+- Once a day at 09:00 in the owner's time zone, the chat's oldest open task wakes the chat. The oldest change goes first, one chat per pass at `digest` and up to three at `active`. A task raised in the last 3 days waits. A private or deleted chat is skipped.
+- A wake that was busy, gone, or refused tries again in an hour.
+- Wake ids are `task:<room>:<task>#<day>`, so a second pass the same day is a duplicate, not a second message.
 
 ## Evidence
 
-Each `save` lands in `artifacts/initiative/<timestamp>-<name>/` (transcript, lifelines, usage, reminders, routines JSON). Proof standard: real user path (CLI client sockets and credentials route), the agent's actual bubbles, and the side effects (life lines, reminders, counters) read back, not just the reply. Cleanup removes the server, never the artifacts.
-
-## Cleanup
-
-`server.sh stop` kills the PID in `artifacts/initiative/server.pid` and its children, and nothing else. It never touches another process on the port, so it cannot stop another session's server. Dev users and rooms stay in local wrangler state, which is fine.
-
-Features: [features/README.md](./features/README.md).
+Each `save` lands in `artifacts/initiative/<timestamp>-<name>/`. Proof standard: the real user path (CLI client sockets and the credentials route), the agent's actual bubbles, and the side effects (life lines, reminders, counters) read back, not just the reply. `server.sh stop` kills only the PID in `artifacts/initiative/server.pid` and its children, and never touches the artifacts.

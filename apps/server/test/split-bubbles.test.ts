@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "bun:test";
 import { createSplitter, type Reaction } from "../src/agent/split-bubbles";
 
 function run(text: string, size: number) {

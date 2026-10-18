@@ -5,7 +5,7 @@ import { Group, Row, Segmented, Skeleton } from "./kit"
 import { apiFetch } from "../lib/api"
 
 /*
- * Initiative (architecture section 26): how much Kiko may speak up unasked, and whether it writes down
+ * Initiative: how much Kiko may speak up unasked, and whether it writes down
  * facts it hears. Each choice applies at once and is put back, with a toast, if the server refuses it.
  */
 

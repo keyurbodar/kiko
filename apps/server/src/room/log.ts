@@ -498,7 +498,7 @@ export class RoomLog {
 	}
 
 	/** Stores one event and returns it with its seq. Call inside a transaction with the state change. */
-	/** The newest message `slug` posted after `after`, or null (section 25.2: did a routine run say anything). */
+	/** The newest message `slug` posted after `after`, or null. */
 	lastAgentMessage(slug: string, after: number): { seq: number; text: string } | null {
 		return (
 			this.sql

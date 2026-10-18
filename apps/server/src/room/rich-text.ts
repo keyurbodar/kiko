@@ -1,4 +1,4 @@
-// Architecture section 6.4. One function turns agent markdown into the
+// One function turns agent markdown into the
 // protocol tree. The `marked` lexer is confined to this file. Nothing here
 // emits HTML: a raw HTML token becomes text. A link keeps its href when it is
 // http, https, or mailto, or when it names a file (no scheme, or `file:`). The

@@ -5,17 +5,14 @@
   "scripts": {
     "dev": "wrangler dev",
     "test": "bun scripts/test-each.ts",
-    "test:workerd": "vitest run",
     "typecheck": "tsc --noEmit",
     "deploy": "NODE_ENV=production wrangler deploy",
     "deploy:dry": "NODE_ENV=production wrangler deploy --dry-run"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "^4.20260101.0",
     "miniflare": "^4",
     "typescript": "^5.9.0",
-    "vitest": "^4.1.0",
     "wrangler": "^4.0.0"
   },
   "dependencies": {

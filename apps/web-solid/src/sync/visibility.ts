@@ -1,4 +1,4 @@
-// Background tabs. Architecture section 19.6.
+// Background tabs.
 //
 // A hidden tab spends nothing. After `delayMs` hidden the room socket closes.
 // The user socket stays, because the server hibernates it and it is silent.

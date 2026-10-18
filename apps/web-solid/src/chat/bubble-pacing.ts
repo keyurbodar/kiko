@@ -1,4 +1,4 @@
-// Bubble pacing. Architecture section 6.3.
+// Bubble pacing.
 //
 // The server posts a block the moment the model finishes it, so a long answer
 // lands as one burst. The client spaces the bubbles of a live run so they

@@ -1,4 +1,4 @@
-// One row per message, keyed by [roomId, seq]. Architecture section 19.2.
+// One row per message, keyed by [roomId, seq].
 // The room's `lastSeq` lives in `meta`, so a socket can resume from it.
 
 import type { Message, RoomId } from "@kiko/protocol"

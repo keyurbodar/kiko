@@ -48,7 +48,7 @@ function slugOf(agentId: string): string {
   return agentId.split(/[/:]/).pop() ?? agentId
 }
 
-// The user's one Kernel browser, leased to their agents (architecture section 27). The CDP URL
+// The user's one Kernel browser, leased to their agents. The CDP URL
 // goes to the agent that asked and nowhere else. The Kernel key never leaves this object.
 export class KernelWiring {
   readonly browser: KernelLease
@@ -118,7 +118,7 @@ export class KernelWiring {
    * The live view link, for an agent to hand to the human. `control` pauses every agent's browser tools until the
    * human releases it, so it is the request for a login, a captcha, or a payment. With a `reason`, a control request
    * becomes a card in the chat with Take control and Release control buttons, and holds no link. A watch link with a
-   * reason is posted as a plain message from the agent, because the owner asked for it in the chat (section 27.7).
+   * reason is posted as a plain message from the agent, because the owner asked for it in the chat.
    * A worker never posts, and it is the worker that hits the login. `agentId` ends in the agent's slug.
    */
   async liveLink(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {

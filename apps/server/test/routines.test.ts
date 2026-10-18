@@ -9,7 +9,7 @@ import { parseTrigger } from "../src/agent/extensions/routines"
 import { describeTrigger } from "../src/user/reminders"
 import { matchWebhook, type RoomRoutine } from "../src/user/routines"
 
-describe("triggers (section 25.4)", () => {
+describe("triggers", () => {
   const decode = Schema.decodeUnknownSync(Trigger)
 
   test("the schema takes time, message, and webhook, and refuses the cut triggers or too many conditions", () => {

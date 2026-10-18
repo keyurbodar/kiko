@@ -3,7 +3,7 @@ import { chatFaces, chatSeed } from "./identity"
 // all read and write it through `useApp`, so none of them knows about sockets,
 // IndexedDB, or wire types.
 //
-// Boot order, architecture section 19.2:
+// Boot order:
 //
 //   1. The shell paints. `main.tsx` calls `useApp.start(userId)` from an effect,
 //      so the first frame never waits on this file.
@@ -269,7 +269,7 @@ export function createApp(options: AppOptions = {}) {
     let views = new Map<string, { sig: string; view: ChatMessage }>()
 
     /*
-     * Bubble pacing (architecture 6.3). A bubble of a live run that arrives faster than a person
+     * Bubble pacing. A bubble of a live run that arrives faster than a person
      * could type it is held out of the view, not out of the store, so a reload shows all of them.
      * `paced` bumps when a bubble is held or released.
      */
@@ -470,7 +470,7 @@ export function createApp(options: AppOptions = {}) {
     })
 
     /*
-     * The chat the user was last in (architecture section 7.11). This device keeps its own copy in
+     * The chat the user was last in. This device keeps its own copy in
      * localStorage, read at once on boot; the server keeps one for a new device.
      */
     const lastKey = () => (session ? `kiko.last-chat:${session.userId}` : null)
@@ -623,7 +623,7 @@ export function createApp(options: AppOptions = {}) {
         return room()?.folders() ?? []
       },
 
-      /** The user's drive, /home (architecture section 18.3): the same in every chat. */
+      /** The user's drive, /home: the same in every chat. */
       homeFiles(): FileRef[] {
         return userStore()?.homeFiles() ?? []
       },

@@ -1,5 +1,5 @@
 // The model catalog the settings screen reads, and the pure helpers around it.
-// The server serves it at /api/models from its live copy of pi's catalog (architecture 11.5). It is
+// The server serves it at /api/models from its live copy of pi's catalog. It is
 // fetched when settings or the model picker first opens, never bundled.
 
 import type { Catalog, CatalogModel, CatalogProvider, ConnectMethod } from "@kiko/protocol"

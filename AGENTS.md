@@ -1,6 +1,6 @@
 # kiko
 
-Kiko is a general-purpose AI chat web app . People text one agent or a team of agents. It runs on Cloudflare Workers and Durable Objects, with a SolidJS client. Kiko is self-deployed: one Worker serves one owner, who brings their own model keys.
+Kiko is a general-purpose AI chat web app. People text one agent or a team of agents. It runs on Cloudflare Workers and Durable Objects, with a SolidJS client. Kiko is self-deployed: one Worker serves one owner, who brings their own model keys.
 
 ## Principles
 
@@ -41,7 +41,7 @@ Kiko is a general-purpose AI chat web app . People text one agent or a team of a
 - Read `process.env.NODE_ENV` only in `apps/server/src/lib/dev-guard.ts`.
 - Do not import Effect, CodeMirror, or a markdown parser into client tiers 1 to 3.
 - Do not hard-code a model list, a provider adapter, or a Composio tool name. They come from `pi-ai` and Composio at run time.
-- Do not commit a secret. Keys live in `.dev.vars` and CI secrets. `OPENCODE_API_KEY` is read from the environment.
+- Do not commit a secret. Keys live in `.dev.vars` and CI secrets.
 - Do not build notifications, share links, a terminal, a browser panel, or anything on Convex.
 - Do not add a second owner. No sign-up, no accounts for other people, no account database.
 
@@ -53,24 +53,21 @@ bun dev:server        # the Worker and Durable Objects on localhost:8787
 bun dev:web           # the client on localhost:5173, proxying /api to the server
 ```
 
-Use `localhost`, not `127.0.0.1`. Keys for local runs live in `~/.config/kiko/dev.vars`, linked from `apps/server/.dev.vars`. Never print a key.
-
-Dev-only sign-in: `/api/auth/dev/session?name=<name>` returns a bearer token for a named dev owner. It works only in a development build on a local host.
+Use `localhost`, not `127.0.0.1`. Keys for local runs live in `~/.config/kiko/dev.vars`, linked from `apps/server/.dev.vars`. Never print a key. The dev-only route `/api/auth/dev/session?name=<name>` returns a bearer token for a named dev owner, in a development build on a local host only.
 
 Several sessions run dev servers at once. Never `pkill` or `killall` wrangler, workerd, or vite. Start your own server on a free port and stop only its PID.
 
 ## Checks
 
 ```bash
-bun run check                                   # typecheck, lint, imports, rules, exports, tests
-bun run test                                    # every package's tests
-bun run --cwd apps/server test                  # server tests
+bun run check                                   # typecheck, lint, imports, rules, exports, tests; cached, so a rerun is fast
+bun run --cwd apps/server test                  # server tests only, one process per file
 bun kiko verify --list                          # backend suites
 bun kiko verify <suite> --url http://localhost:<n>
 bun scripts/bundle-budget.ts                    # client tier sizes
 ```
 
-Backend behavior is verified through `bun kiko verify`. A backend feature adds or extends its suite in the same change. Frontend behavior is checked in a real browser with the `verify-kiko` skill in `.cursor/skills/`.
+Run only the tests and suites your change touches. CI runs the full gate and every model-free suite on each push, so a full local run repeats it. Frontend behavior is checked in a real browser with the `verify-kiko` skill in `.cursor/skills/`.
 
 A test must fail when the behavior breaks. A test that only proves the code runs does not count.
 

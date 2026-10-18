@@ -3,7 +3,7 @@ import { debounce } from "@solid-primitives/scheduled"
 import { onCleanup } from "solid-js"
 
 /*
- * Intent preloading (architecture 19.3). "Intent" is the pointer resting on an
+ * Intent preloading. "Intent" is the pointer resting on an
  * element for 80 ms, a pointer down, or keyboard focus. The callback is how
  * the caller warms what the element opens: a route chunk or a chat's messages.
  *
