@@ -93,13 +93,20 @@ function signedIn(user: SessionUser): void {
   setState({ status: "signed-in", user })
 }
 
-/** Drops the flag and the user's warm tier, then shows sign-in. */
+/**
+ * Drops the flag and the user's warm tier, then shows sign-in.
+ *
+ * The backend address goes with it. A signed-out browser has nothing to ask a backend for, and the
+ * next sign-in writes the address its own Clerk account holds before it makes any request. Keeping
+ * the address is what made a switch between two accounts start from the first one's backend.
+ */
 async function signedOut(reset = true): Promise<void> {
   generation++
   if (reset) setAuthReset((n) => n + 1)
   setBackendConnectionNotice("")
   setProfile(null)
   write("kiko:snap", null)
+  write("kiko:backend", null)
   const current = state()
   const userId = current.status === "signed-in" ? current.user.id : readFlag()?.id
   writeFlag(null)
@@ -159,9 +166,8 @@ setUnauthorizedHandler(() => {
 })
 
 /*
- * Signing out, from any button or command. It drops this person's token, snapshot, warm tier and
- * profile. A hosted build also ends the Clerk session. `kiko:backend` stays, so the next sign-in
- * goes straight back to the same backend.
+ * Signing out, from any button or command. It drops this person's token, snapshot, warm tier,
+ * backend address and profile. A hosted build also ends the Clerk session.
  */
 export async function signOut(): Promise<void> {
   setAutoResume(false)
@@ -242,9 +248,9 @@ export async function signInWithClerk(): Promise<"in" | "connect" | "none"> {
     if (attempt !== generation) return "none"
     if (e instanceof ClerkRejected) {
       if (e.status === 403 && e.message === "This backend belongs to someone else.") {
+        const rejected = found.backendUrl
         await signedOut()
-        write("kiko:backend", null)
-        setBackendConnectionNotice("This backend belongs to another Kiko account. Connect your own Cloudflare backend to continue, or sign out and use the account that owns it.")
+        setBackendConnectionNotice(ownedByAnother(rejected))
         return "connect"
       }
       // Invalid or expired tokens and other forbidden responses are not missing backends.
@@ -282,6 +288,24 @@ const hostOf = () => {
     return "your backend"
   }
 }
+
+/** The host of an address, for a sentence about it. */
+const hostIn = (address: string | null): string => {
+  try {
+    return address ? new URL(address).host : "your backend"
+  } catch {
+    return "your backend"
+  }
+}
+
+/**
+ * The backend this account is pointed at belongs to a different Kiko account. An earlier Kiko gave
+ * every account on one Cloudflare account the same Worker name, so a second sign-up took the first
+ * one's backend; the current installer gives each account its own. Nothing here can open the other
+ * account's backend, so the sentence says what happened and the one thing that fixes it.
+ */
+export const ownedByAnother = (address: string | null): string =>
+  `${hostIn(address)} is another Kiko account's backend. An older version of Kiko shared one backend between accounts on the same Cloudflare account. Install one for this account below: it takes about a minute and leaves the other account's chats alone.`
 
 export const unreachableText = () =>
   `This device cannot reach ${hostOf()} yet. A new Cloudflare address can take a few minutes to reach every network. Try again in a minute. If you use a VPN, Private DNS, or an ad blocker, allow workers.dev.`
