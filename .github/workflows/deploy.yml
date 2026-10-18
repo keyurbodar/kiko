@@ -19,17 +19,27 @@ on:
 permissions:
   contents: read
 
-# Two deploys never run at once. They upload the same three Workers, so a slower older one
-# finishing last would put an older bundle live. `queued` lets a newer deploy wait its turn
-# instead of being cancelled, so the last commit to land is the one that ends up deployed.
-concurrency:
-  group: deploy
-  cancel-in-progress: false
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Two deploys never run at once. They upload the same three Workers, so a slower older one
+    # finishing last would put an older bundle live.
+    #
+    # This lives on the job, not on the workflow, because the release workflow calls this file:
+    # a workflow-level group is not evaluated for a called workflow, while a job-level one is.
+    # Declaring it once here is also what keeps a release's caller job and this job out of the
+    # same group, which would deadlock against itself.
+    #
+    # `queue: max` is what makes the waiting one survive. The default queue is `single`: a new
+    # run entering the group cancels the pending one and takes its place. A release would then
+    # have pushed its tag and bumped main, but its deploy would never run, and a tag with no
+    # GitHub release is left behind. actionlint 1.7.12 does not know `queue` yet; the key is in
+    # GitHub's concurrency reference.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+      queue: max
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
