@@ -19,6 +19,13 @@ on:
 permissions:
   contents: read
 
+# Two deploys never run at once. They upload the same three Workers, so a slower older one
+# finishing last would put an older bundle live. `queued` lets a newer deploy wait its turn
+# instead of being cancelled, so the last commit to land is the one that ends up deployed.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

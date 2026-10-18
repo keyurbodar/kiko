@@ -2,10 +2,60 @@ name: ci
 
 on:
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - ".cursor/**"
+      - "LICENSE*"
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - ".cursor/**"
+      - "LICENSE*"
+
+# A push that lands while an older one is still running cancels the older run. Without this, three
+# pushes to one branch ran three full verifies at once, and only the last one's result counts.
+# main is grouped by ref as well, so a merge commit cancels the run for the commit it merged.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # Which paths a push touched. A client-only change does not need the 15-minute backend suites: the
+  # client build is covered by bundle-budget, and its tests by check. Anything the worker loads does.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="origin/${{ github.base_ref }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          # A new branch or a rewritten history has no usable base: run everything.
+          if ! git rev-parse --verify -q "$base" > /dev/null; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only "$base" HEAD || true)"
+          echo "changed files:"; echo "$changed" | sed 's/^/  /'
+          # An empty diff means the base is wrong, not that nothing changed. Run everything.
+          if [ -z "$changed" ]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if echo "$changed" | grep -qE '^(apps/server|core|packages|apps/cli|scripts)/|^(bun\.lock|package\.json|tsconfig\.json|\.github/workflows/)'; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
   check:
     runs-on: ubuntu-latest
     steps:
@@ -23,7 +73,14 @@ jobs:
 
   # Real backend verification. It needs no repository secret and no model key, so it is
   # safe for a pull request from a fork. It has only the read-only `contents` permission.
+  #
+  # It is the expensive job: it boots a worker and runs 47 suites, about 15 minutes. It changes
+  # nothing outside the backend and the code the backend loads, so a change that only touches the
+  # client, the docs, or CI config does not need it. `check` still runs for those, and it runs the
+  # unit tests for every package including this one.
   verify:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
