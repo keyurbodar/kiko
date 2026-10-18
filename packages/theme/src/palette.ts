@@ -100,8 +100,9 @@ export function tokensFor(mode: ThemeAppearance, accentId: AccentId = DEFAULT_AC
   vars["--popover"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 5%, ${p.canvas})` : `color-mix(in oklab, #ffffff 55%, ${p.canvas})`
   vars["--tooltip"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 14%, ${p.canvas})` : p.text
   vars["--tooltip-foreground"] = mode === "dark" ? p.text : p.canvas
-  // Unify's layering: the human's bubble is a lifted neutral with only a hint of the accent.
-  vars["--message-user"] = `color-mix(in oklab, ${accent} ${mode === "dark" ? 10 : 8}%, ${ink(mode === "dark" ? 9 : 6)})`
+  // Material 3 tonal layering: the human's bubble is a solid container tinted from the accent, one
+  // step up from the page, so it reads as its own layer and not as a faint wash over grey.
+  vars["--message-user"] = `color-mix(in oklab, ${accent} ${mode === "dark" ? 24 : 16}%, ${p.canvas})`
   vars["--message-user-deep"] = vars["--message-user"]!
   vars["--message-user-foreground"] = p.text
   vars["--ring-wash"] = `color-mix(in oklab, ${accent} ${mode === "dark" ? 14 : 11}%, transparent)`

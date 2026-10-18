@@ -247,8 +247,8 @@
   --popover: color-mix(in oklab, #ececec 5%, #171717);
   --tooltip: color-mix(in oklab, #ececec 14%, #171717);
   --tooltip-foreground: #ececec;
-  --message-user: color-mix(in oklab, #346bf1 10%, color-mix(in oklab, #ececec 9%, transparent));
-  --message-user-deep: color-mix(in oklab, #346bf1 10%, color-mix(in oklab, #ececec 9%, transparent));
+  --message-user: color-mix(in oklab, #346bf1 24%, #171717);
+  --message-user-deep: color-mix(in oklab, #346bf1 24%, #171717);
   --message-user-foreground: #ececec;
   --ring-wash: color-mix(in oklab, #346bf1 14%, transparent);
 }
@@ -283,8 +283,8 @@
   --popover: color-mix(in oklab, #ffffff 55%, #fcfcfc);
   --tooltip: #27272a;
   --tooltip-foreground: #fcfcfc;
-  --message-user: color-mix(in oklab, #1b4ed8 8%, color-mix(in oklab, #27272a 6%, transparent));
-  --message-user-deep: color-mix(in oklab, #1b4ed8 8%, color-mix(in oklab, #27272a 6%, transparent));
+  --message-user: color-mix(in oklab, #1b4ed8 16%, #fcfcfc);
+  --message-user-deep: color-mix(in oklab, #1b4ed8 16%, #fcfcfc);
   --message-user-foreground: #27272a;
   --ring-wash: color-mix(in oklab, #1b4ed8 11%, transparent);
 }
