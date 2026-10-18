@@ -1,0 +1,181 @@
+/*
+ * Sky scenes. Two shapes of the same idea: a dark field with one source of soft light and a little
+ * grain. Nothing here is interactive, nothing animates on the main thread, and every moving part
+ * stops under `prefers-reduced-motion`.
+ */
+
+.sky {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.sky > * {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* The band is a window on the scene: the sidebar draws the top 116px of it and fades it out. */
+.sky[data-sky-size="band"] {
+  inset: 0 0 auto;
+  height: 150px;
+  mask-image: linear-gradient(#000 0, #000 42%, rgb(0 0 0 / 70%) 66%, transparent 100%);
+  -webkit-mask-image: linear-gradient(#000 0, #000 42%, rgb(0 0 0 / 70%) 66%, transparent 100%);
+}
+
+/* ---------- Moonlit ---------- */
+
+.sky[data-sky="moonlit"] {
+  background: #08090d;
+}
+
+/* The moon: one soft disc, brighter at its rim, breathing very slowly. */
+.sky[data-sky="moonlit"] .sky-glow {
+  top: 0;
+  left: 50%;
+  width: 640px;
+  height: 640px;
+  margin: -320px 0 0 -320px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    oklch(0.93 0.03 255 / 22%),
+    oklch(0.7 0.1 262 / 13%) 28%,
+    oklch(0.55 0.12 262 / 5%) 60%,
+    transparent
+  );
+  transform: translateY(var(--sky-halo-y, 190px));
+  animation: sky-breathe 8s ease-in-out infinite;
+}
+
+/* The beam: moonlight falling through the frame, wider at the bottom. */
+.sky[data-sky="moonlit"] .sky-beam {
+  inset: 0;
+  clip-path: polygon(44% 0, 56% 0, 86% 100%, 14% 100%);
+  background: linear-gradient(
+    oklch(0.85 0.05 255 / 10%),
+    oklch(0.75 0.07 260 / 5%) 55%,
+    transparent
+  );
+  filter: blur(14px);
+}
+
+/* In the band the moon moves to the corner, where a header leaves room for it. */
+.sky[data-sky="moonlit"][data-sky-size="band"] .sky-glow {
+  top: -150px;
+  right: -120px;
+  left: auto;
+  width: 400px;
+  height: 330px;
+  margin: 0;
+  transform: none;
+  background: radial-gradient(
+    closest-side,
+    oklch(0.96 0.03 255 / 55%),
+    oklch(0.74 0.1 262 / 26%) 38%,
+    oklch(0.58 0.12 264 / 8%) 66%,
+    transparent
+  );
+}
+
+.sky[data-sky="moonlit"][data-sky-size="band"] .sky-beam {
+  display: none;
+}
+
+/* ---------- Bokeh ---------- */
+
+.sky[data-sky="bokeh"] {
+  background: #08090d;
+}
+
+/*
+ * Big, soft, out-of-focus lights close to the lens. Each disc is one radial gradient, so there is no
+ * blur filter over the whole frame and the scene stays cheap at full window size.
+ */
+.sky[data-sky="bokeh"] .sky-bokeh {
+  inset: 0;
+  background:
+    radial-gradient(circle 240px at 14% 22%, rgb(188 206 255 / 26%), rgb(188 206 255 / 10%) 55%, transparent 100%),
+    radial-gradient(circle 170px at 79% 13%, rgb(208 222 255 / 30%), rgb(208 222 255 / 12%) 55%, transparent 100%),
+    radial-gradient(circle 300px at 90% 58%, rgb(176 198 255 / 20%), rgb(176 198 255 / 8%) 58%, transparent 100%),
+    radial-gradient(circle 260px at 20% 78%, rgb(192 212 255 / 22%), rgb(192 212 255 / 9%) 58%, transparent 100%),
+    radial-gradient(circle 130px at 56% 40%, rgb(214 226 255 / 16%), rgb(214 226 255 / 6%) 55%, transparent 100%),
+    radial-gradient(circle 110px at 38% 6%, rgb(206 220 255 / 22%), transparent 100%),
+    radial-gradient(circle 90px at 68% 88%, rgb(198 214 255 / 14%), transparent 100%);
+  filter: blur(26px);
+  animation: sky-drift 26s ease-in-out infinite alternate;
+}
+
+/* Corners stay darker than the middle, so the lights read as lights instead of a lit room. */
+.sky[data-sky="bokeh"]::after {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 44%, transparent 30%, rgb(3 4 7 / 58%) 100%);
+  content: "";
+  pointer-events: none;
+}
+
+/* Corners stay darker than the middle, so the lights read as lights instead of a lit room. */
+.sky[data-sky="bokeh"]::after {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(115% 85% at 50% 42%, transparent 34%, rgb(3 4 7 / 62%) 100%);
+  content: "";
+  pointer-events: none;
+}
+
+/* The band shows the same lights, smaller and dimmer, so the crop does not read as a spotlight. */
+.sky[data-sky="bokeh"][data-sky-size="band"] .sky-bokeh {
+  opacity: 0.55;
+  transform: scale(1.15);
+}
+
+/* ---------- Shared ---------- */
+
+/* Stars: a tiled dot field, so the count does not depend on the window size. */
+.sky .sky-stars {
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 34px 18px, rgb(238 241 255 / 90%) 0 0.6px, transparent 1.1px),
+    radial-gradient(circle at 96px 44px, rgb(238 241 255 / 55%) 0 0.5px, transparent 1px),
+    radial-gradient(circle at 152px 10px, rgb(238 241 255 / 75%) 0 0.65px, transparent 1.1px),
+    radial-gradient(circle at 198px 52px, rgb(238 241 255 / 45%) 0 0.5px, transparent 0.95px),
+    radial-gradient(circle at 62px 68px, rgb(238 241 255 / 40%) 0 0.45px, transparent 0.9px),
+    radial-gradient(circle at 244px 26px, rgb(238 241 255 / 60%) 0 0.55px, transparent 1px);
+  background-size: 264px 76px;
+  opacity: 0.85;
+}
+
+.sky[data-sky="bokeh"] .sky-stars {
+  display: none;
+}
+
+/* A single layer of noise, so a flat dark field does not band on a wide gamut display. */
+.sky .sky-grain {
+  inset: 0;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes sky-breathe {
+  50% {
+    opacity: 0.65;
+  }
+}
+
+@keyframes sky-drift {
+  to {
+    transform: translate3d(0, -2%, 0) scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky,
+  .sky > * {
+    animation: none !important;
+  }
+}

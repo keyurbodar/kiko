@@ -197,7 +197,15 @@ export default function ChatRoute() {
   // A divider is something to read, so a chat that has one is not empty; an event this client does not draw is nothing.
   // Before the warm tier paints the window is `[]`, which is not the same fact as a chat with no messages:
   // painting the empty state there flashes "What's on your mind?" over a chat that has plenty to show.
-  const settled = () => !!useApp.room()?.state.loaded
+  // `loaded` only says the warm tier answered. A room whose messages are still arriving, because
+  // IndexedDB had none and the socket has not replayed its window, is loaded and empty at once, and
+  // hiding the transcript then showed "What's on your mind?" over a chat that had plenty to show.
+  // A room counts as settled once the socket is open, or once it has replayed any event at all.
+  const settled = () => {
+    const room = useApp.room()
+    if (!room?.state.loaded) return false
+    return room.state.connection === "open" || room.state.seq > 0
+  }
   const empty = () => settled() && messages().every((m) => m.event && eventRow(m, String) === null)
   // The reader is looking at the newest message, so nothing can arrive unseen. Scrolled up, a reply
   // is unseen until they come back to it, and marking it read there would erase its divider.

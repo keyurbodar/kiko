@@ -1,6 +1,6 @@
 /*
- * The welcome flow. Only opacity and transform move, nothing waits on motion, and reduced motion holds
- * every layer still. Colors come from the theme: lines from --foreground, the glow from the accent (--ring).
+ * The welcome flow. The sky is `sky/sky.css`; this file is the card, the stepper and the mark. Only
+ * opacity and transform move, nothing waits on motion, and reduced motion holds every layer still.
  */
 .welcome {
   --welcome-top: max(40px, 14dvh);
@@ -11,168 +11,29 @@
   --welcome-ink: color-mix(in oklab, var(--foreground) 34%, transparent);
 }
 
-.welcome-backdrop {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.welcome-grid {
-  position: absolute;
-  inset: 0;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% var(--welcome-cy), #000 10%, transparent 72%);
-}
-.welcome-grid-pan {
-  position: absolute;
-  inset: -112px;
-  background-image:
-    linear-gradient(to right, var(--welcome-line-strong) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--welcome-line-strong) 1px, transparent 1px),
-    linear-gradient(to right, var(--welcome-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--welcome-line) 1px, transparent 1px);
-  background-size: 112px 112px, 112px 112px, 28px 28px, 28px 28px;
-}
-
-.welcome-cross-x,
-.welcome-cross-y {
-  position: absolute;
-  overflow: hidden;
-}
-.welcome-cross-x {
-  left: 0;
-  right: 0;
-  top: var(--welcome-cy);
-  height: 1px;
-  background: var(--welcome-line-strong);
-  mask-image: linear-gradient(to right, transparent, #000 20%, #000 calc(50% - 110px), transparent calc(50% - 90px), transparent calc(50% + 90px), #000 calc(50% + 110px), #000 80%, transparent);
-}
-.welcome-cross-y {
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--welcome-line-strong);
-  mask-image: linear-gradient(to bottom, transparent, #000 calc(var(--welcome-cy) - 160px), #000 calc(var(--welcome-cy) - 100px), transparent calc(var(--welcome-cy) - 80px), transparent calc(var(--welcome-cy) + 80px), #000 calc(var(--welcome-cy) + 100px), transparent 85%);
-}
-.welcome-cross-x::after,
-.welcome-cross-y::after {
-  content: "";
-  position: absolute;
-  background: linear-gradient(var(--welcome-scan, to right), transparent, color-mix(in oklab, var(--ring) 80%, transparent), transparent);
-  opacity: 0;
-}
-.welcome-cross-x::after {
-  top: 0;
-  left: 0;
-  width: 160px;
-  height: 1px;
-}
-.welcome-cross-y::after {
-  --welcome-scan: to bottom;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 160px;
-}
-
-.welcome-stage {
-  position: absolute;
-  left: 50%;
-  top: var(--welcome-cy);
-  width: 0;
-  height: 0;
-}
-.welcome-stage > * {
-  position: absolute;
-  max-width: none;
-}
-
-.welcome-glow {
-  left: -300px;
-  top: -300px;
-  width: 600px;
-  height: 600px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in oklab, var(--ring) 26%, transparent), color-mix(in oklab, var(--ring) 8%, transparent) 55%, transparent);
-}
-
-.welcome-orbit {
-  overflow: visible;
-  fill: none;
-  stroke: var(--welcome-ink);
-  stroke-width: 1;
-}
-.welcome-orbit-near {
-  left: -100px;
-  top: -100px;
-  width: 200px;
-  height: 200px;
-  stroke-dasharray: 3 4;
-}
-.welcome-orbit-far {
-  left: -180px;
-  top: -180px;
-  width: 360px;
-  height: 360px;
-  stroke: var(--welcome-line-strong);
-  stroke-dasharray: 1 6;
-  stroke-linecap: round;
-}
-.welcome-orbit-edge {
-  left: -280px;
-  top: -280px;
-  width: 560px;
-  height: 560px;
-  stroke: var(--welcome-line);
-}
-.welcome-satellite {
-  fill: var(--ring);
-  stroke: color-mix(in oklab, var(--ring) 30%, transparent);
-  stroke-width: 6;
-  stroke-dasharray: none;
-}
-
-.welcome-ticks {
-  left: -160px;
-  top: -160px;
-  width: 320px;
-  height: 320px;
-  fill: none;
-  stroke: var(--welcome-ink);
-  stroke-width: 1;
-}
-
-.welcome-pulse {
-  left: -72px;
-  top: -72px;
-  width: 144px;
-  height: 144px;
-  border-radius: 50%;
-  border: 1px solid color-mix(in oklab, var(--ring) 70%, transparent);
-  opacity: 0;
-}
-
 .welcome-mascot {
+  position: relative;
+  z-index: 1;
+  display: grid;
   width: var(--welcome-size);
   height: var(--welcome-size);
+  place-items: center;
 }
-.welcome-mascot-body {
-  position: relative;
+.welcome-mascot-mark {
   width: 100%;
   height: 100%;
   transform-origin: 50% 88%;
+  animation: welcome-breathe 4.2s ease-in-out infinite;
 }
-.welcome-mascot-body > img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+@keyframes welcome-breathe {
+  50% {
+    transform: scale(1.025, 0.975);
+  }
 }
-/* Only the band across the eyes, so the leaves of the other face never show. */
-.welcome-mascot-blink {
-  clip-path: inset(54% 30% 28% 16%);
-  opacity: 0;
+@media (prefers-reduced-motion: reduce) {
+  .welcome-mascot-mark {
+    animation: none;
+  }
 }
 
 .welcome-panel {
@@ -200,36 +61,6 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes welcome-drift {
-    to { transform: translate3d(112px, 112px, 0); }
-  }
-  @keyframes welcome-spin {
-    to { transform: rotate(360deg); }
-  }
-  @keyframes welcome-glow {
-    50% { opacity: 0.6; transform: scale(0.94); }
-  }
-  @keyframes welcome-scan-x {
-    0% { opacity: 0; transform: translateX(-160px); }
-    10%, 60% { opacity: 1; }
-    70%, 100% { opacity: 0; transform: translateX(100vw); }
-  }
-  @keyframes welcome-scan-y {
-    0% { opacity: 0; transform: translateY(-160px); }
-    10%, 60% { opacity: 1; }
-    70%, 100% { opacity: 0; transform: translateY(100dvh); }
-  }
-  @keyframes welcome-pulse {
-    from { opacity: 0.8; transform: scale(0.6); }
-    to { opacity: 0; transform: scale(2.6); }
-  }
-  @keyframes welcome-breathe {
-    50% { transform: scale(1.018, 0.97); }
-  }
-  @keyframes welcome-blink {
-    0%, 93%, 100% { opacity: 0; }
-    94.5%, 96.5% { opacity: 1; }
-  }
   @keyframes welcome-in {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
@@ -238,16 +69,6 @@
     50% { opacity: 0.5; }
   }
 
-  .welcome-grid-pan { animation: welcome-drift 64s linear infinite; will-change: transform; }
-  .welcome-orbit-near { animation: welcome-spin 48s linear infinite; }
-  .welcome-orbit-far { animation: welcome-spin 110s linear infinite reverse; }
-  .welcome-orbit-edge { animation: welcome-spin 180s linear infinite; }
-  .welcome-glow { animation: welcome-glow 9s ease-in-out infinite; }
-  .welcome-cross-x::after { animation: welcome-scan-x 9s var(--motion-ease-in-out) infinite 1s; }
-  .welcome-cross-y::after { animation: welcome-scan-y 9s var(--motion-ease-in-out) infinite 5.5s; }
-  .welcome-pulse { animation: welcome-pulse 2.4s var(--motion-ease-out) infinite; }
-  .welcome-mascot-body { animation: welcome-breathe 4.8s ease-in-out infinite; }
-  .welcome-mascot-blink { animation: welcome-blink 6.5s linear infinite 2s; }
 
   /* A step fades up as it mounts; its parts follow 40 ms apart, so the first one is readable at once. */
   .welcome-step { animation: welcome-in 260ms var(--motion-ease-settle) both; }

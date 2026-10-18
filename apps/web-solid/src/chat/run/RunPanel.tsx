@@ -5,7 +5,6 @@ import { PopoverV2 } from "@kiko/ui/v2/popover-v2-impl"
 import { createEffect, createMemo, createSignal, on, onCleanup, Show, untrack } from "solid-js"
 import { unwrap } from "solid-js/store"
 import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
-import { cn } from "../../lib/cn"
 import { useApp } from "../../lib/store"
 import { logoUrl } from "../../recipes/icon"
 import {
@@ -26,7 +25,6 @@ import {
   totalDuration,
 } from "./run-log"
 import { closeRun, openRun, runAnchor } from "./run-panel-state"
-import { observeVisibleAnimation } from "./visible-animation"
 import "./run-panel.css"
 
 /*
@@ -101,17 +99,6 @@ function StepGlyph(props: { step: RunStep }) {
   )
 }
 
-/** Runs t3code's visible-only animation on an element while `active`: on screen, tab visible, motion allowed. */
-function shineRef(active: () => boolean) {
-  let element: HTMLElement | undefined
-  createEffect(() => {
-    if (!active() || !element) return
-    const off = observeVisibleAnimation(element)
-    if (off) onCleanup(off)
-  })
-  return (el: HTMLElement) => (element = el)
-}
-
 /** Whole seconds since `from`, ticking once a second while `live`. */
 function createElapsed(from: () => number | undefined, live: () => boolean) {
   const [now, setNow] = createSignal(Date.now())
@@ -147,7 +134,6 @@ function StepRow(props: { step: RunStep; child: boolean; open: boolean; loading:
   const step = () => props.step
   const running = () => step().status === "running"
   const took = () => (step().endedAt === undefined ? undefined : step().endedAt! - step().startedAt)
-  const labelRef = shineRef(running)
   // The words a run wrote between two calls: one plain paragraph, with nothing to open.
   if (step().note === true) {
     return (
@@ -171,7 +157,7 @@ function StepRow(props: { step: RunStep; child: boolean; open: boolean; loading:
         }}
       >
         <StepGlyph step={step()} />
-        <span ref={labelRef} class={cn("run-label", running() && "motion-shine")}>
+        <span class="run-label">
           {liveLabel(step())}
         </span>
         <span class="run-at">{clockTime(step().startedAt)}</span>
@@ -206,7 +192,6 @@ function WorkerRow(props: { entry: Extract<Entry, { kind: "worker" }>; onToggle:
   const elapsed = createElapsed(() => startOf(steps()), live)
   const sum = () => summarizeSteps(steps()).summary
   const took = () => totalDuration(steps())
-  const stateRef = shineRef(live)
   return (
     <div class="run-row" data-component="run-worker" data-open={props.entry.open ? "" : undefined}>
       <div
@@ -226,7 +211,7 @@ function WorkerRow(props: { entry: Extract<Entry, { kind: "worker" }>; onToggle:
         </span>
         <span class="run-worker-text">
           <span class="run-label run-worker-task">{props.entry.task}</span>
-          <span ref={stateRef} class={cn("run-worker-state", live() && "motion-shine")}>{live() ? `Working for ${elapsed()}` : `${sum()}${took() === undefined ? "" : `, ${formatDuration(took()!)}`}`}</span>
+          <span class="run-worker-state">{live() ? `Working for ${elapsed()}` : `${sum()}${took() === undefined ? "" : `, ${formatDuration(took()!)}`}`}</span>
         </span>
         <RowChevron open={props.entry.open} />
       </div>
@@ -238,18 +223,12 @@ function Header(props: { steps: readonly RunStep[]; live: boolean }) {
   const elapsed = createElapsed(() => startOf(props.steps), () => props.live)
   const sum = createMemo(() => summarizeSteps(props.steps))
   const took = () => totalDuration(props.steps)
-  const workingRef = shineRef(() => props.live)
   return (
     <div class="run-header">
       <PopoverV2.Title class="run-title" data-live={props.live ? "" : undefined}>
         <Show when={props.live} fallback={props.steps.length ? sum().summary : "No steps yet"}>
-          <span ref={workingRef} class="run-working">
+          <span class="run-working">
             Working for {elapsed()}
-            <span aria-hidden="true" class="run-focus motion-activity-focus">
-              <span class="run-focus-counter motion-activity-counter">
-                <span class="run-focus-aligned">Working for {elapsed()}</span>
-              </span>
-            </span>
           </span>
         </Show>
       </PopoverV2.Title>
@@ -434,6 +413,7 @@ export default function RunPanel() {
         <PopoverV2.Content
           ref={(element: HTMLElement) => (content = element)}
           class="run-panel"
+          data-instant=""
           onCloseAutoFocus={(event) => event.preventDefault()}
           onEscapeKeyDown={() => queueMicrotask(runAnchorFocus)}
           onInteractOutside={(event) => {

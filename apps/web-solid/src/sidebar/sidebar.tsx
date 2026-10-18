@@ -10,7 +10,8 @@ import { runCommand } from "../commands/registry"
 import { intentRef } from "../lib/intent"
 import { preloadRoute } from "../app/routes"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { KIKO } from "@kiko/protocol"
+import { KikoMark, KikoWordmark } from "../lib/brand"
+import { Sky } from "../sky/Sky"
 import { ChatPanel } from "./chat-panel"
 const UpdatePill = lazy(() => import("../app/update-pill"))
 import "./sidebar.css"
@@ -86,11 +87,11 @@ export function Sidebar(props: SidebarProps) {
       data-panel={props.section ?? undefined}
       data-collapsed={collapsed() ? "" : undefined}
       >
-      <div class="brand-art" aria-hidden="true" />
+      <Sky kind="moonlit" size="band" />
       <header class="panel-header">
         <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
-          <IdentityAvatar seed={KIKO} size={22} />
-          <span class="panel-brand-name">Kiko</span>
+          <KikoMark class="panel-brand-mark" />
+          <KikoWordmark class="panel-brand-wordmark" />
         </A>
         <span class="flex-1" aria-hidden="true" />
         <Show when={ACTIONS[shown()]}>{(action) => <HeaderAction action={action()} />}</Show>
