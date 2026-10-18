@@ -15,7 +15,7 @@ import { jumpRequest, requestJump } from "../../search/state";
 import { eventRow } from "../../chat/lib/event-line";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
-import { clearUnreadMark } from "../../sidebar/actions";
+import { clearUnreadMark } from "../../sidebar/unread-mark";
 const RunPanel = lazy(() => import("../../chat/run/RunPanel"));
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 const UpdateNotice = lazy(() => import("../update-notice"));

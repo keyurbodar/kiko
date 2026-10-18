@@ -29,7 +29,11 @@ const TIER4 = ["src/app/routes/settings.tsx"];
 // Re-record a number only when the growth is intended, and say why in the pull request.
 const RECORDED: Record<string, number> = {
   "tier 1 shell js": 2506,
-  "tier 2 first paint of /chat": 204714,
+  // Re-recorded when the chat switch, scroll, and unread-divider work landed. The old 204714 was
+  // stale: main already built to 213785, so its 5 percent headroom was spent before that work
+  // started. The work itself adds about 1.9 KB: a per-room window kept in memory, a seeded first
+  // paint, the unread mark in its own module, and the fold limits.
+  "tier 2 first paint of /chat": 215732,
   "tier 3 lazy modules": 311627,
   "tier 4 route chunks": 23682,
 };

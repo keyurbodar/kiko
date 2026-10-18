@@ -28,7 +28,7 @@ import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
 import { hintsShown, watchHold } from "../commands/hints";
 const HintLayer = lazy(() => import("../commands/HintLayer"));
 import { Sidebar, SidebarToggle, preloadSettingsSidebar } from "../sidebar";
-import { DeleteChatDialog } from "../sidebar/delete-chat-dialog";
+import { deletingChatId } from "../sidebar/actions";
 import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
@@ -66,6 +66,8 @@ const watchPanel = (el: HTMLElement) => {
 const AvatarPicker = lazy(() => import("../avatar/picker"));
 const BotPicker = lazy(() => import("../chat/bot-picker"));
 const NewAgent = lazy(() => import("../newagent/dialog"));
+// A destructive confirm is not on the first-paint path: its dialog chunk loads when one is asked for.
+const DeleteChatDialog = lazy(() => import("../sidebar/delete-chat-dialog"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
 /**
@@ -463,7 +465,11 @@ export function Shell(props: ParentProps) {
           )}
         </Show>
         <Palette />
-        <DeleteChatDialog />
+        <Show when={deletingChatId() !== null}>
+          <Suspense>
+            <DeleteChatDialog />
+          </Suspense>
+        </Show>
         <Show when={botPickerOpen()}>
           <Suspense>
             <BotPicker />

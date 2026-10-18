@@ -9,7 +9,7 @@ import { cancelDeleteChat, deleteChat, deletingChatId } from "./actions"
  * The one place a chat is deleted without a menu. The palette can run a destructive command on a
  * single Enter, so it asks here instead of trusting the row menu's two-step to be the only door.
  */
-export function DeleteChatDialog(): JSX.Element {
+export default function DeleteChatDialog(): JSX.Element {
   const navigate = useNavigate()
   const id = deletingChatId
   // A plain string, not a component in a prop getter: the dialog reads `description` twice, and a
