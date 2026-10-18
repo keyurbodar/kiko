@@ -13,12 +13,13 @@ on:
       - ".cursor/**"
       - "LICENSE*"
 
-# A push that lands while an older one is still running cancels the older run. Without this, three
-# pushes to one branch ran three full verifies at once, and only the last one's result counts.
-# main is grouped by ref as well, so a merge commit cancels the run for the commit it merged.
+# A push to a pull request cancels the older run for that branch: three pushes ran three full verifies at
+# once, and only the last one's result counts. A push to main is never cancelled, and is grouped by its
+# commit rather than the ref. Cancelling it would leave that merge commit with no successful run, and
+# deploy waits for one: the commit would never ship.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Which paths a push touched. A client-only change does not need the 15-minute backend suites: the
@@ -57,7 +58,11 @@ jobs:
           fi
 
   check:
+    # The safety net: typecheck, lint, the import and rule checks, and the unit tests for every package.
+    # It runs on any push that is not docs-only, because it is the only thing that typechecks and tests
+    # the client.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -69,23 +74,43 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
       - run: bun install --frozen-lockfile
+      # Server test files already run in their own process and cache a pass by a hash of the test and every
+      # repo file it reaches (apps/server/scripts/test-each.ts). A fresh runner had no cache, so all of them
+      # ran every time: 358 s against 28 s on a warm machine. Restoring the newest cache is safe because
+      # every entry is checked against that hash and a stale one just runs again; the key only has to be
+      # newer than the cache it replaces. Restored after install, since install owns node_modules.
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/kiko-tests
+          key: kiko-tests-${{ runner.os }}-${{ github.sha }}
+          restore-keys: kiko-tests-${{ runner.os }}-
       - run: bun run check
 
   # Real backend verification. It needs no repository secret and no model key, so it is
   # safe for a pull request from a fork. It has only the read-only `contents` permission.
   #
-  # It is the expensive job: it boots a worker and runs 47 suites, about 15 minutes. It changes
-  # nothing outside the backend and the code the backend loads, so a change that only touches the
-  # client, the docs, or CI config does not need it. `check` still runs for those, and it runs the
-  # unit tests for every package including this one.
+  # It is the expensive job: it boots a worker and runs the model-free suites. It changes nothing
+  # outside the backend and the code the backend loads, so a change that only touches the client, the
+  # docs, or CI config does not need it. `check` still runs for those, and runs the unit tests for every
+  # package including this one.
   verify:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # The no-model suites boot a worker and run every suite; they take more than 15 minutes.
+    # The suites ran one after another on one runner, so the job took as long as the sum: 14 minutes, with
+    # the ten slowest suites 73 percent of it. Four shards run them side by side, each ~3.5 minutes. The
+    # shard assignment is weighted by recorded duration (apps/cli/src/verify/weights.ts), so the slow suites
+    # spread out instead of piling onto one runner.
+    #
+    # The load tests are skipped here. They send thousands of writes to measure scale rather than behavior;
+    # they run against a local server by name when a change touches routines or search.
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -141,15 +166,17 @@ jobs:
         # load is shrunk; the functional checks and pagination still run.
         env:
           KIKO_SEARCH_MESSAGES: "2000"
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ strategy.job-total }}
         shell: bash
         run: |
           set -o pipefail
-          bun kiko verify --no-model --url http://localhost:8787 2>&1 | tee "$RUNNER_TEMP/verify.log"
+          bun kiko verify --no-model --no-load --shard "$SHARD" --shards "$SHARDS" --url http://localhost:8787 2>&1 | tee "$RUNNER_TEMP/verify.log"
       - name: upload the last frames and the worker log
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: verify-frames
+          name: verify-frames-${{ matrix.shard }}
           path: |
             ${{ runner.temp }}/verify.log
             ${{ runner.temp }}/wrangler.log
@@ -173,3 +200,25 @@ jobs:
       - run: bun run build
         working-directory: apps/web-solid
       - run: bun scripts/bundle-budget.ts
+
+  # One job whose name never changes, so branch protection needs no edit when a job is split or re-sharded.
+  # A skipped job counts as success to branch protection, so this fails when any job did not actually
+  # succeed: verify skips only when `changes` said the change cannot affect the backend, which is the one
+  # legitimate skip. `always()` rather than `!cancelled()` so a cancelled run still produces a failure.
+  check-all:
+    name: All checks
+    if: ${{ always() }}
+    needs: [changes, check, verify, bundle-budget]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to pass, or to skip for a reason
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e '
+            .changes.outputs as $gates
+            | all(to_entries[];
+                .value.result == "success"
+                or (.key == "verify" and .value.result == "skipped" and $gates.backend == "false"))' > /dev/null
