@@ -33,7 +33,7 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-export const ROW_H = 52
+export const ROW_H = 60
 const SKELETON_ROWS = [62, 48, 70, 54, 66, 44]
 
 export function rowStamp(updatedAt: number, now: number): string {

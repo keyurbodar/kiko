@@ -429,9 +429,9 @@
 
 .sidebar-shell .chat-skeleton-row {
   display: flex;
-  height: 52px;
+  height: 60px;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 0 10px 0 8px;
 }
 
@@ -494,9 +494,11 @@
   overflow: visible;
 }
 
+/* The mochi's body fills about 78% of its box across and half of it down, so a box needs to be
+   large for the body to read: 46px gives a body 36px wide. */
 .sidebar-shell .chat-avatar {
-  width: 36px;
-  height: 36px;
+  width: 46px;
+  height: 46px;
 }
 
 .sidebar-shell .pin-tile-avatar {

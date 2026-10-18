@@ -25,9 +25,9 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
         <Show when={!props.sidebarOpen}>
           <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
         </Show>
-        <div class="flex min-w-0 flex-1 items-center gap-2 px-1">
+        <div class="flex min-w-0 flex-1 items-center gap-2.5 px-1">
           <Show when={chatId()} keyed>
-            {(id) => <ChatAvatar faces={useApp.chatFaces(id)} size={20} />}
+            {(id) => <ChatAvatar faces={useApp.chatFaces(id)} size={32} />}
           </Show>
           <h1 class="min-w-0 truncate text-md font-medium text-foreground" data-component="top-bar-title">
             {(chatId() && useApp.chatById(chatId()!)?.name) || "New chat"}
