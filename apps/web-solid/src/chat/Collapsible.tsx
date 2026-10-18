@@ -1,6 +1,7 @@
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
 import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
+import { currentLimit, shouldFold } from "./lib/fold"
 
 /**
  * "Show full message" for a long bubble.
@@ -21,34 +22,7 @@ import { cn } from "../lib/cn"
  * picture owns the bubble's height, and clamping it cuts it apart.
  */
 
-/**
- * How tall a bubble may grow before it folds.
- *
- * A fixed 180 px folded almost every real answer: four lines on a wide desktop bubble, two on a
- * phone. The limit is a share of the window instead, so a medium message is simply shown, and only
- * one that would push the next message off screen is folded. A phone gets a taller share because
- * its column is narrow, so the same words take more lines.
- */
-export function collapseLimit(viewportHeight: number, coarse: boolean): number {
-  const share = coarse ? 0.85 : 0.72
-  return Math.round(Math.max(coarse ? 360 : 480, Math.min(coarse ? 760 : 900, viewportHeight * share)))
-}
 
-/**
- * Content is folded only when it is over the limit by a quarter. A message that hides two lines
- * behind a "Show full message" button costs more than it saves, so it is shown whole.
- */
-export const FOLD_SLACK = 0.25
-
-export function shouldFold(contentHeight: number, limit: number, fixed = false): boolean {
-  return !fixed && contentHeight > limit * (1 + FOLD_SLACK)
-}
-
-/** The limit for this window right now. */
-function currentLimit(): number {
-  const coarse = globalThis.matchMedia?.("(pointer: coarse)").matches ?? false
-  return collapseLimit(globalThis.innerHeight ?? 900, coarse)
-}
 
 const [expandedIds, setExpandedIds] = createSignal<ReadonlySet<string>>(new Set())
 

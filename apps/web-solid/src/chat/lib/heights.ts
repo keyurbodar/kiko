@@ -2,6 +2,7 @@ import type { ChatMessage } from "../../lib/types";
 import { splitFiles } from "../../lib/attachments";
 import type { TimelineItem } from "./grouping";
 import { graphemes, jumboEmojiClass } from "./reply";
+import { currentLimit, FOLD_BUTTON_PX } from "./fold";
 
 const FONT_BASE = 14;
 // A bubble's line is the font size plus 6px (bubble.tsx).
@@ -66,6 +67,11 @@ export function estimateRowHeight(item: TimelineItem): number {
         : BUBBLE_PAD_Y + attachments + (attachments && hasText ? ATTACHMENT_GAP : 0) + text;
   const quote = message.replyToId === undefined ? 0 : QUOTE_LINE * QUOTE_LINES + QUOTE_CHROME_Y;
 
+  // A body the bubble folds renders at the fold limit, not at its full height. Estimating it whole
+  // made a long chat's scroll size far larger than the rows, so the end moved while scrolling.
+  const fold = currentLimit();
+  const shown = bubble > fold + FOLD_BUTTON_PX ? fold + FOLD_BUTTON_PX : bubble;
+
   const rowPadTop = item.hasRunGapBefore ? RUN_GAP_PX : ROW_GAP_PX;
-  return Math.ceil(bubble + quote + rowPadTop + ROW_GAP_PX);
+  return Math.ceil(shown + quote + rowPadTop + ROW_GAP_PX);
 }
