@@ -757,6 +757,17 @@
   overflow: hidden;
 }
 
+/* The side panel's own edge. It is drawn on the panel, so no handle state, panel size, or neighbor can hide it. */
+.sidebar-shell [data-component="sidecar-column"]::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 3;
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+  content: "";
+}
+
 .sidebar-shell .resize-handle {
   position: relative;
   z-index: 21;

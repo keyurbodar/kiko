@@ -8,7 +8,6 @@ import { answeringMember } from "../../settings/agent-model";
 import { connectedProviders, connectedReady } from "../../settings/connected";
 import { sendBlock } from "../../settings/send-block";
 import { useApp } from "../../lib/store";
-import { openRun } from "../../chat/run/run-panel-state";
 import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage, RosterBot } from "../../lib/types";
 import { jumpRequest, requestJump } from "../../search/state";
@@ -16,7 +15,6 @@ import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 import { clearUnreadMark } from "../../sidebar/unread-mark";
 import { roomEmpty, roomSettled } from "./chat-empty";
-const RunPanel = lazy(() => import("../../chat/run/RunPanel"));
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 const UpdateNotice = lazy(() => import("../update-notice"));
 const BrowserChip = lazy(() => import("../../chat/BrowserChip"));
@@ -220,9 +218,6 @@ export default function ChatRoute() {
     }),
   );
 
-  // The run panel's chunk loads on the first open and stays mounted, so it can play its exit.
-  const panelOpened = createMemo((opened: boolean) => opened || openRun() !== null, false);
-
   return (
     <div
         class="flex min-h-0 min-w-0 flex-1 flex-col"
@@ -271,11 +266,6 @@ export default function ChatRoute() {
         </div>
 
 
-        <Show when={panelOpened()}>
-          <Suspense>
-            <RunPanel />
-          </Suspense>
-        </Show>
         <Show when={empty()}>
           <EmptyState />
         </Show>

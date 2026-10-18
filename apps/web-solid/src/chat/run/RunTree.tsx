@@ -1,13 +1,12 @@
 import type { RunStep } from "@kiko/protocol"
 import { ChevronRightIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { createEffect, createMemo, createSignal, Index, on, onCleanup, Show, untrack, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Index, on, onCleanup, Show, untrack, type JSX } from "solid-js"
 import { unwrap } from "solid-js/store"
 import { useApp } from "../../lib/store"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
 import { GLYPH } from "./glyphs"
-import { preloadRunPanel, registerRunAnchor, toggleRun } from "./run-panel-state"
 import { isLive, type TreeRow, treeOf } from "./run-tree-rows"
 import "./run-tree.css"
 
@@ -70,8 +69,35 @@ function Label(props: { text: string; running: boolean }) {
   )
 }
 
-/** A step, a worker, or a note. A click opens the file it touched, else the run panel, whose chunk loads on hover. The wait for the rest only shines. */
-function Row(props: { row: TreeRow; onOpen: (row: TreeRow, element: HTMLElement) => void }) {
+/** What a call said and did, under its row. A worker lists its calls. */
+function Detail(props: { row: TreeRow; loading: boolean }) {
+  const detail = () => props.row.detail!
+  return (
+    <div class="run-tree-detail">
+      <Show when={detail().lines}>{(lines) => <For each={lines()}>{(line) => <p class="run-tree-note">{line}</p>}</For>}</Show>
+      <Show when={!detail().lines}>
+        <Show
+          when={detail().input || detail().output}
+          fallback={<p class="run-tree-note">{detail().running ? "Running…" : props.loading ? "Loading output…" : "No output."}</p>}
+        >
+          <div class="run-tree-block">
+            <Show when={detail().input}>{(input) => <pre class="run-tree-mono run-tree-input">{input()}</pre>}</Show>
+            <Show when={detail().output}>
+              {(output) => (
+                <pre class="run-tree-mono run-tree-output" data-failed={detail().failed ? "" : undefined}>
+                  {output()}
+                </pre>
+              )}
+            </Show>
+          </div>
+        </Show>
+      </Show>
+    </div>
+  )
+}
+
+/** A step, a worker, or a note. A click opens the file it touched, else its details under it. The wait for the rest only shines. */
+function Row(props: { row: TreeRow; open: boolean; loading: boolean; onOpen: (row: TreeRow) => void }) {
   const icon = () => props.row.icon
   return (
     <Show
@@ -87,15 +113,16 @@ function Row(props: { row: TreeRow; onOpen: (row: TreeRow, element: HTMLElement)
         class="run-tree-row"
         data-kind={props.row.kind}
         data-file={props.row.target ? "" : undefined}
-        aria-haspopup={props.row.target ? undefined : "dialog"}
+        aria-expanded={props.row.detail ? props.open : undefined}
         title={props.row.target && !props.row.target.folder ? `Open ${props.row.target.path}` : undefined}
-        onPointerEnter={preloadRunPanel}
-        onFocus={preloadRunPanel}
-        onClick={(event) => props.onOpen(props.row, event.currentTarget)}
+        onClick={() => props.onOpen(props.row)}
       >
         <Label text={props.row.label} running={props.row.running} />
         <Show when={icon()}>{(glyph) => <RemixIcon icon={GLYPH[glyph()]} size={12} class="run-tree-icon" data-failed={glyph() === "alert-circle" ? "" : undefined} />}</Show>
       </button>
+      <Show when={props.open && props.row.detail}>
+        <Detail row={props.row} loading={props.loading} />
+      </Show>
     </Show>
   )
 }
@@ -141,17 +168,19 @@ export function RunTree(props: { windowKey: string; /** The steps the bubble say
     clicked = false
   }
 
-  // The tree is the panel's anchor, and where focus goes back on close when the row that opened the
-  // panel is gone: the typing row's tree, once the bubble lands.
-  let root!: HTMLDivElement
-  createEffect(() => onCleanup(registerRunAnchor(props.windowKey, root)))
-  const openPanel = (row: HTMLElement) => {
-    toggleRun(props.windowKey, row)
+  // The calls the reader opened, by id. A step's details open under its row: there is no panel.
+  const [shownRows, setShownRows] = createSignal<ReadonlySet<string>>(new Set())
+  const openDetail = (row: TreeRow) => {
+    setShownRows((current) => {
+      const next = new Set(current)
+      if (!next.delete(row.id)) next.add(row.id)
+      return next
+    })
     useApp.loadRunSteps(props.windowKey)
   }
   // A file the call wrote or read opens beside the chat, and a folder opens the file tree. A file the
-  // chat no longer has, and every other call, opens the step's details in the run panel instead.
-  const openRow = (row: TreeRow, element: HTMLElement) => {
+  // chat no longer has, and every other call, opens the step's details under its row instead.
+  const openRow = (row: TreeRow) => {
     const chat = useApp.activeThreadId()
     const target = row.target
     if (chat && target) {
@@ -159,11 +188,11 @@ export function RunTree(props: { windowKey: string; /** The steps the bubble say
       if (found?.kind === "file") return openFile(chat, found.path)
       if (target.folder || found?.kind === "many") return openSurface(chat, fixedSurface("files"))
     }
-    openPanel(element)
+    openDetail(row)
   }
 
   return (
-    <div ref={root} class="run-tree" tabindex="-1" data-component="run-tree">
+    <div class="run-tree" data-component="run-tree">
       <Show when={tree().head}>
         {(head) => (
           <button type="button" class="run-tree-row" data-kind={head().kind} aria-expanded={head().open} onClick={toggle}>
@@ -180,11 +209,11 @@ export function RunTree(props: { windowKey: string; /** The steps the bubble say
       <Show when={fold() !== "gone"}>
         <div ref={list} class="run-tree-fold motion-run-fold" data-grow={fold() === "grow" ? "" : undefined} data-shut={fold() === "shut" ? "" : undefined}>
           <div>
-            <Index each={tree().folded}>{(row) => <Row row={row()} onOpen={openRow} />}</Index>
+            <Index each={tree().folded}>{(row) => <Row row={row()} open={shownRows().has(row().id)} loading={useApp.runFetching(props.windowKey)} onOpen={openRow} />}</Index>
           </div>
         </div>
       </Show>
-      <Index each={tree().shown}>{(row) => <Row row={row()} onOpen={openRow} />}</Index>
+      <Index each={tree().shown}>{(row) => <Row row={row()} open={shownRows().has(row().id)} loading={useApp.runFetching(props.windowKey)} onOpen={openRow} />}</Index>
     </div>
   )
 }

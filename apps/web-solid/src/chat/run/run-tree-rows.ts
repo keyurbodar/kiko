@@ -1,5 +1,5 @@
 import type { RunStep } from "@kiko/protocol"
-import { anyRunning, buildEntries, type Entry, iconOf, liveLabel, pathOf, type StepIcon, summarizeSteps } from "./run-log"
+import { anyRunning, buildEntries, type Entry, extraInput, iconOf, liveLabel, pathOf, type StepIcon, summarizeSteps } from "./run-log"
 
 /*
  * The run tree as data: the rows the thread draws under an agent's bubble for the steps that led
@@ -14,6 +14,8 @@ export const LIVE_ROWS = 3
 /** A row of the tree: a call, a background worker's work, the words a run wrote between two calls, or the wait for the rest. */
 export type TreeRow = {
   kind: "step" | "worker" | "note" | "loading"
+  /** The step's or worker's id, which keys what the reader has opened. */
+  id: string
   label: string
   /** The glyph after the label. A note and the wait have none. */
   icon?: StepIcon
@@ -21,6 +23,8 @@ export type TreeRow = {
   running: boolean
   /** The file or folder the call touched, which a click opens. */
   target?: { path: string; folder: boolean }
+  /** What opens under the row: a call's input and output, or the labels of a worker's calls. */
+  detail?: { input?: string; output?: string; failed: boolean; running: boolean; lines?: string[] }
 }
 
 /** The row on top that opens and closes the folded rows: "2 earlier steps" while live, the run's summary once done. */
@@ -52,13 +56,26 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 const NO_WORKER_OPEN: ReadonlySet<string> = new Set()
 
-const LOADING: TreeRow = { kind: "loading", label: "Loading steps…", running: true }
+const LOADING: TreeRow = { kind: "loading", id: "loading", label: "Loading steps…", running: true }
 
 function rowOf(entry: Entry): TreeRow {
-  if (entry.kind === "worker") return { kind: "worker", label: entry.task, icon: "worker", running: anyRunning(entry.steps) }
+  if (entry.kind === "worker") {
+    const running = anyRunning(entry.steps)
+    const failed = entry.steps.some((s) => s.status === "failed")
+    return { kind: "worker", id: entry.id, label: entry.task, icon: "worker", running, detail: { failed, running, lines: entry.steps.map(liveLabel) } }
+  }
   const { step } = entry
   const target = pathOf(step)
-  return { kind: step.note ? "note" : "step", label: liveLabel(step), icon: iconOf(step), running: step.status === "running", ...(target ? { target } : {}) }
+  const running = step.status === "running"
+  return {
+    kind: step.note ? "note" : "step",
+    id: step.id,
+    label: liveLabel(step),
+    icon: iconOf(step),
+    running,
+    ...(target ? { target } : {}),
+    ...(step.note ? {} : { detail: { input: extraInput(step), output: step.output, failed: step.status === "failed", running } }),
+  }
 }
 
 const failedIn = (entries: readonly Entry[]) => entries.some((e) => (e.kind === "worker" ? e.steps : [e.step]).some((s) => s.status === "failed"))
