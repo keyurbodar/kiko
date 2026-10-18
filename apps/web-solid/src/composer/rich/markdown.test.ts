@@ -85,6 +85,12 @@ const cases: { name: string; doc: Json; markdown: string; rich: RichText }[] = [
     rich: [para(text("read "), { t: "link", href: "/src/app.ts", children: [text("app.ts")] }, text(" please"))] as RichText,
   },
   {
+    name: "a folder reference keeps its trailing slash, so it stays a folder",
+    doc: doc(p({ type: "fileRef", attrs: { path: "src/lib", folder: true } })),
+    markdown: "[lib](/src/lib/)",
+    rich: [para({ t: "link", href: "/src/lib/", children: [text("lib")] })] as RichText,
+  },
+  {
     name: "file reference with a space and a parenthesis",
     doc: doc(p({ type: "fileRef", attrs: { path: "notes/Plan (v2).md" } })),
     markdown: "[Plan (v2).md](</notes/Plan (v2).md>)",

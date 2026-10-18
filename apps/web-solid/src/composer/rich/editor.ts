@@ -432,9 +432,10 @@ export function mountRichEditor(options: RichOptions) {
     insertAttachments(items: readonly { id: string; name: string }[], at?: Point) {
       insertChips(items.map((item) => ({ type: "attachment", attrs: item })), at)
     },
-    /** Puts a chip per workspace file where `at` points on screen, or at the caret. */
+    /** Puts a chip per workspace file or folder where `at` points on screen, or at the caret. */
     insertFileRefs(paths: readonly string[], at?: Point) {
-      insertChips(paths.map((path) => ({ type: "fileRef", attrs: { path } })), at)
+      // A folder arrives with a trailing slash, which is the only sign it is one.
+      insertChips(paths.map((path) => ({ type: "fileRef", attrs: { path: path.replace(/\/+$/, ""), ...(path.endsWith("/") ? { folder: true } : {}) } })), at)
     },
     /** Takes every chip of attachment `id` out of the text. */
     removeAttachment(id: string) {

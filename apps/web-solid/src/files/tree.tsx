@@ -250,7 +250,9 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		const dragFile = (event: DragEvent) => {
 			event.stopPropagation()
 			const path = rowPath(event)
-			if (!path || path.endsWith("/") || !filePaths().includes(path) || !event.dataTransfer) return event.preventDefault()
+			// A folder drags too: the composer turns it into a link with a trailing slash.
+			const known = path !== undefined && (filePaths().includes(path) || folderPaths().some((dir) => `${dir}/` === path))
+			if (!known || !event.dataTransfer) return event.preventDefault()
 			setFileDrag(event.dataTransfer, path)
 		}
 		host.addEventListener("dragstart", dragFile, true)
