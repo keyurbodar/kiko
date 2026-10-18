@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#171717" />
+    <meta name="theme-color" content="#18130e" />
     <title>Kiko</title>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32" />
@@ -23,35 +23,39 @@
         var a = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
         d.classList.toggle("dark", a === "dark");
         d.style.colorScheme = a;
-        if (vars && vars[a]) for (var k in vars[a]) d.style.setProperty(k, vars[a][k]);
-        var bg = a === "light" ? "#fcfcfc" : "#171717";
+        var t = (vars && vars[a]) || {};
+        for (var k in t) d.style.setProperty(k, t[k]);
+        var bg = t["--background"] || (a === "light" ? "#fff7f1" : "#18130e");
         d.style.setProperty("--boot-bg", bg);
-        d.style.setProperty("--boot-fg", a === "light" ? "#27272a" : "#f5f5f5");
+        d.style.setProperty("--boot-fg", t["--foreground"] || (a === "light" ? "#271e17" : "#fdf2e8"));
         d.style.backgroundColor = bg;
       })();
     </script>
     <style>
-      html, body { margin: 0; height: 100%; background: var(--boot-bg, #171717); color: var(--boot-fg, #ececec); }
+      html, body { margin: 0; height: 100%; background: var(--boot-bg, #18130e); color: var(--boot-fg, #fdf2e8); }
       body { font: 14px var(--font-family-sans, system-ui, sans-serif); }
       #root { height: 100%; }
+      /* The saved screen (lib/snapshot.ts) is a picture of how the app looked: nothing in it enters again. */
+      #snap * { animation: none !important; transition: none !important; }
       #boot { display: flex; align-items: center; justify-content: center; height: 100%; }
       #boot svg { width: 64px; height: 64px; }
+      /* The boot screen cannot load motion.css. A load quicker than a beat never shows the tile; a longer one sees it fade in and breathe. */
+      @media (prefers-reduced-motion: no-preference) {
+        #boot svg { animation: boot-in 280ms 160ms ease-out both, boot-breathe 2.4s 440ms ease-in-out infinite; }
+        @keyframes boot-in { from { opacity: 0; transform: scale(0.94); } }
+        @keyframes boot-breathe { 50% { transform: scale(1.04); } }
+      }
       #boot-error { display: none; position: fixed; bottom: 24px; left: 0; right: 0; text-align: center; opacity: 0.7; }
     </style>
   </head>
   <body>
-    <div id="snap" style="position:fixed;inset:0;z-index:2147483000;overflow:hidden;visibility:hidden;pointer-events:none;background:var(--boot-bg,#171717)"></div>
+    <div id="snap" style="position:fixed;inset:0;z-index:2147483000;overflow:hidden;visibility:hidden;pointer-events:none;background:var(--boot-bg,#18130e)"></div>
     <script>
       (function () {
         var n = document.getElementById("snap");
         try {
           var s = JSON.parse(localStorage.getItem("kiko:snap") || "null");
-          if (!s || s.v !== 1) return n.remove();
-          // The installed app always opens at "/", and "/" is where the app resumes the last chat.
-          // A chat's screen is the right thing to show there, so it is accepted from the resume paths.
-          var here = location.pathname, there = s.path;
-          var resume = (here === "/" || here === "/chat") && there.indexOf("/chat/") === 0;
-          if (there !== here && !resume) return n.remove();
+          if (!s || s.v !== 1 || s.path !== location.pathname) return n.remove();
           var h = document.head, w = s.links.length;
           var show = function () {
             n.style.visibility = "visible";
@@ -83,7 +87,7 @@
     <div id="root">
       <div id="boot">
 
-        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="27" fill="#0a0a0a"/><g transform="translate(60 61) scale(1.04) translate(-60 -54)"><g transform="translate(0 7)"> <g transform="translate(48.5 50.5) rotate(-38)"> <path data-leaf="back" d="M0 0C13-6 13-24 0-33C-13-24-13-6 0 0Z" fill="#55685A" /> </g> <path d="M31 88C26 88 24 85 24.4 80C26.2 59 40.5 46 60 46C79.5 46 93.8 59 95.6 80C96 85 94 88 89 88Z" fill="#FBF6EC" /> <g transform="translate(68 48.5) rotate(22)"> <g data-leaf="front"> <path d="M0 0C14-7 14-27 0-37C-14-27-14-7 0 0Z" fill="#86A38D" /> <path d="M0-3Q1.6-18 0-32" stroke="#C3D5C6" stroke-width="1.5" fill="none" stroke-linecap="round" /> </g> </g> <ellipse cx="38.5" cy="76.5" rx="5" ry="2.7" fill="#F2A08E" opacity=".6" /> <ellipse cx="81" cy="74.5" rx="4.6" ry="2.5" fill="#F2A08E" opacity=".6" /> <g data-eyes=""> <circle cx="46.4" cy="67" r="3.4" fill="#C22F2A" /> <circle cx="70.6" cy="65.6" r="3.4" fill="#C22F2A" /> <circle cx="45.4" cy="65.9" r="1.15" fill="#FFF" opacity=".9" /> <circle cx="69.6" cy="64.5" r="1.15" fill="#FFF" opacity=".9" /> </g> </g></g></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="tb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A2420"/><stop offset="1" stop-color="#161311"/></linearGradient><radialGradient id="tg" cx="60" cy="72" r="48" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#E8A86A" stop-opacity="0.24"/><stop offset="1" stop-color="#E8A86A" stop-opacity="0"/></radialGradient><linearGradient id="ks" x1="0" y1="46" x2="0" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFCF6"/><stop offset=".6" stop-color="#FAF4EA"/><stop offset="1" stop-color="#EADFCE"/></linearGradient></defs><rect width="120" height="120" rx="26.4" fill="url(#tb)"/><rect width="120" height="120" rx="26.4" fill="url(#tg)"/><g transform="translate(60 63) scale(1.04) translate(-60 -57)"><g transform="translate(0 7)"><ellipse cx="60" cy="88.6" rx="32" ry="2.6" fill="#000" opacity="0.35"/><g transform="translate(48.5 50.5) rotate(-38)"><path d="M0 0C13-6 13-24 0-33C-13-24-13-6 0 0Z" fill="#55685A"/></g><path d="M31 88C26 88 24 85 24.4 80C26.2 59 40.5 46 60 46C79.5 46 93.8 59 95.6 80C96 85 94 88 89 88Z" fill="url(#ks)"/><g transform="translate(68 48.5) rotate(22)"><path d="M0 0C14-7 14-27 0-37C-14-27-14-7 0 0Z" fill="#86A38D"/><path d="M0-3Q1.6-18 0-32" stroke="#C3D5C6" stroke-width="1.5" fill="none" stroke-linecap="round"/></g><ellipse cx="38.5" cy="76.5" rx="5" ry="2.7" fill="#F2A08E" opacity=".6"/><ellipse cx="81" cy="74.5" rx="4.6" ry="2.5" fill="#F2A08E" opacity=".6"/><g fill="none" stroke="#C22F2A" stroke-width="2.9" stroke-linecap="round"><path d="M42 69.5Q46.4 62.6 50.8 69.5"/><path d="M66.4 67.5Q70.6 61.2 74.8 67.5"/></g></g></g></svg>
 
       </div>
     </div>

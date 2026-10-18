@@ -11,7 +11,7 @@ export type Display = Readonly<{
 }>
 
 export const CONTRAST = { min: 80, max: 150, step: 5, default: 100 } as const
-export const BASE_SIZE = { min: 12, max: 16, default: 13 } as const
+export const BASE_SIZE = { min: 12, max: 16, default: 14 } as const
 
 const NAME_MAX = 80
 
@@ -31,8 +31,7 @@ export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = 
 }
 
 // Kiko's own faces ship with the app (public/fonts). Figtree sets the interface and Bricolage Grotesque the headings.
-// "Figtree Fallback" is the same box as Figtree, so a saved screen painted in it does not move when Figtree arrives.
-export const SANS_STACK = 'Figtree, "Figtree Fallback", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+export const SANS_STACK = 'Figtree, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
 export const DISPLAY_STACK = `"Bricolage Grotesque", ${SANS_STACK}`
 export const MONO_STACK = '"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace'
 
