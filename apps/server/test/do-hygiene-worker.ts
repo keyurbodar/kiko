@@ -105,6 +105,8 @@ export default {
 			const stub = env.OWNER.get(env.OWNER.idFromName("user:alice"))
 			if (rest[0] === "counts") return Response.json(await stub.counts())
 			if (rest[0] === "wake") return Response.json(await stub.wake())
+			// The same call `/api/me` and every auth response make.
+			if (rest[0] === "home") return Response.json(await stub.ensureHome())
 			return stub.fetch(request)
 		}
 		const [roomId, op, method] = rest

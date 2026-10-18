@@ -49,6 +49,19 @@ export class RoomDO extends Room {
 	async agentChatter(count: number): Promise<void> {
 		for (let i = 0; i < count; i++) await this.post("ada" as never, `chatter-${i}`, 0, 0, `agent line ${i}`)
 	}
+
+	// The pending table's indexes, and the plan for reading the burst window's start.
+	async windowPlans(): Promise<{ indexes: string[]; start: string[] }> {
+		const indexes = this.ctx.storage.sql
+			.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'pending' ORDER BY name")
+			.toArray()
+			.map((r) => r.name)
+		const start = this.ctx.storage.sql
+			.exec<{ detail: string }>("EXPLAIN QUERY PLAN SELECT at FROM pending ORDER BY seq LIMIT 1")
+			.toArray()
+			.map((r) => r.detail)
+		return { indexes, start }
+	}
 }
 
 type Env = { ROOM: DurableObjectNamespace<RoomDO>; USER: DurableObjectNamespace<UserDO> }
@@ -58,6 +71,7 @@ export default {
 		const [, kind, roomId] = new URL(request.url).pathname.split("/")
 		const stub = env.ROOM.get(env.ROOM.idFromName(`room:alice:${roomId}`))
 		if (kind === "reads") return Response.json(await stub.rowsRead())
+		if (kind === "plan") return Response.json(await stub.windowPlans())
 		if (kind === "chatter") {
 			await stub.agentChatter(Number(await request.text()))
 			return new Response("ok")

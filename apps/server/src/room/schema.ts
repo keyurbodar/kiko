@@ -1,9 +1,24 @@
 import { ALARM_STEPS } from "@kiko/durable/alarm"
-import { addColumn, dropColumn, type Step } from "@kiko/durable/migrate"
+import { addColumn, dropColumn, rebuildTable, type Step } from "@kiko/durable/migrate"
 import { treeSteps } from "@kiko/memory/optmem"
+import { KEEP_EVENTS } from "./log"
 
 // The room's tables, in one list. An object at version N runs only the steps after the first N. A step is
 // appended, never edited or moved, and every step must be safe on a table that already exists.
+//
+// clients had no trim before the trim step further down, so an old room can hold one row per message it ever
+// sent. Only the replay window can be asked for again (log.ts), so the rebuild drops the rest instead of copying
+// it: a rebuild is one transaction, and the free plan bills every row it writes.
+export const REBUILD_CLIENTS = rebuildTable(
+	"clients",
+	"clients_next",
+	"CREATE TABLE clients_next (client_id TEXT PRIMARY KEY, message_id TEXT NOT NULL, seq INTEGER NOT NULL) WITHOUT ROWID",
+	["client_id", "message_id", "seq"],
+	[],
+	[],
+	`seq > (SELECT max(seq) - ${KEEP_EVENTS} FROM events)`,
+)
+
 export const ROOM_STEPS: Step[] = [
 	`
 	-- Every stored change a human can see. seq only increases and is never reused.
@@ -261,4 +276,48 @@ export const ROOM_STEPS: Step[] = [
 	addColumn("messages", "step_after", "INTEGER"),
 	// The words a run wrote between two tool calls. They stay in the step pane, not in the chat.
 	addColumn("run_steps", "note", "INTEGER"),
+	// pending_at only served `SELECT min(at) FROM pending`, and a pending row's seq is assigned in send order,
+	// so the oldest row's at is the at of the row with the lowest seq. pending_seq already answers that, and
+	// pending_at cost a row on every staged human message.
+	"DROP INDEX IF EXISTS pending_at",
+	// The run pane reads a run's steps by slug and seq on every wake; without this each read scanned the table.
+	"CREATE INDEX IF NOT EXISTS run_steps_slug_seq ON run_steps (slug, after_seq)",
+	// Every one of these tables pays a row for a rowid it does not use. A TEXT primary key on a rowid table costs
+	// two rows to insert: the row itself and the unique index that enforces the key. WITHOUT ROWID stores the row
+	// in the key's own btree, so the same insert costs one. Measured: pending 3.00 -> 2.00, clients 2.00 -> 1.00.
+	REBUILD_CLIENTS,
+	rebuildTable(
+		"pending",
+		"pending_next",
+		`CREATE TABLE pending_next (
+			id TEXT PRIMARY KEY,
+			seq INTEGER NOT NULL,
+			at INTEGER NOT NULL,
+			text TEXT NOT NULL,
+			reply_to TEXT,
+			mentions TEXT NOT NULL DEFAULT '[]'
+		) WITHOUT ROWID`,
+		["id", "seq", "at", "text", "reply_to", "mentions"],
+		[],
+		["CREATE INDEX IF NOT EXISTS pending_seq ON pending (seq)"],
+	),
+	// events carried AUTOINCREMENT, and every insert into it also wrote the sqlite_sequence row that tracks the
+	// counter: one extra billed row on every event, and events are written for every message, edit, react, and
+	// read. Without it SQLite assigns max(rowid) + 1, and the trim only ever deletes rows below the maximum, so a
+	// seq is still never reused. Measured: 3.00 -> 1.00 per event.
+	//
+	// The single (kind, seq) index also cost a row on every event so that two rare reads could filter by kind.
+	// Two partial indexes cover exactly those reads and cost nothing for a message event, which is almost all of
+	// them: react lookups, and the edit/delete sweep memory makes.
+	rebuildTable(
+		"events",
+		"events_next",
+		"CREATE TABLE events_next (seq INTEGER PRIMARY KEY, kind TEXT NOT NULL, at INTEGER NOT NULL, actor TEXT NOT NULL, payload TEXT NOT NULL)",
+		["seq", "kind", "at", "actor", "payload"],
+		["events_kind_seq"],
+		[
+			"CREATE INDEX IF NOT EXISTS events_react ON events (seq) WHERE kind = 'react'",
+			"CREATE INDEX IF NOT EXISTS events_edit ON events (seq) WHERE kind IN ('edit', 'delete')",
+		],
+	),
 ]

@@ -81,5 +81,8 @@ test("the per-send plans read the burst window in seq order and its start throug
 	const envelopes = plan("SELECT id, seq, at, text, reply_to, mentions FROM pending ORDER BY seq LIMIT ?", 100)
 	expect(envelopes).toContain("USING INDEX pending_seq")
 	expect(envelopes).not.toContain("TEMP B-TREE")
-	expect(plan("SELECT min(at) AS at FROM pending")).toContain("pending_at")
+	// The window's start reads the lowest seq, which pending_seq already orders, so it needs no second index.
+	const start = plan("SELECT at FROM pending ORDER BY seq LIMIT 1")
+	expect(start).toContain("USING INDEX pending_seq")
+	expect(start).not.toContain("SCAN pending\n")
 })

@@ -181,7 +181,7 @@
           "type": "TEXT",
           "notnull": 1,
           "dflt_value": null,
-          "pk": 0
+          "pk": 1
         },
         {
           "cid": 1,
@@ -200,9 +200,7 @@
           "pk": 0
         }
       ],
-      "indexes": [
-        "sqlite_autoindex_clients_1"
-      ]
+      "indexes": []
     },
     "deliveries": {
       "columns": [
@@ -295,7 +293,8 @@
         }
       ],
       "indexes": [
-        "events_kind_seq"
+        "events_edit",
+        "events_react"
       ]
     },
     "human_asks": {
@@ -1004,7 +1003,7 @@
           "cid": 0,
           "name": "id",
           "type": "TEXT",
-          "notnull": 0,
+          "notnull": 1,
           "dflt_value": null,
           "pk": 1
         },
@@ -1050,9 +1049,7 @@
         }
       ],
       "indexes": [
-        "pending_at",
-        "pending_seq",
-        "sqlite_autoindex_pending_1"
+        "pending_seq"
       ]
     },
     "pending_uploads": {
@@ -1375,7 +1372,9 @@
           "pk": 0
         }
       ],
-      "indexes": []
+      "indexes": [
+        "run_steps_slug_seq"
+      ]
     },
     "signal_more": {
       "columns": [

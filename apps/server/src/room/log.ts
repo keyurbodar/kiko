@@ -159,8 +159,9 @@ export class RoomLog {
 	}
 
 	setMeta(key: string, value: string): void {
+		// A value the row already holds costs a row for nothing, and the free plan counts rows written.
 		this.sql.exec(
-			"INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+			"INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE value IS NOT excluded.value",
 			key,
 			value,
 		)
@@ -518,7 +519,12 @@ export class RoomLog {
 				JSON.stringify(body),
 			)
 			.one()
-		if (seq % TRIM_EVERY === 0) this.sql.exec("DELETE FROM events WHERE seq <= ?", seq - KEEP_EVENTS)
+		if (seq % TRIM_EVERY === 0) {
+			this.sql.exec("DELETE FROM events WHERE seq <= ?", seq - KEEP_EVENTS)
+			// Send dedupe only answers a resend of a message this client just sent. A client's window is shorter
+			// than the replay window, so a row older than the events kept can never be asked for again.
+			this.sql.exec("DELETE FROM clients WHERE seq <= ?", seq - KEEP_EVENTS)
+		}
 		return { ...body, seq, at } as RoomEvent
 	}
 

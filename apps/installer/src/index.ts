@@ -1,6 +1,6 @@
 import { createClerkClient } from "@clerk/backend"
 import { DurableObject } from "cloudflare:workers"
-import { InstallError } from "./cf"
+import { installFailure } from "./cf"
 import handler, { type Env, type InstallOutcome } from "./handler"
 import { type OAuthTokens, runInstall } from "./install"
 import type { Grant } from "./plan"
@@ -37,12 +37,17 @@ export class Installer extends DurableObject<Env> {
             take: async (code) => {
               const key = `code:${await sha(code)}`
               const kept = await this.ctx.storage.get<{ tokens: OAuthTokens; at: number }>(key)
+              if (!kept) return undefined
               await this.ctx.storage.delete(key)
-              return kept && Date.now() - kept.at < CODE_KEEP_MS ? kept.tokens : undefined
+              return Date.now() - kept.at < CODE_KEEP_MS ? kept.tokens : undefined
             },
             put: async (code, tokens) => {
-              await this.ctx.storage.deleteAll()
-              await this.ctx.storage.put(`code:${await sha(code)}`, { tokens, at: Date.now() })
+              const now = Date.now()
+              // The stored entry expires on its own timestamp, so the only stale keys are ones older than that.
+              // One delete for all of them keeps this to a single write instead of a deleteAll on every install.
+              const stale = [...(await this.ctx.storage.list<{ at: number }>({ prefix: "code:" }))].filter(([, kept]) => now - kept.at >= CODE_KEEP_MS).map(([key]) => key)
+              if (stale.length > 0) await this.ctx.storage.delete(stale)
+              await this.ctx.storage.put(`code:${await sha(code)}`, { tokens, at: now })
             },
           },
         },
@@ -50,12 +55,14 @@ export class Installer extends DurableObject<Env> {
       )
       return { ok: true, value }
     } catch (e) {
-      if (e instanceof InstallError) {
-        console.error(`install failed: ${e.code} ${e.detail ?? e.message}`)
-        return { ok: false, error: { code: e.code, message: e.message, status: e.status, ...(e.detail ? { detail: e.detail } : {}), ...(e.accounts ? { accounts: e.accounts } : {}) } }
+      const failed = installFailure(e)
+      if (!failed) {
+        const said = e instanceof Error ? e.message : String(e)
+        console.error(`install failed: ${said}`)
+        return { ok: false, error: { code: "internal", message: "The install failed. Try again.", status: 500, detail: said } }
       }
-      console.error(`install failed: ${e instanceof Error ? e.message : String(e)}`)
-      return { ok: false, error: { code: "internal", message: "The install failed. Try again.", status: 500, detail: e instanceof Error ? e.message : String(e) } }
+      console.error(`install failed: ${failed.code} ${failed.detail ?? failed.message}`)
+      return { ok: false, error: { code: failed.code, message: failed.message, status: failed.status, ...(failed.detail ? { detail: failed.detail } : {}), ...(failed.accounts ? { accounts: failed.accounts } : {}) } }
     }
   }
 }
