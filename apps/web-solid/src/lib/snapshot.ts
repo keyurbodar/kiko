@@ -128,7 +128,12 @@ export function snapshotAfterRoute(): void {
   if (routeTimer !== undefined) clearTimeout(routeTimer)
   routeTimer = setTimeout(() => {
     routeTimer = undefined
-    if (document.visibilityState === "visible") saveSnapshot()
+    if (document.visibilityState !== "visible") return
+    // Serializing the whole screen is main-thread work. It lands right after a navigation, when the
+    // new page is becoming interactive, so it waits for an idle slice instead of a fixed deadline.
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void, opts: { timeout: number }) => number }).requestIdleCallback
+    if (ric) ric(() => saveSnapshot(), { timeout: 3000 })
+    else saveSnapshot()
   }, ROUTE_SAVE_MS)
 }
 

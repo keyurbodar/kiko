@@ -11,16 +11,17 @@ export type { Catalog, CatalogModel, CatalogProvider, ConnectMethod }
 let cached: Promise<Catalog> | undefined
 let forget: ReturnType<typeof setTimeout> | undefined
 /**
- * How long the parsed catalog (about 2 MB) outlives its last request. A screen that reads it holds
- * its own copy while open; after that the response is in the HTTP cache, so the next open costs a
- * revalidation and a parse.
+ * How long the parsed catalog outlives its last request. The response is about 314 KB of JSON
+ * (41 providers, 1,600 models) and the server answers it with `no-cache`, so every reopen without
+ * this is a Worker round trip plus a parse. A provider list changes only when someone connects one,
+ * and the server's `changed: models` frame drops it at once.
  */
-export const CATALOG_KEEP_MS = 60_000
+export const CATALOG_KEEP_MS = 30 * 60_000
 
-/** Fetches the catalog into the HTTP cache without parsing it, so the first open skips the download. */
+/** Starts the catalog download early. Shares `loadCatalog`'s promise, so the first open reuses it. */
 export async function prefetchCatalog(): Promise<void> {
   try {
-    await apiFetch("/api/models")
+    await loadCatalog()
   } catch {
     // the open retries
   }

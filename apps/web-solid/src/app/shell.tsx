@@ -27,7 +27,7 @@ import { newAgentOpen } from "../newagent/state";
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
 import { hintsShown, watchHold } from "../commands/hints";
 const HintLayer = lazy(() => import("../commands/HintLayer"));
-import { Sidebar, SidebarToggle } from "../sidebar";
+import { Sidebar, SidebarToggle, preloadSettingsSidebar } from "../sidebar";
 import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
@@ -66,6 +66,22 @@ const AvatarPicker = lazy(() => import("../avatar/picker"));
 const BotPicker = lazy(() => import("../chat/bot-picker"));
 const NewAgent = lazy(() => import("../newagent/dialog"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
+
+/**
+ * What a section paints while its chunk loads. The router unmounts the page it leaves before the
+ * next one is ready, so without this the main panel is simply empty for the length of a download.
+ * A quiet, motion-free stand-in reads as "loading" without inventing content.
+ */
+function PageSkeleton() {
+  return (
+    <div class="flex min-h-0 flex-1 flex-col gap-3 p-6" data-component="page-skeleton" aria-hidden="true">
+      <span class="motion-skeleton h-6 w-40 rounded-md" />
+      <span class="motion-skeleton h-4 w-64 rounded-md" />
+      <span class="motion-skeleton mt-2 h-24 w-full rounded-lg" />
+      <span class="motion-skeleton h-4 w-3/4 rounded-md" />
+    </div>
+  );
+}
 
 const KEY = "kiko:sidebar-collapsed";
 
@@ -203,6 +219,10 @@ export function Shell(props: ParentProps) {
     if (sideOpen()) void loadSidecar();
     const warm = () => {
       preloadRoute("/chat");
+      // The settings chunk does not depend on the editor, so it does not wait behind it. The pickers
+      // below do: they share the editor's chunk, and racing the first keystroke is what costs a frame.
+      preloadRoute("/settings");
+      void preloadSettingsSidebar();
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000);
     };
     if (idle) idle(warm);
@@ -211,7 +231,6 @@ export function Shell(props: ParentProps) {
   // After the composer's rich editor has loaded, so the settings download never races it.
   createEffect(() => {
     if (!richLoaded()) return;
-    preloadRoute("/settings");
     for (const load of idlePreloads) load();
   });
   onMount(() => onCleanup(watchHold()));
@@ -322,7 +341,7 @@ export function Shell(props: ParentProps) {
                     >
                       <div class="main-panel relative flex min-h-0 min-w-0 flex-1 overflow-hidden" data-component="main-panel" ref={watchPanel}>
                         <div class="flex min-w-0 flex-1 flex-col" style={{ "padding-right": sideChat() !== null && cardBeside() ? `${CARD_WIDTH + 24}px` : undefined }}>
-                          {props.children}
+                          <Suspense fallback={<PageSkeleton />}>{props.children}</Suspense>
                         </div>
                         <Show when={cardShown() ? sideChat() : null} keyed>
                           {(id) => (

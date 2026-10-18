@@ -183,7 +183,10 @@ export default function ChatRoute() {
   };
 
   // A divider is something to read, so a chat that has one is not empty; an event this client does not draw is nothing.
-  const empty = () => messages().every((m) => m.event && eventRow(m, String) === null);
+  // Before the warm tier paints the window is `[]`, which is not the same fact as a chat with no messages:
+  // painting the empty state there flashes "What's on your mind?" over a chat that has plenty to show.
+  const settled = () => !!useApp.room()?.state.loaded
+  const empty = () => settled() && messages().every((m) => m.event && eventRow(m, String) === null);
   let dock: HTMLDivElement | undefined;
   let launch: Launch | null = null;
   createEffect(

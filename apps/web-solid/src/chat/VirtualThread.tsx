@@ -299,11 +299,15 @@ export function VirtualThread(props: {
   const restorePosition = (): boolean => {
     const key = props.scrollKey
     if (!key || !props.scrollBook || restoredFor === key || !showsKey()) return false
-    restoredFor = key
     const saved = props.scrollBook.scroll(key)
-    if (!saved) return false
+    if (!saved) {
+      restoredFor = key
+      return false
+    }
     const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
+    // Not burned: the anchor may sit in a page that has not loaded yet, so a later pass can still find it.
     if (index < 0) return false
+    restoredFor = key
     let tries = 0
     stuck = false
     const apply = () => {
@@ -535,10 +539,17 @@ export function VirtualThread(props: {
   const pinToLatest = () => {
     const until = performance.now() + PIN_SETTLE_MS
     const run = ++pinRun
+    let lastHeight = -1
+    let stable = 0
     const step = () => {
       if (!scrollElement || run !== pinRun) return
+      // The reader's own scroll outranks the pin: rows measured late must not drag them back down.
+      if (!stuck && readerScrolling) return
       scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: "auto" })
-      if (performance.now() < until) {
+      if (scrollElement.scrollHeight === lastHeight) stable += 1
+      else stable = 0
+      lastHeight = scrollElement.scrollHeight
+      if (performance.now() < until && stable < 2) {
         requestAnimationFrame(step)
         return
       }
@@ -550,24 +561,35 @@ export function VirtualThread(props: {
 
   let firstLoad = true
   let lastOwner: unknown
+  let hadRows = false
   createEffect(
     on(items, () => {
       const owner: unknown = props.scrollKey ?? props.messages
       if (owner !== lastOwner) {
         lastOwner = owner
         firstLoad = true
+        hadRows = false
         anchor = undefined
         setPinnedCount(messageCount())
         if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
       }
+      const rows = items().length > 0
+      // The first rows to arrive for this chat are the real first paint, even when the switch painted
+      // an empty stage first. Landing them in the same pass is what keeps a long chat from showing its
+      // oldest message for a frame.
+      const firstContent = rows && !hadRows
+      hadRows = rows
       const restoring = restorePosition()
       const wasAtLatest = firstLoad || stuck || isAtLatest()
       seedAnchor()
       if (restoring) {
         firstLoad = false
-      } else if (firstLoad) {
+      } else if (firstLoad || firstContent) {
         firstLoad = false
-        if (items().length > 0) pinToLatest()
+        if (rows) {
+          if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
+          pinToLatest()
+        }
       } else if (wasAtLatest) {
         pinToLatest()
       }

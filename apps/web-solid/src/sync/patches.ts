@@ -130,13 +130,15 @@ export function settleUser(patches: readonly UserPatch[], events: readonly UserE
 	return patches.filter((p) => !events.some((e) => userConfirmedBy(p, e)))
 }
 
-/** Drops patches that went out more than `ttlMs` ago and were never confirmed. Sends never expire. */
+/** Drops patches that went out more than `ttlMs` ago and were never confirmed. Sends and reads never expire. */
 export function expire<P extends { sentAt?: number; frame?: RoomPatchFrame }>(
 	patches: readonly P[],
 	now: number,
 	ttlMs = PATCH_TTL_MS,
 ): P[] {
-	return patches.filter((p) => p.frame?.t === "send" || p.sentAt === undefined || now - p.sentAt < ttlMs)
+	// A read is idempotent and replaced by the next one, so dropping it can only lose a mark the room
+	// silently accepted (it emits no event when the mark does not advance).
+	return patches.filter((p) => p.frame?.t === "send" || p.frame?.t === "read" || p.sentAt === undefined || now - p.sentAt < ttlMs)
 }
 
 // The overlays. Each returns the server object itself when no patch touches it,
