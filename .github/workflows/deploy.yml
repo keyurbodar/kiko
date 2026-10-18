@@ -1,13 +1,17 @@
 name: deploy
 
-# Deploys the hosted front door (the client plus every signed release) and the installer
-# Worker to the kiko.works account. A push to main runs it after a green ci; the release
-# workflow calls it; it can also run by hand.
+# Deploys the hosted front door (the client plus every signed release), the backend, and the
+# installer Worker to the kiko.works account. The release workflow calls it, and it can run by
+# hand.
+#
+# It deliberately has no `push`/`workflow_run` trigger. A merge to main carries the version
+# that was already released, because only the release workflow bumps `package.json`. So a
+# deploy of a merge could only ever do one of two things: fail the version guard below, or
+# re-upload the version already live. The second is worse than useless. On the first run of
+# the nightly release, a merge commit's deploy started after the release had shipped 0.4.2
+# and put 0.4.1 back live, because a merge of version 0.4.1 passes the guard when 0.4.1 is
+# already released. Deploys come from releases instead: the nightly, or a manual run.
 on:
-  workflow_run:
-    workflows: [ci]
-    types: [completed]
-    branches: [main]
   workflow_call:
     inputs:
       ref:
@@ -40,14 +44,13 @@ jobs:
       group: deploy
       cancel-in-progress: false
       queue: max
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
@@ -63,10 +66,9 @@ jobs:
       - name: fetch the release tags
         # The tags are the index of every released version.
         run: git fetch --force --tags origin
-      - name: gate manual runs on the full check
-        # A push deploy is already gated by the ci run that triggered this. A release or a
-        # manual run is not: the version bump is pushed with GITHUB_TOKEN, which starts no ci.
-        if: github.event_name != 'workflow_run'
+      - name: gate every run on the full check
+        # Nothing triggers this by a push any more, and a release's version bump is pushed
+        # with GITHUB_TOKEN, which starts no ci. So every run is ungated and checks itself.
         run: bun run check
       - name: write the release signing key
         # scripts/release.ts reads ~/.config/kiko/release-key.json. The value never prints.
@@ -87,13 +89,29 @@ jobs:
         run: bun scripts/release.ts
       - name: guard a released version
         # A released version is never replaced with other code: a backend on it would think
-        # it is current and never update.
+        # it is current and never update. A version is also never replaced by an older one.
+        #
+        # The second half is what a push deploy needed and did not have. A merge to main still
+        # carries the version that was released before it, so deploying a merge would put that
+        # older version back live over a newer release. That is not hypothetical: it happened
+        # on the first nightly release, which shipped 0.4.2 and was then overwritten with 0.4.1
+        # by the deploy of the merge commit it had just released. Deploying an older version is
+        # refused outright now, so a stale deploy fails loudly instead of silently rolling
+        # production back, whichever way it was started.
         run: |
           version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest.json)"
+          case "$version" in *[!0-9.]*|"") echo "unreadable built version: $version" >&2; exit 1 ;; esac
+          live_version="$(curl -sf https://app.kiko.works/releases/latest.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
           live="$(curl -sf "https://app.kiko.works/releases/$version/manifest.json" || true)"
           case "$live" in *"\"version\": \"$version\""*) ;; *) live="" ;; esac
           if [ -n "$live" ] && [ "$live" != "$(cat "dist-release/$version/manifest.json")" ]; then
             echo "Version $version is already released with other code. Bump the version in package.json." >&2
+            exit 1
+          fi
+          # Sort both as versions, not strings, so 0.4.10 counts as newer than 0.4.9.
+          newest="$(printf '%s\n%s\n' "$version" "$live_version" | sort -V | tail -1)"
+          if [ -n "$live_version" ] && [ "$newest" != "$version" ]; then
+            echo "$version is older than the live $live_version. Refusing to put an older release back." >&2
             exit 1
           fi
       - name: assemble every served release

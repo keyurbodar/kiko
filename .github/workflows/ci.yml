@@ -15,8 +15,7 @@ on:
 
 # A push to a pull request cancels the older run for that branch: three pushes ran three full verifies at
 # once, and only the last one's result counts. A push to main is never cancelled, and is grouped by its
-# commit rather than the ref. Cancelling it would leave that merge commit with no successful run, and
-# deploy waits for one: the commit would never ship.
+# commit rather than the ref: a cancelled run would leave that merge commit with no result at all.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
