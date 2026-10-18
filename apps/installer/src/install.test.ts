@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { isBlocking } from "./cf"
 import { type InstallEnv, runInstall } from "./install"
 
 const enc = new TextEncoder()
@@ -265,6 +266,8 @@ describe("runInstall", () => {
     ["every account denies the sign-in", { accounts: ["team"], deniedAccounts: ["team"] }, "no_permission"],
     ["Cloudflare says slow down", { status: { path: "/workers/scripts", code: 429 } }, "busy"],
     ["Cloudflare is down", { status: { path: "/workers/scripts", code: 503 } }, "cloudflare_down"],
+    ["the account has used its free Durable Object rows", { status: { path: "/workers/scripts", code: 500, message: "Exceeded allowed rows written in Durable Objects free tier" } }, "storage_full"],
+    ["the account has used its free Durable Object rows read", { status: { path: "/accounts", code: 500, message: "exceeded allowed rows read in durable objects free tier" } }, "storage_full"],
     ["the subdomain call is denied, not missing", { subdomain: null, status: { path: "/workers/subdomain", code: 403, error: 10000 } }, "no_permission"],
     ["the upload of a new Worker is denied", { status: { path: "/workers/scripts/kiko", code: 403 } }, "cannot_create"],
     ["the upload over an existing Kiko is denied", { scripts: [{ id: "kiko" }], status: { path: "/workers/scripts/kiko", code: 403 } }, "no_permission"],
@@ -274,6 +277,16 @@ describe("runInstall", () => {
     const { fetcher } = fakeCloudflare({ release, scripts: [], ...(extra as object) } as Parameters<typeof fakeCloudflare>[0])
     const err = await runInstall(env(release), { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { sub: "u", grant: { kind: "token", token: "t" } }).catch((e) => e)
     expect(err.code).toBe(code)
+  })
+
+  test("the free Durable Object row limit says what happened, when it resets, and keeps Cloudflare's words", async () => {
+    const release = await makeRelease()
+    const err = await install({ release, scripts: [], status: { path: "/workers/scripts", code: 500, message: "Exceeded allowed rows written in Durable Objects free tier" } }).catch((e) => e)
+    expect(err.code).toBe("storage_full")
+    expect(err.message).toContain("free daily allowance")
+    expect(err.message).toContain("00:00 UTC")
+    expect(err.detail).toContain("Exceeded allowed rows written")
+    expect(isBlocking(err)).toBe(true)
   })
 
   test.each(["manifest", "module"] as const)("a tampered %s is rejected before any upload", async (tamper: "manifest" | "module") => {

@@ -30,9 +30,16 @@ const DENIED = [10000, 9109]
 const unknownToken = (errors: { code: number; message: string }[]) =>
   errors.some((e) => e.code === 6003 || /invalid (access|api) token/i.test(e.message))
 
+// The Free plan allows 100,000 rows written and 5,000,000 rows read a day for the whole account. Over that allowance
+// Cloudflare answers with this sentence and no documented code, so the words are what is matched. It arrives either
+// as an API error body or as a throw from a storage call inside an object.
+// https://developers.cloudflare.com/durable-objects/platform/limits/
+const ROWS_FULL = /exceeded allowed rows (?:written|read) in durable objects/i
+
 function codeOf(status: number, errors: { code: number; message: string }[]): string {
   const codes = errors.map((e) => e.code)
   if (unknownToken(errors)) return "bad_token"
+  if (errors.some((e) => ROWS_FULL.test(e.message))) return "storage_full"
   if (status === 401 || status === 403 || codes.some((c) => DENIED.includes(c))) return "no_permission"
   if (status === 429) return "busy"
   if (status >= 500) return "cloudflare_down"
@@ -40,14 +47,23 @@ function codeOf(status: number, errors: { code: number; message: string }[]): st
 }
 
 /** A failure that repeating the same call will not fix, so a caller that swallows other errors must not swallow these. */
-export const isBlocking = (e: unknown): e is InstallError => e instanceof InstallError && ["bad_token", "no_permission", "busy", "cloudflare_down"].includes(e.code)
+export const isBlocking = (e: unknown): e is InstallError => e instanceof InstallError && ["bad_token", "no_permission", "busy", "storage_full", "cloudflare_down"].includes(e.code)
 
 const SENTENCE: Record<string, string> = {
   bad_token: "Cloudflare does not recognise this token. Paste the token value Cloudflare showed once when you created it.",
   no_permission: "Cloudflare did not let this sign-in do a step of the install.",
   busy: "Cloudflare is busy. Wait a minute, then try again.",
+  storage_full: "This Cloudflare account has used its free daily allowance of Durable Object storage, so the install could not save its step. The allowance resets at 00:00 UTC, and trying again after that works. A paid Workers plan removes the daily limit.",
   cloudflare_down: "Cloudflare is having trouble right now. Try again in a few minutes.",
   cloudflare_error: "Cloudflare did not accept a step of the install.",
+}
+
+/** A thrown error made into the install failure it is, or null when it is one the catch-all does not know. A storage
+ * call inside an object throws Cloudflare's row-limit sentence instead of an API error body. */
+export const installFailure = (e: unknown): InstallError | null => {
+  if (e instanceof InstallError) return e
+  const said = e instanceof Error ? e.message : String(e)
+  return ROWS_FULL.test(said) ? new InstallError("storage_full", SENTENCE.storage_full as string, 503, [], said) : null
 }
 
 // One Cloudflare API call. The token goes in the header only; errors carry Cloudflare's own message and codes, never the token.

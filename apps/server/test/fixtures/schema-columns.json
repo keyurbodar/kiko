@@ -1050,7 +1050,6 @@
         }
       ],
       "indexes": [
-        "pending_at",
         "pending_seq",
         "sqlite_autoindex_pending_1"
       ]
@@ -1375,7 +1374,9 @@
           "pk": 0
         }
       ],
-      "indexes": []
+      "indexes": [
+        "run_steps_slug_seq"
+      ]
     },
     "signal_more": {
       "columns": [

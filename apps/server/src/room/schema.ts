@@ -261,4 +261,10 @@ export const ROOM_STEPS: Step[] = [
 	addColumn("messages", "step_after", "INTEGER"),
 	// The words a run wrote between two tool calls. They stay in the step pane, not in the chat.
 	addColumn("run_steps", "note", "INTEGER"),
+	// pending_at only served `SELECT min(at) FROM pending`, and a pending row's seq is assigned in send order,
+	// so the oldest row's at is the at of the row with the lowest seq. pending_seq already answers that, and
+	// pending_at cost a row on every staged human message.
+	"DROP INDEX IF EXISTS pending_at",
+	// The run pane reads a run's steps by slug and seq on every wake; without this each read scanned the table.
+	"CREATE INDEX IF NOT EXISTS run_steps_slug_seq ON run_steps (slug, after_seq)",
 ]

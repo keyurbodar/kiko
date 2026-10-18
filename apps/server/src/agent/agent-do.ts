@@ -434,20 +434,35 @@ export class AgentDO extends DurableObject<Env> {
     this.#seqs = seqs
     this.#heard = batch.envelopes.findLast((e) => e.from.kind === "human")?.rootId ?? null
     this.#humanInputs = batch.envelopes.filter((e) => e.from.kind === "human").map((e) => e.rootId)
-    await this.ctx.storage.put(HUMAN_INPUTS_KEY, this.#humanInputs)
+    const inputs = this.changedHumanInputs()
     const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
     if (!fresh && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
-        await this.ctx.storage.put(MEMORY_POS_KEY, delta.count)
+        // The inputs and the memory position share one put, so the run costs one row written rather than two.
+        await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: delta.count })
+        if (inputs) this.#storedInputs = inputs
         return { fresh: false, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
       }
     }
     const [view, life] = await Promise.all([room.memoryView(seqs), withLife ? userStub(this.env.USER, home.userId).lifeView() : ""])
-    await this.ctx.storage.put(MEMORY_POS_KEY, view.count)
+    await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: view.count })
+    if (inputs) this.#storedInputs = inputs
     this.#shown.clear()
     return { fresh: true, text: memoryBlock(life, view.text) }
   }
+
+  /**
+   * The human messages this run is answering, or null when they are the ones already stored. They are stored with the
+   * memory position, before the run can fail, so a retry knows what to run again. A run that answers the same messages
+   * as the run before it stores none of them: every put is a billed row, and a tool follow-up answers the same message.
+   */
+  private changedHumanInputs(): string[] | null {
+    const held = this.#humanInputs
+    if (held.length === this.#storedInputs.length && held.every((id, i) => id === this.#storedInputs[i])) return null
+    return held
+  }
+  #storedInputs: string[] = []
 
   #seqs: number[] = []
   #heard: string | null = null
@@ -469,18 +484,18 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   private async beforeCompact(harness: Harness): Promise<void> {
-    await this.carryUsage(harness)
-    const home = this.home()
-    if (!home) return
-    const count = ((await this.ctx.storage.get<number>(COMPACTIONS_KEY)) ?? 0) + 1
-    await this.ctx.storage.put(COMPACTIONS_KEY, count)
-    await roomStub(this.env.ROOM, home.userId, home.roomId).compacted(home.slug, String(count)).catch(() => {})
-  }
-
-  private async carryUsage(harness: Harness): Promise<void> {
     const now = await this.usageOf(harness)
     const carried = await this.carriedUsage()
-    await this.ctx.storage.put(USAGE_CARRIED_KEY, { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite })
+    const usage = { input: carried.input + now.input, output: carried.output + now.output, cacheRead: carried.cacheRead + now.cacheRead, cacheWrite: carried.cacheWrite + now.cacheWrite }
+    const home = this.home()
+    if (!home) {
+      await this.ctx.storage.put(USAGE_CARRIED_KEY, usage)
+      return
+    }
+    const count = ((await this.ctx.storage.get<number>(COMPACTIONS_KEY)) ?? 0) + 1
+    // One put for both keys: the usage this compaction carries and the compaction count.
+    await this.ctx.storage.put({ [USAGE_CARRIED_KEY]: usage, [COMPACTIONS_KEY]: count })
+    await roomStub(this.env.ROOM, home.userId, home.roomId).compacted(home.slug, String(count)).catch(() => {})
   }
 
   private async carriedUsage(): Promise<Usage> {

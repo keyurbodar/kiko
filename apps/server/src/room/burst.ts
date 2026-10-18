@@ -65,7 +65,9 @@ export class Burst {
 	}
 
 	private startedAt(): number | null {
-		return this.sql.exec<{ at: number | null }>("SELECT min(at) AS at FROM pending").one().at
+		// A pending row's seq is the order it was sent in, and it is staged with its message, so its seq follows the
+		// message's at. The lowest seq therefore holds the window's first at, read through pending_seq.
+		return this.sql.exec<{ at: number | null }>("SELECT at FROM pending ORDER BY seq LIMIT 1").one().at
 	}
 
 	/** Records a human message in the window, in the same transaction that stores the message. */
