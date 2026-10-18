@@ -17,13 +17,28 @@
   gap: 8px;
 }
 
+.typing-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.typing-line {
+  display: flex;
+  max-width: 100%;
+  align-items: flex-end;
+  gap: 8px;
+}
+
 .typing-bubble {
   display: inline-flex;
   flex: none;
   align-items: center;
   padding: var(--bubble-pad-y) var(--bubble-pad-x);
 
-  border-radius: calc((var(--font-base) + 6px) / 2 + var(--bubble-pad-y));
+  border-radius: var(--radius-bubble);
+  border-end-start-radius: 4px;
   background: var(--message-assistant);
   color: var(--message-assistant-foreground);
   font-size: var(--font-base);
@@ -213,10 +228,4 @@
   from {
     opacity: 0;
   }
-}
-
-/* The run chevron sits at the bubble's side, as it does beside a message. */
-.typing-run {
-  align-self: center;
-  margin-left: -4px;
 }

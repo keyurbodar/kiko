@@ -77,10 +77,10 @@ test("the scanner flags navigation, button, menu item, tab, and composer selecto
   expect(OVERLAY.test('[data-component="tab-strip"][data-expanded]')).toBe(false);
 });
 
-test("a transition belongs only to the switch and a sliding sidebar", () => {
+test("a transition belongs only to the switch, a sliding sidebar, and the run tree's fold", () => {
   for (const r of styled) {
     if (!/transition\s*:/.test(r.body)) continue;
-    expect(r.selector, r.selector).toMatch(/^\.motion-(switch|slide)/);
+    expect(r.selector, r.selector).toMatch(/^\.motion-(switch|slide|run-fold|run-chevron)/);
   }
 });
 
@@ -124,7 +124,8 @@ test("keyframes move only transform and opacity, and a collapse also moves heigh
   expect(frames.length).toBeGreaterThanOrEqual(5);
   for (const f of frames) {
     const props = [...f.body.matchAll(/(?<![a-z-])([a-z-]+)\s*:/g)].map((m) => m[1]).filter((p) => p !== "animation-timing-function");
-    const allowed = f.selector.startsWith("@keyframes motion-collapse") ? ["height"] : ["transform", "opacity"];
+    // The shine is a waiting state that sweeps a band across a label's own text.
+    const allowed = f.selector.startsWith("@keyframes motion-collapse") ? ["height"] : f.selector === "@keyframes motion-shine" ? ["background-position"] : ["transform", "opacity"];
     for (const p of props) expect(allowed, `${f.selector} ${p}`).toContain(p);
   }
 });

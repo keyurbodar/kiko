@@ -887,8 +887,8 @@ export function createApp(options: AppOptions = {}) {
         return this.typingSlugs().map((slug) => r?.state.doing[slug] ?? (r?.state.status[slug as never] === "working" ? "using a tool" : undefined))
       },
 
-      /** The window of steps this bubble opens in the run panel, or undefined when it opens none. */
-      runChevron(m: ChatMessage): string | undefined {
+      /** The window of steps this bubble opens, drawn as the run tree under it, or undefined when it opens none. */
+      runWindow(m: ChatMessage): string | undefined {
         return m.botId && m.steps ? windowKey(m.botId, m.stepAfter ?? 0) : undefined
       },
 

@@ -72,6 +72,23 @@ export function iconOf(step: Pick<RunStep, "tool" | "status" | "name" | "app" | 
   return NAME_ICON[step.name] ?? (step.app ? "app" : KIND_ICON[step.tool])
 }
 
+/** The calls whose label names a file or a folder, as the server writes it ("Wrote /notes.md"). A delete names nothing left to open. */
+const FILE_CALLS = new Set(["read", "write", "edit", "cp", "mv"])
+const FOLDER_CALLS = new Set(["ls", "mkdir"])
+
+/**
+ * The file or folder a call touched, read off its label, as a path in the chat's files (no leading
+ * slash): "Wrote /notes.md" is notes.md, and a copy or a move names where it went. Null for a call
+ * that names neither, such as a command or a search. A folder call with no path is the chat's root.
+ */
+export function pathOf(step: Pick<RunStep, "name" | "label" | "note">): { path: string; folder: boolean } | null {
+  const folder = FOLDER_CALLS.has(step.name)
+  if (step.note || (!folder && !FILE_CALLS.has(step.name))) return null
+  const at = step.name === "cp" || step.name === "mv" ? step.label.lastIndexOf(" to /") + 4 : step.label.indexOf(" /") + 1
+  if (at <= 0) return folder ? { path: "", folder } : null
+  return { path: step.label.slice(at + 1), folder }
+}
+
 // Summary
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`

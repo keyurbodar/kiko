@@ -679,7 +679,7 @@
   font-size: var(--font-md);
   font-weight: var(--font-weight-medium);
   background: var(--background);
-  border: 1px solid color-mix(in oklab, var(--ring) 55%, transparent);
+  border: 1px solid var(--input);
   border-radius: var(--radius-md);
   outline: none;
 }
@@ -783,16 +783,18 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -1px;
-  width: 2px;
-  background: color-mix(in oklab, var(--foreground) 14%, transparent);
-  opacity: 0;
+  left: 0;
+  width: 1px;
+  /* A hairline between panels at rest, as t3code draws its sidebar edge. It thickens under the pointer. */
+  background: var(--border);
   content: "";
 }
 
 @media (hover: hover) {
   .sidebar-shell .resize-handle:hover::after {
-    opacity: 1;
+    left: -1px;
+    width: 2px;
+    background: color-mix(in oklab, var(--foreground) 14%, transparent);
   }
 }
 
@@ -800,9 +802,10 @@
   display: none;
 }
 
-.sidebar-shell .resize-handle:focus-visible::after,
 .sidebar-shell .resize-handle[data-dragging]::after {
-  opacity: 1;
+  left: -1px;
+  width: 2px;
+  background: color-mix(in oklab, var(--foreground) 14%, transparent);
 }
 
 @media (width < 768px) {

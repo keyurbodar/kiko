@@ -39,6 +39,8 @@
   --motion-slide: 260ms;
   --motion-switch: 150ms;
   --motion-skeleton: 2400ms;
+  --motion-shine: 2200ms;
+  --motion-run-chevron: 200ms;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -227,5 +229,36 @@
   /* A busy label fades in, so a save that takes a moment does not flash. */
   .motion-busy {
     animation: motion-overlay-in var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  /*
+   * The run tree's waiting state, ported from t3code's live-tool-shine. It runs only while on screen:
+   * observeVisibleAnimation sets --visible-animation-state, and chat/run/shine.css draws the look.
+   */
+  @keyframes motion-shine {
+    from { background-position: -4.5rem 0, 0 0; }
+    to { background-position: calc(100% + 4.5rem) 0, 0 0; }
+  }
+
+  @media (forced-colors: none) {
+    .motion-shine {
+      animation: motion-shine var(--motion-shine) steps(30) infinite;
+      animation-play-state: var(--visible-animation-state, paused);
+    }
+  }
+
+  /* The run tree's folded rows grow open or shut when the reader toggles them, and the chevron turns. */
+  .motion-run-fold {
+    transition: grid-template-rows var(--motion-collapse) var(--motion-ease-out);
+  }
+
+  @starting-style {
+    .motion-run-fold[data-grow] {
+      grid-template-rows: 0fr;
+    }
+  }
+
+  .motion-run-chevron {
+    transition: transform var(--motion-run-chevron) var(--motion-ease-in-out);
   }
 }
