@@ -12,7 +12,10 @@
 
 export function collapseLimit(viewportHeight: number, coarse: boolean): number {
   const share = coarse ? 0.85 : 0.72
-  return Math.round(Math.max(coarse ? 360 : 480, Math.min(coarse ? 760 : 900, viewportHeight * share)))
+  // A floor of 480 px is 3.5x the old 180 px limit, so a medium answer is simply shown. On a short
+  // window the floor gives way, or a folded bubble would still be taller than the transcript.
+  const floor = Math.min(coarse ? 360 : 480, Math.round(viewportHeight * 0.6))
+  return Math.round(Math.max(floor, Math.min(coarse ? 760 : 900, viewportHeight * share)))
 }
 
 /**

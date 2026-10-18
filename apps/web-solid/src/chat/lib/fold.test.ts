@@ -20,8 +20,15 @@ describe("the fold limit", () => {
   test("the limit stays inside a readable band on any window", () => {
     for (const height of [320, 600, 900, 1440, 2160]) {
       const wide = collapseLimit(height, false)
-      expect(wide).toBeGreaterThanOrEqual(480)
+      expect(wide).toBeGreaterThanOrEqual(Math.min(480, Math.round(height * 0.6)))
       expect(wide).toBeLessThanOrEqual(900)
+    }
+  })
+
+  test("a folded bubble always fits the window it is folded in", () => {
+    for (const height of [420, 577, 700, 900, 1400]) {
+      expect(collapseLimit(height, false)).toBeLessThanOrEqual(height)
+      expect(collapseLimit(height, true)).toBeLessThanOrEqual(height)
     }
   })
 
