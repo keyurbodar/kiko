@@ -1,4 +1,4 @@
-// Architecture section 6.4. The server parses agent markdown once into this
+// The server parses agent markdown once into this
 // tree and stores it with the message. The client renders it and ships no
 // parser. There is no HTML node: raw HTML arrives as text.
 

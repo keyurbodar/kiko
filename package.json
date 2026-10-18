@@ -12,7 +12,6 @@
     "dev:server": "bun run --cwd apps/server dev --port 8787",
     "dev:web": "bun run --cwd apps/web-solid dev --port 5173",
     "typecheck": "bun run --filter '*' typecheck",
-    "test": "bun run --filter '*' test",
     "lint": "biome check",
     "check": "bun scripts/check.ts",
     "kiko": "bun apps/cli/src/index.ts"

@@ -5,7 +5,7 @@ import { clearFileToken } from "../lib/file-token"
 import { hosted, setProfile } from "./hosted"
 
 /*
- * The session, as the client sees it (architecture section 10). A cached flag in
+ * The session, as the client sees it. A cached flag in
  * localStorage answers on the first frame, so a signed-in person never waits on
  * the network. `/api/me` confirms it in the background. A 401 from any call, or
  * signing out, removes that user's warm tier and shows sign-in.

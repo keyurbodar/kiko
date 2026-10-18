@@ -1,5 +1,5 @@
 import { humanAnswerText } from "@kiko/protocol"
-// Pending patches over the server state. Architecture section 9.3.
+// Pending patches over the server state.
 //
 // Every user action becomes a patch first. A patch is the frame the action
 // sends, plus a local `clientId`. The view is the server state with every

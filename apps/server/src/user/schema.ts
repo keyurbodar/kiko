@@ -244,7 +244,7 @@ export const USER_STEPS: Step[] = [
   "INSERT OR IGNORE INTO recipe_links (routine_id, install_id) SELECT routine_id, install_id FROM recipe_routines",
   "DROP TABLE IF EXISTS recipe_routines",
   "CREATE INDEX IF NOT EXISTS recipe_links_install ON recipe_links (install_id)",
-  // Reminders became routines (architecture 14): a plain reminder is a one-time or repeating time routine run by an agent of its chat.
+  // Reminders became routines: a plain reminder is a one-time or repeating time routine run by an agent of its chat.
   `UPDATE reminders SET
     name = substr(lower(replace(text, char(10), ' ')), 1, 60),
     trigger = CASE WHEN rrule IS NULL THEN json_object('on', 'time', 'at', strftime('%Y-%m-%dT%H:%M:%SZ', due_utc / 1000, 'unixepoch'))

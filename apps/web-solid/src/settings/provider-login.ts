@@ -2,7 +2,7 @@ import type { LoginEvent, LoginPrompt, UserToClient } from "@kiko/protocol"
 import { socketProtocols } from "../lib/api"
 import { urls } from "../lib/store"
 
-// Provider sign-in from the browser (architecture 11.4). The server runs the flow; this
+// Provider sign-in from the browser. The server runs the flow; this
 // side shows what it says and sends back what it asks. Each sign-in opens its own
 // user socket and closes it when the sign-in ends or the dialog closes, and the server
 // drops a login whose socket closed. Nothing here is stored.

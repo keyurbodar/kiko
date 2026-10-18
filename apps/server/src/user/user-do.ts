@@ -788,7 +788,7 @@ export class UserDO extends DurableObject<Env> {
     return this.#kr.paused(agentId, roomId)
   }
 
-  /** The live view link for the human, with a reason it is also posted to the room (section 27.7). */
+  /** The live view link for the human, with a reason it is also posted to the room. */
   async browserLive(agentId: string, roomId: string, mode: "watch" | "control", reason?: string): Promise<LiveLinkResult> {
     return this.#kr.liveLink(agentId, roomId, mode, reason)
   }
@@ -886,7 +886,7 @@ export class UserDO extends DurableObject<Env> {
     }
     if (frame.t === "hello") {
       this.seen()
-      // The reply says which build answered, so the client can tell it is out of date (versions in docs/app-kiko.md).
+      // The reply says which build answered, so the client can tell it is out of date.
       const fileToken = await signToken(this.env.SESSION_SECRET, userIdFromObjectName(this.ctx.id.name), "files")
       send(ws, { ...this.resume(frame.lastSeq), ...BACKEND, ...{ fileToken } })
       // The client starts with no browser, so a hello sends a browser only when there is one.

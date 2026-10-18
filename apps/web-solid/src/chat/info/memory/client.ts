@@ -1,4 +1,4 @@
-// The memory request client. Architecture section 13. One `memory` frame goes out on the
+// The memory request client. One `memory` frame goes out on the
 // user socket with a `reqId`, and the `memory_result` with the same `reqId` answers it.
 // A request made while the socket is down waits and goes out on connect. A request that
 // gets no answer in `timeoutMs` fails, so a screen never waits for ever.

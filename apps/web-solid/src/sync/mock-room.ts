@@ -101,7 +101,7 @@ function fakeConnect<In, Out>(server: FakeServer<In, Out>, schedule: Schedule): 
 export type MockRoomOptions = {
 	/** The stored log to start from. Defaults to the fixture events. */
 	events?: readonly RoomEvent[]
-	/** A `hello` further behind than this gets `reset`. Defaults to 500, as in architecture section 9.2. */
+	/** A `hello` further behind than this gets `reset`. Defaults to 500, as in */
 	resetAfter?: number
 	schedule?: Schedule
 	now?: () => number

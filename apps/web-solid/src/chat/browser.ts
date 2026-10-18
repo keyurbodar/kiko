@@ -1,4 +1,4 @@
-// The user's browser as the client knows it (architecture section 27.7). `browserState` pushes
+// The user's browser as the client knows it. `browserState` pushes
 // carry hosts and never a URL. The live view URL comes back once, to the socket that pressed the
 // button, and goes straight into the tab the click opened.
 

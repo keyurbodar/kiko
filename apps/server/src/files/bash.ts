@@ -11,7 +11,7 @@ export const MAX_TIMEOUT_S = 120
 const PREFETCH_FILES = 32
 const PREFETCH_MAX_FILE = 256 * 1024
 const PREFETCH_BYTES = 8 * 1024 * 1024
-// UNVERIFIED: AGENTS.md and architecture.md say Free allows 50 subrequests per invocation, which this
+// UNVERIFIED: the Free plan allows 50 subrequests per invocation, which this
 // budget does not fit. Whether R2 reads inside a Durable Object count against that limit is still open.
 // Measure it before changing this number.
 const MAX_READS = 400

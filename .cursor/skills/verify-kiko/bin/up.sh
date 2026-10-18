@@ -47,17 +47,17 @@ EOT
 
 # wrangler serves the client from dist, so a fresh worktree needs one build first.
 if [ ! -d "$ROOT/apps/web-solid/dist" ]; then
-  (cd "$ROOT" && "$ROOT/issues/bin/heavy.sh" bun run --cwd apps/web-solid build >"$RUN_DIR/build.log" 2>&1) || fail "client build failed. See $RUN_DIR/build.log"
+  (cd "$ROOT" && bun run --cwd apps/web-solid build >"$RUN_DIR/build.log" 2>&1) || fail "client build failed. See $RUN_DIR/build.log"
 fi
 
-# Start both through the heavy-command gate. The launcher PID is recorded; the real listeners are recorded once they bind.
+# Start both in the background. The launcher PID is recorded; the real listeners are recorded once they bind.
 cd "$ROOT"
-NODE_ENV=development setsid -f "$ROOT/issues/bin/heavy.sh" bun run --cwd apps/server dev --port "$SERVER_PORT" --inspector-port "$INSPECTOR_PORT" --persist-to "$RUN_DIR/state" </dev/null >"$RUN_DIR/server.log" 2>&1
-KIKO_SERVER_PORT="$SERVER_PORT" setsid -f "$ROOT/issues/bin/heavy.sh" bun run --cwd apps/web-solid dev --port "$CLIENT_PORT" --strictPort </dev/null >"$RUN_DIR/client.log" 2>&1
+NODE_ENV=development setsid -f bun run --cwd apps/server dev --port "$SERVER_PORT" --inspector-port "$INSPECTOR_PORT" --persist-to "$RUN_DIR/state" </dev/null >"$RUN_DIR/server.log" 2>&1
+KIKO_SERVER_PORT="$SERVER_PORT" setsid -f bun run --cwd apps/web-solid dev --port "$CLIENT_PORT" --strictPort </dev/null >"$RUN_DIR/client.log" 2>&1
 sleep 1
-# The launchers are the newest heavy.sh processes whose command line names our ports.
-pgrep -f "heavy.sh bun run --cwd apps/server dev --port $SERVER_PORT " | head -1 > "$RUN_DIR/server.launcher.pid" || true
-pgrep -f "heavy.sh bun run --cwd apps/web-solid dev --port $CLIENT_PORT " | head -1 > "$RUN_DIR/client.launcher.pid" || true
+# The launchers are the newest bun processes whose command line names our ports.
+pgrep -f "bun run --cwd apps/server dev --port $SERVER_PORT " | head -1 > "$RUN_DIR/server.launcher.pid" || true
+pgrep -f "bun run --cwd apps/web-solid dev --port $CLIENT_PORT " | head -1 > "$RUN_DIR/client.launcher.pid" || true
 
 listener_pid() { ss -ltnpH "sport = :$1" | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true; }
 

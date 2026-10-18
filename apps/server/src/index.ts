@@ -32,7 +32,7 @@ export interface Env extends AuthEnv {
   USER: DurableObjectNamespace<UserDO>
   ROOM: DurableObjectNamespace<RoomDO>
   AGENT: DurableObjectNamespace<AgentDO>
-  /** Absent on an install without R2. Files then live in `FILE`, one Durable Object per chat (architecture section 18.1). */
+  /** Absent on an install without R2. Files then live in `FILE`, one Durable Object per chat. */
   FILES?: R2Bucket
   FILE: DurableObjectNamespace<FileDO>
   ASSETS: Fetcher

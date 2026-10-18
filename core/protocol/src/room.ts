@@ -29,7 +29,7 @@ export type AgentStatus = { slug: AgentSlug; state: AgentState; doing?: string; 
 
 export type RunStepStatus = "running" | "done" | "failed"
 
-/** One tool call inside a run, as the human sees it in the run panel. Architecture section 9.5. */
+/** One tool call inside a run, as the human sees it in the run panel. */
 export type RunStep = {
 	/** The tool call id, unique within its run. */
 	id: string
@@ -241,7 +241,7 @@ export type RoomToClient =
 	| { t: "typing"; who: readonly AgentSlug[] }
 	/**
 	 * Not stored. A long block that is still growing. The final message replaces it.
-	 * DEVIATION: `slug` is added to the section 9.2 frame, so the client knows whose bubble it draws.
+	 * `slug` is on the frame, so the client knows whose bubble it draws.
 	 */
 	| { t: "draft"; slug: AgentSlug; runId: string; index: number; text: string }
 	| ({ t: "status" } & AgentStatus)

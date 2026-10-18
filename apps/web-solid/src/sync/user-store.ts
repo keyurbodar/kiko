@@ -1,4 +1,4 @@
-// The user's own data: for now, the chat list. Architecture section 9.1.
+// The user's own data: for now, the chat list.
 //
 // Same shape as the room store, smaller. It paints the chat list from
 // IndexedDB, connects with `hello {lastSeq}`, applies events in `seq` order,
@@ -20,7 +20,7 @@ type AgentModelFrame = Extract<ClientToUser, { t: "agent_model" }>
 import { setFileToken } from "../lib/file-token"
 import { APP_VERSION, backendSkew, type Skew } from "../lib/version-skew"
 
-/** The user's drive, /home (architecture section 18.3). */
+/** The user's drive, /home. */
 export type Home = { files: FileRef[]; folders: string[] }
 export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home }
 

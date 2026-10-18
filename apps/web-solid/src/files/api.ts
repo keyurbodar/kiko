@@ -3,7 +3,7 @@ import { createSignal } from "solid-js"
 import { urls } from "../lib/store"
 import { apiFetch } from "../lib/api"
 
-// The file viewer's HTTP calls. The server's edit rule (architecture 18.1): a PUT that
+// The file viewer's HTTP calls. The server's edit rule: a PUT that
 // names the SHA-256 it started from is refused with 409 when the path holds other bytes.
 
 export const sha256Hex = async (data: BufferSource): Promise<string> =>

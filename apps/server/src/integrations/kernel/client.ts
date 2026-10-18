@@ -1,5 +1,5 @@
 // The key is never put in an error or a log.
-// The SDK adds 46 KB gzipped to the server bundle (architecture section 27).
+// The SDK adds 46 KB gzipped to the server bundle.
 
 import Kernel, { APIConnectionError, APIError } from "@onkernel/sdk"
 

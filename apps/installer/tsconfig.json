@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "../../node_modules/.cache/tsc/apps_installer.tsbuildinfo",
     "target": "ESNext",
     "lib": ["ESNext"],
     "module": "ESNext",

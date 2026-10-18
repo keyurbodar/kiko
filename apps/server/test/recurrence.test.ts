@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "bun:test";
 import { nextOccurrence, repeatProblem } from "@kiko/sandbox/recurrence";
 import { ruleProblem } from "@kiko/sandbox/rule";
 
@@ -72,7 +72,7 @@ describe("exact instants", () => {
   });
 });
 
-describe("ruleProblem: rules rrule could loop on for minutes are refused (architecture section 25.2)", () => {
+describe("ruleProblem: rules rrule could loop on for minutes are refused", () => {
   test("rules that always reach a date pass", () => {
     for (const r of ["FREQ=DAILY", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", "FREQ=DAILY;BYHOUR=8;BYMINUTE=30;BYSECOND=0", "FREQ=MONTHLY;BYMONTHDAY=1", "FREQ=MONTHLY;BYDAY=-1FR", "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29", "FREQ=HOURLY;INTERVAL=2;BYMINUTE=0", "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO", "FREQ=HOURLY;BYDAY=MO,TU,WE,TH,FR", "FREQ=MONTHLY;BYMONTHDAY=31"]) {
       expect([r, ruleProblem(r)]).toEqual([r, null])

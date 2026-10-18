@@ -1,4 +1,4 @@
-// The room's file index (architecture section 18.1): `FileIndex` over the room's tables, with
+// The room's file index: `FileIndex` over the room's tables, with
 // every change stored as one event in the room log, in the same transaction as the rows.
 
 import type { RoomEvent } from "@kiko/protocol"

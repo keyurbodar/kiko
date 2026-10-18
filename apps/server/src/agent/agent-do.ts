@@ -527,7 +527,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   /**
-   * Architecture section 17.3. One outside request, made in its own invocation. On the Free plan an
+   * One outside request, made in its own invocation. On the Free plan an
    * invocation may make 50 subrequests, and a run's work all belongs to the invocation that started
    * it, so a long run would fail partway. A call through this object's own stub is a new incoming
    * request with a fresh budget, and RPC calls do not count against the 50 (measured 2026-10-04).

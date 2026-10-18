@@ -1,4 +1,4 @@
-// The warm tier. Architecture section 19.2.
+// The warm tier.
 //
 // Raw IndexedDB behind a small promise wrapper, with an in-memory twin. Writes
 // are queued and flushed together in one transaction when the browser is idle,

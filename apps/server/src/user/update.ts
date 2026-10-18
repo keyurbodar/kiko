@@ -1,4 +1,4 @@
-// The owner's one-click update (docs/app-kiko.md, "Updates"). It checks a signed release, refreshes the Cloudflare
+// The owner's one-click update. It checks a signed release, refreshes the Cloudflare
 // grant, and uploads this Worker's own script. It runs in UserDO, which has its own request budget; nothing here
 // waits on a timer. Every step is safe to run again.
 

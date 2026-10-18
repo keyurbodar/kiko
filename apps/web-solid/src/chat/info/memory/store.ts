@@ -1,4 +1,4 @@
-// The memory screen's state: the user's life log (architecture section 13). Every change applies
+// The memory screen's state: the user's life log. Every change applies
 // here first and goes to the server after, the way the chat does. When the server says no, the
 // change is undone and the reason is kept in `error`. The log is append-only: the human pins,
 // redacts, and adds lines, and never rewrites one.

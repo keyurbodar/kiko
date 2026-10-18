@@ -1,4 +1,4 @@
-// One reconnecting socket. Architecture section 9.1 and 9.2.
+// One reconnecting socket.
 //
 // The client holds one for the user and one for each open room. On every
 // connect the first frame is `hello` with the newest `seq` the client has

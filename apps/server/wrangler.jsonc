@@ -21,9 +21,9 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["UserDO", "RoomDO", "AgentDO"] },
     { "tag": "v2", "new_sqlite_classes": ["WorkDO"] },
-    // The attachment job and its WorkDO were removed on 2026-10-09 (architecture section 17.3).
+    // The attachment job and its WorkDO were removed on 2026-10-09.
     { "tag": "v3", "deleted_classes": ["WorkDO"] },
-    // File bytes for an install without R2 (architecture section 18.1).
+    // File bytes for an install without R2.
     { "tag": "v4", "new_sqlite_classes": ["FileDO"] }
   ],
   // Optional. An install without R2 drops this line and keeps files in FileDO.

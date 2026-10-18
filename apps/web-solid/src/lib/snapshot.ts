@@ -1,5 +1,5 @@
 /*
- * Instant startup, architecture 19.2 (DEVIATION: the paint before any script).
+ * Instant startup: the paint before any script.
  *
  * The HTML shell cannot run the app in 10 ms, but it can show what the app showed last time. When
  * the page hides, this saves the rendered screen (the HTML of #root, the stylesheets it used, and

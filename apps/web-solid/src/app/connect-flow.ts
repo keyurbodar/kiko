@@ -1,7 +1,7 @@
 import { write } from "../lib/api-base"
 
 /*
- * The Connect Cloudflare flow (docs/app-kiko.md, "Joining: the install flow"). Pure steps with the network
+ * The Connect Cloudflare flow (the install steps). Pure steps with the network
  * passed in, so tests drive them with a fake fetch. The screen is connect.tsx.
  */
 

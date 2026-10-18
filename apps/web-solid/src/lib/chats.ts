@@ -1,7 +1,7 @@
 import { type Agent, type AgentSlug, type Chat, KIKO, KIKO_HOME_ROOM, type RoomId } from "@kiko/protocol"
 
 /*
- * The pure rules of the chat list (architecture section 7.11): which chats the sidebar shows, and
+ * The pure rules of the chat list: which chats the sidebar shows, and
  * which chat the app opens when the URL names none. The store and the routes only call these.
  */
 

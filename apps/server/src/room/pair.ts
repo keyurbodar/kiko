@@ -17,7 +17,7 @@ type PairDeps = ReceiveDeps & {
 	seedMembers: (home: Home, chat: Chat) => Promise<void>
 }
 
-/** The pair room's side of a private talk (architecture section 7.13). */
+/** The pair room's side of a private talk. */
 export class RoomPair {
 	constructor(private readonly d: PairDeps) {}
 

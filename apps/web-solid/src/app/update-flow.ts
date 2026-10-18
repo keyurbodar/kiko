@@ -1,5 +1,5 @@
 // The update state one tab shares: the one-click update, what the backend and the front door say now, and the checks.
-// The sidebar pill, the composer notice and the Account page all read it. Docs: docs/app-kiko.md "Updates".
+// The sidebar pill, the composer notice and the Account page all read it.
 import { createSignal } from "solid-js"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { PROTOCOL } from "@kiko/protocol"
