@@ -47,8 +47,10 @@ export function start(): void {
     const s = session().status;
     if (s === "signed-out") return true;
     if (s !== "signed-in") return false;
-    const id = useApp.activeThreadId();
-    return !location.pathname.startsWith("/chat") || !id || !!useApp.room()?.state.loaded;
+    // A chat's path waits for that chat to be open and its stored messages in, else the empty chat shows first.
+    const id = /^\/chat\/([^/]+)/.exec(location.pathname)?.[1];
+    if (!id || id === "new") return true;
+    return useApp.activeThreadId() === decodeURIComponent(id) && !!useApp.room()?.state.loaded;
   });
   whenIdle(preload);
 }

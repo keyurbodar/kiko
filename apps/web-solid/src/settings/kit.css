@@ -4,28 +4,24 @@
   --kit-muted: color-mix(in oklab, var(--foreground) 55%, transparent);
 
   --kit-meta: color-mix(in oklab, var(--foreground) 50%, transparent);
-  --kit-bevel: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.08);
-  --kit-raised: 0 1px 2px rgb(0 0 0 / 0.12);
-}
-
-:root:not(.dark) {
-  --kit-bevel: inset 0 -1px 0 rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.05);
-  --kit-raised: 0 1px 2px rgb(0 0 0 / 0.1);
+  /* A quiet control is white with a drawn line. */
+  --kit-line: inset 0 0 0 var(--line-w) var(--border);
+  --kit-line-hover: inset 0 0 0 var(--line-w) var(--input);
 }
 
 
 .kit-btn {
   display: inline-flex;
-  height: 26px;
+  height: 30px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 9px;
-  border: 1px solid transparent;
+  gap: 6px;
+  padding: 0 13px;
+  border: 0;
   border-radius: var(--radius-md);
   font-size: var(--font-sm);
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
   outline: none;
@@ -51,27 +47,36 @@
 }
 
 
+/* Solid ink on a hard lip. Pressed, it sits down onto the lip at once. */
 .kit-btn--primary {
   color: var(--primary-foreground);
   background: var(--primary);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(0 0 0 / 0.12);
+  box-shadow: 0 2px 0 var(--press-edge);
 }
 
 .kit-btn--primary:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--primary) 90%, transparent);
+  background: var(--primary-hover);
+}
+
+.kit-btn--primary:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(2px);
+}
+
+.kit-btn--primary:disabled {
+  box-shadow: none;
 }
 
 
 .kit-btn--secondary,
 .kit-btn--danger {
   color: var(--foreground);
-  background: var(--muted);
-  border-color: var(--input);
-  box-shadow: var(--kit-bevel);
+  background: var(--surface);
+  box-shadow: var(--kit-line);
 }
 
 .kit-btn--secondary:hover:not(:disabled) {
-  background: var(--accent);
+  box-shadow: var(--kit-line-hover);
 }
 
 
@@ -80,15 +85,15 @@
 }
 
 .kit-btn--danger:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--error) 6%, transparent);
-  border-color: color-mix(in oklab, var(--error) 32%, transparent);
+  background: color-mix(in oklab, var(--error) 6%, var(--surface));
+  box-shadow: inset 0 0 0 var(--line-w) color-mix(in oklab, var(--error) 36%, transparent);
 }
 
 
 .kit-btn--secondary[aria-pressed="true"] {
   color: var(--foreground);
-  background: color-mix(in oklab, var(--ring) 12%, transparent);
-  border-color: color-mix(in oklab, var(--ring) 40%, transparent);
+  background: var(--message-user);
+  box-shadow: inset 0 0 0 var(--line-w) color-mix(in oklab, var(--ring) 45%, transparent);
 }
 
 
@@ -112,24 +117,24 @@
   display: inline-flex;
   min-width: 9rem;
   max-width: 14rem;
-  min-height: 26px;
+  min-height: 30px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 10px 0 11px;
+  padding: 0 11px 0 14px;
   color: var(--foreground);
   font-size: var(--font-sm);
+  font-weight: 500;
   text-align: left;
-  background: var(--muted);
-  border: 1px solid var(--input);
+  background: var(--surface);
   border-radius: var(--radius-md);
-  box-shadow: var(--kit-bevel);
+  box-shadow: var(--kit-line);
   cursor: pointer;
   outline: none;
 }
 
 .kit-select:hover:not(:disabled) {
-  background: var(--accent);
+  box-shadow: var(--kit-line-hover);
 }
 
 .kit-select > svg:last-child {
@@ -145,22 +150,22 @@
   max-width: 100%;
   flex-shrink: 0;
   gap: 2px;
-  padding: 2px;
-  background: color-mix(in oklab, var(--foreground) 5%, transparent);
+  padding: 3px;
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
   border-radius: var(--radius-md);
 }
 
 .kit-seg-item {
-  height: var(--control-h-xs);
+  height: 26px;
   min-width: 0;
-  padding: 0 10px;
+  padding: 0 14px;
   overflow: hidden;
   color: var(--kit-muted);
   font-size: var(--font-sm);
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   text-overflow: ellipsis;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   outline: none;
 }
@@ -172,22 +177,18 @@
 
 .kit-seg-item[aria-checked="true"] {
   color: var(--foreground);
-  background: color-mix(in oklab, var(--foreground) 11%, transparent);
-  box-shadow: var(--kit-raised);
-}
-
-:root:not(.dark) .kit-seg-item[aria-checked="true"] {
-  background: var(--background);
+  background: var(--surface);
+  box-shadow: var(--segment-shadow);
 }
 
 
 .kit-switch {
   position: relative;
   display: inline-flex;
-  width: 30px;
-  height: 18px;
+  width: 36px;
+  height: 22px;
   flex-shrink: 0;
-  padding: 2px;
+  padding: 3px;
   background: var(--input);
   border-radius: var(--radius-pill);
   cursor: pointer;
@@ -205,15 +206,24 @@
 
 .kit-switch > span {
   display: block;
-  width: 14px;
-  height: 14px;
-  background: var(--background);
+  width: 16px;
+  height: 16px;
+  background: #fff;
   border-radius: var(--radius-pill);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
 }
 
 .kit-switch[aria-checked="true"] > span {
-  transform: translateX(12px);
+  transform: translateX(14px);
+}
+
+/* At night the knob is cream on the dark track and dark on the bright accent, so it reads both ways. */
+:root.dark .kit-switch > span {
+  background: var(--foreground);
+}
+
+:root.dark .kit-switch[aria-checked="true"] > span {
+  background: var(--background);
 }
 
 
@@ -249,27 +259,27 @@
 }
 
 .kit-range::-webkit-slider-thumb {
-  width: 16px;
-  height: 16px;
-  margin-top: -6px;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
   background: #fff;
-  border: 1px solid var(--border);
+  border: var(--line-w) solid var(--input);
   border-radius: var(--radius-pill);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
   appearance: none;
 }
 
 .kit-range::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   background: #fff;
-  border: 1px solid var(--border);
+  border: var(--line-w) solid var(--input);
   border-radius: var(--radius-pill);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
 }
 
 .kit-range:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
+  outline: 2px solid var(--ring);
   outline-offset: -2px;
   border-radius: var(--radius-xs);
 }
@@ -285,16 +295,19 @@
 
 
 .kit-field {
-  height: 28px;
+  height: 32px;
   min-width: 0;
-  padding: 0 10px;
+  padding: 0 12px;
   color: var(--foreground);
   font-size: var(--font-md);
-  background: var(--muted);
-  border: 1px solid var(--input);
+  background: var(--surface);
+  border: var(--line-w) solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: var(--kit-bevel);
   outline: none;
+}
+
+.kit-field:hover:not(:disabled) {
+  border-color: var(--input);
 }
 
 .kit-field::placeholder {
@@ -307,11 +320,12 @@
 }
 
 
+/* A white card that rests on the paper. At night its shadow token draws the hairline. */
 .kit-card {
   overflow: hidden;
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--card-shadow);
 }
 
 
@@ -363,14 +377,14 @@
   content: "";
   position: absolute;
   right: 8px;
-  bottom: -1px;
+  bottom: -1.5px;
   left: 8px;
-  height: 2px;
+  height: 3px;
   border-radius: var(--radius-pill);
   background: var(--foreground);
 }
 
 .kit-tab:focus-visible {
   border-radius: var(--radius-xs);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 60%, transparent);
+  box-shadow: 0 0 0 2px var(--ring);
 }

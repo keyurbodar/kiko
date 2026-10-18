@@ -1,4 +1,6 @@
 import type { ComposioResult, ComposioStatus, KernelResult, KernelStatus } from "@kiko/protocol"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { GlobeIcon, GridIcon } from "@kiko/ui/icons"
 import { Show, createSignal, lazy, onCleanup, onMount } from "solid-js"
 import { cn } from "../lib/cn"
 import { Button, Notice, fieldClass } from "./kit"
@@ -9,23 +11,6 @@ export const COMPOSIO_PLATFORM = "https://platform.composio.dev"
 const LiveBrowser = lazy(() => import("./live-browser"))
 
 export const KERNEL_HOME = "https://dashboard.onkernel.com"
-
-function GridIcon() {
-	return (
-		<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-			<path d="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z" />
-		</svg>
-	)
-}
-
-function GlobeIcon() {
-	return (
-		<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-			<circle cx="8" cy="8" r="5.5" />
-			<path d="M2.5 8h11M8 2.5c1.7 1.6 2.5 3.4 2.5 5.5S9.7 11.9 8 13.5M8 2.5C6.3 4.1 5.5 5.9 5.5 8s.8 3.9 2.5 5.5" />
-		</svg>
-	)
-}
 
 type Where = "app" | "kernel"
 function KeyField(props: { id: string; label: string; placeholder: string; submit: string; busy: boolean; onKey: (key: string) => void; [data: `data-${string}`]: string | undefined }) {
@@ -134,8 +119,8 @@ export function useIntegrations(props: { client?: ComposioClient; kernel?: Kerne
 export type Integrations = ReturnType<typeof useIntegrations>
 
 export const APPS = {
-	composio: { name: "Composio", description: "Connect your apps through your own Composio account.", home: COMPOSIO_PLATFORM, placeholder: "ak_...", icon: GridIcon },
-	kernel: { name: "Kernel browser", description: "Lets your agents use a real browser, in your own Kernel account.", home: KERNEL_HOME, placeholder: "sk_...", icon: GlobeIcon },
+	composio: { name: "Composio", description: "Connect your apps through your own Composio account.", home: COMPOSIO_PLATFORM, placeholder: "ak_...", icon: () => <RemixIcon icon={GridIcon} size={16} /> },
+	kernel: { name: "Kernel browser", description: "Lets your agents use a real browser, in your own Kernel account.", home: KERNEL_HOME, placeholder: "sk_...", icon: () => <RemixIcon icon={GlobeIcon} size={16} /> },
 } as const
 
 export type AppId = keyof typeof APPS
@@ -179,7 +164,7 @@ export function AppDetail(props: { id: AppId; api: Integrations }) {
 					</Button>
 				</div>
 				<Show when={props.id === "kernel"}>
-					<LiveBrowser icon={<GlobeIcon />} />
+					<LiveBrowser icon={<RemixIcon icon={GlobeIcon} size={16} />} />
 				</Show>
 			</Show>
 			<Show when={props.api.errorAt(where())}>{(text) => <Notice>{text()}</Notice>}</Show>

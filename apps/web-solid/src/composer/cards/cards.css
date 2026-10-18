@@ -3,7 +3,7 @@
   --card-active: var(--ring);
   --card-complete: var(--success);
   --card-outline: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --card-surface: var(--composer-fill, var(--popover));
+  --card-surface: var(--surface);
 }
 .dark .composer-cards, .dark .composer-card-choices { --card-outline: color-mix(in srgb, white 5%, transparent); }
 .composer-cards { position:relative; margin:0 6px 6px; z-index:2; padding-top:0; }

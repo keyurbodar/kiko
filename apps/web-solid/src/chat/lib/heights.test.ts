@@ -154,6 +154,13 @@ describe("estimateRowHeight on bubbles", () => {
     // quote adds 5px of padding above, 5px below and a 4px margin.
     expect(quoting - bare).toBe(63);
   });
+
+  test("an agent's bubble that opens steps carries its folded run tree, one 24px row and 4px under it", () => {
+    const bare = heightOf(bot("a", at(0), { body: "same body" }));
+    const opening = heightOf(bot("b", at(0), { body: "same body", steps: 3, stepAfter: 0 }));
+    expect(opening - bare).toBe(28);
+    expect(heightOf(me("c", at(0), { body: "same body", steps: 3 }))).toBe(heightOf(me("d", at(0), { body: "same body" })));
+  });
 });
 
 const picture = (name = "a.png"): MessageFile => ({ name, size: 10, type: "image/png", src: `/${name}` });

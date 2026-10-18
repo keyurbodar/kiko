@@ -1,0 +1,18 @@
+/*
+ * The shine's look, t3code's live-tool-shine: a band of the foreground sweeps over the label's own
+ * tone, `--run-text`, which the run tree and the run panel each set. Its motion is in motion.css.
+ * It loads with visible-animation.ts, which starts the motion, so neither is in first paint. With
+ * reduced motion or forced colors the label is plain text.
+ */
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  .motion-shine {
+    color: transparent;
+    background-image:
+      linear-gradient(to right, transparent, var(--foreground), transparent),
+      linear-gradient(var(--run-text), var(--run-text));
+    background-size: 4.5rem 100%, 100% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+}

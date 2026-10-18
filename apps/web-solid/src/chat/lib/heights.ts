@@ -18,6 +18,9 @@ const EVENT_ROW_PX = 32;
 const RUN_ERROR_ROW_PX = 42;
 // An agent's request for the browser (BrowserControlRow.tsx): one sentence and the browser buttons.
 const BROWSER_ROW_PX = 88;
+// An agent's bubble that opens steps carries their run tree under it (chat/run/run-tree.css): folded,
+// one 24px row and 4px under that.
+const RUN_TREE_PX = 24 + 4;
 
 const CHARS_PER_LINE = 87;
 
@@ -69,7 +72,8 @@ export function estimateRowHeight(item: TimelineItem): number {
         ? JUMBO_GROUP_PX
         : BUBBLE_PAD_Y + attachments + (attachments && hasText ? ATTACHMENT_GAP : 0) + text;
   const quote = message.replyToId === undefined ? 0 : QUOTE_LINE * QUOTE_LINES + QUOTE_CHROME_Y;
+  const tree = message.botId !== undefined && message.steps ? RUN_TREE_PX : 0;
 
   const rowPadTop = item.hasRunGapBefore ? RUN_GAP_PX : ROW_GAP_PX;
-  return Math.ceil(bubble + quote + rowPadTop + ROW_GAP_PX);
+  return Math.ceil(tree + bubble + quote + rowPadTop + ROW_GAP_PX);
 }

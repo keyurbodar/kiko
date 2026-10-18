@@ -1,19 +1,23 @@
 /* Motion tokens and the opt-in motion classes. Architecture 19.5.
  *
- * Policy. Navigation, route changes, tabs, buttons, and the composer stay at 0 ms and never wait on
- * the network. Motion is for two things: an overlay entering or leaving (dialog, palette, menu,
- * popover, tooltip), and a place where the user is already waiting (spinner, skeleton, progress,
- * a busy label). The durations follow t3code. Nothing motion ever delays input: an overlay is
- * interactive from its first frame, and every rule is off under `prefers-reduced-motion`.
+ * Policy. Nothing waits on the network, and every action lands on its first frame: a chat swaps in, a
+ * sidebar opens, a message is in the list. Motion follows the action without holding it up, in the
+ * manner of Telegram: the new chat rises into place, a sidebar slides open, your message rises from
+ * the composer, a reaction pops onto its bubble, an overlay grows from where it opened, and a place
+ * where the user is already waiting shines or spins. Buttons, tabs, and the composer themselves never
+ * move. Overlay durations follow t3code. Nothing here delays input: everything is interactive from its
+ * first frame, and every rule is off under `prefers-reduced-motion`.
  *
  * Rules:
  * - Durations and easings are tokens. No literal time appears below the tokens.
  * - Keyframes move `transform` and `opacity`. A collapsing panel also moves `height`, and a switch
- *   uses a transition, because both have a "from" state on screen already.
+ *   and a sliding sidebar use a transition, because each has a "from" state on screen already.
  * - Everything is inside `prefers-reduced-motion: no-preference`. The tokens stay outside because
  *   a custom property is not motion.
  * - Animation for anything that mounts: it has no "from" state for a transition to start at.
- * - Nothing overshoots or bounces. Things travel a short way, fade in, and settle.
+ * - Things travel a short way, fade in, and settle. Only a reaction and your sent message overshoot,
+ *   one small spring each.
+ * - An overlay grows from where it opened: Kobalte's transform origin, or the bubble's own side.
  * - Overlays are named by their `data-component` and by Kobalte's `data-expanded` and `data-closed`,
  *   so an element leaves with its exit animation before it unmounts.
  * - `motion.test.ts` scans this file and fails on motion aimed at navigation, buttons, tabs, or
@@ -28,7 +32,13 @@
   --motion-ease-out: cubic-bezier(0.2, 0, 0, 1);
   --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --motion-ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
-  --motion-rise: 520ms;
+  --motion-rise: 380ms;
+  --motion-pop: 420ms;
+  --motion-view: 260ms;
+  --motion-stagger: 45ms;
+  --motion-slide: 260ms;
+  --motion-late: 180ms;
+  --motion-ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
   --motion-reveal: 320ms;
   --motion-spin: 800ms;
   --motion-ease-linear: linear;
@@ -43,9 +53,11 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  /* A reaction lands on its bubble with one small overshoot. */
   @keyframes motion-reaction-pop {
-    from { opacity: 0; transform: scale(0.8); }
-    to { opacity: 1; transform: scale(1); }
+    0% { opacity: 0; transform: scale(0.3); }
+    55% { opacity: 1; transform: scale(1.18); }
+    100% { opacity: 1; transform: scale(1); }
   }
 
   @keyframes motion-fade-scale-in {
@@ -58,14 +70,14 @@
     to { opacity: 0; transform: scale(0.92); }
   }
 
-  /* Your message rises out of the composer into its place. */
+  /* Your message rises out of the composer and springs into place from its own corner. */
   @keyframes motion-bubble-in {
-    from { opacity: 0; transform: translateY(28px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translateY(26px) scale(0.9); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
   .motion-reaction-pop {
-    animation: motion-reaction-pop var(--motion-base) var(--motion-ease-settle) both;
+    animation: motion-reaction-pop var(--motion-pop) var(--motion-ease-out) backwards;
   }
 
   .motion-attachment-in {
@@ -78,16 +90,36 @@
   }
 
   .motion-bubble-in {
-    animation: motion-bubble-in var(--motion-rise) var(--motion-ease-settle) both;
+    transform-origin: right bottom;
+    animation: motion-bubble-in var(--motion-rise) var(--motion-ease-spring) both;
   }
 
-  /* An agent's reply fades up into place where its typing bubble sat. */
-  @keyframes motion-reply-in {
-    from { opacity: 0; transform: translateY(10px); }
+  /* A chat swapped in, or a new one opened, rises a few pixels into place. Its parts can follow one
+     another by setting `--i`. */
+  @keyframes motion-view-in {
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
+  .motion-view-in {
+    animation: motion-view-in var(--motion-view) var(--motion-ease-settle) both;
+    animation-delay: calc(var(--i, 0) * var(--motion-stagger));
+  }
+
+  /* A sidebar opening or closing: the shell puts this on its panels for the length of the slide only,
+     so a drag on a resize handle follows the pointer with no lag. */
+  .motion-slide {
+    transition: flex-basis var(--motion-slide) var(--motion-ease-settle);
+  }
+
+  /* An agent's reply grows up into place where its typing bubble sat. */
+  @keyframes motion-reply-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
   .motion-reply-in {
+    transform-origin: left bottom;
     animation: motion-reply-in var(--motion-reveal) var(--motion-ease-settle) both;
   }
 
@@ -99,7 +131,7 @@
     animation: motion-spin var(--motion-spin) var(--motion-ease-linear) infinite;
   }
 
-  /* Overlays: opacity and scale 0.98, interactive from the first frame. */
+  /* Overlays: opacity and a small grow from where they opened, interactive from the first frame. */
   @keyframes motion-overlay-in {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -111,23 +143,23 @@
   }
 
   @keyframes motion-dialog-in {
-    from { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
     to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   }
 
   @keyframes motion-dialog-out {
     from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    to { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+    to { opacity: 0; transform: translate(-50%, -50%) scale(0.97); }
   }
 
   @keyframes motion-popover-in {
-    from { opacity: 0; transform: scale(0.98); }
+    from { opacity: 0; transform: scale(0.94); }
     to { opacity: 1; transform: scale(1); }
   }
 
   @keyframes motion-popover-out {
     from { opacity: 1; transform: scale(1); }
-    to { opacity: 0; transform: scale(0.98); }
+    to { opacity: 0; transform: scale(0.97); }
   }
 
   [data-component="modal-v2-overlay"][data-expanded],
@@ -140,7 +172,7 @@
   }
 
   [data-component="modal-v2-content"][data-expanded] {
-    animation: motion-dialog-in var(--motion-dialog) var(--motion-ease-in-out) both;
+    animation: motion-dialog-in var(--motion-dialog) var(--motion-ease-settle) both;
   }
 
   [data-component="modal-v2-content"][data-closed] {
@@ -214,7 +246,7 @@
    * The run panel's motion, ported from t3code's work log (index.css 521-632). It is a named
    * exception to the 0 ms rule, and it stays inside this panel's own names. The shine and the sweep
    * are waiting states. They run only while on screen: observeVisibleAnimation sets
-   * --visible-animation-state, and the look of each is in chat/run/run-panel.css.
+   * --visible-animation-state. The shine looks as chat/run/shine.css draws it, and the sweep as chat/run/run-panel.css does.
    */
   @keyframes motion-shine {
     from { background-position: -4.5rem 0, 0 0; }
@@ -257,6 +289,16 @@
 
   /* A busy label fades in, so a save that takes a moment does not flash. */
   .motion-busy {
+    animation: motion-overlay-in var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  /* A placeholder for a wait long enough to notice comes in after a beat, so a quick load never shows it. */
+  .motion-busy[data-late] {
+    animation-delay: var(--motion-late);
+  }
+
+  /* The floating date fades in each time a scroll brings it back, as Telegram's does. */
+  .motion-fade-in {
     animation: motion-overlay-in var(--motion-base) var(--motion-ease-out) both;
   }
 }

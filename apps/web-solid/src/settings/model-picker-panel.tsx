@@ -1,12 +1,14 @@
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
-import { A } from "@solidjs/router"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { SearchIcon, StarFillIcon, StarIcon } from "@kiko/ui/icons"
 import { createEffect, createMemo, createResource, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
 import { VList, type VListHandle } from "virtua/solid"
 import { loadCatalog, modelRef, searchModels, type ModelRow } from "./catalog"
 import type { ThinkingLevel } from "@kiko/protocol"
 import { connectedProviders } from "./connected"
+import { openSettings } from "./dialog-state"
 import { favoriteModels, hiddenModels, toggleFavorite } from "./model-picker"
 import { modelProviders } from "./provider-kinds"
 import { PROBLEM_SHORT } from "./provider-problem"
@@ -18,11 +20,7 @@ const PANEL_H = 380
 const FAVORITES = "favorites"
 
 function Star(props: { on: boolean }) {
-  return (
-    <svg class="size-3.5" viewBox="0 0 16 16" fill={props.on ? "currentColor" : "none"} stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">
-      <path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
-    </svg>
-  )
+  return <RemixIcon icon={props.on ? StarFillIcon : StarIcon} class="size-3.5" />
 }
 
 /**
@@ -113,19 +111,34 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
   const railButton = (active: boolean) =>
     `relative grid size-9 shrink-0 place-items-center rounded-lg ${active ? "bg-accent-strong text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`
 
+  // The panel also opens inside the settings dialog, from a portal outside it. So it sits above the dialog,
+  // takes back the pointer events Kobalte's modal turns off, and `data-kb-top-layer` tells Kobalte that a
+  // click or focus in it is not outside the dialog.
   return (
         <Portal>
           <div
             ref={panel}
-            class="fixed z-50 flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-xl border border-border bg-popover shadow-popover"
+            class="pointer-events-auto fixed z-[80] flex h-[380px] w-[420px] max-w-[calc(100vw-16px)] overflow-hidden rounded-xl border border-border bg-popover shadow-popover"
             style={place()}
             data-component="model-picker"
+            data-kb-top-layer=""
           >
             <Show
               when={providers().length || catalog.loading}
               fallback={
                 <p class="m-auto px-6 text-center text-md text-muted-foreground" data-component="model-empty">
-                  No provider is connected. <A href="/settings/models" class="text-foreground underline" onClick={() => props.onOpenChange(false)}>Connect one</A> to pick a model.
+                  No provider is connected.{" "}
+                  <button
+                    type="button"
+                    class="cursor-pointer text-foreground underline"
+                    onClick={() => {
+                      close()
+                      openSettings("models")
+                    }}
+                  >
+                    Connect one
+                  </button>{" "}
+                  to pick a model.
                 </p>
               }
             >
@@ -147,10 +160,7 @@ export default function ModelPickerPanel(props: { current?: string; onPick: (ref
               </nav>
               <div class="flex min-w-0 flex-1 flex-col">
                 <label class="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 text-muted-foreground">
-                  <svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-                    <circle cx="7" cy="7" r="4.75" />
-                    <path d="M10.5 10.5L14 14" />
-                  </svg>
+                  <RemixIcon icon={SearchIcon} class="size-3.5 shrink-0" />
                   <input
                     ref={(el) => requestAnimationFrame(() => el.focus())}
                     type="search"

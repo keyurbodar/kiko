@@ -17,14 +17,31 @@
   gap: 8px;
 }
 
+/* The bubble, with the run tree hung under it on the bubble's left edge, clear of the avatar's gutter. */
+.typing-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.typing-line {
+  display: flex;
+  max-width: 100%;
+  align-items: flex-end;
+  gap: 8px;
+}
+
 .typing-bubble {
   display: inline-flex;
   flex: none;
   align-items: center;
   padding: var(--bubble-pad-y) var(--bubble-pad-x);
-
-  border-radius: calc((var(--font-base) + 6px) / 2 + var(--bubble-pad-y));
+  /* The same card as an agent's bubble: the app's corner, and the tight one on the agent's side. */
+  border-radius: var(--radius-bubble);
+  border-end-start-radius: 4px;
   background: var(--message-assistant);
+  box-shadow: var(--bubble-shadow);
   color: var(--message-assistant-foreground);
   font-size: var(--font-base);
   line-height: calc(var(--font-base) + 6px);
@@ -213,10 +230,4 @@
   from {
     opacity: 0;
   }
-}
-
-/* The run chevron sits at the bubble's side, as it does beside a message. */
-.typing-run {
-  align-self: center;
-  margin-left: -4px;
 }

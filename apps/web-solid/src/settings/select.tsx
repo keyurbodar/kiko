@@ -1,3 +1,5 @@
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon, ChevronDownIcon } from "@kiko/ui/icons"
 import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
 import { For, Show, createSignal, createUniqueId, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
@@ -109,19 +111,19 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
           <Show when={chosen()?.icon}>{chosen()!.icon}</Show>
           <span class="truncate">{chosen()?.label}</span>
         </span>
-        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+        <RemixIcon icon={ChevronDownIcon} />
       </button>
       <Show when={open()}>
+        {/* The list opens inside the settings dialog, from a portal outside it: above the dialog, with pointer events back under Kobalte's modal, and `data-kb-top-layer` so a click or focus in it is not outside the dialog. */}
         <Portal>
           <DismissableLayerV2
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="bg-popover fixed z-50 flex max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-xl p-1 shadow-popover"
+            class="bg-popover pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] items-start overflow-y-auto rounded-xl p-1 shadow-popover"
             style={place()}
             onKeyDown={onPanelKey}
+            data-kb-top-layer=""
           >
             <div
               ref={(el) => {
@@ -155,9 +157,7 @@ export function Select<T>(props: { label: string; value: T; options: readonly Se
                     >
                       <span class="grid size-4 shrink-0 place-items-center" aria-hidden="true">
                         <Show when={selected()}>
-                          <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3.5 8.5l3 3 6-7" />
-                          </svg>
+                          <RemixIcon icon={CheckIcon} class="size-3.5" />
                         </Show>
                       </span>
                       <Show when={option.icon}>{option.icon}</Show>

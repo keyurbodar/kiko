@@ -27,3 +27,27 @@
 [data-component="chat-shell"][data-session-empty="true"] .composer-dock {
   --dock-bg: transparent;
 }
+
+.thread-skeleton {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  max-width: var(--chat-content-max-width);
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 auto;
+  padding: 72px 16px 0;
+  pointer-events: none;
+}
+
+.thread-skeleton > span {
+  display: block;
+  height: 38px;
+  background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
+  border-radius: var(--radius-bubble);
+}
+
+.thread-skeleton > [data-side="user"] {
+  align-self: flex-end;
+}
+

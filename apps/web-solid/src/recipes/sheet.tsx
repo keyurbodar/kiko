@@ -45,12 +45,12 @@ export function RecipeSheet(props: { recipe: RecipeCard; onClose: () => void; ro
       }
       footer={
         <Show when={!adding()}>
-          <Button variant="ghost" class="mr-auto rounded-full" data-action="recipe-file" busy={isEditing(props.recipe.slug)} onClick={() => void editRecipe(props.recipe.slug, go)}>
+          <Button variant="ghost" class="mr-auto" data-action="recipe-file" busy={isEditing(props.recipe.slug)} onClick={() => void editRecipe(props.recipe.slug, go)}>
             Edit recipe
           </Button>
           <button
             type="button"
-            class={buttonClass("primary", "rounded-full px-4")}
+            class={buttonClass("primary", "px-4")}
             data-action="add-recipe"
             onClick={() => {
               const target = here()

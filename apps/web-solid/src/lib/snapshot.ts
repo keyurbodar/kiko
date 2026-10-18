@@ -111,7 +111,15 @@ export function clearSnapshot(): void {
 
 /** Removes the layer the shell painted. Safe to call twice. */
 export function dismissSnapshot(): void {
-  document.getElementById("snap")?.remove()
+  const layer = document.getElementById("snap")
+  // The screen under the layer was already on show as the snapshot, so an entrance it is still playing
+  // would bring it in a second time. Each ends now. A loop (a spinner, a shimmer) has no end and goes on.
+  if (layer) {
+    for (const a of document.getElementById("root")?.getAnimations({ subtree: true }) ?? []) {
+      if (a.effect?.getComputedTiming().endTime !== Infinity) a.finish()
+    }
+  }
+  layer?.remove()
   // The shell's linked stylesheets stay: the app's lazy chunks find them by URL and do not load them again.
   for (const s of document.querySelectorAll("style[data-snap]")) s.remove()
 }
@@ -133,14 +141,30 @@ export function snapshotAfterRoute(): void {
 }
 
 /**
+ * Parts of the screen the hand-over waits for when the saved screen had them. Without this, a part
+ * that mounts a moment later (the messages, the chat's card, the lazy welcome) blinks in once the layer is gone.
+ */
+const LANDMARKS = ["sidebar-chats", "chat-row", "chat-card", "composer-dock", "first-run"]
+
+/** The landmarks the saved screen shows, read from the shell's layer before it goes. Exported for the tests. */
+export const landmarksOf = (layer: ParentNode | null): string[] =>
+  layer ? LANDMARKS.filter((name) => layer.querySelector(`[data-component="${name}"]`)) : []
+
+/**
  * Saves on every hide (switching tabs, closing, reloading) and once after each route change, and
- * removes the shell's layer once `ready` says the app painted, or after `maxMs` either way. Nothing
- * runs while the page sits still: a save serializes the whole screen.
+ * removes the shell's layer once `ready` says the app painted and every landmark of the saved screen
+ * is in the live one, for two frames in a row so a list under the layer has drawn its rows. After
+ * `maxMs` it goes either way. Nothing runs while the page sits still: a save serializes the whole screen.
  */
 export function startSnapshots(ready: () => boolean, maxMs = 1500): void {
+  const wanted = landmarksOf(document.getElementById("snap"))
+  const root = document.getElementById("root")
+  const painted = () => wanted.every((name) => root?.querySelector(`[data-component="${name}"]`))
   const t0 = performance.now()
+  let streak = 0
   const tick = () => {
-    if (ready() || performance.now() - t0 > maxMs) return dismissSnapshot()
+    streak = ready() && painted() ? streak + 1 : 0
+    if (streak >= 2 || performance.now() - t0 > maxMs) return dismissSnapshot()
     requestAnimationFrame(tick)
   }
   requestAnimationFrame(tick)

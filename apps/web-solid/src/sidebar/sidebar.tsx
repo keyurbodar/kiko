@@ -1,14 +1,15 @@
 import { A, useLocation, useNavigate } from "@solidjs/router"
 import { type Component, createEffect, createSignal, For, lazy, Show, Suspense } from "solid-js"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ComposeIcon, SettingsIcon, SidebarLeftIcon, SparklesIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { session } from "../app/session"
 import { profile } from "../app/hosted";
 import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
+import { KikoMark, KikoWordmark } from "../lib/brand"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
-import { KIKO } from "@kiko/protocol"
+import { openSettings, settingsSection } from "../settings/dialog-state"
 import { ChatPanel } from "./chat-panel"
 const UpdatePill = lazy(() => import("../app/update-pill"))
 import "./sidebar.css"
@@ -19,7 +20,6 @@ import "./sidebar.css"
  */
 const PANELS: Record<SectionId, Component> = {
   chat: ChatPanel,
-  settings: lazy(() => import("./settings/sidebar")),
   recipes: lazy(() => import("./recipes/sidebar")),
 }
 const SECTION_IDS = SECTIONS.map((section) => section.id)
@@ -29,13 +29,12 @@ type PanelAction = {
   run: (navigate: (to: string) => void) => void
 }
 
-/** The header's one primary action. Settings has none. */
+/** The header's one primary action. Recipes has none. */
 const ACTIONS: Record<SectionId, PanelAction | null> = {
   chat: {
     label: "New chat",
     run: () => runCommand("chat.new"),
   },
-  settings: null,
   recipes: null,
 }
 
@@ -57,9 +56,9 @@ export interface SidebarProps {
  * handle for the app's chat pane, and a bare class of it collided with the
  * transcript's scroller once before.
  *
- * Neither collapse nor resize is animated. kat runs both on a `spring250`
- * curve; here the column is either there or it is not, because a panel that
- * takes a quarter second to get out of the way is a panel the user waits on.
+ * Collapse and expand slide (the shell puts `motion-slide` on the panels for the
+ * length of the slide), and the column takes clicks from its first frame. A
+ * drag on the resize handle never slides, so it stays under the pointer.
  */
 export function Sidebar(props: SidebarProps) {
   const collapsed = () => props.collapsed
@@ -77,11 +76,10 @@ export function Sidebar(props: SidebarProps) {
       data-panel={props.section ?? undefined}
       data-collapsed={collapsed() ? "" : undefined}
       >
-      <div class="brand-art" aria-hidden="true" />
       <header class="panel-header">
         <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
-          <IdentityAvatar seed={KIKO} size={22} />
-          <span class="panel-brand-name">Kiko</span>
+          <KikoMark class="panel-brand-mark" />
+          <KikoWordmark class="panel-brand-wordmark" />
         </A>
         <span class="flex-1" aria-hidden="true" />
         <Show when={ACTIONS[shown()]}>{(action) => <HeaderAction action={action()} />}</Show>
@@ -105,7 +103,7 @@ export function Sidebar(props: SidebarProps) {
         </For>
       </div>
 
-      <Foot section={props.section} />
+      <Foot />
     </aside>
   )
 }
@@ -124,14 +122,14 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
         data-hint="view.toggle-sidebar"
         onClick={() => props.onToggle()}
       >
-        <HugeIcon icon={SidebarLeftIcon} size={17} />
+        <RemixIcon icon={SidebarLeftIcon} size={17} />
       </button>
     </TooltipV2>
   )
 }
 
-/** You and settings, at the foot of every section. The card opens the account page. */
-function Foot(props: { section: SectionId | null }) {
+/** You and settings, at the foot of every section. Both open the settings dialog, the card on the account. */
+function Foot() {
   const location = useLocation()
   const onRecipes = () => location.pathname.startsWith("/recipes")
   const user = () => {
@@ -144,10 +142,10 @@ function Foot(props: { section: SectionId | null }) {
       <UpdatePill />
     </Suspense>
     <footer class="panel-foot" data-component="sidebar-foot">
-      <A href="/settings/account" class="panel-me" activeClass="panel-me-active" data-component="sidebar-me" aria-label="Account">
+      <button type="button" class="panel-me cursor-pointer" data-component="sidebar-me" aria-label="Account" aria-haspopup="dialog" onClick={() => openSettings("account")}>
         <IdentityAvatar seed={user()?.id ?? "you"} size={26} />
         <span class="panel-me-name">{profile()?.name ?? user()?.name ?? "You"}</span>
-      </A>
+      </button>
       <TooltipV2 placement="top" openDelay={400} value="Recipes">
         <A
           href="/recipes"
@@ -157,22 +155,24 @@ function Foot(props: { section: SectionId | null }) {
           aria-current={onRecipes() ? "page" : undefined}
           aria-label="Recipes"
         >
-          <HugeIcon icon={SparklesIcon} size={17} />
+          <RemixIcon icon={SparklesIcon} size={17} />
         </A>
       </TooltipV2>
       <TooltipV2 placement="top" openDelay={400} value="Settings">
-        <A
-          href="/settings"
+        <button
+          type="button"
           class="panel-icon-button relative"
           data-component="sidebar-settings"
           data-hint="settings.open"
           data-hint-label="Settings"
-          data-active={props.section === "settings" ? "" : undefined}
-          aria-current={props.section === "settings" ? "page" : undefined}
+          data-active={settingsSection() ? "" : undefined}
+          aria-haspopup="dialog"
+          aria-expanded={settingsSection() !== null}
           aria-label="Settings"
+          onClick={() => openSettings()}
         >
-          <HugeIcon icon={SettingsIcon} size={17} />
-        </A>
+          <RemixIcon icon={SettingsIcon} size={17} />
+        </button>
       </TooltipV2>
     </footer>
     </>
@@ -185,7 +185,7 @@ function HeaderAction(props: { action: PanelAction }) {
   return (
     <TooltipV2 placement="bottom" openDelay={400} value={props.action.label}>
       <button type="button" class="panel-icon-button" data-component="sidebar-add" aria-label={props.action.label} title={props.action.label} onClick={() => props.action.run(navigate)}>
-        <HugeIcon icon={ComposeIcon} size={17} />
+        <RemixIcon icon={ComposeIcon} size={17} />
       </button>
     </TooltipV2>
   )

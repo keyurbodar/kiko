@@ -18,10 +18,10 @@ export function ConnectStep() {
   const group = (via: ConnectVia) => choices().filter((c) => c.via === via)
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-step="connect">
-      <h1 class="text-center text-xl font-medium text-foreground" style={{ "--i": 0 }}>
+      <h1 class="welcome-title" style={{ "--i": 0 }}>
         Connect a model provider
       </h1>
-      <p class="mb-2 text-center text-sm text-muted-foreground" style={{ "--i": 1 }}>
+      <p class="welcome-lede" style={{ "--i": 1 }}>
         Sign in with a plan you already pay for, or use an API key. Either stays on your server and never reaches this browser.
       </p>
       <div class="flex flex-col gap-2" data-component="first-run-providers" style={{ "--i": 2 }}>
@@ -30,7 +30,7 @@ export function ConnectStep() {
           fallback={<For each={Array.from({ length: CHOICE_ROWS })}>{() => <div class="first-run-skeleton h-[58px] rounded-lg bg-muted" />}</For>}
         >
           <Show when={catalog.error}>
-            <p class="text-center text-sm text-[var(--error)]" role="alert">
+            <p class="welcome-error" role="alert">
               The provider list did not load. Reload to try again.
             </p>
           </Show>
@@ -70,7 +70,7 @@ function ChoiceGroup(props: { label: string; choices: FirstRunChoice[]; onPick: 
           {(choice) => (
             <button
               type="button"
-              class="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent"
+              class="flex cursor-pointer items-center gap-3 rounded-xl border-[1.5px] border-border bg-surface px-3.5 py-2.5 text-left hover:border-input"
               data-provider={choice.provider.id}
               data-via={choice.via}
               data-action="connect"

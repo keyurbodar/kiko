@@ -1,4 +1,5 @@
-import { EllipsisIcon, ReplyIcon, SmilePlusIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { MoreIcon, ReactIcon, ReplyIcon } from "@kiko/ui/icons"
 import { createSignal, lazy, onCleanup, onMount, Show, Suspense, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { warmEmoji } from "../../lib/emoji-data"
@@ -11,7 +12,7 @@ const OPEN_DELAY = 120
 const CLOSE_DELAY = 200
 
 const BUTTON = cn(
-  "grid size-8 shrink-0 cursor-default place-items-center rounded-full p-0 text-muted-foreground",
+  "grid size-8 shrink-0 cursor-default place-items-center rounded-md p-0 text-muted-foreground",
   "hover:bg-[var(--accent-strong)] hover:text-foreground focus-visible:bg-[var(--accent-strong)] focus-visible:text-foreground",
   "data-[open]:bg-[var(--accent-strong)] data-[open]:text-foreground",
 )
@@ -21,8 +22,6 @@ export function MessageActions(props: {
   onReact: (emoji: string) => void
   onReply: () => void
   onMore: (anchor: HTMLElement) => void
-  /** Pixels beside the bubble that the run chevron takes. The actions sit past them. */
-  reserve?: number
 }): JSX.Element {
   let react: HTMLButtonElement | undefined
   const [open, setOpen] = createSignal(false)
@@ -44,7 +43,7 @@ export function MessageActions(props: {
     const measure = () => {
       if (open()) return
       const scroller = row.closest<HTMLElement>('[data-component="chat-scroll"]') ?? document.documentElement
-      setPlacement(actionsPlacement(props.side, bubble.getBoundingClientRect(), scroller.getBoundingClientRect(), props.reserve ?? 0))
+      setPlacement(actionsPlacement(props.side, bubble.getBoundingClientRect(), scroller.getBoundingClientRect()))
     }
     row.addEventListener("pointerenter", measure)
     row.addEventListener("focusin", measure)
@@ -79,12 +78,11 @@ export function MessageActions(props: {
         "opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 data-[open]:opacity-100",
         placement() === "inside"
           ? cn(
-              "top-0 -translate-y-[80%] rounded-full border border-border bg-popover p-0.5 shadow-sm",
+              "top-0 -translate-y-[80%] rounded-lg border border-border bg-popover p-0.5 shadow-sm",
               props.side === "user" ? "right-2 flex-row-reverse" : "left-2",
             )
           : cn("top-1/2 -translate-y-1/2", props.side === "user" ? "right-full mr-1.5 flex-row-reverse" : "left-full ml-1.5"),
       )}
-      style={props.reserve && placement() === "outside" ? { "margin-left": `${6 + props.reserve}px` } : undefined}
       data-component="chat-actions"
       data-placement={placement()}
       data-open={open() ? "" : undefined}
@@ -110,10 +108,10 @@ export function MessageActions(props: {
         }}
         onClick={(event) => show(event.detail === 0)}
       >
-        <SmilePlusIcon size={18} />
+        <RemixIcon icon={ReactIcon} size={18} />
       </button>
       <button type="button" class={BUTTON} aria-label="Reply" data-action="reply" onClick={() => props.onReply()}>
-        <ReplyIcon size={18} />
+        <RemixIcon icon={ReplyIcon} size={18} />
       </button>
       <button
         type="button"
@@ -122,7 +120,7 @@ export function MessageActions(props: {
         data-action="more"
         onClick={(event) => props.onMore(event.currentTarget)}
       >
-        <EllipsisIcon size={18} />
+        <RemixIcon icon={MoreIcon} size={18} />
       </button>
       <Show when={open() && react}>
         {(anchor) => (

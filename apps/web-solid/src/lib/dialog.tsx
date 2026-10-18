@@ -1,3 +1,5 @@
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CloseIcon } from "@kiko/ui/icons"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { Show, createUniqueId, type JSX } from "solid-js"
 import { iconButtonClass } from "../settings/kit"
@@ -24,9 +26,9 @@ export function Dialog(props: {
   const describedBy = createUniqueId()
   const inner = () => (
     <>
-      <div class={cn("min-h-0 flex-1 overflow-y-auto px-5 pb-5 empty:hidden", props.bodyClass)}>{props.children}</div>
+      <div class={cn("min-h-0 flex-1 overflow-y-auto px-6 pb-6 empty:hidden", props.bodyClass)}>{props.children}</div>
       <Show when={props.footer}>
-        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 px-5 pb-5">{props.footer}</div>
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 px-6 pb-6">{props.footer}</div>
       </Show>
     </>
   )
@@ -35,13 +37,13 @@ export function Dialog(props: {
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content
-          class={cn("max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-xl border border-border bg-popover text-foreground shadow-popover", WIDTH[props.size ?? "sm"], props.class)}
+          class={cn("max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-3xl bg-surface text-foreground shadow-popover", WIDTH[props.size ?? "sm"], props.class)}
           aria-describedby={props.description ? describedBy : undefined}
         >
 
           <div class="relative flex min-h-0 flex-1 flex-col" data-component={props["data-component"]}>
-            <header class="shrink-0 px-5 pt-4 pr-12 pb-4">
-              <ModalV2.Title class="text-base font-semibold leading-snug text-foreground">{props.title}</ModalV2.Title>
+            <header class="shrink-0 px-6 pt-5 pr-14 pb-4">
+              <ModalV2.Title class="font-display text-[20px] font-bold leading-snug tracking-[-0.015em] text-foreground">{props.title}</ModalV2.Title>
               <Show when={props.description}>
                 <p id={describedBy} class="mt-1 text-[13px] leading-relaxed text-[var(--kit-meta)]">
                   {props.description}
@@ -54,10 +56,8 @@ export function Dialog(props: {
               </form>
             </Show>
 
-            <button type="button" aria-label="Close" title="Close" class={cn(iconButtonClass, "absolute top-3 right-3")} data-action="close-dialog" onClick={() => props.onClose()}>
-              <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-                <path d="M4 4l8 8M12 4l-8 8" />
-              </svg>
+            <button type="button" aria-label="Close" title="Close" class={cn(iconButtonClass, "absolute top-4 right-4")} data-action="close-dialog" onClick={() => props.onClose()}>
+              <RemixIcon icon={CloseIcon} class="size-3.5" />
             </button>
           </div>
         </ModalV2.Content>

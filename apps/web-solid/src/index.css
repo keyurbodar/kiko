@@ -11,24 +11,57 @@
 
 @import "./styles/motion.css";
 
+/* Kiko's faces, served from public/fonts and preloaded by index.html. Text paints at once in the system
+   font and takes these as they arrive. */
+@font-face {
+  font-family: Figtree;
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("/fonts/figtree-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: Figtree;
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("/fonts/figtree-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+  src: url("/fonts/bricolage-grotesque-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
 
-  --font-xs: 11px;
-  --font-sm: 12px;
-  --font-md: 13px;
+  --font-xs: 12px;
+  --font-sm: 13px;
+  --font-md: 14px;
   --font-lg: 16px;
 
-  --font-base: 14px;
-  --font-size-prompt: 14px;
+  --font-base: 15px;
+  --font-size-prompt: var(--font-base);
   --font-size-code: 13px;
   --line-height: 1.45;
   --line-height-code: 1.5;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
-  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-sans: Figtree, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-display: "Bricolage Grotesque", var(--font-family-sans);
   --font-family-mono: "SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace;
   --font-family-text: var(--font-family-sans);
+
+  /* The weight of a drawn line: a field, a chip, a quiet button. */
+  --line-w: 1.5px;
   --icon-xs: 12px;
   --icon-sm: 14px;
   --icon-md: 16px;
@@ -51,7 +84,7 @@
 
 
   --bubble-pad-y: 8px;
-  --bubble-pad-x: 12px;
+  --bubble-pad-x: 14px;
 
   --row-gap: 1px;
   --run-gap: 11px;
@@ -172,75 +205,77 @@
 
 /* palette:start */
 :root {
-  --background: #0a0a0a;
-  --sidebar: #050505;
-  --foreground: #f5f5f5;
-  --muted-foreground: #818181;
-  --secondary-label: #525252;
-  --ring: #346bf1;
-  --primary: #f5f5f5;
-  --primary-hover: #e5e5e5;
-  --primary-foreground: #0a0a0a;
-  --error: #e5867a;
-  --warning: #e1b866;
+  --background: #18130e;
+  --sidebar: #120e0a;
+  --foreground: #fdf2e8;
+  --muted-foreground: #c0ae9e;
+  --secondary-label: #7c6c5e;
+  --ring: #f6a14f;
+  --primary: #fdf2e8;
+  --primary-hover: #ede0d6;
+  --primary-foreground: #18130e;
+  --error: #ff9a6b;
+  --warning: #ffc94f;
   --success: oklch(0.7937 0.12 150);
-  --card: color-mix(in oklab, #f5f5f5 6%, transparent);
-  --muted: color-mix(in oklab, #f5f5f5 3%, transparent);
-  --secondary: color-mix(in oklab, #f5f5f5 4%, transparent);
-  --accent: color-mix(in oklab, #f5f5f5 4%, transparent);
-  --sidebar-row-hover: color-mix(in oklab, #f5f5f5 4%, transparent);
-  --accent-strong: color-mix(in oklab, #f5f5f5 8%, transparent);
-  --sidebar-row-active: color-mix(in oklab, #f5f5f5 8%, transparent);
-  --message-assistant: color-mix(in oklab, #f5f5f5 5%, transparent);
-  --control: color-mix(in oklab, #f5f5f5 7%, transparent);
-  --control-strong: color-mix(in oklab, #f5f5f5 11%, transparent);
-  --border: color-mix(in oklab, #f5f5f5 6%, transparent);
-  --input: color-mix(in oklab, #f5f5f5 8%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #f5f5f5 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #f5f5f5 30%, transparent);
-  --popover: color-mix(in oklab, #f5f5f5 5%, #0a0a0a);
-  --tooltip: color-mix(in oklab, #f5f5f5 14%, #0a0a0a);
-  --tooltip-foreground: #f5f5f5;
-  --message-user: color-mix(in oklab, #346bf1 20%, transparent);
-  --message-user-deep: color-mix(in oklab, #346bf1 20%, transparent);
-  --message-user-foreground: #f5f5f5;
-  --ring-wash: color-mix(in oklab, #346bf1 14%, transparent);
+  --card: color-mix(in oklab, #fdf2e8 6%, transparent);
+  --muted: color-mix(in oklab, #fdf2e8 3%, transparent);
+  --secondary: color-mix(in oklab, #fdf2e8 4%, transparent);
+  --accent: color-mix(in oklab, #fdf2e8 4%, transparent);
+  --sidebar-row-hover: color-mix(in oklab, #fdf2e8 4%, transparent);
+  --accent-strong: color-mix(in oklab, #fdf2e8 8%, transparent);
+  --sidebar-row-active: color-mix(in oklab, #fdf2e8 8%, transparent);
+  --control: color-mix(in oklab, #fdf2e8 7%, transparent);
+  --control-strong: color-mix(in oklab, #fdf2e8 11%, transparent);
+  --border: color-mix(in oklab, #fdf2e8 6%, transparent);
+  --input: color-mix(in oklab, #fdf2e8 8%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #fdf2e8 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #fdf2e8 30%, transparent);
+  --surface: color-mix(in oklab, #fdf2e8 7%, #18130e);
+  --popover: color-mix(in oklab, #fdf2e8 7%, #18130e);
+  --message-assistant: color-mix(in oklab, #fdf2e8 7%, #18130e);
+  --tooltip: color-mix(in oklab, #fdf2e8 14%, #18130e);
+  --tooltip-foreground: #fdf2e8;
+  --message-user: oklch(from #f6a14f 0.32 calc(c * 0.42) h);
+  --message-user-deep: oklch(from #f6a14f 0.32 calc(c * 0.42) h);
+  --message-user-foreground: #fdf2e8;
+  --ring-wash: color-mix(in oklab, #f6a14f 14%, transparent);
 }
 
 :root:not(.dark) {
-  --background: #fcfcfc;
-  --sidebar: #fafafa;
-  --foreground: #27272a;
-  --muted-foreground: #71717a;
-  --secondary-label: #a1a1aa;
-  --ring: #1b4ed8;
-  --primary: #27272a;
-  --primary-hover: #3f3f46;
-  --primary-foreground: #ffffff;
-  --error: #c2453a;
-  --warning: #93670f;
+  --background: #fff7f1;
+  --sidebar: #ffefe3;
+  --foreground: #271e17;
+  --muted-foreground: #6e5d50;
+  --secondary-label: #9c8879;
+  --ring: #c26900;
+  --primary: #271e17;
+  --primary-hover: #3e332a;
+  --primary-foreground: #fff7f1;
+  --error: #c2410c;
+  --warning: #8a5a00;
   --success: oklch(0.52 0.12 150);
-  --card: color-mix(in oklab, #27272a 7%, transparent);
-  --muted: color-mix(in oklab, #27272a 3.5%, transparent);
-  --secondary: color-mix(in oklab, #27272a 4%, transparent);
-  --accent: color-mix(in oklab, #27272a 4.5%, transparent);
-  --sidebar-row-hover: color-mix(in oklab, #27272a 4.5%, transparent);
-  --accent-strong: color-mix(in oklab, #27272a 7%, transparent);
-  --sidebar-row-active: color-mix(in oklab, #27272a 7%, transparent);
-  --message-assistant: color-mix(in oklab, #27272a 5%, transparent);
-  --control: color-mix(in oklab, #27272a 6%, transparent);
-  --control-strong: color-mix(in oklab, #27272a 9%, transparent);
-  --border: color-mix(in oklab, #27272a 9%, transparent);
-  --input: color-mix(in oklab, #27272a 13%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #27272a 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #27272a 30%, transparent);
-  --popover: color-mix(in oklab, #ffffff 55%, #fcfcfc);
-  --tooltip: #27272a;
-  --tooltip-foreground: #fcfcfc;
-  --message-user: color-mix(in oklab, #1b4ed8 15%, transparent);
-  --message-user-deep: color-mix(in oklab, #1b4ed8 15%, transparent);
-  --message-user-foreground: #27272a;
-  --ring-wash: color-mix(in oklab, #1b4ed8 11%, transparent);
+  --card: color-mix(in oklab, #271e17 7%, transparent);
+  --muted: color-mix(in oklab, #271e17 3.5%, transparent);
+  --secondary: color-mix(in oklab, #271e17 4%, transparent);
+  --accent: color-mix(in oklab, #271e17 4.5%, transparent);
+  --sidebar-row-hover: color-mix(in oklab, #271e17 4.5%, transparent);
+  --accent-strong: color-mix(in oklab, #271e17 7%, transparent);
+  --sidebar-row-active: color-mix(in oklab, #271e17 7%, transparent);
+  --control: color-mix(in oklab, #271e17 6%, transparent);
+  --control-strong: color-mix(in oklab, #271e17 9%, transparent);
+  --border: color-mix(in oklab, #271e17 9%, transparent);
+  --input: color-mix(in oklab, #271e17 13%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #271e17 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #271e17 30%, transparent);
+  --surface: color-mix(in oklab, #fff7f1 25%, #ffffff);
+  --popover: color-mix(in oklab, #fff7f1 25%, #ffffff);
+  --message-assistant: color-mix(in oklab, #fff7f1 25%, #ffffff);
+  --tooltip: #271e17;
+  --tooltip-foreground: #fff7f1;
+  --message-user: oklch(from #c26900 0.93 calc(c * 0.6) h);
+  --message-user-deep: oklch(from #c26900 0.93 calc(c * 0.6) h);
+  --message-user-foreground: #271e17;
+  --ring-wash: color-mix(in oklab, #c26900 11%, transparent);
 }
 /* palette:end */
 
@@ -345,22 +380,44 @@
   --syntax-diff-unknown: var(--error);
 }
 
+/* Depth. Soft shadows lift a surface off the paper. The press edge is the one hard shadow: a solid lip
+   under a primary button that it sits down onto when pressed. At night a lifted surface also wears
+   a hairline, because a shadow does not read on a dark page. */
 :root {
-  --popover-shadow:
-    0 12px 40px oklch(0% 0 none / 0.45), 0 2px 6px oklch(0% 0 none / 0.12);
-  --menu-shadow:
-    0 0 0 0.5px oklch(0% 0 none / 0.4), 0 10px 28px oklch(0% 0 none / 0.32);
-  --card-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
-  --row-shadow: 0 6px 18px oklch(0% 0 none / 0.35);
-  --segment-shadow: 0 2px 8px oklch(0% 0 none / 0.35);
+  --popover-shadow: 0 0 0 1px var(--border), 0 18px 44px oklch(0% 0 none / 0.45);
+  --menu-shadow: 0 16px 36px oklch(0% 0 none / 0.42);
+  --card-shadow: 0 0 0 1px var(--border);
+  --row-shadow: 0 0 0 1px var(--border), 0 2px 6px oklch(0% 0 none / 0.3);
+  --segment-shadow: 0 0 0 1px var(--border), 0 1px 3px oklch(0% 0 none / 0.35);
+  --bubble-shadow: none;
+  --composer-shadow: 0 10px 28px oklch(0% 0 none / 0.35);
+  /* The main sheet sits inset from the window by this much, edged with a line a shade firmer than a border. */
+  --frame-gap: 8px;
+  --frame-edge: color-mix(in oklab, var(--foreground) 9%, transparent);
+  --frame-shadow: 0 1px 2px oklch(0% 0 none / 0.3);
+  /* A reaction's chip is a step lighter than the page at night, and white on paper. */
+  --reaction-bg: color-mix(in oklab, var(--foreground) 14%, var(--background));
+  --reaction-bg-hover: color-mix(in oklab, var(--foreground) 20%, var(--background));
+  /* The composer is drawn with a firm line and a faint halo in both modes, so the box reads as the place to type. */
+  --composer-edge: color-mix(in oklab, var(--foreground) 18%, transparent);
+  --composer-halo: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --press-edge: color-mix(in oklab, var(--primary) 72%, var(--background));
 }
 
 :root:not(.dark) {
   color-scheme: light;
-  --popover-shadow: 0 12px 40px oklch(0% 0 none / 0.16), 0 2px 6px oklch(0% 0 none / 0.08);
-  --menu-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.1), 0 10px 28px oklch(0% 0 none / 0.12);
-  --card-shadow: 0 12px 28px -18px rgb(0 0 0 / 40%);
-  --segment-shadow: 0 1px 4px oklch(0% 0 none / 0.12);
+  --popover-shadow: 0 2px 4px rgb(38 30 22 / 6%), 0 18px 44px rgb(38 30 22 / 16%);
+  --menu-shadow: 0 2px 4px rgb(38 30 22 / 5%), 0 12px 32px rgb(38 30 22 / 14%);
+  --card-shadow: 0 1px 2px rgb(38 30 22 / 6%), 0 8px 24px rgb(38 30 22 / 7%);
+  --row-shadow: 0 1px 2px rgb(38 30 22 / 9%), 0 2px 8px rgb(38 30 22 / 5%);
+  --segment-shadow: 0 1px 2px rgb(38 30 22 / 12%), 0 2px 6px rgb(38 30 22 / 5%);
+  --bubble-shadow: 0 1px 2px rgb(38 30 22 / 7%), 0 2px 10px rgb(38 30 22 / 4%);
+  --composer-shadow: 0 1px 2px rgb(38 30 22 / 6%), 0 10px 30px rgb(38 30 22 / 9%);
+  --frame-shadow: 0 1px 2px rgb(38 30 22 / 5%), 0 4px 16px rgb(38 30 22 / 4%);
+  --reaction-bg: var(--surface);
+  --reaction-bg-hover: color-mix(in oklab, var(--foreground) 5%, var(--surface));
+  --press-edge: color-mix(in oklab, var(--primary) 70%, #000);
+  --scrim: rgb(38 30 22 / 38%);
   --out-quote-bg: oklch(0% 0 none / 0.14);
   --count-bg: var(--foreground);
   --count-text: var(--background);
@@ -368,18 +425,22 @@
 
 @theme {
   --font-sans: var(--font-family-sans);
+  --font-display: var(--font-family-display);
   --font-mono: var(--font-family-mono);
   --default-font-family: var(--font-family-sans);
   --default-mono-family: var(--font-family-mono);
 
   --font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 
+  /* Soft corners: a control is nearly round, a card is generous. */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
-  --radius-xl: 14px;
-  --radius-bubble: 16px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-3xl: 16px;
+  --radius-bubble: 12px;
   --radius-pill: 999px;
 }
 
@@ -402,9 +463,11 @@
   --shadow-row: var(--row-shadow);
   --shadow-segment: var(--segment-shadow);
   --shadow-tab: var(--tab-shadow);
+  --shadow-bubble: var(--bubble-shadow);
 
 
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-sidebar: var(--sidebar);
   --color-muted: var(--muted);
   --color-card: var(--card);
@@ -662,18 +725,18 @@
       [role="alertdialog"],
       [role="tooltip"]
     ) {
-    outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
+    outline: 2px solid var(--ring);
     outline-offset: -2px;
   }
 
   /* A pointer never lights a text field. Tabbing into one does. */
   :root[data-input="keys"] :is(input, textarea, select):not(.kit-field, :is(.kt-field, .chat-search-field, .settings-search) input):focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
+    outline: 2px solid var(--ring);
     outline-offset: -2px;
   }
 
   :root[data-input="keys"] :is(.kt-field, .chat-search-field, .settings-search):has(input:focus-visible) {
-    outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
+    outline: 2px solid var(--ring);
     outline-offset: -2px;
   }
 

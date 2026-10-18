@@ -1,5 +1,5 @@
 import type { RecipeCard, Trigger } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@kiko/ui/icons"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -109,7 +109,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           when={props.recipe}
           fallback={
             <span class={`grid size-7 shrink-0 place-items-center rounded-md bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] ${on() ? "text-[color-mix(in_oklab,var(--foreground)_60%,transparent)]" : "text-[color-mix(in_oklab,var(--foreground)_30%,transparent)]"}`} aria-hidden="true">
-              <HugeIcon icon={ClockIcon} size={14} />
+              <RemixIcon icon={ClockIcon} size={14} />
             </span>
           }
         >
@@ -126,13 +126,13 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
         </span>
       </div>
       <Tool label={ran() ? "Started" : "Run now"} action="routine-run" disabled={ran()} onClick={() => void runNow(props.routine)}>
-        <HugeIcon icon={ran() ? CheckIcon : PlayIcon} size={14} />
+        <RemixIcon icon={ran() ? CheckIcon : PlayIcon} size={14} />
       </Tool>
       <Tool label={on() ? "Pause" : "Resume"} action="routine-toggle" onClick={() => void setStatus(props.routine, on() ? "paused" : "active")}>
-        <HugeIcon icon={on() ? PauseIcon : PlayIcon} size={14} />
+        <RemixIcon icon={on() ? PauseIcon : PlayIcon} size={14} />
       </Tool>
       <Tool label="Delete routine" action="routine-delete" onClick={() => void cancelRoutine(props.routine)}>
-        <HugeIcon icon={TrashIcon} size={14} />
+        <RemixIcon icon={TrashIcon} size={14} />
       </Tool>
     </li>
   )

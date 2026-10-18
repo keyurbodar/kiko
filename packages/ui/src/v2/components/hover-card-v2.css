@@ -24,7 +24,7 @@
     background: var(--popover);
     -webkit-backdrop-filter: var(--popover-blur);
     backdrop-filter: var(--popover-blur);
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     box-shadow: var(--popover-edge), var(--menu-shadow);
 
     outline: none;

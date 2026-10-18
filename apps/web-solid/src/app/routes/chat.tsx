@@ -13,7 +13,7 @@ import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage, RosterBot } from "../../lib/types";
 import { jumpRequest, requestJump } from "../../search/state";
 import { eventRow } from "../../chat/lib/event-line";
-import { EmptyState } from "../../chat/ui/EmptyState";
+import { EmptyState, ThreadSkeleton } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 const RunPanel = lazy(() => import("../../chat/run/RunPanel"));
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
@@ -21,7 +21,7 @@ const UpdateNotice = lazy(() => import("../update-notice"));
 const BrowserChip = lazy(() => import("../../chat/BrowserChip"));
 
 const JUMP_CLASS =
-  "pointer-events-auto relative grid size-[26px] place-items-center rounded-md border border-[color-mix(in_oklab,var(--foreground)_15%,transparent)] bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)] text-foreground shadow-md backdrop-blur-md";
+  "pointer-events-auto relative grid size-[26px] place-items-center rounded-full border-[1.5px] border-border bg-surface text-foreground shadow-row";
 
 export default function ChatRoute() {
   const params = useParams<{ id?: string }>();
@@ -159,6 +159,20 @@ export default function ChatRoute() {
   };
 
   let transcript: HTMLDivElement | undefined;
+  // A chat swapped in rises into place. Its messages are there on the first frame; the class is taken
+  // off and put back so the motion plays again for each chat.
+  createEffect(
+    on(
+      () => params.id,
+      (id, prev) => {
+        if (!transcript || !prev || id === prev) return;
+        transcript.classList.remove("motion-view-in");
+        void transcript.offsetWidth;
+        transcript.classList.add("motion-view-in");
+      },
+      { defer: true },
+    ),
+  );
   const mentions = () => useApp.unseenMentions();
   createEffect(() => {
     threadState();
@@ -182,8 +196,10 @@ export default function ChatRoute() {
     useApp.seeMentions([id]);
   };
 
+  // A chat whose stored messages are still on their way is not empty yet: its empty layout would flash first.
+  const loading = () => !useApp.room()?.state.loaded && messages().length === 0;
   // A divider is something to read, so a chat that has one is not empty; an event this client does not draw is nothing.
-  const empty = () => messages().every((m) => m.event && eventRow(m, String) === null);
+  const empty = () => !loading() && messages().every((m) => m.event && eventRow(m, String) === null);
   let dock: HTMLDivElement | undefined;
   let launch: Launch | null = null;
   createEffect(
@@ -251,6 +267,9 @@ export default function ChatRoute() {
         <Show when={empty()}>
           <EmptyState />
         </Show>
+        <Show when={loading()}>
+          <ThreadSkeleton />
+        </Show>
         <div
           ref={dock}
           class="composer-dock"
@@ -285,7 +304,7 @@ export default function ChatRoute() {
           <div class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+6px)] z-6 flex justify-end px-3">
             <button
               type="button"
-              class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border border-[color-mix(in_oklab,var(--foreground)_10%,transparent)] bg-[color-mix(in_oklab,var(--background)_80%,transparent)] px-2.5 text-xs font-medium text-foreground shadow-md backdrop-blur-md transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none data-[hidden]:pointer-events-none data-[hidden]:scale-95 data-[hidden]:opacity-0"
+              class="pointer-events-auto inline-flex h-7 items-center gap-1 rounded-full border-[1.5px] border-border bg-surface px-3 text-xs font-semibold text-foreground shadow-row transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none data-[hidden]:pointer-events-none data-[hidden]:scale-95 data-[hidden]:opacity-0"
               data-component="composer-scroll-down"
               data-hidden={scrolled() ? undefined : ""}
               aria-label="Scroll to end"

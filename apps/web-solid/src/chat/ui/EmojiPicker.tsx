@@ -1,4 +1,5 @@
-import { SearchIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { SearchIcon } from "@kiko/ui/icons"
 import { createMemo, createResource, createSelector, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import {
@@ -119,14 +120,14 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
   return (
     <div
       class={cn(
-        "flex h-[400px] w-[340px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] bg-popover text-foreground shadow-popover",
+        "flex h-[400px] w-[340px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-xl bg-popover text-foreground shadow-popover",
         props.class,
       )}
       data-component="emoji-picker"
     >
       <div class="px-2.5 pt-2.5 pb-1">
-        <label class="flex h-10 items-center gap-2 rounded-full bg-[var(--secondary)] px-3">
-          <SearchIcon size={16} class="shrink-0 text-muted-foreground" />
+        <label class="flex h-10 items-center gap-2 rounded-md bg-[var(--secondary)] px-3">
+          <RemixIcon icon={SearchIcon} size={16} class="shrink-0 text-muted-foreground" />
           <input
             ref={(element) => queueMicrotask(() => element.focus({ preventScroll: true }))}
             class="min-w-0 flex-1 bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"

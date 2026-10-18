@@ -1,7 +1,7 @@
 import { useNavigate } from "@solidjs/router"
 import { type Agent, KIKO } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
-import { PlusIcon } from "@kiko/ui/icons"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon, PlusIcon } from "@kiko/ui/icons"
 import { Command as Cmdk } from "cmdk-solid"
 import { createMemo, createSignal, For, Show } from "solid-js"
 import "../palette/palette.css"
@@ -84,7 +84,7 @@ export default function BotPicker() {
                     tabindex={-1}
                     aria-checked={on()}
                     aria-label={`Pick ${agent.name}`}
-                    class="-m-1.5 grid size-7 shrink-0 place-items-center rounded-full"
+                    class="-m-1.5 grid size-7 shrink-0 place-items-center rounded-md"
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => {
                       event.preventDefault()
@@ -95,9 +95,7 @@ export default function BotPicker() {
                     <span
                       class={`grid size-4 place-items-center rounded-full border ${on() ? "border-transparent bg-primary text-primary-foreground" : "border-[color-mix(in_oklab,var(--foreground)_30%,transparent)] text-transparent"}`}
                     >
-                      <svg class="size-2.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M3.5 8.5l3 3 6-7" />
-                      </svg>
+                      <RemixIcon icon={CheckIcon} class="size-3" />
                     </span>
                   </button>
                 </Cmdk.Item>
@@ -105,7 +103,7 @@ export default function BotPicker() {
             }}
           </For>
           <Cmdk.Item class="palette-row" value={NEW_AGENT} forceMount onSelect={newAgent}>
-            <HugeIcon icon={PlusIcon} size={16} />
+            <RemixIcon icon={PlusIcon} size={16} />
             <span class="palette-label">New agent</span>
           </Cmdk.Item>
         </Cmdk.List>

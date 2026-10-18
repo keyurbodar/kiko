@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Kiko"><title>Kiko</title><rect width="120" height="120" rx="26.4" fill="#231E1B"/><g transform="translate(60 63) scale(1.04) translate(-60 -57)"><g transform="translate(0 7)">
+    <g transform="translate(48.5 50.5) rotate(-38)"><path d="M0 0C13-6 13-24 0-33C-13-24-13-6 0 0Z" fill="#55685A"/></g>
+    <path d="M31 88C26 88 24 85 24.4 80C26.2 59 40.5 46 60 46C79.5 46 93.8 59 95.6 80C96 85 94 88 89 88Z" fill="#FBF7F0"/>
+    <g transform="translate(68 48.5) rotate(22)"><path d="M0 0C14-7 14-27 0-37C-14-27-14-7 0 0Z" fill="#86A38D"/></g>
+    <ellipse cx="38.5" cy="76.5" rx="5" ry="2.7" fill="#F2A08E" opacity=".7"/><ellipse cx="81" cy="74.5" rx="4.6" ry="2.5" fill="#F2A08E" opacity=".7"/>
+    <g fill="none" stroke="#C22F2A" stroke-width="2.9" stroke-linecap="round"><path d="M42 69.5Q46.4 62.6 50.8 69.5"/><path d="M66.4 67.5Q70.6 61.2 74.8 67.5"/></g>
+  </g></g></svg>

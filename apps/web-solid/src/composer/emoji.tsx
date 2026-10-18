@@ -1,5 +1,6 @@
 import { createEventListener } from "@solid-primitives/event-listener"
-import { SmileIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { SmileIcon } from "@kiko/ui/icons"
 import { createEffect, createMemo, createResource, createSignal, For, lazy, on, Show, Suspense, type JSX } from "solid-js"
 import { composingKey } from "./ime"
 import { loadEmoji, recordRecent, searchEmoji, shortcodeQuery, warmEmoji, type EmojiMatch } from "../lib/emoji-data"
@@ -80,7 +81,7 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
   const view = (
     <Show when={open()}>
       <div
-        class="absolute right-0 bottom-full left-0 z-30 mx-1.5 mb-1.5 max-h-[322px] overflow-y-auto rounded-[16px] bg-popover p-1 text-foreground shadow-popover"
+        class="absolute right-0 bottom-full left-0 z-30 mx-1.5 mb-1.5 max-h-[322px] overflow-y-auto rounded-xl bg-popover p-1 text-foreground shadow-popover"
         role="listbox"
         aria-label="Emoji"
         data-component="emoji-shortcodes"
@@ -191,7 +192,7 @@ export function createComposerEmoji(editor: () => HTMLElement | undefined, disab
         setOpen((value) => !value)
       }}
     >
-      <SmileIcon size={16} />
+      <RemixIcon icon={SmileIcon} size={16} />
     </button>
   )
   const view = (

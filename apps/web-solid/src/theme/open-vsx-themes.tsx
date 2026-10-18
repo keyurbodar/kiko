@@ -1,6 +1,8 @@
 // Settings, themes: the installed VS Code themes, which one each appearance uses, and the Open VSX
 // browser. The importer loads on the first search, so the settings route does not carry it.
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CloseIcon } from "@kiko/ui/icons"
 import { appearanceOf } from "@kiko/theme/apply"
 import { MAX_IMPORTED, type Imported, type ImportedTheme } from "@kiko/theme/imported"
 import { apiFetch } from "../lib/api"
@@ -97,9 +99,7 @@ export function ThemeBrowser(props: { open: boolean; onClose: () => void }) {
                     <span class="min-w-0 flex-1 truncate text-md text-foreground">{theme.name}</span>
                     <span class="shrink-0 text-xs text-muted-foreground">{theme.appearance === "dark" ? "Dark" : "Light"}</span>
                     <IconButton label={`Remove ${theme.name}`} danger onClick={() => remove(theme)}>
-                      <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-                        <path d="M4 4l8 8M12 4l-8 8" />
-                      </svg>
+                      <RemixIcon icon={CloseIcon} class="size-3.5" />
                     </IconButton>
                   </li>
                 )}

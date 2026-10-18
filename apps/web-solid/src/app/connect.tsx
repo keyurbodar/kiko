@@ -1,4 +1,6 @@
 import { useLocation, useNavigate } from "@solidjs/router"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon } from "@kiko/ui/icons"
 import { For, Index, Match, Show, Switch, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { Button } from "../settings/kit"
 import {
@@ -70,9 +72,7 @@ function InstallProgress() {
             <li class="flex items-center gap-2" data-state={i < stage() ? "done" : i === stage() ? "current" : "next"}>
               <span class={`grid size-4 place-items-center ${i === stage() ? "first-run-skeleton" : ""}`} aria-hidden="true">
                 <Show when={i < stage()} fallback={<span class={`size-1.5 rounded-full ${i === stage() ? "bg-foreground" : "bg-[var(--muted-foreground)] opacity-40"}`} />}>
-                  <svg viewBox="0 0 16 16" class="size-3.5 text-foreground" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3.5 8.5l3 3 6-7" />
-                  </svg>
+                  <RemixIcon icon={CheckIcon} class="size-3.5 text-foreground" />
                 </Show>
               </span>
               <span class={i <= stage() ? "text-foreground" : "text-muted-foreground"}>{step()}</span>
@@ -180,8 +180,8 @@ export function ConnectCloudflare() {
 
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-component="connect" data-step="cloudflare">
-      <h1 class="text-xl font-medium text-foreground" style={{ "--i": 0 }}>Connect Cloudflare</h1>
-      <p class="text-sm text-muted-foreground" style={{ "--i": 1 }}>
+      <h1 class="welcome-title" style={{ "--i": 0 }}>Connect Cloudflare</h1>
+      <p class="welcome-lede" style={{ "--i": 1 }}>
         Kiko installs its backend into your own Cloudflare account, on the free plan. Your chats and keys live there. Nothing runs on our servers after setup.
       </p>
       <Switch>

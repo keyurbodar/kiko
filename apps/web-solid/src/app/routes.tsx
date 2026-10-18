@@ -2,17 +2,18 @@ import { Navigate, type RouteDefinition, useNavigate, useParams } from "@solidjs
 import { createEffect, lazy } from "solid-js"
 import { useApp } from "../lib/store"
 import { fixedSurface, openFile, openSurface } from "../chat/side/surfaces"
+import { openSettings } from "../settings/dialog-state"
+import { landingSection } from "../settings/sections"
 import { sectionOf } from "./sections"
 
 /*
- * The route table. One lazy route per rail item (chat and settings), so each section's code
+ * The route table. One lazy route per rail item (chat and recipes), so each section's code
  * loads on intent (architecture 19.3). The array paths are the product document's route list.
  * The shell is the router's `root`, so it stays mounted across every route change and only the
  * main panel's content swaps.
  */
 const pages = {
   chat: lazy(() => import("./routes/chat")),
-  settings: lazy(() => import("./routes/settings")),
   recipes: lazy(() => import("../recipes/page")),
   connect: lazy(() => import("./connect")),
 }
@@ -69,6 +70,17 @@ function FilesRedirect() {
   return <Navigate href={chat ? `/chat/${chat}` : "/chat"} />
 }
 
+/*
+ * Settings is a dialog over the chat. `/settings` and `/settings/<section>`, from old links and
+ * bookmarks, open it on that section over the active chat.
+ */
+function SettingsRedirect() {
+  const params = useParams<{ section?: string }>()
+  openSettings(landingSection(params.section?.split("/")[0]))
+  const chat = activeChat()
+  return <Navigate href={chat ? `/chat/${chat}` : "/chat"} />
+}
+
 export const routes: RouteDefinition[] = [
   { path: ["/", "/chat"], component: Resume },
   { path: "/chat/:id", component: pages.chat },
@@ -77,7 +89,7 @@ export const routes: RouteDefinition[] = [
   { path: ["/memory", "/memory/:id"], component: MemoryRedirect },
   { path: "/recipes", component: pages.recipes },
   { path: ["/connect", "/connect/callback"], component: pages.connect },
-  { path: "/settings/*", component: pages.settings },
+  { path: "/settings/*section", component: SettingsRedirect },
   { path: "/welcome", component: () => <Navigate href="/chat" /> },
   { path: "*", component: () => <Navigate href="/chat" /> },
 ]

@@ -6,6 +6,7 @@ import { backendStorage, backendVersion, checkForUpdates, clientIsBehind, curren
 import { base } from "../lib/api-base"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { APP_VERSION } from "../lib/version-skew"
+import { closeSettings } from "./dialog-state"
 import { Button, Group, Item, Pill, Row, Spinner } from "./kit"
 
 const PROVIDER_LABEL: Record<string, string> = { google: "Google", github: "GitHub", apple: "Apple", microsoft: "Microsoft" }
@@ -79,7 +80,14 @@ function Backend() {
         )}
       </Show>
       <Row label="Cloudflare" description="Install or update your backend again in your Cloudflare account.">
-        <Button data-action="reconnect-cloudflare" onClick={() => navigate("/connect?reconnect=1")}>
+        <Button
+          data-action="reconnect-cloudflare"
+          onClick={() => {
+            // The connect page is a page of its own, not something to show behind the settings dialog.
+            closeSettings()
+            navigate("/connect?reconnect=1")
+          }}
+        >
           Reconnect Cloudflare
         </Button>
       </Row>

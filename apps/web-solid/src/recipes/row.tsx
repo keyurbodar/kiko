@@ -1,5 +1,5 @@
 import type { RecipeCard, RecipeInstall } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { MoreIcon, PauseIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { useNavigate } from "@solidjs/router"
@@ -12,7 +12,7 @@ import { RecipeIcon, RecipeWatermark, toneStyle } from "./icon"
 import { type InstallStatus, installStatus, nextRunLabel } from "./model"
 import { agentName, editRecipe, isEditing, removeInstall, setInstallPaused, targetsForChat } from "./state"
 
-const pillClass = "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
+const pillClass = "relative h-7 shrink-0 cursor-pointer rounded-md px-3 text-xs text-muted-foreground hover:bg-control-strong hover:text-foreground"
 
 /** When an install runs next, as a calm chip. Paused says so and keeps its schedule beside it. */
 export function StatusChip(props: { status: InstallStatus }) {
@@ -26,7 +26,7 @@ export function StatusChip(props: { status: InstallStatus }) {
           return (
             <>
               <span class={cn(chip, "bg-control text-muted-foreground")}>
-                <HugeIcon icon={PauseIcon} size={11} />
+                <RemixIcon icon={PauseIcon} size={11} />
                 Paused
               </span>
               <span class="truncate text-xs text-muted-foreground">{s.schedule}</span>
@@ -49,8 +49,8 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
         </button>
       </Show>
       <MenuV2 gutter={4} placement="bottom-end">
-        <MenuV2.Trigger class={cn(iconButtonClass, "rounded-full")} aria-label={`More for ${props.card.title}`}>
-          <Show when={isEditing(props.card.slug)} fallback={<HugeIcon icon={MoreIcon} size={16} />}>
+        <MenuV2.Trigger class={iconButtonClass} aria-label={`More for ${props.card.title}`}>
+          <Show when={isEditing(props.card.slug)} fallback={<RemixIcon icon={MoreIcon} size={16} />}>
             <Spinner size={16} />
           </Show>
         </MenuV2.Trigger>
@@ -84,7 +84,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
   const chatName = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
     <article
-      class="recipe-card flex min-w-0 flex-col gap-4 rounded-[20px] p-4 [--recipe-surface:var(--card)]"
+      class="recipe-card flex min-w-0 flex-col gap-4 rounded-xl p-4 [--recipe-surface:var(--card)]"
       style={toneStyle(props.card)}
       data-install={props.install.installId}
       data-status={installStatus(props.install, props.card).kind}
@@ -121,7 +121,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
 export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; navigate: (to: string) => void }) {
   const title = () => useApp.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
-    <div class="flex items-center gap-2 rounded-[14px] px-2.5 py-2 hover:bg-control" data-install={props.install.installId} data-status={installStatus(props.install, props.card).kind}>
+    <div class="flex items-center gap-2 rounded-lg px-2.5 py-2 hover:bg-control" data-install={props.install.installId} data-status={installStatus(props.install, props.card).kind}>
       <button type="button" class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none" data-action="open-recipe-chat" onClick={() => props.navigate(`/chat/${props.install.roomId}`)}>
         <ChatAvatar faces={useApp.chatFaces(props.install.roomId)} size={36} />
         <span class="flex min-w-0 flex-1 flex-col gap-1">

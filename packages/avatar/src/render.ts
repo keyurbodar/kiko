@@ -349,6 +349,19 @@ function pattern(p: PatternName, v: View, b: Body, accent: string, rnd: () => nu
   }
 }
 
+const tear = ([x, yy, r]: readonly [number, number, number]) =>
+  `<path d="M${f1(x + 0.6)} ${f1(yy + r + 1.6)} Q${f1(x - 1.6)} ${f1(yy + r + 5)} ${f1(x + 0.6)} ${f1(yy + r + 6)} Q${f1(x + 2.8)} ${f1(yy + r + 5)} ${f1(x + 0.6)} ${f1(yy + r + 1.6)}Z" fill="#7DBCE0" stroke="#5E9FC4" stroke-width=".6" transform="translate(${f1(x)} ${f1(yy + r)}) scale(1.4) translate(${f1(-x)} ${f1(-(yy + r))})"/>`;
+const mouth = ([x, yy]: P) => `<path d="M${f1(x - 2.6)} ${f1(yy)} q1.3 1.8 2.6 0 q1.3 1.8 2.6 0" fill="none" stroke="#6B5444" stroke-width="1.2" stroke-linecap="round"/>`;
+
+/** What a mood floats over the head: thinking dots, stars, a dizzy ring, or a sleepy z. */
+function marks(mood: MoodName, v: View, crown: number): string {
+  if (mood === "thinking") return `<g fill="#C9D3DF">${[0, 1, 2].map((i) => `<circle cx="${f1(v.cx + v.rx * 0.55 + i * 5.5)}" cy="${f1(crown - 6)}" r="1.8" opacity="${f1(0.5 + i * 0.2)}"/>`).join("")}</g>`;
+  if (mood === "excited") return `<path d="${star4(v.cx + v.rx * 0.62, crown - 6, 3.4)} ${star4(v.cx + v.rx * 0.88, crown + 3, 2.2)}" fill="#F2C94C"/>`;
+  if (mood === "dizzy") return `<g fill="#F2C94C">${[0, 1, 2].map((i) => { const a = (i * 2 * Math.PI) / 3; return `<path d="${star4(v.cx + v.rx * 0.2 + Math.cos(a) * 13, crown - 8 + Math.sin(a) * 4, 2.2)}"/>`; }).join("")}</g><ellipse cx="${f1(v.cx + v.rx * 0.2)}" cy="${f1(crown - 8)}" rx="13" ry="4" fill="none" stroke="#C9D3DF" stroke-width=".8" stroke-dasharray="1.6 2"/>`;
+  if (mood === "sleepy") return `<path d="M${f1(v.cx + v.rx * 0.55)} ${f1(crown - 11)} h5 l-5 6 h5 M${f1(v.cx + v.rx * 0.55 + 8)} ${f1(crown - 19)} h3.6 l-3.6 4.4 h3.6" fill="none" stroke="#BFC9D6" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  return "";
+}
+
 function idFor(y: AvatarTraits): string {
   return "yk" + Math.floor(stream(seedState(JSON.stringify(y), false), "id") * 2 ** 32).toString(36);
 }
@@ -390,16 +403,10 @@ export function render(y: AvatarTraits, o: RenderOptions = {}): string {
 
   if (y.blush || mood.blush) g += v.blush.map(([fx, fy]) => { const [x, yy] = face(fx, fy); return `<ellipse cx="${f1(x)}" cy="${f1(yy)}" rx="4.4" ry="2.5" fill="#F4A2A4" opacity="${mood.blush ?? 0.65}"/>`; }).join("");
   g += eyes.map(([x, yy, r], i) => eye(y.eye, x, yy, r * mood.scale, mood.eyes(i), mood.gaze)).join("");
-  if (mood.tear) { const [x, yy, r] = eyes[0]!; g += `<path d="M${f1(x + 0.6)} ${f1(yy + r + 1.6)} Q${f1(x - 1.6)} ${f1(yy + r + 5)} ${f1(x + 0.6)} ${f1(yy + r + 6)} Q${f1(x + 2.8)} ${f1(yy + r + 5)} ${f1(x + 0.6)} ${f1(yy + r + 1.6)}Z" fill="#7DBCE0" stroke="#5E9FC4" stroke-width=".6" transform="translate(${f1(x)} ${f1(yy + r)}) scale(1.4) translate(${f1(-x)} ${f1(-(yy + r))})"/>`; }
-  if (y.mouth) { const [x, yy] = face(...v.mouth); g += `<path d="M${f1(x - 2.6)} ${f1(yy)} q1.3 1.8 2.6 0 q1.3 1.8 2.6 0" fill="none" stroke="#6B5444" stroke-width="1.2" stroke-linecap="round"/>`; }
+  if (mood.tear) g += tear(eyes[0]!);
+  if (y.mouth) g += mouth(face(...v.mouth));
   g += (outfit.front ?? "") + (charm.front ?? "");
-
-  const crown = topAt(b, v.cx);
-  let extra = "";
-  if (y.mood === "thinking") extra += `<g fill="#C9D3DF">${[0, 1, 2].map((i) => `<circle cx="${f1(v.cx + v.rx * 0.55 + i * 5.5)}" cy="${f1(crown - 6)}" r="1.8" opacity="${f1(0.5 + i * 0.2)}"/>`).join("")}</g>`;
-  if (y.mood === "excited") extra += `<path d="${star4(v.cx + v.rx * 0.62, crown - 6, 3.4)} ${star4(v.cx + v.rx * 0.88, crown + 3, 2.2)}" fill="#F2C94C"/>`;
-  if (y.mood === "dizzy") extra += `<g fill="#F2C94C">${[0, 1, 2].map((i) => { const a = (i * 2 * Math.PI) / 3; return `<path d="${star4(v.cx + v.rx * 0.2 + Math.cos(a) * 13, crown - 8 + Math.sin(a) * 4, 2.2)}"/>`; }).join("")}</g><ellipse cx="${f1(v.cx + v.rx * 0.2)}" cy="${f1(crown - 8)}" rx="13" ry="4" fill="none" stroke="#C9D3DF" stroke-width=".8" stroke-dasharray="1.6 2"/>`;
-  if (y.mood === "sleepy") extra += `<path d="M${f1(v.cx + v.rx * 0.55)} ${f1(crown - 11)} h5 l-5 6 h5 M${f1(v.cx + v.rx * 0.55 + 8)} ${f1(crown - 19)} h3.6 l-3.6 4.4 h3.6" fill="none" stroke="#BFC9D6" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const extra = marks(y.mood, v, topAt(b, v.cx));
 
   const flip = y.facing === "left" ? ` transform="translate(120 0) scale(-1 1)"` : "";
   const shadow = `<ellipse cx="${v.cx}" cy="${f1(v.ground + 1.5)}" rx="${f1(v.rx * 0.95)}" ry="3.4" fill="#000" opacity=".3"/>`;
@@ -408,3 +415,7 @@ export function render(y: AvatarTraits, o: RenderOptions = {}): string {
   const title = o.title ? `<title>${esc(o.title)}</title>` : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -6 120 120"${dims}${o.title ? ` role="img"` : ` aria-hidden="true"`}>${title}${defs}<g${flip}>${shadow}${g}${extra}</g></svg>`;
 }
+
+// Shared with outline.ts, which draws the same avatar as line art.
+export { CHARMS, LEAVES, MOODS, V, body, eye, f1, marks, mouth, tear, topAt };
+export type { Ear, P };

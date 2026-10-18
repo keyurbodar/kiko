@@ -1,5 +1,5 @@
 import { FileIcon } from "@kiko/ui/file-icon"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { BackIcon, ChevronRightIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { createSignal, For, Show } from "solid-js"
@@ -22,7 +22,7 @@ export function FileBreadcrumbs(props: { path: string; index: TreeIndex; unsaved
 				{(dir) => (
 					<>
 						<FolderCrumb dir={dir} current={props.path} index={props.index} onOpen={props.onOpen} />
-						<HugeIcon icon={ChevronRightIcon} size={14} class="mx-1 shrink-0 text-muted-foreground opacity-60" />
+						<RemixIcon icon={ChevronRightIcon} size={14} class="mx-1 shrink-0 text-muted-foreground opacity-60" />
 					</>
 				)}
 			</For>
@@ -53,7 +53,7 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
 				<MenuV2.Content class="max-h-80 min-w-48 overflow-y-auto" data-component="file-crumb-menu">
 					<Show when={at() !== props.dir}>
 						<MenuV2.Item closeOnSelect={false} onSelect={() => setAt(dirname(at()))}>
-							<HugeIcon icon={BackIcon} class="size-3.5 shrink-0" />
+							<RemixIcon icon={BackIcon} class="size-3.5 shrink-0" />
 							<span class="truncate">Back to {label(dirname(at()))}</span>
 						</MenuV2.Item>
 						<MenuV2.Separator />
@@ -65,7 +65,7 @@ function FolderCrumb(props: { dir: string; current: string; index: TreeIndex; on
 									<MenuV2.Item closeOnSelect={false} onSelect={() => setAt(path)}>
 										<FileIcon node={{ path, type: "directory" }} />
 										<span class="min-w-0 flex-1 truncate">{basename(path)}</span>
-										<HugeIcon icon={ChevronRightIcon} class="size-3.5 shrink-0 text-muted-foreground" />
+										<RemixIcon icon={ChevronRightIcon} class="size-3.5 shrink-0 text-muted-foreground" />
 									</MenuV2.Item>
 								) : (
 									<MenuV2.Item onSelect={() => props.onOpen(path)} aria-current={path === props.current ? "page" : undefined}>

@@ -1,4 +1,5 @@
-import { LoaderCircle } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ChevronDownIcon, LoaderIcon, ResetIcon } from "@kiko/ui/icons"
 import { For, Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import "./kit.css"
@@ -18,7 +19,7 @@ export function buttonClass(variant: Variant = "secondary", extra?: string) {
 export const selectClass = "kit-select"
 
 export function Spinner(props: { size?: number }): JSX.Element {
-  return <LoaderCircle class="motion-spin" size={props.size ?? 14} strokeWidth={2} aria-hidden="true" />
+  return <RemixIcon icon={LoaderIcon} class="motion-spin" size={props.size ?? 14} />
 }
 
 /** Placeholder bars while a load is in flight. Size them with `class`. */
@@ -48,7 +49,7 @@ export function Button(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { va
 }
 
 export const iconButtonClass = cn(
-  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-[color-mix(in_oklab,var(--foreground)_60%,transparent)] enabled:hover:bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] enabled:hover:text-foreground enabled:active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60",
+  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-[color-mix(in_oklab,var(--foreground)_60%,transparent)] enabled:hover:bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] enabled:hover:text-foreground enabled:active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60",
   focus,
 )
 
@@ -70,9 +71,7 @@ export function DetailsButton(props: { open: boolean; onToggle: () => void; labe
   return (
     <button type="button" class={buttonClass("ghost", local.class)} aria-expanded={local.open} onClick={() => local.onToggle()} {...rest}>
       {local.label ?? (local.open ? "Hide details" : "Details")}
-      <svg class="size-3.5 shrink-0" classList={{ "rotate-180": local.open }} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
+      <RemixIcon icon={ChevronDownIcon} class="size-3.5 shrink-0" classList={{ "rotate-180": local.open }} />
     </button>
   )
 }
@@ -83,7 +82,7 @@ export function Page(props: { title: string; description?: string; children: JSX
   return (
     <div class="flex flex-col" data-component="settings-page">
       <header class="pb-5">
-        <h1 class="text-lg font-semibold leading-tight text-foreground">{props.title}</h1>
+        <h1 class="font-display text-[26px] font-extrabold leading-tight tracking-[-0.02em] text-foreground">{props.title}</h1>
         <Show when={props.description}>{(description) => <p class={cn("mt-1 max-w-xl text-md leading-relaxed", muted)}>{description()}</p>}</Show>
       </header>
       {props.children}
@@ -98,7 +97,7 @@ export function Group(props: { title?: JSX.Element; description?: JSX.Element; a
       <Show when={local.title || local.action}>
         <div class="flex items-end gap-4 px-1 pb-2">
           <div class="min-w-0 flex-1">
-            <Show when={local.title}>{(title) => <h2 class="text-sm font-medium text-muted-foreground">{title()}</h2>}</Show>
+            <Show when={local.title}>{(title) => <h2 class="text-sm font-semibold text-muted-foreground">{title()}</h2>}</Show>
             <Show when={local.description}>{(description) => <div class={cn("mt-0.5 text-sm leading-relaxed", muted)}>{description()}</div>}</Show>
           </div>
           <Show when={local.action}>{(action) => <div class="flex shrink-0 items-center gap-2 pb-0.5">{action()}</div>}</Show>
@@ -131,10 +130,7 @@ export function Row(props: { label: JSX.Element; description?: JSX.Element; id?:
               data-action="reset-setting"
               onClick={() => local.onReset!()}
             >
-              <svg class="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9" />
-                <path d="M2.5 2.5v3h3" />
-              </svg>
+              <RemixIcon icon={ResetIcon} class="size-3" />
             </button>
           </Show>
         </div>

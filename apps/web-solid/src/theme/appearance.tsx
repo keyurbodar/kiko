@@ -1,9 +1,11 @@
 import { createSignal, For, Show, type JSX } from "solid-js"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CloseIcon, PlusIcon } from "@kiko/ui/icons"
 import { appearanceOf } from "@kiko/theme/apply"
 import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
 import { themeFor } from "@kiko/theme/imported"
 import { DEFAULT_LOOK, type Mode } from "@kiko/theme/look"
-import { ACCENT_IDS, ACCENTS, PALETTES, type Palette, type ThemeAppearance } from "@kiko/theme/palette"
+import { ACCENT_IDS, ACCENTS, paletteFor, type Palette, type ThemeAppearance } from "@kiko/theme/palette"
 import { cn } from "../lib/cn"
 import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import { Select } from "../settings/select"
@@ -67,9 +69,7 @@ function ThemeCard(props: { name: string; palette: Palette; accent: string; sele
           title="Remove"
           onClick={props.onRemove}
         >
-          <svg class="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-            <path d="M4 4l8 8M12 4l-8 8" />
-          </svg>
+          <RemixIcon icon={CloseIcon} class="size-3" />
         </button>
       </Show>
     </div>
@@ -88,7 +88,7 @@ function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
         </Show>
       </h2>
       <div role="radiogroup" aria-label={props.appearance === "dark" ? "Dark theme" : "Light theme"} class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4">
-        <ThemeCard name="Kiko" palette={PALETTES[props.appearance]} accent={ACCENTS[look().accent][props.appearance]} selected={active() === DEFAULT} onPick={() => choose(props.appearance, DEFAULT)} />
+        <ThemeCard name="Kiko" palette={paletteFor(props.appearance, look().accent)} accent={ACCENTS[look().accent][props.appearance]} selected={active() === DEFAULT} onPick={() => choose(props.appearance, DEFAULT)} />
         <For each={installed()}>
           {(theme) => <ThemeCard name={theme.name} palette={theme.palette} accent={theme.accent} selected={active() === theme.id} onPick={() => choose(props.appearance, theme.id)} onRemove={() => remove(theme)} />}
         </For>
@@ -98,9 +98,7 @@ function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
           data-action="browse-themes"
           onClick={props.onMore}
         >
-          <svg class="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-            <path d="M8 3.5v9M3.5 8h9" />
-          </svg>
+          <RemixIcon icon={PlusIcon} class="size-4" />
           Get more
         </button>
       </div>
@@ -167,8 +165,8 @@ export default function Appearance(): JSX.Element {
         <Row label="Contrast" description="Borders, lines, and fills." onReset={reset("contrast")}>
           <Slider label="Contrast" value={d().contrast} display={`${d().contrast}%`} min={CONTRAST.min} max={CONTRAST.max} step={CONTRAST.step} onChange={(contrast) => set({ contrast })} />
         </Row>
-        <Row label="Interface font" description="Any font on this device. Empty uses the system font." onReset={reset("interfaceFont")}>
-          <input class="kit-field w-44" aria-label="Interface font" placeholder="System" value={d().interfaceFont} onChange={(e) => set({ interfaceFont: e.currentTarget.value.trim() })} />
+        <Row label="Interface font" description="Any font on this device. Empty uses Kiko's fonts." onReset={reset("interfaceFont")}>
+          <input class="kit-field w-44" aria-label="Interface font" placeholder="Figtree" value={d().interfaceFont} onChange={(e) => set({ interfaceFont: e.currentTarget.value.trim() })} />
         </Row>
         <Row label="Code font" onReset={reset("codeFont")}>
           <input class="kit-field w-44" aria-label="Code font" placeholder="System mono" value={d().codeFont} onChange={(e) => set({ codeFont: e.currentTarget.value.trim() })} />

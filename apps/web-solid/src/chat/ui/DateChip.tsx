@@ -1,5 +1,6 @@
 import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
-import { XIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CloseIcon } from "@kiko/ui/icons"
 import { Show, Suspense, createSignal, lazy, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { dayChipLabel, formatFullTimestamp } from "../lib/dayLabel"
@@ -42,7 +43,7 @@ export function DateChip(props: {
     <div
       class={cn(
         "chat-chip-anchor pointer-events-none absolute top-2.5 right-5 left-3 z-20 flex-col items-center",
-        "hidden data-[visible]:flex",
+        "motion-fade-in hidden data-[visible]:flex",
         props.class,
       )}
       data-component="chat-date-chip"
@@ -56,7 +57,7 @@ export function DateChip(props: {
           "flex w-max max-w-full flex-col items-stretch overflow-clip text-foreground",
           "bg-popover",
           open()
-            ? "rounded-[calc(20px*var(--radius-mult))] w-[320px] max-w-full shadow-popover"
+            ? "rounded-xl w-[320px] max-w-full shadow-popover"
             : "rounded-full shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--foreground)_10%,transparent)]",
         )}
         excludedElements={() => [trigger]}
@@ -94,7 +95,7 @@ export function DateChip(props: {
               aria-label="Close calendar"
               onClick={close}
             >
-              <XIcon class="size-3.5" aria-hidden="true" />
+              <RemixIcon icon={CloseIcon} class="size-3.5" />
             </button>
           </Show>
         </div>

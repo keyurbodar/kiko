@@ -1,5 +1,6 @@
 import { For, Match, Suspense, Switch, createSignal, lazy, onCleanup, onMount, Show, type JSX } from "solid-js"
-import { CheckIcon, CopyIcon, Maximize2Icon, Minimize2Icon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon, CollapseIcon, CopyIcon, ExpandIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { Dynamic } from "solid-js/web"
@@ -174,13 +175,13 @@ function RichTable(props: { children: JSX.Element; copy?: TableCopy }): JSX.Elem
             aria-label={expanded() ? "Collapse table cells" : "Expand table cells"}
             onClick={toggle}
           >
-            {expanded() ? <Minimize2Icon class="size-3" aria-hidden="true" /> : <Maximize2Icon class="size-3" aria-hidden="true" />}
+            <RemixIcon icon={expanded() ? CollapseIcon : ExpandIcon} class="size-3" />
           </button>
         </TooltipV2>
         <MenuV2 gutter={4} placement="bottom-end">
           <TooltipV2 placement="top" value={copied() ? "Copied" : "Copy table"}>
             <MenuV2.Trigger class="rich-table-action" aria-label={copied() ? "Copied" : "Copy table"}>
-              {copied() ? <CheckIcon class="size-3" aria-hidden="true" /> : <CopyIcon class="size-3" aria-hidden="true" />}
+              <RemixIcon icon={copied() ? CheckIcon : CopyIcon} class="size-3" />
             </MenuV2.Trigger>
           </TooltipV2>
           <MenuV2.Portal>

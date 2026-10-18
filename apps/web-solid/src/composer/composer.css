@@ -5,31 +5,22 @@
   max-width: var(--chat-content-max-width);
   margin-right: auto;
   margin-left: auto;
-  padding: 0 12px 12px;
+  padding: 0 12px 14px;
   background: var(--dock-bg);
-  --composer-edge: rgb(0 0 0 / 8%);
-  --composer-fill: color-mix(in oklab, var(--foreground) 4%, var(--background));
 }
 
+/* A card on the paper with a firm edge and a faint halo around it, so the place to type reads at a glance in either mode. */
 .composer-dock .composer-box {
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 10px 8px 16px;
-  background: var(--composer-fill);
+  padding: 12px 10px 10px 16px;
+  background: var(--surface);
   border: 1px solid var(--composer-edge);
-  border-radius: 22px;
-  box-shadow: 0 12px 28px -18px rgb(0 0 0 / 40%);
-}
-
-:root.dark .composer-dock {
-  --composer-edge: rgb(255 255 255 / 5%);
-}
-
-:root.dark .composer-dock .composer-box {
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 0 0 4px var(--composer-halo), var(--composer-shadow);
 }
 
 .composer-dock .composer-main {
@@ -137,23 +128,31 @@
   opacity: 0.35;
 }
 
+/* Solid ink with a hard lip under it. Pressed, it sits down onto the lip at once: no motion. */
 .composer-dock .composer-send {
   display: grid;
-  width: 32px;
-  height: 32px;
-  margin-left: 2px;
+  width: 34px;
+  height: 34px;
+  margin-left: 4px;
   place-items: center;
   padding: 0;
   color: var(--primary-foreground);
   background: var(--primary);
   border: 0;
   border-radius: 999px;
+  box-shadow: 0 2px 0 var(--press-edge);
   cursor: pointer;
+}
+
+.composer-dock .composer-send:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(2px);
 }
 
 .composer-dock .composer-send:disabled {
   color: color-mix(in oklab, var(--foreground) 35%, transparent);
-  background: color-mix(in oklab, var(--foreground) 9%, transparent);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  box-shadow: none;
   cursor: default;
 }
 

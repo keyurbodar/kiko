@@ -1,5 +1,5 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { PlusIcon } from "@kiko/ui/icons"
 import { For, Show } from "solid-js"
 import { cn } from "../lib/cn"
@@ -33,7 +33,7 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
   return (
     <article
       class={cn(
-        "recipe-card flex min-w-0 flex-col gap-3 rounded-[20px] p-4 [--recipe-surface:var(--card)]",
+        "recipe-card flex min-w-0 flex-col gap-3 rounded-xl p-4 [--recipe-surface:var(--card)]",
         "@max-[519px]/recipes:flex-row @max-[519px]/recipes:items-center @max-[519px]/recipes:gap-3 @max-[519px]/recipes:rounded-[14px] @max-[519px]/recipes:px-2.5 @max-[519px]/recipes:py-2",
       )}
       style={toneStyle(props.recipe)}
@@ -74,7 +74,7 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
             data-action="add-recipe"
             onClick={() => props.onAdd()}
           >
-            <HugeIcon icon={PlusIcon} size={on() ? 14 : 16} />
+            <RemixIcon icon={PlusIcon} size={on() ? 14 : 16} />
           </button>
         </span>
       </div>

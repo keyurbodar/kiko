@@ -1,14 +1,14 @@
 import type { Agent, Member, Task, TaskStatus } from "@kiko/protocol"
-import { CheckIcon, CircleDotIcon, CircleIcon, CirclePauseIcon, CircleXIcon, GitPullRequestIcon, UsersIcon } from "lucide-solid"
-import { Dynamic } from "solid-js/web"
-import { For, Show, type Component } from "solid-js"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon, CircleIcon, CloseCircleIcon, type Glyph, GroupIcon, PauseCircleIcon, PullRequestIcon, RecordCircleIcon } from "@kiko/ui/icons"
+import { For, Show } from "solid-js"
 import { AgentChip } from "../ui/agent-chip"
 import { TASK_LABEL, taskDependencies, taskText, taskOwner } from "./tasks-model"
 
-const ICONS: Record<TaskStatus, Component<{ class?: string }>> = { doing: CircleDotIcon, done: CheckIcon, todo: CircleIcon, blocked: CirclePauseIcon, review: GitPullRequestIcon, cancelled: CircleXIcon }
+const ICONS: Record<TaskStatus, Glyph> = { doing: RecordCircleIcon, done: CheckIcon, todo: CircleIcon, blocked: PauseCircleIcon, review: PullRequestIcon, cancelled: CloseCircleIcon }
 
 function TaskIcon(props: { status: TaskStatus }) {
-  return <span class="task-step-icon" data-status={props.status}><Dynamic component={ICONS[props.status]} class="size-3" /></span>
+  return <span class="task-step-icon" data-status={props.status}><RemixIcon icon={ICONS[props.status]} class="size-3" /></span>
 }
 
 export function TaskList(props: { tasks: readonly Task[]; allTasks?: readonly Task[]; members: readonly Member[]; agents?: readonly Pick<Agent, "slug" | "name">[]; showDetails?: boolean }) {
@@ -18,7 +18,7 @@ export function TaskList(props: { tasks: readonly Task[]; allTasks?: readonly Ta
       const owner = () => taskOwner(task, props.members, props.agents)
       return <li class="task-step" data-component="task-step" data-id={task.id} data-status={task.status}>
         <TaskIcon status={task.status} />
-        <span class="task-step-owner"><Show when={owner().slug} fallback={<span class="task-step-unassigned"><UsersIcon class="size-3" />Unassigned</span>}>{(slug) => <AgentChip slug={slug()} name={owner().name} />}</Show></span>
+        <span class="task-step-owner"><Show when={owner().slug} fallback={<span class="task-step-unassigned"><RemixIcon icon={GroupIcon} class="size-3" />Unassigned</span>}>{(slug) => <AgentChip slug={slug()} name={owner().name} />}</Show></span>
         <div class="task-step-content">
           <span class="sr-only">{TASK_LABEL[task.status]}: </span><span class="task-step-title">{display(task.title)}</span>
           <Show when={props.showDetails}>

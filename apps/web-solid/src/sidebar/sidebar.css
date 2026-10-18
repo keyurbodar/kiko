@@ -46,67 +46,21 @@
   display: flex;
   height: 32px;
   align-items: center;
-  gap: 8px;
-  padding: 0 6px 0 2px;
+  gap: 7px;
+  padding: 0 8px 0 2px;
   color: var(--foreground);
-  font-size: var(--font-base);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: -0.01em;
   text-decoration: none;
   border-radius: var(--radius-md);
 }
 
-.sidebar-shell .panel-brand-name {
-  font-family: "SF Pro Display", "Segoe UI Variable Display", var(--font-family-sans);
-  font-size: var(--font-lg);
-  font-weight: 700;
-  letter-spacing: -0.035em;
+.sidebar-shell .panel-brand-mark {
+  height: 28px;
+  flex-shrink: 0;
 }
 
-/* Kiko's icon behind the brand and search rows: a blueprint grid and a dashed orbit with a planet,
-   all in theme colors, faded into the sidebar by the end of the second row. */
-.sidebar-shell .brand-art {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 108px;
-  overflow: hidden;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at calc(100% - 102px) 39px, var(--ring) 2.5px, color-mix(in oklab, var(--ring) 20%, transparent) 3px 7px, transparent 7.5px),
-    radial-gradient(160px 96px at calc(100% - 44px) 10px, color-mix(in oklab, var(--ring) 30%, transparent), transparent 72%),
-    linear-gradient(90deg, var(--brand-grid) 1px, transparent 0) 0 0 / 40px 40px,
-    linear-gradient(var(--brand-grid) 1px, transparent 0) 0 0 / 40px 40px,
-    linear-gradient(90deg, var(--brand-grid) 1px, transparent 0) 0 0 / 10px 10px,
-    linear-gradient(var(--brand-grid) 1px, transparent 0) 0 0 / 10px 10px,
-    color-mix(in oklab, var(--ring) 8%, var(--sidebar));
-  mask-image: linear-gradient(#000 40%, transparent);
-  --brand-grid: color-mix(in oklab, var(--foreground) 4.5%, transparent);
-}
-
-.sidebar-shell .brand-art::before,
-.sidebar-shell .brand-art::after {
-  position: absolute;
-  border: 1px dashed color-mix(in oklab, var(--foreground) 18%, transparent);
-  border-radius: 50%;
-  content: "";
-}
-
-.sidebar-shell .brand-art::before {
-  top: -20px;
-  right: 6px;
-  width: 76px;
-  height: 76px;
-}
-
-.sidebar-shell .brand-art::after {
-  top: -44px;
-  right: -18px;
-  width: 124px;
-  height: 124px;
-  border-color: color-mix(in oklab, var(--foreground) 32%, transparent);
+.sidebar-shell .panel-brand-wordmark {
+  height: 18px;
+  flex-shrink: 0;
 }
 
 @media (hover: hover) {
@@ -149,10 +103,12 @@
   background: var(--accent);
 }
 
+/* Selected is one white chip lifted off the paper: a pressed button, the open chat, the open page. */
 .sidebar-shell .panel-icon-button[data-active],
 .sidebar-shell :is(.top-bar-button, .chat-filter)[aria-pressed="true"] {
   color: var(--foreground);
-  background: var(--accent-strong);
+  background: var(--surface);
+  box-shadow: var(--row-shadow);
 }
 
 .sidebar-shell .main-sidebar-toggle {
@@ -230,10 +186,6 @@
   }
 }
 
-.sidebar-shell .panel-me-active {
-  background: var(--accent-strong);
-}
-
 .sidebar-shell .panel-me-name {
   min-width: 0;
   overflow: hidden;
@@ -248,11 +200,33 @@
   flex-direction: column;
 }
 
-/* The chat column, its top bar included, is one surface, as in t3code. A border, not an inset
-   shadow: a child with a background, such as the composer dock in a narrow column, paints over a shadow. */
+/* The main area is a framed sheet, inset from the window by a narrow margin of the sidebar's paper:
+   the brand, the chats and the account row sit outside it, the chat and its top bar inside. A border,
+   not an inset shadow: a child with a background, such as the composer dock, paints over a shadow. */
 .sidebar-shell [data-component="chat-panel"] {
+  padding: var(--frame-gap) var(--frame-gap) var(--frame-gap) 0;
+}
+
+.sidebar-shell:has([data-component="sidebar-panel"] .panel[data-collapsed]) [data-component="chat-panel"] {
+  padding-left: var(--frame-gap);
+}
+
+.sidebar-shell [data-component="main-column"] {
   background: var(--background);
-  border-left: 1px solid var(--border);
+  border: 1px solid var(--frame-edge);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--frame-shadow);
+}
+
+/* The sidebar's header and account row line up with the top and bottom of the framed sheet beside them. */
+@media (width >= 768px) {
+  .sidebar-shell [data-component="sidebar-panel"] .panel-header {
+    margin-top: var(--frame-gap);
+  }
+
+  .sidebar-shell [data-component="sidebar-panel"] .panel-foot {
+    margin-bottom: var(--frame-gap);
+  }
 }
 
 .sidebar-shell .chat-search {
@@ -263,7 +237,7 @@
   padding: 0 8px 6px;
 }
 
-.sidebar-shell :is(.chat-search-field, .settings-search) {
+.sidebar-shell .chat-search-field {
   display: flex;
   height: var(--control-h);
   min-width: 0;
@@ -272,15 +246,16 @@
   gap: 8px;
   padding: 0 10px;
   color: var(--secondary-label);
-  background: var(--secondary);
+  background: var(--surface);
   border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 var(--line-w) var(--border);
 }
 
-.sidebar-shell :is(.chat-search-field, .settings-search):focus-within {
+.sidebar-shell .chat-search-field:focus-within {
   color: var(--muted-foreground);
 }
 
-.sidebar-shell :is(.chat-search-input, .settings-search input) {
+.sidebar-shell .chat-search-input {
   min-width: 0;
   flex: 1;
   padding: 0;
@@ -310,7 +285,7 @@
   color: var(--foreground);
 }
 
-.sidebar-shell :is(.chat-search-input, .settings-search input)::placeholder {
+.sidebar-shell .chat-search-input::placeholder {
   color: var(--secondary-label);
 }
 
@@ -329,6 +304,27 @@
 .sidebar-shell .pin-tile-slot {
   display: flex;
   min-width: 0;
+}
+
+/* Where the pins end and the chats begin: a small label with a hairline running out to the edge. */
+.sidebar-shell .chat-section {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 16px 2px;
+  color: var(--secondary-label);
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 20px;
+  user-select: none;
+}
+
+.sidebar-shell .chat-section::after {
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+  content: "";
 }
 
 .sidebar-shell .pin-tile {
@@ -355,7 +351,8 @@
 
 .sidebar-shell .pin-tile[data-active] {
   color: var(--foreground);
-  background: var(--accent-strong);
+  background: var(--surface);
+  box-shadow: var(--row-shadow);
 }
 
 .sidebar-shell .pin-tile-circle {
@@ -393,6 +390,54 @@
 
 .sidebar-shell .pin-tile[data-unread] .pin-tile-name {
   color: var(--foreground);
+}
+
+/* Kiko, the main agent, spans the row above the other pins: its face, its name and its last word. */
+.sidebar-shell .pin-tile-slot[data-main] {
+  grid-column: 1 / -1;
+}
+
+.sidebar-shell .pin-tile[data-main] {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 7px 10px 7px 7px;
+  text-align: left;
+}
+
+.sidebar-shell .pin-tile[data-main] .pin-tile-circle {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.sidebar-shell .pin-tile[data-main] .pin-tile-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.sidebar-shell .pin-tile-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-shell .pin-tile[data-main] .pin-tile-name {
+  color: var(--foreground);
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-bold);
+  text-align: left;
+}
+
+.sidebar-shell .pin-tile-sub {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: var(--font-xs);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-shell .chat-list {
@@ -465,7 +510,8 @@
 }
 
 .sidebar-shell .chat-row[data-active] {
-  background: var(--accent-strong);
+  background: var(--surface);
+  box-shadow: var(--row-shadow);
 }
 
 .sidebar-shell .chat-avatar,
@@ -683,11 +729,6 @@
   overscroll-behavior: contain;
 }
 
-.sidebar-shell .settings-search {
-  flex: none;
-  margin: 4px 0 16px;
-}
-
 .sidebar-shell .settings-group {
   display: flex;
   flex-direction: column;
@@ -696,13 +737,6 @@
 
 .sidebar-shell .settings-group + .settings-group {
   margin-top: 20px;
-}
-
-.sidebar-shell .settings-group-label {
-  padding: 0 8px 4px;
-  color: var(--secondary-label);
-  font-size: var(--font-xs);
-  font-weight: var(--font-weight-medium);
 }
 
 .sidebar-shell .settings-panel-row {
@@ -732,7 +766,8 @@
 
 .sidebar-shell .settings-panel-row-active {
   color: var(--foreground);
-  background: var(--accent-strong);
+  background: var(--surface);
+  box-shadow: var(--row-shadow);
 }
 
 .sidebar-shell .settings-row-label {
@@ -741,12 +776,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.sidebar-shell .settings-empty {
-  padding: 12px;
-  color: var(--secondary-label);
-  font-size: var(--font-md);
 }
 
 .sidebar-shell .shell-panel {
@@ -834,9 +863,17 @@
   margin: 0;
 }
 
-.sidebar-shell [data-component="sidecar"] {
+/* A docked side panel is a sheet of its own beside the main one. A closed one takes no room. */
+.sidebar-shell [data-component="sidecar-column"]:has([data-component="sidecar"]) {
+  padding: var(--frame-gap) var(--frame-gap) var(--frame-gap) 0;
+}
+
+.sidebar-shell [data-component="sidecar-column"] [data-component="sidecar"] {
+  overflow: hidden;
   background: var(--background);
-  border-left: 1px solid var(--border);
+  border: 1px solid var(--frame-edge);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--frame-shadow);
 }
 
 .sidebar-shell .sidecar-scrim {
@@ -846,11 +883,14 @@
 .sidebar-shell .sidecar-overlay {
   position: absolute;
   z-index: 30;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: var(--frame-gap);
+  right: var(--frame-gap);
+  bottom: var(--frame-gap);
   width: min(24rem, calc(100vw - 24px));
+  overflow: hidden;
   background: var(--sidebar);
+  border: 1px solid var(--frame-edge);
+  border-radius: var(--radius-xl);
   -webkit-backdrop-filter: var(--surface-blur);
   backdrop-filter: var(--surface-blur);
   box-shadow: var(--popover-shadow);
@@ -864,6 +904,26 @@
 @media (width < 768px) {
   .sidebar-shell .main-row {
     margin: 0;
+  }
+
+  /* A phone has no room for a frame: the chat fills the screen. */
+  .sidebar-shell [data-component="chat-panel"],
+  .sidebar-shell:has([data-component="sidebar-panel"] .panel[data-collapsed]) [data-component="chat-panel"] {
+    padding: 0;
+  }
+
+  .sidebar-shell [data-component="main-column"] {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .sidebar-shell .sidecar-overlay {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    border: 0;
+    border-radius: 0;
   }
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { RunStep, ToolKind } from "@kiko/protocol"
-import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, programOf, inWindow, newestAfter, parseWindow, stepWindows, summarizeSteps, totalDuration, upsertStep } from "./run-log"
+import { type StepIcon, extraInput, formatClock, formatDuration, buildEntries, placementOf, iconOf, keepEntries, KIND_ICON, liveLabel, NAME_ICON, pathOf, programOf, inWindow, newestAfter, parseWindow, stepWindows, summarizeSteps, totalDuration, upsertStep } from "./run-log"
 
 const step = (id: string, over: Partial<RunStep> = {}): RunStep => ({
   id,
@@ -80,6 +80,23 @@ describe("iconOf", () => {
     const id = (key: string) => `${key.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase())}Icon`
     for (const key of new Set([...Object.values(NAME_ICON), ...Object.values(KIND_ICON), "alert-circle" as const])) expect(id(key) in glyphs).toBe(true)
   })
+})
+
+describe("pathOf", () => {
+  const table: [string, Partial<RunStep>, ReturnType<typeof pathOf>][] = [
+    ["a write names its file", { name: "write", label: "Wrote /notes.md" }, { path: "notes.md", folder: false }],
+    ["a read in a folder keeps the folder", { name: "read", label: "Read /plans/kyoto.md" }, { path: "plans/kyoto.md", folder: false }],
+    ["an edit names its file", { name: "edit", label: "Edited /todo list.md" }, { path: "todo list.md", folder: false }],
+    ["a copy names where it went", { name: "cp", label: "Copied /a.md to /b/a.md" }, { path: "b/a.md", folder: false }],
+    ["a move names where it went", { name: "mv", label: "Moved /draft.md to /done/draft.md" }, { path: "done/draft.md", folder: false }],
+    ["a list names its folder", { name: "ls", label: "Listed /plans" }, { path: "plans", folder: true }],
+    ["a list of the whole chat is its root", { name: "ls", label: "Listed the files" }, { path: "", folder: true }],
+    ["a new folder is a folder", { name: "mkdir", label: "Made folder /plans" }, { path: "plans", folder: true }],
+    ["a delete names nothing left to open", { name: "rm", label: "Deleted /old.md" }, null],
+    ["a command names no file", { name: "bash", tool: "run", label: "Ran ls /tmp" }, null],
+    ["a note is words, not a file", { name: "write", label: "Wrote /a.md", note: true }, null],
+  ]
+  for (const [name, over, want] of table) test(name, () => expect(pathOf(step("a", over))).toEqual(want))
 })
 
 describe("durations", () => {

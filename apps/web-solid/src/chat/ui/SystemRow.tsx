@@ -1,5 +1,5 @@
 import { A } from "@solidjs/router"
-import { HugeIcon, type Glyph } from "@kiko/ui/huge-icon"
+import { RemixIcon, type Glyph } from "@kiko/ui/remix-icon"
 import { For, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 
@@ -23,7 +23,7 @@ const RULE: Record<RowTone, string> = {
 }
 
 const PILL =
-  "shrink-0 cursor-pointer rounded-full border border-border/70 bg-background px-2.5 py-1 text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+  "shrink-0 cursor-pointer rounded-md border border-border/70 bg-background px-2.5 py-1 text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
 
 /**
  * The one row between messages for everything that is not a message, after t3code's
@@ -53,7 +53,7 @@ export function SystemRow(props: {
     >
       <span class={cn("h-px min-w-3 flex-1", RULE[tone()])} aria-hidden="true" />
       <span class={cn("flex min-w-0 max-w-full items-center justify-center gap-x-1.5 gap-y-1", props.actions?.length && "flex-wrap")}>
-        <Show when={props.icon}>{(icon) => <HugeIcon icon={icon()} size={12} class="shrink-0" />}</Show>
+        <Show when={props.icon}>{(icon) => <RemixIcon icon={icon()} size={12} class="shrink-0" />}</Show>
         <Show when={props.label}>
           <span class="shrink-0 font-medium">{props.label}</span>
         </Show>

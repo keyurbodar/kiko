@@ -1,5 +1,6 @@
 import type { LifeLine } from "@kiko/protocol"
-import { ArrowUp, Brain, ChevronDown, MessageCircle, Pin, PinOff, Search, Trash2, User } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ArrowUpIcon, ChevronDownIcon, MemoryIcon, MessageIcon, PinFillIcon, PinIcon, SearchIcon, TrashIcon, UnpinIcon, UserIcon } from "@kiko/ui/icons"
 import { createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js"
 import { ModelPicker } from "../../../settings/model-picker"
 import { session } from "../../../app/session"
@@ -40,13 +41,13 @@ function Origin(props: { line: LifeLine }) {
 				<Match when={chat()}>
 					{(title) => (
 						<>
-							<MessageCircle size={13} strokeWidth={1.75} class="shrink-0" aria-hidden="true" />
+							<RemixIcon icon={MessageIcon} size={13} class="shrink-0" />
 							<span class="truncate">{title()}</span>
 						</>
 					)}
 				</Match>
 				<Match when={true}>
-					<User size={13} strokeWidth={1.75} class="shrink-0" aria-hidden="true" />
+					<RemixIcon icon={UserIcon} size={13} class="shrink-0" />
 					<span>You</span>
 				</Match>
 			</Switch>
@@ -70,7 +71,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 			</button>
 			<div class="mt-1 flex h-6 items-center gap-1.5 text-xs text-muted-foreground">
 				<Show when={l().pinned}>
-					<Pin size={12} strokeWidth={1.75} class="shrink-0 fill-current" aria-label="Pinned" />
+					<RemixIcon icon={PinFillIcon} size={12} class="shrink-0" aria-label="Pinned" aria-hidden={false} />
 				</Show>
 				<Origin line={l()} />
 				<Show when={replacedMark(l())}>{(mark) => <span class="rounded bg-control px-1 text-xs">{mark()}</span>}</Show>
@@ -78,8 +79,8 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 				<Show when={l().pos >= 0}>
 					<span class="ml-auto hidden items-center gap-0.5 group-hover/row:flex group-focus-within/row:flex">
 						<button type="button" class={action} data-action="pin" aria-label={l().pinned ? "Unpin" : "Pin"} title={l().pinned ? "Unpin" : "Pin"} onClick={() => props.store.pin(l().pos, !l().pinned)}>
-							<Show when={l().pinned} fallback={<Pin size={13} strokeWidth={1.75} />}>
-								<PinOff size={13} strokeWidth={1.75} />
+							<Show when={l().pinned} fallback={<RemixIcon icon={PinIcon} size={13} />}>
+								<RemixIcon icon={UnpinIcon} size={13} />
 							</Show>
 						</button>
 						<button
@@ -91,7 +92,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
 							onClick={() => (sure() ? props.store.redact(l().pos) : setSure(true))}
 							onBlur={() => setSure(false)}
 						>
-							<Show when={sure()} fallback={<Trash2 size={13} strokeWidth={1.75} />}>
+							<Show when={sure()} fallback={<RemixIcon icon={TrashIcon} size={13} />}>
 								Remove for good
 							</Show>
 						</button>
@@ -108,7 +109,7 @@ function Section(props: { title: string; icon?: boolean; lines: LifeLine[]; stor
 			<section class="flex flex-col gap-0.5" data-group={props.title}>
 				<h3 class="flex items-center gap-1.5 px-2.5 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">
 					<Show when={props.icon}>
-						<Pin size={12} strokeWidth={1.75} aria-hidden="true" />
+						<RemixIcon icon={PinIcon} size={12} />
 					</Show>
 					{props.title}
 				</h3>
@@ -187,7 +188,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 		<nav class="flex min-h-0 flex-1 flex-col" aria-label="Memory" data-component="memory-list">
 			<div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-none px-2.5 pb-3">
 				<label class="sticky top-0 z-10 flex h-8 shrink-0 items-center gap-2 rounded-lg bg-secondary px-2.5 text-muted-foreground focus-within:text-foreground">
-					<Search size={14} strokeWidth={1.75} aria-hidden="true" />
+					<RemixIcon icon={SearchIcon} size={14} />
 					<input
 						type="search"
 						class="h-full min-w-0 flex-1 bg-transparent text-md text-foreground outline-none placeholder:text-muted-foreground"
@@ -215,7 +216,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 				</Show>
 				<Show when={empty() && !searching()}>
 					<div class="flex flex-col items-center gap-1 px-4 py-10 text-center" data-component="memory-empty">
-						<Brain size={20} strokeWidth={1.5} class="mb-1 text-muted-foreground" aria-hidden="true" />
+						<RemixIcon icon={MemoryIcon} size={20} class="mb-1 text-muted-foreground" />
 						<p class="text-md text-foreground">Nothing remembered yet</p>
 						<p class="text-sm text-muted-foreground">Talk to Kiko about people, places, and how you like things done. It keeps the lasting parts here.</p>
 					</div>
@@ -227,7 +228,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 						<button type="button" class="flex h-8 items-center gap-2 text-left text-sm text-muted-foreground hover:text-foreground" aria-expanded={reading()} onClick={() => setReading(!reading())}>
 							<span class="flex-1">What every agent reads</span>
 							<span class="tabular-nums">{s().view.length} {s().view.length === 1 ? "line" : "lines"}</span>
-							<ChevronDown size={13} strokeWidth={1.75} class={reading() ? "rotate-180" : ""} />
+							<RemixIcon icon={ChevronDownIcon} size={13} class={reading() ? "rotate-180" : ""} />
 						</button>
 						<Show when={reading()}>
 							<div class="flex max-h-48 flex-col overflow-y-auto pb-1">
@@ -238,7 +239,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 					<MemoryModelRow store={props.store} />
 				</section>
 				<form
-					class="flex h-10 items-center gap-2 rounded-full border border-border bg-secondary pr-1 pl-4"
+					class="flex h-10 items-center gap-2 rounded-lg border border-border bg-secondary pr-1 pl-4"
 					data-component="memory-note"
 					onSubmit={(e) => {
 						e.preventDefault()
@@ -250,7 +251,7 @@ export function MemoryList(props: { store: MemoryStore }) {
 				>
 					<input name="note" class="min-w-0 flex-1 bg-transparent text-md text-foreground outline-none placeholder:text-muted-foreground" placeholder="Tell Kiko something to remember" aria-label="Add a memory" maxLength={280} />
 					<button type="submit" class="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground" aria-label="Remember">
-						<ArrowUp size={15} strokeWidth={2} />
+						<RemixIcon icon={ArrowUpIcon} size={15} />
 					</button>
 				</form>
 			</div>

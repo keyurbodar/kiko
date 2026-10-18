@@ -1,18 +1,13 @@
 
 .toast-v2-region,
 .toast-v2-anchors {
-  --toast-solid: color-mix(in oklab, var(--foreground) 3%, var(--background));
-  --toast-glass: color-mix(in oklab, var(--toast-solid) 84%, transparent);
-  --toast-edge: color-mix(in oklab, var(--foreground) 10%, transparent);
+  /* A toast is a solid card, like a menu: the surface, a hairline, and the lifted shadow. */
+  --toast-solid: var(--surface);
+  --toast-glass: var(--toast-solid);
+  --toast-edge: var(--border);
   --toast-muted: color-mix(in oklab, var(--foreground) 62%, transparent);
-  --toast-shadow:
-    0 0 0 1px var(--toast-edge), 0 20px 25px -5px oklch(0% 0 none / 0.25), 0 8px 10px -6px oklch(0% 0 none / 0.25);
+  --toast-shadow: 0 0 0 1px var(--toast-edge), var(--menu-shadow);
   --toast-ease: cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-
-:root:not(.dark) :is(.toast-v2-region, .toast-v2-anchors) {
-  --toast-solid: var(--popover);
 }
 
 .toast-v2-region {
@@ -62,11 +57,9 @@
   z-index: calc(9999 - var(--toast-index));
   box-sizing: border-box;
   width: 100%;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   color: var(--foreground);
   background: var(--toast-glass);
-  -webkit-backdrop-filter: blur(12px) saturate(1.14);
-  backdrop-filter: blur(12px) saturate(1.14);
   box-shadow: var(--toast-shadow);
   pointer-events: auto;
   user-select: none;
@@ -203,11 +196,6 @@
   > svg {
     width: 16px;
     height: 16px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
     pointer-events: none;
   }
 }
@@ -257,9 +245,7 @@
   border: 1px solid color-mix(in oklab, var(--foreground) 9%, transparent);
   border-radius: 999px;
   color: var(--toast-muted);
-  background: color-mix(in oklab, var(--toast-solid) 92%, transparent);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  background: var(--toast-solid);
   box-shadow: 0 1px 2px oklch(0% 0 none / 0.08);
   cursor: pointer;
   outline: none;
@@ -272,10 +258,6 @@
   > svg {
     width: 12px;
     height: 12px;
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 }
 
@@ -317,11 +299,6 @@
   > svg {
     width: 12px;
     height: 12px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 }
 
@@ -376,13 +353,12 @@
   z-index: 1000;
   max-width: 256px;
   padding: 4px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 12px;
+  font-weight: 600;
   line-height: 16px;
   color: var(--foreground);
   background: var(--toast-glass);
-  -webkit-backdrop-filter: blur(12px) saturate(1.14);
-  backdrop-filter: blur(12px) saturate(1.14);
   box-shadow: var(--toast-shadow);
   text-wrap: balance;
   pointer-events: none;

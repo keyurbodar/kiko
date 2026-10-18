@@ -1,5 +1,5 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ChevronRightIcon, SearchIcon } from "@kiko/ui/icons"
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { cn } from "../lib/cn"
@@ -79,8 +79,8 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
 
   return (
     <div class="flex flex-col gap-1.5" data-component="recipe-picker">
-      <label class="mb-1 flex h-9 items-center gap-2 rounded-full bg-control px-3.5 text-muted-foreground">
-        <HugeIcon icon={SearchIcon} size={15} />
+      <label class="mb-1 flex h-9 items-center gap-2 rounded-md bg-control px-3.5 text-muted-foreground">
+        <RemixIcon icon={SearchIcon} size={15} />
         <input
           class="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           placeholder={`Add ${props.card.title} to…`}
@@ -151,7 +151,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                 <span class="shrink-0 text-xs text-muted-foreground">
                   <Show when={!added(o)} fallback="Added">
                     <Show when={o.kind === "chat" && o.targets.length > 1}>
-                      <HugeIcon icon={ChevronRightIcon} size={14} class={expanded() === (o as { roomId?: string }).roomId ? "rotate-90" : ""} />
+                      <RemixIcon icon={ChevronRightIcon} size={14} class={expanded() === (o as { roomId?: string }).roomId ? "rotate-90" : ""} />
                     </Show>
                     <Show when={cursor() === i() && !(o.kind === "chat" && o.targets.length > 1)}>
                       <kbd class="rounded-md border border-border px-1.5 py-px font-sans text-[11px]">↵</kbd>

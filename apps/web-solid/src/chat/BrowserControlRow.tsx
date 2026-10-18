@@ -1,4 +1,5 @@
-import { GlobeIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { GlobeIcon } from "@kiko/ui/icons"
 import { Show, onMount, type JSX } from "solid-js"
 import type { ChatMessage } from "../lib/types"
 import { browser, startBrowser } from "./browser"
@@ -15,7 +16,7 @@ export default function BrowserControlRow(props: { message: ChatMessage; latest:
     <div class="mx-auto flex w-full max-w-(--chat-content-max-width) justify-center px-4 py-2" data-component="browser-control" data-message-id={props.message.id}>
       <div class="flex max-w-full flex-col items-start gap-2 rounded-xl bg-[color-mix(in_oklab,var(--foreground)_5%,transparent)] px-3 py-2 text-sm text-foreground">
         <div class="flex min-w-0 items-start gap-2">
-          <GlobeIcon class="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <RemixIcon icon={GlobeIcon} class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <div class="flex min-w-0 flex-col gap-0.5">
             <span>{props.message.body}</span>
             <Show when={props.latest && status()}>

@@ -13,24 +13,23 @@
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  padding: 4px 8px;
+  padding: 5px 10px;
   gap: 6px;
 
-  background: var(--popover);
-  box-shadow: 0 8px 20px -8px oklch(0% 0 none / 0.4), 0 0 0 0.5px oklch(0% 0 none / 0.35);
-  border-radius: var(--radius-md);
+  /* A small solid chip of ink: the one hard surface that floats. */
+  background: var(--tooltip);
+  box-shadow: 0 6px 16px -6px oklch(0% 0 none / 0.35);
+  border-radius: var(--radius-sm);
 
   font-style: normal;
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-bold);
   font-size: var(--font-sm);
   line-height: 1.4;
-  letter-spacing: 0.05px;
-  color: var(--foreground);
+  color: var(--tooltip-foreground);
   font-variant-numeric: tabular-nums;
   font-variation-settings: "slnt" 0;
 
   user-select: none;
   pointer-events: none;
-
-
+  transform-origin: var(--kb-tooltip-content-transform-origin);
 }

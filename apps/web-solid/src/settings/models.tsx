@@ -1,6 +1,8 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js"
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { PlusIcon } from "@kiko/ui/icons"
 import { formatContext, loadCatalog, modelRef, type CatalogProvider, type ConnectMethod } from "./catalog"
 import { isJudgeOnly, JUDGE_NOTE, modelProviders } from "./provider-kinds"
 import { connectedProviders, connectedReady, refreshConnected } from "./connected"
@@ -132,7 +134,7 @@ export function ModelsPage() {
                 {({ provider, note }) => (
                   <button
                     type="button"
-                    class="flex items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent"
+                    class="flex items-center gap-3 rounded-xl border-[1.5px] border-border bg-surface px-3.5 py-2.5 text-left hover:border-input"
                     data-provider={provider.id}
                     data-action="connect"
                     onClick={() => setDialog(provider)}
@@ -179,9 +181,7 @@ export function ModelsPage() {
               }}
             </For>
             <button type="button" class={cn(railRow(false), "mt-1")} data-action="view-all-providers" onClick={() => setBrowsing(true)}>
-              <svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-                <path d="M8 3.5v9M3.5 8h9" />
-              </svg>
+              <RemixIcon icon={PlusIcon} class="size-3.5 shrink-0" />
               <span class="min-w-0 flex-1 truncate">Add provider</span>
             </button>
           </nav>

@@ -8,12 +8,6 @@ import { apiUrl, getToken, read } from "./lib/api-base";
 
 const RELOAD_KEY = "kiko:preload-reload";
 
-// Same specifiers as `app/routes.tsx`, so the bundler shares the chunks.
-function firstRouteChunk(path: string): Promise<unknown> {
-  if (path.startsWith("/settings")) return import("./app/routes/settings");
-  return import("./app/routes/chat");
-}
-
 function showBootError(): void {
   const el = document.getElementById("boot-error");
   if (el) el.style.display = "block";
@@ -48,7 +42,8 @@ const token = getToken();
 globalThis.__kikoBoot = { me: fetch(apiUrl("/api/me"), token ? { headers: { authorization: `Bearer ${token}` } } : undefined) };
 if (!signedInBefore) void import("./app/sign-in").catch(() => {});
 
-const chunk = firstRouteChunk(location.pathname === "/" ? "/chat" : location.pathname);
-void Promise.all([import("./main"), chunk])
+// Same specifier as `app/routes.tsx`, so the bundler shares the chunk. Every first paint is a chat: a
+// `/settings` link opens the settings dialog over one, and the dialog loads when the redirect opens it.
+void Promise.all([import("./main"), import("./app/routes/chat")])
   .then(([main]) => main.start())
   .catch(recover);

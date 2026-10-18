@@ -1,5 +1,6 @@
 import { createSignal, For, Show, createEffect, on, onCleanup } from "solid-js"
-import { CheckIcon, ChevronLeftIcon, ChevronDownIcon, CircleHelpIcon, XIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, CloseIcon, HelpIcon } from "@kiko/ui/icons"
 import { CollapsibleV2 as Collapsible } from "@kiko/ui/v2/collapsible-v2"
 import { ToggleGroupV2 as ToggleGroup } from "@kiko/ui/v2/toggle-group-v2"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
@@ -23,11 +24,11 @@ export function QuestionPanel(props: { input: QuestionInput; owner?: string; own
   return <Show when={p().activeQuestion}>{(q) => <Collapsible open={open()} onOpenChange={setOpen} data-component="question-panel">
     <div class="question-header">
       <Collapsible.Trigger class="composer-card-row" data-pending-user-input-toggle={open() ? "expanded" : "collapsed"} title={open() ? "Hide the question and its options" : "Show the question and its options"}>
-        <span class="composer-card-icon"><Show when={props.ownerSeed} fallback={<CircleHelpIcon />}>{(seed) => <IdentityAvatar seed={seed()} size={18} />}</Show></span>
+        <span class="composer-card-icon"><Show when={props.ownerSeed} fallback={<RemixIcon icon={HelpIcon} />}>{(seed) => <IdentityAvatar seed={seed()} size={18} />}</Show></span>
         <span class="composer-card-title"><span class="composer-card-kind font-medium">{q().header}<Show when={props.owner}> · {props.owner}</Show></span><Show when={!open()}><span class="truncate">{q().question}</span></Show></span>
-        <span class="composer-card-actions"><Show when={(props.input.ask()?.questions?.length ?? 1) > 1}><span>{p().questionIndex + 1}/{props.input.ask()?.questions?.length}</span></Show><ChevronDownIcon class="composer-card-toggle" /></span>
+        <span class="composer-card-actions"><Show when={(props.input.ask()?.questions?.length ?? 1) > 1}><span>{p().questionIndex + 1}/{props.input.ask()?.questions?.length}</span></Show><RemixIcon icon={ChevronDownIcon} class="composer-card-toggle" /></span>
       </Collapsible.Trigger>
-      <button type="button" class="question-dismiss" onClick={props.input.skip} aria-label="Skip questions without answering" title="Skip questions without answering"><XIcon /></button>
+      <button type="button" class="question-dismiss" onClick={props.input.skip} aria-label="Skip questions without answering" title="Skip questions without answering"><RemixIcon icon={CloseIcon} /></button>
     </div>
     <Collapsible.Content class="motion-collapse">
       <div class="composer-card-body question-body" data-component="question-body">
@@ -44,7 +45,7 @@ export function QuestionPanel(props: { input: QuestionInput; owner?: string; own
         </Show>
       </div>
         <div class="question-primary-actions" data-component="question-actions">
-          <Show when={p().questionIndex > 0}><button type="button" class="question-previous" onClick={props.input.previous} aria-label="Previous question"><ChevronLeftIcon /><span class="question-action-full">Previous</span></button></Show>
+          <Show when={p().questionIndex > 0}><button type="button" class="question-previous" onClick={props.input.previous} aria-label="Previous question"><RemixIcon icon={ChevronLeftIcon} /><span class="question-action-full">Previous</span></button></Show>
           <button type="button" class="question-submit" disabled={p().isLastQuestion ? !p().isComplete : !p().canAdvance} onClick={props.input.advance}>
             <span class="question-action-full">{p().isLastQuestion ? (p().questionIndex > 0 ? "Submit answers" : "Submit answer") : "Next question"}</span>
             <span class="question-action-compact">{p().isLastQuestion ? "Submit" : "Next"}</span>
@@ -55,5 +56,5 @@ export function QuestionPanel(props: { input: QuestionInput; owner?: string; own
 }
 
 function Option(props: { option: { label: string; description?: string }; index: number; selected: boolean }) {
-  return <><span class="question-option-copy"><span>{props.option.label}</span><Show when={props.option.description && props.option.description !== props.option.label}><span class="question-description">{props.option.description}</span></Show></span><Show when={props.selected} fallback={<kbd>{props.index + 1}</kbd>}><CheckIcon class="question-check" /></Show></>
+  return <><span class="question-option-copy"><span>{props.option.label}</span><Show when={props.option.description && props.option.description !== props.option.label}><span class="question-description">{props.option.description}</span></Show></span><Show when={props.selected} fallback={<kbd>{props.index + 1}</kbd>}><RemixIcon icon={CheckIcon} class="question-check" /></Show></>
 }

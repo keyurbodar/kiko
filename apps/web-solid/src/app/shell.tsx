@@ -1,5 +1,5 @@
 import Resizable, { type PanelContextValue } from "@corvu/resizable";
-import { useLocation, useNavigate } from "@solidjs/router";
+import { useLocation } from "@solidjs/router";
 import {
   I18nProvider,
   pluralCategory,
@@ -19,12 +19,12 @@ import { preloadMessageSearch } from "../commands/message-search";
 import { richLoaded } from "../composer/rich/loaded";
 import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../chat/side/card-state";
 import { useKatCommands } from "../commands/use-kat-commands";
-import { setGo } from "../lib/errors";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
 import { botPickerOpen } from "../chat/bot-picker-state";
 import { newAgentOpen } from "../newagent/state";
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
+import { settingsSection } from "../settings/dialog-state";
 import { hintsShown, watchHold } from "../commands/hints";
 const HintLayer = lazy(() => import("../commands/HintLayer"));
 import { Sidebar, SidebarToggle } from "../sidebar";
@@ -65,6 +65,7 @@ const watchPanel = (el: HTMLElement) => {
 const AvatarPicker = lazy(() => import("../avatar/picker"));
 const BotPicker = lazy(() => import("../chat/bot-picker"));
 const NewAgent = lazy(() => import("../newagent/dialog"));
+const SettingsDialog = lazy(() => import("../settings/settings-dialog"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
 
 const KEY = "kiko:sidebar-collapsed";
@@ -91,8 +92,6 @@ function writeCollapsed(value: boolean) {
 
 export function Shell(props: ParentProps) {
   const location = useLocation();
-  const navigate = useNavigate();
-  setGo(navigate);
   const [collapsed, setCollapsed] = createSignal(readCollapsed());
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined;
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false);
@@ -163,6 +162,21 @@ export function Shell(props: ParentProps) {
     });
   });
   const closed = () => (narrow() ? !drawer() : collapsed());
+  // A sidebar opening or closing slides. Its panels carry `motion-slide` for the length of the slide
+  // only, so a drag on a resize handle stays under the pointer. Nothing slides while the shell mounts.
+  let mounted = false;
+  let sliding: ReturnType<typeof setTimeout> | undefined;
+  onMount(() => requestAnimationFrame(() => (mounted = true)));
+  onCleanup(() => clearTimeout(sliding));
+  const slide = () => {
+    if (!mounted) return;
+    const panels = [...document.querySelectorAll<HTMLElement>('[data-component="app-panels"] > .shell-panel')];
+    for (const panel of panels) panel.classList.add("motion-slide");
+    clearTimeout(sliding);
+    sliding = setTimeout(() => {
+      for (const panel of panels) panel.classList.remove("motion-slide");
+    }, 320);
+  };
   const setAndSave = (value: boolean) => {
     setCollapsed(value);
     writeCollapsed(value);
@@ -170,6 +184,7 @@ export function Shell(props: ParentProps) {
   const toggle = () => {
     if (narrow()) return setDrawer(!drawer());
     if (!sidebarPanel) return;
+    slide();
     if (sidebarPanel.collapsed()) {
       sidebarPanel.expand();
       sidebarPanel.resize(`${readWidth(SIDEBAR)}px`);
@@ -211,7 +226,7 @@ export function Shell(props: ParentProps) {
   // After the composer's rich editor has loaded, so the settings download never races it.
   createEffect(() => {
     if (!richLoaded()) return;
-    preloadRoute("/settings");
+    void SettingsDialog.preload();
     for (const load of idlePreloads) load();
   });
   onMount(() => onCleanup(watchHold()));
@@ -235,9 +250,13 @@ export function Shell(props: ParentProps) {
     if (!panel) return;
     if (dockedSide()) {
       if (!panel.collapsed()) return;
+      slide();
       panel.expand();
       panel.resize(`${readWidth(INFO)}px`);
-    } else if (!panel.collapsed()) panel.collapse();
+    } else if (!panel.collapsed()) {
+      slide();
+      panel.collapse();
+    }
   });
   onMount(() => {
     let frame = 0;
@@ -400,6 +419,10 @@ export function Shell(props: ParentProps) {
           <Suspense>
             <NewAgent />
           </Suspense>
+        </Show>
+        {/* Outside Suspense: a page that reads a loading resource, such as the model catalog, would blank the whole dialog. */}
+        <Show when={settingsSection()}>
+          <SettingsDialog />
         </Show>
         <Show when={hintsShown()}>
           <Suspense>

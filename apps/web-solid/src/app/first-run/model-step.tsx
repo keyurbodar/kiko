@@ -50,10 +50,10 @@ export function ModelStep() {
 
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-step="model">
-      <h1 class="text-center text-xl font-medium text-foreground" style={{ "--i": 0 }}>
+      <h1 class="welcome-title" style={{ "--i": 0 }}>
         Pick Kiko's model
       </h1>
-      <p class="mb-2 text-center text-sm text-muted-foreground" style={{ "--i": 1 }}>
+      <p class="welcome-lede" style={{ "--i": 1 }}>
         {current() ? "You can change it any time from the composer." : "Pick one to start. Kiko does not pick for you."}
       </p>
       <div
@@ -71,7 +71,7 @@ export function ModelStep() {
                   type="button"
                   role="radio"
                   aria-checked={current() === row.ref}
-                  class="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-left hover:bg-accent aria-checked:border-[color-mix(in_oklab,var(--foreground)_40%,transparent)] aria-checked:bg-accent"
+                  class="flex w-full cursor-pointer items-center gap-3 rounded-xl border-[1.5px] border-border bg-surface px-3.5 py-2.5 text-left hover:border-input aria-checked:border-[var(--ring)] aria-checked:bg-message-user"
                   data-model={row.ref}
                   onClick={() => setChosen(row.ref)}
                 >

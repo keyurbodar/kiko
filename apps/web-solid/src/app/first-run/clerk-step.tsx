@@ -60,10 +60,10 @@ export function ClerkStep() {
   })
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-step="sign-in">
-      <h1 class="text-center text-xl font-medium text-foreground" style={{ "--i": 0 }}>
+      <h1 class="welcome-title" style={{ "--i": 0 }}>
         Sign in
       </h1>
-      <p class="mb-2 text-center text-sm text-muted-foreground" style={{ "--i": 1 }}>
+      <p class="welcome-lede" style={{ "--i": 1 }}>
         Use Google or GitHub. Kiko finds your backend from any device you sign in on.
       </p>
       <div style={{ "--i": 2 }}>
@@ -72,7 +72,7 @@ export function ClerkStep() {
         </button>
       </div>
       <Show when={error()}>
-        <p class="text-center text-sm text-[var(--error)]" role="alert">
+        <p class="welcome-error" role="alert">
           {error()}
         </p>
       </Show>

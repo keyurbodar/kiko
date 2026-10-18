@@ -1,47 +1,22 @@
 /*
- * Writes kiko's icon set: kiko.svg, favicon.ico, the 16 and 32 px favicons, apple-touch-icon.png, the
- * 192 and 512 px manifest icons. They go to apps/web-solid/public and apps/landing/public.
- * The art is the real @kiko/avatar (Fubuki with headphones) on the app's own #0a0a0a, with a zinc
- * blueprint grid behind it. The leaves are recolored silver, so the berry eyes are the only color.
- * It also writes the welcome screen's mascot to apps/web-solid/public: the same face with open eyes, and
- * with closed eyes for its blink.
- * Edit the look below, then run `bun scripts/gen-brand.ts`.
+ * Writes kiko's icon set from the brand kit's app tile (brand/logo, copied from the Kiko Marketing repo,
+ * where scripts/build-logo.mjs draws it): kiko.svg, favicon.ico, the 16 and 32 px favicons,
+ * apple-touch-icon.png, and the 192 and 512 px manifest icons, to apps/web-solid/public and
+ * apps/landing/public. It also inlines the tile into the boot screen of apps/web-solid/index.html.
+ * Favicons use the flat tile, as the brand asks below 32 px; everything larger uses the soft one.
+ * Copy a new tile into brand/logo, then run `bun scripts/gen-brand.ts`.
  */
-import { writeFileSync } from "node:fs"
+import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Resvg } from "@resvg/resvg-js"
-import { avatar } from "../packages/avatar/src/index"
 
+const ROOT = resolve(import.meta.dir, "..")
 const OUT = ["apps/web-solid/public", "apps/landing/public"]
-const INK = "#0a0a0a"
-const LINE = "#f5f5f5"
 
-const SILVER: Record<string, string> = { "#25492e": "#5b5b63", "#578357": "#b4b4bc", "#2f5e3b": "#7a7a83", "#6fa86f": "#e4e4e7" }
-const silver = (svg: string) => svg.replace(/#[0-9A-Fa-f]{6}/g, (hex) => SILVER[hex.toLowerCase()] ?? hex)
-const mascot = silver(avatar("kiko", { flavour: "fubuki", mood: "happy", facing: "left", charm: "headphones" }))
-/** Headphones and closed eyes turn to mush at 16 px. The small sizes get open red eyes and no charm. */
-const mascotSmall = silver(avatar("kiko", { flavour: "fubuki", mood: "calm", facing: "left", charm: "none" }))
-
-const ticks = (n: number, step: number) => Array.from({ length: n }, (_, i) => (i + 1) * step)
-const grid = ticks(9, 10)
-  .flatMap((p) => [`M${p} 0V100`, `M0 ${p}H100`])
-  .join("")
-
-/** One tile. `rounded` clips the corners, `fine` draws the grid and rulers, which only read above 48 px. */
-function tile({ rounded, fine }: { rounded: boolean; fine: boolean }): string {
-  const face = fine
-    ? `<path d="${grid}" fill="none" stroke="${LINE}" stroke-width=".25" opacity=".16"/>` +
-      `<circle cx="50" cy="60" r="34" fill="none" stroke="${LINE}" stroke-width=".35" stroke-dasharray="1.6 1.4" opacity=".4"/>` +
-      `<path d="M50 6V98M4 60H96" stroke="${LINE}" stroke-width=".25" opacity=".2"/>` +
-      `<path d="M6 8h4M8 6v4M90 8h4M92 6v4" stroke="${LINE}" stroke-width=".4" opacity=".55"/>` +
-      mascot.replace("<svg ", '<svg x="0" y="8" width="100" height="100" ')
-    : mascotSmall.replace("<svg ", '<svg x="-8" y="2" width="116" height="116" ')
-  const clip = rounded ? '<clipPath id="r"><rect width="100" height="100" rx="22"/></clipPath>' : ""
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${clip}` +
-    `<g${rounded ? ' clip-path="url(#r)"' : ""}><rect width="100" height="100" fill="${INK}"/>${face}</g></svg>`
-  )
-}
+const soft = readFileSync(resolve(ROOT, "brand/logo/normal/kiko-app-icon-dark.svg"), "utf8")
+const flat = readFileSync(resolve(ROOT, "brand/logo/flat/kiko-app-icon-dark.svg"), "utf8")
+/** iOS rounds a touch icon itself, so it gets the tile with square corners. */
+const square = soft.replaceAll('rx="26.4"', "")
 
 const png = (svg: string, size: number) => new Resvg(svg, { fitTo: { mode: "width", value: size } }).render().asPng()
 
@@ -64,23 +39,32 @@ function ico(images: { size: number; data: Uint8Array }[]): Uint8Array {
   return Buffer.concat([head, ...images.map((i) => i.data)])
 }
 
-const small = tile({ rounded: true, fine: false })
-const large = tile({ rounded: true, fine: true })
-const square = tile({ rounded: false, fine: true })
-
 const files: Record<string, string | Uint8Array> = {
-  "kiko.svg": large,
-  "favicon-16x16.png": png(small, 16),
-  "favicon-32x32.png": png(small, 32),
-  "favicon.ico": ico([16, 32, 48].map((size) => ({ size, data: png(small, size) }))),
+  "kiko.svg": soft,
+  "favicon-16x16.png": png(flat, 16),
+  "favicon-32x32.png": png(flat, 32),
+  "favicon.ico": ico([
+    { size: 16, data: png(flat, 16) },
+    { size: 32, data: png(flat, 32) },
+    { size: 48, data: png(soft, 48) },
+  ]),
   "apple-touch-icon.png": png(square, 180),
-  "icon-192.png": png(large, 192),
-  "icon-512.png": png(large, 512),
+  "icon-192.png": png(soft, 192),
+  "icon-512.png": png(soft, 512),
 }
 
-for (const dir of OUT) for (const [name, data] of Object.entries(files)) writeFileSync(resolve(import.meta.dir, "..", dir, name), data)
+for (const dir of OUT) for (const [name, data] of Object.entries(files)) writeFileSync(resolve(ROOT, dir, name), data)
 console.log(`wrote ${Object.keys(files).length} files to ${OUT.join(" and ")}`)
 
-const welcome = (mood: "calm" | "happy") => silver(avatar("kiko", { flavour: "fubuki", mood, facing: "left", charm: "headphones" }))
-writeFileSync(resolve(import.meta.dir, "../apps/web-solid/public/kiko-mascot.svg"), welcome("calm"))
-writeFileSync(resolve(import.meta.dir, "../apps/web-solid/public/kiko-mascot-blink.svg"), welcome("happy"))
+// The boot screen shows the tile before any script runs. It is decoration there, so it is hidden from assistive tech.
+const inline = soft
+  .replace(/<title>[^<]*<\/title>/, "")
+  .replace(' role="img" aria-label="Kiko"', ' aria-hidden="true"')
+  .replace(/>\s+</g, "><")
+  .trim()
+const html = resolve(ROOT, "apps/web-solid/index.html")
+const page = readFileSync(html, "utf8")
+const boot = /(<div id="boot">\s*)[\s\S]*?(\s*<\/div>)/
+if (!boot.test(page)) throw new Error("no #boot in index.html")
+writeFileSync(html, page.replace(boot, (_, open: string, close: string) => `${open}${inline}${close}`))
+console.log("inlined the tile into index.html")

@@ -1,4 +1,5 @@
-import { CopyIcon, FileIcon as OpenIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CopyIcon, FileIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -10,13 +11,8 @@ import { urls, useApp } from "../../lib/store"
 import { formatBytes } from "../info/format"
 import { openThreadImages } from "./image-dialog"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
-import { basename, resolveFile, type FileTarget } from "../rich/file-links"
-
-/** Where a named file is: the chat's own files first, then the user's home drive. */
-function find(path: string) {
-  const own = resolveFile(path, useApp.activeFiles().map((f) => f.name))
-  return own.kind !== "none" ? own : resolveFile(path, useApp.homeFiles().map((f) => `home/${f.name}`))
-}
+import { basename, type FileTarget } from "../rich/file-links"
+import { findFile } from "./find-file"
 
 /**
  * A file an agent's message names, as t3code's file mention: the file's icon and name in a
@@ -27,11 +23,11 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
   const full = () => `${props.file.path}${props.file.line ? `:${props.file.line}` : ""}`
   // A bare name the chat does not have is code, not a missing file, so it does not show a chip.
   // It is a reactive check: the chat's file list can arrive after the first paint of a message.
-  const isChip = () => !props.bare || find(props.file.path).kind !== "none"
+  const isChip = () => !props.bare || findFile(props.file.path).kind !== "none"
   const chat = () => useApp.activeThreadId()
   /** The chat's own file at this path, when there is exactly one. */
   const ref = () => {
-    const found = find(props.file.path)
+    const found = findFile(props.file.path)
     return found.kind === "file" ? useApp.activeFiles().find((f) => f.name === found.path) : undefined
   }
   const picture = () => {
@@ -49,7 +45,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     if (!id) return
     const src = picture()
     if (src) return openThreadImages([{ src, name: props.label }], 0, from?.querySelector("img") ?? from)
-    const found = find(props.file.path)
+    const found = findFile(props.file.path)
     if (found.kind === "file") return openFile(id, found.path, props.file.line)
     if (found.kind === "many") return openSurface(id, fixedSurface("files"))
     showToastV2({ title: `No file named ${basename(props.file.path)} in this chat`, variant: "error" })
@@ -73,7 +69,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
           data-component="chat-file-chip"
           data-kind={picture() ? "image" : "file"}
           data-path={props.file.path}
-          data-missing={find(props.file.path).kind === "none" ? "" : undefined}
+          data-missing={findFile(props.file.path).kind === "none" ? "" : undefined}
           aria-label={`Open ${full()}`}
           draggable={ref() !== undefined}
           onDragStart={(event: DragEvent) => {
@@ -92,11 +88,11 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
         <MenuV2.Context.Portal>
           <MenuV2.Context.Content class="min-w-[160px]">
             <MenuV2.Item onSelect={() => open()}>
-              <OpenIcon class="size-3.5 shrink-0" aria-hidden="true" />
+              <RemixIcon icon={FileIcon} class="size-3.5 shrink-0" />
               Open
             </MenuV2.Item>
             <MenuV2.Item onSelect={() => void copy()}>
-              <CopyIcon class="size-3.5 shrink-0" aria-hidden="true" />
+              <RemixIcon icon={CopyIcon} class="size-3.5 shrink-0" />
               Copy path
             </MenuV2.Item>
           </MenuV2.Context.Content>

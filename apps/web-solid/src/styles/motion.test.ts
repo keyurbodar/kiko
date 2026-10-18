@@ -77,12 +77,17 @@ test("the scanner flags navigation, button, menu item, tab, and composer selecto
   expect(OVERLAY.test('[data-component="tab-strip"][data-expanded]')).toBe(false);
 });
 
-test("a transition belongs only to the switch", () => {
+test("a transition belongs only to the switch and a sliding sidebar", () => {
   for (const r of styled) {
     if (!/transition\s*:/.test(r.body)) continue;
     if (RUN_PANEL.test(r.selector)) continue;
-    expect(r.selector, r.selector).toMatch(/^\.motion-switch/);
+    expect(r.selector, r.selector).toMatch(/^\.motion-(switch|slide)\b/);
   }
+});
+
+test("a sidebar slides by its width alone, so nothing inside it moves", () => {
+  const slide = styled.find((r) => r.selector === ".motion-slide");
+  expect(slide?.body).toMatch(/transition:\s*flex-basis\s/);
 });
 
 test("an overlay never delays input", () => {
@@ -135,7 +140,7 @@ test("keyframes move only transform and opacity, and a collapse also moves heigh
 });
 
 test("the allowed motions exist", () => {
-  for (const c of ["reaction-pop", "attachment-in", "bubble-in", "reply-in", "collapse", "switch", "skeleton", "popover-in", "spin"]) {
+  for (const c of ["reaction-pop", "attachment-in", "bubble-in", "reply-in", "view-in", "slide", "collapse", "switch", "skeleton", "popover-in", "spin"]) {
     expect(css).toContain(`.motion-${c}`);
   }
   for (const c of OVERLAYS) expect(css).toContain(`data-component="${c}"`);

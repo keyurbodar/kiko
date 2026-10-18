@@ -24,10 +24,10 @@ export function ConnectSheet() {
           }
           footer={
             <>
-              <Button variant="ghost" class="rounded-full" onClick={dismissConnect}>
+              <Button variant="ghost" onClick={dismissConnect}>
                 Cancel
               </Button>
-              <Button variant="primary" class="rounded-full px-4" data-action="connect-done" busy={isWaiting(ask().card.slug)} onClick={retryConnect}>
+              <Button variant="primary" class="px-4" data-action="connect-done" busy={isWaiting(ask().card.slug)} onClick={retryConnect}>
                 Done, add it
               </Button>
             </>
@@ -41,7 +41,7 @@ export function ConnectSheet() {
               <p class="text-[14px] leading-relaxed text-foreground/85">Open each link, allow access, then come back here. The recipe is added once they are connected.</p>
               <For each={ask().connect.links}>
                 {(link) => (
-                  <a class={buttonClass("secondary", "justify-center rounded-full")} href={link.url} target="_blank" rel="noopener noreferrer" data-action="connect-app" data-app={link.app}>
+                  <a class={buttonClass("secondary", "justify-center")} href={link.url} target="_blank" rel="noopener noreferrer" data-action="connect-app" data-app={link.app}>
                     Connect {link.app}
                   </a>
                 )}

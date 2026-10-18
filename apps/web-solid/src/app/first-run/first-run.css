@@ -1,197 +1,386 @@
 /*
- * The welcome flow. Only opacity and transform move, nothing waits on motion, and reduced motion holds
- * every layer still. Colors come from the theme: lines from --foreground, the glow from the accent (--ring).
+ * The welcome flow, after Cal.com's sign-in: one card on a drawing sheet of Kiko. The card is a head
+ * with the logo, the step, and a foot with the setup's steps, drawn with the composer's firm edge and
+ * halo. Colors come from the theme: the sheet from --foreground, the current step from the accent
+ * (--ring). Only opacity, transform, and a stroke drawing in move, and reduced motion holds every part
+ * still.
  */
 .welcome {
-  --welcome-top: max(40px, 14dvh);
-  --welcome-size: 152px;
-  --welcome-cy: calc(var(--welcome-top) + var(--welcome-size) / 2);
-  --welcome-line: color-mix(in oklab, var(--foreground) 7%, transparent);
-  --welcome-line-strong: color-mix(in oklab, var(--foreground) 12%, transparent);
-  --welcome-ink: color-mix(in oklab, var(--foreground) 34%, transparent);
+  --welcome-paper: var(--background);
+  --welcome-ink: color-mix(in oklab, var(--foreground) 11%, var(--background));
+  --welcome-rule: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --welcome-label: color-mix(in oklab, var(--foreground) 24%, var(--background));
 }
 
+.welcome-page {
+  position: relative;
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  padding: 48px 16px;
+}
+
+/*
+ * The sheet (backdrop.tsx): every shape is paper and every line ink, both opaque, so lines that cross
+ * never darken. Lines are hairlines at any scale, except Kiko's own, which scale with the figure.
+ */
 .welcome-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
 }
 
-.welcome-grid {
-  position: absolute;
-  inset: 0;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% var(--welcome-cy), #000 10%, transparent 72%);
-}
-.welcome-grid-pan {
-  position: absolute;
-  inset: -112px;
-  background-image:
-    linear-gradient(to right, var(--welcome-line-strong) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--welcome-line-strong) 1px, transparent 1px),
-    linear-gradient(to right, var(--welcome-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--welcome-line) 1px, transparent 1px);
-  background-size: 112px 112px, 112px 112px, 28px 28px, 28px 28px;
-}
-
-.welcome-cross-x,
-.welcome-cross-y {
-  position: absolute;
-  overflow: hidden;
-}
-.welcome-cross-x {
-  left: 0;
-  right: 0;
-  top: var(--welcome-cy);
-  height: 1px;
-  background: var(--welcome-line-strong);
-  mask-image: linear-gradient(to right, transparent, #000 20%, #000 calc(50% - 110px), transparent calc(50% - 90px), transparent calc(50% + 90px), #000 calc(50% + 110px), #000 80%, transparent);
-}
-.welcome-cross-y {
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--welcome-line-strong);
-  mask-image: linear-gradient(to bottom, transparent, #000 calc(var(--welcome-cy) - 160px), #000 calc(var(--welcome-cy) - 100px), transparent calc(var(--welcome-cy) - 80px), transparent calc(var(--welcome-cy) + 80px), #000 calc(var(--welcome-cy) + 100px), transparent 85%);
-}
-.welcome-cross-x::after,
-.welcome-cross-y::after {
-  content: "";
-  position: absolute;
-  background: linear-gradient(var(--welcome-scan, to right), transparent, color-mix(in oklab, var(--ring) 80%, transparent), transparent);
-  opacity: 0;
-}
-.welcome-cross-x::after {
-  top: 0;
-  left: 0;
-  width: 160px;
-  height: 1px;
-}
-.welcome-cross-y::after {
-  --welcome-scan: to bottom;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 160px;
-}
-
-.welcome-stage {
-  position: absolute;
-  left: 50%;
-  top: var(--welcome-cy);
-  width: 0;
-  height: 0;
-}
-.welcome-stage > * {
+.welcome-backdrop svg {
   position: absolute;
   max-width: none;
-}
-
-.welcome-glow {
-  left: -300px;
-  top: -300px;
-  width: 600px;
-  height: 600px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in oklab, var(--ring) 26%, transparent), color-mix(in oklab, var(--ring) 8%, transparent) 55%, transparent);
-}
-
-.welcome-orbit {
   overflow: visible;
   fill: none;
   stroke: var(--welcome-ink);
-  stroke-width: 1;
-}
-.welcome-orbit-near {
-  left: -100px;
-  top: -100px;
-  width: 200px;
-  height: 200px;
-  stroke-dasharray: 3 4;
-}
-.welcome-orbit-far {
-  left: -180px;
-  top: -180px;
-  width: 360px;
-  height: 360px;
-  stroke: var(--welcome-line-strong);
-  stroke-dasharray: 1 6;
   stroke-linecap: round;
-}
-.welcome-orbit-edge {
-  left: -280px;
-  top: -280px;
-  width: 560px;
-  height: 560px;
-  stroke: var(--welcome-line);
-}
-.welcome-satellite {
-  fill: var(--ring);
-  stroke: color-mix(in oklab, var(--ring) 30%, transparent);
-  stroke-width: 6;
-  stroke-dasharray: none;
+  stroke-linejoin: round;
 }
 
-.welcome-ticks {
-  left: -160px;
-  top: -160px;
-  width: 320px;
-  height: 320px;
-  fill: none;
-  stroke: var(--welcome-ink);
-  stroke-width: 1;
+.welcome-backdrop svg :is(path, circle, ellipse) {
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
 }
 
-.welcome-pulse {
-  left: -72px;
-  top: -72px;
-  width: 144px;
-  height: 144px;
-  border-radius: 50%;
-  border: 1px solid color-mix(in oklab, var(--ring) 70%, transparent);
-  opacity: 0;
+.welcome-backdrop .welcome-kiko {
+  color: var(--welcome-ink);
+  fill: var(--welcome-paper);
 }
 
-.welcome-mascot {
-  width: var(--welcome-size);
-  height: var(--welcome-size);
+.welcome-backdrop .welcome-kiko :is(path, circle, ellipse) {
+  stroke-width: inherit;
+  vector-effect: none;
 }
-.welcome-mascot-body {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transform-origin: 50% 88%;
+
+.welcome-backdrop text {
+  fill: var(--welcome-label);
+  stroke: var(--welcome-paper);
+  font-family: var(--font-family-mono);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  paint-order: stroke;
 }
-.welcome-mascot-body > img {
-  position: absolute;
+
+.welcome-backdrop :is(.welcome-detail, .welcome-title-block) text {
+  font-size: 10.5px;
+  stroke-width: 3px;
+}
+
+.welcome-backdrop .welcome-dash {
+  stroke-dasharray: 4 4;
+}
+
+.welcome-backdrop .welcome-axis {
+  stroke-dasharray: 14 4 2 4;
+}
+
+.welcome-backdrop .welcome-dot {
+  fill: var(--welcome-ink);
+  stroke: none;
+}
+
+/* The grid fades a little toward the page's edges. */
+.welcome-sheet {
   inset: 0;
   width: 100%;
   height: 100%;
+  mask-image: radial-gradient(ellipse 85% 80% at 50% 50%, #000 35%, rgb(0 0 0 / 35%) 100%);
 }
-/* Only the band across the eyes, so the leaves of the other face never show. */
-.welcome-mascot-blink {
-  clip-path: inset(54% 30% 28% 16%);
+
+.welcome-sheet .welcome-rule {
+  stroke: var(--welcome-rule);
+}
+
+.welcome-margin {
+  position: absolute;
+  inset: 16px;
+  border: 1px solid var(--welcome-ink);
+}
+
+/* The figure stands left of the card and the detail right of it; the title block keeps the corner. */
+/* The figure takes the room left of the card, up to its drawn size. */
+.welcome-figure {
+  top: 50%;
+  right: calc(50% + 262px);
+  width: min(437px, calc(50vw - 290px));
+  height: auto;
+  translate: 0 -46%;
+}
+
+.welcome-detail {
+  top: 16%;
+  left: calc(50% + 300px);
+}
+
+.welcome-title-block {
+  right: 28px;
+  bottom: 28px;
+  background: var(--welcome-paper);
+}
+
+@media (width < 1280px) {
+  .welcome-figure,
+  .welcome-detail {
+    display: none;
+  }
+}
+
+@media (width < 760px), (height < 560px) {
+  .welcome-title-block {
+    display: none;
+  }
+}
+
+/* A phone's card sits at the top, so the figure takes the room under it. */
+@media (width < 480px) and (height > 720px) {
+  .welcome-figure {
+    display: block;
+    top: auto;
+    right: auto;
+    bottom: 28px;
+    left: 50%;
+    width: min(360px, 88vw);
+    translate: -50% 0;
+  }
+}
+
+.welcome-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 440px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--composer-edge);
+  border-radius: var(--radius-2xl);
+  box-shadow: 0 0 0 4px var(--composer-halo), var(--composer-shadow);
+}
+
+.welcome-card-body {
+  padding: 28px 32px 30px;
+}
+
+/* While a step works, a band of the accent runs along the card's top edge. */
+.welcome-card::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--ring), transparent) no-repeat;
+  background-size: 40% 100%;
   opacity: 0;
+  content: "";
 }
 
-.welcome-panel {
-  background: color-mix(in oklab, var(--background) 86%, transparent);
-  box-shadow: 0 0 0 1px var(--border), 0 18px 48px -24px color-mix(in oklab, #000 40%, transparent);
+.welcome-card[data-busy]::before {
+  opacity: 1;
 }
 
-.welcome-steps > li > span[data-state="done"] {
-  background: var(--foreground);
-  color: var(--background);
+/* The card's head: Kiko's logo in a band, the twin of the steps in its foot. */
+.welcome-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 20px;
+  background: color-mix(in oklab, var(--foreground) 3%, transparent);
+  border-bottom: 1px solid var(--frame-edge);
 }
-.welcome-steps > li > span[data-state="current"] {
-  background: color-mix(in oklab, var(--foreground) 10%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 30%, transparent);
+
+.welcome-mascot {
+  width: 26px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.welcome-mascot-body {
+  width: 100%;
+  height: 100%;
+}
+.welcome-mascot-body > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.welcome-wordmark {
+  height: 17px;
+  margin-top: 2px;
   color: var(--foreground);
 }
-.welcome-steps > li > span[data-state="next"] {
-  box-shadow: inset 0 0 0 1px var(--border);
+
+/* A leaf turns about its stem. */
+.welcome-mascot [data-leaf] {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.welcome-title {
+  color: var(--foreground);
+  font-family: var(--font-family-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.welcome-lede {
+  margin-bottom: 8px;
   color: var(--muted-foreground);
+  font-size: var(--font-md);
+  line-height: 1.5;
+  text-align: center;
+  text-wrap: pretty;
+}
+
+.welcome-label {
+  color: var(--foreground);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.welcome-field {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  color: var(--foreground);
+  font-size: var(--font-md);
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+}
+
+.welcome-field::placeholder {
+  color: var(--secondary-label);
+}
+
+.welcome-field:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--foreground) 22%, transparent);
+}
+
+:is(.welcome-primary, .welcome-secondary) {
+  display: flex;
+  width: 100%;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: var(--font-md);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.welcome-primary {
+  color: var(--primary-foreground);
+  background: var(--primary);
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--primary) 60%, #000), inset 0 1px 0 color-mix(in oklab, var(--primary-foreground) 12%, transparent);
+}
+
+.welcome-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.welcome-secondary {
+  color: var(--foreground);
+  background: var(--surface);
+  border: 1px solid var(--frame-edge);
+}
+
+.welcome-secondary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--foreground) 4%, var(--surface));
+}
+
+:is(.welcome-primary, .welcome-secondary):disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+/* "or", between two hairlines. */
+.welcome-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--secondary-label);
+  font-size: var(--font-xs);
+}
+
+.welcome-or::before,
+.welcome-or::after {
+  height: 1px;
+  flex: 1;
+  background: var(--frame-edge);
+  content: "";
+}
+
+.welcome-error {
+  color: var(--error);
+  font-size: var(--font-sm);
+  text-align: center;
+}
+
+/* The card's foot: where the setup is, as numbered steps joined by short rules. */
+.welcome-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 20px;
+  color: var(--muted-foreground);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  background: color-mix(in oklab, var(--foreground) 3%, transparent);
+  border-top: 1px solid var(--frame-edge);
+}
+
+.welcome-steps > li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.welcome-steps > li + li::before {
+  width: 20px;
+  height: 1px;
+  margin-right: 2px;
+  background: var(--frame-edge);
+  content: "";
+}
+
+.welcome-steps > li[data-state="current"] {
+  color: var(--foreground);
+}
+
+.welcome-step-mark {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--frame-edge);
+}
+
+.welcome-steps > li[data-state="done"] .welcome-step-mark {
+  color: var(--background);
+  background: var(--foreground);
+  box-shadow: none;
+}
+
+.welcome-steps > li[data-state="current"] .welcome-step-mark {
+  color: var(--foreground);
+  background: var(--message-user);
+  box-shadow: inset 0 0 0 1px var(--ring);
 }
 
 .welcome-meter > i {
@@ -199,55 +388,74 @@
   transform: scaleX(0.04);
 }
 
+@media (width < 480px) {
+  .welcome-margin {
+    display: none;
+  }
+
+  .welcome-page {
+    justify-content: flex-start;
+    padding: 24px 12px;
+  }
+
+  .welcome-card-body {
+    padding: 24px 20px 24px;
+  }
+
+  .welcome-steps > li > span:last-child {
+    display: none;
+  }
+
+  .welcome-steps > li[data-state="current"] > span:last-child {
+    display: inline;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes welcome-drift {
-    to { transform: translate3d(112px, 112px, 0); }
-  }
-  @keyframes welcome-spin {
-    to { transform: rotate(360deg); }
-  }
-  @keyframes welcome-glow {
-    50% { opacity: 0.6; transform: scale(0.94); }
-  }
-  @keyframes welcome-scan-x {
-    0% { opacity: 0; transform: translateX(-160px); }
-    10%, 60% { opacity: 1; }
-    70%, 100% { opacity: 0; transform: translateX(100vw); }
-  }
-  @keyframes welcome-scan-y {
-    0% { opacity: 0; transform: translateY(-160px); }
-    10%, 60% { opacity: 1; }
-    70%, 100% { opacity: 0; transform: translateY(100dvh); }
-  }
-  @keyframes welcome-pulse {
-    from { opacity: 0.8; transform: scale(0.6); }
-    to { opacity: 0; transform: scale(2.6); }
-  }
-  @keyframes welcome-breathe {
-    50% { transform: scale(1.018, 0.97); }
-  }
-  @keyframes welcome-blink {
-    0%, 93%, 100% { opacity: 0; }
-    94.5%, 96.5% { opacity: 1; }
+  /* Most of the loop the leaves rest. Then the front one flicks, and the back one answers a beat later. */
+  @keyframes welcome-wiggle {
+    0%, 76%, 100% { transform: rotate(0deg); }
+    80% { transform: rotate(-9deg); }
+    85% { transform: rotate(7deg); }
+    90% { transform: rotate(-3deg); }
+    94% { transform: rotate(1deg); }
   }
   @keyframes welcome-in {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @keyframes welcome-card-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes welcome-sheet-in {
+    from { opacity: 0; }
+  }
+  @keyframes welcome-draw {
+    from { stroke-dashoffset: 1; }
+  }
+  @keyframes welcome-busy {
+    from { background-position: -60% 0; }
+    to { background-position: 160% 0; }
+  }
   @keyframes welcome-pulse-text {
     50% { opacity: 0.5; }
   }
 
-  .welcome-grid-pan { animation: welcome-drift 64s linear infinite; will-change: transform; }
-  .welcome-orbit-near { animation: welcome-spin 48s linear infinite; }
-  .welcome-orbit-far { animation: welcome-spin 110s linear infinite reverse; }
-  .welcome-orbit-edge { animation: welcome-spin 180s linear infinite; }
-  .welcome-glow { animation: welcome-glow 9s ease-in-out infinite; }
-  .welcome-cross-x::after { animation: welcome-scan-x 9s var(--motion-ease-in-out) infinite 1s; }
-  .welcome-cross-y::after { animation: welcome-scan-y 9s var(--motion-ease-in-out) infinite 5.5s; }
-  .welcome-pulse { animation: welcome-pulse 2.4s var(--motion-ease-out) infinite; }
-  .welcome-mascot-body { animation: welcome-breathe 4.8s ease-in-out infinite; }
-  .welcome-mascot-blink { animation: welcome-blink 6.5s linear infinite 2s; }
+  .welcome-card { animation: welcome-card-in 360ms var(--motion-ease-settle) both; }
+  /* The mural settles in behind the card, a beat after it. */
+  /* The sheet as it is drafted: the paper fades in, Kiko's outline draws itself, then the notes. */
+  .welcome-backdrop { animation: welcome-sheet-in 500ms ease both; }
+  .welcome-backdrop .welcome-kiko :is(path, circle, ellipse) {
+    stroke-dasharray: 1;
+    animation: welcome-draw 1.6s var(--motion-ease-settle) 250ms both;
+  }
+  .welcome-backdrop :is(.welcome-build, .welcome-notes, .welcome-title-block, .welcome-detail > .welcome-dash) {
+    animation: welcome-sheet-in 700ms ease 1s both;
+  }
+  .welcome-card[data-busy]::before { animation: welcome-busy 1.1s linear infinite; }
+  .welcome-mascot [data-leaf] { animation: welcome-wiggle 5.5s ease-in-out infinite 1.2s; }
+  .welcome-mascot [data-leaf="back"] { animation-delay: 1.38s; }
 
   /* A step fades up as it mounts; its parts follow 40 ms apart, so the first one is readable at once. */
   .welcome-step { animation: welcome-in 260ms var(--motion-ease-settle) both; }
@@ -255,7 +463,7 @@
     animation: welcome-in 280ms var(--motion-ease-settle) both;
     animation-delay: calc(var(--i, 0) * 40ms);
   }
-  .welcome-steps > li > span { transition: background-color 240ms var(--motion-ease-settle), color 240ms var(--motion-ease-settle); }
+  .welcome-steps .welcome-step-mark { transition: background-color 240ms var(--motion-ease-settle), color 240ms var(--motion-ease-settle); }
   .welcome-meter > i { transition: transform 60s cubic-bezier(0.1, 0.6, 0.2, 1); }
   .welcome-meter > i[data-on] { transform: scaleX(0.92); }
   .welcome-meter > i[data-done] { transform: scaleX(1); transition-duration: 300ms; }

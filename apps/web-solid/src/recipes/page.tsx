@@ -1,5 +1,5 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { SearchIcon } from "@kiko/ui/icons"
 import { TabsV2 } from "@kiko/ui/v2/tabs-v2"
 import { useNavigate, useSearchParams } from "@solidjs/router"
@@ -16,9 +16,9 @@ import { RecipeTile } from "./tile"
 type Section = "yours" | "discover"
 
 const sectionTab =
-  "flex h-8 cursor-pointer items-center gap-2 rounded-full pr-2 pl-3.5 text-[14px] font-medium text-muted-foreground hover:text-foreground data-[selected]:bg-control-strong data-[selected]:text-foreground"
+  "flex h-8 cursor-pointer items-center gap-2 rounded-md pr-2 pl-3.5 text-[14px] font-medium text-muted-foreground hover:text-foreground data-[selected]:bg-control-strong data-[selected]:text-foreground"
 const tagTab =
-  "h-7 shrink-0 cursor-pointer rounded-full px-3 text-[13px] text-muted-foreground hover:bg-control hover:text-foreground data-[selected]:bg-control-strong data-[selected]:text-foreground"
+  "h-7 shrink-0 cursor-pointer rounded-md px-3 text-[13px] text-muted-foreground hover:bg-control hover:text-foreground data-[selected]:bg-control-strong data-[selected]:text-foreground"
 const grid = "grid grid-cols-1 gap-3 @max-[519px]/recipes:gap-2 @min-[520px]/recipes:grid-cols-2"
 
 function Empty(props: { title: string; children?: JSX.Element }) {
@@ -75,11 +75,11 @@ export default function RecipesPage() {
         <div class="mx-auto flex w-full max-w-[880px] flex-col px-5 pb-20 @min-[560px]/recipes:px-8">
           <header class="flex flex-col gap-4 pt-8 pb-4 max-[767px]:pt-14 @min-[560px]/recipes:pt-10">
             <div class="flex flex-col gap-1">
-              <h1 class="text-[26px] font-semibold tracking-[-0.02em] text-foreground">Recipes</h1>
+              <h1 class="font-display text-[26px] font-extrabold tracking-[-0.02em] text-foreground">Recipes</h1>
               <p class="text-[14px] text-muted-foreground">Little routines your agents can pick up.</p>
             </div>
-            <label class="flex h-9 w-full max-w-[480px] items-center gap-2 rounded-full bg-control px-3.5 text-muted-foreground">
-              <HugeIcon icon={SearchIcon} size={15} />
+            <label class="flex h-9 w-full max-w-[480px] items-center gap-2 rounded-md bg-control px-3.5 text-muted-foreground">
+              <RemixIcon icon={SearchIcon} size={15} />
               <input
                 type="search"
                 class="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
@@ -117,7 +117,7 @@ export default function RecipesPage() {
                   <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
                     <Empty title="Nothing runs yet">
                       <p class="max-w-[320px] text-[13.5px] text-muted-foreground">Recipes you add show up here, with when each one runs next.</p>
-                      <button type="button" class={buttonClass("primary", "mt-3 rounded-full px-4")} onClick={() => setSection("discover")}>
+                      <button type="button" class={buttonClass("primary", "mt-3 px-4")} onClick={() => setSection("discover")}>
                         Browse recipes
                       </button>
                     </Empty>
@@ -155,7 +155,7 @@ export default function RecipesPage() {
                 </div>
 
                 <Show when={broken().length}>
-                  <div class="mb-3 flex flex-col gap-1 rounded-[16px] bg-card px-4 py-3 text-[13px] text-muted-foreground" data-component="recipes-broken">
+                  <div class="mb-3 flex flex-col gap-1 rounded-xl bg-card px-4 py-3 text-[13px] text-muted-foreground" data-component="recipes-broken">
                     <p class="font-medium text-foreground">Some recipe files did not load</p>
                     <For each={broken()}>{(why) => <p>{why}</p>}</For>
                   </div>

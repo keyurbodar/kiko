@@ -58,9 +58,11 @@ function paint(look: Look): void {
   applied = new Set(Object.keys(next))
   root.classList.toggle("dark", appearance === "dark")
   root.style.colorScheme = appearance
-  const canvas = PALETTES[appearance].canvas
+  const canvas = next["--background"] ?? PALETTES[appearance].canvas
   root.style.backgroundColor = canvas
+  // The page's own colors come from the pre-paint guess. They follow the look, or text that sets no color of its own keeps the other mode's ink.
   root.style.setProperty("--boot-bg", canvas)
+  root.style.setProperty("--boot-fg", next["--foreground"] ?? PALETTES[appearance].text)
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute("content", canvas)
 }
 

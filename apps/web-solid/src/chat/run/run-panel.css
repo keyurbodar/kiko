@@ -6,7 +6,8 @@
  */
 
 .run-panel {
-  /* One readable tone for every label, as in t3code. Failure tints only the icon. */
+  /* One readable tone for every label, as in t3code, and the one the shine sweeps over: its look
+     is in shine.css, which the panel shares with the run tree. Failure tints only the icon. */
   --run-text: color-mix(in oklab, var(--foreground) 78%, transparent);
   width: min(32rem, var(--kb-popper-content-available-width, 32rem));
   max-height: min(30rem, var(--kb-popper-content-available-height, 30rem));
@@ -278,23 +279,6 @@
   color: var(--muted-foreground);
   font-style: italic;
   user-select: none;
-}
-
-/*
- * The shine's look, t3code's live-tool-shine: a band of the foreground sweeps over the label's own
- * tone. Its motion is in motion.css. With reduced motion or forced colors the label is plain text.
- */
-@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
-  .motion-shine {
-    color: transparent;
-    background-image:
-      linear-gradient(to right, transparent, var(--foreground), transparent),
-      linear-gradient(var(--run-text), var(--run-text));
-    background-size: 4.5rem 100%, 100% 100%;
-    background-repeat: no-repeat;
-    -webkit-background-clip: text;
-    background-clip: text;
-  }
 }
 
 /*

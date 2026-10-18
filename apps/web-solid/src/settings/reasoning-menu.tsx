@@ -1,4 +1,4 @@
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ChevronDownIcon, ReasoningIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { defaultThinking, THINKING_LABELS, type ThinkingLevel } from "@kiko/protocol"
@@ -28,9 +28,9 @@ export function ReasoningMenu(props: {
           title="Reasoning"
           data-component="reasoning-trigger"
         >
-          <HugeIcon icon={ReasoningIcon} size={14} />
+          <RemixIcon icon={ReasoningIcon} size={14} />
           <span>{THINKING_LABELS[value()]}</span>
-          <HugeIcon icon={ChevronDownIcon} size={10} class="opacity-70" />
+          <RemixIcon icon={ChevronDownIcon} size={10} class="opacity-70" />
         </MenuV2.Trigger>
         <MenuV2.Portal>
           <MenuV2.Content class="z-[80] min-w-44" data-component="reasoning-menu">

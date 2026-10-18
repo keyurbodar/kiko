@@ -41,7 +41,8 @@ export function ReactionPopover(props: {
   const place = () => {
     const rect = props.anchor.getBoundingClientRect()
     const at = placeAbove(rect, full() ? PICKER : POPOVER, { width: window.innerWidth, height: window.innerHeight })
-    return { left: `${at.left}px`, top: `${at.top}px` }
+    // It grows out of the side that faces the button it came from.
+    return { left: `${at.left}px`, top: `${at.top}px`, "transform-origin": at.top < rect.top ? "50% 100%" : "50% 0" }
   }
   const pick = (emoji: string) => {
     recordRecent(emoji)
@@ -67,7 +68,7 @@ export function ReactionPopover(props: {
           panel = element
           if (props.focus) queueMicrotask(() => element.querySelector<HTMLElement>("button")?.focus())
         }}
-        class="fixed z-50"
+        class="motion-popover-in fixed z-50"
         style={place()}
         data-component="reaction-popover"
         onPointerEnter={props.onPointerEnter}
@@ -78,13 +79,13 @@ export function ReactionPopover(props: {
         <Show
           when={full()}
           fallback={
-            <div class="grid grid-cols-7 rounded-[24px] bg-popover p-2 text-foreground shadow-popover" role="menu" aria-label="Reactions">
+            <div class="grid grid-cols-7 rounded-xl bg-popover p-2 text-foreground shadow-popover" role="menu" aria-label="Reactions">
               <For each={recentEmoji().slice(0, QUICK)}>
                 {(emoji) => (
                   <button
                     type="button"
                     role="menuitem"
-                    class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 font-emoji text-[26px] leading-none hover:bg-[var(--accent-strong)] focus-visible:bg-[var(--accent-strong)] focus-visible:outline-none"
+                    class="grid size-10 cursor-default place-items-center rounded-md p-0 font-emoji text-[26px] leading-none hover:bg-[var(--accent-strong)] focus-visible:bg-[var(--accent-strong)] focus-visible:outline-none"
                     aria-label={`React with ${emoji}`}
                     data-emoji={emoji}
                     onClick={() => pick(emoji)}
@@ -96,7 +97,7 @@ export function ReactionPopover(props: {
               <button
                 type="button"
                 role="menuitem"
-                class="grid size-10 cursor-default place-items-center rounded-[10px] p-0 text-[20px] leading-none font-semibold text-muted-foreground hover:bg-[var(--accent-strong)] hover:text-foreground focus-visible:bg-[var(--accent-strong)] focus-visible:outline-none"
+                class="grid size-10 cursor-default place-items-center rounded-md p-0 text-[20px] leading-none font-semibold text-muted-foreground hover:bg-[var(--accent-strong)] hover:text-foreground focus-visible:bg-[var(--accent-strong)] focus-visible:outline-none"
                 aria-label="More emoji"
                 data-action="more-emoji"
                 onClick={() => setFull(true)}

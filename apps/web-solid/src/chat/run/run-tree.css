@@ -1,0 +1,148 @@
+/*
+ * The run tree: what an agent did for a bubble, hung under it as small muted rows on a thin line
+ * that grows down out of the bubble's bottom edge, a ├ for each row and a └ for the last, drawn in
+ * CSS. A row is a 13px label with a 12px glyph after it. The running label shines, a waiting state
+ * like the panel's (shine.css). The only other motion is the list growing open or shut when the
+ * reader toggles it, and its chevron turning. All of it is off under reduced motion.
+ */
+
+.run-tree {
+  /* The tone every label reads in, and the one the shine sweeps over. */
+  --run-text: var(--muted-foreground);
+  --run-tree-line: color-mix(in oklab, var(--secondary-label) 55%, transparent);
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  min-width: 0;
+  /* The bubble's cap. Not its 3.5rem for hover actions, which the tree has none of: under the typing
+     bubble that share of its own width would cut every label short. */
+  max-width: min(100%, 36rem);
+  /* No space above: the line starts at the bubble's bottom edge, 6px in, where its joint corner ends. */
+  margin-bottom: 4px;
+  font-size: var(--font-sm);
+  line-height: 20px;
+  /* It is focused only to pass focus on to a row. */
+  outline: none;
+}
+
+.run-tree-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 24px;
+  padding: 2px 6px 2px 18px;
+  border-radius: var(--radius-sm);
+  color: var(--run-text);
+  text-align: start;
+  cursor: default;
+  user-select: none;
+}
+/* Every row is a button: it brightens and takes a soft fill under the pointer, and a row that opens a
+   file underlines its path, so the tree reads as something to click. */
+button.run-tree-row {
+  cursor: pointer;
+}
+button.run-tree-row:hover,
+button.run-tree-row:focus-visible {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
+}
+button.run-tree-row[data-file]:hover .run-tree-label {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 35%, transparent);
+  text-underline-offset: 3px;
+}
+button.run-tree-row:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--ring) 70%, transparent);
+  outline-offset: -2px;
+}
+
+/* ├: the line runs the whole row, top edge included, and a tick reaches for the label at the middle of its 24px. */
+.run-tree-row::before,
+.run-tree-row::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  pointer-events: none;
+}
+.run-tree-row::before {
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--run-tree-line);
+}
+.run-tree-row::after {
+  top: 50%;
+  width: 8px;
+  border-top: 1px solid var(--run-tree-line);
+}
+
+/* └: the last row ends the line in a small round corner, level with the ticks above it. */
+.run-tree > .run-tree-row:last-child::before,
+.run-tree > .run-tree-fold:last-child > div > .run-tree-row:last-child::before {
+  bottom: auto;
+  width: 8px;
+  height: calc(50% + 1px);
+  border-bottom: 1px solid var(--run-tree-line);
+  border-bottom-left-radius: 5px;
+}
+.run-tree > .run-tree-row:last-child::after,
+.run-tree > .run-tree-fold:last-child > div > .run-tree-row:last-child::after {
+  content: none;
+}
+
+.run-tree-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-tree-icon {
+  flex: none;
+  color: var(--secondary-label);
+}
+.run-tree-icon[data-failed] {
+  color: var(--error);
+}
+
+.run-tree-chevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--secondary-label);
+}
+.run-tree-chevron[data-open] {
+  transform: rotate(90deg);
+}
+
+/* The rows the head opens. One grid row from 0fr to 1fr is the list's own height, with no measuring. */
+.run-tree-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+.run-tree-fold[data-shut] {
+  grid-template-rows: 0fr;
+}
+.run-tree-fold > div {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The list grows from nothing when the reader opens it, and shuts the same way. */
+  .motion-run-fold {
+    transition: grid-template-rows var(--motion-collapse) var(--motion-ease-out);
+  }
+  @starting-style {
+    .motion-run-fold[data-grow] {
+      grid-template-rows: 0fr;
+    }
+  }
+  .run-tree-chevron {
+    transition: transform var(--motion-run-chevron) var(--motion-ease-in-out);
+  }
+}

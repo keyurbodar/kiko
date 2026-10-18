@@ -1,8 +1,9 @@
+/* An icon button is a circle, drawn like button-v2: quiet ones white with a line, the contrast one solid ink on a hard lip. */
 [data-component="icon-button-v2"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: var(--radius-md, 8px);
   color: var(--foreground);
   user-select: none;
   outline: none;
@@ -10,12 +11,9 @@
   cursor: default;
 }
 
-
-
 [data-component="icon-button-v2"][data-size="small"] {
   width: 20px;
   height: 20px;
-  border-radius: 4px;
 }
 
 [data-component="icon-button-v2"][data-size="normal"] {
@@ -32,115 +30,70 @@
   color: currentColor;
 }
 
+[data-component="icon-button-v2"]:is(:disabled, [data-state="disabled"]) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 
 [data-component="icon-button-v2"][data-variant="neutral"] {
-  background-color: var(--control);
+  background-color: var(--surface);
   color: var(--foreground);
-  box-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.4);
+  box-shadow: inset 0 0 0 var(--line-w, 1.5px) var(--border);
 }
 
 [data-component="icon-button-v2"][data-variant="neutral"]:is(:hover, [data-state="hover"]):not(:disabled) {
-  background-image:
-    linear-gradient(90deg, color-mix(in oklab, var(--foreground) 6%, transparent) 0%, color-mix(in oklab, var(--foreground) 6%, transparent) 100%),
-    linear-gradient(90deg, var(--control) 0%, var(--control) 100%);
+  box-shadow: inset 0 0 0 var(--line-w, 1.5px) var(--input);
 }
 
 [data-component="icon-button-v2"][data-variant="neutral"]:is(:active, [data-state="pressed"]):not(:disabled) {
-  background-image:
-    linear-gradient(90deg, color-mix(in oklab, var(--foreground) 11%, transparent) 0%, color-mix(in oklab, var(--foreground) 11%, transparent) 100%),
-    linear-gradient(90deg, var(--control) 0%, var(--control) 100%);
-}
-
-[data-component="icon-button-v2"][data-variant="neutral"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
-  cursor: not-allowed;
+  background-image: linear-gradient(color-mix(in oklab, var(--foreground) 5%, transparent), color-mix(in oklab, var(--foreground) 5%, transparent));
 }
 
 
 [data-component="icon-button-v2"][data-variant="contrast"] {
-  background-image:
-    linear-gradient(180deg, #ffffff33 0%, #ffffff00 100%),
-    linear-gradient(90deg, var(--primary) 0%, var(--primary) 100%);
-  color: var(--background);
-  text-shadow: 0 0.5px 0.5px rgba(0, 0, 0, 0.3);
-  box-shadow: 0 0 0 0.5px oklch(0% 0 none / 0.5);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 2px 0 var(--press-edge);
 }
 
 [data-component="icon-button-v2"][data-variant="contrast"]:is(:hover, [data-state="hover"]):not(:disabled) {
-  background-image:
-    linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--background) 10%, transparent) 0%,
-      color-mix(in oklab, var(--background) 10%, transparent) 100%
-    ),
-    linear-gradient(180deg, #ffffff33 0%, #ffffff00 100%),
-    linear-gradient(90deg, var(--primary) 0%, var(--primary) 100%);
+  background-color: var(--primary-hover);
 }
 
 [data-component="icon-button-v2"][data-variant="contrast"]:is(:active, [data-state="pressed"]):not(:disabled) {
-  background-image:
-    linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--background) 18%, transparent) 0%,
-      color-mix(in oklab, var(--background) 18%, transparent) 100%
-    ),
-    linear-gradient(180deg, #ffffff33 0%, #ffffff00 100%),
-    linear-gradient(90deg, var(--primary) 0%, var(--primary) 100%);
+  box-shadow: none;
+  transform: translateY(2px);
 }
 
 [data-component="icon-button-v2"][data-variant="contrast"]:is(:disabled, [data-state="disabled"]) {
   opacity: 0.4;
-  cursor: not-allowed;
+  box-shadow: none;
 }
 
 
-[data-component="icon-button-v2"][data-variant="ghost"] {
+[data-component="icon-button-v2"]:is([data-variant="ghost"], [data-variant="ghost-muted"]) {
   background-color: transparent;
+}
+
+[data-component="icon-button-v2"][data-variant="ghost"] {
   color: var(--foreground);
 }
 
-[data-component="icon-button-v2"][data-variant="ghost"]:is(:hover, [data-state="hover"]):not(:disabled):not(
-    [data-expanded]
-  ) {
-  background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
-}
-
-[data-component="icon-button-v2"][data-variant="ghost"]:is(:active, [data-state="pressed"]):not(:disabled) {
-  background-color: color-mix(in oklab, var(--foreground) 11%, transparent);
-}
-
-[data-component="icon-button-v2"][data-variant="ghost"]:where([data-expanded]):not(:disabled) {
-  background-color: color-mix(in oklab, var(--foreground) 11%, transparent);
-}
-
-[data-component="icon-button-v2"][data-variant="ghost"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-
 [data-component="icon-button-v2"][data-variant="ghost-muted"] {
-  background-color: transparent;
   color: var(--secondary-label);
 }
 
-[data-component="icon-button-v2"][data-variant="ghost-muted"]:is(:hover, [data-state="hover"]):not(:disabled):not(
-    [data-expanded]
-  ) {
+[data-component="icon-button-v2"]:is([data-variant="ghost"], [data-variant="ghost-muted"]):is(:hover, [data-state="hover"]):not(:disabled):not([data-expanded]) {
   background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
 }
 
-[data-component="icon-button-v2"][data-variant="ghost-muted"]:is(:active, [data-state="pressed"]):not(:disabled) {
-  background-color: color-mix(in oklab, var(--foreground) 11%, transparent);
+[data-component="icon-button-v2"]:is([data-variant="ghost"], [data-variant="ghost-muted"]):is(:active, [data-state="pressed"]):not(:disabled) {
+  background-color: color-mix(in oklab, var(--foreground) 10%, transparent);
   color: var(--foreground);
 }
 
-[data-component="icon-button-v2"][data-variant="ghost-muted"]:where([data-expanded]):not(:disabled) {
-  background-color: color-mix(in oklab, var(--foreground) 11%, transparent);
+[data-component="icon-button-v2"]:is([data-variant="ghost"], [data-variant="ghost-muted"]):where([data-expanded]):not(:disabled) {
+  background-color: color-mix(in oklab, var(--foreground) 10%, transparent);
   color: var(--foreground);
-}
-
-[data-component="icon-button-v2"][data-variant="ghost-muted"]:is(:disabled, [data-state="disabled"]) {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
