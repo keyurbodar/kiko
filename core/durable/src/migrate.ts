@@ -38,3 +38,31 @@ export function dropColumn(table: string, column: string): Step {
 		if (columns.includes(column)) sql.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`)
 	}
 }
+
+/**
+ * Rebuilds a table into a new shape, keeping its rows. SQLite has no way to change a primary key, to remove
+ * AUTOINCREMENT, or to make a table WITHOUT ROWID, so the only way is to write the table again.
+ *
+ * `create` is the whole statement for the new table, which must already carry `next` as its name. `columns` is
+ * the column list both tables share. `indexes` names the indexes to drop with the old table and `recreate`
+ * writes them again against the new one. The rename happens last, so a reader in the same transaction never
+ * sees a missing table.
+ */
+export function rebuildTable(
+	table: string,
+	next: string,
+	create: string,
+	columns: readonly string[],
+	indexes: readonly string[],
+	recreate: readonly string[],
+): Step {
+	return (sql) => {
+		const list = columns.join(", ")
+		sql.exec(create)
+		sql.exec(`INSERT INTO ${next} (${list}) SELECT ${list} FROM ${table}`)
+		sql.exec(`DROP TABLE ${table}`)
+		sql.exec(`ALTER TABLE ${next} RENAME TO ${table}`)
+		for (const index of indexes) sql.exec(`DROP INDEX IF EXISTS ${index}`)
+		for (const statement of recreate) sql.exec(statement)
+	}
+}
