@@ -34,8 +34,10 @@ test("no class paints a border, ring, or shadow on focus-within or plain focus",
   expect(bad).toEqual([]);
 });
 
-test("a text field shows its ring only after a key press", () => {
-  const css = readFileSync(join(import.meta.dir, "../index.css"), "utf8");
-  expect(css).toContain(':root[data-input="keys"] :is(input, textarea, select)');
-  expect(readFileSync(join(import.meta.dir, "../settings/kit.css"), "utf8")).toContain('[data-input="keys"] .kit-field:focus-visible');
+test("a text field never shows a ring: its caret is the focus", () => {
+  for (const file of ["../index.css", "../settings/kit.css"]) {
+    const css = readFileSync(join(import.meta.dir, file), "utf8");
+    expect(css).not.toMatch(/:is\(input, textarea, select\)[^{]*:focus-visible/);
+    expect(css).not.toContain(".kit-field:focus-visible");
+  }
 });

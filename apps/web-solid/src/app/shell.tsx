@@ -162,8 +162,8 @@ export function Shell(props: ParentProps) {
   onMount(() => {
     const root = document.documentElement;
     const keys = (e: KeyboardEvent) => {
-      if (e.key === "Meta" || e.key === "Control" || e.key === "Alt" || e.key === "Shift" || e.metaKey || e.ctrlKey) return;
-      root.dataset.input = "keys";
+      // Only Tab moves focus on its own; typing in a field or pressing a shortcut is not navigation.
+      if (e.key === "Tab") root.dataset.input = "keys";
     };
     const pointer = () => delete root.dataset.input;
     window.addEventListener("keydown", keys, true);

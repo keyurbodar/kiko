@@ -10,7 +10,7 @@ import { Quote } from "./Quote"
 import { ReactionStack } from "./ReactionBadge"
 import { MessageActions } from "./MessageActions"
 import { useApp } from "../../lib/store"
-import { CHEVRON_SIZE, RunChevron } from "../run/RunChevron"
+import { RunTree } from "../run/RunTree"
 import { RichText } from "./RichText"
 const RichTree = lazy(() => import("../rich/RichText").then((m) => ({ default: m.RichText })))
 import { Collapsible } from "../Collapsible"
@@ -64,7 +64,7 @@ export function MessageRow(props: {
   // A photo carries its own height and would be cut in half by clamping, so its bubble never folds.
   const photo = () => !!props.message.rich && isPhotoTree(props.message.rich)
   // The first bubble of a run that made steps opens the run panel. A bubble the pacer holds is not in the list yet.
-  const windowKey = () => (own() ? undefined : useApp.runChevron(props.message))
+  const windowKey = () => (own() ? undefined : useApp.runWindow(props.message))
   return (
     <div
       class={cn(
@@ -101,7 +101,6 @@ export function MessageRow(props: {
         }
       >
         <BubbleContent
-          measureLines={!hasFiles() && !props.quote && !props.jumboClass}
           class={cn(
             "relative",
             "after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:content-['']",
@@ -161,17 +160,16 @@ export function MessageRow(props: {
           side={props.message.sender}
           onToggle={props.onReact}
         />
-        <Show when={windowKey()}>{(id) => <RunChevron windowKey={id()} class="absolute top-0 left-full ml-1" />}</Show>
         <Show when={props.onReact && props.onReply && props.onMore}>
           <MessageActions
             side={props.message.sender}
-            reserve={windowKey() ? CHEVRON_SIZE + 4 : 0}
             onReact={(emoji) => props.onReact!(emoji)}
             onReply={() => props.onReply!()}
             onMore={(anchor) => props.onMore!(anchor)}
           />
         </Show>
       </Bubble>
+      <Show when={windowKey()}>{(key) => <RunTree windowKey={key()} count={props.message.steps} />}</Show>
     </div>
   )
 }

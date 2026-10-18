@@ -2,17 +2,15 @@
 .composer-cards, .composer-card-choices {
   --card-active: var(--ring);
   --card-complete: var(--success);
-  --card-outline: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --card-outline: var(--border);
   --card-surface: var(--composer-fill, var(--popover));
 }
-.dark .composer-cards, .dark .composer-card-choices { --card-outline: color-mix(in srgb, white 5%, transparent); }
 .composer-cards { position:relative; margin:0 6px 6px; z-index:2; padding-top:0; }
 .composer-cards, .composer-card-choices, .task-steps { --composer-banner-icon-column:28px; }
 @media(min-width:640px) { .composer-cards, .composer-card-choices, .task-steps { --composer-banner-icon-column:24px; } }
-.composer-card-surface { container-type:inline-size; background:var(--card-surface); border:1px solid var(--card-outline); border-radius:16px; padding:4px; min-width:0; }
+.composer-card-surface { container-type:inline-size; background:var(--card-surface); border:1px solid var(--card-outline); border-radius:12px; padding:4px; min-width:0; }
 .composer-card-row { display:grid; grid-template-columns:var(--composer-banner-icon-column,24px) minmax(0,1fr) auto; align-items:center; gap:4px; min-height:var(--composer-banner-icon-column,24px); width:100%; text-align:start; font-size:12px; line-height:16px; }
 button.composer-card-row { cursor:pointer; border-radius:6px; }
-.composer-card-row:focus-visible, .composer-card-peek:focus-visible, .task-step-content:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; }
 .composer-card-icon { display:flex; justify-content:center; align-items:center; width:var(--composer-banner-icon-column,24px); color:var(--muted-foreground); }
 .composer-card-icon svg { width:12px; height:12px; }
 .composer-card-title { display:flex; align-items:center; gap:4px; min-width:0; }

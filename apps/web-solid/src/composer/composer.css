@@ -7,8 +7,9 @@
   margin-left: auto;
   padding: 0 12px 14px;
   background: var(--dock-bg);
-  --composer-edge: rgb(0 0 0 / 8%);
-  --composer-fill: color-mix(in oklab, var(--foreground) 4%, var(--background));
+  /* Unify's layering: the composer is one step lighter than the page, with a crisp hairline edge. */
+  --composer-edge: var(--border);
+  --composer-fill: color-mix(in oklab, var(--foreground) 3%, var(--background));
 }
 
 .composer-dock .composer-box {
@@ -20,12 +21,8 @@
   padding: 12px 10px 10px 16px;
   background: var(--composer-fill);
   border: 1px solid var(--composer-edge);
-  border-radius: 22px;
+  border-radius: 14px;
   box-shadow: 0 12px 28px -18px rgb(0 0 0 / 40%);
-}
-
-:root.dark .composer-dock {
-  --composer-edge: rgb(255 255 255 / 5%);
 }
 
 :root.dark .composer-dock .composer-box {
@@ -277,11 +274,6 @@
   font: inherit;
   text-align: start;
   cursor: pointer;
-}
-
-.composer-dock .reply-bar-jump:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
 }
 
 .composer-dock .reply-bar-jump::before {

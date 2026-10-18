@@ -2,7 +2,6 @@ import {
   type ComponentProps,
   type JSX,
   mergeProps,
-  onCleanup,
   splitProps,
   type ValidComponent,
 } from "solid-js"
@@ -29,8 +28,6 @@ export type BubbleProps = ComponentProps<"div"> & {
   position?: BubblePosition
 }
 
-const TAILED: ReadonlySet<BubblePosition> = new Set(["only", "last"])
-
 export function Bubble(rawProps: BubbleProps) {
   const props = mergeProps(
     {
@@ -47,7 +44,6 @@ export function Bubble(rawProps: BubbleProps) {
       data-variant={local.variant}
       data-align={local.align}
       data-position={local.position}
-      data-tail={(local.variant === "default" || local.variant === "secondary") && TAILED.has(local.position) ? "" : undefined}
       class={cn(
         "relative flex w-fit min-w-0 max-w-[min(calc(100%-3.5rem),36rem)] flex-col gap-1",
         "data-[align=end]:self-end data-[variant=ghost]:max-w-full",
@@ -76,37 +72,16 @@ const VARIANTS: Record<BubbleVariant, string> = {
 export type BubbleContentProps<T extends ValidComponent = "div"> = {
   as?: T
   class?: string | undefined
-  measureLines?: boolean
   children?: JSX.Element
-} & Omit<ComponentProps<T>, "as" | "class" | "children" | "measureLines">
-
-let observer: ResizeObserver | undefined
-
-function lineObserver(): ResizeObserver {
-  observer ??= new ResizeObserver((entries) => {
-    let line = 0
-    for (const entry of entries) {
-      const element = entry.target as HTMLElement
-      line ||= Number.parseFloat(getComputedStyle(element).lineHeight) || 20
-      if (entry.contentRect.height < line * 1.5) element.dataset.lines = "one"
-      else delete element.dataset.lines
-    }
-  })
-  return observer
-}
+} & Omit<ComponentProps<T>, "as" | "class" | "children">
 
 export function BubbleContent<T extends ValidComponent = "div">(
   rawProps: BubbleContentProps<T>,
 ) {
   const props = mergeProps({ as: "div" as T } as const, rawProps)
-  const [local, others] = splitProps(props as BubbleContentProps, ["as", "class", "measureLines"])
+  const [local, others] = splitProps(props as BubbleContentProps, ["as", "class"])
   return (
     <Dynamic
-      ref={(element: HTMLElement) => {
-        if (!local.measureLines) return
-        lineObserver().observe(element)
-        onCleanup(() => lineObserver().unobserve(element))
-      }}
       component={local.as}
       data-slot="bubble-content"
       class={cn(

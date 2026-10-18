@@ -97,7 +97,7 @@
 
 
   --bubble-pad-y: 8px;
-  --bubble-pad-x: 12px;
+  --bubble-pad-x: 14px;
 
   --row-gap: 1px;
   --run-gap: 11px;
@@ -218,38 +218,38 @@
 
 /* palette:start */
 :root {
-  --background: #0a0a0a;
-  --sidebar: #050505;
-  --foreground: #f5f5f5;
-  --muted-foreground: #818181;
-  --secondary-label: #525252;
+  --background: #171717;
+  --sidebar: #121212;
+  --foreground: #ececec;
+  --muted-foreground: #a3a3a3;
+  --secondary-label: #6b6b6b;
   --ring: #346bf1;
-  --primary: #f5f5f5;
-  --primary-hover: #e5e5e5;
-  --primary-foreground: #0a0a0a;
+  --primary: #ececec;
+  --primary-hover: #d4d4d4;
+  --primary-foreground: #171717;
   --error: #e5867a;
   --warning: #e1b866;
   --success: oklch(0.7937 0.12 150);
-  --card: color-mix(in oklab, #f5f5f5 6%, transparent);
-  --muted: color-mix(in oklab, #f5f5f5 3%, transparent);
-  --secondary: color-mix(in oklab, #f5f5f5 4%, transparent);
-  --accent: color-mix(in oklab, #f5f5f5 4%, transparent);
-  --sidebar-row-hover: color-mix(in oklab, #f5f5f5 4%, transparent);
-  --accent-strong: color-mix(in oklab, #f5f5f5 8%, transparent);
-  --sidebar-row-active: color-mix(in oklab, #f5f5f5 8%, transparent);
-  --message-assistant: color-mix(in oklab, #f5f5f5 5%, transparent);
-  --control: color-mix(in oklab, #f5f5f5 7%, transparent);
-  --control-strong: color-mix(in oklab, #f5f5f5 11%, transparent);
-  --border: color-mix(in oklab, #f5f5f5 6%, transparent);
-  --input: color-mix(in oklab, #f5f5f5 8%, transparent);
-  --scrollbar-thumb: color-mix(in oklab, #f5f5f5 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, #f5f5f5 30%, transparent);
-  --popover: color-mix(in oklab, #f5f5f5 5%, #0a0a0a);
-  --tooltip: color-mix(in oklab, #f5f5f5 14%, #0a0a0a);
-  --tooltip-foreground: #f5f5f5;
-  --message-user: color-mix(in oklab, #346bf1 20%, transparent);
-  --message-user-deep: color-mix(in oklab, #346bf1 20%, transparent);
-  --message-user-foreground: #f5f5f5;
+  --card: color-mix(in oklab, #ececec 4.5%, transparent);
+  --muted: color-mix(in oklab, #ececec 3%, transparent);
+  --secondary: color-mix(in oklab, #ececec 4%, transparent);
+  --accent: color-mix(in oklab, #ececec 4%, transparent);
+  --sidebar-row-hover: color-mix(in oklab, #ececec 4%, transparent);
+  --accent-strong: color-mix(in oklab, #ececec 8%, transparent);
+  --sidebar-row-active: color-mix(in oklab, #ececec 8%, transparent);
+  --message-assistant: color-mix(in oklab, #ececec 5%, transparent);
+  --control: color-mix(in oklab, #ececec 7%, transparent);
+  --control-strong: color-mix(in oklab, #ececec 11%, transparent);
+  --border: color-mix(in oklab, #ececec 8%, transparent);
+  --input: color-mix(in oklab, #ececec 10%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, #ececec 18%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #ececec 30%, transparent);
+  --popover: color-mix(in oklab, #ececec 5%, #171717);
+  --tooltip: color-mix(in oklab, #ececec 14%, #171717);
+  --tooltip-foreground: #ececec;
+  --message-user: color-mix(in oklab, #346bf1 10%, color-mix(in oklab, #ececec 9%, transparent));
+  --message-user-deep: color-mix(in oklab, #346bf1 10%, color-mix(in oklab, #ececec 9%, transparent));
+  --message-user-foreground: #ececec;
   --ring-wash: color-mix(in oklab, #346bf1 14%, transparent);
 }
 
@@ -266,7 +266,7 @@
   --error: #c2453a;
   --warning: #93670f;
   --success: oklch(0.52 0.12 150);
-  --card: color-mix(in oklab, #27272a 7%, transparent);
+  --card: color-mix(in oklab, #27272a 4%, transparent);
   --muted: color-mix(in oklab, #27272a 3.5%, transparent);
   --secondary: color-mix(in oklab, #27272a 4%, transparent);
   --accent: color-mix(in oklab, #27272a 4.5%, transparent);
@@ -276,15 +276,15 @@
   --message-assistant: color-mix(in oklab, #27272a 5%, transparent);
   --control: color-mix(in oklab, #27272a 6%, transparent);
   --control-strong: color-mix(in oklab, #27272a 9%, transparent);
-  --border: color-mix(in oklab, #27272a 9%, transparent);
-  --input: color-mix(in oklab, #27272a 13%, transparent);
+  --border: color-mix(in oklab, #27272a 10%, transparent);
+  --input: color-mix(in oklab, #27272a 14%, transparent);
   --scrollbar-thumb: color-mix(in oklab, #27272a 18%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #27272a 30%, transparent);
   --popover: color-mix(in oklab, #ffffff 55%, #fcfcfc);
   --tooltip: #27272a;
   --tooltip-foreground: #fcfcfc;
-  --message-user: color-mix(in oklab, #1b4ed8 15%, transparent);
-  --message-user-deep: color-mix(in oklab, #1b4ed8 15%, transparent);
+  --message-user: color-mix(in oklab, #1b4ed8 8%, color-mix(in oklab, #27272a 6%, transparent));
+  --message-user-deep: color-mix(in oklab, #1b4ed8 8%, color-mix(in oklab, #27272a 6%, transparent));
   --message-user-foreground: #27272a;
   --ring-wash: color-mix(in oklab, #1b4ed8 11%, transparent);
 }
@@ -426,7 +426,7 @@
   --radius-md: 8px;
   --radius-lg: 10px;
   --radius-xl: 14px;
-  --radius-bubble: 16px;
+  --radius-bubble: 10px;
   --radius-pill: 999px;
 }
 
@@ -698,7 +698,8 @@
   }
 
 
-  :focus-visible:not(
+  /* Only Tab navigation draws a ring, and only on controls: a text field already shows its caret. */
+  :root[data-input="keys"] :focus-visible:not(
       input,
       textarea,
       select,
@@ -709,19 +710,8 @@
       [role="alertdialog"],
       [role="tooltip"]
     ) {
-    outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
-    outline-offset: -2px;
-  }
-
-  /* A pointer never lights a text field. Tabbing into one does. */
-  :root[data-input="keys"] :is(input, textarea, select):not(.kit-field, :is(.kt-field, .chat-search-field, .settings-search) input):focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
-    outline-offset: -2px;
-  }
-
-  :root[data-input="keys"] :is(.kt-field, .chat-search-field, .settings-search):has(input:focus-visible) {
-    outline: 2px solid color-mix(in oklab, var(--ring) 55%, transparent);
-    outline-offset: -2px;
+    outline: 1px solid color-mix(in oklab, var(--foreground) 35%, transparent);
+    outline-offset: -1px;
   }
 
   [data-no-focus-ring]:focus-visible {

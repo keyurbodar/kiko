@@ -31,14 +31,14 @@ export const PALETTES: Record<ThemeAppearance, Palette> = {
     gold: "#93670f",
   },
   dark: {
-    canvas: "#0a0a0a",
-    sidebar: "#050505",
-    text: "#f5f5f5",
-    muted: "#818181",
-    faint: "#525252",
-    action: "#f5f5f5",
-    actionHover: "#e5e5e5",
-    onAction: "#0a0a0a",
+    canvas: "#171717",
+    sidebar: "#121212",
+    text: "#ececec",
+    muted: "#a3a3a3",
+    faint: "#6b6b6b",
+    action: "#ececec",
+    actionHover: "#d4d4d4",
+    onAction: "#171717",
     danger: "#e5867a",
     gold: "#e1b866",
   },
@@ -60,7 +60,7 @@ export const DEFAULT_ACCENT: AccentId = "azure"
 export const isAccentId = (v: unknown): v is AccentId => typeof v === "string" && v in ACCENTS
 
 export const NEUTRALS: ReadonlyArray<readonly [token: string, dark: number, light: number]> = [
-  ["--card", 6, 7],
+  ["--card", 4.5, 4],
   ["--muted", 3, 3.5],
   ["--secondary", 4, 4],
   ["--accent", 4, 4.5],
@@ -70,8 +70,8 @@ export const NEUTRALS: ReadonlyArray<readonly [token: string, dark: number, ligh
   ["--message-assistant", 5, 5],
   ["--control", 7, 6],
   ["--control-strong", 11, 9],
-  ["--border", 6, 9],
-  ["--input", 8, 13],
+  ["--border", 8, 10],
+  ["--input", 10, 14],
   ["--scrollbar-thumb", 18, 18],
   ["--scrollbar-thumb-hover", 30, 30],
 ]
@@ -100,7 +100,8 @@ export function tokensFor(mode: ThemeAppearance, accentId: AccentId = DEFAULT_AC
   vars["--popover"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 5%, ${p.canvas})` : `color-mix(in oklab, #ffffff 55%, ${p.canvas})`
   vars["--tooltip"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 14%, ${p.canvas})` : p.text
   vars["--tooltip-foreground"] = mode === "dark" ? p.text : p.canvas
-  vars["--message-user"] = `color-mix(in oklab, ${accent} ${mode === "dark" ? 20 : 15}%, transparent)`
+  // Unify's layering: the human's bubble is a lifted neutral with only a hint of the accent.
+  vars["--message-user"] = `color-mix(in oklab, ${accent} ${mode === "dark" ? 10 : 8}%, ${ink(mode === "dark" ? 9 : 6)})`
   vars["--message-user-deep"] = vars["--message-user"]!
   vars["--message-user-foreground"] = p.text
   vars["--ring-wash"] = `color-mix(in oklab, ${accent} ${mode === "dark" ? 14 : 11}%, transparent)`

@@ -1,5 +1,5 @@
 import type { RunStep } from "@kiko/protocol"
-import { type Glyph, RemixIcon } from "@kiko/ui/remix-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import * as glyphs from "@kiko/ui/icons"
 import { PopoverV2 } from "@kiko/ui/v2/popover-v2-impl"
 import { createEffect, createMemo, createSignal, on, onCleanup, Show, untrack } from "solid-js"
@@ -20,58 +20,19 @@ import {
   type Placement,
   placementOf,
   startOf,
-  type StepIcon,
   summarizeSteps,
   totalDuration,
 } from "./run-log"
-import { closeRun, openRun, runAnchor } from "./run-panel-state"
+import { GLYPH } from "./glyphs"
+import { closeRun, openRun, runAnchor, runOpener } from "./run-panel-state"
 import "./run-panel.css"
 
 /*
  * The run panel: every tool call of one run, in a floating card. Rows are t3code's work log rows
  * (an icon, a label, a small chevron), each closed until clicked. The list is virtualized, so a run
  * of hundreds of steps costs what fits on screen, and its card never grows past its maximum size.
- * It opens only from a chevron, and it follows whichever chevron of its run is on screen.
+ * It opens only from a row of a run tree, and it follows whichever tree of its run is on screen.
  */
-
-const GLYPH: Record<StepIcon, Glyph> = {
-  "file-view": glyphs.FileViewIcon,
-  folder: glyphs.FolderIcon,
-  "file-add": glyphs.FileAddIcon,
-  edit: glyphs.EditIcon,
-  copy: glyphs.CopyIcon,
-  trash: glyphs.TrashIcon,
-  "folder-add": glyphs.FolderAddIcon,
-  move: glyphs.MoveIcon,
-  terminal: glyphs.TerminalIcon,
-  link: glyphs.LinkIcon,
-  globe: glyphs.GlobeIcon,
-  search: glyphs.SearchIcon,
-  cursor: glyphs.CursorIcon,
-  eye: glyphs.EyeIcon,
-  code: glyphs.CodeIcon,
-  "file-text": glyphs.FileTextIcon,
-  browser: glyphs.BrowserIcon,
-  monitor: glyphs.MonitorIcon,
-  chat: glyphs.ChatIcon,
-  help: glyphs.HelpIcon,
-  memory: glyphs.MemoryIcon,
-  notes: glyphs.NotesIcon,
-  book: glyphs.BookIcon,
-  clock: glyphs.ClockIcon,
-  tasks: glyphs.TasksIcon,
-  group: glyphs.GroupIcon,
-  integrations: glyphs.IntegrationsIcon,
-  sparkles: glyphs.SparklesIcon,
-  scan: glyphs.ScanIcon,
-  worker: glyphs.WorkerIcon,
-  stop: glyphs.StopIcon,
-  send: glyphs.SendIcon,
-  skills: glyphs.SkillsIcon,
-  wrench: glyphs.WrenchIcon,
-  "alert-circle": glyphs.AlertCircleIcon,
-  app: glyphs.IntegrationsIcon,
-}
 
 /** The height a closed row has, which the list assumes for rows it has not measured. */
 const ROW_HEIGHT = 32
@@ -250,7 +211,7 @@ function Header(props: { steps: readonly RunStep[]; live: boolean }) {
 
 let focusRun: string | undefined
 const runAnchorFocus = () => {
-  if (focusRun) runAnchor(focusRun)?.focus({ preventScroll: true })
+  if (focusRun) (runOpener() ?? runAnchor(focusRun))?.focus({ preventScroll: true })
 }
 
 const AT_END = 4
@@ -372,7 +333,7 @@ export default function RunPanel() {
     return run !== null && runAnchor(run) !== undefined
   }
 
-  // A panel whose chevron is gone for good (its row left the list) closes instead of hanging unseen.
+  // A panel whose tree is gone for good (its row left the list) closes instead of hanging unseen.
   createEffect(() => {
     const run = openRun()
     if (run === null || runAnchor(run)) return
@@ -417,8 +378,8 @@ export default function RunPanel() {
           onCloseAutoFocus={(event) => event.preventDefault()}
           onEscapeKeyDown={() => queueMicrotask(runAnchorFocus)}
           onInteractOutside={(event) => {
-            // The chevron toggles the panel itself, so a press on it is not an outside press.
-            if ((event.target as Element | null)?.closest?.('[data-component="run-chevron"]')) event.preventDefault()
+            // A tree's rows toggle the panel themselves, so a press on a tree is not an outside press.
+            if ((event.target as Element | null)?.closest?.('[data-component="run-tree"]')) event.preventDefault()
           }}
         >
           <Show when={shown()} keyed>

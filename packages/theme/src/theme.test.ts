@@ -66,7 +66,7 @@ describe("the palette", () => {
   })
 
   test("contrast scales every neutral", () => {
-    expect(tokensFor("dark", "blush", 150)["--border"]).toBe(`color-mix(in oklab, ${PALETTES.dark.text} 9%, transparent)`)
+    expect(tokensFor("dark", "blush", 150)["--border"]).toBe(`color-mix(in oklab, ${PALETTES.dark.text} 12%, transparent)`)
   })
 })
 
