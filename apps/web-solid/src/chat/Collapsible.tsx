@@ -60,22 +60,38 @@ export function Collapsible(props: {
   let root: HTMLDivElement | undefined
   let inner: HTMLDivElement | undefined
   let button: HTMLButtonElement | undefined
+  let frame = 0
 
   const measure = () => {
     if (!inner) return
     setOverflowing(shouldFold(inner.offsetHeight, limit(), props.fixed))
   }
+  /**
+   * The observer fires while the browser is still delivering layout. Writing the signal there
+   * changes a row's height, which the virtualizer answers with another layout, and the browser
+   * reports the loop. One frame later the write is outside the observer's own pass.
+   */
+  const scheduleMeasure = () => {
+    if (frame) return
+    frame = requestAnimationFrame(() => {
+      frame = 0
+      measure()
+    })
+  }
   onMount(() => {
     measure()
     if (!inner) return
-    makeResizeObserver(measure).observe(inner)
+    makeResizeObserver(scheduleMeasure).observe(inner)
     // A window resize changes the limit, and a body that fitted a tall window may not fit a short one.
     const onResize = () => {
       setLimit(currentLimit())
-      measure()
+      scheduleMeasure()
     }
     window.addEventListener("resize", onResize)
-    onCleanup(() => window.removeEventListener("resize", onResize))
+    onCleanup(() => {
+      window.removeEventListener("resize", onResize)
+      cancelAnimationFrame(frame)
+    })
   })
 
   const clamped = () => overflowing() && !isExpanded(props.messageId)
