@@ -284,6 +284,12 @@ export type RoomState = RoomData & {
 	roomId: RoomId
 	/** False until the warm tier has painted. */
 	loaded: boolean
+	/**
+	 * False until the stored state, including the read marker, has been applied. A window seeded from
+	 * an earlier visit paints with `loaded` true before this, so anything that reads the marker (the
+	 * unread divider) waits for `booted`.
+	 */
+	booted: boolean
 	connection: SocketStatus
 	patches: RoomPatch[]
 	/** Not stored. Cleared when the socket drops. */
@@ -312,8 +318,15 @@ export type RoomStoreOptions = {
 	url: string
 	connect?: Connect
 	backoff?: Backoff
+	/**
+	 * A window this client already had in memory, from an earlier visit. It paints on the first
+	 * frame, before IndexedDB answers, and the socket's replay covers everything after its `seq`.
+	 */
+	seed?: RoomSeed
 	/** Something the human must know about, from the server. */
 	onError?: (error: KikoError) => void
+	/** The warm tier could not be read. The room still opens and the socket's replay fills it. */
+	onBootFailed?: (error: unknown) => void
 	/** Runs the next slice of work. Defaults to a macrotask. */
 	schedule?: (run: () => void) => void
 	/** Longest slice of event work. Defaults to 3 ms, which leaves room for the slice's warm writes in an 8 ms frame. */
@@ -325,12 +338,19 @@ export type RoomStoreOptions = {
 	ttlMs?: number
 }
 
+/** A whole room as this client last painted it, for an instant re-open. */
+export type RoomSeed = Pick<RoomData, "messages" | "seq" | "readSeq" | "members" | "tasks" | "files" | "folders" | "asks">
+
 export type SearchPage = { results: readonly SearchHit[]; next: number | null }
 
 /** How long a question to the room (search, history) waits for its answer. */
 const ASK_TIMEOUT_MS = 8000
 /** Messages on each side of a jump target, and in each page past what the disk holds. */
 export const HISTORY_PAGE = 30
+/** `loadOlder` answered: the room has nothing older than the window. */
+export const NO_MORE = 0
+/** `loadOlder` did not get an answer (the socket was down, or the window moved under it). Not the end. */
+export const NO_ANSWER = -1
 /** The composer's `typing` frames are spaced at least this far apart. */
 export const TYPING_EVERY_MS = 2000
 
@@ -400,7 +420,8 @@ export type RoomStore = {
 	live(): void
 	/**
 	 * Prepends up to `limit` older messages, from IndexedDB and then from the room once the disk has
-	 * none, and stops cutting the window. Resolves to how many.
+	 * none, and stops cutting the window. Resolves to how many, or `NO_MORE` at the start of the
+	 * history, or `NO_ANSWER` when the room did not answer.
 	 */
 	loadOlder(limit?: number): Promise<number>
 	/**
@@ -409,6 +430,8 @@ export type RoomStore = {
 	 * messages in, and join the live window once they reach it.
 	 */
 	follow(): void
+	/** The reader scrolled away from the end: keep the window as it is until they return. */
+	hold(): void
 	/** Resolves when every queued event is applied. */
 	settled(): Promise<void>
 	close(): void
@@ -438,6 +461,13 @@ export function defaultSchedule(run: () => void) {
 	channel.port2.postMessage(null)
 }
 
+/** Runs work when the browser is idle, or soon, so it never competes with a frame the human waits on. */
+function idle(run: () => void) {
+	const ric = (globalThis as { requestIdleCallback?: (cb: () => void, opts: { timeout: number }) => number }).requestIdleCallback
+	if (ric) ric(run, { timeout: 2000 })
+	else setTimeout(run, 0)
+}
+
 export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	const taskRefusalListeners = new Set<(reason: string) => void>()
 	const { roomId, warm } = options
@@ -448,9 +478,11 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	const ttl = options.ttlMs ?? PATCH_TTL_MS
 
 	const [state, setState] = createStore<RoomState>({
-		...emptyRoom(),
+		...(options.seed ? { ...emptyRoom(), ...options.seed } : emptyRoom()),
 		roomId,
-		loaded: false,
+		// A seeded window is a paint already: the first frame shows it, and boot only fills the rest.
+		loaded: options.seed !== undefined,
+		booted: false,
 		connection: "closed",
 		patches: [],
 		typing: [],
@@ -502,8 +534,11 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		if (expiry !== undefined) return
 		expiry = setTimeout(() => {
 			expiry = undefined
+			// A patch may only expire after it went out on a socket that was up: the clock measures the
+			// server's silence, not how long this client was offline.
+			if (state.connection !== "open") return armExpiry()
 			setPatches((list) => expire(list, now(), ttl))
-			if (state.patches.some((p) => p.sentAt !== undefined && p.frame.t !== "send")) armExpiry()
+			if (state.patches.some((p) => p.sentAt !== undefined && p.frame.t !== "send" && p.frame.t !== "read")) armExpiry()
 		}, ttl)
 	}
 
@@ -621,10 +656,16 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 
 	function enqueue(events: readonly RoomEvent[]) {
 		if (events.length === 0) return
-		const tail = queue[queue.length - 1]
 		queue.push(...events)
-		if (tail && events[0].seq < tail.seq) queue.sort((a, b) => a.seq - b.seq)
-		else if (!tail && events.some((e, i) => i > 0 && e.seq < events[i - 1].seq)) queue.sort((a, b) => a.seq - b.seq)
+		// Frames arrive in order, but a batch that is not sorted is not safe to append: `applyRoomEvent`
+		// skips anything at or below `seq`, so one low event would be lost for good. Sorting is cheap
+		// because the queue is short.
+		for (let i = 1; i < queue.length; i++) {
+			if (queue[i].seq < queue[i - 1].seq) {
+				queue.sort((a, b) => a.seq - b.seq)
+				break
+			}
+		}
 		kick()
 	}
 
@@ -678,15 +719,24 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		queue = queue.filter((e) => e.seq > snapshot.seq)
 		const data = fromSnapshot(snapshot)
 		following = true
+		// The window on screen may hold rows the snapshot also holds. Replacing them with fresh
+		// objects makes every row rebuild and the scroll jump, so a snapshot that continues what is
+		// shown is merged by seq instead. A snapshot that does not touch the window is a real reset.
+		const held = raw(state.messages)
+		const first = snapshot.messages[0]?.seq
+		const last = held.at(-1)?.seq
+		const overlap = held.length > 0 && first !== undefined && last !== undefined && first <= last + 1
+		const messages = overlap ? mergeBySeq(held, snapshot.messages) : data.messages
 		batch(() => {
-			setState({ ...data, history: null })
+			setState({ ...data, messages, history: null })
 			dropPatches(settleRoom(state.patches, [], snapshot.seq))
 			trimWindow(true)
 		})
 		// The snapshot's steps are those no message opens yet, so their agents are mid-run.
 		takeSteps(snapshot.steps ?? [], true)
 		clearRoom(warm, roomId)
-		putMessages(warm, roomId, data.messages)
+		// The disk keeps the merged window, so a reset does not throw away the older rows it still held.
+		putMessages(warm, roomId, messages)
 		writeMeta()
 		setLastSeq(warm, roomId, snapshot.seq)
 		kick()
@@ -761,7 +811,12 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 
 	function onStatus(connection: SocketStatus) {
 		setState("connection", connection)
-		if (connection !== "open") setState({ typing: [], status: {}, agents: [], live: {}, fetching: {} })
+		if (connection !== "open") {
+			// Presence and step requests belong to the socket that carried them. The windows asked for
+			// are forgotten too, so the reconnect asks again instead of waiting for an answer that died.
+			setState({ typing: [], status: {}, agents: [], live: {}, fetching: {}, doing: {} })
+			fetchedWindows.clear()
+		}
 	}
 
 	// Boot.
@@ -779,18 +834,26 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		batch(() => {
 			setState(
 				produce((s) => {
-					if (seq > 0) {
+					// A seeded window is newer than the disk's paint by construction, so it keeps the screen.
+					// The disk only wins when it holds messages the seed does not (another tab wrote them).
+					const disk = seq > 0 && (!s.loaded || seq > s.seq)
+					if (disk) {
 						// The socket opens after this, so nothing live has landed yet.
 						s.messages = messages
-						s.readSeq = meta?.readSeq ?? 0
-						s.members = [...(meta?.members ?? [])]
-						s.tasks = [...(meta?.tasks ?? [])]
-						s.asks = [...(meta?.asks ?? [])]
-						s.files = [...(meta?.files ?? [])]
-						s.folders = [...(meta?.folders ?? [])]
 						s.seq = seq
 					}
+					// The room's small state is never windowed, so the disk is authoritative for it even
+					// when a seeded window keeps the messages. This is the marker the chat opened with.
+					if (meta) {
+						s.readSeq = Math.max(s.readSeq, meta.readSeq)
+						s.members = [...meta.members]
+						s.tasks = [...meta.tasks]
+						s.asks = [...meta.asks]
+						s.files = [...meta.files]
+						s.folders = [...meta.folders]
+					}
 					s.loaded = true
+					s.booted = true
 					const have = new Set(s.patches.map((p) => p.clientId))
 					const restored = pending
 						.filter((i) => !have.has(i.frame.clientId))
@@ -800,6 +863,22 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			)
 		})
 		if (!suspended) openSocket()
+	}
+
+	/**
+	 * A failed read must not cost the room its socket: the chat still opens, empty, and the replay
+	 * fills it. Without this a rejected `Promise.all` left `loaded` false and no socket at all, so
+	 * the chat sat still until a page refresh.
+	 */
+	async function bootSafely(): Promise<void> {
+		try {
+			await boot()
+		} catch (error) {
+			if (closed) return
+			options.onBootFailed?.(error)
+			setState({ loaded: true, booted: true })
+			if (!suspended) openSocket()
+		}
 	}
 
 	function openSocket() {
@@ -814,7 +893,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		})
 	}
 
-	const ready = boot()
+	const ready = bootSafely()
 
 	/** Pages newer messages into a jumped-to window, and joins the live window once they reach it. */
 	async function loadNewer() {
@@ -880,6 +959,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		remove: (messageId) => void act({ t: "delete", messageId }),
 		markRead(seq) {
 			if (seq <= overlayReadSeq(state.readSeq, state.patches)) return
+			// One read patch at a time: a newer mark supersedes the older one, which the room has no
+			// event to confirm. Keeping them all would leave a pile of marks nothing ever settles.
+			setPatches((list) => list.filter((p) => p.frame.t !== "read"))
 			act({ t: "read", seq })
 		},
 		typing() {
@@ -961,15 +1043,20 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			const oldest = shown[0]?.seq ?? state.seq + 1
 			// The disk is one contiguous run that ends at the live end, so it only continues the live window.
 			const older = state.history ? [] : await messagesBefore(warm, roomId, oldest, limit)
-			if (closed) return 0
+			if (closed) return NO_MORE
 			if (older.length) {
 				following = false
 				setState("messages", (m) => [...older.filter((o) => o.seq < (m[0]?.seq ?? Infinity)), ...m])
 				return older.length
 			}
-			if (oldest <= 1) return 0
-			const page = (await history(oldest, Math.min(limit, HISTORY_PAGE * 2), 0)) ?? []
-			if (closed || !page.length || (state.history ?? state.messages)[0]?.seq !== oldest) return 0
+			if (oldest <= 1) return NO_MORE
+			const answer = await history(oldest, Math.min(limit, HISTORY_PAGE * 2), 0)
+			if (closed) return NO_MORE
+			// A question the room never answered is not the end of its history, so it must not latch.
+			if (answer === null) return NO_ANSWER
+			const page = answer
+			if (!page.length) return NO_MORE
+			if ((state.history ?? state.messages)[0]?.seq !== oldest) return NO_ANSWER
 			following = false
 			if (state.history) setState("history", (h) => mergeBySeq(page, h ?? []))
 			else setState("messages", (m) => mergeBySeq(page, m))
@@ -983,6 +1070,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			following = true
 			trimWindow(true)
 		},
+		hold() {
+			following = false
+		},
 		settled() {
 			if (queue.length === 0 && !draining) return Promise.resolve()
 			return new Promise((resolve) => waiters.push(resolve))
@@ -990,8 +1080,10 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		close() {
 			closed = true
 			for (const p of raw(state.patches)) freeLocal(p.local)
-			// The disk keeps a long history, not every message the room ever had.
-			dropBefore(warm, roomId, state.seq - KEEP_ON_DISK)
+			// The disk keeps a long history, not every message the room ever had. The trim is a write, and
+			// a write lands in the same transaction as the next chat's first read, so it waits for idle.
+			const trimTo = state.seq - KEEP_ON_DISK
+			idle(() => dropBefore(warm, roomId, trimTo))
 			for (const waiting of asked.values()) for (const done of waiting) done(null)
 			asked.clear()
 			for (const w of openWaiters) w()

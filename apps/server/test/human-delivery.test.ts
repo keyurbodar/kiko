@@ -212,7 +212,7 @@ test("the agent's envelope names the workspace files the human dragged into the 
   const text = "compare [a.ts](/src/a.ts) with [Plan (v2).md](</notes/Plan (v2).md>) and [site](https://x.com/a) and [a.ts](/src/a.ts)"
   const stored = log.addMessage({ from: { kind: "human" }, text, clientId: "c2" })
   const envelope: Envelope = { id: `human:${stored.id}`, roomId: ROOM as never, from: { kind: "human" }, body: text, hop: 0, rootId: stored.id, seq: stored.seq }
-  expect(withContext(log, envelope).body).toContain("(referenced: /src/a.ts, /notes/Plan (v2).md. open each with read before you answer about it.)")
+  expect(withContext(log, envelope).body).toContain("(referenced: /src/a.ts, /notes/Plan (v2).md. open a file with read, or list a folder with ls, before you answer about it.)")
 })
 
 test("an upload the message carries is attached, not referenced", () => {

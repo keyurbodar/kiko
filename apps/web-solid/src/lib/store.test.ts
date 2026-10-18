@@ -289,6 +289,19 @@ describe("useApp over the mock room", () => {
     app.stop()
   })
 
+  test("a chat opened again paints from memory before the disk answers", async () => {
+    const { app } = await boot()
+    await until(() => app.activeMessages().length > 0)
+    app.selectThread("other-room")
+    await until(() => app.room()?.state.roomId === "other-room")
+    app.selectThread(fixtures.roomId)
+    // No awaiting: the window kept from the first visit is the first paint, not a blank one.
+    expect(app.room()?.state.loaded).toBe(true)
+    expect(app.activeMessages().length).toBeGreaterThan(0)
+    await until(() => app.room()?.state.booted === true)
+    app.stop()
+  })
+
   test("pinning a chat applies at once", async () => {
     const { app, user } = await boot()
     expect(app.bots()[0].pinned).toBe(true)

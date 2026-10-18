@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { withMade } from "../files/api"
-import { closeChat, deleteChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
+import { askDeleteChat, closeChat, reopenClosedChat, sidebarOrder, startRename, togglePin } from "../sidebar/actions"
 import { signOut } from "../app/session"
 import { toggleCard } from "../chat/side/card-state"
 import { fixedSurface, openFile, openSurface, toggleSidecar } from "../chat/side/surfaces"
@@ -140,7 +140,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
       },
       deleteChat: () => {
         const id = activeId()
-        if (id && !useApp.chat(id)?.kiko) deleteChat(id, id, navigate)
+        if (id && !useApp.chat(id)?.kiko) askDeleteChat(id)
       },
     }),
   )

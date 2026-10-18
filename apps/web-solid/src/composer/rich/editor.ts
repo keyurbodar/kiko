@@ -136,6 +136,12 @@ function taskInputRule(type: NodeType): InputRule {
 
 const MARKER: Record<string, string> = { bold: "**", italic: "_", strike: "~~", code: "`" }
 
+/**
+ * A paste longer than this goes in as plain text. Markdown parsing is synchronous on the main
+ * thread, and the box re-serializes its whole document on every keystroke after a paste.
+ */
+export const PLAIN_PASTE_CHARS = 20_000
+
 /** Each run of one mark inside a text block, as document positions. */
 function styledRanges(doc: PMNode): { from: number; to: number; text: string }[] {
   const ranges: { from: number; to: number; text: string }[] = []
@@ -346,7 +352,12 @@ export function mountRichEditor(options: RichOptions) {
         if (!text) return true
         event.preventDefault()
         const { state } = view
-        const slice = state.selection.$from.parent.type.spec.code
+        const code = state.selection.$from.parent.type.spec.code
+        // A pasted log or document is parsed as markdown on the main thread, and every later
+        // keystroke re-serializes the whole box. Past a screenful of text that costs frames the
+        // person feels, so it goes in as plain text: a paste that large is data, not formatting.
+        const plain = !code && text.length > PLAIN_PASTE_CHARS
+        const slice = code || plain
           ? sliceOf(state, text)
           : markdownSlice(state.schema, text, { isMention: options.isMention })
         view.dispatch(state.tr.replaceSelection(slice).scrollIntoView().setMeta("uiEvent", "paste"))
@@ -432,9 +443,10 @@ export function mountRichEditor(options: RichOptions) {
     insertAttachments(items: readonly { id: string; name: string }[], at?: Point) {
       insertChips(items.map((item) => ({ type: "attachment", attrs: item })), at)
     },
-    /** Puts a chip per workspace file where `at` points on screen, or at the caret. */
+    /** Puts a chip per workspace file or folder where `at` points on screen, or at the caret. */
     insertFileRefs(paths: readonly string[], at?: Point) {
-      insertChips(paths.map((path) => ({ type: "fileRef", attrs: { path } })), at)
+      // A folder arrives with a trailing slash, which is the only sign it is one.
+      insertChips(paths.map((path) => ({ type: "fileRef", attrs: { path: path.replace(/\/+$/, ""), ...(path.endsWith("/") ? { folder: true } : {}) } })), at)
     },
     /** Takes every chip of attachment `id` out of the text. */
     removeAttachment(id: string) {

@@ -112,7 +112,7 @@ export function createPromptInputV2Controller(input: {
         chip: (items, at) => rich?.insertAttachments(items, at),
         fileRef: (paths, at) => {
           if (rich) rich.insertFileRefs(paths, at)
-          else for (const path of paths) addPart({ type: "text", content: `${fileRefToken(path)} `, start: 0, end: 0 })
+          else for (const path of paths) addPart({ type: "text", content: `${fileRefToken(path, path.endsWith("/"))} `, start: 0, end: 0 })
         },
         hasText: () => draft.state.prompt.some((part) => part.type === "text" && part.content.trim() !== ""),
         setDragging: (dragging) => {

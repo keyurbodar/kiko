@@ -143,7 +143,7 @@ function sameMark(head: Json, node: Json, mark: string): boolean {
 function leaf(node: Json): string {
   if (node.type === "hardBreak") return "\n"
   if (node.type === "mention") return `@${String(node.attrs?.slug ?? "")}`
-  if (node.type === "fileRef") return fileRefToken(String(node.attrs?.path ?? ""))
+  if (node.type === "fileRef") return fileRefToken(String(node.attrs?.path ?? ""), Boolean(node.attrs?.folder))
   if (node.type === "attachment") return attachmentToken(String(node.attrs?.id ?? ""), String(node.attrs?.name ?? ""))
   if (node.type === "text") return node.text ?? ""
   return ""
@@ -337,8 +337,9 @@ function inlines(text: string, options: ParseOptions, marks: Mark[]): Json[] {
     const ref = /^\[([^\]\n]*)\]\((?:<(\/[^>\n]+)>|(\/[^)\s<>]+))\)/.exec(rest)
     if (ref && !(ref[2] ?? ref[3])!.startsWith("//")) {
       flush()
-      const path = (ref[2] ?? ref[3])!.replace(/^\/+/, "")
-      out.push({ type: "fileRef", attrs: { path } })
+      const raw = (ref[2] ?? ref[3])!.replace(/^\/+/, "")
+      const folder = raw.endsWith("/")
+      out.push({ type: "fileRef", attrs: { path: raw.replace(/\/+$/, ""), ...(folder ? { folder: true } : {}) } })
       at += ref[0].length
       continue
     }

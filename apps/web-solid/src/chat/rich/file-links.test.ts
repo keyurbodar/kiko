@@ -11,6 +11,9 @@ describe("inline code that names a file", () => {
     ["src/app.ts:42:7", { path: "src/app.ts", line: 42, column: 7 }],
     ["notes.md:3", { path: "notes.md", line: 3 }],
     ["/scripts/run", { path: "scripts/run" }],
+    // A trailing slash is how a folder is written, so it needs no extension.
+    ["src/lib/", { path: "src/lib" }],
+    ["/home/recipes/", { path: "home/recipes" }],
     ["data.pl:3", { path: "data.pl", line: 3 }],
     // No slash and no line: an identifier, not a path.
     ["notes.md", null],
@@ -42,6 +45,9 @@ describe("a link href that names a file", () => {
     ["Gemfile", { path: "Gemfile" }],
     ["notes/todo", { path: "notes/todo" }],
     ["/chat/settings", null],
+    // A folder link: the form the app's own file chips write, and the one an agent is told to use.
+    ["/src/", { path: "src" }],
+    ["/home/recipes/", { path: "home/recipes" }],
     ["/etc", null],
     ["https://example.com/a.md", null],
     ["mailto:a@b.co", null],
@@ -113,6 +119,16 @@ describe("finding a named file in the chat", () => {
 
   test("a bare name opens its one match in a folder", () => {
     expect(resolveFile("todo.md", ["work/todo.md"])).toEqual({ kind: "file", path: "work/todo.md" })
+  })
+
+  test("a folder resolves to the folder, not to a file that merely ends the same way", () => {
+    const files = ["src/app.ts", "docs/guide.md"]
+    // A path with anything below it is a folder, the rule the server's index uses.
+    expect(resolveFile("src", files)).toEqual({ kind: "folder", path: "src" })
+    expect(resolveFile("docs", files, ["docs"])).toEqual({ kind: "folder", path: "docs" })
+    // An empty folder is only a folder when the room says so.
+    expect(resolveFile("empty", files)).toEqual({ kind: "none" })
+    expect(resolveFile("empty", files, ["empty"])).toEqual({ kind: "folder", path: "empty" })
   })
 })
 

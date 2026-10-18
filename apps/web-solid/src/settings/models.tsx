@@ -37,7 +37,17 @@ export const POPULAR: readonly { id: string; note: string }[] = [
 type Pick = { kind: "all" } | { kind: "provider"; id: string }
 
 export function ModelsPage() {
-  const [catalog] = createResource(loadCatalog)
+  // The catalog is a Providers-tab dependency: the Agents tab reads agent models, not the provider
+  // list. Asking for it on mount made every visit to Models download it even when it was never shown.
+  const [wantsCatalog, setWantsCatalog] = createSignal(false)
+  createEffect(() => {
+    if (modelsTab() === "providers") setWantsCatalog(true)
+  })
+  const [catalog] = createResource(wantsCatalog, () => loadCatalog())
+  // A deep link straight to a provider (a failed connection's "Reconnect") needs the catalog too.
+  createEffect(() => {
+    if (reconnectTarget()) setWantsCatalog(true)
+  })
   const saved = (id: string) => connectedProviders().find((p) => p.provider === id)
   const status = (id: string) => {
     const info = saved(id)
@@ -127,7 +137,7 @@ export function ModelsPage() {
         fallback={
           <Group title="Connect a provider" data-component="provider-add" bare action={<Button variant="ghost" data-action="view-all-providers" onClick={() => setBrowsing(true)}>All providers</Button>}>
             <div class="grid grid-cols-1 gap-2 @min-[560px]/settings:grid-cols-2">
-              <Show when={connectedReady() && !catalog.loading} fallback={<ProviderSkeletons />}>
+              <Show when={connectedReady() && !!catalog()} fallback={<ProviderSkeletons />}>
               <For each={popular()} fallback={<Hint>No providers found.</Hint>}>
                 {({ provider, note }) => (
                   <button

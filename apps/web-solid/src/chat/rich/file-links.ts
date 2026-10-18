@@ -79,7 +79,8 @@ function target(path: string, hash = ""): FileTarget | null {
 
 /**
  * Inline code that is a path: it needs a slash or a `:line` suffix, is not a hostname or a
- * version, and has an extension unless it starts with `/`, `./` or `../`.
+ * version, and has an extension unless it starts with `/`, `./` or `../`, or ends with a slash,
+ * which is how a folder is written.
  */
 export function inlineCodeFile(code: string): FileTarget | null {
   const text = code.trim()
@@ -88,7 +89,8 @@ export function inlineCodeFile(code: string): FileTarget | null {
   if (URL_PREFIX.test(text)) return null
   const hasPosition = POSITION.test(text)
   if (!hasPosition && !text.includes("/")) return null
-  if (!RELATIVE_PREFIX.test(text) && !text.startsWith("/")) {
+  const folder = text.endsWith("/")
+  if (!folder && !RELATIVE_PREFIX.test(text) && !text.startsWith("/")) {
     const bare = text.replace(POSITION, "")
     if (looksLikeHostname(bare.split("/")[0]!, hasPosition)) return null
     const name = bare.replace(/\/+$/, "").split("/").at(-1) ?? ""
@@ -111,9 +113,11 @@ export function bareFileName(code: string): FileTarget | null {
   return { path, ...(line ? { line } : {}), ...(column ? { column } : {}) }
 }
 
-/** An absolute path counts when it has an extension or a line, so `/chat/settings` stays a route. */
+/** An absolute path counts when it has an extension or a line, so `/chat/settings` stays a route. A
+ * trailing slash marks a folder, which the app's own file links use and no route does. */
 function looksLikeFilePath(path: string, authored: string): boolean {
   if (RELATIVE_PREFIX.test(path)) return true
+  if (path.endsWith("/") && path.length > 1) return true
   if (path.startsWith("/")) {
     const name = path.slice(path.lastIndexOf("/") + 1)
     return POSITION.test(authored) || EXTENSIONLESS.has(name) || EXTENSION.test(name)
@@ -200,15 +204,18 @@ export function chipLabel(file: FileTarget, suffix?: string): string {
   return parts.join(" · ")
 }
 
-export type Resolved = { kind: "file"; path: string } | { kind: "none" } | { kind: "many" }
+export type Resolved = { kind: "file"; path: string } | { kind: "folder"; path: string } | { kind: "none" } | { kind: "many" }
 
 /**
- * Finds a named file in a chat's file index, whose names are full paths. An exact path wins.
+ * Finds a named path in a chat's index, whose names are full paths. An exact file wins, then a
+ * folder: a path with anything below it is a folder, the same rule the server's index uses.
  * A bare name, or a path the index only ends with, opens its one match. No match, or more
  * than one, is reported so the chip can say so.
  */
-export function resolveFile(path: string, index: readonly string[]): Resolved {
+export function resolveFile(path: string, index: readonly string[], folders: readonly string[] = []): Resolved {
   if (index.includes(path)) return { kind: "file", path }
+  // A folder the agent linked, which the tree draws and the panel can open.
+  if (folders.includes(path) || index.some((name) => name.startsWith(`${path}/`))) return { kind: "folder", path }
   const matches = index.filter((name) => name.endsWith(`/${path}`))
   if (matches.length === 1) return { kind: "file", path: matches[0]! }
   return matches.length === 0 ? { kind: "none" } : { kind: "many" }

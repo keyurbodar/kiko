@@ -145,9 +145,15 @@ export function buildTimelineItems(
   firstUnreadMessageId?: string | null,
   options: TimelineOptions = {},
 ): TimelineItem[] {
+  // A divider needs a row to sit above. A message this client does not draw, or one the room folds
+  // into a collapsed agent thread, is no such row, so the rule moves down to the next message that is.
+  const drawable = (m: ChatMessage) =>
+    visibleMessage(m) && !(options.members && addressee(m) !== undefined);
   const unreadIndex = messages.findIndex((m) => m.id === firstUnreadMessageId);
-  if (unreadIndex >= 0 && !visibleMessage(messages[unreadIndex])) {
-    firstUnreadMessageId = messages.slice(unreadIndex + 1).find((m) => visibleMessage(m) && m.sender !== "user")?.id;
+  if (unreadIndex >= 0 && !drawable(messages[unreadIndex])) {
+    firstUnreadMessageId = messages
+      .slice(unreadIndex + 1)
+      .find((m) => drawable(m) && m.sender !== "user")?.id;
   }
   const list = entries(messages.filter(visibleMessage), options);
   const n = list.length;

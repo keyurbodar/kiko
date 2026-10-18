@@ -200,6 +200,15 @@ function RowTitle(props: { id: string; title: string }) {
       input?.select()
     }, 0)
   })
+  // A row can leave the list while its title is being edited: another chat receives a message and
+  // reorders it, or it scrolls out of the virtualized window. A removed element fires no blur, so
+  // without this the typed title is dropped and the row comes back still in edit mode.
+  onCleanup(() => {
+    if (done || !editing()) return
+    done = true
+    const value = input?.value ?? props.title
+    commitRename(props.id, value)
+  })
   return (
     <Show when={editing()} fallback={<span class="chat-name">{props.title}</span>}>
       <input
@@ -419,6 +428,10 @@ export function ChatPanel() {
   )
   const pinned = createMemo(() => shown().filter((bot) => bot.pinned))
   const jumpHint = createMemo(() => {
+    // The numbers follow the sidebar's own order, and the keyboard jump uses that same order. While
+    // the list is filtered the two disagree, so the badge would name a chat that Alt+N does not
+    // open. A filtered list shows no badges rather than a wrong one.
+    if (query() !== "" || unreadOnly()) return new Map<string, string>()
     const order = [...all().filter((b) => b.pinned), ...all().filter((b) => !b.pinned)].slice(0, 9)
     return new Map(order.map((b, i) => [b.id, `chats.go-${i + 1}`]))
   })
@@ -470,8 +483,8 @@ export function ChatPanel() {
       </Show>
       <VList class="chat-list" data={rowIds()} itemSize={ROW_H} bufferSize={ROW_H * 4} data-component="sidebar-list">
         {(id) => (
-          <Show when={byId().get(id)}>
-            {(bot) => <ChatRow bot={bot()} muted={muted().has(id)} active={active() === id} now={now()} hint={jumpHint().get(id)} />}
+          <Show when={byId().get(id)} keyed>
+            {(bot) => <ChatRow bot={bot} muted={muted().has(id)} active={active() === id} now={now()} hint={jumpHint().get(id)} />}
           </Show>
         )}
       </VList>

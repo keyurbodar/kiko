@@ -128,7 +128,12 @@ export function snapshotAfterRoute(): void {
   if (routeTimer !== undefined) clearTimeout(routeTimer)
   routeTimer = setTimeout(() => {
     routeTimer = undefined
-    if (document.visibilityState === "visible") saveSnapshot()
+    if (document.visibilityState !== "visible") return
+    // Serializing the whole screen is main-thread work. It lands right after a navigation, when the
+    // new page is becoming interactive, so it waits for an idle slice instead of a fixed deadline.
+    const ric = (globalThis as { requestIdleCallback?: (cb: () => void, opts: { timeout: number }) => number }).requestIdleCallback
+    if (ric) ric(() => saveSnapshot(), { timeout: 3000 })
+    else saveSnapshot()
   }, ROUTE_SAVE_MS)
 }
 
@@ -139,8 +144,11 @@ export function snapshotAfterRoute(): void {
  */
 export function startSnapshots(ready: () => boolean, maxMs = 1500): void {
   const t0 = performance.now()
+  // A route whose chunk has not arrived paints a skeleton, and removing the layer then would show
+  // the skeleton where a painted screen used to be. The layer waits for real content, up to `maxMs`.
+  const settled = () => ready() && !document.querySelector('[data-component="page-skeleton"]')
   const tick = () => {
-    if (ready() || performance.now() - t0 > maxMs) return dismissSnapshot()
+    if (settled() || performance.now() - t0 > maxMs) return dismissSnapshot()
     requestAnimationFrame(tick)
   }
   requestAnimationFrame(tick)

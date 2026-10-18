@@ -96,7 +96,10 @@ export function Composer(props: ComposerProps) {
     for (const [id, url] of held) discard(id, url)
   })
   const leaveChat = () => {
-    for (const [id, url] of held) discard(id, url)
+    // The box now belongs to another chat, so its pictures go. Their uploads do not: an upload
+    // belongs to the draft, and cancelling it here made coming back restart from zero. The part is
+    // still in that chat's draft file, so `restoreFiles` puts it back with its upload intact.
+    for (const [, url] of held) releaseBlobUrl(url)
     held = new Map()
     keptFor.clear()
     if (boxed().length) store.setPrompt(store.state.prompt.filter((part) => part.type !== "image"))
@@ -194,15 +197,23 @@ export function Composer(props: ComposerProps) {
     }, { defer: true }),
   )
 
-  // Entering an edit puts the message's text in the box; leaving it empties the box.
+  // Entering an edit puts the message's text in the box; leaving it empties the box. While the edit
+  // is open the box is not the draft, so its text must not be saved over the draft the human left.
   createEffect(
     on(
       () => props.editing?.id,
       (id, previous) => {
         if (id) {
+          filledFor = ""
           store.setText(props.editing!.body)
           queueMicrotask(() => document.querySelector<HTMLElement>('[data-component="prompt-input"]')?.focus())
-        } else if (previous) store.reset()
+        } else if (previous) {
+          store.reset()
+          const key = draftKey()
+          const text = key ? (props.draftFor?.(key) ?? "") : ""
+          if (text) store.setText(text)
+          filledFor = key ?? ""
+        }
       },
       { defer: true },
     ),
@@ -263,6 +274,7 @@ export function Composer(props: ComposerProps) {
     },
     attachments: {
       blocked: () => question.ask() ? "Answer or skip the question before attaching files." : null,
+      key: () => draftKey() ?? "",
       refuse: (reasons) => {
         for (const title of reasons) showToastV2({ title, variant: "error" })
       },
@@ -308,13 +320,16 @@ export function Composer(props: ComposerProps) {
           if (!attachments) return
           const files = parts.map((part): MessageFile => ({ name: part.filename, size: part.size, type: part.mime, src: part.blob.url }))
           if (!body.trim() && files.length === 0) return
+          // The chat may not be open yet (the shell paints before IndexedDB answers), and a send with
+          // nowhere to land is refused. The box keeps the words rather than losing them silently.
+          const sentDraftKey = draftKey()
+          const accepted = props.onSend(files.length ? { body, files, attachments } : { body })
+          if (accepted === false) return
           for (const part of parts) forgetUpload(part.id)
           held = new Map()
           keptFor.clear()
-          const sentDraftKey = draftKey()
           if (sentDraftKey) void draftFiles().then((m) => m.clearDraftFiles(sentDraftKey))
           store.reset()
-          props.onSend(files.length ? { body, files, attachments } : { body })
           props.onClearReply?.()
         },
       },

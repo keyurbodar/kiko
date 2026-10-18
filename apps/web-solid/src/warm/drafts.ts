@@ -66,7 +66,10 @@ export function createDraftBook(warm: Warm, debounceMs = DRAFT_DEBOUNCE_MS) {
 		if (timer !== undefined) clearTimeout(timer)
 		timers.delete(roomId)
 		const draft = drafts.get(roomId)
-		if (draft) saveDraft(warm, draft)
+		// An empty draft is a delete, and the delete lives in the debounce timer above. Flushing has
+		// just cancelled it, so without this a send followed by a quick close brings the words back.
+		if (!draft) warm.delete("drafts", roomId)
+		else saveDraft(warm, draft)
 	}
 
 	void Promise.all([

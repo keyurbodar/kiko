@@ -78,6 +78,7 @@ export type FileRefView = (dom: HTMLElement, ref: { path: string }) => () => voi
 /**
  * A file of the chat's workspace named in the text, dragged in from the Files tree or a chat chip.
  * Nothing uploads: the text holds `[name](/path)` (markdown.ts), which points the agent at the file.
+ * A folder keeps a trailing slash on that link, which is how a reader tells the two apart.
  */
 export function fileRefExtension(view: FileRefView) {
   return Node.create({
@@ -87,7 +88,7 @@ export function fileRefExtension(view: FileRefView) {
     atom: true,
     selectable: true,
     draggable: false,
-    addAttributes: () => ({ path: { default: "" } }),
+    addAttributes: () => ({ path: { default: "" }, folder: { default: false } }),
     parseHTML: () => [{ tag: "span[data-file-ref]" }],
     renderHTML: ({ node }) => ["span", { "data-file-ref": String(node.attrs.path) }, fileName(String(node.attrs.path))],
     renderText: ({ node }) => fileName(String(node.attrs.path)),

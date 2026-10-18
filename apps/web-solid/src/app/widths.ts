@@ -4,12 +4,23 @@ export const CHAT_MIN = 360
 
 type Rule = typeof SIDEBAR
 
-export function readWidth(rule: Rule): number {
+/**
+ * The width a column opens at before anyone drags it. A window has to fit three columns, so the
+ * right panel takes a share of the window rather than a fixed 340 px: on a wide screen that share
+ * is a readable column of details, and on a laptop it leaves the chat its floor.
+ */
+export function defaultWidth(rule: Rule, viewport = globalThis.innerWidth ?? 1280): number {
+  const raw = rule === INFO ? Math.round(viewport * 0.26) : rule.fallback
+  return Math.round(Math.max(rule.min, Math.min(rule.max, raw)))
+}
+
+export function readWidth(rule: Rule, viewport = globalThis.innerWidth ?? 1280): number {
+  const fallback = defaultWidth(rule, viewport)
   try {
     const value = Number(localStorage.getItem(rule.key))
-    return value >= rule.min && value <= rule.max ? Math.round(value) : rule.fallback
+    return value >= rule.min && value <= rule.max ? Math.round(value) : fallback
   } catch {
-    return rule.fallback
+    return fallback
   }
 }
 
@@ -22,12 +33,30 @@ export function saveWidth(rule: Rule, panelId: string) {
   } catch {}
 }
 
-/** Puts a column back to its default width, the one a double click on its handle restores. */
-export function resetWidth(rule: Rule, panel: { resize: (size: `${number}px`) => void } | undefined) {
-  panel?.resize(`${rule.fallback}px`)
+/** Puts a column back to its default width for this window, the one a double click on its handle restores. */
+export function resetWidth(
+  rule: Rule,
+  panel: { resize: (size: `${number}px`) => void } | undefined,
+  viewport = globalThis.innerWidth ?? 1280,
+) {
+  const width = defaultWidth(rule, viewport)
+  panel?.resize(`${width}px`)
   try {
-    localStorage.setItem(rule.key, String(rule.fallback))
+    localStorage.setItem(rule.key, String(width))
   } catch {}
+}
+
+/**
+ * Two columns that still leave the chat its floor. A narrow window shrinks the right panel first,
+ * because the chat is what the human is reading, and the left rail only after that.
+ */
+export function fitWidths(viewport: number, sidebar: number, info: number) {
+  const room = Math.max(0, viewport - CHAT_MIN)
+  let right = info > 0 ? Math.max(INFO.min, info) : 0
+  let side = sidebar > 0 ? Math.max(SIDEBAR.min, sidebar) : 0
+  if (side + right > room) right = Math.max(INFO.min, room - side)
+  if (side + right > room) side = Math.max(0, room - right)
+  return { sidebar: side, info: right }
 }
 
 /**

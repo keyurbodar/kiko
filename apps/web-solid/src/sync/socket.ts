@@ -95,8 +95,8 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 	let attempt = 0
 	let timer: ReturnType<typeof setTimeout> | undefined
 	let closed = false
-	const pingMs = options.pingMs ?? 25_000
-	const pongMs = options.pongMs ?? 8_000
+	const pingMs = options.pingMs ?? 10_000
+	const pongMs = options.pongMs ?? 5_000
 	let heardAt = 0
 	let pingedAt: number | undefined
 	let probe: ReturnType<typeof setInterval> | undefined
@@ -146,7 +146,7 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 	/** Probes while a socket is open. Unref'd where the runtime allows, so it never holds a process open. */
 	function watch() {
 		if (probe !== undefined) return
-		probe = setInterval(() => check(), Math.min(5_000, pongMs))
+		probe = setInterval(() => check(), Math.min(2_000, pongMs))
 		;(probe as { unref?: () => void }).unref?.()
 	}
 
@@ -180,6 +180,25 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		} catch {}
 	}
 
+	/** Drops the socket this client has and connects again at once, with no backoff. */
+	function reopen() {
+		if (closed) return
+		const s = socket
+		socket = null
+		pingedAt = undefined
+		attempt = 0
+		unwatch()
+		if (timer !== undefined) {
+			clearTimeout(timer)
+			timer = undefined
+		}
+		setStatus("closed")
+		try {
+			s?.close(4000, "reconnect")
+		} catch {}
+		open()
+	}
+
 	function retry() {
 		unwatch()
 		if (closed) return
@@ -189,9 +208,16 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		timer = setTimeout(open, backoffDelay(attempt++, baseMs, maxMs, random))
 	}
 
-	const onOnline = () => api.reconnect()
+	// The network came back: the socket on the old one is gone even when it never said so.
+	const onOnline = () => reopen()
+	// A tab that was hidden may have had its timers frozen for minutes. A socket silent longer than one
+	// probe cycle is replaced rather than pinged: waiting for the pong is what made a returning tab sit
+	// on stale content.
 	const onVisible = () => {
-		if (globalThis.document?.visibilityState === "visible") api.reconnect()
+		if (globalThis.document?.visibilityState !== "visible") return
+		if (socket && Date.now() - heardAt > pingMs + pongMs) reopen()
+		else if (socket) check(true)
+		else reopen()
 	}
 	globalThis.addEventListener?.("online", onOnline)
 	globalThis.document?.addEventListener?.("visibilitychange", onVisible)
@@ -211,10 +237,9 @@ export function createSyncSocket<In>(options: SyncSocketOptions<In>): SyncSocket
 		},
 		reconnect() {
 			if (closed) return
-			if (socket) return check(true)
-			if (timer !== undefined) clearTimeout(timer)
-			attempt = 0
-			open()
+			if (!socket) return reopen()
+			if (Date.now() - heardAt > pingMs) return reopen()
+			check(true)
 		},
 		close() {
 			closed = true

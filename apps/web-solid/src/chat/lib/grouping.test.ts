@@ -331,3 +331,12 @@ test("a hidden event passes the unread divider to the next reply", () => {
   const items = buildTimelineItems([background, bot("reply", at(1_000)), bot("next", at(2_000))], "background");
   expect(items.find((i) => i.kind === "unread-divider")?.key).toBe("unread:reply");
 });
+
+test("an unread message the room folds into a collapsed thread moves the rule to the next row", () => {
+  const members = new Set(["b1", "b2"]);
+  const toTeammate = bot("folded", at(0), { to: "b2" });
+  const toHuman = bot("visible", at(1_000));
+  const items = buildTimelineItems([toTeammate, toHuman], "folded", { members });
+  // The folded message is drawn as one muted thread line, so the rule must sit above the reply.
+  expect(items.map((i) => i.kind)).toEqual(["thread", "unread-divider", "message"]);
+});

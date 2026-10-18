@@ -27,7 +27,9 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
           <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
         </Show>
         <div class="flex min-w-0 flex-1 items-center gap-2 px-1">
-          <Show when={chatId()}>{(id) => <ChatAvatar faces={useApp.chatFaces(id())} size={20} />}</Show>
+          <Show when={chatId()} keyed>
+            {(id) => <ChatAvatar faces={useApp.chatFaces(id)} size={20} />}
+          </Show>
           <h1 class="min-w-0 truncate text-md font-medium text-foreground" data-component="top-bar-title">
             {(chatId() && useApp.chatById(chatId()!)?.name) || "New chat"}
           </h1>
@@ -46,7 +48,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
             <HugeIcon icon={SearchIcon} size={16} />
           </button>
         </TooltipV2>
-        <Show when={chatId()}>
+        <Show when={chatId()} keyed>
           {(id) => (
             <>
               <TooltipV2 placement="bottom" openDelay={400} value={cardShown() ? "Hide chat card" : "Show chat card"}>
@@ -64,15 +66,15 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
                   <NotepadText size={15} strokeWidth={1.75} aria-hidden="true" />
                 </button>
               </TooltipV2>
-              <TooltipV2 placement="bottom" openDelay={400} value={sidecarOpen(id()) ? "Hide side panel" : "Show side panel"}>
+              <TooltipV2 placement="bottom" openDelay={400} value={sidecarOpen(id) ? "Hide side panel" : "Show side panel"}>
                 <button
                   type="button"
-                  class={toggle(sidecarOpen(id()))}
+                  class={toggle(sidecarOpen(id))}
                   aria-label="Side panel"
-                  aria-pressed={sidecarOpen(id())}
+                  aria-pressed={sidecarOpen(id)}
                   data-action="toggle-sidecar"
                   onPointerEnter={() => void loadSidecar()}
-                  onClick={() => toggleSidecar(id())}
+                  onClick={() => toggleSidecar(id)}
                 >
                   <PanelRight size={15} strokeWidth={1.75} aria-hidden="true" />
                 </button>

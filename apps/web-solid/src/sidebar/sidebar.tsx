@@ -7,11 +7,15 @@ import { session } from "../app/session"
 import { profile } from "../app/hosted";
 import { SECTIONS, type SectionId } from "../app/sections"
 import { runCommand } from "../commands/registry"
+import { intentRef } from "../lib/intent"
+import { preloadRoute } from "../app/routes"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { KIKO } from "@kiko/protocol"
 import { ChatPanel } from "./chat-panel"
 const UpdatePill = lazy(() => import("../app/update-pill"))
 import "./sidebar.css"
+
+const SettingsPanel = lazy(() => import("./settings/sidebar"))
 
 /*
  * One panel per section, chosen from this table. Chat paints with the first frame; the others
@@ -19,8 +23,13 @@ import "./sidebar.css"
  */
 const PANELS: Record<SectionId, Component> = {
   chat: ChatPanel,
-  settings: lazy(() => import("./settings/sidebar")),
+  settings: SettingsPanel,
   recipes: lazy(() => import("./recipes/sidebar")),
+}
+
+/** Starts the settings panel's chunk, so opening Settings does not blank the left column as well. */
+export function preloadSettingsSidebar(): void {
+  void SettingsPanel.preload()
 }
 const SECTION_IDS = SECTIONS.map((section) => section.id)
 
@@ -163,6 +172,7 @@ function Foot(props: { section: SectionId | null }) {
       <TooltipV2 placement="top" openDelay={400} value="Settings">
         <A
           href="/settings"
+          ref={intentRef(() => preloadRoute("/settings"))}
           class="panel-icon-button relative"
           data-component="sidebar-settings"
           data-hint="settings.open"

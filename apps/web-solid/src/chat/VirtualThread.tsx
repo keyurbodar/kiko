@@ -36,8 +36,6 @@ import { chatImages } from "./ui/chat-images"
 import { createImageDialog, provideThreadImages } from "./ui/image-dialog"
 import type { DraftBook } from "../warm/drafts"
 
-const BrowserControlRow = lazy(() => import("./BrowserControlRow"))
-
 export interface VirtualThreadState {
   readonly scrollOffset: number
   readonly scrollSize: number
@@ -98,8 +96,10 @@ export function VirtualThread(props: {
   replyTarget?: string | null
   onNearTop?: () => void
   onAtLatest?: () => void
+  /** The reader scrolled away from the newest message: the window must stop trimming its oldest rows. */
+  onLeftLatest?: () => void
   scrollKey?: string
-  scrollBook?: Pick<DraftBook, "scroll" | "saveScroll">
+  scrollBook?: Pick<DraftBook, "scroll" | "saveScroll"> & Partial<Pick<DraftBook, "ready">>
   onJumpHandle?: (handle: {
     jumpToMessage: (messageId: string) => void
     scrollToLatest: () => void
@@ -118,6 +118,9 @@ export function VirtualThread(props: {
     })
   const memberSet = createMemo(() => (props.groupChat ? new Set(props.memberSlugs ?? []) : undefined))
   const lastItems = new Map<string, TimelineItem>()
+  // Prepended rows are held in place by `cancelDrift`, which measures the row the reader was
+  // looking at. `virtua`'s own `shift` would move the scroller for the same insert, so the two
+  // corrections landed on top of each other and paging up threw the reader near the top.
   let shifted = false
   let firstKey: string | undefined
   let itemsOwner: string | undefined
@@ -250,6 +253,8 @@ export function VirtualThread(props: {
       (item) => item.kind === "message" && dayStartOf(item.message.sentAt) === dayStart,
     )
     if (index < 0) return
+    // A pin still running from the last arrival would drag the reader back to the end.
+    pinRun += 1
     stuck = false
     handle()?.scrollToIndex(index, { align: "start" })
     seedAnchor()
@@ -269,6 +274,8 @@ export function VirtualThread(props: {
   }
 
   let restoredFor: string | undefined
+  /** True once the saved position was actually applied. Only then may a scroll overwrite it. */
+  let restoredOk = false
 
   const showsKey = () => {
     const first = props.messages[0]
@@ -280,6 +287,9 @@ export function VirtualThread(props: {
     if (!key || !props.scrollBook || restoredFor !== key || !showsKey()) return
     const virtualizer = handle()
     if (!virtualizer) return
+    // Before a restore has landed, the view is where this component put it, not where the reader
+    // was. Saving that would erase the place they left, which is how a position was lost for good.
+    if (!restoredOk && props.scrollBook.scroll(key)) return
     if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
       props.scrollBook.saveScroll(key, null)
       return
@@ -288,10 +298,14 @@ export function VirtualThread(props: {
     for (let i = clampIndex(state.rangeStart, list.length); i < list.length; i += 1) {
       const item = list[i]
       if (item.kind !== "message") continue
-      props.scrollBook.saveScroll(key, {
-        messageId: item.message.id,
-        offset: Math.round(state.scrollOffset - virtualizer.getItemOffset(i)),
-      })
+      // How far the row sits from the top of the viewport, measured on the row itself. The
+      // virtualizer's own offsets start at the list, which is inset by the column's padding, so
+      // subtracting them from `scrollTop` saved a row a few lines off.
+      const row = columnElement?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(item.message.id)}"]`)
+      const rect = row?.getBoundingClientRect()
+      const viewport = scrollElement?.getBoundingClientRect()
+      const offset = rect && viewport ? Math.round(rect.top - viewport.top) : Math.round(state.scrollOffset - virtualizer.getItemOffset(i))
+      props.scrollBook.saveScroll(key, { messageId: item.message.id, offset })
       return
     }
   }
@@ -299,22 +313,62 @@ export function VirtualThread(props: {
   const restorePosition = (): boolean => {
     const key = props.scrollKey
     if (!key || !props.scrollBook || restoredFor === key || !showsKey()) return false
-    restoredFor = key
+    // The book reads its positions from IndexedDB. Before it is ready every key looks unset, and
+    // burning the attempt there would skip the restore for the whole visit.
+    if (props.scrollBook.ready && !props.scrollBook.ready()) return false
     const saved = props.scrollBook.scroll(key)
-    if (!saved) return false
+    restoredFor = key
+    if (!saved) {
+      restoredOk = true
+      return false
+    }
+    // A message the boot window does not hold cannot be scrolled to yet. The saved position stays
+    // in the book, so a later visit that pages it in still finds it.
     const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
     if (index < 0) return false
     let tries = 0
     stuck = false
-    const apply = () => {
+    /**
+     * `scrollToIndex` lands on an estimate for a row it has not measured yet, and the row it jumps
+     * to is not in the DOM until the next frame. So the first pass only moves, and each later pass
+     * reads the row's real position and corrects it: the reader lands on the message they left, not
+     * a few lines off it.
+     */
+    const apply = (pass = 0) => {
       const virtualizer = handle()
-      if (!virtualizer) {
-        if ((tries += 1) < 10) requestAnimationFrame(apply)
+      const scroller = scrollElement
+      if (!virtualizer || !scroller) {
+        if ((tries += 1) < 10) requestAnimationFrame(() => apply(pass))
         return
       }
-      virtualizer.scrollToIndex(index, { align: "start", offset: saved.offset })
+      if (pass === 0) {
+        virtualizer.scrollToIndex(index, { align: "start" })
+        // Rows above the target are estimated until they render, so the first landing is off. Two
+        // frames let the measurement settle before the correction is read.
+        requestAnimationFrame(() => requestAnimationFrame(() => apply(1)))
+        return
+      }
+      const row = columnElement?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(saved.messageId)}"]`)
+      if (!row) {
+        if (pass < 3) requestAnimationFrame(() => apply(pass + 1))
+        else finish()
+        return
+      }
+      const drift = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - saved.offset
+      // A drift past a screenful means the estimate was wrong, not that the row moved: jumping again
+      // from the corrected offset converges in one step, where nudging scrollTop would crawl.
+      if (Math.abs(drift) > 8 && pass < 3) {
+        if (Math.abs(drift) > scroller.clientHeight) virtualizer.scrollToIndex(index, { align: "start", offset: drift })
+        else scroller.scrollTop += drift
+        requestAnimationFrame(() => apply(pass + 1))
+        return
+      }
+      finish()
+    }
+    const finish = () => {
       seedAnchor()
       commitState(readState())
+      restoredOk = true
     }
     apply()
     return true
@@ -327,6 +381,10 @@ export function VirtualThread(props: {
     if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
       setPinnedCount(messageCount())
       props.onAtLatest?.()
+    } else if (state.scrollSize > state.viewportSize) {
+      // The reader is looking at older messages. The store must stop cutting the oldest rows out
+      // from under them, which it only did when they paged, never when they simply scrolled up.
+      props.onLeftLatest?.()
     }
     props.onStateChange(state)
   }
@@ -449,11 +507,26 @@ export function VirtualThread(props: {
       // Rows measured after they render also move the offset. Only a reader's own scroll lets go of the end.
       if (atEnd) stuck = true
       else if (readerScrolling) stuck = false
+      // A saved place whose message the window does not hold cannot be restored yet. Once the reader
+      // scrolls, their own position is the truth, and saving it must be allowed again.
+      if (readerScrolling && restoredFor === props.scrollKey) restoredOk = true
       commitState(state)
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
     const onViewportResize = () => {
-      if (isAtLatest()) scroller.scrollTop = scroller.scrollHeight
+      const fresh = readState()
+      const atEnd = isAtBottom(fresh.scrollOffset, fresh.scrollSize, fresh.viewportSize, AT_BOTTOM_THRESHOLD_PX)
+      if (atEnd) {
+        scroller.scrollTop = scroller.scrollHeight
+      } else {
+        // A narrower column re-wraps the text above the reading line, so the same scrollTop now
+        // points at different words. The anchor says what the reader was looking at; the view is
+        // moved by exactly that drift. Without this, resizing slid the transcript and saved the
+        // slide as the reader's new place.
+        const held = anchor?.element.isConnected === true ? anchor : undefined
+        const drift = held ? held.element.getBoundingClientRect().top - column.getBoundingClientRect().top - held.top : 0
+        if (Math.abs(drift) > 1) (handle()?.scrollBy(drift) ?? scroller.scrollBy(0, drift))
+      }
       seedAnchor()
       commitState(readState())
     }
@@ -473,13 +546,15 @@ export function VirtualThread(props: {
     onCleanup(() => clearTimeout(readerScrollEnd))
     const readerMoved = () => {
       readerScrolling = true
+      // The day pill follows the reader, whichever way they scroll: keys and a drag move the view
+      // without a wheel or a touch, and the pill is the only thing that says which day they are in.
+      noteScrolling()
       clearTimeout(readerScrollEnd)
       readerScrollEnd = setTimeout(() => {
         readerScrolling = false
       }, READER_SCROLL_MS)
     }
     const onReader = () => {
-      noteScrolling()
       readerMoved()
     }
     createEventListener(() => scroller, "wheel", onReader, { passive: true })
@@ -535,10 +610,17 @@ export function VirtualThread(props: {
   const pinToLatest = () => {
     const until = performance.now() + PIN_SETTLE_MS
     const run = ++pinRun
+    let lastHeight = -1
+    let stable = 0
     const step = () => {
       if (!scrollElement || run !== pinRun) return
+      // The reader's own scroll outranks the pin: rows measured late must not drag them back down.
+      if (!stuck) return
       scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: "auto" })
-      if (performance.now() < until) {
+      if (scrollElement.scrollHeight === lastHeight) stable += 1
+      else stable = 0
+      lastHeight = scrollElement.scrollHeight
+      if (performance.now() < until && stable < 2) {
         requestAnimationFrame(step)
         return
       }
@@ -550,24 +632,44 @@ export function VirtualThread(props: {
 
   let firstLoad = true
   let lastOwner: unknown
+  let hadRows = false
   createEffect(
     on(items, () => {
       const owner: unknown = props.scrollKey ?? props.messages
       if (owner !== lastOwner) {
         lastOwner = owner
         firstLoad = true
+        hadRows = false
         anchor = undefined
+        restoredFor = undefined
+        restoredOk = false
+        // `stuck` is a fact about the chat that was on screen. Left set from a reader who had
+        // scrolled up, it makes the pin for the new chat return at its first line, so the chat
+        // opens a little above the end with its last message clipped.
+        stuck = true
+        readerScrolling = false
+        // A pin still running from the previous chat would keep forcing the end of this one.
+        pinRun += 1
         setPinnedCount(messageCount())
         if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
       }
+      const rows = items().length > 0
+      // The first rows to arrive for this chat are the real first paint, even when the switch painted
+      // an empty stage first. Landing them in the same pass is what keeps a long chat from showing its
+      // oldest message for a frame.
+      const firstContent = rows && !hadRows
+      hadRows = rows
       const restoring = restorePosition()
       const wasAtLatest = firstLoad || stuck || isAtLatest()
       seedAnchor()
       if (restoring) {
         firstLoad = false
-      } else if (firstLoad) {
+      } else if (firstLoad || firstContent) {
         firstLoad = false
-        if (items().length > 0) pinToLatest()
+        if (rows) {
+          if (scrollElement) scrollElement.scrollTop = scrollElement.scrollHeight
+          pinToLatest()
+        }
       } else if (wasAtLatest) {
         pinToLatest()
       }
@@ -632,9 +734,6 @@ export function VirtualThread(props: {
     )
   }
 
-  /** Only the newest browser request in the chat carries buttons; the older ones were answered by it. */
-  const latestBrowserAsk = createMemo(() => props.messages.findLast((m) => m.event?.kind === "browser_control")?.id)
-
   const renderItem = (item: TimelineItem): JSX.Element => {
     if (item.kind === "day-divider") {
       const parts = dividerParts(item.firstSentAt, now())
@@ -644,12 +743,9 @@ export function VirtualThread(props: {
       return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} latest={props.messages.at(-1)?.id === item.message.id} />
     }
     if (item.kind === "event" && item.message.event?.kind === "browser_control") {
-      const line = <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />
-      return (
-        <Suspense fallback={line}>
-          <BrowserControlRow message={item.message} latest={latestBrowserAsk() === item.message.id} />
-        </Suspense>
-      )
+      // A system line, like every other request in the transcript. The browser bar above the
+      // composer carries the buttons, so the same two controls never appear twice.
+      return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />
     }
     if (item.kind === "event") {
       return <ActivityEvent message={item.message} name={(slug) => props.botById(slug)?.name ?? agentDisplayName(slug, [])} />
@@ -699,7 +795,7 @@ export function VirtualThread(props: {
               data={items()}
               scrollRef={scrollElement}
               bufferSize={BUFFER_SIZE}
-              shift={isShifted()}
+              shift={false}
               ref={setHandle}
             >
               {(item) => (

@@ -253,7 +253,19 @@ export function Segmented<T extends string>(props: { label: string; value: T; op
   )
 }
 
-export function Slider(props: { label: string; value: number; display: string; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }): JSX.Element {
+export function Slider(props: {
+  label: string
+  value: number
+  display: string
+  min: number
+  max: number
+  step?: number
+  disabled?: boolean
+  /** Every step of the drag, for a live preview that is not saved. */
+  onInput?: (value: number) => void
+  /** The drag ended or the key was released: the value to keep. */
+  onChange: (value: number) => void
+}): JSX.Element {
   const fill = () => `${((props.value - props.min) / (props.max - props.min || 1)) * 100}%`
   return (
     <div class="flex w-56 max-w-full items-center gap-3" classList={{ "opacity-50": props.disabled }}>
@@ -268,7 +280,8 @@ export function Slider(props: { label: string; value: number; display: string; m
         disabled={props.disabled}
         class="kit-range"
         style={{ "--fill": fill() }}
-        onInput={(e) => props.onChange(Number(e.currentTarget.value))}
+        onInput={(e) => (props.onInput ?? props.onChange)(Number(e.currentTarget.value))}
+        onChange={(e) => props.onChange(Number(e.currentTarget.value))}
       />
     </div>
   )

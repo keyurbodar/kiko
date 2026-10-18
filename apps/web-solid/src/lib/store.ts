@@ -28,7 +28,7 @@ import { createPacer } from "../chat/bubble-pacing"
 import { inWindow, newestAfter, parseWindow, stepWindows, windowKey } from "../chat/run/run-log"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
-import { createRoomStore, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
+import { createRoomStore, NO_MORE, type RoomSeed, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
 import { socketUrl } from "./api"
 import { fileToken, fileUrl } from "./file-token"
 import { browserConnect, type Connect } from "../sync/socket"
@@ -261,10 +261,44 @@ export function createApp(options: AppOptions = {}) {
     let booting: Promise<void> | null = null
     let bootUser: string | null = null
 
+    /**
+     * The last few rooms' windows, kept so going back to a chat paints from memory instead of
+     * waiting on IndexedDB. Each entry is a complete paint: the socket replays everything after
+     * `seq`, so a cached window can never be older than the replay that follows it.
+     */
+    const roomCache = new Map<string, RoomSeed>()
+    const MAX_ROOM_CACHE = 4
+
+    function keepRoom(r: RoomStore): void {
+      const s = r.state
+      roomCache.delete(s.roomId)
+      roomCache.set(s.roomId, {
+        messages: [...s.messages],
+        seq: s.seq,
+        readSeq: s.readSeq,
+        members: [...s.members],
+        tasks: [...s.tasks],
+        files: [...s.files],
+        folders: [...s.folders],
+        asks: [...s.asks],
+      })
+      while (roomCache.size > MAX_ROOM_CACHE) {
+        const oldest = roomCache.keys().next().value
+        if (oldest === undefined) break
+        roomCache.delete(oldest)
+      }
+    }
+
     /** The unread anchor, frozen once per visit so it does not move while the reader looks. */
     const anchors = new WeakMap<RoomStore, MessageId | null>()
+    /** A room the human answered: its divider is gone for this visit and never frozen again. */
+    const answered = new WeakSet<RoomStore>()
+    /** Bumped when an anchor changes, so the transcript rebuilds without waiting for the next room event. */
+    const [anchorEpoch, bumpAnchor] = createSignal(0)
     /** The read marker the room had when its stored state painted, before the socket and any read. */
     const openRead = new WeakMap<RoomStore, number>()
+    /** The marker this device last read up to, per room: leaving and returning must not re-arm the divider. */
+    const localRead = new Map<RoomId, number>()
     /** Built views by message id, so an unchanged message keeps its object. */
     let views = new Map<string, { sig: string; view: ChatMessage }>()
 
@@ -278,6 +312,11 @@ export function createApp(options: AppOptions = {}) {
     let pacer = createPacer({ onChange: () => bumpPaced((n) => n + 1) })
     let pacedRoom: RoomStore | null = null
     let seeded = false
+    // The typing dots that outlive a run's `idle`, and the message count each agent had when it stopped.
+    const RESTART_GRACE_MS = 1500
+    const [lingering, setLingering] = createSignal<string[]>([])
+    const lingerTimers = new Map<string, ReturnType<typeof setTimeout>>()
+    let wasTyping = new Map<string, number>()
 
     createComputed(() => {
       const r = room()
@@ -290,6 +329,12 @@ export function createApp(options: AppOptions = {}) {
           pacer = createPacer({ onChange: () => bumpPaced((n) => n + 1) })
           pacedRoom = r
           seeded = false
+          // Presence belongs to the room that reported it. Comparing one room's message counts against
+          // the next room's would invent a "quiet" agent and leave its typing dots up for a second.
+          wasTyping = new Map()
+          for (const timer of lingerTimers.values()) clearTimeout(timer)
+          lingerTimers.clear()
+          setLingering([])
         }
         if (!loaded) return
         if (!seeded) {
@@ -311,10 +356,6 @@ export function createApp(options: AppOptions = {}) {
      * again. The dots stay up through that gap. An agent that went quiet after posting a bubble
      * is done, and its dots go at once.
      */
-    const RESTART_GRACE_MS = 1500
-    const [lingering, setLingering] = createSignal<string[]>([])
-    const lingerTimers = new Map<string, ReturnType<typeof setTimeout>>()
-    let wasTyping = new Map<string, number>()
     createComputed(() => {
       const r = room()
       const typing = r ? [...r.state.typing] : []
@@ -368,7 +409,10 @@ export function createApp(options: AppOptions = {}) {
       const current = room()
       if (current?.state.roomId === roomId) return
       // Leaving a chat drops its divider: the next visit works out a fresh one from the new marker.
-      if (current) anchors.delete(current)
+      if (current) {
+        anchors.delete(current)
+        if (current.state.loaded) keepRoom(current)
+      }
       current?.close()
       views = new Map()
       setUnseen([])
@@ -380,6 +424,7 @@ export function createApp(options: AppOptions = {}) {
         connect: session.transport.room(roomId),
         backoff: options.backoff,
         onError: showKikoError,
+        ...(roomCache.has(roomId) ? { seed: roomCache.get(roomId) } : {}),
       })
       // A send the room refused stays in the transcript, marked failed. The toast says why.
       next.onTaskRefused(showFailure)
@@ -393,7 +438,7 @@ export function createApp(options: AppOptions = {}) {
     /** True once the open room holds everything the chat list says it has. */
     function caughtUp(r: RoomStore): boolean {
       const lastSeq = chat(r.state.roomId)?.lastSeq
-      return r.state.loaded && lastSeq !== undefined && r.state.seq >= lastSeq && (lastSeq > 0 || r.state.connection === "open")
+      return r.state.booted && lastSeq !== undefined && r.state.seq >= lastSeq && (lastSeq > 0 || r.state.connection === "open")
     }
 
     /**
@@ -405,21 +450,19 @@ export function createApp(options: AppOptions = {}) {
      */
     function freezeAnchor(): void {
       const r = room()
-      if (!r || anchors.has(r) || !caughtUp(r)) return
-      anchors.set(r, firstUnread(roomMessages(), openRead.get(r) ?? r.state.readSeq))
+      if (!r || anchors.has(r) || answered.has(r) || !caughtUp(r)) return
+      const read = Math.max(openRead.get(r) ?? r.state.readSeq, localRead.get(r.state.roomId) ?? 0)
+      anchors.set(r, firstUnread(roomMessages(), read))
     }
 
     // The stored state paints once, before the socket opens. That marker is what the chat opened with.
     createComputed(() => {
       const r = room()
       if (!r) return
-      const loaded = r.state.loaded
+      const booted = r.state.booted
       const read = r.state.readSeq
       untrack(() => {
-        if (loaded && !openRead.has(r)) {
-          openRead.set(r, read)
-          freezeAnchor()
-        }
+        if (booted && !openRead.has(r)) openRead.set(r, read)
       })
     })
 
@@ -535,7 +578,11 @@ export function createApp(options: AppOptions = {}) {
       // it from its blob URL until the room's copy arrives.
       if (message.attachments?.length) Object.assign(opts, { attachments: message.attachments, local })
       const clientId = r.send(message.body, opts)
+      // The divider goes the moment the human answers: the anchor is cleared before the next read, so
+      // the transcript rebuild the send just caused already sees it gone.
       anchors.set(r, null)
+      answered.add(r)
+      bumpAnchor((n) => n + 1)
       return `local:${clientId}`
     }
 
@@ -566,6 +613,7 @@ export function createApp(options: AppOptions = {}) {
       stop() {
         bootUser = null
         booting = null
+        roomCache.clear()
         room()?.close()
         userStore()?.close()
         drafts()?.close()
@@ -687,7 +735,9 @@ export function createApp(options: AppOptions = {}) {
         void r.loadOlder().then(
           (n) => {
             olderBusy = false
-            if (n === 0) olderDone = r
+            // `NO_MORE` means the room answered and has nothing older. A miss (the socket was down, or
+            // the window moved) must not latch, or paging up dies for the rest of the visit.
+            if (n === NO_MORE) olderDone = r
           },
           () => (olderBusy = false),
         )
@@ -698,7 +748,21 @@ export function createApp(options: AppOptions = {}) {
        * window, or, in a window it jumped to, pages newer messages in.
        */
       followLatest(): void {
-        room()?.follow()
+        const r = room()
+        if (!r) return
+        r.follow()
+        // Following the end trims the window back to its newest rows. The ones it drops are still on
+        // disk, so paging up must be allowed to fetch them again.
+        if (olderDone === r) olderDone = null
+      },
+
+      /**
+       * The reader scrolled up: the window holds rows they can still see, so it must not cut its
+       * oldest rows on the next message. A chat longer than the window used to lose the text above
+       * the reader mid-read.
+       */
+      holdWindow(): void {
+        room()?.hold()
       },
 
       /** Searches the open room's messages, newest first. Null when the room does not answer. */
@@ -720,8 +784,7 @@ export function createApp(options: AppOptions = {}) {
         return found
       },
 
-      /** True while the transcript shows a window the reader jumped to, not the live end. */
-      showingHistory(): boolean {
+      /** True while the transcript shows a window the reader jumped to, not the live end. */      showingHistory(): boolean {
         return !!room()?.state.history
       },
 
@@ -750,8 +813,16 @@ export function createApp(options: AppOptions = {}) {
       firstUnreadMessageId(): string | null {
         const r = room()
         if (!r) return null
+        anchorEpoch()
         freezeAnchor()
-        return anchors.get(r) ?? null
+        const id = anchors.get(r)
+        if (!id) return null
+        const held = roomMessages()
+        if (held.some((m) => m.id === id)) return id
+        // The window moved past the anchor (a jump, or a long chat trimming its oldest rows). The
+        // oldest unread message still shown is the same fact, in the same place.
+        const read = Math.max(openRead.get(r) ?? r.state.readSeq, localRead.get(r.state.roomId) ?? 0)
+        return firstUnread(held, read)
       },
 
       /** The display names of the agents typing in the open room. */
@@ -880,7 +951,9 @@ export function createApp(options: AppOptions = {}) {
       /** True when the open room has a stored message newer than the read marker and the socket is up. */
       hasUnread(): boolean {
         const r = room()
-        return !!r && r.state.connection === "open" && newestSeq(roomMessages()) > r.readSeq()
+        if (!r) return false
+        const read = Math.max(r.readSeq(), localRead.get(r.state.roomId) ?? 0)
+        return r.state.connection === "open" && newestSeq(roomMessages()) > read
       },
 
       /** One reaction per actor: the same emoji removes it, another replaces it. */
@@ -925,10 +998,13 @@ export function createApp(options: AppOptions = {}) {
         const r = room()
         if (!r || r.state.roomId !== threadId) return
         // The divider is frozen already, from the marker the chat opened with. Reading now does not move it.
-        const read = r.readSeq()
+        const read = Math.max(r.readSeq(), localRead.get(r.state.roomId) ?? 0)
         const fresh = roomMentions().filter((m) => m.seq > read && !unseen().includes(m.id))
         if (fresh.length) setUnseen((list) => [...list, ...fresh.map((m) => m.id)])
-        r.markRead(newestSeq(roomMessages()))
+        const newest = newestSeq(roomMessages())
+        // This device remembers the mark, so a chat left and reopened does not arm a divider it already cleared.
+        if (newest > (localRead.get(r.state.roomId) ?? 0)) localRead.set(r.state.roomId, newest)
+        r.markRead(newest)
       },
 
       /** The open room's mentions of the human the reader has not seen yet, oldest first. */

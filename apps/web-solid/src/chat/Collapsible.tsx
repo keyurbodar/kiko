@@ -1,11 +1,12 @@
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
-import { createSignal, onMount, Show, type JSX } from "solid-js"
+import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
+import { foldLimitFor, shouldFold } from "./lib/fold"
 
 /**
  * "Show full message" for a long bubble.
  *
- * A body taller than `COLLAPSE_THRESHOLD_PX` is clamped to that height, its
+ * A body taller than the window's fold limit is clamped to that height, its
  * last lines faded out by a mask, with a text button under it. A mask rather than a
  * gradient in the bubble's colour: the bubble is translucent over the chat's
  * picture, so a painted fade let the text show through it. Toggling is instant: no
@@ -18,13 +19,10 @@ import { cn } from "../lib/cn"
  * It is a session cache: a reload starts everything clamped again.
  *
  * A `fixed` body, such as a photo, is never clamped and shows no button: the
- * picture owns the bubble's height, and clamping it to nine lines cuts it apart.
+ * picture owns the bubble's height, and clamping it cuts it apart.
  */
 
-/** A body past this height is clamped. Nine lines of 20px, so a plain body ends on a whole line. */
-export const COLLAPSE_THRESHOLD_PX = 180
-/** Content this close to the threshold is not worth hiding a line or two of. */
-const SLACK_PX = 40
+
 
 const [expandedIds, setExpandedIds] = createSignal<ReadonlySet<string>>(new Set())
 
@@ -58,18 +56,45 @@ export function Collapsible(props: {
   children: JSX.Element
 }): JSX.Element {
   const [overflowing, setOverflowing] = createSignal(false)
+  const [limit, setLimit] = createSignal(foldLimitFor(globalThis.innerHeight ?? 900))
   let root: HTMLDivElement | undefined
   let inner: HTMLDivElement | undefined
   let button: HTMLButtonElement | undefined
+  let frame = 0
 
   const measure = () => {
     if (!inner) return
-    setOverflowing(!props.fixed && inner.offsetHeight > COLLAPSE_THRESHOLD_PX + SLACK_PX)
+    // Against the transcript the reader is in, not the window: the composer and the header take a
+    // share of the window, so a bubble folded to a window share can still be taller than the space.
+    const scroller = root ? scrollParent(root) : undefined
+    const room = scroller?.clientHeight ?? globalThis.innerHeight ?? 900
+    const next = foldLimitFor(room)
+    setLimit(next)
+    setOverflowing(shouldFold(inner.offsetHeight, next, props.fixed))
+  }
+  /**
+   * The observer fires while the browser is still delivering layout. Writing the signal there
+   * changes a row's height, which the virtualizer answers with another layout, and the browser
+   * reports the loop. One frame later the write is outside the observer's own pass.
+   */
+  const scheduleMeasure = () => {
+    if (frame) return
+    frame = requestAnimationFrame(() => {
+      frame = 0
+      measure()
+    })
   }
   onMount(() => {
     measure()
     if (!inner) return
-    makeResizeObserver(measure).observe(inner)
+    makeResizeObserver(scheduleMeasure).observe(inner)
+    // A window resize changes the limit, and a body that fitted a tall window may not fit a short one.
+    const onResize = () => scheduleMeasure()
+    window.addEventListener("resize", onResize)
+    onCleanup(() => {
+      window.removeEventListener("resize", onResize)
+      cancelAnimationFrame(frame)
+    })
   })
 
   const clamped = () => overflowing() && !isExpanded(props.messageId)
@@ -98,7 +123,7 @@ export function Collapsible(props: {
     >
       <div
         class={cn(clamped() && "overflow-hidden mask-b-from-[calc(100%-1.75rem)] mask-b-to-100%")}
-        style={clamped() ? { "max-height": `${COLLAPSE_THRESHOLD_PX}px` } : undefined}
+        style={clamped() ? { "max-height": `${limit()}px` } : undefined}
       >
         <div ref={inner}>{props.children}</div>
       </div>

@@ -1,2 +1,2 @@
-export { Sidebar, SidebarToggle, type SidebarProps } from "./sidebar"
+export { Sidebar, SidebarToggle, preloadSettingsSidebar, type SidebarProps } from "./sidebar"
 export { ChatPanel } from "./chat-panel"
