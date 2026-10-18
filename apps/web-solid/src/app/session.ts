@@ -20,9 +20,31 @@ export interface SessionUser {
 export type SessionState = { status: "unknown" } | { status: "signed-in"; user: SessionUser } | { status: "signed-out" }
 
 const FLAG_KEY = "kiko:session"
+const CLEANUP_KEY = "kiko:pending-cleanup"
+function readPendingCleanup(): string[] {
+  try {
+    const ids: unknown = JSON.parse(read(CLEANUP_KEY) ?? "[]")
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : []
+  } catch {
+    return []
+  }
+}
 let generation = 0
 let clearing: Promise<void> = Promise.resolve()
-const pendingCleanup = new Set<string>()
+const pendingCleanup = new Set(readPendingCleanup())
+function savePendingCleanup(): void {
+  if (!pendingCleanup.size) {
+    write(CLEANUP_KEY, null)
+    return
+  }
+  const value = JSON.stringify([...pendingCleanup])
+  try {
+    localStorage.setItem(CLEANUP_KEY, value)
+    if (localStorage.getItem(CLEANUP_KEY) !== value) throw new Error("Cleanup was not saved")
+  } catch {
+    throw new Error("Could not safely clear this account's local data. Allow browser storage and try again.")
+  }
+}
 export const [authReset, setAuthReset] = createSignal(0)
 export const [autoResume, setAutoResume] = createSignal(true)
 export const authIdentity = () => read("kiko:identity") ?? base()
@@ -93,27 +115,33 @@ function signedIn(user: SessionUser): void {
   setState({ status: "signed-in", user })
 }
 
-/** Drops the flag and the user's warm tier, then shows sign-in. */
-async function signedOut(reset = true): Promise<void> {
-  generation++
-  if (reset) setAuthReset((n) => n + 1)
-  setBackendConnectionNotice("")
-  setProfile(null)
-  write("kiko:snap", null)
-  const current = state()
-  const userId = current.status === "signed-in" ? current.user.id : readFlag()?.id
-  writeFlag(null)
-  setToken(null)
-  clearFileToken()
-  setState({ status: "signed-out" })
-  if (userId) pendingCleanup.add(userId)
+async function finishCleanup(): Promise<void> {
   clearing = clearing.catch(() => {}).then(async () => {
     for (const id of pendingCleanup) {
       await clearWarmTier(id)
       pendingCleanup.delete(id)
+      savePendingCleanup()
     }
   })
   await clearing
+}
+
+/** Drops the flag and the user's warm tier, then shows sign-in. */
+async function signedOut(reset = true): Promise<void> {
+  generation++
+  const current = state()
+  const userId = current.status === "signed-in" ? current.user.id : readFlag()?.id
+  if (userId) pendingCleanup.add(userId)
+  savePendingCleanup()
+  if (reset) setAuthReset((n) => n + 1)
+  setBackendConnectionNotice("")
+  setProfile(null)
+  write("kiko:snap", null)
+  writeFlag(null)
+  setToken(null)
+  clearFileToken()
+  setState({ status: "signed-out" })
+  await finishCleanup()
 }
 
 /** Confirms the cached flag with the server. Call once on boot. */
@@ -146,6 +174,7 @@ export async function bootstrapSession(): Promise<void> {
     // A different user than the cached one: the old user's data must not stay.
     const before = state()
     if (before.status === "signed-in" && before.user.id !== user.id) await clearWarmTier(before.user.id)
+    await finishCleanup()
     if (current()) signedIn(user)
   } catch {
     // offline or a server error. keep the cached flag, and with none show sign-in.
@@ -175,6 +204,8 @@ export async function signOut(): Promise<void> {
 async function adopt(res: Response | null, failure: string, attempt: number): Promise<void> {
   if (!res?.ok) throw new Error(failure)
   const { user, token } = (await res.json()) as { user: SessionUser; token: string }
+  if (attempt !== generation) return
+  await finishCleanup()
   if (attempt !== generation) return
   setToken(token)
   signedIn(user)
