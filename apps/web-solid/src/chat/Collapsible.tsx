@@ -1,7 +1,7 @@
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
 import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
-import { currentLimit, shouldFold } from "./lib/fold"
+import { foldLimitFor, shouldFold } from "./lib/fold"
 
 /**
  * "Show full message" for a long bubble.
@@ -56,7 +56,7 @@ export function Collapsible(props: {
   children: JSX.Element
 }): JSX.Element {
   const [overflowing, setOverflowing] = createSignal(false)
-  const [limit, setLimit] = createSignal(currentLimit())
+  const [limit, setLimit] = createSignal(foldLimitFor(globalThis.innerHeight ?? 900))
   let root: HTMLDivElement | undefined
   let inner: HTMLDivElement | undefined
   let button: HTMLButtonElement | undefined
@@ -64,7 +64,13 @@ export function Collapsible(props: {
 
   const measure = () => {
     if (!inner) return
-    setOverflowing(shouldFold(inner.offsetHeight, limit(), props.fixed))
+    // Against the transcript the reader is in, not the window: the composer and the header take a
+    // share of the window, so a bubble folded to a window share can still be taller than the space.
+    const scroller = root ? scrollParent(root) : undefined
+    const room = scroller?.clientHeight ?? globalThis.innerHeight ?? 900
+    const next = foldLimitFor(room)
+    setLimit(next)
+    setOverflowing(shouldFold(inner.offsetHeight, next, props.fixed))
   }
   /**
    * The observer fires while the browser is still delivering layout. Writing the signal there
@@ -83,10 +89,7 @@ export function Collapsible(props: {
     if (!inner) return
     makeResizeObserver(scheduleMeasure).observe(inner)
     // A window resize changes the limit, and a body that fitted a tall window may not fit a short one.
-    const onResize = () => {
-      setLimit(currentLimit())
-      scheduleMeasure()
-    }
+    const onResize = () => scheduleMeasure()
     window.addEventListener("resize", onResize)
     onCleanup(() => {
       window.removeEventListener("resize", onResize)

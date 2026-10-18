@@ -33,10 +33,19 @@ export const FOLD_BUTTON_PX = 22
 
 let cached: { height: number; coarse: boolean; limit: number } | undefined
 
-/** The limit for this window right now. Cached, because every row asks for it on every render. */
-export function currentLimit(): number {
-  const height = globalThis.innerHeight ?? 900
+/**
+ * The limit for a transcript `height` px tall. The transcript, not the window: the composer and the
+ * header take a share of the window, and folding against the window let a bubble be taller than the
+ * space it was folded into.
+ */
+export function foldLimitFor(height: number): number {
   const coarse = globalThis.matchMedia?.("(pointer: coarse)").matches ?? false
-  if (!cached || cached.height !== height || cached.coarse !== coarse) cached = { height, coarse, limit: collapseLimit(height, coarse) }
+  const usable = Math.max(240, height - FOLD_BUTTON_PX)
+  if (!cached || cached.height !== usable || cached.coarse !== coarse) cached = { height: usable, coarse, limit: collapseLimit(usable, coarse) }
   return cached.limit
+}
+
+/** The limit for this window right now, for callers with no transcript to measure. */
+export function currentLimit(): number {
+  return foldLimitFor(globalThis.innerHeight ?? 900)
 }
