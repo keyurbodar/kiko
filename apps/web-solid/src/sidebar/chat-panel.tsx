@@ -428,6 +428,10 @@ export function ChatPanel() {
   )
   const pinned = createMemo(() => shown().filter((bot) => bot.pinned))
   const jumpHint = createMemo(() => {
+    // The numbers follow the sidebar's own order, and the keyboard jump uses that same order. While
+    // the list is filtered the two disagree, so the badge would name a chat that Alt+N does not
+    // open. A filtered list shows no badges rather than a wrong one.
+    if (query() !== "" || unreadOnly()) return new Map<string, string>()
     const order = [...all().filter((b) => b.pinned), ...all().filter((b) => !b.pinned)].slice(0, 9)
     return new Map(order.map((b, i) => [b.id, `chats.go-${i + 1}`]))
   })
