@@ -21,8 +21,8 @@ type BoundInput = { ownerId: string; clerkJwtKey: string; trustedOrigins: string
 const secret = (name: string, text: string): SecretBinding => ({ type: "secret_text", name, text })
 
 /**
- * What ties a backend to this front door. Set on every install, so a backend that was deployed by hand, or by an
- * older installer, can be adopted: it learns the owner, the Clerk key, the origin, and where updates come from.
+ * What ties a backend to this front door. Existing backends receive these only after accepting the caller's
+ * Clerk identity. A backend without verifiable ownership is never adopted automatically.
  */
 export function boundSecrets(input: BoundInput): SecretBinding[] {
   return [
@@ -39,10 +39,10 @@ export function firstInstallSecrets(input: BoundInput & { random: () => string }
   return [secret("SESSION_SECRET", input.random()), secret("CREDENTIALS_KEK", input.random()), ...boundSecrets(input)]
 }
 
-export async function ownScriptName(sub: string): Promise<string> {
+export async function ownScriptName(sub: string, length = 6): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sub))
   const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
-  return `${DEFAULT_SCRIPT}-${hex.slice(0, 6)}`
+  return `${DEFAULT_SCRIPT}-${hex.slice(0, length)}`
 }
 
 /** As the token form names them. Workers Admin was called Workers Scripts Write; Workers Editor cannot create a Worker. */

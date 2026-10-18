@@ -92,18 +92,20 @@ export async function openSignIn(): Promise<void> {
 }
 
 /** Calls back each time Clerk gains a session, for example when the modal finishes without a page load. */
-export async function onClerkSession(callback: () => void): Promise<void> {
+export async function onClerkSession(callback: (active: boolean) => void): Promise<() => void> {
   const clerk = await loadClerk()
-  clerk.addListener(
-    ({ session }) => {
-      if (session) callback()
-    },
-    { skipInitialEmit: true },
-  )
+  let previous: string | null | undefined
+  return clerk.addListener(({ session }) => {
+    const identity = session?.id ?? null
+    if (identity === previous) return
+    previous = identity
+    callback(!!session)
+  })
 }
 
 export interface ClerkSignIn {
   token: string
+  userId: string
   backendUrl: string | null
   profile: Profile
 }
@@ -114,12 +116,13 @@ export async function clerkSignIn(): Promise<ClerkSignIn | null> {
   const { session, user } = clerk
   if (!session || !user) return null
   const token = await session.getToken()
-  if (!token) return null
+  if (!token || clerk.session !== session || clerk.user !== user) return null
   const account = user.externalAccounts[0]
   const provider = String(account?.provider ?? "").replace(/^oauth_/, "")
   const url = user.publicMetadata.backendUrl
   return {
     token,
+    userId: user.id,
     backendUrl: typeof url === "string" && url ? url : null,
     profile: {
       name: user.fullName ?? user.username ?? user.primaryEmailAddress?.emailAddress ?? "You",

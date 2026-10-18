@@ -1,12 +1,12 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { For, Match, Show, Switch, createEffect, lazy } from "solid-js"
+import { For, Match, Show, Switch, createEffect, onCleanup, lazy } from "solid-js"
 import "./first-run.css"
 import { hosted } from "../hosted"
-import { session } from "../session"
+import { backendConnectionNotice, session } from "../session"
 import { Backdrop, Mascot } from "./backdrop"
 import { ClerkStep, resumeClerk } from "./clerk-step"
 import { ConnectStep } from "./connect-step"
-import { currentStep } from "./progress"
+import { currentStep, useDifferentSignIn } from "./progress"
 import { indexOf, stepsFor } from "./steps"
 import { AccessCode } from "./welcome"
 
@@ -31,7 +31,7 @@ export default function FirstRun() {
   const at = () => indexOf(currentStep(), hosted)
 
   if (hosted) void ConnectCloudflare.preload()
-  if (hosted && session().status !== "signed-in" && currentStep() !== "cloudflare") resumeClerk(location.search)
+  if (hosted && session().status !== "signed-in" && currentStep() !== "cloudflare") onCleanup(resumeClerk(location.search))
 
   createEffect(() => {
     const path = location.pathname
@@ -65,6 +65,12 @@ export default function FirstRun() {
               <Switch>
                 <Match when={step === "sign-in"}>{hosted ? <ClerkStep /> : <AccessCode />}</Match>
                 <Match when={step === "cloudflare"}>
+                  <Show when={backendConnectionNotice()}>
+                    <div class="mb-3 flex flex-col gap-2">
+                      <p class="text-sm text-muted-foreground" role="status">{backendConnectionNotice()}</p>
+                      <button type="button" class="text-sm underline" onClick={() => void useDifferentSignIn()}>Use a different sign-in</button>
+                    </div>
+                  </Show>
                   <ConnectCloudflare />
                 </Match>
                 <Match when={step === "connect"}>

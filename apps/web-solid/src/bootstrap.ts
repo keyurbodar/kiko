@@ -34,11 +34,11 @@ window.addEventListener("vite:preloadError", (event) => {
 // The session check and, for a browser with no cached session, the sign-in screen
 // start now, in parallel with the route chunk, instead of one after another.
 declare global {
-  var __kikoBoot: { me?: Promise<Response> } | undefined;
+  var __kikoBoot: { me?: Promise<Response>; token?: string | null; url?: string } | undefined;
 }
 const signedInBefore = read("kiko:session") !== null;
 const token = getToken();
-globalThis.__kikoBoot = { me: fetch(apiUrl("/api/me"), token ? { headers: { authorization: `Bearer ${token}` } } : undefined) };
+globalThis.__kikoBoot = { token, url: apiUrl("/api/me"), me: fetch(apiUrl("/api/me"), token ? { headers: { authorization: `Bearer ${token}` } } : undefined) };
 if (!signedInBefore) void import("./app/sign-in").catch(() => {});
 
 // Same specifier as `app/routes.tsx`, so the bundler shares the chunk. Every first paint is a chat: a

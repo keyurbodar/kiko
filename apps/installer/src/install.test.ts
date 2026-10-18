@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test"
+import { ownScriptName } from "./plan"
 import { isBlocking } from "./cf"
 import { type InstallEnv, runInstall } from "./install"
 
 const enc = new TextEncoder()
 const MANIFEST_MODULE = "index.js"
+const NEW_SCRIPT = await ownScriptName("user_1", 32)
+const OTHER_SCRIPT = await ownScriptName("u", 32)
 
 async function makeRelease(tamper?: "manifest" | "module") {
   const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair
@@ -28,7 +31,7 @@ async function makeRelease(tamper?: "manifest" | "module") {
 
 type Call = { url: string; method: string; body?: unknown }
 
-function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled"; subdomain?: string | null; accounts?: string[]; deniedAccounts?: string[]; scriptsByAccount?: Record<string, { id: string }[]>; status?: { path: string; code: number; error?: number; message?: string }; dnsAfter?: number }) {
+function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled"; subdomain?: string | null; accounts?: string[]; deniedAccounts?: string[]; scriptsByAccount?: Record<string, { id: string }[]>; status?: { path: string; code: number; error?: number; message?: string }; dnsAfter?: number; owners?: Record<string, string>; ownerStatus?: number }) {
   let dnsAsks = 0
   const calls: Call[] = []
   const ok = (result: unknown) => Response.json({ success: true, result })
@@ -51,7 +54,14 @@ function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>
       dnsAsks++
       return Response.json(dnsAsks > (opts.dnsAfter ?? 0) ? { Status: 0, Answer: [{ data: "104.21.0.1" }] } : { Status: 3 })
     }
-    if (url.host.endsWith(".workers.dev")) return url.host.startsWith("kiko.") ? Response.json({ version: "0.1.0" }) : new Response("no", { status: 404 })
+    if (url.host.endsWith(".workers.dev")) {
+      if (url.pathname === "/api/auth/clerk") {
+        const owner = opts.owners?.[url.host.split(".")[0] ?? ""]
+        const status = opts.ownerStatus ?? (owner && owner !== (body as { token: string }).token ? 403 : 200)
+        return Response.json(status === 200 ? { user: { id: "owner" }, token: "session" } : { message: "This backend belongs to someone else" }, { status })
+      }
+      return Response.json({ version: "0.1.0" })
+    }
     const path = url.pathname.replace("/client/v4", "")
     if (opts.status && path.endsWith(opts.status.path)) return Response.json({ success: false, errors: [{ code: opts.status.error ?? 1000, message: opts.status.message ?? "Cloudflare says no" }] }, { status: opts.status.code })
     if (opts.deniedAccounts?.some((a) => path.startsWith(`/accounts/${a}/`))) return Response.json({ success: false, errors: [{ code: 10000, message: "Authentication error" }] }, { status: 403 })
@@ -82,21 +92,78 @@ async function install(cfg: Parameters<typeof fakeCloudflare>[0], grant: Paramet
   const { calls, fetcher } = fakeCloudflare(cfg)
   const metadata: unknown[] = []
   let n = 0
-  const result = await runInstall(env(cfg.release), { fetch: fetcher, randomSecret: () => `rand${n++}`, sleep: async () => {}, setMetadata: async (sub, m) => void metadata.push([sub, m]) }, { sub: "user_1", grant, ...(accountId ? { accountId } : {}) })
-  const upload = calls.find((c) => c.method === "PUT" && c.url.endsWith("/workers/scripts/kiko")) as Call
+  const result = await runInstall(env(cfg.release), { fetch: fetcher, randomSecret: () => `rand${n++}`, sleep: async () => {}, setMetadata: async (sub, m) => void metadata.push([sub, m]) }, { clerkToken: "user_1", sub: "user_1", grant, ...(accountId ? { accountId } : {}) })
+  const upload = calls.find((c) => c.method === "PUT" && /\/workers\/scripts\/[^/]+$/.test(c.url)) as Call
   return { calls, upload, result, metadata }
 }
 
 const secretNames = (upload: Call) => ((upload.body as { bindings: { type: string; name: string }[] }).bindings).filter((b) => b.type === "secret_text").map((b) => b.name)
 
 describe("runInstall", () => {
+  test("another Clerk owner cannot rebind the default Kiko Worker", async () => {
+    const release = await makeRelease()
+    const { calls, result } = await install({ release, scripts: [{ id: "kiko" }], owners: { kiko: "other_owner" } })
+    expect(calls.some((c) => c.url === "https://kiko.me.workers.dev/api/auth/clerk")).toBe(true)
+    expect(result.backendUrl).toBe(`https://${await ownScriptName("user_1", 32)}.me.workers.dev`)
+    expect(calls.filter((c) => c.method === "PUT" && /\/scripts\/kiko(?:\/|$)/.test(c.url))).toEqual([])
+  })
+
+  test("an existing owner-specific backend wins over the default and retains its data", async () => {
+    const release = await makeRelease()
+    const ours = await ownScriptName("user_1")
+    const { calls, result } = await install({ release, scripts: [{ id: "kiko" }, { id: ours, migration_tag: "v1" }] })
+    expect(result.backendUrl).toBe(`https://${ours}.me.workers.dev`)
+    const upload = calls.find((c) => c.method === "PUT" && c.url.endsWith(`/scripts/${ours}`))
+    expect(upload?.body).toMatchObject({ keep_bindings: ["secret_text"], migrations: { old_tag: "v1" } })
+    expect(calls.filter((c) => c.method === "PUT" && /\/scripts\/kiko(?:\/|$)/.test(c.url))).toEqual([])
+  })
+
+  test("an owner-specific name collision is refused without touching either backend", async () => {
+    const release = await makeRelease()
+    const ours = await ownScriptName("user_1", 32)
+    const { calls, fetcher } = fakeCloudflare({ release, scripts: [{ id: "kiko" }, { id: ours }], owners: { kiko: "other", [ours]: "collision" } })
+    const failure = await runInstall(env(release), { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { sub: "user_1", clerkToken: "user_1", grant: { kind: "token", token: "t" } }).catch((e) => e)
+    expect(failure.code).toBe("owner_conflict")
+    expect(calls.filter((c) => c.method === "PUT")).toEqual([])
+  })
+
+  test.each([401, 500])("uncertain ownership (%s) stops before any upload", async (ownerStatus) => {
+    const release = await makeRelease()
+    const { calls, fetcher } = fakeCloudflare({ release, scripts: [{ id: "kiko" }], ownerStatus })
+    const failure = await runInstall(env(release), { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { sub: "user_1", clerkToken: "user_1", grant: { kind: "token", token: "t" } }).catch((e) => e)
+    expect(failure.code).toBe("owner_unverified")
+    expect(calls.filter((c) => c.method === "PUT")).toEqual([])
+  })
+
+  test("a backend without Clerk ownership support is left untouched", async () => {
+    const release = await makeRelease()
+    const { calls, result } = await install({ release, scripts: [{ id: "kiko" }], ownerStatus: 404 })
+    expect(result.backendUrl).toBe(`https://${NEW_SCRIPT}.me.workers.dev`)
+    expect(calls.filter((c) => c.method === "PUT" && /\/scripts\/kiko(?:\/|$)/.test(c.url))).toEqual([])
+  })
+
+  test("a foreign default backend does not choose a team account for the caller", async () => {
+    const release = await makeRelease()
+    const failure = await install({ release, scripts: [], accounts: ["team", "mine"], scriptsByAccount: { team: [{ id: "kiko" }] }, owners: { kiko: "other" } }).catch((e) => e)
+    expect(failure.code).toBe("choose_account")
+  })
+
+  test("fresh installs use different names for different Clerk identities", async () => {
+    const release = await makeRelease()
+    const { fetcher, calls } = fakeCloudflare({ release, scripts: [] })
+    const deps = { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }
+    const results = await Promise.all(["one", "two"].map((sub) => runInstall(env(release), deps, { sub, clerkToken: sub, grant: { kind: "token", token: "t" } })))
+    expect(results[0]?.backendUrl).not.toBe(results[1]?.backendUrl)
+    expect(calls.filter((c) => c.method === "PUT" && /\/scripts\/kiko$/.test(c.url))).toEqual([])
+  })
+
   test("an account with no workers.dev address gets one made for it", async () => {
     const release = await makeRelease()
     const { calls, result } = await install({ release, scripts: [], subdomain: null })
     const made = calls.find((c) => c.method === "PUT" && c.url.endsWith("/workers/subdomain"))
     const label = (made?.body as { subdomain: string } | undefined)?.subdomain ?? ""
     expect(label).toMatch(/^kiko-[0-9a-f]{8}$/)
-    expect(result.backendUrl).toBe(`https://kiko.${label}.workers.dev`)
+    expect(result.backendUrl).toBe(`https://${NEW_SCRIPT}.${label}.workers.dev`)
   })
 
   test("an account that has a workers.dev address keeps it", async () => {
@@ -111,8 +178,8 @@ describe("runInstall", () => {
     expect(secretNames(upload).sort()).toEqual(["CF_GRANT", "CLERK_JWT_KEY", "CREDENTIALS_KEK", "OWNER_ID", "RELEASE_BASE_URL", "SESSION_SECRET", "TRUSTED_ORIGINS"])
     expect((upload.body as { migrations: unknown }).migrations).toMatchObject({ new_tag: "v2", steps: [{ tag: "v1" }, { tag: "v2" }] })
     expect(upload.body).not.toHaveProperty("keep_bindings")
-    expect(result).toEqual({ backendUrl: "https://kiko.me.workers.dev", version: "0.1.0" })
-    expect(metadata).toEqual([["user_1", { backendUrl: "https://kiko.me.workers.dev", accountId: "acc1", version: "0.1.0" }]])
+    expect(result).toEqual({ backendUrl: `https://${NEW_SCRIPT}.me.workers.dev`, version: "0.1.0" })
+    expect(metadata).toEqual([["user_1", { backendUrl: `https://${NEW_SCRIPT}.me.workers.dev`, accountId: "acc1", version: "0.1.0" }]])
     expect(calls.some((c) => c.url.endsWith("/subdomain") && c.method === "POST" && JSON.stringify(c.body) === '{"enabled":true,"previews_enabled":false}')).toBe(true)
   })
 
@@ -132,10 +199,10 @@ describe("runInstall", () => {
   test("a kiko script owned by someone else's app gets our own name", async () => {
     const release = await makeRelease()
     const { calls, fetcher } = fakeCloudflare({ release, scripts: [{ id: "kiko" }] })
-    const other: typeof fetcher = async (input, init) => (input === "https://kiko.me.workers.dev/api/version" ? new Response("not kiko", { status: 404 }) : fetcher(input, init))
-    await runInstall(env(release), { fetch: other, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { sub: "user_1", grant: { kind: "token", token: "t" } }).catch(() => {})
+    const other: typeof fetcher = async (input, init) => (input.startsWith("https://kiko.me.workers.dev/api/") ? new Response("not kiko", { status: 404 }) : fetcher(input, init))
+    await runInstall(env(release), { fetch: other, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { clerkToken: "user_1", sub: "user_1", grant: { kind: "token", token: "t" } }).catch(() => {})
     const put = calls.find((c) => c.method === "PUT")
-    expect(put?.url).toMatch(/\/workers\/scripts\/kiko-[0-9a-f]{6}$/)
+    expect(put?.url).toMatch(/\/workers\/scripts\/kiko-[0-9a-f]{32}$/)
   })
 
   test("oauth exchanges the code and stores both tokens in CF_GRANT", async () => {
@@ -143,35 +210,20 @@ describe("runInstall", () => {
     const { upload, calls } = await install({ release, scripts: [] }, { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" })
     expect(calls[0]?.url).toBe("https://dash.cloudflare.com/oauth2/token")
     const grant = ((upload.body as { bindings: { name: string; text?: string }[] }).bindings.find((b) => b.name === "CF_GRANT") as { text: string }).text
-    expect(JSON.parse(grant)).toEqual({ kind: "oauth", clientId: expect.any(String), accessToken: "at", refreshToken: "rt", accountId: "acc1", scriptName: "kiko" })
+    expect(JSON.parse(grant)).toEqual({ kind: "oauth", clientId: expect.any(String), accessToken: "at", refreshToken: "rt", accountId: "acc1", scriptName: NEW_SCRIPT })
   })
 
   const filesBindings = (upload: Call) => ((upload.body as { bindings: { type: string; name: string }[] }).bindings).filter((b) => ["FILES", "FILE"].includes(b.name))
 
-  test("R2 turned on: the bucket is bound", async () => {
-    const release = await makeRelease()
-    const { upload } = await install({ release, scripts: [], r2: "ok" })
-    expect(filesBindings(upload)).toEqual([expect.objectContaining({ type: "durable_object_namespace", name: "FILE" }), { type: "r2_bucket", name: "FILES", bucket_name: "kiko-files" }])
-  })
-
-  test("a leftover bucket is bound again", async () => {
-    const release = await makeRelease()
-    const { upload } = await install({ release, scripts: [], r2: "exists" })
-    expect(filesBindings(upload).map((b) => b.name)).toContain("FILES")
-  })
-
-  test("R2 not turned on: the install finishes without the binding", async () => {
-    const release = await makeRelease()
-    const { upload, result } = await install({ release, scripts: [], r2: "disabled" })
-    expect(filesBindings(upload)).toEqual([expect.objectContaining({ type: "durable_object_namespace", name: "FILE" })])
-    expect(result.backendUrl).toBe("https://kiko.me.workers.dev")
-  })
-
-  test("R2 failing for any other reason does not stop the install either", async () => {
-    const release = await makeRelease()
-    const { upload } = await install({ release, scripts: [], status: { path: "/r2/buckets", code: 500 } })
-    expect(filesBindings(upload).map((b) => b.name)).toEqual(["FILE"])
-  })
+  for (const r2 of ["ok", "exists", "disabled"] as const) {
+    test(`fresh backends keep files private when R2 is ${r2}`, async () => {
+      const release = await makeRelease()
+      const { upload, calls, result } = await install({ release, scripts: [], r2 })
+      expect(filesBindings(upload)).toEqual([expect.objectContaining({ type: "durable_object_namespace", name: "FILE" })])
+      expect(calls.some((c) => c.url.endsWith("/r2/buckets"))).toBe(false)
+      expect(result.backendUrl).toBe(`https://${NEW_SCRIPT}.me.workers.dev`)
+    })
+  }
 
   test("an account the sign-in cannot use is skipped for the next one", async () => {
     const release = await makeRelease()
@@ -204,8 +256,8 @@ describe("runInstall", () => {
     const codes = { take, put: async (c: string, t: { accessToken: string }) => void kept.set(c, t) }
     const deps = { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {}, codes }
     const grant = { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" } as const
-    expect(await runInstall(env(release), deps, { sub: "u", grant }).catch((e) => e.code)).toBe("choose_account")
-    expect((await runInstall(env(release), deps, { sub: "u", grant, accountId: "mine" })).version).toBe("0.1.0")
+    expect(await runInstall(env(release), deps, { clerkToken: "user_1", sub: "u", grant }).catch((e) => e.code)).toBe("choose_account")
+    expect((await runInstall(env(release), deps, { clerkToken: "user_1", sub: "u", grant, accountId: "mine" })).version).toBe("0.1.0")
     expect(calls.filter((c) => c.url === "https://dash.cloudflare.com/oauth2/token")).toHaveLength(1)
     expect(kept.size).toBe(0)
   })
@@ -217,7 +269,7 @@ describe("runInstall", () => {
     const codes = { take: async () => undefined, put: async (c: string, t: unknown) => void kept.set(c, t) }
     const deps = { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {}, codes }
     const grant = { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" } as const
-    expect(await runInstall(env(release), deps, { sub: "u", grant }).catch((e) => e.code)).toBe("cloudflare_down")
+    expect(await runInstall(env(release), deps, { clerkToken: "user_1", sub: "u", grant }).catch((e) => e.code)).toBe("cloudflare_down")
     expect(kept.size).toBe(0)
   })
 
@@ -229,7 +281,7 @@ describe("runInstall", () => {
     const { fetcher } = fakeCloudflare({ release, scripts: [], status })
     const deps = { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }
     const grant = { kind: "oauth", code: "c", verifier: "v", redirectUri: "https://app.kiko.codes/cb" } as const
-    expect(await runInstall(env(release), deps, { sub: "u", grant }).catch((e) => e.code)).toBe("oauth_failed")
+    expect(await runInstall(env(release), deps, { clerkToken: "user_1", sub: "u", grant }).catch((e) => e.code)).toBe("oauth_failed")
     const garbage = await install({ release, scripts: [], status: { path: "/accounts", code: 400, error: 6003, message: "Invalid request headers" } }).catch((e) => e)
     expect(garbage.code).toBe("bad_token")
   })
@@ -242,7 +294,7 @@ describe("runInstall", () => {
 
   test("a token that may edit but not create Workers is told to use Workers Admin, with Cloudflare's words", async () => {
     const release = await makeRelease()
-    const err = await install({ release, scripts: [], status: { path: "/workers/scripts/kiko", code: 403, error: 10000 } }).catch((e) => e)
+    const err = await install({ release, scripts: [], status: { path: `/workers/scripts/${NEW_SCRIPT}`, code: 403, error: 10000 } }).catch((e) => e)
     expect(err.code).toBe("cannot_create")
     expect(err.message).toContain("Workers Admin")
     expect(err.detail).toContain("Cloudflare says no")
@@ -269,13 +321,13 @@ describe("runInstall", () => {
     ["the account has used its free Durable Object rows", { status: { path: "/workers/scripts", code: 500, message: "Exceeded allowed rows written in Durable Objects free tier" } }, "storage_full"],
     ["the account has used its free Durable Object rows read", { status: { path: "/accounts", code: 500, message: "exceeded allowed rows read in durable objects free tier" } }, "storage_full"],
     ["the subdomain call is denied, not missing", { subdomain: null, status: { path: "/workers/subdomain", code: 403, error: 10000 } }, "no_permission"],
-    ["the upload of a new Worker is denied", { status: { path: "/workers/scripts/kiko", code: 403 } }, "cannot_create"],
+    ["the upload of a new Worker is denied", { status: { path: `/workers/scripts/${OTHER_SCRIPT}`, code: 403 } }, "cannot_create"],
     ["the upload over an existing Kiko is denied", { scripts: [{ id: "kiko" }], status: { path: "/workers/scripts/kiko", code: 403 } }, "no_permission"],
     ["the account list is empty", { accounts: [] }, "no_account"],
   ] as const)("%s maps to %s", async (_name, extra, code) => {
     const release = await makeRelease()
     const { fetcher } = fakeCloudflare({ release, scripts: [], ...(extra as object) } as Parameters<typeof fakeCloudflare>[0])
-    const err = await runInstall(env(release), { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { sub: "u", grant: { kind: "token", token: "t" } }).catch((e) => e)
+    const err = await runInstall(env(release), { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { clerkToken: "user_1", sub: "u", grant: { kind: "token", token: "t" } }).catch((e) => e)
     expect(err.code).toBe(code)
   })
 
@@ -292,7 +344,7 @@ describe("runInstall", () => {
   test.each(["manifest", "module"] as const)("a tampered %s is rejected before any upload", async (tamper: "manifest" | "module") => {
     const release = await makeRelease(tamper)
     const { fetcher, calls } = fakeCloudflare({ release, scripts: [] })
-    const err = await runInstall(env(release), { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { sub: "u", grant: { kind: "token", token: "t" } }).catch((e) => e)
+    const err = await runInstall(env(release), { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { clerkToken: "user_1", sub: "u", grant: { kind: "token", token: "t" } }).catch((e) => e)
     expect(err.code).toBe("release_untrusted")
     expect(calls.some((c) => c.method === "PUT")).toBe(false)
   })

@@ -4,10 +4,10 @@ import { connectedProviders } from "../../settings/connected"
 import { listProviders } from "../../settings/credentials"
 import { hasModelProvider } from "../../settings/provider-kinds"
 import { hosted } from "../hosted"
-import { session } from "../session"
+import { authGeneration, authIdentity, authReset, session, signOut, setBackendConnectionNotice } from "../session"
 import { advance, stepFor, stepFromSaved, type Move, type Step } from "./steps"
 
-const key = (userId: string) => `kiko:first-run:${userId}`
+const key = (userId: string) => `kiko:first-run:${authIdentity()}:${userId}`
 
 function read(userId: string): Step | null {
   try {
@@ -37,6 +37,12 @@ const [needsBackend, setNeedsBackend] = createSignal(hosted && /^\/connect(\/cal
 export const [working, setWorking] = createSignal(false)
 /** Hosted only: Clerk signed the person in, and they have no backend yet. */
 export const installBackend = () => setNeedsBackend(true)
+
+export async function useDifferentSignIn(): Promise<void> {
+  await signOut()
+  setBackendConnectionNotice("")
+  setNeedsBackend(false)
+}
 
 /** Call as a sign-in goes up, so the first frame after it is already the connect step. */
 export const enteringFresh = () => setFresh(true)
@@ -84,12 +90,21 @@ async function onboardedOnServer(): Promise<boolean> {
 }
 
 createRoot(() => {
+  createEffect(() => {
+    if (authReset() === 0) return
+    setNeedsBackend(false)
+    setFresh(false)
+    setSaved(null)
+    setProbe(null)
+    setWorking(false)
+  })
   // Ask the server once, so a first run finished or skipped elsewhere wins over a step this browser saved earlier.
   createEffect(() => {
     const id = userId()
     if (!id || savedStep() === "done" || probe()?.userId === id) return
+    const attempt = authGeneration()
     void Promise.all([listProviders(), onboardedOnServer()])
-      .then(([list, onboarded]) => setProbe({ userId: id, connected: hasModelProvider(list), onboarded }))
+      .then(([list, onboarded]) => { if (attempt === authGeneration()) setProbe({ userId: id, connected: hasModelProvider(list), onboarded }) })
       .catch(() => {})
   })
   // Remember the step, so a reload resumes it and a finished first run stays finished.

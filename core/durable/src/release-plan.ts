@@ -5,7 +5,7 @@ import type { ReleaseManifest, ReleaseMigration } from "./release"
 
 export type MigrationPlan = { old_tag?: string; new_tag: string; steps: ReleaseMigration[] }
 
-export const BUCKET = "kiko-files"
+const BUCKET = "kiko-files"
 
 const BINDINGS = [
   { type: "durable_object_namespace", name: "USER", class_name: "UserDO" },

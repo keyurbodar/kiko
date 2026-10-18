@@ -1,6 +1,6 @@
 import { Show, createSignal } from "solid-js"
-import { signInWithClerk } from "../session"
-import { installBackend, setWorking } from "./progress"
+import { allowClerkResume, autoResume, cancelAuthAttempt, signInWithClerk } from "../session"
+import { currentStep, installBackend, setWorking } from "./progress"
 import { Cover, primary } from "./welcome"
 
 const [busy, setBusyRaw] = createSignal(false)
@@ -11,6 +11,7 @@ const setBusy = (on: boolean) => {
 }
 
 async function open(): Promise<void> {
+  allowClerkResume()
   setError("")
   setBusy(true)
   try {
@@ -38,13 +39,27 @@ async function enter(before?: () => Promise<void>): Promise<void> {
  * Called once as the sign-in step mounts in a hosted build. A Clerk session already in this browser
  * signs in without a click, and a session the modal makes later is picked up without a page load.
  */
-export function resumeClerk(search: string): void {
+export function resumeClerk(search: string): () => void {
+  let disposed = false
+  let unsubscribe: (() => void) | undefined
+  const run = (active: boolean) => {
+    if (disposed || !autoResume() || (active && currentStep() === "cloudflare")) return
+    void enter()
+  }
+  setError("")
+  setBusy(false)
   if (import.meta.env.DEV) {
     const ticket = new URLSearchParams(search).get("ticket")
-    if (ticket) return void enter(() => import("../dev-ticket").then((m) => m.signInWithTicket(ticket)))
+    if (ticket) {
+      void enter(() => import("../dev-ticket").then((m) => m.signInWithTicket(ticket)))
+      return () => { disposed = true }
+    }
   }
-  void import("../clerk").then((m) => m.onClerkSession(() => void enter())).catch(() => {})
-  void enter()
+  void import("../clerk").then((m) => m.onClerkSession(run)).then((stop) => {
+    if (disposed) stop()
+    else unsubscribe = stop
+  }).catch(() => {})
+  return () => { disposed = true; unsubscribe?.(); cancelAuthAttempt() }
 }
 
 /** Opens Clerk's sign-in modal, where the person chooses a sign-in method. */

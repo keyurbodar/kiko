@@ -1,5 +1,5 @@
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
-import { BUCKET, type FilesBinding, buildMetadata, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
+import { type FilesBinding, buildMetadata, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
 import { type FetchLike, InstallError, cf, isBlocking, json } from "./cf"
 import { DEFAULT_SCRIPT, type Grant, type StoredGrant, boundSecrets, firstInstallSecrets, ownScriptName } from "./plan"
 
@@ -23,7 +23,7 @@ export type InstallDeps = {
 
 export type OAuthTokens = { accessToken: string; refreshToken?: string }
 
-export type InstallRequest = { sub: string; grant: Grant; accountId?: string }
+export type InstallRequest = { clerkToken: string; sub: string; grant: Grant; accountId?: string }
 export type InstallResult = { backendUrl: string; version: string }
 
 type Script = { id: string; migration_tag?: string }
@@ -68,18 +68,22 @@ async function isKiko(f: FetchLike, url: string): Promise<boolean> {
   }
 }
 
-// Files live in R2 when the account has it, and in the Worker's own storage when it does not. R2 on a Free
-// account needs a plan that Cloudflare only lets the owner turn on in the dashboard, so no failure here stops
-// the install: the Worker reads whether the binding exists.
-async function hasBucket(token: string, accountId: string, f: FetchLike): Promise<boolean> {
+// A public version is not ownership proof. Only the existing backend may accept this identity.
+async function ownedByCaller(f: FetchLike, backend: string, clerkToken: string): Promise<boolean> {
   try {
-    await cf(token, `/accounts/${accountId}/r2/buckets`, json({ name: BUCKET }), f)
-    return true
-  } catch (e) {
-    // 10073 is "Bucket name already exists" (https://developers.cloudflare.com/r2/api/error-codes/). A live account
-    // answers 10004 "The bucket you tried to create already exists, and you own it."
-    return e instanceof InstallError && (e.cfCodes.includes(10073) || e.cfCodes.includes(10004) || /already exists/i.test(e.detail ?? ""))
+    const res = await f(`${backend}/api/auth/clerk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: clerkToken }),
+      redirect: "error",
+    })
+    if (res.status === 403 || res.status === 404) return false
+    const body: unknown = await res.json()
+    if (res.ok && typeof body === "object" && body !== null && "token" in body && typeof body.token === "string" && "user" in body && typeof body.user === "object" && body.user !== null && "id" in body.user && body.user.id === "owner") return true
+  } catch {
+    // An unavailable backend is not permission to replace it.
   }
+  throw new InstallError("owner_unverified", "Could not verify this backend's owner. Sign in again and retry when the backend is reachable.", 409)
 }
 
 function blockingOrNull(e: unknown): null {
@@ -108,7 +112,7 @@ type Account = { id: string; name?: string }
  * With one usable account it is that one. With several and none chosen, the person picks: taking the first one
  * that answered could be a team account where they may list Workers but not create one.
  */
-async function pickAccount(token: string, accounts: Account[], chosen: string | undefined, ours: string, f: FetchLike): Promise<{ accountId: string; scripts: Script[] }> {
+async function pickAccount(token: string, accounts: Account[], chosen: string | undefined, ours: string[], clerkToken: string, f: FetchLike): Promise<{ accountId: string; scripts: Script[] }> {
   let first: unknown = null
   const usable: { account: Account; scripts: Script[] }[] = []
   for (const account of chosen ? accounts.filter((a) => a.id === chosen) : accounts) {
@@ -120,9 +124,15 @@ async function pickAccount(token: string, accounts: Account[], chosen: string | 
     }
   }
   const pick = (u: { account: Account; scripts: Script[] }) => ({ accountId: u.account.id, scripts: u.scripts })
-  const running = usable.find((u) => u.scripts.some((s) => s.id === DEFAULT_SCRIPT || s.id === ours))
-  if (running) return pick(running)
   if (usable.length === 1) return pick(usable[0] as (typeof usable)[number])
+  // Check identity, not just a script name, before preferring an account during reinstall.
+  for (const name of [...ours, DEFAULT_SCRIPT]) {
+    for (const u of usable) {
+      if (!u.scripts.some((s) => s.id === name)) continue
+      const address = await cf<{ subdomain?: string } | null>(token, `/accounts/${u.account.id}/workers/subdomain`, {}, f)
+      if (address?.subdomain && await ownedByCaller(f, `https://${name}.${address.subdomain}.workers.dev`, clerkToken)) return pick(u)
+    }
+  }
   if (usable.length > 1) {
     throw new InstallError("choose_account", "This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in.", 409, [], undefined, usable.map((u) => ({ id: u.account.id, name: u.account.name ?? u.account.id })))
   }
@@ -177,8 +187,9 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   if (req.accountId && !accounts.some((a) => a.id === req.accountId)) {
     throw new InstallError("no_account", "No Cloudflare account was found for this sign-in.", 400)
   }
-  const ours = await ownScriptName(req.sub)
-  const { accountId, scripts } = await pickAccount(token, accounts, req.accountId, ours, f).catch(async (e: unknown) => {
+  const ours = await ownScriptName(req.sub, 32)
+  const legacy = await ownScriptName(req.sub)
+  const { accountId, scripts } = await pickAccount(token, accounts, req.accountId, [ours, legacy], req.clerkToken, f).catch(async (e: unknown) => {
     // An OAuth code works once, so the tokens it was traded for wait for the person's pick, and only for that.
     if (oauth && e instanceof InstallError && e.code === "choose_account") await deps.codes?.put(oauth.code, oauth.tokens)
     throw e
@@ -188,10 +199,21 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
   const host = (name: string) => `https://${name}.${subdomain}.workers.dev`
 
   const byName = new Map(scripts.map((s) => [s.id, s]))
-  let name = DEFAULT_SCRIPT
-  if (byName.has(DEFAULT_SCRIPT) && !(await isKiko(f, `${host(DEFAULT_SCRIPT)}/api/version`))) name = ours
+  let name: string | undefined
+  for (const candidate of [ours, legacy, DEFAULT_SCRIPT]) {
+    if (byName.has(candidate) && await ownedByCaller(f, host(candidate), req.clerkToken)) {
+      name = candidate
+      break
+    }
+  }
+  if (!name) {
+    if (byName.has(ours)) throw new InstallError("owner_conflict", "The owner-specific Worker name is already in use. No backend was changed.", 409)
+    // New installs never contend for the shared default name. Keep legacy names only for verified upgrades.
+    name = ours
+  }
   const existing = byName.get(name)
-  const fileStore: FilesBinding = existing ? "inherit" : (await hasBucket(token, accountId, f)) ? "r2" : "none"
+  // Fresh backends use their private FileDO namespace; the legacy R2 bucket is shared across owners.
+  const fileStore: FilesBinding = existing ? "inherit" : "none"
 
   const { manifest, files } = await loadRelease(env, f)
   const grant: StoredGrant = { ...stored, accountId, scriptName: name }

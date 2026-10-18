@@ -2,8 +2,7 @@ import { createClerkClient } from "@clerk/backend"
 import { DurableObject } from "cloudflare:workers"
 import { installFailure } from "./cf"
 import handler, { type Env, type InstallOutcome } from "./handler"
-import { type OAuthTokens, runInstall } from "./install"
-import type { Grant } from "./plan"
+import { type InstallRequest, type OAuthTokens, runInstall } from "./install"
 
 export default handler
 
@@ -21,7 +20,7 @@ async function sha(text: string): Promise<string> {
 
 // One object per Clerk user, so two clicks of "install" never run at once.
 export class Installer extends DurableObject<Env> {
-  async install(req: { sub: string; grant: Grant; accountId?: string }): Promise<InstallOutcome> {
+  async install(req: InstallRequest): Promise<InstallOutcome> {
     const clerk = createClerkClient({ secretKey: this.env.CLERK_SECRET_KEY })
     try {
       const value = await runInstall(

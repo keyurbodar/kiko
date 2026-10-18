@@ -1,5 +1,5 @@
 import { verifyToken } from "@clerk/backend"
-import type { InstallEnv } from "./install"
+import type { InstallEnv, InstallRequest } from "./install"
 import { OAUTH_SCOPES, TOKEN_PERMISSIONS, TOKEN_TEMPLATE_URL, type Grant } from "./plan"
 
 export type InstallOutcome =
@@ -9,7 +9,7 @@ export type InstallOutcome =
 export type Env = InstallEnv & {
   INSTALLER: {
     idFromName(name: string): DurableObjectId
-    get(id: DurableObjectId): { install(req: { sub: string; grant: Grant; accountId?: string }): Promise<InstallOutcome> }
+    get(id: DurableObjectId): { install(req: InstallRequest): Promise<InstallOutcome> }
   }
   CLERK_SECRET_KEY: string
   TRUSTED_ORIGINS: string
@@ -94,7 +94,7 @@ export default {
       }
       const accountId = typeof body.accountId === "string" ? body.accountId : undefined
       const stub = env.INSTALLER.get(env.INSTALLER.idFromName(sub))
-      const result = await stub.install({ sub, grant, accountId })
+      const result = await stub.install({ sub, clerkToken: body.clerkToken, grant, accountId })
       return reply(result.ok ? result.value : { error: result.error }, result.ok ? 200 : result.error.status, origin)
     }
 
