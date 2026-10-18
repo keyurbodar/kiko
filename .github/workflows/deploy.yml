@@ -92,6 +92,18 @@ jobs:
           rm -rf apps/web-solid/dist/releases
           cp -r "$store" apps/web-solid/dist/releases
           cp dist-release/latest.json apps/web-solid/dist/releases/
+      - name: deploy the backend
+        # The front door and the installer deploy here, so the backend must too. Otherwise it keeps whatever
+        # version its owner last clicked Update to and silently runs the old schema steps, which is how a
+        # shipped write fix can sit in the repo for two releases and never reach a single room.
+        #
+        # It goes before the front door so the client is never newer than the backend it talks to. A backend
+        # ahead of its client is always fine; a client ahead of its backend can be refused.
+        working-directory: apps/server
+        env:
+          # dev-guard folds on this literal. Without it the dev routes and counters stay in the bundle.
+          NODE_ENV: production
+        run: bunx wrangler deploy
       - name: deploy the front door
         working-directory: apps/server
         run: bunx wrangler deploy --config wrangler.front-door.jsonc
