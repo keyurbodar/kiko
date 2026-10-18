@@ -96,7 +96,10 @@ export function Composer(props: ComposerProps) {
     for (const [id, url] of held) discard(id, url)
   })
   const leaveChat = () => {
-    for (const [id, url] of held) discard(id, url)
+    // The box now belongs to another chat, so its pictures go. Their uploads do not: an upload
+    // belongs to the draft, and cancelling it here made coming back restart from zero. The part is
+    // still in that chat's draft file, so `restoreFiles` puts it back with its upload intact.
+    for (const [, url] of held) releaseBlobUrl(url)
     held = new Map()
     keptFor.clear()
     if (boxed().length) store.setPrompt(store.state.prompt.filter((part) => part.type !== "image"))
