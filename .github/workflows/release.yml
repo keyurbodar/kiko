@@ -1,10 +1,40 @@
 name: release
 
 # Bumps the version, tags the commit, deploys through the deploy workflow, and opens a
-# GitHub release. Manual only: a release is a deliberate act, never a side effect of a push.
+# GitHub release.
+#
+# Two ways in:
+#   - the nightly schedule patch-bumps main, so whatever merged since the last release is
+#     live within a day without anyone remembering to cut one. A night with no new commits
+#     releases nothing: bumping anyway would move releases/latest.json and ask every open tab
+#     to update for no code change.
+#   - a manual run, nightly or stable by choice, always cuts a release.
+#
+# There is deliberately no `push: tags` trigger. The bump job below pushes the tag, so a tag
+# trigger would start a second run for every release, deploying the same build twice and
+# trying to create the same GitHub release twice. One run does the whole release instead.
+#
+# Every release carries a fresh version, which is what keeps the guard in deploy.yml green.
+# That guard refuses to replace a released version with different code, so a merge that never
+# bumps can never deploy: the nightly is what stops main from going stale.
+#
+# A nightly is a full production release. Kiko serves one channel, so a nightly moves
+# releases/latest.json and an open tab offers the update, exactly as a stable release does.
+# The `--prerelease` marking only keeps it out of the repository's Latest slot. Both channels
+# run `bun run check` before they deploy, because a scheduled run is not a `workflow_run` and
+# so deploy.yml gates it.
 on:
+  schedule:
+    # Not minute zero, when GitHub's scheduled jobs are busiest. 06:23 UTC.
+    - cron: "23 6 * * *"
   workflow_dispatch:
     inputs:
+      channel:
+        description: "nightly is marked prerelease on GitHub; both deploy the same build"
+        required: true
+        type: choice
+        options: [nightly, stable]
+        default: nightly
       part:
         description: "which version field to bump"
         required: true
@@ -15,12 +45,62 @@ on:
 permissions:
   contents: write
 
+# One release at a time, and a running one is never cancelled: a half-finished deploy would
+# leave the front door and the backend on different versions.
+concurrency:
+  group: release
+  cancel-in-progress: false
+  queue: max
+
 jobs:
-  bump:
+  # Decides the channel before anything is built, so every job reads one answer.
+  preflight:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      channel: ${{ steps.decide.outputs.channel }}
+      part: ${{ steps.decide.outputs.part }}
+      manual: ${{ steps.decide.outputs.manual }}
+    steps:
+      - id: decide
+        # Through the environment, never interpolated into the script: a dispatch input is
+        # text a repo writer chose, and `${{ inputs.part }}` inside a `run:` block would be
+        # pasted into the shell before any check below ran.
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_CHANNEL: ${{ inputs.channel }}
+          DISPATCH_PART: ${{ inputs.part }}
+        run: |
+          # The bump pushes a commit to main. From any other ref that would either fail on a
+          # missing local `main` or, worse, push a branch onto main. Refuse before building.
+          if [ "$GITHUB_REF_TYPE" != "branch" ] || [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "a release runs from main only, not $GITHUB_REF_TYPE $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          if [ "$EVENT" = "schedule" ]; then
+            channel=nightly
+            part=patch
+            manual=false
+          else
+            channel="$DISPATCH_CHANNEL"
+            part="$DISPATCH_PART"
+            manual=true
+          fi
+          case "$channel" in nightly|stable) ;; *) echo "bad channel $channel" >&2; exit 1 ;; esac
+          case "$part" in patch|minor|major) ;; *) echo "bad part $part" >&2; exit 1 ;; esac
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "part=$part" >> "$GITHUB_OUTPUT"
+          echo "manual=$manual" >> "$GITHUB_OUTPUT"
+          echo "releasing the $channel channel with a $part bump"
+
+  bump:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.bump.outputs.version }}
       sha: ${{ steps.push.outputs.sha }}
+      released: ${{ steps.changed.outputs.release }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,11 +108,47 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.14"
-      - id: bump
+      - id: changed
+        name: is there anything to release
         env:
-          PART: ${{ inputs.part }}
+          MANUAL: ${{ needs.preflight.outputs.manual }}
         run: |
-          new="$(bun -e 'const pkg = await Bun.file("package.json").json(); const [a, b, c] = pkg.version.split(".").map(Number); const part = process.env.PART; pkg.version = part === "major" ? `${a + 1}.0.0` : part === "minor" ? `${a}.${b + 1}.0` : `${a}.${b}.${c + 1}`; await Bun.write("package.json", `${JSON.stringify(pkg, null, 2)}\n`); console.log(pkg.version)')"
+          # The newest tag reachable from HEAD, which is what a bump would follow on from.
+          last="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          if [ -z "$last" ]; then
+            count="$(git rev-list --count HEAD)"
+          else
+            count="$(git rev-list --count "$last..HEAD")"
+          fi
+          echo "commits since ${last:-the start}: $count"
+          if [ "$count" -eq 0 ] && [ "$MANUAL" != "true" ]; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "nothing merged since $last, so the nightly has nothing to release"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+      - id: bump
+        if: steps.changed.outputs.release == 'true'
+        env:
+          PART: ${{ needs.preflight.outputs.part }}
+        run: |
+          # Strict on purpose: a prerelease suffix would make "0.4.2-rc.1".split(".") parse as
+          # NaN, and the first unattended run would push a tag called v0.4.NaN, after which
+          # every later run computes the same version and fails on the tag check forever.
+          new="$(bun -e '
+            const pkg = await Bun.file("package.json").json()
+            const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(pkg.version)
+            if (!m) throw new Error(`package.json version ${pkg.version} is not major.minor.patch`)
+            const [a, b, c] = m.slice(1).map(Number)
+            const part = process.env.PART
+            if (!["patch", "minor", "major"].includes(part)) throw new Error(`bad bump part ${part}`)
+            pkg.version = part === "major" ? `${a + 1}.0.0` : part === "minor" ? `${a}.${b + 1}.0` : `${a}.${b}.${c + 1}`
+            await Bun.write("package.json", `${JSON.stringify(pkg, null, 2)}\n`)
+            console.log(pkg.version)
+          ')"
+          # bun exits non-zero on a bad version or part, which fails the step under `set -e`
+          # before this line runs, so this is a second line of defence.
+          case "$new" in *[!0-9.]*|"") echo "computed a bad version: $new" >&2; exit 1 ;; esac
           if git rev-parse -q --verify "refs/tags/v$new" >/dev/null; then
             echo "v$new already exists" >&2
             exit 1
@@ -40,6 +156,7 @@ jobs:
           echo "version=$new" >> "$GITHUB_OUTPUT"
       - id: push
         name: commit and tag
+        if: steps.changed.outputs.release == 'true'
         env:
           VERSION: ${{ steps.bump.outputs.version }}
         run: |
@@ -48,11 +165,22 @@ jobs:
           git add package.json
           git commit -m "Bump the version to $VERSION"
           git tag -a "v$VERSION" -m "Release $VERSION"
-          git push origin main --follow-tags
+          # HEAD:main rather than `main`: checkout names the local branch after the ref, and
+          # preflight has already refused any ref but main, so these are the same commit.
+          #
+          # --atomic matters. Without it a rejected branch push still lands the tag, because
+          # the two refs are pushed separately. main would stay at the old version while
+          # origin carried a tag for the new one, so every later run would compute a version
+          # whose tag already exists and fail, a nightly stuck forever. --atomic makes the
+          # rejected push leave no tag behind.
+          #
+          # --follow-tags pushes the new tag, which starts no run: there is no tag trigger.
+          git push --atomic origin HEAD:main --follow-tags
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   deploy:
     needs: bump
+    if: needs.bump.outputs.released == 'true'
     uses: ./.github/workflows/deploy.yml
     with:
       # github.sha is pinned to the trigger commit, so the bumped commit is passed explicitly.
@@ -60,11 +188,24 @@ jobs:
     secrets: inherit
 
   publish:
-    needs: [bump, deploy]
+    needs: [preflight, bump, deploy]
+    if: needs.bump.outputs.released == 'true' && needs.deploy.result == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: publish the github release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.bump.outputs.version }}
-        run: gh release create "v$VERSION" --repo "${{ github.repository }}" --title "v$VERSION" --generate-notes
+          CHANNEL: ${{ needs.preflight.outputs.channel }}
+        run: |
+          if [ -z "$VERSION" ]; then echo "no version to publish" >&2; exit 1; fi
+          # A nightly is marked prerelease and kept off the repo's "Latest" slot, so the
+          # stable release stays the one a visitor is handed. Both serve the same build.
+          if [ "$CHANNEL" = "nightly" ]; then
+            extra="--prerelease --latest=false"
+          else
+            extra=""
+          fi
+          gh release create "v$VERSION" --repo "${{ github.repository }}" \
+            --title "v$VERSION" --generate-notes $extra
