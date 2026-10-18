@@ -127,3 +127,49 @@ button.run-tree-row[data-file]:hover .run-tree-label {
   min-height: 0;
   overflow: hidden;
 }
+
+/* A call's details, open under its row, on the surface kiko's code blocks use. */
+.run-tree-detail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0 6px 18px;
+}
+.run-tree-block {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+.run-tree-mono {
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-code);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.run-tree-input {
+  max-height: 8rem;
+  color: var(--foreground);
+}
+.run-tree-output {
+  max-height: 16rem;
+  color: color-mix(in oklab, var(--foreground) 72%, transparent);
+}
+.run-tree-input + .run-tree-output {
+  border-top: 1px solid var(--border);
+}
+.run-tree-output[data-failed] {
+  color: color-mix(in oklab, var(--error) 45%, var(--foreground));
+}
+.run-tree-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  user-select: text;
+}
