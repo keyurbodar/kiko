@@ -422,10 +422,49 @@ export function VirtualThread(props: {
     if (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1) scroller.scrollTop = scroller.scrollHeight
   }
 
+  /**
+   * A thread that holds rows but shows none: the view sits where virtua has rendered nothing, and
+   * only a scroll makes it look again. The reader's own small scroll fixed it, so this does the same.
+   * Stuck at the end it jumps to the last row, and anywhere else it moves the view by one pixel.
+   * Three tries a visit, so a view that stays empty cannot creep.
+   */
+  let blankTries = 0
+  let blankKey: string | undefined
+  const repairBlank = () => {
+    const scroller = scrollElement
+    const column = columnElement
+    const virtualizer = handle()
+    const count = items().length
+    if (!scroller || !column || !virtualizer || count === 0 || scroller.clientHeight === 0) return
+    if (blankKey !== props.scrollKey) {
+      blankKey = props.scrollKey
+      blankTries = 0
+    }
+    const view = scroller.getBoundingClientRect()
+    for (const row of column.querySelectorAll<HTMLElement>('[data-component="chat-vrow"]')) {
+      const box = row.getBoundingClientRect()
+      if (box.bottom > view.top && box.top < view.bottom) {
+        blankTries = 0
+        return
+      }
+    }
+    if (blankTries >= 3) return
+    blankTries += 1
+    if (stuck) virtualizer.scrollToIndex(count - 1, { align: "end" })
+    else scroller.scrollTop += 1
+  }
+
   onMount(() => {
     const scroller = scrollElement
     const column = columnElement
     if (!scroller || !column) return
+    let blankCheck: ReturnType<typeof setTimeout> | undefined
+    const checkBlank = () => {
+      clearTimeout(blankCheck)
+      blankCheck = setTimeout(repairBlank, 120)
+    }
+    onCleanup(() => clearTimeout(blankCheck))
+    createEffect(on(() => props.scrollKey, checkBlank))
     const onScroll = () => {
       const state = readState()
       const atEnd = isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
@@ -435,11 +474,13 @@ export function VirtualThread(props: {
       // scrolls, their own position is the truth, and saving it must be allowed again.
       if (readerScrolling && restoredFor === props.scrollKey) restoredOk = true
       commitState(state)
+      checkBlank()
       if (!firstLoad && state.rangeStart < NEAR_TOP_ROWS && state.scrollSize > state.viewportSize) props.onNearTop?.()
     }
     const sizes = makeResizeObserver(() => {
       followEnd()
       commitState(readState())
+      checkBlank()
     })
     sizes.observe(scroller)
     sizes.observe(column)
