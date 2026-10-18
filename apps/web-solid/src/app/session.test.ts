@@ -55,6 +55,43 @@ test("a verified owner mismatch recovers to connect and removes the previous bac
   expect(exchangeAuthorization).toBeNull()
 })
 
+test("the mismatch names the backend it refused, and says why it happened", async () => {
+  expect(await signInWithClerk()).toBe("connect")
+  const notice = backendConnectionNotice()
+  // The address is the fact the person can check; the shared-name history is the reason.
+  expect(notice).toContain("other.workers.dev")
+  expect(notice).toContain("older version")
+  expect(notice).toContain("Install one for this account")
+})
+
+test("signing out forgets the backend address, so the next account does not start on it", async () => {
+  store.set("kiko:backend", "https://first.workers.dev")
+  await signOut()
+  expect(store.get("kiko:backend")).toBeUndefined()
+  expect(store.get("kiko:session")).toBeUndefined()
+  expect(store.get("kiko:identity")).toBeUndefined()
+})
+
+test("a second account lands on its own backend after the first signed out", async () => {
+  // A was signed in on its own backend and signed out.
+  store.set("kiko:backend", "https://first.workers.dev")
+  await signOut()
+  // B has a backend of its own, and it accepts B.
+  Object.assign(globalThis, {
+    fetch: mock(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith("/api/auth/dev/session")) return json({ user: { id: "old", name: "Old owner" }, token: "old-session" })
+      if (url.startsWith("https://second.workers.dev/api/auth/clerk")) return json({ user: { id: "owner", name: "Second owner" }, token: "second-session" })
+      return json({}, 404)
+    }),
+  })
+  backendUrl = "https://second.workers.dev"
+  expect(await signInWithClerk()).toBe("in")
+  expect(session()).toEqual({ status: "signed-in", user: { id: "owner", name: "Second owner" } })
+  expect(store.get("kiko:backend")).toBe("https://second.workers.dev")
+  expect(backendConnectionNotice()).toBe("")
+})
+
 test("expired and invalid 401s stay authentication failures, even with owner-like text", async () => {
   status = 401
   for (const text of ["That token has expired", "That token is not valid", "This backend belongs to someone else"]) {
