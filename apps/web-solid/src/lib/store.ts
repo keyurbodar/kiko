@@ -756,6 +756,15 @@ export function createApp(options: AppOptions = {}) {
         if (olderDone === r) olderDone = null
       },
 
+      /**
+       * The reader scrolled up: the window holds rows they can still see, so it must not cut its
+       * oldest rows on the next message. A chat longer than the window used to lose the text above
+       * the reader mid-read.
+       */
+      holdWindow(): void {
+        room()?.hold()
+      },
+
       /** Searches the open room's messages, newest first. Null when the room does not answer. */
       searchRoom(query: string, before?: number): Promise<SearchPage | null> {
         return room()?.search(query, before) ?? Promise.resolve(null)
@@ -775,8 +784,7 @@ export function createApp(options: AppOptions = {}) {
         return found
       },
 
-      /** True while the transcript shows a window the reader jumped to, not the live end. */
-      showingHistory(): boolean {
+      /** True while the transcript shows a window the reader jumped to, not the live end. */      showingHistory(): boolean {
         return !!room()?.state.history
       },
 

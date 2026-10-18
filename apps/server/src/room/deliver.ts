@@ -66,7 +66,7 @@ export function withContext(log: RoomLog, e: Envelope): Envelope {
 	if (e.body.trim()) lines.push(e.body)
 	if (message.files?.length) lines.push(attachedLine(message.files))
 	const referenced = referencedFiles(e.body, message.files)
-	if (referenced.length) lines.push(`(referenced: ${referenced.join(", ")}. open each with read before you answer about it.)`)
+	if (referenced.length) lines.push(`(referenced: ${referenced.join(", ")}. open a file with read, or list a folder with ls, before you answer about it.)`)
 	return lines.length ? { ...e, body: lines.join("\n") } : e
 }
 

@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router"
-import { Show, type JSX } from "solid-js"
+import type { JSX } from "solid-js"
 import { Button } from "../settings/kit"
 import { useApp } from "../lib/store"
 import { Dialog } from "../lib/dialog"
@@ -11,25 +11,27 @@ import { cancelDeleteChat, deleteChat, deletingChatId } from "./actions"
  */
 export function DeleteChatDialog(): JSX.Element {
   const navigate = useNavigate()
-  const chat = () => {
-    const id = deletingChatId()
-    return id === null ? undefined : useApp.chatById(id)
+  const id = deletingChatId
+  // A plain string, not a component in a prop getter: the dialog reads `description` twice, and a
+  // second `Show` instance created there throws a stale-accessor error inside a store update, which
+  // aborts the batch that was painting the chat list.
+  const description = () => {
+    const row = id() === null ? undefined : useApp.chatById(id()!)
+    return row
+      ? `“${row.name}” and its messages are removed from this device and the server. This cannot be undone.`
+      : "Its messages are removed from this device and the server. This cannot be undone."
   }
   const confirm = () => {
-    const id = deletingChatId()
+    const target = id()
     cancelDeleteChat()
-    if (id) deleteChat(id, useApp.activeThreadId(), (to) => navigate(to))
+    if (target) deleteChat(target, useApp.activeThreadId(), (to) => navigate(to))
   }
   return (
     <Dialog
-      open={deletingChatId() !== null}
+      open={id() !== null}
       onClose={cancelDeleteChat}
       title="Delete this chat?"
-      description={
-        <Show when={chat()} fallback="Its messages are removed from this device and the server.">
-          {(row) => <>“{row().name}” and its messages are removed from this device and the server. This cannot be undone.</>}
-        </Show>
-      }
+      description={description()}
       data-component="delete-chat-dialog"
       footer={
         <>

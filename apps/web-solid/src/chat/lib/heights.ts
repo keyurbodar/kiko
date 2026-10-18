@@ -16,9 +16,6 @@ const RUN_GAP_PX = 11;
 const EVENT_ROW_PX = 32;
 // A failed run adds pills: a 26px pill in the line.
 const RUN_ERROR_ROW_PX = 42;
-// An agent's request for the browser (BrowserControlRow.tsx): one sentence and the browser buttons.
-const BROWSER_ROW_PX = 88;
-
 const CHARS_PER_LINE = 87;
 
 const QUOTE_LINE = 12 * 1.35;
@@ -54,7 +51,6 @@ function bubbleTextLines(body: string): number {
 export function estimateRowHeight(item: TimelineItem): number {
   // The day, unread, event and thread rows (SystemRow.tsx): `py-2` around a `text-xs` line.
   if (item.kind === "event" && item.message.event?.kind === "run_error") return RUN_ERROR_ROW_PX;
-  if (item.kind === "event" && item.message.event?.kind === "browser_control") return BROWSER_ROW_PX;
   if (item.kind === "day-divider" || item.kind === "unread-divider" || item.kind === "event" || item.kind === "thread") return EVENT_ROW_PX;
 
   const { message } = item;

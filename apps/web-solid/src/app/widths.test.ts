@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { CHAT_MIN, INFO, initialSizes, readWidth, resetWidth, SIDEBAR } from "./widths"
+import { CHAT_MIN, defaultWidth, fitWidths, INFO, initialSizes, readWidth, resetWidth, SIDEBAR } from "./widths"
 
 const store = new Map<string, string>()
 Object.assign(globalThis, {
@@ -11,9 +11,34 @@ test("a reset puts a dragged column back to its default width and remembers it",
     store.set(rule.key, String(rule.max))
     const sizes: string[] = []
     resetWidth(rule, { resize: (size) => sizes.push(size) })
-    expect(sizes).toEqual([`${rule.fallback}px`])
-    expect(readWidth(rule)).toBe(rule.fallback)
+    const want = defaultWidth(rule, globalThis.innerWidth)
+    expect(sizes).toEqual([`${want}px`])
+    expect(readWidth(rule)).toBe(want)
   }
+})
+
+test("a double reset after a drag returns to the same default twice", () => {
+  store.set(INFO.key, String(INFO.max))
+  const sizes: string[] = []
+  const panel = { resize: (size: `${number}px`) => void sizes.push(size) }
+  resetWidth(INFO, panel)
+  store.set(INFO.key, "500")
+  resetWidth(INFO, panel)
+  expect(sizes[0]).toBe(sizes[1])
+  expect(readWidth(INFO)).toBe(defaultWidth(INFO, globalThis.innerWidth))
+})
+
+test("the right panel takes a share of the window, within its limits", () => {
+  expect(defaultWidth(INFO, 1280)).toBe(Math.round(1280 * 0.26))
+  expect(defaultWidth(INFO, 900)).toBe(INFO.min)
+  expect(defaultWidth(INFO, 3840)).toBe(INFO.max)
+  expect(defaultWidth(SIDEBAR, 3840)).toBe(SIDEBAR.fallback)
+})
+
+test("a narrower window shrinks the columns instead of the chat", () => {
+  const fitted = fitWidths(1000, 280, 600)
+  expect(fitted.sidebar + fitted.info).toBeLessThanOrEqual(1000 - CHAT_MIN)
+  expect(fitWidths(1440, 280, 380)).toEqual({ sidebar: 280, info: 380 })
 })
 
 const px = (width: number, sidebar: number | null, info: number | null) => {

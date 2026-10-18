@@ -1,11 +1,11 @@
 import { makeResizeObserver } from "@solid-primitives/resize-observer"
-import { createSignal, onMount, Show, type JSX } from "solid-js"
+import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 
 /**
  * "Show full message" for a long bubble.
  *
- * A body taller than `COLLAPSE_THRESHOLD_PX` is clamped to that height, its
+ * A body taller than the window's fold limit is clamped to that height, its
  * last lines faded out by a mask, with a text button under it. A mask rather than a
  * gradient in the bubble's colour: the bubble is translucent over the chat's
  * picture, so a painted fade let the text show through it. Toggling is instant: no
@@ -18,13 +18,37 @@ import { cn } from "../lib/cn"
  * It is a session cache: a reload starts everything clamped again.
  *
  * A `fixed` body, such as a photo, is never clamped and shows no button: the
- * picture owns the bubble's height, and clamping it to nine lines cuts it apart.
+ * picture owns the bubble's height, and clamping it cuts it apart.
  */
 
-/** A body past this height is clamped. Nine lines of 20px, so a plain body ends on a whole line. */
-export const COLLAPSE_THRESHOLD_PX = 180
-/** Content this close to the threshold is not worth hiding a line or two of. */
-const SLACK_PX = 40
+/**
+ * How tall a bubble may grow before it folds.
+ *
+ * A fixed 180 px folded almost every real answer: four lines on a wide desktop bubble, two on a
+ * phone. The limit is a share of the window instead, so a medium message is simply shown, and only
+ * one that would push the next message off screen is folded. A phone gets a taller share because
+ * its column is narrow, so the same words take more lines.
+ */
+export function collapseLimit(viewportHeight: number, coarse: boolean): number {
+  const share = coarse ? 0.85 : 0.72
+  return Math.round(Math.max(coarse ? 360 : 480, Math.min(coarse ? 760 : 900, viewportHeight * share)))
+}
+
+/**
+ * Content is folded only when it is over the limit by a quarter. A message that hides two lines
+ * behind a "Show full message" button costs more than it saves, so it is shown whole.
+ */
+export const FOLD_SLACK = 0.25
+
+export function shouldFold(contentHeight: number, limit: number, fixed = false): boolean {
+  return !fixed && contentHeight > limit * (1 + FOLD_SLACK)
+}
+
+/** The limit for this window right now. */
+function currentLimit(): number {
+  const coarse = globalThis.matchMedia?.("(pointer: coarse)").matches ?? false
+  return collapseLimit(globalThis.innerHeight ?? 900, coarse)
+}
 
 const [expandedIds, setExpandedIds] = createSignal<ReadonlySet<string>>(new Set())
 
@@ -58,18 +82,26 @@ export function Collapsible(props: {
   children: JSX.Element
 }): JSX.Element {
   const [overflowing, setOverflowing] = createSignal(false)
+  const [limit, setLimit] = createSignal(currentLimit())
   let root: HTMLDivElement | undefined
   let inner: HTMLDivElement | undefined
   let button: HTMLButtonElement | undefined
 
   const measure = () => {
     if (!inner) return
-    setOverflowing(!props.fixed && inner.offsetHeight > COLLAPSE_THRESHOLD_PX + SLACK_PX)
+    setOverflowing(shouldFold(inner.offsetHeight, limit(), props.fixed))
   }
   onMount(() => {
     measure()
     if (!inner) return
     makeResizeObserver(measure).observe(inner)
+    // A window resize changes the limit, and a body that fitted a tall window may not fit a short one.
+    const onResize = () => {
+      setLimit(currentLimit())
+      measure()
+    }
+    window.addEventListener("resize", onResize)
+    onCleanup(() => window.removeEventListener("resize", onResize))
   })
 
   const clamped = () => overflowing() && !isExpanded(props.messageId)
@@ -98,7 +130,7 @@ export function Collapsible(props: {
     >
       <div
         class={cn(clamped() && "overflow-hidden mask-b-from-[calc(100%-1.75rem)] mask-b-to-100%")}
-        style={clamped() ? { "max-height": `${COLLAPSE_THRESHOLD_PX}px` } : undefined}
+        style={clamped() ? { "max-height": `${limit()}px` } : undefined}
       >
         <div ref={inner}>{props.children}</div>
       </div>

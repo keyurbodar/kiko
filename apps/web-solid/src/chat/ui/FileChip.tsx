@@ -12,10 +12,15 @@ import { openThreadImages } from "./image-dialog"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { basename, resolveFile, type FileTarget } from "../rich/file-links"
 
-/** Where a named file is: the chat's own files first, then the user's home drive. */
+/** Where a named path is: the chat's own files and folders first, then the user's home drive. */
 function find(path: string) {
-  const own = resolveFile(path, useApp.activeFiles().map((f) => f.name))
-  return own.kind !== "none" ? own : resolveFile(path, useApp.homeFiles().map((f) => `home/${f.name}`))
+  const own = resolveFile(path, useApp.activeFiles().map((f) => f.name), useApp.activeFolders())
+  if (own.kind !== "none") return own
+  return resolveFile(
+    path,
+    useApp.homeFiles().map((f) => `home/${f.name}`),
+    useApp.homeFolders().map((f) => `home/${f}`),
+  )
 }
 
 /**
@@ -44,6 +49,7 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     const f = ref()
     return f?.name.startsWith("attachments/") ? formatBytes(f.size) : null
   }
+  const folder = () => find(props.file.path).kind === "folder"
   const open = (from?: Element | null) => {
     const id = chat()
     if (!id) return
@@ -51,7 +57,8 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
     if (src) return openThreadImages([{ src, name: props.label }], 0, from?.querySelector("img") ?? from)
     const found = find(props.file.path)
     if (found.kind === "file") return openFile(id, found.path, props.file.line)
-    if (found.kind === "many") return openSurface(id, fixedSurface("files"))
+    // A folder has no page of its own: it is the files panel, opened at that chat's tree.
+    if (found.kind === "folder" || found.kind === "many") return openSurface(id, fixedSurface("files"))
     showToastV2({ title: `No file named ${basename(props.file.path)} in this chat`, variant: "error" })
   }
   const copy = async () => {
@@ -71,10 +78,10 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
           type="button"
           class="file-chip"
           data-component="chat-file-chip"
-          data-kind={picture() ? "image" : "file"}
+          data-kind={picture() ? "image" : folder() ? "folder" : "file"}
           data-path={props.file.path}
           data-missing={find(props.file.path).kind === "none" ? "" : undefined}
-          aria-label={`Open ${full()}`}
+          aria-label={`${folder() ? "Show" : "Open"} ${full()}`}
           draggable={ref() !== undefined}
           onDragStart={(event: DragEvent) => {
             const file = ref()
@@ -83,17 +90,20 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
           }}
           onClick={(event: MouseEvent) => open(event.currentTarget as Element)}
         >
-          <Show when={picture()} fallback={<EntryIcon path={props.file.path} />}>
+          <Show when={picture()} fallback={<EntryIcon path={folder() ? `${props.file.path}/` : props.file.path} />}>
             {(src) => <img class="file-chip-thumb" src={src()} alt="" loading="lazy" draggable={false} />}
           </Show>
           <span class="file-chip-label">{props.label}</span>
+          <Show when={folder()}>
+            <span class="file-chip-meta" aria-hidden="true">folder</span>
+          </Show>
           <Show when={size()}>{(text) => <span class="file-chip-meta">{text()}</span>}</Show>
         </MenuV2.Context.Trigger>
         <MenuV2.Context.Portal>
           <MenuV2.Context.Content class="min-w-[160px]">
             <MenuV2.Item onSelect={() => open()}>
               <OpenIcon class="size-3.5 shrink-0" aria-hidden="true" />
-              Open
+              {folder() ? "Show in files" : "Open"}
             </MenuV2.Item>
             <MenuV2.Item onSelect={() => void copy()}>
               <CopyIcon class="size-3.5 shrink-0" aria-hidden="true" />

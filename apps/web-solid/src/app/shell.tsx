@@ -1,4 +1,4 @@
-import Resizable, { type PanelContextValue } from "@corvu/resizable";
+import Resizable, { type ContextValue, type PanelContextValue } from "@corvu/resizable";
 import { useLocation, useNavigate } from "@solidjs/router";
 import {
   I18nProvider,
@@ -9,7 +9,7 @@ import {
 import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { avatarPickerSlug } from "../avatar/picker-state";
-import { createEffect, createMemo, createSignal, getOwner, lazy, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
+import { createEffect, createMemo, createSignal, getOwner, lazy, on, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces";
 import { preloadRoute } from "./routes";
 import { preloadMessageMenu } from "../chat/ui/MessageMenu";
@@ -33,7 +33,7 @@ import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
 import { TopBar } from "./top-bar";
-import { CHAT_MIN, INFO, initialSizes, readWidth, resetWidth, saveWidth, SIDEBAR } from "./widths";
+import { CHAT_MIN, defaultWidth, fitWidths, INFO, initialSizes, readWidth, resetWidth, saveWidth, SIDEBAR } from "./widths";
 
 /** Lazy menu and picker chunks, warmed once the rich editor is in, so no first right click or open waits on the network. */
 const idlePreloads = [preloadMessageMenu, preloadModelPicker, preloadMessageSearch];
@@ -94,6 +94,12 @@ function readCollapsed() {
   }
 }
 
+/** The root's size list, which is the only way to set a rightmost column's width in Corvu 0.2.5. */
+function GrabLayout(props: { onGrab: (layout: ContextValue) => void }) {
+  props.onGrab(Resizable.useContext())
+  return null
+}
+
 function GrabPanel(props: { onGrab: (panel: PanelContextValue | undefined) => void }) {
   props.onGrab(Resizable.usePanelContext())
   onCleanup(() => props.onGrab(undefined))
@@ -122,6 +128,34 @@ export function Shell(props: ParentProps) {
   })
   let sidebarPanel: PanelContextValue | undefined
   const [sidePanel, setSidePanel] = createSignal<PanelContextValue | undefined>();
+  /**
+   * Corvu 0.2.5 cannot resize the last panel through its own context: a rightmost panel is forced
+   * into the "preceding" strategy, and that path silently does nothing, so a double click on its
+   * handle left the width where it was. The root context can write the whole size list, which is
+   * the one path that works for every column.
+   */
+  const [layout, setLayout] = createSignal<ContextValue | undefined>()
+  /**
+   * Puts one column at a pixel width and lets the chat absorb the difference, so the row always
+   * sums to one. `index` counts from the left, in the order the panels mounted.
+   */
+  const setColumnWidth = (index: number, px: number) => {
+    const ctx = layout()
+    if (!ctx) return
+    const total = window.innerWidth
+    const sizes = [...ctx.sizes()]
+    if (index >= sizes.length) return
+    const want = Math.max(0, px) / total
+    const delta = want - sizes[index]
+    if (Math.abs(delta) < 0.0005) return
+    sizes[index] = want
+    // The chat column is the one that gives way: the sidebar and the right column are what the
+    // human set, and the chat is what is left over.
+    const chat = sizes.length === 3 ? 1 : 0
+    sizes[chat] = Math.max(CHAT_MIN / total, sizes[chat] - delta)
+    const sum = sizes.reduce((a, b) => a + b, 0)
+    ctx.setSizes(sizes.map((size) => size / sum))
+  }
   const drawer = drawerOpen;
   const setDrawer = setDrawerOpen;
   onMount(() => {
@@ -250,15 +284,21 @@ export function Shell(props: ParentProps) {
     <Sidebar section={sectionOf(location.pathname)} collapsed={closed()} onToggle={toggle} />
   ));
   const dockedSide = () => (compact() || !sideOpen() ? null : sideChat());
-  createEffect(() => {
-    const panel = sidePanel();
-    if (!panel) return;
-    if (dockedSide()) {
-      if (!panel.collapsed()) return;
-      panel.expand();
-      panel.resize(`${readWidth(INFO)}px`);
-    } else if (!panel.collapsed()) panel.collapse();
-  });
+  createEffect(
+    on(
+      dockedSide,
+      (docked) => {
+        // The panel mounts with the row, so its width is set once it is in the size list.
+        requestAnimationFrame(() => {
+          if (!layout()) return;
+          const sizes = layout()!.sizes();
+          const index = sizes.length - 1;
+          if (index < 1) return;
+          setColumnWidth(index, docked ? readWidth(INFO) : 0);
+        });
+      },
+    ),
+  );
   onMount(() => {
     let frame = 0;
     let last = window.innerWidth;
@@ -268,9 +308,12 @@ export function Shell(props: ParentProps) {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
-          if (sidebarPanel && !sidebarPanel.collapsed()) sidebarPanel.resize(`${readWidth(SIDEBAR)}px`);
+          // A narrower window must not squeeze the chat under its floor: the columns are fitted to
+          // what is left, not each restored to the width it had on the wider window. The right
+          // column keeps its share of the window, which is what a fraction-based layout does well.
           const side = sidePanel();
-          if (side && !side.collapsed()) side.resize(`${readWidth(INFO)}px`);
+          const fitted = fitWidths(window.innerWidth, sidebarPanel && !sidebarPanel.collapsed() ? readWidth(SIDEBAR) : 0, side && !side.collapsed() ? readWidth(INFO) : 0);
+          if (sidebarPanel && !sidebarPanel.collapsed()) sidebarPanel.resize(`${fitted.sidebar}px`);
         });
       });
     };
@@ -299,7 +342,8 @@ export function Shell(props: ParentProps) {
         </Show>
         <Show when={narrow() ? "narrow" : compact() ? "compact" : "wide"} keyed>
           {(_mode) => {
-            const sizes = initialSizes(window.innerWidth, narrow() ? null : collapsed() ? 0 : readWidth(SIDEBAR), compact() ? null : dockedSide() ? readWidth(INFO) : 0);
+            const fitted = fitWidths(window.innerWidth, narrow() ? 0 : collapsed() ? 0 : readWidth(SIDEBAR), compact() ? 0 : dockedSide() ? readWidth(INFO) : 0);
+            const sizes = initialSizes(window.innerWidth, narrow() ? null : fitted.sidebar, compact() ? null : dockedSide() ? fitted.info : 0);
             return (
               <Resizable class="min-w-0 flex-1" keyboardDelta="16px" handleCursorStyle={false} data-component="app-panels">
                 <Show when={!narrow()}>
@@ -363,6 +407,7 @@ export function Shell(props: ParentProps) {
                   </main>
                 </Resizable.Panel>
                 <Show when={!compact()}>
+                  <GrabLayout onGrab={setLayout} />
                   <Resizable.Handle
                     class="resize-handle"
                     data-component="sidecar-resize"
@@ -371,13 +416,20 @@ export function Shell(props: ParentProps) {
                     disabled={!dockedSide()}
                     onHandleDragEnd={() => saveWidth(INFO, "kiko-sidecar-panel")}
                     onKeyUp={() => saveWidth(INFO, "kiko-sidecar-panel")}
-                    onDblClick={() => resetWidth(INFO, sidePanel())}
+                    onDblClick={() => {
+                      // Back to the default width for this window, and remember it as the width to open at.
+                      const want = defaultWidth(INFO, window.innerWidth)
+                      try {
+                        localStorage.setItem(INFO.key, String(want))
+                      } catch {}
+                      setColumnWidth(layout() ? layout()!.sizes().length - 1 : 2, want)
+                    }}
                   />
                   <Resizable.Panel
                     panelId="kiko-sidecar-panel"
                     class="shell-panel"
                     data-component="sidecar-column"
-                    initialSize={sizes.info}
+                    initialSize={fitWidths(window.innerWidth, collapsed() ? 0 : readWidth(SIDEBAR), dockedSide() ? readWidth(INFO) : 0).info / window.innerWidth}
                     minSize={`${INFO.min}px`}
                     maxSize={`${INFO.max}px`}
                     collapsible

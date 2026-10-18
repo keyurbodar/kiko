@@ -430,6 +430,8 @@ export type RoomStore = {
 	 * messages in, and join the live window once they reach it.
 	 */
 	follow(): void
+	/** The reader scrolled away from the end: keep the window as it is until they return. */
+	hold(): void
 	/** Resolves when every queued event is applied. */
 	settled(): Promise<void>
 	close(): void
@@ -1058,6 +1060,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			}
 			following = true
 			trimWindow(true)
+		},
+		hold() {
+			following = false
 		},
 		settled() {
 			if (queue.length === 0 && !draining) return Promise.resolve()

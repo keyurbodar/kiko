@@ -61,6 +61,7 @@ const AUTONOMY = `- A <system-event> means no human is asking: a routine, a task
 - To return to something later, or to repeat work on a schedule or an event, make a routine.`
 
 const FILES = `- The chat's files are at /, shared with everyone here, the human included. Prefer edit to write. To give a file to a teammate, name its path.
+- To make a path clickable in a reply, write a markdown link to it: [app.ts](/src/app.ts), or [src](/src/) with a trailing slash for a folder. A bare path in backticks also links a file. Only /kiko and /home paths are links; a bare word is not.
 - /home is the human's drive, the same in every chat. They see a line in the chat when you write there.
 - /home/recipes holds the human's recipes. When they want one here, add_recipe it. To make or change one, follow the create-recipe skill.
 - /me/soul.md is you in every chat. When they correct how you work or talk, fix it there in one line, without announcing it.

@@ -239,6 +239,7 @@ export default function ChatRoute() {
             onStateChange={setThreadState}
             onNearTop={useApp.loadOlder}
             onAtLatest={() => landing || useApp.followLatest()}
+            onLeftLatest={() => useApp.holdWindow()}
             waitingNames={useApp.typingNames()}
             waitingSlugs={useApp.typingSlugs()}
             waitingDoings={useApp.typingDoings()}
