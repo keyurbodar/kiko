@@ -5,7 +5,7 @@
   max-width: var(--chat-content-max-width);
   margin-right: auto;
   margin-left: auto;
-  padding: 0 12px 12px;
+  padding: 0 12px 14px;
   background: var(--dock-bg);
   --composer-edge: rgb(0 0 0 / 8%);
   --composer-fill: color-mix(in oklab, var(--foreground) 4%, var(--background));
@@ -17,7 +17,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 10px 8px 16px;
+  padding: 12px 10px 10px 16px;
   background: var(--composer-fill);
   border: 1px solid var(--composer-edge);
   border-radius: 22px;
@@ -139,9 +139,9 @@
 
 .composer-dock .composer-send {
   display: grid;
-  width: 32px;
-  height: 32px;
-  margin-left: 2px;
+  width: 34px;
+  height: 34px;
+  margin-left: 4px;
   place-items: center;
   padding: 0;
   color: var(--primary-foreground);

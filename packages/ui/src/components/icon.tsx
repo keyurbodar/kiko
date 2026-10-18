@@ -1,5 +1,5 @@
 import { splitProps, type ComponentProps } from "solid-js"
-import { HugeIcon } from "./huge-icon"
+import { RemixIcon } from "./remix-icon"
 import { ArrowUpIcon, type Glyph, LinkIcon, ReplyIcon, SearchIcon, StopIcon } from "../icons.gen"
 
 /* The older icon names still in use, each drawn by one of kiko's icons. */
@@ -23,7 +23,7 @@ export function Icon(props: IconProps) {
   const [local, others] = splitProps(props, ["name", "size"])
   return (
     <div data-component="icon" data-size={local.size || "normal"}>
-      <HugeIcon {...others} data-slot="icon-svg" icon={NAMES[local.name]} />
+      <RemixIcon {...others} data-slot="icon-svg" icon={NAMES[local.name]} />
     </div>
   )
 }

@@ -4,30 +4,29 @@ import type { ToastV2Options } from "@kiko/ui/v2/toast-v2"
 const shown: ToastV2Options[] = []
 mock.module("@kiko/ui/v2/toast-v2", () => ({ showToastV2: (options: ToastV2Options) => void shown.push(options) }))
 
-const { seenInChat, setGo, showKikoError } = await import("./errors")
+const { seenInChat, showKikoError } = await import("./errors")
+const { closeSettings, settingsSection } = await import("../settings/dialog-state")
 
 beforeEach(() => {
   shown.length = 0
+  closeSettings()
 })
 
 describe("showKikoError", () => {
-  test("an error with an action stays until dismissed, and the button goes to the page that fixes it", () => {
-    const went: string[] = []
-    setGo((href) => void went.push(href))
+  test("an error with an action stays until dismissed, and the button opens settings on the section that fixes it", () => {
     showKikoError({ code: "composio_rejected", message: "Composio did not accept your key. Check it in integrations.", action: "open_integrations" })
     const toast = shown[0]!
     expect(toast).toMatchObject({ title: "Composio did not accept your key. Check it in integrations.", variant: "error", persistent: true })
     expect(toast.action?.label).toBe("Open settings")
+    expect(settingsSection()).toBeNull()
     ;(toast.action!.onClick as () => void)()
-    expect(went).toEqual(["/settings/tools"])
+    expect(settingsSection()).toBe("tools")
   })
 
-  test("the models action opens the models page", () => {
-    const went: string[] = []
-    setGo((href) => void went.push(href))
+  test("the models action opens settings on models", () => {
     showKikoError({ code: "storage", message: "Kiko could not save that.", action: "open_models" })
     ;(shown[0]!.action!.onClick as () => void)()
-    expect(went).toEqual(["/settings/models"])
+    expect(settingsSection()).toBe("models")
   })
 
   test("an error with nothing to do closes on its own", () => {

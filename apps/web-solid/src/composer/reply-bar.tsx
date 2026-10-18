@@ -1,4 +1,5 @@
-import { XIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CloseIcon } from "@kiko/ui/icons"
 import { Show, type JSX } from "solid-js"
 import type { ReplySummary } from "../chat/lib/reply"
 import { EntryIcon } from "../lib/EntryIcon"
@@ -32,7 +33,7 @@ export function ReplyBar(props: ReplyBarProps): JSX.Element {
         </span>
       </button>
       <button class="reply-bar-dismiss" type="button" aria-label="Cancel reply" title="Cancel reply (Esc)" onClick={() => props.onDismiss()}>
-        <XIcon class="size-4" aria-hidden="true" />
+        <RemixIcon icon={CloseIcon} class="size-4" />
       </button>
     </div>
   )

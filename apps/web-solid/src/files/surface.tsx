@@ -1,5 +1,5 @@
 import type { FileRef } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, CodeIcon, CopyIcon, DownloadIcon, EyeIcon, MaximizeIcon, TableIcon, WrapTextIcon } from "@kiko/ui/icons"
 import { urls } from "../lib/store"
 import { SurfaceAction } from "./chrome"

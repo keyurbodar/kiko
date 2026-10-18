@@ -1,5 +1,6 @@
 import Calendar from "@corvu/calendar"
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "@kiko/ui/icons"
 import { Index, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { dayStartOf } from "../lib/grouping"
@@ -62,10 +63,7 @@ export default function DateCalendar(props: {
                       {picking()
                         ? calendar.month.getFullYear()
                         : MONTH_YEAR.format(calendar.month)}
-                      <ChevronDownIcon
-                        class={cn("size-4", picking() && "rotate-180")}
-                        aria-hidden="true"
-                      />
+                      <RemixIcon icon={ChevronDownIcon} class={cn("size-4", picking() && "rotate-180")} />
                     </button>
                     <div class="ml-auto flex items-center gap-0.5">
                       <button
@@ -76,7 +74,7 @@ export default function DateCalendar(props: {
                           calendar.navigate(picking() ? "prev-year" : "prev-month")
                         }
                       >
-                        <ChevronLeftIcon class="size-4" aria-hidden="true" />
+                        <RemixIcon icon={ChevronLeftIcon} class="size-4" />
                       </button>
                       <button
                         type="button"
@@ -86,7 +84,7 @@ export default function DateCalendar(props: {
                           calendar.navigate(picking() ? "next-year" : "next-month")
                         }
                       >
-                        <ChevronRightIcon class="size-4" aria-hidden="true" />
+                        <RemixIcon icon={ChevronRightIcon} class="size-4" />
                       </button>
                     </div>
                   </div>

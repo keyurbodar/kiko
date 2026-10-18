@@ -425,7 +425,13 @@ export function VirtualThread(props: {
     }
   }
 
-  const seedAnchor = () => {
+  /**
+   * The row the drift correction holds in place. `scan` walks every rendered row, which is a rect
+   * read each: right at rest, wrong on a scroll event, where a wheel would pay for it dozens of
+   * times a second. A reader's scroll therefore keeps the held row, and the scan waits for the
+   * scroll to end.
+   */
+  const seedAnchor = (scan = true) => {
     if (!scrollElement || !columnElement) return
     const top = scrollElement.scrollTop
     const base = columnElement.getBoundingClientRect().top
@@ -435,6 +441,12 @@ export function VirtualThread(props: {
     const heldRect = held?.getBoundingClientRect()
     if (held && heldRect && heldRect.top >= readingLine) {
       anchor = { element: held, top: heldRect.top - base }
+      return
+    }
+    if (!scan) {
+      // Mid-scroll the held row may be recycled out of the window. Drop a dead reference, and let
+      // the scroll-end timer or the next drift correction reseed from the rows on screen.
+      if (!held) anchor = undefined
       return
     }
 
@@ -492,7 +504,7 @@ export function VirtualThread(props: {
     const virtualizer = handle()
     if (virtualizer) virtualizer.scrollBy(compensation)
     else scrollElement.scrollBy(0, compensation)
-    requestAnimationFrame(seedAnchor)
+    requestAnimationFrame(() => seedAnchor())
     commitState(readState())
   }
 
@@ -501,7 +513,9 @@ export function VirtualThread(props: {
     const column = columnElement
     if (!scroller || !column) return
     const onScroll = () => {
-      seedAnchor()
+      // A reader's own scroll keeps the anchor it already holds; every other scroll (a jump, a
+      // restore, a pin, a drift correction) is a discrete move and reseeds once.
+      seedAnchor(!readerScrolling)
       const state = readState()
       const atEnd = isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
       // Rows measured after they render also move the offset. Only a reader's own scroll lets go of the end.
@@ -525,7 +539,11 @@ export function VirtualThread(props: {
         // slide as the reader's new place.
         const held = anchor?.element.isConnected === true ? anchor : undefined
         const drift = held ? held.element.getBoundingClientRect().top - column.getBoundingClientRect().top - held.top : 0
-        if (Math.abs(drift) > 1) (handle()?.scrollBy(drift) ?? scroller.scrollBy(0, drift))
+        if (Math.abs(drift) > 1) {
+          const virtualizer = handle()
+          if (virtualizer) virtualizer.scrollBy(drift)
+          else scroller.scrollBy(0, drift)
+        }
       }
       seedAnchor()
       commitState(readState())
@@ -552,6 +570,9 @@ export function VirtualThread(props: {
       clearTimeout(readerScrollEnd)
       readerScrollEnd = setTimeout(() => {
         readerScrolling = false
+        // The scroll path only follows the row it already holds. Once the view settles, the anchor
+        // is the row at the reading line again, measured once.
+        seedAnchor()
       }, READER_SCROLL_MS)
     }
     const onReader = () => {
@@ -607,27 +628,68 @@ export function VirtualThread(props: {
     })
   })
 
+  // A pin keeps the reader at the end while the rows that arrive late are measured. It writes the
+  // end once and then waits on an observation of the column: a frame that changed nothing reads no
+  // layout and does no work, and the pin stops as soon as the height stops growing.
+  let pinObserver: ResizeObserver | undefined
+  let pinDeadline: ReturnType<typeof setTimeout> | undefined
+  let pinFrame = 0
+  const stopPin = () => {
+    pinObserver?.disconnect()
+    pinObserver = undefined
+    clearTimeout(pinDeadline)
+    pinDeadline = undefined
+    cancelAnimationFrame(pinFrame)
+    pinFrame = 0
+  }
+  onCleanup(stopPin)
+
   const pinToLatest = () => {
-    const until = performance.now() + PIN_SETTLE_MS
+    const scroller = scrollElement
+    const column = columnElement
     const run = ++pinRun
-    let lastHeight = -1
-    let stable = 0
-    const step = () => {
-      if (!scrollElement || run !== pinRun) return
-      // The reader's own scroll outranks the pin: rows measured late must not drag them back down.
-      if (!stuck) return
-      scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: "auto" })
-      if (scrollElement.scrollHeight === lastHeight) stable += 1
-      else stable = 0
-      lastHeight = scrollElement.scrollHeight
-      if (performance.now() < until && stable < 2) {
-        requestAnimationFrame(step)
-        return
-      }
+    stopPin()
+    // The reader's own scroll outranks the pin: rows measured late must not drag them back down.
+    if (!scroller || !stuck) return
+    let height = scroller.scrollHeight
+    const finish = () => {
+      // A newer pin owns the slot, or the reader scrolled away. Neither may touch the view.
+      if (run !== pinRun) return
+      if (!stuck) return stopPin()
+      stopPin()
       seedAnchor()
       commitState(readState())
     }
-    step()
+    const alive = () => {
+      if (run !== pinRun) return false
+      if (!stuck) {
+        stopPin()
+        return false
+      }
+      return true
+    }
+    // The end, written once. Every later correction comes from the column's own height.
+    scroller.scrollTo({ top: height, behavior: "auto" })
+    if (column && typeof ResizeObserver === "function") {
+      pinObserver = new ResizeObserver(() => {
+        if (!alive()) return
+        const next = scroller.scrollHeight
+        // The content did not grow, so the end is where the pin left it.
+        if (next <= height) return finish()
+        height = next
+        scroller.scrollTo({ top: next, behavior: "auto" })
+        // One read a frame later says whether that was the last growth.
+        cancelAnimationFrame(pinFrame)
+        pinFrame = requestAnimationFrame(() => {
+          if (!alive()) return
+          if (scroller.scrollHeight <= height) finish()
+        })
+      })
+      pinObserver.observe(column)
+    }
+    // Bounded: a chat that keeps growing cannot hold the pin open. After this the drift correction
+    // is what keeps a stuck reader at the end.
+    pinDeadline = setTimeout(finish, PIN_SETTLE_MS)
   }
 
   let firstLoad = true

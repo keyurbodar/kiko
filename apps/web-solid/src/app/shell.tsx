@@ -1,5 +1,5 @@
 import Resizable, { type ContextValue, type PanelContextValue } from "@corvu/resizable";
-import { useLocation, useNavigate } from "@solidjs/router";
+import { useLocation } from "@solidjs/router";
 import {
   I18nProvider,
   pluralCategory,
@@ -19,15 +19,15 @@ import { preloadMessageSearch } from "../commands/message-search";
 import { richLoaded } from "../composer/rich/loaded";
 import { CARD_WIDTH, cardBeside, cardShown, loadCard, setCardRoom } from "../chat/side/card-state";
 import { useKatCommands } from "../commands/use-kat-commands";
-import { setGo } from "../lib/errors";
 import { snapshotAfterRoute } from "../lib/snapshot";
 import { Palette, preloadPalette } from "../palette";
 import { botPickerOpen } from "../chat/bot-picker-state";
 import { newAgentOpen } from "../newagent/state";
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
+import { settingsSection } from "../settings/dialog-state";
 import { hintsShown, watchHold } from "../commands/hints";
 const HintLayer = lazy(() => import("../commands/HintLayer"));
-import { Sidebar, SidebarToggle, preloadSettingsSidebar } from "../sidebar";
+import { Sidebar, SidebarToggle } from "../sidebar";
 import { deletingChatId } from "../sidebar/actions";
 import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
@@ -66,6 +66,7 @@ const watchPanel = (el: HTMLElement) => {
 const AvatarPicker = lazy(() => import("../avatar/picker"));
 const BotPicker = lazy(() => import("../chat/bot-picker"));
 const NewAgent = lazy(() => import("../newagent/dialog"));
+const SettingsDialog = lazy(() => import("../settings/settings-dialog"));
 // A destructive confirm is not on the first-paint path: its dialog chunk loads when one is asked for.
 const DeleteChatDialog = lazy(() => import("../sidebar/delete-chat-dialog"));
 const CHAT_PATH = /^\/chat\/([^/]+)$/;
@@ -116,8 +117,6 @@ function writeCollapsed(value: boolean) {
 
 export function Shell(props: ParentProps) {
   const location = useLocation();
-  const navigate = useNavigate();
-  setGo(navigate);
   const [collapsed, setCollapsed] = createSignal(readCollapsed());
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined;
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false);
@@ -216,6 +215,21 @@ export function Shell(props: ParentProps) {
     });
   });
   const closed = () => (narrow() ? !drawer() : collapsed());
+  // A sidebar opening or closing slides. Its panels carry `motion-slide` for the length of the slide
+  // only, so a drag on a resize handle stays under the pointer. Nothing slides while the shell mounts.
+  let mounted = false;
+  let sliding: ReturnType<typeof setTimeout> | undefined;
+  onMount(() => requestAnimationFrame(() => (mounted = true)));
+  onCleanup(() => clearTimeout(sliding));
+  const slide = () => {
+    if (!mounted) return;
+    const panels = [...document.querySelectorAll<HTMLElement>('[data-component="app-panels"] > [data-component="sidebar-panel"], [data-component="app-panels"] > [data-component="chat-panel"]')];
+    for (const panel of panels) panel.classList.add("motion-slide");
+    clearTimeout(sliding);
+    sliding = setTimeout(() => {
+      for (const panel of panels) panel.classList.remove("motion-slide");
+    }, 320);
+  };
   const setAndSave = (value: boolean) => {
     setCollapsed(value);
     writeCollapsed(value);
@@ -223,6 +237,7 @@ export function Shell(props: ParentProps) {
   const toggle = () => {
     if (narrow()) return setDrawer(!drawer());
     if (!sidebarPanel) return;
+    slide();
     if (sidebarPanel.collapsed()) {
       sidebarPanel.expand();
       sidebarPanel.resize(`${readWidth(SIDEBAR)}px`);
@@ -258,8 +273,7 @@ export function Shell(props: ParentProps) {
       preloadRoute("/chat");
       // The settings chunk does not depend on the editor, so it does not wait behind it. The pickers
       // below do: they share the editor's chunk, and racing the first keystroke is what costs a frame.
-      preloadRoute("/settings");
-      void preloadSettingsSidebar();
+      void SettingsDialog.preload();
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000);
     };
     if (idle) idle(warm);
@@ -296,7 +310,8 @@ export function Shell(props: ParentProps) {
           const sizes = layout()!.sizes();
           const index = sizes.length - 1;
           if (index < 1) return;
-          setColumnWidth(index, docked ? readWidth(INFO) : 0);
+          const want = docked ? readWidth(INFO) : 0;
+          setColumnWidth(index, want);
         });
       },
     ),
@@ -479,6 +494,10 @@ export function Shell(props: ParentProps) {
           <Suspense>
             <NewAgent />
           </Suspense>
+        </Show>
+        {/* Outside Suspense: a page that reads a loading resource, such as the model catalog, would blank the whole dialog. */}
+        <Show when={settingsSection()}>
+          <SettingsDialog />
         </Show>
         <Show when={hintsShown()}>
           <Suspense>

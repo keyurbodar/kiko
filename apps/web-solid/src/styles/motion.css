@@ -9,7 +9,7 @@
  * Rules:
  * - Durations and easings are tokens. No literal time appears below the tokens.
  * - Keyframes move `transform` and `opacity`. A collapsing panel also moves `height`, and a switch
- *   uses a transition, because both have a "from" state on screen already.
+ *   and a sliding sidebar use a transition, because each has a "from" state on screen already.
  * - Everything is inside `prefers-reduced-motion: no-preference`. The tokens stay outside because
  *   a custom property is not motion.
  * - Animation for anything that mounts: it has no "from" state for a transition to start at.
@@ -36,10 +36,9 @@
   --motion-dialog: 200ms;
   --motion-popover: 150ms;
   --motion-collapse: 200ms;
+  --motion-slide: 260ms;
   --motion-switch: 150ms;
   --motion-skeleton: 2400ms;
-  --motion-shine: 2200ms;
-  --motion-run-chevron: 200ms;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -198,6 +197,12 @@
     transition: transform var(--motion-switch) var(--motion-ease-out);
   }
 
+  /* A sidebar opening or closing: the shell puts this on its panels for the length of the slide only,
+     so a drag on a resize handle follows the pointer with no lag. */
+  .motion-slide {
+    transition: flex-basis var(--motion-slide) var(--motion-ease-settle);
+  }
+
   /* Placeholder bars while a load is in flight. */
   @keyframes motion-skeleton {
     0%, 42% { opacity: 1; animation-timing-function: steps(4); }
@@ -211,48 +216,12 @@
   }
 
   /*
-   * The run panel's motion, ported from t3code's work log (index.css 521-632). It is a named
-   * exception to the 0 ms rule, and it stays inside this panel's own names. The shine and the sweep
-   * are waiting states. They run only while on screen: observeVisibleAnimation sets
-   * --visible-animation-state, and the look of each is in chat/run/run-panel.css.
+   * The run panel has no motion of its own: it appears where the row is, and a step updates in place.
+   * The opt-out is declared after the overlay rules so it wins on source order as well as specificity.
    */
-  @keyframes motion-shine {
-    from { background-position: -4.5rem 0, 0 0; }
-    to { background-position: calc(100% + 4.5rem) 0, 0 0; }
-  }
-
-  @keyframes motion-activity-focus {
-    from { transform: translateX(0); }
-    to { transform: translateX(100%); }
-  }
-
-  @keyframes motion-activity-counter {
-    from { transform: translateX(0); }
-    to { transform: translateX(-100%); }
-  }
-
-  @media (forced-colors: none) {
-    .motion-shine {
-      animation: motion-shine var(--motion-shine) steps(30) infinite;
-      animation-play-state: var(--visible-animation-state, paused);
-    }
-
-    .motion-activity-focus {
-      animation: motion-activity-focus var(--motion-shine) steps(30) infinite;
-      animation-play-state: var(--visible-animation-state, paused);
-      will-change: var(--visible-animation-will-change, auto);
-    }
-
-    .motion-activity-counter {
-      animation: motion-activity-counter var(--motion-shine) steps(30) infinite;
-      animation-play-state: var(--visible-animation-state, paused);
-      will-change: var(--visible-animation-will-change, auto);
-    }
-  }
-
-  /* The row chevron turns a quarter, t3code's transition-transform duration-200. */
-  [data-component="run-panel-chevron"] {
-    transition: transform var(--motion-run-chevron) var(--motion-ease-in-out);
+  [data-component="popover-v2-content"][data-expanded][data-instant],
+  [data-component="popover-v2-content"][data-closed][data-instant] {
+    animation: none;
   }
 
   /* A busy label fades in, so a save that takes a moment does not flash. */

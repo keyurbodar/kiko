@@ -1,0 +1,242 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Kiko: PR #5 review board</title>
+<style>
+:root{--bg:#0a0a0a;--side:#050505;--fg:#f5f5f5;--mute:#818181;--faint:#525252;--ring:#346bf1;
+--fill:color-mix(in oklab,#f5f5f5 7%,transparent);--asst:color-mix(in oklab,#f5f5f5 5%,transparent);--user:color-mix(in oklab,#346bf1 20%,transparent)}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font-sans,system-ui);color:var(--foreground,#eee)}
+h2{font-size:18px;font-weight:650;margin:40px 0 6px;letter-spacing:-.01em}
+h3{font-size:13px;font-weight:600;margin:0 0 8px}
+p,li{font-size:13px;line-height:1.55;color:var(--muted-foreground,#a3a3a3)}
+p b,li b{color:var(--foreground,#eee);font-weight:600}
+.n{margin:0 0 14px}
+.g{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(310px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.g5{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
+.shot{border-radius:12px;overflow:hidden;background:#0a0a0a}
+.shot img{display:block;width:100%}
+.cap{font-size:12px;color:var(--muted-foreground,#999);margin:6px 2px 0;line-height:1.5}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;margin:0 0 8px}
+.keep{background:color-mix(in oklab,#3fb950 22%,transparent);color:#86e09a}
+.no{background:color-mix(in oklab,#e5867a 22%,transparent);color:#f2a297}
+.mix{background:color-mix(in oklab,#e1b866 22%,transparent);color:#f0cf86}
+.rec{background:color-mix(in oklab,#346bf1 32%,transparent);color:#b4c9ff}
+.tile{background:var(--bg);color:var(--fg);border-radius:12px;padding:16px;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+/* logos */
+.lg{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.sizes{display:flex;align-items:flex-end;gap:10px}
+.lt{background:#fcfcfc;border-radius:10px;padding:6px;display:flex;gap:6px;align-items:flex-end}
+/* sidebar band: main's exact CSS */
+.sb{position:relative;width:100%;max-width:300px;height:150px;background:var(--side);border-radius:12px;overflow:hidden;color:var(--fg);font:13px system-ui}
+.sb .art{position:absolute;inset:0 0 auto;height:108px;overflow:hidden;--g:color-mix(in oklab,#f5f5f5 4.5%,transparent);
+background:radial-gradient(circle at calc(100% - 102px) 39px,var(--ring) 2.5px,color-mix(in oklab,var(--ring) 20%,transparent) 3px 7px,transparent 7.5px),radial-gradient(160px 96px at calc(100% - 44px) 10px,color-mix(in oklab,var(--ring) 30%,transparent),transparent 72%),linear-gradient(90deg,var(--g) 1px,transparent 0) 0 0/40px 40px,linear-gradient(var(--g) 1px,transparent 0) 0 0/40px 40px,linear-gradient(90deg,var(--g) 1px,transparent 0) 0 0/10px 10px,linear-gradient(var(--g) 1px,transparent 0) 0 0/10px 10px,color-mix(in oklab,var(--ring) 8%,var(--side));mask-image:linear-gradient(#000 40%,transparent)}
+.sb .art:before,.sb .art:after{content:"";position:absolute;border:1px dashed color-mix(in oklab,#f5f5f5 18%,transparent);border-radius:50%}
+.sb .art:before{top:-20px;right:6px;width:76px;height:76px}
+.sb .art:after{top:-44px;right:-18px;width:124px;height:124px;border-color:color-mix(in oklab,#f5f5f5 32%,transparent)}
+.sb .hd{position:relative;display:flex;align-items:center;gap:8px;height:32px;margin:8px 10px 0 12px}
+.sb .wm{font-family:"SF Pro Display","Segoe UI Variable Display",system-ui;font-size:16px;font-weight:700;letter-spacing:-.035em}
+.sb .ic{margin-left:auto;display:flex;gap:14px;color:#9a9a9a;font-size:14px}
+.sb .se{position:relative;margin:8px 10px;height:30px;border-radius:8px;background:color-mix(in oklab,#f5f5f5 4%,transparent);color:var(--mute);display:flex;align-items:center;padding:0 10px;font-size:13px}
+/* chat bits */
+.b{padding:8px 12px;border-radius:16px;line-height:1.45;width:fit-content;max-width:86%;font-size:14px}
+.ba{background:var(--asst)}
+.bu{background:var(--user);margin-left:auto}
+.dots{display:inline-flex;gap:3px;padding:11px 12px;border-radius:16px;background:var(--asst)}
+.dots i{width:6px;height:6px;border-radius:50%;background:#8a8a8a}
+.sum{display:inline-flex;align-items:center;gap:6px;margin:4px 0 0 2px;padding:3px 8px 3px 6px;border-radius:8px;font-size:12.5px;color:var(--mute)}
+.sum:hover{background:var(--fill);color:#c9c9c9}
+.sum .ico{display:inline-flex;gap:2px;opacity:.8}
+.shine{background:linear-gradient(90deg,#7a7a7a 30%,#f5f5f5 50%,#7a7a7a 70%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sh 1.8s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+/* onboarding mocks */
+.ob{position:relative;height:330px;border-radius:14px;overflow:hidden;background:#0a0a0a;color:#f5f5f5;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+.ob .lbl{position:absolute;top:10px;left:12px;font-size:11px;color:#8a8a8a;z-index:5}
+.btn{height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12.5px}
+.btn.p{background:#f5f5f5;color:#0a0a0a}
+.btn.s{background:var(--fill);color:#ddd;font-weight:500}
+.fld{height:34px;border-radius:9px;background:color-mix(in oklab,#f5f5f5 6%,transparent);color:#7a7a7a;display:flex;align-items:center;padding:0 12px;font-size:12.5px}
+.snow{position:absolute;inset:0;background-image:radial-gradient(1.2px 1.2px at 12% 18%,#fff8 50%,transparent),radial-gradient(1px 1px at 33% 62%,#fff6 50%,transparent),radial-gradient(1.4px 1.4px at 71% 27%,#fff7 50%,transparent),radial-gradient(1px 1px at 86% 71%,#fff5 50%,transparent),radial-gradient(1.2px 1.2px at 52% 84%,#fff5 50%,transparent),radial-gradient(1px 1px at 22% 88%,#fff4 50%,transparent),radial-gradient(1.3px 1.3px at 92% 12%,#fff6 50%,transparent),radial-gradient(1px 1px at 61% 8%,#fff5 50%,transparent),radial-gradient(1px 1px at 6% 52%,#fff4 50%,transparent),radial-gradient(1.2px 1.2px at 44% 38%,#fff4 50%,transparent);animation:fall 14s linear infinite}
+@keyframes fall{from{background-position:0 -330px}to{background-position:0 0}}
+@media (prefers-reduced-motion:reduce){.snow,.shine{animation:none}}
+.flow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.flow span{font-size:12px;color:#bbb;background:var(--fill);padding:4px 9px;border-radius:999px}
+.flow i{color:#666;font-style:normal}
+table{border-collapse:collapse;width:100%;font-size:13px}
+td,th{padding:8px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border,#2a2a2a)}
+th{font-size:12px;color:var(--muted-foreground,#999);font-weight:600}
+code{font-family:var(--font-mono,ui-monospace,monospace);font-size:12px}
+</style></head><body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <defs>
+  <path id="mound" d="M31 88C26 88 24 85 24.4 80C26.2 59 40.5 46 60 46C79.5 46 93.8 59 95.6 80C96 85 94 88 89 88Z"/>
+  <path id="leaf" d="M0 0C13-6 13-24 0-33C-13-24-13-6 0 0Z"/>
+  <!-- L1 Yuki: main's in-app avatar, flattened -->
+  <symbol id="L1" viewBox="0 0 120 120"><g transform="translate(0 6)"><use href="#leaf" transform="translate(50 49) rotate(-26)" fill="#3f7a4e"/><use href="#leaf" transform="translate(66 48.5) rotate(18)" fill="#5c9a6a"/><use href="#mound" fill="#f7f7f5"/><circle cx="48" cy="72" r="3.6" fill="#d23a33"/><circle cx="72" cy="72" r="3.6" fill="#d23a33"/></g></symbol>
+  <!-- L2 Yuki, eyes closed -->
+  <symbol id="L2" viewBox="0 0 120 120"><g transform="translate(0 6)"><use href="#leaf" transform="translate(50 49) rotate(-26)" fill="#3f7a4e"/><use href="#leaf" transform="translate(66 48.5) rotate(18)" fill="#5c9a6a"/><use href="#mound" fill="#f7f7f5"/><g fill="none" stroke="#d23a33" stroke-width="3.4" stroke-linecap="round"><path d="M43 74Q47.5 67.5 52 74"/><path d="M68 74Q72.5 67.5 77 74"/></g></g></symbol>
+  <!-- L3 Mono: one ink colour, leaves split from body by a gap; berry eyes stay red -->
+  <symbol id="L3" viewBox="0 0 120 120"><g transform="translate(0 4)"><g fill="currentColor"><use href="#leaf" transform="translate(50 46) rotate(-26) scale(1.05)"/><use href="#leaf" transform="translate(67 45.5) rotate(18) scale(1.05)"/></g><use href="#mound" fill="none" stroke="var(--tilebg,#0a0a0a)" stroke-width="7" transform="translate(0 4)"/><use href="#mound" fill="currentColor" transform="translate(0 4)"/><circle cx="48" cy="77" r="4.2" fill="#d23a33"/><circle cx="72" cy="77" r="4.2" fill="#d23a33"/></g></symbol>
+  <!-- L4 Profile: side view, one leaf ear, one berry eye -->
+  <symbol id="L4" viewBox="0 0 120 120"><g transform="translate(0 4)"><use href="#leaf" transform="translate(58 50) rotate(-14) scale(1.15)" fill="#5c9a6a"/><path d="M26 90C21 90 19 87 20 82C23 62 39 50 62 50C84 50 99 62 100 80C100.5 87 97 90 92 90Z" fill="#f7f7f5"/><circle cx="82" cy="72" r="4.4" fill="#d23a33"/></g></symbol>
+  <!-- L5 Sprig: no body, two leaves and two berries -->
+  <symbol id="L5" viewBox="0 0 120 120"><use href="#leaf" transform="translate(54 70) rotate(-30) scale(1.25)" fill="#3f7a4e"/><use href="#leaf" transform="translate(66 70) rotate(26) scale(1.25)" fill="#5c9a6a"/><circle cx="50" cy="82" r="8" fill="#d23a33"/><circle cx="70" cy="82" r="8" fill="#e04a40"/></symbol>
+ </defs>
+</svg>
+
+<h2>What I checked this time</h2>
+<p class="n">I ran main (<code>6167d2b1</code>) and the PR side by side. I signed in, went through onboarding, and pushed a real run of tool steps through the dev mock room, because the OpenCode Go key is out of credit. Every "now" image below is a screenshot from those runs.</p>
+<div class="g g2">
+ <div><div class="shot"><img src="shots/chat-main.png"></div><div class="cap"><b>Main.</b> Flush column, blue tint on your bubble with a tail, the sidebar band, a lone chevron beside ada's bubble.</div></div>
+ <div><div class="shot"><img src="shots/chat-pr.png"></div><div class="cap"><b>PR.</b> Brown canvas, the column inset with a ring, orange bubble with no tail, the band gone, steps summarised under the bubble.</div></div>
+</div>
+
+<h2>1. Logo</h2>
+<p class="n">Main ships <b>three different bunnies</b>. The favicon has grey leaves, headphones and closed eyes on a blueprint grid. The onboarding mascot has headphones and open red eyes. The sidebar avatar has green leaves and speckles. The PR adds a fourth, on a glowing brown tile. The real fix is <b>one flat yukiusagi everywhere</b>, with no gradient, glow, grid, speckles or shadow.</p>
+<div class="shot" style="padding:6px 0"><img src="shots/logos-current.png"></div>
+<div class="cap" style="margin-bottom:12px">Now, left to right: main favicon, main mascot, main avatar, PR icon, main favicon and avatar on white.</div>
+<div class="g g5">
+ <div class="tile lg"><span class="tag rec">L1 Yuki</span>
+  <div class="sizes"><svg width="64" height="64"><rect width="64" height="64" rx="14" fill="#0a0a0a" stroke="#222"/><svg width="64" height="64"><use href="#L1"/></svg></svg><svg width="32" height="32"><rect width="32" height="32" rx="7" fill="#161616"/><svg width="32" height="32"><use href="#L1"/></svg></svg><svg width="16" height="16"><rect width="16" height="16" rx="4" fill="#161616"/><svg width="16" height="16"><use href="#L1"/></svg></svg></div>
+  <div class="lt"><svg width="32" height="32"><use href="#L1"/></svg><svg width="16" height="16"><use href="#L1"/></svg></div>
+  <div class="cap">The avatar people already see in chat, made flat. One character for icon, avatar and mascot. <b>My pick.</b></div></div>
+ <div class="tile lg"><span class="tag">L2 Content</span>
+  <div class="sizes"><svg width="64" height="64"><rect width="64" height="64" rx="14" fill="#0a0a0a" stroke="#222"/><svg width="64" height="64"><use href="#L2"/></svg></svg><svg width="32" height="32"><rect width="32" height="32" rx="7" fill="#161616"/><svg width="32" height="32"><use href="#L2"/></svg></svg><svg width="16" height="16"><rect width="16" height="16" rx="4" fill="#161616"/><svg width="16" height="16"><use href="#L2"/></svg></svg></div>
+  <div class="lt"><svg width="32" height="32"><use href="#L2"/></svg><svg width="16" height="16"><use href="#L2"/></svg></div>
+  <div class="cap">Same bunny, happy closed eyes. Calmer, but the eyes vanish at 16px.</div></div>
+ <div class="tile lg"><span class="tag rec">L3 Mono</span>
+  <div class="sizes" style="color:#f5f5f5"><svg width="64" height="64"><rect width="64" height="64" rx="14" fill="#0a0a0a" stroke="#222"/><svg width="64" height="64"><use href="#L3"/></svg></svg><svg width="32" height="32" style="--tilebg:#161616"><rect width="32" height="32" rx="7" fill="#161616"/><svg width="32" height="32"><use href="#L3"/></svg></svg><svg width="16" height="16" style="--tilebg:#161616"><rect width="16" height="16" rx="4" fill="#161616"/><svg width="16" height="16"><use href="#L3"/></svg></svg></div>
+  <div class="lt" style="color:#0a0a0a;--tilebg:#fcfcfc"><svg width="32" height="32"><use href="#L3"/></svg><svg width="16" height="16"><use href="#L3"/></svg></div>
+  <div class="cap">One ink colour plus red berries. Takes the text colour, so it suits the sidebar header and light mode. <b>Pair with L1.</b></div></div>
+ <div class="tile lg"><span class="tag">L4 Profile</span>
+  <div class="sizes"><svg width="64" height="64"><rect width="64" height="64" rx="14" fill="#0a0a0a" stroke="#222"/><svg width="64" height="64"><use href="#L4"/></svg></svg><svg width="32" height="32"><rect width="32" height="32" rx="7" fill="#161616"/><svg width="32" height="32"><use href="#L4"/></svg></svg><svg width="16" height="16"><rect width="16" height="16" rx="4" fill="#161616"/><svg width="16" height="16"><use href="#L4"/></svg></svg></div>
+  <div class="lt"><svg width="32" height="32"><use href="#L4"/></svg><svg width="16" height="16"><use href="#L4"/></svg></div>
+  <div class="cap">Side view, one leaf, one eye. More of a "logo" than a character, but it breaks from the avatar.</div></div>
+ <div class="tile lg"><span class="tag">L5 Sprig</span>
+  <div class="sizes"><svg width="64" height="64"><rect width="64" height="64" rx="14" fill="#0a0a0a" stroke="#222"/><svg width="64" height="64"><use href="#L5"/></svg></svg><svg width="32" height="32"><rect width="32" height="32" rx="7" fill="#161616"/><svg width="32" height="32"><use href="#L5"/></svg></svg><svg width="16" height="16"><rect width="16" height="16" rx="4" fill="#161616"/><svg width="16" height="16"><use href="#L5"/></svg></svg></div>
+  <div class="lt"><svg width="32" height="32"><use href="#L5"/></svg><svg width="16" height="16"><use href="#L5"/></svg></div>
+  <div class="cap">Only the leaves and berries. Sharpest at tiny sizes, but you lose the bunny.</div></div>
+</div>
+<p class="cap" style="margin-top:10px">The app tile stays main's <code>#0a0a0a</code>. <code>theme-color</code>, the manifest and the boot screen stay on main's neutral palette.</p>
+
+<h2>2. Sidebar top: main's band, kept as it is</h2>
+<p class="n">The band is main's blueprint grid, dashed orbits and blue planet, drawn by <code>.brand-art</code> in <code>sidebar.css</code>. The PR deleted it. I'm putting it back unchanged, CSS copied from main below. The only change is the logo that sits on it.</p>
+<div class="g g3">
+ <div><div class="shot"><img src="shots/sidebar-main-top.png"></div><div class="cap">Main now: 22px avatar with speckles and a shadow, "Kiko" in SF Pro Display 700.</div></div>
+ <div><div class="shot"><img src="shots/sidebar-pr-top.png"></div><div class="cap">PR: band removed, outlined lowercase "kiko" with a red dot on the i.</div></div>
+ <div></div>
+</div>
+<div class="g g3" style="margin-top:12px">
+ <div><div class="sb"><div class="art"></div><div class="hd"><svg width="22" height="22"><use href="#L1"/></svg><span class="wm">Kiko</span><span class="ic">✎ ▢</span></div><div class="se">⌕&nbsp; Search</div></div><div class="cap"><span class="tag rec">H1</span> L1 at 22px plus the "Kiko" wordmark. The closest to today, only cleaner.</div></div>
+ <div><div class="sb"><div class="art"></div><div class="hd" style="color:#f5f5f5"><svg width="20" height="20" style="--tilebg:#0b0f1d"><use href="#L3"/></svg><span class="wm">Kiko</span><span class="ic">✎ ▢</span></div><div class="se">⌕&nbsp; Search</div></div><div class="cap"><span class="tag">H2</span> L3 Mono in the text colour. The quietest option, and it reads in light mode.</div></div>
+ <div><div class="sb"><div class="art"></div><div class="hd"><span class="wm" style="font-size:17px">Kiko</span><svg width="8" height="8" style="margin:-8px 0 0 -6px"><circle cx="4" cy="4" r="3.2" fill="#d23a33"/></svg><span class="ic">✎ ▢</span></div><div class="se">⌕&nbsp; Search</div></div><div class="cap"><span class="tag">H3</span> Wordmark only, with a red berry as a superscript. Lets the band be the art.</div></div>
+</div>
+
+<h2>3. Tool calls: what each version does</h2>
+<div class="g g2">
+ <div><span class="tag mix">Main, live</span><div class="shot"><img src="shots/tool-main-live.png"></div><div class="cap">One row: typing dots, then a chevron once steps exist, then a caption ("Writing /do-pricing.md"). The row never grows. <b>Good.</b></div></div>
+ <div><span class="tag no">PR, live</span><div class="shot"><img src="shots/tool-pr-live.png"></div><div class="cap">A tree under the dots: "2 earlier steps" plus the three newest, each with an icon and a rule. It grows to 4 rows and changes on every step, so the thread jumps while the agent works. <b>Reject.</b></div></div>
+ <div><span class="tag mix">Main, done</span><div class="shot"><img src="shots/tool-main-done.png"></div><div class="cap">A bare chevron floats right of the first bubble. Nothing says work happened or what it was. <b>Weak.</b></div></div>
+ <div><span class="tag keep">PR, done</span><div class="shot"><img src="shots/tool-pr-done.png"></div><div class="cap">One quiet summary under the bubble. You can see that work happened, and what kind. <b>Keep the idea.</b> The wording "and performed 1 other action" needs work, and the tree rule should go.</div></div>
+ <div><span class="tag keep">Main, panel</span><div class="shot"><img src="shots/tool-main-panel.png"></div><div class="cap">Floating panel with a summary header, total time, icons and per-step durations. Each row expands. Virtualized. <b>Keep.</b></div></div>
+ <div><span class="tag no">PR, expanded + panel</span><div class="shot"><img src="shots/tool-pr-expanded-plus-panel.png"></div><div class="cap">Click the summary and the list unfolds inline. Click a row and the panel opens with <b>the same list again</b>, covering the composer. Two copies of one list. <b>Reject the inline unfold.</b></div></div>
+</div>
+<div class="tile" style="margin-top:12px"><span class="tag rec">Recommended: main's live row and panel, the PR's summary line</span>
+ <div style="display:flex;flex-direction:column;gap:3px;max-width:520px;margin-top:6px">
+  <div style="display:flex;gap:8px;align-items:center"><div class="dots"><i></i><i></i><i></i></div><span style="color:#888">›</span><span class="shine" style="font-size:12.5px">Writing /do-pricing.md</span></div>
+  <div style="color:#666;font-size:11px;margin:4px 0 8px">while working: exactly main's row, unchanged</div>
+  <div class="b ba">Durable Objects bill per request and per GB-second of wall time.</div>
+  <div class="sum"><span class="ico">⌕ ◍ ✎</span>Searched the web, read 3 pages, wrote do-pricing.md <span style="color:#5a5a5a">53s</span> <span>›</span></div>
+  <div class="b ba" style="margin-top:4px">Saved the details to do-pricing.md.</div>
+  <div style="color:#666;font-size:11px;margin-top:8px">done: one line, at most 3 tool icons, plain verbs, duration. A click opens main's panel. No inline list and no rule.</div>
+ </div>
+</div>
+
+<h2>4. Bubbles and type: keep main</h2>
+<p class="n">Compare the two chat screenshots at the top. Main has 14px text, 12px padding, a 16px radius, a pill for one line, a tail and 6px joints. The PR raises every text size by 1px, uses 14px padding and 12px card corners, and drops the tail and the pill. Keep main as it is.</p>
+
+<h2>5. Borders</h2>
+<table>
+<tr><th>Where</th><th>PR adds</th><th>Do instead</th></tr>
+<tr><td>Main column</td><td>Inset by 8px, with a 1px ring, a 12px radius and a shadow (top screenshot)</td><td>Flush, as main does. The sidebar tone does the separating.</td></tr>
+<tr><td>Cards, rows, segments, popovers</td><td><code>0 0 0 1px var(--border)</code> inside the shared shadow tokens, so every card and menu gets a ring</td><td>Fill steps only. Popovers keep main's shadow.</td></tr>
+<tr><td>Composer</td><td>An 18% edge plus a halo</td><td>Main's composer</td></tr>
+<tr><td>Search, fields</td><td>An inset line (<code>--line-w: 1.5px</code>)</td><td>Fill (<code>--control</code>)</td></tr>
+<tr><td>Reaction chips</td><td>A hairline plus a ring</td><td>Main's chip</td></tr>
+</table>
+
+<h2>6. Onboarding</h2>
+<p class="n">Main today is four screens: Welcome, Sign in, Provider, Model. The mascot sits in a blueprint orbit, and the provider list runs past the bottom of a 900px window. The PR is the same four screens, one card on a technical-drawing poster. Both ask too much before you can type. Every option below does it in <b>two screens</b>:</p>
+<ul>
+ <li>Fold the welcome into sign-in.</li>
+ <li>Fold model choice into provider. The model is picked by default after you connect, and you can change it from the composer, which already has a model picker.</li>
+</ul>
+<div class="g g2">
+ <div><div class="shot"><img src="shots/onboarding-main-welcome.png"></div><div class="cap">Main, welcome</div></div>
+ <div><div class="shot"><img src="shots/onboarding-pr-welcome.png"></div><div class="cap">PR, welcome</div></div>
+</div>
+
+<h3 style="margin-top:22px">Option A: setup over your app <span class="tag rec">recommended</span></h3>
+<p class="n">Behind a frosted blur you see your real Kiko: the sidebar with its band and "What's on your mind?". In front, one small sheet with the bunny peeking over its top edge. When you finish, the sheet shrinks into the composer, the blur lifts, and the cursor is already in the message box. There's no "you're done" page and no jump into a different-looking app.</p>
+<div class="g g3">
+ <div class="ob"><span class="lbl">A1: unlock</span>
+  <div style="position:absolute;inset:0;display:grid;grid-template-columns:70px 1fr;filter:blur(4px);opacity:.85"><div style="background:#050505;position:relative"><div style="position:absolute;inset:0 0 auto;height:60px;background:radial-gradient(60px 40px at 80% 0,#346bf155,transparent),#0b0f1d"></div></div><div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px"><div style="font-size:18px">What's on your mind?</div><div style="width:70%;height:44px;border-radius:14px;background:#ffffff10"></div></div></div>
+  <div style="position:absolute;left:50%;top:56%;translate:-50% -50%;width:220px;padding:34px 16px 16px;border-radius:16px;background:#141414ee;box-shadow:0 24px 60px #000c">
+   <svg width="54" height="54" style="position:absolute;left:50%;top:-30px;translate:-50% 0"><use href="#L1"/></svg>
+   <div style="text-align:center;font-weight:650;font-size:15px">Welcome to Kiko</div>
+   <div style="text-align:center;color:#8a8a8a;font-size:11.5px;margin:4px 0 12px">Enter the access code you set when you deployed.</div>
+   <div class="fld">••••••</div><div class="btn p" style="margin-top:8px">Continue</div>
+  </div></div>
+ <div class="ob"><span class="lbl">A1 while typing the code</span>
+  <div style="position:absolute;inset:0;background:#0a0a0a"></div>
+  <div style="position:absolute;left:50%;top:50%;translate:-50% -50%;text-align:center">
+   <svg width="120" height="120" viewBox="0 0 120 120"><g transform="translate(0 6)"><use href="#leaf" transform="translate(44 74) rotate(-62)" fill="#3f7a4e"/><use href="#mound" fill="#f7f7f5"/><use href="#leaf" transform="translate(76 74) rotate(62)" fill="#5c9a6a"/></g></svg>
+   <div style="color:#9a9a9a;font-size:12px;max-width:200px">The bunny folds its leaves over its eyes while you type the code, and looks up again on Continue. That's the one delight, and it costs nothing.</div>
+  </div></div>
+ <div class="ob"><span class="lbl">A2: connect</span>
+  <div style="position:absolute;inset:0;display:grid;grid-template-columns:70px 1fr;filter:blur(4px);opacity:.85"><div style="background:#050505"></div><div style="display:flex;align-items:center;justify-content:center"><div style="width:70%;height:44px;border-radius:14px;background:#ffffff10"></div></div></div>
+  <div style="position:absolute;left:50%;top:55%;translate:-50% -50%;width:236px;padding:30px 14px 14px;border-radius:16px;background:#141414ee;box-shadow:0 24px 60px #000c">
+   <svg width="46" height="46" style="position:absolute;left:50%;top:-26px;translate:-50% 0"><use href="#L1"/></svg>
+   <div style="text-align:center;font-weight:650;font-size:14px;margin-bottom:10px">Connect a model</div>
+   <div style="display:flex;flex-direction:column;gap:6px">
+    <div class="btn s" style="justify-content:flex-start;padding:0 10px">ChatGPT plan</div>
+    <div class="btn s" style="justify-content:flex-start;padding:0 10px">Claude plan</div>
+    <div class="btn s" style="justify-content:flex-start;padding:0 10px">Use an API key</div>
+   </div>
+   <div style="display:flex;justify-content:space-between;color:#777;font-size:11px;margin-top:10px"><span>More providers</span><span>Skip for now</span></div>
+  </div></div>
+</div>
+<div class="flow"><span>Unlock</span><i>→</i><span>Connect</span><i>→</i><span>Sheet shrinks into the composer, blur lifts</span><i>→</i><span>Typing in chat</span></div>
+
+<h3 style="margin-top:22px">Option B: snow night</h3>
+<p class="n">No app behind. The page is main's black with slow, sparse snow falling (Kiko is a snow bunny) and the accent glowing faintly on the horizon. A big flat bunny sits in the middle with the same two steps under it, and two small dots show progress. The simplest option to build and the most atmospheric, but there's still a cut when you enter the app.</p>
+<div class="g g2">
+ <div class="ob"><span class="lbl">B1</span><div class="snow"></div><div style="position:absolute;inset:auto 0 0;height:160px;background:radial-gradient(70% 100% at 50% 100%,#346bf133,transparent 70%)"></div>
+  <div style="position:absolute;left:50%;top:47%;translate:-50% -50%;width:250px;text-align:center"><svg width="86" height="86"><use href="#L1"/></svg>
+   <div style="font-weight:650;font-size:17px;margin:4px 0 4px">Welcome to Kiko</div><div style="color:#8a8a8a;font-size:12px;margin-bottom:12px">Enter your access code</div><div class="fld">••••••</div><div class="btn p" style="margin-top:8px">Continue</div>
+   <div style="display:flex;gap:6px;justify-content:center;margin-top:14px"><i style="width:6px;height:6px;border-radius:50%;background:#f5f5f5"></i><i style="width:6px;height:6px;border-radius:50%;background:#444"></i></div></div></div>
+ <div class="ob"><span class="lbl">B2</span><div class="snow"></div><div style="position:absolute;inset:auto 0 0;height:160px;background:radial-gradient(70% 100% at 50% 100%,#346bf133,transparent 70%)"></div>
+  <div style="position:absolute;left:50%;top:50%;translate:-50% -50%;width:250px;text-align:center"><svg width="62" height="62"><use href="#L1"/></svg>
+   <div style="font-weight:650;font-size:16px;margin:2px 0 10px">Connect a model</div>
+   <div style="display:flex;flex-direction:column;gap:6px;text-align:left"><div class="btn s" style="justify-content:flex-start;padding:0 10px">ChatGPT plan</div><div class="btn s" style="justify-content:flex-start;padding:0 10px">Claude plan</div><div class="btn s" style="justify-content:flex-start;padding:0 10px">Use an API key</div></div>
+   <div style="display:flex;gap:6px;justify-content:center;margin-top:14px"><i style="width:6px;height:6px;border-radius:50%;background:#444"></i><i style="width:6px;height:6px;border-radius:50%;background:#f5f5f5"></i></div></div></div>
+</div>
+
+<h3 style="margin-top:22px">Option C: split screen</h3>
+<p class="n">The classic desktop sign-in (Linear, Vercel). The left half is the brand: the bunny large on the snow night with one line about Kiko. The right half is the form: the same two steps, left-aligned. On a phone it collapses to Option B. It's clear and grown-up, and the most "website".</p>
+<div class="ob"><span class="lbl">C</span>
+ <div style="position:absolute;inset:0 50% 0 0;background:#060810"><div class="snow"></div><div style="position:absolute;inset:auto 0 0;height:140px;background:radial-gradient(80% 100% at 50% 100%,#346bf140,transparent 70%)"></div>
+  <div style="position:absolute;left:28px;bottom:34px;right:28px"><svg width="70" height="70"><use href="#L1"/></svg><div style="font-weight:650;font-size:18px;margin-top:6px">Kiko</div><div style="color:#8a8a8a;font-size:12px">Text one agent or a team. It reads what you send and answers like a person.</div></div></div>
+ <div style="position:absolute;inset:0 0 0 50%;display:flex;align-items:center;justify-content:center"><div style="width:220px"><div style="color:#777;font-size:11px">Step 1 of 2</div><div style="font-weight:650;font-size:16px;margin:4px 0 12px">Sign in</div><div class="fld">Access code</div><div class="btn p" style="margin-top:8px">Continue</div></div></div>
+</div>
+
+<h2>7. Tokens</h2>
+<p class="n">Main already generates the palette block in <code>index.css</code> from <code>packages/theme/src/palette.ts</code> (<code>gen-palette.ts</code>), and a test checks it. That part is sound. Three real problems remain:</p>
+<ul>
+ <li>256 custom properties in <code>index.css</code>, and about 250 ad-hoc <code>color-mix()</code> calls in component CSS, so components invent their own shades.</li>
+ <li><code>--accent</code> is a grey hover fill, while the real accent is <code>--ring</code>.</li>
+ <li>The boot script in <code>index.html</code> hard-codes its own colours.</li>
+</ul>
+<p class="n">The PR makes the first problem worse (274 properties, plus <code>--surface</code>, <code>--frame-*</code>, <code>--composer-edge</code>, <code>--line-w</code>, <code>--press-edge</code>, <code>--reaction-bg</code>). It also changes the default theme to warm and tints every neutral with the accent. Plan: rename by role, collapse the fills into a small scale, and move component <code>color-mix</code> calls onto roles. The default palette doesn't change.</p>
+</body></html>

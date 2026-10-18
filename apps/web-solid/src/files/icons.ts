@@ -1,4 +1,4 @@
-import type { Glyph } from "@kiko/ui/huge-icon"
+import type { Glyph } from "@kiko/ui/remix-icon"
 import {
 	FileAudioIcon,
 	FileCsvIcon,

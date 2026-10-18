@@ -1,6 +1,6 @@
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
-import { createSignal, lazy, Show, type JSX } from "solid-js"
+import { createSignal, lazy, Show, Suspense, type JSX } from "solid-js"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import type { ThinkingLevel } from "@kiko/protocol"
@@ -53,7 +53,9 @@ export function ModelPicker(props: { current?: string; onPick: (ref: string, thi
         {props.children}
       </button>
       <Show when={props.open}>
-        <ModelPickerPanel current={props.current} onPick={props.onPick} onOpenChange={props.onOpenChange} trigger={() => trigger} />
+        <Suspense>
+          <ModelPickerPanel current={props.current} onPick={props.onPick} onOpenChange={props.onOpenChange} trigger={() => trigger} />
+        </Suspense>
       </Show>
     </>
   )

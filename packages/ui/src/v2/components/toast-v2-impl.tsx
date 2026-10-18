@@ -2,7 +2,18 @@ import { isRTL } from "@kobalte/core/i18n"
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Portal } from "solid-js/web"
+import { RemixIcon, type Glyph } from "../../components/remix-icon"
 import { useI18n } from "../../context/i18n"
+import {
+  AlertCircleIcon,
+  AlertTriangleIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  CloseIcon,
+  CopyIcon,
+  InfoIcon,
+  LoaderIcon,
+} from "../../icons.gen"
 import {
   ERROR_CLAMP_CHARS,
   placeToast,
@@ -421,10 +432,7 @@ function ToastCard(props: {
         aria-label={i18n.t("ui.common.dismiss")}
         onClick={() => props.close()}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true" stroke-width="2.25">
-          <path d="M18 6 6 18" />
-          <path d="m6 6 12 12" />
-        </svg>
+        <RemixIcon icon={CloseIcon} />
       </button>
       <div ref={content} class="toast-v2-content" data-actions={actions().length > 0 || copyText() !== undefined || undefined}>
         <div class="toast-v2-body">
@@ -454,19 +462,7 @@ function ToastCard(props: {
                   data-copied={copied() || undefined}
                   onClick={() => void copy(text())}
                 >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <Show
-                      when={copied()}
-                      fallback={
-                        <>
-                          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                        </>
-                      }
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </Show>
-                  </svg>
+                  <RemixIcon icon={copied() ? CheckIcon : CopyIcon} />
                 </button>
               )}
             </Show>
@@ -510,42 +506,14 @@ function AnchoredToast(props: { toast: ToastItem }) {
   )
 }
 
-/* Lucide's glyphs, as t3code draws them (ISC). */
-const glyph = (paths: () => JSX.Element) => () => (
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    {paths()}
-  </svg>
-)
+const variantIcon = (icon: Glyph) => () => <RemixIcon icon={icon} />
 
 const VARIANT_ICONS: Partial<Record<ToastV2Variant, () => JSX.Element>> = {
-  success: glyph(() => (
-    <>
-      <circle cx="12" cy="12" r="10" />
-      <path d="m9 12 2 2 4-4" />
-    </>
-  )),
-  error: glyph(() => (
-    <>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 8v4" />
-      <path d="M12 16h.01" />
-    </>
-  )),
-  warning: glyph(() => (
-    <>
-      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
-      <path d="M12 9v4" />
-      <path d="M12 17h.01" />
-    </>
-  )),
-  info: glyph(() => (
-    <>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 16v-4" />
-      <path d="M12 8h.01" />
-    </>
-  )),
-  loading: glyph(() => <path d="M21 12a9 9 0 1 1-6.219-8.56" />),
+  success: variantIcon(CheckCircleIcon),
+  error: variantIcon(AlertCircleIcon),
+  warning: variantIcon(AlertTriangleIcon),
+  info: variantIcon(InfoIcon),
+  loading: variantIcon(LoaderIcon),
 }
 
 export const ToastV2 = { Region: ToastV2Region }

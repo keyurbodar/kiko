@@ -1,0 +1,143 @@
+
+.settings-dialog {
+  width: min(960px, calc(100vw - 48px));
+  height: min(700px, calc(100dvh - 48px));
+  overflow: hidden;
+  color: var(--foreground);
+  background: var(--popover);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--popover-shadow);
+}
+
+[data-component="settings"] {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-nav {
+  display: flex;
+  width: 220px;
+  flex-shrink: 0;
+  flex-direction: column;
+  padding: 16px 8px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--sidebar);
+}
+
+.settings-search {
+  display: flex;
+  height: var(--control-h);
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 0 10px;
+  color: var(--secondary-label);
+  background: var(--secondary);
+  border-radius: var(--radius-md);
+}
+
+.settings-search:focus-within {
+  color: var(--muted-foreground);
+}
+
+.settings-search input {
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-md);
+  background: none;
+  border: none;
+  outline: none;
+}
+
+.settings-search input::placeholder {
+  color: var(--secondary-label);
+}
+
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.settings-nav-group + .settings-nav-group {
+  margin-top: 20px;
+}
+
+.settings-nav-row {
+  display: flex;
+  height: var(--control-h);
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  color: var(--muted-foreground);
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .settings-nav-row:hover {
+    color: var(--foreground);
+    background: var(--accent);
+  }
+}
+
+.settings-nav-row[aria-current="page"] {
+  color: var(--foreground);
+  background: var(--accent-strong);
+}
+
+.settings-nav-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-nav-empty {
+  padding: 24px 8px;
+  color: var(--secondary-label);
+  text-align: center;
+}
+
+@media (width < 768px) {
+  .settings-dialog {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  [data-component="settings"] {
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    width: auto;
+    padding: 12px 8px 8px;
+  }
+
+  .settings-nav > [data-component="modal-v2-title"] {
+    margin-bottom: 12px;
+  }
+
+  .settings-search {
+    display: none;
+  }
+
+  .settings-nav-group {
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}

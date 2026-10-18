@@ -27,10 +27,10 @@ Pass: `ss -ltnp "sport = :8791"` names a PID in the run's `listeners.pid`, `curl
 
 ```bash
 agent-browser --session kiko-<run-id> open "http://localhost:5191/#token=$(cat /tmp/kiko-verify/<run-id>/token)"
-agent-browser --session kiko-<run-id> wait --load networkidle
+agent-browser --session kiko-<run-id> wait "[data-component=first-run], [data-component=sidebar]"
 ```
 
-It lands on `/chat/00000000-0000-7000-8000-6b696b6f0000`, Kiko's home chat.
+A fresh owner without a provider lands on `/welcome` at `data-step=connect`. Finish or skip setup through the UI; a returning owner resumes their last chat, falling back to Kiko's home chat. A token alone does not prove onboarding completed.
 
 ## Model setup
 
@@ -62,7 +62,25 @@ Useful selectors, from the client:
 - Sidebar: button "New chat", `[data-component=sidebar-row]`, `[data-component=sidebar-settings]`.
 - Tasks: `[data-component=task-list]`, `[data-component=task-step]`, `[data-component=task-progress]`.
 
-Sending is optimistic: your bubble appears before the server answers, so a bubble alone is not proof. Wait for the agent's reply text in the transcript, and for Send to be disabled again. Wait for text, not for a fixed sleep.
+Sending is optimistic: your bubble appears before the server answers, so a bubble alone is not proof. Wait for the agent's reply text in the transcript, and for the run to finish. Send being disabled alone is not proof: it is also disabled for an empty composer or missing model. Wait for text, not for a fixed sleep.
+
+## Feature map and redesign gate
+
+Read [features/README.md](features/README.md) and the affected feature files before driving. They name prerequisites, selectors and observable outcomes. Record PASS, ISSUES or BLOCKED for each journey; an unexercised path is never PASS.
+
+The current owner choices are bokeh onboarding, moonlit sidebar, L1 logo, Figtree/Bricolage typography, Remix icons and the main chat bubbles. Earlier aurora/R8 plan files are historical references. Compare visual evidence to the current approved reference and main's bubble baseline; DOM presence alone cannot prove visual fidelity.
+
+Use a unique browser session. When explicitly reusing another run's server, health-check `/api/health` and the client first, use your own session and evidence directory, and close only that session. Never run `down.sh` on a borrowed run. Use a fresh dev owner for setup persistence tests; do not reset another owner's settings or local storage. No key or model call is needed for the model-free journeys.
+
+For each changed surface capture dark/light at 1440x900 and 390x844, reduced motion, and a keyboard pass. Change appearance through Settings → Appearance; `set media` changes the OS preference and does not override an explicit saved theme. Set the viewport before navigating and wait for a stable selector rather than `networkidle` (the app has a live connection).
+
+```bash
+agent-browser --session $S set viewport 390 844
+agent-browser --session $S set media dark reduced-motion
+agent-browser --session $S snapshot -i
+```
+
+Inspect page overflow, clipped controls, focus visibility and touch targets at both sizes. For reduced motion inspect computed animation names and `document.getAnimations()` after the UI settles; sky, mascot and navigation must not keep animating. Capture a warmed reload/offline snapshot separately from a fresh signed-out load. Test a JavaScript-disabled reload in a separate context using a driver that supports disabling scripts: a static boot mark alone is not proof of the persisted chat snapshot. Record BLOCKED if that capability is unavailable.
 
 ## Evidence
 

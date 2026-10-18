@@ -1,4 +1,4 @@
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ChevronRightIcon } from "@kiko/ui/icons"
 import { createEffect, onCleanup } from "solid-js"
 import { cn } from "../../lib/cn"
@@ -42,7 +42,7 @@ export function RunChevron(props: { windowKey: string; class?: string }) {
         useApp.loadRunSteps(props.windowKey)
       }}
     >
-      <HugeIcon icon={ChevronRightIcon} size={16} />
+      <RemixIcon icon={ChevronRightIcon} size={16} />
     </button>
   )
 }

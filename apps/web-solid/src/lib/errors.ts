@@ -1,5 +1,6 @@
 import type { ErrorAction, KikoError } from "@kiko/protocol"
 import { showToastV2, type ToastV2Action, type ToastV2Options } from "@kiko/ui/v2/toast-v2"
+import { openSettings } from "../settings/dialog-state"
 
 /*
  * The one place an error becomes a toast. The server sends a KikoError (a sentence, an optional
@@ -11,17 +12,11 @@ import { showToastV2, type ToastV2Action, type ToastV2Options } from "@kiko/ui/v
 /** A toast with no action has nothing to wait for, so it closes sooner than a model error and later than a confirmation. */
 const PLAIN_ERROR_MS = 10_000
 
-let go: (href: string) => void = () => {}
-/** The shell gives the toast actions a way to navigate. */
-export const setGo = (fn: (href: string) => void) => {
-  go = fn
-}
-export const openSettings = () => go("/settings/models")
-export const openIntegrations = () => go("/settings/tools")
+export { openSettings }
 
 const ACTIONS: Record<ErrorAction, { label: string; run: () => void }> = {
-  open_models: { label: "Open settings", run: openSettings },
-  open_integrations: { label: "Open settings", run: openIntegrations },
+  open_models: { label: "Open settings", run: () => openSettings("models") },
+  open_integrations: { label: "Open settings", run: () => openSettings("tools") },
 }
 
 /** What a toast shows for an error, as data. */

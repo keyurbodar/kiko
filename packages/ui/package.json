@@ -18,7 +18,7 @@
     "./file-icon.css": "./src/components/file-icon.css",
     "./icon.css": "./src/components/icon.css",
     "./icon": "./src/components/icon.tsx",
-    "./huge-icon": "./src/components/huge-icon.tsx",
+    "./remix-icon": "./src/components/remix-icon.tsx",
     "./icons": "./src/icons.gen.ts",
     "./provider-icon.css": "./src/components/provider-icon.css",
     "./provider-icon": "./src/components/provider-icon.tsx",

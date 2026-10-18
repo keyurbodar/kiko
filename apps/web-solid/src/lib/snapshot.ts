@@ -141,8 +141,13 @@ export function snapshotAfterRoute(): void {
  * Saves on every hide (switching tabs, closing, reloading) and once after each route change, and
  * removes the shell's layer once `ready` says the app painted, or after `maxMs` either way. Nothing
  * runs while the page sits still: a save serializes the whole screen.
+ *
+ * `maxMs` is a failsafe for a boot that never paints, not a handover deadline. Dropping the layer at
+ * 1.5s put the boot screen where a painted chat had been, which is what a cold load looked like
+ * when the room's four IndexedDB reads ran past it. Keeping the saved screen while it is still
+ * accurate is always better than showing a skeleton.
  */
-export function startSnapshots(ready: () => boolean, maxMs = 1500): void {
+export function startSnapshots(ready: () => boolean, maxMs = 8000): void {
   const t0 = performance.now()
   // A route whose chunk has not arrived paints a skeleton, and removing the layer then would show
   // the skeleton where a painted screen used to be. The layer waits for real content, up to `maxMs`.

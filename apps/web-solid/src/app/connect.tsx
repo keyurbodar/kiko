@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { For, Index, Match, Show, Switch, createEffect, createSignal, onCleanup, onMount } from "solid-js"
+import { For, Match, Show, Switch, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { Button } from "../settings/kit"
 import {
   STEPS,
@@ -32,6 +32,11 @@ type View =
   | { name: "failed"; failure: Failure; retry: () => void }
   | { name: "choose"; accounts: { id: string; name: string }[]; pick: (id: string) => void }
 
+type TokenSteps =
+  | { status: "idle" | "loading" }
+  | { status: "ready"; link: TokenLink }
+  | { status: "failed"; message: string }
+
 const link = "text-sm text-foreground underline underline-offset-2"
 
 /** The `/connect` page a signed-in person opens to reconnect (`?reconnect=1`). */
@@ -48,7 +53,7 @@ export default function ConnectPage() {
 const STAGE_MS = 7000
 
 /*
- * The install is one request of 20 to 60 s with no stages of its own. The list lights the first stage on the
+ * The install is one request of 20 to 60 s with no stages of its own. The line lights the first stage on the
  * click and walks on at a steady pace, holding on the last one until the answer, while the meter eases toward
  * full and fills when it lands.
  */
@@ -59,27 +64,11 @@ function InstallProgress() {
   requestAnimationFrame(() => requestAnimationFrame(() => setOn(true)))
   onCleanup(() => clearInterval(timer))
   return (
-    <div class="flex flex-col gap-3 rounded-lg bg-control px-4 py-3" role="status" data-field="install-progress">
-      <p class="text-sm font-medium text-foreground">Installing Kiko. This takes up to a minute.</p>
+    <div class="flex flex-col gap-2.5" role="status" data-field="install-progress">
       <span class="welcome-meter block h-1 overflow-hidden rounded-full bg-control">
         <i class="block h-full rounded-full bg-[var(--ring)]" attr:data-on={on() ? "" : undefined} />
       </span>
-      <ul class="flex flex-col gap-1.5 text-sm">
-        <Index each={STEPS}>
-          {(step, i) => (
-            <li class="flex items-center gap-2" data-state={i < stage() ? "done" : i === stage() ? "current" : "next"}>
-              <span class={`grid size-4 place-items-center ${i === stage() ? "first-run-skeleton" : ""}`} aria-hidden="true">
-                <Show when={i < stage()} fallback={<span class={`size-1.5 rounded-full ${i === stage() ? "bg-foreground" : "bg-[var(--muted-foreground)] opacity-40"}`} />}>
-                  <svg viewBox="0 0 16 16" class="size-3.5 text-foreground" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3.5 8.5l3 3 6-7" />
-                  </svg>
-                </Show>
-              </span>
-              <span class={i <= stage() ? "text-foreground" : "text-muted-foreground"}>{step()}</span>
-            </li>
-          )}
-        </Index>
-      </ul>
+      <p class="text-center text-sm text-foreground">{STEPS[stage()]}</p>
     </div>
   )
 }
@@ -94,7 +83,15 @@ export function ConnectCloudflare() {
   const reconnect = () => new URLSearchParams(location.search).get("reconnect") === "1"
   const [view, setView] = createSignal<View>({ name: location.pathname === "/connect/callback" ? "installing" : "start" })
   const [tokenOpen, setTokenOpen] = createSignal(false)
-  const [tokenLink, setTokenLink] = createSignal<TokenLink | null>(null)
+  const [tokenSteps, setTokenSteps] = createSignal<TokenSteps>({ status: "idle" })
+  const tokenLink = () => {
+    const steps = tokenSteps()
+    return steps.status === "ready" ? steps.link : null
+  }
+  const tokenFailure = () => {
+    const steps = tokenSteps()
+    return steps.status === "failed" ? steps.message : ""
+  }
   const [token, setToken] = createSignal("")
   const [note, setNote] = createSignal("")
   const [redirecting, setRedirecting] = createSignal(false)
@@ -170,19 +167,26 @@ export function ConnectCloudflare() {
 
   const openToken = async () => {
     setTokenOpen(true)
-    if (tokenLink()) return
+    if (tokenSteps().status === "ready" || tokenSteps().status === "loading") return
+    setTokenSteps({ status: "loading" })
     try {
-      setTokenLink(await loadTokenLink())
+      setTokenSteps({ status: "ready", link: await loadTokenLink() })
     } catch (e) {
-      setNote(e instanceof Error ? e.message : "Could not load the token steps. Try again.")
+      setTokenSteps({ status: "failed", message: e instanceof Error ? e.message : "Could not load the token steps. Try again." })
     }
   }
 
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-component="connect" data-step="cloudflare">
-      <h1 class="text-xl font-medium text-foreground" style={{ "--i": 0 }}>Connect Cloudflare</h1>
-      <p class="text-sm text-muted-foreground" style={{ "--i": 1 }}>
-        Kiko installs its backend into your own Cloudflare account, on the free plan. Your chats and keys live there. Nothing runs on our servers after setup.
+      <h1 class="welcome-title" style={{ "--i": 0 }}>
+        {view().name === "installing" ? "Installing Kiko" : reconnect() ? "Reconnect Cloudflare" : "Put Kiko on your Cloudflare"}
+      </h1>
+      <p class="welcome-lede" style={{ "--i": 1 }}>
+        {view().name === "installing"
+          ? "This takes up to a minute."
+          : reconnect()
+            ? "Your Cloudflare connection has ended. Connect it again so Kiko keeps running in your account."
+            : "Kiko runs in your own Cloudflare account. Your chats and keys stay there."}
       </p>
       <Switch>
         <Match when={view().name === "installing"}>
@@ -233,7 +237,7 @@ export function ConnectCloudflare() {
               </Show>
               <Show when={v.name === "start"}>
                 <Button variant="primary" class="h-11 w-full" disabled={redirecting()} data-action="connect-cloudflare" onClick={() => void withCloudflare()}>
-                  {redirecting() ? "Opening Cloudflare" : "Connect with Cloudflare"}
+                  {redirecting() ? "Opening Cloudflare" : "Connect Cloudflare"}
                 </Button>
                 <Show when={note()}>
                   <p class="text-sm text-[var(--error)]" role="alert">{note()}</p>
@@ -257,7 +261,24 @@ export function ConnectCloudflare() {
                       else if (value) void run({ kind: "token", token: value })
                     }}
                   >
-                    <Show when={tokenLink()} fallback={<p class="text-sm text-muted-foreground">Loading the token steps</p>}>
+                    <Show
+                      when={tokenLink()}
+                      fallback={
+                        <Show
+                          when={tokenFailure()}
+                          fallback={<p class="text-sm text-muted-foreground" role="status">Loading the token steps</p>}
+                        >
+                          {(message) => (
+                            <div class="flex flex-col gap-2">
+                              <p class="text-sm text-[var(--error)]" role="alert">{message()}</p>
+                              <Button type="button" data-action="retry-token-steps" onClick={() => void openToken()}>
+                                Try again
+                              </Button>
+                            </div>
+                          )}
+                        </Show>
+                      }
+                    >
                       {(t) => (
                         <>
                           <a class={link} href={t().url} target="_blank" rel="noreferrer" data-action="create-token">

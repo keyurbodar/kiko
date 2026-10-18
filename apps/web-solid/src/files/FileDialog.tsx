@@ -1,5 +1,5 @@
 import type { FileRef } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CloseIcon } from "@kiko/ui/icons"
 import { ModalV2 } from "@kiko/ui/v2/modal-v2"
 import { Show } from "solid-js"
@@ -23,13 +23,13 @@ export default function FileDialog(props: { chatId: string; path: string; file: 
 				<ModalV2.Overlay />
 				<ModalV2.Content class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-xl bg-background shadow-2xl" data-component="file-dialog">
 					<div class={`${SUBHEADER} h-11 min-h-11`}>
-						<HugeIcon icon={KIND_ICON[props.kind]} size={14} />
+						<RemixIcon icon={KIND_ICON[props.kind]} size={14} />
 						<ModalV2.Title class="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{props.path}</ModalV2.Title>
 						<Show when={props.file} keyed>
 							{(file) => <FileActions view={view} chatId={props.chatId} path={props.path} file={file} kind={props.kind} />}
 						</Show>
 						<ModalV2.Close aria-label="Close full size file" data-action="close-file-dialog" class="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
-							<HugeIcon icon={CloseIcon} size={14} />
+							<RemixIcon icon={CloseIcon} size={14} />
 						</ModalV2.Close>
 					</div>
 					<div class="flex min-h-0 flex-1 overflow-hidden">

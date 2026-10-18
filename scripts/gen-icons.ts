@@ -1,141 +1,156 @@
 /*
- * Writes packages/ui/src/icons.gen.ts: the Hugeicons glyphs kiko uses, copied as data.
- * The package exports only its full index, so importing from it would load all 12,000
- * icons in dev. Add a row here, then run `bun scripts/gen-icons.ts`. A row named `chevron-down`
- * is exported as `ChevronDownIcon`.
+ * Writes packages/ui/src/icons.gen.ts: the Remix Icon glyphs kiko uses, copied as data.
+ * The package ships one svg file per icon, so the app carries only the glyphs it names here.
+ * Add a row, then run `bun scripts/gen-icons.ts`. A row named `chevron-down` is exported as
+ * `ChevronDownIcon`. Remix Icon License v1.0: free in an app, never as a logo or app icon.
  */
-import { writeFileSync } from "node:fs"
-import { resolve } from "node:path"
-import * as huge from "@hugeicons/core-free-icons"
+import { readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { join, resolve } from "node:path"
 
 const ICONS = {
-  search: "Search01Icon",
-  plus: "Add01Icon",
-  minus: "MinusSignIcon",
-  close: "Cancel01Icon",
-  check: "Tick02Icon",
-  "chevron-down": "ArrowDown01Icon",
-  "chevron-up": "ArrowUp01Icon",
-  "chevron-left": "ArrowLeft01Icon",
-  "chevron-right": "ArrowRight01Icon",
-  "arrow-up": "ArrowUp02Icon",
-  back: "ArrowLeft01Icon",
-  reply: "ArrowTurnBackwardIcon",
-  undo: "Undo02Icon",
-  compose: "PencilEdit02Icon",
-  edit: "PencilEdit01Icon",
-  chat: "Chatting01Icon",
-  group: "UserMultipleIcon",
-  user: "UserCircleIcon",
-  settings: "Settings01Icon",
-  "sidebar-left": "SidebarLeftIcon",
-  "sidebar-right": "SidebarRight01Icon",
-  filter: "FilterHorizontalIcon",
-  pin: "PinIcon",
-  unpin: "PinOffIcon",
-  mute: "NotificationOff01Icon",
-  bell: "Notification01Icon",
-  more: "MoreHorizontalIcon",
-  menu: "Menu01Icon",
-  link: "Link01Icon",
-  external: "LinkSquare02Icon",
-  copy: "Copy01Icon",
-  share: "Share08Icon",
-  trash: "Delete02Icon",
-  archive: "Archive02Icon",
-  attach: "Attachment01Icon",
-  image: "Image01Icon",
-  file: "File01Icon",
-  "file-text": "Note01Icon",
-  folder: "Folder01Icon",
-  "folder-tree": "FolderTreeIcon",
-  memory: "Brain02Icon",
-  tasks: "CheckListIcon",
-  info: "InformationCircleIcon",
-  model: "AiBrain01Icon",
-  reasoning: "Brain01Icon",
-  appearance: "PaintBoardIcon",
-  integrations: "PlugSocketIcon",
-  extensions: "PuzzleIcon",
-  skills: "MagicWand01Icon",
-  command: "CommandIcon",
-  signout: "Logout01Icon",
-  key: "Key01Icon",
-  board: "DashboardSquare01Icon",
-  heart: "FavouriteIcon",
-  play: "PlayIcon",
-  pause: "PauseIcon",
-  stop: "SquareIcon",
-  volume: "VolumeHighIcon",
-  "volume-off": "VolumeOffIcon",
-  maximize: "Maximize01Icon",
-  scan: "ScanIcon",
-  globe: "Globe02Icon",
-  clock: "Clock01Icon",
-  sun: "Sun03Icon",
-  moon: "Moon02Icon",
-  monitor: "ComputerIcon",
-  sparkles: "SparklesIcon",
-  lock: "LockIcon",
-  eye: "EyeIcon",
-  smile: "SmileIcon",
-  "heart-add": "HeartAddIcon",
-  download: "Download04Icon",
-  "wrap-text": "TextWrapIcon",
-  code: "SourceCodeIcon",
-  table: "Table01Icon",
-  "file-add": "FileAddIcon",
-  "folder-add": "FolderAddIcon",
-  "file-markdown": "FileTextIcon",
-  "file-json": "FileCodeIcon",
-  "file-csv": "Csv01Icon",
-  "file-html": "HtmlFile01Icon",
-  "file-source": "DocumentCodeIcon",
-  "file-diff": "CodeXmlIcon",
-  "file-image": "FileImageIcon",
-  "file-pdf": "Pdf01Icon",
-  "file-audio": "FileAudioIcon",
-  "file-video": "FileVideoIcon",
-  terminal: "SquareTerminalIcon",
-  "alert-circle": "AlertCircleIcon",
-  wrench: "Wrench01Icon",
-  "file-view": "FileViewIcon",
-  cursor: "CursorPointer01Icon",
-  worker: "Robot01Icon",
-  move: "FolderTransferIcon",
-  help: "QuestionIcon",
-  browser: "BrowserIcon",
-  notes: "Notebook01Icon",
-  book: "BookOpen01Icon",
-  send: "SentIcon",
+  search: "search-line",
+  plus: "add-line",
+  minus: "subtract-line",
+  close: "close-line",
+  check: "check-line",
+  "chevron-down": "arrow-down-s-line",
+  "chevron-up": "arrow-up-s-line",
+  "chevron-left": "arrow-left-s-line",
+  "chevron-right": "arrow-right-s-line",
+  "arrow-up": "arrow-up-line",
+  back: "arrow-left-s-line",
+  reply: "reply-line",
+  undo: "arrow-go-back-line",
+  reset: "reset-left-line",
+  compose: "edit-box-line",
+  edit: "pencil-line",
+  chat: "chat-3-line",
+  message: "chat-1-line",
+  unread: "chat-unread-line",
+  group: "group-line",
+  user: "account-circle-line",
+  settings: "settings-3-line",
+  "sidebar-left": "layout-left-line",
+  "sidebar-right": "layout-right-line",
+  pin: "pushpin-line",
+  "pin-fill": "pushpin-fill",
+  unpin: "unpin-line",
+  mute: "notification-off-line",
+  bell: "notification-3-line",
+  more: "more-line",
+  menu: "menu-line",
+  link: "link",
+  external: "external-link-line",
+  copy: "file-copy-line",
+  share: "share-line",
+  trash: "delete-bin-line",
+  archive: "archive-line",
+  attach: "attachment-2",
+  at: "at-line",
+  enter: "corner-down-left-line",
+  image: "image-line",
+  file: "file-line",
+  "file-text": "file-text-line",
+  folder: "folder-line",
+  "folder-open": "folder-open-line",
+  "folder-tree": "node-tree",
+  memory: "brain-line",
+  tasks: "list-check-3",
+  todo: "todo-line",
+  info: "information-line",
+  help: "question-line",
+  model: "box-3-line",
+  reasoning: "lightbulb-line",
+  appearance: "palette-line",
+  integrations: "plug-line",
+  extensions: "puzzle-line",
+  skills: "magic-line",
+  command: "command-line",
+  signout: "logout-box-r-line",
+  key: "key-2-line",
+  board: "dashboard-line",
+  play: "play-line",
+  pause: "pause-line",
+  stop: "stop-fill",
+  repeat: "repeat-line",
+  maximize: "fullscreen-line",
+  expand: "expand-diagonal-line",
+  collapse: "collapse-diagonal-line",
+  "expand-all": "expand-up-down-line",
+  "collapse-all": "contract-up-down-line",
+  scan: "scan-line",
+  globe: "global-line",
+  clock: "time-line",
+  sun: "sun-line",
+  moon: "moon-line",
+  monitor: "computer-line",
+  sparkles: "sparkling-line",
+  star: "star-line",
+  "star-fill": "star-fill",
+  eye: "eye-line",
+  smile: "emotion-line",
+  react: "emotion-add-line",
+  download: "download-line",
+  "wrap-text": "text-wrap",
+  code: "code-s-slash-line",
+  table: "table-line",
+  grid: "layout-grid-line",
+  "file-add": "file-add-line",
+  "folder-add": "folder-add-line",
+  "file-markdown": "markdown-line",
+  "file-json": "braces-line",
+  "file-csv": "file-excel-2-line",
+  "file-html": "html5-line",
+  "file-source": "file-code-line",
+  "file-diff": "git-commit-line",
+  "file-image": "file-image-line",
+  "file-pdf": "file-pdf-2-line",
+  "file-audio": "file-music-line",
+  "file-video": "file-video-line",
+  terminal: "terminal-box-line",
+  "alert-circle": "error-warning-line",
+  "alert-triangle": "alert-line",
+  "check-circle": "checkbox-circle-line",
+  "close-circle": "close-circle-line",
+  "pause-circle": "pause-circle-line",
+  "record-circle": "record-circle-line",
+  circle: "checkbox-blank-circle-line",
+  "pull-request": "git-pull-request-line",
+  loader: "loader-4-line",
+  wrench: "tools-line",
+  "file-view": "file-search-line",
+  cursor: "cursor-line",
+  worker: "robot-2-line",
+  move: "folder-transfer-line",
+  browser: "window-line",
+  notes: "sticky-note-line",
+  book: "book-open-line",
+  send: "send-plane-2-line",
 } as const
 
-const SHARED: Record<string, string> = { stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round" }
-const DROPPED = new Set(["key", "strokeWidth"])
-const kebab = (key: string) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
+const ROOT = resolve(import.meta.dirname, "../node_modules/remixicon/icons")
+const files = new Map(
+  readdirSync(ROOT, { withFileTypes: true })
+    .filter((dir) => dir.isDirectory())
+    .flatMap((dir) => readdirSync(join(ROOT, dir.name)).map((file) => [file.replace(/\.svg$/, ""), join(ROOT, dir.name, file)] as const)),
+)
 
-const table = huge as unknown as Record<string, unknown>
-const rows = Object.entries(ICONS).map(([name, glyph]) => {
-  const data = table[glyph]
-  if (!Array.isArray(data)) throw new Error(`no hugeicon named ${glyph}`)
-  const svg = data
-    .map(([tag, attrs]: [string, Record<string, string | number>]) => {
-      const list = Object.entries(attrs)
-        .filter(([k, v]) => !DROPPED.has(k) && SHARED[k] !== v)
-        // Two decimals on a 24 unit grid is a hundredth of a pixel at 24px.
-        .map(([k, v]) => `${kebab(k)}="${String(v).replace(/(\.\d{2})\d+/g, "$1")}"`)
-      return `<${tag} ${list.join(" ")}/>`
-    })
-    .join("")
+const rows = Object.entries(ICONS).map(([name, icon]) => {
+  const path = files.get(icon)
+  if (!path) throw new Error(`no remix icon named ${icon}`)
+  const body = readFileSync(path, "utf8").match(/<svg[^>]*>([\s\S]*)<\/svg>/)?.[1]
+  if (!body) throw new Error(`no svg body in ${icon}`)
+  // Two decimals on a 24 unit grid is a hundredth of a pixel at 24px.
+  const svg = body.trim().replace(/\d*\.\d+/g, (n) => String(Math.round(Number(n) * 100) / 100))
   const id = name.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase())
   return `export const ${id}Icon = ${JSON.stringify(svg)} as Glyph`
 })
 
 const out = `// Generated by scripts/gen-icons.ts. Do not edit.
-// Glyphs from Hugeicons free (@hugeicons/core-free-icons), MIT License, Copyright (c) 2025 Hugeicons.
+// Glyphs from Remix Icon (remixicon), Remix Icon License v1.0, Copyright (c) 2017-2026 Remix Design.
 // One export per glyph, so a chunk carries only the glyphs it imports.
 
-/** A glyph's svg body on a 24 unit grid. HugeIcon supplies the stroke. */
+/** A glyph's svg body on a 24 unit grid. RemixIcon fills it with the text color. */
 export type Glyph = string & { readonly glyph: true }
 
 ${rows.join("\n")}

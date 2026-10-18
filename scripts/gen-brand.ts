@@ -1,46 +1,19 @@
 /*
- * Writes kiko's icon set: kiko.svg, favicon.ico, the 16 and 32 px favicons, apple-touch-icon.png, the
- * 192 and 512 px manifest icons. They go to apps/web-solid/public and apps/landing/public.
- * The art is the real @kiko/avatar (Fubuki with headphones) on the app's own #0a0a0a, with a zinc
- * blueprint grid behind it. The leaves are recolored silver, so the berry eyes are the only color.
- * It also writes the welcome screen's mascot to apps/web-solid/public: the same face with open eyes, and
- * with closed eyes for its blink.
- * Edit the look below, then run `bun scripts/gen-brand.ts`.
+ * Generate the L1 mark on black for both apps, plus the open and blinking mascot.
+ * Flat colors, blush, no grid, glow, gradient, or shadow. Run `bun scripts/gen-brand.ts`.
  */
 import { writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Resvg } from "@resvg/resvg-js"
-import { avatar } from "../packages/avatar/src/index"
 
 const OUT = ["apps/web-solid/public", "apps/landing/public"]
 const INK = "#0a0a0a"
-const LINE = "#f5f5f5"
 
-const SILVER: Record<string, string> = { "#25492e": "#5b5b63", "#578357": "#b4b4bc", "#2f5e3b": "#7a7a83", "#6fa86f": "#e4e4e7" }
-const silver = (svg: string) => svg.replace(/#[0-9A-Fa-f]{6}/g, (hex) => SILVER[hex.toLowerCase()] ?? hex)
-const mascot = silver(avatar("kiko", { flavour: "fubuki", mood: "happy", facing: "left", charm: "headphones" }))
-/** Headphones and closed eyes turn to mush at 16 px. The small sizes get open red eyes and no charm. */
-const mascotSmall = silver(avatar("kiko", { flavour: "fubuki", mood: "calm", facing: "left", charm: "none" }))
+const MARK = `<g transform="translate(0 7)"> <g transform="translate(48.5 50.5) rotate(-38)"> <path data-leaf="back" d="M0 0C13-6 13-24 0-33C-13-24-13-6 0 0Z" fill="#55685A" /> </g> <path d="M31 88C26 88 24 85 24.4 80C26.2 59 40.5 46 60 46C79.5 46 93.8 59 95.6 80C96 85 94 88 89 88Z" fill="#FBF6EC" /> <g transform="translate(68 48.5) rotate(22)"> <g data-leaf="front"> <path d="M0 0C14-7 14-27 0-37C-14-27-14-7 0 0Z" fill="#86A38D" /> <path d="M0-3Q1.6-18 0-32" stroke="#C3D5C6" stroke-width="1.5" fill="none" stroke-linecap="round" /> </g> </g> <ellipse cx="38.5" cy="76.5" rx="5" ry="2.7" fill="#F2A08E" opacity=".6" /> <ellipse cx="81" cy="74.5" rx="4.6" ry="2.5" fill="#F2A08E" opacity=".6" /> <g data-eyes=""> <circle cx="46.4" cy="67" r="3.4" fill="#C22F2A" /> <circle cx="70.6" cy="65.6" r="3.4" fill="#C22F2A" /> <circle cx="45.4" cy="65.9" r="1.15" fill="#FFF" opacity=".9" /> <circle cx="69.6" cy="64.5" r="1.15" fill="#FFF" opacity=".9" /> </g> </g>`
+const mascot = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="14 4 92 100">${MARK}</svg>`
 
-const ticks = (n: number, step: number) => Array.from({ length: n }, (_, i) => (i + 1) * step)
-const grid = ticks(9, 10)
-  .flatMap((p) => [`M${p} 0V100`, `M0 ${p}H100`])
-  .join("")
-
-/** One tile. `rounded` clips the corners, `fine` draws the grid and rulers, which only read above 48 px. */
-function tile({ rounded, fine }: { rounded: boolean; fine: boolean }): string {
-  const face = fine
-    ? `<path d="${grid}" fill="none" stroke="${LINE}" stroke-width=".25" opacity=".16"/>` +
-      `<circle cx="50" cy="60" r="34" fill="none" stroke="${LINE}" stroke-width=".35" stroke-dasharray="1.6 1.4" opacity=".4"/>` +
-      `<path d="M50 6V98M4 60H96" stroke="${LINE}" stroke-width=".25" opacity=".2"/>` +
-      `<path d="M6 8h4M8 6v4M90 8h4M92 6v4" stroke="${LINE}" stroke-width=".4" opacity=".55"/>` +
-      mascot.replace("<svg ", '<svg x="0" y="8" width="100" height="100" ')
-    : mascotSmall.replace("<svg ", '<svg x="-8" y="2" width="116" height="116" ')
-  const clip = rounded ? '<clipPath id="r"><rect width="100" height="100" rx="22"/></clipPath>' : ""
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${clip}` +
-    `<g${rounded ? ' clip-path="url(#r)"' : ""}><rect width="100" height="100" fill="${INK}"/>${face}</g></svg>`
-  )
+function tile({ rounded }: { rounded: boolean }): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120"${rounded ? ' rx="27"' : ""} fill="${INK}"/><g transform="translate(60 61) scale(1.04) translate(-60 -54)">${MARK}</g></svg>`
 }
 
 const png = (svg: string, size: number) => new Resvg(svg, { fitTo: { mode: "width", value: size } }).render().asPng()
@@ -64,9 +37,9 @@ function ico(images: { size: number; data: Uint8Array }[]): Uint8Array {
   return Buffer.concat([head, ...images.map((i) => i.data)])
 }
 
-const small = tile({ rounded: true, fine: false })
-const large = tile({ rounded: true, fine: true })
-const square = tile({ rounded: false, fine: true })
+const small = tile({ rounded: true })
+const large = tile({ rounded: true })
+const square = tile({ rounded: false })
 
 const files: Record<string, string | Uint8Array> = {
   "kiko.svg": large,
@@ -81,6 +54,8 @@ const files: Record<string, string | Uint8Array> = {
 for (const dir of OUT) for (const [name, data] of Object.entries(files)) writeFileSync(resolve(import.meta.dir, "..", dir, name), data)
 console.log(`wrote ${Object.keys(files).length} files to ${OUT.join(" and ")}`)
 
-const welcome = (mood: "calm" | "happy") => silver(avatar("kiko", { flavour: "fubuki", mood, facing: "left", charm: "headphones" }))
-writeFileSync(resolve(import.meta.dir, "../apps/web-solid/public/kiko-mascot.svg"), welcome("calm"))
-writeFileSync(resolve(import.meta.dir, "../apps/web-solid/public/kiko-mascot-blink.svg"), welcome("happy"))
+writeFileSync(resolve(import.meta.dir, "../apps/web-solid/public/kiko-mascot.svg"), mascot)
+writeFileSync(
+  resolve(import.meta.dir, "../apps/web-solid/public/kiko-mascot-blink.svg"),
+  mascot.replace('<g data-eyes="">', '<g data-eyes="" transform="translate(0 59.4) scale(1 .1)">'),
+)

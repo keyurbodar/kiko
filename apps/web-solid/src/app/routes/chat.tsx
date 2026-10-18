@@ -12,10 +12,10 @@ import { openRun } from "../../chat/run/run-panel-state";
 import type { MessageId } from "@kiko/protocol";
 import type { ChatMessage, RosterBot } from "../../lib/types";
 import { jumpRequest, requestJump } from "../../search/state";
-import { eventRow } from "../../chat/lib/event-line";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
 import { clearUnreadMark } from "../../sidebar/unread-mark";
+import { roomEmpty } from "./chat-empty";
 const RunPanel = lazy(() => import("../../chat/run/RunPanel"));
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 const UpdateNotice = lazy(() => import("../update-notice"));
@@ -194,11 +194,10 @@ export default function ChatRoute() {
     useApp.seeMentions([id]);
   };
 
-  // A divider is something to read, so a chat that has one is not empty; an event this client does not draw is nothing.
-  // Before the warm tier paints the window is `[]`, which is not the same fact as a chat with no messages:
-  // painting the empty state there flashes "What's on your mind?" over a chat that has plenty to show.
-  const settled = () => !!useApp.room()?.state.loaded
-  const empty = () => settled() && messages().every((m) => m.event && eventRow(m, String) === null)
+  // A divider is something to read, so a chat that has one is not empty; an event this client does
+  // not draw is nothing. A room is only settled once its window has arrived: `loaded` alone says
+  // the warm tier answered, and painting the empty state there hid a chat that had plenty to show.
+  const empty = () => roomEmpty(useApp.room()?.state, messages(), params.id ? useApp.chat(params.id)?.lastSeq : undefined)
   // The reader is looking at the newest message, so nothing can arrive unseen. Scrolled up, a reply
   // is unseen until they come back to it, and marking it read there would erase its divider.
   const readingLatest = () => !scrolled();

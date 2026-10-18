@@ -1,4 +1,5 @@
-import { LoaderCircle } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { LoaderIcon } from "@kiko/ui/icons"
 import { For, Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import "./kit.css"
@@ -18,7 +19,7 @@ export function buttonClass(variant: Variant = "secondary", extra?: string) {
 export const selectClass = "kit-select"
 
 export function Spinner(props: { size?: number }): JSX.Element {
-  return <LoaderCircle class="motion-spin" size={props.size ?? 14} strokeWidth={2} aria-hidden="true" />
+  return <RemixIcon icon={LoaderIcon} class="motion-spin" size={props.size ?? 14} />
 }
 
 /** Placeholder bars while a load is in flight. Size them with `class`. */

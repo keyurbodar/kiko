@@ -1,4 +1,4 @@
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ChatIcon, ChevronDownIcon } from "@kiko/ui/icons"
 import type { JSX } from "solid-js"
 import { cn } from "../lib/cn"
@@ -20,7 +20,7 @@ export function AgentThread(props: {
         onClick={() => props.onToggle()}
       >
         <span class="truncate">{threadLabel(props.names, props.count)}</span>
-        <HugeIcon icon={ChevronDownIcon} size={12} class={cn("shrink-0", props.expanded && "rotate-180")} aria-hidden="true" />
+        <RemixIcon icon={ChevronDownIcon} size={12} class={cn("shrink-0", props.expanded && "rotate-180")} aria-hidden="true" />
       </button>
     </SystemRow>
   )

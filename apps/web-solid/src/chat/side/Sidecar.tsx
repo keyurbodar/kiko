@@ -1,7 +1,8 @@
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { Bot, Brain, FileText, FolderOpen, ListChecks, Plus, Repeat, X, type LucideProps } from "lucide-solid"
-import { type Component, createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { CloseIcon, FileTextIcon, FolderOpenIcon, type Glyph, MemoryIcon, PlusIcon, RepeatIcon, TasksIcon, WorkerIcon } from "@kiko/ui/icons"
+import { createEffect, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from "solid-js"
 import { EntryIcon } from "../../lib/EntryIcon"
 import { FileSurface, FilesTree } from "../../files/pane"
 import { useApp } from "../../lib/store"
@@ -26,17 +27,16 @@ import {
   type Surface,
 } from "./surfaces"
 
-type Icon = Component<LucideProps>
 type FileTab = Extract<Surface, { kind: "file" }>
 type AgentTab = Extract<Surface, { kind: "agent" }>
 
-const ICON: Record<Surface["kind"], Icon> = {
-  files: FolderOpen,
-  file: FileText,
-  memory: Brain,
-  routines: Repeat,
-  tasks: ListChecks,
-  agent: Bot,
+const ICON: Record<Surface["kind"], Glyph> = {
+  files: FolderOpenIcon,
+  file: FileTextIcon,
+  memory: MemoryIcon,
+  routines: RepeatIcon,
+  tasks: TasksIcon,
+  agent: WorkerIcon,
 }
 
 const TYPING = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
@@ -59,7 +59,7 @@ function labelOf(surface: Surface): string {
 function Tab(props: { chatId: string; surface: Surface; index: number; count: number; active: boolean; tabbable: boolean }) {
   let el: HTMLDivElement | undefined
   const label = () => labelOf(props.surface)
-  const Glyph = ICON[props.surface.kind]
+  const glyph = ICON[props.surface.kind]
   const activate = () => activateSurface(props.chatId, props.surface.id)
   createEffect(on(() => props.active, (active) => active && el?.scrollIntoView({ block: "nearest", inline: "nearest" })))
   return (
@@ -107,11 +107,11 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
           }}
         >
           <span class="relative flex size-3 items-center justify-center text-[10px] group-hover/tab:hidden group-focus-visible/close:hidden">
-            <Show when={props.surface.kind === "file" ? (props.surface as FileTab).path : null} fallback={<Glyph size={12} strokeWidth={1.75} class="shrink-0" aria-hidden="true" />}>
+            <Show when={props.surface.kind === "file" ? (props.surface as FileTab).path : null} fallback={<RemixIcon icon={glyph} size={12} class="shrink-0" />}>
               {(path) => <EntryIcon path={path()} />}
             </Show>
           </span>
-          <X size={12} strokeWidth={1.75} class="hidden group-hover/tab:block group-focus-visible/close:block" aria-hidden="true" />
+          <RemixIcon icon={CloseIcon} size={12} class="hidden group-hover/tab:block group-focus-visible/close:block" />
         </button>
         <span class="min-w-0 truncate">{label()}</span>
       </MenuV2.Context.Trigger>
@@ -139,7 +139,7 @@ function Launcher(props: { chatId: string }) {
         <h3 class="mb-3 text-center text-base font-medium text-foreground">Open a surface</h3>
         <For each={launcherEntries(roomMembers().length > 1)}>
           {(entry) => {
-            const Glyph = ICON[entry.kind]
+            const glyph = ICON[entry.kind]
             return (
               <button
                 type="button"
@@ -147,7 +147,7 @@ function Launcher(props: { chatId: string }) {
                 data-action={`open-${entry.kind}`}
                 onClick={() => openSurface(props.chatId, fixedSurface(entry.kind))}
               >
-                <Glyph size={16} strokeWidth={1.75} class="shrink-0 text-muted-foreground" aria-hidden="true" />
+                <RemixIcon icon={glyph} size={16} class="shrink-0 text-muted-foreground" />
                 <span class="min-w-0 flex-1 truncate">{entry.label}</span>
                 <kbd class="grid h-5 min-w-5 place-items-center rounded bg-control px-1 font-sans text-xs text-muted-foreground">{entry.key}</kbd>
               </button>
@@ -322,17 +322,17 @@ export default function Sidecar(props: { chatId: string }) {
         <MenuV2 gutter={6} placement="bottom-end">
             <TooltipV2 placement="bottom" openDelay={400} value="Open a surface">
               <MenuV2.Trigger class={ICON_BUTTON} aria-label="Open a surface" data-action="open-launcher">
-                <Plus size={14} strokeWidth={1.75} aria-hidden="true" />
+                <RemixIcon icon={PlusIcon} size={14} />
               </MenuV2.Trigger>
             </TooltipV2>
             <MenuV2.Portal>
               <MenuV2.Content class="min-w-[220px] outline-none" data-component="sidecar-add-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>
                 <For each={launcherEntries(group())}>
                   {(entry) => {
-                    const Glyph = ICON[entry.kind]
+                    const glyph = ICON[entry.kind]
                     return (
                       <MenuV2.Item data-action={`open-${entry.kind}`} shortcut={entry.key} onSelect={() => openSurface(props.chatId, fixedSurface(entry.kind))}>
-                        <Glyph size={16} strokeWidth={1.75} class="shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <RemixIcon icon={glyph} size={16} class="shrink-0 text-muted-foreground" />
                         <span class="min-w-0 flex-1 truncate">{entry.label}</span>
                       </MenuV2.Item>
                     )

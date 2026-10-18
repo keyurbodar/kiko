@@ -11,6 +11,51 @@
 
 @import "./styles/motion.css";
 
+/* Kiko's faces, served from public/fonts and preloaded by index.html. Text paints at once in the system
+   font and takes these as they arrive. */
+@font-face {
+  font-family: Figtree;
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("/fonts/figtree-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: Figtree;
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("/fonts/figtree-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+  src: url("/fonts/bricolage-grotesque-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* A stand-in for Figtree with the same box, so the screen saved before the fonts arrive does not move when
+   Figtree takes over. Measured in headless Chrome at 100px on "The quick brown fox jumps over the lazy dog.
+   0123456789": Figtree is 2604.13px wide and Arial's metrics (Arimo, its metric-compatible clone) are
+   2590.48px, so size-adjust is 100.53%. Figtree's line box is 95% above the baseline and 25% below it, with
+   no gap. A browser scales an override by size-adjust, so each one is divided by it: 94.5% and 24.87% read
+   back as 95% and 25% once 1.0053 is applied. At 11, 13, 14, 16, 24 and 100px both faces then measure the
+   same width to within 0.03% and the same line height. */
+@font-face {
+  font-family: "Figtree Fallback";
+  src: local("Arial"), local("Liberation Sans"), local("Arimo");
+  size-adjust: 100.53%;
+  ascent-override: 94.5%;
+  descent-override: 24.87%;
+  line-gap-override: 0%;
+}
+
 :root {
 
   --font-xs: 11px;
@@ -26,7 +71,8 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
-  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-sans: Figtree, "Figtree Fallback", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-display: "Bricolage Grotesque", var(--font-family-sans);
   --font-family-mono: "SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace;
   --font-family-text: var(--font-family-sans);
   --icon-xs: 12px;
@@ -368,6 +414,7 @@
 
 @theme {
   --font-sans: var(--font-family-sans);
+  --font-display: var(--font-family-display);
   --font-mono: var(--font-family-mono);
   --default-font-family: var(--font-family-sans);
   --default-mono-family: var(--font-family-mono);

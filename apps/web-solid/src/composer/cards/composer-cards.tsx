@@ -1,6 +1,7 @@
 import { CollapsibleV2 as Collapsible } from "@kiko/ui/v2/collapsible-v2"
 import { InteractiveHoverCard as HoverCard } from "@kiko/ui/v2/interactive-hover-card"
-import { ChevronDownIcon, CircleHelpIcon, ListTodoIcon } from "lucide-solid"
+import { RemixIcon } from "@kiko/ui/remix-icon"
+import { ChevronDownIcon, HelpIcon, TodoIcon } from "@kiko/ui/icons"
 import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js"
 import { useApp } from "../../lib/store"
 import { TaskList } from "../../chat/info/task-list"
@@ -13,7 +14,7 @@ import { agentDisplayName } from "../../lib/names"
 import "./cards.css"
 
 function CardIcon(props: { card: ComposerCard }) {
-  return <span class="composer-card-icon" aria-hidden="true"><Show when={props.card.kind === "ask"} fallback={<ListTodoIcon />}><CircleHelpIcon /></Show></span>
+  return <span class="composer-card-icon" aria-hidden="true"><Show when={props.card.kind === "ask"} fallback={<RemixIcon icon={TodoIcon} />}><RemixIcon icon={HelpIcon} /></Show></span>
 }
 
 function CardSummary(props: { card: ComposerCard; room: RoomStore }) {
@@ -28,7 +29,7 @@ function CardSummary(props: { card: ComposerCard; room: RoomStore }) {
         <span class="composer-card-progress" data-component="task-progress">{progress().completed}/{progress().total}</span>
         <Show when={progress().total > 1 && progress().total <= 10}><span class="task-segments" aria-hidden="true"><For each={progress().steps}>{(task) => <i data-status={task.status} />}</For></span></Show>
       </Show>
-      <ChevronDownIcon class="composer-card-toggle" />
+      <RemixIcon icon={ChevronDownIcon} class="composer-card-toggle" />
     </span>
   </>
 }

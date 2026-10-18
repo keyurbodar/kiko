@@ -1,5 +1,5 @@
 import type { RecipeCard } from "@kiko/protocol"
-import { HugeIcon } from "@kiko/ui/huge-icon"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { PlusIcon } from "@kiko/ui/icons"
 import { For, Show } from "solid-js"
 import { cn } from "../lib/cn"
@@ -74,7 +74,7 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
             data-action="add-recipe"
             onClick={() => props.onAdd()}
           >
-            <HugeIcon icon={PlusIcon} size={on() ? 14 : 16} />
+            <RemixIcon icon={PlusIcon} size={on() ? 14 : 16} />
           </button>
         </span>
       </div>
