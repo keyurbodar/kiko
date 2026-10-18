@@ -79,7 +79,8 @@ function target(path: string, hash = ""): FileTarget | null {
 
 /**
  * Inline code that is a path: it needs a slash or a `:line` suffix, is not a hostname or a
- * version, and has an extension unless it starts with `/`, `./` or `../`.
+ * version, and has an extension unless it starts with `/`, `./` or `../`, or ends with a slash,
+ * which is how a folder is written.
  */
 export function inlineCodeFile(code: string): FileTarget | null {
   const text = code.trim()
@@ -88,7 +89,8 @@ export function inlineCodeFile(code: string): FileTarget | null {
   if (URL_PREFIX.test(text)) return null
   const hasPosition = POSITION.test(text)
   if (!hasPosition && !text.includes("/")) return null
-  if (!RELATIVE_PREFIX.test(text) && !text.startsWith("/")) {
+  const folder = text.endsWith("/")
+  if (!folder && !RELATIVE_PREFIX.test(text) && !text.startsWith("/")) {
     const bare = text.replace(POSITION, "")
     if (looksLikeHostname(bare.split("/")[0]!, hasPosition)) return null
     const name = bare.replace(/\/+$/, "").split("/").at(-1) ?? ""

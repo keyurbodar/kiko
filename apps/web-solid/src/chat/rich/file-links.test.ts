@@ -11,6 +11,9 @@ describe("inline code that names a file", () => {
     ["src/app.ts:42:7", { path: "src/app.ts", line: 42, column: 7 }],
     ["notes.md:3", { path: "notes.md", line: 3 }],
     ["/scripts/run", { path: "scripts/run" }],
+    // A trailing slash is how a folder is written, so it needs no extension.
+    ["src/lib/", { path: "src/lib" }],
+    ["/home/recipes/", { path: "home/recipes" }],
     ["data.pl:3", { path: "data.pl", line: 3 }],
     // No slash and no line: an identifier, not a path.
     ["notes.md", null],
