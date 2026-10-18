@@ -1,9 +1,24 @@
 import { ALARM_STEPS } from "@kiko/durable/alarm"
 import { addColumn, dropColumn, rebuildTable, type Step } from "@kiko/durable/migrate"
 import { treeSteps } from "@kiko/memory/optmem"
+import { KEEP_EVENTS } from "./log"
 
 // The room's tables, in one list. An object at version N runs only the steps after the first N. A step is
 // appended, never edited or moved, and every step must be safe on a table that already exists.
+//
+// clients had no trim before the trim step further down, so an old room can hold one row per message it ever
+// sent. Only the replay window can be asked for again (log.ts), so the rebuild drops the rest instead of copying
+// it: a rebuild is one transaction, and the free plan bills every row it writes.
+export const REBUILD_CLIENTS = rebuildTable(
+	"clients",
+	"clients_next",
+	"CREATE TABLE clients_next (client_id TEXT PRIMARY KEY, message_id TEXT NOT NULL, seq INTEGER NOT NULL) WITHOUT ROWID",
+	["client_id", "message_id", "seq"],
+	[],
+	[],
+	`seq > (SELECT max(seq) - ${KEEP_EVENTS} FROM events)`,
+)
+
 export const ROOM_STEPS: Step[] = [
 	`
 	-- Every stored change a human can see. seq only increases and is never reused.
@@ -270,14 +285,7 @@ export const ROOM_STEPS: Step[] = [
 	// Every one of these tables pays a row for a rowid it does not use. A TEXT primary key on a rowid table costs
 	// two rows to insert: the row itself and the unique index that enforces the key. WITHOUT ROWID stores the row
 	// in the key's own btree, so the same insert costs one. Measured: pending 3.00 -> 2.00, clients 2.00 -> 1.00.
-	rebuildTable(
-		"clients",
-		"clients_next",
-		"CREATE TABLE clients_next (client_id TEXT PRIMARY KEY, message_id TEXT NOT NULL, seq INTEGER NOT NULL) WITHOUT ROWID",
-		["client_id", "message_id", "seq"],
-		[],
-		[],
-	),
+	REBUILD_CLIENTS,
 	rebuildTable(
 		"pending",
 		"pending_next",

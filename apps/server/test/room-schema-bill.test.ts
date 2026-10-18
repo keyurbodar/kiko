@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
 import { Database } from "bun:sqlite"
-import { ROOM_STEPS } from "../src/room/schema"
+import { KEEP_EVENTS } from "../src/room/log"
+import { REBUILD_CLIENTS, ROOM_STEPS } from "../src/room/schema"
 import { sqlWith } from "./sql-shim"
 
 // A room's schema earns its write bill. Every row these statements write is billed against the account's daily
@@ -81,3 +82,23 @@ test("the rebuilt tables keep working: a pending row, a client, an event, a reac
 	db.exec("INSERT INTO events (kind, at, actor, payload) VALUES ('message', 102, 'human', '{}')")
 	expect(db.query<{ seq: number }, []>("SELECT max(seq) AS seq FROM events").get()!.seq).toBe(3)
 })
+
+test("rebuilding clients carries the replay window and drops what can never be read", () => {
+	const db = new Database(":memory:")
+	sqlWith(ROOM_STEPS, db)
+	// clients had no trim before Phase 1, so an old room can hold one row per message it ever sent. A rebuild
+	// that copied them all would write every one of those rows in a single transaction, which is a day's
+	// allowance spent by one migration. Only the newest KEEP_EVENTS rows can still be asked for.
+	db.exec("DELETE FROM clients")
+	db.exec("DELETE FROM events")
+	for (let s = 1; s <= 5000; s++) {
+		db.exec(`INSERT INTO clients (client_id, message_id, seq) VALUES ('c${s}', 'm${s}', ${s})`)
+		db.exec(`INSERT INTO events (seq, kind, at, actor, payload) VALUES (${s}, 'message', ${s}, 'human', '{}')`)
+	}
+	const rebuild = REBUILD_CLIENTS as (sql: SqlStorage) => void
+	rebuild(sqlWith([], db))
+
+	expect(db.query<{ n: number }, []>("SELECT count(*) AS n FROM clients").get()!.n).toBe(KEEP_EVENTS)
+	expect(db.query<{ n: number }, []>("SELECT min(seq) AS n FROM clients").get()!.n).toBe(5000 - KEEP_EVENTS + 1)
+	expect(ddl(db, "clients")).toContain("WITHOUT ROWID")
+}, 30_000)
