@@ -144,8 +144,11 @@ export function snapshotAfterRoute(): void {
  */
 export function startSnapshots(ready: () => boolean, maxMs = 1500): void {
   const t0 = performance.now()
+  // A route whose chunk has not arrived paints a skeleton, and removing the layer then would show
+  // the skeleton where a painted screen used to be. The layer waits for real content, up to `maxMs`.
+  const settled = () => ready() && !document.querySelector('[data-component="page-skeleton"]')
   const tick = () => {
-    if (ready() || performance.now() - t0 > maxMs) return dismissSnapshot()
+    if (settled() || performance.now() - t0 > maxMs) return dismissSnapshot()
     requestAnimationFrame(tick)
   }
   requestAnimationFrame(tick)

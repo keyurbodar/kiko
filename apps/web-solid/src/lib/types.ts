@@ -145,8 +145,8 @@ export interface ComposerProps {
   threadId: string;
   /** The chat's name. The placeholder reads `message <title>`, the way kat's reads `message kat`. */
   title?: string;
-  /** A send carries its text and its attachments together. */
-  onSend: (message: OutgoingMessage) => void;
+  /** A send carries its text and its attachments together. Returning false means it was not accepted. */
+  onSend: (message: OutgoingMessage) => boolean | void;
   /** Roster the `@` menu filters. A mention is text; this is the only source. */
   bots: readonly RosterBot[];
   /** Disables send while a send is in flight. */

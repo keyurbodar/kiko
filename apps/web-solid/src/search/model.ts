@@ -103,6 +103,10 @@ export function createSearch(options: {
       ask(true)
     },
     more,
+    /** Ask the same query again, for a chat that changed under the results. */
+    rerun() {
+      ask(true)
+    },
     /** Moves the selection, clamped to the list. Nearing the end asks for the next page. */
     move(delta: number) {
       const count = view.hits.length

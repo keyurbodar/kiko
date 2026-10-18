@@ -47,7 +47,8 @@ export function MessageList(props: {
   /** The reader is at the newest message: the store may drop the oldest rows again. */
   onAtLatest?: () => void
   scrollKey?: string
-  scrollBook?: Pick<DraftBook, "scroll" | "saveScroll">
+  /** The reader's scroll position, restored once per chat. */
+  scrollBook?: Pick<DraftBook, "scroll" | "saveScroll"> & Partial<Pick<DraftBook, "ready">>
   /** Receives a stable jump function for the transcript's scroller. */
   onJumpHandle?: (handle: {
     /** Scroll to a message and mark where it landed. */

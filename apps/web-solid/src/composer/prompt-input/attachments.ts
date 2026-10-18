@@ -27,6 +27,8 @@ export type PromptInputV2AttachmentConfig = {
   refuse: (reasons: string[]) => void
   /** A file entered the box, as `file` (a picture possibly re-encoded). Its upload starts here. */
   onAdded?: (attachment: PromptInputV2Attachment, file: File) => void
+  /** The draft this box is filling. A switch during an await means the parts belong to another chat. */
+  key?: () => string
 }
 
 export function createPromptInputV2Attachments(
@@ -52,6 +54,7 @@ export function createPromptInputV2Attachments(
   const addAttachments = async (files: File[], target = capture(), at?: { x: number; y: number }, notes: string[] = []) => {
     const blocked = input.blocked?.()
     if (blocked) return void input.refuse([blocked])
+    const openedFor = input.key?.()
     const held = target.current().filter((part) => part.type === "image")
     const { images, files: others, error } = admit(held.length, files)
     const refusals = [...notes, ...(error ? [error] : [])]
@@ -81,6 +84,12 @@ export function createPromptInputV2Attachments(
     }
     if (refusals.length) input.refuse([refusals.at(-1)!])
     if (!added.length) return
+    // A chat switch while a picture was being prepared means this box is now a different draft. The
+    // attachment would land in a chat the human never added it to, so it is dropped instead.
+    if (openedFor !== undefined && input.key?.() !== openedFor) {
+      for (const part of added) URL.revokeObjectURL(part.blob.url)
+      return
+    }
     // As t3code: a file is always named in the text. A picture is too once there is text to place it in.
     const prose = input.hasText()
     target.set([...target.current(), ...added], target.cursor())

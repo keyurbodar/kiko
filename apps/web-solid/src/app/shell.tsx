@@ -28,6 +28,7 @@ import { preloadSearch, SearchOverlay, searchScope } from "../search/state";
 import { hintsShown, watchHold } from "../commands/hints";
 const HintLayer = lazy(() => import("../commands/HintLayer"));
 import { Sidebar, SidebarToggle, preloadSettingsSidebar } from "../sidebar";
+import { DeleteChatDialog } from "../sidebar/delete-chat-dialog";
 import { drawerOpen, setDrawerOpen } from "./drawer";
 import { swipeAction, swipeRegion, type SwipeRegion } from "./edge-swipe";
 import { sectionOf } from "./sections";
@@ -410,6 +411,7 @@ export function Shell(props: ParentProps) {
           )}
         </Show>
         <Palette />
+        <DeleteChatDialog />
         <Show when={botPickerOpen()}>
           <Suspense>
             <BotPicker />

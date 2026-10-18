@@ -44,7 +44,12 @@
         var n = document.getElementById("snap");
         try {
           var s = JSON.parse(localStorage.getItem("kiko:snap") || "null");
-          if (!s || s.v !== 1 || s.path !== location.pathname) return n.remove();
+          if (!s || s.v !== 1) return n.remove();
+          // The installed app always opens at "/", and "/" is where the app resumes the last chat.
+          // A chat's screen is the right thing to show there, so it is accepted from the resume paths.
+          var here = location.pathname, there = s.path;
+          var resume = (here === "/" || here === "/chat") && there.indexOf("/chat/") === 0;
+          if (there !== here && !resume) return n.remove();
           var h = document.head, w = s.links.length;
           var show = function () {
             n.style.visibility = "visible";

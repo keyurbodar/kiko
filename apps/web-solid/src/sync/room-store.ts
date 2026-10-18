@@ -347,6 +347,10 @@ export type SearchPage = { results: readonly SearchHit[]; next: number | null }
 const ASK_TIMEOUT_MS = 8000
 /** Messages on each side of a jump target, and in each page past what the disk holds. */
 export const HISTORY_PAGE = 30
+/** `loadOlder` answered: the room has nothing older than the window. */
+export const NO_MORE = 0
+/** `loadOlder` did not get an answer (the socket was down, or the window moved under it). Not the end. */
+export const NO_ANSWER = -1
 /** The composer's `typing` frames are spaced at least this far apart. */
 export const TYPING_EVERY_MS = 2000
 
@@ -416,7 +420,8 @@ export type RoomStore = {
 	live(): void
 	/**
 	 * Prepends up to `limit` older messages, from IndexedDB and then from the room once the disk has
-	 * none, and stops cutting the window. Resolves to how many.
+	 * none, and stops cutting the window. Resolves to how many, or `NO_MORE` at the start of the
+	 * history, or `NO_ANSWER` when the room did not answer.
 	 */
 	loadOlder(limit?: number): Promise<number>
 	/**
@@ -1027,15 +1032,20 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 			const oldest = shown[0]?.seq ?? state.seq + 1
 			// The disk is one contiguous run that ends at the live end, so it only continues the live window.
 			const older = state.history ? [] : await messagesBefore(warm, roomId, oldest, limit)
-			if (closed) return 0
+			if (closed) return NO_MORE
 			if (older.length) {
 				following = false
 				setState("messages", (m) => [...older.filter((o) => o.seq < (m[0]?.seq ?? Infinity)), ...m])
 				return older.length
 			}
-			if (oldest <= 1) return 0
-			const page = (await history(oldest, Math.min(limit, HISTORY_PAGE * 2), 0)) ?? []
-			if (closed || !page.length || (state.history ?? state.messages)[0]?.seq !== oldest) return 0
+			if (oldest <= 1) return NO_MORE
+			const answer = await history(oldest, Math.min(limit, HISTORY_PAGE * 2), 0)
+			if (closed) return NO_MORE
+			// A question the room never answered is not the end of its history, so it must not latch.
+			if (answer === null) return NO_ANSWER
+			const page = answer
+			if (!page.length) return NO_MORE
+			if ((state.history ?? state.messages)[0]?.seq !== oldest) return NO_ANSWER
 			following = false
 			if (state.history) setState("history", (h) => mergeBySeq(page, h ?? []))
 			else setState("messages", (m) => mergeBySeq(page, m))

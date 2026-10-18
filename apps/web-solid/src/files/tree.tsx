@@ -303,6 +303,16 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 		}),
 	)
 
+	// The tree is one instance for the whole session, so a search typed in one chat would keep hiding
+	// the next chat's files behind a query that was never meant for them.
+	createEffect(
+		on(
+			() => props.roomId,
+			() => setQuery(""),
+			{ defer: true },
+		),
+	)
+
 	createEffect(
 		on(
 			() => props.active,

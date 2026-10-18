@@ -99,7 +99,7 @@ export function VirtualThread(props: {
   onNearTop?: () => void
   onAtLatest?: () => void
   scrollKey?: string
-  scrollBook?: Pick<DraftBook, "scroll" | "saveScroll">
+  scrollBook?: Pick<DraftBook, "scroll" | "saveScroll"> & Partial<Pick<DraftBook, "ready">>
   onJumpHandle?: (handle: {
     jumpToMessage: (messageId: string) => void
     scrollToLatest: () => void
@@ -250,6 +250,8 @@ export function VirtualThread(props: {
       (item) => item.kind === "message" && dayStartOf(item.message.sentAt) === dayStart,
     )
     if (index < 0) return
+    // A pin still running from the last arrival would drag the reader back to the end.
+    pinRun += 1
     stuck = false
     handle()?.scrollToIndex(index, { align: "start" })
     seedAnchor()
@@ -299,15 +301,14 @@ export function VirtualThread(props: {
   const restorePosition = (): boolean => {
     const key = props.scrollKey
     if (!key || !props.scrollBook || restoredFor === key || !showsKey()) return false
+    // The book reads its positions from IndexedDB. Before it is ready every key looks unset, and
+    // burning the attempt there would skip the restore for the whole visit.
+    if (props.scrollBook.ready && !props.scrollBook.ready()) return false
     const saved = props.scrollBook.scroll(key)
-    if (!saved) {
-      restoredFor = key
-      return false
-    }
-    const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
-    // Not burned: the anchor may sit in a page that has not loaded yet, so a later pass can still find it.
-    if (index < 0) return false
     restoredFor = key
+    if (!saved) return false
+    const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
+    if (index < 0) return false
     let tries = 0
     stuck = false
     const apply = () => {
@@ -477,13 +478,15 @@ export function VirtualThread(props: {
     onCleanup(() => clearTimeout(readerScrollEnd))
     const readerMoved = () => {
       readerScrolling = true
+      // The day pill follows the reader, whichever way they scroll: keys and a drag move the view
+      // without a wheel or a touch, and the pill is the only thing that says which day they are in.
+      noteScrolling()
       clearTimeout(readerScrollEnd)
       readerScrollEnd = setTimeout(() => {
         readerScrolling = false
       }, READER_SCROLL_MS)
     }
     const onReader = () => {
-      noteScrolling()
       readerMoved()
     }
     createEventListener(() => scroller, "wheel", onReader, { passive: true })
@@ -544,7 +547,7 @@ export function VirtualThread(props: {
     const step = () => {
       if (!scrollElement || run !== pinRun) return
       // The reader's own scroll outranks the pin: rows measured late must not drag them back down.
-      if (!stuck && readerScrolling) return
+      if (!stuck) return
       scrollElement.scrollTo({ top: scrollElement.scrollHeight, behavior: "auto" })
       if (scrollElement.scrollHeight === lastHeight) stable += 1
       else stable = 0

@@ -92,12 +92,17 @@ export default function Palette() {
     return parent?.search ? searchGroups(parent, query()) : view().groups
   })
   let input: HTMLInputElement | undefined
+  // The row the person has moved to. Empty means "no choice yet", which is what lets cmdk select the
+  // first row of whatever list is showing.
+  const [highlight, setHighlight] = createSignal("")
 
   // Focus goes back to where it was, so closing the palette does not strand the person on the page body.
   let before: Element | null = null
   createEffect(() => {
     if (open()) {
       before ??= document.activeElement
+      // A palette opened again starts on its first row, not the row the last visit left selected.
+      setHighlight("")
       queueMicrotask(() => input?.focus())
     }
   })
@@ -107,7 +112,6 @@ export default function Palette() {
   createEffect(on(() => view().parent, (_now, before) => before?.onQuery?.(""), { defer: true }))
   // The highlighted row previews itself, but only once the person has moved: the row the list starts on is not a choice.
   const preview = createPreview()
-  const [highlight, setHighlight] = createSignal("")
   let engaged = false
   const items = () => groups().flatMap((g) => g.items)
   createEffect(() => {
@@ -120,6 +124,9 @@ export default function Palette() {
       () => stack().join("/"),
       () => {
         engaged = false
+        // The new list has no row with the key the old one held, so nothing would be selected and
+        // Enter would do nothing until an arrow key moved the highlight.
+        setHighlight("")
         preview.restore()
       },
       { defer: true },

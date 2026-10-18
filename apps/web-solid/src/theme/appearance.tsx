@@ -7,7 +7,7 @@ import { ACCENT_IDS, ACCENTS, PALETTES, type Palette, type ThemeAppearance } fro
 import { cn } from "../lib/cn"
 import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import { Select } from "../settings/select"
-import { look, updateLook } from "./live"
+import { look, previewLook, updateLook } from "./live"
 import { choose, DEFAULT, remove, themes } from "./live"
 import { ThemeBrowser } from "./open-vsx-themes"
 
@@ -135,6 +135,12 @@ export default function Appearance(): JSX.Element {
   const [browsing, setBrowsing] = createSignal(false)
   const d = () => look().display
   const set = (patch: Partial<Display>) => updateLook({ display: { ...d(), ...patch } })
+  // A slider drag repaints the palette as it moves and saves only on release.
+  let stopPreview: (() => void) | undefined
+  const previewContrast = (contrast: number) => {
+    stopPreview?.()
+    stopPreview = previewLook({ ...look(), display: { ...d(), contrast } })
+  }
   const reset = <K extends keyof Display>(key: K) => (d()[key] !== DEFAULT_DISPLAY[key] ? () => set({ [key]: DEFAULT_DISPLAY[key] } as Partial<Display>) : undefined)
   const sizes = Array.from({ length: BASE_SIZE.max - BASE_SIZE.min + 1 }, (_, i) => BASE_SIZE.min + i)
   return (
@@ -165,7 +171,18 @@ export default function Appearance(): JSX.Element {
           <Select label="Chat width" value={d().chatWidth} options={(Object.keys(CHAT_WIDTHS) as ChatWidth[]).map((value) => ({ value, label: CHAT_WIDTHS[value].label }))} onChange={(chatWidth) => set({ chatWidth })} />
         </Row>
         <Row label="Contrast" description="Borders, lines, and fills." onReset={reset("contrast")}>
-          <Slider label="Contrast" value={d().contrast} display={`${d().contrast}%`} min={CONTRAST.min} max={CONTRAST.max} step={CONTRAST.step} onChange={(contrast) => set({ contrast })} />
+          <Slider
+            label="Contrast"
+            value={d().contrast}
+            display={`${d().contrast}%`}
+            min={CONTRAST.min}
+            max={CONTRAST.max}
+            step={CONTRAST.step}
+            // A drag repaints the palette on every step, but only the release is saved and sent: the
+            // server stores a theme per write, and a slider fires dozens of them.
+            onInput={(contrast) => previewContrast(contrast)}
+            onChange={(contrast) => set({ contrast })}
+          />
         </Row>
         <Row label="Interface font" description="Any font on this device. Empty uses the system font." onReset={reset("interfaceFont")}>
           <input class="kit-field w-44" aria-label="Interface font" placeholder="System" value={d().interfaceFont} onChange={(e) => set({ interfaceFont: e.currentTarget.value.trim() })} />

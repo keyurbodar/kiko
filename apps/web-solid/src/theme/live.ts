@@ -6,7 +6,7 @@
 import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js"
 import { useApp } from "../lib/store"
 import { type UserChannel, userChannel } from "../sync/user-channel"
-import { applyCommitted, importedThemes, readCache, saveImported, writeCache } from "@kiko/theme/apply"
+import { applyCommitted, importedThemes, previewLook as preview, readCache, saveImported, writeCache } from "@kiko/theme/apply"
 import type { Imported, ImportedTheme } from "@kiko/theme/imported"
 import { setAvatarPicks } from "../avatar/picks"
 import { formatLook, parseLook, type Look } from "@kiko/theme/look"
@@ -56,6 +56,9 @@ export function saveLook(next: Look): void {
 
 /** Changes part of the saved look. */
 export const updateLook = (patch: Partial<Look>) => saveLook({ ...look(), ...patch })
+
+/** Paints a look without saving it, for a drag in progress. Returns the undo. */
+export const previewLook = (next: Look): (() => void) => preview({ ...next })
 
 const mocked = () => import.meta.env.DEV && import.meta.env.VITE_KIKO_SYNC === "mock"
 

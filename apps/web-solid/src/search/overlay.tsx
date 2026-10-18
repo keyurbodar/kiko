@@ -44,6 +44,25 @@ export default function SearchOverlay() {
       input?.select()
     }),
   )
+  // A chat search answers for the room that is open. Switching chats re-asks, or the results would
+  // keep naming messages of the chat you left, and Enter would drag you back to it.
+  createEffect(
+    on(
+      () => useApp.activeThreadId(),
+      () => {
+        if (searchScope() === "chat") search.rerun()
+      },
+      { defer: true },
+    ),
+  )
+  // Escape closes from anywhere in the overlay, not only while the field holds focus.
+  const onEscape = (e: KeyboardEvent) => {
+    if (e.key !== "Escape" || e.defaultPrevented) return
+    e.preventDefault()
+    close()
+  }
+  document.addEventListener("keydown", onEscape, true)
+  onCleanup(() => document.removeEventListener("keydown", onEscape, true))
   const close = () => {
     closeSearch()
     if (before instanceof HTMLElement && before.isConnected) before.focus()

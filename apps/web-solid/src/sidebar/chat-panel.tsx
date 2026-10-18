@@ -200,6 +200,15 @@ function RowTitle(props: { id: string; title: string }) {
       input?.select()
     }, 0)
   })
+  // A row can leave the list while its title is being edited: another chat receives a message and
+  // reorders it, or it scrolls out of the virtualized window. A removed element fires no blur, so
+  // without this the typed title is dropped and the row comes back still in edit mode.
+  onCleanup(() => {
+    if (done || !editing()) return
+    done = true
+    const value = input?.value ?? props.title
+    commitRename(props.id, value)
+  })
   return (
     <Show when={editing()} fallback={<span class="chat-name">{props.title}</span>}>
       <input

@@ -28,7 +28,7 @@ import { createPacer } from "../chat/bubble-pacing"
 import { inWindow, newestAfter, parseWindow, stepWindows, windowKey } from "../chat/run/run-log"
 import type { MockRoom } from "../sync/mock-room"
 import type { LocalAttachment, ViewMessage } from "../sync/patches"
-import { createRoomStore, type RoomSeed, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
+import { createRoomStore, NO_MORE, type RoomSeed, type RoomStore, type SearchPage, type SendOptions } from "../sync/room-store"
 import { socketUrl } from "./api"
 import { fileToken, fileUrl } from "./file-token"
 import { browserConnect, type Connect } from "../sync/socket"
@@ -735,7 +735,9 @@ export function createApp(options: AppOptions = {}) {
         void r.loadOlder().then(
           (n) => {
             olderBusy = false
-            if (n === 0) olderDone = r
+            // `NO_MORE` means the room answered and has nothing older. A miss (the socket was down, or
+            // the window moved) must not latch, or paging up dies for the rest of the visit.
+            if (n === NO_MORE) olderDone = r
           },
           () => (olderBusy = false),
         )
@@ -746,7 +748,12 @@ export function createApp(options: AppOptions = {}) {
        * window, or, in a window it jumped to, pages newer messages in.
        */
       followLatest(): void {
-        room()?.follow()
+        const r = room()
+        if (!r) return
+        r.follow()
+        // Following the end trims the window back to its newest rows. The ones it drops are still on
+        // disk, so paging up must be allowed to fetch them again.
+        if (olderDone === r) olderDone = null
       },
 
       /** Searches the open room's messages, newest first. Null when the room does not answer. */

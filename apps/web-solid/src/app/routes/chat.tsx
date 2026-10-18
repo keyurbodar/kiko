@@ -15,6 +15,7 @@ import { jumpRequest, requestJump } from "../../search/state";
 import { eventRow } from "../../chat/lib/event-line";
 import { EmptyState } from "../../chat/ui/EmptyState";
 import { captureLaunch, glideToDock, type Launch } from "../../chat/send-motion";
+import { clearUnreadMark } from "../../sidebar/actions";
 const RunPanel = lazy(() => import("../../chat/run/RunPanel"));
 const QuoteOnSelect = lazy(() => import("../../chat/QuoteOnSelect"));
 const UpdateNotice = lazy(() => import("../update-notice"));
@@ -26,6 +27,16 @@ const JUMP_CLASS =
 export default function ChatRoute() {
   const params = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  // Opening a chat clears its manual unread mark, whichever door was used: a row click, the palette,
+  // a search hit, or Alt+Arrow. Clearing it in the row handler alone left every other path marked.
+  createEffect(
+    on(
+      () => params.id,
+      (id) => {
+        if (id) clearUnreadMark(id);
+      },
+    ),
+  );
   createEffect(() => {
     const id = params.id;
     if (id && id !== useApp.activeThreadId()) useApp.selectThread(id);
@@ -85,7 +96,8 @@ export default function ChatRoute() {
   );
   createEffect(() => {
     const id = useApp.activeThreadId();
-    if (id && useApp.hasUnread()) useApp.markRead(id);
+    // Only a reader at the end of the transcript has seen what arrives there.
+    if (id && readingLatest() && useApp.hasUnread()) useApp.markRead(id);
   });
   const members = createMemo(() => new Map(useApp.members().map((member) => [member.id, member])));
   const answering = createMemo(() => answeringMember(useApp.roomMembers(), draft()));
@@ -186,7 +198,10 @@ export default function ChatRoute() {
   // Before the warm tier paints the window is `[]`, which is not the same fact as a chat with no messages:
   // painting the empty state there flashes "What's on your mind?" over a chat that has plenty to show.
   const settled = () => !!useApp.room()?.state.loaded
-  const empty = () => settled() && messages().every((m) => m.event && eventRow(m, String) === null);
+  const empty = () => settled() && messages().every((m) => m.event && eventRow(m, String) === null)
+  // The reader is looking at the newest message, so nothing can arrive unseen. Scrolled up, a reply
+  // is unseen until they come back to it, and marking it read there would erase its divider.
+  const readingLatest = () => !scrolled();
   let dock: HTMLDivElement | undefined;
   let launch: Launch | null = null;
   createEffect(
@@ -330,16 +345,20 @@ export default function ChatRoute() {
             }}
             bots={useApp.members()}
             onSend={(message) => {
-              setDraft("");
-              if (empty()) launch = captureLaunch(dock);
               const target = replyTarget();
               const fromHistory = useApp.showingHistory();
               const sent =
                 target === null
                   ? useApp.appendMessage(message)
                   : useApp.appendReply(message, target, replyQuote());
+              // Nothing landed: the room is not open yet, so the composer keeps the words.
+              if (sent === undefined) return false;
+              setDraft("");
+              if (empty()) launch = captureLaunch(dock);
               setQuote(null);
-              if (sent !== undefined) (fromHistory ? requestAnimationFrame(() => scrollToLatest?.()) : scrollToLatest?.());
+              if (fromHistory) requestAnimationFrame(() => scrollToLatest?.());
+              else scrollToLatest?.();
+              return true;
             }}
             replyTo={replyTo()}
             replyQuote={replyQuote()}

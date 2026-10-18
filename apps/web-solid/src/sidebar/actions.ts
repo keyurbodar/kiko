@@ -14,6 +14,20 @@ const [renaming, setRenaming] = createSignal<string | null>(null)
 /** The chat whose title is being edited in place, or null. */
 export const renamingId = renaming
 
+/*
+ * Deleting a chat cannot be undone, and the palette runs a command on one Enter with no menu to hold
+ * a two-step confirm. So the destructive path asks here, once, and the answer is a real dialog.
+ */
+const [deleting, setDeleting] = createSignal<string | null>(null)
+/** The chat waiting for a delete confirmation, or null. */
+export const deletingChatId = deleting
+export const askDeleteChat = (id: string): void => {
+  setDeleting(id)
+}
+export const cancelDeleteChat = (): void => {
+  setDeleting(null)
+}
+
 // DEVIATION: the protocol has no "mark as unread" op. The mark is a client-only overlay, kept on
 // this device so a reload keeps it. It is cleared when the chat is opened.
 const MARKS = "kiko:marked-unread"
