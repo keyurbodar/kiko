@@ -80,10 +80,10 @@ test("create refuses bad input at the edge", async () => {
   expect((await rpc(user, "createRoutine", "someone-else", routine(at))).error).toBe("wrong owner")
 }, 20_000)
 
-test("deleting a chat cancels its routines", async () => {
+test("deleting a chat removes its routines", async () => {
   const user = await userWithChat()
   await rpc(user, "createRoutine", user, routine(soon(3_600_000)))
   await rpc(user, "createRoutine", user, routine(soon(3_600_000), { name: "daily", trigger: { on: "message" } }))
   expect(await rpc(user, "deleteChat", ROOM)).toBe(true)
-  expect((await rpc(user, "listRoutines")).map((r: { status: string }) => r.status)).toEqual(["cancelled", "cancelled"])
+  expect(await rpc(user, "listRoutines")).toEqual([])
 }, 20_000)
