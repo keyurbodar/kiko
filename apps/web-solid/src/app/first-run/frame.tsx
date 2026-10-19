@@ -1,9 +1,10 @@
 import { useLocation, useNavigate } from "@solidjs/router"
 import { For, Match, Show, Switch, createEffect, onCleanup, lazy } from "solid-js"
 import "./first-run.css"
+import { KikoMark, KikoWordmark } from "../../lib/brand"
 import { hosted } from "../hosted"
 import { backendConnectionNotice, session } from "../session"
-import { Backdrop, Mascot } from "./backdrop"
+import { Backdrop } from "./backdrop"
 import { ClerkStep, resumeClerk } from "./clerk-step"
 import { ConnectStep } from "./connect-step"
 import { currentStep, useDifferentSignIn } from "./progress"
@@ -13,18 +14,6 @@ import { AccessCode } from "./welcome"
 const STEPS = stepsFor(hosted)
 const ConnectCloudflare = lazy(() => import("../connect").then((m) => ({ default: m.ConnectCloudflare })))
 
-const Check = () => (
-  <svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M3.5 8.5l3 3 6-7" />
-  </svg>
-)
-
-/*
- * `/welcome`: everything before the app, as one card floating on the bokeh sky. The mark and the sky
- * hold still while the step inside the card swaps and fades up. The step comes from `currentStep`
- * (progress.ts), so this view holds no state of its own. `/connect/callback` keeps its path until the
- * install answers, because Cloudflare redirects there.
- */
 export default function FirstRun() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -41,19 +30,18 @@ export default function FirstRun() {
   return (
     <div class="welcome h-dvh" data-component="first-run" data-step={currentStep()}>
       <Backdrop />
+      <div class="welcome-brand" role="img" aria-label="Kiko">
+        <KikoMark class="welcome-brand-mark" />
+        <KikoWordmark class="welcome-brand-wordmark" />
+      </div>
       <div class="welcome-stage">
-        <Mascot />
         <Show when={at() >= 0}>
           <ol class="welcome-steps" aria-label="Setup progress">
             <For each={STEPS}>
               {(s, i) => (
                 <li data-state={i() < at() ? "done" : i() === at() ? "current" : "next"} aria-current={i() === at() ? "step" : undefined}>
-                  <span class="welcome-pill">
-                    <Show when={i() < at()} fallback={<span class="welcome-pill-number">{i() + 1}</span>}>
-                      <Check />
-                    </Show>
-                    <span class={i() === at() ? "welcome-pill-label" : "sr-only"}>{s.label}</span>
-                  </span>
+                  <span class="welcome-step-star" aria-hidden="true" />
+                  <span class="welcome-step-label">{s.label}</span>
                 </li>
               )}
             </For>
