@@ -68,7 +68,7 @@ Sending is optimistic: your bubble appears before the server answers, so a bubbl
 
 Read [features/README.md](features/README.md) and the affected feature files before driving. They name prerequisites, selectors and observable outcomes. Record PASS, ISSUES or BLOCKED for each journey; an unexercised path is never PASS.
 
-The current owner choices are bokeh onboarding, moonlit sidebar, L1 logo, Figtree/Bricolage typography, Remix icons and the main chat bubbles. Earlier aurora/R8 plan files are historical references. Compare visual evidence to the current approved reference and main's bubble baseline; DOM presence alone cannot prove visual fidelity.
+The current owner choices are Glacier onboarding with a glass card, moonlit sidebar, L1 logo, Figtree/Bricolage typography, Remix icons and the main chat bubbles. Earlier aurora/R8 plan files are historical references. Compare visual evidence to the current approved reference and main's bubble baseline; DOM presence alone cannot prove visual fidelity.
 
 Use a unique browser session. When explicitly reusing another run's server, health-check `/api/health` and the client first, use your own session and evidence directory, and close only that session. Never run `down.sh` on a borrowed run. Use a fresh dev owner for setup persistence tests; do not reset another owner's settings or local storage. No key or model call is needed for the model-free journeys.
 

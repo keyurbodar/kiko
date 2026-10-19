@@ -1,18 +1,14 @@
-import { Sky } from "../../sky/Sky"
-import { KikoMark } from "../../lib/brand"
+import { onCleanup, onMount } from "solid-js"
+import { mountGlacier } from "./glacier"
 
-export function Mascot() {
+export function Backdrop() {
+  let canvas: HTMLCanvasElement | undefined
+  onMount(() => {
+    if (canvas) onCleanup(mountGlacier(canvas))
+  })
   return (
-    <div class="welcome-mascot" aria-hidden="true">
-      <KikoMark class="welcome-mascot-mark" />
+    <div class="welcome-backdrop" aria-hidden="true">
+      <canvas ref={canvas} class="welcome-glacier" />
     </div>
   )
-}
-
-/**
- * The onboarding backdrop: the bokeh sky, the same component the sidebar's band draws, at full
- * height. Nothing else sits behind the card, so the step is the only thing asking for attention.
- */
-export function Backdrop() {
-  return <Sky kind="bokeh" size="scene" />
 }

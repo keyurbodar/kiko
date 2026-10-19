@@ -2,7 +2,7 @@
 
 ## Sub-features
 
-Self-hosted: sign-in → connect. Hosted: sign-in → Cloudflare → connect. Provider choice and model choice share one card; old saved `model` resumes `connect`. Bokeh scene and current setup progress remain visible. Skip and finish persist completion to the server.
+Self-hosted: sign-in → connect. Hosted: sign-in → Cloudflare → connect. Provider choice and model choice share one card; old saved `model` resumes `connect`. The Glacier fog scene, glass card, Kiko brand, and current setup progress remain visible. Skip and finish persist completion to the server.
 
 ## How to get to it (user POV)
 
@@ -10,7 +10,7 @@ Use an isolated browser and a fresh dev owner with no providers or onboarding co
 
 ## Driving it with agent-browser
 
-1. Open `/` signed out. Wait for `[data-component=first-run][data-step=sign-in]`. Capture the bokeh `[data-sky=bokeh]` and setup progress. Submit an invalid access code; require a visible alert and retained form. Do not print the code.
+1. Open `/` signed out. Wait for `[data-component=first-run][data-step=sign-in]`. Capture the Glacier backdrop and setup progress. Check that the mark and wordmark align without overlapping the progress labels. Submit an invalid access code; require a visible alert and retained form. Do not print the code.
 2. Sign in as a fresh dev owner through the token recipe. Require `[data-component=first-run][data-step=connect]`, no separate welcome/model card, and `[data-component=first-run-providers]` after catalog load.
 3. At both viewport sizes require More providers and Skip for now to be reachable without scrolling the page. Internal card scrolling is allowed. Open `[data-action=view-all-providers]`; require `[data-component=provider-browser]`, search via Search providers and close it. Open an available `[data-action=connect][data-provider][data-via]`; require `[data-component=provider-connect]` and cancel. Provider rows are catalog-driven; never require a fixed count or fixed provider availability.
 4. Keyboard: Tab to a provider, Enter opens its dialog; Escape closes and returns focus. Tab to Skip for now, Enter reaches chat. Reload and sign in in a second isolated session for the same owner: setup must stay completed. Capture both transitions, not just the final chat.
