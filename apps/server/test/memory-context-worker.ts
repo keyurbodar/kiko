@@ -28,7 +28,7 @@ export class RoomDO extends DurableObject {
 
 type MemoryAccess = {
   routineContext(): Promise<string>
-  inputInvalidated(): Promise<boolean>
+  inputInvalidated(): Promise<"refresh" | "forget" | null>
   inputMemory(batch: Batch, fresh: boolean, joined: number[]): Promise<{ text?: string; fresh: boolean }>
 }
 

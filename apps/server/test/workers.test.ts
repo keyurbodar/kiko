@@ -252,3 +252,14 @@ test("memory invalidation retires finished workers and drops queued reports from
   await until(a.posts, (posts) => posts.some((text) => text.includes("there is no worker w1")))
   expect((await a.hangs()).started).toBe(1)
 }, 30_000)
+
+test("an ordinary memory refresh preserves workers and delivers their reports", async () => {
+  const a = await agent()
+  await working(a, "finish the product summary")
+  await a.call({ op: "refresh" })
+  await a.say("what next")
+  await until(a.posts, (posts) => posts.includes("reply to: what next"))
+  expect((await a.hangs()).waiting).toBe(1)
+  await a.release()
+  await until(a.posts, (posts) => posts.some((text) => text.startsWith("reported w1")))
+}, 30_000)

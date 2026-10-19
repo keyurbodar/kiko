@@ -227,6 +227,10 @@ export class Life {
     return { ok: true }
   }
 
+  forgetRevision(): number {
+    return Number(this.settings.get("life_forget_revision") ?? 0)
+  }
+
   // Old chat remains readable, but deleting saved memory must not let its queued source save it again.
   captureAllowed(at: number): boolean {
     const cutoff = this.settings.get("life_capture_cutoff")
@@ -236,7 +240,6 @@ export class Life {
   redact(pos: number): boolean {
     return this.transaction(() => {
       if (!this.wipe(pos)) return false
-      this.settings.set("life_capture_cutoff", String(Date.now()))
       this.restoreSuperseded([pos])
       return true
     })
@@ -245,6 +248,8 @@ export class Life {
   private wipe(pos: number): boolean {
     const done = this.sql.exec("UPDATE life SET text = '', norm = '', redacted = 1, pinned = 0, card = NULL WHERE pos = ? AND redacted = 0", pos).rowsWritten > 0
     if (!done) return false
+    this.settings.set("life_forget_revision", String(this.forgetRevision() + 1))
+    this.settings.set("life_capture_cutoff", String(Date.now()))
     this.sql.exec("DELETE FROM life_fts WHERE rowid = ?", pos)
     this.sql.exec("DELETE FROM life_tri WHERE rowid = ?", pos)
     this.tree.forget(pos)

@@ -8,7 +8,7 @@ export class UserDO extends DurableObject {
     return (await this.ctx.storage.get<string>("life")) ?? ""
   }
   async lifeRevision(): Promise<number> { return (await this.ctx.storage.get<number>("revision")) ?? 0 }
-  async lifeState() { return { revision: await this.lifeRevision(), text: await this.lifeView() } }
+  async lifeState() { return { revision: await this.lifeRevision(), forgotten: 0, text: await this.lifeView() } }
   async setLife(text: string): Promise<void> {
     await this.ctx.storage.put({ life: text, revision: (await this.lifeRevision()) + 1 })
   }

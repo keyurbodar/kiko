@@ -93,7 +93,7 @@ export type AgentSetup = {
   beginRun?: (batch: Batch, root: Conversation) => Promise<boolean>
   joinRun?: (batch: Batch, root: Conversation) => Promise<void>
   inputContext?: () => Promise<string | undefined>
-  inputInvalidated?: () => Promise<boolean>
+  inputInvalidated?: () => Promise<"refresh" | "forget" | null>
   inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean }>
   beforeCompact?: (harness: Harness) => Promise<void>
   stale?: () => Promise<boolean>
@@ -329,10 +329,10 @@ export class AgentHost {
         await this.alarms.setWakeup(INBOX_WAKEUP, this.humanComingUntil())
         continue
       }
-      const invalidated = (await setup.inputInvalidated?.()) === true
+      const invalidated = (await setup.inputInvalidated?.()) ?? null
       if (invalidated) {
         await root.abort(context)
-        await this.workers.invalidate(harness)
+        if (invalidated === "forget") await this.workers.invalidate(harness)
         run = null
       }
       batch.envelopes = batch.envelopes.filter((envelope) => !envelope.work || this.workers.get(envelope.work.id)?.conversationId != null)
@@ -360,7 +360,7 @@ export class AgentHost {
       let memory: string | undefined
       let fresh = false
       if (!run && inputMemory) {
-        const out = await inputMemory(batch, invalidated || await this.contextFull(root), await this.joinedSeqs())
+        const out = await inputMemory(batch, invalidated !== null || await this.contextFull(root), await this.joinedSeqs())
         fresh = out.fresh
         if (out.fresh) {
           await root.reset(undefined, context)

@@ -687,8 +687,12 @@ export class UserDO extends DurableObject<Env> {
     return Number(this.setting("memory:revision") ?? 0)
   }
 
-  async lifeState(): Promise<{ revision: number; text: string }> {
-    return { revision: this.lifeRevision(), text: this.life.view(Date.now()) }
+  lifeRevisions(): { revision: number; forgotten: number } {
+    return { revision: this.lifeRevision(), forgotten: this.life.forgetRevision() }
+  }
+
+  async lifeState(): Promise<{ revision: number; forgotten: number; text: string }> {
+    return { ...this.lifeRevisions(), text: this.life.view(Date.now()) }
   }
 
   async lifeView(): Promise<string> {

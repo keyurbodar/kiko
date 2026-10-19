@@ -57,6 +57,7 @@ export const DEV_FAKE_KEY = "dev-fake"
 const MEMORY_POS_KEY = "memory:pos"
 const MEMORY_LIFE_KEY = "memory:life"
 const MEMORY_REVISION_KEY = "memory:revision"
+const MEMORY_FORGOTTEN_KEY = "memory:forgotten"
 const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
 const COMPACTIONS_KEY = "compactions"
@@ -455,11 +456,16 @@ export class AgentDO extends DurableObject<Env> {
     return `Live routines (current; replaces earlier inventories):\n${inventory.join("\n") || "(none)"}${live.length > inventory.length ? `\n${live.length - inventory.length} more; use list_routines for the full list.` : ""}`
   }
 
-  private async inputInvalidated(): Promise<boolean> {
+  private async inputInvalidated(): Promise<"refresh" | "forget" | null> {
     const home = this.home()
-    if (!home) return false
-    const [known, current] = await Promise.all([this.ctx.storage.get<number>(MEMORY_REVISION_KEY), userStub(this.env.USER, home.userId).lifeRevision()])
-    return known !== current
+    if (!home) return null
+    const [known, forgotten, current] = await Promise.all([
+      this.ctx.storage.get<number>(MEMORY_REVISION_KEY),
+      this.ctx.storage.get<number>(MEMORY_FORGOTTEN_KEY),
+      userStub(this.env.USER, home.userId).lifeRevisions(),
+    ])
+    if ((forgotten ?? 0) !== current.forgotten) return "forget"
+    return known !== current.revision ? "refresh" : null
   }
 
   private async inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife = true): Promise<{ text?: string; fresh: boolean }> {
@@ -477,7 +483,7 @@ export class AgentDO extends DurableObject<Env> {
       this.ctx.storage.get<number>(MEMORY_POS_KEY),
       withLife ? this.ctx.storage.get<string>(MEMORY_LIFE_KEY) : undefined,
       withLife ? this.ctx.storage.get<number>(MEMORY_REVISION_KEY) : undefined,
-      withLife ? userStub(this.env.USER, home.userId).lifeState() : { text: "", revision: 0 },
+      withLife ? userStub(this.env.USER, home.userId).lifeState() : { text: "", revision: 0, forgotten: 0 },
     ])
     const life = state.text
     const changedLife = withLife && (state.revision !== previousRevision || life !== previousLife)
@@ -492,7 +498,7 @@ export class AgentDO extends DurableObject<Env> {
     const currentSeqs = batch.envelopes.map((envelope) => envelope.seq)
     this.#seqs = currentSeqs
     const view = await room.memoryView(currentSeqs)
-    await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: view.count, ...(withLife ? { [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision } : {}) })
+    await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: view.count, ...(withLife ? { [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision, [MEMORY_FORGOTTEN_KEY]: state.forgotten } : {}) })
     if (inputs) this.#storedInputs = inputs
     this.#shown.clear()
     return { fresh: true, text: memoryBlock(life, view.text) }
