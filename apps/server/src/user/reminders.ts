@@ -196,7 +196,7 @@ export class Reminders {
     return { routine: this.required(id), ...(token ? { token } : {}) }
   }
 
-  private routineFields(input: Pick<NewRoutine, "name" | "instructions" | "trigger" | "tz" | "target">): { name: string; text: string; due: number; rrule: string | null } {
+  private routineFields(input: Pick<NewRoutine, "name" | "instructions" | "trigger" | "tz" | "target">, validateFreshness = true): { name: string; text: string; due: number; rrule: string | null } {
     const name = input.name.trim().toLowerCase().replace(/\s+/g, " ")
     if (!name || name.length > 60) throw new ReminderError("name must be 1 to 60 characters")
     const text = input.instructions.trim()
@@ -212,8 +212,8 @@ export class Reminders {
         const rrule = t.rrule?.trim().replace(/^RRULE:/i, "") || null
         if (rrule) {
           checkRepeat(rrule, input.tz, due)
-          if (due <= now) due = nextAfter(rrule, input.tz, due, now) ?? fail("the rule has no time after now")
-        } else if (due < now - 1000) throw new ReminderError("that time is in the past. pick a future time.")
+          if (validateFreshness && due <= now) due = nextAfter(rrule, input.tz, due, now) ?? fail("the rule has no time after now")
+        } else if (validateFreshness && due < now - 1000) throw new ReminderError("that time is in the past. pick a future time.")
         return { name, text, due, rrule }
       }
       case "message":
@@ -226,14 +226,15 @@ export class Reminders {
 
   async updateRoutine(id: string, patch: { name?: string; instructions?: string; trigger?: Trigger; status?: "active" | "paused" }): Promise<{ routine: Reminder; token?: string } | null> {
     const current = this.get(id)
-    if (!current?.trigger || current.status === "cancelled" || current.status === "done") return null
+    if (!current?.trigger || current.status === "cancelled" || (current.status === "done" && patch.trigger === undefined)) return null
     // Only a routine that becomes a webhook gets a token; an existing webhook keeps the one it has.
     const fresh = patch.trigger?.on === "webhook" && current.trigger.on !== "webhook" ? toHex(crypto.getRandomValues(new Uint8Array(24))) : undefined
     const freshHash = fresh ? await sha256Hex(fresh) : null
     const trigger = patch.trigger ?? current.trigger
-    const fields = this.routineFields({ name: patch.name ?? current.name ?? "", instructions: patch.instructions ?? current.text, trigger, tz: current.tz, target: current.target })
-    const retimed = patch.trigger !== undefined || (patch.status === "active" && current.status === "paused")
+    const retimed = patch.trigger !== undefined || (patch.status === "active" && current.status !== "active")
+    const fields = this.routineFields({ name: patch.name ?? current.name ?? "", instructions: patch.instructions ?? current.text, trigger, tz: current.tz, target: current.target }, retimed)
     const due = retimed ? fields.due : current.dueUtc
+    const status = patch.status ?? (current.status === "done" ? "active" : current.status)
     this.sql.exec(
       `UPDATE reminders SET name = ?, text = ?, trigger = ?, rrule = ?, due_utc = ?, status = ?, fails = CASE WHEN ? = 'active' THEN 0 ELSE fails END,
        hook_hash = coalesce(?, hook_hash) WHERE id = ?`,
@@ -242,8 +243,8 @@ export class Reminders {
       JSON.stringify(trigger),
       fields.rrule,
       due,
-      patch.status ?? current.status,
-      patch.status ?? "",
+      status,
+      patch.status ?? (current.status === "done" ? "active" : ""),
       freshHash,
       id,
     )
@@ -367,8 +368,9 @@ export class Reminders {
   }
 
   async cancel(id: string): Promise<Reminder | null> {
-    const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE id = ? AND status IN ('active', 'paused')", id)
-    if (!changed.rowsWritten) return null
+    const current = this.get(id)
+    if (!current || current.status === "cancelled") return current
+    this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE id = ?", id)
     await this.rearm()
     return this.get(id)
   }

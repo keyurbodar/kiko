@@ -407,6 +407,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private changed(what: UserChange): void {
+    if (what === "memory") this.putSetting("memory:revision", String(this.lifeRevision() + 1))
     this.broadcast({ t: "changed", what })
   }
 
@@ -676,6 +677,14 @@ export class UserDO extends DurableObject<Env> {
       getSetting(this.sql, key)
     const agent = slug ? { soul: await this.souls.get(slug) } : undefined
     return resolveTurnContext(this.#credentials, provider, { timezone: setting("timezone"), captures: this.#mem.captures() }, agent, await this.lookupProvider(provider))
+  }
+
+  lifeRevision(): number {
+    return Number(this.setting("memory:revision") ?? 0)
+  }
+
+  async lifeState(): Promise<{ revision: number; text: string }> {
+    return { revision: this.lifeRevision(), text: this.life.view(Date.now()) }
   }
 
   async lifeView(): Promise<string> {
@@ -982,7 +991,9 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "memory") {
-      send(ws, { t: "memory_result", reqId: frame.reqId, result: await this.#mem.call(frame.op) })
+      const result = await this.#mem.call(frame.op)
+      if (result.ok && (frame.op.op === "note" || frame.op.op === "redact" || frame.op.op === "pin")) this.changed("memory")
+      send(ws, { t: "memory_result", reqId: frame.reqId, result })
       return
     }
     if (frame.t === "theme") {

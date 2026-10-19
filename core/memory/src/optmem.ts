@@ -148,13 +148,7 @@ export class Tree {
   }
 
   forget(pos: number): number {
-    let gone = 0
-    for (let size = this.shape.page; ; size *= 2) {
-      const k = Math.floor(pos / size)
-      if (this.sql.exec<{ k: number | null }>(`SELECT max(k) AS k FROM ${this.name} WHERE size = ?`, size).one().k === null) break
-      if (this.sql.exec(`DELETE FROM ${this.name} WHERE size = ? AND k = ?`, size, k).rowsWritten > 0) gone++
-    }
-    return gone
+    return this.sql.exec(`DELETE FROM ${this.name} WHERE k * size <= ? AND (k + 1) * size > ?`, pos, pos).rowsWritten
   }
 
   pending(settled: number, limit: number): Span[] {

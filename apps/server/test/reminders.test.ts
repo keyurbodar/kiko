@@ -51,11 +51,11 @@ test("a one-time routine is stored with its time and listed", async () => {
   expect(listed.dueUtc).toBe(Math.ceil(Date.parse(at) / 1000) * 1000)
 }, 20_000)
 
-test("a cancelled routine is cancelled once", async () => {
+test("cancelling a routine is safe to repeat", async () => {
   const user = await userWithChat()
   const { routine: made } = await rpc(user, "createRoutine", user, routine(soon(3_600_000)))
   expect((await rpc(user, "cancelRoutine", made.id)).routine.status).toBe("cancelled")
-  expect((await rpc(user, "cancelRoutine", made.id)).ok).toBe(false)
+  expect((await rpc(user, "cancelRoutine", made.id)).routine.status).toBe("cancelled")
 }, 20_000)
 
 test("create refuses bad input at the edge", async () => {

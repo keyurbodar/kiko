@@ -22,7 +22,8 @@ import { mergeRecall, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@kiko/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
 import type { MessagingPort } from "./extensions/messaging"
-import type { RoutinesPort } from "./extensions/routines"
+import { routineLine, type RoutinesPort } from "./extensions/routines"
+import { canManageRoutine } from "./routine-access"
 import type { RecipesPort } from "./extensions/skills"
 import { type ComposioTool, learnedSignature } from "../integrations/composio/client"
 import { learnedNote } from "../integrations/composio/tools"
@@ -55,6 +56,7 @@ import { type Applied, modelName, renderHandoff, sameApplied, switchedModel } fr
 export const DEV_FAKE_KEY = "dev-fake"
 const MEMORY_POS_KEY = "memory:pos"
 const MEMORY_LIFE_KEY = "memory:life"
+const MEMORY_REVISION_KEY = "memory:revision"
 const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
 const COMPACTIONS_KEY = "compactions"
@@ -243,10 +245,10 @@ export class AgentDO extends DurableObject<Env> {
     if (!home) return null
     const user = () => userStub(this.env.USER, home.userId)
     const tz = () => this.#run?.timezone ?? "UTC"
-    const mine = async (id: string) => (await user().listRoutines()).some((r) => r.id === id && r.roomId === home.roomId)
-    const notHere = { ok: false as const, error: "no such routine in this chat" }
+    const mine = async (id: string) => (await user().listRoutines()).some((r) => r.id === id && canManageRoutine(home, r))
+    const notHere = { ok: false as const, error: "no such routine available to you" }
     return {
-      list: async () => (await user().listRoutines()).filter((r) => r.roomId === home.roomId),
+      list: async () => (await user().listRoutines()).filter((r) => canManageRoutine(home, r)),
       cancel: async (id) => ((await mine(id)) ? user().cancelRoutine(id) : notHere),
       createRoutine: async (input) => {
         return user().createRoutine(home.userId, { ...input, target: input.target ?? home.slug, tz: tz(), roomId: home.roomId as RoomId, createdBy: home.slug })
@@ -432,12 +434,27 @@ export class AgentDO extends DurableObject<Env> {
         const integrations = integrationNote(composio, browserOn)
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const quiet = this.home()?.private ? PRIVATE_NOTE : undefined
-        return [clock, integrations, down, learned, quiet].filter(Boolean).join("\n\n")
+        const routines = await this.routineContext()
+        return [clock, integrations, down, learned, quiet, routines].filter(Boolean).join("\n\n")
       },
       ...(home ? { stale: async () => (await this.browserOn()) !== browserOn || (signature !== "unreachable" && (await userStub(this.env.USER, home.userId).composioSignature().then((now) => now !== signature, () => false))) } : {}),
+      inputInvalidated: () => this.inputInvalidated(),
       inputMemory: (batch: Batch, fresh: boolean, joined: number[]) => this.inputMemory(batch, fresh, joined),
       beforeCompact: (harness) => this.beforeCompact(harness),
     }
+  }
+
+  private async routineContext(): Promise<string> {
+    const live = (await this.routinesPort()?.list() ?? []).filter((routine) => routine.status === "active" || routine.status === "paused" || routine.status === "failed")
+    const inventory = live.slice(0, 32).map((routine) => routineLine(routine))
+    return `Live routines (current; replaces earlier inventories):\n${inventory.join("\n") || "(none)"}${live.length > inventory.length ? `\n${live.length - inventory.length} more; use list_routines for the full list.` : ""}`
+  }
+
+  private async inputInvalidated(): Promise<boolean> {
+    const home = this.home()
+    if (!home) return false
+    const [known, current] = await Promise.all([this.ctx.storage.get<number>(MEMORY_REVISION_KEY), userStub(this.env.USER, home.userId).lifeRevision()])
+    return known !== current
   }
 
   private async inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife = true): Promise<{ text?: string; fresh: boolean }> {
@@ -451,23 +468,26 @@ export class AgentDO extends DurableObject<Env> {
     this.#heard = batch.envelopes.findLast((e) => e.from.kind === "human")?.rootId ?? null
     this.#humanInputs = batch.envelopes.filter((e) => e.from.kind === "human").map((e) => e.rootId)
     const inputs = this.changedHumanInputs()
-    const [seen, previousLife, life] = await Promise.all([
+    const [seen, previousLife, previousRevision, state] = await Promise.all([
       this.ctx.storage.get<number>(MEMORY_POS_KEY),
       withLife ? this.ctx.storage.get<string>(MEMORY_LIFE_KEY) : undefined,
-      withLife ? userStub(this.env.USER, home.userId).lifeView() : "",
+      withLife ? this.ctx.storage.get<number>(MEMORY_REVISION_KEY) : undefined,
+      withLife ? userStub(this.env.USER, home.userId).lifeState() : { text: "", revision: 0 },
     ])
-    const changedLife = withLife && life !== previousLife
-    if (!fresh && seen !== undefined) {
+    const life = state.text
+    const changedLife = withLife && (state.revision !== previousRevision || life !== previousLife)
+    if (!fresh && !changedLife && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
-        // The inputs and the memory position share one put, so the run costs one row written rather than two.
-        await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: delta.count, ...(changedLife ? { [MEMORY_LIFE_KEY]: life } : {}) })
+        await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: delta.count })
         if (inputs) this.#storedInputs = inputs
-        return { fresh: false, ...(delta.text || changedLife ? { text: memoryDelta(delta.text, changedLife ? life : undefined) } : {}) }
+        return { fresh: false, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
       }
     }
-    const view = await room.memoryView(seqs)
-    await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: view.count, ...(withLife ? { [MEMORY_LIFE_KEY]: life } : {}) })
+    const currentSeqs = batch.envelopes.map((envelope) => envelope.seq)
+    this.#seqs = currentSeqs
+    const view = await room.memoryView(currentSeqs)
+    await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: view.count, ...(withLife ? { [MEMORY_LIFE_KEY]: life, [MEMORY_REVISION_KEY]: state.revision } : {}) })
     if (inputs) this.#storedInputs = inputs
     this.#shown.clear()
     return { fresh: true, text: memoryBlock(life, view.text) }
