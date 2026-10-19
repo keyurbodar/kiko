@@ -59,7 +59,10 @@ export function bindRich(input: {
       const fragment = pastedComposerFragment(clipboard)
       if (!fragment) return clipboard.getData("text/plain")
       const replacements = controller.importAttachments(fragment.files)
-      return fragment.markdown.replace(/\(attachment:([\w-]+)\)/g, (token, id: string) => replacements.has(id) ? `(attachment:${replacements.get(id)})` : token)
+      return fragment.markdown.replace(/!?\[[^\]\n]*\]\(attachment:([\w-]+)\)/g, (token, id: string) => {
+        const target = replacements.get(id) ?? id
+        return controller.attachments().some((attachment) => attachment.id === target) ? token.replace(`(attachment:${id})`, `(attachment:${target})`) : ""
+      })
     },
     onPaste: (event) => {
       const clipboard = event.clipboardData

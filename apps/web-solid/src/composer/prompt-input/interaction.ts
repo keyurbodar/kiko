@@ -1,6 +1,7 @@
 import { createEffect, on, type Accessor } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import { useFilteredList } from "@kiko/ui/hooks"
+import { attachmentError, attachmentMessages, MAX_ATTACHMENTS } from "@kiko/protocol"
 import { createPromptInputV2Attachments, type PromptInputV2AttachmentConfig } from "./attachments"
 import { createPromptInputV2Store, type PromptInputV2StoreInput } from "./store"
 import { composingKey } from "../ime"
@@ -325,14 +326,25 @@ export function createPromptInputV2Controller(input: {
     importAttachments(files: readonly { attachment: PromptInputV2Attachment; file: File }[]) {
       const replacements = new Map<string, string>()
       if (input.attachments?.blocked?.()) return replacements
-      const held = new Set(draft.state.prompt.filter((part) => part.type === "image").map((part) => part.id))
-      const imported = files.filter(({ attachment }) => !held.has(attachment.id)).map(({ attachment, file }) => {
+      const held = draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image")
+      const imported: PromptInputV2Attachment[] = []
+      for (const { attachment, file } of files) {
+        const existing = [...held, ...imported].find((part) => part.id === attachment.id || part.blob.id === attachment.blob.id)
+        if (existing) {
+          replacements.set(attachment.id, existing.id)
+          continue
+        }
+        const refusal = held.length + imported.length >= MAX_ATTACHMENTS ? attachmentMessages.tooMany : attachmentError(file)
+        if (refusal) {
+          input.attachments?.refuse([refusal])
+          continue
+        }
         const id = crypto.randomUUID()
         replacements.set(attachment.id, id)
         const part = { ...attachment, id, blob: { ...attachment.blob, url: URL.createObjectURL(file) } }
         input.attachments?.onAdded?.(part, file)
-        return part
-      })
+        imported.push(part)
+      }
       if (imported.length) draft.setPrompt([...draft.state.prompt, ...imported], draft.state.cursor)
       return replacements
     },
