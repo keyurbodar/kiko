@@ -9,7 +9,7 @@ import {
 import { dict } from "@kiko/ui/i18n/en";
 import { ToastV2 } from "@kiko/ui/v2/toast-v2";
 import { avatarPickerSlug } from "../avatar/picker-state";
-import { createEffect, createMemo, createSignal, getOwner, lazy, on, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
+import { createEffect, createSignal, getOwner, lazy, on, onCleanup, onMount, runWithOwner, Show, Suspense, type ParentProps } from "solid-js";
 import { closeSidecar, loadSidecar, sidecarOpen } from "../chat/side/surfaces";
 import { preloadRoute } from "./routes";
 import { preloadMessageMenu } from "../chat/ui/MessageMenu";
@@ -294,9 +294,9 @@ export function Shell(props: ParentProps) {
     window.addEventListener("keydown", on, true);
     onCleanup(() => window.removeEventListener("keydown", on, true));
   });
-  const sidebar = createMemo(() => (
+  const sidebar = () => (
     <Sidebar section={sectionOf(location.pathname)} collapsed={closed()} onToggle={toggle} />
-  ));
+  );
   const dockedSide = () => (compact() || !sideOpen() ? null : sideChat());
   createEffect(
     on(
