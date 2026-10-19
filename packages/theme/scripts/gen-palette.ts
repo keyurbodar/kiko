@@ -1,7 +1,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { THEME_IDS, tokensFor } from "../src/palette"
+import { tokensFor } from "../src/palette"
 
 export const KAT = join(import.meta.dir, "../../../apps/web-solid/src/index.css")
 const START = "/* palette:start */"
@@ -25,11 +25,31 @@ export function withPalette(css: string): string {
 
 if (import.meta.main) writeFileSync(KAT, withPalette(readFileSync(KAT, "utf8")))
 
-export function withBootPalettes(html: string): string {
-  const data = Object.fromEntries(THEME_IDS.map((id) => [id, tokensFor(id === "snow" ? "light" : "dark", id === "snow" ? "glacier" : id)]))
-  return html.replace(/\/\* boot-palettes:start \*\/[\s\S]*?\/\* boot-palettes:end \*\//, `/* boot-palettes:start */\n        var palettes = ${JSON.stringify(data)};\n        /* boot-palettes:end */`)
+/** Bundle the canonical parsers and resolver into the synchronous pre-paint script. */
+export async function withBootPalettes(html: string): Promise<string> {
+  const result = await Bun.build({
+    entrypoints: ["kiko-boot"],
+    target: "browser",
+    minify: true,
+    plugins: [{
+      name: "boot-resolver",
+      setup(build) {
+        build.onResolve({ filter: /^kiko-boot$/ }, () => ({ path: "kiko-boot", namespace: "boot" }))
+        build.onLoad({ filter: /.*/, namespace: "boot" }, () => ({
+          loader: "js",
+          contents: `import { THEMES, DEFAULT_DARK_THEME, tokensFor } from ${JSON.stringify(join(import.meta.dir, "../src/palette.ts"))};
+import { readDisplay, displayVars } from ${JSON.stringify(join(import.meta.dir, "../src/display.ts"))};
+import { parseImported, themeFor } from ${JSON.stringify(join(import.meta.dir, "../src/imported.ts"))};
+Object.assign(boot, { THEMES, DEFAULT_DARK_THEME, tokensFor, readDisplay, displayVars, parseImported, themeFor });`,
+        }))
+      },
+    }],
+  })
+  if (!result.success) throw new AggregateError(result.logs, "Could not build the boot resolver")
+  const code = await result.outputs[0]!.text()
+  return html.replace(/\/\* boot-palettes:start \*\/[\s\S]*?\/\* boot-palettes:end \*\//, () => `/* boot-palettes:start */\n        (function () { ${code.trim()} })();\n        /* boot-palettes:end */`)
 }
 if (import.meta.main) {
   const html = join(import.meta.dir, "../../../apps/web-solid/index.html")
-  writeFileSync(html, withBootPalettes(readFileSync(html, "utf8")))
+  writeFileSync(html, await withBootPalettes(readFileSync(html, "utf8")))
 }

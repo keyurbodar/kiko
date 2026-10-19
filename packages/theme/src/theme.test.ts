@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { applyCommitted, CACHE_KEY, selectBuiltin, importedThemes, readCache, resolveLook, saveImported, writeCache } from "./apply"
 import { withPalette, withBootPalettes } from "../scripts/gen-palette"
 import { MONO_STACK, SANS_STACK, fontFamily } from "./display"
+import { formatImported, IMPORTED_KEY, parseImported, type Imported } from "./imported"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
 import { DARK_THEME_IDS, THEME_IDS, THEMES, DEFAULT_DARK_THEME, resolveAppearance, PALETTES, paletteFor, tokensFor } from "./palette"
 
@@ -155,26 +156,74 @@ function fakeRoot() {
 describe("the pre-paint script", () => {
   const html = readFileSync(join(import.meta.dir, "../../../apps/web-solid/index.html"), "utf8")
   const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!
-  function boot(stored: string | null, signedIn = true, prefersLight = false) {
+  function boot(stored: string | null, signedIn = true, prefersLight = false, imported: string | null = null) {
     const { root, style, classes } = fakeRoot()
-    const storage = { getItem: (k: string) => k === CACHE_KEY ? stored : k === "kiko:session" && signedIn ? "owner" : null, removeItem() {} }
+    const storage = { getItem: (k: string) => k === CACHE_KEY ? stored : k === IMPORTED_KEY ? imported : k === "kiko:session" && signedIn ? "owner" : null, removeItem() {} }
     new Function("document", "localStorage", "matchMedia", script)({ documentElement: root }, storage, () => ({ matches: prefersLight }))
     return { style, classes }
   }
-  test("generated boot palettes and static canvas stay in sync", () => {
-    expect(withBootPalettes(html)).toBe(html)
+  test("generated boot palettes and static canvas stay in sync", async () => {
+    expect(await withBootPalettes(html)).toBe(html)
     expect(html).toContain(`<meta name="theme-color" content="${PALETTES.dark.canvas}" />`)
   })
-  test("saved text selects each palette without replaying cached variables", () => {
+  function expectRuntime(stored: string | null, imported: string | null = null, prefersLight = false, signedIn = true) {
+    const cached = stored ? JSON.parse(stored) : null
+    const look = signedIn ? parseLook(cached?.text ?? null) : DEFAULT_LOOK
+    saveImported(signedIn ? parseImported(imported) : { themes: [], active: {} })
+    try {
+      const mode = resolveAppearance(look.mode, !prefersLight)
+      const expected = resolveLook(look)[mode]
+      const painted = boot(stored, signedIn, prefersLight, imported)
+      for (const [key, value] of Object.entries(expected)) expect([key, painted.style[key]]).toEqual([key, value])
+      expect(painted.classes.has("dark")).toBe(mode === "dark")
+    } finally { saveImported({ themes: [], active: {} }) }
+  }
+  const custom: Imported = {
+    themes: [
+      { id: "custom", name: "Custom", source: "test", appearance: "dark", accent: "#abcdef", palette: { ...PALETTES.dark, canvas: "#221122" } },
+      { id: "custom-light", name: "Custom light", source: "test", appearance: "light", accent: "#654321", palette: { ...PALETTES.light, canvas: "#ffeedd" } },
+    ],
+    active: { dark: "custom", light: "custom-light" },
+  }
+  const display = { ...DEFAULT_LOOK.display, contrast: 150, baseSize: 16, interfaceFont: "Arial", codeFont: "Courier New", chatWidth: "wide" as const, smoothing: false }
+  test("every built-in, Snow and System match the runtime despite poisoned cached vars", () => {
     for (const darkTheme of DARK_THEME_IDS) {
-      const text = formatLook({ ...DEFAULT_LOOK, darkTheme })
-      const cache = JSON.stringify({ v: 6, text, mode: "light", vars: { dark: { "--background": "red" } } })
-      expect(boot(cache).style["--background"]).toBe(THEMES[darkTheme].palette.canvas)
-      expect(boot(cache, false).style["--background"]).toBe(PALETTES.dark.canvas)
+      for (const mode of ["dark", "light", "system"] as const) {
+        const text = formatLook({ ...DEFAULT_LOOK, darkTheme, mode, display })
+        const cache = JSON.stringify({ v: 6, text, mode: "light", vars: { dark: { "--background": "red", "--font-md": "99px" } } })
+        for (const prefersLight of [false, true]) expectRuntime(cache, null, prefersLight)
+      }
     }
   })
+  test("current imported palettes and display settings match the runtime", () => {
+    for (const mode of ["dark", "light", "system"] as const) {
+      const text = formatLook({ ...DEFAULT_LOOK, mode, display })
+      const cache = JSON.stringify({ v: 6, text, vars: { dark: { "--background": "red" } } })
+      for (const prefersLight of [false, true]) expectRuntime(cache, formatImported(custom), prefersLight)
+    }
+  })
+  test("an imported palette with no saved Look matches runtime defaults plus imports", () => {
+    expectRuntime(null, formatImported(custom))
+  })
+  test("signed-out prepaint always uses the full default Glacier look", () => {
+    const text = formatLook({ ...DEFAULT_LOOK, mode: "light", darkTheme: "plum", display })
+    expectRuntime(JSON.stringify({ v: 6, text }), formatImported(custom), true, false)
+  })
+  test("invalid cache and imported data fall back independently", () => {
+    for (const stored of [null, "{", JSON.stringify({ v: 6, text: "{" })]) {
+      const painted = boot(stored, true, false, formatImported(custom))
+      expect(painted.style["--background"]).toBe("#221122")
+    }
+    for (const imported of ["{", JSON.stringify({ v: 1, themes: [{ ...custom.themes[0], accent: "red" }], active: custom.active })]) {
+      expectRuntime(null, imported)
+    }
+  })
+  test("invalid look fields use the runtime defaults and display parser", () => {
+    const text = JSON.stringify({ kind: "look", version: 4, mode: "invalid", darkTheme: ["moss"], display: { contrast: 900, baseSize: 2, interfaceFont: "<Arial>", chatWidth: "nope" } })
+    expectRuntime(JSON.stringify({ v: 6, text }))
+  })
   test("legacy cache migrates to Glacier and preserves mode, avatars and display", () => {
-    const old = { version: 3, kind: "look", mode: "system", accent: "yuzu", avatars: { ada: { flavour: "matcha" } }, display: { ...DEFAULT_LOOK.display, baseSize: 16 } }
+    const old = { version: 3, kind: "look", mode: "system", accent: "yuzu", avatars: { ada: { flavour: "matcha" } }, display }
     const value = JSON.stringify({ v: 5, text: JSON.stringify(old), vars: { dark: { "--background": "orange" } } })
     const storage = { getItem: () => value }
     Object.assign(globalThis, { localStorage: storage })
@@ -183,7 +232,8 @@ describe("the pre-paint script", () => {
       expect(cache.v).toBe(6)
       expect(cache.vars.dark["--background"]).toBe(PALETTES.dark.canvas)
       expect(parseLook(cache.text)).toMatchObject({ darkTheme: "glacier", mode: "system", avatars: old.avatars, display: old.display })
-      expect(boot(value, true, true).style["--background"]).toBe(PALETTES.light.canvas)
+      expectRuntime(value, null, true)
+      expectRuntime(value, null, false)
       expect(boot(value, false, true).classes.has("dark")).toBe(true)
     } finally { delete (globalThis as { localStorage?: unknown }).localStorage }
   })
