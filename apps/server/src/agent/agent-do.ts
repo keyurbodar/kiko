@@ -349,7 +349,7 @@ export class AgentDO extends DurableObject<Env> {
       createGroup: (input) => room().createGroup(home.slug, input),
       deleteGroup: (roomId) => room().deleteGroup(home.slug, roomId),
       deleteAgent: (handle) => room().deleteOwnedAgent(home.slug, handle),
-      removeMember: (handle) => room().removeGroupMember(home.slug, handle),
+      removeMember: (handle, roomId) => room().removeGroupMember(home.slug, handle, roomId),
       overview: () => userStub(this.env.USER, home.userId).overview(),
     }
   }

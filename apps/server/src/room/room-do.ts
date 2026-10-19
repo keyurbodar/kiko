@@ -12,7 +12,7 @@ import type { Wake, WakeResult } from "./wake"
 
 import { chatTasks, openTasks } from "./open-tasks"
 import type { RoomRoutine } from "../user/routines"
-import { agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
+import { roomStub, agentStub, HANDLE_HEADER, ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../lib/names"
 import { sha256Hex } from "@kiko/durable/hash"
 import { BURST_WAKEUP, Burst } from "./burst"
 import { buildBrief, readBriefView } from "./brief"
@@ -335,8 +335,16 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return userStub(this.env.USER, home.userId).deleteAgent(handle)
 	}
 
-	async removeGroupMember(slug: AgentSlug, handle: string) {
+	async removeGroupMember(slug: AgentSlug, handle: string, roomId?: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
 		if (!this.members.get(slug)) return { ok: false as const, error: "you are not a member of this chat" }
+		const home = this.home()
+		if (roomId && roomId !== home?.roomId) {
+			if (!home || slug !== CHIEF) return { ok: false as const, error: "only kiko can manage another group" }
+			if (!isRoomId(roomId)) return { ok: false as const, error: "invalid room id" }
+			const chat = await userStub(this.env.USER, home.userId).getChat(roomId)
+			if (!chat || chat.kiko || chat.pair) return { ok: false as const, error: "no such group" }
+			return roomStub(this.env.ROOM, home.userId, roomId).removeGroupMember(CHIEF, handle)
+		}
 		const target = handle.trim().toLowerCase().replace(/^@/, "")
 		if (!isAgentSlug(target)) return { ok: false as const, error: "invalid handle" }
 		if (this.log.meta(KIKO_CHAT) === "1" || this.members.list().length < 2) return { ok: false as const, error: "members can only be removed from groups" }

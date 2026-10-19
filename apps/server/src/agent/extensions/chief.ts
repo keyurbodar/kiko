@@ -16,7 +16,7 @@ export type GroupsPort = {
   createGroup(input: GroupInput): Promise<Made>
   deleteGroup(roomId: string): Promise<Made>
   deleteAgent(handle: string): Promise<Made>
-  removeMember(handle: string): Promise<Made>
+  removeMember(handle: string, roomId?: string): Promise<Made>
   overview(): Promise<string>
 }
 
@@ -92,9 +92,9 @@ export function groupsExtension(port: GroupsPort): Extension {
     execute: async (a) => { const out = await port.deleteAgent(a.handle); return out.ok ? { output: text(out.text) } : fail(out.error) },
   })
   const removeMember = defineTool({
-    name: "remove_member", description: "remove an agent from this group chat using the human's membership rules. kiko cannot be removed.",
-    parameters: Type.Object({ handle: Type.String() }), replay: "safe",
-    execute: async (a) => { const out = await port.removeMember(a.handle); return out.ok ? { output: text(out.text) } : fail(out.error) },
+    name: "remove_member", description: "remove an agent from this group using the human's membership rules. Kiko can pass room_id from overview to manage another group. Kiko cannot be removed.",
+    parameters: Type.Object({ handle: Type.String(), room_id: Type.Optional(Type.String()) }), replay: "safe",
+    execute: async (a) => { const out = await port.removeMember(a.handle, a.room_id); return out.ok ? { output: text(out.text) } : fail(out.error) },
   })
 
   const overview = defineTool({

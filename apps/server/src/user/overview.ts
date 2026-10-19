@@ -42,7 +42,7 @@ export function overview(sql: SqlStorage, input: { reminders: Reminder[]; runs: 
   for (const c of recent) {
     const t = tasks.get(c.roomId)
     const open = t?.open ? `, ${t.open} open task${t.open > 1 ? "s" : ""}` : ""
-    out.push(`- ${c.title} (${ago(c.updatedAt, now)}${c.unread ? `, ${c.unread} unread` : ""}${open}): ${c.lastPreview.replace(/\s+/g, " ").slice(0, 100)}`)
+    out.push(`- ${c.title} [room ${c.roomId}] (${ago(c.updatedAt, now)}${c.unread ? `, ${c.unread} unread` : ""}${open}): ${c.lastPreview.replace(/\s+/g, " ").slice(0, 100)}`)
   }
   const stale = [...tasks.entries()].flatMap(([room, t]) => t.oldest.filter((x) => now - x.updatedAt > DAY).map((x) => `- ${titles.get(room) ?? "a chat"}: "${x.title}" ${x.status}${x.owner ? ` (@${x.owner})` : ""}, untouched ${ago(x.updatedAt, now)}`))
   if (stale.length) out.push("stale tasks:", ...stale.slice(0, 10))
