@@ -51,6 +51,7 @@ export class RoomMail {
 		}
 		this.d.publish(out.events)
 		if (!out.ok) return out
+		await this.d.alarms.setWakeup(MAIL_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
 		this.d.ctx.waitUntil(this.drain())
 		return { ok: true, to: out.send.recipients }
 	}
@@ -86,7 +87,7 @@ export class RoomMail {
 			this.d.asks.settle(ask.id, text)
 			relayed = true
 		}
-		if (relayed) this.d.ctx.waitUntil(this.drain())
+		if (relayed) this.d.ctx.waitUntil(this.resume())
 	}
 
 	async drain(): Promise<void> {
@@ -133,7 +134,12 @@ export class RoomMail {
 		const out = this.d.mail.returned(input.askId, input.from, input.text, input)
 		if (!out) return
 		this.d.publish(out.events)
-		if (out.queued) this.d.ctx.waitUntil(this.drain())
+		if (out.queued) await this.resume()
+	}
+
+	private async resume(): Promise<void> {
+		await this.d.alarms.setWakeup(MAIL_WAKEUP, Date.now() + DELIVERY_RETRY_MS)
+		await this.drain()
 	}
 
 	private async deliverRemote(home: Home, mail: QueuedMail, remote: NonNullable<QueuedMail["remote"]>): Promise<void> {
@@ -143,6 +149,7 @@ export class RoomMail {
 		if (this.d.mail.stopped(rootId)) return
 		const receipt = await room.pairIn(home.userId, { askId: remote.askId, origin: home.roomId, from: mail.from, to: mail.to, text, rootId, hop })
 		if (receipt === "full") throw new Error(`${mail.to}'s inbox is full`)
+		if (receipt === "refused") await this.pairBack({ askId: remote.askId, from: mail.to, text: `Your message to @${mail.to} could not be delivered. Check that the agent still exists and send a shorter message.`, rootId, hop })
 	}
 
 	private async deliver(home: Home, mail: QueuedMail): Promise<void> {

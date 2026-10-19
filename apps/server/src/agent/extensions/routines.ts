@@ -56,7 +56,7 @@ export function parseTrigger(value: unknown): Trigger | string {
 
 const routineLine = (r: Reminder, runs: RoutineRun[]) => {
   if (r.trigger === null) throw new Error(`routine ${r.id} has no trigger`)
-  return `${r.id}: routine "${r.name}" (${r.status}) for @${r.target}, runs ${describeTrigger(r.trigger, r.tz, r.dueUtc)}${runs[0] ? `; last run ${runs[0].status}` : ""}`
+  return `${r.id}: routine "${r.name}" (${r.status}) for @${r.target}, chat ${r.roomId}, runs ${describeTrigger(r.trigger, r.tz, r.dueUtc)}${runs[0] ? `; last run ${runs[0].status}` : ""}`
 }
 
 const text = (t: string) => [{ type: "text" as const, text: t }]
@@ -75,12 +75,12 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
         defineTool({
           name: "create_routine",
           description:
-            "Give an agent in this chat a job that runs on its own and answers here. Use it whenever the human wants a reminder, or something done on a schedule (every day, each Monday) or when something happens (whenever they post, a service posts to a webhook). Saying \"got it\" sets nothing. A reminder is a routine that runs once: trigger {on:'time', in_seconds:600} or {on:'time', at:'<iso with offset>'}, with instructions that say what to tell the human. Triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and say which zone you used; never ask for a zone first); {on:'message', contains?} when the human posts here (agent messages never match; never make a routine to talk with another agent, message the agent with send_message); {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service. To return to something yourself later, make a one-time routine for yourself.",
+            "Give yourself or any of the human's agents a job that runs on its own. Pass agent with the intended owner's handle; omitting it runs as you. A teammate answers here; an agent outside this chat answers in its own chat. Use it whenever the human wants a reminder, or something done on a schedule (every day, each Monday) or when something happens (whenever they post, a service posts to a webhook). Saying \"got it\" sets nothing. A reminder is a routine that runs once: trigger {on:'time', in_seconds:600} or {on:'time', at:'<iso with offset>'}, with instructions that say what to tell the human. Triggers: {on:'time', at:'<iso with offset>', rrule?:'FREQ=DAILY'} for a schedule, at most every 30 minutes (a weekday 8:30 is at: the next 08:30 with an offset, rrule 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'; use the zone on the now line, which is UTC when the human never set one, and say which zone you used; never ask for a zone first); {on:'message', contains?} when the human posts here (agent messages never match; never make a routine to talk with another agent, message the agent with send_message); {on:'webhook', match?:[{path,equals|contains}]} for posts from an outside service. To return to something yourself later, make a one-time routine for yourself.",
           parameters: Type.Object({
             name: Type.String({ description: "short, lowercase" }),
             instructions: Type.String({ description: "what to do each run, and what to do when a source is missing" }),
             trigger: Type.Unknown({ description: "when it runs" }),
-            agent: Type.Optional(Type.String({ description: "who runs it: omit for yourself, or a teammate's handle" })),
+            agent: Type.Optional(Type.String({ description: "who runs it: omit for yourself, or any agent's handle from list_agents" })),
           }),
           replay: "unsafe",
           execute: async (args) => {

@@ -49,7 +49,7 @@ import { type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type Run
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview, removeBoardRow, setBoardRow } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
-import { roomRoutine, type RoutineResult } from "./routines"
+import { createAgentRoutine, roomRoutine, type RoutineResult } from "./routines"
 import { migrate } from "@kiko/durable/migrate"
 import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
@@ -131,7 +131,14 @@ export class UserDO extends DurableObject<Env> {
     if (out.ok || this.reminders.get(id)?.status === "cancelled") this.#recipes.routineGone(id)
     return out
   }
-  async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> { return this.#routines.createRoutine(owner, input) }
+  async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> {
+    return createAgentRoutine(input, {
+      chat: (roomId) => this.getChat(roomId),
+      agents: () => this.listAgents(),
+      openChat: (title, agents) => this.openChat(title, agents),
+      create: (routed) => this.#routines.createRoutine(owner, routed),
+    })
+  }
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> { return this.#routines.updateRoutine(id, patch) }
 
   async recipeList(): Promise<RecipeList> {

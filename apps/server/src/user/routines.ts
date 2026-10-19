@@ -1,5 +1,5 @@
-import type { Trigger, WebhookMatch } from "@kiko/protocol"
-import { type Reminder, ReminderError } from "./reminders"
+import { KIKO, type Agent, type Chat, type RoomId, type Trigger, type WebhookMatch } from "@kiko/protocol"
+import { type NewRoutine, type Reminder, ReminderError } from "./reminders"
 
 export type RoomRoutine = { id: string; target: string; trigger: Extract<Trigger, { on: "message" }> }
 
@@ -34,4 +34,22 @@ export function matchWebhook(match: readonly WebhookMatch[], body: unknown): boo
     if (m.contains !== undefined && !(typeof v === "string" ? v : JSON.stringify(v)).toLowerCase().includes(m.contains.toLowerCase())) return false
     return true
   })
+}
+
+/** Keep a teammate's routine here; an outside agent runs it in its own visible chat. */
+export async function createAgentRoutine(input: NewRoutine, port: {
+  chat(roomId: RoomId): Promise<Chat | null>
+  agents(): Promise<Agent[]>
+  openChat(title: string, agents: readonly string[]): Promise<{ roomId: RoomId }>
+  create(input: NewRoutine): Promise<RoutineResult>
+}): Promise<RoutineResult> {
+  const chat = await port.chat(input.roomId)
+  if (!chat) return { ok: false, error: "unknown chat" }
+  const agents = await port.agents()
+  const agent = agents.find((a) => a.slug === input.target)
+  if (input.target !== KIKO && !agent) return { ok: false, error: `no agent @${input.target}. use list_agents to find its handle.` }
+  const id = agent?.id ?? KIKO
+  const present = (chat.agents ?? []).includes(id) || (input.target === KIKO && !chat.pair)
+  const roomId = present ? input.roomId : (await port.openChat(agent?.name ?? "Kiko", [id])).roomId
+  return port.create({ ...input, roomId })
 }
