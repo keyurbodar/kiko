@@ -63,14 +63,14 @@ export const chipView =
   (dom, attachment) =>
     render(() => <Chip id={attachment.id} name={attachment.name} source={source} />, dom)
 
-function FileRef(props: { path: string }) {
+function FileRef(props: { path: string; folder: boolean }) {
   const name = () => fileName(props.path)
   return (
-    <span class="file-chip" data-component="composer-file-ref" data-kind="file" title={`/${props.path}`}>
-      <EntryIcon path={name()} />
+    <span class="file-chip" data-component="composer-file-ref" data-kind={props.folder ? "folder" : "file"} title={`/${props.path}`}>
+      <EntryIcon path={`${props.path}${props.folder ? "/" : ""}`} />
       <span class="file-chip-label">{middleTruncate(name(), 28)}</span>
     </span>
   )
 }
 
-export const fileRefView: FileRefView = (dom, ref) => render(() => <FileRef path={ref.path} />, dom)
+export const fileRefView: FileRefView = (dom, ref) => render(() => <FileRef path={ref.path} folder={ref.folder} />, dom)

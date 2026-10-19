@@ -23,6 +23,7 @@ import { EditorState, Plugin, Selection, TextSelection, type Command, type Trans
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
 import { backspaceAcrossList, bulletItemToTask, deleteAcrossList, exitCodeBlockOnClosingFence, exitCodeBlockOnTrailingBlankLines, indentInCode, indentedNewlineInCodeBlock, leaveEmptyQuote, openFenceOnEnter, selectionInOneCodeBlock, splitOrLeaveListItem, unwrapCodeBlockAtStart } from "./keys"
 import { hasFileDrag } from "../../lib/file-drag"
+import { copyComposerFragment } from "./clipboard"
 import { BINDINGS } from "./keymap"
 import { docToMarkdown, markdownToDoc, type Json } from "./markdown"
 import { attachmentExtension, type ChipView, fileRefExtension, type FileRefView, Link, Mention } from "./nodes"
@@ -42,6 +43,7 @@ export type RichOptions = {
   onChange: (snapshot: Snapshot) => void
   onCursor: (cursor: number) => void
   onKeyDown: (event: KeyboardEvent) => boolean
+  pastedText?: (clipboard: DataTransfer) => string
   onPaste: (event: ClipboardEvent) => boolean
   onFocus: () => void
   onBlur: () => void
@@ -323,6 +325,10 @@ export function mountRichEditor(options: RichOptions) {
         autocapitalize: "sentences",
         autocorrect: "on",
       },
+      handleDOMEvents: {
+        copy: (view, event) => copySelection(view, event, false),
+        cut: (view, event) => copySelection(view, event, true),
+      },
       handleKeyDown: (view, event) => {
         if (event.key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey) {
           if (indentInCode(view.state, event.shiftKey, view.dispatch)) {
@@ -348,7 +354,7 @@ export function mountRichEditor(options: RichOptions) {
       },
       handlePaste: (view, event) => {
         if (options.onPaste(event)) return true
-        const text = event.clipboardData?.getData("text/plain")
+        const text = event.clipboardData && (options.pastedText?.(event.clipboardData) ?? event.clipboardData.getData("text/plain"))
         if (!text) return true
         event.preventDefault()
         const { state } = view
@@ -376,6 +382,16 @@ export function mountRichEditor(options: RichOptions) {
     onFocus: options.onFocus,
     onBlur: options.onBlur,
   })
+
+  function copySelection(view: EditorView, event: ClipboardEvent, cut: boolean) {
+    if (!event.clipboardData || view.state.selection.empty) return false
+    const text = docToMarkdown({ type: "doc", content: view.state.selection.content().content.toJSON() ?? [] })
+    event.preventDefault()
+    event.clipboardData.setData("text/plain", text)
+    copyComposerFragment(text, event.clipboardData)
+    if (cut) view.dispatch(view.state.tr.deleteSelection().setMeta("uiEvent", "cut"))
+    return true
+  }
 
   function snapshot(): Snapshot {
     const { doc, selection } = editor.state

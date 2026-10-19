@@ -19,9 +19,9 @@ export function hasFileDrag(transfer: Pick<DataTransfer, "types"> | null | undef
   return !!transfer && Array.from(transfer.types).includes(FILE_DRAG_TYPE)
 }
 
-/** The path a drop carries, or null when it is not a file drag or names a folder. */
+/** The path a drop carries, or null when it is not a file drag . */
 export function droppedFilePath(transfer: Transfer | null | undefined): string | null {
   if (!transfer || !hasFileDrag(transfer)) return null
   const path = transfer.getData(FILE_DRAG_TYPE).replace(/^\/+/, "")
-  return path && !path.endsWith("/") ? path : null
+  return path || null
 }

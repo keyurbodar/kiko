@@ -322,6 +322,20 @@ export function createPromptInputV2Controller(input: {
     attachments(): PromptInputV2Attachment[] {
       return draft.state.prompt.filter((part): part is PromptInputV2Attachment => part.type === "image")
     },
+    importAttachments(files: readonly { attachment: PromptInputV2Attachment; file: File }[]) {
+      const replacements = new Map<string, string>()
+      if (input.attachments?.blocked?.()) return replacements
+      const held = new Set(draft.state.prompt.filter((part) => part.type === "image").map((part) => part.id))
+      const imported = files.filter(({ attachment }) => !held.has(attachment.id)).map(({ attachment, file }) => {
+        const id = crypto.randomUUID()
+        replacements.set(attachment.id, id)
+        const part = { ...attachment, id, blob: { ...attachment.blob, url: URL.createObjectURL(file) } }
+        input.attachments?.onAdded?.(part, file)
+        return part
+      })
+      if (imported.length) draft.setPrompt([...draft.state.prompt, ...imported], draft.state.cursor)
+      return replacements
+    },
     openAttachment(attachment: PromptInputV2Attachment) {
       input.openAttachment?.(attachment)
     },

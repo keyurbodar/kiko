@@ -4,6 +4,7 @@ import { MAX_IMAGE_BYTES, attachmentMessages } from "@kiko/protocol"
 import { admit, attachmentType, isImage } from "../../lib/attachments"
 import { droppedFilePath, hasFileDrag } from "../../lib/file-drag"
 import { prepareImageForAttachment } from "../../lib/image-compression"
+import { rememberClipboardFile } from "../rich/clipboard"
 import { entriesOf, hasFolder, walkEntries } from "./dropped"
 import type { PromptInputV2Attachment, PromptInputV2Prompt } from "./types"
 
@@ -71,6 +72,7 @@ export function createPromptInputV2Attachments(
         size: file.size,
         blob: { id, url: URL.createObjectURL(file) },
       }
+      rememberClipboardFile(attachment, file)
       added.push(attachment)
       input.onAdded?.(attachment, file)
     }
