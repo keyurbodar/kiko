@@ -185,8 +185,8 @@
   mask-image: linear-gradient(transparent, #000);
 }
 .welcome-card :is(button, input, a):focus-visible {
-  outline: 2px solid #d1e8f8;
-  outline-offset: 3px;
+  outline: none;
+  filter: brightness(1.15);
 }
 .welcome-card :is(button, input),
 .welcome-step {
