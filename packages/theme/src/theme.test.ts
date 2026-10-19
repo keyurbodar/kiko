@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { applyCommitted, CACHE_KEY, selectBuiltin, importedThemes, readCache, resolveLook, saveImported, writeCache } from "./apply"
 import { withPalette, withBootPalettes } from "../scripts/gen-palette"
-import { MONO_STACK, SANS_STACK, fontFamily } from "./display"
+import { DEFAULT_DISPLAY, DISPLAY_STACK, MONO_STACK, SANS_STACK, displayVars, fontFamily } from "./display"
 import { formatImported, IMPORTED_KEY, parseImported, type Imported } from "./imported"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
 import { DARK_THEME_IDS, THEME_IDS, THEMES, DEFAULT_DARK_THEME, resolveAppearance, PALETTES, paletteFor, tokensFor } from "./palette"
@@ -80,6 +80,18 @@ describe("the palette", () => {
 })
 
 describe("the fonts", () => {
+  test("empty preferences use system fonts and clearing custom fonts restores them", () => {
+    expect(SANS_STACK).toStartWith("-apple-system")
+    expect(DISPLAY_STACK).toBe(SANS_STACK)
+    const custom = displayVars({ ...DEFAULT_DISPLAY, interfaceFont: "Arial", codeFont: "Courier New" })
+    expect(custom["--font-family-sans"]).toStartWith("Arial,")
+    expect(custom["--font-family-display"]).toBe(custom["--font-family-sans"])
+    expect(custom["--font-family-mono"]).toStartWith('"Courier New",')
+    const reset = displayVars(DEFAULT_DISPLAY)
+    expect(reset["--font-family-sans"]).toBe(SANS_STACK)
+    expect(reset["--font-family-display"]).toBe(SANS_STACK)
+    expect(reset["--font-family-mono"]).toBe(MONO_STACK)
+  })
   test("the system mono stack names concrete fonts before the generic ui-monospace", () => {
     const stack = MONO_STACK
     expect(stack.indexOf("Menlo")).toBeLessThan(stack.indexOf("ui-monospace"))

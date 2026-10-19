@@ -71,8 +71,8 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 600;
-  --font-family-sans: Figtree, "Figtree Fallback", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-family-display: "Bricolage Grotesque", var(--font-family-sans);
+  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-family-display: var(--font-family-sans);
   --font-family-mono: "SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace;
   --font-family-text: var(--font-family-sans);
   --icon-xs: 12px;
@@ -733,6 +733,14 @@ html {
 
 * {
   scrollbar-width: thin;
+}
+
+/* Chromium gives standard scrollbar rules precedence over the narrow custom track. */
+@supports selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
 }
 
 ::-webkit-scrollbar {
