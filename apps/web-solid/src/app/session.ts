@@ -188,7 +188,7 @@ setUnauthorizedHandler(() => {
 })
 
 /*
- * Signing out, from any button or command. It drops this person's token, snapshot, warm tier and
+ * Signing out, from any button or command. It drops this person's token, warm tier and
  * profile. A hosted build also ends the Clerk session. `kiko:backend` stays, so the next sign-in
  * goes straight back to the same backend.
  */

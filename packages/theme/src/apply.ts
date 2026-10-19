@@ -1,12 +1,12 @@
 
 import { displayVars } from "./display"
 import { formatImported, IMPORTED_KEY, parseImported, themeFor, type Imported } from "./imported"
-import { DEFAULT_LOOK, type Look } from "./look"
-import { PALETTES, resolveAppearance, tokensFor, type ThemeAppearance, type ThemeMode } from "./palette"
+import { DEFAULT_LOOK, parseLook, type Look } from "./look"
+import { PALETTES, resolveAppearance, tokensFor, type ThemeAppearance, type ThemeMode, type ThemeId } from "./palette"
 
 export const CACHE_KEY = "kiko:look"
 
-export type Cache = { v: 5; text: string; mode: ThemeMode; vars: Record<ThemeAppearance, Record<string, string>> }
+export type Cache = { v: 6; text: string; mode: ThemeMode; vars: Record<ThemeAppearance, Record<string, string>> }
 
 const hasDom = () => typeof document !== "undefined" && !!document.documentElement
 const systemDark = () => typeof matchMedia !== "function" || !matchMedia("(prefers-color-scheme: light)").matches
@@ -26,7 +26,7 @@ function storedImported(): string | null {
 }
 
 const half = (look: Look, h: ThemeAppearance) => ({
-  ...tokensFor(h, look.accent, look.display.contrast, importedOn ? themeFor(imported, h) : undefined),
+  ...tokensFor(h, look.darkTheme, look.display.contrast, importedOn ? themeFor(imported, h) : undefined),
   ...displayVars(look.display),
 })
 
@@ -99,8 +99,10 @@ export function previewLook(look: Look, themes: Imported = imported): () => void
 export function readCache(): Cache | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY)
-    const value = raw ? (JSON.parse(raw) as Partial<Cache>) : null
-    return value && value.v === 5 && typeof value.text === "string" && value.vars?.dark && value.vars.light ? (value as Cache) : null
+    const value: unknown = raw ? JSON.parse(raw) : null
+    if (!value || typeof value !== "object" || !("v" in value) || (value.v !== 6 && value.v !== 5) || !("text" in value) || typeof value.text !== "string") return null
+    const look = parseLook(value.text)
+    return { v: 6, text: value.text, mode: look.mode, vars: resolveLook(look) }
   } catch {
     return null
   }
@@ -109,7 +111,15 @@ export function readCache(): Cache | null {
 export function writeCache(text: string | null, look: Look): void {
   try {
     if (text === null) localStorage.removeItem(CACHE_KEY)
-    else localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 5, text, mode: look.mode, vars: resolveLook(look) } satisfies Cache))
+    else localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 6, text, mode: look.mode, vars: resolveLook(look) } satisfies Cache))
   } catch {
   }
+}
+
+export function selectBuiltin(look: Look, id: ThemeId): Look {
+  const mode = id === "snow" ? "light" : "dark"
+  const active = { ...imported.active }
+  delete active[mode]
+  saveImported({ ...imported, active })
+  return { ...look, mode, darkTheme: id === "snow" ? look.darkTheme : id }
 }

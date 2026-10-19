@@ -1,10 +1,10 @@
-// A person's look: the appearance mode, the accent, the avatar each agent wears, and the display
+// A person's look: the appearance mode, the dark theme, the avatar each agent wears, and the display
 // settings. It is one JSON record, synced through the user socket's theme slot, so the server
 // keeps it as opaque text. Parsing happens here, at the edge. Everything past it trusts the type.
 
 import { CHARM_NAMES, EYE_NAMES, FLAVOUR_NAMES, LEAF_NAMES, OUTFIT_NAMES, type CharmName, type EyeName, type FlavourName, type LeafName, type OutfitName } from "@kiko/avatar"
 import { DEFAULT_DISPLAY, readDisplay, type Display } from "./display"
-import { DEFAULT_ACCENT, isAccentId, type AccentId, type ThemeMode } from "./palette"
+import { DEFAULT_DARK_THEME, isDarkThemeId, type DarkThemeId, type ThemeMode } from "./palette"
 
 export type Mode = ThemeMode
 export const MODES: readonly Mode[] = ["system", "light", "dark"]
@@ -20,14 +20,14 @@ export type AvatarPins = {
 
 export type Look = {
   mode: Mode
-  accent: AccentId
+  darkTheme: DarkThemeId
   /** An agent slug to what it wears. A slug without an entry gets the avatar its slug generates. */
   avatars: Readonly<Record<string, AvatarPins>>
   /** Contrast, text size, chat width, fonts (display.ts). */
   display: Display
 }
 
-export const DEFAULT_LOOK: Look = { mode: "dark", accent: DEFAULT_ACCENT, avatars: {}, display: DEFAULT_DISPLAY }
+export const DEFAULT_LOOK: Look = { mode: "dark", darkTheme: DEFAULT_DARK_THEME, avatars: {}, display: DEFAULT_DISPLAY }
 
 const MAX_AVATARS = 200
 const SLUG = /^[a-z0-9_-]{1,40}$/
@@ -86,13 +86,13 @@ export function parseLook(text: string | null): Look {
   if (!isObject(raw) || raw.kind !== "look") return DEFAULT_LOOK
   const avatars = isObject(raw.avatars) ? readAvatars(raw.avatars, false) : isObject(raw.birds) ? readAvatars(raw.birds, true) : {}
   return {
-    mode: MODES.includes(raw.mode as Mode) ? (raw.mode as Mode) : DEFAULT_LOOK.mode,
-    accent: isAccentId(raw.accent) ? raw.accent : DEFAULT_ACCENT,
+    mode: one(raw.mode, MODES) ?? DEFAULT_LOOK.mode,
+    darkTheme: raw.version === 4 && isDarkThemeId(raw.darkTheme) ? raw.darkTheme : DEFAULT_DARK_THEME,
     avatars,
     display: readDisplay(raw.display),
   }
 }
 
 export function formatLook(look: Look): string {
-  return JSON.stringify({ version: 3, kind: "look", mode: look.mode, accent: look.accent, avatars: look.avatars, display: look.display })
+  return JSON.stringify({ version: 4, kind: "look", mode: look.mode, darkTheme: look.darkTheme, avatars: look.avatars, display: look.display })
 }

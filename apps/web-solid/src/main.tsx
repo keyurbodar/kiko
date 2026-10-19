@@ -8,7 +8,8 @@ import "./index.css";
 import { routes } from "./app/routes";
 import { Shell } from "./app/shell";
 import { loadOverlaysV2 } from "@kiko/ui/v2/overlays";
-import { startSnapshots } from "./lib/snapshot";
+import { applyCommitted } from "@kiko/theme/apply";
+import { DEFAULT_LOOK } from "@kiko/theme/look";
 
 const FirstRun = lazy(() => import("./app/first-run/frame"));
 
@@ -21,6 +22,7 @@ function Root(props: ParentProps) {
       setTimeout(() => void import("./theme/live").then((m) => m.startTheme(id)), 0);
       setTimeout(() => void import("./settings/timezone").then((m) => m.syncTimeZone()), 2000);
     } else if (s.status === "signed-out") {
+      applyCommitted(DEFAULT_LOOK, false);
       useApp.stop();
       void import("./theme/live").then((m) => m.forgetTheme());
     }
@@ -37,19 +39,14 @@ function Root(props: ParentProps) {
   );
 }
 
-export function start(): void {
+export async function start(): Promise<void> {
+  await FirstRun.preload();
+  if (session().status !== "signed-in") applyCommitted(DEFAULT_LOOK, false);
   const root = document.getElementById("root");
   if (!root) throw new Error("Root element #root not found");
-  root.replaceChildren();
   void bootstrapSession();
+  root.replaceChildren();
   render(() => <Router root={Root}>{routes}</Router>, root);
-  startSnapshots(() => {
-    const s = session().status;
-    if (s === "signed-out") return true;
-    if (s !== "signed-in") return false;
-    const id = useApp.activeThreadId();
-    return !location.pathname.startsWith("/chat") || !id || !!useApp.room()?.state.loaded;
-  });
   whenIdle(preload);
 }
 

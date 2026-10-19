@@ -45,6 +45,11 @@ function loadUi(key: string): Promise<ClerkUI> {
  * translucent, so the modal takes the opaque popover surface.
  */
 export const appearance = {
+  elements: {
+    formButtonPrimary: { boxShadow: "none" },
+    formFieldInput: { boxShadow: "none", outline: "none" },
+    socialButtonsBlockButton: { boxShadow: "none" },
+  },
   variables: {
     colorPrimary: "var(--foreground)",
     colorPrimaryForeground: "var(--popover)",
@@ -58,7 +63,7 @@ export const appearance = {
     colorBackground: "var(--popover)",
     colorInputForeground: "var(--foreground)",
     colorInput: "var(--input)",
-    colorRing: "var(--ring)",
+    colorRing: "transparent",
   },
 }
 

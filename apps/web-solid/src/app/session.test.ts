@@ -132,14 +132,12 @@ test("late Clerk exchange cannot undo sign-out", async () => {
 test("same Clerk account and backend preserves warm startup during re-exchange", async () => {
   Object.assign(globalThis, { fetch: mock(async () => json({ user: { id: "owner", name: "Owner" }, token: "first-session" })) })
   await signInWithClerk()
-  store.set("kiko:snap", "warm snapshot")
   const pending = deferred<Response>()
   const started = deferred<void>()
   Object.assign(globalThis, { fetch: mock(() => { started.resolve(); return pending.promise }) })
   const exchange = signInWithClerk()
   await started.promise
   expect(session().status).toBe("signed-in")
-  expect(store.get("kiko:snap")).toBe("warm snapshot")
   pending.resolve(json({ user: { id: "owner", name: "Owner" }, token: "second-session" }))
   await exchange
   expect(getToken()).toBe("second-session")

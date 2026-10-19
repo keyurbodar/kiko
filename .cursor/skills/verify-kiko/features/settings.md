@@ -15,7 +15,7 @@ Complete setup and open a chat. Use Settings gear, Account footer button or Mod+
 3. Open settings. Visit `[data-section=models]`, tools, appearance, general, keyboard and account; require each selected row has `aria-current=page` and corresponding page content is visible. At 390x844 the selected row must scroll into view and the body must scroll without horizontal page overflow.
 4. Fill Search settings with `provider`; require Models remains. Fill a nonmatching query; require Nothing matches. First Escape clears search while keeping dialog open; second closes it. Tab/Shift+Tab must stay in the dialog while open. Close button also closes and restores focus.
 5. Navigate to `/settings/appearance`; require Appearance selected, chat underneath, and URL replaced by `/chat/<id>`. Reload: chat returns without dialog. Repeat `/settings/providers` → Models, `/settings/integrations` → Tools, `/settings/initiative` → General and unknown section → Models. Do not require focus on a nonexistent opener after a deep link.
-6. In Appearance switch dark/light using the visible controls. Require the sidebar and chat update immediately and survive reload. Restore the audit owner's original preference.
+6. In Appearance select Glacier, Slate, Graphite, Moss, Tide, Dusk, Plum, and Snow. Require exactly one built-in selected, immediate sidebar and chat updates, and persistence after reload. System uses the remembered dark theme and Snow. Imported themes remain available; selecting a built-in clears the active imported override for that appearance. Verify legacy preferences retain avatar and display choices. Restore the audit owner's original preference.
 
 ## Gotchas
 

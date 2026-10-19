@@ -1,5 +1,3 @@
-import { hexOf, oklchOf } from "./color"
-
 export type ThemeAppearance = "light" | "dark"
 export type ThemeMode = ThemeAppearance | "system"
 
@@ -18,49 +16,27 @@ export type Palette = Readonly<{
 
 export const PALETTE_KEYS = ["canvas", "sidebar", "text", "muted", "faint", "action", "actionHover", "onAction", "danger", "gold"] as const satisfies readonly (keyof Palette)[]
 
-export const ACCENTS = {
-  mikan: { label: "Mikan", light: "#c26900", dark: "#f6a14f" },
-  yuzu: { label: "Yuzu", light: "#946b00", dark: "#ffc94f" },
-  azure: { label: "Azure", light: "#1b4ed8", dark: "#346bf1" },
-  blush: { label: "Blush", light: "#b4665a", dark: "#e2a99b" },
-  matcha: { label: "Matcha", light: "#5f7a3c", dark: "#aec08a" },
-  ramune: { label: "Ramune", light: "#3f6f98", dark: "#9fc3e0" },
-  lavender: { label: "Lavender", light: "#6f5c9e", dark: "#bcaee0" },
-  sumi: { label: "Sumi", light: "#2a2622", dark: "#ece6dc" },
-} as const satisfies Record<string, { label: string; light: string; dark: string }>
+export const DARK_THEME_IDS = ["glacier", "slate", "graphite", "moss", "tide", "dusk", "plum"] as const
+export type DarkThemeId = (typeof DARK_THEME_IDS)[number]
+export type ThemeId = DarkThemeId | "snow"
+export const THEME_IDS = [...DARK_THEME_IDS, "snow"] as const
+export const DEFAULT_DARK_THEME: DarkThemeId = "glacier"
+export const isDarkThemeId = (value: unknown): value is DarkThemeId => DARK_THEME_IDS.some((id) => id === value)
 
-export type AccentId = keyof typeof ACCENTS
-export const ACCENT_IDS = Object.keys(ACCENTS) as AccentId[]
-export const DEFAULT_ACCENT: AccentId = "mikan"
-export const isAccentId = (v: unknown): v is AccentId => typeof v === "string" && v in ACCENTS
+export const THEMES = {
+  glacier: { label: "Glacier", accent: "#96c8eb", palette: { canvas: "#08131c", sidebar: "#101a24", text: "#e7f0f6", muted: "#a5b7c4", faint: "#a5b7c4", action: "#e7f0f6", actionHover: "#96c8eb", onAction: "#08131c", danger: "#ffb4ac", gold: "#e8c47b" } },
+  slate: { label: "Slate", accent: "#becde1", palette: { canvas: "#0c0d10", sidebar: "#121418", text: "#e9ecf0", muted: "#9298a2", faint: "#9298a2", action: "#e9ecf0", actionHover: "#becde1", onAction: "#0c0d10", danger: "#ffb4ac", gold: "#e8c47b" } },
+  graphite: { label: "Graphite", accent: "#dcdcdc", palette: { canvas: "#0c0c0c", sidebar: "#131313", text: "#ededed", muted: "#959595", faint: "#959595", action: "#ededed", actionHover: "#dcdcdc", onAction: "#0c0c0c", danger: "#ffb4ac", gold: "#e8c47b" } },
+  moss: { label: "Moss", accent: "#86a38d", palette: { canvas: "#0a0e0c", sidebar: "#0f1512", text: "#e8efe9", muted: "#8fa196", faint: "#8fa196", action: "#e8efe9", actionHover: "#86a38d", onAction: "#0a0e0c", danger: "#ffb4ac", gold: "#e8c47b" } },
+  tide: { label: "Tide", accent: "#78afc8", palette: { canvas: "#080c10", sidebar: "#0c1318", text: "#e6eff3", muted: "#8a9ea8", faint: "#8a9ea8", action: "#e6eff3", actionHover: "#78afc8", onAction: "#080c10", danger: "#ffb4ac", gold: "#e8c47b" } },
+  dusk: { label: "Dusk", accent: "#e6aa82", palette: { canvas: "#0f0c0b", sidebar: "#181311", text: "#f1ebe6", muted: "#a59a92", faint: "#a59a92", action: "#f1ebe6", actionHover: "#e6aa82", onAction: "#0f0c0b", danger: "#ffb4ac", gold: "#e8c47b" } },
+  plum: { label: "Plum", accent: "#afa0dc", palette: { canvas: "#0d0c11", sidebar: "#14121a", text: "#ece9f2", muted: "#9a95a6", faint: "#9a95a6", action: "#ece9f2", actionHover: "#afa0dc", onAction: "#0d0c11", danger: "#ffb4ac", gold: "#e8c47b" } },
+  snow: { label: "Snow", accent: "#505f78", palette: { canvas: "#eef0f3", sidebar: "#fafbfc", text: "#16191e", muted: "#5b616b", faint: "#5b616b", action: "#16191e", actionHover: "#505f78", onAction: "#eef0f3", danger: "#b32632", gold: "#805500" } },
+} as const satisfies Record<ThemeId, { label: string; accent: string; palette: Palette }>
 
-/*
- * Paper and ink from the accent, the way Material 3 takes its neutral tones from a seed: every role
- * keeps a fixed lightness, and takes the accent's hue with a little chroma. A vivid accent tints the
- * whole app; a grey one, such as sumi, leaves it near neutral. The lightness of each role is what the
- * contrast tests hold, so any accent's paper reads. Red and amber stay fixed: an error is never the accent.
- */
-type Tone = readonly [lightness: number, chroma: number]
-const TONES: Record<ThemeAppearance, Record<"canvas" | "sidebar" | "text" | "muted" | "faint" | "actionHover", Tone>> = {
-  light: { canvas: [0.981, 0.018], sidebar: [0.961, 0.027], text: [0.242, 0.019], muted: [0.49, 0.03], faint: [0.641, 0.033], actionHover: [0.33, 0.022] },
-  dark: { canvas: [0.19, 0.012], sidebar: [0.166, 0.01], text: [0.967, 0.018], muted: [0.761, 0.03], faint: [0.542, 0.03], actionHover: [0.915, 0.02] },
+export function paletteFor(mode: ThemeAppearance, darkTheme: DarkThemeId = DEFAULT_DARK_THEME): Palette {
+  return THEMES[mode === "light" ? "snow" : darkTheme].palette
 }
-const FIXED: Record<ThemeAppearance, Pick<Palette, "danger" | "gold">> = {
-  light: { danger: "#c2410c", gold: "#8a5a00" },
-  dark: { danger: "#ff9a6b", gold: "#ffc94f" },
-}
-
-/** The palette an accent seeds. Chroma follows the accent's own, up to the full tint at a chroma of 0.12. */
-export function paletteFor(mode: ThemeAppearance, accentId: AccentId = DEFAULT_ACCENT): Palette {
-  const seed = oklchOf(ACCENTS[accentId][mode])
-  const tint = Math.min(1, Math.max(0.25, seed.c / 0.12))
-  const tone = (role: keyof (typeof TONES)["light"]) => hexOf({ l: TONES[mode][role][0], c: TONES[mode][role][1] * tint, h: seed.h })
-  const text = tone("text")
-  const canvas = tone("canvas")
-  return { canvas, sidebar: tone("sidebar"), text, muted: tone("muted"), faint: tone("faint"), action: text, actionHover: tone("actionHover"), onAction: canvas, ...FIXED[mode] }
-}
-
-/** The default accent's palettes: what the page paints before a look is known. */
 export const PALETTES: Record<ThemeAppearance, Palette> = { light: paletteFor("light"), dark: paletteFor("dark") }
 
 export const NEUTRALS: ReadonlyArray<readonly [token: string, dark: number, light: number]> = [
@@ -81,9 +57,9 @@ export const NEUTRALS: ReadonlyArray<readonly [token: string, dark: number, ligh
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
 
-export function tokensFor(mode: ThemeAppearance, accentId: AccentId = DEFAULT_ACCENT, contrast = 100, imported?: { palette: Palette; accent: string }): Record<string, string> {
-  const p = imported?.palette ?? paletteFor(mode, accentId)
-  const accent = imported?.accent ?? ACCENTS[accentId][mode]
+export function tokensFor(mode: ThemeAppearance, darkTheme: DarkThemeId = DEFAULT_DARK_THEME, contrast = 100, imported?: { palette: Palette; accent: string }): Record<string, string> {
+  const p = imported?.palette ?? paletteFor(mode, darkTheme)
+  const accent = imported?.accent ?? THEMES[mode === "light" ? "snow" : darkTheme].accent
   const ink = (share: number) => `color-mix(in oklab, ${p.text} ${Math.min(100, round((share * contrast) / 100, 2))}%, transparent)`
   const vars: Record<string, string> = {
     "--background": p.canvas,
@@ -101,7 +77,7 @@ export function tokensFor(mode: ThemeAppearance, accentId: AccentId = DEFAULT_AC
   }
   for (const [token, dark, light] of NEUTRALS) vars[token] = ink(mode === "dark" ? dark : light)
   // One solid raised surface: an agent's bubble, a card, a menu, the composer. Near white on paper, a lifted night in dark.
-  vars["--surface"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 7%, ${p.canvas})` : `color-mix(in oklab, ${p.canvas} 25%, #ffffff)`
+  vars["--surface"] = p.sidebar
   vars["--popover"] = vars["--surface"]!
   vars["--message-assistant"] = vars["--surface"]!
   vars["--tooltip"] = mode === "dark" ? `color-mix(in oklab, ${p.text} 14%, ${p.canvas})` : p.text
