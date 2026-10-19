@@ -17,3 +17,26 @@ test("copy retains file bytes after the source draft releases its URL", async ()
   data.delete("application/x-kiko-composer")
   expect(pastedComposerFragment(transfer)?.files).toHaveLength(1)
 })
+
+test("portable clipboard restores binary files without source page state", async () => {
+  const payload = JSON.stringify({
+    version: 1,
+    markdown: "[file](attachment:portable-id)",
+    files: [{ id: "portable-id", filename: "binary.dat", mime: "application/octet-stream", dataUrl: "data:application/octet-stream;base64,AAH/" }],
+  })
+  const custom = pastedComposerFragment({ getData: (type) => type === "application/x-kiko-composer" ? payload : "" })
+  expect(custom?.markdown).toBe("[file](attachment:portable-id)")
+  expect(custom?.files[0]?.file.name).toBe("binary.dat")
+  expect([...new Uint8Array(await custom!.files[0]!.file.arrayBuffer())]).toEqual([0, 1, 255])
+  const html = `<div data-kiko-payload="${encodeURIComponent(payload)}"></div>`
+  const fallback = pastedComposerFragment({ getData: (type) => type === "text/html" ? html : "" })
+  expect([...new Uint8Array(await fallback!.files[0]!.file.arrayBuffer())]).toEqual([0, 1, 255])
+  expect(fallback?.files[0]?.attachment.mime).toBe("application/octet-stream")
+})
+
+test("invalid portable clipboard data is ignored", () => {
+  for (const files of [[{ id: 12 }], [{ id: "id", filename: "file", mime: "text/plain", dataUrl: "https://example.com/file" }]]) {
+    const payload = JSON.stringify({ version: 1, markdown: "text", files })
+    expect(pastedComposerFragment({ getData: (type) => type === "application/x-kiko-composer" ? payload : "" })).toBeUndefined()
+  }
+})
