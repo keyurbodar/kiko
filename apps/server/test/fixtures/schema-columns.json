@@ -2274,6 +2274,36 @@
         "sqlite_autoindex_credentials_1"
       ]
     },
+    "deleted_agent_handles": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "slug",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 1
+        }
+      ],
+      "indexes": [
+        "sqlite_autoindex_deleted_agent_handles_1"
+      ]
+    },
+    "deletion_agents": {
+      "columns": [
+        {
+          "cid": 0,
+          "name": "slug",
+          "type": "TEXT",
+          "notnull": 0,
+          "dflt_value": null,
+          "pk": 1
+        }
+      ],
+      "indexes": [
+        "sqlite_autoindex_deletion_agents_1"
+      ]
+    },
     "deletion_rooms": {
       "columns": [
         {

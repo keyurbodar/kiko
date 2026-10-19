@@ -165,3 +165,13 @@ test("only Kiko can delete agents or groups", async () => {
 	expect(await rpc(room, "deleteGroup", "kiko", "invalid")).toMatchObject({ ok: false })
 	c.close()
 })
+
+test("Kiko removes a member from another group without leaving its own chat", async () => {
+  const { room, c } = await roomWith("kiko", "ada")
+  await rpc(room, "createGroup", "kiko", { title: "Cleanup", members: ["ada", "bo"], newAgents: [], goal: "plan", kickoff: "hello" })
+  const group = await receipt(room)
+  expect(await rpc(room, "removeGroupMember", "ada", "bo", group)).toMatchObject({ ok: false })
+  expect(await rpc(room, "removeGroupMember", "kiko", "@bo", group)).toMatchObject({ ok: true })
+  expect(await members(group)).toEqual(["ada", "kiko"])
+  c.close()
+})

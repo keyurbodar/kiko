@@ -390,7 +390,9 @@ export function Shell(props: ParentProps) {
                 <Resizable.Panel class="shell-panel" data-component="chat-panel" initialSize={sizes.chat} minSize={`${CHAT_MIN}px`}>
 
                   <main class="relative flex min-w-0 flex-1 flex-col overflow-hidden" data-component="main-column">
-                    <TopBar sidebarOpen={!closed()} onToggleSidebar={toggle} />
+                    <Show when={sectionOf(location.pathname) === "chat"}>
+                      <TopBar pathname={location.pathname} sidebarOpen={!closed()} onToggleSidebar={toggle} />
+                    </Show>
                     <Show when={closed() && sectionOf(location.pathname) !== "chat"}>
                       <SidebarToggle open={false} onToggle={toggle} class="main-sidebar-toggle" />
                     </Show>

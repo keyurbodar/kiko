@@ -75,15 +75,24 @@ const suite: Suite = {
     })
     const groupId = must(messages(draft).find((m) => m.seq > from && m.goto && m.goto !== made.goto)?.goto, "group goto")
     const group = await s.room(groupId)
+    await poll("the group's initial state", () => group.raw.log.some((entry) => {
+      const frame = entry.frame as RoomToClient
+      return entry.dir === "in" && ((frame.t === "reset" && frame.snapshot.members.length > 0) || (frame.t === "events" && frame.events.some((event) => event.t === "member")))
+    }))
     await poll("the group's members", () => chats().has(groupId), 30_000)
     const members = new Set<string>()
     for (const entry of group.raw.log) {
       const f = entry.frame as RoomToClient
-      if (entry.dir === "in" && f.t === "events") for (const e of f.events) if (e.t === "member") members.add(e.member.slug)
+      if (entry.dir !== "in") continue
+      if (f.t === "reset") for (const member of f.snapshot.members) members.add(member.slug)
+      if (f.t === "events") for (const e of f.events) {
+        if (e.t === "member") members.add(e.member.slug)
+        if (e.t === "member_removed") members.delete(e.slug)
+      }
     }
     const chatMd = [...group.raw.log].some((entry) => {
       const f = entry.frame as RoomToClient
-      return entry.dir === "in" && f.t === "events" && f.events.some((e) => e.t === "file" && e.file.name === "chat.md")
+      return entry.dir === "in" && ((f.t === "reset" && f.snapshot.files.some((file) => file.name === "chat.md")) || (f.t === "events" && f.events.some((e) => e.t === "file" && e.file.name === "chat.md")))
     })
     console.log(`  group "${chats().get(groupId)?.title}" (${Date.now() - t0} ms): ${[...members].map((m) => `@${m}`).join(", ")}; /chat.md ${chatMd ? "written" : "missing"}`)
     if (!members.has(agent.slug)) throw new VerifyError(`@${agent.slug} is not in the group`)

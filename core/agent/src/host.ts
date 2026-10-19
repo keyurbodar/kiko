@@ -93,6 +93,7 @@ export type AgentSetup = {
   beginRun?: (batch: Batch, root: Conversation) => Promise<boolean>
   joinRun?: (batch: Batch, root: Conversation) => Promise<void>
   inputContext?: () => Promise<string | undefined>
+  inputInvalidated?: () => Promise<"refresh" | "forget" | null>
   inputMemory?: (batch: Batch, fresh: boolean, joined: number[]) => Promise<{ text?: string; fresh: boolean }>
   beforeCompact?: (harness: Harness) => Promise<void>
   stale?: () => Promise<boolean>
@@ -320,8 +321,7 @@ export class AgentHost {
         continue
       }
       const arrival = arrivalOf(batch)
-      const run = await this.runState(harness, root)
-      const action = decide(run, arrival)
+      let run = await this.runState(harness, root)
       const humanSoon = this.humanComingUntil() > Date.now()
       if (arrival.kind === "human") this.ctx.storage.sql.exec("DELETE FROM wakeups WHERE key = ?", HUMAN_COMING)
       if (humanSoon && arrival.kind !== "human") {
@@ -329,6 +329,18 @@ export class AgentHost {
         await this.alarms.setWakeup(INBOX_WAKEUP, this.humanComingUntil())
         continue
       }
+      const invalidated = (await setup.inputInvalidated?.()) ?? null
+      if (invalidated) {
+        await root.abort(context)
+        if (invalidated === "forget") await this.workers.invalidate(harness)
+        run = null
+      }
+      batch.envelopes = batch.envelopes.filter((envelope) => !envelope.work || this.workers.get(envelope.work.id)?.conversationId != null)
+      if (!batch.envelopes.length) {
+        this.inbox.submitted(batch.requestId)
+        continue
+      }
+      const action = decide(run, arrival)
       if (action === "hold" && (await this.rootPlaced(harness, root))) {
         this.inbox.hold(batch.requestId)
         continue
@@ -348,7 +360,7 @@ export class AgentHost {
       let memory: string | undefined
       let fresh = false
       if (!run && inputMemory) {
-        const out = await inputMemory(batch, await this.contextFull(root), await this.joinedSeqs())
+        const out = await inputMemory(batch, invalidated !== null || await this.contextFull(root), await this.joinedSeqs())
         fresh = out.fresh
         if (out.fresh) {
           await root.reset(undefined, context)

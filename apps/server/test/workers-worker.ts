@@ -56,6 +56,8 @@ const hanging = new Map<string, Set<() => void>>()
 
 type Body =
   | { op: "receive"; envelopes: Envelope[] }
+  | { op: "invalidate" }
+  | { op: "refresh" }
   | { op: "posts" }
   | { op: "hangs" }
   | { op: "release" }
@@ -173,11 +175,22 @@ export class T extends AgentDO {
     models.setProvider(faux.provider)
     const backend = memoryFiles()
     const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, work: this.host.workers, files: { fs: new RoomFs("workers", backend), acceptsImages: () => false }, testExtensions: [defineExtension({ name: "test-hang", tools: [hang] })] })
-    return { models, ...built, env: roomViews("workers", backend), beginRun: async () => true }
+    return { models, ...built, env: roomViews("workers", backend), beginRun: async () => true, inputInvalidated: async () => (await this.ctx.storage.get<"refresh" | "forget">("invalidated")) ?? null, inputMemory: async (_batch, fresh) => {
+      await this.ctx.storage.delete("invalidated")
+      return { fresh }
+    } }
   }
 
   override async fetch(request: Request) {
     const body = (await request.json()) as Body
+    if (body.op === "refresh") {
+      await this.ctx.storage.put("invalidated", "refresh")
+      return Response.json(true)
+    }
+    if (body.op === "invalidate") {
+      await this.ctx.storage.put("invalidated", "forget")
+      return Response.json(true)
+    }
     if (body.op === "receive") return Response.json(await this.receive(body.envelopes, ""))
     if (body.op === "posts") return Response.json(this.table().exec<{ text: string }>("SELECT text FROM t_posts ORDER BY n").toArray().map((r) => r.text))
     if (body.op === "requests") {

@@ -196,6 +196,7 @@ export class MemoryCapture {
         continue
       }
       const out = await this.compress(prompt)
+      if (this.life.prompt(span) !== prompt) continue
       if ("retryAt" in out) return void (await this.alarms.setWakeup(LIFE_WAKEUP, out.retryAt))
       if ("error" in out && this.life.tree.failed(span) < MAX_NAP_FAILS) throw new Error(out.error)
       this.life.settle(span, "text" in out ? out.text : null)

@@ -51,11 +51,11 @@ test("a one-time routine is stored with its time and listed", async () => {
   expect(listed.dueUtc).toBe(Math.ceil(Date.parse(at) / 1000) * 1000)
 }, 20_000)
 
-test("a cancelled routine is cancelled once", async () => {
+test("cancelling a routine is safe to repeat", async () => {
   const user = await userWithChat()
   const { routine: made } = await rpc(user, "createRoutine", user, routine(soon(3_600_000)))
   expect((await rpc(user, "cancelRoutine", made.id)).routine.status).toBe("cancelled")
-  expect((await rpc(user, "cancelRoutine", made.id)).ok).toBe(false)
+  expect((await rpc(user, "cancelRoutine", made.id)).routine.status).toBe("cancelled")
 }, 20_000)
 
 test("create refuses bad input at the edge", async () => {
@@ -86,4 +86,26 @@ test("deleting a chat removes its routines", async () => {
   await rpc(user, "createRoutine", user, routine(soon(3_600_000), { name: "daily", trigger: { on: "message" } }))
   expect(await rpc(user, "deleteChat", ROOM)).toBe(true)
   expect(await rpc(user, "listRoutines")).toEqual([])
+}, 20_000)
+
+
+test("permanent routine deletion removes its inventory entry and is idempotent over RPC", async () => {
+  const user = await userWithChat()
+  const made = await rpc(user, "createRoutine", user, routine(soon(3_600_000)))
+  expect(made.ok).toBe(true)
+  expect(await rpc(user, "deleteRoutine", made.routine.id)).toEqual({ ok: true })
+  expect(await rpc(user, "deleteRoutine", made.routine.id)).toEqual({ ok: true })
+  expect(await rpc(user, "listRoutines")).toEqual([])
+  expect(await rpc(user, "routineRuns", made.routine.id)).toEqual([])
+}, 20_000)
+
+
+test("deleting a message routine synchronizes the room's trigger inventory", async () => {
+  const user = await userWithChat()
+  const made = await rpc(user, "createRoutine", user, routine(soon(3_600_000), { trigger: { on: "message", contains: "hello" } }))
+  expect(made.ok).toBe(true)
+  const triggers = async () => (await mf.dispatchFetch(`http://do/triggers/${user}/${ROOM}`)).json()
+  expect(await triggers()).toMatchObject([{ id: made.routine.id }])
+  await rpc(user, "deleteRoutine", made.routine.id)
+  expect(await triggers()).toEqual([])
 }, 20_000)

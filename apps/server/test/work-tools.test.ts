@@ -69,7 +69,7 @@ test("a worker gets the agent's tools but no chat, notes, routines, board, or mo
   expect(reports[0]).toMatchObject({ id: "work:w1:" + workers.get("w1")!.submissionId, body: "the page says hi", work: { id: "w1", status: "done" } })
   expect(workers.get("w1")!.step).toBe("fake_lookup")
   expect(workerTools).toContain("fake_lookup")
-  const withheld = ["start_work", "steer_work", "stop_work", "send_message", "ask_human", "create_task", "update_task", "create_routine", "cancel_routine", "update_routine", "note"]
+  const withheld = ["start_work", "steer_work", "stop_work", "send_message", "ask_human", "create_task", "update_task", "create_routine", "cancel_routine", "delete_routine", "update_routine", "note"]
   for (const name of withheld) {
     expect(talkerTools).toContain(name)
     expect(workerTools).not.toContain(name)

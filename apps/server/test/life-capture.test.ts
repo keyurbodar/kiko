@@ -213,3 +213,21 @@ test("the criteria text is sent once in the state, not once per question", () =>
   expect(bytes).toBeLessThan(40_000)
   expect(JSON.stringify(questions).split("different fact. A different name").length - 1).toBe(0)
 })
+
+
+test("explicit memory deletion blocks queued, in-flight and replayed automatic capture but allows a new human statement", async () => {
+  const l = life()
+  const text = "My sister Sam is a nurse."
+  const at = Date.now() - 1000
+  l.append(text, "you", at)
+  const rows = [{ heard: { messageId: "m1", text, at }, ref: "room:r:msg:m1" }]
+  const inner = fakeJudge({ [text]: { worth: 0.9 } })
+  const deleting: Judge = async (state, questions) => {
+    l.redact(0)
+    return inner(state, questions)
+  }
+  expect((await captureWithJudge(l, deleting, rows))!.added).toBe(0)
+  expect((await captureWithJudge(l, inner, rows))!.added).toBe(0)
+  expect(l.recall("sam nurse")).toEqual([])
+  expect((await captureWithJudge(l, inner, [{ heard: { messageId: "m2", text, at: Date.now() + 1 }, ref: "room:r:msg:m2" }]))!.added).toBe(1)
+})

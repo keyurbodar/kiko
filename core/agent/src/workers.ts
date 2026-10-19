@@ -252,6 +252,20 @@ export class Workers {
     this.changed()
   }
 
+  async invalidate(harness: Harness): Promise<void> {
+    const previous = this.list()
+    // Detach first so a settling report cannot race the abort.
+    this.forget()
+    this.sql.exec("UPDATE workers SET task = '', step = NULL")
+    this.sql.exec("DELETE FROM worker_changes")
+    await Promise.all(previous.map(async (work) => {
+      if (work.conversationId === null) return
+      const conversation = await harness.conversation(work.conversationId, context)
+      await conversation?.abort(context)
+      await conversation?.reset(undefined, context)
+    }))
+  }
+
   rearm(harness: Harness): void {
     this.harness = harness
     this.watching.clear()
