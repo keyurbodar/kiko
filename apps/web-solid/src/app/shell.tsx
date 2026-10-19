@@ -68,7 +68,7 @@ const NewAgent = lazy(() => import("../newagent/dialog"));
 const SettingsDialog = lazy(() => import("../settings/settings-dialog"));
 // A destructive confirm is not on the first-paint path: its dialog chunk loads when one is asked for.
 const DeleteChatDialog = lazy(() => import("../sidebar/delete-chat-dialog"));
-const CHAT_PATH = /^\/chat\/([^/]+)$/;
+const CHAT_PATH = /^\/chat\/([^/]+)\/?$/;
 
 /**
  * What a section paints while its chunk loads. The router unmounts the page it leaves before the
