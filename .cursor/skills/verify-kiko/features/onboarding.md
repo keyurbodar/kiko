@@ -16,6 +16,7 @@ Use an isolated browser and a fresh dev owner with no providers or onboarding co
 4. Keyboard: Tab to a provider, Enter opens its dialog; Escape closes and returns focus. Tab to Skip for now, Enter reaches chat. Reload and sign in in a second isolated session for the same owner: setup must stay completed. Capture both transitions, not just the final chat.
 5. With a separately authorized connected provider, require the model summary and Change. Open `[data-action=change-model]`; select a `[data-component=first-run-models] [role=radio]`, require one `aria-checked=true`, then Start chatting. Require chat and focus in `.composer-dock .ProseMirror`; reopening the model picker must show the chosen model. Record provider/key prerequisite if unavailable.
 6. Hosted: verify the Sign in action opens Clerk with the available sign-in methods, Cloudflare installation progress and failure/retry, then connect. No access-code field in hosted mode. Never perform an install or external OAuth as part of a paint-only audit without authorization.
+7. On Cloudflare and provider steps, require `[data-action=restart-onboarding]` with the label Sign out and restart. Activate it and require the sign-in step at `/welcome` with no callback query, no backend session token, and no automatic sign-in after reload. Sign in again and require setup to advance. At 320px and 390px require the action to remain reachable in the card. Restart must be disabled during Cloudflare installation or redirect.
 
 ## Gotchas
 

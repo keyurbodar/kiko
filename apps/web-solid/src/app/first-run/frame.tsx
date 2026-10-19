@@ -1,13 +1,13 @@
 import { useLocation, useNavigate } from "@solidjs/router"
-import { For, Match, Show, Switch, createEffect, onCleanup, lazy } from "solid-js"
+import { For, Match, Show, Switch, createEffect, lazy } from "solid-js"
 import "./first-run.css"
 import { KikoMark, KikoWordmark } from "../../lib/brand"
 import { hosted } from "../hosted"
-import { backendConnectionNotice, session } from "../session"
+import { backendConnectionNotice } from "../session"
 import { Backdrop } from "./backdrop"
-import { ClerkStep, resumeClerk } from "./clerk-step"
+import { ClerkStep } from "./clerk-step"
 import { ConnectStep } from "./connect-step"
-import { currentStep, useDifferentSignIn } from "./progress"
+import { currentStep, useDifferentSignIn, working } from "./progress"
 import { indexOf, stepsFor } from "./steps"
 import { AccessCode } from "./welcome"
 
@@ -20,7 +20,6 @@ export default function FirstRun() {
   const at = () => indexOf(currentStep(), hosted)
 
   if (hosted) void ConnectCloudflare.preload()
-  if (hosted && session().status !== "signed-in" && currentStep() !== "cloudflare") onCleanup(resumeClerk(location.search))
 
   createEffect(() => {
     const path = location.pathname
@@ -56,7 +55,6 @@ export default function FirstRun() {
                   <Show when={backendConnectionNotice()}>
                     <div class="mb-3 flex flex-col gap-2">
                       <p class="text-sm text-muted-foreground" role="status">{backendConnectionNotice()}</p>
-                      <button type="button" class="text-sm underline" onClick={() => void useDifferentSignIn()}>Use a different sign-in</button>
                     </div>
                   </Show>
                   <ConnectCloudflare />
@@ -66,6 +64,22 @@ export default function FirstRun() {
                 </Match>
               </Switch>
             )}
+          </Show>
+          <Show when={currentStep() === "cloudflare" || currentStep() === "connect"}>
+            <div class="welcome-foot mt-3">
+              <button
+                type="button"
+                data-action="restart-onboarding"
+                disabled={working()}
+                class="disabled:cursor-default disabled:opacity-50"
+                onClick={() => {
+                  navigate("/welcome", { replace: true })
+                  void useDifferentSignIn()
+                }}
+              >
+                Sign out and restart
+              </button>
+            </div>
           </Show>
         </div>
       </div>
