@@ -6,7 +6,8 @@
   overflow: hidden;
   contain: strict;
   background: radial-gradient(ellipse at 75% 0%, color-mix(in oklab, var(--ring) 24%, transparent), transparent 75%), var(--sidebar);
-  mask-image: linear-gradient(#000, transparent);
+  mask-image: linear-gradient(#000, transparent), linear-gradient(to right, #000 55%, transparent calc(100% - 16px));
+  mask-composite: intersect;
 }
 .sky-stars {
   position: absolute;
