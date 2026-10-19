@@ -220,3 +220,35 @@ test("(i) a worker whose one bash command wrote two files and is stopped names b
   const posts = await until(a.posts, (p) => p.some((t) => t.startsWith("reported w1 stopped")))
   expect(posts.find((t) => t.startsWith("reported w1 stopped"))).toBe("reported w1 stopped: stopped before it finished. changed: /a.txt, /b.txt.")
 }, 30_000)
+
+
+test("memory invalidation discards a running worker context and refuses to resume it", async () => {
+  const a = await agent()
+  await working(a, "remember ORCHID-9382")
+  await a.call({ op: "invalidate" })
+  await a.say("what next")
+  await until(a.posts, (posts) => posts.includes("reply to: what next"))
+  expect((await a.hangs()).waiting).toBe(0)
+  expect(await a.workers()).toMatchObject([{ task: "", step: null, delivered: true }])
+  expect((await a.requests()).filter((r) => !r.worker).at(-1)!.users.join(" ")).not.toContain("ORCHID")
+  await a.say("STEER continue")
+  await until(a.posts, (posts) => posts.some((text) => text.includes("there is no worker w1")))
+  expect((await a.hangs()).waiting).toBe(0)
+  expect((await a.posts()).some((text) => text.startsWith("reported w1"))).toBe(false)
+}, 30_000)
+
+
+test("memory invalidation retires finished workers and drops queued reports from their old context", async () => {
+  const a = await agent()
+  await working(a, "remember ORCHID-9382")
+  await a.release()
+  await until(a.posts, (posts) => posts.some((text) => text.startsWith("reported w1")))
+  await a.call({ op: "invalidate" })
+  const report = { ...human("ORCHID-9382 stale report"), from: { kind: "system", reason: "work" }, work: { id: "w1", status: "done" } }
+  await a.call({ op: "receive", envelopes: [report, human("what next")] })
+  await until(a.posts, (posts) => posts.includes("reply to: what next"))
+  expect((await a.requests()).filter((r) => !r.worker).at(-1)!.users.join(" ")).not.toContain("ORCHID")
+  await a.say("STEER continue")
+  await until(a.posts, (posts) => posts.some((text) => text.includes("there is no worker w1")))
+  expect((await a.hangs()).started).toBe(1)
+}, 30_000)

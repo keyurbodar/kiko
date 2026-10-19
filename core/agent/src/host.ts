@@ -329,10 +329,16 @@ export class AgentHost {
         await this.alarms.setWakeup(INBOX_WAKEUP, this.humanComingUntil())
         continue
       }
-      const invalidated = run !== null && (await setup.inputInvalidated?.()) === true
+      const invalidated = (await setup.inputInvalidated?.()) === true
       if (invalidated) {
         await root.abort(context)
+        await this.workers.invalidate(harness)
         run = null
+      }
+      batch.envelopes = batch.envelopes.filter((envelope) => !envelope.work || this.workers.get(envelope.work.id)?.conversationId != null)
+      if (!batch.envelopes.length) {
+        this.inbox.submitted(batch.requestId)
+        continue
       }
       const action = decide(run, arrival)
       if (action === "hold" && (await this.rootPlaced(harness, root))) {

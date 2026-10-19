@@ -227,9 +227,16 @@ export class Life {
     return { ok: true }
   }
 
+  // Old chat remains readable, but deleting saved memory must not let its queued source save it again.
+  captureAllowed(at: number): boolean {
+    const cutoff = this.settings.get("life_capture_cutoff")
+    return cutoff === null || at > Number(cutoff)
+  }
+
   redact(pos: number): boolean {
     return this.transaction(() => {
       if (!this.wipe(pos)) return false
+      this.settings.set("life_capture_cutoff", String(Date.now()))
       this.restoreSuperseded([pos])
       return true
     })

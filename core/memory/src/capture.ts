@@ -118,7 +118,7 @@ export async function captureWithJudge(life: Life, judge: Judge, rows: readonly 
   if (!answers) return null
   for (const [i, { message, candidate, known }] of items.entries()) {
     const row = rows[message]!
-    if (row.keep && !row.keep()) continue
+    if (!life.captureAllowed(row.heard.at) || (row.keep && !row.keep())) continue
     if (boolOf(answers[`c${i}_private`]) > PRIVATE_MAX) {
       count.private++
       continue
