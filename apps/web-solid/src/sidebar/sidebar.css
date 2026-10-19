@@ -1,11 +1,13 @@
 
 
 .sidebar-shell {
+  --frame-gap: 8px;
   display: flex;
   height: 100%;
   min-height: 0;
   flex: 1;
   color: var(--foreground);
+  background: var(--sidebar);
   font-family: var(--font-family-sans);
 }
 
@@ -210,8 +212,39 @@
   flex-direction: column;
 }
 
-.sidebar-shell [data-component="chat-panel"] {
+.sidebar-shell [data-component="main-column"] {
   background: var(--background);
+}
+
+@media (width >= 768px) {
+  .sidebar-shell [data-component="chat-panel"] {
+    padding: var(--frame-gap) var(--frame-gap) var(--frame-gap) 0;
+  }
+
+  .sidebar-shell:has([data-component="sidebar-panel"] .panel[data-collapsed]) [data-component="chat-panel"] {
+    padding-left: var(--frame-gap);
+  }
+
+  .sidebar-shell [data-component="main-column"] {
+    border-radius: var(--radius-xl);
+  }
+
+  .sidebar-shell [data-component="sidebar-panel"] .panel-header {
+    margin-top: var(--frame-gap);
+  }
+
+  .sidebar-shell [data-component="sidebar-panel"] .panel-foot {
+    margin-bottom: var(--frame-gap);
+  }
+
+  .sidebar-shell [data-component="sidecar-column"]:has([data-component="sidecar"]) {
+    padding: var(--frame-gap) var(--frame-gap) var(--frame-gap) 0;
+  }
+
+  .sidebar-shell [data-component="sidecar-column"] [data-component="sidecar"] {
+    overflow: hidden;
+    border-radius: var(--radius-xl);
+  }
 }
 
 .sidebar-shell .chat-search {
@@ -757,17 +790,6 @@
   overflow: hidden;
 }
 
-/* The side panel's own edge. It is drawn on the panel, so no handle state, panel size, or neighbor can hide it. */
-.sidebar-shell [data-component="sidecar-column"]::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  z-index: 3;
-  width: 1px;
-  background: var(--border);
-  pointer-events: none;
-  content: "";
-}
-
 .sidebar-shell .resize-handle {
   position: relative;
   z-index: 21;
@@ -794,18 +816,16 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
-  width: 1px;
-  /* A hairline between panels at rest, as t3code draws its sidebar edge. It thickens under the pointer. */
-  background: var(--border);
+  left: -1px;
+  width: 2px;
+  background: color-mix(in oklab, var(--foreground) 14%, transparent);
+  opacity: 0;
   content: "";
 }
 
 @media (hover: hover) {
   .sidebar-shell .resize-handle:hover::after {
-    left: -1px;
-    width: 2px;
-    background: color-mix(in oklab, var(--foreground) 14%, transparent);
+    opacity: 1;
   }
 }
 
@@ -813,15 +833,18 @@
   display: none;
 }
 
+.sidebar-shell .resize-handle:focus-visible::after,
 .sidebar-shell .resize-handle[data-dragging]::after {
-  left: -1px;
-  width: 2px;
-  background: color-mix(in oklab, var(--foreground) 14%, transparent);
+  opacity: 1;
 }
 
 @media (width < 768px) {
   .sidebar-shell {
     position: relative;
+  }
+
+  .sidebar-shell [data-component="chat-panel"] {
+    flex: 1;
   }
 
   .sidebar-shell .panel {
@@ -860,11 +883,13 @@
 .sidebar-shell .sidecar-overlay {
   position: absolute;
   z-index: 30;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: var(--frame-gap);
+  right: var(--frame-gap);
+  bottom: var(--frame-gap);
   width: min(24rem, calc(100vw - 24px));
-  background: var(--sidebar);
+  overflow: hidden;
+  background: var(--background);
+  border-radius: var(--radius-xl);
   -webkit-backdrop-filter: var(--surface-blur);
   backdrop-filter: var(--surface-blur);
   box-shadow: var(--popover-shadow);
@@ -878,6 +903,13 @@
 @media (width < 768px) {
   .sidebar-shell .main-row {
     margin: 0;
+  }
+
+  .sidebar-shell .sidecar-overlay {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0;
   }
 }
 
