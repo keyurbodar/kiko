@@ -128,6 +128,10 @@ export class UserDO extends DurableObject<Env> {
 
   private reminders!: Reminders
   async listRoutines() { return this.reminders.list() }
+  async deleteRoutine(id: string): Promise<{ ok: true }> {
+    this.#recipes.routineGone(id)
+    return this.#routines.deleteRoutine(id)
+  }
   async cancelRoutine(id: string): Promise<RoutineResult> {
     const out = await this.#routines.cancelRoutine(id)
     if (out.ok || this.reminders.get(id)?.status === "cancelled") this.#recipes.routineGone(id)

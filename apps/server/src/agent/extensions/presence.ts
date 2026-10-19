@@ -37,6 +37,7 @@ export function describeCall(name: string, args: Record<string, unknown>): Descr
     case "create_routine":
     case "update_routine":
     case "list_routines":
+    case "delete_routine":
     case "cancel_routine":
       return tool(name, "handling a routine")
     case "create_agent":
@@ -76,6 +77,7 @@ const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>
   update_routine: () => "Updated a routine",
   list_routines: () => "Listed routines",
   cancel_routine: () => "Cancelled a routine",
+  delete_routine: () => "Deleted a routine",
   create_agent: () => "Created an agent",
   create_group: () => "Created a group",
   ask_human: () => "Asked the human",

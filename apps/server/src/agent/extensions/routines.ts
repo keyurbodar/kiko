@@ -11,6 +11,7 @@ export const ROUTINES = "routines"
 
 export type RoutinesPort = {
   list(): Promise<Reminder[]>
+  delete(id: string): Promise<{ ok: true } | { ok: false; error: string }>
   cancel(id: string): Promise<RoutineResult>
   createRoutine(input: { name: string; instructions: string; trigger: Trigger; target?: string }): Promise<RoutineResult>
   updateRoutine(id: string, patch: { name?: string; instructions?: string; trigger?: Trigger; status?: "active" | "paused" }): Promise<RoutineResult>
@@ -164,6 +165,19 @@ export function routinesExtension(port: () => RoutinesPort | null): Extension {
           execute: async ({ slug }) => {
             const out = await user().addRecipe(slug.trim())
             return out.ok ? { output: text(out.existed ? out.setup : `added.\n${out.setup}`) } : { output: text(`not added: ${out.error}`), isError: true }
+          },
+        }),
+      ),
+      declareEffect(
+        "write",
+        defineTool({
+          name: "delete_routine",
+          description: "Permanently delete a routine, its instructions, and run history by id. Use cancel_routine to stop it while keeping its history.",
+          parameters: Type.Object({ id: Type.String() }),
+          replay: "safe",
+          execute: async ({ id }) => {
+            const out = await user().delete(id)
+            return out.ok ? { output: text("deleted") } : { output: text(out.error), isError: true }
           },
         }),
       ),

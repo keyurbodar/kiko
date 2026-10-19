@@ -15,6 +15,16 @@ type RoutineDeps = {
 export class RoutineWiring {
   constructor(private readonly d: RoutineDeps) {}
 
+  async deleteRoutine(id: string): Promise<{ ok: true }> {
+    const before = this.d.reminders.get(id)
+    if (before) {
+      const cancelled = await this.d.reminders.cancel(id)
+      if (cancelled) await this.routineChanged(cancelled, before)
+    }
+    await this.d.reminders.deleteRoutine(id)
+    return { ok: true }
+  }
+
   async cancelRoutine(id: string): Promise<RoutineResult> {
     return routineResult(async () => {
       const before = this.d.reminders.get(id)

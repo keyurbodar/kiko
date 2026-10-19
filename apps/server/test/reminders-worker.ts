@@ -5,6 +5,10 @@ import type { UserDO } from "../src/user/user-do"
 export { UserDO } from "../src/user/user-do"
 
 export class RoomDO extends BaseRoom {
+  async routineTriggers() {
+    return JSON.parse(this.log.meta("routines") ?? "[]")
+  }
+
   async messages() {
     return this.log.snapshot().messages
   }
@@ -15,6 +19,7 @@ type Env = { USER: DurableObjectNamespace<UserDO>; ROOM: DurableObjectNamespace<
 export default {
   async fetch(request: Request, env: Env) {
     const [, kind, user, roomId] = new URL(request.url).pathname.split("/")
+    if (kind === "triggers") return Response.json(await env.ROOM.get(env.ROOM.idFromName(roomName(user!, roomId!))).routineTriggers())
     if (kind === "room") return Response.json(await env.ROOM.get(env.ROOM.idFromName(roomName(user!, roomId!))).messages())
     const stub = userStub(env.USER, user!)
     const { method, args } = (await request.json()) as { method: string; args: unknown[] }

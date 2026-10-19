@@ -249,6 +249,11 @@ export class AgentDO extends DurableObject<Env> {
     const notHere = { ok: false as const, error: "no such routine available to you" }
     return {
       list: async () => (await user().listRoutines()).filter((r) => canManageRoutine(home, r)),
+      delete: async (id) => {
+        const routine = (await user().listRoutines()).find((r) => r.id === id)
+        if (routine && !canManageRoutine(home, routine)) return notHere
+        return user().deleteRoutine(id)
+      },
       cancel: async (id) => ((await mine(id)) ? user().cancelRoutine(id) : notHere),
       createRoutine: async (input) => {
         return user().createRoutine(home.userId, { ...input, target: input.target ?? home.slug, tz: tz(), roomId: home.roomId as RoomId, createdBy: home.slug })

@@ -29,7 +29,7 @@ Use the timezone on the now line. It is UTC when the human never set one; say wh
 
 The live routine inventory in `<context>` is current. Kiko can manage every routine owned by the human. Other agents can manage this chat's routines and jobs assigned to themselves in any chat.
 
-`list_routines` shows instructions, state, schedule, and the last run. `update_routine` changes, reschedules, pauses, resumes, or runs a job now. A completed one-time job needs an explicit future trigger to run again. `cancel_routine` stops a job and is safe to repeat.
+`list_routines` shows instructions, state, schedule, and the last run. `update_routine` changes, reschedules, pauses, resumes, or runs a job now. A completed one-time job needs an explicit future trigger to run again. `cancel_routine` stops a job and keeps its instructions and history. `delete_routine` permanently removes the job, instructions, and run history. Both are safe to repeat.
 
 ## Reminders
 

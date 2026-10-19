@@ -3,7 +3,7 @@ import type { RoomId } from "@kiko/protocol"
 import type { Alarms } from "@kiko/durable/alarm"
 import { sha256Hex } from "@kiko/durable/hash"
 import { routineLine, routinesExtension, type RoutinesPort } from "../src/agent/extensions/routines"
-import { Reminders } from "../src/user/reminders"
+import { Reminders, type DeliverRun } from "../src/user/reminders"
 import { routineResult } from "../src/user/routines"
 import { USER_STEPS } from "../src/user/schema"
 import { sqlWith } from "./sql-shim"
@@ -11,17 +11,18 @@ import { sqlWith } from "./sql-shim"
 const ROOM = "01J0000000000000000000000R" as RoomId
 const MIN = 60_000
 
-function setup() {
+function setup(deliverRun: DeliverRun = async () => "delivered") {
   const sql = sqlWith(USER_STEPS)
   sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
   const clock = { now: Date.UTC(2026, 9, 10, 12) }
   const reminders = new Reminders(sql, { setWakeup: async () => {}, clearWakeup: async () => {} } as unknown as Alarms, () => clock.now, {
-    deliverRun: async () => "delivered",
+    deliverRun,
     notice: async () => {},
     gate: { away: () => false },
   })
   const port: RoutinesPort = {
     list: async () => reminders.list(),
+    delete: async (id) => { await reminders.deleteRoutine(id); return { ok: true } },
     cancel: (id) => routineResult(async () => {
       const routine = await reminders.cancel(id)
       return routine ? { routine } : null
@@ -119,4 +120,81 @@ test("a live inventory never claims an empty run history when history was not qu
   const { routine } = await create()
   expect(routineLine(routine)).not.toContain("no runs yet")
   expect(routineLine(routine, [])).toContain("no runs yet")
+})
+
+
+test("delete_routine permanently removes cancelled instructions and history and is safe to replay", async () => {
+  const { reminders, call, create } = setup()
+  const { routine } = await create()
+  await reminders.runNow(routine.id)
+  await reminders.cancel(routine.id)
+  const [run] = reminders.runs(routine.id)
+  expect(run).toBeDefined()
+  for (let i = 0; i < 2; i++) expect(await call("delete_routine", { id: routine.id })).toEqual({ output: [{ type: "text", text: "deleted" }] })
+  expect(reminders.get(routine.id)).toBeNull()
+  expect(reminders.runs(routine.id)).toEqual([])
+  await reminders.finishRun(routine.id, run!.occurrence, "done", 1)
+  expect(reminders.runs(routine.id)).toEqual([])
+})
+
+
+test("deletion purges recipe and loop links along with the routine", async () => {
+  const { sql, reminders, create } = setup()
+  const { routine } = await create()
+  sql.exec("INSERT INTO recipe_links (routine_id, install_id) VALUES (?, 'install')", routine.id)
+  sql.exec("INSERT INTO loop_reminders (reminder_id, loop_id) VALUES (?, 42)", routine.id)
+  await reminders.deleteRoutine(routine.id)
+  expect(sql.exec("SELECT * FROM recipe_links").toArray()).toEqual([])
+  expect(sql.exec("SELECT * FROM loop_reminders").toArray()).toEqual([])
+})
+
+test("a deleted routine in an already selected due batch never delivers or recreates history", async () => {
+  const delivered: string[] = []
+  let arrived!: () => void
+  let release!: () => void
+  const waiting = new Promise<void>((resolve) => { arrived = resolve })
+  const held = new Promise<void>((resolve) => { release = resolve })
+  const { clock, reminders, create } = setup(async ({ routine }) => {
+    delivered.push(routine.id)
+    arrived()
+    await held
+    return "delivered"
+  })
+  const a = (await create()).routine
+  const b = (await create()).routine
+  clock.now += MIN
+  const firing = reminders.fire()
+  await waiting
+  const deleted = delivered[0] === a.id ? b : a
+  await reminders.deleteRoutine(deleted.id)
+  release()
+  await firing
+  expect(delivered).toHaveLength(1)
+  expect(reminders.get(deleted.id)).toBeNull()
+  expect(reminders.runs(deleted.id)).toEqual([])
+})
+
+
+test("a delivery settling after deletion cannot recreate the routine or run history", async () => {
+  let arrived!: () => void
+  let release!: () => void
+  const waiting = new Promise<void>((resolve) => { arrived = resolve })
+  const held = new Promise<void>((resolve) => { release = resolve })
+  const { reminders, create } = setup(async () => {
+    arrived()
+    await held
+    return "refused"
+  })
+  const { routine } = await create()
+  const running = reminders.runNow(routine.id)
+  await waiting
+  let deleted = false
+  const deletion = reminders.deleteRoutine(routine.id).then(() => { deleted = true })
+  await Promise.resolve()
+  expect(deleted).toBe(false)
+  release()
+  await deletion
+  await running
+  expect(reminders.get(routine.id)).toBeNull()
+  expect(reminders.runs(routine.id)).toEqual([])
 })

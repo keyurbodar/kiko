@@ -87,3 +87,25 @@ test("deleting a chat removes its routines", async () => {
   expect(await rpc(user, "deleteChat", ROOM)).toBe(true)
   expect(await rpc(user, "listRoutines")).toEqual([])
 }, 20_000)
+
+
+test("permanent routine deletion removes its inventory entry and is idempotent over RPC", async () => {
+  const user = await userWithChat()
+  const made = await rpc(user, "createRoutine", user, routine(soon(3_600_000)))
+  expect(made.ok).toBe(true)
+  expect(await rpc(user, "deleteRoutine", made.routine.id)).toEqual({ ok: true })
+  expect(await rpc(user, "deleteRoutine", made.routine.id)).toEqual({ ok: true })
+  expect(await rpc(user, "listRoutines")).toEqual([])
+  expect(await rpc(user, "routineRuns", made.routine.id)).toEqual([])
+}, 20_000)
+
+
+test("deleting a message routine synchronizes the room's trigger inventory", async () => {
+  const user = await userWithChat()
+  const made = await rpc(user, "createRoutine", user, routine(soon(3_600_000), { trigger: { on: "message", contains: "hello" } }))
+  expect(made.ok).toBe(true)
+  const triggers = async () => (await mf.dispatchFetch(`http://do/triggers/${user}/${ROOM}`)).json()
+  expect(await triggers()).toMatchObject([{ id: made.routine.id }])
+  await rpc(user, "deleteRoutine", made.routine.id)
+  expect(await triggers()).toEqual([])
+}, 20_000)

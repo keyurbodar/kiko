@@ -116,6 +116,8 @@ export function nextAfter(rrule: string, tz: string, due: number, now: number): 
 export type RoutinePorts = { deliverRun: DeliverRun; notice: Notice; gate: RunGate }
 
 export class Reminders {
+  private readonly deliveries = new Map<string, Set<Promise<RunDelivery>>>()
+
   constructor(
     private readonly sql: SqlStorage,
     private readonly alarms: Alarms,
@@ -338,9 +340,11 @@ export class Reminders {
 
   private async run(routine: Reminder, occurrence: string, why: string, extra: string): Promise<RunDelivery> {
     if (!this.ports) return "refused"
+    // A due batch can outlive a deletion while an earlier delivery awaits its room.
+    if (this.get(routine.id)?.status !== "active") return "gone"
     const body = routineBody(routine, why, this.lastRun(routine.id), extra)
     const fresh = this.beginRun(routine.id, occurrence)
-    const delivery = this.ports.gate.away() ? "held" : await this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body }).catch(thrownAsRefused)
+    const delivery = this.ports.gate.away() ? "held" : await this.deliver(routine, occurrence, body)
     if (delivery === "gone") {
       this.sql.exec("UPDATE reminders SET status = 'cancelled' WHERE id = ?", routine.id)
       await this.rearm()
@@ -348,6 +352,20 @@ export class Reminders {
     if (fresh && delivery === "refused") await this.countFailure(routine.id, occurrence)
     this.settleRun(routine.id, occurrence, delivery, fresh)
     return delivery
+  }
+
+  private async deliver(routine: Reminder, occurrence: string, body: string): Promise<RunDelivery> {
+    if (!this.ports) return "refused"
+    const pending = this.deliveries.get(routine.id) ?? new Set<Promise<RunDelivery>>()
+    this.deliveries.set(routine.id, pending)
+    const delivery = this.ports.deliverRun({ deliveryId: `${routine.id}:${occurrence}`, routine, body }).catch(thrownAsRefused)
+    pending.add(delivery)
+    try {
+      return await delivery
+    } finally {
+      pending.delete(delivery)
+      if (!pending.size) this.deliveries.delete(routine.id)
+    }
   }
 
   private lastRun(routineId: string): RoutineRun | null {
@@ -373,6 +391,13 @@ export class Reminders {
     this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE id = ?", id)
     await this.rearm()
     return this.get(id)
+  }
+
+  async deleteRoutine(id: string): Promise<void> {
+    this.purge([id])
+    // Do not acknowledge deletion while a dispatch can still reach the room.
+    await Promise.all(this.deliveries.get(id) ?? [])
+    await this.rearm()
   }
 
   /** A deleted chat takes its reminders and routines with it. */
