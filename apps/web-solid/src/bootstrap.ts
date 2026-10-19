@@ -12,7 +12,6 @@ window.addEventListener("vite:preloadError", (event) => {
   void recover((event as Event & { payload?: unknown }).payload);
 });
 
-// Start the session check alongside the initial chunks.
 declare global {
   var __kikoBoot: { me?: Promise<Response>; token?: string | null; url?: string } | undefined;
 }

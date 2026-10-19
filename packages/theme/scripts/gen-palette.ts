@@ -30,7 +30,7 @@ export async function withBootPalettes(html: string): Promise<string> {
   const result = await Bun.build({
     entrypoints: ["kiko-boot"],
     target: "browser",
-    minify: true,
+    minify: { whitespace: true, syntax: true, identifiers: false },
     plugins: [{
       name: "boot-resolver",
       setup(build) {

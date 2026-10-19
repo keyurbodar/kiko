@@ -68,7 +68,7 @@ Sending is optimistic: your bubble appears before the server answers, so a bubbl
 
 Read [features/README.md](features/README.md) and the affected feature files before driving. They name prerequisites, selectors and observable outcomes. Record PASS, ISSUES or BLOCKED for each journey; an unexercised path is never PASS.
 
-The current owner choices are Glacier onboarding with a glass card, moonlit sidebar, L1 logo, Figtree/Bricolage typography, Remix icons and the main chat bubbles. Earlier aurora/R8 plan files are historical references. Compare visual evidence to the current approved reference and main's bubble baseline; DOM presence alone cannot prove visual fidelity.
+The current owner choices are Glacier onboarding with a glass card, theme-colored static sidebar band, L1 logo, Figtree/Bricolage typography, Remix icons and the main chat bubbles. Earlier aurora/R8 plan files are historical references. Compare visual evidence to the current approved reference and main's bubble baseline; DOM presence alone cannot prove visual fidelity.
 
 Use a unique browser session. When explicitly reusing another run's server, health-check `/api/health` and the client first, use your own session and evidence directory, and close only that session. Never run `down.sh` on a borrowed run. Use a fresh dev owner for setup persistence tests; do not reset another owner's settings or local storage. No key or model call is needed for the model-free journeys.
 
@@ -80,7 +80,7 @@ agent-browser --session $S set media dark reduced-motion
 agent-browser --session $S snapshot -i
 ```
 
-Inspect page overflow, clipped controls, focus visibility and touch targets at both sizes. For reduced motion inspect computed animation names and `document.getAnimations()` after the UI settles; sky, mascot and navigation must not keep animating. Capture a warmed reload/offline snapshot separately from a fresh signed-out load. Test a JavaScript-disabled reload in a separate context using a driver that supports disabling scripts: a static boot mark alone is not proof of the persisted chat snapshot. Record BLOCKED if that capability is unavailable.
+Inspect page overflow, clipped controls, focus visibility and touch targets at both sizes. For reduced motion inspect computed animation names and `document.getAnimations()` after the UI settles; sky, mascot and navigation must not keep animating. Capture a warmed reload/offline view separately from a fresh signed-out load. Startup uses one bounded external splash followed by the real app; saved HTML/CSS must never replay. Seed a stale `kiko:snap` record, block initial modules, and require only a 64px splash with no injected snapshot styles. Verify first-paint colors match the selected palette and display preferences. Test a JavaScript-disabled reload in a separate context when supported; expect the static splash, not a restored chat DOM. Record BLOCKED if that capability is unavailable.
 
 ## Evidence
 
