@@ -1,4 +1,5 @@
-import { Show, createSignal } from "solid-js"
+import { useLocation } from "@solidjs/router"
+import { Show, createSignal, onCleanup } from "solid-js"
 import { allowClerkResume, autoResume, cancelAuthAttempt, signInWithClerk } from "../session"
 import { currentStep, installBackend, setWorking } from "./progress"
 import { Cover, primary } from "./welcome"
@@ -64,6 +65,7 @@ export function resumeClerk(search: string): () => void {
 
 /** Opens Clerk's sign-in modal, where the person chooses a sign-in method. */
 export function ClerkStep() {
+  onCleanup(resumeClerk(useLocation().search))
   return (
     <div class="welcome-step flex w-full flex-col gap-3" data-step="sign-in">
       <Cover />
