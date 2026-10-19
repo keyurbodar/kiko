@@ -14,6 +14,9 @@ export type GroupsPort = {
   agents(): Promise<Agent[]>
   createAgent(spec: NewAgentSpec): Promise<Made>
   createGroup(input: GroupInput): Promise<Made>
+  deleteGroup(roomId: string): Promise<Made>
+  deleteAgent(handle: string): Promise<Made>
+  removeMember(handle: string): Promise<Made>
   overview(): Promise<string>
 }
 
@@ -78,6 +81,22 @@ export function groupsExtension(port: GroupsPort): Extension {
     },
   })
 
+  const deleteGroup = defineTool({
+    name: "delete_group", description: "delete a group chat and its files, routines, and memory. only kiko can, on the human's request.",
+    parameters: Type.Object({ room_id: Type.String() }), replay: "safe",
+    execute: async (a) => { const out = await port.deleteGroup(a.room_id); return out.ok ? { output: text(out.text) } : fail(out.error) },
+  })
+  const deleteAgent = defineTool({
+    name: "delete_agent", description: "delete an agent and its private chats, files, routines, and memory, and remove it from groups. only kiko can, on the human's request. kiko cannot be deleted.",
+    parameters: Type.Object({ handle: Type.String() }), replay: "safe",
+    execute: async (a) => { const out = await port.deleteAgent(a.handle); return out.ok ? { output: text(out.text) } : fail(out.error) },
+  })
+  const removeMember = defineTool({
+    name: "remove_member", description: "remove an agent from this group chat using the human's membership rules. kiko cannot be removed.",
+    parameters: Type.Object({ handle: Type.String() }), replay: "safe",
+    execute: async (a) => { const out = await port.removeMember(a.handle); return out.ok ? { output: text(out.text) } : fail(out.error) },
+  })
+
   const overview = defineTool({
     name: "overview",
     description: "what is open across all of the human's chats: recent chats and unread, open tasks and how stale, routines (reminders are one-time routines) and their last runs.",
@@ -90,7 +109,7 @@ export function groupsExtension(port: GroupsPort): Extension {
     name: GROUPS_EXT,
     sections: [section("groups", () => (port.chief ? CHIEF_RULES : MEMBER_RULES))],
     tools: port.chief
-      ? [declareEffect("read", list), declareEffect("write", createAgent), declareEffect("message", createGroup), declareEffect("read", overview)]
-      : [declareEffect("read", list), declareEffect("message", createGroup)],
+      ? [declareEffect("read", list), declareEffect("write", createAgent), declareEffect("message", createGroup), declareEffect("read", overview), declareEffect("write", deleteGroup), declareEffect("write", deleteAgent), declareEffect("write", removeMember)]
+      : [declareEffect("read", list), declareEffect("message", createGroup), declareEffect("write", removeMember)],
   })
 }

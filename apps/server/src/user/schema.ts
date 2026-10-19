@@ -261,4 +261,5 @@ export const USER_STEPS: Step[] = [
   // Why a connected provider stopped working (ProviderProblem), and when it was first seen. A new key or sign-in clears both.
   addColumn("credentials", "problem", "TEXT"),
   addColumn("credentials", "problem_at", "INTEGER"),
+  "CREATE TABLE IF NOT EXISTS deletion_agents (slug TEXT PRIMARY KEY)",
 ]

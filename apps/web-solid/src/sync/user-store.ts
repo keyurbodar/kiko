@@ -40,6 +40,10 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 		else data.home.folders = [...e.folders]
 		return true
 	}
+	if (e.t === "agent_removed") {
+		data.agents = data.agents.filter((a) => a.id !== e.id)
+		return true
+	}
 	if (e.t === "agent") {
 		if (!data.agents.some((a) => a.id === e.agent.id)) data.agents.push(e.agent)
 		return true
@@ -209,7 +213,11 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			const next = settleUser(state.patches, applied)
 			if (next.length !== state.patches.length) setPatches(next)
 			for (const e of applied) {
-				if (e.t === "theme") setState("theme", e.theme)
+				if (e.t === "agent_removed") {
+					setState("agentModels", produce((models) => { delete models[e.slug] }))
+					unsentModels.delete(e.slug)
+				}
+				else if (e.t === "theme") setState("theme", e.theme)
 				else if (e.t === "agent_model") {
 					setState("agentModels", e.slug, { model: e.model, name: e.name, thinking: e.thinking, thinkingLevels: e.thinkingLevels })
 					setState("pendingModels", e.slug, undefined!)
@@ -223,8 +231,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 			if (e.t === "chat") putChats(warm, [e.chat])
 			else if (e.t === "chat_removed") removeChat(warm, e.roomId)
 		}
-		if (applied.some((e) => e.t === "agent")) putAgents(warm, unwrap(state.agents))
-		if (applied.some((e) => e.t === "agent_model")) putAgentModels(warm, unwrap(state.agentModels))
+		if (applied.some((e) => e.t === "agent" || e.t === "agent_removed")) putAgents(warm, unwrap(state.agents))
+		if (applied.some((e) => e.t === "agent_model" || e.t === "agent_removed")) putAgentModels(warm, unwrap(state.agentModels))
 		if (applied.some((e) => e.t === "file" || e.t === "file_removed" || e.t === "folders")) putHome(warm, unwrap(state.home))
 		if (applied.length) setUserSeq(warm, state.seq)
 	}

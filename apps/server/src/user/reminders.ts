@@ -379,6 +379,11 @@ export class Reminders {
     if (changed.rowsWritten) await this.rearm()
   }
 
+  async cancelAgent(slug: string): Promise<void> {
+    this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE target = ? OR created_by = ?", slug, slug)
+    await this.rearm()
+  }
+
   /** Drops a routine that was just created, when the wiring around it failed. */
   remove(id: string): void {
     this.sql.exec("DELETE FROM reminders WHERE id = ?", id)

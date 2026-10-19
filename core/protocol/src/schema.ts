@@ -428,7 +428,7 @@ export const Chat = Schema.Struct({
 
 export const Agent = Schema.Struct({ id: Id, name: Schema.String, slug: AgentSlug, prompt: Schema.String, model: Schema.String })
 
-export const AgentOp = Schema.Struct({ op: Schema.Literal("create"), agent: Agent })
+export const AgentOp = Schema.Union([Schema.Struct({ op: Schema.Literal("create"), agent: Agent }), Schema.Struct({ op: Schema.Literal("delete"), slug: AgentSlug })])
 
 export const ChatOp = Schema.Union([
 	Schema.Struct({ op: Schema.Literal("create"), roomId: RoomId, title: Schema.String, agents: Schema.optionalKey(Schema.Array(Schema.String)) }),
@@ -445,6 +445,7 @@ export const UserEvent = Schema.Union([
 	Schema.Struct({ ...stored, t: Schema.Literal("chat"), chat: Chat }),
 	Schema.Struct({ ...stored, t: Schema.Literal("chat_removed"), roomId: RoomId }),
 	Schema.Struct({ ...stored, t: Schema.Literal("agent"), agent: Agent }),
+	Schema.Struct({ ...stored, t: Schema.Literal("agent_removed"), id: Schema.String, slug: AgentSlug }),
 	Schema.Struct({ ...stored, t: Schema.Literal("agent_model"), slug: AgentSlug, ...AgentModel.fields }),
 	Schema.Struct({ ...stored, t: Schema.Literal("theme"), theme: Schema.NullOr(Schema.String) }),
 	Schema.Struct({ ...stored, t: Schema.Literal("file"), file: FileRef }),

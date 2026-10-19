@@ -36,7 +36,7 @@ export type Agent = {
 /** What an agent runs on, for every chat it is in. `thinkingLevels` are the levels pi-ai says the model supports. */
 export type AgentModel = { model: string; name?: string; thinking: ThinkingLevel; thinkingLevels: readonly ThinkingLevel[] }
 
-export type AgentOp = { op: "create"; agent: Agent }
+export type AgentOp = { op: "create"; agent: Agent } | { op: "delete"; slug: AgentSlug }
 
 export type ChatOp =
 	| { op: "create"; roomId: RoomId; title: string; agents?: readonly string[] }
@@ -55,6 +55,7 @@ export type UserEvent =
 	| (Stored & { t: "chat"; chat: Chat })
 	| (Stored & { t: "chat_removed"; roomId: RoomId })
 	| (Stored & { t: "agent"; agent: Agent })
+	| (Stored & { t: "agent_removed"; id: string; slug: AgentSlug })
 	| (Stored & { t: "agent_model"; slug: AgentSlug } & AgentModel)
 	| (Stored & { t: "theme"; theme: string | null })
 	| (Stored & { t: "file"; file: FileRef })

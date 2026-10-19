@@ -1,3 +1,4 @@
+import { erase } from "../lib/erase"
 import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
@@ -134,6 +135,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
+    if (this.ctx.storage.sql.exec("SELECT 1 FROM meta WHERE key = 'deleted'").toArray().length) throw new Error("agent deleted")
     if (home) this.setHome(home)
     const result = await this.host.receive(envelopes, brief)
     // A human message ends whatever ask_human is waiting on, so the agent answers them first.
@@ -143,6 +145,16 @@ export class AgentDO extends DurableObject<Env> {
 
   async stop(): Promise<{ discarded: number }> {
     return this.host.stop()
+  }
+
+  async erase(): Promise<void> {
+    await this.host.stop()
+    await this.host.workers.stopAll()
+    await this.releaseTabs()
+    erase(this.ctx.storage)
+    const keys = [...(await this.ctx.storage.list()).keys()]
+    if (keys.length) await this.ctx.storage.delete(keys)
+    await this.ctx.storage.deleteAlarm()
   }
 
   async wake(): Promise<boolean> {
@@ -333,6 +345,9 @@ export class AgentDO extends DurableObject<Env> {
       agents: () => userStub(this.env.USER, home.userId).listAgents(),
       createAgent: (spec) => room().createAgent(home.slug, spec),
       createGroup: (input) => room().createGroup(home.slug, input),
+      deleteGroup: (roomId) => room().deleteGroup(home.slug, roomId),
+      deleteAgent: (handle) => room().deleteOwnedAgent(home.slug, handle),
+      removeMember: (handle) => room().removeGroupMember(home.slug, handle),
       overview: () => userStub(this.env.USER, home.userId).overview(),
     }
   }
