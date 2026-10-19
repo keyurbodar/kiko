@@ -262,4 +262,6 @@ export const USER_STEPS: Step[] = [
   addColumn("credentials", "problem", "TEXT"),
   addColumn("credentials", "problem_at", "INTEGER"),
   "CREATE TABLE IF NOT EXISTS deletion_agents (slug TEXT PRIMARY KEY)",
+  "CREATE TABLE IF NOT EXISTS deleted_agent_handles (slug TEXT PRIMARY KEY)",
+  "INSERT OR IGNORE INTO deleted_agent_handles (slug) SELECT slug FROM deletion_agents",
 ]

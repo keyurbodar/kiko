@@ -22,6 +22,7 @@ export const agentNamed = (sql: SqlStorage, name: string): Agent | null => listA
 export function createAgent(sql: SqlStorage, agent: Agent, now: number): Agent | null {
   const name = agent.name.trim().slice(0, MAX_NAME)
   if (!name || !/^[a-z0-9-]{1,32}$/.test(agent.slug)) return null
+  if (sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", agent.slug).toArray().length) return null
   if (sameName(name, "kiko") || agentNamed(sql, name)) return null
   if (sql.exec("SELECT 1 FROM agents WHERE id = ? OR slug = ?", agent.id, agent.slug).toArray().length) return null
   if (sql.exec<{ n: number }>("SELECT count(*) AS n FROM agents").one().n >= MAX_AGENTS) return null

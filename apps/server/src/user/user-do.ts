@@ -345,6 +345,7 @@ export class UserDO extends DurableObject<Env> {
   async deleteAgent(handle: string) {
     const slug = handle.trim().toLowerCase().replace(/^@/, "")
     if (!isAgentSlug(slug) || slug === KIKO) return { ok: false as const, error: "kiko cannot be deleted; use a valid agent handle" }
+    this.sql.exec("INSERT OR IGNORE INTO deleted_agent_handles (slug) VALUES (?)", slug)
     this.sql.exec("INSERT OR IGNORE INTO deletion_agents (slug) VALUES (?)", slug)
     await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000)
     const result = await this.deleteAgentNow(slug)
@@ -477,6 +478,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async makeAgent(input: { id?: string; name: string; slug: string; description: string; soul: string; model: string }): Promise<Agent | null> {
+    if (this.sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", input.slug.trim().toLowerCase().replace(/^@/, "")).toArray().length) throw new Error("This agent handle was deleted and cannot be reused. Choose a new handle.")
     const agent = this.saveAgent({ id: input.id ?? crypto.randomUUID(), name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model })
     if (!agent) return null
     await this.souls.seed(agent.slug, input.soul)
@@ -1108,6 +1110,10 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private saveAgent(agent: Agent): Agent | null {
+    if (this.sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", agent.slug).toArray().length) {
+      this.broadcast({ t: "error", error: { code: "storage", message: "This agent handle was deleted and cannot be reused. Choose a new handle." } })
+      return null
+    }
     const stored = createAgent(this.sql, agent, Date.now())
     if (!stored) return null
     this.commit({ t: "agent", agent: stored })
