@@ -1,4 +1,3 @@
-import { useLocation } from "@solidjs/router"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { NotesIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -10,17 +9,18 @@ import { ChatAvatar } from "../lib/IdentityAvatar"
 import { useApp } from "../lib/store"
 import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
-import { sectionOf } from "./sections"
 
-export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => void }) {
-  const location = useLocation()
+export function TopBar(props: { pathname: string; sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const chatId = () => {
-    const id = /^\/chat\/([^/]+)\/?$/.exec(location.pathname)?.[1]
+    const id = /^\/chat\/([^/]+)\/?$/.exec(props.pathname)?.[1]
     return id ? decodeURIComponent(id) : null
+  }
+  const title = () => {
+    const id = chatId()
+    return (id && useApp.chatById(id)?.name) || "New chat"
   }
   const toggle = (on: boolean) => `top-bar-button ${on ? "bg-accent text-foreground" : ""}`
   return (
-    <Show when={sectionOf(location.pathname) === "chat"}>
       <header class="flex h-[50px] shrink-0 items-center gap-2 px-3" data-component="top-bar">
         <Show when={!props.sidebarOpen}>
           <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
@@ -30,7 +30,7 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
             {(id) => <ChatAvatar faces={useApp.chatFaces(id)} size={32} />}
           </Show>
           <h1 class="min-w-0 truncate text-md font-medium text-foreground" data-component="top-bar-title">
-            {(chatId() && useApp.chatById(chatId()!)?.name) || "New chat"}
+            {title()}
           </h1>
         </div>
         <TooltipV2 placement="bottom" openDelay={400} value="Search messages">
@@ -82,6 +82,5 @@ export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => voi
           )}
         </Show>
       </header>
-    </Show>
   )
 }
