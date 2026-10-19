@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { Envelope } from "@kiko/protocol"
-import { MEMORY_NOTE, memoryExtensions, parseZoomId } from "@kiko/memory/tools"
+import { MEMORY_NOTE, memoryDelta, memoryExtensions, parseZoomId } from "@kiko/memory/tools"
 import { perRun } from "../src/agent/extensions/self"
 import { briefToShow } from "@kiko/agent/host"
 import { renderInput } from "@kiko/agent/inbox"
@@ -115,4 +115,12 @@ test("the note rule follows capture on every render, and both versions mention r
   expect(on).toContain("saved on its own")
   expect(on).not.toContain("the moment you learn it")
   for (const rule of [off, on]) expect(rule).toContain("replaces: life:n")
+})
+
+test("ongoing turns receive the current shared memory, even without new chat history", () => {
+  const current = memoryDelta("", "#4 always add a short joke <before> replying")
+  expect(current).toContain("life (current, replaces earlier life blocks):")
+  expect(current).toContain("#4 always add a short joke &lt;before&gt; replying")
+  expect(memoryDelta("#5 human: hi")).not.toContain("life (")
+  expect(memoryDelta("", "")).toContain("(nothing yet)")
 })
