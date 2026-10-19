@@ -146,3 +146,22 @@ test("only Kiko makes agents: another agent that tries is refused, and Kiko can 
 	expect(await members(await receipt(room))).toEqual(["bo", "cy", "kiko"])
 	c.close()
 })
+
+test("member removal uses human protections and stops the removed agent", async () => {
+	const { room, c } = await roomWith("kiko", "ada", "bo")
+	expect(await rpc(room, "removeGroupMember", "di", "ada")).toMatchObject({ ok: false })
+	expect(await rpc(room, "removeGroupMember", "ada", "kiko")).toMatchObject({ ok: false, error: "chief" })
+	expect(await rpc(room, "removeGroupMember", "ada", "@bo")).toMatchObject({ ok: true })
+	expect(await members(room)).toEqual(["ada", "kiko"])
+	expect((await until(() => seen(room, "bo"), (a) => a.stops > 0)).stops).toBeGreaterThan(0)
+	expect(await rpc(room, "removeGroupMember", "ada", "bo")).toMatchObject({ ok: true })
+	c.close()
+})
+
+test("only Kiko can delete agents or groups", async () => {
+	const { room, c } = await roomWith("kiko", "ada")
+	expect(await rpc(room, "deleteOwnedAgent", "ada", "bo")).toMatchObject({ ok: false })
+	expect(await rpc(room, "deleteGroup", "ada", fresh())).toMatchObject({ ok: false })
+	expect(await rpc(room, "deleteGroup", "kiko", "invalid")).toMatchObject({ ok: false })
+	c.close()
+})

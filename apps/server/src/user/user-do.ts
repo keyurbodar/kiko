@@ -1,4 +1,6 @@
 import type { Provider } from "@earendil-works/pi-ai"
+import { isAgentSlug } from "@kiko/protocol"
+import { agentStub } from "../lib/names"
 import { fileStore } from "../files/store"
 import { KIKO, newRoomId, pairRoomId, sameAgentChat, type ThinkingLevel } from "@kiko/protocol"
 import { HomeWiring } from "./home-wiring"
@@ -49,7 +51,7 @@ import { type NewRoutine, REMINDERS_WAKEUP, Reminders, type RoutineRun, type Run
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { type ChatTasks, overview, removeBoardRow, setBoardRow } from "./overview"
 import { routineRun, type SignalBatch } from "../room/signals"
-import { roomRoutine, type RoutineResult } from "./routines"
+import { createAgentRoutine, roomRoutine, type RoutineResult } from "./routines"
 import { migrate } from "@kiko/durable/migrate"
 import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
@@ -131,7 +133,14 @@ export class UserDO extends DurableObject<Env> {
     if (out.ok || this.reminders.get(id)?.status === "cancelled") this.#recipes.routineGone(id)
     return out
   }
-  async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> { return this.#routines.createRoutine(owner, input) }
+  async createRoutine(owner: string, input: NewRoutine): Promise<RoutineResult> {
+    return createAgentRoutine(input, {
+      chat: (roomId) => this.getChat(roomId),
+      agents: () => this.listAgents(),
+      openChat: (title, agents) => this.openChat(title, agents),
+      create: (routed) => this.#routines.createRoutine(owner, routed),
+    })
+  }
   async updateRoutine(id: string, patch: Parameters<Reminders["updateRoutine"]>[1]): Promise<RoutineResult> { return this.#routines.updateRoutine(id, patch) }
 
   async recipeList(): Promise<RecipeList> {
@@ -318,7 +327,69 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async deleteChat(roomId: RoomId): Promise<boolean> {
-    return this.apply({ op: "delete", roomId }) !== null
+    const changed = this.apply({ op: "delete", roomId }) !== null
+    return changed
+  }
+
+  private async cleanDeletedChats(): Promise<void> {
+    await this.alarms.setWakeup("deletion", Date.now() + 30_000)
+    for (const { room_id } of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms").toArray()) {
+      await this.reminders.cancelRoom(room_id)
+      await this.#recipes.chatGone(room_id)
+      await roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), room_id).erase()
+      this.sql.exec("DELETE FROM deletion_rooms WHERE room_id = ?", room_id)
+    }
+    await this.alarms.clearWakeup("deletion")
+  }
+
+  async deleteAgent(handle: string) {
+    const slug = handle.trim().toLowerCase().replace(/^@/, "")
+    if (!isAgentSlug(slug) || slug === KIKO) return { ok: false as const, error: "kiko cannot be deleted; use a valid agent handle" }
+    this.sql.exec("INSERT OR IGNORE INTO deleted_agent_handles (slug) VALUES (?)", slug)
+    this.sql.exec("INSERT OR IGNORE INTO deletion_agents (slug) VALUES (?)", slug)
+    await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000)
+    const result = await this.deleteAgentNow(slug)
+    if (result.ok) this.sql.exec("DELETE FROM deletion_agents WHERE slug = ?", slug)
+    return result
+  }
+
+  private async cleanDeletedAgents(): Promise<void> {
+    await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000)
+    for (const { slug } of this.sql.exec<{ slug: AgentSlug }>("SELECT slug FROM deletion_agents").toArray()) {
+      const result = await this.deleteAgentNow(slug)
+      if (!result.ok) throw new Error(result.error)
+      this.sql.exec("DELETE FROM deletion_agents WHERE slug = ?", slug)
+    }
+    await this.alarms.clearWakeup("deletion_agents")
+  }
+
+  private async deleteAgentNow(slug: AgentSlug) {
+    const agent = listAgents(this.sql).find((a) => a.slug === slug)
+    if (!agent) return { ok: true as const, text: "agent already deleted" }
+    const owner = userIdFromObjectName(this.ctx.id.name)
+    for (const row of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM chats WHERE EXISTS (SELECT 1 FROM json_each(chats.agents) WHERE value = ?)", agent.id).toArray()) {
+      const chat = getChat(this.sql, row.room_id)
+      if (!chat) continue
+      if (chat.pair || (chat.agents?.length ?? 0) <= 1) await this.deleteChat(chat.roomId)
+      else {
+        const room = roomStub(this.env.ROOM, owner, chat.roomId)
+        const reason = await room.memberOp({ op: "remove", slug })
+        if (reason && reason !== "unknown") return { ok: false as const, error: reason }
+        await agentStub(this.env.AGENT, owner, chat.roomId, slug).erase()
+        await this.chatMembers(chat.roomId, (await room.memberSlugs()).filter((s) => s !== slug))
+      }
+    }
+    for (const { room_id } of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM chats").toArray()) await roomStub(this.env.ROOM, owner, room_id).eraseFormerAgent(slug)
+    await this.#recipes.agentGone(slug)
+    await this.reminders.cancelAgent(slug)
+    for (const { pos } of this.sql.exec<{ pos: number }>("SELECT pos FROM life WHERE source = ? AND redacted = 0", `@${slug}`).toArray()) this.life.redact(pos)
+    await this.#mem.armNaps()
+    this.changed("memory")
+    this.sql.exec("DELETE FROM souls WHERE slug = ?", slug)
+    deleteSetting(this.sql, `agentModel:${slug}`)
+    this.sql.exec("DELETE FROM agents WHERE id = ?", agent.id)
+    this.commit({ t: "agent_removed", id: agent.id, slug })
+    return { ok: true as const, text: `@${slug} deleted` }
   }
 
   async touchChat(roomId: RoomId, touch: Touch): Promise<boolean> {
@@ -407,6 +478,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   async makeAgent(input: { id?: string; name: string; slug: string; description: string; soul: string; model: string }): Promise<Agent | null> {
+    if (this.sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", input.slug.trim().toLowerCase().replace(/^@/, "")).toArray().length) throw new Error("This agent handle was deleted and cannot be reused. Choose a new handle.")
     const agent = this.saveAgent({ id: input.id ?? crypto.randomUUID(), name: input.name, slug: input.slug as AgentSlug, prompt: input.description, model: input.model })
     if (!agent) return null
     await this.souls.seed(agent.slug, input.soul)
@@ -922,7 +994,8 @@ export class UserDO extends DurableObject<Env> {
       return
     }
     if (frame.t === "agent") {
-      this.saveAgent(frame.op.agent)
+      if (frame.op.op === "delete") await this.deleteAgent(frame.op.slug)
+      else this.saveAgent(frame.op.agent)
       return
     }
     if (frame.t === "agent_model") {
@@ -971,6 +1044,8 @@ export class UserDO extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
+      deletion_agents: () => this.cleanDeletedAgents().catch(async () => { await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000) }),
+      deletion: () => this.cleanDeletedChats().catch(async () => { await this.alarms.setWakeup("deletion", Date.now() + 30_000) }),
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
       [CATALOG_WAKEUP]: () => this.models.wake(),
       [PROVIDERS_WAKEUP]: () => this.#watch.wake(),
@@ -992,9 +1067,13 @@ export class UserDO extends DurableObject<Env> {
     const event = this.commit(applyChatOp(this.sql, op, Date.now()))
     // A deleted chat keeps no reminders or routines.
     if (event && op.op === "delete") {
-      this.ctx.waitUntil(this.reminders.cancelRoom(op.roomId).catch((e: unknown) => console.error(`routines not cancelled: ${e instanceof Error ? e.message : String(e)}`)))
-      this.ctx.waitUntil(this.#recipes.chatGone(op.roomId).catch((e: unknown) => console.error(`recipes not cleared: ${e instanceof Error ? e.message : String(e)}`)))
+
       removeBoardRow(this.sql, op.roomId)
+      this.sql.exec("DELETE FROM capture_queue WHERE room_id = ?", op.roomId)
+      this.life.redactRefs(this.life.refsLike(`room:${op.roomId}:`))
+      this.changed("memory")
+      this.sql.exec("INSERT OR IGNORE INTO deletion_rooms (room_id) VALUES (?)", op.roomId)
+      this.ctx.waitUntil(this.alarms.setWakeup("deletion", Date.now()))
     }
     if (event && op.op === "private") {
       const room = roomStub(this.env.ROOM, userIdFromObjectName(this.ctx.id.name), op.roomId)
@@ -1031,6 +1110,10 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private saveAgent(agent: Agent): Agent | null {
+    if (this.sql.exec("SELECT 1 FROM deleted_agent_handles WHERE slug = ?", agent.slug).toArray().length) {
+      this.broadcast({ t: "error", error: { code: "storage", message: "This agent handle was deleted and cannot be reused. Choose a new handle." } })
+      return null
+    }
     const stored = createAgent(this.sql, agent, Date.now())
     if (!stored) return null
     this.commit({ t: "agent", agent: stored })
@@ -1062,7 +1145,7 @@ export class UserDO extends DurableObject<Env> {
     return this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM user_events").one().seq ?? 0
   }
 
-  private commit(change: ChatChange | { t: "agent"; agent: Agent } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
+  private commit(change: ChatChange | { t: "agent"; agent: Agent } | { t: "agent_removed"; id: string; slug: AgentSlug } | ({ t: "agent_model"; slug: AgentSlug } & AgentModel) | { t: "theme"; theme: string | null } | FileBody | null): UserEvent | null {
     if (!change || (change.t === "chat" && change.chat.pair)) return null
     if (change.t === "chat") change = { ...change, chat: markKikoChat(this.sql, change.chat) }
     const at = Date.now()

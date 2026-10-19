@@ -15,7 +15,7 @@ import { sectionOf } from "./sections"
 export function TopBar(props: { sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const location = useLocation()
   const chatId = () => {
-    const id = /^\/chat\/([^/]+)$/.exec(location.pathname)?.[1]
+    const id = /^\/chat\/([^/]+)\/?$/.exec(location.pathname)?.[1]
     return id ? decodeURIComponent(id) : null
   }
   const toggle = (on: boolean) => `top-bar-button ${on ? "bg-accent text-foreground" : ""}`

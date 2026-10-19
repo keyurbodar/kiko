@@ -47,7 +47,7 @@ const [providers, actions] = createRoot(() => {
 export const connectedProviders = (): ProviderInfo[] => {
   const key = identity()
   if (!key) return []
-  const value = providers()
+  const value = providers.state === "ready" || providers.state === "refreshing" ? providers.latest : undefined
   return value?.identity === key ? value.list : readStored(key)
 }
 export const refreshConnected = () => actions.refetch()

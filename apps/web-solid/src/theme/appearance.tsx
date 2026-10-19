@@ -1,4 +1,4 @@
-import { createSignal, For, Show, type JSX } from "solid-js"
+import { createEffect, createSignal, For, Show, type JSX } from "solid-js"
 import { appearanceOf } from "@kiko/theme/apply"
 import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
 import { themeFor } from "@kiko/theme/imported"
@@ -103,6 +103,27 @@ function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
   )
 }
 
+function FontField(props: { label: string; placeholder: string; value: string; onInput: (value: string) => void }) {
+  const [draft, setDraft] = createSignal(props.value)
+  const [editing, setEditing] = createSignal(false)
+  createEffect(() => {
+    if (!editing()) setDraft(props.value)
+  })
+  return <input
+    class="kit-field w-44"
+    aria-label={props.label}
+    placeholder={props.placeholder}
+    value={draft()}
+    onFocus={() => setEditing(true)}
+    onBlur={() => setEditing(false)}
+    onInput={(event) => {
+      const value = event.currentTarget.value
+      setDraft(value)
+      props.onInput(value.trim())
+    }}
+  />
+}
+
 export default function Appearance(): JSX.Element {
   const [browsing, setBrowsing] = createSignal(false)
   const d = () => look().display
@@ -159,10 +180,10 @@ export default function Appearance(): JSX.Element {
           />
         </Row>
         <Row label="Interface font" description="Any font on this device. Empty uses the system font." onReset={reset("interfaceFont")}>
-          <input class="kit-field w-44" aria-label="Interface font" placeholder="System" value={d().interfaceFont} onChange={(e) => set({ interfaceFont: e.currentTarget.value.trim() })} />
+          <FontField label="Interface font" placeholder="System" value={d().interfaceFont} onInput={(interfaceFont) => set({ interfaceFont })} />
         </Row>
         <Row label="Code font" onReset={reset("codeFont")}>
-          <input class="kit-field w-44" aria-label="Code font" placeholder="System mono" value={d().codeFont} onChange={(e) => set({ codeFont: e.currentTarget.value.trim() })} />
+          <FontField label="Code font" placeholder="System mono" value={d().codeFont} onInput={(codeFont) => set({ codeFont })} />
         </Row>
         <Row label="Thin text smoothing" onReset={reset("smoothing")}>
           <Toggle label="Thin text smoothing" on={d().smoothing} onChange={(smoothing) => set({ smoothing })} />

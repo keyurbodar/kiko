@@ -23,6 +23,8 @@ import type { StepItem } from "../agent/extensions/presence"
 import { bubbleTouch, chatTouch, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./chat-touch"
 import { Deliveries, withContext } from "./deliver"
 import { type AgentSend, type Chain, Mail } from "./mail"
+import { erase } from "../lib/erase"
+import { isRoomId } from "@kiko/protocol"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
 import { CHAT_PATH } from "../files/room-fs"
@@ -315,6 +317,34 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 		return this.groups.createAgent(slug, spec)
 	}
 
+	async deleteGroup(slug: AgentSlug, roomId: string) {
+		const home = this.home()
+		if (!home || slug !== CHIEF || !this.members.get(slug)) return { ok: false as const, error: "only kiko can delete groups" }
+		if (!isRoomId(roomId)) return { ok: false as const, error: "invalid room id" }
+		const user = userStub(this.env.USER, home.userId)
+		const chat = await user.getChat(roomId)
+		if (!chat) return { ok: true as const, text: "group already deleted" }
+		if (chat.kiko || chat.pair || (chat.agents?.length ?? 0) < 2) return { ok: false as const, error: "only group chats can be deleted with this tool" }
+		await user.deleteChat(roomId)
+		return { ok: true as const, text: "group deleted" }
+	}
+
+	async deleteOwnedAgent(slug: AgentSlug, handle: string) {
+		const home = this.home()
+		if (!home || slug !== CHIEF || !this.members.get(slug)) return { ok: false as const, error: "only kiko can delete agents" }
+		return userStub(this.env.USER, home.userId).deleteAgent(handle)
+	}
+
+	async removeGroupMember(slug: AgentSlug, handle: string) {
+		if (!this.members.get(slug)) return { ok: false as const, error: "you are not a member of this chat" }
+		const target = handle.trim().toLowerCase().replace(/^@/, "")
+		if (!isAgentSlug(target)) return { ok: false as const, error: "invalid handle" }
+		if (this.log.meta(KIKO_CHAT) === "1" || this.members.list().length < 2) return { ok: false as const, error: "members can only be removed from groups" }
+		if (!this.members.get(target)) return { ok: true as const, text: "member already removed" }
+		const reason = this.memberOp({ op: "remove", slug: target })
+		return reason ? { ok: false as const, error: reason } : { ok: true as const, text: `@${target} removed` }
+	}
+
 	async createGroup(slug: AgentSlug, input: GroupInput): Promise<GroupResult> {
 		return this.groups.createGroup(slug, input)
 	}
@@ -375,6 +405,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async alarm(): Promise<void> {
+		if (this.log.meta("deleted") === "1") return
 		const due = await this.alarms.dueWakeups(Date.now())
 		await runDue(this.alarms, due, {
 			[HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
@@ -512,7 +543,28 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 
 
 
+	memberSlugs(): AgentSlug[] { return this.members.list().map((m) => m.slug) }
+
+	async eraseFormerAgent(slug: AgentSlug): Promise<void> {
+		const home = this.home()
+		if (home && this.members.everyone().includes(slug) && !this.members.get(slug)) await agentStub(this.env.AGENT, home.userId, home.roomId, slug).erase()
+	}
+
+	async erase(): Promise<void> {
+		const home = this.home()
+		if (!home || this.log.meta("deleted") === "1") return
+		for (const slug of this.members.everyone()) await agentStub(this.env.AGENT, home.userId, home.roomId, slug).erase()
+		const pending = this.ctx.storage.sql.exec<{ r2_key: string; upload_id: string | null }>("SELECT r2_key, upload_id FROM pending_uploads").toArray()
+		for (const row of pending) if (row.upload_id) await fileStore(this.env).resumeMultipartUpload(row.r2_key, row.upload_id).abort()
+		const keys = this.ctx.storage.sql.exec<{ r2_key: string }>("SELECT r2_key FROM ws_files UNION SELECT r2_key FROM pending_uploads").toArray().map((r) => r.r2_key)
+		if (keys.length) await deleteFiles(fileStore(this.env), keys)
+		for (const ws of this.ctx.getWebSockets()) ws.close(1000, "Chat deleted")
+		erase(this.ctx.storage)
+		await this.ctx.storage.deleteAlarm()
+	}
+
 	async fetch(request: Request): Promise<Response> {
+		if (this.log.meta("deleted") === "1") return new Response("chat deleted", { status: 410 })
 		if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
 			return new Response("expected a websocket upgrade", { status: 426 })
 		}
@@ -539,6 +591,7 @@ export class RoomDO extends DurableObject<Env> implements SocketRoom {
 	}
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+		if (this.log.meta("deleted") === "1") return
 		try {
 			await handleFrame(this, ws, message)
 		} catch (e) {

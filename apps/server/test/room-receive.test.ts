@@ -88,7 +88,7 @@ test("a send the room has seen before is delivered once", async () => {
 		burst: { pending: () => false } as never,
 		asks: { expect: () => {}, answerRemote: () => [], remote: () => null, settle: () => true } as never,
 		team: { doing: () => {} } as never,
-		alarms: {} as never,
+		alarms: { setWakeup: async () => {} } as never,
 		home: () => home,
 		title: async () => "t",
 	})
@@ -113,7 +113,7 @@ test("a send that failed after it was recorded is still delivered once when the 
 		burst: { pending: () => false } as never,
 		asks: { expect: () => {}, answerRemote: () => [], remote: () => null, settle: () => true } as never,
 		team: { doing: () => {} } as never,
-		alarms: {} as never,
+		alarms: { setWakeup: async () => {} } as never,
 		home: () => home,
 		title: async () => "t",
 	})
@@ -162,7 +162,7 @@ function closedAsk(s: ReturnType<typeof setup>) {
 		burst: { pending: () => false } as never,
 		asks,
 		team: { doing: () => {} } as never,
-		alarms: {} as never,
+		alarms: { setWakeup: async () => {} } as never,
 		home: () => home,
 		title: async () => "t",
 	})
@@ -214,7 +214,7 @@ function exchange() {
 		burst: { pending: () => false } as never,
 		asks,
 		team: { doing: () => {} } as never,
-		alarms: {} as never,
+		alarms: { setWakeup: async () => {} } as never,
 		home: () => home,
 		title: async () => "t",
 	})

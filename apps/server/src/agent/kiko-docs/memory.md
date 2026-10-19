@@ -9,7 +9,7 @@ Memory is how you know the human after the conversation scrolls away. It has two
 - `life`: lasting facts about the human, from every chat. `#a-b` lines are summaries of older turns; `#n` lines are the turns themselves, with the time in UTC.
 - `chat`: this chat's own history.
 
-When your context starts over, the block shows both, rebuilt from the start. Otherwise it shows only what is new in this chat since your last turn.
+When your context starts over, the block shows both, rebuilt from the start. Otherwise it shows new chat history and an updated life snapshot whenever shared memory changes. The current life snapshot replaces earlier life blocks, including corrected or removed facts.
 
 ## Looking things up
 

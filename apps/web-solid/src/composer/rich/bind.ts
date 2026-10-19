@@ -3,6 +3,7 @@ import type { PromptInputV2Interaction } from "../prompt-input/interaction"
 import type { PromptInputV2Attachment } from "../prompt-input/types"
 import { composingKey, enterIsNewline } from "../ime"
 import { chipView, fileRefView } from "../prompt-input/chip"
+import { pastedComposerFragment, prepareClipboardFiles } from "./clipboard"
 import { mountRichEditor, type RichEditor } from "./editor"
 
 export type RichBinding = {
@@ -54,6 +55,15 @@ export function bindRich(input: {
       if (!event.repeat) controller.submit()
       return true
     },
+    pastedText: (clipboard) => {
+      const fragment = pastedComposerFragment(clipboard)
+      if (!fragment) return clipboard.getData("text/plain")
+      const replacements = controller.importAttachments(fragment.files)
+      return fragment.markdown.replace(/!?\[[^\]\n]*\]\(attachment:([\w-]+)\)/g, (token, id: string) => {
+        const target = replacements.get(id) ?? id
+        return controller.attachments().some((attachment) => attachment.id === target) ? token.replace(`(attachment:${id})`, `(attachment:${target})`) : ""
+      })
+    },
     onPaste: (event) => {
       const clipboard = event.clipboardData
       const files = Array.from(clipboard?.items ?? []).some((item) => item.kind === "file")
@@ -76,6 +86,8 @@ export function bindRich(input: {
     insertFileRefs: (paths, at) => editor.insertFileRefs(paths, at),
     removeAttachment: (id) => editor.removeAttachment(id),
   })
+
+  createEffect(() => prepareClipboardFiles(controller.attachments()))
 
   createEffect(() => {
     const text = markdown()

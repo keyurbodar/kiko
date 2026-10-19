@@ -16,9 +16,9 @@ import { createFileView, setSourceFor } from "./view"
 
 const FileDialog = lazy(() => import("./FileDialog"))
 
-function useChatFiles(chatId: string) {
+function useChatFiles(chatId: () => string) {
 	const home = createMemo(() => withMade(HOME, useApp.homeFiles()).map((f) => ({ ...f, name: `${HOME}/${f.name}` })))
-	const files = createMemo(() => [...withMade(chatId, useApp.activeFiles()), ...home()])
+	const files = createMemo(() => [...withMade(chatId(), useApp.activeFiles()), ...home()])
 	const folders = createMemo(() => [...useApp.activeFolders(), HOME, ...useApp.homeFolders().map((f) => `${HOME}/${f}`)])
 	const index = createMemo(() => buildIndex(files().map((f) => f.name), folders()))
 	return { files, folders, index }
@@ -35,7 +35,7 @@ export function FilesTree(props: { chatId: string }) {
 		if (!home[0]) return useApp.fileOp(o)
 		useApp.homeOp(o.op === "rm" ? { ...o, paths: o.paths.map(strip) } : o.op === "mv" ? { ...o, from: strip(o.from), to: strip(o.to) } : { ...o, path: strip(o.path) })
 	}
-	const { files, folders } = useChatFiles(props.chatId)
+	const { files, folders } = useChatFiles(() => props.chatId)
 	const make = (p: string) => {
 		const at = where(props.chatId, p)
 		void createFile(at.space, at.path).then((made) => {
@@ -47,8 +47,8 @@ export function FilesTree(props: { chatId: string }) {
 
 	return (
 		<aside class="flex min-h-0 min-w-0 flex-1 flex-col px-2 pt-1 pb-2" aria-label="File explorer" data-component="file-explorer">
-			<FileTree
-				roomId={props.chatId}
+			<Show when={props.chatId} keyed>{(chatId) => <FileTree
+				roomId={chatId}
 				files={files()}
 				folders={folders()}
 				onNewFolder={(p) => op({ op: "mkdir", path: p })}
@@ -66,14 +66,14 @@ export function FilesTree(props: { chatId: string }) {
 					const at = where(props.chatId, p)
 					forgetMade(at.space, at.path)
 				}}
-			/>
+			/>}</Show>
 		</aside>
 	)
 }
 
 
 export function FileSurface(props: { chatId: string; path: string }) {
-	const { files, index } = useChatFiles(props.chatId)
+	const { files, index } = useChatFiles(() => props.chatId)
 	const file = createMemo(() => files().find((f) => f.name === props.path))
 	const kind = createMemo<ViewerKind>(() => {
 		const f = file()

@@ -790,6 +790,12 @@
   overflow: hidden;
 }
 
+.sidebar-shell:has(.resize-handle[data-dragging]),
+.sidebar-shell:has(.resize-handle[data-dragging]) * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .sidebar-shell .resize-handle {
   position: relative;
   z-index: 21;
@@ -814,8 +820,8 @@
 
 .sidebar-shell .resize-handle::after {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: var(--frame-gap);
+  bottom: var(--frame-gap);
   left: -1px;
   width: 2px;
   background: color-mix(in oklab, var(--foreground) 14%, transparent);

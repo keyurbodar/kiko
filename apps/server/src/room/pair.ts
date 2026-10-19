@@ -46,6 +46,7 @@ export class RoomPair {
 			rootId: input.rootId,
 			seq: stored.seq,
 		}
-		return (await receive(this.d, home, member, members, chat.title, [envelope])) === "full" ? "full" : "ok"
+		const receipt = await receive(this.d, home, member, members, chat.title, [envelope])
+		return receipt === "admitted" ? "ok" : receipt
 	}
 }

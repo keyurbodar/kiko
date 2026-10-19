@@ -73,3 +73,13 @@ test("a routine that becomes a webhook gets a token that finds it", async () => 
   if (!out.ok || !out.token) throw new Error("no webhook token")
   expect(t.reminders.byHook(await sha256Hex(out.token))?.id).toBe(made.routine.id)
 })
+
+test("deleting an agent purges its routine instructions and run history", async () => {
+  const t = routines()
+  const made = await t.wiring.createRoutine("u", { ...hook, target: "radar" })
+  if (!made.ok) throw new Error(made.error)
+  t.sql.exec("INSERT INTO routine_runs (routine_id, occurrence, started_at, status) VALUES (?, 'one', 1, 'done')", made.routine.id)
+  await t.reminders.cancelAgent("radar")
+  expect(t.sql.exec("SELECT * FROM reminders").toArray()).toEqual([])
+  expect(t.sql.exec("SELECT * FROM routine_runs").toArray()).toEqual([])
+})

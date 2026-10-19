@@ -162,6 +162,12 @@ export class RecipeService {
     })
   }
 
+  agentGone(slug: string): Promise<void> {
+    return this.serial(async () => {
+      for (const install of listInstalls(this.p.sql).filter((i) => i.agent === slug)) await this.removeInstall(install.installId)
+    })
+  }
+
   /** What an agent's skills list says about each recipe. A recipe with no schedule that the human turned on for this agent here says so. */
   async briefs(roomId: string, agent: string): Promise<{ name: string; description: string }[]> {
     const { recipes } = await this.p.library.read()

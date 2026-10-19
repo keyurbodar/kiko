@@ -83,10 +83,12 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
           data-path={props.file.path}
           data-missing={find(props.file.path).kind === "none" ? "" : undefined}
           aria-label={`${folder() ? "Show" : "Open"} ${full()}`}
-          draggable={ref() !== undefined}
+          draggable={ref() !== undefined || folder()}
           onDragStart={(event: DragEvent) => {
             const file = ref()
-            if (!file || !event.dataTransfer) return event.preventDefault()
+            if (!event.dataTransfer) return event.preventDefault()
+            if (folder()) return setFileDrag(event.dataTransfer, `${props.file.path.replace(/\/+$/, "")}/`)
+            if (!file) return event.preventDefault()
             setFileDrag(event.dataTransfer, file.name)
           }}
           onClick={(event: MouseEvent) => open(event.currentTarget as Element)}

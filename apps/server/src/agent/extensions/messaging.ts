@@ -28,7 +28,7 @@ export function messagingExtension(port: () => MessagingPort | null): Extension 
   const send = async (to: AgentSlug | "all", body: string, api: Pick<ToolExecutionApi, "conversationId" | "callId">) => {
     const out = await room().send({ id: `${api.conversationId}:${api.callId}`, to, text: body })
     return out.ok
-      ? { output: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat, and their answer will reach you as a message. if that was all you had to say, reply with just [skip].`) }
+      ? { output: text(`sent to ${out.to.map((s) => `@${s}`).join(", ")}. it shows in the chat, and their answer will reach you as a new message and wake you. When it arrives, continue the work or tell the human the result without waiting for another human message. If you have nothing else to add now, reply with just [skip].`) }
       : { output: text(out.error), isError: true }
   }
   const slug = (description: string) => Type.String({ description })

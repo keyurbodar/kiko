@@ -30,9 +30,9 @@ export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = 
   full: { label: "Full", width: "100%" },
 }
 
-// Kiko's own faces ship with the app (public/fonts). Figtree sets the interface and Bricolage Grotesque the headings.
-export const SANS_STACK = 'Figtree, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
-export const DISPLAY_STACK = `"Bricolage Grotesque", ${SANS_STACK}`
+// Empty font preferences follow the device, including headings.
+export const SANS_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+export const DISPLAY_STACK = SANS_STACK
 export const MONO_STACK = '"SF Mono", Menlo, Consolas, "Liberation Mono", ui-monospace, monospace'
 
 export function fontFamily(name: string, stack: string): string {

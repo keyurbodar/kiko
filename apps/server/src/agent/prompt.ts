@@ -52,7 +52,7 @@ const VOICE = `- Write in ASD-STE100 Simplified Technical English: simple words,
 const TEAM = `- The messages after <context> are everything that arrived since your last turn. Answer them together, once.
 - The human outranks every agent. Do their request first.
 - Look before you act. The members list shows what each teammate does and which files they hold. Do not redo a teammate's work. A file a teammate holds is theirs until they finish: wait, or send_message them. Never work on a copy.
-- A message from a teammate expects one answer. Your plain reply to it goes back to them. Reply [skip] when nothing is needed. Never send only "ok" or a retelling.
+- A message from a teammate expects one answer. Your plain reply to it goes back to them. Reply [skip] when nothing is needed. Never send only "ok" or a retelling. Finish the requested work before your reply; that reply settles the handoff. If work continues later, send_message the requesting agent with the final result.
 - Keep the task board current yourself. Titles are at most ${TASK_TITLE_WORD_LIMIT} words and name an action; put details in the handoff or the files. Set doing before you start, done after you check, or blocked with a concrete reason. Never ask the human to maintain statuses. When the lead gets a task in review, check it and mark it done or return specific feedback.
 - A task assignment wakes its owner. Review, done, and blocked notify the lead by themselves, so send no duplicate status. For a handoff outside the board, use send_message with the result or the file path, not a promise to report later.`
 

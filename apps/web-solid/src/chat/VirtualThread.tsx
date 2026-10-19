@@ -262,6 +262,8 @@ export function VirtualThread(props: {
   let restoredFor: string | undefined
   /** True once the saved position was actually applied. Only then may a scroll overwrite it. */
   let restoredOk = false
+  let restoreGeneration = 0
+  onCleanup(() => { restoreGeneration += 1 })
 
   const showsKey = () => {
     const first = props.messages[0]
@@ -290,7 +292,7 @@ export function VirtualThread(props: {
       const row = columnElement?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(item.message.id)}"]`)
       const rect = row?.getBoundingClientRect()
       const viewport = scrollElement?.getBoundingClientRect()
-      const offset = rect && viewport ? Math.round(rect.top - viewport.top) : Math.round(state.scrollOffset - virtualizer.getItemOffset(i))
+      const offset = rect && viewport ? Math.round(rect.top - viewport.top) : Math.round(virtualizer.getItemOffset(i) - state.scrollOffset)
       props.scrollBook.saveScroll(key, { messageId: item.message.id, offset })
       return
     }
@@ -312,6 +314,8 @@ export function VirtualThread(props: {
     // in the book, so a later visit that pages it in still finds it.
     const index = items().findIndex((item) => item.kind === "message" && item.message.id === saved.messageId)
     if (index < 0) return false
+    const generation = ++restoreGeneration
+    const current = () => generation === restoreGeneration && props.scrollKey === key
     let tries = 0
     stuck = false
     /**
@@ -321,6 +325,7 @@ export function VirtualThread(props: {
      * a few lines off it.
      */
     const apply = (pass = 0) => {
+      if (!current()) return
       const virtualizer = handle()
       const scroller = scrollElement
       if (!virtualizer || !scroller) {
@@ -352,8 +357,9 @@ export function VirtualThread(props: {
       finish()
     }
     const finish = () => {
-      commitState(readState())
+      if (!current()) return
       restoredOk = true
+      commitState(readState())
     }
     apply()
     return true
@@ -363,6 +369,10 @@ export function VirtualThread(props: {
   const commitState = (state: VirtualThreadState) => {
     setScrollState(state)
     recordScroll(state)
+    if (!restoredOk && props.scrollKey && props.scrollBook?.scroll(props.scrollKey)) {
+      props.onStateChange(state)
+      return
+    }
     if (isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)) {
       setPinnedCount(messageCount())
       props.onAtLatest?.()
@@ -468,7 +478,7 @@ export function VirtualThread(props: {
     const onScroll = () => {
       const state = readState()
       const atEnd = isAtBottom(state.scrollOffset, state.scrollSize, state.viewportSize, AT_BOTTOM_THRESHOLD_PX)
-      if (atEnd) stuck = true
+      if (atEnd && restoredOk) stuck = true
       else if (readerScrolling || dragging) stuck = false
       // A saved place whose message the window does not hold cannot be restored yet. Once the reader
       // scrolls, their own position is the truth, and saving it must be allowed again.
@@ -488,6 +498,7 @@ export function VirtualThread(props: {
     let readerScrollEnd: ReturnType<typeof setTimeout> | undefined
     onCleanup(() => clearTimeout(readerScrollEnd))
     const readerMoved = () => {
+      restoreGeneration += 1
       readerScrolling = true
       // The day pill follows the reader, whichever way they scroll: keys and a drag move the view
       // without a wheel or a touch, and the pill is the only thing that says which day they are in.
@@ -530,11 +541,12 @@ export function VirtualThread(props: {
   let firstLoad = true
   let lastOwner: unknown
   createEffect(
-    on(items, () => {
+    on(() => [items(), props.scrollKey, props.scrollBook?.ready?.()], () => {
       const owner: unknown = props.scrollKey ?? props.messages
       if (owner !== lastOwner) {
         lastOwner = owner
         firstLoad = true
+        restoreGeneration += 1
         restoredFor = undefined
         restoredOk = false
         // `stuck` is a fact about the chat that was on screen. A new chat opens at its end.

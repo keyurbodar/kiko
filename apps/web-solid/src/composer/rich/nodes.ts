@@ -73,7 +73,7 @@ export function attachmentExtension(view: ChipView) {
   })
 }
 
-export type FileRefView = (dom: HTMLElement, ref: { path: string }) => () => void
+export type FileRefView = (dom: HTMLElement, ref: { path: string; folder: boolean }) => () => void
 
 /**
  * A file of the chat's workspace named in the text, dragged in from the Files tree or a chat chip.
@@ -97,7 +97,7 @@ export function fileRefExtension(view: FileRefView) {
       dom.className = "composer-chip-node"
       dom.contentEditable = "false"
       dom.dataset.fileRef = String(node.attrs.path)
-      const dispose = view(dom, { path: String(node.attrs.path) })
+      const dispose = view(dom, { path: String(node.attrs.path), folder: Boolean(node.attrs.folder) })
       return { dom, ignoreMutation: () => true, destroy: dispose }
     },
   })

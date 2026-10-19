@@ -17,7 +17,7 @@ const pair = pairRoomId(A, B)
 const member = (slug: AgentSlug) => ({ slug, name: slug }) as MemberRow
 
 /** Two rooms joined by a fake Worker: the origin holds ada, the pair room holds ada and bob. Each room is the real Mail, Asks, RoomMail and RoomPair over its own sql. */
-function world() {
+function world(options: { failDelivery?: () => boolean; refuseDelivery?: (slug: string) => boolean } = {}) {
 	const received: { room: string; slug: string; envelope: Envelope }[] = []
 	const rooms = new Map<string, { mailer: RoomMail; pairs: RoomPair }>()
 	const env = {
@@ -34,6 +34,8 @@ function world() {
 				const [, , room, slug] = name.split(":") as [string, string, string, string]
 				return {
 					receive: async (envelopes: Envelope[]) => {
+						if (options.failDelivery?.()) throw new Error("temporary delivery outage")
+						if (options.refuseDelivery?.(slug)) return { refused: "too_large" }
 						for (const envelope of envelopes) received.push({ room, slug, envelope })
 						return { refused: null }
 					},
@@ -49,6 +51,7 @@ function world() {
 		const mail = new Mail(storage, log, asks)
 		const home = { userId: "alice", roomId }
 		const pending: Promise<unknown>[] = []
+		const wakeups: string[] = []
 		const ctx = { storage, waitUntil: (p: Promise<unknown>) => void pending.push(p) } as never
 		const shared = {
 			env: env as never,
@@ -67,7 +70,7 @@ function world() {
 			burst: { pending: () => false } as never,
 			asks,
 			team: { doing: () => {} } as never,
-			alarms: { setWakeup: async () => {} } as never,
+			alarms: { setWakeup: async (key: string) => { wakeups.push(key) } } as never,
 			home: () => home,
 			title: async () => chat.title,
 			pair: async (_from, to) => (to === B ? { ok: true, roomId: pair } : { ok: false, error: `no agent @${to}` }),
@@ -85,7 +88,7 @@ function world() {
 		const settle = async () => {
 			while (pending.length) await pending.splice(0).reduce((a, p) => a.then(() => p), Promise.resolve())
 		}
-		return { log, asks, mail, mailer, home, settle, members, text: () => log.snapshot().messages.map((m) => ({ from: m.from.kind === "agent" ? m.from.slug : m.from.kind, text: m.text, to: m.to })) }
+		return { log, asks, mail, mailer, home, settle, members, wakeups, text: () => log.snapshot().messages.map((m) => ({ from: m.from.kind === "agent" ? m.from.slug : m.from.kind, text: m.text, to: m.to })) }
 	}
 	const r = build(origin, [member(A)], { title: "origin" })
 	const p = build(pair, [member(A), member(B)], { pair: true, title: "@ada and @bob" })
@@ -201,4 +204,41 @@ test("a send to an agent the human does not have is refused with the error", asy
 	const { r } = world()
 	expect(await r.mailer.send(A, { id: "s1", to: "zed" as AgentSlug, text: "hi" })).toEqual({ ok: false, error: "no agent @zed" })
 	expect(r.text()).toEqual([])
+})
+
+
+test("a private reply survives a failed delivery to the asker and wakes it on retry", async () => {
+  let fail = false
+  const { r, p, inRoom } = world({ failDelivery: () => fail })
+  await r.mailer.send(A, { id: "retry", to: B, text: "find the answer" })
+  await r.settle()
+  p.log.addMessage({ from: { kind: "agent", slug: B }, text: "42", run: { runId: "answer", attempt: 1, index: 0 } })
+  fail = true
+  p.mailer.answerAsks(B, "answer", [inRoom(pair, B)[0]!.id])
+  await p.settle()
+  await r.settle()
+  expect(r.mail.pending()).toHaveLength(1)
+  expect(inRoom(origin, A)).toEqual([])
+  fail = false
+  await r.mailer.drain()
+  expect(inRoom(origin, A).map((e) => e.body)).toEqual(["42"])
+  expect(r.mail.pending()).toHaveLength(0)
+  expect(r.text().filter((m) => m.from === "bob")).toHaveLength(1)
+})
+
+
+test("accepting private mail arms a durable retry before returning success", async () => {
+  const { r } = world()
+  expect(await r.mailer.send(A, { id: "durable", to: B, text: "work" })).toMatchObject({ ok: true })
+  expect(r.wakeups).toContain("mail")
+  await r.settle()
+})
+
+
+test("a refused private message reports failure back in the requesting chat", async () => {
+  const { r, inRoom } = world({ refuseDelivery: (slug) => slug === B })
+  await r.mailer.send(A, { id: "refused", to: B, text: "too much" })
+  await r.settle()
+  expect(inRoom(origin, A).map((e) => e.body)).toEqual([expect.stringContaining("could not be delivered")])
+  expect(r.mail.pending()).toHaveLength(0)
 })

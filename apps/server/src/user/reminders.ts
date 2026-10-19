@@ -375,8 +375,22 @@ export class Reminders {
 
   /** A deleted chat takes its reminders and routines with it. */
   async cancelRoom(roomId: string): Promise<void> {
-    const changed = this.sql.exec("UPDATE reminders SET status = 'cancelled', hook_hash = NULL WHERE room_id = ? AND status IN ('active', 'paused', 'failed')", roomId)
-    if (changed.rowsWritten) await this.rearm()
+    this.purge(this.sql.exec<{ id: string }>("SELECT id FROM reminders WHERE room_id = ?", roomId).toArray().map((row) => row.id))
+    await this.rearm()
+  }
+
+  async cancelAgent(slug: string): Promise<void> {
+    this.purge(this.sql.exec<{ id: string }>("SELECT id FROM reminders WHERE target = ? OR created_by = ?", slug, slug).toArray().map((row) => row.id))
+    await this.rearm()
+  }
+
+  private purge(ids: string[]): void {
+    if (!ids.length) return
+    const list = JSON.stringify(ids)
+    this.sql.exec("DELETE FROM routine_runs WHERE routine_id IN (SELECT value FROM json_each(?))", list)
+    this.sql.exec("DELETE FROM recipe_links WHERE routine_id IN (SELECT value FROM json_each(?))", list)
+    this.sql.exec("DELETE FROM loop_reminders WHERE reminder_id IN (SELECT value FROM json_each(?))", list)
+    this.sql.exec("DELETE FROM reminders WHERE id IN (SELECT value FROM json_each(?))", list)
   }
 
   /** Drops a routine that was just created, when the wiring around it failed. */

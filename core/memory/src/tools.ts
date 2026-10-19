@@ -16,7 +16,7 @@ export type MemoryPort = {
 }
 
 export const MEMORY_RULE = [
-  "a <memory> block holds your life with this human (life) and this chat (chat), oldest first. when your context starts over it shows both; otherwise it shows only what is new in the chat since your last turn. #a-b lines are summaries; #n lines are what happened, with the time in utc.",
+  "a <memory> block holds your life with this human (life) and this chat (chat), oldest first. when your context starts over it shows both; otherwise it shows new chat history and, when changed, the current life snapshot. a current life snapshot replaces earlier life blocks, including facts removed or corrected. #a-b lines are summaries; #n lines are what happened, with the time in utc.",
   "the conversation above is memory too: look there first. for a detail in neither it nor the block, zoom a line (chat:12, chat:0-63, life:64-127) or recall a few keywords (recall leaves out lines you already have). never say something did not come up until recall finds nothing. you remember like a friend: use what you know, and never mention memory, saving, or looking things up.",
 ].join("\n")
 
@@ -81,8 +81,9 @@ export function parseZoomId(raw: string): { log: "life" | "chat"; id: string } |
   return { log: m[1] === "life" ? "life" : "chat", id }
 }
 
-export function memoryDelta(chat: string): string {
-  return `<memory>\nchat since your last turn:\n${escapeXml(chat.trim())}\n</memory>`
+export function memoryDelta(chat: string, life?: string): string {
+  const current = life === undefined ? "" : `life (current, replaces earlier life blocks):\n${escapeXml(life.trim()) || "(nothing yet)"}\n\n`
+  return `<memory>\n${current}chat since your last turn:\n${escapeXml(chat.trim())}\n</memory>`
 }
 
 export function memoryBlock(life: string, chat: string): string {

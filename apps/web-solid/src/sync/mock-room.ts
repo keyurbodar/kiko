@@ -437,7 +437,10 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 				return peer.push({ t: "events", events: log.filter((e) => e.seq > frame.lastSeq) })
 			}
 			if (frame.t === "agent") {
-				if (!data.agents.some((a) => a.id === frame.op.agent.id || a.slug === frame.op.agent.slug)) store({ t: "agent", agent: frame.op.agent })
+				if (frame.op.op === "create") {
+					const agent = frame.op.agent
+					if (!data.agents.some((a) => a.id === agent.id || a.slug === agent.slug)) store({ t: "agent", agent })
+				}
 				return
 			}
 			if (frame.t === "agent_model") {

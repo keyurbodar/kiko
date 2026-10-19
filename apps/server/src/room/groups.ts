@@ -31,8 +31,13 @@ export class Groups {
 		if (!home || slug !== CHIEF) return { ok: false, error: "only kiko makes agents" }
 		const key = `made:agent:${spec.handle.trim().toLowerCase().replace(/^@/, "")}`
 		const done = this.d.log.meta(key)
-		if (done) return { ok: true, text: done }
 		const user = userStub(this.d.env.USER, home.userId)
+		if (done) {
+			const handle = spec.handle.trim().toLowerCase().replace(/^@/, "")
+			if ((await user.listAgents()).some((agent) => agent.slug === handle)) return { ok: true, text: done }
+			this.d.log.setMeta(key, "")
+			return { ok: false, error: "This agent handle was deleted and cannot be reused. Choose a new handle." }
+		}
 		try {
 			const made = await makeAgentChat(
 				{

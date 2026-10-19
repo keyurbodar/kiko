@@ -1,3 +1,4 @@
+import { erase } from "../lib/erase"
 import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
@@ -53,6 +54,7 @@ import { type Applied, modelName, renderHandoff, sameApplied, switchedModel } fr
 // Read by the dev methods in agent/dev.ts too, so they share one key per setting.
 export const DEV_FAKE_KEY = "dev-fake"
 const MEMORY_POS_KEY = "memory:pos"
+const MEMORY_LIFE_KEY = "memory:life"
 const MAX_DELTA_TURNS = 32
 const USAGE_CARRIED_KEY = "usage:carried"
 const COMPACTIONS_KEY = "compactions"
@@ -133,6 +135,7 @@ export class AgentDO extends DurableObject<Env> {
   }
 
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
+    if (this.ctx.storage.sql.exec("SELECT 1 FROM meta WHERE key = 'deleted'").toArray().length) throw new Error("agent deleted")
     if (home) this.setHome(home)
     const result = await this.host.receive(envelopes, brief)
     // A human message ends whatever ask_human is waiting on, so the agent answers them first.
@@ -142,6 +145,16 @@ export class AgentDO extends DurableObject<Env> {
 
   async stop(): Promise<{ discarded: number }> {
     return this.host.stop()
+  }
+
+  async erase(): Promise<void> {
+    await this.host.stop()
+    await this.host.workers.stopAll()
+    await this.releaseTabs()
+    erase(this.ctx.storage)
+    const keys = [...(await this.ctx.storage.list()).keys()]
+    if (keys.length) await this.ctx.storage.delete(keys)
+    await this.ctx.storage.deleteAlarm()
   }
 
   async wake(): Promise<boolean> {
@@ -332,6 +345,9 @@ export class AgentDO extends DurableObject<Env> {
       agents: () => userStub(this.env.USER, home.userId).listAgents(),
       createAgent: (spec) => room().createAgent(home.slug, spec),
       createGroup: (input) => room().createGroup(home.slug, input),
+      deleteGroup: (roomId) => room().deleteGroup(home.slug, roomId),
+      deleteAgent: (handle) => room().deleteOwnedAgent(home.slug, handle),
+      removeMember: (handle) => room().removeGroupMember(home.slug, handle),
       overview: () => userStub(this.env.USER, home.userId).overview(),
     }
   }
@@ -435,18 +451,23 @@ export class AgentDO extends DurableObject<Env> {
     this.#heard = batch.envelopes.findLast((e) => e.from.kind === "human")?.rootId ?? null
     this.#humanInputs = batch.envelopes.filter((e) => e.from.kind === "human").map((e) => e.rootId)
     const inputs = this.changedHumanInputs()
-    const seen = await this.ctx.storage.get<number>(MEMORY_POS_KEY)
+    const [seen, previousLife, life] = await Promise.all([
+      this.ctx.storage.get<number>(MEMORY_POS_KEY),
+      withLife ? this.ctx.storage.get<string>(MEMORY_LIFE_KEY) : undefined,
+      withLife ? userStub(this.env.USER, home.userId).lifeView() : "",
+    ])
+    const changedLife = withLife && life !== previousLife
     if (!fresh && seen !== undefined) {
       const delta = (await ahead) ?? (await room.memorySince(home.slug, seen, seqs))
       if (delta.count - seen <= MAX_DELTA_TURNS) {
         // The inputs and the memory position share one put, so the run costs one row written rather than two.
-        await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: delta.count })
+        await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: delta.count, ...(changedLife ? { [MEMORY_LIFE_KEY]: life } : {}) })
         if (inputs) this.#storedInputs = inputs
-        return { fresh: false, ...(delta.text ? { text: memoryDelta(delta.text) } : {}) }
+        return { fresh: false, ...(delta.text || changedLife ? { text: memoryDelta(delta.text, changedLife ? life : undefined) } : {}) }
       }
     }
-    const [view, life] = await Promise.all([room.memoryView(seqs), withLife ? userStub(this.env.USER, home.userId).lifeView() : ""])
-    await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: view.count })
+    const view = await room.memoryView(seqs)
+    await this.ctx.storage.put({ ...(inputs ? { [HUMAN_INPUTS_KEY]: inputs } : {}), [MEMORY_POS_KEY]: view.count, ...(withLife ? { [MEMORY_LIFE_KEY]: life } : {}) })
     if (inputs) this.#storedInputs = inputs
     this.#shown.clear()
     return { fresh: true, text: memoryBlock(life, view.text) }
