@@ -76,7 +76,7 @@ export function Sidebar(props: SidebarProps) {
       data-panel={props.section ?? undefined}
       data-collapsed={collapsed() ? "" : undefined}
       >
-      <Sky kind="moonlit" size="band" />
+      <Sky />
       <header class="panel-header">
         <A href="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
           <KikoMark class="panel-brand-mark" />

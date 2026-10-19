@@ -16,9 +16,9 @@ describe("theme commands", () => {
   const previews: unknown[] = []
   const list = themeCommands({
     mode: () => "dark",
-    accent: () => "azure",
+    darkTheme: () => "glacier",
     setMode: (m) => set.push(m),
-    setAccent: (a) => set.push(a),
+    setBuiltin: (a) => set.push(a),
     activeAgent: () => null,
     imported: () => ({ themes: [dracula], active: {} }),
     setTheme: (appearance, id) => set.push(`theme:${appearance}:${id}`),
@@ -31,17 +31,17 @@ describe("theme commands", () => {
   })
   const change = list.find((c) => c.id === "theme.change")!
 
-  test("one submenu holds the appearances and the accents, and marks the ones in use", () => {
+  test("one submenu holds the appearances and the built-ins, and marks the ones in use", () => {
     const choices = change.submenu!()
-    expect(choices.filter((c) => c.current).map((c) => c.title)).toEqual(["Dark mode", "Kiko dark", "Azure accent"])
+    expect(choices.filter((c) => c.current).map((c) => c.title)).toEqual(["Dark mode", "Glacier"])
     expect(choices.map((c) => c.title)).toContain("Follow the system")
-    expect(choices.map((c) => c.title)).toContain("Matcha accent")
+    expect(choices.map((c) => c.title)).toContain("Moss")
   })
 
   test("every theme is a row: Kiko's own and each imported one", () => {
     const themes = change.submenu!().filter((c) => c.group === "Theme")
-    expect(themes.map((c) => c.title)).toEqual(["Kiko dark", "Kiko light", "Dracula"])
-    expect(themes.filter((c) => c.current).map((c) => c.title)).toEqual(["Kiko dark"])
+    expect(themes.map((c) => c.title)).toEqual(["Dracula", "Glacier", "Slate", "Graphite", "Moss", "Tide", "Dusk", "Plum", "Snow"])
+    expect(themes.filter((c) => c.current).map((c) => c.title)).toEqual(["Glacier"])
   })
 
   test("a theme previews its appearance and its own palette, and choosing it saves both", () => {
@@ -56,21 +56,21 @@ describe("theme commands", () => {
 
   test("Kiko's own theme previews with no imported theme for its appearance", () => {
     previews.length = 0
-    change.submenu!().find((c) => c.title === "Kiko light")!.preview!()
+    change.submenu!().find((c) => c.title === "Snow")!.preview!()
     expect(previews).toEqual([{ mode: "light", active: { light: undefined } }])
   })
 
-  test("an accent previews itself", () => {
+  test("a built-in previews its full palette", () => {
     previews.length = 0
-    change.submenu!().find((c) => c.id === "accent.matcha")!.preview!()
-    expect(previews).toEqual([{ accent: "matcha" }])
+    change.submenu!().find((c) => c.id === "builtin.moss")!.preview!()
+    expect(previews).toEqual([{ mode: "dark", darkTheme: "moss", active: { dark: undefined } }])
   })
 
-  test("choosing sets the mode or the accent, and the command itself opens the submenu", () => {
+  test("choosing sets the mode or the built-in, and the command itself opens the submenu", () => {
     const choices = change.submenu!()
     choices.find((c) => c.id === "mode.light")!.run()
-    choices.find((c) => c.id === "accent.matcha")!.run()
+    choices.find((c) => c.id === "builtin.moss")!.run()
     change.run()
-    expect(set.slice(-3)).toEqual(["light", "matcha", "view:theme.change"])
+    expect(set.slice(-3)).toEqual(["light", "moss", "view:theme.change"])
   })
 })

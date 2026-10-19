@@ -5,7 +5,7 @@
 
 import { formatHex, interpolate, parse, rgb, wcagContrast, wcagLuminance } from "culori"
 import type { ImportedTheme } from "./imported"
-import { ACCENTS, PALETTES, type ThemeAppearance } from "./palette"
+import { THEMES, PALETTES, type ThemeAppearance } from "./palette"
 
 export type VsCodeTheme = { type?: unknown; include?: unknown; colors?: Record<string, unknown>; [key: string]: unknown }
 
@@ -65,7 +65,7 @@ export function themeFromVsCode(json: VsCodeTheme, meta: { id: string; name: str
     name: meta.name.slice(0, 48),
     source: meta.source,
     appearance,
-    accent: ink(canvas, SHAPE_CONTRAST, pick("focusBorder", "textLink.foreground", "button.background", "activityBarBadge.background"), ACCENTS.blush[appearance]),
+    accent: ink(canvas, SHAPE_CONTRAST, pick("focusBorder", "textLink.foreground", "button.background", "activityBarBadge.background"), THEMES[appearance === "dark" ? "glacier" : "snow"].accent),
     palette: {
       canvas,
       sidebar: firstOf(pick("sideBar.background", "activityBar.background")) ?? mix(canvas, text, 0.04),

@@ -3,12 +3,11 @@ import { appearanceOf } from "@kiko/theme/apply"
 import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
 import { themeFor } from "@kiko/theme/imported"
 import { DEFAULT_LOOK, type Mode } from "@kiko/theme/look"
-import { ACCENT_IDS, ACCENTS, PALETTES, type Palette, type ThemeAppearance } from "@kiko/theme/palette"
-import { cn } from "../lib/cn"
+import { THEME_IDS, THEMES, type Palette, type ThemeAppearance } from "@kiko/theme/palette"
 import { buttonClass, Group, Row, Segmented, Slider, Toggle } from "../settings/kit"
 import { Select } from "../settings/select"
 import { look, previewLook, updateLook } from "./live"
-import { choose, DEFAULT, remove, themes } from "./live"
+import { choose, chooseBuiltin, DEFAULT, remove, themes } from "./live"
 import { ThemeBrowser } from "./open-vsx-themes"
 
 /*
@@ -44,19 +43,16 @@ function ThemeCard(props: { name: string; palette: Palette; accent: string; sele
         type="button"
         role="radio"
         aria-checked={props.selected}
-        class={cn(
-          "flex w-full flex-col overflow-hidden rounded-lg border text-left",
-          props.selected ? "border-ring ring-1 ring-ring" : "border-border hover:border-[color-mix(in_oklab,var(--foreground)_24%,transparent)]",
-        )}
+        class="flex w-full flex-col overflow-hidden rounded-lg text-left hover:brightness-110 focus-visible:brightness-125"
         data-theme-card={props.name}
         onClick={props.onPick}
       >
         <Preview palette={props.palette} accent={props.accent} />
         <span
-          class="truncate border-t px-2.5 py-1.5 text-sm"
-          style={{ background: props.palette.canvas, color: props.palette.text, "border-color": `color-mix(in oklab, ${props.palette.text} 14%, transparent)` }}
+          class="truncate px-2.5 py-1.5 text-sm"
+          style={{ background: props.palette.canvas, color: props.palette.text }}
         >
-          {props.name}
+          {props.name}{props.selected ? " ✓" : ""}
         </span>
       </button>
       <Show when={props.onRemove}>
@@ -88,13 +84,12 @@ function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
         </Show>
       </h2>
       <div role="radiogroup" aria-label={props.appearance === "dark" ? "Dark theme" : "Light theme"} class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4">
-        <ThemeCard name="Kiko" palette={PALETTES[props.appearance]} accent={ACCENTS[look().accent][props.appearance]} selected={active() === DEFAULT} onPick={() => choose(props.appearance, DEFAULT)} />
         <For each={installed()}>
-          {(theme) => <ThemeCard name={theme.name} palette={theme.palette} accent={theme.accent} selected={active() === theme.id} onPick={() => choose(props.appearance, theme.id)} onRemove={() => remove(theme)} />}
+          {(theme) => <ThemeCard name={theme.name} palette={theme.palette} accent={theme.accent} selected={active() === theme.id} onPick={() => { choose(props.appearance, theme.id); updateLook({ mode: props.appearance }) }} onRemove={() => remove(theme)} />}
         </For>
         <button
           type="button"
-          class="flex min-h-[110px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--rule)] text-sm text-muted-foreground hover:border-[color-mix(in_oklab,var(--foreground)_24%,transparent)] hover:text-foreground"
+          class="flex min-h-[110px] flex-col items-center justify-center gap-1 rounded-lg bg-control text-sm text-muted-foreground hover:bg-control-strong hover:text-foreground"
           data-action="browse-themes"
           onClick={props.onMore}
         >
@@ -105,29 +100,6 @@ function Gallery(props: { appearance: ThemeAppearance; onMore: () => void }) {
         </button>
       </div>
     </section>
-  )
-}
-
-function AccentPicker(): JSX.Element {
-  return (
-    <div class="flex items-center gap-1" role="radiogroup" aria-label="Accent color">
-      <For each={ACCENT_IDS}>
-        {(id) => (
-          <button
-            type="button"
-            role="radio"
-            aria-checked={look().accent === id}
-            aria-label={ACCENTS[id].label}
-            title={ACCENTS[id].label}
-            data-accent={id}
-            class="grid size-6 cursor-pointer place-items-center rounded-full outline-none [&[aria-checked=true]>span]:shadow-[0_0_0_2px_var(--background),0_0_0_3px_var(--foreground)]"
-            onClick={() => updateLook({ accent: id })}
-          >
-            <span class="block size-4 rounded-full" style={{ background: ACCENTS[id][shown()] }} />
-          </button>
-        )}
-      </For>
-    </div>
   )
 }
 
@@ -157,7 +129,9 @@ export default function Appearance(): JSX.Element {
             ]}
             onChange={(mode) => updateLook({ mode })}
           />
-          <AccentPicker />
+        </div>
+        <div role="radiogroup" aria-label="Built-in themes" class="grid grid-cols-2 gap-2 @min-[560px]/settings:grid-cols-4">
+          <For each={THEME_IDS}>{(id) => <ThemeCard name={THEMES[id].label} palette={THEMES[id].palette} accent={THEMES[id].accent} selected={!themeFor(themes(), id === "snow" ? "light" : "dark") && shown() === (id === "snow" ? "light" : "dark") && (id === "snow" || look().darkTheme === id)} onPick={() => chooseBuiltin(id)} />}</For>
         </div>
         <Gallery appearance="dark" onMore={() => setBrowsing(true)} />
         <Gallery appearance="light" onMore={() => setBrowsing(true)} />
@@ -196,7 +170,7 @@ export default function Appearance(): JSX.Element {
       </Group>
 
       <div class="flex justify-end">
-        <button type="button" class={buttonClass("ghost")} data-action="restore-appearance" onClick={() => updateLook({ mode: DEFAULT_LOOK.mode, accent: DEFAULT_LOOK.accent, display: DEFAULT_DISPLAY })}>
+        <button type="button" class={buttonClass("ghost")} data-action="restore-appearance" onClick={() => { chooseBuiltin(DEFAULT_LOOK.darkTheme); updateLook({ display: DEFAULT_DISPLAY }) }}>
           Restore defaults
         </button>
       </div>

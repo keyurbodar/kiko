@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#18130e" />
+    <meta name="theme-color" content="#08131c" />
     <title>Kiko</title>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32" />
@@ -15,83 +15,44 @@
     <link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin />
     <script>
       (function () {
-        var d = document.documentElement, mode = "dark", vars = null;
+        var d = document.documentElement, mode = "dark", id = "glacier";
+        /* boot-palettes:start */
+        var palettes = {"glacier":{"--background":"#08131c","--sidebar":"#101a24","--foreground":"#e7f0f6","--muted-foreground":"#a5b7c4","--secondary-label":"#a5b7c4","--ring":"#96c8eb","--primary":"#e7f0f6","--primary-hover":"#96c8eb","--primary-foreground":"#08131c","--error":"#ffb4ac","--warning":"#e8c47b","--success":"oklch(0.7937 0.12 150)","--card":"color-mix(in oklab, #e7f0f6 6%, transparent)","--muted":"color-mix(in oklab, #e7f0f6 3%, transparent)","--secondary":"color-mix(in oklab, #e7f0f6 4%, transparent)","--accent":"color-mix(in oklab, #e7f0f6 4%, transparent)","--sidebar-row-hover":"color-mix(in oklab, #e7f0f6 4%, transparent)","--accent-strong":"color-mix(in oklab, #e7f0f6 8%, transparent)","--sidebar-row-active":"color-mix(in oklab, #e7f0f6 8%, transparent)","--control":"color-mix(in oklab, #e7f0f6 7%, transparent)","--control-strong":"color-mix(in oklab, #e7f0f6 11%, transparent)","--border":"color-mix(in oklab, #e7f0f6 6%, transparent)","--input":"color-mix(in oklab, #e7f0f6 8%, transparent)","--scrollbar-thumb":"color-mix(in oklab, #e7f0f6 18%, transparent)","--scrollbar-thumb-hover":"color-mix(in oklab, #e7f0f6 30%, transparent)","--surface":"#101a24","--popover":"#101a24","--message-assistant":"#101a24","--tooltip":"color-mix(in oklab, #e7f0f6 14%, #08131c)","--tooltip-foreground":"#e7f0f6","--message-user":"oklch(from #96c8eb 0.32 calc(c * 0.42) h)","--message-user-deep":"oklch(from #96c8eb 0.32 calc(c * 0.42) h)","--message-user-foreground":"#e7f0f6","--ring-wash":"color-mix(in oklab, #96c8eb 14%, transparent)"},"slate":{"--background":"#0c0d10","--sidebar":"#121418","--foreground":"#e9ecf0","--muted-foreground":"#9298a2","--secondary-label":"#9298a2","--ring":"#becde1","--primary":"#e9ecf0","--primary-hover":"#becde1","--primary-foreground":"#0c0d10","--error":"#ffb4ac","--warning":"#e8c47b","--success":"oklch(0.7937 0.12 150)","--card":"color-mix(in oklab, #e9ecf0 6%, transparent)","--muted":"color-mix(in oklab, #e9ecf0 3%, transparent)","--secondary":"color-mix(in oklab, #e9ecf0 4%, transparent)","--accent":"color-mix(in oklab, #e9ecf0 4%, transparent)","--sidebar-row-hover":"color-mix(in oklab, #e9ecf0 4%, transparent)","--accent-strong":"color-mix(in oklab, #e9ecf0 8%, transparent)","--sidebar-row-active":"color-mix(in oklab, #e9ecf0 8%, transparent)","--control":"color-mix(in oklab, #e9ecf0 7%, transparent)","--control-strong":"color-mix(in oklab, #e9ecf0 11%, transparent)","--border":"color-mix(in oklab, #e9ecf0 6%, transparent)","--input":"color-mix(in oklab, #e9ecf0 8%, transparent)","--scrollbar-thumb":"color-mix(in oklab, #e9ecf0 18%, transparent)","--scrollbar-thumb-hover":"color-mix(in oklab, #e9ecf0 30%, transparent)","--surface":"#121418","--popover":"#121418","--message-assistant":"#121418","--tooltip":"color-mix(in oklab, #e9ecf0 14%, #0c0d10)","--tooltip-foreground":"#e9ecf0","--message-user":"oklch(from #becde1 0.32 calc(c * 0.42) h)","--message-user-deep":"oklch(from #becde1 0.32 calc(c * 0.42) h)","--message-user-foreground":"#e9ecf0","--ring-wash":"color-mix(in oklab, #becde1 14%, transparent)"},"graphite":{"--background":"#0c0c0c","--sidebar":"#131313","--foreground":"#ededed","--muted-foreground":"#959595","--secondary-label":"#959595","--ring":"#dcdcdc","--primary":"#ededed","--primary-hover":"#dcdcdc","--primary-foreground":"#0c0c0c","--error":"#ffb4ac","--warning":"#e8c47b","--success":"oklch(0.7937 0.12 150)","--card":"color-mix(in oklab, #ededed 6%, transparent)","--muted":"color-mix(in oklab, #ededed 3%, transparent)","--secondary":"color-mix(in oklab, #ededed 4%, transparent)","--accent":"color-mix(in oklab, #ededed 4%, transparent)","--sidebar-row-hover":"color-mix(in oklab, #ededed 4%, transparent)","--accent-strong":"color-mix(in oklab, #ededed 8%, transparent)","--sidebar-row-active":"color-mix(in oklab, #ededed 8%, transparent)","--control":"color-mix(in oklab, #ededed 7%, transparent)","--control-strong":"color-mix(in oklab, #ededed 11%, transparent)","--border":"color-mix(in oklab, #ededed 6%, transparent)","--input":"color-mix(in oklab, #ededed 8%, transparent)","--scrollbar-thumb":"color-mix(in oklab, #ededed 18%, transparent)","--scrollbar-thumb-hover":"color-mix(in oklab, #ededed 30%, transparent)","--surface":"#131313","--popover":"#131313","--message-assistant":"#131313","--tooltip":"color-mix(in oklab, #ededed 14%, #0c0c0c)","--tooltip-foreground":"#ededed","--message-user":"oklch(from #dcdcdc 0.32 calc(c * 0.42) h)","--message-user-deep":"oklch(from #dcdcdc 0.32 calc(c * 0.42) h)","--message-user-foreground":"#ededed","--ring-wash":"color-mix(in oklab, #dcdcdc 14%, transparent)"},"moss":{"--background":"#0a0e0c","--sidebar":"#0f1512","--foreground":"#e8efe9","--muted-foreground":"#8fa196","--secondary-label":"#8fa196","--ring":"#86a38d","--primary":"#e8efe9","--primary-hover":"#86a38d","--primary-foreground":"#0a0e0c","--error":"#ffb4ac","--warning":"#e8c47b","--success":"oklch(0.7937 0.12 150)","--card":"color-mix(in oklab, #e8efe9 6%, transparent)","--muted":"color-mix(in oklab, #e8efe9 3%, transparent)","--secondary":"color-mix(in oklab, #e8efe9 4%, transparent)","--accent":"color-mix(in oklab, #e8efe9 4%, transparent)","--sidebar-row-hover":"color-mix(in oklab, #e8efe9 4%, transparent)","--accent-strong":"color-mix(in oklab, #e8efe9 8%, transparent)","--sidebar-row-active":"color-mix(in oklab, #e8efe9 8%, transparent)","--control":"color-mix(in oklab, #e8efe9 7%, transparent)","--control-strong":"color-mix(in oklab, #e8efe9 11%, transparent)","--border":"color-mix(in oklab, #e8efe9 6%, transparent)","--input":"color-mix(in oklab, #e8efe9 8%, transparent)","--scrollbar-thumb":"color-mix(in oklab, #e8efe9 18%, transparent)","--scrollbar-thumb-hover":"color-mix(in oklab, #e8efe9 30%, transparent)","--surface":"#0f1512","--popover":"#0f1512","--message-assistant":"#0f1512","--tooltip":"color-mix(in oklab, #e8efe9 14%, #0a0e0c)","--tooltip-foreground":"#e8efe9","--message-user":"oklch(from #86a38d 0.32 calc(c * 0.42) h)","--message-user-deep":"oklch(from #86a38d 0.32 calc(c * 0.42) h)","--message-user-foreground":"#e8efe9","--ring-wash":"color-mix(in oklab, #86a38d 14%, transparent)"},"tide":{"--background":"#080c10","--sidebar":"#0c1318","--foreground":"#e6eff3","--muted-foreground":"#8a9ea8","--secondary-label":"#8a9ea8","--ring":"#78afc8","--primary":"#e6eff3","--primary-hover":"#78afc8","--primary-foreground":"#080c10","--error":"#ffb4ac","--warning":"#e8c47b","--success":"oklch(0.7937 0.12 150)","--card":"color-mix(in oklab, #e6eff3 6%, transparent)","--muted":"color-mix(in oklab, #e6eff3 3%, transparent)","--secondary":"color-mix(in oklab, #e6eff3 4%, transparent)","--accent":"color-mix(in oklab, #e6eff3 4%, transparent)","--sidebar-row-hover":"color-mix(in oklab, #e6eff3 4%, transparent)","--accent-strong":"color-mix(in oklab, #e6eff3 8%, transparent)","--sidebar-row-active":"color-mix(in oklab, #e6eff3 8%, transparent)","--control":"color-mix(in oklab, #e6eff3 7%, transparent)","--control-strong":"color-mix(in oklab, #e6eff3 11%, transparent)","--border":"color-mix(in oklab, #e6eff3 6%, transparent)","--input":"color-mix(in oklab, #e6eff3 8%, transparent)","--scrollbar-thumb":"color-mix(in oklab, #e6eff3 18%, transparent)","--scrollbar-thumb-hover":"color-mix(in oklab, #e6eff3 30%, transparent)","--surface":"#0c1318","--popover":"#0c1318","--message-assistant":"#0c1318","--tooltip":"color-mix(in oklab, #e6eff3 14%, #080c10)","--tooltip-foreground":"#e6eff3","--message-user":"oklch(from #78afc8 0.32 calc(c * 0.42) h)","--message-user-deep":"oklch(from #78afc8 0.32 calc(c * 0.42) h)","--message-user-foreground":"#e6eff3","--ring-wash":"color-mix(in oklab, #78afc8 14%, transparent)"},"dusk":{"--background":"#0f0c0b","--sidebar":"#181311","--foreground":"#f1ebe6","--muted-foreground":"#a59a92","--secondary-label":"#a59a92","--ring":"#e6aa82","--primary":"#f1ebe6","--primary-hover":"#e6aa82","--primary-foreground":"#0f0c0b","--error":"#ffb4ac","--warning":"#e8c47b","--success":"oklch(0.7937 0.12 150)","--card":"color-mix(in oklab, #f1ebe6 6%, transparent)","--muted":"color-mix(in oklab, #f1ebe6 3%, transparent)","--secondary":"color-mix(in oklab, #f1ebe6 4%, transparent)","--accent":"color-mix(in oklab, #f1ebe6 4%, transparent)","--sidebar-row-hover":"color-mix(in oklab, #f1ebe6 4%, transparent)","--accent-strong":"color-mix(in oklab, #f1ebe6 8%, transparent)","--sidebar-row-active":"color-mix(in oklab, #f1ebe6 8%, transparent)","--control":"color-mix(in oklab, #f1ebe6 7%, transparent)","--control-strong":"color-mix(in oklab, #f1ebe6 11%, transparent)","--border":"color-mix(in oklab, #f1ebe6 6%, transparent)","--input":"color-mix(in oklab, #f1ebe6 8%, transparent)","--scrollbar-thumb":"color-mix(in oklab, #f1ebe6 18%, transparent)","--scrollbar-thumb-hover":"color-mix(in oklab, #f1ebe6 30%, transparent)","--surface":"#181311","--popover":"#181311","--message-assistant":"#181311","--tooltip":"color-mix(in oklab, #f1ebe6 14%, #0f0c0b)","--tooltip-foreground":"#f1ebe6","--message-user":"oklch(from #e6aa82 0.32 calc(c * 0.42) h)","--message-user-deep":"oklch(from #e6aa82 0.32 calc(c * 0.42) h)","--message-user-foreground":"#f1ebe6","--ring-wash":"color-mix(in oklab, #e6aa82 14%, transparent)"},"plum":{"--background":"#0d0c11","--sidebar":"#14121a","--foreground":"#ece9f2","--muted-foreground":"#9a95a6","--secondary-label":"#9a95a6","--ring":"#afa0dc","--primary":"#ece9f2","--primary-hover":"#afa0dc","--primary-foreground":"#0d0c11","--error":"#ffb4ac","--warning":"#e8c47b","--success":"oklch(0.7937 0.12 150)","--card":"color-mix(in oklab, #ece9f2 6%, transparent)","--muted":"color-mix(in oklab, #ece9f2 3%, transparent)","--secondary":"color-mix(in oklab, #ece9f2 4%, transparent)","--accent":"color-mix(in oklab, #ece9f2 4%, transparent)","--sidebar-row-hover":"color-mix(in oklab, #ece9f2 4%, transparent)","--accent-strong":"color-mix(in oklab, #ece9f2 8%, transparent)","--sidebar-row-active":"color-mix(in oklab, #ece9f2 8%, transparent)","--control":"color-mix(in oklab, #ece9f2 7%, transparent)","--control-strong":"color-mix(in oklab, #ece9f2 11%, transparent)","--border":"color-mix(in oklab, #ece9f2 6%, transparent)","--input":"color-mix(in oklab, #ece9f2 8%, transparent)","--scrollbar-thumb":"color-mix(in oklab, #ece9f2 18%, transparent)","--scrollbar-thumb-hover":"color-mix(in oklab, #ece9f2 30%, transparent)","--surface":"#14121a","--popover":"#14121a","--message-assistant":"#14121a","--tooltip":"color-mix(in oklab, #ece9f2 14%, #0d0c11)","--tooltip-foreground":"#ece9f2","--message-user":"oklch(from #afa0dc 0.32 calc(c * 0.42) h)","--message-user-deep":"oklch(from #afa0dc 0.32 calc(c * 0.42) h)","--message-user-foreground":"#ece9f2","--ring-wash":"color-mix(in oklab, #afa0dc 14%, transparent)"},"snow":{"--background":"#eef0f3","--sidebar":"#fafbfc","--foreground":"#16191e","--muted-foreground":"#5b616b","--secondary-label":"#5b616b","--ring":"#505f78","--primary":"#16191e","--primary-hover":"#505f78","--primary-foreground":"#eef0f3","--error":"#b32632","--warning":"#805500","--success":"oklch(0.52 0.12 150)","--card":"color-mix(in oklab, #16191e 7%, transparent)","--muted":"color-mix(in oklab, #16191e 3.5%, transparent)","--secondary":"color-mix(in oklab, #16191e 4%, transparent)","--accent":"color-mix(in oklab, #16191e 4.5%, transparent)","--sidebar-row-hover":"color-mix(in oklab, #16191e 4.5%, transparent)","--accent-strong":"color-mix(in oklab, #16191e 7%, transparent)","--sidebar-row-active":"color-mix(in oklab, #16191e 7%, transparent)","--control":"color-mix(in oklab, #16191e 6%, transparent)","--control-strong":"color-mix(in oklab, #16191e 9%, transparent)","--border":"color-mix(in oklab, #16191e 9%, transparent)","--input":"color-mix(in oklab, #16191e 13%, transparent)","--scrollbar-thumb":"color-mix(in oklab, #16191e 18%, transparent)","--scrollbar-thumb-hover":"color-mix(in oklab, #16191e 30%, transparent)","--surface":"#fafbfc","--popover":"#fafbfc","--message-assistant":"#fafbfc","--tooltip":"#16191e","--tooltip-foreground":"#eef0f3","--message-user":"oklch(from #505f78 0.93 calc(c * 0.6) h)","--message-user-deep":"oklch(from #505f78 0.93 calc(c * 0.6) h)","--message-user-foreground":"#16191e","--ring-wash":"color-mix(in oklab, #505f78 11%, transparent)"}};
+        /* boot-palettes:end */
         try {
-          var c = JSON.parse(localStorage.getItem("kiko:look"));
-          if (c && c.v === 5) { mode = c.mode || "dark"; vars = c.vars; }
+          localStorage.removeItem("kiko:snap");
+          if (localStorage.getItem("kiko:session")) {
+            var c = JSON.parse(localStorage.getItem("kiko:look"));
+            var look = c && (c.v === 5 || c.v === 6) && JSON.parse(c.text);
+            if (look && look.kind === "look") {
+              if (["dark", "light", "system"].includes(look.mode)) mode = look.mode;
+              if (look.version === 4 && look.darkTheme !== "snow" && Object.hasOwn(palettes, look.darkTheme)) id = look.darkTheme;
+            }
+          }
         } catch (e) {}
-        var a = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
-        d.classList.toggle("dark", a === "dark");
-        d.style.colorScheme = a;
-        var t = (vars && vars[a]) || {};
+        var light = mode === "light" || (mode === "system" && matchMedia("(prefers-color-scheme: light)").matches);
+        var t = palettes[light ? "snow" : id];
+        d.classList.toggle("dark", !light);
+        d.style.colorScheme = light ? "light" : "dark";
         for (var k in t) d.style.setProperty(k, t[k]);
-        var bg = t["--background"] || (a === "light" ? "#fff7f1" : "#18130e");
-        d.style.setProperty("--boot-bg", bg);
-        d.style.setProperty("--boot-fg", t["--foreground"] || (a === "light" ? "#271e17" : "#fdf2e8"));
-        d.style.backgroundColor = bg;
+        d.style.setProperty("--boot-bg", t["--background"]);
+        d.style.setProperty("--boot-fg", t["--foreground"]);
+        d.style.backgroundColor = t["--background"];
       })();
     </script>
     <style>
-      html, body { margin: 0; height: 100%; background: var(--boot-bg, #18130e); color: var(--boot-fg, #fdf2e8); }
-      body { font: 14px var(--font-family-sans, system-ui, sans-serif); }
+      html, body { margin: 0; height: 100%; background: var(--boot-bg, #08131c); color: var(--boot-fg, #e7f0f6); }
+      body { font: 14px system-ui, sans-serif; }
       #root { height: 100%; }
-      /* The saved screen (lib/snapshot.ts) is a picture of how the app looked: nothing in it enters again. */
-      #snap * { animation: none !important; transition: none !important; }
-      #boot { display: flex; align-items: center; justify-content: center; height: 100%; }
-      #boot svg { width: 64px; height: 64px; }
-      /* The boot screen cannot load motion.css. A load quicker than a beat never shows the tile; a longer one sees it fade in and breathe. */
-      @media (prefers-reduced-motion: no-preference) {
-        #boot svg { animation: boot-in 280ms 160ms ease-out both, boot-breathe 2.4s 440ms ease-in-out infinite; }
-        @keyframes boot-in { from { opacity: 0; transform: scale(0.94); } }
-        @keyframes boot-breathe { 50% { transform: scale(1.04); } }
-      }
-      #boot-error { display: none; position: fixed; bottom: 24px; left: 0; right: 0; text-align: center; opacity: 0.7; }
+      #boot { display: grid; place-items: center; height: 100%; }
+      #boot img { width: 64px; height: 64px; max-width: 64px; max-height: 64px; object-fit: contain; }
+      #boot-error { display: none; position: fixed; bottom: 24px; left: 0; right: 0; text-align: center; }
+      #boot-error button { color: inherit; background: var(--control); border: 0; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
     </style>
   </head>
   <body>
-    <div id="snap" style="position:fixed;inset:0;z-index:2147483000;overflow:hidden;visibility:hidden;pointer-events:none;background:var(--boot-bg,#18130e)"></div>
-    <script>
-      (function () {
-        var n = document.getElementById("snap");
-        try {
-          var s = JSON.parse(localStorage.getItem("kiko:snap") || "null");
-          if (!s || s.v !== 1 || s.path !== location.pathname) return n.remove();
-          var h = document.head, w = s.links.length;
-          var show = function () {
-            n.style.visibility = "visible";
-            for (var i = 0; i < s.scroll.length; i++) {
-              var e = n, p = s.scroll[i][0].split("/");
-              for (var j = 0; j < p.length && e; j++) e = e.children[+p[j]];
-              if (e) e.scrollTop = s.scroll[i][1];
-            }
-          };
-          for (var i = 0; i < s.styles.length; i++) {
-            var st = document.createElement("style");
-            st.setAttribute("data-snap", "");
-            st.textContent = s.styles[i];
-            h.appendChild(st);
-          }
-          n.innerHTML = s.html;
-          if (!w) return show();
-          s.links.forEach(function (u) {
-            var l = document.createElement("link");
-            l.rel = "stylesheet";
-            l.href = u;
-            l.onload = function () { if (--w === 0) show(); };
-            l.onerror = function () { n.remove(); };
-            h.appendChild(l);
-          });
-        } catch (e) { n.remove(); }
-      })();
-    </script>
-    <div id="root">
-      <div id="boot">
-
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="tb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A2420"/><stop offset="1" stop-color="#161311"/></linearGradient><radialGradient id="tg" cx="60" cy="72" r="48" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#E8A86A" stop-opacity="0.24"/><stop offset="1" stop-color="#E8A86A" stop-opacity="0"/></radialGradient><linearGradient id="ks" x1="0" y1="46" x2="0" y2="88" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFCF6"/><stop offset=".6" stop-color="#FAF4EA"/><stop offset="1" stop-color="#EADFCE"/></linearGradient></defs><rect width="120" height="120" rx="26.4" fill="url(#tb)"/><rect width="120" height="120" rx="26.4" fill="url(#tg)"/><g transform="translate(60 63) scale(1.04) translate(-60 -57)"><g transform="translate(0 7)"><ellipse cx="60" cy="88.6" rx="32" ry="2.6" fill="#000" opacity="0.35"/><g transform="translate(48.5 50.5) rotate(-38)"><path d="M0 0C13-6 13-24 0-33C-13-24-13-6 0 0Z" fill="#55685A"/></g><path d="M31 88C26 88 24 85 24.4 80C26.2 59 40.5 46 60 46C79.5 46 93.8 59 95.6 80C96 85 94 88 89 88Z" fill="url(#ks)"/><g transform="translate(68 48.5) rotate(22)"><path d="M0 0C14-7 14-27 0-37C-14-27-14-7 0 0Z" fill="#86A38D"/><path d="M0-3Q1.6-18 0-32" stroke="#C3D5C6" stroke-width="1.5" fill="none" stroke-linecap="round"/></g><ellipse cx="38.5" cy="76.5" rx="5" ry="2.7" fill="#F2A08E" opacity=".6"/><ellipse cx="81" cy="74.5" rx="4.6" ry="2.5" fill="#F2A08E" opacity=".6"/><g fill="none" stroke="#C22F2A" stroke-width="2.9" stroke-linecap="round"><path d="M42 69.5Q46.4 62.6 50.8 69.5"/><path d="M66.4 67.5Q70.6 61.2 74.8 67.5"/></g></g></g></svg>
-
-      </div>
-    </div>
-    <div id="boot-error">Something went wrong. Reload to try again.</div>
+    <div id="root"><div id="boot" role="status" aria-label="Loading Kiko"><img src="/kiko.svg" width="64" height="64" alt="" /></div></div>
+    <div id="boot-error" role="alert">Could not load Kiko. <button type="button" onclick="location.reload()">Reload</button></div>
     <script type="module" src="/src/bootstrap.ts"></script>
   </body>
 </html>

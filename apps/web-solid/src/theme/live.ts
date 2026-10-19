@@ -6,16 +6,19 @@
 import { createEffect, createMemo, createRoot, createSignal, on } from "solid-js"
 import { useApp } from "../lib/store"
 import { type UserChannel, userChannel } from "../sync/user-channel"
-import { applyCommitted, importedThemes, previewLook as preview, readCache, saveImported, writeCache } from "@kiko/theme/apply"
+import { applyCommitted, selectBuiltin, importedThemes, previewLook as preview, readCache, saveImported, writeCache } from "@kiko/theme/apply"
 import type { Imported, ImportedTheme } from "@kiko/theme/imported"
 import { setAvatarPicks } from "../avatar/picks"
-import { formatLook, parseLook, type Look } from "@kiko/theme/look"
+import type { ThemeId } from "@kiko/theme/palette"
+import { read } from "../lib/api-base"
+import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "@kiko/theme/look"
 
 const cached = readCache()
-const first = parseLook(cached?.text ?? null)
+const signedInBefore = read("kiko:session") !== null
+const first = signedInBefore ? parseLook(cached?.text ?? null) : DEFAULT_LOOK
 // The inline script already painted these variables. This tells `apply.ts` what "saved" is,
 // so a cancelled preview goes back to it.
-applyCommitted(first)
+applyCommitted(first, signedInBefore)
 setAvatarPicks(first.avatars)
 const [saved, setSaved] = createSignal<string | null>(cached?.text ?? null)
 
@@ -134,3 +137,8 @@ export function remove(theme: ImportedTheme) {
   commit({ themes: state().themes.filter((other) => other.id !== theme.id), active })
 }
 
+export function chooseBuiltin(id: ThemeId): void {
+  const next = selectBuiltin(look(), id)
+  setState(importedThemes())
+  saveLook(next)
+}

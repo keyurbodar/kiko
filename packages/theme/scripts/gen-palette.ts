@@ -1,7 +1,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { tokensFor } from "../src/palette"
+import { THEME_IDS, tokensFor } from "../src/palette"
 
 export const KAT = join(import.meta.dir, "../../../apps/web-solid/src/index.css")
 const START = "/* palette:start */"
@@ -24,3 +24,12 @@ export function withPalette(css: string): string {
 }
 
 if (import.meta.main) writeFileSync(KAT, withPalette(readFileSync(KAT, "utf8")))
+
+export function withBootPalettes(html: string): string {
+  const data = Object.fromEntries(THEME_IDS.map((id) => [id, tokensFor(id === "snow" ? "light" : "dark", id === "snow" ? "glacier" : id)]))
+  return html.replace(/\/\* boot-palettes:start \*\/[\s\S]*?\/\* boot-palettes:end \*\//, `/* boot-palettes:start */\n        var palettes = ${JSON.stringify(data)};\n        /* boot-palettes:end */`)
+}
+if (import.meta.main) {
+  const html = join(import.meta.dir, "../../../apps/web-solid/index.html")
+  writeFileSync(html, withBootPalettes(readFileSync(html, "utf8")))
+}

@@ -179,19 +179,19 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
     themeCommands({
       // The saved look is cached for the first paint, so the check mark reads it without loading the look.
       mode: () => parseLook(readCache()?.text ?? null).mode,
-      accent: () => parseLook(readCache()?.text ?? null).accent,
+      darkTheme: () => parseLook(readCache()?.text ?? null).darkTheme,
       setMode: (mode) => void live().then((m) => m.updateLook({ mode })),
-      setAccent: (accent) => void live().then((m) => m.updateLook({ accent })),
+      setBuiltin: (id) => void live().then((m) => m.chooseBuiltin(id)),
       imported: importedThemes,
       setTheme: (appearance, id) =>
         void live().then((m) => {
           m.updateLook({ mode: appearance })
           m.choose(appearance, id)
         }),
-      preview: ({ mode, accent, active }) => {
+      preview: ({ mode, darkTheme, active }) => {
         const saved = parseLook(readCache()?.text ?? null)
         const imported = importedThemes()
-        return previewLook({ ...saved, mode: mode ?? saved.mode, accent: accent ?? saved.accent }, active ? { ...imported, active } : imported)
+        return previewLook({ ...saved, mode: mode ?? saved.mode, darkTheme: darkTheme ?? saved.darkTheme }, active ? { ...imported, active } : imported)
       },
       openView: openPalette,
       activeAgent: () => {

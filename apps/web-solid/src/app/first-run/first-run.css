@@ -1,11 +1,4 @@
 .welcome {
-  --foreground: #e7f0f6;
-  --muted-foreground: #a5b7c4;
-  --background: #08131c;
-  --control: rgb(215 235 250 / 8%);
-  --control-strong: rgb(215 235 250 / 13%);
-  --accent: rgb(215 235 250 / 16%);
-  --error: #ffb4ac;
   position: relative;
   isolation: isolate;
   overflow: hidden;

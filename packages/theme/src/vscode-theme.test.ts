@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { wcagContrast } from "culori"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { ACCENTS } from "./palette"
+import { THEMES } from "./palette"
 import { packagePath, parseJsonc, readVsCodeTheme, themeFromVsCode, type VsCodeTheme } from "./vscode-theme"
 
 const FIXTURES = join(import.meta.dir, "../test/fixtures/vscode")
@@ -49,7 +49,7 @@ describe("VS Code theme mapping", () => {
 
   test("an accent that does not stand apart from the canvas falls back to the default accent", () => {
     const theme = themeFromVsCode(inline({ "editor.background": "#1e1e1e", focusBorder: "#1f1f1f" }, "dark"), meta)
-    expect(theme.accent).toBe(ACCENTS.blush.dark)
+    expect(theme.accent).toBe(THEMES.glacier.accent)
   })
 
   test("an alpha overlay is flattened over black before it is read", () => {

@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { applyCommitted, CACHE_KEY, resolveLook, saveImported, writeCache } from "./apply"
-import { withPalette } from "../scripts/gen-palette"
+import { applyCommitted, CACHE_KEY, selectBuiltin, importedThemes, readCache, resolveLook, saveImported, writeCache } from "./apply"
+import { withPalette, withBootPalettes } from "../scripts/gen-palette"
 import { MONO_STACK, SANS_STACK, fontFamily } from "./display"
 import { DEFAULT_LOOK, formatLook, parseLook, type Look } from "./look"
-import { oklchOf } from "./color"
-import { ACCENT_IDS, ACCENTS, DEFAULT_ACCENT, PALETTES, paletteFor, tokensFor } from "./palette"
+import { DARK_THEME_IDS, THEME_IDS, THEMES, DEFAULT_DARK_THEME, resolveAppearance, PALETTES, paletteFor, tokensFor } from "./palette"
 
 const KAT = readFileSync(join(import.meta.dir, "../../../apps/web-solid/src/index.css"), "utf8")
 
@@ -34,7 +33,7 @@ describe("the palette", () => {
 
   test("every token the palette sets is one index.css declares, so it reaches the UI", () => {
     const declared = new Set([...KAT.matchAll(/^\s*(--[a-z0-9-]+):/gm)].map((m) => m[1]))
-    for (const token of Object.keys(tokensFor("light", "matcha"))) expect([token, declared.has(token)]).toEqual([token, true])
+    for (const token of Object.keys(tokensFor("light", "moss"))) expect([token, declared.has(token)]).toEqual([token, true])
   })
 
   test("a palette color is declared only in the first-paint block", () => {
@@ -48,43 +47,35 @@ describe("the palette", () => {
     }
   })
 
-  test.each(["light", "dark"] as const)("with every accent, %s text reads on its paper, and so does the action button", (mode) => {
-    for (const id of ACCENT_IDS) {
-      const p = paletteFor(mode, id)
-      expect([id, contrast(p.text, p.canvas) > 12, contrast(p.muted, p.canvas) > 3.5, contrast(p.onAction, p.action) > 12]).toEqual([id, true, true, true])
-    }
-  })
-
-  test.each(["light", "dark"] as const)("every %s accent reads as a link on the paper it seeds", (mode) => {
-    for (const id of ACCENT_IDS) expect([id, contrast(ACCENTS[id][mode], paletteFor(mode, id).canvas) > 3]).toEqual([id, true])
-  })
-
-  test("an accent tints the whole app: its paper and ink take the accent's hue", () => {
-    for (const mode of ["light", "dark"] as const) {
-      const papers = new Set(ACCENT_IDS.map((id) => paletteFor(mode, id).canvas))
-      expect(papers.size).toBe(ACCENT_IDS.length)
-      for (const id of ["mikan", "azure", "matcha", "lavender"] as const) {
-        const turn = Math.abs(oklchOf(paletteFor(mode, id).sidebar).h - oklchOf(ACCENTS[id][mode]).h)
-        expect([mode, id, Math.min(turn, 360 - turn) < 12]).toEqual([mode, id, true])
+  test("all eight authored palettes keep text, links and semantic colors readable", () => {
+    expect(THEME_IDS).toHaveLength(8)
+    expect(new Set(THEME_IDS.map((id) => THEMES[id].palette.canvas)).size).toBe(8)
+    for (const id of THEME_IDS) {
+      const { palette: p, accent } = THEMES[id]
+      for (const background of [p.canvas, p.sidebar]) {
+        expect(contrast(p.text, background)).toBeGreaterThan(12)
+        for (const foreground of [p.muted, p.faint, accent, p.danger, p.gold]) expect(contrast(foreground, background)).toBeGreaterThan(4.5)
       }
+      expect(contrast(p.onAction, p.action)).toBeGreaterThan(12)
     }
-    expect(tokensFor("light", "azure")["--background"]).toBe(paletteFor("light", "azure").canvas)
+  })
+  test("system uses Snow and the remembered dark palette", () => {
+    expect(resolveAppearance("system", false)).toBe("light")
+    expect(resolveAppearance("system", true)).toBe("dark")
+    for (const id of DARK_THEME_IDS) {
+      expect(paletteFor("light", id)).toEqual(THEMES.snow.palette)
+      expect(paletteFor("dark", id)).toEqual(THEMES[id].palette)
+    }
+  })
+  test("marks and message highlights use the selected palette accent", () => {
+    expect(tokensFor("dark", "glacier")["--ring"]).toBe("#96c8eb")
+    expect(tokensFor("dark", "glacier")["--message-user"]).toContain("#96c8eb")
+    expect(tokensFor("dark")["--popover"]).toBe("#101a24")
+  })
+  test("contrast scales neutral fills", () => {
+    expect(tokensFor("dark", "glacier", 150)["--border"]).toBe(`color-mix(in oklab, ${PALETTES.dark.text} 9%, transparent)`)
   })
 
-  test("the default palette is the default accent's", () => {
-    expect(PALETTES).toEqual({ light: paletteFor("light", DEFAULT_ACCENT), dark: paletteFor("dark", DEFAULT_ACCENT) })
-  })
-
-  test("an accent colors the marks and your bubble, never the send button", () => {
-    const vars = tokensFor("dark", "ramune")
-    expect(vars["--ring"]).toBe(ACCENTS.ramune.dark)
-    expect(vars["--message-user"]).toContain(ACCENTS.ramune.dark)
-    expect(vars["--primary"]).toBe(paletteFor("dark", "ramune").action)
-  })
-
-  test("contrast scales every neutral", () => {
-    expect(tokensFor("dark", "blush", 150)["--border"]).toBe(`color-mix(in oklab, ${paletteFor("dark", "blush").text} 9%, transparent)`)
-  })
 })
 
 describe("the fonts", () => {
@@ -101,11 +92,11 @@ describe("the look record", () => {
 
   test("the default appearance is dark, and a stored look with no mode reads as dark", () => {
     expect(DEFAULT_LOOK.mode).toBe("dark")
-    expect(parseLook(JSON.stringify({ kind: "look", version: 2, accent: DEFAULT_ACCENT })).mode).toBe("dark")
+    expect(parseLook(JSON.stringify({ kind: "look", version: 2, darkTheme: DEFAULT_DARK_THEME })).mode).toBe("dark")
   })
 
   test("a look survives the round trip", () => {
-    const look: Look = { ...DEFAULT_LOOK, mode: "dark", accent: "yuzu", avatars: { ada: { flavour: "matcha", charm: "beret", outfit: "none" } } }
+    const look: Look = { ...DEFAULT_LOOK, mode: "dark", darkTheme: "dusk", avatars: { ada: { flavour: "matcha", charm: "beret", outfit: "none" } } }
     expect(parseLook(formatLook(look))).toEqual(look)
   })
 
@@ -114,7 +105,7 @@ describe("the look record", () => {
     expect(parseLook(old)).toEqual({ ...DEFAULT_LOOK, mode: "light", avatars: { bo: { flavour: "ramune" } } })
   })
 
-  test("a version 2 bird record converts once to avatar pins, and the next save writes version 3", () => {
+  test("a version 2 bird record converts once to avatar pins, and the next save writes version 4", () => {
     const v2 = JSON.stringify({
       version: 2, kind: "look", mode: "dark", accent: "yuzu",
       birds: { kiko: "kiko.beret", ada: "peach.momiji", bo: "lavender.bucket", cy: "mintchoco.nightcap", di: "nope.none", ed: "matcha.phones" },
@@ -128,13 +119,13 @@ describe("the look record", () => {
       cy: { flavour: "chocomint" },
       ed: { flavour: "matcha", charm: "headphones" },
     })
-    expect(JSON.parse(formatLook(look))).toMatchObject({ version: 3, avatars: look.avatars })
+    expect(JSON.parse(formatLook(look))).toMatchObject({ version: 4, avatars: look.avatars })
     expect(JSON.parse(formatLook(look))).not.toHaveProperty("birds")
   })
 
   test("a version 3 record drops values the library does not have, and an entry with none left", () => {
     const v3 = JSON.stringify({
-      version: 3, kind: "look", mode: "system", accent: DEFAULT_LOOK.accent, display: DEFAULT_LOOK.display,
+      version: 3, kind: "look", mode: "system", darkTheme: DEFAULT_LOOK.darkTheme, display: DEFAULT_LOOK.display,
       avatars: { ada: { flavour: "matcha", charm: "crown", eye: "kuromame" }, bo: { flavour: "dragon", leaf: "nope" }, "Bad Slug": { flavour: "matcha" } },
     })
     expect(parseLook(v3).avatars).toEqual({ ada: { flavour: "matcha", eye: "kuromame" } })
@@ -164,46 +155,46 @@ function fakeRoot() {
 describe("the pre-paint script", () => {
   const html = readFileSync(join(import.meta.dir, "../../../apps/web-solid/index.html"), "utf8")
   const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!
-
-  function boot(stored: string | null, prefersLight = false) {
-    const { root, style, classes, dataset } = fakeRoot()
-    const storage = { getItem: (k: string) => (k === CACHE_KEY ? stored : null) }
+  function boot(stored: string | null, signedIn = true, prefersLight = false) {
+    const { root, style, classes } = fakeRoot()
+    const storage = { getItem: (k: string) => k === CACHE_KEY ? stored : k === "kiko:session" && signedIn ? "owner" : null, removeItem() {} }
     new Function("document", "localStorage", "matchMedia", script)({ documentElement: root }, storage, () => ({ matches: prefersLight }))
-    return { style, classes, dataset: { appearance: classes.has("dark") ? "dark" : "light" } }
+    return { style, classes }
   }
-  const cacheOf = (look: Look) => JSON.stringify({ v: 5, text: "x", mode: look.mode, vars: resolveLook(look) })
-
-  test("paints the cached tokens for the saved appearance, its own paper included", () => {
-    const { style, dataset, classes } = boot(cacheOf({ ...DEFAULT_LOOK, mode: "light", accent: "matcha" }))
-    const matcha = paletteFor("light", "matcha")
-    expect([style["--ring"], style["--boot-bg"], style["--boot-fg"], dataset.appearance, classes.has("dark")]).toEqual([ACCENTS.matcha.light, matcha.canvas, matcha.text, "light", false])
-  })
-
-  test("with no cache, or a broken or old one, it paints the dark default whatever the system says", () => {
-    expect([boot(null, true).dataset.appearance, boot(null, true).style["--boot-bg"]]).toEqual(["dark", PALETTES.dark.canvas])
-    expect([boot(null, false).dataset.appearance, boot(null, false).style["--boot-bg"]]).toEqual(["dark", PALETTES.dark.canvas])
-    expect(boot("{ not json", true).dataset.appearance).toBe("dark")
-    expect("--bg" in boot(JSON.stringify({ v: 3, mode: "dark", vars: { dark: { "--bg": "#000" } } })).style).toBe(false)
-  })
-
-  test("a cache with no mode paints dark", () => {
-    expect(boot(JSON.stringify({ v: 5, text: "x", vars: resolveLook(DEFAULT_LOOK) }), true).dataset.appearance).toBe("dark")
-  })
-
-  test("the static theme color is the dark canvas", () => {
+  test("generated boot palettes and static canvas stay in sync", () => {
+    expect(withBootPalettes(html)).toBe(html)
     expect(html).toContain(`<meta name="theme-color" content="${PALETTES.dark.canvas}" />`)
   })
-
-  test("reads what writeCache writes", () => {
-    const store: Record<string, string> = {}
-    ;(globalThis as { localStorage?: unknown }).localStorage = {
-      getItem: (k: string) => store[k] ?? null,
-      setItem: (k: string, v: string) => void (store[k] = v),
-      removeItem: (k: string) => void delete store[k],
+  test("saved text selects each palette without replaying cached variables", () => {
+    for (const darkTheme of DARK_THEME_IDS) {
+      const text = formatLook({ ...DEFAULT_LOOK, darkTheme })
+      const cache = JSON.stringify({ v: 6, text, mode: "light", vars: { dark: { "--background": "red" } } })
+      expect(boot(cache).style["--background"]).toBe(THEMES[darkTheme].palette.canvas)
+      expect(boot(cache, false).style["--background"]).toBe(PALETTES.dark.canvas)
     }
-    writeCache("text", { ...DEFAULT_LOOK, mode: "dark", accent: "lavender" })
-    expect(boot(store[CACHE_KEY]!).style["--ring"]).toBe(ACCENTS.lavender.dark)
-    delete (globalThis as { localStorage?: unknown }).localStorage
+  })
+  test("legacy cache migrates to Glacier and preserves mode, avatars and display", () => {
+    const old = { version: 3, kind: "look", mode: "system", accent: "yuzu", avatars: { ada: { flavour: "matcha" } }, display: { ...DEFAULT_LOOK.display, baseSize: 16 } }
+    const value = JSON.stringify({ v: 5, text: JSON.stringify(old), vars: { dark: { "--background": "orange" } } })
+    const storage = { getItem: () => value }
+    Object.assign(globalThis, { localStorage: storage })
+    try {
+      const cache = readCache()!
+      expect(cache.v).toBe(6)
+      expect(cache.vars.dark["--background"]).toBe(PALETTES.dark.canvas)
+      expect(parseLook(cache.text)).toMatchObject({ darkTheme: "glacier", mode: "system", avatars: old.avatars, display: old.display })
+      expect(boot(value, true, true).style["--background"]).toBe(PALETTES.light.canvas)
+      expect(boot(value, false, true).classes.has("dark")).toBe(true)
+    } finally { delete (globalThis as { localStorage?: unknown }).localStorage }
+  })
+  test("reads the cache writer and resolves Snow", () => {
+    const store: Record<string, string> = {}
+    Object.assign(globalThis, { localStorage: { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v }, removeItem: (k: string) => { delete store[k] } } })
+    try {
+      const look = { ...DEFAULT_LOOK, mode: "light" as const }
+      writeCache(formatLook(look), look)
+      expect(boot(store[CACHE_KEY]!).style["--background"]).toBe(PALETTES.light.canvas)
+    } finally { delete (globalThis as { localStorage?: unknown }).localStorage }
   })
 })
 
@@ -243,4 +234,19 @@ describe("the font names", () => {
     expect(fontFamily("", SANS_STACK)).toBe(SANS_STACK)
     expect(fontFamily("Inter, JetBrains Mono", SANS_STACK)).toBe(`Inter, "JetBrains Mono", ${SANS_STACK}`)
   })
+})
+
+test("choosing each built-in clears its imported override and remembers the dark choice", () => {
+  const dark = { id: "dark", name: "Dark", source: "test", appearance: "dark" as const, accent: "#abcdef", palette: PALETTES.dark }
+  const light = { ...dark, id: "light", appearance: "light" as const, palette: PALETTES.light }
+  for (const id of THEME_IDS) {
+    saveImported({ themes: [dark, light], active: { dark: dark.id, light: light.id } })
+    const next = selectBuiltin({ ...DEFAULT_LOOK, darkTheme: "moss", mode: "system" }, id)
+    expect(next.mode).toBe(id === "snow" ? "light" : "dark")
+    expect(next.darkTheme).toBe(id === "snow" ? "moss" : id)
+    expect(importedThemes().active[next.mode === "light" ? "light" : "dark"]).toBeUndefined()
+    expect(importedThemes().active[id === "snow" ? "dark" : "light"]).toBe(id === "snow" ? dark.id : light.id)
+    expect(importedThemes().themes).toHaveLength(2)
+  }
+  saveImported({ themes: [], active: {} })
 })
