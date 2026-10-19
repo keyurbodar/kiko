@@ -40,3 +40,34 @@ test("invalid portable clipboard data is ignored", () => {
     expect(pastedComposerFragment({ getData: (type) => type === "application/x-kiko-composer" ? payload : "" })).toBeUndefined()
   }
 })
+
+test("rapid copy waits for retained bytes and preserves the blob hash across pages", async () => {
+  const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator")
+  const originalItem = Object.getOwnPropertyDescriptor(globalThis, "ClipboardItem")
+  let written: Promise<Blob> | undefined
+  class Item {
+    constructor(readonly data: Record<string, Blob | Promise<Blob>>) {}
+  }
+  Object.defineProperty(globalThis, "ClipboardItem", { configurable: true, value: Item })
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: { clipboard: { write: (items: Item[]) => {
+    written = Promise.resolve(items[0]!.data["text/html"]!)
+    return Promise.resolve()
+  } } } })
+  try {
+    const file = new File(["rapid bytes"], "rapid.txt", { type: "text/plain" })
+    rememberClipboardFile({ type: "image", id: "rapid-id", filename: file.name, mime: file.type, size: file.size, blob: { id: "content-hash", url: "blob:released" } }, file)
+    const data = new Map<string, string>()
+    copyComposerFragment("[rapid.txt](attachment:rapid-id)", { setData: (type, value) => { data.set(type, value) } })
+    expect(data.get("text/html")).not.toContain("data-kiko-payload")
+    expect(written).toBeDefined()
+    const html = (await (await written!)!.text()).replace(/ data-kiko-clipboard="[^"]*"/, "")
+    const fragment = pastedComposerFragment({ getData: (type) => type === "text/html" ? html : "" })
+    expect(await fragment?.files[0]?.file.text()).toBe("rapid bytes")
+    expect(fragment?.files[0]?.attachment.blob.id).toBe("content-hash")
+  } finally {
+    if (originalNavigator) Object.defineProperty(globalThis, "navigator", originalNavigator)
+    else Reflect.deleteProperty(globalThis, "navigator")
+    if (originalItem) Object.defineProperty(globalThis, "ClipboardItem", originalItem)
+    else Reflect.deleteProperty(globalThis, "ClipboardItem")
+  }
+})
