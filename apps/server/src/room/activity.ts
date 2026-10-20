@@ -31,7 +31,7 @@ function messageCandidate(m: Posted, nameOf: (slug: string) => string): Candidat
 }
 
 /** The touch for one bubble that just landed: no scan, so a bubble in a long run costs the same as the first. Mentions stay as they are until the run ends. Mail between agents is counted but not quoted as the last line. */
-export function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): RoomActivity {
+function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): RoomActivity {
 	const name = (slug: string) => sql.exec<{ name: string }>("SELECT name FROM members WHERE slug = ?1 AND members.room_id = ?2", slug, log.roomId).toArray()[0]?.name ?? slug
 	const group = (sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM members WHERE removed_at IS NULL AND members.room_id = ?1", log.roomId).one().n ?? 0) > 1
 	return { lastSeq: log.lastSeq(), lastPreview: row.text, unread: log.unread(), ...(row.to === undefined ? { last: messageCandidate(row, name).last } : {}), group }

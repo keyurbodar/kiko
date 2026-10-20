@@ -38,7 +38,7 @@ export const LISTED_MESSAGE = `${PUBLIC_MESSAGE} AND addressed IS NULL`
 const PREVIEW_CHARS = 140
 
 /** What a reply's quote shows for a message: its words cut short, or what its files are. */
-export function previewText(text: string, files: readonly Pick<FileRef, "name" | "type">[] = []): string {
+function previewText(text: string, files: readonly Pick<FileRef, "name" | "type">[] = []): string {
 	const body = text.replace(/\s+/g, " ").trim()
 	if (body) return body.length > PREVIEW_CHARS ? `${Array.from(body).slice(0, PREVIEW_CHARS - 1).join("")}…` : body
 	const images = files.filter((f) => f.type.startsWith("image/")).length

@@ -1,7 +1,7 @@
 
-export const HELLO_TIMEOUT_MS = 5_000
+const HELLO_TIMEOUT_MS = 5_000
 export const HELLO_WAKEUP = "hello"
-export const HELLO_TIMEOUT_CODE = 4408
+const HELLO_TIMEOUT_CODE = 4408
 export const HELLO_TIMEOUT_REASON = "no hello within 5 seconds"
 
 type HelloClock = {

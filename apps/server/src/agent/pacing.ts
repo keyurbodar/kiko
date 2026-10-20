@@ -26,7 +26,7 @@ export function postOf(message: Assistant, seen: { posted: boolean; quiet: boole
 }
 
 /** The ack's words: one short line, so eight narrations never stack into eight bubbles. */
-export const ACK_CHARS = 200
+const ACK_CHARS = 200
 
 export function ackOf(text: string): string {
   const line = text.split("\n").find((part) => part.trim() !== "")?.trim() ?? ""
@@ -34,7 +34,7 @@ export function ackOf(text: string): string {
 }
 
 /** A narration as the step pane shows it. The room cuts its own label column; this keeps a request from growing unbounded. */
-export const NOTE_CHARS = 2_000
+const NOTE_CHARS = 2_000
 
 export function noteOf(text: string): string {
   const body = text.trim()

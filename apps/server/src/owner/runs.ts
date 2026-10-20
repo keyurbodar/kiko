@@ -1,5 +1,5 @@
 const RUN_CALL_LIMIT = 40
-export const RUN_DURATION_MS = 12 * 60_000
+const RUN_DURATION_MS = 12 * 60_000
 
 type RunOutcome = "done" | "continue"
 

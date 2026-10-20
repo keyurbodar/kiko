@@ -6,7 +6,7 @@ const AUTHORIZE_URL = "https://auth.openai.com/api/accounts/authorize"
 const TOKEN_URL = "https://auth.openai.com/api/accounts/oauth/token"
 const RESOURCE = "https://api.openai.com/v1"
 // OpenAI registered this address for the flow, so it cannot change. Nothing listens there for kiko.
-export const REDIRECT_URI = "http://127.0.0.1:1455/auth/callback"
+const REDIRECT_URI = "http://127.0.0.1:1455/auth/callback"
 const DIRECT_TOKEN_SCOPE = "chatgpt.tokens.use.direct"
 const SCOPE = `openid profile email offline_access resource.invoke ${DIRECT_TOKEN_SCOPE}`
 const EXPIRY_MARGIN_MS = 3 * 60 * 1000
@@ -55,7 +55,7 @@ export function authorizeUrl(input: { hostId: string; state: string; nonce: stri
 }
 
 /** Reads the address the person copied from the browser after approving. */
-export function parseCallback(input: string, expectedState: string): { code: string; clientId: string } {
+function parseCallback(input: string, expectedState: string): { code: string; clientId: string } {
   let url: URL
   try {
     url = new URL(input.trim())

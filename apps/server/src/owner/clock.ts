@@ -10,7 +10,7 @@ type ClockAgent = {
   scheduledDeadline: (task: TaskInspection) => number | undefined
 }
 
-export type ClockSnapshot = {
+type ClockSnapshot = {
   loaded: readonly ClockAgent[]
   unloaded: Iterable<number>
   lease?: number

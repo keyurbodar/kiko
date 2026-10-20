@@ -7,7 +7,7 @@ import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
 import { buildMetadata, destructiveMigration, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
 import type { UpdateStage } from "@kiko/protocol"
 
-export type CfGrant = {
+type CfGrant = {
   kind: "oauth" | "token"
   accountId: string
   scriptName: string
@@ -19,7 +19,7 @@ export type CfGrant = {
 
 export type UpdateConfig = { releaseBase: string; publicKey: string; cfApi: string; oauthUrl: string }
 
-export type UpdateDeps = {
+type UpdateDeps = {
   fetch: (url: string, init?: RequestInit) => Promise<Response>
   config: UpdateConfig
   /** The grant UserDO stored last, else the install's CF_GRANT secret. */

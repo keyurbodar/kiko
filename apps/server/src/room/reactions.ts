@@ -10,7 +10,7 @@ const ALLOWED = [
 const bare = (emoji: string) => emoji.replace(/[︎️]|\uD83C[\uDFFB-\uDFFF]/g, "")
 const CANONICAL = new Map<string, string>(ALLOWED.map((e) => [bare(e), e]))
 
-export function allowedReaction(emoji: string): string | null {
+function allowedReaction(emoji: string): string | null {
 	return CANONICAL.get(bare(emoji.trim())) ?? null
 }
 
@@ -38,9 +38,9 @@ const QUOTE = 60
 export type ReactionNote = { by: string; emoji: string; text: string }
 
 /** The most of the reactions block, in the bytes the brief escapes it to. The newest reactions are kept; the rest are counted. */
-export const MAX_REACTIONS_BYTES = 1024
+const MAX_REACTIONS_BYTES = 1024
 
-export function reactionLines(notes: readonly ReactionNote[]): string | null {
+function reactionLines(notes: readonly ReactionNote[]): string | null {
 	if (!notes.length) return null
 	const kept: string[] = []
 	let bytes = 0

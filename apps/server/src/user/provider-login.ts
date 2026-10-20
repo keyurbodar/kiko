@@ -221,7 +221,7 @@ const FAILURES: readonly (readonly [RegExp, string])[] = [
   [/fetch failed|network|econn|enotfound|unable to connect|could not reach/i, "Kiko could not reach the provider. Check the connection, then start again."],
 ]
 
-export function signInFailure(error: unknown): string {
+function signInFailure(error: unknown): string {
   const raw = error instanceof Error ? error.message : ""
   const sentence = FAILURES.find(([pattern]) => pattern.test(raw))?.[1] ?? "The sign-in did not finish. Start again."
   const detail = runErrorDetail(raw)

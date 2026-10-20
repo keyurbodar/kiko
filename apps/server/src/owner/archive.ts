@@ -1,4 +1,4 @@
-export type ArchiveBucket = {
+type ArchiveBucket = {
   put(key: string, value: Uint8Array): Promise<unknown>
   get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>
   list(options: { prefix: string; cursor?: string }): Promise<{

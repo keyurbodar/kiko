@@ -38,7 +38,7 @@ export function writeState(sql: SqlStorage, state: CatalogState): void {
   setSetting(sql, STATE_KEY, JSON.stringify(state))
 }
 
-export function readOverlay(sql: SqlStorage): CatalogOverlay {
+function readOverlay(sql: SqlStorage): CatalogOverlay {
   const out: CatalogOverlay = {}
   for (const row of sql.exec<{ provider_id: string; models: string }>("SELECT provider_id, models FROM model_catalog").toArray()) {
     out[row.provider_id] = JSON.parse(row.models) as AnyModel[]

@@ -20,7 +20,7 @@ export function checkApiKey(value: unknown): string {
   return key
 }
 
-export function userIdFromObjectName(name: string | undefined): string {
+function userIdFromObjectName(name: string | undefined): string {
   const id = name ? /^user:([A-Za-z0-9_-]{1,64})$/.exec(name)?.[1] : undefined
   if (id === undefined) throw new CredentialError("this object has no user name")
   return id

@@ -6,7 +6,7 @@ import { declareEffect } from "@kiko/agent/effects"
 import type { RoomFs } from "../../files/room-fs"
 import { perRun } from "./self"
 
-export const SKILLS = "skills"
+const SKILLS = "skills"
 const ROOM_PREFIX = "skills"
 const MAX_SKILL_BYTES = 64 * 1024
 

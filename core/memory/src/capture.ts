@@ -7,7 +7,7 @@ export type CaptureMode = "auto" | "off"
 
 export type CapturePolicy = { idleMs: number; jevDelayMs: number; capture: CaptureMode }
 
-export const DEFAULT_POLICY: CapturePolicy = { idleMs: 60_000, jevDelayMs: 3_000, capture: "auto" }
+const DEFAULT_POLICY: CapturePolicy = { idleMs: 60_000, jevDelayMs: 3_000, capture: "auto" }
 
 // How sure the judge must be. Scores are probabilities.
 const WORTH_MIN = 0.6
@@ -84,7 +84,7 @@ const YES_NO = { true: "yes", false: "no" }
 
 export type CaptureItem = { message: number; candidate: string; known: { pos: number; text: string }[] }
 
-export function captureQuestions(items: readonly CaptureItem[]): { state: JsonObject; questions: Record<string, Question> } {
+function captureQuestions(items: readonly CaptureItem[]): { state: JsonObject; questions: Record<string, Question> } {
   const questions: Record<string, Question> = {}
   items.forEach(({ known }, i) => {
     const c = `\`candidates[${i}].text\``

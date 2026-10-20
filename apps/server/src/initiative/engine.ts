@@ -15,7 +15,7 @@ const PER_PASS = { digest: 1, active: 3 }
 
 export type Level = UserSettings["initiative"]
 
-export type WakeInput = { id: string; to: AgentSlug | null; body: string; reason: string }
+type WakeInput = { id: string; to: AgentSlug | null; body: string; reason: string }
 
 /** One row of the board summary a room reports to `UserDO.chatTasks` when its tasks change. */
 type BoardTask = { id?: string; title: string; status: string; owner?: string; updatedAt: number }

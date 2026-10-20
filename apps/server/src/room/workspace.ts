@@ -6,7 +6,7 @@ import { TASK_TITLE_WORD_LIMIT } from "./task-title"
 export const TASK_STATUSES: readonly TaskStatus[] = ["todo", "doing", "blocked", "review", "done", "cancelled"]
 const CLOSED: ReadonlySet<TaskStatus> = new Set(["done", "cancelled"])
 
-export const MAX_TASKS = 200
+const MAX_TASKS = 200
 const MAX_TITLE = 200
 const MAX_NOTE = 2_000
 const MAX_DEPS = 20

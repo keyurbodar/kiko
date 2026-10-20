@@ -39,7 +39,7 @@ const toRow = (r: Row): MemberRow => ({
 	status: r.status as AgentState,
 })
 
-export function toMember(m: MemberRow): Member {
+function toMember(m: MemberRow): Member {
 	return { slug: m.slug, name: m.name, lead: m.lead, ...(m.role ? { role: m.role } : {}), model: m.model }
 }
 

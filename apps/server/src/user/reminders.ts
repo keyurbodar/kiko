@@ -10,7 +10,7 @@ export const MAX_ROUTINES = 50
 const YEAR_MS = 365 * 86_400_000
 export const RUNS_KEPT = 20
 const LATE_MS = 60 * 60_000
-export const MAX_FAILS = 3
+const MAX_FAILS = 3
 const LOST_RUN_MS = 2 * 60 * 60_000
 const MAX_SKIPS = 10_000
 const MAX_TEXT = 2000
@@ -48,7 +48,7 @@ export type NewRoutine = {
 
 export type RunDelivery = "delivered" | "held" | "refused" | "gone" | "duplicate" | "skipped"
 
-export type DeliverRun = (input: { requestId: string; deliveryId: string; routine: Reminder; body: string }) => Promise<RunDelivery>
+type DeliverRun = (input: { requestId: string; deliveryId: string; routine: Reminder; body: string }) => Promise<RunDelivery>
 
 export type Notice = (roomId: RoomId, id: string, text: string) => Promise<void>
 

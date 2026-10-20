@@ -6,7 +6,7 @@ import { type RecipientMember, resolveRecipients } from "./recipients"
 /** The attached line's budget in the JSON bytes the entry counts. The files past it are counted, not named. */
 const MAX_ATTACHED_BYTES = 4 * 1024
 
-export function attachedLine(files: readonly FileRef[]): string {
+function attachedLine(files: readonly FileRef[]): string {
 	const names: string[] = []
 	let bytes = 0
 	for (const [i, f] of files.entries()) {

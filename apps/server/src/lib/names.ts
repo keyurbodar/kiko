@@ -22,7 +22,7 @@ export async function composioUserId(userId: string): Promise<string> {
   return `kiko_${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32)}`
 }
 
-export function ownerName(userId: string): string {
+function ownerName(userId: string): string {
   const id = checkUser(userId)
   return id === "owner" ? "owner" : `owner:${id}`
 }

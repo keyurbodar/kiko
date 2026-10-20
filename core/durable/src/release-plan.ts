@@ -3,7 +3,7 @@
 
 import type { ReleaseManifest, ReleaseMigration } from "./release"
 
-export type MigrationPlan = { old_tag?: string; new_tag: string; steps: ReleaseMigration[] }
+type MigrationPlan = { old_tag?: string; new_tag: string; steps: ReleaseMigration[] }
 
 const BUCKET = "kiko-files"
 

@@ -9,7 +9,7 @@ export type Candidate = Omit<LearnedTool, "usedAt" | "readOnly">
 export const SEARCH = "COMPOSIO_SEARCH_TOOLS"
 export const SCHEMAS = "COMPOSIO_GET_TOOL_SCHEMAS"
 export const MULTI_EXECUTE = "COMPOSIO_MULTI_EXECUTE_TOOL"
-export const LEARNED_MAX = 24
+const LEARNED_MAX = 24
 
 type Obj = Record<string, unknown>
 const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v)

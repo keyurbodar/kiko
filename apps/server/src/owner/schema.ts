@@ -156,7 +156,7 @@ const INITIAL_USER_STEPS: readonly Step[] = [
   `CREATE TABLE room_directory (room_id TEXT PRIMARY KEY)`,
 ]
 
-export const OWNER_STEPS: readonly Step[] = [
+const OWNER_STEPS: readonly Step[] = [
   `CREATE TABLE IF NOT EXISTS events (
     room_id TEXT NOT NULL,
     seq INTEGER NOT NULL,

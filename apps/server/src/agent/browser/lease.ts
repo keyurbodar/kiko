@@ -6,7 +6,7 @@ export type Lease = LeaseInfo
 
 export type BrowserState = BrowserCheck
 
-export type LiveLink = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
+type LiveLink = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
 
 export class BrowserNotConnected extends Error {
   constructor() {

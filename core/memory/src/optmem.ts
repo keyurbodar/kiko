@@ -1,6 +1,6 @@
 export type Span = { lo: number; hi: number }
 
-export type Shape = {
+type Shape = {
   page: number
   floor: number
   budget: number
@@ -88,7 +88,7 @@ function validPrefix(prev: readonly Span[], end: number, page: number): boolean 
 
 const isPow2 = (n: number) => Number.isInteger(n) && n > 0 && (n & (n - 1)) === 0
 
-export function isNode(span: Span, page: number): boolean {
+function isNode(span: Span, page: number): boolean {
   const size = span.hi - span.lo
   return size >= page && size % page === 0 && isPow2(size / page) && span.lo % size === 0
 }
@@ -330,7 +330,7 @@ function cutBytes(text: string, max: number): string {
   return out
 }
 
-export function capBytes(text: string, max: number): string {
+function capBytes(text: string, max: number): string {
   if (encoder.encode(text).byteLength <= max) return text
   return `${cutBytes(text, max - 3)}…`
 }

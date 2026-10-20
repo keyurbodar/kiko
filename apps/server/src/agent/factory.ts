@@ -58,7 +58,7 @@ export type BuiltAgent = {
   agent: AgentChange
 }
 
-export const BASE = "base"
+const BASE = "base"
 
 function extensionsFor(input: BuildAgentInput, all: () => readonly Extension[]): Extension[] {
   return [

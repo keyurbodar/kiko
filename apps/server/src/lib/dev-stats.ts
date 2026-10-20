@@ -102,7 +102,7 @@ function statementReport(limit = MAX_STATEMENTS): { statements: StatementRow[]; 
 }
 
 
-export function billedWrites(values: Readonly<Record<string, number>>): {
+function billedWrites(values: Readonly<Record<string, number>>): {
   sqlPhysical: number; kvKeysPut: number; kvKeysDeleted: number; setAlarm: number; total: number
 } {
   const sum = (suffix: string) => Object.entries(values).reduce((total, [key, value]) => key.endsWith(`.${suffix}`) ? total + value : total, 0)

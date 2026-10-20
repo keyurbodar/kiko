@@ -17,9 +17,9 @@ import { INITIAL_WORKERS_STEPS, Workers } from "./workers"
 const context = BACKGROUND_CONTEXT
 
 export const INBOX_WAKEUP = "inbox"
-export const CONTEXT_BUDGET_CHARS = 60_000
-export const TASK_BUDGET_CHARS = 240_000
-export const TASK_IDLE_MS = 15 * 60_000
+const CONTEXT_BUDGET_CHARS = 60_000
+const TASK_BUDGET_CHARS = 240_000
+const TASK_IDLE_MS = 15 * 60_000
 
 export type Transcript = { inputs: number; chars: number; toolChars: number; idleMs: number }
 
@@ -47,7 +47,7 @@ function opening(text: string): number {
   return end < 0 ? 0 : end + "</memory>".length
 }
 
-export function briefToShow(
+function briefToShow(
   briefs: readonly string[],
   fresh: boolean,
   last: string | undefined,
@@ -67,7 +67,7 @@ function hashText(text: string): string {
   return (h >>> 0).toString(16)
 }
 
-export function startsFresh(t: Transcript): boolean {
+function startsFresh(t: Transcript): boolean {
   if (t.inputs === 0) return true
   if (t.chars <= CONTEXT_BUDGET_CHARS) return false
   const working = t.toolChars * 2 > t.chars && t.idleMs < TASK_IDLE_MS

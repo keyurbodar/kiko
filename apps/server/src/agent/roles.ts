@@ -30,7 +30,7 @@ const TABLE: Readonly<Record<string, readonly Role[]>> = {
   [BROWSER_EXT]: ["worker"],
 }
 
-export const hasRole = (name: string, role: Role): boolean => (TABLE[name] ?? ["talker", "worker"]).includes(role)
+const hasRole = (name: string, role: Role): boolean => (TABLE[name] ?? ["talker", "worker"]).includes(role)
 
 /** The extensions one role gets, in the order they were built. */
 export const forRole = (extensions: readonly Extension[], role: Role): Extension[] => extensions.filter((e) => hasRole(e.name, role))

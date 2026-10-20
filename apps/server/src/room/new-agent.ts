@@ -3,7 +3,7 @@ import { checkNewAgent, introduction, type Maker, type NewAgentSpec } from "./ch
 import type { RecipeHint } from "../recipes/match"
 
 /** What making an agent needs from the human's account. Kiko's tool reaches it by stub, the new agent form from inside `UserDO`. */
-export type NewAgentPorts = {
+type NewAgentPorts = {
   agents(): Promise<readonly Agent[]>
   make(spec: NewAgentSpec & { id?: string }): Promise<Agent | null>
   openChat(title: string, agentIds: readonly string[], roomId?: RoomId): Promise<{ roomId: RoomId }>

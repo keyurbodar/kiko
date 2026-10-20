@@ -13,7 +13,7 @@ const MAX_HANDLE = 40
  * of 128 KB. Its bubble is at most 64 KB of JSON (`whole-text.ts`), so the board takes 24 KB. Every
  * other part of the entry is capped too.
  */
-export const MAX_BOARD_BYTES = 24 * 1024
+const MAX_BOARD_BYTES = 24 * 1024
 
 export type BriefView = {
 	goal: string

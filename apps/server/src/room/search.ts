@@ -46,7 +46,7 @@ export function snippetOf(plain: string, query: string): string {
 	return `${start > 0 ? "…" : ""}${window}${end < flat.length ? "…" : ""}`
 }
 
-export function toMatch(query: string): string | null {
+function toMatch(query: string): string | null {
 	const words = queryWords(query)
 	if (!words.length) return null
 	return words.map((w, i) => `"${w}"${i === words.length - 1 ? "*" : ""}`).join(" ")

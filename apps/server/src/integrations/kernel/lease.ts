@@ -2,22 +2,22 @@ import { boundedWait } from "@kiko/durable/bounded-wait"
 import { KernelError, type KernelClient, type Mode } from "./client"
 import type { KernelStore, LeaseRow, Tabs } from "./store"
 
-export type LeaseStore = Pick<KernelStore, "lease" | "urls" | "putLease" | "patchLease" | "deleteLease" | "profileReady" | "setProfileReady" | "setBroken">
+type LeaseStore = Pick<KernelStore, "lease" | "urls" | "putLease" | "patchLease" | "deleteLease" | "profileReady" | "setProfileReady" | "setBroken">
 
 /**
  * A browser nobody used for this long is deleted, which saves the profile. Until then it keeps its tabs and pages.
  * Kernel puts a browser with no CDP or live view connection in standby after 5 s and bills nothing for standby,
  * so a long life costs a concurrency slot and no usage.
  */
-export const IDLE_MS = 24 * 60 * 60_000
+const IDLE_MS = 24 * 60 * 60_000
 /** While the human drives, the reaper looks again this often. */
-export const TAKEOVER_RECHECK_MS = 60_000
+const TAKEOVER_RECHECK_MS = 60_000
 /** Kernel's own delete after this long in standby, the net if our reaper misses. Kernel allows up to 72 hours. */
 const KERNEL_TIMEOUT_SECONDS = 25 * 60 * 60
 const MAX_RETRY_AFTER_S = 5
 export const MAX_TABS = 8
 /** The longest the human holds control. A takeover older than this is over, so a forgotten live view cannot pause agents for ever. */
-export const TAKEOVER_MS = 30 * 60_000
+const TAKEOVER_MS = 30 * 60_000
 
 export const REAP_WAKEUP = "kernel_reap"
 
@@ -29,7 +29,7 @@ export function humanHolds(row: Pick<LeaseRow, "takeover" | "watchUntil">, now: 
 }
 
 /** The whole reaper policy, as data in and a verdict out. A browser an agent used inside the idle window is never deleted, whatever its age. */
-export function reapDecision(row: Pick<LeaseRow, "lastUse" | "takeover" | "watchUntil" | "dead">, now: number): ReapDecision {
+function reapDecision(row: Pick<LeaseRow, "lastUse" | "takeover" | "watchUntil" | "dead">, now: number): ReapDecision {
   if (row.dead) return { delete: true }
   if (humanHolds(row, now)) return { delete: false, at: now + TAKEOVER_RECHECK_MS }
   if (row.watchUntil > now) return { delete: false, at: row.watchUntil }

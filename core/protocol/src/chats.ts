@@ -7,7 +7,7 @@ export const KIKO = "kiko"
 export const KIKO_HOME_ROOM = "00000000-0000-7000-8000-6b696b6f0000" as RoomId
 
 /** Two agent lists name the same chat when they hold the same agents, in any order, with repeats counted once. */
-export function sameAgents(a: readonly string[], b: readonly string[]): boolean {
+function sameAgents(a: readonly string[], b: readonly string[]): boolean {
 	const x = new Set(a)
 	const y = new Set(b)
 	return x.size > 0 && x.size === y.size && [...x].every((id) => y.has(id))

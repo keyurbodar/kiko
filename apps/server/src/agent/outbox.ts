@@ -35,7 +35,7 @@ export function textOf(message: AssistantLike | undefined, final = true): string
   return (message?.content ?? []).flatMap((part) => (part.type === "text" && part.text ? [scrubToolMarkup(part.text, final)] : [])).join("\n\n")
 }
 
-export function partsOf(text: string): { blocks: string[]; reactions: Reaction[] } {
+function partsOf(text: string): { blocks: string[]; reactions: Reaction[] } {
   const splitter = createSplitter()
   const head = splitter.push(text)
   const tail = splitter.end()

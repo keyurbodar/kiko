@@ -15,7 +15,7 @@ export type Chain = { rootId: string; hop: number }
 /** Where a queued mail goes when its recipient is in another room: the pair room, and the ask it belongs to. `back` marks an answer on its way to the room that asked. */
 type Remote = { room: RoomId; askId: string; back?: true }
 
-export type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend; remote: Remote | null }
+type QueuedMail = { n: number; from: AgentSlug; to: AgentSlug; send: StoredSend; remote: Remote | null }
 
 /** What the room does after an answer came back from a pair room. */
 type Returned = { events: RoomEvent[]; asker: AgentSlug; queued: boolean }

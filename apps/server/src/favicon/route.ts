@@ -14,7 +14,7 @@ const IMAGE = /^image\/(png|x-icon|vnd\.microsoft\.icon|jpeg|gif|webp|svg\+xml)$
 const LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
 
 /** A public DNS name, lower case, or null. An IP literal, a name with no dot, and a bad label are refused here. */
-export function faviconHost(raw: string): string | null {
+function faviconHost(raw: string): string | null {
 	const host = raw.toLowerCase().replace(/\.$/, "")
 	if (host.length > 253) return null
 	const labels = host.split(".")
@@ -37,7 +37,7 @@ const reply = (body: BodyInit | null, status: number, type: string | null, secon
 // Google's favicon service finds icons declared in a page's <link rel=icon>; the site's own /favicon.ico is the fallback.
 const sources = (host: string) => [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`, `https://${host}/favicon.ico`]
 
-export async function fetchFavicon(host: string, fetcher?: Fetcher): Promise<Response> {
+async function fetchFavicon(host: string, fetcher?: Fetcher): Promise<Response> {
 	for (const url of sources(host)) {
 		const result = await safeFetch(url, fetcher, { maxBytes: MAX_BYTES, timeoutMs: TIMEOUT_MS, userAgent: "kiko-favicon" })
 		const type = result.ok ? (result.headers.get("content-type")?.split(";")[0]?.trim() ?? "") : ""

@@ -1,8 +1,8 @@
 import type { AgentSlug, RunStep, RunStepStatus, ToolKind } from "@kiko/protocol"
 
 /** A room keeps the newest KEEP_STEPS finished steps. It deletes down to that only when the count passes HIGH_WATER. */
-export const KEEP_STEPS = 2_000
-export const HIGH_WATER = 2_200
+const KEEP_STEPS = 2_000
+const HIGH_WATER = 2_200
 /** A snapshot carries at most this many steps no message opens yet, none older than a day. */
 const TAIL_LIMIT = 300
 const TAIL_WINDOW_MS = 24 * 60 * 60 * 1000

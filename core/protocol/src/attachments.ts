@@ -62,7 +62,7 @@ export function attachmentKind(file: Named): "image" | "file" | "unsupported-ima
 
 export const attachmentLimit = (type: string) => (isImageType(type) ? MAX_IMAGE_BYTES : MAX_ATTACHMENT_FILE_BYTES)
 
-export function limitLabel(bytes: number): string {
+function limitLabel(bytes: number): string {
 	if (bytes >= MiB && bytes % MiB === 0) return `${bytes / MiB} MB`
 	if (bytes >= 1024 && bytes % 1024 === 0) return `${bytes / 1024} KB`
 	return `${bytes} ${bytes === 1 ? "byte" : "bytes"}`

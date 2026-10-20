@@ -7,7 +7,6 @@ apps/server/src/agent/dev-fake.ts:FAKE_MODEL
 apps/server/src/agent/dev-fake.ts:SLOW_TOOL
 apps/server/src/agent/dev-fake.ts:SLOW_TOOL_EXTENSION
 apps/server/src/agent/dev-fake.ts:SLOW_TOOL_MS
-apps/server/src/agent/dev-fake.ts:fakeReply
 apps/server/src/agent/extensions/files.ts:MAX_PDF_BYTES
 apps/server/src/agent/extensions/messaging.ts:ASK_WAIT_MS
 apps/server/src/agent/extensions/self.ts:SELF
@@ -48,10 +47,6 @@ apps/server/src/room/limits.ts:MAX_HOP
 apps/server/src/room/limits.ts:SendCheck
 apps/server/src/room/log.ts:KEEP_EVENTS
 apps/server/src/room/log.ts:SNAPSHOT_MESSAGES
-apps/server/src/room/mail-drain.ts:MailDeps
-apps/server/src/room/mail-drain.ts:MailOutcome
-apps/server/src/room/mail.ts:KEEP_SENDS_MS
-apps/server/src/room/mail.ts:StoredSend
 apps/server/src/room/members.ts:MemberResult
 apps/server/src/room/members.ts:RESERVED_SLUGS
 apps/server/src/room/memory-naps.ts:MemoryNapsDeps
@@ -66,7 +61,6 @@ apps/server/src/room/socket.ts:BAD_FRAME
 apps/server/src/room/socket.ts:MAX_HISTORY
 apps/server/src/room/team.ts:Holder
 apps/server/src/room/team.ts:LEASE_MS
-apps/server/src/room/wake-delivery.ts:WakeDeps
 apps/server/src/room/workspace.ts:Workspace
 apps/server/src/skills/registry.ts:SkillSource
 apps/server/src/user/hooks-route.ts:MAX_HOOK_BYTES
@@ -88,9 +82,6 @@ apps/server/src/user/theme.ts:isStorableTheme
 core/agent/src/effects.ts:EFFECTS
 core/agent/src/host.ts:INBOX_WAKEUP
 core/agent/src/host.ts:Transcript
-core/agent/src/inbox.ts:Admission
-core/agent/src/inbox.ts:KEEP_SUBMITTED_MS
-core/agent/src/inbox.ts:requestIdFor
 core/agent/src/workers.ts:MAX_WORKER_RESUMES
 core/agent/src/workers.ts:REPORT_CHARS
 core/agent/src/workers.ts:WorkStatus
@@ -99,11 +90,9 @@ core/agent/src/workers.ts:workEnvelope
 core/browser/src/cdp/browser.ts:ConnectOptions
 core/browser/src/cdp/session.ts:CdpSession
 core/browser/src/cdp/session.ts:EventName
-core/browser/src/cdp/session.ts:Method
 core/browser/src/cdp/session.ts:Params
 core/browser/src/cdp/session.ts:Payload
 core/browser/src/config.ts:BrowserConfig
-core/durable/src/alarm.ts:WAKEUP_RETRY_MS
 core/durable/src/crypto.ts:Kek
 core/durable/src/crypto.ts:KeyringEnv
 core/durable/src/hello-deadline.ts:HELLO_TIMEOUT_REASON
@@ -116,7 +105,6 @@ core/memory/src/life.ts:AppendOptions
 core/memory/src/life.ts:CARD_TAGS
 core/memory/src/life.ts:NoteResult
 core/memory/src/optmem.ts:ZoomLog
-core/memory/src/optmem.ts:nodeLine
 core/memory/src/tools.ts:MEMORY
 core/memory/src/tools.ts:MEMORY_RULE
 core/memory/src/tools.ts:noteRule

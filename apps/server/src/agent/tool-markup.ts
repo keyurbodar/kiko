@@ -102,7 +102,7 @@ type Parsed = { prose: string; calls: TextCall[] }
  * Splits model text into the prose a person may read and the tool calls written as markup. `final` is false while text still streams:
  * the tail that might open a span is held back, so a bubble never shows half a tag.
  */
-export function parseToolMarkup(text: string, final: boolean): Parsed {
+function parseToolMarkup(text: string, final: boolean): Parsed {
   let prose = ""
   const calls: TextCall[] = []
   let at = 0

@@ -16,7 +16,7 @@ export function declareEffect<T extends ToolRegistration>(effect: Effect, tool: 
   return Object.assign({ ...tool }, { [DECLARED]: { effect, stoppable: options.stoppable ?? false } }) as T
 }
 
-export function effectOf(tool: ToolRegistration): Effect | undefined {
+function effectOf(tool: ToolRegistration): Effect | undefined {
   return (tool as Declared)[DECLARED]?.effect
 }
 

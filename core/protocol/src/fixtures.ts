@@ -6,9 +6,9 @@ import type { Chat } from "./user"
 
 export const userId = "user_fixture" as UserId
 export const roomId = "01JZ8Q4T6M0000000000000001" as RoomId
-export const otherRoomId = "01JZ8Q4T6M0000000000000002" as RoomId
+const otherRoomId = "01JZ8Q4T6M0000000000000002" as RoomId
 export const ada = "ada" as AgentSlug
-export const bob = "bob" as AgentSlug
+const bob = "bob" as AgentSlug
 
 const messageId = (n: number) => `m${n}` as MessageId
 const at = (seq: number) => 1_790_000_000_000 + seq * 1000
@@ -25,7 +25,7 @@ export const file: FileRef = {
 	type: "image/png",
 }
 
-export const richText: RichText = [
+const richText: RichText = [
 	{ t: "heading", level: 2, children: [{ t: "text", text: "the plan" }] },
 	{
 		t: "paragraph",
@@ -103,12 +103,12 @@ export const activities: readonly Activity[] = [
 	{ kind: "background", workers: [] },
 ]
 
-export const agentStatuses: readonly AgentStatus[] = [
+const agentStatuses: readonly AgentStatus[] = [
 	{ slug: ada, state: "typing", doing: "editing /plan.md", activity: { kind: "tool", tool: "edit", caption: "editing /plan.md" } },
 	{ slug: bob, state: "working", activity: { kind: "background", workers: [worker] } },
 ]
 
-export const systemEvents: readonly SystemEvent[] = [
+const systemEvents: readonly SystemEvent[] = [
 	{ kind: "delegated", from: ada, to: bob, title: "write the tests" },
 	{ kind: "routine", title: "morning summary" },
 	{ kind: "agent_message", from: ada, to: bob },
@@ -156,7 +156,7 @@ export const roomEvents: readonly RoomEvent[] = [
 	{ seq: 23, at: at(23), t: "ask_resolved", id: "ask2", how: "skipped" },
 ]
 
-export const roomSnapshot: RoomSnapshot = {
+const roomSnapshot: RoomSnapshot = {
 	seq: 23,
 	readSeq: 9,
 	members,

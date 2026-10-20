@@ -6,7 +6,7 @@ const MAX_OPEN = 1000
 
 export const BURST_WAKEUP = "burst"
 
-export const AFTER_MESSAGE_MS = 1_000
+const AFTER_MESSAGE_MS = 1_000
 export const AFTER_TYPING_MS = 2_500
 export const AFTER_FRAGMENT_MS = 2_500
 export const MAX_BURST_MS = 8_000

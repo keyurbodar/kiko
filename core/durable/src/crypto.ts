@@ -16,7 +16,7 @@ export interface KeyringEnv {
   CREDENTIALS_KEK: string
 }
 
-export class CryptoError extends Error {}
+class CryptoError extends Error {}
 
 export function keyringFromEnv(env: KeyringEnv): Keyring {
   if (!env.CREDENTIALS_KEK) throw new CryptoError("CREDENTIALS_KEK is not set")

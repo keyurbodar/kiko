@@ -28,7 +28,7 @@ export async function route(request: Request, env: Env, lookup: SessionLookup = 
   return within(UPGRADE_TIMEOUT_MS, upgrade(request, env, url, lookup))
 }
 
-export const UPGRADE_TIMEOUT_MS = 5_000
+const UPGRADE_TIMEOUT_MS = 5_000
 
 // If this Worker invocation ends first, the object's own hello deadline closes the socket.
 async function within(ms: number, work: Promise<Response>): Promise<Response> {

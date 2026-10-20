@@ -22,12 +22,12 @@ function secureUrl(raw: string): URL | null {
   return url.protocol === "https:" && url.port === "" && !url.username && !url.password ? url : null
 }
 
-export function openVsxTarget(raw: string | null): string | null {
+function openVsxTarget(raw: string | null): string | null {
   const url = raw ? secureUrl(raw) : null
   return url?.hostname === HOST && url.pathname.startsWith("/api/") ? url.href : null
 }
 
-export const landedOnOpenVsx = (href: string) => {
+const landedOnOpenVsx = (href: string) => {
   const url = secureUrl(href)
   return url !== null && (url.hostname === HOST || url.hostname === CDN_HOST)
 }
