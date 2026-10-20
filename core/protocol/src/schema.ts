@@ -640,6 +640,18 @@ export const UserToClient = Schema.Union([
 	}),
 ])
 
+export const ClientToOwner = Schema.Union([
+	ClientToUser,
+	Schema.Struct({ t: Schema.Literal("room"), roomId: RoomId, frame: ClientToRoom }),
+	Schema.Struct({ t: Schema.Literal("subscribe"), roomId: RoomId, lastSeq: Count }),
+	Schema.Struct({ t: Schema.Literal("unsubscribe"), roomId: RoomId }),
+])
+
+export const OwnerToClient = Schema.Union([
+	UserToClient,
+	Schema.Struct({ t: Schema.Literal("room"), roomId: RoomId, frame: RoomToClient }),
+])
+
 // A schema and its plain type must accept exactly the same values. `Inline`
 // and `Block` are recursive, so their annotations check them instead.
 
@@ -678,6 +690,8 @@ export type InSync = Assert<
 	| Same<typeof KernelResult.Type, P.KernelResult>
 	| Same<typeof BrowserState.Type, P.BrowserState>
 	| Same<typeof BrowserLinkResult.Type, P.BrowserLinkResult>
+	| Same<typeof ClientToOwner.Type, P.ClientToOwner>
+	| Same<typeof OwnerToClient.Type, P.OwnerToClient>
 	| Same<typeof ClientToUser.Type, P.ClientToUser>
 	| Same<typeof UserToClient.Type, P.UserToClient>
 >

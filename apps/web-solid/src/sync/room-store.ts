@@ -2,7 +2,7 @@ import { humanAnswerText, type HumanAnswers, type KikoError } from "@kiko/protoc
 // The open room.
 //
 // It holds the visible message window in a Solid store, keeps the warm tier in
-// step, and talks to the room over one reconnecting socket.
+// step, and talks to the room through the shared owner socket.
 //
 // Boot: read the newest messages, the room's state, `lastSeq`, and the outbox
 // from IndexedDB, then connect with `hello {lastSeq}`.
@@ -63,7 +63,7 @@ import {
 	type ViewMessage,
 } from "./patches"
 import { upsertStep, windowKey } from "../chat/run/run-log"
-import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
+import { type UserChannel, userChannel, type SocketStatus, type RoomChannel } from "./socket"
 import { retryFailedUploads } from "./uploads"
 
 // The room's durable state and the one reducer for it. The mock room uses the
@@ -314,10 +314,7 @@ export type RoomState = RoomData & {
 export type RoomStoreOptions = {
 	roomId: RoomId
 	warm: Warm
-	/** The room socket's URL. */
-	url: string
-	connect?: Connect
-	backoff?: Backoff
+	channel?: UserChannel
 	/**
 	 * A window this client already had in memory, from an earlier visit. It paints on the first
 	 * frame, before IndexedDB answers, and the socket's replay covers everything after its `seq`.
@@ -390,7 +387,7 @@ export type RoomStore = {
 	typing(): void
 	/** Asks the room for one agent's steps in a window. The answer lands in `state.steps`. */
 	requestSteps(slug: string, after: number): void
-	/** Closes the socket and keeps the store. Pings are dropped, sends wait in the outbox. Section 19.6. */
+	/** Unsubscribes and keeps the store. Sends wait in the outbox. */
 	suspend(): void
 	/** Reconnects with `hello {lastSeq}` and sends every pending frame again. */
 	resume(): void
@@ -494,7 +491,7 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 		history: null,
 	})
 
-	let socket: SyncSocket | null = null
+	let socket: RoomChannel | null = null
 	/** The windows whose steps were asked for. */
 	const fetchedWindows = new Set<string>()
 	/** Questions waiting for their answer (search, history), by a key the answer repeats. */
@@ -882,11 +879,9 @@ export function createRoomStore(options: RoomStoreOptions): RoomStore {
 	}
 
 	function openSocket() {
-		socket = createSyncSocket<RoomToClient>({
-			url: options.url,
-			connect: options.connect,
-			backoff: options.backoff,
-			hello: () => ({ t: "hello", lastSeq: state.seq }),
+		socket = (options.channel ?? userChannel).room({
+			roomId,
+			lastSeq: () => state.seq,
 			onOpen,
 			onFrame,
 			onStatus,

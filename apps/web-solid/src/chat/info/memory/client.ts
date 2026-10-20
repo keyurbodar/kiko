@@ -4,7 +4,7 @@
 // gets no answer in `timeoutMs` fails, so a screen never waits for ever.
 
 import type { MemoryOp, MemoryResult } from "@kiko/protocol"
-import { type UserChannel, userChannel } from "../../../sync/user-channel"
+import { type UserChannel, userChannel } from "../../../sync/socket"
 
 export type MemoryClient = {
 	request(op: MemoryOp): Promise<MemoryResult>

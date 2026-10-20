@@ -8,7 +8,7 @@ import { showFailure } from "../lib/errors"
 import { useApp } from "../lib/store"
 import { checkStall, LATEST_POLL_MS, landed, pillView, reduceUpdate, RESTART_ERROR, RESTART_LIMIT_MS, RESTART_POLL_MS, sent, STALL_MS, type UpdateProgress, updateTarget } from "../lib/update"
 import { APP_VERSION, type BackendBuild, backendSkew, clientBehind, type Skew } from "../lib/version-skew"
-import { userChannel } from "../sync/user-channel"
+import { userChannel } from "../sync/socket"
 import { hosted } from "./hosted"
 
 const [progress, setProgress] = createSignal<UpdateProgress>(null)

@@ -6,14 +6,14 @@
 // in IndexedDB and go out again after a reload or a reconnect. Each carries a
 // stable id (a create names its room), so a replay changes nothing twice.
 
-import type { Agent, AgentModel, AgentSlug, Chat, ChatOp, ClientToUser, FileOp, FileRef, KikoError, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { OwnerToClient, Agent, AgentModel, AgentSlug, Chat, ChatOp, ClientToUser, FileOp, FileRef, KikoError, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { allAgentModels, allAgents, allChats, getHome, getPendingChats, getUserSeq, putAgentModels, putAgents, putChats, putHome, putPendingChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
 import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
-import { type UserChannelHost, userChannel } from "./user-channel"
+import { type UserChannelHost, userChannel } from "./socket"
 import { kikoPlaceholder } from "../lib/chats"
 
 type AgentModelFrame = Extract<ClientToUser, { t: "agent_model" }>
@@ -287,7 +287,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		// A cache with no drive predates the drive cache. Ask for a snapshot, not the events after `seq`.
 		const first = chats.length ? chats : [kikoPlaceholder(now())]
 		setState({ chats: first, seq: home ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, patches: [...pending, ...state.patches], loaded: true })
-		socket = createSyncSocket<UserToClient>({
+		socket = createSyncSocket<OwnerToClient>({
 			url: options.url,
 			connect: options.connect,
 			backoff: options.backoff,
@@ -300,9 +300,15 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 				for (const frame of unsentModels.values()) socket?.send(frame)
 				channel.opened()
 			},
-			onFrame,
+			onFrame: (frame) => {
+				if (frame.t === "room") channel.deliver(frame)
+				else onFrame(frame)
+			},
 			// A socket that drops misses the frame that ends the typing, so it forgets who was.
-			onStatus: (c) => setState(c === "open" ? { connection: c } : { connection: c, typing: {} }),
+			onStatus: (c) => {
+				channel.status(c)
+				setState(c === "open" ? { connection: c } : { connection: c, typing: {} })
+			},
 		})
 		const own = socket
 		detach = channel.attach((frame) => own.send(frame))

@@ -26,7 +26,7 @@ afterEach(() => import("./api").then((api) => api.setToken(null)))
 test("with no backend stored a path stays on this origin and a socket follows the page", async () => {
   const api = await import("./api")
   expect(api.apiUrl("/api/me")).toBe("/api/me")
-  expect(api.socketUrl("/api/ws/user")).toBe("ws://localhost:5173/api/ws/user")
+  expect(api.socketUrl("/api/ws")).toBe("ws://localhost:5173/api/ws")
 })
 
 test("a stored backend is the base for requests, sockets, and file links", async () => {
@@ -36,7 +36,7 @@ test("a stored backend is the base for requests, sockets, and file links", async
   const tok = `owner.files.${Math.floor(Date.now() / 1000) + 3600}.aa`
   setFileToken(tok)
   expect(api.apiUrl("/api/me")).toBe("https://kiko.sub.workers.dev/api/me")
-  expect(api.socketUrl("/api/ws/user")).toBe("wss://kiko.sub.workers.dev/api/ws/user")
+  expect(api.socketUrl("/api/ws")).toBe("wss://kiko.sub.workers.dev/api/ws")
   expect(fileUrl("/api/files/home/a")).toBe(`https://kiko.sub.workers.dev/api/files/home/a?t=${tok}`)
 })
 

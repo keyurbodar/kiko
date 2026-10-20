@@ -10,6 +10,9 @@ import { humanAnswerText } from "@kiko/protocol"
 // `seq`. Production code must not import this file.
 
 import type {
+	ClientToOwner,
+	OwnerToClient,
+	RoomId,
 	Chat,
 	ClientToRoom,
 	AgentModel,
@@ -494,5 +497,49 @@ export function createMockUser(options: MockUserOptions = {}): MockUser {
 		broadcast(frame) {
 			for (const p of peers) p.push(frame)
 		},
+	}
+}
+
+/** Adapts the separate in-memory fixtures to the owner's single wire connection. */
+export function multiplexMock(user: Connect, room: (roomId: RoomId) => Connect): Connect {
+	return (url) => {
+		const rooms = new Map<RoomId, SocketLike>()
+		const pending = new Map<RoomId, ClientToRoom[]>()
+		const socket = user(url)
+		const send = socket.send.bind(socket)
+		const close = socket.close.bind(socket)
+		socket.send = (data) => {
+			if (data === PING) return send(data)
+			const frame: ClientToOwner = JSON.parse(data)
+			if (frame.t === "subscribe") {
+				rooms.get(frame.roomId)?.close()
+				const child = room(frame.roomId)(url)
+				rooms.set(frame.roomId, child)
+				pending.set(frame.roomId, [])
+				child.onopen = () => {
+					child.send(JSON.stringify({ t: "hello", lastSeq: frame.lastSeq }))
+					for (const queued of pending.get(frame.roomId) ?? []) child.send(JSON.stringify(queued))
+					pending.delete(frame.roomId)
+				}
+				child.onmessage = (event) => {
+					const wrapped: OwnerToClient = { t: "room", roomId: frame.roomId, frame: JSON.parse(String(event.data)) }
+					socket.onmessage?.({ data: JSON.stringify(wrapped) })
+				}
+			} else if (frame.t === "unsubscribe") {
+				rooms.get(frame.roomId)?.close()
+				rooms.delete(frame.roomId)
+			} else if (frame.t === "room") {
+				const child = rooms.get(frame.roomId)
+				const queued = pending.get(frame.roomId)
+				if (queued) queued.push(frame.frame)
+				else child?.send(JSON.stringify(frame.frame))
+			} else send(data)
+		}
+		socket.close = (code, reason) => {
+			for (const child of rooms.values()) child.close()
+			rooms.clear()
+			close(code, reason)
+		}
+		return socket
 	}
 }

@@ -6,7 +6,7 @@ import type { BrowserState } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import { createSignal } from "solid-js"
 import type { Command } from "../commands/registry"
-import { userChannel } from "../sync/user-channel"
+import { userChannel } from "../sync/socket"
 
 const [state, setState] = createSignal<BrowserState>(null)
 export const browser = state

@@ -22,3 +22,5 @@ export * from "./version"
 export type * from "./user"
 export type * from "./catalog"
 export type * from "./providers"
+
+export type * from "./socket"

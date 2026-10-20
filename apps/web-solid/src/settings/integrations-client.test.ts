@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test"
-import type { ClientToUser, ComposioResult, UserToClient } from "@kiko/protocol"
+import type { ClientToOwner, ComposioResult, UserToClient } from "@kiko/protocol"
 import { createComposioClient } from "./integrations-client"
-import { createUserChannel } from "../sync/user-channel"
+import { createUserChannel } from "../sync/socket"
 
 function fake() {
-	const sent: ClientToUser[] = []
+	const sent: ClientToOwner[] = []
 	const channel = createUserChannel()
 	channel.attach((f) => (sent.push(f), true))
 	const reply = (f: object) => channel.deliver(f as UserToClient)
@@ -37,7 +37,7 @@ test("no answer is an error, not a hang", async () => {
 
 test("a request made while the socket is down goes out on connect, and close stops listening", async () => {
 	const channel = createUserChannel()
-	const sent: ClientToUser[] = []
+	const sent: ClientToOwner[] = []
 	const client = createComposioClient({ channel })
 	const p = client.request({ t: "composioStatus" })
 	expect(sent).toHaveLength(0)

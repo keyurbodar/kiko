@@ -131,3 +131,14 @@ describe("messages stored before the media cleanup", () => {
 		expect(() => Schema.decodeUnknownSync(S.ClientToRoom)({ t: "catalog", kind: "media" })).toThrow()
 	})
 })
+
+test("owner socket envelopes preserve every user and room frame", () => {
+	for (const frame of Frames.clientToUser) roundTrip(S.ClientToOwner, frame)
+	for (const frame of Frames.userToClient) roundTrip(S.OwnerToClient, frame)
+	for (const frame of Frames.clientToRoom) roundTrip(S.ClientToOwner, { t: "room", roomId: F.roomId, frame })
+	for (const frame of Frames.roomToClient) roundTrip(S.OwnerToClient, { t: "room", roomId: F.roomId, frame })
+	roundTrip(S.ClientToOwner, { t: "subscribe", roomId: F.roomId, lastSeq: 12 })
+	roundTrip(S.ClientToOwner, { t: "unsubscribe", roomId: F.roomId })
+	expect(() => Schema.decodeUnknownSync(S.ClientToOwner)({ t: "subscribe", roomId: F.roomId })).toThrow()
+	expect(() => Schema.decodeUnknownSync(S.ClientToOwner)({ t: "room", roomId: F.roomId, frame: { t: "unknown" } })).toThrow()
+})

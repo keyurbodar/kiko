@@ -5,7 +5,7 @@
 // `timeoutMs` is an error.
 
 import type { ClientToUser, ComposioResult, KernelResult, UserToClient } from "@kiko/protocol"
-import { type UserChannel, userChannel } from "../sync/user-channel"
+import { type UserChannel, userChannel } from "../sync/socket"
 
 type AskOf<T extends string> = ClientToUser extends infer F ? (F extends { t: T } ? Omit<F, "reqId"> : never) : never
 type ComposioAsk = AskOf<"connectComposio" | "disconnectComposio" | "composioStatus">

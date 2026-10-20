@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { watchChanged } from "./changed"
-import { userChannel } from "./user-channel"
+import { userChannel } from "./socket"
 
 test("a changed frame reloads that list once after a short wait, and other lists stay", async () => {
 	let routines = 0

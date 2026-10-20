@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { AgentSlug, MessageId, Reaction as WireReaction, RoomEvent } from "@kiko/protocol"
 import * as fixtures from "@kiko/protocol/fixtures"
-import { createMockRoom, createMockUser } from "../sync/mock-room"
+import { createMockRoom, createMockUser, multiplexMock } from "../sync/mock-room"
 import { createApp, firstUnread, keepNewest, nextReaction, reactionChips, signature, toChatMessage } from "./store"
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -27,7 +27,7 @@ async function boot(events?: readonly RoomEvent[]) {
   const other = createMockRoom({ events: [] })
   const user = createMockUser()
   const app = createApp({
-    transport: async () => ({ user: user.connect, room: (id) => (id === fixtures.roomId ? room.connect : other.connect) }),
+    transport: async () => multiplexMock(user.connect, (id) => (id === fixtures.roomId ? room.connect : other.connect)),
     warm: { idb: null },
     backoff: { baseMs: 5, maxMs: 20 },
   })
@@ -326,7 +326,7 @@ describe("useApp over the mock room", () => {
     app.stop()
   })
 
-  test("opening another chat closes the first room's socket", async () => {
+  test("opening another chat unsubscribes the first room", async () => {
     const { app, room, other } = await boot()
     expect(room.peers).toBe(1)
     app.selectThread(fixtures.otherRoomId)

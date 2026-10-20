@@ -13,7 +13,7 @@ import { overlayChats, overlayMessages, type RoomPatch, settleRoom } from "./pat
 import { applyRoomEvent, applyStatus, createRoomStore, emptyRoom, HISTORY_PAGE, MAX_MESSAGES_IN_MEMORY, type RoomStoreOptions, WINDOW_SLACK } from "./room-store"
 import { backoffDelay, createSyncSocket, parseFrame } from "./socket"
 import { createUserStore, newRoomId, OPEN_DEBOUNCE_MS } from "./user-store"
-import { createUserChannel } from "./user-channel"
+import { createUserChannel } from "./socket"
 
 const roomId = fixtures.roomId
 /** The seq the fixture room ends on. */
@@ -43,15 +43,23 @@ function timedSchedule() {
 	return { schedule, durations }
 }
 
-function setup(mockOptions: MockRoomOptions = {}, storeOptions: Partial<RoomStoreOptions> & { warm?: Warm } = {}) {
+function setup(mockOptions: MockRoomOptions = {}, storeOptions: Partial<RoomStoreOptions> & { warm?: Warm; connect?: import("./socket").Connect } = {}) {
 	const mock = createMockRoom(mockOptions)
 	const make = async (warm?: Warm) => {
 		const w = warm ?? storeOptions.warm ?? (await freshWarm())
+		const channel = createUserChannel()
+		channel.room = (options) => createSyncSocket({
+			url: "ws://mock/room",
+			connect: storeOptions.connect ?? mock.connect,
+			backoff: { baseMs: 5, maxMs: 20 },
+			hello: () => ({ t: "hello", lastSeq: options.lastSeq() }),
+			onFrame: options.onFrame,
+			onOpen: options.onOpen,
+			onStatus: options.onStatus,
+		})
 		const store = createRoomStore({
 			roomId,
-			url: "ws://mock/room",
-			connect: mock.connect,
-			backoff: { baseMs: 5, maxMs: 20 },
+			channel,
 			...storeOptions,
 			warm: w,
 		})
