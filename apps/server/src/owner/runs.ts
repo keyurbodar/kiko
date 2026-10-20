@@ -11,7 +11,7 @@ class RunCallLimitError extends Error {
 }
 
 /** Instrumented network admissions, including retries; opaque SDK traffic cannot be counted here. */
-export class RunBudget {
+class RunBudget {
   private outgoing = 0
   private rejected = false
   readonly deadline: number
