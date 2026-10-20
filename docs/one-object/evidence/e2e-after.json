@@ -1,6 +1,6 @@
 {
-  "measuredAt": "2026-10-20T06:04:31.464Z",
-  "server": "http://localhost:8847/",
+  "measuredAt": "2026-10-20T07:39:32.519Z",
+  "server": "http://localhost:8881/",
   "baseline": false,
   "quietMs": 60000,
   "agent": "kiko",
@@ -8,32 +8,31 @@
     {
       "name": "warm prompt 5",
       "counters": {
-        "owner.alarmWrites": 1,
+        "owner.alarmWrites": 3,
         "owner.kv.delete": 1,
-        "owner.kv.get": 9,
-        "owner.kv.getAlarm": 2,
-        "owner.kv.put": 2,
-        "owner.kv.setAlarm": 1,
+        "owner.kv.deleteAlarm": 1,
+        "owner.kv.get": 7,
+        "owner.kv.getAlarm": 14,
+        "owner.kv.setAlarm": 3,
         "owner.kvKeysDeleted": 0,
-        "owner.kvKeysPut": 3,
-        "owner.rowsRead": 658,
-        "owner.rowsWritten": 55,
-        "owner.sqlRowsWritten": 55,
-        "owner.statements": 312
+        "owner.rowsRead": 980,
+        "owner.rowsWritten": 30,
+        "owner.sqlRowsWritten": 30,
+        "owner.statements": 327
       },
       "billingVersion": 1,
       "billableWrites": {
-        "sqlPhysical": 55,
-        "kvKeysPut": 3,
+        "sqlPhysical": 30,
+        "kvKeysPut": 0,
         "kvKeysDeleted": 0,
-        "setAlarm": 1,
-        "total": 59
+        "setAlarm": 3,
+        "total": 33
       },
       "interObjectCalls": 0,
       "rowsWritten": {
-        "total": 55,
+        "total": 30,
         "byObject": {
-          "owner": 55,
+          "owner": 30,
           "agent": 0,
           "room": 0,
           "user": 0,
@@ -42,9 +41,9 @@
       },
       "alarms": {
         "setAlarm": {
-          "total": 1,
+          "total": 3,
           "byObject": {
-            "owner": 1,
+            "owner": 3,
             "agent": 0,
             "room": 0,
             "user": 0,
@@ -93,32 +92,31 @@
     {
       "name": "always-failing prompt",
       "counters": {
-        "owner.alarmWrites": 2,
+        "owner.alarmWrites": 3,
         "owner.kv.delete": 1,
-        "owner.kv.get": 10,
-        "owner.kv.getAlarm": 3,
-        "owner.kv.put": 2,
-        "owner.kv.setAlarm": 2,
+        "owner.kv.deleteAlarm": 1,
+        "owner.kv.get": 7,
+        "owner.kv.getAlarm": 24,
+        "owner.kv.setAlarm": 3,
         "owner.kvKeysDeleted": 0,
-        "owner.kvKeysPut": 3,
-        "owner.rowsRead": 512,
-        "owner.rowsWritten": 65,
-        "owner.sqlRowsWritten": 65,
-        "owner.statements": 378
+        "owner.rowsRead": 1156,
+        "owner.rowsWritten": 39,
+        "owner.sqlRowsWritten": 39,
+        "owner.statements": 385
       },
       "billingVersion": 1,
       "billableWrites": {
-        "sqlPhysical": 65,
-        "kvKeysPut": 3,
+        "sqlPhysical": 39,
+        "kvKeysPut": 0,
         "kvKeysDeleted": 0,
-        "setAlarm": 2,
-        "total": 70
+        "setAlarm": 3,
+        "total": 42
       },
       "interObjectCalls": 0,
       "rowsWritten": {
-        "total": 65,
+        "total": 39,
         "byObject": {
-          "owner": 65,
+          "owner": 39,
           "agent": 0,
           "room": 0,
           "user": 0,
@@ -127,9 +125,9 @@
       },
       "alarms": {
         "setAlarm": {
-          "total": 2,
+          "total": 3,
           "byObject": {
-            "owner": 2,
+            "owner": 3,
             "agent": 0,
             "room": 0,
             "user": 0,
@@ -182,30 +180,28 @@
       "counters": {
         "owner.alarmWrites": 2,
         "owner.kv.delete": 1,
-        "owner.kv.get": 9,
-        "owner.kv.getAlarm": 2,
-        "owner.kv.put": 2,
+        "owner.kv.get": 7,
+        "owner.kv.getAlarm": 14,
         "owner.kv.setAlarm": 2,
         "owner.kvKeysDeleted": 0,
-        "owner.kvKeysPut": 3,
-        "owner.rowsRead": 454,
-        "owner.rowsWritten": 55,
-        "owner.sqlRowsWritten": 55,
-        "owner.statements": 312
+        "owner.rowsRead": 702,
+        "owner.rowsWritten": 30,
+        "owner.sqlRowsWritten": 30,
+        "owner.statements": 311
       },
       "billingVersion": 1,
       "billableWrites": {
-        "sqlPhysical": 55,
-        "kvKeysPut": 3,
+        "sqlPhysical": 30,
+        "kvKeysPut": 0,
         "kvKeysDeleted": 0,
         "setAlarm": 2,
-        "total": 60
+        "total": 32
       },
       "interObjectCalls": 0,
       "rowsWritten": {
-        "total": 55,
+        "total": 30,
         "byObject": {
-          "owner": 55,
+          "owner": 30,
           "agent": 0,
           "room": 0,
           "user": 0,
@@ -231,30 +227,28 @@
       "counters": {
         "owner.alarmWrites": 2,
         "owner.kv.delete": 1,
-        "owner.kv.get": 9,
-        "owner.kv.getAlarm": 3,
-        "owner.kv.put": 2,
+        "owner.kv.get": 7,
+        "owner.kv.getAlarm": 15,
         "owner.kv.setAlarm": 2,
         "owner.kvKeysDeleted": 0,
-        "owner.kvKeysPut": 3,
-        "owner.rowsRead": 515,
-        "owner.rowsWritten": 55,
-        "owner.sqlRowsWritten": 55,
-        "owner.statements": 321
+        "owner.rowsRead": 814,
+        "owner.rowsWritten": 31,
+        "owner.sqlRowsWritten": 31,
+        "owner.statements": 324
       },
       "billingVersion": 1,
       "billableWrites": {
-        "sqlPhysical": 55,
-        "kvKeysPut": 3,
+        "sqlPhysical": 31,
+        "kvKeysPut": 0,
         "kvKeysDeleted": 0,
         "setAlarm": 2,
-        "total": 60
+        "total": 33
       },
       "interObjectCalls": 0,
       "rowsWritten": {
-        "total": 55,
+        "total": 31,
         "byObject": {
-          "owner": 55,
+          "owner": 31,
           "agent": 0,
           "room": 0,
           "user": 0,
@@ -278,32 +272,31 @@
     {
       "name": "warm prompt 3",
       "counters": {
-        "owner.alarmWrites": 1,
+        "owner.alarmWrites": 3,
         "owner.kv.delete": 1,
-        "owner.kv.get": 9,
-        "owner.kv.getAlarm": 2,
-        "owner.kv.put": 2,
-        "owner.kv.setAlarm": 1,
+        "owner.kv.deleteAlarm": 1,
+        "owner.kv.get": 7,
+        "owner.kv.getAlarm": 14,
+        "owner.kv.setAlarm": 3,
         "owner.kvKeysDeleted": 0,
-        "owner.kvKeysPut": 3,
-        "owner.rowsRead": 554,
-        "owner.rowsWritten": 53,
-        "owner.sqlRowsWritten": 53,
-        "owner.statements": 311
+        "owner.rowsRead": 820,
+        "owner.rowsWritten": 30,
+        "owner.sqlRowsWritten": 30,
+        "owner.statements": 319
       },
       "billingVersion": 1,
       "billableWrites": {
-        "sqlPhysical": 53,
-        "kvKeysPut": 3,
+        "sqlPhysical": 30,
+        "kvKeysPut": 0,
         "kvKeysDeleted": 0,
-        "setAlarm": 1,
-        "total": 57
+        "setAlarm": 3,
+        "total": 33
       },
       "interObjectCalls": 0,
       "rowsWritten": {
-        "total": 53,
+        "total": 30,
         "byObject": {
-          "owner": 53,
+          "owner": 30,
           "agent": 0,
           "room": 0,
           "user": 0,
@@ -312,9 +305,9 @@
       },
       "alarms": {
         "setAlarm": {
-          "total": 1,
+          "total": 3,
           "byObject": {
-            "owner": 1,
+            "owner": 3,
             "agent": 0,
             "room": 0,
             "user": 0,
@@ -327,32 +320,31 @@
     {
       "name": "warm prompt 4",
       "counters": {
-        "owner.alarmWrites": 1,
+        "owner.alarmWrites": 3,
         "owner.kv.delete": 1,
-        "owner.kv.get": 9,
-        "owner.kv.getAlarm": 2,
-        "owner.kv.put": 2,
-        "owner.kv.setAlarm": 1,
+        "owner.kv.deleteAlarm": 1,
+        "owner.kv.get": 7,
+        "owner.kv.getAlarm": 14,
+        "owner.kv.setAlarm": 3,
         "owner.kvKeysDeleted": 0,
-        "owner.kvKeysPut": 3,
-        "owner.rowsRead": 606,
-        "owner.rowsWritten": 55,
-        "owner.sqlRowsWritten": 55,
-        "owner.statements": 312
+        "owner.rowsRead": 900,
+        "owner.rowsWritten": 30,
+        "owner.sqlRowsWritten": 30,
+        "owner.statements": 323
       },
       "billingVersion": 1,
       "billableWrites": {
-        "sqlPhysical": 55,
-        "kvKeysPut": 3,
+        "sqlPhysical": 30,
+        "kvKeysPut": 0,
         "kvKeysDeleted": 0,
-        "setAlarm": 1,
-        "total": 59
+        "setAlarm": 3,
+        "total": 33
       },
       "interObjectCalls": 0,
       "rowsWritten": {
-        "total": 55,
+        "total": 30,
         "byObject": {
-          "owner": 55,
+          "owner": 30,
           "agent": 0,
           "room": 0,
           "user": 0,
@@ -361,9 +353,9 @@
       },
       "alarms": {
         "setAlarm": {
-          "total": 1,
+          "total": 3,
           "byObject": {
-            "owner": 1,
+            "owner": 3,
             "agent": 0,
             "room": 0,
             "user": 0,
@@ -376,32 +368,31 @@
     {
       "name": "warm prompt 5",
       "counters": {
-        "owner.alarmWrites": 1,
+        "owner.alarmWrites": 3,
         "owner.kv.delete": 1,
-        "owner.kv.get": 9,
-        "owner.kv.getAlarm": 2,
-        "owner.kv.put": 2,
-        "owner.kv.setAlarm": 1,
+        "owner.kv.deleteAlarm": 1,
+        "owner.kv.get": 7,
+        "owner.kv.getAlarm": 14,
+        "owner.kv.setAlarm": 3,
         "owner.kvKeysDeleted": 0,
-        "owner.kvKeysPut": 3,
-        "owner.rowsRead": 658,
-        "owner.rowsWritten": 55,
-        "owner.sqlRowsWritten": 55,
-        "owner.statements": 312
+        "owner.rowsRead": 980,
+        "owner.rowsWritten": 30,
+        "owner.sqlRowsWritten": 30,
+        "owner.statements": 327
       },
       "billingVersion": 1,
       "billableWrites": {
-        "sqlPhysical": 55,
-        "kvKeysPut": 3,
+        "sqlPhysical": 30,
+        "kvKeysPut": 0,
         "kvKeysDeleted": 0,
-        "setAlarm": 1,
-        "total": 59
+        "setAlarm": 3,
+        "total": 33
       },
       "interObjectCalls": 0,
       "rowsWritten": {
-        "total": 55,
+        "total": 30,
         "byObject": {
-          "owner": 55,
+          "owner": 30,
           "agent": 0,
           "room": 0,
           "user": 0,
@@ -410,9 +401,9 @@
       },
       "alarms": {
         "setAlarm": {
-          "total": 1,
+          "total": 3,
           "byObject": {
-            "owner": 1,
+            "owner": 3,
             "agent": 0,
             "room": 0,
             "user": 0,
@@ -424,16 +415,16 @@
     }
   ],
   "warmMedian": {
-    "total": 55,
+    "total": 30,
     "byObject": {
-      "owner": 55,
+      "owner": 30,
       "agent": 0,
       "room": 0,
       "user": 0,
       "file": 0
     }
   },
-  "warmBillableMedian": 59,
+  "warmBillableMedian": 33,
   "errors": {
     "liveRows": 1,
     "persistedRows": 1

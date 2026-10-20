@@ -1,0 +1,25 @@
+$ bun apps/cli/src/index.ts verify journal-overhead --url "http://localhost:8871"
+kiko: target http://localhost:8871
+  warm prompt 1: 136 rows written (agent 87, room 45, user 4), 4 setAlarm calls [agent 2, room 2, user 0, file 0], agent alarm unknown (the dev status has no alarmAt)
+    kv by object: agent [setAlarm 2, put 2, delete 2]; room [setAlarm 2, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  warm prompt 2: 138 rows written (agent 87, room 46, user 5), 6 setAlarm calls [agent 2, room 3, user 1, file 0], agent alarm unknown (the dev status has no alarmAt)
+    kv by object: agent [setAlarm 2, put 2, delete 2]; room [setAlarm 3, put 0, delete 0]; user [setAlarm 1, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  warm prompt 3: 136 rows written (agent 87, room 45, user 4), 4 setAlarm calls [agent 2, room 2, user 0, file 0], agent alarm unknown (the dev status has no alarmAt)
+    kv by object: agent [setAlarm 2, put 2, delete 2]; room [setAlarm 2, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  warm prompt 4: 136 rows written (agent 87, room 45, user 4), 4 setAlarm calls [agent 2, room 2, user 0, file 0], agent alarm unknown (the dev status has no alarmAt)
+    kv by object: agent [setAlarm 2, put 2, delete 2]; room [setAlarm 2, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  warm prompt 5: 136 rows written (agent 87, room 45, user 4), 4 setAlarm calls [agent 2, room 2, user 0, file 0], agent alarm unknown (the dev status has no alarmAt)
+    kv by object: agent [setAlarm 2, put 2, delete 2]; room [setAlarm 2, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  quiet minute after the prompt (60 s): 9 rows written (agent 0, room 8, user 1), 0 setAlarm calls [agent 0, room 0, user 0, file 0], agent alarm unknown (the dev status has no alarmAt)
+    kv by object: agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  always-failing prompt: 248 rows written (agent 199, room 43, user 6), 6 setAlarm calls [agent 2, room 3, user 1, file 0], agent alarm unknown (the dev status has no alarmAt)
+    kv by object: agent [setAlarm 2, put 2, delete 2]; room [setAlarm 3, put 0, delete 0]; user [setAlarm 1, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+  quiet minute after the error (60 s): 5 rows written (agent 0, room 4, user 1), 0 setAlarm calls [agent 0, room 0, user 0, file 0], agent alarm unknown (the dev status has no alarmAt)
+    kv by object: agent [setAlarm 0, put 0, delete 0]; room [setAlarm 0, put 0, delete 0]; user [setAlarm 0, put 0, delete 0]; file [setAlarm 0, put 0, delete 0]
+    always-failing prompt: 1 live error rows, 1 on a fresh socket
+  gate: agent median 87/30, whole prompt median 136 rows, quiet rows 9 then 5, agent alarm unknown (the dev status has no alarmAt) then unknown (the dev status has no alarmAt), room background setAlarm 0, error rows live 1 persisted 1
+fail journal-overhead
+AgentDO wrote a median of 87 rows across 5 warm prompts, the gate is 30
+kiko: 1 suite failed: journal-overhead
+error: script "kiko" exited with code 1
+exit 1

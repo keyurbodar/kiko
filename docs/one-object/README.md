@@ -1,47 +1,16 @@
 # One object: Kiko on a single Durable Object
 
-Status: approved direction, PR 1 done, not pushed. Written 2026-10-20 against the original local `main` at 6167d2b1. PR 1 is rebased onto `origin/main` at 7802a45f (0.4.16).
+Status: shipped in one pull request on 2026-10-20. Written against `main` at 6167d2b1. The current state is in `HANDOFF.md`.
 
-This file is the build brief. A new session should be able to read it and build the whole redesign without the conversation that produced it. Read "Start here" first, then work through the PRs in order.
+This file is the design brief. Read `HANDOFF.md` first for the current state and what is left.
 
 Companion files:
 
-- `plan.html`: the same plan as diagrams. Open it in a browser.
-- `evidence/measurements.md`: the measurements behind every "before" number, and how to rerun them.
-- `evidence/pr1.md`: PR 1's baseline numbers, its replay evidence, and how the gate gets measured.
-- `references.md`: Cloudflare limits, doc links, and every code area this plan touches.
-
-## Start here
-
-1. Read `AGENTS.md` at the repo root. Its rules still apply, except where "Rules this redesign changes" below says otherwise.
-2. Read this whole file once. The design section explains why; the PR sections say exactly what to do.
-3. Find the next unfinished PR in the progress table below. Do only that PR in a session. One change is one PR.
-4. Before you write code, run the overhead suite on `main` to get your baseline. Measuring describes how.
-5. When the PR meets its gate, send it to the owner for approval. Open the PR only after the owner says so, then update the progress table in this file in the same PR.
-
-### Progress
-
-| PR | Title | Status | Link |
-|---|---|---|---|
-| 1 | Journal storage, and runs without a heartbeat | done, not pushed: AgentDO 30 rows (87 before), quiet writes/alarms 0, one error | |
-| 2 | OwnerDO: one object, one socket | not started | |
-| 3 | Background work rides on runs; one clock | not started | |
-| 4 | One schema | not started | |
-| 5 | Each run gets its own invocation | not started | |
-| 6 | R2 archive for old history | not started | |
-
-PR 1 stays within journal storage, run lifetime, error termination and Retry-After. No pull request is open; nothing is pushed. PR 2 owns the object merge and the remaining whole-prompt writes.
-
-### Decisions already made
-
-Don't reopen these:
-
-- **Wipe the data.** Existing installs don't need to be kept. PR 2 deletes the four old classes and starts a fresh namespace. No data migration.
-- **Stay on the free plan.** Every design choice is judged against the free quotas in `references.md`.
-- **Keep the UX.** Nothing in "What the human sees" may get worse. If a step would hurt the UX, stop and ask the owner.
-- **Keep pi-durable.** It stays an npm dependency, extended only through its `Storage` interface.
-- **Keep search.** FTS5 stays, written once per reply.
-- **Routines keep their exact times.** Routines due in the same minute share one alarm. Don't round them to other times.
+- `HANDOFF.md`: the current state, the measurements and what is left.
+- `evidence/measurements.md`: the production measurements behind the outage, and how to rerun them.
+- `evidence/e2e-before.log`, `evidence/e2e-after.log`: the one e2e on `main` and on this design. `evidence/e2e-after.json` holds the raw counters.
+- `evidence/cloudflare-quota/`: the deployed Free-plan probe of the per-invocation call budget.
+- `references.md`: Cloudflare limits, doc links, and every code area this design touches.
 
 ## Why
 
@@ -53,52 +22,30 @@ On 2026-10-19, two idle agents looped on a failing alarm. They wrote about 115k 
 
 1. An idle install writes 0 rows and sets 0 alarms.
 2. A failure costs 1 row, a visible error. Nothing retries on its own except Cloudflare's capped alarm retry.
-3. A prompt costs about 6 rows and makes 0 calls between objects.
+3. A prompt makes 0 calls between objects and writes as few rows as durability allows. It costs 33 today; the target is 8.
 4. A day of 20 agents, 35 hourly routines and 2,000 prompts fits the free plan with room to spare.
 5. Nothing the human sees gets worse.
 
 ## Before and after
 
-| | Before (measured) | After (target) |
+Measured with the one e2e, `bun kiko verify journal-overhead`, with a fake model. Billed writes are SQL rows plus KV keys plus `setAlarm` calls.
+
+| | `main` v0.4.16 | This design |
 |---|---|---|
 | Durable Object classes | 4, one instance per room and per agent | 1 |
-| Rows written per prompt | ~140 | ~6 |
+| Billed writes per prompt | 136 SQL rows, plus KV and alarms | 33 (30 SQL + 3 `setAlarm`) |
+| Writes in the idle minute after a prompt, then after an error | 9, then 5 | 0, then 0 |
+| A failing prompt | 248 rows + 6 alarms | 42 writes, 1 visible error row, then nothing |
 | Calls between objects per prompt | ~18 | 0 |
-| Alarms on an idle day | ~148 | 0 |
-| Rows a day from one broken agent | ~58,000, forever | 1 |
-| Tables | ~73, plus pi-durable's 9 with 17 indexes | ~15 |
-| Sites that call another object | 122 | 0 |
-| Sites that schedule a wakeup | 47 | ~3 |
+| Rows a day from one broken agent | ~58,000, forever | 1 error row |
 | Retry loops with no end | 7 | 0 |
 | Sockets per tab | 2 | 1 |
-| Runs a day on the free plan | ~700, or 0 once a loop starts | ~12,000 |
-| Awake time | each object bills on its own | one object; awake all 24 hours is 11,059 of 13,000 GB-s |
 
 ### The target day: 20 agents, 35 hourly routines, 2,000 prompts
 
-That's 2,840 runs, with about 3 model calls each.
+That's 2,840 runs. At 136 rows each, `main` would write about 386k rows, nearly 4× the Free cap of 100k. At 33 writes each, this design writes about 94k, just under the cap. Getting to the target of 8 writes per prompt (about 23k a day) is the next step in `HANDOFF.md`.
 
-| Free quota | Now | New |
-|---|---|---|
-| Rows written (100k) | ~398k, 4× over | ~23k |
-| Durable Object requests (100k) | ~71k+ | ~5k |
-| Awake time (13,000 GB-s) | over | 7.3k to 11k |
-| Worker requests (100k) | ~9k | ~1k |
-| Rows read (5M) | ~0.4M | under 0.1M |
-
-Awake time is the tightest quota after the redesign, but it can't go over. One object awake all day uses 85% of the quota, and runs happening at the same time share that time.
-
-### Lines of code
-
-Counted on `main`, excluding tests and generated files.
-
-| Area | Today | Removed | Share |
-|---|---|---|---|
-| Server source (`apps/server/src`) | 21,569 | ~4,500 | ~21% |
-| Core (`core/agent`, `core/durable`) | 2,265 | ~300 | ~13% |
-| Server tests (`apps/server/test`) | 14,467 | ~1,000 to 1,500 | ~7 to 10% |
-| Client (`apps/web-solid/src`) | 34,465 | ~150 | <1% |
-| Whole repo | ~91,000 | ~6,000 to 6,500 | ~7% |
+Awake time is the other tight quota. One object awake all day uses 11,059 of the 13,000 GB-s, and runs happening at the same time share that time.
 
 ## The design
 
@@ -123,7 +70,7 @@ One `MemoryStorage` and one journal namespace serve one agent's `Harness`. The r
 
 The `agent` column is the Harness namespace key, and the row key is `(agent, seq, part)`. One Harness per agent remains the decision inside the single OwnerDO. Models, credentials and session headers are per agent: `userModels()` sets `x-opencode-session` at the Harness level. Tools are per agent through `setup.registry`. Idle agents can unload to keep the 128 MB object small, and cleanup stays per agent. The reference's one-Harness session has one agent identity, so its boundary fits that example. Root and worker conversations still share their agent's Harness, allocator and journal namespace.
 
-The fallback is not used. PR 1 found replay safe, so the journal replaces pi-durable's SQLite tables outright.
+The fallback is not used. Replay proved safe, so the journal replaces pi-durable's SQLite tables outright.
 
 **Dependency contract.** `@earendil-works/pi-durable`, `@earendil-works/pi-ai` and `@earendil-works/chord` are pinned exactly to 1.3.0. Bump all three together. Every bump must pass the unchanged upstream `registerStorageConformance` suite against real JournalStorage, including reopened reads. All 48 cases pass: 24 live and 24 with reopened reads. The suite is permanent upgrade coverage, alongside the real eviction/resume test.
 
@@ -135,11 +82,11 @@ An agent with pending input runs to its final answer in one invocation, then sto
 
 **After an eviction.** A recovery wakeup is derived from unfinished pi tasks. Blocked tasks are ignored. A task waiting for an application-defined future deadline uses that deadline; other unfinished tasks use now plus 60 seconds. The earliest deadline wins. Task settlement recalculates the wakeup, and no recovery wakeup remains when tasks finish or fail. This is recovery for durable work, not an idle heartbeat. Unchanged alarm times are not written again. `MAX_RESUMES` stays at 3, so repeated object crashes still drop the run and show an error.
 
-pi-durable 1.3.0 does not expose a generic sleep timestamp in `TaskInspection`. The host's `scheduledDeadline` callback reads application-defined durable task data, like the reference's schedule helper. Today's agent work uses the 60-second recovery fallback; scheduled routines in PR 3 supply their future deadlines.
+pi-durable 1.3.0 does not expose a generic sleep timestamp in `TaskInspection`. The host's `scheduledDeadline` callback reads application-defined durable task data, like the reference's schedule helper. Agent work uses the 60-second recovery fallback; scheduled routines supply their future deadlines.
 
 A failed `harness.closed` result aborts the Durable Object, matching [Earendil's Cloudflare reference](https://github.com/earendil-works/pi-durable-cloudflare/blob/main/src/session.ts), so a broken harness is never retained for another event.
 
-**Long runs.** A run can reach 40 outgoing calls or come close to the alarm's 15-minute limit. When it does, it saves and continues in a new invocation. PR 5 builds this.
+**Long runs.** A run can reach 40 outgoing calls or come close to the alarm's 15-minute limit. When it does, it saves and continues from the next alarm. A run started by a human message runs inside that socket event, and every run one event starts shares one budget.
 
 ### 4. Failure is a message, not a timer
 
@@ -147,7 +94,7 @@ An error becomes a bubble the human can see and retry, using the existing run-er
 
 Model retries in `agent/retry.ts` keep their limit of 3. They also honor a wait the provider asks for: `Retry-After` in seconds or as an HTTP date, and `Retry-After-Ms` in milliseconds, which wins over the other two. A wait of 60 s or less delays the next request, and the run keeps its retry status, including for a stream that breaks halfway. A wait longer than 60 s ends the run with the rate-limit bubble and no further request.
 
-The Google Generative AI and Google Vertex adapters in `pi-ai` take no custom `fetch`, and their `ApiError` carries no response headers. A header delay from those two providers cannot be honored through the supported extension points. Kiko overrides neither the provider nor the dependency, and those providers keep the bounded outer retry of 3. The owner accepted this verified upstream limitation for PR 1.
+The Google Generative AI and Google Vertex adapters in `pi-ai` take no custom `fetch`, and their `ApiError` carries no response headers. A header delay from those two providers cannot be honored through the supported extension points. Kiko overrides neither the provider nor the dependency, and those providers keep the bounded outer retry of 3. The owner accepted this verified upstream limitation.
 
 ### 5. Background work rides on the human
 
@@ -238,7 +185,7 @@ apps/server/src/
     clock.ts      the single alarm
     runs.ts       which agents have pending input; runs and continuations
     journal.ts    pi-durable Storage: MemoryStorage plus 1 row per commit
-    archive.ts    old history to R2 (PR 6)
+    archive.ts    old history to R2
     after-run.ts  memory capture, summaries, initiative
     schema.ts     ~15 tables, append-only steps
   room/           Room class: burst, members, log, search, files
@@ -266,137 +213,25 @@ Two things change:
 - A failed run shows an error bubble with a retry button.
 - History older than about a month loads from R2 the first time you scroll back to it.
 
-## The PRs
-
-Each PR has a gate. Measure it as described under "Measuring" before you open the PR. Run the tests and verify suites the change touches, and let CI run the rest.
-
-### PR 1: journal storage, and runs without a heartbeat
-
-**Scope:** inside today's `AgentDO`. No class merging yet. This PR alone ends the loop behind the outage.
-
-1. Add `core/agent/src/journal.ts`, which implements `Storage` as described in design section 2. Unit-test the replay: commit, reopen from the rows, check every read matches, and check that `mintId` returns an id greater than any stored id. Run the unchanged upstream `registerStorageConformance` suite against real Durable Object storage, live and with reopened reads. Keep the real eviction/resume proof in `apps/server/test/journal-storage.test.ts`.
-2. In `core/agent/src/host.ts` `openHarness`, replace `createCoalescingStorage(await SqliteStorage.open(...))` with the journal.
-3. Delete `HEARTBEAT_MS`, `RETRY_MS`, `RESET_AFTER`, the backoff in the alarm's catch block, and `pulse()`'s heartbeat. Keep `MAX_RESUMES`. Derive a 60-second recovery wakeup from unfinished pi tasks, refresh it when tasks settle, and clear it when work ends. Abort the object when `harness.closed` reports a storage failure.
-4. An alarm that fails posts the run-error bubble once and schedules nothing.
-5. Delete `sqlite.ts` and `coalescing-storage.ts` once nothing imports them.
-6. In `agent/retry.ts`, honor `Retry-After`. The Google Generative AI and Google Vertex adapters take no custom `fetch` and expose no response headers on their errors, so a header delay from those two providers stays unhonored. Kiko overrides neither the provider nor the dependency, and those providers keep the bounded outer retry of 3. The owner accepted this verified upstream limitation for PR 1.
-
-**Gate:**
-- AgentDO rows per warm prompt, median of five: at most 30 (before: 87)
-- in the quiet minute after a run: 0 AgentDO writes, 0 new agent alarms, no armed agent alarm
-- an always-failing model produces exactly 1 error bubble, then 0 agent alarms and 0 AgentDO writes in the following minute
-- report RoomDO and UserDO rows, but do not gate on them; PR 2 removes those writes
-
-**Correction:** the original whole-prompt limit of 40 rows was wrong for PR 1. RoomDO and UserDO keep their existing bookkeeping until PR 2 merges the four objects. The schema rebuilds and index tuning explored while chasing that limit were reverted. AgentDO's journal is the only schema addition in PR 1.
-
-**Gate passed:** AgentDO warm-prompt median is 30 rows across five samples, down from 87 (limit 30). RoomDO is 45, UserDO is 4, and the whole prompt is 79; these are reported, not gated. Both quiet minutes have 0 AgentDO writes, 0 new agent alarms and no armed agent alarm. The always-failing model leaves exactly 1 persisted error bubble. Recovery adds exactly 3 SQL rows and one `setAlarm` call per warm run over the accepted pre-recovery version. All 48 upstream conformance cases and the focused eviction, failure and size-cleanup tests pass. `evidence/pr1.md` records the run and `evidence/pr1-after.json` holds its raw counters.
-
-**Replay is safe:** the journal replaces pi-durable's SQLite tables, and the fallback in design section 2 is not used.
-
-**Deleted:** both storage adapters and the four SQL and coalescing test files that covered them, 839 lines. The journal tests replace them.
-
-### PR 2: OwnerDO, one object and one socket
-
-**Scope:** the big merge. It can't be split, because half-merged objects still need the plumbing it deletes.
-
-1. Keep one Harness per agent inside OwnerDO. Model/key/session headers, tool registries and cleanup are per agent. Unload idle agents to stay small within 128 MB. The clock takes the earliest deadline across loaded Harnesses and each unloaded agent's stored next deadline. The reference uses one Harness because its session has a single agent identity.
-2. Add `owner/owner-do.ts`. Turn `RoomDO`, `AgentDO` and `UserDO` into plain classes, `Room`, `Agent` and `User`, that receive the shared `ctx`, `sql` and a `broadcast` function.
-3. Replace every stub call between objects with a direct method call. `grep -rn "Stub(" apps/server/src` must return only the `owner` stub.
-4. Delete the files in "Moving data between objects", and `files/file-do.ts`.
-5. Change `wrangler.jsonc`:
-   - bindings: one `OWNER` binding for `OwnerDO`
-   - migrations: add a new tag with `deleted_classes: ["UserDO", "RoomDO", "AgentDO", "FileDO"]` and `new_sqlite_classes: ["OwnerDO"]`
-6. Add one socket route, `/api/ws`. In the client, merge `user-channel.ts` into `socket.ts` and subscribe to open rooms. Fix the backoff reset.
-7. Update the verify suites that call the old routes or RPCs. Delete the suites that only tested delivery between objects.
-8. Delete `core/agent/src/inbox.ts` and deliver directly with `conversation.submit({ whenBusy })`; pi's inbox is already durable. Check whether task-owned conversations (`ownership: { kind: "task" }`) can replace most of `core/agent/src/workers.ts`, as in the reference's durable subagent.
-
-**Gate:**
-- 0 calls between objects
-- whole prompt at most 15 rows
-- every model-free verify suite passes
-- the client checked in a real browser with the `verify-kiko` skill
-
-### PR 3: background work rides on runs; one clock
-
-1. Add `owner/clock.ts`. Set the one alarm to the earliest pi task deadline, as in the reference's `#refreshAlarm`, and route remaining application deadlines through it. Delete `core/durable/src/alarm.ts`.
-2. Add `owner/after-run.ts`. Move memory capture, naps and initiative there, and delete their timers and requeue paths.
-3. Turn routines into scheduled pi tasks as in the reference's `src/schedule.ts`, replacing most of `user/reminders.ts`. Keep stable schedule request IDs so repeated alarm delivery cannot duplicate a routine.
-4. Make `models/sync.ts` refresh on app open when the catalog is older than a day. Delete `user/provider-watch.ts`.
-
-**Gate:**
-- an idle object over 24 h of simulated time: 0 alarms, 0 rows
-- 35 routines due in the same minute: 1 alarm
-
-### PR 4: one schema
-
-1. Merge `room/schema.ts`, `user/schema.ts` and `agent/schema.ts` into `owner/schema.ts`, with about 15 tables.
-2. Use composite primary keys such as `(room_id, seq)` with `WITHOUT ROWID`, and add no secondary index unless a measured query needs one. Every index costs a row on every write.
-3. Write a reply's FTS5 row once, when the reply is final.
-
-**Gate:**
-- at most 8 rows written per prompt
-- the search suites pass
-
-### PR 5: each run gets its own invocation
-
-1. `runs.ts` starts each run by calling the object's own stub (`this.env.OWNER.get(this.ctx.id)`), so each run gets its own limits: 50 outgoing calls, 6 connections and 30 s of CPU.
-2. A run checkpoints and continues in a new invocation after 40 outgoing calls or 12 minutes.
-
-**Gate:**
-- 20 parallel fake runs, each with 60 tool calls, finish without a limit error
-- If a self-call doesn't get fresh limits, continue through the alarm instead, and record that here.
-
-### PR 6: R2 archive
-
-1. Add `owner/archive.ts`. It moves messages older than 30 days to R2 as gzip JSONL, one file per room per day, after a run.
-2. The room log loads archived days on scroll-back. Search falls back to the archive past the hot range.
-
-**Gate:**
-- object storage stays flat across 90 simulated days
-- scroll-back and search work across the boundary
-
 ## Measuring
 
-The overhead suite counts rows read, rows written and calls between objects per prompt, using the dev stats counters (`lib/dev-stats.ts`, `/api/dev/stats`).
-
 ```bash
-bun run --cwd apps/server dev --port <free port>   # your own port; stop only your own PID
-bun kiko verify overhead --url http://localhost:<port>
-bun kiko verify journal-overhead --url http://localhost:<port>   # PR 1's gate
+cd apps/server && NODE_ENV=development bunx wrangler dev --port <free port> --persist-to <fresh dir>
+bun kiko verify journal-overhead --url http://localhost:<port>
 ```
 
-The `journal-overhead` suite measures PR 1's gate: the median AgentDO rows across five warm prompts, a quiet minute after a run, and a quiet minute after a failing run. Whole-prompt, RoomDO and UserDO rows are reported without gating them. `PR1_BASELINE=1` records the same numbers on `main` and asserts nothing. `evidence/pr1-after.json` holds the raw counters from the PR 1 run of that suite.
-
-To count alarms and idle writes, read `/api/dev/stats` before and after a quiet minute. Production numbers come from the queries in `evidence/`.
-
-Record each PR's before and after numbers in its PR description.
-
-## Rules this redesign changes
-
-These `AGENTS.md` lines change when the PR named here lands. Update `AGENTS.md` in that PR.
-
-- "Do not wait on another Durable Object inside `receive()`" no longer applies after PR 2, because there is no other object. Keep the spirit: `receive()` stores and returns, and the run happens later.
-- "Use `alarm.ts`" becomes "use `owner/clock.ts`" in PR 3.
-- "Only the Worker builds a Durable Object name" stays. There's just one name.
-- Add in PR 3: no code may schedule work after an error, and every alarm must trace back to a run, a routine or a lease.
+The suite counts billed writes across five warm prompts, a quiet minute, an always-failing prompt and another quiet minute, plus calls between objects and error rows. Its gate is the measured cost, so a regression fails. Production numbers come from the queries in `evidence/`.
 
 ## Risks
 
 | Risk | Answer |
 |---|---|
-| One object is a single thread | Runs wait on the network. The heaviest `AgentDO` call last week used 766 ms of CPU. One object handles about 1,000 requests a second. |
+| One object is a single thread | Runs wait on the network. The heaviest `AgentDO` call in the week measured used 766 ms of CPU. |
 | 128 MB of memory for 20 agents | An agent's harness and sandbox load when it runs. The least recently used ones unload when more than 8 are loaded. |
 | A bug in one agent affects all of them | Already true: they share one account's quota. Now a failure costs 1 row instead of the day. |
-| A run longer than 15 minutes | It continues in a new invocation from the journal (PR 5). |
-| `MemoryStorage` replay is unsafe | PR 1 decided: replay is safe, so the journal replaces pi-durable's SQLite tables. |
-| A self-call doesn't get fresh limits | Continue through the alarm instead. PR 5 decides. |
-| FTS5 costs more than 2 rows per reply | Batch the run's replies into one insert. PR 4 measures. |
+| A run longer than 15 minutes, or past 40 calls | It saves to the journal and continues from the next alarm. |
+| Parallel runs rely on each socket message getting its own 50-call budget | That's Cloudflare's per-invocation model, but no deployed probe has run it yet. If it fails, remove the inline step in `OwnerDO.humanInput`; tickets still drain from the alarm. |
 
 ## Open questions
 
-1. **Why did the alarms of agents `2ac9f4ed…` and `5e779543…` fail on 2026-10-19?** Logs were unavailable after the cap. PR 1 removes the loop either way. If the error shows up in `wrangler tail kiko`, note it here.
-2. **Does replaying `MemoryStorage` preserve everything `Harness.open` needs to resume a task mid-run?** Answered. The prerequisite checks ran before any change to `host.ts`. They were replaced by the production JournalStorage test, which kills a real Durable Object during a tool call, reopens the journal, preserves committed IDs and completed tool effects, and resumes unfinished work.
-
-   The real-adapter replay test covers a literal Durable Object eviction during a tool call, preserves completed tool effects and resumes unfinished work from JournalStorage. Workers share their agent's Harness, allocator and journal namespace. The prerequisite-only MemoryStorage tests were removed once this test covered the production path.
-
-   The fallback in design section 2 is not used. PR 1 uses the corrected AgentDO-only gate above; whole-prompt writes are PR 2’s responsibility.
+1. **Why did the alarms of agents `2ac9f4ed…` and `5e779543…` fail on 2026-10-19?** Logs were unavailable after the cap. The loop is gone either way.
