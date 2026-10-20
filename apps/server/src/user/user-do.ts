@@ -426,7 +426,9 @@ export class User {
   }
 
   private project(kind: RowKind): void {
-    for (const change of diffRows(this.sql, kind, this.loadRows(kind))) this.commit(change)
+    this.ctx.storage.transactionSync(() => {
+      for (const change of diffRows(this.sql, kind, this.loadRows(kind))) this.commit(change)
+    })
   }
 
   private changed(what: UserChange): void {

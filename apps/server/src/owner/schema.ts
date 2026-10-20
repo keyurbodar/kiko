@@ -28,7 +28,6 @@ const INITIAL_ROOM_STEPS: readonly Step[] = [
   `CREATE TABLE ws_task_reports (room_id TEXT NOT NULL, seq INTEGER, recipient TEXT NOT NULL, body TEXT NOT NULL, chain TEXT, PRIMARY KEY (room_id, seq)) WITHOUT ROWID`,
   `CREATE TABLE "pending" (room_id TEXT NOT NULL, id TEXT, seq INTEGER NOT NULL, at INTEGER NOT NULL, text TEXT NOT NULL, reply_to TEXT, mentions TEXT NOT NULL DEFAULT '[]', PRIMARY KEY (room_id, id)) WITHOUT ROWID`,
   `CREATE INDEX pending_seq ON pending (room_id, seq)`,
-  "CREATE TABLE user_rows (kind TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (kind, id)) WITHOUT ROWID",
 ]
 
 const INITIAL_USER_STEPS: readonly Step[] = [
@@ -281,6 +280,7 @@ const OWNER_STEPS: readonly Step[] = [
   `ALTER TABLE members ADD COLUMN lead_seq INTEGER NOT NULL DEFAULT 0`,
   `UPDATE members SET lead_seq = COALESCE((SELECT MIN(events.seq) FROM events WHERE events.room_id = members.room_id AND events.seq >= members.added_seq AND kind = 'member' AND json_extract(payload, '$.member.slug') = members.slug AND json_extract(payload, '$.member.lead') = 1 AND events.seq > COALESCE((SELECT MAX(previous.seq) FROM events AS previous WHERE previous.room_id = members.room_id AND previous.seq >= members.added_seq AND previous.kind = 'member' AND json_extract(previous.payload, '$.member.slug') = members.slug AND json_extract(previous.payload, '$.member.lead') = 0), 0)), added_seq)`,
   `ALTER TABLE events ADD COLUMN deliveries TEXT NOT NULL DEFAULT '[]'`,
+  "CREATE TABLE user_rows (kind TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (kind, id)) WITHOUT ROWID",
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {
