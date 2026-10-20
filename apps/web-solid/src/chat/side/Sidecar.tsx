@@ -8,7 +8,7 @@ import { FileSurface, FilesTree } from "../../files/pane"
 import { useApp } from "../../lib/store"
 import { roomMembers } from "../info/sections"
 import { MemoryError, MemoryList, useMemoryStore } from "../info/memory/views"
-import { loadRoutines, refreshRoutines, RoutinesPage } from "../info/routines"
+import { RoutinesPage } from "../info/routines"
 import { TasksView } from "../info/tasks"
 import { AgentPage } from "./agent"
 import {
@@ -287,12 +287,6 @@ export default function Sidecar(props: { chatId: string }) {
     return `linear-gradient(to right, ${start ? "transparent, #000 20px" : "#000"}, ${end ? "#000 calc(100% - 20px), transparent" : "#000"})`
   }
 
-  createEffect(on(() => [props.chatId, kind()] as const, ([, k]) => {
-    if (k === "routines") void loadRoutines()
-  }))
-  createEffect(on(() => [useApp.room()?.state.seq, useApp.room()?.state.status], () => {
-    if (kind() === "routines") refreshRoutines()
-  }, { defer: true }))
 
   return (
     <aside class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden" data-component="sidecar" aria-label="Chat sidecar">

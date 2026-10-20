@@ -9,7 +9,7 @@ type Row = { id: string; name: string; slug: string; prompt: string; model: stri
 
 export function listAgents(sql: SqlStorage): Agent[] {
   return sql
-    .exec<Row>("SELECT id, name, slug, prompt, model FROM agents ORDER BY created_at, id")
+    .exec<Row>("SELECT id, name, slug, prompt, model FROM agents WHERE slug NOT IN (SELECT slug FROM deletion_agents) ORDER BY created_at, id")
     .toArray()
     .map((row) => ({ id: row.id, name: row.name, slug: row.slug as AgentSlug, prompt: row.prompt, model: row.model }))
 }

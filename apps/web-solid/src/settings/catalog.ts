@@ -1,10 +1,11 @@
 import type { Catalog, CatalogModel, CatalogProvider, ConnectMethod } from "@kiko/protocol"
 import { apiFetch } from "../lib/api"
-import { watchChanged } from "../sync/changed"
+import { onChanged } from "../sync/changed"
 
 export type { Catalog, CatalogModel, CatalogProvider, ConnectMethod }
 
 let cached: Promise<Catalog> | undefined
+let watching: (() => void) | undefined
 let forget: ReturnType<typeof setTimeout> | undefined
 export const CATALOG_KEEP_MS = 30 * 60_000
 
@@ -16,9 +17,9 @@ export async function prefetchCatalog(): Promise<void> {
 }
 
 export function loadCatalog(): Promise<Catalog> {
-  watchChanged("models", () => {
+  watching ??= onChanged("models", () => {
     cached = undefined
-  })
+  }, 0)
   if (forget !== undefined) clearTimeout(forget)
   forget = setTimeout(() => {
     cached = undefined

@@ -1,7 +1,7 @@
-import type { OwnerToClient, Agent, AgentModel, AgentSlug, Chat, ChatOp, ClientToUser, FileOp, FileRef, KikoError, RoomId, ThinkingLevel, UserEvent, UserSnapshot, UserToClient } from "@kiko/protocol"
+import type { OwnerToClient, Agent, AgentModel, AgentSlug, Chat, ChatOp, ClientToUser, FileOp, FileRef, KikoError, RoomId, RowKind, ThinkingLevel, UserEvent, UserRows, UserSnapshot, UserToClient } from "@kiko/protocol"
 import { batch } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
-import { allAgentModels, allAgents, allChats, getHome, getPendingChats, getUserSeq, putAgentModels, putAgents, putChats, putHome, putPendingChats, removeChat, replaceChats, setUserSeq } from "../warm/chats"
+import { allAgentModels, allAgents, allChats, getHome, getPendingChats, getRows, getUserSeq, putAgentModels, putAgents, putChats, putHome, putPendingChats, putRows, removeChat, replaceChats, setUserSeq } from "../warm/chats"
 import type { Warm } from "../warm/db"
 import { expire, overlayChats, overlayFiles, overlayFolders, PATCH_TTL_MS, type RoomPatch, roomConfirmedBy, settleUser, type UserPatch } from "./patches"
 import { type Backoff, type Connect, createSyncSocket, type SocketStatus, type SyncSocket } from "./socket"
@@ -13,7 +13,13 @@ import { setFileToken } from "../lib/file-token"
 import { APP_VERSION, backendSkew, type Skew } from "../lib/version-skew"
 
 export type Home = { files: FileRef[]; folders: string[] }
-export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home }
+export type RowData = { [K in RowKind]: UserRows[K][] }
+export const emptyRows = (): RowData => ({ routine: [], soul: [], provider: [] })
+export type UserData = { seq: number; chats: Chat[]; agents: Agent[]; home: Home; rows: RowData }
+
+type PendingRow = { kind: RowKind; id: string; row: UserRows[RowKind] | null; at: number }
+const rowKey = (kind: RowKind, id: string) => `${kind}:${id}`
+const PENDING_ROW_MS = 10_000
 
 export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 	if (e.seq <= data.seq) return false
@@ -29,12 +35,25 @@ export function applyUserEvent(data: UserData, e: UserEvent): boolean {
 		else data.home.folders = [...e.folders]
 		return true
 	}
+	if (e.t === "row") {
+		const list = data.rows[e.kind] as { id: string }[]
+		const i = list.findIndex((r) => r.id === e.row.id)
+		if (i === -1) list.push(e.row)
+		else list[i] = e.row
+		return true
+	}
+	if (e.t === "row_removed") {
+		;(data.rows as Record<RowKind, { id: string }[]>)[e.kind] = data.rows[e.kind].filter((r) => r.id !== e.id)
+		return true
+	}
 	if (e.t === "agent_removed") {
 		data.agents = data.agents.filter((a) => a.id !== e.id)
 		return true
 	}
 	if (e.t === "agent") {
-		if (!data.agents.some((a) => a.id === e.agent.id)) data.agents.push(e.agent)
+		const i = data.agents.findIndex((a) => a.id === e.agent.id)
+		if (i === -1) data.agents.push(e.agent)
+		else data.agents[i] = e.agent
 		return true
 	}
 	const i = data.chats.findIndex((c) => c.roomId === (e.t === "chat" ? e.chat.roomId : e.roomId))
@@ -50,7 +69,6 @@ export { newRoomId }
 
 const clientBuild = () => ({ version: APP_VERSION, protocol: PROTOCOL })
 
-
 export type UserState = UserData & {
 	loaded: boolean
 	connection: SocketStatus
@@ -62,6 +80,8 @@ export type UserState = UserData & {
 	synced: boolean
 	lastChat: RoomId | null
 	refused: Record<string, RoomId>
+	gone: Record<string, true>
+	pendingRows: Record<string, PendingRow>
 	typing: Record<string, readonly string[]>
 	skew?: Skew
 	backendVersion?: string
@@ -84,6 +104,8 @@ export type UserStore = {
 	chats(): Chat[]
 	readonly ready: Promise<void>
 	agents(): Agent[]
+	rows<K extends RowKind>(kind: K): UserRows[K][]
+	editRow<K extends RowKind>(kind: K, id: string, next: UserRows[K] | null, send: () => Promise<boolean>): Promise<boolean>
 	agentModel(slug: string): AgentModel | undefined
 	setAgentModel(slug: AgentSlug, pick: { ref?: string; thinking?: ThinkingLevel; levels?: readonly ThinkingLevel[]; roomId?: RoomId }): void
 	createChat(title: string, agents?: readonly string[]): RoomId
@@ -116,6 +138,8 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		chats: [],
 		agents: [],
 		home: { files: [], folders: [] },
+		rows: emptyRows(),
+		pendingRows: {},
 		loaded: false,
 		connection: "closed",
 		patches: [],
@@ -126,6 +150,7 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		lastChat: null,
 		refused: {},
 		typing: {},
+		gone: {},
 	})
 	const homeRefusals = new Set<(op: FileOp, reason: string) => void>()
 	let opening: ReturnType<typeof setTimeout> | undefined
@@ -164,7 +189,12 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		batch(() => {
 			setState(
 				produce((s) => {
-					for (const e of sorted) if (applyUserEvent(s, e)) applied.push(e)
+					for (const e of sorted) {
+						if (!applyUserEvent(s, e)) continue
+						applied.push(e)
+						if (e.t === "agent_removed") s.gone[e.slug] = true
+						if (e.t === "row" || e.t === "row_removed") delete s.pendingRows[rowKey(e.kind, e.t === "row" ? e.row.id : e.id)]
+					}
 				}),
 			)
 			const next = settleUser(state.patches, applied)
@@ -191,13 +221,17 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		if (applied.some((e) => e.t === "agent" || e.t === "agent_removed")) putAgents(warm, unwrap(state.agents))
 		if (applied.some((e) => e.t === "agent_model" || e.t === "agent_removed")) putAgentModels(warm, unwrap(state.agentModels))
 		if (applied.some((e) => e.t === "file" || e.t === "file_removed" || e.t === "folders")) putHome(warm, unwrap(state.home))
+		const kinds = new Set(applied.flatMap((e) => e.t === "row" || e.t === "row_removed" ? [e.kind] : []))
+		if (kinds.size) putRows(warm, unwrap(state.rows), [...kinds])
 		if (applied.length) setUserSeq(warm, state.seq)
 	}
 
 	function reset(snapshot: UserSnapshot) {
 		const agents = [...(snapshot.agents ?? [])]
 		const home = { files: [...snapshot.home.files], folders: [...snapshot.home.folders] }
-		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, lastChat: snapshot.lastChat ?? null })
+		const rows = { ...emptyRows(), ...structuredClone(snapshot.rows ?? {}) } as RowData
+		setState({ seq: snapshot.seq, chats: [...snapshot.chats], agents, home, rows, lastChat: snapshot.lastChat ?? null })
+		putRows(warm, rows)
 		if (snapshot.theme !== undefined) setState("theme", snapshot.theme)
 		const agentModels = { ...snapshot.agentModels }
 		setState({ agentModels, pendingModels: Object.fromEntries(Object.entries(unwrap(state.pendingModels)).filter(([slug]) => unsentModels.has(slug))) })
@@ -237,10 +271,10 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 	}
 
 	async function boot() {
-		const [chats, seq, agents, home, pending, agentModels] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm), getPendingChats(warm), allAgentModels(warm)])
+		const [chats, seq, agents, home, pending, agentModels, rows] = await Promise.all([allChats(warm), getUserSeq(warm), allAgents(warm), getHome(warm), getPendingChats(warm), allAgentModels(warm), getRows(warm)])
 		if (closed) return
 		const first = chats.length ? chats : [kikoPlaceholder(now())]
-		setState({ chats: first, seq: home ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, patches: [...pending, ...state.patches], loaded: true })
+		setState({ chats: first, seq: home && rows ? seq : 0, agents, agentModels, home: home ?? { files: [], folders: [] }, rows: { ...emptyRows(), ...rows }, patches: [...pending, ...state.patches], loaded: true })
 		socket = createSyncSocket<OwnerToClient>({
 			url: options.url,
 			connect: options.connect,
@@ -274,6 +308,30 @@ export function createUserStore(options: UserStoreOptions): UserStore {
 		chats: () => overlayChats(state.chats, state.patches),
 		ready,
 		agents: () => state.agents,
+		rows<K extends RowKind>(kind: K): UserRows[K][] {
+			const list = state.rows[kind] as UserRows[K][]
+			const pending = Object.values(state.pendingRows).filter((p) => p.kind === kind)
+			if (!pending.length) return list
+			const out = list.flatMap((r) => {
+				const p = state.pendingRows[rowKey(kind, r.id)]
+				return !p ? [r] : p.row ? [p.row as UserRows[K]] : []
+			})
+			for (const p of pending) if (p.row && !list.some((r) => r.id === p.id)) out.push(p.row as UserRows[K])
+			return out
+		},
+		async editRow(kind, id, next, send) {
+			const key = rowKey(kind, id)
+			const at = now()
+			setState("pendingRows", key, { kind, id, row: next, at })
+			const ok = await send().catch(() => false)
+			const mine = () => state.pendingRows[key]?.at === at
+			if (!ok) {
+				if (mine()) setState("pendingRows", produce((p) => void delete p[key]))
+				return false
+			}
+			setTimeout(() => mine() && setState("pendingRows", produce((p) => void delete p[key])), PENDING_ROW_MS)
+			return true
+		},
 		agentModel: (slug) => state.pendingModels[slug] ?? state.agentModels[slug],
 		setAgentModel(slug, { ref, thinking, levels, roomId }) {
 			const current = state.pendingModels[slug] ?? state.agentModels[slug]

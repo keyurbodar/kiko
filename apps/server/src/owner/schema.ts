@@ -28,6 +28,7 @@ const INITIAL_ROOM_STEPS: readonly Step[] = [
   `CREATE TABLE ws_task_reports (room_id TEXT NOT NULL, seq INTEGER, recipient TEXT NOT NULL, body TEXT NOT NULL, chain TEXT, PRIMARY KEY (room_id, seq)) WITHOUT ROWID`,
   `CREATE TABLE "pending" (room_id TEXT NOT NULL, id TEXT, seq INTEGER NOT NULL, at INTEGER NOT NULL, text TEXT NOT NULL, reply_to TEXT, mentions TEXT NOT NULL DEFAULT '[]', PRIMARY KEY (room_id, id)) WITHOUT ROWID`,
   `CREATE INDEX pending_seq ON pending (room_id, seq)`,
+  "CREATE TABLE user_rows (kind TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (kind, id)) WITHOUT ROWID",
 ]
 
 const INITIAL_USER_STEPS: readonly Step[] = [

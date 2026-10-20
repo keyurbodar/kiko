@@ -1,7 +1,8 @@
 import { ProviderIcon } from "@kiko/ui/provider-icon"
 import "@kiko/ui/provider-icon.css"
 import { A } from "@solidjs/router"
-import { createEffect, createMemo, createResource, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, type JSX } from "solid-js"
+import { createLive } from "../sync/changed"
 import { Portal } from "solid-js/web"
 import { VList, type VListHandle } from "virtua/solid"
 import { loadCatalog, modelRef, searchModels, type ModelRow } from "./catalog"
@@ -26,7 +27,7 @@ function Star(props: { on: boolean }) {
 }
 
 export default function ModelPickerPanel(props: { current?: string; onPick: (ref: string, thinking: readonly ThinkingLevel[]) => void; onOpenChange: (open: boolean) => void; trigger: () => HTMLButtonElement | undefined }) {
-  const [catalog] = createResource(loadCatalog)
+  const [catalog] = createLive("models", () => true, loadCatalog)
   const providers = createMemo(() => {
     const ids = new Set(modelProviders(connectedProviders()).map((p) => p.provider))
     return catalog()?.providers.filter((p) => ids.has(p.id)) ?? []

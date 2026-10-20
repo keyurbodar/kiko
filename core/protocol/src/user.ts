@@ -4,6 +4,7 @@ import type { AgentSlug, RoomId } from "./ids"
 import type { ThinkingLevel } from "./thinking"
 import type { MemoryOp, MemoryResult } from "./memory"
 import type { FileOp, FileRef } from "./room"
+import type { RowKind, RowLists, UserRows } from "./rows"
 
 export type Chat = {
 	roomId: RoomId
@@ -58,6 +59,8 @@ export type UserEvent =
 	| (Stored & { t: "file"; file: FileRef })
 	| (Stored & { t: "file_removed"; ids: readonly string[] })
 	| (Stored & { t: "folders"; folders: readonly string[] })
+	| { [K in RowKind]: Stored & { t: "row"; kind: K; row: UserRows[K] } }[RowKind]
+	| (Stored & { t: "row_removed"; kind: RowKind; id: string })
 
 export type UserSnapshot = {
 	seq: number
@@ -66,6 +69,7 @@ export type UserSnapshot = {
 	agentModels?: Readonly<Record<string, AgentModel>>
 	theme?: string | null
 	home: { files: readonly FileRef[]; folders: readonly string[] }
+	rows?: RowLists
 	lastChat?: RoomId
 }
 
@@ -127,7 +131,7 @@ export type ClientToUser =
 
 export type UpdateStage = "checking" | "authorizing" | "uploading" | "restarting" | "failed"
 
-export type UserChange = "routines" | "memory" | "models" | "providers"
+export type UserChange = "memory" | "models"
 
 export type UserToClient =
 	| { t: "events"; events: readonly UserEvent[]; version?: string; protocol?: number; fileToken?: string }

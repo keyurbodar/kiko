@@ -1,6 +1,6 @@
 import { chatFaces, chatSeed } from "./identity"
 
-import type { Agent, AgentModel, AgentSlug, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp, RunStep } from "@kiko/protocol"
+import type { Agent, AgentModel, AgentSlug, RowKind, UserRows, ThinkingLevel, AgentState, Chat, ChatLast, FileRef, Member, MemberOp, MemberRefusal, MessageId, Reaction as WireReaction, RoomId, FileOp, RunStep } from "@kiko/protocol"
 import { fileName, KIKO, humanHandle, mentionsHuman, messageLast } from "@kiko/protocol"
 import { isListed } from "../sidebar/activity"
 import { agentDisplayName } from "./names"
@@ -429,10 +429,15 @@ export function createApp() {
       return roomMessages().find((m) => m.id === id)
     }
 
+    function liveMembers(r: RoomStore): Member[] {
+      const gone = userStore()?.state.gone
+      return gone ? r.members().filter((m) => !gone[m.slug]) : r.members()
+    }
+
     function members(): RosterBot[] {
       const r = room()
       if (!r) return []
-      return r.members().map((m) => memberRow(m, presenceOf(r.state.status[m.slug] === "typing", r.state.status[m.slug])))
+      return liveMembers(r).map((m) => memberRow(m, presenceOf(r.state.status[m.slug] === "typing", r.state.status[m.slug])))
     }
 
     function send(message: OutgoingMessage, replyTo?: string, quote?: string): string | undefined {
@@ -649,7 +654,8 @@ export function createApp() {
       },
 
       roomMembers(): Member[] {
-        return room()?.members() ?? []
+        const r = room()
+        return r ? liveMembers(r) : []
       },
 
       modelsSynced(): boolean {
@@ -797,6 +803,18 @@ export function createApp() {
 
       agents(): Agent[] {
         return userStore()?.agents() ?? []
+      },
+
+      rows<K extends RowKind>(kind: K): UserRows[K][] {
+        return userStore()?.rows(kind) ?? []
+      },
+
+      row<K extends RowKind>(kind: K, id: string): UserRows[K] | undefined {
+        return userStore()?.rows(kind).find((r) => r.id === id)
+      },
+
+      editRow<K extends RowKind>(kind: K, id: string, next: UserRows[K] | null, send: () => Promise<boolean>): Promise<boolean> {
+        return userStore()?.editRow(kind, id, next, send) ?? Promise.resolve(false)
       },
 
       togglePinned(threadId: string) {
