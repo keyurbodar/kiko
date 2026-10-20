@@ -7,6 +7,8 @@ This file is the design brief. Read `HANDOFF.md` first for the current state and
 Companion files:
 
 - `HANDOFF.md`: the current state, the measurements and what is left.
+- `strategy.html`: the plan to cut writes per prompt to 3, as charts.
+- `evidence/row-billing/`: what each SQLite operation bills, measured.
 - `evidence/measurements.md`: the production measurements behind the outage, and how to rerun them.
 - `evidence/e2e-before.log`, `evidence/e2e-after.log`: the one e2e on `main` and on this design. `evidence/e2e-after.json` holds the raw counters.
 - `evidence/cloudflare-quota/`: the deployed Free-plan probe of the per-invocation call budget.
@@ -22,7 +24,7 @@ On 2026-10-19, two idle agents looped on a failing alarm. They wrote about 115k 
 
 1. An idle install writes 0 rows and sets 0 alarms.
 2. A failure costs 1 row, a visible error. Nothing retries on its own except Cloudflare's capped alarm retry.
-3. A prompt makes 0 calls between objects and writes as few rows as durability allows. It costs 33 today; the target is 8.
+3. A prompt makes 0 calls between objects and writes as few rows as durability allows. It costs 33 today; the target is 3, with 2 as a stretch goal (see `HANDOFF.md`).
 4. A day of 20 agents, 35 hourly routines and 2,000 prompts fits the free plan with room to spare.
 5. Nothing the human sees gets worse.
 
@@ -43,7 +45,7 @@ Measured with the one e2e, `bun kiko verify journal-overhead`, with a fake model
 
 ### The target day: 20 agents, 35 hourly routines, 2,000 prompts
 
-That's 2,840 runs. At 136 rows each, `main` would write about 386k rows, nearly 4× the Free cap of 100k. At 33 writes each, this design writes about 94k, just under the cap. Getting to the target of 8 writes per prompt (about 23k a day) is the next step in `HANDOFF.md`.
+That's 2,840 runs. At 136 rows each, `main` would write about 386k rows, nearly 4× the Free cap of 100k. At 33 writes each, this design writes about 94k, just under the cap. At the target of 2 writes plus 1 per model turn, a day of 3-turn runs costs about 14k, 14% of the cap. `HANDOFF.md` has the plan.
 
 Awake time is the other tight quota. One object awake all day uses 11,059 of the 13,000 GB-s, and runs happening at the same time share that time.
 
