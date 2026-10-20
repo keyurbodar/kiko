@@ -29,12 +29,12 @@ type LoadedRelease = { manifest: ReleaseManifest; files: Map<string, Uint8Array>
 
 /** `version` names an exact release. Without it the release the base calls `latest`. */
 export async function loadVerifiedRelease(
-  input: { baseUrl: string; publicKey: string; version?: string },
+  input: { baseUrl: string; publicKey: string; version?: string; index?: "latest.json" | "latest-owner.json" },
   f: ReleaseFetch,
 ): Promise<LoadedRelease> {
   const base = input.baseUrl.replace(/\/$/, "")
   const version =
-    input.version ?? (JSON.parse(new TextDecoder().decode(await fetchBytes(f, `${base}/latest.json`))) as { version: string }).version
+    input.version ?? (JSON.parse(new TextDecoder().decode(await fetchBytes(f, `${base}/${input.index ?? "latest.json"}`))) as { version: string }).version
   if (!/^[A-Za-z0-9._-]+$/.test(version)) throw new ReleaseRefused("release_untrusted", "The release version is not valid. Nothing was uploaded.")
   const dir = `${base}/${version}`
   const manifestBytes = await fetchBytes(f, `${dir}/manifest.json`)

@@ -6,6 +6,7 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-work
 import { createRegistry, defineExtension, defineTool, Harness, type StorageWrite } from "@earendil-works/pi-durable"
 import { MemoryStorage } from "@earendil-works/pi-durable/storage/memory"
 import { continueAtBoundary } from "@kiko/agent/continuation"
+import { RunBudget } from "../src/owner/runs"
 
 const context = BACKGROUND_CONTEXT
 
@@ -90,3 +91,51 @@ test("20 concurrent split runs match one unsplit reference in local transcript a
     expect(split.transcript).toEqual(baseline.transcript)
   }
 }, 120_000)
+
+for (const shape of ["parallel round", "multi-fetch tool"] as const) {
+  test(`${shape} stops before its 41st network admission without replaying completed effects`, async () => {
+    const budget = new RunBudget()
+    const effects: number[] = []
+    const tool = defineTool({
+      name: "external", description: "Record a network effect", parameters: Type.Object({ n: Type.Number() }), replay: "safe",
+      execute: async ({ n }) => {
+        const attempts = shape === "parallel round" ? [n] : Array.from({ length: 60 }, (_, i) => i)
+        for (const attempt of attempts) {
+          budget.count()
+          effects.push(attempt)
+          await Promise.resolve()
+        }
+        return { output: [{ type: "text", text: "Effect completed" }] }
+      },
+    })
+    const extension = defineExtension({ name: "budget-test", tools: [tool] })
+    const registry = createRegistry()
+    registry.install(extension)
+    const faux = fauxProvider({ tokensPerSecond: 1_000_000 })
+    faux.setResponses([() => {
+      budget.count()
+      const calls = shape === "parallel round" ? Array.from({ length: 60 }, (_, n) => fauxToolCall("external", { n }, { id: `effect-${n}` })) : [fauxToolCall("external", { n: 0 }, { id: "multi" })]
+      return fauxAssistantMessage(calls, { stopReason: "toolUse" })
+    }, () => {
+      budget.count()
+      return fauxAssistantMessage("Done")
+    }])
+    const models = createModels()
+    models.setProvider(faux.provider)
+    const harness = await Harness.open(new MemoryStorage(), { models, registry, settings: { toolExecution: "parallel", retry: { maxRetries: 0 } } }, context)
+    const boundary = await continueAtBoundary(harness, () => budget.due())
+    try {
+      const root = await harness.root(context, { agent: { model: { provider: "faux", modelId: "faux-1" }, extensions: [extension] } })
+      await root.submit({ type: "input", content: "Run external effects", requestId: "budget-input" }, context)
+      await harness.waitForIdle(context)
+      expect(budget.calls).toBe(40)
+      expect(effects).toHaveLength(39)
+      expect(new Set(effects).size).toBe(39)
+      expect(boundary.continuing()).toBe(false)
+      expect(JSON.stringify((await root.context(context)).messages)).toContain("Completed actions were kept")
+    } finally {
+      boundary.dispose()
+      await harness.close(context)
+    }
+  }, 30_000)
+}

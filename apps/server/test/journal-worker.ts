@@ -3,14 +3,14 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
-import { AssistantEntry, createRegistry, defineExtension, defineTool, Harness, LiveDoc, ROOT_CONVERSATION_ID, type StorageWrite } from "@earendil-works/pi-durable"
+import { AssistantEntry, createRegistry, defineExtension, defineTool, Harness, LiveDoc, ROOT_CONVERSATION_ID, type DocumentId, type StorageWrite } from "@earendil-works/pi-durable"
 import { declareEffect } from "@kiko/agent/effects"
 import { JournalStorage, JOURNAL_STEPS } from "@kiko/agent/journal"
 import { assertions as a } from "./journal-assertions"
 
 const context = BACKGROUND_CONTEXT
 const model = { provider: "faux", modelId: "faux-1" }
-type Body = { op: "crash" | "resume" }
+type Body = { op: "crash" | "resume" | "immediate" }
 
 export class T extends DurableObject {
   private readonly instance = crypto.randomUUID()
@@ -22,10 +22,42 @@ export class T extends DurableObject {
       else step(this.ctx.storage.sql)
     }
     try {
-      return await (body.op === "crash" ? this.crash() : this.resume())
+      return await (body.op === "immediate" ? this.immediate() : body.op === "crash" ? this.crash() : this.resume())
     } catch (error) {
       return Response.json({ ok: false, error: error instanceof Error ? error.stack : String(error) })
     }
+  }
+
+  private async immediate(): Promise<Response> {
+    const journal = JournalStorage.open(this.ctx.storage, "immediate")
+    const harness = await Harness.open(journal, { models: createModels(), registry: createRegistry() }, context)
+    const root = await harness.root(context)
+    const address = { kind: LiveDoc.definition.kind, scope: { kind: "conversation" as const, conversationId: root.id } }
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      await harness.commit(async (tx) => {
+        const live = await tx.doc(LiveDoc, root.id)
+        live.generation = { attempt }
+      }, context)
+      const fresh = JournalStorage.open(this.ctx.storage, "immediate")
+      const record = await fresh.findDocument(address, "current", context)
+      a.ok(record)
+      const stored = await fresh.document(record.id, "current", context)
+      a.strictEqual((stored?.value.generation as { attempt: number }).attempt, attempt)
+    }
+    const currentId = await journal.mintId<DocumentId>()
+    await journal.commit([{ type: "document.create", record: { id: currentId, kind: "test.current", scope: { kind: "session" } }, content: { kind: "base", version: 1, value: { count: 0 } } }], context)
+    for (let count = 1; count <= 2; count++) {
+      await journal.commit([{ type: "document.change", id: currentId, content: { kind: "delta", version: 1, ops: [["s", ["count"], count]] } }], context)
+      const fresh = JournalStorage.open(this.ctx.storage, "immediate")
+      a.strictEqual((await fresh.document(currentId, "current", context))?.value.count, count)
+    }
+    const unused = await journal.mintId()
+    const reopened = JournalStorage.open(this.ctx.storage, "immediate")
+    const next = await reopened.mintId()
+    a.ok(next > unused, "minted candidates must survive reopen even without a commit")
+    await harness.close(context)
+    await reopened.close(context)
+    return Response.json({ ok: true, generation: 2, current: 2, mintedUnused: unused, mintedAfterReopen: next })
   }
 
   private async toolHarness(crash: boolean) {

@@ -27,7 +27,6 @@ function dayKey(roomId: string, day: string): string {
   return `${roomPrefix(roomId)}${day}${SUFFIX}`
 }
 
-/** Rows must be JSON serializable. Rewriting a day replaces its entire snapshot. */
 export async function writeDay(bucket: ArchiveBucket, roomId: string, day: string, rows: readonly unknown[]): Promise<void> {
   const key = dayKey(roomId, day)
   const jsonl = rows.map((row) => {
@@ -39,7 +38,6 @@ export async function writeDay(bucket: ArchiveBucket, roomId: string, day: strin
   await bucket.put(key, new Uint8Array(await new Response(stream).arrayBuffer()))
 }
 
-/** T describes the caller's stored JSON schema; this module does not validate row fields. */
 export async function readDay<T>(bucket: ArchiveBucket, roomId: string, day: string): Promise<T[] | null> {
   const object = await bucket.get(dayKey(roomId, day))
   if (!object) return null
@@ -50,7 +48,6 @@ export async function readDay<T>(bucket: ArchiveBucket, roomId: string, day: str
   return lines.map((line) => JSON.parse(line))
 }
 
-/** Read every R2 list page and return UTC days newest first. */
 export async function listDays(bucket: ArchiveBucket, roomId: string): Promise<string[]> {
   const prefix = roomPrefix(roomId)
   const days = new Set<string>()
@@ -65,5 +62,14 @@ export async function listDays(bucket: ArchiveBucket, roomId: string): Promise<s
     if (!page.truncated) return [...days].sort().reverse()
     if (page.cursor === undefined || page.cursor === cursor) throw new Error("Archive list cursor did not advance")
     cursor = page.cursor
+  }
+}
+
+export async function eraseRoom(bucket: Pick<ArchiveBucket, "list"> & { delete(keys: string[]): Promise<unknown> }, roomId: string): Promise<void> {
+  const prefix = roomPrefix(roomId)
+  for (;;) {
+    const page = await bucket.list({ prefix })
+    if (!page.objects.length) return
+    await bucket.delete(page.objects.map((object) => object.key))
   }
 }

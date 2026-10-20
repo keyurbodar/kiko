@@ -15,7 +15,7 @@ export type Env = InstallEnv & {
   TRUSTED_ORIGINS: string
 }
 
-type InstallBody = { clerkToken?: unknown; grant?: unknown; accountId?: unknown }
+type InstallBody = { clerkToken?: unknown; grant?: unknown; accountId?: unknown; reset?: unknown }
 
 export function allowedOrigin(origin: string | null, trusted: string): string | null {
   if (!origin) return null
@@ -94,7 +94,7 @@ export default {
       }
       const accountId = typeof body.accountId === "string" ? body.accountId : undefined
       const stub = env.INSTALLER.get(env.INSTALLER.idFromName(sub))
-      const result = await stub.install({ sub, clerkToken: body.clerkToken, grant, accountId })
+      const result = await stub.install({ sub, clerkToken: body.clerkToken, grant, accountId, ...(body.reset === "delete-existing-data" ? { reset: "delete-existing-data" as const } : {}) })
       return reply(result.ok ? result.value : { error: result.error }, result.ok ? 200 : result.error.status, origin)
     }
 

@@ -1,9 +1,10 @@
 import { Database } from "bun:sqlite"
 import { migrate, type Step } from "@kiko/durable/migrate"
 
-export function sqlStorage(db = new Database(":memory:")): SqlStorage {
+export function sqlStorage(db = new Database(":memory:"), onQuery?: (query: string, bindings: unknown[]) => void): SqlStorage {
   return {
     exec(query: string, ...args: unknown[]) {
+      onQuery?.(query, args)
       // A migration is several statements in one string, which only `exec` runs.
       if (!args.length && /;\s*\S/.test(query.replace(/--[^\n]*/g, ""))) {
         db.exec(query)

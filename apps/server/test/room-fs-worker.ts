@@ -1,4 +1,3 @@
-import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { FileOp } from "@kiko/protocol"
@@ -7,58 +6,10 @@ import { filesExtension } from "../src/agent/extensions/files"
 import { HOME } from "../src/files/upload"
 import { type FilesBackend, homeBackend, RoomFs, roomBackend, withMount, withSoul } from "../src/files/room-fs"
 import { kikoDocsBackend, KIKO } from "../src/files/kiko-docs"
-import { FileIndex, HOME_TABLES, type IndexChange, type NewFile } from "../src/files/file-index"
-import { actorKey } from "../src/room/log"
-import type { Actor } from "@kiko/protocol"
-import { USER_STEPS } from "../src/user/schema"
-import { migrate } from "@kiko/durable/migrate"
-import { Souls } from "../src/user/souls"
 import type { Env } from "../src/index"
-import { roomStub } from "../src/lib/names"
-
-export { RoomDO } from "../src/room/room-do"
-
-export class UserDO extends DurableObject {
-  private readonly souls: Souls
-  private readonly home: FileIndex<unknown>
-  constructor(ctx: DurableObjectState, env: unknown) {
-    super(ctx, env as never)
-    migrate(ctx.storage, USER_STEPS)
-    this.souls = new Souls(ctx.storage.sql)
-    this.home = new FileIndex<unknown>(ctx.storage, HOME_TABLES, (_, body) => body, actorKey)
-  }
-  homePut(input: NewFile) {
-    const { events, ...result } = this.home.put(input)
-    return { ...result, fresh: events.length > 0, entry: result.file && !result.conflict ? this.home.stat(input.path) : null }
-  }
-  homeStat(path: string) {
-    return this.home.stat(path)
-  }
-  homeList(dir: string, recursive = false) {
-    return this.home.list(dir, recursive)
-  }
-  homeMove(by: Actor, from: string, to: string) {
-    return this.home.move(from, to, by)
-  }
-  homeRemove(by: Actor, paths: string[], recursive: boolean) {
-    return this.home.remove(paths, recursive, by)
-  }
-  homeMkdir(by: Actor, path: string) {
-    return this.home.mkdir(path, by)
-  }
-  homeCommit(by: Actor, changes: IndexChange[]) {
-    return this.home.commit(changes, by)
-  }
-  async recordRoom() {
-    return true
-  }
-  soul(slug: string) {
-    return this.souls.get(slug)
-  }
-  setSoul(slug: string, body: string, expectSha: string) {
-    return this.souls.set(slug, body, expectSha)
-  }
-}
+import { ownerName } from "../src/lib/names"
+import { OwnerDO as BaseOwner } from "../src/owner/owner-do"
+import type { OwnerServices } from "../src/owner/services"
 
 const notices: string[] = []
 
@@ -68,10 +19,9 @@ const counts = new Map<string, { stat: number; get: number; put: number }>()
 let beforeCommit: (() => void) | null = null
 let refusing: string | null = null
 
-function counted(key: string, backend: FilesBackend, env: Env): FilesBackend {
+function counted(key: string, backend: FilesBackend, env: Env & { FILES: R2Bucket }): FilesBackend {
   const c = { stat: 0, get: 0, put: 0 }
   counts.set(key, c)
-  const get = env.FILES.get.bind(env.FILES)
   return {
     ...backend,
     stat: (p) => (c.stat++, backend.stat(p)),
@@ -85,8 +35,7 @@ function counted(key: string, backend: FilesBackend, env: Env): FilesBackend {
   }
 }
 
-export default {
-  async fetch(request: Request, env: Env) {
+async function handle(request: Request, env: Env & { FILES: R2Bucket }, services: OwnerServices) {
     const [, kind, roomId, slug] = new URL(request.url).pathname.split("/")
     if (kind === "keys") {
       const page = await env.FILES.list({ prefix: "" })
@@ -95,12 +44,12 @@ export default {
     if (kind === "raw") {
       const url = new URL(request.url)
       const home = { userId: "alice", roomId: roomId as never, slug: "human" as never, role: "", lead: true }
-      const fs = new RoomFs("raw", roomBackend(env, () => home))
+      const fs = new RoomFs("raw", roomBackend(services, () => home))
       const out = await fs.write(url.searchParams.get("path")!, new Uint8Array(await request.arrayBuffer()), url.searchParams.get("type")!)
       return Response.json({ ok: out.ok })
     }
     if (kind === "idle") {
-      await roomStub(env.ROOM, "alice", roomId!).setStatus(slug as never, "idle")
+      await services.room(roomId!).setStatus(slug as never, "idle")
       return Response.json({ ok: true })
     }
     if (kind === "notices") return Response.json(notices.splice(0))
@@ -110,7 +59,7 @@ export default {
       c.stat = c.get = c.put = 0
       return Response.json(out)
     }
-    if (kind === "op") return Response.json({ refused: await roomStub(env.ROOM, "alice", roomId!).fileOp((await request.json()) as FileOp) })
+    if (kind === "op") return Response.json({ refused: await services.room(roomId!).fileOp((await request.json()) as FileOp) })
     const key = `${roomId}/${slug}`
     let fs = systems.get(key)
     if (!fs) {
@@ -121,11 +70,10 @@ export default {
         files._gets = 0
         files.get = ((...a: Parameters<R2Bucket["get"]>) => (files._gets!++, get(...a))) as R2Bucket["get"]
       }
-      const users = (env as unknown as { USER: DurableObjectNamespace<UserDO> }).USER
-      const user = () => users.get(users.idFromName("user:alice"))
+      const user = () => services.user()
       const soul = { get: () => user().soul(slug!), set: (body: string, expect: string) => user().setSoul(slug!, body, expect) }
-      const drive = homeBackend(env, () => home, async (text) => void notices.push(`@${slug} ${text}`), undefined, () => (slug === "quiet" ? "this chat is private" : null))
-      fs = new RoomFs(`test:${key}`, withSoul(withMount(withMount(counted(key, roomBackend(env, () => home), env), HOME, drive), KIKO, kikoDocsBackend()), soul))
+      const drive = homeBackend(services, () => home, async (text) => void notices.push(`@${slug} ${text}`), undefined, () => (slug === "quiet" ? "this chat is private" : null))
+      fs = new RoomFs(`test:${key}`, withSoul(withMount(withMount(counted(key, roomBackend(services, () => home), env), HOME, drive), KIKO, kikoDocsBackend()), soul))
       systems.set(key, fs)
     }
     const { name, args } = (await request.json()) as { name: string; args: Record<string, unknown> }
@@ -151,5 +99,16 @@ export default {
       beforeCommit = null
       refusing = null
     }
+}
+
+export class FilesOwner extends BaseOwner {
+  override fetch(request: Request): Promise<Response> {
+    return handle(request, { ...this.env, FILES: this.env.FILES! }, this.services)
+  }
+}
+
+export default {
+  fetch(request: Request, env: Env) {
+    return env.OWNER.get(env.OWNER.idFromName(ownerName("alice"))).fetch(request)
   },
 }

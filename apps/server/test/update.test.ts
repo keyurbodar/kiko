@@ -6,7 +6,7 @@ import { type CfGrant, runUpdate, type UpdateConfig, type UpdateDeps } from "../
 const enc = new TextEncoder()
 const BASE = "https://release.test/releases"
 
-async function makeRelease(tamper?: "manifest" | "module" | "signature") {
+async function makeRelease(tamper?: "manifest" | "module" | "signature", destructive = false) {
   const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair
   const x = ((await crypto.subtle.exportKey("jwk", pair.publicKey)) as JsonWebKey).x as string
   const code = enc.encode("export default {}")
@@ -14,11 +14,12 @@ async function makeRelease(tamper?: "manifest" | "module" | "signature") {
   const manifest = enc.encode(
     JSON.stringify({
       version: "0.2.0",
-      protocol: 1,
+      protocol: 3,
+      durable_objects: [{ name: "OWNER", class_name: "OwnerDO" }],
       main_module: "index.js",
       compatibility_date: "2026-09-01",
       compatibility_flags: ["nodejs_compat"],
-      migrations: [{ tag: "v1", new_sqlite_classes: ["UserDO"] }, { tag: "v2", new_sqlite_classes: ["WorkDO"] }, { tag: "v3", deleted_classes: ["WorkDO"] }],
+      migrations: [{ tag: "v1", new_sqlite_classes: ["OwnerDO"] }, { tag: "v2", new_sqlite_classes: ["WorkDO"] }, destructive ? { tag: "v3", deleted_classes: ["WorkDO"] } : { tag: "v3", new_sqlite_classes: ["NotesDO"] }],
       modules: [{ name: "index.js", type: "application/javascript+module", sha256: hash }],
     }),
   )
@@ -67,6 +68,7 @@ function setup(release: Awaited<ReturnType<typeof makeRelease>>, grant: CfGrant 
         calls.push({ kind: "put", url, method, form: init.body as FormData })
         return ok({})
       }
+      if (u.pathname.endsWith("/settings")) return ok({ bindings: [{ type: "r2_bucket", name: "FILES" }, { type: "r2_bucket", name: "ARCHIVE" }] })
       log.push("list")
       return ok(opts.scripts ?? [{ id: "kiko", migration_tag: "v1" }])
     },
@@ -140,9 +142,19 @@ describe("update", () => {
     const meta = await metadataOf(t.calls[0]?.form as FormData)
     expect(meta.keep_bindings).toEqual(["secret_text"])
     expect(meta.bindings.some((b) => b.type === "secret_text")).toBe(false)
+    expect(meta.bindings).toContainEqual({ type: "durable_object_namespace", name: "OWNER", class_name: "OwnerDO" })
+    expect(meta.bindings).toContainEqual({ type: "inherit", name: "ARCHIVE" })
+    expect(meta.bindings).toContainEqual({ type: "inherit", name: "FILES" })
     expect(JSON.stringify(meta)).not.toMatch(/SESSION_SECRET|CREDENTIALS_KEK/)
     expect(meta.migrations).toMatchObject({ old_tag: "v1", new_tag: "v3" })
     expect(meta.migrations.steps.map((s) => s.tag)).toEqual(["v2", "v3"])
+  })
+
+  test("a destructive migration is refused before upload and asks for explicit installer reset", async () => {
+    const t = setup(await makeRelease(undefined, true), oauth)
+    await runUpdate(t.deps, "0.2.0")
+    expect(t.stages.at(-1)).toMatchObject({ stage: "failed", error: expect.stringContaining("confirm the reset") })
+    expect(t.log).not.toContain("put")
   })
 
   test("a backend already at the latest tag sends no migration steps", async () => {

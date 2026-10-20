@@ -25,3 +25,9 @@ test("literal ctx.abort during the second tool resumes without repeating complet
   if (!resumed.ok) console.error(`error: journal resume ${JSON.stringify(resumed)}`)
   expect(resumed).toEqual({ ok: true, newInstance: true, calls: [{ tool: "save", count: 1 }, { tool: "wait", count: 2 }] })
 }, 60_000)
+
+test("successful generation and current-document commits survive immediate reopen without close, and unused minted IDs are never reused", async () => {
+  const result = await call<{ ok: boolean; generation: number; current: number; mintedUnused: number; mintedAfterReopen: number }>({ op: "immediate" })
+  expect(result).toMatchObject({ ok: true, generation: 2, current: 2 })
+  expect(result.mintedAfterReopen).toBeGreaterThan(result.mintedUnused)
+})

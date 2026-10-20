@@ -16,11 +16,8 @@ beforeAll(async () => {
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-		durableObjects: {
-			ROOM: { className: "RoomDO", useSQLite: true },
-			USER: { className: "UserStub", useSQLite: true },
-			OWNER: { className: "UserDO", useSQLite: true },
-		},
+		durableObjects: { OWNER: { className: "MeteredOwner", useSQLite: true } },
+
 	})
 	origin = (await mf.ready).origin
 }, 60_000)
@@ -49,7 +46,7 @@ async function measure(path: string, act: () => Promise<unknown>): Promise<Cost>
 	return { read: after.read - before.read, written: after.written - before.written }
 }
 
-async function open(url: string): Promise<{ ws: WebSocket; frames: string[]; send(frame: unknown): void }> {
+const open = async (url: string) => {
 	const ws = new WebSocket(url)
 	const frames: string[] = []
 	ws.onmessage = (e) => frames.push(String(e.data))

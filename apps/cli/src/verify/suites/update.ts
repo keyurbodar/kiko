@@ -42,11 +42,11 @@ function fakeCloudflare(refresh: { ok: boolean }) {
 const suite: Suite = {
   name: "update",
   async run(v) {
-    if (!existsSync(join(RELEASES, "latest.json"))) {
+    if (!existsSync(join(RELEASES, "latest-owner.json"))) {
       const build = Bun.spawnSync(["bun", "scripts/release.ts"], { cwd: ROOT, stdout: "ignore", stderr: "inherit" })
       if (build.exitCode !== 0) throw new VerifyError("bun scripts/release.ts failed. Run it once with a release key (--init-key).")
     }
-    const { version } = JSON.parse(readFileSync(join(RELEASES, "latest.json"), "utf8")) as { version: string }
+    const { version } = JSON.parse(readFileSync(join(RELEASES, "latest-owner.json"), "utf8")) as { version: string }
     const manifest = JSON.parse(readFileSync(join(RELEASES, version, "manifest.json"), "utf8")) as { modules: { name: string }[]; migrations: { tag: string }[] }
 
     const refresh = { ok: true }

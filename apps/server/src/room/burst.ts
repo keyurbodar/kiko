@@ -55,6 +55,7 @@ export class Burst {
 
 	constructor(
 		storage: DurableObjectStorage,
+    private readonly roomId: string,
 		private readonly alarms: Alarms,
 		private readonly now: () => number = Date.now,
 	) {
@@ -62,25 +63,25 @@ export class Burst {
 	}
 
 	pending(): boolean {
-		return this.sql.exec("SELECT 1 FROM pending LIMIT 1").toArray().length > 0
+		return this.sql.exec("SELECT 1 FROM pending WHERE pending.room_id = ?1 LIMIT 1", this.roomId).toArray().length > 0
 	}
 
 	private startedAt(): number | null {
 		// A pending row's seq is the order it was sent in, and it is staged with its message, so its seq follows the
 		// message's at. The lowest seq therefore holds the window's first at, read through pending_seq.
-		return this.sql.exec<{ at: number | null }>("SELECT at FROM pending ORDER BY seq LIMIT 1").one().at
+		return this.sql.exec<{ at: number | null }>("SELECT at FROM pending WHERE pending.room_id = ?1 ORDER BY seq LIMIT 1", this.roomId).one().at
 	}
 
 	/** Records a human message in the window, in the same transaction that stores the message. */
 	stage(message: Pick<Message, "id" | "seq" | "text" | "replyTo">, mentions: readonly string[]): void {
 		this.sql.exec(
-			"INSERT OR IGNORE INTO pending (id, seq, at, text, reply_to, mentions) VALUES (?, ?, ?, ?, ?, ?)",
+			"INSERT OR IGNORE INTO pending (id, seq, at, text, reply_to, mentions, room_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
 			message.id,
 			message.seq,
 			this.now(),
 			message.text,
 			message.replyTo ?? null,
-			JSON.stringify(mentions),
+			JSON.stringify(mentions), this.roomId,
 		)
 	}
 
@@ -99,7 +100,7 @@ export class Burst {
 	/** The window's messages in send order. */
 	envelopes(roomId: RoomId, limit = MAX_DELIVERY_ENVELOPES): Pending[] {
 		return this.sql
-			.exec<Row>("SELECT id, seq, at, text, reply_to, mentions FROM pending ORDER BY seq LIMIT ?", limit)
+			.exec<Row>("SELECT id, seq, at, text, reply_to, mentions FROM pending WHERE pending.room_id = ?2 ORDER BY seq LIMIT ?1", limit, this.roomId)
 			.toArray()
 			.map((r) => ({
 				envelope: {
@@ -117,11 +118,11 @@ export class Burst {
 	}
 
 	delivered(envelopes: readonly Envelope[]): void {
-		this.sql.exec("DELETE FROM pending WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(envelopes.map(e=>e.rootId)))
+		this.sql.exec("DELETE FROM pending WHERE id IN (SELECT value FROM JSON_EACH(?1)) AND pending.room_id = ?2", JSON.stringify(envelopes.map(e=>e.rootId)), this.roomId)
 	}
 
 	clear(): void {
-		this.sql.exec("DELETE FROM pending")
+		this.sql.exec("DELETE FROM pending WHERE pending.room_id = ?1", this.roomId)
 	}
 
 	async retry(ms: number): Promise<void> {

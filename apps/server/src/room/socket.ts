@@ -13,6 +13,7 @@ export type Attachment = {
 
 export interface SocketRoom {
 	readonly log: RoomLog
+  mutateMessage?<T>(id: string, apply: () => T): Promise<T>
 	publish(events: readonly RoomEvent[]): void
 	humanTyping(): void
 	presence(): RoomToClient[]
@@ -119,11 +120,11 @@ async function apply(room: SocketRoom, ws: WebSocket, frame: ClientToRoom): Prom
 			return out.events
 		}
 		case "edit":
-			return log.message(frame.messageId)?.from.kind === "human" ? log.editMessage(frame.messageId, frame.text, parseRichText(frame.text)) : null
+			return room.mutateMessage ? room.mutateMessage(frame.messageId, () => log.message(frame.messageId)?.from.kind === "human" ? log.editMessage(frame.messageId, frame.text, parseRichText(frame.text)) : null) : log.message(frame.messageId)?.from.kind === "human" ? log.editMessage(frame.messageId, frame.text, parseRichText(frame.text)) : null
 		case "delete":
-			return log.deleteMessages([frame.messageId], human)
+			return room.mutateMessage ? room.mutateMessage(frame.messageId, () => log.deleteMessages([frame.messageId], human)) : log.deleteMessages([frame.messageId], human)
 		case "react":
-			return log.react(frame.messageId, human, frame.emoji)
+			return room.mutateMessage ? room.mutateMessage(frame.messageId, () => log.react(frame.messageId, human, frame.emoji)) : log.react(frame.messageId, human, frame.emoji)
 		case "read":
 			return log.markRead(frame.seq)
 		case "typing":

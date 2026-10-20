@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test"
 import { KIKO_SOUL, Souls } from "../src/user/souls"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { sqlWith } from "./sql-shim"
 
 function storage(agents: [slug: string, name: string, prompt: string][] = []): SqlStorage {
-  const sql = sqlWith(USER_STEPS)
+  const sql = sqlWith(OWNER_STEPS)
   for (const [slug, name, prompt] of agents) sql.exec("INSERT INTO agents (id, name, slug, prompt, created_at) VALUES (?, ?, ?, ?, 0)", slug, name, slug, prompt)
   return sql
 }

@@ -42,7 +42,7 @@ export interface Env extends AuthEnv {
 async function withHome(response: Response, env: Env): Promise<Response> {
   if (!response.ok) return response
   const body = (await response.clone().json().catch(() => null)) as { user?: { id?: unknown } } | null
-  if (typeof body?.user?.id === "string") await ownerStub(env.OWNER, body.user.id).ensureHome()
+  if (typeof body?.user?.id === "string") await ownerStub(env.OWNER, body.user.id).userCall("ensureHome", [])
   return response
 }
 
@@ -83,7 +83,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (url.pathname === "/api/me") {
       const user = await getSessionUser(request, env)
       if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
-      await ownerStub(env.OWNER, user.id).ensureHome()
+      await ownerStub(env.OWNER, user.id).userCall("ensureHome", [])
       return Response.json({ user })
     }
     const authResponse = await authRoute(request, env)

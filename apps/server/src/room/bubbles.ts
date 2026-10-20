@@ -24,7 +24,7 @@ export class Bubbles {
 
 	post(slug: AgentSlug, run: RunRef, block: string, initiative?: { reason: string }): RoomEvent[] {
 		const latest = this.sql
-			.exec<{ attempt: number | null }>("SELECT max(run_attempt) AS attempt FROM messages WHERE run_id = ?", run.runId)
+			.exec<{ attempt: number | null }>("SELECT MAX(run_attempt) AS attempt FROM messages WHERE run_id = ?1 AND messages.room_id = ?2", run.runId, this.log.roomId)
 			.one().attempt
 		if (latest !== null && run.attempt < latest) return []
 		const from = { kind: "agent", slug } as const
@@ -44,7 +44,7 @@ export class Bubbles {
 
 	settle(slug: AgentSlug, runId: string): RoomEvent | null {
 		const latest = this.sql
-			.exec<{ attempt: number | null }>("SELECT max(run_attempt) AS attempt FROM messages WHERE run_id = ?", runId)
+			.exec<{ attempt: number | null }>("SELECT MAX(run_attempt) AS attempt FROM messages WHERE run_id = ?1 AND messages.room_id = ?2", runId, this.log.roomId)
 			.one().attempt
 		if (latest === null) return null
 		const stale = this.log.earlierAttempts(runId, latest)
@@ -52,10 +52,10 @@ export class Bubbles {
 	}
 
 	ended(runId: string): boolean {
-		return this.sql.exec("SELECT 1 FROM ended_runs WHERE run_id = ?", runId).toArray().length > 0
+		return this.sql.exec("SELECT 1 FROM ended_runs WHERE run_id = ?1 AND ended_runs.room_id = ?2", runId, this.log.roomId).toArray().length > 0
 	}
 
 	markEnded(runId: string): void {
-		this.sql.exec("INSERT OR IGNORE INTO ended_runs (run_id, at) VALUES (?, ?)", runId, Date.now())
+		this.sql.exec("INSERT OR IGNORE INTO ended_runs (run_id, at, room_id) VALUES (?1, ?2, ?3)", runId, Date.now(), this.log.roomId)
 	}
 }

@@ -11,7 +11,7 @@ beforeAll(async () => {
 		script: await bundleWorker(new URL("./user-reads-worker.ts", import.meta.url), { "process.env.NODE_ENV": '"development"' }),
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
-		durableObjects: { USER: { className: "UserDO", useSQLite: true }, ROOM: { className: "RoomDO", useSQLite: true } },
+		durableObjects: { OWNER: { className: "UserMeter", useSQLite: true } },
 		bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars", CREDENTIALS_KEK: "kek-test-user-reads" },
 	})
 	await mf.ready
@@ -39,10 +39,10 @@ let step = 0
 
 const ACTIONS: { name: string; op: string; args: () => unknown[] }[] = [
 	{ name: "human burst: signals (one burst)", op: "signals", args: () => [{ roomId: ROOM, openedAt: Date.now(), more: 0, signals: [{ kind: "burst", roomId: ROOM, at: Date.now(), seq: ++step, text: "hi there", by: { kind: "human" } }] }] },
-	{ name: "send: touchChat", op: "touchChat", args: () => [ROOM, { lastSeq: ++step, lastPreview: "hi", unread: 1 }] },
+	{ name: "send: room projection", op: "roomChanged", args: () => [ROOM] },
 	{ name: "agent turn: turnContext", op: "turnContext", args: () => ["anthropic", "ada"] },
 	{ name: "agent turn: lifeView", op: "lifeView", args: () => [] },
-	{ name: "agent post: chatTasks (one open task)", op: "chatTasks", args: () => [ROOM, { open: 1, oldest: [{ id: "t1", title: "x", status: "doing", updatedAt: Date.now() - 4 * 3_600_000 }] }] },
+	{ name: "agent post: current room tasks", op: "openTasks", args: () => [ROOM] },
 	{ name: "chat list: listChats", op: "listChats", args: () => [] },
 	{ name: "daily initiative pass", op: "devPass", args: () => [] },
 	{ name: "capture pass: life nearest, earlier match found", op: "lifeNearest", args: () => ["remember tok2999 please"] },
@@ -59,7 +59,7 @@ test("rows read and written per user action, fresh and with history", async () =
 	await call("small", "createChat", [ROOM, "chat one"])
 	const small = await measureAll("small")
 
-	await call("large", "createChat", ["r-seed", "seed"])
+	await call("large", "createChat", [ROOM, "seed"])
 	await seed("large", "life", 3000)
 	await seed("large", "chats", 300)
 	await seed("large", "reminders", 500)
@@ -71,7 +71,7 @@ test("rows read and written per user action, fresh and with history", async () =
 	// lifeView is not bounded here: with no naps built, every line is still a backlog line and the view reads them all.
 	const BUDGET: Record<string, number> = {
 		"human burst: signals (one burst)": 100,
-		"agent post: chatTasks (one open task)": 100,
+		"agent post: current room tasks": 100,
 		// One row per chat's board, so the pass grows with the chats the owner keeps (300 seeded here), not with history.
 		"daily initiative pass": 400,
 		"capture pass: life nearest, earlier match found": 200,

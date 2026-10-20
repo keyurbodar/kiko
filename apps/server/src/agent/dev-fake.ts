@@ -276,11 +276,11 @@ function teamCall(turn: string) {
   return turn.includes("[team]") ? fauxToolCall("team", {}) : null
 }
 
-export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], more: Pick<BuildAgentInput, "routines" | "groups" | "work" | "browser" | "presence" | "runId"> = {}) {
+export function fakeSetup(role: RoleInput = { role: "", lead: true }, workspace?: WorkspacePort, messaging?: BuildAgentInput["messaging"], more: Pick<BuildAgentInput, "routines" | "groups" | "work" | "browser" | "presence" | "runId" | "testExtensions"> = {}) {
   const faux = fauxProvider({ tokensPerSecond: TOKENS_PER_SECOND })
   const step = (context: { messages: readonly unknown[] }) => fakeReply(context.messages as Message[])
   faux.setResponses(Array.from({ length: 500 }, () => step))
   const models = createModels()
   models.setProvider({ ...faux.provider, streamSimple: withTextToolCalls(faux.provider.streamSimple), stream: withTextToolCalls(faux.provider.stream as never) as never })
-  return { models, settings: RUN_SETTINGS, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION] }) } satisfies AgentSetup
+  return { models, settings: RUN_SETTINGS, ...buildAgent({ ...role, ...more, model: FAKE_MODEL, messaging, ...(workspace ? { workspace } : {}), testExtensions: [SLOW_TOOL_EXTENSION, FAKE_TOOLS_EXTENSION, ...(more.testExtensions ?? [])] }) } satisfies AgentSetup
 }

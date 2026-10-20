@@ -18,7 +18,7 @@ test("admission stays paused and run RPCs preserve setup across more than three 
   console.info("host test: admitting")
   const admitted = await (await stub.fetch("http://do/start")).json()
   console.info("host test: admitted", admitted)
-  expect(admitted).toMatchObject({ calls: 0, effects: [], busy: true })
+  expect(admitted).toMatchObject({ calls: 0, effects: [], busy: true, alarmAt: expect.any(Number) })
   let continuations = 0
   for (;;) {
     console.info("host test: running", continuations)

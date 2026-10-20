@@ -12,7 +12,7 @@ beforeAll(async () => {
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars", CREDENTIALS_KEK: `kek-${crypto.randomUUID()}` },
-    durableObjects: { USER: { className: "UserDO", useSQLite: true } },
+    durableObjects: { OWNER: { className: "OwnerDO", useSQLite: true } },
   })
 })
 
@@ -41,14 +41,19 @@ test("capture without a judge queues nothing and tells agents to note; with a ju
   expect((await rpc(user, "turnContext", "anthropic")).captures).toBe(false)
 
   await rpc(user, "connectProvider", "typesafe", `ts-test-${crypto.randomUUID()}`)
+  // A connected judge key turns capture on before any burst is judged.
+  expect((await rpc(user, "turnContext", "anthropic")).captures).toBe(true)
+  // The drain now runs inside captureHuman. This key is fake, so the judge writes nothing and the row stays pending.
   await rpc(user, "captureHuman", ROOM, fact("m2"))
   expect(await rpc(user, "devCaptureQueue")).toBe(1)
-  expect((await rpc(user, "turnContext", "anthropic")).captures).toBe(true)
 
   await policy(user, { capture: "off" })
   await rpc(user, "captureHuman", ROOM, fact("m3"))
   expect(await rpc(user, "devCaptureQueue")).toBe(1)
   expect((await rpc(user, "turnContext", "anthropic")).captures).toBe(false)
+  // Off also throws away what the queue held, the next time it drains.
+  await rpc(user, "captureNow")
+  expect(await rpc(user, "devCaptureQueue")).toBe(0)
 })
 
 test("a judge-only key turns auto capture on, and a chat key that also lists classifier models does not", async () => {
@@ -61,9 +66,10 @@ test("a judge-only key turns auto capture on, and a chat key that also lists cla
   expect((await rpc(user, "turnContext", "opencode")).captures).toBe(false)
 
   await rpc(user, "connectProvider", "typesafe", `ts-test-${crypto.randomUUID()}`)
+  // Only a connected judge key turns capture on. The judge request itself may be refused by the real provider in a test, which keeps the row queued.
+  expect((await rpc(user, "turnContext", "opencode")).captures).toBe(true)
   await rpc(user, "captureHuman", ROOM, fact("m2"))
   expect(await rpc(user, "devCaptureQueue")).toBe(1)
-  expect((await rpc(user, "turnContext", "opencode")).captures).toBe(true)
   const listed = (await rpc(user, "listProviders")) as { provider: string; chat: boolean; judge: boolean }[]
   expect(listed.map(({ provider, chat, judge }) => ({ provider, chat, judge }))).toEqual([
     { provider: "opencode", chat: true, judge: true },
@@ -71,6 +77,8 @@ test("a judge-only key turns auto capture on, and a chat key that also lists cla
   ])
 
   await rpc(user, "disconnectProvider", "typesafe")
+  // Without a judge, the next drain throws the queue away instead of writing it.
+  await rpc(user, "captureNow")
   expect(await rpc(user, "devCaptureQueue")).toBe(0)
   expect((await rpc(user, "turnContext", "opencode")).captures).toBe(false)
 })

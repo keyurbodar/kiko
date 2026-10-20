@@ -12,6 +12,8 @@ type Deps = {
   vault: () => CredentialVault
   lookup: (provider: string) => Promise<Provider | undefined>
   label: string
+  fetch: typeof fetch
+  countOutgoing: () => void
 }
 
 export class ProviderCheck {
@@ -34,7 +36,7 @@ export class ProviderCheck {
     const outcome = await resolveAuth(this.d.vault(), found, info.kind === "oauth" ? PROBE_VALIDITY_MS : undefined)
     const auth = outcome.auth
     if (auth) {
-      const { models, settings } = userModels(async () => auth, `check-${this.d.label}`)
+      const { models, settings } = userModels(async () => auth, `check-${this.d.label}`, this.d.fetch, this.d.countOutgoing)
       const verdict = probeVerdict(await providerSaid(models, provider, settings.stream?.headers), info.kind)
       if (verdict !== "keep") this.d.vault().setProblem(provider, verdict)
     }

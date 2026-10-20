@@ -19,7 +19,7 @@ const members = [ada, bob]
 function setup(refusal: string | null) {
 	const { sql, storage, log } = ownerRoomFixture({ roomId: ROOM, now: () => 1 })
 	let onDeliver=(mail:import("../src/room/messaging").QueuedMail)=>{}
- const mail = new Mail(storage,log,new Asks(sql),()=>false,Date.now,m=>onDeliver(m))
+ const mail = new Mail(storage,log,new Asks(sql, log.roomId),()=>false,Date.now,m=>onDeliver(m))
 	const deliveries = new Deliveries(storage, log)
 	const received: { slug: string; ids: string[] }[] = []
 
@@ -61,7 +61,7 @@ test("an admitted message is marked delivered", async () => {
 
 function closedAsk(s:ReturnType<typeof setup>){
  const pending:Promise<unknown>[]=[]
- const asks=new Asks(s.storage.sql)
+ const asks=new Asks(s.storage.sql, s.log.roomId)
  asks.expect("ask1:bob","ada" as AgentSlug,"bob" as AgentSlug,"m-ask1",1)
  s.mail.delivered("bob" as AgentSlug,[human("human:m0")])
  const room=new RoomMail({...s.deps,ctx:{storage:s.storage,waitUntil:(p:Promise<unknown>)=>pending.push(p)} as never,members:{list:()=>members} as never,burst:{pending:()=>false} as never,asks,team:{doing:()=>{}} as never,alarms:{setWakeup:async()=>{}} as never,home:()=>home,title:async()=>"t"})
@@ -104,7 +104,7 @@ test("a closed ask gets the no-provider notice as mail", async () => {
 function exchange() {
 	const s = setup(null)
 	const pending: Promise<unknown>[] = []
-	const asks = new Asks(s.storage.sql)
+	const asks = new Asks(s.storage.sql, s.log.roomId)
 	let room:RoomMail
  const mail = new Mail(s.storage,s.log,asks,()=>false,Date.now,delivery=>{pending.push(room.deliver(home,delivery))})
 	room = new RoomMail({

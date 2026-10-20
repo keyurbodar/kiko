@@ -1,3 +1,4 @@
+import { RoomSocket } from "./room-socket"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { Message, RoomSnapshot, RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
@@ -14,7 +15,7 @@ beforeAll(async () => {
 		compatibilityFlags: ["nodejs_compat"],
 		r2Buckets: ["FILES"],
 		bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true }, USER: { className: "UserDO", useSQLite: true }, AGENT: { className: "AgentDO", useSQLite: true } },
+		durableObjects: { OWNER: { className: "FeatureOwner", useSQLite: true } },
 	})
 	origin = (await mf.ready).origin
 }, 60_000)
@@ -27,7 +28,7 @@ let n = 0
 const fresh = () => `01JZ8Q4T6M${String(++n + 100).padStart(16, "0")}`
 
 async function open(room: string) {
-	const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
+	const ws = new RoomSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
 	const frames: RoomToClient[] = []
 	ws.onmessage = (e) => frames.push(JSON.parse(String(e.data)))
 	await new Promise((resolve, reject) => {

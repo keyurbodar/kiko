@@ -1,3 +1,4 @@
+import { RoomSocket } from "./room-socket"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
@@ -56,11 +57,8 @@ beforeAll(async () => {
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-		durableObjects: {
-			ROOM: { className: "RoomDO", useSQLite: true },
-			USER: { className: "UserDO", useSQLite: true },
-			AGENT: { className: "AgentDO", useSQLite: true },
-		},
+		durableObjects: { OWNER: { className: "MeteredOwner", useSQLite: true } },
+
 	})
 	origin = (await mf.ready).origin
 }, 60_000)
@@ -83,10 +81,10 @@ async function until(done: () => boolean, ms = 20_000): Promise<void> {
 	for (let t = 0; t < ms && !done(); t += 5) await Bun.sleep(5)
 }
 
-type Socket = { ws: WebSocket; frames: RoomToClient[]; send(frame: unknown): void }
+type Socket = { ws: RoomSocket; frames: RoomToClient[]; send(frame: unknown): void }
 
 async function open(room: string): Promise<Socket> {
-	const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
+	const ws = new RoomSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
 	const frames: RoomToClient[] = []
 	ws.onmessage = (e) => frames.push(JSON.parse(String(e.data)))
 	await new Promise((resolve, reject) => {
@@ -208,8 +206,8 @@ async function actions(room: string, humans: number, agents: number, files: numb
 const rows: Row[] = []
 
 test("rows read and written per action, in a fresh room and a room with history", async () => {
-	const small = await actions("01JZ9IO0SMALLROOMIO000001", SMALL_HUMANS, SMALL_AGENT, SMALL_FILES)
-	const large = await actions("01JZ9IO0LARGEROOMIO000001", LARGE_HUMANS, LARGE_AGENT, LARGE_FILES)
+	const small = await actions("01JZ90DG18F0DG18F0DG18F0DG", SMALL_HUMANS, SMALL_AGENT, SMALL_FILES)
+	const large = await actions("01JZ9MYSH1FMYSH1FMYSH1FMYS", LARGE_HUMANS, LARGE_AGENT, LARGE_FILES)
 	for (const [action, cost] of small) rows.push({ action, small: cost, large: large.get(action)! })
 
 	const table = [
@@ -235,7 +233,7 @@ const PLANNED: Record<string, string> = {
 
 for (const [name, query] of Object.entries(PLANNED)) {
 	test(`${name} uses an index, not a scan`, async () => {
-		const plan = (await call("01JZ9IO0PLANROOMIO000001", "plan", query, 0)) as string[]
+		const plan = (await call("01JZ9GVSD8SGVSD8SGVSD8SGVS", "plan", query, 0)) as string[]
 		expect(plan.join("\n")).not.toMatch(/\bSCAN\b/)
 	})
 }

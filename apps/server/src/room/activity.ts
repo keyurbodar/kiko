@@ -32,15 +32,15 @@ function messageCandidate(m: Posted, nameOf: (slug: string) => string): Candidat
 
 /** The touch for one bubble that just landed: no scan, so a bubble in a long run costs the same as the first. Mentions stay as they are until the run ends. Mail between agents is counted but not quoted as the last line. */
 export function bubbleTouch(sql: SqlStorage, log: RoomLog, row: Posted): RoomActivity {
-	const name = (slug: string) => sql.exec<{ name: string }>("SELECT name FROM members WHERE slug = ?", slug).toArray()[0]?.name ?? slug
-	const group = (sql.exec<{ n: number }>("SELECT count(*) AS n FROM members WHERE removed_at IS NULL").one().n ?? 0) > 1
+	const name = (slug: string) => sql.exec<{ name: string }>("SELECT name FROM members WHERE slug = ?1 AND members.room_id = ?2", slug, log.roomId).toArray()[0]?.name ?? slug
+	const group = (sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM members WHERE removed_at IS NULL AND members.room_id = ?1", log.roomId).one().n ?? 0) > 1
 	return { lastSeq: log.lastSeq(), lastPreview: row.text, unread: log.unread(), ...(row.to === undefined ? { last: messageCandidate(row, name).last } : {}), group }
 }
 
 export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
 	const names = new Map(
 		sql
-			.exec<{ slug: string; name: string; removed_at: number | null }>("SELECT slug, name, removed_at FROM members")
+			.exec<{ slug: string; name: string; removed_at: number | null }>("SELECT slug, name, removed_at FROM members WHERE members.room_id = ?1", log.roomId)
 			.toArray()
 			.map((r) => [r.slug, r]),
 	)
@@ -50,7 +50,7 @@ export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
 
 	const message = sql
 		.exec<{ seq: number; at: number; sender: string; text: string; rich: string | null; files: string | null }>(
-			`SELECT seq, at, sender, text, rich, files FROM messages WHERE deleted_at IS NULL AND ${LISTED_MESSAGE} ORDER BY seq DESC LIMIT 1`,
+			`SELECT seq, at, sender, text, rich, files FROM messages WHERE (deleted_at IS NULL AND ${LISTED_MESSAGE}) AND messages.room_id = ?1 ORDER BY seq DESC LIMIT 1`, log.roomId,
 		)
 		.toArray()[0]
 	if (message)
@@ -68,17 +68,16 @@ export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
 
 	const react = sql
 		.exec<{ seq: number; at: number; actor: string; payload: string }>(
-			"SELECT seq, at, actor, payload FROM events WHERE kind = 'react' AND actor LIKE 'agent:%' ORDER BY seq DESC LIMIT 1",
+			"SELECT seq, at, actor, payload FROM events WHERE (kind = 'react' AND actor LIKE 'agent:%') AND events.room_id = ?1 ORDER BY seq DESC LIMIT 1", log.roomId,
 		)
 		.toArray()[0]
 	if (react) {
 		const { messageId, emoji } = JSON.parse(react.payload) as { messageId: string; emoji: string | null }
 		const target = sql
 			.exec<{ text: string; sender: string; emoji: string | null }>(
-				`SELECT m.text, m.sender, (SELECT emoji FROM reactions WHERE message_id = m.id AND actor = ?) AS emoji
-				 FROM messages m WHERE m.id = ? AND m.deleted_at IS NULL`,
+				"SELECT m.text, m.sender, (SELECT emoji FROM reactions WHERE (message_id = m.id AND actor = ?1) AND reactions.room_id = ?3) AS emoji FROM messages AS m WHERE (m.id = ?2 AND m.deleted_at IS NULL) AND m.room_id = ?3",
 				react.actor,
-				messageId,
+				messageId, log.roomId,
 			)
 			.toArray()[0]
 		if (emoji && target && target.emoji === emoji && (JSON.parse(target.sender) as Sender).kind === "human") {
@@ -95,7 +94,7 @@ export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
 
 	let last = candidates.sort((a, b) => b.seq - a.seq)[0]?.last
 	if (!last && group) {
-		const first = sql.exec<{ at: number }>("SELECT at FROM events ORDER BY seq LIMIT 1").toArray()[0]
+		const first = sql.exec<{ at: number }>("SELECT at FROM events WHERE events.room_id = ?1 ORDER BY seq LIMIT 1", log.roomId).toArray()[0]
 		last = { from: "human", kind: "created", at: first?.at ?? 0 }
 	}
 
@@ -105,10 +104,9 @@ export function roomActivity(sql: SqlStorage, log: RoomLog): RoomActivity {
 	const handle = stored && !names.has(stored) ? stored : null
 	const mentions = sql
 		.exec<{ text: string; reply_sender: string | null }>(
-			`SELECT m.text, r.sender AS reply_sender FROM messages m LEFT JOIN messages r ON r.id = m.reply_to
-			 WHERE m.deleted_at IS NULL AND m.seq > ? AND json_extract(m.sender, '$.kind') = 'agent' AND m.addressed IS NULL ORDER BY m.seq DESC LIMIT ?`,
+			"SELECT m.text, r.sender AS reply_sender FROM messages AS m LEFT JOIN messages AS r ON r.id = m.reply_to AND r.room_id = ?3 WHERE (m.deleted_at IS NULL AND m.seq > ?1 AND JSON_EXTRACT(m.sender, '$.kind') = 'agent' AND m.addressed IS NULL) AND m.room_id = ?3 ORDER BY m.seq DESC LIMIT ?2",
 			readSeq,
-			MENTION_SCAN,
+			MENTION_SCAN, log.roomId,
 		)
 		.toArray()
 		.filter((m) => mentionsHuman(m.text, handle, m.reply_sender !== null && (JSON.parse(m.reply_sender) as Sender).kind === "human")).length

@@ -14,7 +14,7 @@ export async function soulRoute(request: Request, env: Env): Promise<Response | 
   if (!isAgentSlug(slug)) return error(404, "no such agent")
   const stub = ownerStub(env.OWNER, user.id)
   if (request.method === "GET") {
-    const { body, sha } = await stub.soul(slug)
+    const { body, sha } = await stub.userCall("soul", [slug])
     return Response.json({ body, sha })
   }
   if (request.method !== "PUT") return error(405, "method not allowed")
@@ -22,10 +22,10 @@ export async function soulRoute(request: Request, env: Env): Promise<Response | 
   const input = (await request.json().catch(() => null)) as { body?: unknown; expectSha?: unknown } | null
   if (typeof input?.body !== "string") return error(400, "expected a body")
   if (typeof input.expectSha !== "string") return error(400, "expected expectSha, the sha of the soul this edit started from")
-  const out = await stub.setSoul(slug, input.body, input.expectSha)
+  const out = await stub.userCall("setSoul", [slug, input.body, input.expectSha])
   if (out.ok) return Response.json({ body: out.soul.body, sha: out.soul.sha })
   if (out.code === "conflict") {
-    const now = await stub.soul(slug)
+    const now = await stub.userCall("soul", [slug])
     return Response.json({ error: "changed since you opened it", body: now.body, sha: now.sha }, { status: 409 })
   }
   return Response.json({ error: out.message }, { status: 400 })

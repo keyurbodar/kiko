@@ -48,9 +48,9 @@ export class MessageChains {
 
 	refused(envelopeId: string, rootId: string): void {
 		this.storage.transactionSync(() => {
-			if (this.sql.exec("SELECT 1 FROM mail_refused WHERE id = ?", envelopeId).toArray().length) return
-			this.sql.exec("INSERT INTO mail_refused (id, at) VALUES (?, ?)", envelopeId, this.now())
-			this.sql.exec("UPDATE root_counts SET deliveries = max(0, deliveries - 1) WHERE root_id = ?", rootId)
+			if (this.sql.exec("SELECT 1 FROM mail_refused WHERE id = ?1 AND mail_refused.room_id = ?2", envelopeId, this.log.roomId).toArray().length) return
+			this.sql.exec("INSERT INTO mail_refused (id, at, room_id) VALUES (?1, ?2, ?3)", envelopeId, this.now(), this.log.roomId)
+			this.sql.exec("UPDATE root_counts SET deliveries = MAX(0, deliveries - 1) WHERE root_id = ?1 AND root_counts.room_id = ?2", rootId, this.log.roomId)
 		})
 	}
 
@@ -87,13 +87,13 @@ export class MessageChains {
 	}
 
 	deliveries(rootId: string): number {
-		return this.sql.exec<{ n: number }>("SELECT deliveries AS n FROM root_counts WHERE root_id = ?", rootId).toArray()[0]?.n ?? 0
+		return this.sql.exec<{ n: number }>("SELECT deliveries AS n FROM root_counts WHERE root_id = ?1 AND root_counts.room_id = ?2", rootId, this.log.roomId).toArray()[0]?.n ?? 0
 	}
 
 	/** Records the send, queues it for each recipient, and links it to a pair room if it has one, all in one transaction. A replay returns the first record and queues nothing. */
 	send(from: AgentSlug, input: AgentSend, members: readonly { slug: AgentSlug }[], pair: RoomId | null = null): SendOutcome {
 		return this.storage.transactionSync((): SendOutcome => {
-			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", input.id).toArray()[0]
+			const earlier = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?1 AND agent_sends.room_id = ?2", input.id, this.log.roomId).toArray()[0]
 			if (earlier) {
 				const send = JSON.parse(earlier.send) as StoredSend
 				if (send.returns?.length) for (const ask of send.returns) this.giveBack(ask.id, from, input.to as AgentSlug, send.text, ask.remote, { rootId: send.rootId, hop: send.hop })
@@ -121,7 +121,7 @@ export class MessageChains {
 			const settled = pair || input.to === "all" ? false : this.asks.answer(from, input.to, text)
 			const back = pair || input.to === "all" ? [] : this.asks.answerRemote(from, input.to, text)
 			if (back.length) send.returns = back
-			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", input.id, JSON.stringify(send), this.now())
+			this.sql.exec("INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)", input.id, JSON.stringify(send), this.now(), this.log.roomId)
 			for (const ask of back) this.giveBack(ask.id, from, input.to as AgentSlug, text, ask.remote, { rootId, hop })
 			// A send that answers another room's message is relayed there, so no recipient needs it.
 			if (!back.length) this.enqueue(from, send, pair ? { room: pair, askId: `${input.id}:${input.to}` } : null)
@@ -141,7 +141,7 @@ export class MessageChains {
 			if (this.stopped(rootId) || !checkSend(hop, this.deliveries(rootId), 1).ok) return null
 			const send: StoredSend = { messageId: message.id, seq: message.seq, text: message.text, hop, rootId, recipients: [to] }
 			this.count(rootId, 1)
-			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", id, JSON.stringify(send), this.now())
+			this.sql.exec("INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)", id, JSON.stringify(send), this.now(), this.log.roomId)
 			this.enqueue(from, send)
 			return send
 		})
@@ -152,7 +152,7 @@ export class MessageChains {
 	}
 
 	private replay(id: string, from: AgentSlug, remote: Remote | null = null): StoredSend | null {
-		const row = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?", id).toArray()[0]
+		const row = this.sql.exec<{ send: string }>("SELECT send FROM agent_sends WHERE id = ?1 AND agent_sends.room_id = ?2", id, this.log.roomId).toArray()[0]
 		if (!row) return null
 		const send = JSON.parse(row.send) as StoredSend
 		this.enqueue(from, send, remote)
@@ -173,7 +173,7 @@ export class MessageChains {
 			if (this.replay(id, from, { room, askId, back: true })) return
 			const own = chain ?? { rootId: this.chain(from).rootId, hop: this.chain(from).hop + 1 }
 			const send: StoredSend = { messageId: "", seq: 0, text, hop: own.hop, rootId: own.rootId, recipients: [to] }
-			this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", id, JSON.stringify(send), this.now())
+			this.sql.exec("INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)", id, JSON.stringify(send), this.now(), this.log.roomId)
 			this.enqueue(from, send, { room, askId, back: true })
 		})
 	}
@@ -196,7 +196,7 @@ export class MessageChains {
 			if (queued) {
 				const send: StoredSend = { messageId: stored.id, seq: stored.seq, text, hop: chain.hop, rootId: chain.rootId, recipients: [ask.asker] }
 				this.count(chain.rootId, 1)
-				this.sql.exec("INSERT INTO agent_sends (id, send, at) VALUES (?, ?, ?)", `answer:${askId}`, JSON.stringify(send), this.now())
+				this.sql.exec("INSERT INTO agent_sends (id, send, at, room_id) VALUES (?1, ?2, ?3, ?4)", `answer:${askId}`, JSON.stringify(send), this.now(), this.log.roomId)
 				this.enqueue(from, send)
 			}
 			return { events: stored.event ? [stored.event] : [], asker: ask.asker, queued }
@@ -205,17 +205,17 @@ export class MessageChains {
 
 	private count(rootId: string, deliveries: number): void {
 		this.sql.exec(
-			"INSERT INTO root_counts (root_id, deliveries, at) VALUES (?, ?, ?) ON CONFLICT(root_id) DO UPDATE SET deliveries = deliveries + excluded.deliveries, at = excluded.at",
+			"INSERT INTO root_counts (root_id, deliveries, at, room_id) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(root_id, room_id) DO UPDATE SET deliveries = deliveries + excluded.deliveries, at = excluded.at",
 			rootId,
 			deliveries,
-			this.now(),
+			this.now(), this.log.roomId,
 		)
 	}
 
 	private prune(): void {
 		const now = this.now()
 		if (now - Number(this.log.meta("mail_pruned_at") ?? 0) < PRUNE_EVERY_MS) return
-		for (const table of ["agent_sends", "root_counts", "mail_refused"]) this.sql.exec(`DELETE FROM ${table} WHERE at < ?`, now - KEEP_SENDS_MS)
+		for (const table of ["agent_sends", "root_counts", "mail_refused"]) this.sql.exec(`DELETE FROM ${table} WHERE at < ?1 AND ${table}.room_id = ?2`, now - KEEP_SENDS_MS, this.log.roomId)
 		this.log.setMeta("mail_pruned_at", String(now))
 	}
 
@@ -232,9 +232,9 @@ export class MessageChains {
 	}
 
 	private trip(rootId: string, limit: Limit): RoomEvent[] {
-		const row = this.sql.exec<{ tripped: number }>("SELECT tripped FROM root_counts WHERE root_id = ?", rootId).toArray()[0]
+		const row = this.sql.exec<{ tripped: number }>("SELECT tripped FROM root_counts WHERE root_id = ?1 AND root_counts.room_id = ?2", rootId, this.log.roomId).toArray()[0]
 		if (row?.tripped) return []
-		this.sql.exec("INSERT INTO root_counts (root_id, deliveries, tripped, at) VALUES (?, 0, 1, ?) ON CONFLICT(root_id) DO UPDATE SET tripped = 1", rootId, this.now())
+		this.sql.exec("INSERT INTO root_counts (root_id, deliveries, tripped, at, room_id) VALUES (?1, 0, 1, ?2, ?3) ON CONFLICT(root_id, room_id) DO UPDATE SET tripped = 1", rootId, this.now(), this.log.roomId)
 		const { event } = this.log.addMessage({ from: { kind: "system", reason: "run_budget" }, text: limitNotice(limit) })
 		return event ? [event] : []
 	}
@@ -294,7 +294,7 @@ export class RoomMessaging {
 	 */
 	async answerAsks(slug: AgentSlug, runId: string, heard: readonly string[]): Promise<void> {
 		const bubbles = this.d.ctx.storage.sql
-			.exec<{ id: string; seq: number; text: string }>("SELECT id, seq, text FROM messages WHERE run_id = ? AND deleted_at IS NULL ORDER BY seq", runId)
+			.exec<{ id: string; seq: number; text: string }>("SELECT id, seq, text FROM messages WHERE (run_id = ?1 AND deleted_at IS NULL) AND messages.room_id = ?2 ORDER BY seq", runId, this.d.log.roomId)
 			.toArray()
 		const text = bubbles
 			.map((b) => b.text)

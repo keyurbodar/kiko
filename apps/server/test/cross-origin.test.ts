@@ -40,9 +40,7 @@ beforeAll(async () => {
     host: "localhost",
     port: 0,
     durableObjects: {
-      USER: { className: "UserDO", useSQLite: true },
-      ROOM: { className: "RoomDO", useSQLite: true },
-      AGENT: { className: "AgentDO", useSQLite: true },
+      OWNER: { className: "OwnerDO", useSQLite: true },
     },
     r2Buckets: ["FILES"],
     serviceBindings: { ASSETS: () => new Response("app shell") },
@@ -87,7 +85,7 @@ describe("socket", () => {
       ws.onopen = () => resolve({ ws, opened: true })
       ws.onerror = () => resolve({ ws, opened: false })
     })
-  const wsUrl = () => `${origin.replace("http", "ws")}/api/ws/user`
+  const wsUrl = () => `${origin.replace("http", "ws")}/api/ws`
 
   test("a valid subprotocol token opens the socket and the answer echoes the protocol", async () => {
     const { ws, opened } = await open(wsUrl(), ["kiko", token])
@@ -98,7 +96,7 @@ describe("socket", () => {
 
   test("the upgrade answers 101 with the echoed protocol, and 401 without a valid token", async () => {
     const upgrade = (protocol: string) =>
-      fetch(`${origin}/api/ws/user`, { headers: { upgrade: "websocket", origin: PAGE, "sec-websocket-protocol": protocol, connection: "Upgrade", "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==", "sec-websocket-version": "13" } })
+      fetch(`${origin}/api/ws`, { headers: { upgrade: "websocket", origin: PAGE, "sec-websocket-protocol": protocol, connection: "Upgrade", "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==", "sec-websocket-version": "13" } })
     const good = await upgrade(`kiko, ${token}`)
     expect(good.status).toBe(101)
     expect(good.headers.get("sec-websocket-protocol")).toBe("kiko")
@@ -153,7 +151,7 @@ describe("file token", () => {
       body: "nope",
     })
     expect(upload.status).toBe(401)
-    expect((await fetch(`${origin}/api/ws/user?t=${fileToken}`, { headers: { upgrade: "websocket" } })).status).toBe(401)
+    expect((await fetch(`${origin}/api/ws?t=${fileToken}`, { headers: { upgrade: "websocket" } })).status).toBe(401)
   })
 
   test("it lasts an hour and then stops working", async () => {

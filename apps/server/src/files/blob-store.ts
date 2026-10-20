@@ -1,7 +1,7 @@
-import { migrate, type Step } from "@kiko/durable/migrate"
+import { type Step } from "@kiko/durable/migrate"
 import { CHUNK_BYTES, FILE_TOO_LARGE, MAX_SPACE_BYTES, MAX_STORE_FILE_BYTES, STORAGE_FULL, type StoredInfo } from "./file-limits"
 
-const FILE_STEPS: Step[] = [
+export const FILE_STEPS: Step[] = [
 	`
 	CREATE TABLE IF NOT EXISTS obj (
 		key TEXT PRIMARY KEY,
@@ -9,7 +9,7 @@ const FILE_STEPS: Step[] = [
 		type TEXT NOT NULL,
 		meta TEXT NOT NULL,
 		etag TEXT NOT NULL
-	);
+	) WITHOUT ROWID;
 	-- pos and len place a chunk in its file. A file joined from parts has short chunks in the middle.
 	CREATE TABLE IF NOT EXISTS chunk (
 		key TEXT NOT NULL,
@@ -18,13 +18,13 @@ const FILE_STEPS: Step[] = [
 		len INTEGER NOT NULL,
 		data BLOB NOT NULL,
 		PRIMARY KEY (key, idx)
-	);
+	) WITHOUT ROWID;
 	CREATE TABLE IF NOT EXISTS upload (
 		id TEXT PRIMARY KEY,
 		key TEXT NOT NULL,
 		type TEXT NOT NULL,
 		meta TEXT NOT NULL
-	);
+	) WITHOUT ROWID;
 	`,
 ]
 
@@ -36,10 +36,6 @@ const partKey = (uploadId: string, n: number) => `part:${uploadId}:${n}`
  */
 export class BlobStore {
 	constructor(private readonly ctx: DurableObjectState) {}
-
-	initialize(): void {
-		migrate(this.ctx.storage, FILE_STEPS)
-	}
 
 	#used(key: string): number {
 		const sql = this.ctx.storage.sql

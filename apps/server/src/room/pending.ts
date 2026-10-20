@@ -22,70 +22,70 @@ export type NewPending = { id: string; name: string; type: string; size: number;
 export class ClaimRefused extends Error {}
 
 export class PendingUploads {
-	constructor(private readonly sql: SqlStorage) {}
+	constructor(private readonly sql: SqlStorage, private readonly roomId: string) {}
 
 	open(input: NewPending, now: number): string | null {
-		if (this.sql.exec("SELECT 1 FROM ws_files WHERE id = ?", input.id).toArray().length) return "that id is taken"
+		if (this.sql.exec("SELECT 1 FROM files WHERE id = ?1 AND files.room_id = ?2", input.id, this.roomId).toArray().length) return "that id is taken"
 		const row = this.get(input.id)
 		if (row) {
 			if (row.size !== input.size || row.r2_key !== input.r2Key) return "that id is taken"
-			this.sql.exec("UPDATE pending_uploads SET upload_id = ?, sha256 = NULL WHERE id = ?", input.uploadId ?? null, input.id)
+			this.sql.exec("UPDATE pending_uploads SET upload_id = ?1, sha256 = NULL WHERE id = ?2 AND pending_uploads.room_id = ?3", input.uploadId ?? null, input.id, this.roomId)
 			return null
 		}
 		this.sql.exec(
-			"INSERT INTO pending_uploads (id, name, type, size, r2_key, upload_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO pending_uploads (id, name, type, size, r2_key, upload_id, created_at, room_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
 			input.id,
 			input.name,
 			input.type,
 			input.size,
 			input.r2Key,
 			input.uploadId ?? null,
-			now,
+			now, this.roomId,
 		)
 		return null
 	}
 
 	get(id: string): PendingRow | null {
-		return this.sql.exec<PendingRow>("SELECT * FROM pending_uploads WHERE id = ?", id).toArray()[0] ?? null
+		return this.sql.exec<PendingRow>("SELECT * FROM pending_uploads WHERE id = ?1 AND pending_uploads.room_id = ?2", id, this.roomId).toArray()[0] ?? null
 	}
 
 	ready(id: string, sha256: string, size: number): "ok" | "gone" | "size" {
 		const row = this.get(id)
 		if (!row) return "gone"
 		if (row.size !== size) return "size"
-		this.sql.exec("UPDATE pending_uploads SET sha256 = ?, upload_id = NULL WHERE id = ?", sha256, id)
+		this.sql.exec("UPDATE pending_uploads SET sha256 = ?1, upload_id = NULL WHERE id = ?2 AND pending_uploads.room_id = ?3", sha256, id, this.roomId)
 		return "ok"
 	}
 
 	remove(id: string): PendingRow | null {
 		const row = this.get(id)
-		if (row) this.sql.exec("DELETE FROM pending_uploads WHERE id = ?", id)
+		if (row) this.sql.exec("DELETE FROM pending_uploads WHERE id = ?1 AND pending_uploads.room_id = ?2", id, this.roomId)
 		return row
 	}
 
 	expired(before: number, limit = 500): PendingRow[] {
-		return this.sql.exec<PendingRow>("SELECT * FROM pending_uploads WHERE created_at < ? ORDER BY created_at LIMIT ?", before, limit).toArray()
+		return this.sql.exec<PendingRow>("SELECT * FROM pending_uploads WHERE created_at < ?1 AND pending_uploads.room_id = ?3 ORDER BY created_at LIMIT ?2", before, limit, this.roomId).toArray()
 	}
 
 	drop(ids: readonly string[]): void {
-		if (ids.length) this.sql.exec("DELETE FROM pending_uploads WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(ids))
+		if (ids.length) this.sql.exec("DELETE FROM pending_uploads WHERE id IN (SELECT value FROM JSON_EACH(?1)) AND pending_uploads.room_id = ?2", JSON.stringify(ids), this.roomId)
 	}
 
 	nextExpiry(): number | null {
-		const at = this.sql.exec<{ at: number | null }>("SELECT min(created_at) AS at FROM pending_uploads").one().at
+		const at = this.sql.exec<{ at: number | null }>("SELECT MIN(created_at) AS at FROM pending_uploads WHERE pending_uploads.room_id = ?1", this.roomId).one().at
 		return at === null ? null : at + PENDING_TTL_MS
 	}
 
 	keys(): string[] {
-		return this.sql.exec<{ r2_key: string }>("SELECT r2_key FROM pending_uploads").toArray().map((r) => r.r2_key)
+		return this.sql.exec<{ r2_key: string }>("SELECT r2_key FROM pending_uploads WHERE pending_uploads.room_id = ?1", this.roomId).toArray().map((r) => r.r2_key)
 	}
 
 	count(): number {
-		return this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM pending_uploads").one().n
+		return this.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM pending_uploads WHERE pending_uploads.room_id = ?1", this.roomId).one().n
 	}
 
 	age(ms: number): void {
-		this.sql.exec("UPDATE pending_uploads SET created_at = created_at - ?", ms)
+		this.sql.exec("UPDATE pending_uploads SET created_at = created_at - ?1 WHERE pending_uploads.room_id = ?2", ms, this.roomId)
 	}
 }
 

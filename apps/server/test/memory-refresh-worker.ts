@@ -1,38 +1,27 @@
-import { DurableObject } from "cloudflare:workers"
 import type { Batch } from "@kiko/agent/input"
-import { AgentProbe as AgentDO, agentObject } from "./agent-service"
-import { isAgentSlug, isRoomId } from "@kiko/protocol"
+import { AgentProbe } from "./agent-service"
+import { OwnerDO } from "../src/owner/owner-do"
 
-export class UserDO extends DurableObject {
-  async lifeView(): Promise<string> {
-    return (await this.ctx.storage.get<string>("life")) ?? ""
-  }
-  async lifeRevision(): Promise<number> { return (await this.ctx.storage.get<number>("revision")) ?? 0 }
-  async lifeState() { return { revision: await this.lifeRevision(), forgotten: 0, text: await this.lifeView() } }
-  async setLife(text: string): Promise<void> {
-    await this.ctx.storage.put({ life: text, revision: (await this.lifeRevision()) + 1 })
+const ROOM = "01J00000000000000000000000"
+class MemoryProbe extends AgentProbe {
+  protected override home() { return { userId: "alice", roomId: ROOM as never, slug: "kiko" as never } }
+  async input(fresh: boolean, withLife: boolean): Promise<unknown> {
+    const probe = this as unknown as { inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife: boolean): Promise<unknown> }
+    return probe.inputMemory({ requestId: crypto.randomUUID(), envelopes: [], briefs: [] }, fresh, [], withLife)
   }
 }
-
-export class RoomDO extends DurableObject {
-  async memoryView() { return { count: 1, text: "#0 human: hello" } }
-  async memorySince() { return { count: 1, text: "" } }
-}
-
-class AgentProbeService extends AgentDO {
-  protected override home() {
-    const roomId = "01J00000000000000000000000"
-    const slug = "kiko"
-    if (!isRoomId(roomId) || !isAgentSlug(slug)) throw new Error("invalid fixture")
-    return { userId: "alice", roomId, slug }
+export class RefreshOwner extends OwnerDO {
+  private revision = 0
+  private life = ""
+  private readonly probe: MemoryProbe
+  constructor(ctx: DurableObjectState, env: ConstructorParameters<typeof OwnerDO>[1]) {
+    super(ctx, env)
+    this.user().lifeState = async () => ({ revision: this.revision, forgotten: 0, text: this.life })
+    this.room(ROOM).memoryView = async () => ({ count: 1, text: "#0 human: hello" })
+    this.room(ROOM).memorySince = async () => ({ count: 1, text: "" })
+    this.probe = new MemoryProbe(ctx, env, { services: this.services, identity: { ownerId: "alice", roomId: ROOM, slug: "kiko" } })
   }
-  override async fetch(request: Request) {
-    const body = await request.json<{ fresh: boolean; withLife?: boolean }>()
-    const probe = this as unknown as { inputMemory(batch: Batch, fresh: boolean, joined: number[], withLife?: boolean): Promise<unknown> }
-    return Response.json(await probe.inputMemory({ requestId: crypto.randomUUID(), envelopes: [], briefs: [] }, body.fresh, [], body.withLife))
-  }
+  async setLife(text: string) { this.life = text; this.revision++ }
+  async input(fresh: boolean, withLife: boolean) { return this.probe.input(fresh, withLife) }
 }
-
 export default { fetch() { return new Response("ok") } }
-
-export const AgentProbe = agentObject(AgentProbeService)

@@ -38,10 +38,11 @@ async function until(read: () => Promise<State>, done: (s: State) => boolean): P
   }
 }
 
-test("a setup failure after a stop clears the stop marker and reports once", async () => {
+test("stopping a cold agent does not initialize a harness or create recovery work", async () => {
   const call = await agent()
   await call("stop")
-  const failed = await until(() => call("status"), (s) => s.errors.length === 1)
+  const failed = await call("status")
+  expect(failed.errors).toEqual([])
   expect(failed.alarmAt).toBeNull()
   expect(failed.wakeups).toEqual([])
   expect(failed.stopped).toBe(false)
@@ -58,7 +59,7 @@ test("a finished run leaves no recovery alarm", async () => {
   expect(finished.errors).toEqual([])
   expect(finished.wakeups).toEqual([])
   expect(finished.reply).toBe("Finished.")
-  expect(finished.recoveryChanges).toEqual(["INSERT", "DELETE"])
+  expect(finished.alarmAt).toBeNull()
 })
 
 test("an always-failing model persists one error and leaves no alarm", async () => {

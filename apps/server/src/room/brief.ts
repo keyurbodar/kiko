@@ -88,7 +88,7 @@ export function buildBrief(member: MemberRow, view: BriefView): string {
 	return lines.join("\n")
 }
 
-export function readBriefView(sql: SqlStorage, member: MemberRow, members: readonly MemberRow[], goal: string, reactions: string | null): BriefView {
-	return { goal, members, tasks: briefTasks(sql, member.slug, member.lead), reactions }
+export function readBriefView(sql: SqlStorage, member: MemberRow, members: readonly MemberRow[], goal: string, reactions: string | null, roomId: string): BriefView {
+	return { goal, members, tasks: briefTasks(sql, member.slug, roomId, member.lead), reactions }
 }
 

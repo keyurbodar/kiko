@@ -19,7 +19,6 @@ import type {
 import { listSpace, ROOM_TABLES } from "../files/file-index"
 import { listMembers } from "./members"
 import { listAsks } from "./human-asks"
-import { agentStatuses } from "./status"
 import { type HeardStep, RunSteps } from "./steps"
 import { listTasks } from "./workspace"
 
@@ -161,15 +160,15 @@ export class RoomLog {
 	}
 
 	meta(key: string): string | null {
-		return this.scopedStorage.sql.exec<{ value: string }>("SELECT value FROM meta WHERE key = ?", key).toArray()[0]?.value ?? null
+		return this.scopedStorage.sql.exec<{ value: string }>("SELECT value FROM owner_meta WHERE key = ?1 AND owner_meta.scope = 'room:' || ?2", key, this.roomId).toArray()[0]?.value ?? null
 	}
 
 	setMeta(key: string, value: string): void {
 		// A value the row already holds costs a row for nothing, and the free plan counts rows written.
 		this.scopedStorage.sql.exec(
-			"INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE value IS NOT excluded.value",
+			"INSERT INTO owner_meta (key, value, scope) VALUES (?1, ?2, 'room:' || ?3) ON CONFLICT(key, scope) DO UPDATE SET value = excluded.value WHERE NOT value IS excluded.value",
 			key,
-			value,
+			value, this.roomId,
 		)
 	}
 
@@ -198,7 +197,7 @@ export class RoomLog {
 				SNAPSHOT_MESSAGES,
 			)
 			.toArray()
-		const members = listMembers(this.scopedStorage)
+		const members = listMembers(this.scopedStorage, this.roomId)
 		// Only an agent with steps since its last message has a tail to send.
 		const open = new Map(members.map((m) => [m.slug as string, this.window(m.slug)] as const))
 		const pending = new Map([...open].flatMap(([slug, w]) => (w.count ? [[slug, w.after] as const] : [])))
@@ -208,10 +207,10 @@ export class RoomLog {
 			readSeq: this.readSeq(),
 			members,
 			messages: this.withReactions(rows),
-			tasks: listTasks(this.scopedStorage),
-			...listSpace(this.scopedStorage, ROOM_TABLES),
-			agents: agentStatuses(this.scopedStorage.sql),
-			asks: listAsks(this.scopedStorage.sql),
+			tasks: listTasks(this.scopedStorage, this.roomId),
+			...listSpace(this.scopedStorage, ROOM_TABLES, this.roomId),
+			agents: [],
+			asks: listAsks(this.scopedStorage.sql, this.roomId),
 			...(steps.length ? { steps } : {}),
 		}
 	}
@@ -293,6 +292,12 @@ export class RoomLog {
         JSON.stringify(rows.map((row) => row.id)),
       )
       .toArray()
+    const grouped = new Map<string, typeof reactions>()
+    for (const reaction of reactions) {
+      const list = grouped.get(reaction.message_id)
+      if (list) list.push(reaction)
+      else grouped.set(reaction.message_id, [reaction])
+    }
     const previews = this.previews(rows.map((row) => row.id))
     return rows.map((row) => ({
       id: row.id,
@@ -301,7 +306,7 @@ export class RoomLog {
       message: messages.get(row.id) ?? null,
       ...(previews.has(row.id) ? { preview: previews.get(row.id) } : {}),
       fingerprint: createHash("sha256")
-        .update(JSON.stringify([row, reactions.filter((reaction) => reaction.message_id === row.id)]))
+        .update(JSON.stringify([row, grouped.get(row.id) ?? []]))
         .digest("hex"),
     }))
   }
@@ -313,6 +318,12 @@ export class RoomLog {
       .filter((row) => expected.get(row.id) === row.fingerprint)
       .map((row) => row.id)
     const json = JSON.stringify(ids)
+    this.sql.exec(
+      `INSERT OR IGNORE INTO archived_unread (room_id, seq)
+       SELECT room_id, seq FROM messages WHERE room_id = ? AND id IN (SELECT value FROM json_each(?))
+       AND seq > ? AND deleted_at IS NULL AND json_extract(sender, '$.kind') != 'human' AND ${PUBLIC_MESSAGE}`,
+      this.roomId, json, this.readSeq(),
+    )
     this.sql.exec("DELETE FROM reactions WHERE room_id = ? AND message_id IN (SELECT value FROM json_each(?))", this.roomId, json)
     this.sql.exec("DELETE FROM messages WHERE room_id = ? AND id IN (SELECT value FROM json_each(?))", this.roomId, json)
   }
@@ -526,6 +537,7 @@ export class RoomLog {
 			const event = this.append("human", { t: "read", upTo })
 			this.setMeta("read_seq", String(upTo))
 			this.adjustUnread(-this.countNonHuman(from, upTo))
+      this.sql.exec("DELETE FROM archived_unread WHERE room_id = ? AND seq <= ?", this.roomId, upTo)
 			return event
 		})
 	}
@@ -552,10 +564,10 @@ export class RoomLog {
 	private countNonHuman(after: number, upTo: number): number {
 		return this.sql
 			.exec<{ n: number }>(
-				`SELECT count(*) AS n FROM messages WHERE room_id = ? AND deleted_at IS NULL AND seq > ? AND seq <= ? AND json_extract(sender, '$.kind') != 'human' AND ${PUBLIC_MESSAGE}`,
-				this.roomId,
-				after,
-				upTo,
+        `SELECT
+         (SELECT count(*) FROM messages WHERE room_id = ?1 AND deleted_at IS NULL AND seq > ?2 AND seq <= ?3 AND json_extract(sender, '$.kind') != 'human' AND ${PUBLIC_MESSAGE}) +
+         (SELECT count(*) FROM archived_unread WHERE room_id = ?1 AND seq > ?2 AND seq <= ?3) AS n`,
+        this.roomId, after, upTo,
 			)
 			.one().n
 	}

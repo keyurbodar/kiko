@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite"
 import { afterEach, expect, test } from "bun:test"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
@@ -5,9 +6,10 @@ import { createRegistry, Harness } from "@earendil-works/pi-durable"
 import { JOURNAL_STEPS, JournalStorage } from "@kiko/agent/journal"
 import type { RoomId } from "@kiko/protocol"
 import { Clock } from "../src/owner/clock"
-import { RoutineSchedules, scheduledDeadline, type RoutineScheduler } from "../src/owner/schedules"
+import { RoutineSchedules, captureRoutineTasks, scheduledRoutine, scheduledDeadline, type RoutineScheduler } from "../src/owner/schedules"
 import { Reminders, type RunDelivery } from "../src/user/reminders"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
+import { ROLLOVER_STEPS, restoreRollover, rollover } from "@kiko/agent/rollover"
 import { sqlWith } from "./sql-shim"
 
 const context = BACKGROUND_CONTEXT
@@ -19,7 +21,7 @@ afterEach(async () => {
 })
 
 async function setup(result: RunDelivery = "delivered") {
-  const sql = sqlWith([...USER_STEPS, ...JOURNAL_STEPS])
+  const sql = sqlWith(OWNER_STEPS)
   sql.exec("INSERT INTO room_directory (room_id) VALUES (?)", ROOM)
   const clock = { now: Date.UTC(2026, 9, 10, 12) }
   const delivered: string[] = []
@@ -206,4 +208,65 @@ test("an empty scheduler stays idle for a simulated day", async () => {
   await t.harness.waitForIdle(context)
   expect((await t.harness.inspect(context)).tasks).toEqual([])
   expect(t.sql.exec<{ n: number }>("SELECT count(*) AS n FROM journal").one().n).toBe(before)
+})
+
+test("routine rollover is atomic and replay after restore-commit keeps one exact occurrence", async () => {
+  const db = new Database(":memory:")
+  const sql = sqlWith([...JOURNAL_STEPS, ...ROLLOVER_STEPS, "CREATE TABLE harness_epoch(agent TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID"], db)
+  const storage = { sql, transactionSync: <T>(fn: () => T) => db.transaction(fn)() } as DurableObjectStorage
+  let now = Date.UTC(2026, 9, 20)
+  const input = { routineId: "stable", runAt: now + 60_000, roomId: ROOM, target: "kiko" }
+  const deliveries: string[] = []
+  async function open() {
+    const schedules = new RoutineSchedules(async ({ requestId }) => { deliveries.push(requestId) })
+    const registry = createRegistry()
+    registry.install(schedules.extension)
+    const journal = JournalStorage.open(storage, "agent")
+    const harness = await Harness.open(journal, { models: createModels(), registry, now: () => now }, context)
+    opened.add(harness)
+    const root = await harness.root(context, { agent: { extensions: [schedules.extension] } })
+    return { harness, sync: schedules.bind(harness, root.id).sync }
+  }
+  const old = await open()
+  await old.sync([input])
+  await old.harness.close(context)
+  const replay = JournalStorage.open(storage, "agent")
+  const pending = captureRoutineTasks((await replay.scanTasks({}, 100, undefined, context)).items, now)
+  expect(pending).toEqual([input])
+  expect(pending).not.toBeNull()
+  const reset = () => {
+    JournalStorage.clear(storage, "agent")
+    sql.exec("INSERT INTO harness_epoch(agent, n) VALUES ('agent', 1) ON CONFLICT(agent) DO UPDATE SET n = n + 1")
+  }
+  try {
+    const rows = sql.exec<{ n: number }>("SELECT count(*) AS n FROM journal").one().n
+    expect(() => rollover(storage, "agent", pending!, () => { reset(); throw new Error("crash before reset commit") })).toThrow("crash before reset commit")
+    expect(sql.exec<{ n: number }>("SELECT count(*) AS n FROM journal").one().n).toBe(rows)
+    expect(sql.exec("SELECT * FROM agent_handoff").toArray()).toEqual([])
+    rollover(storage, "agent", pending!, reset)
+    expect(sql.exec<{ n: number }>("SELECT count(*) AS n FROM journal").one().n).toBe(0)
+    expect(sql.exec<{ n: number }>("SELECT n FROM harness_epoch WHERE agent = 'agent'").one().n).toBe(1)
+    const first = await open()
+    await expect(restoreRollover(storage, "agent", async (entries) => {
+      await first.sync(entries.map(scheduledRoutine))
+      throw new Error("crash after restore commit")
+    })).rejects.toThrow("crash after restore commit")
+    expect(sql.exec("SELECT * FROM agent_handoff").toArray()).toHaveLength(1)
+    await first.harness.close(context)
+    const second = await open()
+    await restoreRollover(storage, "agent", (entries) => second.sync(entries.map(scheduledRoutine)))
+    expect(sql.exec("SELECT * FROM agent_handoff").toArray()).toEqual([])
+    const tasks = (await second.harness.inspect(context)).tasks
+    expect(tasks).toHaveLength(1)
+    expect(tasks[0]!.record.input).toEqual(input)
+    expect(captureRoutineTasks(tasks.map((task) => task.record), input.runAt)).toBeNull()
+    expect(captureRoutineTasks([{ ...tasks[0]!.record, kind: "extension.external" }], now)).toBeNull()
+    now = input.runAt
+    await second.harness.waitForTask(tasks[0]!.record.id, context)
+    expect(deliveries).toEqual([`stable:${input.runAt}`])
+    await second.harness.close(context)
+  } finally {
+    await replay.close(context)
+    db.close()
+  }
 })

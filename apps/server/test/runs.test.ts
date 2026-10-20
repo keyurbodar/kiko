@@ -16,9 +16,8 @@ test("budgets expire at 40 actual calls or the twelve minute deadline", () => {
 })
 
 test("duplicate deliveries share one invocation and each continuation crosses the clock", async () => {
-  const dispatched: string[] = []
   const scheduled: string[] = []
-  const runs = new Runs({ dispatch: async (agent, id) => { dispatched.push(`${agent}/${id}`) }, schedule: async (agent, id) => { scheduled.push(`${agent}/${id}`) } })
+  const runs = new Runs({ schedule: async (agent, id) => { scheduled.push(`${agent}/${id}`) } })
   await runs.start("a", "input")
   const release = Promise.withResolvers<"continue">()
   let invoked = 0
@@ -33,23 +32,55 @@ test("duplicate deliveries share one invocation and each continuation crosses th
   release.resolve("continue")
   await first
   expect(invoked).toBe(1)
-  expect(dispatched).toEqual(["a/input"])
-  expect(scheduled).toEqual(["a/input"])
+  expect(scheduled).toEqual(["a/input", "a/input"])
   await runs.run("a", "input", async (budget) => { expect(budget.calls).toBe(0); return "done" })
-  expect(scheduled).toHaveLength(1)
+  expect(scheduled).toHaveLength(2)
 })
 
 test("a failure never schedules more work and does not retain its invocation budget", async () => {
   const scheduled: string[] = []
-  const runs = new Runs({ dispatch: async () => {}, schedule: async (agent) => { scheduled.push(agent) } })
+  const runs = new Runs({ schedule: async (agent) => { scheduled.push(agent) } })
   await expect(runs.run("a", "input", async () => { throw new Error("failed") })).rejects.toThrow("failed")
   expect(scheduled).toEqual([])
   await runs.run("a", "next", async (budget) => { expect(budget.calls).toBe(0); return "done" })
 })
 
-test("alarm fallback queues the initial run without a self call", async () => {
-  const scheduled: string[] = []
-  const runs = new Runs({ policy: "alarm", dispatch: async () => { throw new Error("self-call") }, schedule: async (_agent, id) => { scheduled.push(id) } })
-  await runs.start("a", "input")
-  expect(scheduled).toEqual(["input"])
+test("parallel attempts reserve at most 40 network admissions before any fetch", async () => {
+  const budget = new RunBudget()
+  let fetched = 0
+  const results = await Promise.allSettled(Array.from({ length: 60 }, async () => {
+    budget.count()
+    fetched++
+    await Promise.resolve()
+  }))
+  expect(fetched).toBe(40)
+  expect(results.filter((result) => result.status === "rejected")).toHaveLength(20)
+  expect(budget.calls).toBe(40)
+  expect(budget.due()).toBe(false)
+})
+
+test("one multi-fetch tool preserves completed effects and rejects before its next request", () => {
+  const budget = new RunBudget()
+  const effects: number[] = []
+  expect(() => {
+    for (let n = 0; n < 60; n++) {
+      budget.count()
+      effects.push(n)
+    }
+  }).toThrow("Completed actions were kept")
+  expect(effects).toEqual(Array.from({ length: 40 }, (_, n) => n))
+  expect(budget.due()).toBe(false)
+})
+
+test("concurrent admission queues tickets while one owner invocation executes", async () => {
+  const tickets: string[] = []
+  const runs = new Runs({ schedule: async (agent) => { tickets.push(agent) } })
+  await Promise.all(Array.from({ length: 20 }, (_, n) => runs.start(`agent-${n}`, "input")))
+  expect(tickets).toHaveLength(20)
+  const hold = Promise.withResolvers<"done">()
+  const active = runs.run("agent-0", "input", async () => hold.promise)
+  await expect(runs.run("agent-1", "input", async () => "done")).rejects.toThrow("already active")
+  hold.resolve("done")
+  await active
+  await runs.run("agent-1", "input", async () => "done")
 })

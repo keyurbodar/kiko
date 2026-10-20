@@ -8,7 +8,7 @@ import { RoomMemory } from "../src/room/memory"
 function room() {
   let clock = Date.UTC(2026, 8, 1)
   const { sql, storage, log, search } = ownerRoomFixture({ now: () => (clock += 60_000) })
-  const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) }, search)
+  const memory = new RoomMemory(storage, log.roomId, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) }, search)
   const human: Sender = { kind: "human" }
   const say = (text: string, run?: string) => log.addMessage({ from: run ? ({ kind: "agent", slug: "ada" } as Sender) : human, text, ...(run ? { run: { runId: run, attempt: 0, index: 0 } } : {}) })
   return { memory, say, sql, now: () => clock }

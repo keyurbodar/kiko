@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test"
 import { erase } from "../src/lib/erase"
-import { ROOM_STEPS } from "../src/room/schema"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { createAgent } from "../src/user/agents"
 import { sqlWith } from "./sql-shim"
 import { sqlStorage } from "./sql-shim"
@@ -23,18 +22,8 @@ test("erasing removes data and FTS contents, retains schema version, and is repe
   expect(sql.exec("SELECT * FROM meta ORDER BY key").toArray()).toEqual([{ key: "deleted", value: "1" }, { key: "schema_version", value: "5" }])
 })
 
-test("erasing the migrated room clears FTS terms without a delete trigger", () => {
-  const sql = sqlWith(ROOM_STEPS)
-  sql.exec("INSERT INTO messages (id, seq, at, sender, text) VALUES ('m', 1, 1, '{}', 'private')")
-  expect(sql.exec("SELECT rowid FROM messages_fts WHERE messages_fts MATCH 'private'").toArray()).toHaveLength(1)
-  const storage = { sql, transactionSync: <T>(f: () => T) => f() } as DurableObjectStorage
-  erase(storage)
-  erase(storage)
-  expect(sql.exec("SELECT rowid FROM messages_fts WHERE messages_fts MATCH 'private'").toArray()).toEqual([])
-})
-
 test("deleted handles remain reserved after cleanup finishes", () => {
-  const sql = sqlWith(USER_STEPS)
+  const sql = sqlWith(OWNER_STEPS)
   sql.exec("INSERT INTO deleted_agent_handles (slug) VALUES ('radar')")
   sql.exec("INSERT INTO deletion_agents (slug) VALUES ('radar')")
   sql.exec("DELETE FROM deletion_agents WHERE slug = 'radar'")

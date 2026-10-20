@@ -1,20 +1,21 @@
 import { DurableObject } from "cloudflare:workers"
 import type { Keyring } from "@kiko/durable/crypto"
 import { CredentialVault, userIdFromObjectName } from "../src/user/credentials"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { migrate } from "@kiko/durable/migrate"
-import { UserDO } from "../src/user/user-do"
+import { OwnerDO } from "../src/owner/owner-do"
+import { ownerName } from "../src/lib/names"
 
-export { UserDO }
+export { OwnerDO }
 
-type Env = { USER: DurableObjectNamespace<UserDO>; VAULT: DurableObjectNamespace<VaultDO> }
+type Env = { OWNER: DurableObjectNamespace<OwnerDO>; VAULT: DurableObjectNamespace<VaultDO> }
 
 type VaultCall = { keyring: Keyring; op: "connect" | "read" | "versions"; provider?: string; apiKey?: string }
 
 export class VaultDO extends DurableObject {
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never)
-    migrate(ctx.storage, USER_STEPS)
+    migrate(ctx.storage, OWNER_STEPS)
   }
 
   async call({ keyring, op, provider, apiKey }: VaultCall): Promise<unknown> {
@@ -38,9 +39,9 @@ export default {
         const result = await stub.call((await request.json()) as VaultCall)
         return Response.json({ result: result ?? null })
       }
-      const stub = env.USER.get(env.USER.idFromName(`user:${user}`))
-      const { method, args } = (await request.json()) as { method: string; args: unknown[] }
-      const result = await (stub as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[method]!(...args)
+      const stub = env.OWNER.get(env.OWNER.idFromName(ownerName(user!)))
+      const { method, args } = await request.json<{ method: Parameters<OwnerDO["userCall"]>[0]; args: Parameters<OwnerDO["userCall"]>[1] }>()
+      const result = await stub.userCall(method, args)
       console.log("rpc", method, JSON.stringify(result))
       return Response.json({ result: result ?? null })
     } catch (e) {

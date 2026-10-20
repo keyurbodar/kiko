@@ -1,0 +1,89 @@
+bun test v1.3.14 (0d9b296a)
+
+test/room-activity.test.ts:
+(pass) a status frame carries the typed activity, and a reconnect snapshot shows who is busy [169.25ms]
+(pass) an idle member that reports doing is never shown as working [31.39ms]
+(pass) a bubble that lands mid-run updates the chat row at once, without waiting for the run to end [34.17ms]
+(pass) a typing member with nothing else to show is writing [11.43ms]
+(pass) the sidebar hears typing only while an agent writes, and each clear arrives in order [13.38ms]
+(pass) a background worker is working, not typing, in the sidebar [9.72ms]
+(pass) a socket that connects mid-run is told who is busy [11.60ms]
+(pass) workers show as a background activity and add no rows to the chat [76.52ms]
+(pass) a reply to a divider line is stored as a plain message [17.68ms]
+(pass) a routine and a repeated compaction each store one divider [35.16ms]
+(pass) a question is a message and a stored ask, an answer closes it and says what the human chose [659.96ms]
+(pass) an answer a waiting tool took is not delivered again, and a late one is [26.39ms]
+(pass) a skip closes the question, tells the agent, and posts nothing as the human [614.66ms]
+(pass) a refused human task change is reported to its socket and leaves the board intact [38.20ms]
+(pass) batched human questions persist choices, reject incomplete answers, and resolve once [129.57ms]
+(pass) an agent that cannot run for want of a key leaves one line in the transcript for each request, and no raw frame [55.11ms]
+run error notice failed: CREDENTIALS_KEK is not set
+(pass) a provider error becomes a fixed sentence with actions, never the provider's words, and a toast for another chat [52.94ms]
+(pass) retry is offered only when the failed run answered a human message that is still there [33.43ms]
+(pass) an error line is private to the owner: it is not unread, and a chat row never previews it [110.68ms]
+run error notice failed: CREDENTIALS_KEK is not set
+run error notice failed: CREDENTIALS_KEK is not set
+run error notice failed: CREDENTIALS_KEK is not set
+(pass) a run that failed on a key, a sign-in or the credit tells the user object, and a limit does not [140.00ms]
+run error notice failed: CREDENTIALS_KEK is not set
+(pass) an agent whose sign-in expired, or whose provider could not be reached, says so instead of not connected [32.95ms]
+
+test/room-send-reads.test.ts:
+(pass) rows read per human send stay flat as the burst window and the unread count grow [5628.19ms]
+
+test/room-search.test.ts:
+(pass) toMatch quotes every word and makes the last one a prefix [0.34ms]
+forget failed: CREDENTIALS_KEK is not set
+forget failed: CREDENTIALS_KEK is not set
+(pass) the index follows insert, edit, and delete, and results page newest first [58.78ms]
+forget failed: CREDENTIALS_KEK is not set
+(pass) history returns the window around a seq, and pages at both ends [44.27ms]
+one-letter prefix over 10000 messages: 17.4 ms
+130 | 	}
+131 | 	expect(page!.results).toHaveLength(20)
+132 | 	expect(page!.results[0]!.seq).toBe(total)
+133 | 	expect(page!.results[0]!.snippet).toContain("\u0002filler\u0003")
+134 | 	console.log(`one-letter prefix over ${total} messages: ${best.toFixed(1)} ms`)
+135 | 	expect(best).toBeLessThan(12)
+                    ^
+error: expect(received).toBeLessThan(expected)
+
+Expected: < 12
+Received: 17.36406299999726
+
+      at <anonymous> (/home/keyur/.t3/worktrees/kiko/one-object-integrated/apps/server/test/room-search.test.ts:135:15)
+(fail) a prefix that matches every message in 10,000 still answers one page fast [11391.62ms]
+
+test/room-io.test.ts:
+killed 1 dangling process
+(fail) (unnamed) [60028.55ms]
+  ^ a beforeEach/afterEach hook timed out for this test.
+
+test/room-log.test.ts:
+(pass) a send is acked, stored once, and broadcast to every ready socket [47.04ms]
+(pass) a long chat keeps a bounded event log, and replay still has every event of its window [1609.89ms]
+forget failed: CREDENTIALS_KEK is not set
+forget failed: CREDENTIALS_KEK is not set
+(pass) edit, react, delete, and read are events, and hello replays them in order [74.03ms]
+forget failed: CREDENTIALS_KEK is not set
+(pass) a human message and its edit carry the rich tree [17.94ms]
+(pass) a client too far behind, or ahead of the log, gets a reset snapshot [584.94ms]
+(pass) a reaction on a message shows in the snapshot [9.90ms]
+(pass) typing is broadcast and never stored [10.47ms]
+(pass) a socket gets no broadcast before hello [111.12ms]
+(pass) an older client's retired catalog frame is ignored and the socket stays open [5.75ms]
+(pass) not json closes the socket and stores nothing [25.79ms]
+(pass) an unknown frame closes the socket and stores nothing [28.80ms]
+(pass) an empty send closes the socket and stores nothing [27.29ms]
+(pass) a send past the frame closes the socket and stores nothing [27.43ms]
+(pass) a negative lastSeq closes the socket and stores nothing [25.26ms]
+
+2 tests failed:
+(fail) a prefix that matches every message in 10,000 still answers one page fast [11391.62ms]
+(fail) (unnamed) [60028.55ms]
+  ^ a beforeEach/afterEach hook timed out for this test.
+
+ 39 pass
+ 2 fail
+ 133 expect() calls
+Ran 41 tests across 5 files. [96.15s]

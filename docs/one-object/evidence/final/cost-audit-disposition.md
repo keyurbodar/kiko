@@ -1,0 +1,7 @@
+# Parent disposition of cost audit
+
+1. Failure replay claim rejected for current source. Owner.alarm's refreshClock is after its try/finally and is skipped on rejection. No explicit alarm is armed on failure. The real SQLite owner-dispatch regression passes and proves zero setAlarm calls on failure, retained durable ticket and released active guard. Cloudflare owns bounded alarm retries. Deleting a successfully acknowledged admission after infrastructure failure would lose recovery.
+2. Idle deadline loop claim rejected for current source. Host.alarm's empty cold path clears all due wakeup metadata via serializeAlarm/createServiceClock, publishing deletion durably. A selected future recovery survives until that one cleanup event. Real local 60s post-run quiet observation is zero writes with no alarm armed. Do not delete durable recovery before actual invocation.
+3. Removing background countActive rejected. The measured platform quota is shared by all work in the fully awaited alarm invocation, including memory/after-run. Omitting that traffic would undercount physical requests. Attribution is intentionally invocation-wide. The public error on exhausting the 40-admission budget is a limitation, not proof that those physical requests are free. Concurrent user-origin requests may conservatively consume the same meter; precision requires explicit invocation provenance, not removing metering.
+
+The audit correctly verified transport wrapper coverage, manual redirects and complete write metering. No proposed unsafe deletion or undercounting was adopted.

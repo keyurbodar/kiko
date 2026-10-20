@@ -31,7 +31,7 @@ function world(options: { failDelivery?: () => boolean; refuseDelivery?: (slug: 
 
 	const build = (roomId: RoomId, members: MemberRow[], chat: { pair?: true; title: string }) => {
 		const { sql, storage, log } = ownerRoomFixture({ roomId, now: () => 1 })
-		const asks = new Asks(sql)
+		const asks = new Asks(sql, log.roomId)
 		let mailer:RoomMail
   const mail = new Mail(storage,log,asks,()=>false,Date.now,delivery=>{pending.push(mailer.deliver(home,delivery))})
 		const home = { userId: "alice", roomId }

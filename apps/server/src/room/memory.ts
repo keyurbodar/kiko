@@ -1,5 +1,5 @@
-import type { AgentSlug, Sender } from "@kiko/protocol"
-import { dayOf, region, type Item, itemLine, MAX_NAP_FAILS, napPrompt, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@kiko/memory/optmem"
+import type { AgentSlug, Message, SearchHit, Sender } from "@kiko/protocol"
+import { dayOf, region, type Item, itemLine, nodeLine, MAX_NAP_FAILS, napPrompt, oneLine, ROOM_SHAPE, type Span, spanOf, Tree, ZOOM_CUT } from "@kiko/memory/optmem"
 import type { SearchOptions, SearchPage } from "./search"
 
 const HUMAN_GAP_MS = 30 * 60_000
@@ -23,15 +23,16 @@ export class RoomMemory {
 
   constructor(
     private readonly storage: DurableObjectStorage,
+    private readonly roomId: string,
     private readonly meta: { get(key: string): string | null; set(key: string, value: string): void },
     private readonly search: (query: string, options: SearchOptions) => SearchPage,
   ) {
     this.sql = storage.sql
-    this.tree = new Tree(this.sql, "mem_tree", ROOM_SHAPE, (lo, hi) => this.items(lo, hi))
+    this.tree = new Tree(this.sql, "memory_tree", ROOM_SHAPE, (lo, hi) => this.items(lo, hi), this.roomId)
   }
 
   count(): number {
-    const n = this.sql.exec<{ n: number | null }>("SELECT max(pos) AS n FROM mem_turns").one().n
+    const n = this.sql.exec<{ n: number | null }>("SELECT MAX(pos) AS n FROM mem_turns WHERE mem_turns.room_id = ?1", this.roomId).one().n
     return n === null ? 0 : n + 1
   }
 
@@ -39,18 +40,18 @@ export class RoomMemory {
     return this.storage.transactionSync(() => {
       const synced = Number(this.meta.get(SYNCED) ?? 0)
       const rows = this.sql
-        .exec<{ seq: number; at: number; sender: string; run_id: string | null; id: string }>("SELECT seq, at, sender, run_id, id FROM messages WHERE seq > ? AND (event IS NULL OR json_extract(event, '$.private') IS NOT 1) ORDER BY seq LIMIT 5000", synced)
+        .exec<{ seq: number; at: number; sender: string; run_id: string | null; id: string }>("SELECT seq, at, sender, run_id, id FROM messages WHERE (seq > ?1 AND (event IS NULL OR NOT JSON_EXTRACT(event, '$.private') IS 1)) AND messages.room_id = ?2 ORDER BY seq LIMIT 5000", synced, this.roomId)
         .toArray()
-      let last = this.sql.exec<TurnRow>("SELECT * FROM mem_turns ORDER BY pos DESC LIMIT 1").toArray()[0] ?? null
+      let last = this.sql.exec<TurnRow>("SELECT * FROM mem_turns WHERE mem_turns.room_id = ?1 ORDER BY pos DESC LIMIT 1", this.roomId).toArray()[0] ?? null
       for (const row of rows) {
         const key = turnKey(JSON.parse(row.sender) as Sender, row.run_id, row.id)
         const joins = last && last.key === key && last.last_seq !== null && (key !== "human" || row.at - last.at_last < HUMAN_GAP_MS)
         if (last && joins) {
-          this.sql.exec("UPDATE mem_turns SET last_seq = ?, at_last = ? WHERE pos = ?", row.seq, row.at, last.pos)
+          this.sql.exec("UPDATE mem_turns SET last_seq = ?1, at_last = ?2 WHERE pos = ?3 AND mem_turns.room_id = ?4", row.seq, row.at, last.pos, this.roomId)
           last = { ...last, last_seq: row.seq, at_last: row.at }
         } else {
           const pos = last ? last.pos + 1 : 0
-          this.sql.exec("INSERT INTO mem_turns (pos, key, first_seq, last_seq, at, at_last) VALUES (?, ?, ?, ?, ?, ?)", pos, key, row.seq, row.seq, row.at, row.at)
+          this.sql.exec("INSERT INTO mem_turns (pos, key, first_seq, last_seq, at, at_last, room_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)", pos, key, row.seq, row.seq, row.at, row.at, this.roomId)
           last = { pos, key, first_seq: row.seq, last_seq: row.seq, at: row.at, at_last: row.at, trace: null }
         }
       }
@@ -64,9 +65,9 @@ export class RoomMemory {
   private forgetChanged(): void {
     const from = Number(this.meta.get(EVENTS) ?? 0)
     const events = this.sql
-      .exec<{ seq: number; kind: string; payload: string }>("SELECT seq, kind, payload FROM events WHERE seq > ? AND kind IN ('edit', 'delete') ORDER BY seq", from)
+      .exec<{ seq: number; kind: string; payload: string }>("SELECT seq, kind, payload FROM events WHERE (seq > ?1 AND kind IN ('edit', 'delete')) AND events.room_id = ?2 ORDER BY seq", from, this.roomId)
       .toArray()
-    const newest = this.sql.exec<{ seq: number | null }>("SELECT max(seq) AS seq FROM events").one().seq ?? 0
+    const newest = this.sql.exec<{ seq: number | null }>("SELECT MAX(seq) AS seq FROM events WHERE events.room_id = ?1", this.roomId).one().seq ?? 0
     for (const e of events) {
       const body = JSON.parse(e.payload) as { messageId?: string; messageIds?: string[] }
       for (const id of body.messageIds ?? (body.messageId ? [body.messageId] : [])) {
@@ -81,7 +82,7 @@ export class RoomMemory {
     this.sync()
     const from = Number(this.meta.get(FORWARDED) ?? 0)
     const events = this.sql
-      .exec<{ seq: number; kind: string; payload: string }>("SELECT seq, kind, payload FROM events WHERE seq > ? AND kind IN ('edit', 'delete') ORDER BY seq", from)
+      .exec<{ seq: number; kind: string; payload: string }>("SELECT seq, kind, payload FROM events WHERE (seq > ?1 AND kind IN ('edit', 'delete')) AND events.room_id = ?2 ORDER BY seq", from, this.roomId)
       .toArray()
     const tail = events.at(-1)
     if (!tail) return null
@@ -100,7 +101,7 @@ export class RoomMemory {
     }
     const humanAt = new Map<string, number>()
     if (edited.size)
-      for (const r of this.sql.exec<{ id: string; at: number; sender: string }>("SELECT id, at, sender FROM messages WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify([...edited.keys()])))
+      for (const r of this.sql.exec<{ id: string; at: number; sender: string }>("SELECT id, at, sender FROM messages WHERE id IN (SELECT value FROM JSON_EACH(?1)) AND messages.room_id = ?2", JSON.stringify([...edited.keys()]), this.roomId))
         if ((JSON.parse(r.sender) as Sender).kind === "human") humanAt.set(r.id, r.at)
     return {
       upto: tail.seq,
@@ -120,10 +121,13 @@ export class RoomMemory {
   // Turns cover disjoint seq ranges in pos order, so the turn for a seq is the last one that starts at or before it.
   // A join on BETWEEN read every turn for each lookup, and recall looks up each hit.
   private posOfMessage(id: string): number | null {
-    const seq = this.sql.exec<{ seq: number }>("SELECT seq FROM messages WHERE id = ?", id).toArray()[0]?.seq
-    if (seq === undefined) return null
+    const seq = this.sql.exec<{ seq: number }>("SELECT seq FROM messages WHERE id = ?1 AND messages.room_id = ?2", id, this.roomId).toArray()[0]?.seq
+    return seq === undefined ? null : this.posOfSeq(seq)
+  }
+
+  private posOfSeq(seq: number): number | null {
     const turn = this.sql
-      .exec<{ pos: number; last_seq: number | null }>("SELECT pos, last_seq FROM mem_turns WHERE first_seq <= ? ORDER BY first_seq DESC LIMIT 1", seq)
+      .exec<{ pos: number; last_seq: number | null }>("SELECT pos, last_seq FROM mem_turns WHERE first_seq <= ?1 AND mem_turns.room_id = ?2 ORDER BY first_seq DESC LIMIT 1", seq, this.roomId)
       .toArray()[0]
     return turn && turn.last_seq !== null && seq <= turn.last_seq ? turn.pos : null
   }
@@ -131,11 +135,9 @@ export class RoomMemory {
   items(lo: number, hi: number, skip: ReadonlySet<number> = new Set()): Item[] {
     const rows = this.sql
       .exec<{ pos: number; at: number; trace: string | null; seq: number | null; id: string | null; sender: string | null; text: string | null; files: string | null; deleted_at: number | null; key: string }>(
-        `SELECT t.pos, t.at, t.trace, t.key, m.seq, m.id, m.sender, m.text, m.files, m.deleted_at
-         FROM mem_turns t LEFT JOIN messages m ON m.seq BETWEEN t.first_seq AND t.last_seq AND (m.event IS NULL OR json_extract(m.event, '$.private') IS NOT 1)
-         WHERE t.pos >= ? AND t.pos < ? ORDER BY t.pos, m.seq`,
+        "SELECT t.pos, t.at, t.trace, t.key, m.seq, m.id, m.sender, m.text, m.files, m.deleted_at FROM mem_turns AS t LEFT JOIN messages AS m ON (m.seq BETWEEN t.first_seq AND t.last_seq AND (m.event IS NULL OR NOT JSON_EXTRACT(m.event, '$.private') IS 1)) AND m.room_id = ?3 WHERE (t.pos >= ?1 AND t.pos < ?2) AND t.room_id = ?3 ORDER BY t.pos, m.seq",
         lo,
-        hi,
+        hi, this.roomId,
       )
       .toArray()
     type Group = { item: Item; who: string; parts: string[]; shown: string[]; trace: string | null }
@@ -172,7 +174,7 @@ export class RoomMemory {
     const count = this.sync()
     const own = new Set(
       this.sql
-        .exec<{ pos: number }>("SELECT pos FROM mem_turns WHERE pos >= ? AND (key LIKE ? OR key LIKE ?)", pos, `agent:${slug}:%`, `trace:${slug}:%`)
+        .exec<{ pos: number }>("SELECT pos FROM mem_turns WHERE (pos >= ?1 AND (key LIKE ?2 OR key LIKE ?3)) AND mem_turns.room_id = ?4", pos, `agent:${slug}:%`, `trace:${slug}:%`, this.roomId)
         .toArray()
         .map((r) => r.pos),
     )
@@ -200,9 +202,42 @@ export class RoomMemory {
     return lines.length ? lines.join("\n") : null
   }
 
-  recall(query: string, now: number, limit = 10, seen?: number, skip: ReadonlySet<number> = new Set()): string[] {
+  async zoomArchived(id: string, load: (seq: number, before: number, after: number) => Promise<Message[]>, now: number): Promise<string | null> {
     const count = this.sync()
-    const lo = region(count, ROOM_SHAPE)
+    const one = /^t?(\d+)$/.exec(id)
+    const span = one ? { lo: Number(one[1]), hi: Number(one[1]) + 1 } : spanOf(id)
+    if (!span || span.lo >= count) return null
+    const raw = async (lo: number, hi: number): Promise<string[]> => {
+      const turns = this.sql.exec<TurnRow>("SELECT pos, key, first_seq, last_seq, at, at_last, trace FROM mem_turns WHERE room_id = ? AND pos >= ? AND pos < ? ORDER BY pos", this.roomId, lo, hi).toArray()
+      const first = Math.min(...turns.flatMap((turn) => turn.first_seq === null ? [] : [turn.first_seq]))
+      const last = Math.max(...turns.flatMap((turn) => turn.last_seq === null ? [] : [turn.last_seq]))
+      const messages = Number.isFinite(first) && Number.isFinite(last) ? await load(first, 0, last - first + 1) : []
+      return turns.map((turn) => {
+        const parts = messages.filter((message) => turn.first_seq !== null && turn.last_seq !== null && message.seq >= turn.first_seq && message.seq <= turn.last_seq && !(message.event && "private" in message.event && message.event.private)).map((message) => {
+          const files = message.files?.length ? ` (files: ${message.files.map((file) => `/${file.name}`).join(", ")})` : ""
+          return `${message.from.kind === "human" ? `[${message.id}] ` : ""}${message.text}${files}`
+        })
+        const did = turn.trace ? ` (did: ${turn.trace})` : ""
+        return itemLine({ pos: turn.pos, at: turn.at, text: `${whoOfKey(turn.key)}: ${parts.join(" / ") || "(deleted)"}${did}` }, ZOOM_CUT)
+      })
+    }
+    const zoom = async (part: Span): Promise<string[]> => {
+      if (part.lo >= count) return []
+      if (part.hi - part.lo <= ROOM_SHAPE.page) return raw(part.lo, Math.min(part.hi, count))
+      const mid = (part.lo + part.hi) / 2
+      const out: string[] = []
+      for (const half of [{ lo: part.lo, hi: mid }, { lo: mid, hi: part.hi }]) {
+        if (half.lo >= count) continue
+        const node = this.tree.node(half)
+        out.push(...(node ? [nodeLine(half, node, now)] : await zoom(half)))
+      }
+      return out
+    }
+    const lines = await zoom(span)
+    return lines.length ? lines.join("\n") : null
+  }
+
+  recall(query: string, now: number, limit = 10, seen?: number, skip: ReadonlySet<number> = new Set()): string[] {
     const fetch = seen === undefined && !skip.size ? limit : limit * 3
     let hits = this.search(query, { limit: fetch, mail: true }).results
     if (!hits.length) {
@@ -211,7 +246,12 @@ export class RoomMemory {
       for (const w of words) for (const h of this.search(w, { limit: fetch, mail: true }).results) found.set(h.id, h)
       hits = [...found.values()].sort((a, b) => b.seq - a.seq).slice(0, fetch)
     }
-    const poss = new Map(hits.map((h) => [h.id, this.posOfMessage(h.id)]))
+    return this.recallHits(hits, now, limit, seen, skip)
+  }
+
+  recallHits(hits: SearchHit[], now: number, limit = 10, seen?: number, skip: ReadonlySet<number> = new Set()): string[] {
+    const lo = region(this.sync(), ROOM_SHAPE)
+    const poss = new Map(hits.map((h) => [h.id, this.posOfSeq(h.seq)]))
     hits = hits
       .filter((h) => {
         if (skip.has(h.seq)) return false
@@ -221,7 +261,7 @@ export class RoomMemory {
       .slice(0, limit)
     const texts = new Map(
       this.sql
-        .exec<{ id: string; text: string | null }>("SELECT id, text FROM messages WHERE id IN (SELECT value FROM json_each(?))", JSON.stringify(hits.map((h) => h.id)))
+        .exec<{ id: string; text: string | null }>("SELECT id, text FROM messages WHERE id IN (SELECT value FROM JSON_EACH(?1)) AND messages.room_id = ?2", JSON.stringify(hits.map((h) => h.id)), this.roomId)
         .toArray()
         .map((r) => [r.id, r.text ?? ""]),
     )
@@ -235,21 +275,21 @@ export class RoomMemory {
 
   did(slug: AgentSlug, doing: string, now: number): void {
     if (doing === "writing a reply") return
-    this.sql.exec("INSERT OR IGNORE INTO mem_did (slug, doing, at) VALUES (?, ?, ?)", slug, doing.slice(0, 160), now)
+    this.sql.exec("INSERT OR IGNORE INTO mem_did (slug, doing, at, room_id) VALUES (?1, ?2, ?3, ?4)", slug, doing.slice(0, 160), now, this.roomId)
   }
 
   trace(slug: AgentSlug, runId: string, now: number): void {
-    const acts = this.sql.exec<{ doing: string }>("SELECT doing FROM mem_did WHERE slug = ? ORDER BY at LIMIT ?", slug, TRACE_MAX).toArray().map((r) => r.doing)
-    this.sql.exec("DELETE FROM mem_did WHERE slug = ?", slug)
+    const acts = this.sql.exec<{ doing: string }>("SELECT doing FROM mem_did WHERE slug = ?1 AND mem_did.room_id = ?3 ORDER BY at LIMIT ?2", slug, TRACE_MAX, this.roomId).toArray().map((r) => r.doing)
+    this.sql.exec("DELETE FROM mem_did WHERE slug = ?1 AND mem_did.room_id = ?2", slug, this.roomId)
     if (!acts.length) return
     const count = this.sync()
     const trace = acts.join(", ")
-    const reply = this.sql.exec<{ pos: number }>("SELECT pos FROM mem_turns WHERE key = ?", `agent:${slug}:${runId}`).toArray()[0]
+    const reply = this.sql.exec<{ pos: number }>("SELECT pos FROM mem_turns WHERE key = ?1 AND mem_turns.room_id = ?2", `agent:${slug}:${runId}`, this.roomId).toArray()[0]
     if (reply) {
-      this.sql.exec("UPDATE mem_turns SET trace = ? WHERE pos = ?", trace, reply.pos)
+      this.sql.exec("UPDATE mem_turns SET trace = ?1 WHERE pos = ?2 AND mem_turns.room_id = ?3", trace, reply.pos, this.roomId)
       return
     }
-    this.sql.exec("INSERT OR IGNORE INTO mem_turns (pos, key, first_seq, last_seq, at, at_last, trace) VALUES (?, ?, NULL, NULL, ?, ?, ?)", count, `trace:${slug}:${runId}`, now, now, trace)
+    this.sql.exec("INSERT OR IGNORE INTO mem_turns (pos, key, first_seq, last_seq, at, at_last, trace, room_id) VALUES (?1, ?2, NULL, NULL, ?3, ?4, ?5, ?6)", count, `trace:${slug}:${runId}`, now, now, trace, this.roomId)
   }
 
   pending(limit: number): Span[] {

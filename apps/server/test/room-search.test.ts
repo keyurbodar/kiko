@@ -1,3 +1,4 @@
+import { RoomSocket } from "./room-socket"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
@@ -13,7 +14,8 @@ beforeAll(async () => {
 		script: await bundleWorker(new URL("./room-worker.ts", import.meta.url)),
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
-		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true } },
+		bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
+    durableObjects: { OWNER: { className: "OwnerProbe", useSQLite: true } },
 	})
 	origin = (await mf.ready).origin
 }, 60_000)
@@ -23,7 +25,7 @@ afterAll(async () => {
 })
 
 async function open(room: string) {
-	const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
+	const ws = new RoomSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
 	const frames: RoomToClient[] = []
 	ws.onmessage = (e) => frames.push(JSON.parse(String(e.data)))
 	await new Promise((resolve, reject) => {
@@ -56,7 +58,7 @@ test("toMatch quotes every word and makes the last one a prefix", () => {
 })
 
 test("the index follows insert, edit, and delete, and results page newest first", async () => {
-	const c = await open("01JZ8Q4T6MSEARCH00000000001")
+	const c = await open("01JZ99WK4NT9WK4NT9WK4NT9WK")
 	c.send({ t: "send", clientId: "a", text: "the quick brown fox" })
 	const a = (await c.take((f) => f.t === "ack")) as { id: string; seq: number }
 	c.send({ t: "send", clientId: "b", text: "a quick reply" })
@@ -83,7 +85,7 @@ test("the index follows insert, edit, and delete, and results page newest first"
 })
 
 test("history returns the window around a seq, and pages at both ends", async () => {
-	const c = await open("01JZ8Q4T6MSEARCH00000000002")
+	const c = await open("01JZ9AWK4NTAWK4NTAWK4NTAWK")
 	const seqs: number[] = []
 	for (let i = 0; i < 10; i++) {
 		c.send({ t: "send", clientId: `h${i}`, text: `message ${i}` })
@@ -110,7 +112,7 @@ test("history returns the window around a seq, and pages at both ends", async ()
 })
 
 test("a prefix that matches every message in 10,000 still answers one page fast", async () => {
-	const c = await open("01JZ8Q4T6MSEARCH00000000003")
+	const c = await open("01JZ9BWK4NTBWK4NTBWK4NTBWK")
 	const total = 10_000
 	for (let i = 0; i < total; i++) c.send({ t: "send", clientId: `f${i}`, text: `filler ${i} about nothing` })
 	let done = false

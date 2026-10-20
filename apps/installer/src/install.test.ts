@@ -18,6 +18,7 @@ async function makeRelease(tamper?: "manifest" | "module") {
       version: "0.1.0",
       protocol: 1,
       main_module: MANIFEST_MODULE,
+      durable_objects: [{ name: "OWNER", class_name: "OwnerDO" }],
       compatibility_date: "2026-09-01",
       compatibility_flags: ["nodejs_compat"],
       migrations: [{ tag: "v1", new_sqlite_classes: ["UserDO"] }, { tag: "v2", deleted_classes: ["WorkDO"] }],
@@ -26,12 +27,12 @@ async function makeRelease(tamper?: "manifest" | "module") {
   )
   const sig = Buffer.from(await crypto.subtle.sign({ name: "Ed25519" }, pair.privateKey, manifest)).toString("base64")
   const served = tamper === "manifest" ? enc.encode(new TextDecoder().decode(manifest).replace("0.1.0", "0.1.1")) : manifest
-  return { x, files: { "latest.json": enc.encode('{"version":"0.1.0"}'), "0.1.0/manifest.json": served, "0.1.0/manifest.sig": enc.encode(sig), "0.1.0/index.js": tamper === "module" ? enc.encode("evil") : code } }
+  return { x, files: { "latest-owner.json": enc.encode('{"version":"0.1.0"}'), "0.1.0/manifest.json": served, "0.1.0/manifest.sig": enc.encode(sig), "0.1.0/index.js": tamper === "module" ? enc.encode("evil") : code } }
 }
 
 type Call = { url: string; method: string; body?: unknown }
 
-function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled"; subdomain?: string | null; accounts?: string[]; deniedAccounts?: string[]; scriptsByAccount?: Record<string, { id: string }[]>; status?: { path: string; code: number; error?: number; message?: string }; dnsAfter?: number; owners?: Record<string, string>; ownerStatus?: number }) {
+function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>; scripts: { id: string; migration_tag?: string }[]; r2?: "ok" | "exists" | "disabled"; subdomain?: string | null; accounts?: string[]; deniedAccounts?: string[]; scriptsByAccount?: Record<string, { id: string; migration_tag?: string }[]>; status?: { path: string; code: number; error?: number; message?: string }; dnsAfter?: number; owners?: Record<string, string>; ownerStatus?: number }) {
   let dnsAsks = 0
   const calls: Call[] = []
   const ok = (result: unknown) => Response.json({ success: true, result })
@@ -70,6 +71,7 @@ function fakeCloudflare(opts: { release: Awaited<ReturnType<typeof makeRelease>>
       const account = path.split("/")[2] ?? ""
       if (opts.scriptsByAccount?.[account]) return ok(opts.scriptsByAccount[account])
     }
+    if (path.endsWith("/settings")) return ok({ bindings: opts.r2 === "exists" ? [{ name: "FILES", type: "r2_bucket" }] : [] })
     if (path.endsWith("/workers/subdomain")) {
       if (method === "PUT") return ok({ subdomain: (body as { subdomain: string }).subdomain })
       return opts.subdomain === null ? fail(10007, "This account does not have a workers.dev subdomain") : ok({ subdomain: opts.subdomain ?? "me" })
@@ -92,7 +94,7 @@ async function install(cfg: Parameters<typeof fakeCloudflare>[0], grant: Paramet
   const { calls, fetcher } = fakeCloudflare(cfg)
   const metadata: unknown[] = []
   let n = 0
-  const result = await runInstall(env(cfg.release), { fetch: fetcher, randomSecret: () => `rand${n++}`, sleep: async () => {}, setMetadata: async (sub, m) => void metadata.push([sub, m]) }, { clerkToken: "user_1", sub: "user_1", grant, ...(accountId ? { accountId } : {}) })
+  const result = await runInstall(env(cfg.release), { fetch: fetcher, randomSecret: () => `rand${n++}`, sleep: async () => {}, setMetadata: async (sub, m) => void metadata.push([sub, m]) }, { clerkToken: "user_1", sub: "user_1", grant, reset: "delete-existing-data", ...(accountId ? { accountId } : {}) })
   const upload = calls.find((c) => c.method === "PUT" && /\/workers\/scripts\/[^/]+$/.test(c.url)) as Call
   return { calls, upload, result, metadata }
 }
@@ -100,6 +102,15 @@ async function install(cfg: Parameters<typeof fakeCloudflare>[0], grant: Paramet
 const secretNames = (upload: Call) => ((upload.body as { bindings: { type: string; name: string; class_name?: string }[] }).bindings).filter((b) => b.type === "secret_text").map((b) => b.name)
 
 describe("runInstall", () => {
+  test.each([undefined, "yes"])("a destructive upgrade refuses an absent or inexact reset acknowledgement (%s)", async (reset) => {
+    const release = await makeRelease()
+    const ours = await ownScriptName("user_1")
+    const { calls, fetcher } = fakeCloudflare({ release, scripts: [{ id: ours, migration_tag: "v1" }] })
+    const failure = await runInstall(env(release), { fetch: fetcher, randomSecret: () => "r", sleep: async () => {}, setMetadata: async () => {} }, { sub: "user_1", clerkToken: "user_1", grant: { kind: "token", token: "t" }, ...(reset ? { reset } : {}) }).catch((error) => error)
+    expect(failure).toMatchObject({ code: "reset_required", status: 409 })
+    expect(calls.filter((call) => call.method === "PUT")).toEqual([])
+  })
+
   test("another Clerk owner cannot rebind the default Kiko Worker", async () => {
     const release = await makeRelease()
     const { calls, result } = await install({ release, scripts: [{ id: "kiko" }], owners: { kiko: "other_owner" } })
@@ -108,7 +119,7 @@ describe("runInstall", () => {
     expect(calls.filter((c) => c.method === "PUT" && /\/scripts\/kiko(?:\/|$)/.test(c.url))).toEqual([])
   })
 
-  test("an existing owner-specific backend wins over the default and retains its data", async () => {
+  test("an acknowledged reset keeps the existing owner-specific Worker identity", async () => {
     const release = await makeRelease()
     const ours = await ownScriptName("user_1")
     const { calls, result } = await install({ release, scripts: [{ id: "kiko" }, { id: ours, migration_tag: "v1" }] })
@@ -288,7 +299,7 @@ describe("runInstall", () => {
 
   test("an account that already runs Kiko is used without asking", async () => {
     const release = await makeRelease()
-    const { calls } = await install({ release, scripts: [], accounts: ["team", "mine"], scriptsByAccount: { mine: [{ id: "kiko" }] } })
+    const { calls } = await install({ release, scripts: [], accounts: ["team", "mine"], scriptsByAccount: { mine: [{ id: "kiko", migration_tag: "v2" }] } })
     expect(calls.some((c) => c.method === "PUT" && c.url.includes("/accounts/mine/workers/scripts/kiko"))).toBe(true)
   })
 
@@ -322,7 +333,7 @@ describe("runInstall", () => {
     ["the account has used its free Durable Object rows read", { status: { path: "/accounts", code: 500, message: "exceeded allowed rows read in durable objects free tier" } }, "storage_full"],
     ["the subdomain call is denied, not missing", { subdomain: null, status: { path: "/workers/subdomain", code: 403, error: 10000 } }, "no_permission"],
     ["the upload of a new Worker is denied", { status: { path: `/workers/scripts/${OTHER_SCRIPT}`, code: 403 } }, "cannot_create"],
-    ["the upload over an existing Kiko is denied", { scripts: [{ id: "kiko" }], status: { path: "/workers/scripts/kiko", code: 403 } }, "no_permission"],
+    ["the upload over an existing Kiko is denied", { scripts: [{ id: "kiko", migration_tag: "v2" }], status: { path: "/workers/scripts/kiko", code: 403 } }, "no_permission"],
     ["the account list is empty", { accounts: [] }, "no_account"],
   ] as const)("%s maps to %s", async (_name, extra, code) => {
     const release = await makeRelease()

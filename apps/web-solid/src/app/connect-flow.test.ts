@@ -139,3 +139,17 @@ describe("installer reads", () => {
     expect(await loadOAuthConfig(async () => json(config))).toEqual(config)
   })
 })
+
+
+test("a reset-required install sends no reset consent until an explicit retry with the same grant", async () => {
+  const grant = { kind: "oauth" as const, code: "same-code", verifier: "same-verifier", redirectUri: "https://app.test/connect/callback" }
+  const requests: Record<string, unknown>[] = []
+  const fetcher: Fetch = async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)))
+    return requests.length === 1 ? json({ error: { code: "reset_required", message: "Existing chats and files will be deleted." } }, 409) : json({ backendUrl: "https://owner.test" })
+  }
+  expect(await install("clerk", grant, fetcher, "account")).toMatchObject({ ok: false, error: { code: "reset_required" } })
+  expect(requests[0]).not.toHaveProperty("reset")
+  expect(await install("clerk", grant, fetcher, "account", "delete-existing-data")).toMatchObject({ ok: true })
+  expect(requests[1]).toEqual({ clerkToken: "clerk", grant, accountId: "account", reset: "delete-existing-data" })
+})

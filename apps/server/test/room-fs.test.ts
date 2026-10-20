@@ -13,7 +13,7 @@ beforeAll(async () => {
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-    durableObjects: { ROOM: { className: "RoomDO", useSQLite: true }, USER: { className: "UserDO", useSQLite: true } },
+    durableObjects: { OWNER: { className: "FilesOwner", useSQLite: true } },
     r2Buckets: ["FILES"],
   })
   origin = (await mf.ready).origin

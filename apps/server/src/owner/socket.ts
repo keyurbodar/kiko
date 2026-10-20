@@ -32,10 +32,13 @@ export function socketView(ws: WebSocket, roomId?: string): WebSocket {
         return roomId === undefined ? saved.user : saved.rooms[roomId] ?? { ready: false }
       }
       if (property === "send" && roomId !== undefined) return (raw: string) => target.send(JSON.stringify({ t: "room", roomId, frame: JSON.parse(raw) }))
-      if (property === "close" && roomId !== undefined) return () => {
+      if (property === "close" && roomId !== undefined) return (code?: number, reason?: string) => {
         const saved = ownerAttachment(target)
         delete saved.rooms[roomId]
         target.serializeAttachment(saved)
+        // A room closes its view to refuse a frame. The client must see that close, or it never learns
+        // the frame was bad.
+        try { target.close(code, reason) } catch {}
       }
       const value = Reflect.get(target, property, target)
       return typeof value === "function" ? value.bind(target) : value

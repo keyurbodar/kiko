@@ -3,7 +3,7 @@ import { getBuiltinModelDataGeneratedAt } from "@earendil-works/pi-ai/providers/
 import { migrate } from "@kiko/durable/migrate"
 import { findProvider, overlayFor, overlayRevision } from "../src/models/catalog"
 import { readOverlay, readState, restoreOverlay, syncCatalog } from "../src/models/sync"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 
 export class CatalogDO extends DurableObject {
   #sql: SqlStorage
@@ -11,7 +11,7 @@ export class CatalogDO extends DurableObject {
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env as never)
-    migrate(ctx.storage, USER_STEPS)
+    migrate(ctx.storage, OWNER_STEPS)
     this.#sql = ctx.storage.sql
   }
 

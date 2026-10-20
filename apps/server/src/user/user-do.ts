@@ -25,11 +25,11 @@ import { ComposioStore } from "../integrations/composio/store"
 import type { ComposioCallResult, ComposioTool } from "../integrations/composio/client"
 import type { Lease } from "../agent/browser/lease"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
-import { createServiceClock as createAlarms, runDue } from "../owner/clock"
+import { runDue } from "../owner/clock"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "@kiko/durable/crypto"
-import { checkApiKey, CredentialVault, userIdFromObjectName } from "./credentials"
+import { checkApiKey, CredentialVault } from "./credentials"
 import { keyRefused } from "./credentials-check"
 import { problemOfRun } from "./provider-health"
 import { ProviderCheck } from "./provider-check"
@@ -52,8 +52,6 @@ import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import { roomOverview } from "../room/overview"
 import { routineRun, type SignalBatch } from "../room/routine-events"
 import { createAgentRoutine, roomRoutine, type RoutineResult } from "./routines"
-import { migrate } from "@kiko/durable/migrate"
-import { USER_STEPS } from "./schema"
 import { DEFAULT_TIMEZONE, resolveTurnContext, type TurnContext } from "./turn-context"
 import { getTheme, setTheme } from "./theme"
 import { composioUserId, } from "../lib/names"
@@ -94,10 +92,16 @@ export class User {
   private readonly ctx:DurableObjectState
  private readonly env:Env
  private readonly services:OwnerServices
+ private readonly ownerId:string
  private readonly publishFrame:(frame:unknown)=>void
+ private readonly egress: typeof fetch = async (input, init) => {
+   const request = new Request(input, init)
+   return this.services.egress({ url: request.url, method: request.method, headers: [...request.headers], body: request.body ? await request.arrayBuffer() : null })
+ }
  constructor(options:ServiceOptions) {
   const {ctx,env,services,sql,broadcast}=options
   this.ctx=ctx
+  this.ownerId=options.identity.ownerId
   this.env=env
   this.services=services
   this.sql=sql
@@ -106,8 +110,7 @@ export class User {
 
     this.directory=new RoomDirectory(this.sql,this.services)
     {
-      migrate(ctx.storage, USER_STEPS)
-      this.alarms = createAlarms(ctx)
+      this.alarms = options.clock
       restoreOverlay(this.sql)
       this.models = new ModelCatalog({ sql: this.sql, now: Date.now, fetch: (url, init) => this.services.egress({ url, method: init.method ?? "GET", headers: [...new Headers(init.headers)], body: null }), signInMethod, changed: () => this.changed("models") })
 
@@ -170,7 +173,7 @@ export class User {
 
   /** Makes an agent from the new agent form: the agent, its own chat, and its greeting. The chat id is the client's, so it is already open there. */
   async createAgentChat(input: { id: string; roomId: RoomId; name: string; handle: string; description: string }): Promise<NewAgentOutcome> {
-    const owner = userIdFromObjectName(this.ctx.id.name)
+    const owner = this.ownerId
     const out = await makeAgentChat(
       {
         agents: async () => listAgents(this.sql),
@@ -211,7 +214,7 @@ export class User {
   #recipeService?: RecipeService
   get #recipes(): RecipeService {
     if (this.#recipeService) return this.#recipeService
-    const owner = () => userIdFromObjectName(this.ctx.id.name)
+    const owner = () => this.ownerId
     const library = new RecipeLibrary({
       sql: this.sql,
       files: this.services.files(),
@@ -336,7 +339,6 @@ export class User {
   }
 
   private async cleanDeletedChats(): Promise<void> {
-    await this.alarms.setWakeup("deletion", Date.now() + 30_000)
     for (const { room_id } of this.sql.exec<{ room_id: RoomId }>("SELECT room_id FROM deletion_rooms").toArray()) {
       await this.reminders.cancelRoom(room_id)
       await this.#recipes.chatGone(room_id)
@@ -358,7 +360,6 @@ export class User {
   }
 
   private async cleanDeletedAgents(): Promise<void> {
-    await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000)
     for (const { slug } of this.sql.exec<{ slug: AgentSlug }>("SELECT slug FROM deletion_agents").toArray()) {
       const result = await this.deleteAgentNow(slug)
       if (!result.ok) throw new Error(result.error)
@@ -370,7 +371,7 @@ export class User {
   private async deleteAgentNow(slug: AgentSlug) {
     const agent = listAgents(this.sql).find((a) => a.slug === slug)
     if (!agent) return { ok: true as const, text: "agent already deleted" }
-    const owner = userIdFromObjectName(this.ctx.id.name)
+    const owner = this.ownerId
     for (const row of this.directory.list(true).filter(c=>c.agents?.includes(agent.id)).map(c=>({room_id:c.roomId}))) {
       const chat = this.directory.get( row.room_id)
       if (!chat) continue
@@ -562,8 +563,16 @@ export class User {
     await this.#initiative.pass()
   }
 
+  private routineSync: Promise<void> = Promise.resolve()
+
   /** Points each agent's durable routine tasks at the current inventory of its exact-time routines. */
-  async syncRoutines(routines: readonly import("../owner/schedules").ScheduledRoutine[]): Promise<void> {
+  syncRoutines(routines: readonly import("../owner/schedules").ScheduledRoutine[]): Promise<void> {
+    const work = this.routineSync.then(() => this.applyRoutineInventory(routines))
+    this.routineSync = work.catch(() => {})
+    return work
+  }
+
+  private async applyRoutineInventory(routines: readonly import("../owner/schedules").ScheduledRoutine[]): Promise<void> {
     const byAgent = new Map<string, import("../owner/schedules").ScheduledRoutine[]>()
     for (const routine of routines) {
       const key = `${routine.roomId}:${routine.target}`
@@ -571,10 +580,16 @@ export class User {
       if (list) list.push(routine)
       else byAgent.set(key, [routine])
     }
+    const previous = JSON.parse(this.setting("routine_agents") ?? "[]") as string[]
+    for (const key of previous) if (!byAgent.has(key)) {
+      const [roomId, target] = key.split(":")
+      if (roomId && target) await this.services.agent(roomId, target).syncRoutines([])
+    }
     for (const list of byAgent.values()) {
       const { roomId, target } = list[0]!
       await this.services.agent(roomId, target).syncRoutines(list)
     }
+    this.putSetting("routine_agents", JSON.stringify([...byAgent.keys()]))
   }
 
   /** A routine task delivered its occurrence, so record the run and schedule the next one. */
@@ -620,7 +635,7 @@ export class User {
 
   async providerKeyRefused(provider: string, apiKey: string): Promise<string | null> {
     const key = checkApiKey(apiKey)
-    const { models, settings } = userModels(async () => ({ auth: { apiKey: key } }), `check-${this.ctx.id.toString()}`)
+    const { models, settings } = userModels(async () => ({ auth: { apiKey: key } }), `check-${this.ctx.id.toString()}`, this.egress, () => this.services.countOutgoing())
     return keyRefused(models, provider, settings.stream?.headers)
   }
 
@@ -684,7 +699,7 @@ export class User {
     if (this.setting(AWAY_NOTICE) !== null) return
     this.putSetting(AWAY_NOTICE, String(now))
     const roomId = kikoChatRoom(this.sql)
-    const owner = userIdFromObjectName(this.ctx.id.name)
+    const owner = this.ownerId
     if (roomId) await this.services.room(roomId).systemNotice(`away:${now}`, "i paused your routines and follow-ups while you were away. they start again when you open kiko.", "limit")
   }
 
@@ -730,7 +745,7 @@ export class User {
 
   #vault?: CredentialVault
   get #credentials(): CredentialVault {
-    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name), () => this.changed("providers"))
+    this.#vault ??= new CredentialVault(this.sql, keyringFromEnv(this.env), this.ownerId, () => this.changed("providers"))
     return this.#vault
   }
 
@@ -751,6 +766,8 @@ export class User {
       vault: () => this.#credentials,
       lookup: (id) => this.lookupProvider(id),
       label: this.ctx.id.toString(),
+      fetch: this.egress,
+      countOutgoing: () => this.services.countOutgoing(),
     })
     return this.#providerCheck
   }
@@ -774,6 +791,8 @@ export class User {
       sql: this.sql,
       life: this.life,
       label: this.ctx.id.toString(),
+      fetch: this.egress,
+      countOutgoing: () => this.services.countOutgoing(),
       credentials: () => this.#credentials,
       turn: (provider) => this.turnContext(provider),
     })
@@ -783,7 +802,21 @@ export class User {
   #initiativeModule?: InitiativeEngine
   get #initiative(): InitiativeEngine {
     this.#initiativeModule ??= new InitiativeEngine({
-      boards: () => this.directory.list().map((chat) => ({ roomId: chat.roomId, oldest: this.services.room(chat.roomId).openTasks().oldest })),
+      // One scan of the open boards, not a chat view per chat: the pass must not pay for every room's activity.
+      boards: () => {
+        const rows = this.sql
+          .exec<{ room_id: string; id: string; title: string; status: string; owner: string | null; updated_at: number }>(
+            "SELECT room_id, id, title, status, owner, updated_at FROM ws_tasks WHERE NOT status IN ('done', 'cancelled') AND NOT id IS NULL ORDER BY updated_at",
+          )
+          .toArray()
+        const boards = new Map<string, { roomId: string; oldest: { id: string; title: string; status: string; owner?: string; updatedAt: number }[] }>()
+        for (const row of rows) {
+          const board = boards.get(row.room_id) ?? { roomId: row.room_id, oldest: [] }
+          if (board.oldest.length < 3) board.oldest.push({ id: row.id, title: row.title, status: row.status, ...(row.owner ? { owner: row.owner } : {}), updatedAt: row.updated_at })
+          boards.set(row.room_id, board)
+        }
+        return [...boards.values()]
+      },
       sql: this.sql,
       tz: () => getSetting(this.sql, "timezone") ?? DEFAULT_TIMEZONE,
       level: () => this.initiativeLevel(),
@@ -817,9 +850,9 @@ export class User {
     return this.#composio.signature()
   }
 
-  async composioCall(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
+  async composioCall(name: string, args: Record<string, unknown>, egress?: typeof fetch): Promise<ComposioCallResult> {
     try {
-      return await this.#composio.call(name, args)
+      return await this.#composio.call(name, args, egress)
     } catch (e) {
       return this.fail(composioFailure(e), e)
     }
@@ -848,9 +881,9 @@ export class User {
   #composioConnection?: ComposioConnection
   get #composio(): ComposioConnection {
     this.#composioConnection ??= new ComposioConnection(
-      new ComposioStore(this.sql, keyringFromEnv(this.env), userIdFromObjectName(this.ctx.id.name)),
-      () => composioUserId(userIdFromObjectName(this.ctx.id.name)),
-      undefined,
+      new ComposioStore(this.sql, keyringFromEnv(this.env), this.ownerId),
+      () => composioUserId(this.ownerId),
+      this.egress,
       (work) => this.ctx.waitUntil(work),
     )
     return this.#composioConnection
@@ -883,7 +916,7 @@ export class User {
 
   #kernelWiring?: KernelWiring
   get #kr(): KernelWiring {
-    this.#kernelWiring ??= new KernelWiring({ services:this.services, ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => userIdFromObjectName(this.ctx.id.name), notify: (error) => this.broadcast({ t: "error", error }) })
+    this.#kernelWiring ??= new KernelWiring({ fetch: this.egress, services:this.services, ctx: this.ctx, sql: this.sql, env: this.env, alarms: this.alarms, userId: () => this.ownerId, notify: (error) => this.broadcast({ t: "error", error }) })
     return this.#kernelWiring
   }
 
@@ -923,7 +956,7 @@ export class User {
   }
 
   async devBrowser(op: DevBrowserOp): Promise<Record<string, unknown>> {
-    return (await this.dev()).devBrowser(() => this.#kr, userIdFromObjectName(this.ctx.id.name), op)
+    return (await this.dev()).devBrowser(() => this.#kr, this.ownerId, op)
   }
 
   async openSocket(server:WebSocket,request:Request):Promise<void>{
@@ -965,7 +998,7 @@ export class User {
     this.#updateWiring ??= new UpdateWiring({
       env: this.env,
       sql: this.sql,
-      userId: () => userIdFromObjectName(this.ctx.id.name),
+      userId: () => this.ownerId,
       broadcast: (frame) => this.broadcast(frame),
     })
     return this.#updateWiring
@@ -994,7 +1027,7 @@ export class User {
     if (frame.t === "hello") {
       this.seen()
       // The reply says which build answered, so the client can tell it is out of date.
-      const fileToken = await signToken(this.env.SESSION_SECRET, userIdFromObjectName(this.ctx.id.name), "files")
+      const fileToken = await signToken(this.env.SESSION_SECRET, this.ownerId, "files")
       send(ws, { ...this.resume(frame.lastSeq), ...BACKEND, ...{ fileToken } })
       // The client starts with no browser, so a hello sends a browser only when there is one.
       const browser = this.#kr.browserState()
@@ -1081,8 +1114,8 @@ export class User {
   async alarm(): Promise<void> {
     const due = await this.alarms.dueWakeups(Date.now())
     await runDue(this.alarms, due, {
-      deletion_agents: () => this.cleanDeletedAgents().catch(async () => { await this.alarms.setWakeup("deletion_agents", Date.now() + 30_000) }),
-      deletion: () => this.cleanDeletedChats().catch(async () => { await this.alarms.setWakeup("deletion", Date.now() + 30_000) }),
+      deletion_agents: () => this.cleanDeletedAgents(),
+      deletion: () => this.cleanDeletedChats(),
       [HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
       [REAP_WAKEUP]: () => this.#kr.reap(),
     })

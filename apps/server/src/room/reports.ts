@@ -61,7 +61,7 @@ export class Reports {
 		const caught = this.d.log.catchUp(after)
 		const events = caught.t === "events" ? caught.events : []
 		await this.d.services.user().signals({ roomId: home.roomId, openedAt: at, signals: this.signals(events), more: 0 })
-		this.d.ctx.storage.sql.exec("DELETE FROM meta WHERE key = 'routine_window'")
+		this.d.ctx.storage.sql.exec("DELETE FROM owner_meta WHERE key = 'routine_window' AND owner_meta.scope = 'room:' || ?1", this.d.log.roomId)
 	}
 
 	run(runs: readonly Inflight[], status: "ended" | "stopped" | "failed"): void {

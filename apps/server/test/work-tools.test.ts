@@ -4,7 +4,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { type ConversationId, Harness, MemoryStorage } from "@earendil-works/pi-durable"
 import type { Envelope } from "@kiko/agent/envelope"
-import { WORKERS_RUN, WORKERS_STEPS, WORKERS_TAIL, Workers } from "@kiko/agent/workers"
+import { INITIAL_WORKERS_STEPS, Workers } from "@kiko/agent/workers"
 import type { MemoryPort } from "@kiko/memory/tools"
 import { sqlWith } from "./sql-shim"
 import { FAKE_TOOLS_EXTENSION } from "../src/agent/dev-fake"
@@ -21,7 +21,7 @@ type Request = { messages: readonly unknown[] }
 
 function registry() {
   const reports: Envelope[] = []
-  const workers = new Workers({ sql: sqlWith([...WORKERS_STEPS, ...WORKERS_TAIL, ...WORKERS_RUN]) } as unknown as DurableObjectStorage, { deliver: async (e) => void reports.push(e) })
+  const workers = new Workers({ sql: sqlWith(INITIAL_WORKERS_STEPS) } as unknown as DurableObjectStorage, { agentKey: "agent", deliver: async (e) => void reports.push(e) })
   return { workers, reports }
 }
 

@@ -83,7 +83,7 @@ test("storage is cut down in one statement only past the high-water mark", () =>
 
 const log = () => {
 	const { sql, log } = ownerRoomFixture({ now: () => 9_000 })
-	for (const slug of ["kiko", "ada"]) sql.exec("INSERT INTO members (slug, name, role, model, lead, status, added_seq) VALUES (?, ?, '', '', 0, 'idle', 1)", slug, slug)
+	for (const slug of ["kiko", "ada"]) sql.exec("INSERT INTO members (room_id, slug, name, role, model, lead, status, added_seq) VALUES ('test-room', ?, ?, '', '', 0, 'idle', 1)", slug, slug)
 	return log
 }
 const kiko = { kind: "agent", slug: "kiko" as AgentSlug } as const

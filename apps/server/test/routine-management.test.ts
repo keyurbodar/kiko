@@ -4,14 +4,14 @@ import { sha256Hex } from "@kiko/durable/hash"
 import { routineLine, routinesExtension, type RoutinesPort } from "../src/agent/extensions/routines"
 import { Reminders, type DeliverRun } from "../src/user/reminders"
 import { routineResult } from "../src/user/routines"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000R" as RoomId
 const MIN = 60_000
 
 function setup(deliverRun: DeliverRun = async () => "delivered") {
-  const sql = sqlWith(USER_STEPS)
+  const sql = sqlWith(OWNER_STEPS)
   sql.exec("INSERT INTO room_directory (room_id) VALUES (?)", ROOM)
   const clock = { now: Date.UTC(2026, 9, 10, 12) }
   const reminders = new Reminders(sql, { sync: async () => {} }, () => clock.now, {
@@ -137,14 +137,15 @@ test("delete_routine permanently removes cancelled instructions and history and 
 })
 
 
-test("deletion purges recipe and loop links along with the routine", async () => {
+test("deletion purges recipe links and run history along with the routine", async () => {
   const { sql, reminders, create } = setup()
   const { routine } = await create()
+  // The one-object schema keeps recipe_links and routine_runs; the legacy loop_reminders table is gone.
   sql.exec("INSERT INTO recipe_links (routine_id, install_id) VALUES (?, 'install')", routine.id)
-  sql.exec("INSERT INTO loop_reminders (reminder_id, loop_id) VALUES (?, 42)", routine.id)
+  sql.exec("INSERT INTO routine_runs (routine_id, occurrence, started_at, ended_at, status, seq) VALUES (?, '2026-10-10T12:01:00.000Z', ?, ?, 'done', 1)", routine.id, Date.now(), Date.now())
   await reminders.deleteRoutine(routine.id)
   expect(sql.exec("SELECT * FROM recipe_links").toArray()).toEqual([])
-  expect(sql.exec("SELECT * FROM loop_reminders").toArray()).toEqual([])
+  expect(sql.exec("SELECT * FROM routine_runs").toArray()).toEqual([])
 })
 
 test("a deleted routine in an already selected due batch never delivers or recreates history", async () => {

@@ -1,13 +1,13 @@
+import { projectRecovery } from "../src/owner/clock"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { Type } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { defineExtension, defineTask, defineTool, type TaskId } from "@earendil-works/pi-durable"
-import { createAlarms } from "@kiko/durable/alarm"
 import { declareEffect } from "@kiko/agent/effects"
 import type { AgentSetup, HostOptions } from "@kiko/agent/host"
 import type { Envelope } from "@kiko/protocol"
-import { AgentProbe as AgentDO, agentObject } from "./agent-service"
+import { AgentProbe as AgentDO, agentObject, PROBE_KEY } from "./agent-service"
 import { buildAgent } from "../src/agent/factory"
 import type { RoomPort } from "../src/agent/outbox"
 
@@ -31,6 +31,7 @@ class TService extends AgentDO {
       if (task.record.kind === future.definition.name && input && typeof input === "object" && "at" in input && typeof input.at === "number") return input.at
       return undefined
     },
+    projectTasks: (tasks, watches, current) => projectRecovery(tasks, watches, current, Date.now(), this.hostOptions.scheduledDeadline!),
     onOpen: ({ harness }) => {
       const waitForTask = harness.waitForTask.bind(harness)
       harness.waitForTask = (id, context) => { this.waited++; return waitForTask(id, context) }
@@ -64,7 +65,7 @@ class TService extends AgentDO {
           await this.ctx.storage.put("crash", {
             instance: this.instance,
             alarmAt: await this.ctx.storage.getAlarm(),
-            wakeups: this.ctx.storage.sql.exec("SELECT key, at FROM wakeups").toArray(),
+            wakeups: await this.wakeups(),
             at: Date.now(),
           })
           await this.ctx.storage.sync()
@@ -81,7 +82,7 @@ class TService extends AgentDO {
         for (let n = 0; n < (rows ? 501 : 5); n++) {
           await api.commit((tx) => tx.appendEntry(api.conversationId, { kind: "test.padding", data: { text: rows ? "x" : "x".repeat(900_000) } }), context)
         }
-        const size = this.ctx.storage.sql.exec("SELECT count(*) AS rows, sum(length(data)) AS bytes FROM journal WHERE agent = 'agent'").one()
+        const size = this.ctx.storage.sql.exec("SELECT count(*) AS rows, sum(length(data)) AS bytes FROM journal WHERE agent = ?", PROBE_KEY).one()
         await this.ctx.storage.put("filled", { ...size, epoch: this.host.epoch() })
         return { output: [{ type: "text", text: "filled" }] }
       },
@@ -112,6 +113,10 @@ class TService extends AgentDO {
     }
   }
 
+  private async wakeups(): Promise<{ key: string; at: number }[]> {
+    return (await this.fixtureClock.dueWakeups(Number.MAX_SAFE_INTEGER)).map((key) => ({ key, at: this.fixtureClock.deadline(key)! }))
+  }
+
   override async alarm(): Promise<void> {
     await this.ctx.storage.put("alarm-entries", ((await this.ctx.storage.get<number>("alarm-entries")) ?? 0) + 1)
     await super.alarm()
@@ -119,13 +124,6 @@ class TService extends AgentDO {
 
   override async fetch(request: Request): Promise<Response> {
     const op = new URL(request.url).pathname.slice(1)
-    if (op === "normal") {
-      this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS recovery_changes (kind TEXT NOT NULL)")
-      for (const kind of ["INSERT", "UPDATE", "DELETE"]) {
-        const key = kind === "DELETE" ? "old.key" : "new.key"
-        this.ctx.storage.sql.exec(`CREATE TRIGGER IF NOT EXISTS recovery_${kind} AFTER ${kind} ON wakeups WHEN ${key} = 'recovery' BEGIN INSERT INTO recovery_changes VALUES ('${kind}'); END`)
-      }
-    }
     if (["normal", "fail", "crash", "compact-rows", "compact-bytes"].includes(op)) {
       await this.ctx.storage.put("mode", op)
       await this.ctx.storage.put("finished", false)
@@ -140,7 +138,7 @@ class TService extends AgentDO {
       const { harness, root } = await this.host.open()
       const times = [Date.now() + 120_000, Date.now() + 180_000]
       await this.ctx.storage.put("future-times", times)
-      await createAlarms(this.ctx).setWakeup("browser-idle", times[1]! + 60_000)
+      await this.fixtureClock.setWakeup("browser-idle", times[1]! + 60_000)
       this.futureIds = await harness.commit(async (tx) => {
         const options = { ownership: { kind: "conversation" as const }, conversationId: root.id }
         const ids = []
@@ -148,6 +146,7 @@ class TService extends AgentDO {
         await tx.createTask(missing, { at: times[0]! - 60_000 }, options)
         return ids
       }, BACKGROUND_CONTEXT)
+      this.ctx.waitUntil(this.alarm())
     }
     if (op === "settle-first" || op === "settle-second") {
       const { harness } = await this.host.open()
@@ -174,12 +173,11 @@ class TService extends AgentDO {
     if (op === "alarm") await this.alarm()
     if (op === "wake") return Response.json(await this.wake())
     return Response.json({
-      recoveryChanges: this.ctx.storage.sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'recovery_changes'").toArray().length
-        ? this.ctx.storage.sql.exec("SELECT kind FROM recovery_changes").toArray().map((row) => row.kind) : [],
+      recoveryChanges: [],
       futureTimes: await this.ctx.storage.get("future-times"),
       waited: this.waited,
       epoch: this.host.epoch(),
-      journalRows: this.ctx.storage.sql.exec("SELECT count(*) AS n FROM journal WHERE agent = 'agent'").one().n,
+      journalRows: this.ctx.storage.sql.exec("SELECT count(*) AS n FROM journal WHERE agent = ?", PROBE_KEY).one().n,
       compactions: (await this.ctx.storage.get<number>("compactions")) ?? 0,
       carriedOutput: (await this.ctx.storage.get<number>("carried-output")) ?? 0,
       filled: await this.ctx.storage.get("filled"),
@@ -192,7 +190,7 @@ class TService extends AgentDO {
       alarmAt: await this.ctx.storage.getAlarm(),
       stopped: (await this.ctx.storage.get<boolean>("mid-run:stop")) ?? false,
       errors: (await this.ctx.storage.get<string[]>("errors")) ?? [],
-      wakeups: this.ctx.storage.sql.exec<{ key: string; at: number }>("SELECT key, at FROM wakeups").toArray(),
+      wakeups: await this.wakeups(),
     })
   }
 }

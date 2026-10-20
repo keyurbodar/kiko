@@ -32,7 +32,7 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
 
   if (!action) {
     if (request.method === "GET") {
-      return Response.json({ routines: await stub.listRoutines(), runs: await stub.routineRuns() })
+      return Response.json({ routines: await stub.userCall("listRoutines", []), runs: await stub.userCall("routineRuns", []) })
     }
     if (request.method !== "POST") return error(405, "method not allowed")
     const b = await json(request)
@@ -45,15 +45,15 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
     } catch (e) {
       return error(400, `bad trigger: ${(e instanceof Error ? e.message : String(e)).split("\n")[0]}`)
     }
-    const tz = (await stub.timezone()) ?? "UTC"
-    return reply(await stub.createRoutine(user.id, { name: b.name, instructions: b.instructions, trigger, tz, roomId, target: agent, createdBy: "human" }))
+    const tz = (await stub.userCall("timezone", [])) ?? "UTC"
+    return reply(await stub.userCall("createRoutine", [user.id, { name: b.name, instructions: b.instructions, trigger, tz, roomId, target: agent, createdBy: "human" }]))
   }
 
   if (request.method !== "POST") return error(405, "method not allowed")
   const id = action[1]
   if (id === undefined) return error(400, "need a routine id")
-  if (action[2] === "/cancel") return reply(await stub.cancelRoutine(id))
-  if (action[2]) return Response.json({ delivery: await stub.runRoutine(id) })
+  if (action[2] === "/cancel") return reply(await stub.userCall("cancelRoutine", [id]))
+  if (action[2]) return Response.json({ delivery: await stub.userCall("runRoutine", [id]) })
   const b = await json(request)
   if (!b) return error(400, "expected an object")
   let trigger: typeof Trigger.Type | undefined
@@ -66,11 +66,11 @@ export async function routinesRoute(request: Request, env: Env): Promise<Respons
   }
   const status = b.status === "active" || b.status === "paused" ? b.status : undefined
   return reply(
-    await stub.updateRoutine(id, {
+    await stub.userCall("updateRoutine", [id, {
       ...(typeof b.name === "string" ? { name: b.name } : {}),
       ...(typeof b.instructions === "string" ? { instructions: b.instructions } : {}),
       ...(trigger ? { trigger } : {}),
       ...(status ? { status } : {}),
-    }),
+    }]),
   )
 }

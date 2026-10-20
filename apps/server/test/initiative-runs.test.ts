@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { InitiativeEngine, type Level, type WakeInput } from "../src/initiative/engine"
 import type { WakeResult } from "../src/room/delivery"
 import { sqlWith } from "./sql-shim"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -11,7 +11,7 @@ const NOW = Date.UTC(2026, 9, 16, 13)
 type Task = { id: string; title: string; status: string; owner?: string; updatedAt: number }
 
 function world(opts: { level?: Level; hidden?: string[] } = {}) {
-  const sql = sqlWith(USER_STEPS)
+  const sql = sqlWith(OWNER_STEPS)
   const wakes: { room: string; input: WakeInput }[] = []
   const counts: Record<string, number> = {}
   const hidden = new Set(opts.hidden ?? [])
@@ -31,7 +31,6 @@ function world(opts: { level?: Level; hidden?: string[] } = {}) {
       for (const [k, n] of Object.entries(delta)) counts[k] = (counts[k] ?? 0) + n
     },
   })
-  /** What RoomDO pushes to `UserDO.chatTasks` when a chat's board changes. */
   const board = (room: string, tasks: Task[]) => {
     boards.set(room, tasks)
   }

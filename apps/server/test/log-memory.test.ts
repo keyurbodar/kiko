@@ -10,7 +10,7 @@ import { sqlWith } from "./sql-shim"
 function room() {
   let clock = Date.UTC(2026, 8, 1)
   const { sql, storage, log, search } = ownerRoomFixture({ now: () => (clock += 60_000) })
-  const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) }, search)
+  const memory = new RoomMemory(storage, log.roomId, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) }, search)
   let index = 0
   const say = (from: Sender, text: string, run?: string) =>
     log.addMessage({ from, text, ...(run ? { run: { runId: run, attempt: 0, index: index++ } } : {}) })
@@ -234,7 +234,7 @@ test("a message edited and then deleted is only reported as deleted", () => {
   expect(changes.edited).toEqual([])
 })
 
-test("forgetting edits and deletes is one UserDO call however many turns changed, and a failed call leaves the changes pending", async () => {
+test("forgetting edits and deletes is one owner memory call however many turns changed, and a failed call leaves the changes pending", async () => {
   const { log, memory, say } = room()
   const ids = Array.from({ length: 6 }, (_, i) => say(i % 2 ? agent("ada") : human, `turn ${i}`, i % 2 ? `r${i}` : undefined).id)
   memory.sync()

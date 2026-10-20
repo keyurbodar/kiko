@@ -10,8 +10,8 @@ import { fileStore, localBucket } from "../files/store"
 import { instrument } from "../lib/dev-guard"
 import { HANDLE_HEADER } from "../lib/names"
 import type { OwnerServices, ServiceOptions } from "./services"
-import { scopedContext } from "./context"
-import { Clock } from "./clock"
+import { serviceContext, metadata } from "./context"
+import { Clock, createServiceClock, RECOVERY_DELAY_MS } from "./clock"
 import { AfterRun } from "./after-run"
 import { initializeSchema } from "./schema"
 import { ownerAttachment, socketView } from "./socket"
@@ -19,6 +19,9 @@ import { ownerAttachment, socketView } from "./socket"
 type Method<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T]
 type Args<T> = T extends (...args: infer A) => unknown ? A : never
 type Result<T> = T extends (...args: never[]) => infer R ? Awaited<R> : never
+type QueuedRun = { agent: string; room_id: string; slug: string; request_id: string; version: number }
+
+const RUN_GAP_MS = 250
 
 export class OwnerDO extends DurableObject<Env> {
   private readonly runs: Runs
@@ -33,6 +36,8 @@ export class OwnerDO extends DurableObject<Env> {
   private settings?: User
   private readonly clock: Clock
   private readonly afterRunHook = new AfterRun({ services: () => this.services })
+  private alarmRunning = false
+  private nextRunAt = 0
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -40,13 +45,21 @@ export class OwnerDO extends DurableObject<Env> {
     const name = ctx.id.name ?? "owner"
     this.ownerId = name === "owner" ? "owner" : name.replace(/^owner:/, "")
     initializeSchema(ctx.storage)
-    this.clock = new Clock(ctx.storage, () => ({ loaded: [], unloaded: ctx.storage.sql.exec<{ at: number }>("SELECT at FROM owner_deadlines").toArray().map((row) => row.at) }))
-    this.runs = new Runs({
-      dispatch: async (agent, requestId) => { ctx.waitUntil(env.OWNER.get(ctx.id).run(agent, requestId)) },
-      schedule: async (agent) => { await this.context(`agent:${this.ownerId}:${agent}`).storage.setAlarm(Date.now()) },
+    this.clock = new Clock(ctx.storage, () => {
+      const queued = ctx.storage.sql.exec<{ at: number | null }>("SELECT min(ready_at) AS at FROM owner_runs").one().at
+      return {
+        loaded: [],
+        unloaded: ctx.storage.sql.exec<{ at: number }>(
+          "SELECT at FROM owner_deadlines d WHERE NOT EXISTS (SELECT 1 FROM owner_runs r WHERE d.scope = 'agent:' || r.agent)",
+        ).toArray().map((row) => row.at),
+        queued: queued === null ? undefined : Math.max(queued, this.nextRunAt),
+      }
     })
-    this.blobs = new BlobStore(this.context(`files:${this.ownerId}`))
-    this.blobs.initialize()
+    this.runs = new Runs({
+      schedule: (agent, requestId) => this.enqueueRun(agent, requestId),
+    })
+    this.blobs = new BlobStore(this.ctx)
+
     this.services = {
       user: () => this.user(),
       room: (roomId) => this.room(roomId),
@@ -54,11 +67,14 @@ export class OwnerDO extends DurableObject<Env> {
       files: () => env.FILES ? fileStore(env) : localBucket(this.blobs),
       egress: async (request) => {
         if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
+        this.runs.countActive()
         // check-rules: allow egress OwnerDO owns the agent's outgoing request.
-        return fetch(request.url, { method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
+        return fetch(request.url, { redirect: "manual", method: request.method, headers: request.headers, ...(request.body ? { body: request.body } : {}) })
       },
+      countOutgoing: () => this.runs.countActive(),
       trimAgents: () => this.trimAgents(),
       dispatchRun: (roomId, slug) => this.dispatchRun(roomId, slug),
+      cancelRun: (roomId, slug) => this.cancelRun(roomId, slug),
       afterRun: (roomId, slug) => this.afterRun(roomId, slug),
       syncRoutines: (routines) => this.user().syncRoutines(routines),
       fireRoutine: (delivery) => this.user().fireRoutine(delivery),
@@ -66,17 +82,29 @@ export class OwnerDO extends DurableObject<Env> {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))
   }
 
-  private context(name: string): DurableObjectState {
-    return scopedContext(this.ctx, name, () => {
-      const roomId = name.startsWith("room:") ? name.slice(`room:${this.ownerId}:`.length) : undefined
-      return this.ctx.getWebSockets().filter((ws) => roomId === undefined || ownerAttachment(ws).rooms[roomId] !== undefined).map((ws) => socketView(ws, roomId))
-    }, () => this.refreshClock())
+  private context(roomId?: string): DurableObjectState {
+    return serviceContext(this.ctx, () => this.ctx.getWebSockets()
+      .filter((ws) => roomId === undefined || ownerAttachment(ws).rooms[roomId] !== undefined)
+      .map((ws) => socketView(ws, roomId)))
   }
 
-  private options(name: string): ServiceOptions {
-    const ctx = this.context(name)
+  private async publishDeadline(scope: string, at: number | undefined, persist: () => void = () => {}): Promise<void> {
+    this.ctx.storage.transactionSync(() => {
+      persist()
+    if (at === undefined) this.ctx.storage.sql.exec("DELETE FROM owner_deadlines WHERE scope = ?", scope)
+    else this.ctx.storage.sql.exec("INSERT INTO owner_deadlines (scope, at) VALUES (?, ?) ON CONFLICT(scope) DO UPDATE SET at = excluded.at WHERE at IS NOT excluded.at", scope, at)
+    })
+    await this.refreshClock()
+  }
+
+  private options(scope: string, roomId?: string): ServiceOptions {
+    const ctx = this.context(roomId)
+    const meta = metadata(this.ctx.storage, scope)
     return {
-      ctx, sql: ctx.storage.sql, env: this.env, services: this.services,
+      identity: { ownerId: this.ownerId, ...(roomId ? { roomId } : {}) },
+      metadata: meta,
+      clock: createServiceClock({ metadata: meta, publish: (at, persist) => this.publishDeadline(scope, at, persist) }),
+      ctx, sql: this.ctx.storage.sql, env: this.env, services: this.services,
       broadcast: (frame) => {
         const raw = JSON.stringify(frame)
         for (const socket of ctx.getWebSockets()) {
@@ -88,43 +116,58 @@ export class OwnerDO extends DurableObject<Env> {
     }
   }
 
-  async dispatchRun(roomId: string, slug: string): Promise<void> {
-    await this.runs.start(`${roomId}:${slug}`, "pending")
-  }
-
-  async run(agent: string, requestId: string): Promise<void> {
+  private async enqueueRun(agent: string, requestId: string): Promise<void> {
     const [roomId, slug, ...extra] = agent.split(":")
     if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent key")
-    await this.runs.run(agent, requestId, (budget) => this.agent(roomId, slug).runInvocation(() => budget.due()))
+    this.ctx.storage.sql.exec(
+      `INSERT INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(agent) DO UPDATE SET ready_at = min(owner_runs.ready_at, excluded.ready_at), version = owner_runs.version + 1`,
+      agent, roomId, slug, requestId, Date.now(),
+    )
+    await this.refreshClock()
+  }
+
+  private async cancelRun(roomId: string, slug: string): Promise<void> {
+    const agent = `${roomId}:${slug}`
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ?", agent)
+      this.ctx.storage.sql.exec("DELETE FROM owner_deadlines WHERE scope = ?", `agent:${agent}`)
+    })
+    await this.refreshClock()
+  }
+
+  async dispatchRun(roomId: string, slug: string): Promise<void> {
+    await this.runs.start(`${roomId}:${slug}`, "pending")
   }
 
   private async afterRun(roomId: string, slug: string): Promise<void> {
     await this.afterRunHook.run(roomId, slug)
   }
 
-  private user(): User {
-    return this.settings ??= new User(this.options(`user:${this.ownerId}`))
+  protected user(): User {
+    return this.settings ??= new User(this.options("user"))
   }
 
-  private room(roomId: string): Room {
+  protected room(roomId: string): Room {
     if (!isRoomId(roomId)) throw new Error("bad room id")
     let room = this.rooms.get(roomId)
     if (!room) {
-      room = new Room(this.options(`room:${this.ownerId}:${roomId}`))
+      room = new Room(this.options(`room:${roomId}`, roomId))
       this.rooms.set(roomId, room)
     }
     return room
   }
 
-  private agent(roomId: string, slug: string): Agent {
+  protected agent(roomId: string, slug: string): Agent {
     const key = `${roomId}:${slug}`
     let agent = this.agents.get(key)
     if (!agent) {
-      agent = new Agent({ ...this.options(`agent:${this.ownerId}:${key}`),
+      agent = new Agent({ ...this.options(`agent:${key}`, roomId),
+        identity: { ownerId: this.ownerId, roomId, slug },
+        recoveryDeadline: (at) => this.publishDeadline(`agent:${key}`, at),
         requestRun: (requestId) => this.runs.start(key, requestId),
         countOutgoing: () => this.runs.count(key),
       })
-      agent.initialize()
     }
     this.agents.delete(key)
     this.agents.set(key, agent)
@@ -195,22 +238,57 @@ export class OwnerDO extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
-    const due = this.ctx.storage.sql.exec<{ scope: string }>("SELECT scope FROM owner_deadlines WHERE at <= ? ORDER BY at, scope", Date.now()).toArray()
-    for (const { scope } of due) {
-      this.ctx.storage.sql.exec("DELETE FROM owner_deadlines WHERE scope = ?", scope)
-      if (scope.startsWith("user:")) await this.user().alarm()
-      else if (scope.startsWith("room:")) await this.room(scope.slice(`room:${this.ownerId}:`.length)).alarm()
-      else if (scope.startsWith("agent:")) {
-        const [roomId, slug] = scope.slice(`agent:${this.ownerId}:`.length).split(":")
-        if (roomId && slug) await this.dispatchRun(roomId, slug)
+    if (this.alarmRunning) return
+    this.alarmRunning = true
+    try {
+      const due = this.ctx.storage.sql.exec<{ scope: string; at: number }>("SELECT scope, at FROM owner_deadlines WHERE at <= ? ORDER BY at, scope", Date.now()).toArray()
+      for (const { scope, at } of due) {
+        if (scope.startsWith("agent:")) {
+          const key = scope.slice("agent:".length)
+          const [roomId, slug, ...extra] = key.split(":")
+          if (!isRoomId(roomId) || !slug || extra.length) throw new Error("bad agent deadline")
+          this.ctx.storage.sql.exec(
+            "INSERT OR IGNORE INTO owner_runs (agent, room_id, slug, request_id, ready_at) VALUES (?, ?, ?, ?, ?)",
+            key, roomId, slug, "recovery", at,
+          )
+          continue
+        }
+        if (scope === "user") await this.user().alarm()
+        else if (scope.startsWith("room:")) await this.room(scope.slice("room:".length)).alarm()
+        this.ctx.storage.sql.exec("DELETE FROM owner_deadlines WHERE scope = ? AND at = ?", scope, at)
       }
+      if (Date.now() >= this.nextRunAt) {
+        const queued = this.ctx.storage.sql.exec<QueuedRun>(
+          "SELECT agent, room_id, slug, request_id, version FROM owner_runs WHERE ready_at <= ? ORDER BY ready_at, agent LIMIT 1", Date.now(),
+        ).toArray()[0]
+        if (queued) {
+          const agent = this.agent(queued.room_id, queued.slug)
+          await agent.scheduleRecovery(Date.now() + RECOVERY_DELAY_MS)
+          this.ctx.storage.sql.exec("UPDATE owner_runs SET ready_at = ? WHERE agent = ? AND version = ?", Date.now(), queued.agent, queued.version)
+          try {
+            await this.runs.run(queued.agent, queued.request_id, (budget) => agent.runInvocation(() => budget.due()))
+            this.ctx.storage.sql.exec("DELETE FROM owner_runs WHERE agent = ? AND version = ?", queued.agent, queued.version)
+          } finally {
+            this.nextRunAt = Date.now() + RUN_GAP_MS
+          }
+        }
+      }
+      await this.trimAgents()
+    } finally {
+      this.alarmRunning = false
     }
-    await this.trimAgents()
     await this.refreshClock()
   }
 
   private async refreshClock(): Promise<void> {
+    if (this.alarmRunning) return
     await this.clock.refresh()
+  }
+
+  async userCall<M extends Method<User>>(method: M, args: Args<User[M]>): Promise<Result<User[M]>> {
+    const user = this.user()
+    const call = user[method] as (...args: Args<User[M]>) => Result<User[M]>
+    return call.apply(user, args)
   }
 
   async roomCall<M extends Method<Room>>(roomId: string, method: M, args: Args<Room[M]>): Promise<Result<Room[M]>> {
@@ -234,103 +312,6 @@ export class OwnerDO extends DurableObject<Env> {
   async blobFinish(...args: Parameters<BlobStore["finish"]>) { return this.blobs.finish(...args) }
   async blobAbort(...args: Parameters<BlobStore["abort"]>) { return this.blobs.abort(...args) }
 
-  async listRoutines(...args: Parameters<User["listRoutines"]>): Promise<Awaited<ReturnType<User["listRoutines"]>>> { return this.user().listRoutines(...args) }
-  async deleteRoutine(...args: Parameters<User["deleteRoutine"]>): Promise<Awaited<ReturnType<User["deleteRoutine"]>>> { return this.user().deleteRoutine(...args) }
-  async cancelRoutine(...args: Parameters<User["cancelRoutine"]>): Promise<Awaited<ReturnType<User["cancelRoutine"]>>> { return this.user().cancelRoutine(...args) }
-  async createRoutine(...args: Parameters<User["createRoutine"]>): Promise<Awaited<ReturnType<User["createRoutine"]>>> { return this.user().createRoutine(...args) }
-  async updateRoutine(...args: Parameters<User["updateRoutine"]>): Promise<Awaited<ReturnType<User["updateRoutine"]>>> { return this.user().updateRoutine(...args) }
-  async recipeList(...args: Parameters<User["recipeList"]>): Promise<Awaited<ReturnType<User["recipeList"]>>> { return this.user().recipeList(...args) }
-  async recipeHints(...args: Parameters<User["recipeHints"]>): Promise<Awaited<ReturnType<User["recipeHints"]>>> { return this.user().recipeHints(...args) }
-  async createAgentChat(...args: Parameters<User["createAgentChat"]>): Promise<Awaited<ReturnType<User["createAgentChat"]>>> { return this.user().createAgentChat(...args) }
-  async editRecipe(...args: Parameters<User["editRecipe"]>): Promise<Awaited<ReturnType<User["editRecipe"]>>> { return this.user().editRecipe(...args) }
-  async installRecipe(...args: Parameters<User["installRecipe"]>): Promise<Awaited<ReturnType<User["installRecipe"]>>> { return this.user().installRecipe(...args) }
-  async uninstallRecipe(...args: Parameters<User["uninstallRecipe"]>): Promise<Awaited<ReturnType<User["uninstallRecipe"]>>> { return this.user().uninstallRecipe(...args) }
-  async recipeBriefs(...args: Parameters<User["recipeBriefs"]>): Promise<Awaited<ReturnType<User["recipeBriefs"]>>> { return this.user().recipeBriefs(...args) }
-  async recipeSkillText(...args: Parameters<User["recipeSkillText"]>): Promise<Awaited<ReturnType<User["recipeSkillText"]>>> { return this.user().recipeSkillText(...args) }
-  async overview(...args: Parameters<User["overview"]>): Promise<Awaited<ReturnType<User["overview"]>>> { return this.user().overview(...args) }
-  async devSeen(...args: Parameters<User["devSeen"]>): Promise<Awaited<ReturnType<User["devSeen"]>>> { return this.user().devSeen(...args) }
-  async devSetting(...args: Parameters<User["devSetting"]>): Promise<Awaited<ReturnType<User["devSetting"]>>> { return this.user().devSetting(...args) }
-  async devComposioSession(...args: Parameters<User["devComposioSession"]>): Promise<Awaited<ReturnType<User["devComposioSession"]>>> { return this.user().devComposioSession(...args) }
-  async devCaptureQueue(...args: Parameters<User["devCaptureQueue"]>): Promise<Awaited<ReturnType<User["devCaptureQueue"]>>> { return this.user().devCaptureQueue(...args) }
-  async devDue(...args: Parameters<User["devDue"]>): Promise<Awaited<ReturnType<User["devDue"]>>> { return this.user().devDue(...args) }
-  async timezone(...args: Parameters<User["timezone"]>): Promise<Awaited<ReturnType<User["timezone"]>>> { return this.user().timezone(...args) }
-  async publicOrigin(...args: Parameters<User["publicOrigin"]>): Promise<Awaited<ReturnType<User["publicOrigin"]>>> { return this.user().publicOrigin(...args) }
-  async runRoutine(...args: Parameters<User["runRoutine"]>): Promise<Awaited<ReturnType<User["runRoutine"]>>> { return this.user().runRoutine(...args) }
-  async routineRuns(...args: Parameters<User["routineRuns"]>): Promise<Awaited<ReturnType<User["routineRuns"]>>> { return this.user().routineRuns(...args) }
-  async signals(...args: Parameters<User["signals"]>): Promise<Awaited<ReturnType<User["signals"]>>> { return this.user().signals(...args) }
-  async routineHook(...args: Parameters<User["routineHook"]>): Promise<Awaited<ReturnType<User["routineHook"]>>> { return this.user().routineHook(...args) }
-  async createChat(...args: Parameters<User["createChat"]>): Promise<Awaited<ReturnType<User["createChat"]>>> { return this.user().createChat(...args) }
-  async renameChat(...args: Parameters<User["renameChat"]>): Promise<Awaited<ReturnType<User["renameChat"]>>> { return this.user().renameChat(...args) }
-  async pinChat(...args: Parameters<User["pinChat"]>): Promise<Awaited<ReturnType<User["pinChat"]>>> { return this.user().pinChat(...args) }
-  async deleteChat(...args: Parameters<User["deleteChat"]>): Promise<Awaited<ReturnType<User["deleteChat"]>>> { return this.user().deleteChat(...args) }
-  async deleteAgent(...args: Parameters<User["deleteAgent"]>): Promise<Awaited<ReturnType<User["deleteAgent"]>>> { return this.user().deleteAgent(...args) }
-  async roomChanged(...args: Parameters<User["roomChanged"]>): Promise<Awaited<ReturnType<User["roomChanged"]>>> { return this.user().roomChanged(...args) }
-  async chatTyping(...args: Parameters<User["chatTyping"]>): Promise<Awaited<ReturnType<User["chatTyping"]>>> { return this.user().chatTyping(...args) }
-  async searchChats(...args: Parameters<User["searchChats"]>): Promise<Awaited<ReturnType<User["searchChats"]>>> { return this.user().searchChats(...args) }
-  async listChats(...args: Parameters<User["listChats"]>): Promise<Awaited<ReturnType<User["listChats"]>>> { return this.user().listChats(...args) }
-  async chatMembers(...args: Parameters<User["chatMembers"]>): Promise<Awaited<ReturnType<User["chatMembers"]>>> { return this.user().chatMembers(...args) }
-  async getChat(...args: Parameters<User["getChat"]>): Promise<Awaited<ReturnType<User["getChat"]>>> { return this.user().getChat(...args) }
-  async createAgent(...args: Parameters<User["createAgent"]>): Promise<Awaited<ReturnType<User["createAgent"]>>> { return this.user().createAgent(...args) }
-  async listAgents(...args: Parameters<User["listAgents"]>): Promise<Awaited<ReturnType<User["listAgents"]>>> { return this.user().listAgents(...args) }
-  async soul(...args: Parameters<User["soul"]>): Promise<Awaited<ReturnType<User["soul"]>>> { return this.user().soul(...args) }
-  async setSoul(...args: Parameters<User["setSoul"]>): Promise<Awaited<ReturnType<User["setSoul"]>>> { return this.user().setSoul(...args) }
-  async homePut(...args: Parameters<User["homePut"]>): Promise<Awaited<ReturnType<User["homePut"]>>> { return this.user().homePut(...args) }
-  async homeStat(...args: Parameters<User["homeStat"]>): Promise<Awaited<ReturnType<User["homeStat"]>>> { return this.user().homeStat(...args) }
-  async homeList(...args: Parameters<User["homeList"]>): Promise<Awaited<ReturnType<User["homeList"]>>> { return this.user().homeList(...args) }
-  async homeMove(...args: Parameters<User["homeMove"]>): Promise<Awaited<ReturnType<User["homeMove"]>>> { return this.user().homeMove(...args) }
-  async homeRemove(...args: Parameters<User["homeRemove"]>): Promise<Awaited<ReturnType<User["homeRemove"]>>> { return this.user().homeRemove(...args) }
-  async homeMkdir(...args: Parameters<User["homeMkdir"]>): Promise<Awaited<ReturnType<User["homeMkdir"]>>> { return this.user().homeMkdir(...args) }
-  async homeCommit(...args: Parameters<User["homeCommit"]>): Promise<Awaited<ReturnType<User["homeCommit"]>>> { return this.user().homeCommit(...args) }
-  async makeAgent(...args: Parameters<User["makeAgent"]>): Promise<Awaited<ReturnType<User["makeAgent"]>>> { return this.user().makeAgent(...args) }
-  async openChat(...args: Parameters<User["openChat"]>): Promise<Awaited<ReturnType<User["openChat"]>>> { return this.user().openChat(...args) }
-  async openPair(...args: Parameters<User["openPair"]>): Promise<Awaited<ReturnType<User["openPair"]>>> { return this.user().openPair(...args) }
-  async seedSoul(...args: Parameters<User["seedSoul"]>): Promise<Awaited<ReturnType<User["seedSoul"]>>> { return this.user().seedSoul(...args) }
-  async getTheme(...args: Parameters<User["getTheme"]>): Promise<Awaited<ReturnType<User["getTheme"]>>> { return this.user().getTheme(...args) }
-  async setTheme(...args: Parameters<User["setTheme"]>): Promise<Awaited<ReturnType<User["setTheme"]>>> { return this.user().setTheme(...args) }
-  async lifeNote(...args: Parameters<User["lifeNote"]>): Promise<Awaited<ReturnType<User["lifeNote"]>>> { return this.user().lifeNote(...args) }
-  async lifeRecall(...args: Parameters<User["lifeRecall"]>): Promise<Awaited<ReturnType<User["lifeRecall"]>>> { return this.user().lifeRecall(...args) }
-  async captureHuman(...args: Parameters<User["captureHuman"]>): Promise<Awaited<ReturnType<User["captureHuman"]>>> { return this.user().captureHuman(...args) }
-  async forgetMessages(...args: Parameters<User["forgetMessages"]>): Promise<Awaited<ReturnType<User["forgetMessages"]>>> { return this.user().forgetMessages(...args) }
-  async lifeZoom(...args: Parameters<User["lifeZoom"]>): Promise<Awaited<ReturnType<User["lifeZoom"]>>> { return this.user().lifeZoom(...args) }
-  async memoryUsage(...args: Parameters<User["memoryUsage"]>): Promise<Awaited<ReturnType<User["memoryUsage"]>>> { return this.user().memoryUsage(...args) }
-  async compress(...args: Parameters<User["compress"]>): Promise<Awaited<ReturnType<User["compress"]>>> { return this.user().compress(...args) }
-  async providerKeyRefused(...args: Parameters<User["providerKeyRefused"]>): Promise<Awaited<ReturnType<User["providerKeyRefused"]>>> { return this.user().providerKeyRefused(...args) }
-  async connectProvider(...args: Parameters<User["connectProvider"]>): Promise<Awaited<ReturnType<User["connectProvider"]>>> { return this.user().connectProvider(...args) }
-  async disconnectProvider(...args: Parameters<User["disconnectProvider"]>): Promise<Awaited<ReturnType<User["disconnectProvider"]>>> { return this.user().disconnectProvider(...args) }
-  async modelCatalog(...args: Parameters<User["modelCatalog"]>): Promise<Awaited<ReturnType<User["modelCatalog"]>>> { return this.user().modelCatalog(...args) }
-  async devModelOverlay(...args: Parameters<User["devModelOverlay"]>): Promise<Awaited<ReturnType<User["devModelOverlay"]>>> { return this.user().devModelOverlay(...args) }
-  async recordProviderProblem(...args: Parameters<User["recordProviderProblem"]>): Promise<Awaited<ReturnType<User["recordProviderProblem"]>>> { return this.user().recordProviderProblem(...args) }
-  async providerRecovered(...args: Parameters<User["providerRecovered"]>): Promise<Awaited<ReturnType<User["providerRecovered"]>>> { return this.user().providerRecovered(...args) }
-  async checkProvider(...args: Parameters<User["checkProvider"]>): Promise<Awaited<ReturnType<User["checkProvider"]>>> { return this.user().checkProvider(...args) }
-  async devProviderHealth(...args: Parameters<User["devProviderHealth"]>): Promise<Awaited<ReturnType<User["devProviderHealth"]>>> { return this.user().devProviderHealth(...args) }
-  async listProviders(...args: Parameters<User["listProviders"]>): Promise<Awaited<ReturnType<User["listProviders"]>>> { return this.user().listProviders(...args) }
-  async agentModel(...args: Parameters<User["agentModel"]>): Promise<Awaited<ReturnType<User["agentModel"]>>> { return this.user().agentModel(...args) }
-  async setAgentModels(...args: Parameters<User["setAgentModels"]>): Promise<Awaited<ReturnType<User["setAgentModels"]>>> { return this.user().setAgentModels(...args) }
-  async agentTurn(...args: Parameters<User["agentTurn"]>): Promise<Awaited<ReturnType<User["agentTurn"]>>> { return this.user().agentTurn(...args) }
-  async turnContext(...args: Parameters<User["turnContext"]>): Promise<Awaited<ReturnType<User["turnContext"]>>> { return this.user().turnContext(...args) }
-  async lifeRevision(...args: Parameters<User["lifeRevision"]>): Promise<Awaited<ReturnType<User["lifeRevision"]>>> { return this.user().lifeRevision(...args) }
-  async lifeRevisions(...args: Parameters<User["lifeRevisions"]>): Promise<Awaited<ReturnType<User["lifeRevisions"]>>> { return this.user().lifeRevisions(...args) }
-  async lifeState(...args: Parameters<User["lifeState"]>): Promise<Awaited<ReturnType<User["lifeState"]>>> { return this.user().lifeState(...args) }
-  async lifeView(...args: Parameters<User["lifeView"]>): Promise<Awaited<ReturnType<User["lifeView"]>>> { return this.user().lifeView(...args) }
-  async composioTools(...args: Parameters<User["composioTools"]>): Promise<Awaited<ReturnType<User["composioTools"]>>> { return this.user().composioTools(...args) }
-  async composioSignature(...args: Parameters<User["composioSignature"]>): Promise<Awaited<ReturnType<User["composioSignature"]>>> { return this.user().composioSignature(...args) }
-  async composioCall(...args: Parameters<User["composioCall"]>): Promise<Awaited<ReturnType<User["composioCall"]>>> { return this.user().composioCall(...args) }
-  async composioToolkit(...args: Parameters<User["composioToolkit"]>): Promise<Awaited<ReturnType<User["composioToolkit"]>>> { return this.user().composioToolkit(...args) }
-  async notifyError(...args: Parameters<User["notifyError"]>): Promise<Awaited<ReturnType<User["notifyError"]>>> { return this.user().notifyError(...args) }
-  async browserLease(...args: Parameters<User["browserLease"]>): Promise<Awaited<ReturnType<User["browserLease"]>>> { return this.user().browserLease(...args) }
-  async browserTouch(...args: Parameters<User["browserTouch"]>): Promise<Awaited<ReturnType<User["browserTouch"]>>> { return this.user().browserTouch(...args) }
-  async browserTakeover(...args: Parameters<User["browserTakeover"]>): Promise<Awaited<ReturnType<User["browserTakeover"]>>> { return this.user().browserTakeover(...args) }
-  async browserLive(...args: Parameters<User["browserLive"]>): Promise<Awaited<ReturnType<User["browserLive"]>>> { return this.user().browserLive(...args) }
-  async browserHandBack(...args: Parameters<User["browserHandBack"]>): Promise<Awaited<ReturnType<User["browserHandBack"]>>> { return this.user().browserHandBack(...args) }
-  async browserDead(...args: Parameters<User["browserDead"]>): Promise<Awaited<ReturnType<User["browserDead"]>>> { return this.user().browserDead(...args) }
-  async browserCheck(...args: Parameters<User["browserCheck"]>): Promise<Awaited<ReturnType<User["browserCheck"]>>> { return this.user().browserCheck(...args) }
-  async devBrowser(...args: Parameters<User["devBrowser"]>): Promise<Awaited<ReturnType<User["devBrowser"]>>> { return this.user().devBrowser(...args) }
-  async devUpdateConfig(...args: Parameters<User["devUpdateConfig"]>): Promise<Awaited<ReturnType<User["devUpdateConfig"]>>> { return this.user().devUpdateConfig(...args) }
-  async devPass(...args: Parameters<User["devPass"]>): Promise<Awaited<ReturnType<User["devPass"]>>> { return this.user().devPass(...args) }
-  async ensureHome(...args: Parameters<User["ensureHome"]>): Promise<Awaited<ReturnType<User["ensureHome"]>>> { return this.user().ensureHome(...args) }
-  async setAgentModel(...args: Parameters<User["setAgentModel"]>): Promise<Awaited<ReturnType<User["setAgentModel"]>>> { return this.user().setAgentModel(...args) }
-  async userSettings(...args: Parameters<User["userSettings"]>): Promise<Awaited<ReturnType<User["userSettings"]>>> { return this.user().userSettings(...args) }
-  async setUserSettings(...args: Parameters<User["setUserSettings"]>): Promise<Awaited<ReturnType<User["setUserSettings"]>>> { return this.user().setUserSettings(...args) }
 }
 
 

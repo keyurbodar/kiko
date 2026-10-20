@@ -23,7 +23,7 @@ beforeAll(async () => {
     compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars", CREDENTIALS_KEK: V1.current.secret },
     durableObjects: {
-      USER: { className: "UserDO", useSQLite: true },
+      OWNER: { className: "OwnerDO", useSQLite: true },
       VAULT: { className: "VaultDO", useSQLite: true },
     },
     handleRuntimeStdio(stdout, stderr) {
@@ -76,7 +76,7 @@ test("the keyring is the one secret from env", () => {
   expect(() => keyringFromEnv({ CREDENTIALS_KEK: "" })).toThrow(CryptoError)
 })
 
-test("connect, list, and disconnect through the real UserDO return no key", async () => {
+test("connect, list, and disconnect through the real OwnerDO return no key", async () => {
   const user = fresh()
   const key = newKey()
   const info = await rpc(user, "connectProvider", "opencode-go", key)

@@ -11,6 +11,7 @@ type StatementRow = {
 }
 
 const counters = new Map<string, number>()
+const instrumentation = new Map<string, boolean>()
 // One row per (object, normalized statement). The label never holds a binding, so a parameter value cannot
 // reach the stats route.
 const statements = new Map<string, StatementRow>()
@@ -40,7 +41,10 @@ function settle(): void {
     const rowsRead = cursor.rowsRead
     const rowsWritten = cursor.rowsWritten
     bump(`${kind}.rowsRead`, rowsRead)
-    if (write) bump(`${kind}.rowsWritten`, rowsWritten)
+    if (write) {
+      bump(`${kind}.rowsWritten`, rowsWritten)
+      bump(`${kind}.sqlRowsWritten`, rowsWritten)
+    }
     const row = statementRow(kind, sql)
     row.statements += 1
     row.rowsRead += rowsRead
@@ -52,6 +56,9 @@ function settle(): void {
 // production bundle. A dev build wires the patch to these counters through one port.
 const port: DevCounterPort = {
   bump,
+  instrumentation(kind, complete) {
+    instrumentation.set(kind, complete && instrumentation.get(kind) !== false)
+  },
   track(kind, cursor, write, sql) {
     open.push({ kind, write, sql, cursor })
     if (open.length > MAX_OPEN) settle()
@@ -94,6 +101,18 @@ function statementReport(limit = MAX_STATEMENTS): { statements: StatementRow[]; 
   return { statements: rows.slice(0, limit), statementsOmitted: Math.max(0, rows.length - limit) }
 }
 
+
+export function billedWrites(values: Readonly<Record<string, number>>): {
+  sqlPhysical: number; kvKeysPut: number; kvKeysDeleted: number; setAlarm: number; total: number
+} {
+  const sum = (suffix: string) => Object.entries(values).reduce((total, [key, value]) => key.endsWith(`.${suffix}`) ? total + value : total, 0)
+  const sqlPhysical = sum("sqlRowsWritten")
+  const kvKeysPut = sum("kvKeysPut")
+  const kvKeysDeleted = sum("kvKeysDeleted")
+  const setAlarm = sum("alarmWrites")
+  return { sqlPhysical, kvKeysPut, kvKeysDeleted, setAlarm, total: sqlPhysical + kvKeysPut + kvKeysDeleted + setAlarm }
+}
+
 export function devStatsRoute(request: Request, local: boolean): Response | null {
   const url = new URL(request.url)
   if (!url.pathname.startsWith("/api/dev/stats")) return null
@@ -107,7 +126,10 @@ export function devStatsRoute(request: Request, local: boolean): Response | null
   if (url.pathname === "/api/dev/stats" && request.method === "GET") {
     settle()
     return Response.json({
+      billingVersion: instrumentation.size > 0 && [...instrumentation.values()].every(Boolean) ? 1 : 0,
+      instrumentation: Object.fromEntries(instrumentation),
       counters: Object.fromEntries([...counters].sort(([a], [b]) => a.localeCompare(b))),
+      billedWrites: billedWrites(Object.fromEntries(counters)),
       ...statementReport(),
     })
   }

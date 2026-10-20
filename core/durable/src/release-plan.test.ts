@@ -23,7 +23,16 @@ describe("selectMigrations", () => {
 })
 
 describe("buildMetadata", () => {
-  const manifest = { main_module: "index.js", compatibility_date: "2026-09-01", compatibility_flags: ["nodejs_compat"] } as ReleaseManifest
+  const manifest: ReleaseManifest = {
+    version: "0.5.0",
+    protocol: 3,
+    migrations: all,
+    modules: [],
+    main_module: "index.js",
+    compatibility_date: "2026-09-01",
+    compatibility_flags: ["nodejs_compat"],
+    durable_objects: [{ name: "OWNER", class_name: "OwnerDO" }],
+  }
   const plan = selectMigrations(all, null)
 
   test("first install carries secrets and no keep_bindings", () => {
@@ -43,7 +52,7 @@ describe("buildMetadata", () => {
     ["inherit", [{ type: "inherit", name: "FILES" }]],
     ["none", []],
   ])("files %s", (files, expected) => {
-    const meta = buildMetadata(manifest, plan, null, files)
+    const meta = buildMetadata(manifest, plan, null, files, files === "inherit" ? ["FILES"] : [])
     expect(meta.bindings.filter((b) => b.name === "FILES") as unknown[]).toEqual(expected)
     expect(meta.bindings.filter((b) => b.type === "durable_object_namespace")).toEqual([
       { type: "durable_object_namespace", name: "OWNER", class_name: "OwnerDO" },

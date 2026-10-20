@@ -19,7 +19,7 @@ export async function searchRoute(request: Request, env: Env): Promise<Response 
 	const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || DEFAULT_LIMIT, 1), MAX_LIMIT)
 	if (!query.trim()) return Response.json({ results: [], next: null, partial: false } satisfies ChatSearchPage)
 
-	const chats = (await ownerStub(env.OWNER, user.id).listChats()).sort((a, b) => b.updatedAt - a.updatedAt)
+	const chats = (await ownerStub(env.OWNER, user.id).userCall("listChats", [])).sort((a, b) => b.updatedAt - a.updatedAt)
 	const searched = chats.slice(0, MAX_ROOMS)
 	const pages = await Promise.all(
 		searched.map((chat) =>

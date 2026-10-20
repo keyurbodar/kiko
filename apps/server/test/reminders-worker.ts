@@ -1,29 +1,17 @@
-import { RoomDO as BaseRoom } from "../src/room/room-do"
-import { roomName, userStub } from "../src/lib/names"
-import type { UserDO } from "../src/user/user-do"
-
-export { UserDO } from "../src/user/user-do"
-
-export class RoomDO extends BaseRoom {
-  async routineTriggers() {
-    return JSON.parse(this.log.meta("routines") ?? "[]")
-  }
-
-  async messages() {
-    return this.log.snapshot().messages
-  }
+import { OwnerDO } from "../src/owner/owner-do"
+import { ownerName } from "../src/lib/names"
+export class ReminderOwner extends OwnerDO {
+  async routineTriggers(roomId: string) { return JSON.parse(this.room(roomId).log.meta("routines") ?? "[]") }
+  async messages(roomId: string) { return this.room(roomId).log.snapshot().messages }
 }
-
-type Env = { USER: DurableObjectNamespace<UserDO>; ROOM: DurableObjectNamespace<RoomDO> }
-
+type Env = { OWNER: DurableObjectNamespace<ReminderOwner> }
 export default {
   async fetch(request: Request, env: Env) {
     const [, kind, user, roomId] = new URL(request.url).pathname.split("/")
-    if (kind === "triggers") return Response.json(await env.ROOM.get(env.ROOM.idFromName(roomName(user!, roomId!))).routineTriggers())
-    if (kind === "room") return Response.json(await env.ROOM.get(env.ROOM.idFromName(roomName(user!, roomId!))).messages())
-    const stub = userStub(env.USER, user!)
-    const { method, args } = (await request.json()) as { method: string; args: unknown[] }
-    const result = await (stub as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[method]!(...args)
-    return Response.json({ result: result ?? null })
+    const stub = env.OWNER.get(env.OWNER.idFromName(ownerName(user!)))
+    if (kind === "triggers") return Response.json(await stub.routineTriggers(roomId!))
+    if (kind === "room") return Response.json(await stub.messages(roomId!))
+    const { method, args } = await request.json<{ method: Parameters<ReminderOwner["userCall"]>[0]; args: Parameters<ReminderOwner["userCall"]>[1] }>()
+    return Response.json({ result: await stub.userCall(method, args) ?? null })
   },
 }

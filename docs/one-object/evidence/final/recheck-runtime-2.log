@@ -1,0 +1,83 @@
+bun test v1.3.14 (0d9b296a)
+
+test/run-invocation.test.ts:
+host test: admitting
+host test: admitted {
+  calls: 0,
+  effects: [],
+  requested: [ "burst:ce447485e14db73599c501aa7513a474946512bcec6c34c0ea0ea22b99dc5c9d" ],
+  busy: true,
+  alarmAt: 1792476134693,
+}
+host test: running 0
+host test: outcome continue 40
+host test: running 1
+host test: outcome continue 40
+host test: running 2
+host test: outcome continue 40
+host test: running 3
+host test: outcome done 1
+33 |       expect(continuations).toBeLessThan(10)
+34 |       continue
+35 |     }
+36 |     expect(continuations).toBeGreaterThanOrEqual(3)
+37 |     expect(result.effects).toEqual(Array.from({ length: 60 }, (_, n) => n))
+38 |     expect(result.messages.filter((m) => m.role === "toolResult")).toHaveLength(60)
+                                                                        ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 60
+Received length: 0
+
+      at <anonymous> (/home/keyur/.t3/worktrees/kiko/one-object-integrated/apps/server/test/run-invocation.test.ts:38:68)
+(fail) admission stays paused and run RPCs preserve setup across more than three planned continuations [451.37ms]
+
+test/agent-model.test.ts:
+killed 1 dangling process
+(fail) changing an agent's model configures its retained Harness before the next run [30000.19ms]
+  ^ this test timed out after 30000ms.
+
+test/history-archive.test.ts:
+(pass) archives only complete days older than 30 days and writes once per current day [23.19ms]
+(pass) full Message semantics survive and reaction edits during R2 I/O stay hot [11.33ms]
+(pass) failure before put retains all rows; process loss after put recovers without another write [14.61ms]
+(pass) missing R2 keeps all history and does not consult archive state [7.98ms]
+(pass) a 5000-row archive day yields an honest cursor within its time budget [52.71ms]
+(pass) a pending day larger than 2 MB is chunked, Unicode-safe, and recoverable [363.83ms]
+(pass) hot reply previews still resolve after their target crosses into R2 [7.42ms]
+(pass) a complete hot history window remains available when R2 is offline [4.88ms]
+(pass) archived messages can be edited, reacted to, and deleted without resurrecting stale R2 content [11.66ms]
+(pass) erasure waits for the active archive write and prevents future writes [5.65ms]
+(pass) pending archive rows and completion state are isolated by room [6.08ms]
+(pass) archived unread messages remain counted and hydration does not double count them [7.83ms]
+(pass) a mutation waiting on R2 cannot restore data after erasure [5.94ms]
+(pass) cold model recall and zoom retain turn ids and filtering without restoring SQL messages [9.83ms]
+(pass) hydrated old search matches neither hide newer archived hits nor lose the next page [9.80ms]
+
+test/workers.test.ts:
+(pass) (a) a human message gets an answer while a worker's tool still hangs [2733.23ms]
+(pass) (b) steer_work reaches the worker after its tool, and its answer reflects it [102.03ms]
+(pass) (c) stop_work aborts the hanging tool, and a stopped worker that changed nothing sends no report [1576.41ms]
+(pass) (d) a finished worker reaches the talker once, even when its delivery runs twice [1584.87ms]
+(pass) (e) the object restarts while a worker hangs; the worker finishes and its result still reaches the talker [104.43ms]
+worker w1 stopped after 3 resumes that never finished
+(pass) a worker that outlives five restarts reports failed once, and the agent keeps its state [198.63ms]
+(pass) a worker that survives two restarts and is then released reports done once [125.63ms]
+(pass) (f) a fourth worker at once is refused [62.65ms]
+(pass) (g) a human message during a run that already posted a bubble steers, never queues [0.20ms]
+(pass) (h) a worker that wrote two files and is stopped names both in the lead's note and in its report [216.06ms]
+(pass) (k) a worker stopped while its bash command is saving still names every file the save wrote [109.59ms]
+(pass) (i) a worker whose one bash command wrote two files and is stopped names both in the lead's note and in its report [78.63ms]
+(pass) memory invalidation discards a running worker context and refuses to resume it [97.55ms]
+(pass) memory invalidation retires finished workers and drops queued reports from their old context [121.22ms]
+(pass) an ordinary memory refresh preserves workers and delivers their reports [65.85ms]
+
+2 tests failed:
+(fail) admission stays paused and run RPCs preserve setup across more than three planned continuations [451.37ms]
+(fail) changing an agent's model configures its retained Harness before the next run [30000.19ms]
+  ^ this test timed out after 30000ms.
+
+ 30 pass
+ 2 fail
+ 126 expect() calls
+Ran 32 tests across 4 files. [39.47s]

@@ -9,13 +9,13 @@ Kiko is a general-purpose AI chat web app. People text one agent or a team of ag
 3. **Human pacing.** An agent reads a burst of messages together and answers once, in short bubbles.
 4. **The human outranks every agent.**
 5. **One owner per Worker.** Only the Worker builds a Durable Object name, through `apps/server/src/lib/names.ts`, from the session's owner id (`"owner"` in production).
-6. **Keys stay on the server.** Credentials are encrypted in `UserDO`, never logged, never sent to the client.
+6. **Keys stay on the server.** Credentials are encrypted in `OwnerDO`, never logged, never sent to the client.
 7. **Sentence case.** Interface strings are sentence case. Names keep their own casing: Kiko, Anthropic, Claude Opus 4.6.
 
 ## Glossary
 
-- **Room.** A chat with one human and one or more agents. `RoomDO`.
-- **Agent.** A room member with its own Durable Object, inbox, and `pi-durable` harness. `AgentDO`.
+- **Room.** A chat with one human and one or more agents. a plain service inside `OwnerDO`.
+- **Agent.** A room member with its own journal namespace and `pi-durable` harness inside `OwnerDO`.
 - **Lead.** The agent that gets untagged messages in a room.
 - **Worker.** A background child conversation inside an agent. Not a room member.
 - **Burst.** The human messages that arrive before a pause. Delivered together.
@@ -25,10 +25,10 @@ Kiko is a general-purpose AI chat web app. People text one agent or a team of ag
 
 ## Ways to hurt yourself
 
-- `pi-durable` is an npm dependency. Extend it only through its extension points.
+- `pi-durable` is an npm dependency. Extend it only through its extension points. Pin `@earendil-works/pi-durable`, `@earendil-works/pi-ai` and `@earendil-works/chord` to the same exact version and bump them together.
 - `receive()` stores and returns; the run happens later.
-- Do not do CPU-heavy work in a Worker handler. Put it in a Durable Object.
-- Do not fetch the outside from an agent's run except through `AgentDO.egress`.
+- Do not do CPU-heavy work in a Worker handler. Put it in `OwnerDO`.
+- Do not fetch the outside from an agent's run except through the agent’s budgeted egress.
 - Do not bind one SQL value per list item. Pass the list as one JSON value and read it with `json_each(?)`.
 - Do not edit or move a table's step in `schema.ts`. Append a new step at the end.
 - Do not use `setTimeout` to schedule work in a Durable Object. Use `owner/clock.ts`.
@@ -78,6 +78,12 @@ A test must fail when the behavior breaks. A test that only proves the code runs
 - Validate at the edge: the socket, the HTTP route, the tool arguments. Trust types inside.
 - Use Kobalte, Corvu, `@kiko/ui`, and solid-primitives before writing a component.
 - Do not use dot separators such as `•` or `·` in interface details.
+
+## Releases
+
+- `latest.json` remains the legacy release index for pre-OwnerDO installs. Publish new releases through `latest-owner.json`; retain all immutable historical releases.
+- Moving an existing install through the v5 class deletion requires an explicit installer reset acknowledgement. It permanently deletes old object databases and cannot roll back by redeploying an old bundle. Worker secrets survive; old R2 bytes survive without their deleted indexes.
+- Only OwnerDO creates the schema and writes the physical alarm. Local services use explicit composite SQL keys, metadata scopes and clock ports. No runtime SQL rewriting, per-room tables or compatibility views.
 
 ## Pull requests
 

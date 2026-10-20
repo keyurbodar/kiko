@@ -2,7 +2,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import { AssistantEntry, type ConversationId, type Harness, type SettledSubmissionRecord, type SubmissionId } from "@earendil-works/pi-durable"
 import type { Envelope } from "./envelope"
-import { addColumn, dropColumn, type Step } from "@kiko/durable/migrate"
+import { type Step } from "@kiko/durable/migrate"
 
 const context = BACKGROUND_CONTEXT
 
@@ -85,44 +85,27 @@ export type WorkersOptions = {
   deliver: (envelope: Envelope) => Promise<unknown>
   onChange?: (running: number) => void
   now?: () => number
+  agentKey: string
 }
 
-export const WORKERS_STEPS: Step[] = [
+export const INITIAL_WORKERS_STEPS: Step[] = [
   `CREATE TABLE IF NOT EXISTS workers (
-    n INTEGER PRIMARY KEY,
-    id TEXT NOT NULL UNIQUE,
-    task_id TEXT NOT NULL UNIQUE,
-    task TEXT NOT NULL,
-    conversation_id INTEGER,
-    submission_id INTEGER,
-    status TEXT NOT NULL,
-    step TEXT,
-    steps INTEGER NOT NULL DEFAULT 0,
-    delivered INTEGER NOT NULL DEFAULT 0,
-    origin TEXT NOT NULL,
-    started_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    resumes INTEGER NOT NULL DEFAULT 0
-  ) STRICT`,
-  // A table from before the step count has no steps column.
-  addColumn("workers", "steps", "INTEGER NOT NULL DEFAULT 0"),
-  // One row per path a worker's calls saved. The key makes a replayed call a no-op, and a row per path keeps each write O(1).
+    agent TEXT NOT NULL, n INTEGER NOT NULL, id TEXT NOT NULL, task_id TEXT NOT NULL,
+    task TEXT NOT NULL, conversation_id INTEGER, submission_id INTEGER, status TEXT NOT NULL,
+    step TEXT, steps INTEGER NOT NULL DEFAULT 0, delivered INTEGER NOT NULL DEFAULT 0,
+    started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, resumes INTEGER NOT NULL DEFAULT 0,
+    run_id TEXT, PRIMARY KEY (agent, n), UNIQUE (agent, id), UNIQUE (agent, task_id)
+  ) WITHOUT ROWID, STRICT`,
   `CREATE TABLE IF NOT EXISTS worker_changes (
-    work_id TEXT NOT NULL,
-    path TEXT NOT NULL,
-    PRIMARY KEY (work_id, path)
-  ) STRICT`,
+    agent TEXT NOT NULL, work_id TEXT NOT NULL, path TEXT NOT NULL, n INTEGER NOT NULL,
+    PRIMARY KEY (agent, work_id, path)
+  ) WITHOUT ROWID, STRICT`,
 ]
-
-// Appended after every other step of the object that spreads WORKERS_STEPS: the run origin is gone, and its NOT NULL column would reject every new row.
-export const WORKERS_TAIL: Step[] = [dropColumn("workers", "origin")]
-
-// The run that started a worker. Appended after HOST_TAIL, never before a step that exists.
-export const WORKERS_RUN: Step[] = [addColumn("workers", "run_id", "TEXT")]
 
 export class Workers {
   private readonly sql: SqlStorage
   private readonly now: () => number
+  private readonly agent: string
   private harness?: Harness
 
   constructor(
@@ -130,20 +113,21 @@ export class Workers {
     private readonly options: WorkersOptions,
   ) {
     this.sql = storage.sql
+    this.agent = options.agentKey
     this.now = options.now ?? Date.now
   }
 
   list(): Work[] {
-    return this.sql.exec<Row>("SELECT * FROM workers ORDER BY n").toArray().map(toWork)
+    return this.sql.exec<Row>("SELECT * FROM workers WHERE agent = ? ORDER BY n", this.agent).toArray().map(toWork)
   }
 
   get(id: string): Work | null {
-    const row = this.sql.exec<Row>("SELECT * FROM workers WHERE id = ?", id).toArray()[0]
+    const row = this.sql.exec<Row>("SELECT * FROM workers WHERE id = ? AND agent = ?", id, this.agent).toArray()[0]
     return row ? toWork(row) : null
   }
 
   byTask(taskId: string): Work | null {
-    const row = this.sql.exec<Row>("SELECT * FROM workers WHERE task_id = ?", taskId).toArray()[0]
+    const row = this.sql.exec<Row>("SELECT * FROM workers WHERE task_id = ? AND agent = ?", taskId, this.agent).toArray()[0]
     return row ? toWork(row) : null
   }
 
@@ -157,18 +141,19 @@ export class Workers {
   }
 
   byConversation(conversationId: ConversationId): Work | null {
-    const row = this.sql.exec<Row>("SELECT * FROM workers WHERE conversation_id = ?", conversationId).toArray()[0]
+    const row = this.sql.exec<Row>("SELECT * FROM workers WHERE conversation_id = ? AND agent = ?", conversationId, this.agent).toArray()[0]
     return row ? toWork(row) : null
   }
 
   reserve(taskId: string, task: string, runId: string | null = null): Work | null {
     if (this.live().length >= MAX_WORKERS) return null
     const now = this.now()
-    this.sql.exec("DELETE FROM workers WHERE delivered = 1 AND updated_at < ? AND n < (SELECT max(n) FROM workers)", now - KEEP_DELIVERED_MS)
-    this.sql.exec("DELETE FROM worker_changes WHERE work_id NOT IN (SELECT id FROM workers)")
-    const n = this.sql.exec<{ n: number }>("SELECT coalesce(max(n), 0) + 1 AS n FROM workers").one().n
+    this.sql.exec("DELETE FROM workers WHERE delivered = 1 AND updated_at < ? AND n < (SELECT max(n) FROM workers WHERE agent = ?) AND agent = ?", now - KEEP_DELIVERED_MS, this.agent, this.agent)
+    this.sql.exec("DELETE FROM worker_changes WHERE agent = ? AND work_id NOT IN (SELECT id FROM workers WHERE agent = ?)", this.agent, this.agent)
+    const n = this.sql.exec<{ n: number }>("SELECT coalesce(max(n), 0) + 1 AS n FROM workers WHERE agent = ?", this.agent).one().n
     this.sql.exec(
-      "INSERT INTO workers (n, id, task_id, task, status, run_id, started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO workers (agent, n, id, task_id, task, status, run_id, started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      this.agent,
       n,
       `w${n}`,
       taskId,
@@ -186,19 +171,19 @@ export class Workers {
     const work = this.get(id)
     if (!work) return
     // A placement only promotes a reserved worker. One stopped in between stays stopped.
-    this.sql.exec("UPDATE workers SET conversation_id = ?, status = ?, updated_at = ? WHERE id = ?", conversationId, work.status === "pending" ? transition(work.status, "submit") : work.status, this.now(), id)
+    this.sql.exec("UPDATE workers SET conversation_id = ?, status = ?, updated_at = ? WHERE id = ? AND agent = ?", conversationId, work.status === "pending" ? transition(work.status, "submit") : work.status, this.now(), id, this.agent)
     if (work.status === "pending") this.changed()
   }
 
   follow(id: string, submissionId: SubmissionId): void {
     const work = this.get(id)
     if (!work || work.submissionId === submissionId) return
-    this.sql.exec("UPDATE workers SET submission_id = ?, status = ?, delivered = 0, updated_at = ? WHERE id = ?", submissionId, transition(work.status, "submit"), this.now(), id)
+    this.sql.exec("UPDATE workers SET submission_id = ?, status = ?, delivered = 0, updated_at = ? WHERE id = ? AND agent = ?", submissionId, transition(work.status, "submit"), this.now(), id, this.agent)
     this.changed()
   }
 
   step(conversationId: ConversationId, step: string): boolean {
-    const cursor = this.sql.exec("UPDATE workers SET step = ?, steps = steps + 1, updated_at = ? WHERE conversation_id = ? AND status = 'running'", step, this.now(), conversationId)
+    const cursor = this.sql.exec("UPDATE workers SET step = ?, steps = steps + 1, updated_at = ? WHERE conversation_id = ? AND status = 'running' AND agent = ?", step, this.now(), conversationId, this.agent)
     cursor.toArray()
     return cursor.rowsWritten > 0
   }
@@ -206,15 +191,15 @@ export class Workers {
   // A path is kept once, so a replayed call adds nothing. The files extension calls this at each commit, so a stop or a restart after the commit keeps the path.
   touched(conversationId: ConversationId, paths: readonly string[]): void {
     if (!paths.length) return
-    const row = this.sql.exec<{ id: string }>("SELECT id FROM workers WHERE conversation_id = ?", conversationId).toArray()[0]
+    const row = this.sql.exec<{ id: string }>("SELECT id FROM workers WHERE conversation_id = ? AND agent = ?", conversationId, this.agent).toArray()[0]
     if (!row) return
-    this.sql.exec("INSERT OR IGNORE INTO worker_changes (work_id, path) SELECT ?, value FROM json_each(?)", row.id, JSON.stringify(paths))
+    this.sql.exec("INSERT OR IGNORE INTO worker_changes (agent, work_id, path, n) SELECT ?, ?, value, (SELECT coalesce(max(n), 0) FROM worker_changes WHERE agent = ? AND work_id = ?) + CAST(key AS INTEGER) + 1 FROM json_each(?)", this.agent, row.id, this.agent, row.id, JSON.stringify(paths))
   }
 
   // The first paths a worker changed, in the order they changed, and how many more.
   changedPaths(id: string): { paths: string[]; more: number } {
-    const paths = this.sql.exec<{ path: string }>("SELECT path FROM worker_changes WHERE work_id = ? ORDER BY rowid LIMIT ?", id, LISTED_PATHS).toArray()
-    const total = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM worker_changes WHERE work_id = ?", id).one().n
+    const paths = this.sql.exec<{ path: string }>("SELECT path FROM worker_changes WHERE work_id = ? AND agent = ? ORDER BY n, path LIMIT ?", id, this.agent, LISTED_PATHS).toArray()
+    const total = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM worker_changes WHERE work_id = ? AND agent = ?", id, this.agent).one().n
     return { paths: paths.map((r) => r.path), more: total - paths.length }
   }
 
@@ -227,7 +212,7 @@ export class Workers {
     const work = this.get(id)
     if (!work || ended(work.status)) return work
     const next = transition(work.status, "stop")
-    this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ?", next, this.now(), id)
+    this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ? AND agent = ?", next, this.now(), id, this.agent)
     this.changed()
     void this.abort(work)
     return this.get(id)
@@ -236,7 +221,7 @@ export class Workers {
   async stopAll(): Promise<void> {
     const live = this.live()
     if (!live.length) return
-    this.sql.exec("UPDATE workers SET status = 'stopped', delivered = 1, updated_at = ? WHERE status IN ('pending', 'running')", this.now())
+    this.sql.exec("UPDATE workers SET status = 'stopped', delivered = 1, updated_at = ? WHERE status IN ('pending', 'running') AND agent = ?", this.now(), this.agent)
     this.changed()
     await Promise.all(live.map((work) => this.abort(work)))
   }
@@ -244,8 +229,8 @@ export class Workers {
   // Their ids start over, so no row may point into them.
   forget(): void {
     this.sql.exec(
-      "UPDATE workers SET status = CASE WHEN status IN ('pending', 'running') THEN 'failed' ELSE status END, delivered = 1, task_id = 'gone:' || id, conversation_id = NULL, submission_id = NULL, updated_at = ? WHERE task_id NOT LIKE 'gone:%'",
-      this.now(),
+      "UPDATE workers SET status = CASE WHEN status IN ('pending', 'running') THEN 'failed' ELSE status END, delivered = 1, task_id = 'gone:' || id, conversation_id = NULL, submission_id = NULL, updated_at = ? WHERE task_id NOT LIKE 'gone:%' AND agent = ?",
+      this.now(), this.agent,
     )
     this.changed()
   }
@@ -254,8 +239,8 @@ export class Workers {
     const previous = this.list()
     // Detach first so a settling report cannot race the abort.
     this.forget()
-    this.sql.exec("UPDATE workers SET task = '', step = NULL")
-    this.sql.exec("DELETE FROM worker_changes")
+    this.sql.exec("UPDATE workers SET task = '', step = NULL WHERE agent = ?", this.agent)
+    this.sql.exec("DELETE FROM worker_changes WHERE agent = ?", this.agent)
     await Promise.all(previous.map(async (work) => {
       if (work.conversationId === null) return
       const conversation = await harness.conversation(work.conversationId, context)
@@ -275,10 +260,10 @@ export class Workers {
     const live = new Set((await harness.inspect(context)).tasks.map((t) => t.record.conversationId))
     for (const work of running) {
       if (!live.has(work.conversationId)) continue
-      const resumes = this.sql.exec<{ resumes: number }>("UPDATE workers SET resumes = resumes + 1 WHERE id = ? RETURNING resumes", work.id).one().resumes
+      const resumes = this.sql.exec<{ resumes: number }>("UPDATE workers SET resumes = resumes + 1 WHERE id = ? AND agent = ? RETURNING resumes", work.id, this.agent).one().resumes
       if (resumes <= MAX_WORKER_RESUMES) continue
       console.error(`worker ${work.id} stopped after ${MAX_WORKER_RESUMES} resumes that never finished`)
-      this.sql.exec("UPDATE workers SET status = 'failed', updated_at = ? WHERE id = ?", this.now(), work.id)
+      this.sql.exec("UPDATE workers SET status = 'failed', updated_at = ? WHERE id = ? AND agent = ?", this.now(), work.id, this.agent)
       this.changed()
       this.abort(work)
     }
@@ -317,24 +302,24 @@ export class Workers {
     const newer = (await harness.inspect(context)).submissions.filter((s) => s.conversationId === work.conversationId).at(-1)
     if (harness !== this.harness) return
     if (newer) {
-      this.sql.exec("UPDATE workers SET submission_id = ? WHERE id = ? AND submission_id = ?", newer.id, id, submissionId)
+      this.sql.exec("UPDATE workers SET submission_id = ? WHERE id = ? AND submission_id = ? AND agent = ?", newer.id, id, submissionId, this.agent)
       return
     }
     const marked = this.get(id)?.status
     const status: WorkStatus = marked === "stopped" || marked === "failed" ? marked : settled?.status === "done" ? transition("running", "done") : transition("running", "lose")
     // The agent stopped it, so it already knows. A report would only wake it to say so again, unless files changed.
     if (status === "stopped" && !this.changedPaths(id).paths.length) {
-      this.sql.exec("UPDATE workers SET status = 'stopped', delivered = 1, resumes = 0, updated_at = ? WHERE id = ? AND submission_id = ?", this.now(), id, submissionId)
+      this.sql.exec("UPDATE workers SET status = 'stopped', delivered = 1, resumes = 0, updated_at = ? WHERE id = ? AND submission_id = ? AND agent = ?", this.now(), id, submissionId, this.agent)
       return this.changed()
     }
     const report = marked === "failed" ? GAVE_UP : await this.report(harness, work.conversationId, status, settled)
     const now = this.get(id)
     if (harness !== this.harness || !now || now.delivered || now.submissionId !== submissionId) return
-    this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ?", status, this.now(), id)
+    this.sql.exec("UPDATE workers SET status = ?, updated_at = ? WHERE id = ? AND agent = ?", status, this.now(), id, this.agent)
     // A done worker's report is its own words. A worker that ended early says what it left behind.
     const text = status === "done" ? report : `${report} changed: ${listed(this.changedPaths(id))}.`
     await this.options.deliver(workEnvelope(now, submissionId, status, text))
-    this.sql.exec("UPDATE workers SET delivered = 1, resumes = 0 WHERE id = ? AND submission_id = ?", id, submissionId)
+    this.sql.exec("UPDATE workers SET delivered = 1, resumes = 0 WHERE id = ? AND submission_id = ? AND agent = ?", id, submissionId, this.agent)
     // After the report is in the inbox, so the agent does not show idle before the run that tells the human.
     if (now.status === "running") this.changed()
   }

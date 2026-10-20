@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { MemoryStorage, ROOT_CONVERSATION_ID, type TaskId, type TaskInspection } from "@earendil-works/pi-durable"
-import { Clock, type ClockSnapshot } from "../src/owner/clock"
+import { Clock, createServiceClock, runDue, type ClockSnapshot } from "../src/owner/clock"
 
 function fixture() {
   let now = Date.UTC(2026, 9, 20)
@@ -87,4 +87,38 @@ test("the earliest loaded, unloaded, queued, hello or lease deadline wins", asyn
   f.snapshot({ loaded: [], unloaded: [at + 8000], lease: at + 7000, hello: at + 6000 })
   await f.clock.refresh()
   expect(f.alarm()).toBe(at + 6000)
+})
+
+function serviceClock() {
+  const values = new Map<string, string>()
+  let projected: number | undefined
+  let writes = 0
+  const clock = createServiceClock({
+    metadata: { get: (key) => values.get(key) ?? null, set: (key, value) => { values.set(key, value); writes++ }, delete: (key) => { values.delete(key); writes++ } },
+    publish: async (at, persist) => { persist(); projected = at },
+  })
+  return { clock, values, projected: () => projected, writes: () => writes }
+}
+
+test("a failed due handler retains its durable deadline for Cloudflare retry and never schedules a new one", async () => {
+  const f = serviceClock()
+  await f.clock.setWakeup("burst", 100)
+  const writes = f.writes()
+  await expect(runDue(f.clock, await f.clock.dueWakeups(100), { burst: () => { throw new Error("failed delivery") } })).rejects.toThrow("Clock handlers failed")
+  expect(f.clock.deadline("burst")).toBe(100)
+  expect(f.projected()).toBe(100)
+  expect(f.writes()).toBe(writes)
+  let delivered = 0
+  await runDue(f.clock, await f.clock.dueWakeups(100), { burst: () => { delivered++ } })
+  expect(delivered).toBe(1)
+  expect(f.clock.deadline("burst")).toBeUndefined()
+  expect(f.projected()).toBeUndefined()
+})
+
+test("a handler's replacement deadline survives its successful acknowledgment", async () => {
+  const f = serviceClock()
+  await f.clock.setWakeup("burst", 100)
+  await runDue(f.clock, await f.clock.dueWakeups(100), { burst: () => f.clock.setWakeup("burst", 200) })
+  expect(f.clock.deadline("burst")).toBe(200)
+  expect(f.projected()).toBe(200)
 })

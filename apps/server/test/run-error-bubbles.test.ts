@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { Outbox, type RoomPort } from "../src/agent/outbox"
-import { AGENT_STEPS } from "../src/agent/schema"
+import { INITIAL_AGENT_STEPS } from "../src/agent/schema"
 import { sqlWith } from "./sql-shim"
 
 test("a 429 leaves no bubble, not even from text the failed turn carried, and reports one error when the run ends", async () => {
@@ -16,7 +16,7 @@ test("a 429 leaves no bubble, not even from text the failed turn carried, and re
     react: async () => {},
     runError: async (_r: string, error: unknown) => void errors.push(error),
   } satisfies RoomPort
-  const outbox = new Outbox({ sql: sqlWith(AGENT_STEPS) } as unknown as DurableObjectStorage, () => room, () => "run")
+  const outbox = new Outbox({ sql: sqlWith(INITIAL_AGENT_STEPS) } as unknown as DurableObjectStorage, () => room, () => "run", Date.now, "agent")
   const inner = outbox as unknown as { start(id: string, cursor: number): Promise<void>; entry(e: unknown): Promise<void>; end(id: string): Promise<void> }
   await inner.start("run-1", 0)
   const failed = { role: "assistant", stopReason: "error", errorMessage: "429 rate limit exceeded", provider: "openai", content: [{ type: "text", text: "Wait a minute, then retry." }] }

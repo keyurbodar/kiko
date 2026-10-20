@@ -96,7 +96,7 @@ export function refuse(size: number, env: Env): Response | null {
 
 async function index(env: Env, userId: string, roomId: string, input: NewFile): Promise<Response> {
 	const owner = ownerStub(env.OWNER, userId)
-	const { file, drop, conflict, refused } = roomId === HOME ? await owner.homePut(input) : await owner.roomCall(roomId, "putFile", [input])
+	const { file, drop, conflict, refused } = roomId === HOME ? await owner.userCall("homePut", [input]) : await owner.roomCall(roomId, "putFile", [input])
 	if (drop) await deleteFiles(fileStore(env), drop)
 	if (refused) return Response.json({ error: refused.message }, { status: 409 })
 	if (conflict) return Response.json({ error: "conflict", file }, { status: 409 })

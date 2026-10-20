@@ -7,9 +7,22 @@ export type MigrationPlan = { old_tag?: string; new_tag: string; steps: ReleaseM
 
 const BUCKET = "kiko-files"
 
-const BINDINGS = [
-  { type: "durable_object_namespace", name: "OWNER", class_name: "OwnerDO" },
-] as const
+type ReleaseBindings = { name: string; class_name: string }[]
+
+/** Upload bindings are signed with the modules, rather than baked into the installed updater. */
+function releaseBindings(manifest: ReleaseManifest): ReleaseBindings {
+  if (!("durable_objects" in manifest) || !Array.isArray(manifest.durable_objects) || !manifest.durable_objects.length) {
+    throw new Error("This release has no signed Durable Object bindings. Use the installer for the OwnerDO upgrade.")
+  }
+  return manifest.durable_objects.map((binding: unknown) => {
+    if (!binding || typeof binding !== "object" || !("name" in binding) || typeof binding.name !== "string" || !("class_name" in binding) || typeof binding.class_name !== "string") throw new Error("The release has invalid Durable Object bindings.")
+    return { name: binding.name, class_name: binding.class_name }
+  })
+}
+
+export function destructiveMigration(plan: MigrationPlan): boolean {
+  return plan.steps.some((step) => (step.deleted_classes?.length ?? 0) > 0)
+}
 
 /**
  * Where file bytes live. "r2" binds the bucket (a new install whose bucket exists). "inherit" keeps the
@@ -20,7 +33,6 @@ export type FilesBinding = "r2" | "inherit" | "none"
 
 function filesBinding(files: FilesBinding) {
   if (files === "r2") return [{ type: "r2_bucket", name: "FILES", bucket_name: BUCKET }] as const
-  if (files === "inherit") return [{ type: "inherit", name: "FILES" }] as const
   return []
 }
 
@@ -37,12 +49,16 @@ export function selectMigrations(all: ReleaseMigration[], currentTag: string | n
 
 export type SecretBinding = { type: "secret_text"; name: string; text: string }
 
-export function buildMetadata(manifest: ReleaseManifest, migrations: MigrationPlan, secrets: SecretBinding[] | null, files: FilesBinding) {
+export function buildMetadata(manifest: ReleaseManifest, migrations: MigrationPlan, secrets: SecretBinding[] | null, files: FilesBinding, inheritedR2: readonly string[] = []) {
   return {
     main_module: manifest.main_module,
     compatibility_date: manifest.compatibility_date,
     compatibility_flags: manifest.compatibility_flags,
-    bindings: [...BINDINGS, ...filesBinding(files), ...(secrets ?? [])],
+    bindings: [
+      ...releaseBindings(manifest).map((binding) => ({ type: "durable_object_namespace" as const, ...binding })),
+      ...(files === "inherit" ? inheritedR2.map((name) => ({ type: "inherit" as const, name })) : filesBinding(files)),
+      ...(secrets ?? []),
+    ],
     migrations,
     ...(secrets ? {} : { keep_bindings: ["secret_text"] }),
   }

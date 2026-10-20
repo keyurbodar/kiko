@@ -4,7 +4,7 @@ import { sha256Hex } from "@kiko/durable/hash"
 import type { FsEntry, NewFile } from "../src/files/file-index"
 import { BUILTIN_RECIPES } from "../src/recipes/catalog.gen"
 import { RecipeLibrary } from "../src/user/recipe-library"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { sqlWith } from "./sql-shim"
 
 const encoder = new TextEncoder()
@@ -12,7 +12,7 @@ const [slug, builtinText] = BUILTIN_RECIPES[0]!
 const path = `recipes/${slug}/RECIPE.md`
 
 /** A fake drive: file entries under recipes/, bodies by R2 key, and every write and removal. */
-function drive(sql = sqlWith(USER_STEPS)) {
+function drive(sql = sqlWith(OWNER_STEPS)) {
   let entries: FsEntry[] = []
   const bodies = new Map<string, Uint8Array>()
   const writes: NewFile[] = []

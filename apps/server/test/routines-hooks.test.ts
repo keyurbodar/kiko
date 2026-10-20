@@ -4,12 +4,12 @@ import { sha256Hex } from "@kiko/durable/hash"
 import { Reminders } from "../src/user/reminders"
 import { RoutineWiring } from "../src/user/routines-wiring"
 import { sqlWith } from "./sql-shim"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 
 const ROOM = "01J0000000000000000000000R" as RoomId
 
 function routines() {
-  const sql = sqlWith(USER_STEPS)
+  const sql = sqlWith(OWNER_STEPS)
   sql.exec("INSERT INTO room_directory (room_id) VALUES (?)", ROOM)
   const scheduler = { sync: async () => {} }
   const reminders = new Reminders(sql, scheduler, () => Date.now())

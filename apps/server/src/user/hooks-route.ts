@@ -16,6 +16,6 @@ export async function hooksRoute(request: Request, env: Env): Promise<Response |
   const body = await readCapped(request, MAX_HOOK_BYTES)
   if (body === null) return answer(413, { error: "the body is larger than 64 kb" })
   const key = request.headers.get("x-github-delivery") ?? request.headers.get("idempotency-key") ?? request.headers.get("x-request-id") ?? `${(await sha256Hex(body)).slice(0, 32)}:${Math.floor(Date.now() / 60_000)}`
-  const status = await ownerStub(env.OWNER, PRODUCTION_OWNER).routineHook(token, key.slice(0, 128), body)
+  const status = await ownerStub(env.OWNER, PRODUCTION_OWNER).userCall("routineHook", [token, key.slice(0, 128), body])
   return status === "unknown" ? answer(404, { error: "no such hook" }) : answer(202, { status })
 }

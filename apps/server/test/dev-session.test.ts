@@ -33,9 +33,7 @@ async function start(path: string): Promise<string> {
     host: "localhost",
     port: 0,
     durableObjects: {
-      USER: { className: "UserDO", useSQLite: true },
-      ROOM: { className: "RoomDO", useSQLite: true },
-      AGENT: { className: "AgentDO", useSQLite: true },
+      OWNER: { className: "OwnerDO", useSQLite: true },
     },
     serviceBindings: { ASSETS: () => new Response("app shell") },
     bindings: { SESSION_SECRET: "test-secret-that-is-at-least-32-characters-long" },

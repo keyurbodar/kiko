@@ -14,7 +14,7 @@ const agent: Sender = { kind: "agent", slug: ebert }
 function room() {
 	let clock = Date.UTC(2026, 8, 1)
 	const { sql, log, search } = ownerRoomFixture({ now: () => (clock += 60_000) })
-	sql.exec("INSERT INTO members (slug, name, role, model, lead, status, added_seq, removed_at) VALUES ('ebert', 'Ebert', '', '', 1, 'idle', 0, NULL)")
+	sql.exec("INSERT INTO members (room_id, slug, name, role, model, lead, status, added_seq, removed_at) VALUES ('test-room', 'ebert', 'Ebert', '', '', 1, 'idle', 0, NULL)")
 	return { sql, log, search }
 }
 

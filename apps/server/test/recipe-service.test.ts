@@ -6,7 +6,7 @@ import { agentNamed, createAgent } from "../src/user/agents"
 import { RecipeLibrary } from "../src/user/recipe-library"
 import { RecipeService } from "../src/user/recipe-service"
 import { Reminders } from "../src/user/reminders"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { sqlWith } from "./sql-shim"
 
 const roomId = "01J0000000000000000000000R" as RoomId
@@ -16,7 +16,7 @@ const makeRecipe = (every = rule, run = "follow the tea-time skill.", apps = "")
 type Have = ReadonlySet<string> | "off" | null
 
 function setup(apps = "", have: Have = new Set()) {
-  const sql = sqlWith(USER_STEPS)
+  const sql = sqlWith(OWNER_STEPS)
   for (const id of [roomId, "01J0000000000000000000000S"]) sql.exec("INSERT INTO room_directory (room_id) VALUES (?)", id)
   let recipes = [makeRecipe(rule, "follow the tea-time skill.", apps)]
   let connected: Have = have

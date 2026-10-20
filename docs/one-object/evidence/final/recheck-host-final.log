@@ -1,0 +1,59 @@
+bun test v1.3.14 (0d9b296a)
+
+test/run-invocation.test.ts:
+host test: admitting
+host test: admitted {
+  calls: 0,
+  effects: [],
+  requested: [ "burst:ce447485e14db73599c501aa7513a474946512bcec6c34c0ea0ea22b99dc5c9d" ],
+  busy: true,
+  alarmAt: 1792476183657,
+}
+host test: running 0
+host test: outcome continue 40
+host test: running 1
+host test: outcome continue 40
+host test: running 2
+host test: outcome continue 40
+host test: running 3
+host test: outcome done 1
+(pass) admission stays paused and run RPCs preserve setup across more than three planned continuations [585.84ms]
+
+test/memory-context.test.ts:
+killed 1 dangling process
+(fail) (unnamed) [60003.02ms]
+  ^ a beforeEach/afterEach hook timed out for this test.
+
+test/agent-model.test.ts:
+(pass) changing an agent's model configures its retained Harness before the next run [3394.15ms]
+
+test/host-lifecycle.test.ts:
+(pass) stopping a cold agent does not initialize a harness or create recovery work [63.43ms]
+(pass) a finished run leaves no recovery alarm [101.84ms]
+(pass) an always-failing model persists one error and leaves no alarm [46.02ms]
+(pass) a failed harness aborts its Durable Object [78.40ms]
+error: unexpected service in agent probe: cancelRun
+      at ProxyServer.fetch (file:///home/keyur/.t3/worktrees/kiko/one-object-integrated/node_modules/.bun/miniflare@4.20260730.0/node_modules/miniflare/src/workers/core/proxy.worker.ts:173:11)
+(fail) erasing an agent closes its retained harness and clears journal recovery [53.79ms]
+(pass) a persisted recovery alarm resumes a literal mid-tool abort without a human event [61049.62ms]
+(pass) an idle journal over the rows limit compacts once and the next input works [130.23ms]
+(pass) an idle journal over the bytes limit compacts once and the next input works [124.60ms]
+144 |   const second = await until(() => call("status"), (s) => s.wakeups.some((w) => w.key === "recovery" && w.at === times[1]))
+145 |   expect(second.alarmAt).toBe(times[1]!)
+146 |   await call("settle-second")
+147 |   const blocked = await until(() => call("status"), (s) => !s.wakeups.some((w) => w.key === "recovery"))
+148 |   expect(blocked.wakeups).toEqual([{ key: "browser-idle", at: times[1]! + 60_000 }])
+149 |   expect(blocked.alarmAt).toBe(times[1]! + 60_000)
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: 1792476493130
+Received: null
+
+      at <anonymous> (/home/keyur/.t3/worktrees/kiko/one-object-integrated/apps/server/test/host-lifecycle.test.ts:149:27)
+(fail) recovery follows the remaining future task and preserves unrelated wakeups while skipping blocked tasks [38.30ms]
+
+ 9 pass
+ 3 fail
+ 81 expect() calls
+Ran 12 tests across 4 files. [130.31s]

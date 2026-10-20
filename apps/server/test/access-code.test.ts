@@ -39,9 +39,7 @@ async function start(bindings: Record<string, string>): Promise<string> {
     host: "localhost",
     port: 0,
     durableObjects: {
-      USER: { className: "UserDO", useSQLite: true },
-      ROOM: { className: "RoomDO", useSQLite: true },
-      AGENT: { className: "AgentDO", useSQLite: true },
+      OWNER: { className: "OwnerDO", useSQLite: true },
     },
     serviceBindings: { ASSETS: () => new Response("app shell") },
     bindings: { SESSION_SECRET: SECRET, ...bindings },
@@ -134,7 +132,7 @@ describe("a new account", () => {
 
   test("signing in makes the pinned Kiko chat before any /api/me call, so the first socket lists it", async () => {
     const token = await tokenOf(await signIn(origin, { code: CODE }))
-    const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/api/ws/user`, ["kiko", token])
+    const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/api/ws`, ["kiko", token])
     const first = new Promise<{ t: string; snapshot?: { chats: { title: string; pinned: boolean; kiko?: boolean }[] } }>((resolve, reject) => {
       ws.onopen = () => ws.send(JSON.stringify({ t: "hello", lastSeq: 0 }))
       ws.onmessage = (e) => resolve(JSON.parse(String(e.data)))

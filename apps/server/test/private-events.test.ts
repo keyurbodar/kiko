@@ -12,7 +12,7 @@ const agent: Sender = { kind: "agent", slug: ada }
 function room() {
 	let clock = Date.UTC(2026, 8, 1)
 	const { sql, storage, log, search } = ownerRoomFixture({ now: () => (clock += 60_000) })
-	const memory = new RoomMemory(storage, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) }, search)
+	const memory = new RoomMemory(storage, log.roomId, { get: (k) => log.meta(k), set: (k, v) => log.setMeta(k, v) }, search)
 	return { sql, log, memory, search }
 }
 

@@ -139,9 +139,9 @@ export class ComposioConnection {
   }
 
   /** Every agent call passes here, so this is where direct tools are learned. */
-  async call(name: string, args: Record<string, unknown>): Promise<ComposioCallResult> {
+  async call(name: string, args: Record<string, unknown>, egress: typeof fetch = this.fetcher): Promise<ComposioCallResult> {
     const generation = this.store.generation
-    const out = await this.session((target) => callTool(target, name, args, this.fetcher))
+    const out = await this.session((target) => callTool(target, name, args, egress), egress)
     if (out.isError && name === MULTI_EXECUTE) this.forgetFailed(failed(args, undefined), generation)
     if (out.isError || (name !== SEARCH && name !== SCHEMAS && name !== MULTI_EXECUTE)) return out
     const body = resultJson(out)
@@ -154,7 +154,7 @@ export class ComposioConnection {
       // for a tool it already had.
       const used = succeeded(args, body).flatMap((slug) => (listed.has(slug) ? [] : (this.candidates.get(slug) ?? learned.find((t) => t.slug === slug) ?? [])))
       if (used.length) this.store.putLearned(remember(learned, used, Date.now()), generation)
-      for (const c of used) if (!learned.some((t) => t.slug === c.slug)) this.classify(c.slug, generation)
+      for (const c of used) if (!learned.some((t) => t.slug === c.slug)) this.classify(c.slug, generation, egress)
       return out
     }
     for (const c of candidates(body)) {
@@ -162,7 +162,7 @@ export class ComposioConnection {
       this.candidates.set(c.slug, c)
     }
     const missing = schemaRefs(body)
-    if (missing.length) this.loadSchemas(missing, generation)
+    if (missing.length) this.loadSchemas(missing, generation, egress)
     for (const slug of this.candidates.keys()) {
       if (this.candidates.size <= CANDIDATES_MAX) break
       this.candidates.delete(slug)
@@ -176,8 +176,8 @@ export class ComposioConnection {
   }
 
   /** A search names some tools with a `schemaRef` and no schema. Load the schemas so those can be learned too. */
-  private loadSchemas(slugs: string[], generation: number): void {
-    const work = this.session((target) => callTool(target, SCHEMAS, { tool_slugs: slugs }, this.fetcher)).then((out) => {
+  private loadSchemas(slugs: string[], generation: number, egress: typeof fetch): void {
+    const work = this.session((target) => callTool(target, SCHEMAS, { tool_slugs: slugs }, egress), egress).then((out) => {
       const body = resultJson(out)
       if (!body) return
       for (const c of candidates(body)) {
@@ -194,10 +194,10 @@ export class ComposioConnection {
   }
 
   /** When the lookup fails, the tool stays `external`. */
-  private classify(slug: string, generation: number): void {
+  private classify(slug: string, generation: number, egress: typeof fetch): void {
     const work = this.store.target().then(async (target) => {
       if (!target) return
-      const readOnly = await catalogReadOnly(target.key, slug, this.fetcher)
+      const readOnly = await catalogReadOnly(target.key, slug, egress)
       this.store.putLearned(this.store.learned().map((t) => (t.slug === slug ? { ...t, readOnly } : t)), generation)
     })
     this.waitUntil(work.catch(() => undefined))
@@ -210,23 +210,23 @@ export class ComposioConnection {
   }
 
   /** When Composio says the session is gone, makes a new one and runs `work` once more. */
-  private async session<T>(work: (target: Target) => Promise<T>): Promise<T> {
+  private async session<T>(work: (target: Target) => Promise<T>, egress: typeof fetch = this.fetcher): Promise<T> {
     const target = await this.store.target()
     if (!target) throw new ComposioError("Composio is not connected")
     try {
       return await work(target)
     } catch (e) {
       if (!sessionGone(e)) throw e
-      return work(await this.renew(target.key, target.session))
+      return work(await this.renew(target.key, target.session, egress))
     }
   }
 
   /** One new session for any number of calls that found `gone` gone. */
-  private renew(key: string, gone: string): Promise<Target> {
+  private renew(key: string, gone: string, egress: typeof fetch): Promise<Target> {
     if (this.renewing?.gone === gone) return this.renewing.next
     const generation = this.store.generation
     const next = (async () => {
-      const session = await createSession(key, await this.userId(), this.fetcher)
+      const session = await createSession(key, await this.userId(), egress)
       if (generation !== this.store.generation) {
         this.dropSession(Promise.resolve({ key, url: session.url, session: session.id }))
         throw new ComposioError("Composio is not connected")

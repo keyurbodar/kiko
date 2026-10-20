@@ -1,4 +1,4 @@
-import { ownerRoomFixture } from "./owner-room-fixture"
+import { ownerRoomFixture, roomServiceOptions } from "./owner-room-fixture"
 import { expect, test } from "bun:test"
 import type { AgentSlug, Envelope } from "@kiko/protocol"
 import { Asks } from "../src/room/asks"
@@ -15,9 +15,9 @@ const ada = { slug: "ada" } as MemberRow
 function setup(){
  const { sql, storage, log } = ownerRoomFixture({ roomId: ROOM, now: ()=>1 })
  const received:{slug:string;envelopes:Envelope[]}[]=[]
- const dependencies={services:{agent:(_room:string,slug:string)=>({receive:async(envelopes:Envelope[])=>{received.push({slug,envelopes});return {refused:null}}})} as never,log,mail:new Mail(storage,log,new Asks(sql)),deliveries:new Deliveries(storage,log),publish:()=>{},agentHome:(_h:unknown,slug:AgentSlug)=>({...home,slug}),delivery:(_m:unknown,_ms:unknown,_g:string,raw:Envelope[])=>({envelopes:raw,brief:"",reactionsUpTo:0})}
+ const dependencies={services:{agent:(_room:string,slug:string)=>({receive:async(envelopes:Envelope[])=>{received.push({slug,envelopes});return {refused:null}}})} as never,log,mail:new Mail(storage,log,new Asks(sql, log.roomId)),deliveries:new Deliveries(storage,log),publish:()=>{},agentHome:(_h:unknown,slug:AgentSlug)=>({...home,slug}),delivery:(_m:unknown,_ms:unknown,_g:string,raw:Envelope[])=>({envelopes:raw,brief:"",reactionsUpTo:0})}
  // The public retry operation resolves its error message before reaching this delivery path.
- const room=new Room({ctx:{id:{name:`room:alice:${ROOM}`},storage} as never,sql,env:{} as never,services:dependencies.services,broadcast:()=>{}})
+ const room=new Room(roomServiceOptions(storage, ROOM, dependencies.services))
  Object.assign(room,{log,receiver:dependencies,members:{list:()=>[ada]},home:()=>home,chat:async()=>({title:"t"})})
  return {flush:{redeliver:(slug:AgentSlug,ids:readonly string[],errorId:string)=>(room as unknown as {redeliver(slug:AgentSlug,ids:readonly string[],errorId:string):Promise<void>}).redeliver(slug,ids,errorId)},log,received}
 }

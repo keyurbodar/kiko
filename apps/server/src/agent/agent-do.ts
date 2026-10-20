@@ -1,4 +1,7 @@
-import { erase } from "../lib/erase"
+import { agentStorage } from "./storage"
+import { JournalStorage } from "@kiko/agent/journal"
+import type { ClockPort } from "@kiko/durable/clock-port"
+import type { ClockMetadata } from "../owner/clock"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { AuthResult } from "@earendil-works/pi-ai"
 import { type Conversation, type ConversationId, configure, type Harness, type ModelRef, type SubmissionId } from "@earendil-works/pi-durable"
@@ -32,10 +35,8 @@ import { integrationNote } from "./prompt"
 import { buildAgent, openAgentHarness, userModels } from "./factory"
 import { isKnownModel, parseModelRef, thinkingFor } from "./thinking"
 import { setOverlay } from "../models/catalog"
-import { createServiceClock as createAlarms, projectRecovery } from "../owner/clock"
-import { RoutineSchedules, scheduledDeadline, type ScheduledRoutine } from "../owner/schedules"
-import { migrate } from "@kiko/durable/migrate"
-import { AGENT_STEPS } from "./schema"
+import { projectRecovery } from "../owner/clock"
+import { RoutineSchedules, captureRoutineTasks, scheduledRoutine, scheduledDeadline, type ScheduledRoutine } from "../owner/schedules"
 import { AgentHost, type AgentSetup, type HostOptions, type HostStatus } from "@kiko/agent/host"
 import type { Batch } from "@kiko/agent/input"
 import type { Work } from "@kiko/agent/workers"
@@ -64,8 +65,6 @@ const COMPACTIONS_KEY = "compactions"
 type EgressRequest = { url: string; method: string; headers: [string, string][]; body: ArrayBuffer | null }
 const RECENT_WORKERS = 8
 const MODEL_APPLIED_KEY = "model:applied"
-/** Set before a handoff resets the context and cleared once the new model is configured, so a crash between them is not redone. */
-const HANDOFF_KEY = "model:handoff"
 const HUMAN_INPUTS_KEY = "run:human-inputs"
 
 const PRIVATE_REFUSAL = "this chat is private: nothing from it is saved to memory, your soul, or /home. carry on without saving."
@@ -75,41 +74,53 @@ export class Agent {
   protected readonly hostOptions: Partial<HostOptions> = {}
   private hostInstance?: AgentHost
   private outboxInstance?: Outbox
+  private afterHumanRun = false
   protected readonly answers = new AnswerWaiters()
 
   protected readonly ctx: DurableObjectState
   protected readonly env: Env
   private readonly services: OwnerServices
-  private readonly requestRun?: (requestId: string) => void | Promise<void>
+  private readonly requestRun: (requestId: string) => void | Promise<void>
   private readonly countOutgoing: () => void
-  constructor({ ctx, env, services, requestRun, countOutgoing = () => {} }: ServiceOptions & {
-    requestRun?: (requestId: string) => void | Promise<void>
+  private readonly identity: { ownerId: string; roomId: string; slug: string }
+  private readonly clock: ClockPort
+  private readonly metadata: ClockMetadata
+  private readonly agentKey: string
+  constructor({ ctx, env, services, requestRun, countOutgoing = () => {}, identity, clock, metadata }: ServiceOptions & {
+    identity: { ownerId: string; roomId: string; slug: string }
+    clock: ClockPort
+    metadata: ClockMetadata
+    recoveryDeadline(at: number | undefined): Promise<void>
+    requestRun: (requestId: string) => void | Promise<void>
     countOutgoing?: () => void
   }) {
-    this.ctx = ctx
+    this.identity = identity
+    this.agentKey = `${identity.roomId}:${identity.slug}`
+    this.clock = clock
+    this.metadata = metadata
+    const storage = agentStorage(ctx.storage, this.agentKey, clock)
+    this.ctx = new Proxy(ctx, { get(target, key) {
+      if (key === "storage") return storage
+      const value = Reflect.get(target, key, target)
+      return typeof value === "function" ? value.bind(target) : value
+    } })
     this.env = env
     this.services = services
     this.requestRun = requestRun
     this.countOutgoing = countOutgoing
   }
 
-  async initialize(): Promise<void> {
-    migrate(this.ctx.storage, AGENT_STEPS)
-  }
-
   loaded(): boolean { return this.hostInstance?.loaded() ?? false }
   async busy(): Promise<boolean> { return this.hostInstance?.busy() ?? false }
   async unload(): Promise<void> { await this.hostInstance?.unload() }
   async invalidate(): Promise<void> { await this.hostInstance?.invalidate() }
-  nextDeadline(): number | null {
-    return this.ctx.storage.sql.exec<{ at: number }>("SELECT min(at) AS at FROM owner_deadlines WHERE scope = ?", this.ctx.id.name ?? "").toArray()[0]?.at ?? null
-  }
-
   protected get host(): AgentHost {
     this.hostInstance ??= new AgentHost(this.ctx, {
-      clock: createAlarms(this.ctx),
+      clock: this.clock,
+      agentKey: this.agentKey,
       projectTasks: (tasks, watches, current) => projectRecovery(tasks, watches, current, Date.now(), scheduledDeadline),
       openHarness: openAgentHarness,
+      scheduledDeadline,
       requestRun: this.requestRun,
       progress: () => this.outbox.progress(),
       shortBrief,
@@ -118,11 +129,15 @@ export class Agent {
       waitUntil: (work) => this.ctx.waitUntil(work),
       ...this.hostOptions,
       setup: () => this.setup(),
-      onIdle: () => {
-        this.hostOptions.onIdle?.()
+      beforeIdle: (opened) => this.outbox.settle(opened.root),
+      onIdle: async () => {
+        await this.hostOptions.onIdle?.()
         const home = this.home()
-        if (home) this.ctx.waitUntil(this.services.afterRun(home.roomId, home.slug))
-        this.ctx.waitUntil(this.services.trimAgents())
+        if (home && this.afterHumanRun) {
+          this.afterHumanRun = false
+          await this.services.afterRun(home.roomId, home.slug)
+        }
+        await this.services.trimAgents()
       },
       onOpen: async (opened) => {
         await this.hostOptions.onOpen?.(opened)
@@ -177,14 +192,16 @@ export class Agent {
       () => this.roomPort(),
       () => {
         const epoch = this.host.epoch()
-        return `${this.home()?.slug ?? "agent"}${epoch ? `~${epoch}` : ""}`
+        return `${this.agentKey}${epoch ? `~${epoch}` : ""}`
       },
+      Date.now,
+      this.agentKey,
     )
     return this.outboxInstance
   }
 
   async receive(envelopes: Envelope[], brief: string, home?: AgentHome) {
-    if (this.ctx.storage.sql.exec("SELECT 1 FROM meta WHERE key = 'deleted'").toArray().length) throw new Error("agent deleted")
+    if (this.metadata.get("deleted")) throw new Error("agent deleted")
     if (home) this.setHome(home)
     const only = envelopes.length === 1 ? envelopes[0] : undefined
     const requestId = only?.from.kind === "agent" ? messageIdOf(only.id) ?? undefined : undefined
@@ -199,14 +216,28 @@ export class Agent {
   }
 
   async erase(): Promise<void> {
+    this.metadata.set("deleted", "1")
+    await this.services.cancelRun(this.identity.roomId, this.identity.slug)
     await this.host.stop()
     await this.host.workers.stopAll()
     await this.releaseTabs()
     await this.host.shutdown()
-    erase(this.ctx.storage)
+    this.ctx.storage.transactionSync(() => {
+      JournalStorage.clear(this.ctx.storage, this.agentKey)
+      for (const table of ["workers", "worker_changes", "outbox", "harness_epoch", "journal_ids", "agent_handoff"]) {
+        this.ctx.storage.sql.exec(`DELETE FROM ${table} WHERE agent = ?`, this.agentKey)
+      }
+      this.metadata.delete("home")
+      this.metadata.set("deleted", "1")
+    })
     const keys = [...(await this.ctx.storage.list()).keys()]
     if (keys.length) await this.ctx.storage.delete(keys)
-    await this.ctx.storage.deleteAlarm()
+    for (const key of await this.clock.dueWakeups(Number.MAX_SAFE_INTEGER)) await this.clock.clearWakeup(key)
+    await this.services.cancelRun(this.identity.roomId, this.identity.slug)
+  }
+
+  async scheduleRecovery(at: number): Promise<void> {
+    await this.clock.setWakeup("recovery", at)
   }
 
   async wake(): Promise<boolean> {
@@ -218,8 +249,8 @@ export class Agent {
   }
 
   protected home(): AgentHome | null {
-    const row = this.ctx.storage.sql.exec<{ home: string }>("SELECT home FROM agent_home WHERE id = 1").toArray()[0]
-    return row ? (JSON.parse(row.home) as AgentHome) : null
+    const home = this.metadata.get("home")
+    return home ? JSON.parse(home) as AgentHome : null
   }
 
   private homeOrThrow(): AgentHome {
@@ -230,8 +261,7 @@ export class Agent {
 
   private setHome(home: AgentHome): void {
     const text = JSON.stringify(home)
-    if (this.home() && this.ctx.storage.sql.exec("SELECT 1 FROM agent_home WHERE home = ?", text).toArray().length) return
-    this.ctx.storage.sql.exec("INSERT INTO agent_home (id, home) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET home = excluded.home", text)
+    if (this.metadata.get("home") !== text) this.metadata.set("home", text)
   }
 
   protected roomPort(): RoomPort | null {
@@ -247,7 +277,8 @@ export class Agent {
       },
       workers: (rows) => room().setWorkers(home.slug, rows),
       endRun: async (runId, inputs = [], working = false) => {
-        const { mail, mailOnly } = await this.heard(inputs).catch(() => ({ mail: [], mailOnly: false }))
+        const { mail, mailOnly, human } = await this.heard(inputs).catch(() => ({ mail: [], mailOnly: false, human: false }))
+        this.afterHumanRun ||= human
         this.recovered(home.userId)
         const ended = await room().endRun(home.slug, runId, mail, working, mailOnly)
         // The agent's tabs belong to its run: at the end of it the room's browser chip goes away. A worker still
@@ -339,8 +370,8 @@ export class Agent {
   }
 
   /** The agent mail a run answered, and whether mail was all it was given: such a run says nothing the human committed to. */
-  private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; mailOnly: boolean }> {
-    if (!inputs.length) return { mail: [], mailOnly: false }
+  private async heard(inputs: readonly SubmissionId[]): Promise<{ mail: string[]; mailOnly: boolean; human: boolean }> {
+    if (!inputs.length) return { mail: [], mailOnly: false, human: false }
     const { storage } = await this.host.open()
     const all: string[] = []
     for (const input of inputs) {
@@ -348,7 +379,7 @@ export class Agent {
       if (submission?.requestId) all.push(...await this.host.envelopeIds(submission.requestId))
     }
     const mail = all.filter((id) => id.startsWith("agent:"))
-    return { mail, mailOnly: mail.length > 0 && mail.length === all.length }
+    return { mail, mailOnly: mail.length > 0 && mail.length === all.length, human: all.some((id) => id.startsWith("human:")) }
   }
 
   async askAnswered(id: string, answer: string): Promise<boolean> {
@@ -432,17 +463,23 @@ export class Agent {
 
   /** Replaces this agent's durable routine inventory. Repeated syncs with the same occurrences add nothing. */
   async syncRoutines(routines: readonly ScheduledRoutine[]): Promise<void> {
-    const opened = await this.host.open()
-    await this.routineScheduler.bind(opened.harness, opened.root.id).sync(routines)
+    await this.host.updateTasks(async (opened) => {
+      await this.routineScheduler.bind(opened.harness, opened.root.id).sync(routines)
+    })
   }
 
   protected async setup(): Promise<AgentSetup> {
+    const rollover: NonNullable<AgentSetup["rollover"]> = {
+      capture: (tasks) => captureRoutineTasks(tasks),
+      restore: (harness, root, input) => this.routineScheduler.bind(harness, root.id).sync(input.map(scheduledRoutine)),
+    }
     const home = this.home()
     const role = { role: home?.role ?? "", lead: home?.lead ?? true }
     const messaging = () => this.messagingPort()
     if (DEV && (await this.ctx.storage.get<boolean>(DEV_FAKE_KEY))) {
       const browserOn = await this.browserOn()
       const fake = fakeSetup(role, roomWorkspacePort(this.services, () => this.home()), messaging, {
+        testExtensions: [this.routineScheduler.extension],
         ...(browserOn && home ? { browser: { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: () => false } } : {}),
         routines: { port: () => this.routinesPort() },
         groups: this.groupsPort(),
@@ -451,13 +488,14 @@ export class Agent {
       })
       return {
         ...fake,
+        rollover,
         beginRun: async () => true,
         inputMemory: (batch, fresh, joined) => this.inputMemory(batch, fresh, joined, false),
         beforeCompact: (harness) => this.beforeCompact(harness),
       }
     }
     const egress = this.egressFetch()
-    const user = userModels((provider) => this.runAuth(provider), this.ctx.id.toString(), egress, this.countOutgoing)
+    const user = userModels((provider) => this.runAuth(provider), `${this.identity.ownerId}:${this.agentKey}`, egress, this.countOutgoing)
     const soul = this.soulPort()
     const cache = new ObjectCache()
     const where = () => this.home()
@@ -467,7 +505,7 @@ export class Agent {
     }
     const locked = () => (this.home()?.private ? PRIVATE_REFUSAL : null)
     const backend = withMount(withMount(roomBackend(this.services, where, cache), HOME, homeBackend(this.services, where, notice, cache, locked)), KIKO, kikoDocsBackend())
-    const id = `room-files:${this.ctx.id.toString()}`
+    const id = `room-files:${this.identity.ownerId}:${this.agentKey}`
     const space = withSoul(backend, soul)
     const views = roomViews(id, space)
     const files = { fs: new RoomFs(id, space), acceptsImages: imageReader(user.models) }
@@ -479,10 +517,11 @@ export class Agent {
       ? { connection: () => this.browser(), lease: () => this.browserLease(), acceptsImages: imageReader(user.models) }
       : undefined
     const picked = await this.picked()
-    const built = buildAgent({ ...(browser ? { browser } : {}), testExtensions: [this.routineScheduler.extension], ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => this.services.user().composioCall(name, args), resolve: (app) => this.services.user().composioToolkit(app) } } : {}), workspace: roomWorkspacePort(this.services, () => this.home()), work: this.host.workers })
+    const built = buildAgent({ ...(browser ? { browser } : {}), testExtensions: [this.routineScheduler.extension], ...role, ...(picked.model ? { model: picked.model } : {}), thinkingLevel: picked.thinking, files, soul, runStamp: () => this.#runStamp, groups: this.groupsPort(), presence: this.stepsPort(), runId: () => this.outbox.runId(), memory, messaging, routines: { port: () => this.routinesPort() }, ...(home ? { recipes: this.recipesPort(home) } : {}), ...(Array.isArray(composio) && home ? { composio: { tools: composio, call: (name, args) => this.services.user().composioCall(name, args, egress), resolve: (app) => this.services.user().composioToolkit(app) } } : {}), workspace: roomWorkspacePort(this.services, () => this.home()), work: this.host.workers })
     return {
       ...built,
       ...user,
+      rollover,
       env: views,
       beginRun: async (batch, root) => {
         this.prefetchDelta(batch)
@@ -633,10 +672,9 @@ export class Agent {
     return sum
   }
 
-  /** Count each outgoing attempt against this agent's active run before the owner fetches it. */
+  /** The owner transport reserves the active invocation budget once per network attempt. */
   async egress(request: EgressRequest): Promise<Response> {
     if (new URL(request.url).protocol !== "https:") throw new Error("egress is https only")
-    this.countOutgoing()
     return this.services.egress(request)
   }
 
@@ -697,17 +735,17 @@ export class Agent {
     return (await root.context(BACKGROUND_CONTEXT)).messages.length > 0
   }
 
-  /**
-   * A new model reads a plain-text handoff of the old model's context, never its native history. The marker is stored
-   * before the reset and cleared after the configure, so a crash between them configures without resetting twice.
-   */
   private async handoff(root: Conversation, was: Applied, next: Applied): Promise<void> {
-    const marked = await this.ctx.storage.get<Applied>(HANDOFF_KEY)
-    if (JSON.stringify(marked) !== JSON.stringify(next)) {
-      const { entries } = await root.context(BACKGROUND_CONTEXT)
+    const { entries } = await root.context(BACKGROUND_CONTEXT)
+    const previous = entries.findLast((entry) => entry.kind === "kiko.handoff")
+    const marker = previous?.data
+    const applied = marker && typeof marker === "object" && !Array.isArray(marker) ? marker.applied : undefined
+    if (JSON.stringify(applied) !== JSON.stringify(next)) {
       const text = renderHandoff(entries, { from: modelName(was.model), to: modelName(next.model) })
-      await this.ctx.storage.put(HANDOFF_KEY, next)
-      await root.reset(text, BACKGROUND_CONTEXT)
+      await root.commit((tx) => tx.appendEntry(root.id, {
+        kind: "kiko.handoff", data: { applied: next }, head: "self",
+        model: [{ role: "user", content: text, timestamp: Date.now() }],
+      }), BACKGROUND_CONTEXT)
     }
     await root.configure(next, BACKGROUND_CONTEXT)
   }
@@ -734,7 +772,6 @@ export class Agent {
         if (was && switchedModel(was, applied) && (await this.hasContext(root))) await this.handoff(root, was, applied)
         else await root.configure(applied, BACKGROUND_CONTEXT)
         await this.ctx.storage.put(MODEL_APPLIED_KEY, applied)
-        await this.ctx.storage.delete(HANDOFF_KEY)
       }
       if (turn.auth) return true
     }
@@ -818,7 +855,7 @@ export class Agent {
     this.#browser ??= new BrowserConnection({
       agentId: `${home.roomId}:${home.slug}`,
       lease: this.browserLease(),
-      idle: { arm: (at) => createAlarms(this.ctx).setWakeup(BROWSER_IDLE_WAKEUP, at) },
+      idle: { arm: (at) => this.clock.setWakeup(BROWSER_IDLE_WAKEUP, at) },
     })
     return this.#browser
   }
@@ -828,7 +865,7 @@ export class Agent {
    * due without knowing it, so this runs first. True when nothing else was due.
    */
   private async browserIdle(): Promise<boolean> {
-    const clock = createAlarms(this.ctx)
+    const clock = this.clock
     const at = clock.deadline(BROWSER_IDLE_WAKEUP)
     if (at === undefined || at > Date.now()) return false
     await clock.clearWakeup(BROWSER_IDLE_WAKEUP)

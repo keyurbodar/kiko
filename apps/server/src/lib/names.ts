@@ -27,7 +27,7 @@ export function ownerName(userId: string): string {
   return id === "owner" ? "owner" : `owner:${id}`
 }
 
-type OwnerRpc = Omit<DurableObjectStub<OwnerDO>, "roomCall" | "agentCall"> & Pick<OwnerDO, "roomCall" | "agentCall">
+type OwnerRpc = Omit<DurableObjectStub<OwnerDO>, "userCall" | "roomCall" | "agentCall"> & Pick<OwnerDO, "userCall" | "roomCall" | "agentCall">
 
 export function ownerStub(ns: DurableObjectNamespace<OwnerDO>, userId: string): OwnerRpc {
   return rpc(ns.get(ns.idFromName(ownerName(userId))), "owner") as OwnerRpc

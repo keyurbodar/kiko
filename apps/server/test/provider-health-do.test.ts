@@ -11,7 +11,7 @@ beforeAll(async () => {
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars", CREDENTIALS_KEK: "test-kek-at-least-32-characters-long" },
-    durableObjects: { USER: { className: "UserDO", useSQLite: true } },
+    durableObjects: { OWNER: { className: "OwnerDO", useSQLite: true } },
   })
 })
 

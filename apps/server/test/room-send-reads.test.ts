@@ -1,3 +1,4 @@
+import { RoomSocket } from "./room-socket"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
@@ -20,7 +21,7 @@ beforeAll(async () => {
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true }, USER: { className: "UserDO", useSQLite: true } },
+		durableObjects: { OWNER: { className: "MeteredOwner", useSQLite: true } },
 	})
 	origin = (await mf.ready).origin
 }, 60_000)
@@ -29,14 +30,14 @@ afterAll(async () => {
 	await mf?.dispose()
 })
 
-const ROOM = "01JZ8Q4T6MSENDREADS000001"
+const ROOM = "01JZ9XCPB73XCPB73XCPB73XCP"
 
 async function rowsRead(): Promise<number> {
 	return (await (await fetch(`${origin}/reads/${ROOM}`)).json()) as number
 }
 
 test("rows read per human send stay flat as the burst window and the unread count grow", async () => {
-	const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/ws/${ROOM}`)
+	const ws = new RoomSocket(`${origin.replace(/^http/, "ws")}/ws/${ROOM}`)
 	const frames: RoomToClient[] = []
 	ws.onmessage = (e) => frames.push(JSON.parse(String(e.data)))
 	await new Promise((resolve, reject) => {
@@ -44,7 +45,11 @@ test("rows read per human send stay flat as the burst window and the unread coun
 		ws.onerror = reject
 	})
 	ws.send(JSON.stringify({ t: "hello", lastSeq: 0 }))
-	while (!frames.some((f) => f.t === "events")) await Bun.sleep(5)
+	const deadline = Date.now() + 10_000
+	while (!frames.some((f) => f.t === "events" || f.t === "reset")) {
+		if (Date.now() > deadline) throw new Error(`no welcome frame. have ${JSON.stringify(frames)}`)
+		await Bun.sleep(5)
+	}
 
 	// Sends in blocks of 100, measured block by block. Each block returns the rows read per send.
 	let sent = 0

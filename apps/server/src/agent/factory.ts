@@ -135,7 +135,15 @@ export function userModels(auth: RunAuth, sessionId: string, egress?: typeof fet
       directCall?.()
       return options
     }
+    const classify = provider.classify
+    const fetchDeferred = provider.fetchDeferred
+    const cancelDeferred = provider.cancelDeferred
+    const generateImages = provider.generateImages
     const routed = {
+      ...(classify ? { classify: ((model, context, options) => classify(model, context, via(model, options))) as typeof classify } : {}),
+      ...(fetchDeferred ? { fetchDeferred: ((model, handle, options) => fetchDeferred(model, handle, via(model, options))) as typeof fetchDeferred } : {}),
+      ...(cancelDeferred ? { cancelDeferred: ((model, handle, options) => cancelDeferred(model, handle, via(model, options))) as typeof cancelDeferred } : {}),
+      ...(generateImages ? { generateImages: ((model, context, options) => generateImages(model, context, via(model, options))) as typeof generateImages } : {}),
       stream: ((model, context, options) => timed(model.id, withTextToolCalls(provider.stream as never)(unanchored(model), context, via(model, options) as never))) as typeof provider.stream,
       streamSimple: ((model, context, options) => timed(model.id, withTextToolCalls(provider.streamSimple)(unanchored(model), context, via(model, options) as never), options?.reasoning)) as typeof provider.streamSimple,
     }

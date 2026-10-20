@@ -9,11 +9,11 @@ let origin: string
 beforeAll(async () => {
 	mf = new Miniflare({
 		modules: true,
-		script: await bundleWorker(new URL("./files-worker.ts", import.meta.url)),
+		script: await bundleWorker(new URL("./attachments-worker.ts", import.meta.url)),
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true }, USER: { className: "UserDO", useSQLite: true } },
+		durableObjects: { OWNER: { className: "OwnerDO", useSQLite: true } },
 		r2Buckets: ["FILES"],
 	})
 	origin = (await mf.ready).origin
@@ -41,12 +41,17 @@ function upload(room: string, id: string, body: string | Uint8Array, init: { nam
 
 const keys = async (room: string) => ((await (await fetch(`${origin}/keys`)).json()) as string[]).filter((k) => k.includes(room))
 
+// One socket carries the user and every room, so a room is reached in two steps: hello, then
+// subscribe. A room answers inside `{ t: "room", roomId, frame }`, which is unwrapped here.
+type OwnerFrame = { t?: string; roomId?: string; frame?: RoomToClient }
+
 class Client {
 	frames: RoomToClient[] = []
 	private waiters: (() => void)[] = []
-	private constructor(readonly ws: WebSocket) {
+	private constructor(readonly ws: WebSocket, private readonly roomId: string) {
 		ws.onmessage = (e) => {
-			this.frames.push(JSON.parse(String(e.data)))
+			const frame = JSON.parse(String(e.data)) as OwnerFrame
+			if (frame.t === "room" && frame.roomId === this.roomId && frame.frame) this.frames.push(frame.frame)
 			for (const w of this.waiters.splice(0)) w()
 		}
 	}
@@ -56,13 +61,17 @@ class Client {
 			ws.onopen = resolve
 			ws.onerror = reject
 		})
-		const c = new Client(ws)
-		c.send({ t: "hello", lastSeq: 0 })
+		const c = new Client(ws, room)
+		c.ws.send(JSON.stringify({ t: "hello", lastSeq: 0 }))
+		c.subscribe()
 		await c.next((f) => f.t === "events" || f.t === "reset")
 		return c
 	}
+	subscribe() {
+		this.ws.send(JSON.stringify({ t: "subscribe", roomId: this.roomId, lastSeq: 0 }))
+	}
 	send(frame: unknown) {
-		this.ws.send(JSON.stringify(frame))
+		this.ws.send(JSON.stringify({ t: "room", roomId: this.roomId, frame }))
 	}
 	async next(match: (f: RoomToClient) => boolean, ms = 3000): Promise<RoomToClient> {
 		const deadline = Date.now() + ms
@@ -76,8 +85,10 @@ class Client {
 			})
 		}
 	}
+	/** What the chat holds now: subscribing again from the start replays it, so nothing stale counts. */
 	async replay(): Promise<RoomEvent[]> {
-		this.send({ t: "hello", lastSeq: 0 })
+		this.frames.length = 0
+		this.subscribe()
 		const f = await this.next((x) => x.t === "events")
 		return f.t === "events" ? [...f.events] : []
 	}

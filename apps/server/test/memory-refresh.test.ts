@@ -9,25 +9,16 @@ beforeAll(async () => {
     script: await bundleWorker(new URL("./memory-refresh-worker.ts", import.meta.url)),
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
-    durableObjects: {
-      USER: { className: "UserDO", useSQLite: true },
-      ROOM: { className: "RoomDO", useSQLite: true },
-      AGENT: { className: "AgentProbe", useSQLite: true },
-    },
+    durableObjects: { OWNER: { className: "RefreshOwner", useSQLite: true } },
   })
   await mf.ready
 }, 60_000)
 afterAll(async () => { await mf?.dispose() })
 
 test("an ongoing agent sees additions, edits and deletions without reloading its conversation", async () => {
-  const user = await mf.getDurableObjectNamespace("USER")
-  const agent = await mf.getDurableObjectNamespace("AGENT")
-  const owner = user.get(user.idFromName("user:alice"))
-  const stub = agent.get(agent.newUniqueId())
-  const input = async (fresh = false, withLife = true) => {
-    const res = await stub.fetch("http://do/", { method: "POST", body: JSON.stringify({ fresh, withLife }) })
-    return res.json<{ text?: string; fresh: boolean }>()
-  }
+  const namespace = await mf.getDurableObjectNamespace("OWNER")
+  const owner = namespace.get(namespace.idFromName("owner:alice"))
+  const input = (fresh = false, withLife = true) => owner.input(fresh, withLife) as Promise<{ text?: string; fresh: boolean }>
   const setLife = async (text: string) => {
     await owner.setLife(text)
   }

@@ -14,7 +14,7 @@ function setup() {
 // The count the chat showed before the count was kept: every live non-human message after the read mark.
 function countedUnread(sql: SqlStorage): number {
 	return sql.exec<{ n: number }>(
-			`SELECT count(*) AS n FROM messages WHERE deleted_at IS NULL AND seq > COALESCE((SELECT CAST(value AS INTEGER) FROM meta WHERE key = 'read_seq'), 0) AND json_extract(sender, '$.kind') != 'human'`,
+			`SELECT count(*) AS n FROM messages WHERE deleted_at IS NULL AND seq > COALESCE((SELECT CAST(value AS INTEGER) FROM owner_meta WHERE scope = 'room:test-room' AND key = 'read_seq'), 0) AND json_extract(sender, '$.kind') != 'human'`,
 		)
 		.one().n
 }
@@ -55,7 +55,7 @@ test("a chat that was never counted is counted once, when first asked, and then 
 	const ada: Sender = { kind: "agent", slug: "ada" } as Sender
 	log.addMessage({ from: ada, text: "before the count" })
 	log.addMessage({ from: ada, text: "also before" })
-	expect((sql.exec("SELECT value FROM meta WHERE key = 'unread'").toArray()[0] ?? null)).toBeNull()
+	expect((sql.exec("SELECT value FROM owner_meta WHERE scope = 'room:test-room' AND key = 'unread'").toArray()[0] ?? null)).toBeNull()
 	expect(log.unread()).toBe(2)
 	log.addMessage({ from: ada, text: "after" })
 	expect(log.unread()).toBe(3)
@@ -66,17 +66,17 @@ test("the per-send plans read the burst window in seq order and its start throug
 	const { db, sql, prefix } = setup()
 	const now = Date.now()
 	db.exec("BEGIN")
-	for (let i = 0; i < 3000; i++) sql.exec("INSERT INTO pending (id, seq, at, text, mentions) VALUES (?, ?, ?, ?, '[]')", `m${i}`, 10_000 + i, now + i, "x")
+	for (let i = 0; i < 3000; i++) sql.exec("INSERT INTO pending (room_id, id, seq, at, text, mentions) VALUES ('test-room', ?, ?, ?, ?, '[]')", `m${i}`, 10_000 + i, now + i, "x")
 	db.exec("COMMIT")
 	db.exec("ANALYZE")
 	const plan = (query: string, ...args: (string | number)[]) =>
 		sql.exec<{ detail: string }>(`EXPLAIN QUERY PLAN ${query}`, ...args).toArray().map((r) => r.detail).join(" | ")
 
-	const envelopes = plan("SELECT id, seq, at, text, reply_to, mentions FROM pending ORDER BY seq LIMIT ?", 100)
+	const envelopes = plan("SELECT id, seq, at, text, reply_to, mentions FROM pending WHERE room_id = 'test-room' ORDER BY seq LIMIT ?", 100)
 	expect(envelopes).toContain(`USING INDEX ${prefix}pending_seq`)
 	expect(envelopes).not.toContain("TEMP B-TREE")
 	// The window's start reads the lowest seq, which pending_seq already orders, so it needs no second index.
-	const start = plan("SELECT at FROM pending ORDER BY seq LIMIT 1")
+	const start = plan("SELECT at FROM pending WHERE room_id = 'test-room' ORDER BY seq LIMIT 1")
 	expect(start).toContain(`USING INDEX ${prefix}pending_seq`)
 	expect(start).not.toContain("SCAN pending\n")
 })

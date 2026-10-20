@@ -31,6 +31,8 @@ const CAPTURE_TIMEOUT_MS = 8_000
 export type MemoryDeps = {
   chat: (roomId:RoomId)=>import("@kiko/protocol").Chat|null
   sql: SqlStorage
+  fetch: typeof fetch
+  countOutgoing: () => void
   life: Life
   label: string
   credentials: () => CredentialVault
@@ -77,7 +79,7 @@ export class MemoryCapture {
       try {
         const auth = (await this.d.turn(key.provider)).auth
         if (!auth) return null
-        const { models } = userModels(async () => auth, `memory-${this.d.label}`)
+        const { models } = userModels(async () => auth, `memory-${this.d.label}`, this.d.fetch, this.d.countOutgoing)
         const model = models.getModelsOfType("classifier", key.provider)[0]
         if (!model) return null
         const result = await models.classify(model, { state, questions }, { signal: AbortSignal.timeout(timeoutMs) })
@@ -133,7 +135,7 @@ export class MemoryCapture {
       Date.now(),
       JSON.stringify(rows),
     )
-    this.sql.exec("DELETE FROM capture_queue WHERE rowid NOT IN (SELECT rowid FROM capture_queue ORDER BY queued_at DESC LIMIT ?)", CAPTURE_QUEUE_MAX)
+    this.sql.exec("DELETE FROM capture_queue WHERE (room_id, message_id) NOT IN (SELECT room_id, message_id FROM capture_queue ORDER BY queued_at DESC, room_id, message_id LIMIT ?)", CAPTURE_QUEUE_MAX)
     await this.captureNow()
   }
 
@@ -201,7 +203,7 @@ export class MemoryCapture {
     const { provider, modelId } = ref
     const auth = (await this.d.turn(provider)).auth
     if (!auth) return null
-    const { models, settings } = userModels(async () => auth, `memory-${this.d.label}`)
+    const { models, settings } = userModels(async () => auth, `memory-${this.d.label}`, this.d.fetch, this.d.countOutgoing)
     const model = models.getModel(provider, modelId)
     if (!model) return null
     const headers = settings.stream?.headers

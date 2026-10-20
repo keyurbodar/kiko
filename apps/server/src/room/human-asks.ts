@@ -17,9 +17,9 @@ const toAsk = (r: Row): HumanAsk => ({
 	messageId: r.message_id as MessageId,
 })
 
-export function listAsks(sql: SqlStorage): HumanAsk[] {
+export function listAsks(sql: SqlStorage, roomId: string): HumanAsk[] {
 	return sql
-		.exec<Row>("SELECT id, asker, question, questions, options, message_id FROM human_asks WHERE state = 'open' ORDER BY at, id")
+		.exec<Row>("SELECT id, asker, question, questions, options, message_id FROM human_asks WHERE state = 'open' AND human_asks.room_id = ?1 ORDER BY at, id", roomId)
 		.toArray()
 		.map(toAsk)
 }
@@ -32,27 +32,27 @@ export function cleanOptions(options: readonly string[] | undefined): string[] {
 }
 
 export class HumanAsks {
-	constructor(private readonly sql: SqlStorage) {}
+	constructor(private readonly sql: SqlStorage, private readonly roomId: string) {}
 
 	get(id: string): (HumanAsk & HumanAskState) | null {
-		const row = this.sql.exec<Row & HumanAskState>("SELECT id, asker, question, questions, options, message_id, state, answer FROM human_asks WHERE id = ?", id).toArray()[0]
+		const row = this.sql.exec<Row & HumanAskState>("SELECT id, asker, question, questions, options, message_id, state, answer FROM human_asks WHERE id = ?1 AND human_asks.room_id = ?2", id, this.roomId).toArray()[0]
 		return row ? { ...toAsk(row), state: row.state, answer: row.answer } : null
 	}
 
 	create(ask: HumanAsk, now: number): void {
 		this.sql.exec(
-			"INSERT INTO human_asks (id, asker, question, questions, options, message_id, at, state) VALUES (?, ?, ?, ?, ?, ?, ?, 'open')",
+			"INSERT INTO human_asks (id, asker, question, questions, options, message_id, at, state, room_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8)",
 			ask.id,
 			ask.from,
 			ask.text,
 			ask.questions ? JSON.stringify(ask.questions) : null,
 			ask.options?.length ? JSON.stringify(ask.options) : null,
 			ask.messageId,
-			now,
+			now, this.roomId,
 		)
 	}
 
 	resolve(id: string, state: "answered" | "skipped", answer: string | null): boolean {
-		return this.sql.exec("UPDATE human_asks SET state = ?, answer = ? WHERE id = ? AND state = 'open'", state, answer, id).rowsWritten > 0
+		return this.sql.exec("UPDATE human_asks SET state = ?1, answer = ?2 WHERE (id = ?3 AND state = 'open') AND human_asks.room_id = ?4", state, answer, id, this.roomId).rowsWritten > 0
 	}
 }

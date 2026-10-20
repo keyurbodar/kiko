@@ -5,10 +5,12 @@ import type { FileBucket } from "../files/store"
 
 export interface OwnerServices {
   trimAgents(): Promise<void>
+  countOutgoing(): void
   user(): User
   room(roomId: string): Room
   agent(roomId: string, slug: string): Agent
   dispatchRun(roomId: string, slug: string): Promise<void>
+  cancelRun(roomId: string, slug: string): Promise<void>
   afterRun(roomId: string, slug: string): Promise<void>
   syncRoutines(routines: readonly import("./schedules").ScheduledRoutine[]): Promise<void>
   fireRoutine(delivery: import("./schedules").RoutineDelivery): Promise<void>
@@ -16,8 +18,17 @@ export interface OwnerServices {
   egress(request: Parameters<Agent["egress"]>[0]): ReturnType<Agent["egress"]>
 }
 
+export interface Metadata {
+  get(key: string): string | null
+  set(key: string, value: string): void
+  delete(key: string): void
+}
+
 /** Explicit dependencies shared by the owner-local services. */
 export interface ServiceOptions {
+  identity: { ownerId: string; roomId?: string; slug?: string }
+  metadata: Metadata
+  clock: import("@kiko/durable/clock-port").ClockPort
   ctx: DurableObjectState
   sql: SqlStorage
   env: import("../index").Env

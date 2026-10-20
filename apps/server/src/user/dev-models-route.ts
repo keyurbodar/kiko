@@ -16,6 +16,6 @@ export async function devModelsRoute(request: Request, env: Env): Promise<Respon
   const base = typeof body?.provider === "string" ? findProvider(body.provider)?.getModels()[0] : undefined
   if (!base || !Array.isArray(body?.models)) return Response.json({ error: "provider and models required" }, { status: 400 })
   const overlay = (body.models.length ? { [base.provider]: body.models.map((m) => ({ ...base, id: m.id, name: m.name })) } : {}) as CatalogOverlay
-  await ownerStub(env.OWNER, user.id).devModelOverlay(overlay)
+  await ownerStub(env.OWNER, user.id).userCall("devModelOverlay", [overlay])
   return Response.json({ ok: true })
 }

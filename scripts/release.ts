@@ -1,6 +1,6 @@
 // Builds a signed backend release. Usage:
 //   bun scripts/release.ts --init-key   create the signing key once and print its public x
-//   bun scripts/release.ts              build dist-release/<version>/ and dist-release/latest.json
+//   bun scripts/release.ts              build dist-release/<version>/ and dist-release/latest-owner.json
 // The private key stays in ~/.config/kiko/release-key.json (mode 600). It is never printed or copied.
 
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
@@ -72,7 +72,7 @@ async function dryRun(outdir: string): Promise<void> {
 }
 
 async function protocolVersion(): Promise<number> {
-  const text = await readFile(join(ROOT, "core/protocol/src/index.ts"), "utf8").catch(() => "")
+  const text = await readFile(join(ROOT, "core/protocol/src/version.ts"), "utf8").catch(() => "")
   const found = text.match(/export const PROTOCOL\s*(?::\s*number)?\s*=\s*(\d+)/)
   return found ? Number(found[1]) : 1
 }
@@ -103,6 +103,7 @@ async function main(): Promise<void> {
     compatibility_date: string
     compatibility_flags: string[]
     migrations: ReleaseManifest["migrations"]
+    durable_objects: { bindings: { name: string; class_name: string }[] }
   }
   const mainModule = `${config.main.split("/").pop()?.replace(/\.tsx?$/, "")}.js`
   const files = await moduleFiles(staging)
@@ -118,13 +119,14 @@ async function main(): Promise<void> {
     modules.push({ name, type, sha256: await sha256Hex(bytes) })
   }
 
-  const manifest: ReleaseManifest = {
+  const manifest: ReleaseManifest & { durable_objects: { name: string; class_name: string }[] } = {
     version,
     protocol: await protocolVersion(),
     main_module: mainModule,
     compatibility_date: config.compatibility_date,
     compatibility_flags: config.compatibility_flags,
     migrations: config.migrations,
+    durable_objects: config.durable_objects.bindings,
     modules,
   }
   const manifestBytes = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`)
@@ -139,7 +141,7 @@ async function main(): Promise<void> {
   for (const [name, bytes] of contents) await Bun.write(join(dir, name), bytes)
   await Bun.write(join(dir, "manifest.json"), manifestBytes)
   await Bun.write(join(dir, "manifest.sig"), `${signature}\n`)
-  await Bun.write(join(OUT, "latest.json"), `${JSON.stringify({ version })}\n`)
+  await Bun.write(join(OUT, "latest-owner.json"), `${JSON.stringify({ version })}\n`)
   await rm(staging, { recursive: true, force: true })
   console.log(`Built ${dir}`)
   console.log(new TextDecoder().decode(manifestBytes))

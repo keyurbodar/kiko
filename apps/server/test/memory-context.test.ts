@@ -8,20 +8,22 @@ beforeAll(async () => {
     modules: true, script: await bundleWorker(new URL("./memory-context-worker.ts", import.meta.url)),
     compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-    durableObjects: { USER: { className: "UserDO", useSQLite: true }, ROOM: { className: "RoomDO", useSQLite: true }, AGENT: { className: "AgentProbe", useSQLite: true }, RADAR: { className: "RadarProbe", useSQLite: true }, WRITER: { className: "WriterProbe", useSQLite: true } },
+    durableObjects: { OWNER: { className: "MemoryOwner", useSQLite: true } },
   })
   await mf.ready
 }, 60_000)
 afterAll(async () => { await mf?.dispose() })
 
 test("deleted memory leaves the real model context for idle and active agents on their next message", async () => {
-  const users = await mf.getDurableObjectNamespace("USER")
-  const owner = users.get(users.idFromName("user:alice"))
-  const agents = await mf.getDurableObjectNamespace("AGENT")
-  const idle = agents.get(agents.newUniqueId())
-  const radar = await mf.getDurableObjectNamespace("RADAR")
-  const busy = radar.get(radar.newUniqueId())
-  const call = async (stub: DurableObjectStub, body: unknown) => (await stub.fetch("http://do/", { method: "POST", body: JSON.stringify(body) })).json()
+  const users = await mf.getDurableObjectNamespace("OWNER")
+  const stub = users.get(users.idFromName("owner:alice"))
+  const owner = {
+    lifeNote: (...args: unknown[]) => stub.userCall("lifeNote", args),
+    lifeRecall: (...args: unknown[]) => stub.userCall("lifeRecall", args),
+  }
+  const idle = "kiko"
+  const busy = "radar"
+  const call = (slug: string, body: unknown) => stub.probe(slug, body)
   const secret = "private booking code ORCHID-9382"
   const noted = await owner.lifeNote("kiko", secret)
   expect(noted.ok).toBe(true)
@@ -33,10 +35,8 @@ test("deleted memory leaves the real model context for idle and active agents on
   expect(remembered).toContain("toolResult")
   expect(remembered).toContain(secret)
   expect(await call(busy, { op: "input" })).toContain(secret)
-  const rooms = await mf.getDurableObjectNamespace("ROOM")
-  const room = rooms.get(rooms.idFromName("room:alice:01J00000000000000000000000"))
   const steer = "Keep the red export format for the next answer"
-  await room.remember(8, steer)
+  await stub.remember(8, steer)
   await call(busy, { op: "turn", n: 8, text: steer, wait: false })
   for (let i = 0; i < 100 && !String(await call(busy, { op: "input" })).includes(steer); i++) await new Promise((resolve) => setTimeout(resolve, 20))
   expect(await call(busy, { op: "input" })).toContain(steer)
@@ -60,19 +60,20 @@ test("deleted memory leaves the real model context for idle and active agents on
 }, 30_000)
 
 test("Kiko and Radar manage Radar's routed job from another chat while an unrelated agent is refused", async () => {
-  const users = await mf.getDurableObjectNamespace("USER")
-  const owner = users.get(users.idFromName("user:alice"))
+  const users = await mf.getDurableObjectNamespace("OWNER")
+  const stub = users.get(users.idFromName("owner:alice"))
+  const owner = {
+    createChat: (...args: unknown[]) => stub.userCall("createChat", args),
+    makeAgent: (...args: unknown[]) => stub.userCall("makeAgent", args),
+    createRoutine: (...args: unknown[]) => stub.userCall("createRoutine", args),
+  }
   const origin = "01J00000000000000000000000"
   await owner.createChat(origin, "Origin")
   await owner.makeAgent({ name: "Radar", slug: "radar", description: "Scout", soul: "Research", model: "" })
   const made = await owner.createRoutine("alice", { roomId: origin, target: "radar", createdBy: "kiko", tz: "UTC", name: "scout", instructions: "Find products", trigger: { on: "time", at: new Date(Date.now() + 3600000).toISOString(), rrule: "FREQ=DAILY" } })
   expect(made.ok).toBe(true)
   expect(made.routine.roomId).not.toBe(origin)
-  const call = async (name: string, body: unknown) => {
-    const namespace = await mf.getDurableObjectNamespace(name)
-    const stub = namespace.get(namespace.idFromName("routine-access"))
-    return (await stub.fetch("http://do/", { method: "POST", body: JSON.stringify(body) })).json()
-  }
+  const call = (name: string, body: unknown) => stub.probe(name === "AGENT" ? "kiko" : name.toLowerCase(), body)
   expect(await call("AGENT", { op: "routines" })).toHaveLength(1)
   expect(await call("RADAR", { op: "routines" })).toHaveLength(1)
   expect(await call("WRITER", { op: "routines" })).toEqual([])

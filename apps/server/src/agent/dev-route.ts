@@ -20,20 +20,20 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   if (action === "policy") {
     const body = (await request.json().catch(() => null)) as { policy?: unknown } | null
     if (!body?.policy || typeof body.policy !== "object") return Response.json({ error: "bad policy" }, { status: 400 })
-    await ownerStub(env.OWNER, user.id).devSetting("memory_policy", JSON.stringify(body.policy))
+    await ownerStub(env.OWNER, user.id).userCall("devSetting", ["memory_policy", JSON.stringify(body.policy)])
     return Response.json({ ok: true })
   }
   if (action === "composio") {
-    return Response.json({ session: await ownerStub(env.OWNER, user.id).devComposioSession() })
+    return Response.json({ session: await ownerStub(env.OWNER, user.id).userCall("devComposioSession", []) })
   }
   if (action === "due") {
     const body = (await request.json().catch(() => null)) as { id?: unknown } | null
-    await ownerStub(env.OWNER, user.id).devDue(String(body?.id ?? ""))
+    await ownerStub(env.OWNER, user.id).userCall("devDue", [String(body?.id ?? "")])
     return Response.json({ ok: true })
   }
   if (action === "seen") {
     const body = (await request.json().catch(() => null)) as { ago?: unknown } | null
-    await ownerStub(env.OWNER, user.id).devSeen(Number(body?.ago ?? 0))
+    await ownerStub(env.OWNER, user.id).userCall("devSeen", [Number(body?.ago ?? 0)])
     return Response.json({ ok: true })
   }
   if (action === "browser") {
@@ -42,12 +42,12 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
     const op = known.find((k) => k === body?.action)
     if (!op) return Response.json({ error: "bad action" }, { status: 400 })
     try {
-      return Response.json(await ownerStub(env.OWNER, user.id).devBrowser({ action: op, agentId: body?.agentId as string, mode: body?.mode === "headful" ? "headful" : "headless", ms: Number(body?.ms ?? 0) }))
+      return Response.json(await ownerStub(env.OWNER, user.id).userCall("devBrowser", [{ action: op, agentId: body?.agentId as string, mode: body?.mode === "headful" ? "headful" : "headless", ms: Number(body?.ms ?? 0) }]))
     } catch (e) {
       return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 })
     }
   }
-  if (action === "pass") return Response.json(await ownerStub(env.OWNER, user.id).devPass())
+  if (action === "pass") return Response.json(await ownerStub(env.OWNER, user.id).userCall("devPass", []))
   if (action === "workers") {
     const roomId = url.searchParams.get("roomId") ?? ""
     if (!isRoomId(roomId)) return Response.json({ error: "bad room id" }, { status: 400 })
@@ -70,7 +70,7 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   if (action === "age") return Response.json({ open: await ownerStub(env.OWNER, user.id).roomCall(roomId, "devAge", [Number((body as { ms?: unknown }).ms ?? 0)]) })
   if (action === "usage") {
     const slug = slugOf(body)
-    return Response.json({ agent: await ownerStub(env.OWNER, user.id).agentCall(roomId, slug, "devUsage", []), memory: await ownerStub(env.OWNER, user.id).memoryUsage() })
+    return Response.json({ agent: await ownerStub(env.OWNER, user.id).agentCall(roomId, slug, "devUsage", []), memory: await ownerStub(env.OWNER, user.id).userCall("memoryUsage", []) })
   }
   if (action === "trace") return Response.json(await ownerStub(env.OWNER, user.id).agentCall(roomId, DEFAULT_AGENT, "devTrace", []))
   const slugs = action === "status" ? [body.slug] : (body.slugs ?? [DEFAULT_AGENT])

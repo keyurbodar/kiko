@@ -44,8 +44,17 @@ function setup(start?: Partial<LeaseRow>) {
   }
   const alarms = { setWakeup: async () => {}, clearWakeup: async () => {} }
   const ctx = { getWebSockets: () => [], waitUntil: (p: Promise<unknown>) => void pending.push(p) }
-  const wiring = new KernelWiring({ ctx, sql: { exec: () => ({ toArray: () => [] }) }, env: { ROOM: ROOMS }, alarms, userId: () => "u", store, clientFor: () => client } as never)
-  return { wiring, calls, row: () => row, wakes, settled: () => Promise.all(pending), setRow: (p: Partial<LeaseRow>) => void (row &&= { ...row, ...p }) }
+  // The room port the wiring posts a control card or a watch link to. Nothing here reaches a room object.
+  const posted: { room: string; slug: string; why: string }[] = []
+  const rooms = {
+    room: (id: string) => ({
+      wake: async (w: { id: string; to: string; body: string }) => (wakes.push({ room: id, id: w.id, to: w.to, body: w.body }), true),
+      browserAsk: async (slug: string, why: string) => (posted.push({ room: id, slug, why }), true),
+      browserShare: async (slug: string, why: string) => (posted.push({ room: id, slug, why }), true),
+    }),
+  }
+  const wiring = new KernelWiring({ ctx, sql: { exec: () => ({ toArray: () => [] }) }, env: { ROOM: ROOMS }, services: rooms, alarms, userId: () => "u", store, clientFor: () => client } as never)
+  return { wiring, calls, row: () => row, wakes, posted, settled: () => Promise.all(pending), setRow: (p: Partial<LeaseRow>) => void (row &&= { ...row, ...p }) }
 }
 
 describe("live view link", () => {

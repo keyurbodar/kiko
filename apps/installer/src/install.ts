@@ -1,5 +1,5 @@
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
-import { type FilesBinding, buildMetadata, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
+import { type FilesBinding, buildMetadata, destructiveMigration, selectMigrations, uploadBody } from "@kiko/durable/release-plan"
 import { type FetchLike, InstallError, cf, isBlocking, json } from "./cf"
 import { DEFAULT_SCRIPT, type Grant, type StoredGrant, boundSecrets, firstInstallSecrets, ownScriptName } from "./plan"
 
@@ -23,7 +23,7 @@ export type InstallDeps = {
 
 export type OAuthTokens = { accessToken: string; refreshToken?: string }
 
-export type InstallRequest = { clerkToken: string; sub: string; grant: Grant; accountId?: string }
+export type InstallRequest = { clerkToken: string; sub: string; grant: Grant; accountId?: string; reset?: "delete-existing-data" }
 export type InstallResult = { backendUrl: string; version: string }
 
 type Script = { id: string; migration_tag?: string }
@@ -51,7 +51,7 @@ async function exchange(env: InstallEnv, grant: Extract<Grant, { kind: "oauth" }
 // Fetches the latest release and refuses it unless the signature and every module hash match.
 export async function loadRelease(env: InstallEnv, f: FetchLike) {
   try {
-    return await loadVerifiedRelease({ baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY }, (url) => f(url))
+    return await loadVerifiedRelease({ baseUrl: env.RELEASE_BASE_URL, publicKey: env.RELEASE_PUBLIC_KEY, index: "latest-owner.json" }, (url) => f(url))
   } catch (e) {
     if (e instanceof ReleaseRefused) throw new InstallError(e.code, e.message, 502)
     throw e
@@ -217,10 +217,21 @@ export async function runInstall(env: InstallEnv, deps: InstallDeps, req: Instal
 
   const { manifest, files } = await loadRelease(env, f)
   const grant: StoredGrant = { ...stored, accountId, scriptName: name }
-  const migrations = selectMigrations(manifest.migrations, existing ? (existing.migration_tag ?? null) : null)
+  if (existing && !existing.migration_tag) throw new InstallError("migration_unknown", "This backend has no migration tag. Nothing was changed. Export its data and inspect it before replacing it.", 409)
+  let migrations: ReturnType<typeof selectMigrations>
+  try {
+    migrations = selectMigrations(manifest.migrations, existing ? (existing.migration_tag ?? null) : null)
+  } catch (error) {
+    throw new InstallError("migration_unknown", error instanceof Error ? error.message : "This release does not know the backend's migration tag. Nothing was changed.", 409)
+  }
+  if (existing && destructiveMigration(migrations) && req.reset !== "delete-existing-data") {
+    if (oauth) await deps.codes?.put(oauth.code, oauth.tokens)
+    throw new InstallError("reset_required", "This upgrade permanently deletes all existing chats, messages, agents, memory, routines, provider keys and built-in file bytes. R2 file bytes remain, but their old indexes are deleted. Cloudflare Worker secrets remain. Returning to an older release will not restore this data. Export anything you need before confirming a fresh start.", 409)
+  }
+  const inheritedR2 = existing ? (await cf<{ bindings?: { name: string; type: string }[] }>(token, `/accounts/${accountId}/workers/scripts/${name}/settings`, {}, f)).bindings?.filter((binding) => binding.type === "r2_bucket").map((binding) => binding.name) ?? [] : []
   const bound = { ownerId: req.sub, clerkJwtKey: env.CLERK_JWT_KEY, trustedOrigins: env.FRONT_DOOR_ORIGIN, releaseBase: env.RELEASE_BASE_URL, grant }
   const secrets = existing ? null : firstInstallSecrets({ ...bound, random: deps.randomSecret })
-  await cf(token, `/accounts/${accountId}/workers/scripts/${name}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets, fileStore)) }, f).catch((e: unknown) => {
+  await cf(token, `/accounts/${accountId}/workers/scripts/${name}`, { method: "PUT", body: uploadBody(manifest, files, buildMetadata(manifest, migrations, secrets, fileStore, inheritedR2)) }, f).catch((e: unknown) => {
     // Since Cloudflare's Workers roles (2026-09), Workers Editor may change a Worker but not create one.
     if (!existing && e instanceof InstallError && e.code === "no_permission") {
       throw new InstallError("cannot_create", "This sign-in may change Workers but not create one. Give the token Workers Admin, not Workers Editor, then try again.", 403, e.cfCodes, e.detail)

@@ -1,8 +1,7 @@
 import { HistoryArchive } from "../owner/history-archive"
 import { RoomHistoryStore } from "../owner/history-store"
 import { historyR2 } from "../owner/history-r2"
-import { eraseRoomSchema, initializeRoomSchema } from "../owner/schema"
-import { ownerStorage, scopePrefix } from "../owner/context"
+import { eraseRoomSchema } from "../owner/schema"
 import { fileStore } from "../files/store"
 import { humanAnswerText, MAX_MESSAGE_TEXT, sendFits, isAgentSlug, linkAttachments, oneLine, tagline } from "@kiko/protocol"
 import type { Activity, HumanAnswers, HumanQuestion, AgentSlug, AgentState, Chat, ClientToRoom, Envelope, FileOp, MemberOp, MemberRefusal, MessageId, RoomEvent, RoomId, RoomToClient, RunErrorKind, RunStep, SystemReason, TaskOp, WorkerRow } from "@kiko/protocol"
@@ -10,7 +9,7 @@ import type { OwnerServices, ServiceOptions } from "../owner/services"
 import { loadRoomDev } from "../lib/dev-guard"
 import type { Env } from "../index"
 import type { ClockPort as Alarms } from "@kiko/durable/clock-port"
-import { createServiceClock as createAlarms, runDue } from "../owner/clock"
+import { runDue } from "../owner/clock"
 import { enforceHello, HELLO_WAKEUP, helloBy } from "@kiko/durable/hello-deadline"
 import { RoomRoutines } from "./routines"
 import type { Wake, WakeResult } from "./delivery"
@@ -26,7 +25,6 @@ import type { StepItem } from "../agent/extensions/presence"
 import { roomActivity, HUMAN_HANDLE, MEMBER_ACTIVITY, type MemberActivity } from "./activity"
 import { Deliveries, withContext } from "./deliver"
 import { type AgentSend, MessageChains } from "./messaging"
-import { erase } from "../lib/erase"
 import { isRoomId } from "@kiko/protocol"
 import { cleanPath, deleteFiles, fileKey } from "../files/upload"
 import { changePaths, type CommitResult, type FileIndex, type IndexChange } from "../files/file-index"
@@ -125,10 +123,14 @@ export class Room implements SocketRoom {
 	private readonly services: OwnerServices
 	private readonly publishFrame: (frame: unknown) => void
 	private readonly ownerStorage: DurableObjectStorage
+  private readonly identity: { ownerId: string; roomId: string }
+  private erasing = false
 	private readonly sql: SqlStorage
 	constructor(options: ServiceOptions) {
 		const { ctx, env, services, sql, broadcast } = options
-		this.ownerStorage = ownerStorage(ctx.storage)
+		if (!options.identity.roomId) throw new Error("Room identity required")
+      this.identity = { ownerId: options.identity.ownerId, roomId: options.identity.roomId }
+      this.ownerStorage = ctx.storage
 		this.ctx = ctx
 		this.env = env
 		this.services = services
@@ -136,20 +138,19 @@ export class Room implements SocketRoom {
 		this.publishFrame = broadcast
 
 		{
-			const roomId = ctx.id.name!.split(":").at(-1)!
-			initializeRoomSchema(ownerStorage(ctx.storage), ctx.storage, roomId, scopePrefix(ctx.id.name!))
-			this.log = new RoomLog(ownerStorage(ctx.storage), roomId, Date.now, ctx.storage)
+			const roomId = this.identity.roomId
+			this.log = new RoomLog(ctx.storage, roomId, Date.now, ctx.storage)
 			this.deliveries = new Deliveries(ctx.storage, this.log)
 			this.files = roomFiles(ctx.storage, this.log)
-			this.team = new Team(ctx.storage.sql)
-			this.alarms = createAlarms(ctx)
-			this.burst = new Burst(ctx.storage, this.alarms)
+			this.team = new Team(ctx.storage.sql, roomId)
+			this.alarms = options.clock
+			this.burst = new Burst(ctx.storage, roomId, this.alarms)
 			this.bubbles = new Bubbles(ctx.storage, this.log, (path) => {
 				const entry = this.files.stat(path)
 				return entry?.kind === "file" && entry.type.startsWith("image/") ? entry.id : null
 			})
-			this.asks = new Asks(ctx.storage.sql)
-			this.humanAsks = new HumanAsks(ctx.storage.sql)
+			this.asks = new Asks(ctx.storage.sql, roomId)
+			this.humanAsks = new HumanAsks(ctx.storage.sql, roomId)
 			this.mail = new MessageChains(
 				ctx.storage,
 				this.log,
@@ -172,11 +173,11 @@ export class Room implements SocketRoom {
 			}
 			this.members = new Members(ctx.storage, this.log)
 			this.workspace = new RoomWorkspace(ctx.storage, this.log)
-			this.routines = new RoomRoutines(ctx.storage.sql, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
-			this.memory = new RoomMemory(ctx.storage, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) }, (query, options) => searchMessages(this.ownerStorage.sql, this.log.roomId, query, options))
+			this.routines = new RoomRoutines(ctx.storage.sql, roomId, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) })
+			this.memory = new RoomMemory(ctx.storage, roomId, { get: (key) => this.log.meta(key), set: (key, value) => this.log.setMeta(key, value) }, (query, options) => searchMessages(this.ownerStorage.sql, this.log.roomId, query, options))
 			this.memoryNaps = new MemoryNaps({ services: this.services, log: this.log, members: this.members, memory: this.memory, home: () => this.home() })
 			this.groups = new Groups({ ctx, env: this.env, services: this.services, log: this.log, members: this.members, home: () => this.home(), publish: (events) => this.publish(events) })
-			this.pending = new PendingUploads(ctx.storage.sql)
+			this.pending = new PendingUploads(ctx.storage.sql, roomId)
 			this.reports = new Reports({ ctx, services: this.services, alarms: this.alarms, log: this.log, members: this.members, mail: this.mail, routines: this.routines, home: () => this.home() })
 			this.wakes = new RoomDelivery({ services: this.services, log: this.log, members: this.members, routines: this.routines, workspace: this.workspace, burst: this.burst, home: () => this.home(), chat: (home) => this.chat(home), seedMembers: (home, chat) => this.seedMembers(home, chat), receiver: this.receiver })
 
@@ -264,7 +265,7 @@ export class Room implements SocketRoom {
 		return roomActivity(this.sql, this.log)
 	}
 	openTasks() {
-		const rows = this.sql.exec<{ id: string; title: string; status: string; owner: string | null; updated_at: number }>("SELECT id,title,status,owner,updated_at FROM ws_tasks WHERE status NOT IN ('done','cancelled') ORDER BY updated_at").toArray()
+		const rows = this.sql.exec<{ id: string; title: string; status: string; owner: string | null; updated_at: number }>("SELECT id, title, status, owner, updated_at FROM ws_tasks WHERE NOT status IN ('done', 'cancelled') AND ws_tasks.room_id = ?1 ORDER BY updated_at", this.log.roomId).toArray()
 		return { open: rows.length, oldest: rows.slice(0, 3).map((t) => ({ id: t.id, title: t.title, status: t.status, ...(t.owner ? { owner: t.owner } : {}), updatedAt: t.updated_at })) }
 	}
 
@@ -456,9 +457,8 @@ export class Room implements SocketRoom {
 
 	private adopt(userId: string): Home | null {
 		if (this.log.meta("user_id") === null) {
-			const name = this.ctx.id.name ?? ""
-			const roomId = name.slice(name.lastIndexOf(":") + 1)
-			if (name !== `room:${userId}:${roomId}`) return null
+			const roomId = this.identity.roomId
+      if (userId !== this.identity.ownerId) return null
 			this.log.setMeta("user_id", userId)
 			this.log.setMeta("room_id", roomId)
 		}
@@ -482,7 +482,7 @@ export class Room implements SocketRoom {
 	}
 
 	async alarm(): Promise<void> {
-		if (this.log.meta("deleted") === "1") return
+		if (this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1") return
 		const due = await this.alarms.dueWakeups(Date.now())
 		await runDue(this.alarms, due, {
 			[HELLO_WAKEUP]: () => enforceHello(this.ctx, this.alarms),
@@ -502,7 +502,7 @@ export class Room implements SocketRoom {
 		const now = Date.now()
 		const team = Object.fromEntries(members.map((m) => [m.slug, { doing: this.team.now(m.slug), holds: this.team.held(m.slug, now) }]))
 		const human = this.log.meta(HUMAN_HANDLE) ?? undefined
-		const view = { ...readBriefView(this.sql, member, members, goal, reactions.text), team, ...(human ? { human } : {}) }
+		const view = { ...readBriefView(this.sql, member, members, goal, reactions.text, this.log.roomId), team, ...(human ? { human } : {}) }
 		return { member, envelopes, brief: buildBrief(member, view), reactionsUpTo: reactions.upTo }
 	}
 
@@ -604,11 +604,22 @@ export class Room implements SocketRoom {
 	}
 
 	async memoryRecall(query: string, seen?: number, skip: number[] = []): Promise<string[]> {
-		return this.memoryNaps.recall(query, seen, skip)
+    const archive = this.historyArchive()
+    if (!archive) return this.memoryNaps.recall(query, seen, skip)
+    const text = query.slice(0, 200)
+    let hits = (await archive.search(text, { limit: 30, mail: true }, 1_000)).results
+    if (!hits.length) {
+      const words = [...new Set(text.toLowerCase().split(/\W+/).filter((word) => word.length > 2))].sort((a, b) => b.length - a.length).slice(0, 4)
+      const found = new Map<string, (typeof hits)[number]>()
+      for (const word of words) for (const hit of (await archive.search(word, { limit: 30, mail: true }, 1_000)).results) found.set(hit.id, hit)
+      hits = [...found.values()].sort((a, b) => b.seq - a.seq)
+    }
+    return this.memory.recallHits(hits, Date.now(), 10, seen, new Set(skip))
 	}
 
 	async memoryZoom(id: string): Promise<string | null> {
-		return this.memoryNaps.zoom(id)
+    const archive = this.historyArchive()
+    return archive ? this.memory.zoomArchived(id, (seq, before, after) => archive.around(seq, before, after), Date.now()) : this.memoryNaps.zoom(id)
 	}
 
 	memberSlugs(): AgentSlug[] {
@@ -623,25 +634,26 @@ export class Room implements SocketRoom {
 	async erase(): Promise<void> {
 		const home = this.home()
 		if (!home || this.log.meta("deleted") === "1") return
-		for (const slug of this.members.everyone()) await this.services.agent(home.roomId, slug).erase()
-		const pending = this.sql.exec<{ r2_key: string; upload_id: string | null }>("SELECT r2_key, upload_id FROM pending_uploads").toArray()
+		const archive = this.archive ?? (this.env.ARCHIVE ? new HistoryArchive(home.roomId, new RoomHistoryStore(this.ctx.storage, this.log), historyR2(this.env.ARCHIVE)) : undefined)
+    this.erasing = true
+    this.log.setMeta("erasing", "1")
+    for (const slug of this.members.everyone()) await this.services.agent(home.roomId, slug).stop()
+    await archive?.erase()
+    for (const slug of this.members.everyone()) await this.services.agent(home.roomId, slug).erase()
+		const pending = this.sql.exec<{ r2_key: string; upload_id: string | null }>("SELECT r2_key, upload_id FROM pending_uploads WHERE pending_uploads.room_id = ?1", this.log.roomId).toArray()
 		for (const row of pending) if (row.upload_id) await this.services.files().resumeMultipartUpload(row.r2_key, row.upload_id).abort()
 		const keys = this.sql
-			.exec<{ r2_key: string }>("SELECT r2_key FROM ws_files UNION SELECT r2_key FROM pending_uploads")
+			.exec<{ r2_key: string }>("SELECT r2_key FROM files WHERE files.room_id = ?1 UNION SELECT r2_key FROM pending_uploads WHERE pending_uploads.room_id = ?1", this.log.roomId)
 			.toArray()
 			.map((r) => r.r2_key)
 		if (keys.length) await deleteFiles(this.services.files(), keys)
 		for (const ws of this.ctx.getWebSockets()) ws.close(1000, "Chat deleted")
 		eraseRoomSchema(this.ownerStorage, this.log.roomId)
-		erase(this.ctx.storage)
-		await this.ctx.storage.deleteAlarm()
+    await this.alarms.clearWakeup(BURST_WAKEUP)
 	}
 
 	async subscribe(ws: WebSocket, lastSeq: number, handle?: string): Promise<void> {
-		const name = this.ctx.id.name ?? ""
-		const bits = name.split(":")
-		const userId = bits[1]
-		if (!userId) return
+		const userId = this.identity.ownerId
 		this.adopt(userId)
 		if (handle && handle !== this.log.meta(HUMAN_HANDLE)) this.log.setMeta(HUMAN_HANDLE, handle)
 		const home = this.home()
@@ -652,7 +664,7 @@ export class Room implements SocketRoom {
 	}
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-		if (this.log.meta("deleted") === "1") return
+		if (this.log.meta("deleted") === "1" || this.log.meta("erasing") === "1") return
 		try {
 			await handleFrame(this, ws, message)
 		} catch (e) {
@@ -695,6 +707,7 @@ export class Room implements SocketRoom {
   private historyArchive(): HistoryArchive | undefined {
     const env = this.env
     const home = this.home()
+    if ((this.erasing || this.log.meta("erasing") === "1") && !this.archive) return undefined
     if (!env.ARCHIVE || !home) return undefined
     return this.archive ??= new HistoryArchive(home.roomId, new RoomHistoryStore(this.ctx.storage, this.log), historyR2(env.ARCHIVE))
   }
@@ -706,6 +719,11 @@ export class Room implements SocketRoom {
 
   archiveHistory(): Promise<void> {
     return this.historyArchive()?.afterRun() ?? Promise.resolve()
+  }
+
+  async mutateMessage<T>(id: string, apply: () => T): Promise<T> {
+    if (this.erasing || this.log.meta("erasing") === "1") throw new Error("Chat is being deleted")
+    return this.historyArchive()?.mutate(id, apply) ?? apply()
   }
 
   async history(seq: number, before: number, after: number) {
@@ -748,6 +766,7 @@ export class Room implements SocketRoom {
 	}
 
 	private async storeSend(frame: Extract<ClientToRoom, { t: "send" }>): Promise<SendOutcome> {
+    if (this.erasing || this.log.meta("erasing") === "1" || this.log.meta("deleted") === "1") return { refused: "This chat is being deleted." }
 		const text = bubbleOf(frame.text)
 		let whole: WholeText | null = null
 		try {
@@ -756,7 +775,7 @@ export class Room implements SocketRoom {
 				if (!home) throw new ClaimRefused("This chat is not ready. Send again in a moment.")
 				whole = await putWhole(this.services.files(), home, frame.clientId, frame.text)
 			}
-			return this.ctx.storage.transactionSync(() => {
+			const store = (): SendOutcome => this.ctx.storage.transactionSync(() => {
 				const earlier = this.log.sentBefore(frame.clientId)
 				if (earlier) return { ack: earlier, events: [] }
 				const now = Date.now()
@@ -782,6 +801,7 @@ export class Room implements SocketRoom {
 				if (stored.event) this.burst.stage({ id: stored.id, seq: stored.seq, text: body, replyTo }, tags(frame.text))
 				return { ack: { id: stored.id, seq: stored.seq }, events: [...claimed.events, ...(filed?.events ?? []), ...(stored.event ? [stored.event] : [])] }
 			})
+      return frame.replyTo ? await this.mutateMessage(frame.replyTo, store) : store()
 		} catch (error) {
 			if (whole) await discardWhole(this.services.files(), whole).catch((e: unknown) => console.error(`whole text delete failed: ${e instanceof Error ? e.message : String(e)}`))
 			if (error instanceof ClaimRefused) return { refused: error.message }

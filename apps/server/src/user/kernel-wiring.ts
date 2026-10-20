@@ -23,6 +23,7 @@ export type BrowserCheck = {
 }
 
 type KernelDeps = {
+  fetch?: typeof fetch
   ctx: DurableObjectState
   sql: SqlStorage
   env: Env
@@ -62,7 +63,7 @@ export class KernelWiring {
   constructor(d: KernelDeps) {
     this.d = d
     this.store = d.store ?? new KernelStore(d.sql, () => ({ keyring: keyringFromEnv(d.env), userId: d.userId() }))
-    this.clientFor = d.clientFor ?? sdkClient
+    this.clientFor = d.clientFor ?? ((key) => sdkClient(key, d.fetch))
     this.browser = new KernelLease({
       store: this.store,
       client: () => this.client(),

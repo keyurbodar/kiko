@@ -413,7 +413,6 @@ export class Reminders {
     const list = JSON.stringify(ids)
     this.sql.exec("DELETE FROM routine_runs WHERE routine_id IN (SELECT value FROM json_each(?))", list)
     this.sql.exec("DELETE FROM recipe_links WHERE routine_id IN (SELECT value FROM json_each(?))", list)
-    this.sql.exec("DELETE FROM loop_reminders WHERE reminder_id IN (SELECT value FROM json_each(?))", list)
     this.sql.exec("DELETE FROM reminders WHERE id IN (SELECT value FROM json_each(?))", list)
   }
 

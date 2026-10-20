@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers"
 import { keyringFromEnv } from "@kiko/durable/crypto"
 import { ExtensionError, ExtensionStore } from "../src/user/extensions"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { migrate } from "@kiko/durable/migrate"
 
 type Env = { STORE: DurableObjectNamespace<StoreDO>; CREDENTIALS_KEK: string }
@@ -16,7 +16,7 @@ export class StoreDO extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
-    migrate(ctx.storage, USER_STEPS)
+    migrate(ctx.storage, OWNER_STEPS)
   }
 
   get store(): ExtensionStore {

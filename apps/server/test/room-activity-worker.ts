@@ -1,104 +1,26 @@
-import { DurableObject } from "cloudflare:workers"
-import { ROOM_ID_HEADER, USER_ID_HEADER, userStub } from "../src/lib/names"
-import { RoomDO as Room } from "../src/room/room-do"
+import { FeatureOwner as ForFeatureTests } from "./feature-owner"
+import { ownerName } from "../src/lib/names"
 
-export class RoomDO extends Room {
-	async pendingRows(): Promise<number> {
-		return this.ctx.storage.sql.exec<{ n: number }>("SELECT count(*) AS n FROM pending").one().n
-	}
+// The room's queue of undelivered envelopes is a room table, so the question is asked in the room.
+export class FeatureOwner extends ForFeatureTests {
+  async pendingRows(roomId: string): Promise<number> {
+    return this.ctx.storage.sql.exec<{ n: number }>("SELECT count(*) AS n FROM pending WHERE pending.room_id = ?", roomId).one().n
+  }
 }
 
-export class UserDO extends DurableObject {
-	async recordRoom(): Promise<boolean> {
-		return true
-	}
-	async touchChat(_roomId: string, touch: unknown): Promise<void> {
-		const kept = (await this.ctx.storage.get<unknown[]>("touches")) ?? []
-		await this.ctx.storage.put("touches", [...kept, touch])
-	}
-	async touchCalls(): Promise<unknown[]> {
-		return (await this.ctx.storage.get<unknown[]>("touches")) ?? []
-	}
-	async chatTasks(): Promise<void> {}
-	async notifyError(error: unknown, roomId: string): Promise<void> {
-		const kept = (await this.ctx.storage.get<unknown[]>("errors")) ?? []
-		await this.ctx.storage.put("errors", [...kept, { error, roomId }])
-	}
-	async errorCalls(): Promise<unknown[]> {
-		return (await this.ctx.storage.get<unknown[]>("errors")) ?? []
-	}
-	async recordProviderProblem(provider: string, kind: string): Promise<void> {
-		const kept = (await this.ctx.storage.get<string[][]>("problems")) ?? []
-		await this.ctx.storage.put("problems", [...kept, [provider, kind]])
-	}
-	async problemCalls(): Promise<string[][]> {
-		return (await this.ctx.storage.get<string[][]>("problems")) ?? []
-	}
-	async chatTyping(_roomId: string, names: string[]): Promise<void> {
-		const kept = (await this.ctx.storage.get<string[][]>("typing")) ?? []
-		await this.ctx.storage.put("typing", [...kept, names])
-	}
-	async typingCalls(): Promise<string[][]> {
-		return (await this.ctx.storage.get<string[][]>("typing")) ?? []
-	}
-	async captureHuman(): Promise<void> {}
-	async listAgents(): Promise<unknown[]> {
-		return [{ id: "a1", slug: "scout", name: "Scout", prompt: "Scout\n\nresearches topics", model: "" }]
-	}
-	async getChat(): Promise<null> {
-		return null
-	}
-}
-
-// An agent that records what the room tells it about an ask, and answers whether a tool was waiting.
-export class AgentDO extends DurableObject {
-	async askAnswered(id: string, text: string): Promise<boolean> {
-		const kept = (await this.ctx.storage.get<string[]>("answers")) ?? []
-		await this.ctx.storage.put("answers", [...kept, `${id}=${text}`])
-		return (await this.ctx.storage.get<boolean>("waiting")) ?? false
-	}
-	async waiting(value: boolean): Promise<void> {
-		await this.ctx.storage.put("waiting", value)
-	}
-	async answers(): Promise<string[]> {
-		return (await this.ctx.storage.get<string[]>("answers")) ?? []
-	}
-	async humanComing(): Promise<void> {}
-	async stop(): Promise<{ discarded: number }> {
-		return { discarded: 0 }
-	}
-	async wake(): Promise<boolean> {
-		return false
-	}
-	async receive(): Promise<{ refused: null }> {
-		return { refused: null }
-	}
-}
-
-type Env = { ROOM: DurableObjectNamespace<RoomDO>; USER: DurableObjectNamespace<UserDO>; AGENT: DurableObjectNamespace<AgentDO> }
-
+type Env = { OWNER: DurableObjectNamespace<FeatureOwner> }
 export default {
-	async fetch(request: Request, env: Env) {
-		const [, kind, roomId, slug, arg] = new URL(request.url).pathname.split("/")
-		const stub = env.ROOM.get(env.ROOM.idFromName(`room:alice:${roomId}`))
-		if (kind === "rpc") {
-			const args = (await request.json()) as unknown[]
-			const call = (stub as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[slug!]
-			return Response.json((await call!(...args)) ?? null)
-		}
-		if (kind === "touches") return Response.json(await userStub(env.USER, "alice").touchCalls())
-		if (kind === "errors") return Response.json(await userStub(env.USER, "alice").errorCalls())
-		if (kind === "problems") return Response.json(await userStub(env.USER, "alice").problemCalls())
-		if (kind === "typing") return Response.json(await userStub(env.USER, "alice").typingCalls())
-		if (kind === "agent") {
-			const agent = env.AGENT.get(env.AGENT.idFromName(`agent:alice:${roomId}:${slug}`))
-			if (arg === "answers") return Response.json(await agent.answers())
-			await agent.waiting(arg === "1")
-			return new Response("ok")
-		}
-		const headers = new Headers(request.headers)
-		headers.set(USER_ID_HEADER, "alice")
-		headers.set(ROOM_ID_HEADER, roomId!)
-		return stub.fetch(new Request(request, { headers }))
-	},
+  async fetch(request: Request, env: Env) {
+    const [, kind, roomId, method, argument] = new URL(request.url).pathname.split("/")
+    const stub = env.OWNER.get(env.OWNER.idFromName(ownerName("alice")))
+    if (kind === "rpc" && method === "pendingRows") return Response.json(await stub.pendingRows(roomId!))
+    if (kind === "rpc") return Response.json(await stub.roomCall(roomId!, method as Parameters<FeatureOwner["roomCall"]>[1], await request.json<Parameters<FeatureOwner["roomCall"]>[2]>()) ?? null)
+    if (["touches", "errors", "problems", "typing"].includes(kind!)) return Response.json(await stub.observations(kind!, roomId))
+    if (kind === "agent") {
+      if (argument === "answers") return Response.json(await stub.observations("answers", roomId, method))
+      await stub.agentWaiting(roomId!, method!, argument === "1")
+      return new Response("ok")
+    }
+    return stub.fetch(request)
+  },
 }

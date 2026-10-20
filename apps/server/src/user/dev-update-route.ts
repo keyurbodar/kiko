@@ -12,6 +12,6 @@ export async function devUpdateRoute(request: Request, env: Env): Promise<Respon
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 })
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return Response.json({ error: "json body required" }, { status: 400 })
-  await ownerStub(env.OWNER, user.id).devUpdateConfig(body)
+  await ownerStub(env.OWNER, user.id).userCall("devUpdateConfig", [body])
   return Response.json({ ok: true })
 }

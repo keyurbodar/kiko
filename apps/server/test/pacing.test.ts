@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { ACK_CHARS, ackOf, hasToolCall, NOTE_CHARS, noteOf, postOf } from "../src/agent/pacing"
 import { Outbox, type RoomPort } from "../src/agent/outbox"
-import { AGENT_STEPS } from "../src/agent/schema"
+import { INITIAL_AGENT_STEPS } from "../src/agent/schema"
 import { sqlWith } from "./sql-shim"
 
 const call = { type: "toolCall" }
@@ -59,7 +59,7 @@ function driven() {
     react: async () => {},
     runError: async () => {},
   } satisfies RoomPort
-  const outbox = new Outbox({ sql: sqlWith(AGENT_STEPS) } as unknown as DurableObjectStorage, () => room, () => "run")
+  const outbox = new Outbox({ sql: sqlWith(INITIAL_AGENT_STEPS) } as unknown as DurableObjectStorage, () => room, () => "run", Date.now, "agent")
   const inner = outbox as unknown as { start(id: string, cursor: number): Promise<void>; entry(e: unknown): Promise<void>; save(r: unknown): void; run: unknown }
   const entry = (id: number, model: readonly unknown[]) => inner.entry({ id, kind: "pi.message", model })
   return { posts, notes, inner: { start: (id: string, cursor: number) => inner.start(id, cursor), entry } }

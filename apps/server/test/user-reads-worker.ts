@@ -1,128 +1,50 @@
-import { DurableObject } from "cloudflare:workers"
-import { UserDO as User } from "../src/user/user-do"
-
-// Every statement's cursor, read once when a test asks for the totals. A cursor's counts are final once it
-// has run, and the test reads them only between actions.
-const open: SqlStorageCursor<Record<string, SqlStorageValue>>[] = []
-let read = 0
-let written = 0
-
-function settle(): void {
-	for (const cursor of open.splice(0)) {
-		read += cursor.rowsRead
-		written += cursor.rowsWritten
-	}
-}
-
-export class UserDO extends User {
-	constructor(ctx: DurableObjectState, env: ConstructorParameters<typeof User>[1]) {
-		const sql = ctx.storage.sql
-		const exec = sql.exec.bind(sql)
-		Object.defineProperty(sql, "exec", {
-			configurable: true,
-			value: (query: string, ...bindings: SqlStorageValue[]) => {
-				const cursor = exec(query, ...bindings)
-				open.push(cursor)
-				if (open.length > 10_000) settle()
-				return cursor
-			},
-		})
-		super(ctx, env)
-	}
-
-	async counts(): Promise<{ read: number; written: number }> {
-		settle()
-		return { read, written }
-	}
-
-	// Runs one user action and returns the rows it read and wrote. The action is a method of UserDO.
-	async measure(op: string, args: unknown[]): Promise<{ read: number; written: number }> {
-		await this.counts()
-		const before = { read, written }
-		await (this as unknown as Record<string, (...a: unknown[]) => unknown>)[op]!(...args)
-		const after = await this.counts()
-		return { read: after.read - before.read, written: after.written - before.written }
-	}
-
-	// The life log's nearest lines, as a capture pass asks for them: the same read the pass makes per heard line.
-	async lifeNearest(text: string): Promise<number> {
-		return ((this as unknown as { life: { nearest(text: string, limit: number): unknown[] } }).life.nearest(text, 12)).length
-	}
-
-	// History, written straight into the tables so a large object is cheap to build. Each kind adds `n` rows and
-	// returns how many it added, so the test can check the seed built what it asked for.
-	async seed(kind: SeedKind, n: number): Promise<number> {
-		const sql = this.ctx.storage.sql
-		const now = Date.now()
-		const count = () => sql.exec<{ n: number }>(`SELECT count(*) AS n FROM ${TABLE[kind]}`).one().n
-		const before = count()
-		// The series' only `?` is the row count, so every insert binds n first. A recursive count bound to a timestamp
-		// runs for trillions of rows and filled the WAL in seconds.
-		const series = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?) "
-		const insert = (body: string, ...binds: SqlStorageValue[]) => sql.exec(`${series}${body}`, n, ...binds)
-		if (kind === "life") {
-			insert(
-				`INSERT INTO life (pos, at, text, source, norm, card) SELECT i, ?, 'tok' || i, 'ada', 'tok' || i, CASE WHEN i % 50 = 0 THEN 'ATTRIBUTE' END FROM n`,
-				now,
-			)
-			insert(`INSERT INTO life_fts (rowid, text) SELECT i, 'tok' || i FROM n`)
-			insert(`INSERT INTO life_tri (rowid, text) SELECT i, 'tok' || i FROM n`)
-		} else if (kind === "chats") {
-			insert(`INSERT INTO chats (room_id, title, updated_at) SELECT 'r' || i, 'chat ' || i, ? FROM n`, now)
-		} else if (kind === "reminders") {
-			insert(
-				`INSERT INTO reminders (id, text, due_utc, tz, rrule, room_id, target, created_by, status, last_fired, created_at) SELECT 'done' || i, 'old ' || i, ?, 'UTC', NULL, 'r1', 'human', 'human', 'done', ?, ? FROM n`,
-				now - 86_400_000,
-				now - 86_400_000,
-				now - 86_400_000,
-			)
-		} else if (kind === "boards") {
-			// One open task per chat, as each room reports it: the daily pass reads every board.
-			insert(
-				`INSERT INTO chat_tasks (room_id, tasks) SELECT '0199a000-0001-7000-8000-' || printf('%012d', i), ? FROM n`,
-				JSON.stringify({ open: 1, oldest: [{ id: "t1", title: "task", status: "todo", updatedAt: now - 86_400_000 }] }),
-			)
-		} else if (kind === "capture") {
-			insert(`INSERT INTO capture_queue (room_id, message_id, text, at, queued_at) SELECT 'r1', 'q' || i, 'queued line ' || i, ?, ? FROM n`, now, now)
-		}
-		return count() - before
-	}
-}
+import { MeteredOwner } from "./owner-meter"
+import { ownerName } from "../src/lib/names"
+import type { RoomId } from "@kiko/protocol"
+import type { Life } from "@kiko/memory/life"
 
 type SeedKind = "life" | "chats" | "reminders" | "boards" | "capture"
-const TABLE: Record<SeedKind, string> = {
-	life: "life",
-	chats: "chats",
-	reminders: "reminders",
-	boards: "chat_tasks",
-	capture: "capture_queue",
+const roomAt = (index: number) => `01J00000000000000000000000`.slice(0, 18) + String(index).padStart(8, "0")
+export class UserMeter extends MeteredOwner {
+  async measure(op: string, args: unknown[]) {
+    const before = this.counts()
+    if (op === "lifeNearest") (this.user() as unknown as { life: Life }).life.nearest(String(args[0]), 12)
+    else if (op === "openTasks") this.room(String(args[0])).openTasks()
+    else await this.userCall(op as Parameters<MeteredOwner["userCall"]>[0], args as Parameters<MeteredOwner["userCall"]>[1])
+    const after = this.counts()
+    return { read: after.read - before.read, written: after.written - before.written }
+  }
+  async seed(kind: SeedKind, count: number): Promise<number> {
+    const sql = this.ctx.storage.sql
+    const now = Date.now()
+    if (kind === "chats") {
+      for (let index = 1; index <= count; index++) await this.user().createChat(roomAt(index) as RoomId, `chat ${index}`)
+      return count
+    }
+    if (kind === "boards") {
+      for (let index = 1; index <= count; index++) sql.exec("INSERT INTO ws_tasks (room_id,id,title,status,created_by,created_seq,updated_at) VALUES (?, 'task', 'task', 'todo', 'human', 1, ?)", roomAt(index), now - 86_400_000)
+      return count
+    }
+    this.ctx.storage.transactionSync(() => {
+      for (let index = 1; index <= count; index++) {
+        if (kind === "life") {
+          sql.exec("INSERT INTO life (pos,at,text,source,norm,card) VALUES (?,?,?,'ada',?,?)", index, now, `tok${index}`, `tok${index}`, index % 50 === 0 ? "ATTRIBUTE" : null)
+          sql.exec("INSERT INTO life_fts (rowid,text) VALUES (?,?)", index, `tok${index}`)
+          sql.exec("INSERT INTO life_tri (rowid,text) VALUES (?,?)", index, `tok${index}`)
+        } else if (kind === "reminders") sql.exec("INSERT INTO reminders (id,text,due_utc,tz,rrule,room_id,target,created_by,status,last_fired,created_at) VALUES (?, ?, ?, 'UTC', NULL, ?, 'human', 'human', 'done', ?, ?)", `done${index}`, `old ${index}`, now - 86_400_000, roomAt(1), now - 86_400_000, now - 86_400_000)
+        else sql.exec("INSERT INTO capture_queue (room_id,message_id,text,at,queued_at) VALUES (?, ?, 'queued line', ?, ?)", roomAt(1), `q${index}`, now, now)
+      }
+    })
+    return count
+  }
 }
-
-// The daily pass wakes a chat through its room. A stub accepts the wake so the pass reaches the boards table.
-export class RoomDO extends DurableObject {
-	async initiativeWake(): Promise<"busy"> {
-		return "busy"
-	}
-}
-
-type Env = { USER: DurableObjectNamespace<UserDO>; ROOM: DurableObjectNamespace<RoomDO> }
-
-// The user object is named for the test's user. Each request runs one step: `/op/<user>` takes a JSON body
-// of the action and its arguments, and `/seed/<user>` builds history.
+type Env = { OWNER: DurableObjectNamespace<UserMeter> }
 export default {
-	async fetch(request: Request, env: Env) {
-		const [, kind, user] = new URL(request.url).pathname.split("/")
-		const stub = env.USER.get(env.USER.idFromName(`user:${user}`))
-		if (kind === "seed") {
-			const { what, n } = (await request.json()) as { what: Parameters<UserDO["seed"]>[0]; n: number }
-			return Response.json(await stub.seed(what, n))
-		}
-		const { op, args } = (await request.json()) as { op: string; args: unknown[] }
-		try {
-			return Response.json(await stub.measure(op, args))
-		} catch (error) {
-			return new Response(error instanceof Error ? (error.stack ?? String(error)) : String(error), { status: 500 })
-		}
-	},
+  async fetch(request: Request, env: Env) {
+    const [, kind, user] = new URL(request.url).pathname.split("/")
+    const stub = env.OWNER.get(env.OWNER.idFromName(ownerName(user!)))
+    if (kind === "seed") { const { what, n } = await request.json<{ what: SeedKind; n: number }>(); return Response.json(await stub.seed(what, n)) }
+    const { op, args } = await request.json<{ op: string; args: unknown[] }>()
+    return Response.json(await stub.measure(op, args))
+  },
 }
-

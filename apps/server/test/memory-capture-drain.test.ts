@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import type { Answer, Judge, Question } from "@kiko/memory/judge"
 import { Life } from "@kiko/memory/life"
 import { MemoryCapture } from "../src/user/memory-capture"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { sqlWith } from "./sql-shim"
 
 const ROOM = "01J0000000000000000000000B"
@@ -17,32 +17,39 @@ const answer = (key: string, q: Question): Answer =>
   q.type === "choice" ? { type: "choice", choice: "not_card", confidence: 0.9, probabilities: { not_card: 0.9 } } : { type: "bool", probability: key.endsWith("_worth") ? 0.1 : 0.05 }
 
 function setup(refuse?: string) {
-  const sql = sqlWith(USER_STEPS)
-  sql.exec("INSERT INTO chats (room_id, title, updated_at) VALUES (?, 'plans', 0)", ROOM)
+  const sql = sqlWith(OWNER_STEPS)
   const settings = new Map<string, string>()
   const life = new Life(sql, (fn) => fn(), { get: (k) => settings.get(k) ?? null, set: (k, v) => void settings.set(k, v) })
+  const calls: number[] = []
   const judge = (async (state: { candidates: { text: string }[] }, questions: Record<string, Question>) => {
     const asked = Object.keys(questions)
+    calls.push(asked.length)
     if (asked.length > MAX_QUESTIONS || (refuse && state.candidates.some((c) => c.text.includes(refuse)))) return null
     return Object.fromEntries(asked.map((k) => [k, answer(k, questions[k]!)]))
   }) as unknown as Judge
   const mem = new MemoryCapture({
     sql,
     life,
-    alarms: { setWakeup: async () => {}, clearWakeup: async () => {} } as never,
+    chat: (roomId) => roomId === ROOM ? { roomId, title: "plans", pinned: false, muted: false, lastSeq: 0, lastPreview: "", unread: 0, updatedAt: 0 } : null,
+    fetch: async () => { throw new Error("unexpected transport in judge fixture") },
+    countOutgoing: () => {},
     label: "test",
     credentials: () => ({}) as never,
     turn: async () => ({}) as never,
   })
   mem.judgeKey = () => ({}) as never
   mem.judge = () => judge
-  return { sql, mem }
+  return { sql, mem, calls }
 }
 
 test("a 24-row queue drains even though the judge answers only short requests", async () => {
-  const { sql, mem } = setup()
+  const { sql, mem, calls } = setup()
+  // A human run writes down its own burst, so the queue is empty once it returns.
   await mem.captureHuman(ROOM, batch(24))
-  expect(queued(sql)).toHaveLength(24)
+  expect(queued(sql)).toEqual([])
+  // All 24 rows were judged in chunks of four, so no request held more questions than a model answers.
+  expect(calls).toHaveLength(6)
+  expect(Math.max(...calls)).toBeLessThanOrEqual(MAX_QUESTIONS)
   await mem.captureNow()
   expect(queued(sql)).toEqual([])
 })

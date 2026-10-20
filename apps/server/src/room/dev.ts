@@ -50,9 +50,9 @@ export class RoomDev {
 	}
 
 	async age(ms: number): Promise<number> {
-		this.d.sql.exec("UPDATE ws_tasks SET updated_at = updated_at - ? WHERE status NOT IN ('done', 'cancelled')", ms)
+		this.d.sql.exec("UPDATE ws_tasks SET updated_at = updated_at - ?1 WHERE NOT status IN ('done', 'cancelled') AND ws_tasks.room_id = ?2", ms, this.d.log.roomId)
 		await this.d.tasksChanged()
-		return this.d.sql.exec<{n:number}>("SELECT count(*) AS n FROM ws_tasks WHERE status NOT IN ('done','cancelled')").one().n
+		return this.d.sql.exec<{n:number}>("SELECT COUNT(*) AS n FROM ws_tasks WHERE NOT status IN ('done', 'cancelled') AND ws_tasks.room_id = ?1", this.d.log.roomId).one().n
 	}
 
 	async agePending(ms: number): Promise<number> {

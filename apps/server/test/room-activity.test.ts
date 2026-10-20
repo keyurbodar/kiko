@@ -1,3 +1,4 @@
+import { RoomSocket } from "./room-socket"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { Activity, RoomEvent, RoomSnapshot, RoomToClient, WorkerRow } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
@@ -13,7 +14,7 @@ beforeAll(async () => {
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
-		durableObjects: { ROOM: { className: "RoomDO", useSQLite: true }, USER: { className: "UserDO", useSQLite: true }, AGENT: { className: "AgentDO", useSQLite: true } },
+		durableObjects: { OWNER: { className: "FeatureOwner", useSQLite: true } },
 	})
 	origin = (await mf.ready).origin
 }, 60_000)
@@ -26,7 +27,7 @@ let n = 0
 const fresh = () => `01JZ8Q4T6M${String(++n).padStart(16, "0")}`
 
 async function open(room: string, lastSeq = 0) {
-	const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
+	const ws = new RoomSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
 	const frames: RoomToClient[] = []
 	ws.onmessage = (e) => frames.push(JSON.parse(String(e.data)))
 	await new Promise((resolve, reject) => {
@@ -56,9 +57,19 @@ const rpc = async (room: string, method: string, ...args: unknown[]) => {
 async function snapshot(room: string): Promise<RoomSnapshot> {
 	const c = await open(room, 1_000_000)
 	const reset = c.first
+	// Who is busy is not in the snapshot: a reconnecting socket learns it from the presence frames that
+	// follow the reset. Merge them so the assertions read what the client reads.
+	const agents: NonNullable<RoomSnapshot["agents"]> = []
+	for (let quiet = 0; quiet < 3;) {
+		const at = c.frames.findIndex((f) => f.t === "status")
+		if (at < 0) { quiet++; await Bun.sleep(5); continue }
+		quiet = 0
+		const frame = c.frames.splice(at, 1)[0]!
+		if (frame.t === "status") agents.push({ slug: frame.slug, state: frame.state, ...(frame.doing ? { doing: frame.doing } : {}), ...(frame.activity ? { activity: frame.activity } : {}) })
+	}
 	c.close()
 	if (!reset || reset.t !== "reset") throw new Error("no snapshot")
-	return reset.snapshot
+	return { ...reset.snapshot, agents }
 }
 
 async function withAgent(room: string, slug = "ada"): Promise<Client> {
@@ -131,7 +142,8 @@ test("a bubble that lands mid-run updates the chat row at once, without waiting 
 	}
 	const last = seen.find((t) => t.lastPreview === "second bubble")
 	expect(last).toMatchObject({ unread: 2 })
-	expect(last?.mentions).toBeUndefined()
+	// No agent line names the human, so the row counts no mentions.
+	expect(last?.mentions ?? 0).toBe(0)
 	c.close()
 })
 

@@ -1,3 +1,4 @@
+import type { JsonValue } from "@earendil-works/chord"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { type ConversationId, defineDoc, defineExtension, defineTask, type Harness, type TaskId, type TaskInspection } from "@earendil-works/pi-durable"
 
@@ -79,4 +80,22 @@ export function scheduledDeadline(task: TaskInspection): number | undefined {
   if (!checkpoint || typeof checkpoint !== "object" || !("phase" in checkpoint) || checkpoint.phase !== "wait") return undefined
   if (!input || typeof input !== "object" || !("runAt" in input) || typeof input.runAt !== "number" || !Number.isSafeInteger(input.runAt) || input.runAt < 0) throw new Error(`Invalid routine deadline in task ${task.record.id}`)
   return input.runAt
+}
+
+export function captureRoutineTasks(tasks: readonly TaskInspection["record"][], now = Date.now()): ScheduledRoutine[] | null {
+  const inputs: ScheduledRoutine[] = []
+  for (const task of tasks) {
+    if (task.state.status === "terminal" || task.state.status === "completing") return null
+    const checkpoint = task.state.checkpoint
+    if (task.kind !== TASK || task.abortRequested || !task.background || !checkpoint || typeof checkpoint !== "object" || !("phase" in checkpoint) || checkpoint.phase !== "wait") return null
+    const input = scheduledRoutine(task.input)
+    if (input.runAt <= now) return null
+    inputs.push(input)
+  }
+  return inputs
+}
+
+export function scheduledRoutine(value: JsonValue): ScheduledRoutine {
+  if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.routineId !== "string" || typeof value.roomId !== "string" || typeof value.target !== "string" || typeof value.runAt !== "number" || !Number.isSafeInteger(value.runAt) || value.runAt < 0) throw new Error("Invalid routine handoff")
+  return { routineId: value.routineId, roomId: value.roomId, target: value.target, runAt: value.runAt }
 }

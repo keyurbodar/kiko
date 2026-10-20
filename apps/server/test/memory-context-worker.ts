@@ -1,4 +1,3 @@
-import { DurableObject } from "cloudflare:workers"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { Type } from "@earendil-works/pi-ai"
@@ -8,24 +7,14 @@ import type { AgentSetup } from "@kiko/agent/host"
 import type { Batch } from "@kiko/agent/input"
 import { isAgentSlug, isRoomId, type Envelope } from "@kiko/protocol"
 import { declareEffect } from "@kiko/agent/effects"
-import { AgentProbe as AgentDO, agentObject } from "./agent-service"
-import { userStub } from "../src/lib/names"
+import { AgentProbe as AgentDO } from "./agent-service"
+import { ownerName } from "../src/lib/names"
+import { OwnerDO } from "../src/owner/owner-do"
+import type { Agent } from "../src/agent/agent-do"
+import type { Env } from "../src/index"
 import { buildAgent } from "../src/agent/factory"
 import type { RoomPort } from "../src/agent/outbox"
 import type { RoutinesPort } from "../src/agent/extensions/routines"
-import { UserDO } from "../src/user/user-do"
-
-export { UserDO }
-export class RoomDO extends DurableObject {
-  async remember(seq: number, text: string) { await this.ctx.storage.put(`message:${seq}`, text) }
-  async memoryView(skip: number[] = []) {
-    const stored = await this.ctx.storage.list<string>({ prefix: "message:" })
-    const lines = [...stored].filter(([key]) => !skip.includes(Number(key.slice(8)))).map(([key, text]) => `#${key.slice(8)} human: ${text}`)
-    return { count: stored.size, text: lines.join("\n") }
-  }
-  async memorySince() { return { count: 0, text: "" } }
-}
-
 type MemoryAccess = {
   routineContext(): Promise<string>
   inputInvalidated(): Promise<"refresh" | "forget" | null>
@@ -65,7 +54,7 @@ class AgentProbeService extends AgentDO {
       if (input.includes("HANG")) return fauxAssistantMessage(fauxToolCall("wait_memory", {}), { stopReason: "toolUse" })
       return fauxAssistantMessage("acknowledged")
     }))
-    const recall = declareEffect("read", defineTool({ name: "recall_memory", description: "recall the private code", parameters: Type.Object({}), replay: "safe", execute: async () => ({ output: [{ type: "text", text: (await userStub(this.env.USER, "alice").lifeRecall("ORCHID")).join("\n") }] }) }))
+    const recall = declareEffect("read", defineTool({ name: "recall_memory", description: "recall the private code", parameters: Type.Object({}), replay: "safe", execute: async () => ({ output: [{ type: "text", text: (await this.probeServices.user().lifeRecall("ORCHID")).join("\n") }] }) }))
     const built = buildAgent({ role: "", lead: true, model: { provider: "faux", modelId: "faux-1" }, testExtensions: [defineExtension({ name: "memory-probe", tools: [wait, recall] })] })
     const memory = this as unknown as MemoryAccess
     return { models, ...built, beginRun: async () => true, inputContext: () => memory.routineContext(), inputMemory: (batch, fresh, joined) => memory.inputMemory(batch, fresh, joined), inputInvalidated: () => memory.inputInvalidated() }
@@ -84,7 +73,8 @@ class AgentProbeService extends AgentDO {
     if (body.op === "waiting") return Response.json(await this.ctx.storage.get("waiting") ?? false)
     const envelope: Envelope = { id: `human:m${body.n}`, roomId: this.home().roomId, from: { kind: "human" }, body: body.text ?? "hi", hop: 0, rootId: `m${body.n}`, seq: body.n ?? 1 }
     await this.receive([envelope], "")
-    await this.alarm()
+    if (body.wait === false) this.ctx.waitUntil(this.alarm())
+    else await this.alarm()
     if (body.wait !== false) {
       const opened = await this.host.open()
       await opened.harness.waitForIdle(BACKGROUND_CONTEXT)
@@ -93,22 +83,32 @@ class AgentProbeService extends AgentDO {
     return Response.json(true)
   }
 }
-export class RadarProbe extends AgentProbe {
-  protected override home() {
-    const slug = "radar"
-    if (!isAgentSlug(slug)) throw new Error("bad fixture")
-    return { ...super.home(), slug }
-  }
+class RadarProbeService extends AgentProbeService {
+  protected override home() { const slug = "radar"; if (!isAgentSlug(slug)) throw new Error("bad fixture"); return { ...super.home(), slug } }
 }
-export class WriterProbe extends AgentProbe {
-  protected override home() {
-    const slug = "writer"
-    if (!isAgentSlug(slug)) throw new Error("bad fixture")
-    return { ...super.home(), slug }
-  }
+class WriterProbeService extends AgentProbeService {
+  protected override home() { const slug = "writer"; if (!isAgentSlug(slug)) throw new Error("bad fixture"); return { ...super.home(), slug } }
 }
-export default { fetch(request: Request, env: { USER: DurableObjectNamespace<UserDO> }) {
-  return env.USER.get(env.USER.idFromName("user:alice")).fetch(request)
-} }
 
-export const AgentProbe = agentObject(AgentProbeService)
+export class MemoryOwner extends OwnerDO {
+  private readonly probes = new Map<string, AgentProbeService>()
+  protected override agent(roomId: string, slug: string): Agent {
+    let probe = this.probes.get(slug)
+    if (!probe) {
+      const Service = slug === "radar" ? RadarProbeService : slug === "writer" ? WriterProbeService : AgentProbeService
+      probe = new Service(this.ctx, this.env, { services: this.services, identity: { ownerId: "alice", roomId, slug } })
+      this.probes.set(slug, probe)
+    }
+    return probe
+  }
+  async probe(slug: string, body: unknown): Promise<unknown> {
+    this.agent("01J00000000000000000000000", slug)
+    const response = await this.probes.get(slug)!.fetch(new Request("http://do/", { method: "POST", body: JSON.stringify(body) }))
+    return response.json()
+  }
+  async remember(_seq: number, text: string) { this.room("01J00000000000000000000000").log.addMessage({ from: { kind: "human" }, text }) }
+}
+
+export default { fetch(request: Request, env: Env) {
+  return env.OWNER.get(env.OWNER.idFromName(ownerName("alice"))).fetch(request)
+} }

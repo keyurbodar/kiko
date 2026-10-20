@@ -3,13 +3,13 @@ import { KIKO, type AgentSlug, type Chat, type RoomId } from "@kiko/protocol"
 import { createAgent } from "../src/user/agents"
 import { Reminders, type NewRoutine } from "../src/user/reminders"
 import { createAgentRoutine, routineResult } from "../src/user/routines"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { sqlWith } from "./sql-shim"
 
 const HOME = "01J0000000000000000000000A" as RoomId
 const RADAR = "01J0000000000000000000000B" as RoomId
 function world() {
-  const sql = sqlWith(USER_STEPS)
+  const sql = sqlWith(OWNER_STEPS)
   const agent = createAgent(sql, { id: "radar-id", slug: "radar" as AgentSlug, name: "Radar", prompt: "Research", model: "test" }, 1)!
   const chats: Chat[] = []
   const addChat = (roomId: RoomId, title: string, agents: readonly string[]) => {

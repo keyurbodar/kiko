@@ -1,0 +1,25 @@
+bun test v1.3.14 (0d9b296a)
+
+test/user-reads.test.ts:
+72861 |       });
+72862 |       responsePromise.resolve(response2);
+72863 |     });
+72864 |     return responsePromise;
+72865 |   }
+72866 |   const response = await undici.fetch(request4, {
+                                        ^
+error: The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()
+  path: "http://127.0.0.1:40615/seed/large",
+ errno: 0,
+  code: "ECONNRESET"
+
+      at async fetch5 (/home/keyur/.t3/worktrees/kiko/one-object-integrated/node_modules/.bun/miniflare@4.20260730.0/node_modules/miniflare/dist/src/index.js:72866:33)
+      at async <anonymous> (/home/keyur/.t3/worktrees/kiko/one-object-integrated/node_modules/.bun/miniflare@4.20260730.0/node_modules/miniflare/dist/src/index.js:104599:28)
+      at async seed (/home/keyur/.t3/worktrees/kiko/one-object-integrated/apps/server/test/user-reads.test.ts:33:23)
+      at async <anonymous> (/home/keyur/.t3/worktrees/kiko/one-object-integrated/apps/server/test/user-reads.test.ts:65:8)
+(fail) rows read and written per user action, fresh and with history [10324.92ms]
+
+ 0 pass
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [14.11s]

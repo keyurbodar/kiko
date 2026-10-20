@@ -1,0 +1,11 @@
+bun test v1.3.14 (0d9b296a)
+
+test/owner-dispatch.test.ts:
+(pass) one alarm admits one ready agent, keeps the other durable, and leaves the next wake a full gap away [387.87ms]
+(pass) a run that admits itself keeps the newer queued version and runs it once the gap passes [356.81ms]
+(pass) a failed invocation keeps its ticket, does not rearm the physical alarm, and frees the active guard [350.98ms]
+
+ 3 pass
+ 0 fail
+ 34 expect() calls
+Ran 3 tests across 1 file. [6.00s]

@@ -13,7 +13,7 @@ beforeAll(async () => {
     compatibilityDate: "2026-07-01",
     compatibilityFlags: ["nodejs_compat"],
     bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars", CREDENTIALS_KEK: `kek-${crypto.randomUUID()}` },
-    durableObjects: { USER: { className: "UserDO", useSQLite: true } },
+    durableObjects: { OWNER: { className: "OwnerDO", useSQLite: true } },
   })
 })
 

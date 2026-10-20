@@ -28,6 +28,7 @@ test("90 days at 2840 runs per day plateaus hot history with at most one write p
         archivedRows += rows.length
       },
       listDays: async () => [...days].sort().reverse(),
+      eraseRoom: async () => { for (const day of days) await Bun.file(join(directory, `${day}.json`)).delete(); days.clear() },
     }, () => now)
     const insert = db.prepare("INSERT INTO messages (room_id, id, seq, at, sender, text) VALUES ('room', ?, ?, ?, ?, ?)")
     const text = "Archive load fixture kumquat ".repeat(36)

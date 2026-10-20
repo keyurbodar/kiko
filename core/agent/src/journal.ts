@@ -1,5 +1,5 @@
 import type { Context } from "@earendil-works/chord"
-import { LiveDoc, type DocumentId, type Seq, type StorageWrite, type StoredDocument } from "@earendil-works/pi-durable"
+import { type Id, type Seq, type StorageWrite } from "@earendil-works/pi-durable"
 import { MemoryStorage } from "@earendil-works/pi-durable/storage/memory"
 import type { Step } from "@kiko/durable/migrate"
 
@@ -13,24 +13,22 @@ export const JOURNAL_STEPS: Step[] = [
     data BLOB NOT NULL,
     PRIMARY KEY (agent, seq, part)
   ) WITHOUT ROWID, STRICT`,
+  "CREATE TABLE IF NOT EXISTS journal_ids (agent TEXT PRIMARY KEY, next_id INTEGER NOT NULL) WITHOUT ROWID, STRICT",
 ]
 
 const PART_BYTES = 1_500_000
+const ID_RANGE = 1024
 const encoder = new TextEncoder()
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false })
-type Prefix = { id: DocumentId; version: number; value: StoredDocument["value"]; count: number }
-type Envelope = { seq: Seq; prefix: Prefix[] } & (
-  | { kind: "commit"; writes: readonly StorageWrite[] }
-  | { kind: "tail" }
-)
+type Envelope = { seq: Seq; writes: readonly StorageWrite[] }
 type Row = { seq: number; part: number; parts: number; bytes: number; data: ArrayBuffer }
 
 // One namespace belongs to one Harness, including all its worker conversations and their shared allocator.
 export class JournalStorage extends MemoryStorage {
-  private readonly pending = new Map<DocumentId, number>()
-  private readonly documents = new Map<DocumentId, { version: number; holdsGeneration: boolean }>()
-  private lastSeq: Seq | undefined
   private tail: Promise<unknown> = Promise.resolve()
+  private nextCandidate = 2
+  private reservedUntil = 2
+  private finished = false
 
   private constructor(private readonly durable: DurableObjectStorage, private readonly key: string) {
     super()
@@ -38,6 +36,8 @@ export class JournalStorage extends MemoryStorage {
 
   static open(storage: DurableObjectStorage, key: string): JournalStorage {
     const journal = new JournalStorage(storage, key)
+    journal.reservedUntil = storage.sql.exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", key).toArray()[0]?.next_id ?? 2
+    journal.nextCandidate = journal.reservedUntil
     let group: Row[] = []
     const replay = () => {
       const first = group[0]
@@ -53,8 +53,9 @@ export class JournalStorage extends MemoryStorage {
       }
       if (offset !== bytes.length) throw new Error("Invalid journal byte length")
       const envelope: Envelope = JSON.parse(decoder.decode(bytes))
-      if (envelope.seq !== first.seq || (envelope.kind !== "commit" && envelope.kind !== "tail")) throw new Error("Invalid journal envelope")
-      journal.replay(envelope)
+      if (envelope.seq !== first.seq || !Array.isArray(envelope.writes)) throw new Error("Invalid journal envelope")
+      journal.prepareCommit(envelope.writes, envelope.seq).apply()
+      journal.observeIds(envelope.writes)
       group = []
     }
     for (const row of storage.sql.exec<Row>("SELECT seq, part, parts, bytes, data FROM journal WHERE agent = ? ORDER BY seq, part", key)) {
@@ -70,71 +71,54 @@ export class JournalStorage extends MemoryStorage {
     storage.sql.exec("DELETE FROM journal WHERE agent = ?", key).toArray()
   }
 
-  override commit(writes: readonly StorageWrite[], context: Context): Promise<Seq> {
+  override commit(writes: readonly StorageWrite[], _context: Context): Promise<Seq> {
     return this.serial(async () => {
       const prepared = this.prepareCommit(writes)
-      const only = prepared.writes.length === 1 ? prepared.writes[0] : undefined
-      if (only?.type === "document.change" && only.content.kind === "delta" && only.content.ops.length > 0 &&
-        only.content.ops.every((op) => op[0] !== "r" && op[1][0] === "generation")) {
-        const known = this.documents.get(only.id)
-        if (known?.holdsGeneration && known.version === only.content.version) {
-          this.pending.set(only.id, (this.pending.get(only.id) ?? 0) + 1)
-          this.lastSeq = prepared.apply()
-          return this.lastSeq
-        }
+      this.append({ seq: prepared.seq, writes: prepared.writes })
+      const seq = prepared.apply()
+      this.observeIds(prepared.writes)
+      return seq
+    })
+  }
+
+  override mintId<I extends Id<string>>(): Promise<I> {
+    return this.serial(async () => {
+      if (this.finished) throw new Error("Storage is closed")
+      if (this.nextCandidate >= this.reservedUntil) {
+        this.durable.transactionSync(() => {
+          const persisted = this.durable.sql.exec<{ next_id: number }>("SELECT next_id FROM journal_ids WHERE agent = ?", this.key).toArray()[0]?.next_id ?? 2
+          const start = Math.max(this.nextCandidate, persisted)
+          if (!Number.isSafeInteger(start)) throw new Error("ID space is exhausted")
+          const end = Math.min(start + ID_RANGE, Number.MAX_SAFE_INTEGER + 1)
+          this.durable.sql.exec("INSERT INTO journal_ids (agent, next_id) VALUES (?, ?) ON CONFLICT(agent) DO UPDATE SET next_id = excluded.next_id", this.key, end)
+          this.nextCandidate = start
+          this.reservedUntil = end
+        })
       }
-      const prefix = await this.prefix(prepared.writes, context)
-      this.append({ kind: "commit", seq: prepared.seq, writes: prepared.writes, prefix })
-      this.lastSeq = prepared.apply()
-      this.remember(prepared.writes)
-      this.pending.clear()
-      return this.lastSeq
+      const value = this.nextCandidate++
+      return value as I
     })
   }
 
   override close(context: Context): Promise<void> {
     return this.serial(async () => {
-      if (this.pending.size && this.lastSeq !== undefined) {
-        this.append({ kind: "tail", seq: this.lastSeq, prefix: await this.prefix([], context) })
-        this.pending.clear()
-      }
       await super.close(context)
+      this.finished = true
     })
+  }
+
+  private observeIds(writes: readonly StorageWrite[]): void {
+    for (const write of writes) {
+      const id = write.type === "document.create" || write.type === "document.copy" ? write.record.id
+        : write.type === "document.change" || write.type === "document.retire" ? write.id : write.value.id
+      this.nextCandidate = Math.max(this.nextCandidate, id + 1)
+    }
   }
 
   private serial<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.tail.then(operation)
     this.tail = result.catch(() => {})
     return result
-  }
-
-  private async prefix(writes: readonly StorageWrite[], context: Context): Promise<Prefix[]> {
-    const superseded = new Set(writes.flatMap((write) =>
-      write.type === "document.retire" || (write.type === "document.change" && write.content.kind === "base") ? [write.id] : []))
-    const prefix: Prefix[] = []
-    for (const [id, count] of this.pending) {
-      if (superseded.has(id)) continue
-      const stored = await super.document(id, "current", context)
-      if (!stored) throw new Error(`Missing buffered document ${id}`)
-      prefix.push({ id, version: stored.version, value: stored.value, count })
-    }
-    return prefix
-  }
-
-  private remember(writes: readonly StorageWrite[]): void {
-    for (const write of writes) {
-      if (write.type === "document.create") {
-        this.documents.set(write.record.id, {
-          version: write.content.version,
-          holdsGeneration: write.record.kind === LiveDoc.definition.kind &&
-            (write.record.scope.kind !== "conversation" || write.record.history === "latest"),
-        })
-      } else if (write.type === "document.retire") this.documents.delete(write.id)
-      else if (write.type === "document.change") {
-        const known = this.documents.get(write.id)
-        if (known) known.version = write.content.version
-      }
-    }
   }
 
   private append(envelope: Envelope): void {
@@ -150,22 +134,4 @@ export class JournalStorage extends MemoryStorage {
     })
   }
 
-  private replay(envelope: Envelope): void {
-    // A replacement delta followed by empty deltas preserves the upstream checkpoint counter.
-    // Current-only documents expose no historical values, so the omitted intermediate values are unobservable.
-    let seq = envelope.seq - envelope.prefix.reduce((count, doc) => count + doc.count, 0) + (envelope.kind === "tail" ? 1 : 0)
-    for (const doc of envelope.prefix) {
-      for (let index = 0; index < doc.count; index++) {
-        this.prepareCommit([{
-          type: "document.change", id: doc.id,
-          content: { kind: "delta", version: doc.version, ops: index === 0 ? [["r", doc.value]] : [] },
-        }], seq++ as Seq).apply()
-      }
-    }
-    if (envelope.kind === "commit") {
-      this.prepareCommit(envelope.writes, envelope.seq).apply()
-      this.remember(envelope.writes)
-    }
-    this.lastSeq = envelope.seq
-  }
 }

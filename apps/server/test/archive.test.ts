@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from "bun:test"
 import { Miniflare } from "miniflare"
-import { listDays, readDay, writeDay, type ArchiveBucket } from "../src/owner/archive"
+import { eraseRoom, listDays, readDay, writeDay, type ArchiveBucket } from "../src/owner/archive"
 
 let mf: Miniflare
 let bucket: Awaited<ReturnType<Miniflare["getR2Bucket"]>>
@@ -122,3 +122,13 @@ test("5000 rich messages write and read through workerd R2 within 30 seconds", a
   expect(elapsedMs).toBeLessThan(30_000)
   console.log(`archive 5000-message write/read wall time: ${elapsedMs.toFixed(1)} ms`)
 }, 30_000)
+
+
+test("room erasure deletes every R2 page and preserves neighboring room prefixes", async () => {
+  for (const day of ["2026-01-01", "2026-01-02", "2026-01-03"]) await writeDay(bucket, "erase", day, [row(1)])
+  await writeDay(bucket, "erase-neighbor", "2026-01-01", [row(2)])
+  await eraseRoom({ list: (options) => bucket.list({ ...options, limit: 1 }), delete: (keys) => bucket.delete(keys) }, "erase")
+  expect(await listDays(bucket, "erase")).toEqual([])
+  expect(await readDay(bucket, "erase-neighbor", "2026-01-01")).toEqual([row(2)])
+  await eraseRoom(bucket, "erase")
+})

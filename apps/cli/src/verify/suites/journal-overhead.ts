@@ -4,9 +4,9 @@ import type { RoomHandle, Session, Verifier } from "../client"
 import { VerifyError } from "../client"
 import { messages, newRoom, poll } from "../kit"
 import type { Suite } from "../runner"
-import { fake, readStats, resetStats } from "./latency"
+import { fake, resetStats } from "./latency"
 
-// PR2 measures physical OWNER SQL writes. Legacy object counters remain in baseline evidence.
+// SQL cursor rows exclude hidden KV and alarm writes. The gate includes all three meters.
 // KIKO_JOURNAL_QUIET_MS can shorten a smoke run, but a gate requires the full minute.
 const QUIET_MS = Number(process.env.KIKO_JOURNAL_QUIET_MS ?? 60_000)
 const BASELINE = process.env.PR2_BASELINE === "1" || process.env.PR1_BASELINE === "1"
@@ -20,6 +20,8 @@ type AlarmAt = number | null | undefined
 type Phase = {
   name: string
   counters: Counters
+  billingVersion: number
+  billableWrites: { sqlPhysical: number; kvKeysPut: number; kvKeysDeleted: number; setAlarm: number; total: number }
   interObjectCalls: number
   rowsWritten: { total: number; byObject: Record<string, number> }
   alarms: { setAlarm: { total: number; byObject: Record<string, number> }; armedAgent: AlarmAt }
@@ -33,6 +35,7 @@ type Evidence = {
   phases: Phase[]
   warmPrompts: Phase[]
   warmMedian: { total: number; byObject: Record<string, number> }
+  warmBillableMedian: number
   errors: { liveRows: number; persistedRows: number }
 }
 
@@ -98,6 +101,7 @@ const describeAlarm = (at: AlarmAt): string =>
   at === undefined ? "unknown (the dev status has no alarmAt)" : at === null ? "none armed" : `armed for ${new Date(at).toISOString()}`
 
 function report(label: string, p: Phase): void {
+  console.log(`  ${label}: billable writes ${p.billableWrites.total} = SQL ${p.billableWrites.sqlPhysical} + KV put keys ${p.billableWrites.kvKeysPut} + deleted keys ${p.billableWrites.kvKeysDeleted} + setAlarm ${p.billableWrites.setAlarm}${p.billingVersion ? "" : " (incomplete legacy meter)"}`)
   const rows = p.rowsWritten.byObject
   const alarms = p.alarms.setAlarm.byObject
   const kv = Object.fromEntries(
@@ -123,10 +127,19 @@ async function measure(v: Verifier, s: Session, name: string, roomId: string): P
 
 /** Reads the counters now: the measured turn, or the end of a quiet wait. */
 async function turn(v: Verifier, s: Session, name: string, roomId: string): Promise<Phase> {
-  const counters = await readStats(v, s)
+  const response = await fetch(new URL("api/dev/stats", v.url), { headers: { authorization: s.auth } })
+  if (!response.ok) throw new VerifyError(`stats answered ${response.status}`)
+  const meter = await response.json() as { counters: Counters; billingVersion?: number }
+  const counters = meter.counters
+  const sqlPhysical = rowsWritten(counters)
+  const kvKeysPut = sum(counters, (key) => key.endsWith(".kvKeysPut"))
+  const kvKeysDeleted = sum(counters, (key) => key.endsWith(".kvKeysDeleted"))
+  const alarmWrites = sum(counters, (key) => key.endsWith(".alarmWrites"))
   const phase: Phase = {
     name,
     counters,
+    billingVersion: meter.billingVersion ?? 0,
+    billableWrites: { sqlPhysical, kvKeysPut, kvKeysDeleted, setAlarm: alarmWrites, total: sqlPhysical + kvKeysPut + kvKeysDeleted + alarmWrites },
     interObjectCalls: interObjectCalls(counters),
     rowsWritten: { total: rowsWritten(counters), byObject: byObject(counters, "rowsWritten") },
     alarms: {
@@ -177,6 +190,7 @@ const suite: Suite = {
       total: median(warmPrompts.map((p) => p.rowsWritten.total)),
       byObject: Object.fromEntries(KIND_PARTS.map((kind) => [kind, median(warmPrompts.map((p) => p.rowsWritten.byObject[kind] ?? 0))])),
     }
+    const warmBillableMedian = median(warmPrompts.map((p) => p.billableWrites.total))
     phases.push(warmPrompts[WARM_RUNS - 1]!)
     phases.push(await measure(v, s, `quiet minute after the prompt (${QUIET_MS / 1000} s)`, normal.roomId))
 
@@ -208,6 +222,7 @@ const suite: Suite = {
       phases,
       warmPrompts,
       warmMedian,
+      warmBillableMedian,
       errors: { liveRows: liveErrors, persistedRows: persistedErrors },
     }
     if (EVIDENCE) {
@@ -216,16 +231,17 @@ const suite: Suite = {
     }
 
     const quietPhases = [phases[1], phases[3]]
-    console.log(`  ${BASELINE ? "baseline" : "gate"}: physical rows median ${warmMedian.total}/${ROW_GATE}, inter-object RPC ${warmPrompts.map((p) => p.interObjectCalls).join(", ")}, error rows live ${liveErrors} persisted ${persistedErrors}`)
+    console.log(`  ${BASELINE ? "baseline" : "gate"}: billable writes median ${warmBillableMedian}/${ROW_GATE} (SQL ${warmMedian.total}), inter-object RPC ${warmPrompts.map((p) => p.interObjectCalls).join(", ")}, error rows live ${liveErrors} persisted ${persistedErrors}`)
     gate(QUIET_MS >= 60_000, "the quiet gate requires at least 60 seconds; shorter intervals are smoke runs only")
     gate(warmPrompts.every((p) => "owner.rowsWritten" in p.counters), "physical owner.rowsWritten counters are missing")
-    gate(warmMedian.total <= ROW_GATE, `OWNER wrote a median of ${warmMedian.total} rows across ${WARM_RUNS} warm prompts, the gate is ${ROW_GATE}`)
+    gate(warmPrompts.every((p) => p.billingVersion === 1), "the billable-write gate requires successful KV-key and setAlarm meters; legacy SQL-only counters are incomplete")
+    gate(warmBillableMedian <= ROW_GATE, `OWNER wrote a median of ${warmBillableMedian} billable rows across ${WARM_RUNS} warm prompts (${warmMedian.total} SQL rows), the gate is ${ROW_GATE}`)
     for (const phase of [...warmPrompts, ...phases]) {
       gate(phase.interObjectCalls === 0, `${phase.name}: ${phase.interObjectCalls} calls between objects`)
     }
     for (const phase of quietPhases) {
       if (!phase) throw new VerifyError("missing quiet measurement")
-      gate(phase.rowsWritten.total === 0, `${phase.name}: ${phase.rowsWritten.total} physical rows written`)
+      gate(phase.billableWrites.total === 0, `${phase.name}: ${phase.billableWrites.total} billable rows written`)
       gate(phase.alarms.setAlarm.total === 0, `${phase.name}: ${phase.alarms.setAlarm.total} setAlarm calls`)
       gate(phase.alarms.armedAgent === null, `${phase.name}: ${describeAlarm(phase.alarms.armedAgent)}`)
     }

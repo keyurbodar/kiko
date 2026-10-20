@@ -4,9 +4,9 @@ import { snippetOf, type SearchOptions, type SearchPage } from "../room/search"
 export const UTC_DAY = 86_400_000
 export const HISTORY_ARCHIVE_STEPS = [
   `CREATE TABLE IF NOT EXISTS history_archive_state (
-    id INTEGER PRIMARY KEY CHECK (id = 1), written_day TEXT, pending TEXT
-  )`,
-  `CREATE TABLE IF NOT EXISTS history_archive_pending (kind TEXT NOT NULL, n INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(kind, n)) WITHOUT ROWID`,
+    room_id TEXT PRIMARY KEY, written_day TEXT, pending TEXT
+  ) WITHOUT ROWID`,
+  `CREATE TABLE IF NOT EXISTS history_archive_pending (room_id TEXT NOT NULL, kind TEXT NOT NULL, n INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(room_id, kind, n)) WITHOUT ROWID`,
 ] as const
 
 export type ArchivedMessage = {
@@ -29,21 +29,23 @@ export interface HistoryStore {
   around(seq: number, before: number, after: number): Message[]
   search(query: string, options: SearchOptions): SearchPage
   overrides(ids: string[]): ArchivedMessage[]
+  hydrate(row: ArchivedMessage): void
 }
 
 export interface HistoryArchiveIO {
   writeDay(roomId: string, day: string, rows: ArchivedMessage[]): Promise<void>
   readDay(roomId: string, day: string): Promise<ArchivedMessage[]>
   listDays(roomId: string): Promise<string[]>
+  eraseRoom(roomId: string): Promise<void>
 }
 
 const dayOf = (at: number) => new Date(at).toISOString().slice(0, 10)
 const ordered = (rows: ArchivedMessage[]) => rows.sort((a, b) => a.seq - b.seq)
 const merge = (older: ArchivedMessage[], newer: ArchivedMessage[]) => ordered([...new Map([...older, ...newer].map((row) => [row.id, row])).values()])
 
-/** One instance per room. The owner must keep it alive while its request is in flight. */
 export class HistoryArchive {
   private running?: Promise<void>
+  private erased = false
 
   constructor(
     private readonly roomId: string,
@@ -53,7 +55,7 @@ export class HistoryArchive {
   ) {}
 
   afterRun(): Promise<void> {
-    if (!this.archive) return Promise.resolve()
+    if (!this.archive || this.erased) return Promise.resolve()
     return this.running ??= this.moveDay().finally(() => { this.running = undefined })
   }
 
@@ -64,20 +66,57 @@ export class HistoryArchive {
     const state = this.store.state()
     if (state.writtenDay === today && !state.pending) return
     let pending = state.pending
+    let existing: ArchivedMessage[]
     if (!pending) {
       const day = this.store.oldestDay(Date.parse(today) - 30 * UTC_DAY)
       if (!day) return
       const snapshot = this.store.snapshot(day)
       if (!snapshot.length) return
-      const previous = await archive.readDay(this.roomId, day)
-      pending = { day, rows: merge(previous, snapshot), snapshot }
+      existing = await archive.readDay(this.roomId, day)
+      pending = { day, rows: merge(existing, snapshot), snapshot }
       this.store.prepare(pending)
-    }
-    const existing = await archive.readDay(this.roomId, pending.day)
-    if (existing.length !== pending.rows.length || existing.some((row, index) => JSON.stringify(row) !== JSON.stringify(pending.rows[index]))) {
-      await archive.writeDay(this.roomId, pending.day, pending.rows)
-    }
+    } else existing = await archive.readDay(this.roomId, pending.day)
+    const same = existing.length === pending.rows.length && existing.every((row, index) => {
+      const next = pending.rows[index]!
+      // The fingerprint already covers the row and its reactions, so only the derived preview needs its own look.
+      return row.id === next.id && row.fingerprint === next.fingerprint && JSON.stringify(row.preview) === JSON.stringify(next.preview)
+    })
+    if (!same) await archive.writeDay(this.roomId, pending.day, pending.rows)
     this.store.finish(pending, dayOf(this.now()))
+  }
+
+  async erase(): Promise<void> {
+    this.erased = true
+    await this.running?.catch(() => {})
+    await this.archive?.eraseRoom(this.roomId)
+  }
+
+  private async archived(id: string): Promise<ArchivedMessage | undefined> {
+    if (!this.archive || this.erased) return undefined
+    for (const day of await this.archive.listDays(this.roomId)) {
+      const row = (await this.archive.readDay(this.roomId, day)).find((row) => row.id === id)
+      if (row) return row
+    }
+    return undefined
+  }
+
+  async hydrate(id: string): Promise<boolean> {
+    const hot = this.store.overrides([id])[0]
+    if (hot) return hot.message !== null
+    const row = await this.archived(id)
+    if (!row || this.erased) return false
+    this.store.hydrate(row)
+    return this.store.overrides([id])[0]?.message != null
+  }
+
+  async mutate<T>(id: string, apply: () => T): Promise<T> {
+    if (this.erased) throw new Error("Chat deleted")
+    if (!this.store.overrides([id]).length) {
+      const row = await this.archived(id)
+      if (row && !this.erased) this.store.hydrate(row)
+    }
+    if (this.erased) throw new Error("Chat deleted")
+    return apply()
   }
 
   private current(rows: ArchivedMessage[]): Message[] {
@@ -87,8 +126,11 @@ export class HistoryArchive {
 
   async around(seq: number, before: number, after: number): Promise<Message[]> {
     const hot = this.store.around(seq, before, after)
-    if (!this.archive || before === 0 && after === 0) return hot
-    const candidates = new Map(hot.map((message) => [message.id, message]))
+    const complete = hot.filter((m) => m.seq < seq).length === before && hot.filter((m) => m.seq >= seq).length === after
+    const recent = hot.every((message) => message.at >= Date.parse(dayOf(this.now())) - 30 * UTC_DAY)
+    const anchored = after === 0 || hot.some((message) => message.seq <= seq)
+    if (!this.archive || this.erased || before === 0 && after === 0 || complete && recent && anchored && hot.every((m) => !m.replyTo || m.reply)) return hot
+    const candidates = new Map<string, Message>(hot.map((message) => [message.id, message]))
     const previews = new Map<string, ReplyPreview>()
     for (const day of await this.archive.listDays(this.roomId)) {
       const rows = await this.archive.readDay(this.roomId, day)
@@ -107,6 +149,10 @@ export class HistoryArchive {
       const floor = Math.min(seq, older[0]?.seq ?? seq)
       if (older.length === before && newer.length === after && rows.some((row) => row.seq <= floor) && [...older, ...newer].every((m) => !m.replyTo || m.reply || previews.has(m.replyTo))) break
     }
+    for (const row of this.store.overrides([...candidates.keys()])) {
+      if (row.message) candidates.set(row.id, row.message)
+      else candidates.delete(row.id)
+    }
     for (const row of this.store.overrides([...candidates.values()].flatMap((m) => m.replyTo ? [m.replyTo] : []))) {
       if (row.preview) previews.set(row.id, row.preview)
     }
@@ -120,7 +166,8 @@ export class HistoryArchive {
   async search(query: string, options: SearchOptions = {}, budgetMs = 40): Promise<SearchPage> {
     const size = Math.min(Math.max(options.limit || 20, 1), 50)
     const hot = this.store.search(query, { ...options, limit: size })
-    if (!this.archive || hot.next !== null) return hot
+    const recent = hot.results.every((hit) => hit.at >= Date.parse(dayOf(this.now())) - 30 * UTC_DAY)
+    if (!this.archive || this.erased || hot.next !== null && recent) return hot
     const words = query.replaceAll('"', "").trim().split(/\s+/).filter(Boolean).slice(0, 12)
     if (!words.length) return hot
     const literal = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -163,6 +210,6 @@ export class HistoryArchive {
       }
     }
     results.sort((a, b) => b.seq - a.seq)
-    return { results: results.slice(0, size), next: results.length > size ? results[size - 1]!.seq : null }
+    return { results: results.slice(0, size), next: results.length > size || hot.next !== null ? results[size - 1]!.seq : null }
   }
 }

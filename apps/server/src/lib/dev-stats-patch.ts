@@ -3,11 +3,11 @@
 
 export type DevCounterPort = {
   bump(key: string, n?: number): void
+  instrumentation(kind: string, complete: boolean): void
   track(kind: string, cursor: SqlStorageCursor<Record<string, SqlStorageValue>>, write: boolean, sql: string): void
 }
 
 const KV = ["get", "put", "delete", "list", "setAlarm", "getAlarm", "deleteAlarm", "transaction"] as const
-const READ = /^\s*(SELECT|PRAGMA)/i
 const MAX_LABEL = 240
 const MAX_LABELS = 4_000
 const labels = new Map<string, string>()
@@ -43,7 +43,7 @@ export function patchStorage(ctx: DurableObjectState, kind: string, port: DevCou
       value: (query: string, ...bindings: SqlStorageValue[]) => {
         const cursor = exec(query, ...bindings)
         port.bump(`${kind}.statements`)
-        port.track(kind, cursor, !READ.test(query), sqlLabel(query))
+        port.track(kind, cursor, true, sqlLabel(query))
         return cursor
       },
     })
@@ -54,12 +54,25 @@ export function patchStorage(ctx: DurableObjectState, kind: string, port: DevCou
         configurable: true,
         value: (...args: unknown[]) => {
           port.bump(`${kind}.kv.${name}`)
-          return Reflect.apply(fn as (...a: unknown[]) => unknown, ctx.storage, args)
+          const result = Reflect.apply(fn as (...a: unknown[]) => unknown, ctx.storage, args)
+          if (name !== "put" && name !== "delete" && name !== "setAlarm") return result
+          return Promise.resolve(result).then((value) => {
+            if (name === "put") {
+              const keys = typeof args[0] === "string" ? 1 : Object.keys(args[0] as Record<string, unknown>).length
+              port.bump(`${kind}.kvKeysPut`, keys)
+            } else if (name === "delete") {
+              port.bump(`${kind}.kvKeysDeleted`, typeof value === "number" ? value : value === true ? 1 : 0)
+            } else {
+              port.bump(`${kind}.alarmWrites`)
+            }
+            return value
+          })
         },
       })
     }
-  } catch {
-    // Some runtimes expose storage as a frozen object (or a read-only property). The counters then read
-    // zero for this object. Keep the dev server running rather than fail its constructor.
+    port.instrumentation(kind, true)
+  } catch (error) {
+    port.instrumentation(kind, false)
+    throw new Error(`Development storage instrumentation failed for ${kind}`, { cause: error })
   }
 }

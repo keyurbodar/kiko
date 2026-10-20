@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
-import { type AgentEvent, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
+import { type AgentEvent, type Conversation, type EntryRecord, type Harness, type SnapshotEvent, type SubmissionId, watchEvents } from "@earendil-works/pi-durable"
 import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { RunProgress } from "@kiko/agent/mid-run"
 import { classifyRunError, runErrorDetail } from "./run-error"
@@ -85,12 +85,14 @@ export class Outbox {
   /** What the current state says beside the three dots, such as "retrying, 2 of 3". */
   private detail: string | undefined
   private backgroundRunning = false
+  private readonly idleWaiters = new Set<{ entry: number; resolve(): void; reject(error: Error): void }>()
 
   constructor(
     storage: DurableObjectStorage,
     private readonly room: () => RoomPort | null,
     private readonly prefix: () => string,
     private readonly now: () => number = Date.now,
+    private readonly agent: string,
   ) {
     this.sql = storage.sql
   }
@@ -107,9 +109,36 @@ export class Outbox {
     this.run = null
     this.state = "idle"
     await this.guard(() => this.sync(stream.snapshot, false))
+    this.notifyIdle()
     stream.start(async (events) => {
-      for (const event of events) await this.guard(() => this.apply(event))
+      for (const event of events) {
+        await this.guard(() => this.apply(event))
+        this.notifyIdle()
+      }
     })
+    void stream.closed.then(() => {
+      for (const waiter of this.idleWaiters) waiter.reject(new Error("Outbox closed before its final reply was delivered"))
+      this.idleWaiters.clear()
+    })
+  }
+
+  async settle(root: Conversation): Promise<void> {
+    const view = await root.context(context)
+    const entry = view.entries.reduce((last, row) => Math.max(last, row.id), 0)
+    if (this.lastEntry >= entry && !this.run) return
+    const done = Promise.withResolvers<void>()
+    this.idleWaiters.add({ entry, resolve: () => done.resolve(), reject: done.reject })
+    this.notifyIdle()
+    await done.promise
+  }
+
+  private notifyIdle(): void {
+    if (this.run) return
+    for (const waiter of this.idleWaiters) {
+      if (this.lastEntry < waiter.entry) continue
+      this.idleWaiters.delete(waiter)
+      waiter.resolve()
+    }
   }
 
   async workers(rows: readonly WorkerRow[]): Promise<void> {
@@ -123,7 +152,7 @@ export class Outbox {
   }
 
   clear(): void {
-    this.sql.exec("DELETE FROM outbox")
+    this.sql.exec("DELETE FROM outbox WHERE agent = ?", this.agent)
   }
 
   /** The run that is going now, or null between runs. */
@@ -271,8 +300,8 @@ export class Outbox {
   }
 
   private async start(id: string, cursor: number): Promise<void> {
-    this.sql.exec("INSERT OR IGNORE INTO outbox (run_id, attempt, cursor, blocks, posted) VALUES (?, 0, ?, '[]', 0)", id, cursor)
-    const row = this.sql.exec<Row>("SELECT * FROM outbox WHERE run_id = ?", id).one()
+    this.sql.exec("INSERT OR IGNORE INTO outbox (agent, run_id, attempt, cursor, blocks, posted) VALUES (?, ?, 0, ?, '[]', 0)", this.agent, id, cursor)
+    const row = this.sql.exec<Row>("SELECT * FROM outbox WHERE run_id = ? AND agent = ?", id, this.agent).one()
     this.run = this.load(row)
     this.run.quiet = this.nextQuiet
     await this.setStatus("typing")
@@ -313,7 +342,7 @@ export class Outbox {
   }
 
   private failureOf(runId: string): Failure | null {
-    const row = this.sql.exec<{ failure: string | null }>("SELECT failure FROM outbox WHERE run_id = ?", runId).toArray()[0]
+    const row = this.sql.exec<{ failure: string | null }>("SELECT failure FROM outbox WHERE run_id = ? AND agent = ?", runId, this.agent).toArray()[0]
     return row?.failure ? (JSON.parse(row.failure) as Failure) : null
   }
 
@@ -365,7 +394,7 @@ export class Outbox {
       if (block === undefined) break
       await room.post(run.id, run.attempt, run.posted, block)
       run.posted++
-      this.sql.exec("UPDATE outbox SET posted = ?, attempt = ? WHERE run_id = ?", run.posted, run.attempt, run.id)
+      this.sql.exec("UPDATE outbox SET posted = ?, attempt = ? WHERE run_id = ? AND agent = ? AND (posted != ? OR attempt != ?)", run.posted, run.attempt, run.id, this.agent, run.posted, run.attempt)
     }
     while (run.reactions.length) {
       const reaction = run.reactions[0]
@@ -387,7 +416,7 @@ export class Outbox {
     if (failure) await this.reportError(id, failure)
     const working = this.backgroundRunning
     await this.room()?.endRun(id, inputs, working)
-    this.sql.exec("DELETE FROM outbox WHERE run_id = ?", id)
+    this.sql.exec("DELETE FROM outbox WHERE run_id = ? AND agent = ?", id, this.agent)
     if (this.run?.id === id) this.run = null
     this.state = working ? "working" : "idle"
     if (!this.run) await this.setStatus(this.backgroundRunning ? "working" : "idle")
@@ -403,7 +432,7 @@ export class Outbox {
   }
 
   private openRows(): Row[] {
-    return this.sql.exec<Row>("SELECT run_id, attempt, cursor, blocks, posted, failure FROM outbox ORDER BY rowid").toArray()
+    return this.sql.exec<Row>("SELECT run_id, attempt, cursor, blocks, posted, failure FROM outbox WHERE agent = ? ORDER BY cursor, run_id", this.agent).toArray()
   }
 
   private load(row: Row): Run {
@@ -426,13 +455,19 @@ export class Outbox {
 
   private save(run: Run): void {
     this.sql.exec(
-      "UPDATE outbox SET attempt = ?, cursor = ?, blocks = ?, posted = ?, failure = ? WHERE run_id = ?",
+      "UPDATE outbox SET attempt = ?, cursor = ?, blocks = ?, posted = ?, failure = ? WHERE run_id = ? AND agent = ? AND (attempt != ? OR cursor != ? OR blocks != ? OR posted != ? OR failure IS NOT ?)",
       run.attempt,
       run.cursor,
       JSON.stringify(run.blocks),
       run.posted,
       run.failure ? JSON.stringify(run.failure) : null,
       run.id,
+      this.agent,
+      run.attempt,
+      run.cursor,
+      JSON.stringify(run.blocks),
+      run.posted,
+      run.failure ? JSON.stringify(run.failure) : null,
     )
   }
 }

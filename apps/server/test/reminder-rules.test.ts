@@ -2,14 +2,14 @@ import { expect, test } from "bun:test"
 import type { RoomId } from "@kiko/protocol"
 import { MAX_FAILS, type DeliverRun, Reminders, type RunDelivery } from "../src/user/reminders"
 import { sqlWith } from "./sql-shim"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 
 const ROOM = "01J0000000000000000000000R" as RoomId
 const MIN = 60_000
 const DAY = 86_400_000
 
 function setup(results: RunDelivery[] = [], runFails = false) {
-  const sql = sqlWith(USER_STEPS)
+  const sql = sqlWith(OWNER_STEPS)
   sql.exec("INSERT INTO room_directory (room_id) VALUES (?)", ROOM)
   const clock = { now: Date.UTC(2026, 9, 10, 12) }
   const scheduler = { sync: async () => {} }

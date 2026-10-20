@@ -117,8 +117,8 @@ type NapInput = { span: Span; items: Item[] } | { span: Span; halves: [Node, Nod
 // A tree's table and its fail counter. The object's schema list runs these, so a tree never creates a table on use.
 export function treeSteps(name: string): Step[] {
   return [
-    `CREATE TABLE IF NOT EXISTS ${name} (size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`,
-    `CREATE TABLE IF NOT EXISTS ${name}_fails (size INTEGER NOT NULL, k INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (size, k)) WITHOUT ROWID`,
+    `CREATE TABLE IF NOT EXISTS ${name} (room_id TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL, k INTEGER NOT NULL, text TEXT NOT NULL, at_from INTEGER NOT NULL, at_to INTEGER NOT NULL, PRIMARY KEY (room_id, size, k)) WITHOUT ROWID`,
+    `CREATE TABLE IF NOT EXISTS ${name}_fails (room_id TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL, k INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (room_id, size, k)) WITHOUT ROWID`,
   ]
 }
 
@@ -128,12 +128,13 @@ export class Tree {
     private readonly name: string,
     readonly shape: Shape,
     private readonly items: (lo: number, hi: number) => Item[],
+    private readonly roomId: string = "",
   ) {}
 
   node(span: Span): Node | null {
     const size = span.hi - span.lo
     const row = this.sql
-      .exec<{ text: string; at_from: number; at_to: number }>(`SELECT text, at_from, at_to FROM ${this.name} WHERE size = ? AND k = ?`, size, span.lo / size)
+      .exec<{ text: string; at_from: number; at_to: number }>(`SELECT text, at_from, at_to FROM ${this.name} WHERE (size = ?1 AND k = ?2) AND ${this.name}.room_id = ?3`, size, span.lo / size, this.roomId)
       .toArray()[0]
     return row ? { text: row.text, from: row.at_from, to: row.at_to } : null
   }
@@ -142,13 +143,13 @@ export class Tree {
     const size = span.hi - span.lo
     const k = span.lo / size
     return (
-      this.sql.exec(`INSERT OR IGNORE INTO ${this.name} (size, k, text, at_from, at_to) VALUES (?, ?, ?, ?, ?)`, size, k, node.text, node.from, node.to)
+      this.sql.exec(`INSERT OR IGNORE INTO ${this.name} (size, k, text, at_from, at_to, room_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`, size, k, node.text, node.from, node.to, this.roomId)
         .rowsWritten > 0
     )
   }
 
   forget(pos: number): number {
-    return this.sql.exec(`DELETE FROM ${this.name} WHERE k * size <= ? AND (k + 1) * size > ?`, pos, pos).rowsWritten
+    return this.sql.exec(`DELETE FROM ${this.name} WHERE (k * size <= ?1 AND (k + 1) * size > ?2) AND ${this.name}.room_id = ?3`, pos, pos, this.roomId).rowsWritten
   }
 
   pending(settled: number, limit: number): Span[] {
@@ -160,9 +161,9 @@ export class Tree {
       return this.node({ lo: span.lo, hi: mid }) !== null && this.node({ lo: mid, hi: span.hi }) !== null
     }
     for (let size = this.shape.page; size <= settled && out.length < limit; size *= 2) {
-      const { n, k: frontier } = this.sql.exec<{ n: number; k: number | null }>(`SELECT count(*) AS n, max(k) AS k FROM ${this.name} WHERE size = ?`, size).one()
+      const { n, k: frontier } = this.sql.exec<{ n: number; k: number | null }>(`SELECT COUNT(*) AS n, MAX(k) AS k FROM ${this.name} WHERE size = ?1 AND ${this.name}.room_id = ?2`, size, this.roomId).one()
       if (frontier !== null && n < frontier + 1) {
-        const built = new Set(this.sql.exec<{ k: number }>(`SELECT k FROM ${this.name} WHERE size = ?`, size).toArray().map((r) => r.k))
+        const built = new Set(this.sql.exec<{ k: number }>(`SELECT k FROM ${this.name} WHERE size = ?1 AND ${this.name}.room_id = ?2`, size, this.roomId).toArray().map((r) => r.k))
         for (let k = 0; k < frontier && out.length < limit; k++) {
           const span = { lo: k * size, hi: (k + 1) * size }
           if (!built.has(k) && ready(span)) out.push(span)
@@ -198,8 +199,8 @@ export class Tree {
 
   failed(span: Span): number {
     const size = span.hi - span.lo
-    this.sql.exec(`INSERT INTO ${this.name}_fails (size, k, n) VALUES (?, ?, 1) ON CONFLICT(size, k) DO UPDATE SET n = n + 1`, size, span.lo / size)
-    return this.sql.exec<{ n: number }>(`SELECT n FROM ${this.name}_fails WHERE size = ? AND k = ?`, size, span.lo / size).one().n
+    this.sql.exec(`INSERT INTO ${this.name}_fails (size, k, n, room_id) VALUES (?1, ?2, 1, ?3) ON CONFLICT(size, k, room_id) DO UPDATE SET n = n + 1`, size, span.lo / size, this.roomId)
+    return this.sql.exec<{ n: number }>(`SELECT n FROM ${this.name}_fails WHERE (size = ?1 AND k = ?2) AND ${this.name}_fails.room_id = ?3`, size, span.lo / size, this.roomId).one().n
   }
 
   nodeFor(input: NapInput, text: string): Node {

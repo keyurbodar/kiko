@@ -1,3 +1,4 @@
+import { RoomSocket } from "./room-socket"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import type { RoomEvent, RoomToClient } from "@kiko/protocol"
 import { Miniflare } from "miniflare"
@@ -12,7 +13,8 @@ beforeAll(async () => {
 		script: await bundleWorker(new URL("./room-worker.ts", import.meta.url)),
 		compatibilityDate: "2026-07-01",
 		compatibilityFlags: ["nodejs_compat"],
-		durableObjects: { ROOM: { className: "RoomProbe", useSQLite: true } },
+		bindings: { SESSION_SECRET: "test-session-secret-at-least-32-chars" },
+    durableObjects: { OWNER: { className: "OwnerProbe", useSQLite: true } },
 	})
 	origin = (await mf.ready).origin
 }, 60_000)
@@ -28,7 +30,7 @@ class Client {
 	frames: RoomToClient[] = []
 	closed: number | null = null
 	private waiters: (() => void)[] = []
-	private constructor(readonly ws: WebSocket) {
+	private constructor(readonly ws: RoomSocket) {
 		ws.onmessage = (e) => {
 			this.frames.push(JSON.parse(String(e.data)))
 			for (const w of this.waiters.splice(0)) w()
@@ -39,7 +41,7 @@ class Client {
 		}
 	}
 	static async open(room: string, lastSeq: number | null = 0): Promise<Client> {
-		const ws = new WebSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
+		const ws = new RoomSocket(`${origin.replace(/^http/, "ws")}/ws/${room}`)
 		await new Promise((resolve, reject) => {
 			ws.onopen = resolve
 			ws.onerror = reject

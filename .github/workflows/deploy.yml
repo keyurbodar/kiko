@@ -99,9 +99,13 @@ jobs:
         # refused outright now, so a stale deploy fails loudly instead of silently rolling
         # production back, whichever way it was started.
         run: |
-          version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest.json)"
+          version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest-owner.json)"
           case "$version" in *[!0-9.]*|"") echo "unreadable built version: $version" >&2; exit 1 ;; esac
-          live_version="$(curl -sf https://app.kiko.works/releases/latest.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
+          live_version="$(curl -sf https://app.kiko.works/releases/latest-owner.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
+          # The first release that serves an owner index has no latest-owner.json live yet. Fall
+          # back to the frozen legacy index, which is still served, so the version guards are not
+          # silently skipped on that release.
+          [ -n "$live_version" ] || live_version="$(curl -sf https://app.kiko.works/releases/latest.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
           live="$(curl -sf "https://app.kiko.works/releases/$version/manifest.json" || true)"
           case "$live" in *"\"version\": \"$version\""*) ;; *) live="" ;; esac
           if [ -n "$live" ] && [ "$live" != "$(cat "dist-release/$version/manifest.json")" ]; then
@@ -120,20 +124,26 @@ jobs:
         run: |
           store="$RUNNER_TEMP/releases"
           mkdir -p "$store"
-          live="$(curl -sf https://app.kiko.works/releases/latest.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
+          live="$(curl -sf https://app.kiko.works/releases/latest-owner.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
+          # Same first-release fallback as the version guard: before this release, only the frozen
+          # legacy index was ever served.
+          [ -n "$live" ] || live="$(curl -sf https://app.kiko.works/releases/latest.json | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' || true)"
           bun scripts/sync-releases.ts "$store" https://app.kiko.works/releases $(git tag -l 'v*' | sed 's/^v//') $live
-          version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest.json)"
+          version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' dist-release/latest-owner.json)"
           rm -rf "$store/$version" && cp -r "dist-release/$version" "$store/$version"
           rm -rf apps/web-solid/dist/releases
           cp -r "$store" apps/web-solid/dist/releases
-          cp dist-release/latest.json apps/web-solid/dist/releases/
+          cp dist-release/latest-owner.json apps/web-solid/dist/releases/
+          # Legacy clients bake in the pre-OwnerDO bindings. Keep their release index frozen;
+          # they must use the new installer and explicitly confirm the destructive reset.
+          curl -fsS https://app.kiko.works/releases/latest.json -o apps/web-solid/dist/releases/latest.json
       - name: deploy the backend
         # The front door and the installer deploy here, so the backend must too. Otherwise it keeps whatever
         # version its owner last clicked Update to and silently runs the old schema steps, which is how a
         # shipped write fix can sit in the repo for two releases and never reach a single room.
         #
         # It goes before the front door so the client is never newer than the backend it talks to. A backend
-        # ahead of its client is always fine; a client ahead of its backend can be refused.
+        # uses an explicit protocol epoch; existing tabs must reload after this breaking deployment.
         working-directory: apps/server
         env:
           # dev-guard folds on this literal. Without it the dev routes and counters stay in the bundle.

@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test"
 import { Life } from "@kiko/memory/life"
 import { MemoryCapture } from "../src/user/memory-capture"
-import { USER_STEPS } from "../src/user/schema"
+import { OWNER_STEPS } from "../src/owner/schema"
 import { sqlWith } from "./sql-shim"
 
 const SECRET = "The human's private booking code is saffron-729."
 const now = Date.UTC(2026, 9, 19)
 
 function setup() {
-  const sql = sqlWith(USER_STEPS)
+  const sql = sqlWith(OWNER_STEPS)
   const settings = new Map<string, string>()
   const life = new Life(sql, (fn) => fn(), { get: (k) => settings.get(k) ?? null, set: (k, v) => void settings.set(k, v) })
   for (let i = 0; i < 32; i++) {
@@ -17,7 +17,9 @@ function setup() {
   const mem = new MemoryCapture({
     sql,
     life,
-    alarms: { setWakeup: async () => {}, clearWakeup: async () => {}, dueWakeups: async () => [] },
+    chat: () => null,
+    fetch: async () => { throw new Error("unexpected transport in summary fixture") },
+    countOutgoing: () => {},
     label: "test",
     credentials: () => { throw new Error("No credentials needed for summary tests") },
     turn: async () => { throw new Error("No model needed for summary tests") },

@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { Database } from "bun:sqlite"
 import { OWNER_STEPS } from "../src/owner/schema"
+import { ownerRoomFixture } from "./owner-room-fixture"
+import { reactionBrief } from "../src/room/reactions"
+import type { AgentSlug, MessageId } from "@kiko/protocol"
 import { sqlWith } from "./sql-shim"
 
 type Binding = string | number | null
@@ -25,11 +28,16 @@ function plan(query: string, args: Binding[]): string[] {
 	return db.query<{ detail: string }, Binding[]>(`EXPLAIN QUERY PLAN ${query}`).all(...args).map((row) => row.detail)
 }
 
+/** The plan line whose very first access is this alias: "SCAN messages_fts" is not a scan of "m". */
+function accessOf(details: string[], table: string): string[] {
+	return details.filter((detail) => new RegExp(`^(?:SEARCH|SCAN) ${table}(?: |$)`, "i").test(detail))
+}
+
 function expectSearch(details: string[], table: string, bounds: string[]): void {
-	const access = details.filter((detail) => new RegExp(`\\b(?:SEARCH|SCAN) ${table}\\b`).test(detail))
+	const access = accessOf(details, table)
 	expect(access.length, details.join("\n")).toBeGreaterThan(0)
 	for (const detail of access) {
-		expect(detail).toContain(`SEARCH ${table} USING`)
+		expect(detail).toMatch(new RegExp(`^SEARCH ${table} (?:EXISTS )?USING`))
 		const constraints = detail.slice(detail.lastIndexOf("(") + 1, -1).split(" AND ")
 		for (const bound of bounds) expect(constraints, detail).toContain(bound)
 	}
@@ -146,7 +154,7 @@ const queries: LogQuery[] = [
 	},
 ]
 
-describe("proposed room SQL on OWNER_STEPS with 10k messages per room", () => {
+describe("shared room index contracts with 10k messages per room", () => {
 	for (const query of queries) {
 		test(query.name, () => {
 			const details = plan(query.sql, query.args)
@@ -191,12 +199,79 @@ describe("proposed room SQL on OWNER_STEPS with 10k messages per room", () => {
 	})
 })
 
-// Production room/search SQL still uses per-room tables and rowid joins.
-// These remain explicit gaps until the parent wires the shared schema and chooses the FTS layout.
-describe("pending production integration", () => {
-	test.todo("capture RoomLog statements below the storage adapter and EXPLAIN the actual physical SQL")
-	test.todo("reactionBrief correlated event and message joins use room keys before events_react is removed")
-	test.todo("FTS MATCH drives indexed message lookups without messages.rowid")
-	test.todo("search sequence cursor excludes its anchor and filters deleted, private, and addressed messages")
-	test.todo("search time cursor is strict across overlapping room sequence numbers")
+function production() {
+  const captured: { query: string; bindings: unknown[] }[] = []
+  const fixture = ownerRoomFixture({ db, roomId: ROOM, onQuery: (query, bindings) => captured.push({ query, bindings }) })
+  captured.length = 0
+  const plans = () => captured.filter(({ query }) => /^\s*SELECT/i.test(query)).map(({ query, bindings }) => ({
+    query, details: db.query<{ detail: string }, never[]>(`EXPLAIN QUERY PLAN ${query}`).all(...bindings as never[]).map((row) => row.detail),
+  }))
+  return { ...fixture, captured, plans }
+}
+
+describe("actual production SQL below RoomLog and searchMessages", () => {
+  test("RoomLog point and history reads seek room keys", () => {
+    const f = production()
+    expect(f.log.message(id(5000))?.seq).toBe(5000)
+    expect(f.log.around(5044, 2, 2).map((message) => message.seq)).toEqual([5042, 5043, 5045, 5046])
+    const queries = f.plans().filter(({ query }) => /FROM messages/i.test(query))
+    expect(queries.length).toBeGreaterThan(2)
+    for (const { details } of queries) {
+      expectSearch(details, "messages", ["room_id=?"])
+      expect(details.join(" ")).not.toMatch(/SCAN messages\b/)
+    }
+  })
+
+  test("reactionBrief uses actual room-scoped message and event lookups", () => {
+    const f = production()
+    f.log.react(id(5000) as MessageId, { kind: "human" }, "👍")
+    f.captured.length = 0
+    expect(reactionBrief(f.log, f.sql, "ada" as AgentSlug).text).toContain("👍")
+    const reaction = f.plans().find(({ query }) => /JOIN messages/i.test(query))
+    expect(reaction).toBeDefined()
+    expectSearch(reaction!.details, "r", ["room_id=?"])
+    expectSearch(reaction!.details, "m", ["room_id=?", "id=?"])
+    expectSearch(reaction!.details, "e", ["room_id=?"])
+  })
+
+  test("production FTS MATCH drives composite message lookups and excludes the sequence anchor", () => {
+    const f = production()
+    const page = f.search("needle", { before: 10000, limit: 2 })
+    expect(page.results.map((hit) => hit.seq)).toEqual([7000, 6000])
+    expect(page.next).toBe(6000)
+    const search = f.plans().find(({ query }) => /FROM messages_fts/i.test(query))
+    expect(search).toBeDefined()
+    expect(search!.details.join(" ")).toMatch(/messages_fts.*VIRTUAL TABLE INDEX/)
+    expectSearch(search!.details, "m", ["room_id=?", "seq=?"])
+    expect(search!.details.filter((detail) => /^SCAN m(?: |$)/.test(detail)), search!.details.join("\n")).toEqual([])
+    expect(f.search("needle", { before: page.next!, limit: 2 }).results.map((hit) => hit.seq)).toEqual([5000, 4000])
+  })
+
+  test("production search filters deleted, private, addressed, and other-room messages", () => {
+    const f = production()
+    const hits = f.search("needle", { limit: 50 }).results
+    expect(hits.map((hit) => hit.seq)).not.toContain(9000)
+    expect(hits.map((hit) => hit.seq)).not.toContain(8000)
+    expect(f.search("needle", { mail: true, limit: 50 }).results.map((hit) => hit.seq)).toContain(8000)
+    f.sql.exec("UPDATE messages SET text = 'foreignonly' WHERE room_id = ? AND seq = 10000", OTHER_ROOM)
+    expect(f.search("foreignonly").results).toEqual([])
+    f.sql.exec("UPDATE messages SET deleted_at = 1 WHERE room_id = ? AND seq = 10000", ROOM)
+    expect(f.search("needle", { limit: 50 }).results.map((hit) => hit.seq)).not.toContain(10000)
+    f.sql.exec("UPDATE messages SET deleted_at = NULL WHERE room_id = ? AND seq = 10000", ROOM)
+  })
+
+  test("production search time cursor is strict across overlapping room sequence numbers", () => {
+    const f = production()
+    expect(f.search("needle", { beforeAt: 1_007_000, limit: 2 }).results.map((hit) => hit.seq)).toEqual([6000, 5000])
+    const other = ownerRoomFixture({ db, roomId: OTHER_ROOM })
+    other.sql.exec("UPDATE messages SET text = 'foreignonly' WHERE room_id = ? AND seq = 10000", OTHER_ROOM)
+    expect(other.search("foreignonly", { beforeAt: 1_010_000 }).results).toEqual([])
+    expect(other.search("foreignonly", { beforeAt: 1_010_001 }).results.map((hit) => hit.seq)).toEqual([10000])
+  })
+
+  test("archive day selection uses a room and timestamp range", () => {
+    const f = production()
+    const query = "SELECT at FROM messages WHERE room_id = ? AND at < ? ORDER BY at LIMIT 1"
+    expectSearch(plan(query, [ROOM, 1_002_000]), "messages", ["room_id=?", "at<?"])
+  })
 })
